@@ -115,7 +115,7 @@ defmodule Slipdock.Inbound.Cards do
     description = description(message, fn _ -> nil end)
 
     with :ok <- room_for_files(column, description, files) do
-      extra = attrs["description"]
+      extra = with_sender(attrs["description"], user, message)
       attrs = Map.put(attrs, "description", join_description(extra, description))
 
       case Boards.create_card(column, attrs, by: user, actor: Actor.email(user)) do
@@ -126,6 +126,25 @@ defmodule Slipdock.Inbound.Cards do
         {:error, %Ecto.Changeset{} = changeset} ->
           {:reject, refusal(changeset)}
       end
+    end
+  end
+
+  @doc """
+  The line that says who really sent `message`, when it came from one of the
+  board's permitted senders rather than `user`, whose address it was (#1289);
+  nil when `user` sent it.
+  """
+  @spec sender_line(User.t(), Message.t()) :: String.t() | nil
+  def sender_line(%User{} = user, %Message{} = message) do
+    if Slipdock.Inbound.Trust.on_behalf?(message, user),
+      do: "*Sent by #{sender(message.from_name, message.from)}.*"
+  end
+
+  defp with_sender(extra, user, message) do
+    case sender_line(user, message) do
+      nil -> extra
+      line when extra in [nil, ""] -> line
+      line -> line <> "\n\n" <> extra
     end
   end
 

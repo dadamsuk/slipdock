@@ -14,6 +14,9 @@ defmodule SlipdockWeb.InboundAddressesComponent do
     * With `board` nil: the personal Quick Add address, as a section of the
       Account tab.
 
+  A board's dialog also names the board's permitted senders (#1289), who
+  may mail its card address too.
+
   Only rendered while inbound mail is on, and for a board only for somebody
   who can write to it; the same addresses are `GET /api/boards/:board/inbound`
   and `slipdock inbound`.
@@ -154,6 +157,16 @@ defmodule SlipdockWeb.InboundAddressesComponent do
             files the page in a folder (it goes in <code>Inbox</code>
             otherwise), and <code>+ Title</code>
             adds a dated section to that page.
+          </p>
+          <p
+            :if={@board.inbound_senders not in [nil, []]}
+            id={@id <> "-senders"}
+            class="mt-2 text-sm text-base-content/60"
+          >
+            The card address also takes mail from the board's permitted senders: {Enum.join(
+              @board.inbound_senders,
+              ", "
+            )}. The owner sets them in Board settings.
           </p>
           <.addresses id={@id} addresses={@addresses} rotated={@rotated} myself={@myself} />
         </div>

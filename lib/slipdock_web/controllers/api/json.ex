@@ -119,6 +119,9 @@ defmodule SlipdockWeb.API.JSON do
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
       handoff_prompt: b.handoff_prompt,
+      # Who else may mail the board's card addresses (#1289): the owner's
+      # to see, nil for anybody else.
+      inbound_senders: if(owner?(b, viewer), do: b.inbound_senders),
       default_view: Board.home_view(b),
       owner: owner_ref(b),
       shared: shared?(b, viewer),
@@ -527,6 +530,9 @@ defmodule SlipdockWeb.API.JSON do
     do: %{id: u.id, email: u.email, name: Slipdock.Accounts.User.display_name(u)}
 
   defp owner_ref(_), do: nil
+
+  defp owner?(%Board{owner_id: id}, %Slipdock.Accounts.User{id: id}) when not is_nil(id), do: true
+  defp owner?(_board, _viewer), do: false
 
   defp shared?(%Board{owner_id: nil}, _viewer), do: false
   defp shared?(%Board{}, nil), do: false

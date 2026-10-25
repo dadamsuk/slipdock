@@ -25,8 +25,10 @@ defmodule Slipdock.Inbound.Trust do
   @authserv_ids ["mx.cloudflare.net"]
 
   # `:personal` is a personal Quick Add address: no board yet, and Quick Add
-  # only offers boards the person can write to.
-  @type target :: {:board, Board.t()} | {:card, Card.t()} | :personal
+  # only offers boards the person can write to. `{:cards, board}` is one of
+  # the board's card addresses, which also take mail from the board's
+  # permitted senders (#1289, `Board.permitted_sender?/2`).
+  @type target :: {:board, Board.t()} | {:cards, Board.t()} | {:card, Card.t()} | :personal
 
   @doc """
   Why `message` is automatic and must not be answered, or nil: an
@@ -60,7 +62,8 @@ defmodule Slipdock.Inbound.Trust do
   `:ok` when `user` may act on `target` by mail, or `{:reject, reason}`:
 
     * the account is gone or disabled
-    * `From:` is not the account's address
+    * `From:` is not the account's address (nor, for a board's card
+      address, one of the board's permitted senders)
     * neither DMARC nor an aligned DKIM signature passed
     * the account can no longer write to the board (or comment, for a card)
   """
@@ -70,9 +73,8 @@ defmodule Slipdock.Inbound.Trust do
       not active?(user) ->
         {:reject, "This address is no longer active."}
 
-      not own_mail?(message, user) ->
-        {:reject,
-         "Mail to this address has to come from the address of the account it belongs to."}
+      not (own_mail?(message, user) or permitted?(message, target)) ->
+        {:reject, wrong_sender(target)}
 
       not authenticated?(message) ->
         {:reject,
@@ -181,9 +183,30 @@ defmodule Slipdock.Inbound.Trust do
 
   defp own_mail?(_, _), do: false
 
+  @doc """
+  Whether `message` comes from somebody other than `user`: one of the
+  board's permitted senders (#1289). What they send is written as `user`,
+  so it says who it was really from.
+  """
+  @spec on_behalf?(Message.t(), User.t()) :: boolean()
+  def on_behalf?(%Message{} = message, %User{} = user), do: not own_mail?(message, user)
+
+  defp permitted?(%Message{from: from}, {:cards, %Board{} = board}),
+    do: Board.permitted_sender?(board, from)
+
+  defp permitted?(_message, _target), do: false
+
+  defp wrong_sender({:cards, _board}),
+    do:
+      "Mail to this address has to come from the address of the account it belongs to, " <>
+        "or from one the board's owner has allowed."
+
+  defp wrong_sender(_target),
+    do: "Mail to this address has to come from the address of the account it belongs to."
+
   defp allowed?(_user, :personal), do: true
 
-  defp allowed?(user, {:board, %Board{} = board}),
+  defp allowed?(user, {kind, %Board{} = board}) when kind in [:board, :cards],
     do: user |> Access.board_permission(board) |> Access.can_write?()
 
   defp allowed?(user, {:card, %Card{} = card}),

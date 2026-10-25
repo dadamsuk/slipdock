@@ -65,6 +65,20 @@ defmodule SlipdockCLI.InboundTest do
     refute out =~ "New address made"
   end
 
+  test "inbound <board> lists the board's permitted senders, when it has any (#1289)" do
+    with_senders =
+      ~s({"domain":"example.com","board":{"id":3,"code":"slipdock","name":"Slipdock"},) <>
+        ~s("addresses":{"card":"card-aaaa@example.com"},) <>
+        ~s("senders":["ann@example.com","bob@example.com"]})
+
+    serve([{200, with_senders}, {200, @board}])
+    out = capture_io(fn -> Inbound.run("inbound", ["slipdock"], []) end)
+    assert out =~ "permitted senders, card mail: ann@example.com, bob@example.com"
+
+    out = capture_io(fn -> Inbound.run("inbound", ["slipdock"], []) end)
+    refute out =~ "permitted senders"
+  end
+
   test "inbound <board> --rotate posts, and says the old address is gone" do
     serve([{200, @board}])
     out = capture_io(fn -> Inbound.run("inbound", ["slipdock"], rotate: true) end)

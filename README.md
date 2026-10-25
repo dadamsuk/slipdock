@@ -201,7 +201,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   attachments and all, or mail the board's page address and it is a wiki page
   (`[Folder] Title` files it, `+ Title` adds a dated section to that page),
   and [reply to a notification](docs/manual.md#replying-to-a-notification)
-  to comment on its card or answer a wait
+  to comment on its card or answer a wait. A board's owner can list
+  permitted senders who may mail its card address too
   (needs [Receiving email](#receiving-email)).
 - **Semantic Search** - find what you're looking for even when you can't remember exactly what it is.
 - **AI, on your own key — or your own hardware** — [chat about a board, ask

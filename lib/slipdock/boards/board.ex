@@ -87,6 +87,11 @@ defmodule Slipdock.Boards.Board do
     field :handoff_label, :string
     field :handoff_prompt, :string
 
+    # The other addresses the board's card addresses take mail from (#1289),
+    # besides each address owner's own: lower-cased, at most
+    # `inbound_senders_limit/0`. See `permitted_sender?/2`.
+    field :inbound_senders, {:array, :string}, default: []
+
     # What sort of board this is, when it is more than a board: "sprints"
     # makes every card a sprint and its subcards the sprint's work, and gives
     # the board New sprint and Add cards… (see `Slipdock.Sprints`). nil for an
@@ -343,6 +348,64 @@ defmodule Slipdock.Boards.Board do
 
   def handoff_limits, do: %{label: @handoff_label_length, prompt: @handoff_prompt_length}
 
+  @inbound_senders_limit 50
+
+  @doc "How many other senders a board's card addresses may take mail from."
+  def inbound_senders_limit, do: @inbound_senders_limit
+
+  @doc """
+  Whether `address` is one of the board's permitted senders (#1289): mail
+  from it to any of the board's card addresses is taken as though the
+  address's owner had sent it.
+  """
+  def permitted_sender?(%__MODULE__{inbound_senders: senders}, address)
+      when is_list(senders) and is_binary(address),
+      do: Slipdock.Email.normalize(address) in senders
+
+  def permitted_sender?(_board, _address), do: false
+
+  # The senders as the form, the API or the CLI give them: a list, or one
+  # string of addresses split by commas, semicolons or whitespace. Trimmed,
+  # lower-cased and each kept once, in the order given.
+  defp split_senders(senders) when is_binary(senders),
+    do: senders |> String.split(~r/[\s,;]+/, trim: true) |> split_senders()
+
+  defp split_senders(senders) when is_list(senders) do
+    senders
+    |> Enum.map(&(&1 |> to_string() |> Slipdock.Email.normalize()))
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp split_senders(nil), do: []
+  defp split_senders(other), do: other
+
+  defp put_senders(changeset, attrs) do
+    key = if Map.has_key?(attrs, :inbound_senders), do: :inbound_senders, else: "inbound_senders"
+
+    case Map.fetch(attrs, key) do
+      {:ok, value} ->
+        cast(changeset, %{inbound_senders: split_senders(value)}, [:inbound_senders])
+
+      :error ->
+        changeset
+    end
+  end
+
+  defp validate_senders(changeset) do
+    changeset
+    |> validate_length(:inbound_senders,
+      max: @inbound_senders_limit,
+      message: "can be at most %{count} addresses"
+    )
+    |> validate_change(:inbound_senders, fn field, senders ->
+      case Enum.reject(senders, &Slipdock.Email.valid?/1) do
+        [] -> []
+        bad -> [{field, "aren't email addresses: #{Enum.join(bad, ", ")}"}]
+      end
+    end)
+  end
+
   # The card facets a simple board hides — the ones that only mean something
   # to somebody tracking a project. Keys of `Slipdock.Swimlanes.Config.facets/1`.
   @technical_facets ~w(start_date percent_complete time dependencies)
@@ -416,6 +479,8 @@ defmodule Slipdock.Boards.Board do
       :kind,
       :default_view
     ])
+    |> put_senders(attrs)
+    |> validate_senders()
     |> update_change(:handoff_label, &trim_to_nil/1)
     |> update_change(:handoff_prompt, &trim_to_nil/1)
     |> validate_length(:handoff_label, max: @handoff_label_length)

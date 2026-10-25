@@ -2047,7 +2047,8 @@ invoice, a bug report or a note to yourself, and it is a card; send meeting
 notes or a day's journal to the page address, and it is a page.
 
 **The addresses.** Each is yours alone, and only takes mail *from* your own
-account's address:
+account's address (a board's card address also takes it from the board's
+permitted senders, below):
 
 | Address | Where it is | What mail to it makes |
 |---|---|---|
@@ -2063,6 +2064,19 @@ and **New address**: that makes a new one, and mail to the old one bounces
 from then on — do it if an address has leaked. `slipdock inbound <board>
 --rotate` and `POST …/inbound/rotate` do the same. Taking back somebody's
 share of a board turns their address for it off.
+
+**Permitted senders.** A board's owner can let other addresses mail the
+board's card addresses too: a colleague, a client, a monitoring service's
+own address. List them in Board settings › *Permitted senders*, one per
+line (at most 50), or with `slipdock set-board <board> --inbound-senders
+"ann@example.com,bob@example.com"` (`""` clears the list) or `PATCH
+/api/boards/:board {"inbound_senders": [...]}`. The list belongs to the
+board, so it covers everyone's card address for it. A permitted sender's mail still has to pass DMARC or DKIM. The card
+(or, with `[#42]`, the comment) is added as the address's owner and opens
+with *Sent by Ann <ann@example.com>*. It never answers a wait. The page
+addresses, the folder addresses and Quick Add stay yours alone. *Email to
+this board*, `slipdock inbound <board>` and `GET …/inbound` (`senders`)
+list them.
 
 **What the message becomes.**
 

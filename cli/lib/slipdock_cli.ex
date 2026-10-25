@@ -71,7 +71,8 @@ defmodule SlipdockCLI do
                                         and what came of each: what it made, or why it bounced
                                         or was ignored. Only while the server receives mail
     inbound <board> [--rotate]          your address for emailing cards onto a board (it only
-                                        takes mail from you); --rotate makes a new one, and
+                                        takes mail from you, and the board's permitted senders,
+                                        which it lists); --rotate makes a new one, and
                                         mail to the old one bounces from then on
       --folder F                        a wiki folder's own address instead (a path, name or
                                         id): mail to it is a page in that folder
@@ -679,7 +680,7 @@ defmodule SlipdockCLI do
         [--show-pulse | --no-show-pulse] [--automation-wip | --no-automation-wip]
         [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
         [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
-        [--handoff-prompt TEXT | --handoff-prompt-file PATH]
+        [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -703,7 +704,10 @@ defmodule SlipdockCLI do
                                         calendar, outline, narrative, prioritise or wiki;
                                         --handoff-label renames "Left off" where people read
                                         a card's handoff, --handoff-prompt(-file) is what the
-                                        AI is told when it drafts one ("" for the defaults)
+                                        AI is told when it drafts one ("" for the defaults);
+                                        --inbound-senders "a@x.com,b@y.com" is every address
+                                        besides your own that may mail the board's card
+                                        addresses (replaces the list; "" clears it)
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -946,6 +950,7 @@ defmodule SlipdockCLI do
     incident_tag: :string,
     hotfix_hours: :integer,
     handoff_label: :string,
+    inbound_senders: :string,
     handoff_prompt: :string,
     handoff_prompt_file: :string,
     card_ref_pattern: :string,
