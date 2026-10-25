@@ -2151,7 +2151,7 @@ Automatic mail — auto-replies, bulk and list mail, anything that says
 `Auto-Submitted` — is ignored rather than bounced, so two systems can't
 answer each other forever.
 
-**Did it arrive?** Account › *Inbound email* (also `slipdock inbound log` and
+**Did it arrive?** Account › *Email Log* (`/account/email-log`; also `slipdock inbound log` and
 `GET /api/inbound/log`) lists your last 50 messages: what each made, or why it
 bounced or was ignored.
 
@@ -4689,14 +4689,14 @@ board importer on it and nothing told you which was which:
 - **Account** (`/account`) — your display name, how many cards you have used
   against the limit if there is one, every time an admin has been let into
   your boards and why, your passkeys, your personal address for [emailing
-  cards in](#emailing-your-board) and your inbound email log (while the
-  server receives mail: your last 50 messages to it, and what made each one
-  bounce or be ignored; also `slipdock inbound log`), signing out, and the
-  licence.
+  cards in](#emailing-your-board), signing out, and the licence.
 - **Settings** (`/account/settings`) — the dials: where quick add puts a card,
   whether the line is read by a model, and your OpenRouter key.
 - **API tokens** (`/account/tokens`) — make, inspect and revoke the tokens the
   CLI and agents sign in with.
+- **Email Log** (`/account/email-log`, only while the server receives mail)
+  — your last 50 messages to its inbound addresses, and what each one made
+  or why it bounced or was ignored; also `slipdock inbound log`.
 - **Import & export** (`/account/data`) — everything you have as a zip, and
   boards as files another Slipdock can read back.
 

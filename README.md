@@ -704,8 +704,8 @@ carry a signed `reply-…@` `Reply-To`, so a reply becomes a comment on the
 card or answers the wait ([Replying to a
 notification](docs/manual.md#replying-to-a-notification)); rotating the
 secret retires those addresses once the previous one is dropped. Each person's last 50 inbound messages, and what came of
-each (what it made, or why it bounced or was ignored), are on their Account
-page, at `GET /api/inbound/log` and with `slipdock inbound log`. The design
+each (what it made, or why it bounced or was ignored), are on the account's
+*Email Log* tab, at `GET /api/inbound/log` and with `slipdock inbound log`. The design
 and the deploy runbook are on the Slipdock board's wiki (W-1933).
 
 ### Google Drive, for meeting recordings

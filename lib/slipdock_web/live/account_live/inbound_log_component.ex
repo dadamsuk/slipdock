@@ -1,10 +1,11 @@
 defmodule SlipdockWeb.AccountLive.InboundLogComponent do
   @moduledoc """
-  The inbound log on the Account tab (#1242): your last 50 messages to
+  The account's Email Log tab (#1242, its own tab since #1290): your last 50 messages to
   Slipdock's inbound addresses, and what came of each. When someone says "I
   emailed it and nothing happened", this is where the answer is: refused and
   why, ignored as automatic, or what it made. Only there while inbound mail
-  is on (`Slipdock.Inbound.enabled?/0`); the same list is
+  is on (`Slipdock.Inbound.enabled?/0`: the tab is hidden and its URL a 404
+  otherwise); the same list is
   `GET /api/inbound/log` and `slipdock inbound log`.
   """
   use SlipdockWeb, :live_component

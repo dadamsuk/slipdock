@@ -16,6 +16,12 @@ defmodule SlipdockWeb.AccountLive.Index do
     if socket.assigns.live_action == :voiceprint and not voiceprints?,
       do: raise(SlipdockWeb.MeetingsOff)
 
+    # The same for the email log while this server takes no mail.
+    inbound? = Slipdock.Inbound.enabled?()
+
+    if socket.assigns.live_action == :email_log and not inbound?,
+      do: raise(SlipdockWeb.InboundOff)
+
     # Each tab is its own mount (the tab bar navigates rather than patches),
     # so a tab pays only for its own queries — the one-page version ran all
     # of them to show you a fifth of the result. The component does its own
@@ -23,7 +29,8 @@ defmodule SlipdockWeb.AccountLive.Index do
     {:ok,
      assign(socket,
        page_title: tab_title(socket.assigns.live_action),
-       voiceprints?: voiceprints?
+       voiceprints?: voiceprints?,
+       inbound?: inbound?
      )}
   end
 
@@ -44,6 +51,7 @@ defmodule SlipdockWeb.AccountLive.Index do
   defp tab_title(:data), do: "Import & export"
   defp tab_title(:agent), do: "Set up an agent"
   defp tab_title(:voiceprint), do: "Voiceprint"
+  defp tab_title(:email_log), do: "Email Log"
   defp tab_title(_), do: "Account"
 
   defp tab_component(:settings), do: AccountLive.SettingsComponent
@@ -51,6 +59,7 @@ defmodule SlipdockWeb.AccountLive.Index do
   defp tab_component(:data), do: AccountLive.DataComponent
   defp tab_component(:agent), do: AccountLive.AgentComponent
   defp tab_component(:voiceprint), do: AccountLive.VoiceprintComponent
+  defp tab_component(:email_log), do: AccountLive.InboundLogComponent
   defp tab_component(_), do: AccountLive.ProfileComponent
 
   attr :to, :string, required: true
@@ -133,6 +142,13 @@ defmodule SlipdockWeb.AccountLive.Index do
               active={@live_action == :voiceprint}
               icon="hero-microphone"
               label="Voiceprint"
+            />
+            <.account_tab
+              :if={@inbound?}
+              to={~p"/account/email-log"}
+              active={@live_action == :email_log}
+              icon="hero-inbox-arrow-down"
+              label="Email Log"
             />
           </nav>
 
