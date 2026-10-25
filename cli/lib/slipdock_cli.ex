@@ -705,9 +705,9 @@ defmodule SlipdockCLI do
                                         --handoff-label renames "Left off" where people read
                                         a card's handoff, --handoff-prompt(-file) is what the
                                         AI is told when it drafts one ("" for the defaults);
-                                        --inbound-senders "a@x.com,b@y.com" is every address
-                                        besides your own that may mail the board's card
-                                        addresses (replaces the list; "" clears it)
+                                        --inbound-senders "ann@example.com,bob@example.com"
+                                        is every address besides your own that may mail the
+                                        board's card addresses (replaces the list; "" clears)
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
