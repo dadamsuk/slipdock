@@ -49,7 +49,7 @@ defmodule SlipdockWeb.VisualiseDoraTest do
   test "off: the nudge to turn delivery metrics on, and no numbers", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
     assert has_element?(view, "#dora-off", "Delivery metrics are off")
-    assert has_element?(view, ~s|#dora-off a[href="/boards/#{board.id}/settings"]|)
+    assert has_element?(view, ~s|#dora-off a[href="/boards/#{board.id}/settings?tab=features"]|)
     assert has_element?(view, "#dora-off", "slipdock set-board #{board.code} --delivery-metrics")
     refute has_element?(view, "#dora-frequency")
   end

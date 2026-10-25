@@ -293,7 +293,11 @@ defmodule SlipdockWeb.GardenLive.Index do
             mistyped links. Nothing changes until you apply a suggestion, and one you dismiss
             stays dismissed until what it is about changes.
             Last looked over: <span id="garden-last-run">{when_text(@last_run && @last_run.finished_at)}</span>.
-            <.link :if={@can_manage} navigate={~p"/boards/#{@board}/settings"} class="link">
+            <.link
+              :if={@can_manage}
+              navigate={~p"/boards/#{@board}/settings?tab=gardening"}
+              class="link"
+            >
               Choose the checks
             </.link>
           </p>
