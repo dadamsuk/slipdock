@@ -243,13 +243,6 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
         current_user={@current_user}
       />
 
-      <.live_component
-        :if={Slipdock.Inbound.enabled?()}
-        module={SlipdockWeb.AccountLive.InboundLogComponent}
-        id="account-inbound-log"
-        current_user={@current_user}
-      />
-
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
         <h2 class="text-lg font-semibold">Session</h2>
         <p class="text-sm text-base-content/60">

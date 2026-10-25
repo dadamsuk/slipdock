@@ -295,6 +295,9 @@ defmodule SlipdockWeb.Router do
       live "/account/agent", AccountLive.Index, :agent
       # A person's own voiceprint: only while an admin has voiceprints on.
       live "/account/voiceprint", AccountLive.Index, :voiceprint
+      # Your last 50 inbound emails and what came of each (#1290): only while
+      # this server takes mail.
+      live "/account/email-log", AccountLive.Index, :email_log
       live "/groups", GroupLive.Index, :index
       live "/templates", TemplateLive.Index, :index
       # Tools (#958): packaged docs, a board and skills people share here.

@@ -626,9 +626,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
           <strong>Did it arrive?</strong>
           <.app_link
             current_user={@current_user}
-            to={~p"/account"}
-          >Account</.app_link>
-          › <strong>Inbound email</strong>
+            to={~p"/account/email-log"}
+          >Account › Email Log</.app_link>
           lists your last 50 messages: what each made, or why it bounced. From the CLI, <code>slipdock inbound log</code>.
         </li>
         <li>

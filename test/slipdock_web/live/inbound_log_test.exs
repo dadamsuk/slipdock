@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.InboundLogTest do
   @moduledoc """
-  The inbound log (#1242): `Slipdock.Inbound.recent/2`, the Account tab's
-  section and `GET /api/inbound/log`.
+  The inbound log (#1242): `Slipdock.Inbound.recent/2`, the account's Email
+  Log tab (#1290) and `GET /api/inbound/log`.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -72,13 +72,36 @@ defmodule SlipdockWeb.InboundLogTest do
     end
   end
 
-  describe "the Account tab" do
-    test "has no inbound section while inbound mail is off", %{conn: conn, user: user} do
+  describe "the Email Log tab" do
+    test "while inbound mail is off: no tab, and its URL is a 404", %{conn: conn, user: user} do
       TestConfig.put(:inbound, domain: nil, secrets: [])
       log(user, [])
 
       {:ok, view, _html} = live(conn, ~p"/account")
+      refute has_element?(view, ~s{#account-tabs a[href="/account/email-log"]})
       refute has_element?(view, "#inbound-log")
+
+      assert_raise SlipdockWeb.InboundOff, fn -> live(conn, ~p"/account/email-log") end
+    end
+
+    test "is a tab of its own: on the tab bar, and gone from the Account tab", %{
+      conn: conn,
+      user: user
+    } do
+      on()
+      email = log(user, subject: "Where did it go")
+
+      {:ok, view, _html} = live(conn, ~p"/account")
+      assert has_element?(view, ~s{#account-tabs a[href="/account/email-log"]}, "Email Log")
+      refute has_element?(view, "#inbound-log")
+      # The addresses stay on the Account tab; only the log moved.
+      assert has_element?(view, "#account-inbound")
+
+      {:ok, view, _html} = live(conn, ~p"/account/email-log")
+      assert page_title(view) =~ "Email Log"
+      assert has_element?(view, ~s{#account-tabs a[aria-current="page"]}, "Email Log")
+      assert has_element?(view, "#inbound-#{email.id}", "Where did it go")
+      refute has_element?(view, "#account-inbound")
     end
 
     test "lists each message with what came of it and why", %{conn: conn, user: user} do
@@ -97,7 +120,7 @@ defmodule SlipdockWeb.InboundLogTest do
           reason: "Automatic mail (Auto-Submitted) is ignored."
         )
 
-      {:ok, view, _html} = live(conn, ~p"/account")
+      {:ok, view, _html} = live(conn, ~p"/account/email-log")
 
       assert view |> element("#inbound-#{bounced.id}") |> render() =~ "Bounced"
 
@@ -120,7 +143,7 @@ defmodule SlipdockWeb.InboundLogTest do
       user: user
     } do
       on()
-      {:ok, view, _html} = live(conn, ~p"/account")
+      {:ok, view, _html} = live(conn, ~p"/account/email-log")
       assert has_element?(view, "#inbound-log-empty")
 
       email = log(user, subject: "Just arrived")

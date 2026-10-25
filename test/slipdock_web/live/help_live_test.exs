@@ -398,12 +398,14 @@ defmodule SlipdockWeb.HelpLiveTest do
       {:ok, view, _html} = live(conn, ~p"/help/email")
       assert has_element?(view, "#email-addresses span", "Account")
       refute has_element?(view, ~s{#help a[href="/account"]})
+      refute has_element?(view, ~s{#help a[href="/account/email-log"]})
     end
 
     test "signed in, the Account page is a link", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/help/email")
       assert has_element?(view, ~s{#email-addresses a[href="/account"]}, "Account")
-      assert has_element?(view, ~s{#email-more a[href="/account"]}, "Account")
+      # The log of what mail did is its own tab (#1290).
+      assert has_element?(view, ~s{#email-more a[href="/account/email-log"]}, "Email Log")
     end
 
     @tag :anonymous
