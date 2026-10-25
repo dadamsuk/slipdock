@@ -688,7 +688,8 @@ SLIPDOCK_INBOUND_SECRET_PREVIOUS=…         # still accepted while you rotate i
 ```
 
 Once it is on, everybody has a `card-…@` and a `page-…@` address (a new card,
-a new wiki page or `+ Title` to add to one) for each board they can
+a new wiki page or `+ Title` to add to one; `[#42] …` to the card address
+comments on card 42) for each board they can
 write to (the board's `…` menu › *Email to this board*, `slipdock inbound
 <board>`), a `page-…@` address of its own for any wiki folder (the tree's
 *Email this folder…*, `slipdock inbound <board> --folder <path>`) and a personal `add-…@` address that goes through Quick Add

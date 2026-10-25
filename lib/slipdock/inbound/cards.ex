@@ -14,6 +14,10 @@ defmodule Slipdock.Inbound.Cards do
     * **Who** — the address's owner, through the `email` door
       (`Slipdock.Actor.email/1`), so the timeline says who added it.
 
+  A subject that opens with `[#42]` (#1272) adds to card 42 instead of
+  making one: the mail is a comment on it, as a reply to a notification
+  would be (`to_card/4`).
+
   Refusals come back as `{:reject, reason}` in words for the bounce: a full
   account, an expired trial, or a message that is nothing but files when
   there is no room to keep them.
@@ -27,6 +31,8 @@ defmodule Slipdock.Inbound.Cards do
   alias Slipdock.Inbound.{Message, Trim}
 
   @prefix ~r/^\s*((re|fwd?|aw|wg|sv|vs|tr|rv|antw|r|enc)\s*(\[\d+\])?\s*:\s*)+/iu
+  # At most 18 digits, so any match fits a bigint.
+  @card_ref ~r/^\s*\[\s*#(\d{1,18})\s*\]/u
   @title_max 200
   @no_subject "(no subject)"
 
@@ -40,6 +46,62 @@ defmodule Slipdock.Inbound.Cards do
       nil -> {:reject, "This board has no lists to put a card on."}
       column -> create(user, column, %{"title" => title(message.subject)}, message)
     end
+  end
+
+  @doc """
+  The card a subject names to be added to (#1272): a leading `[#42]`, after
+  any `Re:` or `Fwd:`, as 42; nil otherwise. A `#42` anywhere else in the
+  subject is only part of the title.
+  """
+  @spec card_ref(String.t() | nil) :: pos_integer() | nil
+  def card_ref(subject) do
+    case Regex.run(@card_ref, subject |> to_string() |> String.replace(@prefix, "")) do
+      [_, id] -> String.to_integer(id)
+      nil -> nil
+    end
+  end
+
+  @doc """
+  Mail to `board`'s card address that names card `id` (`card_ref/1`): a
+  comment on it by `user`, files on the card, through the same path as a
+  reply to a notification (`Slipdock.Inbound.Replies.to_card/3`), which
+  answers the card's wait when it waits on `user`. The card has to be live,
+  on `board` or a sub-board beneath it.
+  """
+  @spec to_card(User.t(), Board.t(), pos_integer(), Message.t()) ::
+          {:ok, map()} | {:reject, String.t()}
+  def to_card(%User{} = user, %Board{} = board, id, %Message{} = message) do
+    # The address already proved `user` can write to `board`, and that
+    # reaches every sub-board beneath it (`Slipdock.Access.board_permission/2`).
+    with {:ok, card} <- card_on(board, id),
+         do: Slipdock.Inbound.Replies.to_card(user, card, message)
+  end
+
+  # A card that isn't under this board, or doesn't exist, is answered alike,
+  # so the bounce tells nobody what is on other boards.
+  defp card_on(board, id) do
+    case Repo.get(Card, id) do
+      %Card{} = card ->
+        cond do
+          not under?(card, board) -> {:reject, not_here(id)}
+          card.archived_at -> {:reject, "Card ##{id} is archived, so it can't be added to."}
+          true -> {:ok, card}
+        end
+
+      nil ->
+        {:reject, not_here(id)}
+    end
+  end
+
+  defp not_here(id), do: "Card ##{id} isn't on this board."
+
+  defp under?(%Card{board_id: id}, %Board{id: id}), do: true
+
+  defp under?(%Card{board_id: board_id}, %Board{id: id}) do
+    Board
+    |> Repo.get!(board_id)
+    |> Boards.ancestry()
+    |> Enum.any?(&(&1.board.id == id))
   end
 
   @doc """

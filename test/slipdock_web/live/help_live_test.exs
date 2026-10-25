@@ -383,6 +383,7 @@ defmodule SlipdockWeb.HelpLiveTest do
       assert has_element?(view, "#email-addresses", "slipdock inbound me")
       assert has_element?(view, "#email-cards", "ready list")
       assert has_element?(view, "#email-cards", "[Website] Renew the cert due: friday #high")
+      assert has_element?(view, "#email-cards", "[#42] Hinge replaced")
       assert has_element?(view, "#email-pages", "[Design/Decisions] Use Postgres")
       assert has_element?(view, "#email-pages", "+ Journal")
       assert has_element?(view, "#email-replies", "waiting on you")
