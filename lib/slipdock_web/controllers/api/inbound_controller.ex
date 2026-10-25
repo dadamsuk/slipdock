@@ -64,7 +64,9 @@ defmodule SlipdockWeb.API.InboundController do
   while inbound mail is off.
 
   With `folder` (a path, name or id), the address is that wiki folder's own
-  (#1277): a page address whose mail is filed there.
+  (#1277): a page address whose mail is filed there. Without one, `senders`
+  lists the board's permitted senders (#1289), who may mail its card address
+  too; the owner sets them with `PATCH /api/boards/:board` `inbound_senders`.
   """
   def board(conn, %{"board" => ref} = params),
     do: board_addresses(conn, ref, params["folder"], &Tokens.addresses/2)
@@ -127,9 +129,12 @@ defmodule SlipdockWeb.API.InboundController do
           addresses: Map.new(Tokens.offered(addresses))
         }
 
+        # A board's card address also takes mail from its permitted
+        # senders (#1289); a folder's page address doesn't.
         body =
           case target do
             %Folder{} = f -> Map.put(body, :folder, %{id: f.id, path: Folders.path(f)})
+            %Slipdock.Boards.Board{} = b -> Map.put(body, :senders, b.inbound_senders)
             _ -> body
           end
 

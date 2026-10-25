@@ -944,6 +944,9 @@ defmodule SlipdockCLI.Boards do
         # What a handoff is called, and the AI's drafting instructions (#1212).
         "handoff_label" => o[:handoff_label],
         "handoff_prompt" => handoff_prompt(o),
+        # Who else may mail the board's card addresses (#1289): the whole
+        # list, comma-separated; "" clears it.
+        "inbound_senders" => o[:inbound_senders],
         "kind" =>
           case o[:sprints] do
             true -> "sprints"
@@ -956,7 +959,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label or --handoff-prompt(-file)"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file) or --inbound-senders"
         )
 
     HTTP.patch("/boards/#{enc(ref)}", body)

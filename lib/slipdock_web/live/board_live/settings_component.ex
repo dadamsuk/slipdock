@@ -699,6 +699,24 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               asked to answer with a next step and a note, whatever this says.
             </p>
           </div>
+          <%!-- Who else may mail the board's card addresses (#1289,
+                `Board.permitted_sender?/2`). Only while the server takes mail. --%>
+          <div :if={Slipdock.Inbound.enabled?()} class="space-y-1">
+            <span class="text-sm font-medium">Permitted senders</span>
+            <p class="text-xs text-base-content/50">
+              Besides each person's own address, the board's card addresses take mail from these
+              addresses, one per line. What they send is added as the address's owner and says
+              who sent it. They can't answer a wait, and pages are still yours alone.
+            </p>
+            <.input
+              field={@form[:inbound_senders]}
+              id="board-form-inbound-senders"
+              type="textarea"
+              rows="3"
+              value={senders_text(@form[:inbound_senders].value)}
+              placeholder="ann@example.com"
+            />
+          </div>
           <%!-- Every board has a wiki: this is the whole wiki's switch for
                 the card contents under a page's prose. Hidden, not removed. --%>
           <div class="space-y-1">
@@ -1105,4 +1123,8 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     </.modal>
     """
   end
+
+  # The permitted senders, one per line, as the textarea shows them.
+  defp senders_text(senders) when is_list(senders), do: Enum.join(senders, "\n")
+  defp senders_text(senders), do: senders
 end

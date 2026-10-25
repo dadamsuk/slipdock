@@ -146,4 +146,28 @@ defmodule SlipdockCLI.SetBoardTest do
              }
     end
   end
+
+  describe "permitted senders (#1289)" do
+    test "--inbound-senders parses as a string and is sent as given" do
+      {opts, ["set-board", "docs"], []} =
+        OptionParser.parse(
+          ["set-board", "docs", "--inbound-senders", "ann@example.com,bob@example.com"],
+          strict: SlipdockCLI.switches()
+        )
+
+      serve([{200, @updated}])
+      capture_io(fn -> Boards.run("set-board", ["docs"], opts) end)
+
+      assert_received {:request, "PATCH", "/api/boards/docs", body}
+      assert JSON.decode!(body) == %{"inbound_senders" => "ann@example.com,bob@example.com"}
+    end
+
+    test "an empty value is sent, so the list is cleared" do
+      serve([{200, @updated}])
+      capture_io(fn -> Boards.run("set-board", ["docs"], inbound_senders: "") end)
+
+      assert_received {:request, "PATCH", "/api/boards/docs", body}
+      assert JSON.decode!(body) == %{"inbound_senders" => ""}
+    end
+  end
 end

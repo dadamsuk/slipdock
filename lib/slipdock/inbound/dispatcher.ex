@@ -19,6 +19,10 @@ defmodule Slipdock.Inbound.Dispatcher do
   `reply-…` comments on the card a notification was about (#1258,
   `Slipdock.Inbound.Replies`).
 
+  Only `card-…` takes mail from anybody but the address's owner: the
+  board's permitted senders too (#1289), whose mail is written as the owner
+  and says who sent it.
+
   A card or page that mail made or added to is then announced to the
   board's automations (#1275): `card_emailed` once the card has its
   description and files, `page_emailed` with whether the page is `new` or
@@ -50,7 +54,7 @@ defmodule Slipdock.Inbound.Dispatcher do
 
   def dispatch(%{kind: "card", recipient: recipient, message: message}) do
     with {:ok, {:card, user, board}} <- resolve(recipient),
-         :ok <- trust(message, user, {:board, board}) do
+         :ok <- trust(message, user, {:cards, board}) do
       case card_mail(user, board, message) do
         {:ok, attrs} -> {:ok, announce(attrs, message)}
         {:reject, reason} -> {:reject, reason, %{user_id: user.id}}

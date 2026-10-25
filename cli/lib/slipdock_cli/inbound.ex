@@ -6,7 +6,8 @@ defmodule SlipdockCLI.Inbound do
   # "I emailed it and nothing happened" gets its answer. `inbound <board>`
   # and `inbound me` show your own addresses (#1246), `--rotate` replaces
   # them. `inbound <board> --folder F` is a wiki folder's own page address
-  # (#1277), whose mail is filed in that folder.
+  # (#1277), whose mail is filed in that folder. A board's addresses come with
+  # its permitted senders (#1289), who may mail its card address too.
 
   import SlipdockCLI.Util
 
@@ -54,6 +55,11 @@ defmodule SlipdockCLI.Inbound do
 
     for kind <- ~w(card page add), address = addresses[kind] do
       IO.puts("#{label(kind, r["board"], r["folder"])}  #{address}")
+    end
+
+    case r["senders"] do
+      [_ | _] = senders -> IO.puts("permitted senders, card mail: #{Enum.join(senders, ", ")}")
+      _ -> :ok
     end
 
     case r["ack"] do

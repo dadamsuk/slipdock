@@ -516,6 +516,12 @@ defmodule SlipdockWeb.HelpLive.Guides do
         or <code>slipdock inbound me</code>
         shows the same addresses.
       </p>
+      <p id="email-permitted-senders">
+        <strong>Permitted senders.</strong>
+        A board's owner can let other people mail its card address too: Board settings › <strong>Permitted senders</strong>, one address per line. Their mail still has to
+        pass DMARC or DKIM. It is added as you and says who sent it. It never answers a
+        wait, and the page addresses stay yours alone.
+      </p>
     </.part>
 
     <.part title="Emailing a card in" id="email-cards">

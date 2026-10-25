@@ -193,6 +193,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI"},
        {:no, "one way only"}
      ]},
+    {"Let other addresses mail a board's card address (permitted senders)",
+     [
+       {:yes, "PATCH /api/boards/:id inbound_senders"},
+       {:no, "not a tool: the board's owner decides who may mail it"},
+       {:yes, "slipdock set-board <board> --inbound-senders LIST"},
+       {:yes, "through the CLI"},
+       {:yes, "through the CLI"},
+       {:no, "one way only"}
+     ]},
     {"See the email you sent in, and why any bounced",
      [
        {:yes, "GET /api/inbound/log"},

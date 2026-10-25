@@ -750,6 +750,10 @@ defmodule SlipdockWeb.APIGuide do
       address), `GET /api/me/inbound` their personal `add`
       (Quick Add) address and `ack`; `POST …/rotate` replaces one, and the old
       bounces; `POST /api/me/inbound {"ack": true}` mails a link back per card.
+      A board's `card` address also takes mail from its permitted senders
+      (`senders` in that answer; the owner sets them with `PATCH
+      /api/boards/:board {"inbound_senders": [...]}`, `[]` clears): added as
+      the address's owner, opening "Sent by …", never answering a wait.
       Emails about a card (mentions, waits, rule emails) can be replied to: the
       reply is a comment by that person, or answers a wait on them; so is mail
       to a board's `card` address whose subject starts `[#42]`, on card 42.

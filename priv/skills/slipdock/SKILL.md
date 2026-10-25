@@ -219,7 +219,7 @@ slipdock table <board> [view options] [--group A] [--fields id,title,column,prio
 slipdock views <board>                      # saved swimlane views
 slipdock favourites                         # what this person keeps going back to, with a URL each
 slipdock passkeys                           # your own passkeys; `passkeys remove <id>` revokes one (only when asked)
-slipdock inbound <board> [--rotate]         # your card- and page- addresses for a board (only take mail from you); card-: "[#42] …" comments on card 42 instead; page-: subject = page title, "[Folder] Title" files it (else Inbox), "+ Title" appends a dated section to that page; --rotate only when asked: the old ones bounce
+slipdock inbound <board> [--rotate]         # your card- and page- addresses for a board (only take mail from you, and card- from the board's permitted senders, listed); card-: "[#42] …" comments on card 42 instead; page-: subject = page title, "[Folder] Title" files it (else Inbox), "+ Title" appends a dated section to that page; --rotate only when asked: the old ones bounce
 slipdock inbound <board> --folder F [--rotate]   # a wiki folder's own page- address (a path, name or id): mail to it is a page in that folder; "[Sub] Title" files it beneath, "+ Title" appends as above
 slipdock inbound me [--rotate] [--ack on|off]   # your personal Quick Add address (subject picks board, list, #priority, due:); --ack: a link back per card
 slipdock inbound log                        # your last 50 inbound emails and what came of each (why one bounced); kind "reply" = a reply to a notification email: a comment by them, or the answer to a wait on them
@@ -374,6 +374,7 @@ slipdock set-board <board> --simple | --no-simple         # plain to-do list: hi
 slipdock set-board <board> --default-view wiki            # what opening the board shows in the web app (board, table, wiki…)
 slipdock set-board <board> --no-page-card-features        # the board's wiki pages hide status, checklist, links, fields, votes, comments
 slipdock set-board <board> --handoff-label Parked --handoff-prompt-file p.txt  # rename "Left off" in the web app, and Auto generate's instructions ("" = default)
+slipdock set-board <board> --inbound-senders "a@x.com,b@y.com"  # who else may mail the board's card addresses (replaces the list; "" clears); only when asked
 slipdock handoff <id> --delete                            # delete a card's current handoff outright (one left by mistake); --clear keeps it in the history
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
 slipdock fav page <page>                                  # a wiki page, by code (W-31), slug or board/slug

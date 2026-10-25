@@ -50,9 +50,18 @@ defmodule Slipdock.Inbound.Replies do
       said = body(message, cid)
       links = links(stored, message)
 
-      case waiting_on(card, user) do
-        %Wait{} = wait when said != "" -> answer(user, card, wait, said, links, left_off)
-        _ -> comment(user, card, join(said, links), left_off)
+      # A permitted sender's mail (#1289) is only ever a comment, saying who
+      # sent it: it never answers a wait on the address's owner.
+      case Cards.sender_line(user, message) do
+        nil ->
+          case waiting_on(card, user) do
+            %Wait{} = wait when said != "" -> answer(user, card, wait, said, links, left_off)
+            _ -> comment(user, card, join(said, links), left_off)
+          end
+
+        line ->
+          text = join(said, links)
+          comment(user, card, if(text == "", do: "", else: join(line, text)), left_off)
       end
     end
   end
