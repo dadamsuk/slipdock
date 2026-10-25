@@ -546,7 +546,11 @@ defmodule SlipdockWeb.HelpLive.Guides do
         named, the card goes to your Quick add default board.
       </p>
       <p>
-        To add to a card that already exists, reply to an email about it (see below).
+        To add to a card that already exists, start the subject with its number:
+        <code>[#42] Hinge replaced</code>
+        to the board's card address is a comment on card 42, with any attachments on the card,
+        rather than a new card. It works for cards on the board's sub-boards too. Replying to an
+        email about the card does the same.
       </p>
     </.part>
 

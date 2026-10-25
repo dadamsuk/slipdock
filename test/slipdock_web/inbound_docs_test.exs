@@ -92,4 +92,21 @@ defmodule SlipdockWeb.InboundDocsTest do
       assert skill =~ "slipdock inbound <board> --folder F [--rotate]"
     end
   end
+
+  test "the manual, README, guide, agents page and skills cover [#42] to a card address (#1272)" do
+    manual = read("docs/manual.md")
+    assert manual =~ "**Adding to a card that exists.**"
+    assert manual =~ "comment on card 42 when the subject starts `[#42]`"
+    assert manual =~ "`Invoice #1234` is still a"
+    assert read("README.md") =~ "`[#42] …` to the card address"
+    assert read("docs/agents.md") =~ "A `[#42] …` subject to a card address comments on card 42"
+    assert read("lib/slipdock_web/api_guide.ex") =~ "whose subject starts `[#42]`, on card 42"
+
+    installed = Path.expand("~/.claude/skills/slipdock/SKILL.md")
+
+    for path <- [Path.join(@root, "priv/skills/slipdock/SKILL.md"), installed],
+        File.exists?(path) do
+      assert File.read!(path) =~ ~s(card-: "[#42] …" comments on card 42 instead)
+    end
+  end
 end

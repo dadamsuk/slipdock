@@ -2051,7 +2051,7 @@ account's address:
 
 | Address | Where it is | What mail to it makes |
 |---|---|---|
-| `card-…@<domain>` | the board's `…` menu › *Email to this board*; `slipdock inbound <board>`; `GET /api/boards/:board/inbound` | a card on that board's ready list |
+| `card-…@<domain>` | the board's `…` menu › *Email to this board*; `slipdock inbound <board>`; `GET /api/boards/:board/inbound` | a card on that board's ready list, or a comment on card 42 when the subject starts `[#42]` |
 | `page-…@<domain>` | the same places, next to the card address | a wiki page on that board, or a dated section added to one (`+ Title`) |
 | `page-…@<domain>`, a folder's | the wiki tree: right-click a folder › *Email this folder…*; `slipdock inbound <board> --folder <path>`; `GET /api/boards/:board/inbound?folder=<path>` | a wiki page in that folder |
 | `add-…@<domain>` | Account › *Email a card in*; `slipdock inbound me`; `GET /api/me/inbound` | a card through [Quick add](#quick-add), to any board |
@@ -2074,6 +2074,15 @@ share of a board turns their address for it off.
 - **Attachments** are uploaded to the card; images embedded in the message
   (`cid:`) are shown in the description where they were.
 - The card is **yours**: its timeline says you added it, by email.
+
+**Adding to a card that exists.** Start the subject with the card's number,
+`[#42] Hinge replaced`, and the mail is a comment on card 42 instead of a new
+card, as a [reply to a notification](#replying-to-a-notification) would be:
+quoted history and your signature come off, attachments go on the card and
+the comment links them, and a wait on you is answered. Only a leading
+`[#42]` counts (after any `Re:` or `Fwd:`), so `Invoice #1234` is still a
+title. The card has to be on that board or a sub-board beneath it; a card
+anywhere else, archived, or a message with nothing to add bounces.
 
 **Mail to the page address** makes a wiki page the same way: the subject is
 the title, the body the page (its first line the summary), and attachments

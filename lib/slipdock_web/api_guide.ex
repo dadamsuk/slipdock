@@ -751,7 +751,8 @@ defmodule SlipdockWeb.APIGuide do
       (Quick Add) address and `ack`; `POST …/rotate` replaces one, and the old
       bounces; `POST /api/me/inbound {"ack": true}` mails a link back per card.
       Emails about a card (mentions, waits, rule emails) can be replied to: the
-      reply is a comment by that person, or answers a wait on them.
+      reply is a comment by that person, or answers a wait on them; so is mail
+      to a board's `card` address whose subject starts `[#42]`, on card 42.
     - **Recurring cards** — a card can repeat ("every Monday: review
       invoices"). Its `recurrence` says how (`rule`, `summary`, `next_on`,
       `next_at`, the next three in `upcoming`); `null` when it doesn't.

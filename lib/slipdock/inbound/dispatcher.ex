@@ -11,7 +11,8 @@ defmodule Slipdock.Inbound.Dispatcher do
   with a reason the sender reads in the bounce.
 
   `card-…` makes a card on the board's ready list (#1247,
-  `Slipdock.Inbound.Cards`); `add-…` goes through Quick Add (#1248,
+  `Slipdock.Inbound.Cards`), or comments on the card a leading `[#42]` in
+  the subject names (#1272); `add-…` goes through Quick Add (#1248,
   `Slipdock.Inbound.QuickAdd`), which checks the board it picks itself;
   `page-…` makes or adds to a wiki page (#1251, `Slipdock.Inbound.Pages`),
   in the folder when the address is a folder's (#1277);
@@ -50,7 +51,7 @@ defmodule Slipdock.Inbound.Dispatcher do
   def dispatch(%{kind: "card", recipient: recipient, message: message}) do
     with {:ok, {:card, user, board}} <- resolve(recipient),
          :ok <- trust(message, user, {:board, board}) do
-      case Cards.to_board(user, board, message) do
+      case card_mail(user, board, message) do
         {:ok, attrs} -> {:ok, announce(attrs, message)}
         {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
       end
@@ -153,6 +154,14 @@ defmodule Slipdock.Inbound.Dispatcher do
     case Repo.get(Folder, id) do
       nil -> nil
       folder -> Folders.path(folder)
+    end
+  end
+
+  # `[#42] …` adds to card 42 (#1272); any other subject makes a card.
+  defp card_mail(user, board, message) do
+    case Cards.card_ref(message.subject) do
+      nil -> Cards.to_board(user, board, message)
+      id -> Cards.to_card(user, board, id, message)
     end
   end
 
