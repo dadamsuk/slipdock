@@ -716,7 +716,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
     <.section id="dora" title="Delivery (DORA)">
       <p id="dora-off" class="text-sm text-base-content/70">
         Delivery metrics are off for this board. Turn them on in the
-        <.link navigate={~p"/boards/#{@board}/settings"} class="link">board's settings</.link>
+        <.link navigate={~p"/boards/#{@board}/settings?tab=features"} class="link">board's settings</.link>
         (Delivery metrics), or with <code class="font-mono text-xs">slipdock set-board {@board.code} --delivery-metrics</code>,
         and record deploys from CI to see deployment frequency, lead time, change failure rate
         and time to restore here.

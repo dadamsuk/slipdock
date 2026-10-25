@@ -311,6 +311,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       # `?at=comment-12`, `?at=transcript-5-part-2`: where in the card a
       # search result points (see `SlipdockWeb.SearchLinks`).
       |> assign(card_at: SlipdockWeb.SearchLinks.at(params["at"]))
+      # `?tab=gardening`: which tab the settings panel opens on.
+      |> assign(settings_tab: params["tab"])
       |> scroll_to_anchor()
 
     if socket.assigns.view_only and is_nil(socket.redirected) do
@@ -1488,6 +1490,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         board={@board}
         current_user={@current_user}
         groups={@groups}
+        tab={@settings_tab}
         close_path={@paths.close}
       />
     </Layouts.app>

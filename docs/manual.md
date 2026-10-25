@@ -972,7 +972,7 @@ applied suggestion isn't suggested again either, and an open one a later look
 no longer finds is dropped. A dismissed duplicate pair stays dismissed however
 either card is edited later.
 
-**Choosing the checks.** Board settings → **Gardening** has each check on or
+**Choosing the checks.** Board settings → the **Gardening** tab has each check on or
 off, and its thresholds: days for the stale, overdue, backlog and orphan
 checks, the similarity and card cap for duplicates, the number of edits for
 links. Everything but *Abandoned in the backlog* is on to begin with.
@@ -1652,6 +1652,16 @@ this board, Capture a meeting when meeting mode is on, Tidy up…), how it is
 set up (Tags, Automations, Board settings), and what it has done (Activity,
 Archived cards).
 
+**Board settings** is in tabs: **General** (name, code, shortcut key, hotkey,
+description, default view, votes, sprint and simple board, colour),
+**Features** (pulse, delivery metrics, WIP limits for automated work,
+handoffs, permitted senders, card features on wiki pages), **Planning**
+(fields, milestones, where sprints are planned from), **Deploys** (Track
+deployments), **Gardening**, **Sharing** and **Manage** (save the lists as a
+template, archive, delete). One Save covers General and Features, and what is
+typed on one is kept while you look at the other. `?tab=gardening` on the
+settings address opens on that tab.
+
 ## Favourites
 
 A board holds more than anyone works on at once. The board you live in is one
@@ -2067,7 +2077,7 @@ share of a board turns their address for it off.
 
 **Permitted senders.** A board's owner can let other addresses mail the
 board's card addresses too: a colleague, a client, a monitoring service's
-own address. List them in Board settings › *Permitted senders*, one per
+own address. List them in Board settings › Features › *Permitted senders*, one per
 line (at most 50), or with `slipdock set-board <board> --inbound-senders
 "ann@example.com,bob@example.com"` (`""` clears the list) or `PATCH
 /api/boards/:board {"inbound_senders": [...]}`. The list belongs to the
