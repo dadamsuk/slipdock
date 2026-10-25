@@ -247,7 +247,7 @@ defmodule SlipdockWeb.RichText do
         title =
           (user.name || user.email) |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 
-        ~s|<span class="badge badge-sm badge-primary badge-soft align-baseline" title="#{title}">@#{trimmed}</span>| <>
+        ~s|<span class="badge badge-sm badge-primary align-baseline" title="#{title}">@#{trimmed}</span>| <>
           rest
     end
   end
