@@ -172,7 +172,10 @@ body {
   outline-offset: 0;
 }
 
-/* Primary buttons and badges are soft tints, not solid fills. */
+/* Primary buttons and badges are soft tints, not solid fills. So never add
+   daisyUI's `badge-soft` to `badge-primary`: soft paints the words in
+   --badge-color, which here is the dark tint, and in the dark theme the
+   words all but vanish (#1286). */
 .btn-primary {
   --btn-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-base-100));
   --btn-fg: var(--color-primary);

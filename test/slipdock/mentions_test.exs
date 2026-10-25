@@ -104,6 +104,30 @@ defmodule Slipdock.MentionsTest do
       refute html =~ ">@stranger<"
     end
 
+    # #1286: `badge-soft` paints the words in --badge-color, which app.css
+    # makes the dark tint for `badge-primary`: dark on dark in the dark theme.
+    test "the chip is a primary badge, never a soft one", %{board: board} do
+      {:safe, html} = RichText.markdown("hi @priya", board: board)
+
+      assert html =~
+               ~s|<span class="badge badge-sm badge-primary align-baseline" title="Priya Shah">|
+
+      refute html =~ "badge-soft"
+    end
+
+    test "no badge in the app pairs badge-primary with badge-soft" do
+      offenders =
+        Path.wildcard("lib/**/*.{ex,heex}")
+        |> Enum.filter(fn path ->
+          path
+          |> File.read!()
+          |> String.split("\n")
+          |> Enum.any?(&(&1 =~ "badge-primary" and &1 =~ "badge-soft"))
+        end)
+
+      assert offenders == []
+    end
+
     test "leaves an @ inside a link alone", %{board: board} do
       {:safe, html} = RichText.render("https://x.com/a?u=@priya", board: board)
       refute html =~ "<span"
