@@ -178,6 +178,11 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
               options={[{"Exact day", ""} | Enum.map(Dates.precisions(), fn {k, l} -> {l, k} end)]}
             />
           </div>
+          <.input
+            field={@form[:show_age]}
+            type="checkbox"
+            label="Show how long each card has been in this list"
+          />
           <div class="space-y-1.5 rounded-lg bg-base-200/60 p-3">
             <span class="text-sm font-medium">Order</span>
             <p class="text-xs text-base-content/50">

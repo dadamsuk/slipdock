@@ -479,6 +479,7 @@ defmodule Slipdock.Portable.Import do
             name: list[:name] || "List #{index + 1}",
             position: list[:position] || index,
             wip_limit: list[:wip_limit],
+            show_age: list[:show_age] != false,
             color: list[:color],
             category: list[:category],
             horizon_from: date(list[:horizon_from]),

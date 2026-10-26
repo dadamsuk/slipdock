@@ -623,6 +623,10 @@ whether an agent or a person holds it.
 amber, with how far over, once that is past the list's usual stay (the time
 85 in 100 cards spent there). Never on a done or dropped list, a card with an
 open wait (the person is the hold-up), or where there is too little history.
+To leave it off, untick **Time in list** in the board's **Display** menu (every
+list), or *Show how long each card has been in this list* in a list's
+settings (that list only; `slipdock set-column <board> <list> --no-show-age`,
+or `show_age: false` on the list over the API).
 
 The board's **Filter** menu has *Time in list* (only cards past their list's
 usual stay) and, on runner boards, *Driver*: All, Agent or Human. The API, MCP and CLI carry the same

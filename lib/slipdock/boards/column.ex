@@ -29,6 +29,8 @@ defmodule Slipdock.Boards.Column do
     field :sort_by, :string
     field :sort_dir, :string, default: "asc"
     field :group_by, :string
+    # Whether its cards show their time in the list (the age chip).
+    field :show_age, :boolean, default: true
 
     belongs_to :board, Slipdock.Boards.Board
     has_many :cards, Slipdock.Boards.Card, preload_order: [asc: :position]
@@ -88,7 +90,8 @@ defmodule Slipdock.Boards.Column do
       :horizon_unit,
       :sort_by,
       :sort_dir,
-      :group_by
+      :group_by,
+      :show_age
     ])
     |> validate_required([:name, :board_id])
     |> validate_length(:name, min: 1, max: 60)

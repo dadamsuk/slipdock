@@ -111,10 +111,12 @@ defmodule Slipdock.Swimlanes.Config do
     {"checklist", "Checklist"},
     {"description", "Description"},
     {"comments", "Comments"},
-    {"attachments", "Attachments"}
+    {"attachments", "Attachments"},
+    # How long it has sat in its list, amber past the usual stay (#1117).
+    {"age", "Time in list"}
   ]
   @facet_keys Enum.map(@facets, &elem(&1, 0))
-  @default_show_compact ~w(cover status priority flags assignee due_date)
+  @default_show_compact ~w(cover status priority flags assignee due_date age)
   # Views that render less than a full card only offer the facets they can show.
   @mode_facets %{
     "outline" => ~w(cover status tags priority flags assignee),

@@ -1176,13 +1176,17 @@ defmodule SlipdockCLI.Boards do
         "name" => o[:name],
         "wip_limit" => o[:wip],
         "color" => o[:color],
-        "category" => o[:category]
+        "category" => o[:category],
+        "show_age" => o[:show_age]
       }
       |> Map.merge(list_order(o))
       |> compact()
 
     if body == %{},
-      do: fail("nothing to change: pass --name, --wip, --color, --category, --sort or --group")
+      do:
+        fail(
+          "nothing to change: pass --name, --wip, --color, --category, --sort, --group or --show-age"
+        )
 
     HTTP.patch("/boards/#{enc(ref)}/columns/#{id}", body)
     |> out(o, fn r ->
