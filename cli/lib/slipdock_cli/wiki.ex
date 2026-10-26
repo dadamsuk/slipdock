@@ -191,9 +191,14 @@ defmodule SlipdockCLI.Wiki do
   end
 
   # The quick switcher from a shell: a few letters of a note's title, an
-  # alias or its path, across the board's vault.
+  # alias or its path, across the board's vault — or, with --all, every
+  # vault of yours.
   def run("page", ["switch", ref | words], o) when words != [] do
-    HTTP.get("/boards/#{enc(ref)}/pages/switch", q: Enum.join(words, " "), limit: o[:limit])
+    HTTP.get("/boards/#{enc(ref)}/pages/switch",
+      q: Enum.join(words, " "),
+      limit: o[:limit],
+      vaults: if(o[:all], do: "all")
+    )
     |> out(o, fn
       %{"matches" => []} ->
         IO.puts(Render.dim("no note's title, alias or path matches"))
@@ -208,7 +213,17 @@ defmodule SlipdockCLI.Wiki do
 
           IO.puts(
             String.pad_trailing(m["code"] || "", 8) <>
-              " " <> m["title"] <> via <> "  " <> Render.dim("#{m["path"]} · #{m["board"]}")
+              " " <>
+              m["title"] <>
+              via <>
+              "  " <>
+              Render.dim(
+                Enum.map_join(
+                  Enum.reject([m["vault"], m["path"], m["board"]], &is_nil/1),
+                  " · ",
+                  & &1
+                )
+              )
           )
         end)
     end)

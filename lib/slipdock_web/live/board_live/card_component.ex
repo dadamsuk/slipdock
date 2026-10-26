@@ -1224,13 +1224,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   # Pages not already on the card, found the way the `[[` picker and the
   # quick switcher find them (#1302): by title, alias, folder or code, the
-  # most recently changed first while nothing is typed. Names only: finding
+  # most recently changed first while nothing is typed, this vault's before
+  # the user's other vaults' (#1303). Names only: finding
   # the page you mean is a different job from searching its prose, which
   # `/search` does by meaning. The pages are gathered once, when the box is
   # first used, and each keystroke scores them in memory.
   defp assign_doc_results(socket) do
     %{board: board, current_user: user, doc_query: query} = socket.assigns
-    pool = socket.assigns.doc_pool || Wiki.Switcher.pool(user, board)
+    pool = socket.assigns.doc_pool || Wiki.Switcher.linkable_pool(user, board)
     attached = MapSet.new(socket.assigns.card_pages, & &1.page.id)
 
     results =

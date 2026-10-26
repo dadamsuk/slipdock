@@ -153,4 +153,85 @@ defmodule Slipdock.WikiSwitcherTest do
     IO.puts("\n    switcher over 10,000 notes: #{div(us, 1000)} ms")
     assert us < 1_000_000
   end
+
+  describe "linkable_pool/2 (#1303)" do
+    setup %{user: user} do
+      notes = board_fixture(%{"name" => "Notes", "code" => "notsw1303"}, owner: user)
+      {:ok, other} = Vaults.create_vault(user, %{"name" => "Garden"})
+      {:ok, _} = Vaults.add_mapping(other, user, %{path: "/", board: notes})
+      {:ok, rose} = Wiki.create_page(notes, %{"title" => "Rose pruning"}, user: user)
+
+      stranger = user_fixture("switch1303.stranger@example.com")
+      hidden = board_fixture(%{"name" => "Hidden", "code" => "hidsw1303"}, owner: stranger)
+      {:ok, theirs} = Vaults.create_vault(stranger, %{"name" => "Theirs"})
+      {:ok, _} = Vaults.add_mapping(theirs, stranger, %{path: "/", board: hidden})
+      {:ok, secret} = Wiki.create_page(hidden, %{"title" => "Rose secret"}, user: stranger)
+
+      %{notes: notes, rose: rose, secret: secret}
+    end
+
+    test "adds every other vault's pages, marked with the vault, and nobody else's", %{
+      user: user,
+      kb: kb,
+      rose: rose,
+      call: call,
+      secret: secret
+    } do
+      pool = Switcher.linkable_pool(user, kb)
+      by_id = Map.new(pool, &{&1.id, &1})
+
+      assert by_id[rose.id].elsewhere == "Garden"
+      assert by_id[call.id][:elsewhere] == nil
+      refute Map.has_key?(by_id, secret.id)
+
+      # The plain switcher stays inside the board's vault.
+      refute Enum.any?(Switcher.pool(user, kb), &(&1.id == rose.id))
+    end
+
+    test "a board outside any vault gets its own pages and every vault's", %{
+      user: user,
+      rose: rose,
+      call: call
+    } do
+      loose = board_fixture(%{"name" => "Loose", "code" => "loosw1303"}, owner: user)
+      {:ok, own} = Wiki.create_page(loose, %{"title" => "Loose end"}, user: user)
+
+      by_id = user |> Switcher.linkable_pool(loose) |> Map.new(&{&1.id, &1})
+
+      assert by_id[own.id][:elsewhere] == nil
+      assert by_id[rose.id].elsewhere == "Garden"
+      assert by_id[call.id].elsewhere == "Brain"
+    end
+
+    test "this vault's pages come first, recent or matched", %{
+      user: user,
+      kb: kb,
+      rose: rose,
+      rust: rust
+    } do
+      # The other vault's page is the newest of all, and still comes after.
+      Repo.update_all(
+        from(p in Slipdock.Wiki.Page, where: p.id != ^rose.id),
+        set: [updated_at: ~U[2020-01-01 00:00:00Z]]
+      )
+
+      pool = Switcher.linkable_pool(user, kb)
+      recent = Switcher.search(pool, "", 50)
+
+      assert Enum.find_index(recent, &(&1.id == rust.id)) <
+               Enum.find_index(recent, &(&1.id == rose.id))
+
+      # The same words match both titles equally well: this vault's wins.
+      {:ok, here} = Wiki.create_page(kb, %{"title" => "Rose pruning"}, user: user)
+
+      assert [%{id: first}, %{id: second} | _] =
+               user |> Switcher.linkable_pool(kb) |> Switcher.search("rose pruning")
+
+      assert {first, second} == {here.id, rose.id}
+
+      # A far better match from elsewhere still wins.
+      assert [%{id: id} | _] = Switcher.search(pool, "rose")
+      assert id == rose.id
+    end
+  end
 end

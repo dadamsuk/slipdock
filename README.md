@@ -172,7 +172,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **A wiki per board** — [Markdown pages in a tree of folders](docs/manual.md#wiki),
   written in an Obsidian-style live-preview editor (descriptions and comments too),
   that stays quick with thousands of notes (loaded a folder at a time, only the rows
-  on screen drawn), icons and colours on folders and pages, `[[links]]` (typing `[[` opens a page picker: by title, folder or `W-` code, recent first), live card chips, live query blocks, backlinks, revisions,
+  on screen drawn), icons and colours on folders and pages, `[[links]]` (typing `[[` opens a page picker: by title, folder or `W-` code, recent first, across every vault you have), live card chips, live query blocks, backlinks, revisions,
   templates, export and public links. Several boards' wikis can be laid out as
   one [vault](docs/manual.md#vaults), a folder tree of Markdown (and other)
   files, the way Obsidian keeps notes (Obsidian itself isn't needed): links, `#tags`, aliases,

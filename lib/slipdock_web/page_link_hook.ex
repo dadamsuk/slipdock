@@ -8,8 +8,9 @@ defmodule SlipdockWeb.PageLinkHook do
   LiveView sees it, with the pages that match: by title, alias, folder path
   or code (`W-31`), the most recently changed first when nothing is typed
   yet. The matching is the quick switcher's (`Slipdock.Wiki.Switcher`), over
-  the same pages: the vault's when the board is in one, else the board's,
-  and only what the reader may open.
+  the pages of the board's vault (or the board, outside one) first, then
+  those of every other vault the reader has (#1303), and only what the
+  reader may open.
 
   Each match carries the link to write: `[[Title]]` when the title alone
   finds that page from the board being written on, else `[[W-31]]`, which
@@ -94,7 +95,8 @@ defmodule SlipdockWeb.PageLinkHook do
     )
   end
 
-  # The folder path the page sits under, and its board when that is another.
+  # The folder path the page sits under, its board when that is another, and
+  # its vault when that is another too.
   defp where(entry, %Board{id: board_id}) do
     dir =
       case String.split(entry.path, "/") do
@@ -102,7 +104,7 @@ defmodule SlipdockWeb.PageLinkHook do
         parts -> parts |> Enum.drop(-1) |> Enum.join("/")
       end
 
-    [if(entry.board_id != board_id, do: entry.board), dir]
+    [entry[:elsewhere], if(entry.board_id != board_id, do: entry.board), dir]
     |> Enum.reject(&(&1 in [nil, ""]))
     |> Enum.join(" · ")
   end
@@ -138,7 +140,7 @@ defmodule SlipdockWeb.PageLinkHook do
       _ ->
         assign(socket, :page_link_pool, %{
           board_id: board.id,
-          pool: Switcher.pool(socket.assigns.current_user, board)
+          pool: Switcher.linkable_pool(socket.assigns.current_user, board)
         })
     end
   end
