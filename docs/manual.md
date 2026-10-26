@@ -3705,6 +3705,15 @@ uses a page's code, and `[[board:QVM]]` / `[[view:QVM/Blocked work]]` reach a
 board or a saved view. `@name` mentions someone on the board.
 `[[!toc]]`, `[[!children]]` and `[[!backlinks]]` expand when the page is read.
 
+Typing `[[` in any editor (a page, a card's description, a comment) opens a
+page picker: the pages changed most lately first, then whatever matches what
+you type after the brackets, whether a title, a folder (`specs/bil`), an alias
+or a code (`W-31`, which puts that page first). Arrow keys pick, Enter or Tab
+writes the link, Escape closes it. The link it writes is `[[Retry policy]]`
+when the title alone finds the page from where you are writing, and
+`[[W-31]]` otherwise (another board's page, a title two pages share, or one
+with `/`, `|` or `#` in it).
+
 As in Obsidian, `[[Retry policy#Backoff]]` goes to a heading of a page and
 `[[Retry policy#^a1b2]]` to a block — a paragraph or list item ending in
 ` ^a1b2`, which is an address and is not shown — and `[[#Backoff]]` to a
@@ -3845,7 +3854,8 @@ list leaves its pages behind, unplaced rather than deleted.
 mentions it, pinned first, with **Write it up** to start one — pre-titled,
 pinned, and filled in from a template page when the board has one — and a
 picker to attach a page somebody has already written, which is the commoner
-case. The page, in turn, has a **Cards this is about** section with the same
+case. It lists the pages changed most lately as soon as you click into it,
+and finds one by title, folder or code as the `[[` picker does. The page, in turn, has a **Cards this is about** section with the same
 pin toggle and the same picker, so the two are one click from each other in
 both directions. A pinned link is a person's judgement rather than something
 the prose says, so replacing every word of a page never detaches it from its

@@ -252,7 +252,8 @@ defmodule SlipdockWeb.Router do
         {SlipdockWeb.StaleAssetsHook, :default},
         {SlipdockWeb.AlertsHook, :default},
         {SlipdockWeb.QuickAddHook, :default},
-        {SlipdockWeb.ShortcutsHook, :default}
+        {SlipdockWeb.ShortcutsHook, :default},
+        {SlipdockWeb.PageLinkHook, :default}
       ] do
       live "/users", UsersLive.Index, :index
       live "/users/signups", UsersLive.Index, :signups
@@ -271,7 +272,8 @@ defmodule SlipdockWeb.Router do
         {SlipdockWeb.StaleAssetsHook, :default},
         {SlipdockWeb.AlertsHook, :default},
         {SlipdockWeb.QuickAddHook, :default},
-        {SlipdockWeb.ShortcutsHook, :default}
+        {SlipdockWeb.ShortcutsHook, :default},
+        {SlipdockWeb.PageLinkHook, :default}
       ] do
       live "/", BoardLive.Index, :index
       live "/work", WorkLive.Index, :index

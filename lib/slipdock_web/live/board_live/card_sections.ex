@@ -462,6 +462,9 @@ defmodule SlipdockWeb.BoardLive.CardSections do
           name="q"
           value={@doc_query}
           placeholder="Attach a page already written…"
+          title="Type a title, a folder or a code like W-31"
+          phx-focus="doc_focus"
+          phx-target={@target}
           phx-debounce="200"
           autocomplete="off"
           class="input input-xs w-full rounded-full pl-7"
@@ -477,7 +480,12 @@ defmodule SlipdockWeb.BoardLive.CardSections do
             class="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-xs hover:bg-base-200"
           >
             <.icon name="hero-plus" class="size-3 shrink-0 text-base-content/40" />
-            <span class="min-w-0 flex-1 truncate">{page.title}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate">{page.title}</span>
+              <span :if={page.path != ""} class="block truncate text-2xs text-base-content/50">
+                {page.path}
+              </span>
+            </span>
             <span class="shrink-0 font-mono text-2xs text-base-content/40">{page.code}</span>
           </button>
         </li>
