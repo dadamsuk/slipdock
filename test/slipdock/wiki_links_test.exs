@@ -379,6 +379,72 @@ defmodule Slipdock.WikiLinksTest do
     end
   end
 
+  describe "a code across boards and vaults (#1303)" do
+    setup %{user: user} do
+      other = board_fixture(%{"name" => "Garden", "code" => "garden1303"}, owner: user)
+      {:ok, far} = Wiki.create_page(other, %{"title" => "Far away"}, user: user)
+
+      stranger = user_fixture("links1303.stranger@example.com")
+      hidden = board_fixture(%{"name" => "Hidden", "code" => "hidden1303"}, owner: stranger)
+      {:ok, secret} = Wiki.create_page(hidden, %{"title" => "Secret plan"}, user: stranger)
+
+      %{far: far, secret: secret, stranger: stranger, hidden: hidden}
+    end
+
+    test "[[W-31]] finds the page on another board the owner can read", %{
+      board: board,
+      user: user,
+      far: far
+    } do
+      {:ok, page} =
+        Wiki.create_page(board, %{"title" => "Index", "body" => "[[#{far.code}]]"}, user: user)
+
+      assert [%{resolved: true, target_page_id: id}] = Wiki.outgoing_links(page)
+      assert id == far.id
+
+      html = Renderer.to_html("[[#{far.code}]]", board: board, as: user)
+      assert html =~ Renderer.page_path(far)
+      refute html =~ "wiki-wanted"
+    end
+
+    test "a page nobody here may read stays unresolved, and its title unsaid", %{
+      board: board,
+      user: user,
+      secret: secret
+    } do
+      {:ok, page} =
+        Wiki.create_page(board, %{"title" => "Snoop", "body" => "[[#{secret.code}]]"}, user: user)
+
+      assert [%{resolved: false, target_page_id: nil}] = Wiki.outgoing_links(page)
+
+      html = Renderer.to_html("[[#{secret.code}]]", board: board, as: user)
+      refute html =~ "Secret plan"
+      refute html =~ Renderer.page_path(secret)
+    end
+
+    test "the reader decides when there is one", %{
+      board: board,
+      user: user,
+      far: far,
+      stranger: stranger
+    } do
+      outsider_html = Renderer.to_html("[[#{far.code}]]", board: board, as: stranger)
+      refute outsider_html =~ Renderer.page_path(far)
+
+      assert Renderer.to_html("[[#{far.code}]]", board: board, as: user) =~
+               Renderer.page_path(far)
+    end
+
+    test "an archived page is not found by its code", %{board: board, user: user, far: far} do
+      {:ok, _} = Wiki.archive_page(far)
+
+      {:ok, page} =
+        Wiki.create_page(board, %{"title" => "Old", "body" => "[[#{far.code}]]"}, user: user)
+
+      assert [%{resolved: false}] = Wiki.outgoing_links(page)
+    end
+  end
+
   describe "rendering" do
     test "draws a card as a live chip and a page as a link", %{
       board: board,

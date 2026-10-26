@@ -3714,6 +3714,14 @@ when the title alone finds the page from where you are writing, and
 `[[W-31]]` otherwise (another board's page, a title two pages share, or one
 with `/`, `|` or `#` in it).
 
+The picker reaches every vault you have, not only the one you are writing
+in: this vault's pages (or the board's, outside a vault) come first, then
+your other vaults', each showing which vault it is in. A page from another
+vault or board is linked by its code, and `[[W-31]]` finds that page
+wherever it is, for anyone who may open it; to anyone else it reads as
+plain text. The card's attach box offers the same pages, and so does
+`slipdock page switch <board> <letters> --all` (`?vaults=all` on the API).
+
 As in Obsidian, `[[Retry policy#Backoff]]` goes to a heading of a page and
 `[[Retry policy#^a1b2]]` to a block — a paragraph or list item ending in
 ` ^a1b2`, which is an address and is not shown — and `[[#Backoff]]` to a
@@ -3855,7 +3863,8 @@ mentions it, pinned first, with **Write it up** to start one — pre-titled,
 pinned, and filled in from a template page when the board has one — and a
 picker to attach a page somebody has already written, which is the commoner
 case. It lists the pages changed most lately as soon as you click into it,
-and finds one by title, folder or code as the `[[` picker does. The page, in turn, has a **Cards this is about** section with the same
+and finds one by title, folder or code, in any of your vaults, as the `[[`
+picker does. The page, in turn, has a **Cards this is about** section with the same
 pin toggle and the same picker, so the two are one click from each other in
 both directions. A pinned link is a person's judgement rather than something
 the prose says, so replacing every word of a page never detaches it from its

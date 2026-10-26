@@ -50,6 +50,24 @@ defmodule Slipdock.Wiki.Switcher do
     end
   end
 
+  @doc """
+  The pages a `[[` page picker on `board` offers `user` (#1303): `pool/2`
+  first, then the pages of every other vault of theirs that they may open,
+  each marked `elsewhere:` with that vault's name. A board is in one vault
+  at most, so no page comes twice.
+  """
+  @spec linkable_pool(User.t(), Board.t()) :: [entry]
+  def linkable_pool(%User{} = user, %Board{} = board) do
+    own = pool(user, board)
+    here = Vaults.for_board(board)
+
+    own ++
+      for vault <- Vaults.list_vaults(user),
+          is_nil(here) or vault.id != here.id,
+          entry <- vault_pool(user, vault),
+          do: Map.put(entry, :elsewhere, vault.name)
+  end
+
   defp vault_pool(user, vault) do
     boards =
       vault
@@ -142,13 +160,17 @@ defmodule Slipdock.Wiki.Switcher do
   The best `limit` matches in `pool` for `query`, best first, each with
   `:matched` saying which of its names matched (`:title`, `{:alias, name}`,
   `:path`, or `:code` for a page's code typed whole). An empty query gives
-  the pages changed most lately.
+  the pages changed most lately. A page from another vault (`elsewhere:`,
+  see `linkable_pool/2`) comes after this vault's, by recency or score
+  alike, unless it scores clearly better.
   """
   def search(pool, query, limit \\ 12) do
     case String.downcase(String.trim(query || "")) do
       "" ->
-        pool
-        |> Enum.sort_by(& &1.updated_at, {:desc, DateTime})
+        {here, elsewhere} = Enum.split_with(pool, &is_nil(&1[:elsewhere]))
+
+        [here, elsewhere]
+        |> Enum.flat_map(&Enum.sort_by(&1, fn e -> e.updated_at end, {:desc, DateTime}))
         |> Enum.take(limit)
         |> Enum.map(&Map.put(&1, :matched, :recent))
 
@@ -169,7 +191,7 @@ defmodule Slipdock.Wiki.Switcher do
         |> Enum.flat_map(fn entry ->
           case best(entry, q) do
             nil -> []
-            {score, matched} -> [{score, Map.put(entry, :matched, matched)}]
+            {score, matched} -> [{weigh(score, entry), Map.put(entry, :matched, matched)}]
           end
         end)
         |> Enum.sort_by(fn {score, entry} -> {-score, String.length(entry.title)} end)
@@ -178,6 +200,10 @@ defmodule Slipdock.Wiki.Switcher do
         |> Enum.take(limit)
     end
   end
+
+  # Another vault's page has to match a little better to come first.
+  defp weigh(score, %{elsewhere: name}) when is_binary(name), do: score * 0.9
+  defp weigh(score, _entry), do: score
 
   # Whether the letters come in order somewhere in the text.
   defp subsequence?(_text, []), do: true

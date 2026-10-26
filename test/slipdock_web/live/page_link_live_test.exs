@@ -11,7 +11,7 @@ defmodule SlipdockWeb.PageLinkLiveTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.{Repo, Wiki}
+  alias Slipdock.{Repo, Vaults, Wiki}
   alias Slipdock.Wiki.{Folders, Page}
   alias SlipdockWeb.PageLinkHook
 
@@ -194,6 +194,68 @@ defmodule SlipdockWeb.PageLinkLiveTest do
       view |> element("#card-doc-search input[name='q']") |> render_focus()
       refute has_element?(view, "button[phx-click='attach_doc'][phx-value-page='#{new.id}']")
       assert has_element?(view, spec_button)
+    end
+  end
+
+  describe "pages in the user's other vaults (#1303)" do
+    setup %{user: user} do
+      garden = board_fixture(%{"name" => "Garden board", "code" => "plink1303g"}, owner: user)
+      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Garden"})
+      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: garden})
+      {:ok, plants} = Folders.create(garden, %{"name" => "Plants"})
+
+      rose =
+        page_fixture(garden, %{"title" => "Rose pruning", "folder_id" => plants.id}, user: user)
+
+      stranger = user_fixture("plink1303.stranger@example.com")
+      hidden = board_fixture(%{"name" => "Hidden", "code" => "plink1303h"}, owner: stranger)
+      {:ok, theirs} = Vaults.create_vault(stranger, %{"name" => "Theirs"})
+      {:ok, _} = Vaults.add_mapping(theirs, stranger, %{path: "/", board: hidden})
+      secret = page_fixture(hidden, %{"title" => "Rose secret"}, user: stranger)
+
+      %{rose: rose, secret: secret}
+    end
+
+    test "the [[ picker offers them, says which vault, and links by code", %{
+      conn: conn,
+      board: board,
+      rose: rose,
+      secret: secret
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+      pages = suggest(view, %{"q" => "rose", "fresh" => true})
+
+      assert %{insert: insert, path: path} = Enum.find(pages, &(&1.id == rose.id))
+      assert insert == "[[#{rose.code}]]"
+      assert path =~ "Garden"
+      assert path =~ "Garden board"
+      refute Enum.any?(pages, &(&1.id == secret.id))
+
+      # Written into a page here, the code finds it.
+      {:ok, page} =
+        Wiki.create_page(board, %{"title" => "Linked", "body" => "See #{insert}"},
+          user: Repo.get!(Slipdock.Accounts.User, board.owner_id)
+        )
+
+      assert [%{resolved: true, target_page_id: id}] = Wiki.outgoing_links(page)
+      assert id == rose.id
+    end
+
+    test "the attach box offers them too", %{
+      conn: conn,
+      user: user,
+      board: board,
+      card: card,
+      rose: rose
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/cards/#{card}")
+      view |> form("#card-doc-search") |> render_change(%{"q" => "rose"})
+
+      button = "button[phx-click='attach_doc'][phx-value-page='#{rose.id}']"
+      assert view |> element(button) |> render() =~ "Garden"
+
+      view |> element(button) |> render_click()
+      assert card |> Wiki.pages_for_card(user) |> Enum.any?(&(&1.page.id == rose.id))
     end
   end
 end

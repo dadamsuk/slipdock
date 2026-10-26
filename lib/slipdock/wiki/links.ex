@@ -153,9 +153,29 @@ defmodule Slipdock.Wiki.Links do
          true <- visible_page?(page, reader) do
       {:page, page}
     else
-      _ -> vault_target(board, ref, reader, from)
+      _ -> code_target(board, ref, reader) || vault_target(board, ref, reader, from)
     end
   end
+
+  # `[[W-31]]` is the one page with that code, whatever board or vault it is
+  # on (#1303), when the reader may open it. Resolved as the system (the
+  # stored index), the board's owner has to be able to: the stored link
+  # carries the page's title, and a code is easy to guess.
+  defp code_target(%Board{} = board, %{board: nil, target: code}, reader) do
+    with true <- Page.code?(code),
+         %User{} = viewer <- reader || owner_of(board),
+         %Page{archived_at: nil} = page <- Repo.get_by(Page, code: Page.normalize_code(code)),
+         true <- visible_page?(page, viewer) do
+      {:page, page}
+    else
+      _ -> nil
+    end
+  end
+
+  defp code_target(_board, _ref, _reader), do: nil
+
+  defp owner_of(%Board{owner_id: id}) when is_integer(id), do: Repo.get(User, id)
+  defp owner_of(_board), do: nil
 
   @doc false
   # Anything with an extension other than `.md`, as `![[diagram.png]]` has.

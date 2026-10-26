@@ -915,16 +915,22 @@ defmodule SlipdockWeb.API.PageController do
   @doc """
   The quick switcher's answer (W-103 R11.4): the pages whose title, alias or
   path the letters in `?q=` run through in order, best first, across the
-  board's vault (or the board, outside one). `?limit=` up to 50.
+  board's vault (or the board, outside one). `?vaults=all` adds the pages
+  of every other vault of the caller's, as the `[[` picker does (#1303).
+  `?limit=` up to 50.
   """
   def switch(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
       limit =
         params["limit"] |> to_string() |> Integer.parse() |> elem_or(12) |> min(50) |> max(1)
 
+      pool =
+        if params["vaults"] == "all",
+          do: Wiki.Switcher.linkable_pool(conn.assigns.current_user, board),
+          else: Wiki.Switcher.pool(conn.assigns.current_user, board)
+
       matches =
-        conn.assigns.current_user
-        |> Wiki.Switcher.pool(board)
+        pool
         |> Wiki.Switcher.search(params["q"], limit)
         |> Enum.map(fn m ->
           %{
@@ -935,6 +941,7 @@ defmodule SlipdockWeb.API.PageController do
             board_id: m.board_id,
             board: m.board,
             path: m.path,
+            vault: m[:elsewhere],
             matched:
               case m.matched do
                 {:alias, name} -> "alias:" <> name
