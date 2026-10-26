@@ -699,7 +699,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   :for={{_kind, item} <- group.items}
                   card={item}
                   compact={@swim.density == "compact"}
-                  show={Config.shown(@swim)}
+                  show={list_show(@swim, column)}
                   handoff_note={@swim.handoff}
                   handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                   focus={@focus && card_focus(@focus, item)}
@@ -732,7 +732,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   card={item}
                   id={"snoozed-card-#{item.id}"}
                   compact={@swim.density == "compact"}
-                  show={Config.shown(@swim)}
+                  show={list_show(@swim, column)}
                   handoff_note={@swim.handoff}
                   handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                   selected={@select_mode && card_selected?(@selected, item)}
@@ -1062,6 +1062,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   # The keyboard cursor walks cards. A placed wiki page is drawn beside them
   # but is not in `col.cards`, so it is never the cursor — and must not light
   # up because it happens to share a card's number.
+  # The display's facets for one list's cards: without the age chip when
+  # the list's settings turn it off.
+  defp list_show(swim, %{show_age: false}), do: MapSet.delete(Config.shown(swim), "age")
+  defp list_show(swim, _column), do: Config.shown(swim)
+
   defp card_focus(_focus, %Slipdock.Wiki.Page{}), do: nil
 
   defp card_focus(%{card_id: id, holding?: true}, %{id: id}), do: :held

@@ -1043,11 +1043,12 @@ defmodule SlipdockWeb.SlipdockComponents do
       # Snoozed (W-1803): only seen where snoozed cards are shown, and then
       # always marked, with the day it wakes.
       snoozed: snoozed,
-      # What is happening to it, who drives it and how long it has sat in its
-      # list (#1117): always shown when there is something to say.
+      # What is happening to it and who drives it (#1117): always shown when
+      # there is something to say. How long it has sat in its list is a
+      # facet like the rest, so a board can leave it off.
       state_line: match?(%Slipdock.CardState{line: line} when is_binary(line), state),
       driver: match?(%Slipdock.CardState{driver: d} when is_binary(d), state),
-      age: match?(%Slipdock.CardState{age: age} when is_integer(age), state)
+      age: on.("age") and match?(%Slipdock.CardState{age: age} when is_integer(age), state)
     }
 
     meta? =

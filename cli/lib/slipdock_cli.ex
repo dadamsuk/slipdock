@@ -742,6 +742,8 @@ defmodule SlipdockCLI do
                                         (both) --sort position|created|updated|start_date|
                                         due_date|priority [--descending] and --group none|
                                         flag|tag|start_date|due_date: how the app draws it
+                                        set-column --no-show-age: its cards leave off how
+                                        long they have been in it (--show-age: back on)
     new-tag <board> <name> [--color C]
     set <id> <key>=<value>...           set custom fields on a card ("" clears; choice by label or key)
     vote <id> <n>                       put n of your votes on a card or page (0 removes them)
@@ -941,6 +943,7 @@ defmodule SlipdockCLI do
     add_document: :boolean,
     page_card_features: :boolean,
     show_pulse: :boolean,
+    show_age: :boolean,
     # `slipdock deploy` (#1134).
     env: :string,
     sha: :string,
