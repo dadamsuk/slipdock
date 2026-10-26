@@ -37,6 +37,7 @@ import {installMeld} from "./meld_view"
 import {MeldEditor} from "./meld_editor"
 import {ExcalidrawEditor} from "./excalidraw_editor"
 import {MarkdownEditor} from "./markdown_editor"
+import {PageLink} from "./page_link"
 import {TranscriptPlayer} from "./transcript_player"
 import {PasskeyLogin, PasskeyRegister} from "./passkey"
 import {DockDrag} from "./dock_drag"
@@ -46,6 +47,7 @@ Hooks.ModalDialog = ModalDialog
 Hooks.Replay = Replay
 Hooks.ExcalidrawEditor = ExcalidrawEditor
 Hooks.MarkdownEditor = MarkdownEditor
+Hooks.PageLink = PageLink
 Hooks.PasskeyLogin = PasskeyLogin
 Hooks.PasskeyRegister = PasskeyRegister
 Hooks.DockDrag = DockDrag

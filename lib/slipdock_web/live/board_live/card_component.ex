@@ -29,14 +29,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   alias Slipdock.{Access, Boards, Palette, Runners, Wiki}
   alias Slipdock.Boards.{Attachment, Board, Card, CardLink}
-  alias SlipdockWeb.Params
+  alias SlipdockWeb.{PageLinkHook, Params}
   alias SlipdockWeb.BoardLive.{ItemEvents, Paths, Sharing}
 
   @own_events ~w(card_change toggle_flag toggle_tag set_cover set_border duplicate_card archive_card delete_card
     add_dependency remove_dependency create_sub_board remove_assignee delete_sub_board
     quick_add_subcard toggle_subcard edit_description stop_editing_description
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe add_link remove_link write_up
-    toggle_pin_doc doc_search attach_doc detach_doc card_timer log_time dep_direction
+    toggle_pin_doc doc_search doc_focus attach_doc detach_doc card_timer log_time dep_direction
     dep_search link_search pick_template comment_change share revoke_grant cancel_job
     edit_handoff cancel_handoff leave_handoff clear_handoff delete_handoff restore_handoff draft_handoff
     edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat
@@ -82,6 +82,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        card_timeline: nil,
        doc_query: "",
        doc_results: [],
+       doc_pool: nil,
        dep_direction: "blocked_by",
        dep_query: "",
        dep_results: [],
@@ -182,6 +183,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             link_results: [],
             doc_query: "",
             doc_results: [],
+            doc_pool: nil,
             picking_template: false,
             editing_description: false,
             editing_handoff: false,
@@ -529,6 +531,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     {:noreply, socket |> assign(doc_query: q) |> assign_doc_results()}
   end
 
+  # Into the empty box: the pages changed most lately, before anything is
+  # typed (#1302).
+  defp event("doc_focus", _params, socket) do
+    {:noreply, assign_doc_results(socket)}
+  end
+
   defp event("attach_doc", %{"page" => page_id}, socket) do
     card = socket.assigns.card
 
@@ -537,7 +545,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       {:noreply,
        socket
        |> flash(:info, "Attached #{page.code} to this card.")
-       |> assign(doc_query: "", doc_results: [])
+       |> assign(doc_query: "", doc_results: [], doc_pool: nil)
        |> assign_pages()}
     else
       _ -> {:noreply, flash(socket, :error, "That page couldn't be attached.")}
@@ -1214,24 +1222,24 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     |> image_failed(name)
   end
 
-  # Pages on this board's tree that are not already on the card. Titles and
-  # summaries only: finding the page you mean is a different job from
-  # searching its prose, which `/search` does by meaning.
+  # Pages not already on the card, found the way the `[[` picker and the
+  # quick switcher find them (#1302): by title, alias, folder or code, the
+  # most recently changed first while nothing is typed. Names only: finding
+  # the page you mean is a different job from searching its prose, which
+  # `/search` does by meaning. The pages are gathered once, when the box is
+  # first used, and each keystroke scores them in memory.
   defp assign_doc_results(socket) do
-    query = String.trim(socket.assigns.doc_query || "")
+    %{board: board, current_user: user, doc_query: query} = socket.assigns
+    pool = socket.assigns.doc_pool || Wiki.Switcher.pool(user, board)
     attached = MapSet.new(socket.assigns.card_pages, & &1.page.id)
 
     results =
-      if query == "" do
-        []
-      else
-        socket.assigns.board
-        |> Wiki.list_pages(q: query, template: false, archived: false)
-        |> Enum.reject(&MapSet.member?(attached, &1.id))
-        |> Enum.take(8)
-      end
+      pool
+      |> Enum.reject(&MapSet.member?(attached, &1.id))
+      |> Wiki.Switcher.search(query || "", 8)
+      |> Enum.map(&PageLinkHook.row(&1, board, pool))
 
-    assign(socket, doc_results: results)
+    assign(socket, doc_pool: pool, doc_results: results)
   end
 
   defp time_target(%{"_target" => ["card", field]}) when field in @time_fields, do: [field]

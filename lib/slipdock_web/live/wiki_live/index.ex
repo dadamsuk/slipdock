@@ -6986,19 +6986,22 @@ defmodule SlipdockWeb.WikiLive.Index do
                 textarea, which stays the form's field. Ignored by LiveView
                 so a patch never resets it; keyed on the page, so opening
                 another page's editor starts a new one. --%>
-          <div
-            id={"page-body-editor-#{(@page && @page.id) || "new"}"}
-            phx-hook="MarkdownEditor"
-            phx-update="ignore"
-            data-editor-class="md-editor-page"
-          >
-            <textarea
-              id="page_body"
-              name="page[body]"
-              rows="24"
-              class="w-full rounded-xl border border-base-300 bg-base-100 p-3 font-mono text-sm leading-relaxed focus:border-primary focus:outline-none"
-              phx-debounce="200"
-            ><%= Phoenix.HTML.Form.normalize_value("textarea", @form[:body].value) %></textarea>
+          <%!-- Typing [[ offers the wiki's pages to link (PageLink). --%>
+          <div id="page-body-page-link" phx-hook="PageLink" data-board={@board.id}>
+            <div
+              id={"page-body-editor-#{(@page && @page.id) || "new"}"}
+              phx-hook="MarkdownEditor"
+              phx-update="ignore"
+              data-editor-class="md-editor-page"
+            >
+              <textarea
+                id="page_body"
+                name="page[body]"
+                rows="24"
+                class="w-full rounded-xl border border-base-300 bg-base-100 p-3 font-mono text-sm leading-relaxed focus:border-primary focus:outline-none"
+                phx-debounce="200"
+              ><%= Phoenix.HTML.Form.normalize_value("textarea", @form[:body].value) %></textarea>
+            </div>
           </div>
           <.live_file_input upload={@uploads.page_image} class="hidden" />
         </div>
