@@ -2929,8 +2929,10 @@ stopped on cancel or timeout, and `Before-Job`/`After-Job` and
 
 which writes `%LOCALAPPDATA%\slipdock-runner\` (the runner, and the config
 with an ACL leaving it readable by you alone) and a per-user Task Scheduler
-entry, *Slipdock runner*, that starts it at logon — no admin rights. Its log
-is `runner.log` beside the config. `install.ps1` and `slipdock-runner.ps1`
+entry, *Slipdock runner*, that starts it at logon, and again within 5 minutes
+if it ever stops — no admin rights. Its log is `runner.log` beside the config:
+an error the runner hits is written there (the task's window is hidden), and a
+job it was running is stopped and failed rather than left behind. `install.ps1` and `slipdock-runner.ps1`
 are in `/runner/SHA256SUMS` too.
 
 The runner protocol and the session endpoints are in the agent guide

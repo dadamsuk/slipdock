@@ -99,6 +99,20 @@ jobs:
         if: matrix.partition == 1
         run: node --test 'assets/js/**/*.test.js' 'cloudflare/**/*.test.js'
 
+  # The PowerShell runner on Windows PowerShell 5.1, which the suite's pwsh
+  # on Linux can't stand in for: 5.1's Start-Process locks the job's output
+  # files differently, and that stopped the runner on its first heartbeat
+  # (#1481). A fake queue in the script itself, so no Elixir or Postgres.
+  windows-runner:
+    name: runner on Windows PowerShell
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Runner smoke test
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File test\powershell\runner_smoke.ps1
+
   # The CLI (cli/) is its own Mix project with its own suite. The Docker build
   # only compiles it, so without this job nothing checks its formatting,
   # warnings or tests (#798).

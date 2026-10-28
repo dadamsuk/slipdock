@@ -230,11 +230,19 @@ if ($NoStart) {
 } else {
   $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
     -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass $runArgs"
-  $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+  # At logon, and every 5 minutes after: the task's restart-on-failure only
+  # covers a runner that failed to start, not one that started and then
+  # exited, so the repeat is what brings a stopped runner back (#1481).
+  # IgnoreNew makes it a no-op while the runner is up.
+  $trigger = @(
+    (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME),
+    (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5))
+  )
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-    -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
+    -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) `
+    -MultipleInstances IgnoreNew
   Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings `
     -Description "Takes $Pool jobs from $Url" -Force | Out-Null
   Start-ScheduledTask -TaskName $TaskName
-  Write-Output "slipdock-runner: started, and starts again when you log on. Logs: $LogFile"
+  Write-Output "slipdock-runner: started, and starts again when you log on, or within 5 minutes if it stops. Logs: $LogFile"
 }
