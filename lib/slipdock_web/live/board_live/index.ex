@@ -554,6 +554,16 @@ defmodule SlipdockWeb.BoardLive.Index do
               </div>
               <%!-- The other way to read every board: not their cards, but
                     everything written on them (see `SlipdockWeb.WikiLive.All`). --%>
+              <%!-- The top cards of lists picked from any of them (#1479). --%>
+              <.link
+                id="open-multiboard"
+                navigate={~p"/multiboard"}
+                class="btn btn-ghost btn-sm"
+                title="The top cards of lists from several boards, on one page"
+              >
+                <.icon name="hero-rectangle-group" class="size-4" />
+                <span class="hidden sm:inline">Multiboard</span>
+              </.link>
               <.link navigate={~p"/wiki"} class="btn btn-ghost btn-sm">
                 <.icon name="hero-book-open" class="size-4" />
                 <span class="hidden sm:inline">Wiki</span>

@@ -306,6 +306,8 @@ defmodule SlipdockWeb.Router do
       live "/tools", ToolLive.Index, :index
       live "/tools/:slug", ToolLive.Show, :show
       live "/favourites", FavouriteLive.Index, :index
+      # The top cards of lists picked from any board, on one page (#1479).
+      live "/multiboard", MultiboardLive.Index, :index
       # Vaults: which boards' wikis lay out as one Obsidian-style tree (W-103).
       live "/vaults", VaultLive.Index, :index
       # A vault's own view (#752): its tree, and its pages at their vault
@@ -518,6 +520,8 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/inbound/rotate", InboundController, :rotate_board
     # The caller's own work: waiting on them, then assigned by due (#1118).
     get "/work", WorkController, :index
+    # The multiboard overview (#1479): the top cards of lists from any board.
+    get "/multiboard", MultiboardController, :index
 
     # Tools (#958): packages of docs, files, a board blueprint and skills.
     get "/tools", ToolController, :index

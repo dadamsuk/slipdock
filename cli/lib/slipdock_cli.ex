@@ -64,6 +64,10 @@ defmodule SlipdockCLI do
     work [--board B] [--done]           my work: what is waiting on you (waits, review and
                                         waiting flags, runner trouble, cards in progress with
                                         nobody on them), oldest first, then my cards by due date
+    multiboard [--list L]... [--limit N] [--by board|list|grid]
+                                        the top N cards (default 5) of lists from several
+                                        boards; L is a list id or board/list ("ops/To Do").
+                                        No --list: the view saved on the Multiboard page
     passkeys                            your passkeys: name, when added, when last used
     passkeys remove <id>                remove one (a lost phone) — it can't sign in after.
                                         Adding one needs the device, so is in a browser only

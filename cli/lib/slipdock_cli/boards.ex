@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   defp card_ref?(ref), do: String.match?(ref, ~r/\A#?\d+\z/)
 
@@ -25,6 +25,20 @@ defmodule SlipdockCLI.Boards do
   def run("work", [], o) do
     HTTP.get("/work", board: o[:board], done: if(o[:done], do: "true"))
     |> out(o, &Render.work/1)
+  end
+
+  # The multiboard overview (#1479): the top cards of lists from several
+  # boards. `--list` repeats, each an id or `board/list`; with none, the view
+  # last saved on the web page.
+  def run("multiboard", [], o) do
+    lists = Keyword.get_values(o, :list)
+
+    HTTP.get("/multiboard",
+      lists: if(lists != [], do: Enum.join(lists, ",")),
+      top: o[:limit],
+      by: o[:by]
+    )
+    |> out(o, &Render.multiboard/1)
   end
 
   # Semantic search. Everything after the command is the query, so it needs no

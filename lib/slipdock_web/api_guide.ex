@@ -1332,6 +1332,10 @@ defmodule SlipdockWeb.APIGuide do
     # what is waiting on you, oldest first, then your cards by due (?board=1, ?done=true)
     curl -s -H "$H" B/api/work
 
+    # the top 5 cards of lists from several boards, by board, list or grid
+    # (lists: ids or board/list; none: the view saved on the Multiboard page)
+    curl -s -G -H "$H" B/api/multiboard --data-urlencode 'lists=12,ops/To Do' -d top=5 -d by=grid
+
     # the boards themselves (owner only; ask before doing either)
     curl -s -X POST -H "$H" B/api/boards/1/archive    # put a board away, keeping everything on it
     curl -s -X POST -H "$H" B/api/boards/1/restore    # and bring it back
