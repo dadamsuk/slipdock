@@ -93,6 +93,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   A view can be **saved** with a name and a colour: it then sits on the home
   page among your boards and vaults, dragged into place like they are
   (`slipdock save-multiboard`, `/api/multiboards`).
+- **Reorder** — a mode on the home page where every board, vault and saved
+  multiboard is dragged by the whole tile, into an order of your own.
 - **A board's pulse** — [flow numbers from every move](docs/manual.md#flow-the-pulse-a-cards-state-and-its-age):
   each card move is recorded with who made it (a person, an agent or an
   automation), and the board works out what is in progress, what waits on a
