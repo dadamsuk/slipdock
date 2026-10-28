@@ -238,6 +238,9 @@ Hooks.Sortable = {
     if (this.sortable) {
       this.sortable.option("disabled", this.el.dataset.disabled === "true")
       this.sortable.option("sort", this.el.dataset.sort !== "false")
+      // The home page's Reorder mode drops the handle, making the whole tile
+      // one (#1485), and puts it back on leaving.
+      this.sortable.option("handle", this.el.dataset.handle || null)
     }
   },
   destroyed() {

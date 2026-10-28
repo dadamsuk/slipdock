@@ -42,7 +42,7 @@ defmodule SlipdockWeb.BoardLive.Index do
      |> assign(show_archived: false)
      |> assign(templates: Boards.list_templates(user))
      |> assign(:form, to_form(Boards.change_board(%Board{})))
-     |> assign(creating_vault: false)
+     |> assign(creating_vault: false, reordering: false)
      |> load_boards()}
   end
 
@@ -335,7 +335,10 @@ defmodule SlipdockWeb.BoardLive.Index do
   end
 
   def handle_event("set_sort", %{"sort" => sort}, socket) do
-    {:noreply, socket |> save_view(%{"board_sort" => sort}) |> load_boards()}
+    socket = socket |> save_view(%{"board_sort" => sort}) |> load_boards()
+
+    {:noreply,
+     assign(socket, reordering: socket.assigns.reordering and socket.assigns.sort == "manual")}
   end
 
   # Only the admin holding it may end it from here; the Users page ends anybody's.
@@ -396,6 +399,24 @@ defmodule SlipdockWeb.BoardLive.Index do
         {:noreply, load_boards(socket)}
     end
   end
+
+  # Reorder mode (#1485): every tile is its own drag handle, with its links
+  # and menus out of the way. Only "My order" can be rearranged, so entering
+  # it switches to that sort, and saves it the way the sort control does.
+  def handle_event("toggle_reorder", _, socket) do
+    if socket.assigns.reordering do
+      {:noreply, assign(socket, reordering: false)}
+    else
+      socket =
+        if socket.assigns.sort == "manual",
+          do: socket,
+          else: socket |> save_view(%{"board_sort" => "manual"}) |> load_boards()
+
+      {:noreply, assign(socket, reordering: true, creating: false, creating_vault: false)}
+    end
+  end
+
+  def handle_event("exit_reorder", _, socket), do: {:noreply, assign(socket, reordering: false)}
 
   # The same move without a mouse, from the board's own menu.
   def handle_event("nudge", %{"id" => id, "dir" => dir}, socket) do
@@ -586,6 +607,21 @@ defmodule SlipdockWeb.BoardLive.Index do
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+              <button
+                :if={length(@tiles) > 1}
+                id="reorder-boards"
+                type="button"
+                class={["btn btn-sm", if(@reordering, do: "btn-primary", else: "btn-ghost")]}
+                phx-click="toggle_reorder"
+                aria-pressed={to_string(@reordering)}
+                title="Drag boards, vaults and multiboards into your own order"
+              >
+                <.icon
+                  name={if @reordering, do: "hero-check", else: "hero-arrows-up-down"}
+                  class="size-4"
+                />
+                <span class="hidden sm:inline">{if @reordering, do: "Done", else: "Reorder"}</span>
+              </button>
               <form id="board-sort" phx-change="set_sort">
                 <select
                   name="sort"
@@ -796,6 +832,22 @@ defmodule SlipdockWeb.BoardLive.Index do
             Every board you can see is archived. Open Archived below to bring one back.
           </p>
 
+          <div
+            :if={@reordering and @tiles != []}
+            id="reorder-hint"
+            class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary/10 px-4 py-2.5 text-sm ring-1 ring-primary/30"
+            phx-window-keydown="exit_reorder"
+            phx-key="Escape"
+          >
+            <span class="inline-flex items-center gap-2">
+              <.icon name="hero-arrows-pointing-out" class="size-4 text-primary" />
+              Drag boards, vaults and multiboards into the order you want. Each drop is saved.
+            </span>
+            <button type="button" class="btn btn-primary btn-xs" phx-click="exit_reorder">
+              Done
+            </button>
+          </div>
+
           <.board_grid
             :if={@board_layout == "grid" and @tiles != []}
             id="boards"
@@ -805,8 +857,9 @@ defmodule SlipdockWeb.BoardLive.Index do
             hotkeys={@hotkeys}
             current_user={@current_user}
             sort={@sort}
-            add_tile={!@creating}
-            add_vault_tile={!@creating_vault}
+            reordering={@reordering}
+            add_tile={!@creating and !@reordering}
+            add_vault_tile={!@creating_vault and !@reordering}
           />
           <.board_table
             :if={@board_layout == "compact" and @tiles != []}
@@ -817,6 +870,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             hotkeys={@hotkeys}
             current_user={@current_user}
             sort={@sort}
+            reordering={@reordering}
           />
 
           <section :if={@archived != []} class="mt-10">
@@ -901,6 +955,9 @@ defmodule SlipdockWeb.BoardLive.Index do
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
   attr :archived, :boolean, default: false
+  # Reorder mode (#1485): the whole tile is the handle, and nothing in it
+  # opens or clicks.
+  attr :reordering, :boolean, default: false
   # Board-sized "+ Add a new board" and "+ Add a new vault" tiles after the
   # last one, which open the same forms as the New board and New vault buttons.
   attr :add_tile, :boolean, default: false
@@ -913,10 +970,14 @@ defmodule SlipdockWeb.BoardLive.Index do
       phx-hook="Sortable"
       data-group={@id}
       data-event="reorder"
-      data-handle=".board-handle"
+      data-handle={!@reordering && ".board-handle"}
       data-draggable="[data-id]"
       data-disabled={to_string(@archived or @sort != "manual")}
-      class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+      data-reordering={@reordering && "true"}
+      class={[
+        "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5",
+        @reordering && reorder_class()
+      ]}
     >
       <%= for tile <- @boards do %>
         <.vault_card
@@ -963,6 +1024,12 @@ defmodule SlipdockWeb.BoardLive.Index do
     </div>
     """
   end
+
+  # Every tile a grab target, outlined, with its links and menus inert so a
+  # press starts a drag rather than opening the board.
+  defp reorder_class,
+    do:
+      "select-none [&>[data-id]]:cursor-grab [&>[data-id]]:outline-2 [&>[data-id]]:outline-dashed [&>[data-id]]:outline-offset-2 [&>[data-id]]:outline-primary/50 [&>[data-id]_*]:pointer-events-none"
 
   defp add_tile_class,
     do:
@@ -1064,6 +1131,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
   attr :archived, :boolean, default: false
+  attr :reordering, :boolean, default: false
 
   defp board_table(assigns) do
     ~H"""
@@ -1086,8 +1154,10 @@ defmodule SlipdockWeb.BoardLive.Index do
           phx-hook="Sortable"
           data-group={@id}
           data-event="reorder"
-          data-handle=".board-handle"
+          data-handle={!@reordering && ".board-handle"}
           data-disabled={to_string(@archived or @sort != "manual")}
+          data-reordering={@reordering && "true"}
+          class={@reordering && reorder_class()}
         >
           <%= for board <- @boards do %>
             <.vault_row

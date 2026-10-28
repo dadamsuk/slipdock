@@ -1621,7 +1621,11 @@ its tree. Worth switching to once there are more boards than fit on a screen.
 **Order.** *My order* is the default, and it starts as the order the boards
 were made in. Drag the handle on a card or a row to move a board or a vault,
 or use **Move up** / **Move down** in its menu for the same thing without a
-mouse. Setting the order from the command line, which names boards only,
+mouse. For more than one move, press **Reorder** in the toolbar: every board,
+vault and multiboard is then a dashed tile you can grab anywhere, nothing on
+it opens when pressed, and each drop is saved as you make it. It switches to
+*My order* if another sort was on. **Done** (or Escape) ends it.
+Setting the order from the command line, which names boards only,
 leaves each vault behind the same number of boards as before.
 The other orders — name, recently active, newest, oldest, most cards — sort
 without disturbing yours: switch back to *My order* and every board is where
