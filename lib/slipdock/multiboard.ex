@@ -11,12 +11,17 @@ defmodule Slipdock.Multiboard do
 
   "Top" is the list's own order (`position`), as the board shows it, with
   archived and snoozed cards left out.
+
+  A view can also be saved under a name and a colour (#1482, see
+  `Slipdock.Multiboard.Saved`): it is listed on its owner's home page among
+  their boards and vaults, and opens at `/multiboard/:id`.
   """
   import Ecto.Query
 
   alias Slipdock.{Access, Accounts, Boards, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Card, Column}
+  alias Slipdock.Multiboard.Saved
 
   @layouts ~w(board list grid)
   @default_top 5
@@ -108,6 +113,79 @@ defmodule Slipdock.Multiboard do
   def save_prefs(%User{} = user, %{lists: lists, top: top, by: by}) do
     Accounts.update_multiboard(user, %{"lists" => lists, "top" => top, "by" => by})
   end
+
+  ## Saved multiboards (#1482) ----------------------------------------------
+
+  @doc "This user's saved multiboards, by name."
+  def list_saved(%User{id: user_id}) do
+    from(s in Saved,
+      where: s.user_id == ^user_id,
+      order_by: [asc: fragment("lower(?)", s.name), asc: s.id]
+    )
+    |> Repo.all()
+  end
+
+  def list_saved(_), do: []
+
+  @doc """
+  One of `user`'s saved multiboards, by id or (case-insensitively) by name.
+  Somebody else's is not found, the same as one that does not exist.
+  """
+  def get_saved(%User{} = user, ref) do
+    ref = ref |> to_string() |> String.trim()
+
+    case Integer.parse(ref) do
+      {id, ""} -> Repo.get_by(Saved, id: id, user_id: user.id)
+      _ -> Enum.find(list_saved(user), &same?(&1.name, ref))
+    end
+  end
+
+  @doc """
+  Saves `view` under `attrs`' name and colour as a new multiboard of
+  `user`'s, which goes on their home page.
+  """
+  def create_saved(%User{} = user, attrs, view) do
+    %Saved{user_id: user.id}
+    |> Saved.changeset(attrs)
+    |> Saved.view_changeset(normalize(stringify(view)))
+    |> Repo.insert()
+    |> notify(user.id)
+  end
+
+  @doc "Renames or recolours a saved multiboard."
+  def update_saved(%Saved{} = saved, attrs) do
+    saved |> Saved.changeset(attrs) |> Repo.update() |> notify(saved.user_id)
+  end
+
+  @doc "Changes the view a saved multiboard shows."
+  def save_view(%Saved{} = saved, view) do
+    saved
+    |> Saved.view_changeset(normalize(stringify(view)))
+    |> Repo.update()
+    |> notify(saved.user_id)
+  end
+
+  @doc "The board each of these lists is on, as a map of list id to board id."
+  def boards_of([]), do: %{}
+
+  def boards_of(column_ids) do
+    from(c in Column, where: c.id in ^column_ids, select: {c.id, c.board_id})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc "Deletes a saved multiboard: only the view goes, nothing on the boards."
+  def delete_saved(%Saved{} = saved), do: saved |> Repo.delete() |> notify(saved.user_id)
+
+  defp stringify(view), do: Map.new(view, fn {k, v} -> {to_string(k), v} end)
+
+  # The home page lists them, so it hears of each change.
+  defp notify({:ok, _} = ok, user_id) do
+    Boards.notify_users_boards_changed([user_id])
+    ok
+  end
+
+  defp notify(error, _user_id), do: error
 
   @doc """
   Resolves list references to ids against `choices/2`: an id, or

@@ -1335,6 +1335,11 @@ defmodule SlipdockWeb.APIGuide do
     # the top 5 cards of lists from several boards, by board, list or grid
     # (lists: ids or board/list; none: the view saved on the Multiboard page)
     curl -s -G -H "$H" B/api/multiboard --data-urlencode 'lists=12,ops/To Do' -d top=5 -d by=grid
+    # saved multiboards: named views on your home page (GET one = its cards)
+    curl -s -H "$H" B/api/multiboards
+    curl -s -X POST -H "$H" -H 'content-type: application/json' B/api/multiboards \
+      -d '{"name":"Ops queue","color":"rose","lists":"ops/To Do,12","top":3}'
+    curl -s -X PATCH -H "$H" -H 'content-type: application/json' B/api/multiboards/4 -d '{"color":"teal"}'
 
     # the boards themselves (owner only; ask before doing either)
     curl -s -X POST -H "$H" B/api/boards/1/archive    # put a board away, keeping everything on it

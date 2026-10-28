@@ -90,6 +90,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   on one page from the home page's toolbar, laid out by board, by list or as
   a grid of tiles. The view is remembered and lives in the URL, so it can be
   bookmarked; `slipdock multiboard` and `GET /api/multiboard` show the same.
+  A view can be **saved** with a name and a colour: it then sits on the home
+  page among your boards and vaults, dragged into place like they are
+  (`slipdock save-multiboard`, `/api/multiboards`).
 - **A board's pulse** — [flow numbers from every move](docs/manual.md#flow-the-pulse-a-cards-state-and-its-age):
   each card move is recorded with who made it (a person, an agent or an
   automation), and the board works out what is in progress, what waits on a

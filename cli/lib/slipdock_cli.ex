@@ -68,6 +68,14 @@ defmodule SlipdockCLI do
                                         the top N cards (default 5) of lists from several
                                         boards; L is a list id or board/list ("ops/To Do").
                                         No --list: the view saved on the Multiboard page
+    multiboard <saved>                  one of your saved multiboards (id or name), with its cards
+    multiboards                         your saved multiboards: id, name, colour, lists
+    save-multiboard <name> [--list L]... [--limit N] [--by B] [--color C]
+                                        save a multiboard view by name; it goes on your home
+                                        page among your boards. No --list: the page's view
+    set-multiboard <saved> [--name N] [--color C] [--list L]... [--limit N] [--by B]
+                                        rename, recolour or change a saved multiboard
+    delete-multiboard <saved>           delete a saved multiboard (the boards stay as they are)
     passkeys                            your passkeys: name, when added, when last used
     passkeys remove <id>                remove one (a lost phone) — it can't sign in after.
                                         Adding one needs the device, so is in a browser only

@@ -14,6 +14,7 @@ defmodule Slipdock.Boards do
   alias Slipdock.CardState
 
   alias Slipdock.Vaults.Vault
+  alias Slipdock.Multiboard.Saved, as: SavedMultiboard
   alias Slipdock.Boards.{BoardOrder, CardLink, CardUrl, FieldDefinition, FieldValue, Milestone}
   alias Slipdock.Boards.StatusUpdate
   alias Slipdock.Boards.Handoff
@@ -1059,14 +1060,16 @@ defmodule Slipdock.Boards do
   name them too — as `%Vault{}`s, `{:vault, id}` or `"vault-<id>"` — and each
   takes its place among the boards; a vault left out loses its place. An
   order naming no vault at all (one set from the command line, say) leaves
-  each placed vault behind as many boards as it was behind before.
+  each placed vault behind as many boards as it was behind before. Their
+  saved multiboards (#1482) are listed there too, as
+  `%Slipdock.Multiboard.Saved{}`s, `{:multiboard, id}` or
+  `"multiboard-<id>"`, and are kept the same way.
 
-  Ids of boards the user cannot see, and vaults that are not theirs, are
-  ignored.
+  Ids of boards the user cannot see, and vaults or multiboards that are not
+  theirs, are ignored.
   """
   def reorder_boards(%User{} = user, ids) do
-    keys = Enum.map(ids, &order_key/1)
-    keys = if Enum.any?(keys, &match?({:vault, _}, &1)), do: keys, else: keep_vaults(user, keys)
+    keys = user |> keep_unnamed(Enum.map(ids, &order_key/1))
 
     board_ids = for {:board, id} <- keys, do: id
 
@@ -1080,12 +1083,18 @@ defmodule Slipdock.Boards do
       |> Repo.all()
       |> MapSet.new()
 
+    own_multiboards =
+      from(m in SavedMultiboard, where: m.user_id == ^user.id, select: m.id)
+      |> Repo.all()
+      |> MapSet.new()
+
     placed =
       keys
       |> Enum.uniq()
       |> Enum.filter(fn
         {:board, id} -> MapSet.member?(visible, id)
         {:vault, id} -> MapSet.member?(own_vaults, id)
+        {:multiboard, id} -> MapSet.member?(own_multiboards, id)
       end)
       |> Enum.with_index()
 
@@ -1102,6 +1111,13 @@ defmodule Slipdock.Boards do
 
       for {{:vault, id}, i} <- placed,
           do: Repo.update_all(from(v in Vault, where: v.id == ^id), set: [position: i])
+
+      Repo.update_all(from(m in SavedMultiboard, where: m.user_id == ^user.id),
+        set: [position: nil]
+      )
+
+      for {{:multiboard, id}, i} <- placed,
+          do: Repo.update_all(from(m in SavedMultiboard, where: m.id == ^id), set: [position: i])
     end)
 
     # The order is this person's alone.
@@ -1109,27 +1125,48 @@ defmodule Slipdock.Boards do
     :ok
   end
 
-  # Boards and vaults share the one order, told apart by a tag.
+  # Boards, vaults and saved multiboards share the one order, told apart by
+  # a tag.
   defp order_key(%Vault{id: id}), do: {:vault, id}
+  defp order_key(%SavedMultiboard{id: id}), do: {:multiboard, id}
   defp order_key({:vault, id}), do: {:vault, to_id(id)}
+  defp order_key({:multiboard, id}), do: {:multiboard, to_id(id)}
   defp order_key({:board, id}), do: {:board, to_id(id)}
   defp order_key("vault-" <> id), do: {:vault, to_id(id)}
+  defp order_key("multiboard-" <> id), do: {:multiboard, to_id(id)}
   defp order_key(board), do: {:board, to_id(board)}
 
-  # An order that names only boards: each placed vault goes back behind as
-  # many boards as were in front of it before.
-  defp keep_vaults(user, keys) do
-    before = user |> board_order() |> Map.values()
+  # An order that names none of the user's vaults (or none of their saved
+  # multiboards): each placed one goes back behind as many of the things
+  # that were named as were in front of it before.
+  defp keep_unnamed(user, keys) do
+    named = fn kind -> Enum.any?(keys, &match?({^kind, _}, &1)) end
 
-    from(v in Vault,
-      where: v.user_id == ^user.id and not is_nil(v.position),
-      select: {v.position, v.id}
-    )
-    |> Repo.all()
+    placed = fn kind ->
+      schema = if kind == :vault, do: Vault, else: SavedMultiboard
+
+      from(x in schema,
+        where: x.user_id == ^user.id and not is_nil(x.position),
+        select: {x.position, x.id}
+      )
+      |> Repo.all()
+      |> Enum.map(fn {pos, id} -> {pos, {kind, id}} end)
+    end
+
+    {kept, named_places} =
+      Enum.reduce([:vault, :multiboard], {[], []}, fn kind, {kept, named_places} ->
+        if named.(kind),
+          do: {kept, named_places ++ Enum.map(placed.(kind), &elem(&1, 0))},
+          else: {kept ++ placed.(kind), named_places}
+      end)
+
+    before = Map.values(board_order(user)) ++ named_places
+
+    kept
     |> Enum.sort()
     |> Enum.with_index()
-    |> Enum.reduce(keys, fn {{pos, id}, placed}, keys ->
-      List.insert_at(keys, Enum.count(before, &(&1 < pos)) + placed, {:vault, id})
+    |> Enum.reduce(keys, fn {{pos, key}, i}, keys ->
+      List.insert_at(keys, Enum.count(before, &(&1 < pos)) + i, key)
     end)
   end
 
@@ -1216,7 +1253,9 @@ defmodule Slipdock.Boards do
 
   Vaults go in among the boards on the home page, so `boards` may hold
   `%Vault{}`s too: they sort by their own name, age and place, and by the
-  activity and cards of the boards they keep inside them.
+  activity and cards of the boards they keep inside them. Saved
+  multiboards (#1482) go in among them too: by name, age and place, as
+  touched when they were last changed, and holding no cards of their own.
   """
   def sort_boards(boards, sort) do
     # The manual order first: every sort below is stable, so boards a sort
@@ -1239,15 +1278,18 @@ defmodule Slipdock.Boards do
   defp manual_key(%{position: nil} = b), do: {1, 0, made_key(b)}
   defp manual_key(%{position: pos} = b), do: {0, pos, made_key(b)}
 
+  defp touched_at(%SavedMultiboard{updated_at: at}), do: at
   defp touched_at(item), do: item.last_activity_at || item.inserted_at
 
   defp card_count(%Vault{card_count: count}), do: count
+  defp card_count(%SavedMultiboard{}), do: 0
   defp card_count(%Board{cards: cards}), do: length(cards)
 
   # Timestamps are only accurate to the second, so boards made in the same one
   # fall back on the order they were made in rather than on a coin toss — and
   # a board and a vault, whose ids count apart, on the board first.
   defp made_key(%Vault{} = vault), do: {DateTime.to_unix(vault.inserted_at), 1, vault.id}
+  defp made_key(%SavedMultiboard{} = m), do: {DateTime.to_unix(m.inserted_at), 2, m.id}
   defp made_key(board), do: {DateTime.to_unix(board.inserted_at), 0, board.id}
 
   @doc """

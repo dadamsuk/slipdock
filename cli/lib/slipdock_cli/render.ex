@@ -243,7 +243,10 @@ defmodule SlipdockCLI.Render do
   cards with the list they are in — and the board too where the heading
   does not already say it.
   """
-  def multiboard(%{"sections" => sections, "by" => by}) do
+  def multiboard(%{"sections" => sections, "by" => by} = r) do
+    if m = r["multiboard"],
+      do: IO.puts(bold("#{m["name"]}") <> dim("  ##{m["id"]} · #{m["color"]}"))
+
     Enum.each(sections, fn s ->
       if s["label"], do: IO.puts(bold("#{s["label"]} (#{length(s["cards"])})"))
       if s["cards"] == [], do: IO.puts(dim("  no cards"))
@@ -262,6 +265,23 @@ defmodule SlipdockCLI.Render do
 
     if sections == [],
       do: IO.puts(dim("no lists chosen: pass --list, or pick them on the Multiboard page"))
+  end
+
+  @doc "Saved multiboards (#1482): one line each."
+  def multiboards(%{"multiboards" => []}),
+    do: IO.puts(dim("no saved multiboards: save-multiboard <name>, or Save on the page"))
+
+  def multiboards(%{"multiboards" => saved}) do
+    Enum.each(saved, fn m ->
+      n = length(m["lists"])
+
+      IO.puts(
+        "##{m["id"]} #{bold(m["name"])}  " <>
+          dim(
+            "#{m["color"]} · #{n} #{if n == 1, do: "list", else: "lists"} · top #{m["top"]} by #{m["by"]}"
+          )
+      )
+    end)
   end
 
   defp choices(%{"choices" => [_ | _] = choices}) do

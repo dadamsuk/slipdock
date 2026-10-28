@@ -90,6 +90,18 @@ way in: what it is, the pictures, and how to get it running.
   `slipdock multiboard --list 12 --list "ops/To Do" --limit 3 --by list`
   and `GET /api/multiboard` (`lists`, `top`, `by`) give the same; with no
   lists they show your remembered view
+- **Saved multiboards**: press **Save** on the Multiboard page to keep the
+  view under a name and a colour. It becomes a tile on your home page among
+  your boards and vaults, which you drag (or **Move up**/**Move down** from
+  its menu) like a board, recolour from that menu, or delete there; deleting
+  it leaves the boards alone. It opens at `/multiboard/<id>`, where changing
+  the lists, the number of cards or the layout changes the saved one, and
+  **Rename** changes its name and colour. From the command line:
+  `slipdock multiboards`, `slipdock multiboard <saved>` (id or name),
+  `slipdock save-multiboard <name> [--list L]... [--limit N] [--by B]
+  [--color C]`, `slipdock set-multiboard <saved> [--name N] [--color C] ...`
+  and `slipdock delete-multiboard <saved>`; over the API, `GET/POST
+  /api/multiboards` and `GET/PATCH/DELETE /api/multiboards/:id`
 - Automations: rules written in plain English ("when a card lands in Done,
   email ops@example.com"; "move anything untouched for a week back to
   Backlog"), parsed once by the model and then run by the app — plus
