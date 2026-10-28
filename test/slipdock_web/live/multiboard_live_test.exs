@@ -10,6 +10,7 @@ defmodule SlipdockWeb.MultiboardLiveTest do
   import Slipdock.Fixtures
 
   alias Slipdock.{Multiboard, Repo}
+  alias Slipdock.Multiboard.Saved
 
   setup %{user: user} do
     ops = board_fixture(%{"name" => "Ops"}, owner: user)
@@ -129,5 +130,107 @@ defmodule SlipdockWeb.MultiboardLiveTest do
     card_fixture(ctx.ops_doing, %{"title" => "Arrived later"})
     send(view.pid, {:boards_changed})
     assert render(view) =~ "Arrived later"
+  end
+
+  describe "saving a view (#1482)" do
+    defp saved(user, name, lists, color \\ "indigo") do
+      {:ok, saved} =
+        Multiboard.create_saved(user, %{"name" => name, "color" => color}, %{
+          lists: Enum.map(lists, & &1.id),
+          top: 5,
+          by: "board"
+        })
+
+      saved
+    end
+
+    test "Save names the view with a colour, and opens it at its own address",
+         %{conn: conn, user: user} = ctx do
+      {:ok, view, _} = live(conn, mb_path([ctx.ops_todo], top: 2))
+
+      view |> element("#multiboard-save") |> render_click()
+      assert has_element?(view, "#multiboard-save-form")
+      view |> element("#multiboard-save-color-rose") |> render_click()
+      assert has_element?(view, "#multiboard-save-color-rose[aria-pressed=true]")
+
+      view |> form("#multiboard-save-form", %{"name" => " Ops queue "}) |> render_submit()
+
+      [saved] = Multiboard.list_saved(user)
+      assert {saved.name, saved.color} == {"Ops queue", "rose"}
+      assert Saved.view(saved) == %{lists: [ctx.ops_todo.id], top: 2, by: "board"}
+
+      assert assert_patch(view) == "/multiboard/#{saved.id}"
+      assert has_element?(view, "#multiboard-title", "Ops queue")
+      assert render(view) =~ "It is on your home page"
+      refute has_element?(view, "#multiboard-save-form")
+    end
+
+    test "a blank name is refused and nothing is saved", %{conn: conn, user: user} = ctx do
+      {:ok, view, _} = live(conn, mb_path([ctx.ops_todo]))
+      view |> element("#multiboard-save") |> render_click()
+      html = view |> form("#multiboard-save-form", %{"name" => "  "}) |> render_submit()
+
+      assert html =~ "couldn&#39;t be saved"
+      assert Multiboard.list_saved(user) == []
+    end
+
+    test "a saved one shows its view; changing it there changes the saved one, not the page's",
+         %{conn: conn, user: user} = ctx do
+      mb = saved(user, "Web only", [ctx.web_todo], "teal")
+      before = Repo.reload(user).multiboard
+
+      {:ok, view, html} = live(conn, ~p"/multiboard/#{mb.id}")
+      assert html =~ "New landing page"
+      refute html =~ "Fix the pager"
+      assert has_element?(view, "#multiboard-title", "Web only")
+
+      view |> element("#multiboard-choose") |> render_click()
+
+      view
+      |> form("#multiboard-picker")
+      |> render_change(%{"lists" => ["", "#{ctx.ops_todo.id}"], "top" => "1"})
+
+      assert assert_patch(view) =~ "/multiboard/#{mb.id}?"
+      assert render(view) =~ "Fix the pager"
+      assert Saved.view(Repo.reload(mb)) == %{lists: [ctx.ops_todo.id], top: 1, by: "board"}
+      assert Repo.reload(user).multiboard == before
+
+      view |> element("#multiboard-by-grid") |> render_click()
+      assert_patch(view)
+      assert Repo.reload(mb).by == "grid"
+    end
+
+    test "Rename changes its name and colour", %{conn: conn, user: user} = ctx do
+      mb = saved(user, "Old", [ctx.ops_todo], "teal")
+      {:ok, view, _} = live(conn, ~p"/multiboard/#{mb.id}")
+
+      view |> element("#multiboard-save", "Rename") |> render_click()
+      assert has_element?(view, "#multiboard-save-color-teal[aria-pressed=true]")
+      view |> element("#multiboard-save-color-amber") |> render_click()
+      view |> form("#multiboard-save-form", %{"name" => "New"}) |> render_submit()
+
+      assert %{name: "New", color: "amber"} = Repo.reload(mb)
+      assert Multiboard.list_saved(user) |> length() == 1
+    end
+
+    test "Delete removes it and goes back to the plain page", %{conn: conn, user: user} = ctx do
+      mb = saved(user, "Doomed", [ctx.ops_todo])
+      {:ok, view, _} = live(conn, ~p"/multiboard/#{mb.id}")
+
+      view |> element("#multiboard-delete") |> render_click()
+      assert_redirect(view, ~p"/multiboard")
+      assert Multiboard.list_saved(user) == []
+    end
+
+    test "somebody else's, or one gone, sends you to the plain page", %{conn: conn} = ctx do
+      stranger = user_fixture("mb-saved-stranger@example.com")
+      theirs = saved(stranger, "Theirs", [ctx.ops_todo])
+
+      assert {:error, {:live_redirect, %{to: "/multiboard", flash: flash}}} =
+               live(conn, ~p"/multiboard/#{theirs.id}")
+
+      assert flash["error"] =~ "isn't one of yours"
+      assert {:error, {:live_redirect, %{to: "/multiboard"}}} = live(conn, ~p"/multiboard/0")
+    end
   end
 end

@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   defp card_ref?(ref), do: String.match?(ref, ~r/\A#?\d+\z/)
 
@@ -39,6 +39,49 @@ defmodule SlipdockCLI.Boards do
       by: o[:by]
     )
     |> out(o, &Render.multiboard/1)
+  end
+
+  # Saved multiboards (#1482): named views, listed on the home page among
+  # the boards. A saved one is shown by id or name.
+  def run("multiboard", [ref], o),
+    do: HTTP.get("/multiboards/#{enc(ref)}") |> out(o, &Render.multiboard/1)
+
+  def run("multiboards", [], o),
+    do: HTTP.get("/multiboards") |> out(o, &Render.multiboards/1)
+
+  def run("save-multiboard", words, o) when words != [] do
+    lists = Keyword.get_values(o, :list)
+
+    %{"name" => Enum.join(words, " ")}
+    |> put_opt("lists", if(lists != [], do: Enum.join(lists, ",")))
+    |> put_opt("top", o[:limit])
+    |> put_opt("by", o[:by])
+    |> put_opt("color", o[:color])
+    |> then(&HTTP.post("/multiboards", &1))
+    |> out(o, fn r ->
+      m = r["multiboard"]
+      IO.puts("saved multiboard ##{m["id"]}: #{m["name"]}  " <> Render.dim("on your home page"))
+    end)
+  end
+
+  def run("set-multiboard", [ref], o) do
+    lists = Keyword.get_values(o, :list)
+
+    %{}
+    |> put_opt("name", o[:name])
+    |> put_opt("color", o[:color])
+    |> put_opt("lists", if(lists != [], do: Enum.join(lists, ",")))
+    |> put_opt("top", o[:limit])
+    |> put_opt("by", o[:by])
+    |> then(&HTTP.patch("/multiboards/#{enc(ref)}", &1))
+    |> out(o, fn r ->
+      IO.puts("updated multiboard ##{r["multiboard"]["id"]}: #{r["multiboard"]["name"]}")
+    end)
+  end
+
+  def run("delete-multiboard", [ref], o) do
+    HTTP.delete("/multiboards/#{enc(ref)}")
+    |> out(o, fn r -> IO.puts("deleted multiboard #{r["deleted"]["name"]}") end)
   end
 
   # Semantic search. Everything after the command is the query, so it needs no
@@ -1250,6 +1293,9 @@ defmodule SlipdockCLI.Boards do
   def run(cmd, _args, _o), do: bad_usage(cmd)
 
   ## Helpers ------------------------------------------------------------------
+
+  defp put_opt(map, _key, nil), do: map
+  defp put_opt(map, key, value), do: Map.put(map, key, value)
 
   defp sha256(file) do
     file

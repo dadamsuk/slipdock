@@ -9,6 +9,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   alias Slipdock.{Access, Accounts, Boards, Sprints}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
+  alias Slipdock.Multiboard.Saved, as: SavedMultiboard
   alias Slipdock.Palette
   alias Slipdock.Vaults.Vault
 
@@ -72,6 +73,30 @@ defmodule SlipdockWeb.BoardLive.Index do
          inside: inside,
          pages: vault |> Slipdock.Vaults.page_counts() |> Map.values() |> Enum.sum(),
          mirrors: mirrors
+       }}
+    end
+  end
+
+  # Your saved multiboards (#1482), keyed by id: each with how many of its
+  # lists you can still read and the boards they are on, in your board order.
+  defp multiboard_entries(user, readable) do
+    saved = Slipdock.Multiboard.list_saved(user)
+    ids = saved |> Enum.flat_map(& &1.lists) |> Enum.uniq()
+
+    board_of = Slipdock.Multiboard.boards_of(ids)
+
+    readable = Map.new(readable, &{&1.id, &1})
+
+    for m <- saved, into: %{} do
+      lists = Enum.filter(m.lists, &Map.has_key?(readable, board_of[&1]))
+      board_ids = lists |> Enum.map(&board_of[&1]) |> MapSet.new()
+
+      {m.id,
+       %{
+         multiboard: m,
+         lists: length(lists),
+         boards:
+           for(b <- Map.values(readable), b.id in board_ids, do: b) |> Enum.sort_by(& &1.name)
        }}
     end
   end
@@ -151,18 +176,25 @@ defmodule SlipdockWeb.BoardLive.Index do
     # not here (#757). Shared with you from somebody's vault, it is here.
     inside = Slipdock.Vaults.inside_boards(user)
 
-    boards =
-      user
-      |> Access.list_boards(activity: true)
-      |> Enum.reject(&Map.has_key?(inside, &1.id))
+    readable = Access.list_boards(user, activity: true)
+    boards = Enum.reject(readable, &Map.has_key?(inside, &1.id))
 
     vaults = vault_entries(user)
+    multiboards = multiboard_entries(user, readable)
 
     assign(socket,
       boards: boards,
       vaults: vaults,
-      # Boards and vaults in the one sequence, in the reader's order.
-      tiles: Boards.sort_boards(boards ++ Enum.map(Map.values(vaults), & &1.vault), sort),
+      multiboards: multiboards,
+      # Boards, vaults and saved multiboards in the one sequence, in the
+      # reader's order.
+      tiles:
+        Boards.sort_boards(
+          boards ++
+            Enum.map(Map.values(vaults), & &1.vault) ++
+            Enum.map(Map.values(multiboards), & &1.multiboard),
+          sort
+        ),
       archived:
         user |> Access.list_boards(archived: true, activity: true) |> Boards.sort_boards(sort),
       shared_cards: Access.shared_cards(user),
@@ -379,6 +411,27 @@ defmodule SlipdockWeb.BoardLive.Index do
     end
   end
 
+  # A saved multiboard's colour and its deletion, from its own menu (#1482).
+  def handle_event("multiboard_color", %{"id" => id, "color" => color}, socket) do
+    with %SavedMultiboard{} = m <- find_tile(socket, "multiboard-" <> id) do
+      Slipdock.Multiboard.update_saved(m, %{"color" => color})
+    end
+
+    {:noreply, load_boards(socket)}
+  end
+
+  def handle_event("delete_multiboard", %{"id" => id}, socket) do
+    case find_tile(socket, "multiboard-" <> id) do
+      %SavedMultiboard{} = m ->
+        {:ok, _} = Slipdock.Multiboard.delete_saved(m)
+
+        {:noreply, socket |> load_boards() |> put_flash(:info, "Multiboard “#{m.name}” deleted.")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   # The layout and the sort are this person's own, kept between visits. An
   # unknown value is dropped by the changeset, so the view stays as it was.
   defp save_view(socket, attrs) do
@@ -407,11 +460,18 @@ defmodule SlipdockWeb.BoardLive.Index do
   defp find_tile(socket, "vault-" <> id),
     do: Enum.find(Map.values(socket.assigns.vaults), &(to_string(&1.vault.id) == id))[:vault]
 
+  defp find_tile(socket, "multiboard-" <> id),
+    do:
+      Enum.find(Map.values(socket.assigns.multiboards), &(to_string(&1.multiboard.id) == id))[
+        :multiboard
+      ]
+
   defp find_tile(socket, id), do: find_board(socket, id)
 
   # How a board or a vault is told apart from the rest of the list, in the
   # page and in what a drag sends back.
   defp tile_key(%Vault{id: id}), do: "vault-#{id}"
+  defp tile_key(%SavedMultiboard{id: id}), do: "multiboard-#{id}"
   defp tile_key(%Board{id: id}), do: to_string(id)
 
   # Archiving and deleting are the owner's alone, the way board settings are.
@@ -518,7 +578,11 @@ defmodule SlipdockWeb.BoardLive.Index do
               <p class="mt-1 text-sm text-base-content/60">
                 {length(@boards)} {if length(@boards) == 1, do: "board", else: "boards"}<span :if={
                   @vaults != %{}
-                }> · {map_size(@vaults)} {if map_size(@vaults) == 1, do: "vault", else: "vaults"}</span>
+                }> · {map_size(@vaults)} {if map_size(@vaults) == 1, do: "vault", else: "vaults"}</span><span :if={
+                  @multiboards != %{}
+                }> · {map_size(@multiboards)} {if map_size(@multiboards) == 1,
+                  do: "multiboard",
+                  else: "multiboards"}</span>
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -737,6 +801,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             id="boards"
             boards={@tiles}
             vaults={@vaults}
+            multiboards={@multiboards}
             hotkeys={@hotkeys}
             current_user={@current_user}
             sort={@sort}
@@ -748,6 +813,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             id="boards"
             boards={@tiles}
             vaults={@vaults}
+            multiboards={@multiboards}
             hotkeys={@hotkeys}
             current_user={@current_user}
             sort={@sort}
@@ -829,6 +895,8 @@ defmodule SlipdockWeb.BoardLive.Index do
   attr :boards, :list, required: true
   # What each vault's card shows, by vault id (see `vault_entries/1`).
   attr :vaults, :map, default: %{}
+  # And each saved multiboard's, by its id (see `multiboard_entries/2`).
+  attr :multiboards, :map, default: %{}
   attr :hotkeys, :map, default: %{}
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
@@ -855,6 +923,12 @@ defmodule SlipdockWeb.BoardLive.Index do
           :if={match?(%Vault{}, tile)}
           entry={@vaults[tile.id]}
           hotkey={@hotkeys[{:vault, tile.id}]}
+          sort={@sort}
+          tiles={@boards}
+        />
+        <.multiboard_card
+          :if={match?(%SavedMultiboard{}, tile)}
+          entry={@multiboards[tile.id]}
           sort={@sort}
           tiles={@boards}
         />
@@ -985,6 +1059,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   attr :id, :string, required: true
   attr :boards, :list, required: true
   attr :vaults, :map, default: %{}
+  attr :multiboards, :map, default: %{}
   attr :hotkeys, :map, default: %{}
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
@@ -1019,6 +1094,12 @@ defmodule SlipdockWeb.BoardLive.Index do
               :if={match?(%Vault{}, board)}
               entry={@vaults[board.id]}
               hotkey={@hotkeys[{:vault, board.id}]}
+              sort={@sort}
+              tiles={@boards}
+            />
+            <.multiboard_row
+              :if={match?(%SavedMultiboard{}, board)}
+              entry={@multiboards[board.id]}
               sort={@sort}
               tiles={@boards}
             />
@@ -1397,6 +1478,178 @@ defmodule SlipdockWeb.BoardLive.Index do
         <li :if={@sort == "manual" and not @last?}>
           <button phx-click="nudge" phx-value-id={@key} phx-value-dir="down">
             <.icon name="hero-arrow-down" class="size-4" /> Move down
+          </button>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  attr :entry, :map, required: true
+  attr :sort, :string, required: true
+  attr :tiles, :list, required: true
+
+  # A saved multiboard's card, among the boards' (#1482): its colour, its
+  # name, and where its lists come from.
+  defp multiboard_card(assigns) do
+    assigns = assign(assigns, tile_class: @tile_class, mb: assigns.entry.multiboard)
+
+    ~H"""
+    <div id={"multiboard-#{@mb.id}"} data-id={tile_key(@mb)} class={@tile_class}>
+      <.link id={"multiboard-tile-#{@mb.id}"} navigate={~p"/multiboard/#{@mb.id}"} class="block">
+        <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(@mb.color)]}></div>
+        <div class="p-3.5 sm:p-4">
+          <h2 class="flex items-center gap-2 truncate text-base font-semibold">
+            <.icon name="hero-squares-2x2" class="size-4 shrink-0 text-base-content/50" />
+            <span class="truncate">{@mb.name}</span>
+            <span class="chip chip-line shrink-0 text-2xs font-normal">multiboard</span>
+          </h2>
+          <p class="mt-0.5 line-clamp-2 text-sm text-base-content/60 sm:min-h-[1.25rem]">
+            <%= if @entry.boards == [] do %>
+              No lists chosen yet
+            <% else %>
+              {Enum.map_join(@entry.boards, " · ", & &1.name)}
+            <% end %>
+          </p>
+          <div class="mt-2.5 flex items-center gap-3 text-xs text-base-content/60 sm:mt-4">
+            <span class="inline-flex items-center gap-1">
+              <.icon name="hero-view-columns" class="size-3.5" />
+              {@entry.lists} {if @entry.lists == 1, do: "list", else: "lists"}
+            </span>
+            <span class="inline-flex items-center gap-1">
+              <.icon name="hero-queue-list" class="size-3.5" /> top {@mb.top}
+            </span>
+          </div>
+        </div>
+      </.link>
+      <div class="absolute left-2 top-2 flex items-center gap-1">
+        <span
+          :if={@sort == "manual"}
+          class="board-handle btn btn-circle btn-ghost btn-sm cursor-grab bg-base-100/70 opacity-0 backdrop-blur transition group-hover:opacity-100 no-hover:opacity-100"
+          title="Drag to reorder"
+        >
+          <.icon name="hero-bars-2" class="size-4" />
+        </span>
+      </div>
+      <.multiboard_menu
+        multiboard={@mb}
+        sort={@sort}
+        tiles={@tiles}
+        class="dropdown dropdown-end absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
+        button_class="btn btn-circle btn-ghost btn-sm bg-base-100/70 backdrop-blur"
+      />
+    </div>
+    """
+  end
+
+  attr :entry, :map, required: true
+  attr :sort, :string, required: true
+  attr :tiles, :list, required: true
+
+  # The same multiboard as a row of the compact list.
+  defp multiboard_row(assigns) do
+    assigns = assign(assigns, mb: assigns.entry.multiboard)
+
+    ~H"""
+    <tr id={"multiboard-#{@mb.id}"} data-id={tile_key(@mb)} class="group hover:bg-base-200/60">
+      <td :if={@sort == "manual"} class="board-handle cursor-grab align-middle">
+        <.icon
+          name="hero-bars-2"
+          class="size-4 text-base-content/30 group-hover:text-base-content/60"
+        />
+      </td>
+      <td class="align-middle">
+        <.link
+          id={"multiboard-tile-#{@mb.id}"}
+          navigate={~p"/multiboard/#{@mb.id}"}
+          class="flex items-center gap-2"
+        >
+          <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(@mb.color)]}></span>
+          <span class="max-w-56 truncate font-medium">{@mb.name}</span>
+          <span class="chip chip-line shrink-0 text-2xs font-normal">multiboard</span>
+        </.link>
+      </td>
+      <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">
+        {Enum.map_join(@entry.boards, " · ", & &1.name)}
+      </td>
+      <td class="text-right tabular-nums text-base-content/60">{@entry.lists}</td>
+      <td class="text-right text-base-content/40">—</td>
+      <td><span class="text-xs text-base-content/40">—</span></td>
+      <td class="hidden sm:table-cell"></td>
+      <td>
+        <.multiboard_menu
+          multiboard={@mb}
+          sort={@sort}
+          tiles={@tiles}
+          class="dropdown dropdown-end"
+          button_class="btn btn-ghost btn-xs btn-square"
+        />
+      </td>
+    </tr>
+    """
+  end
+
+  attr :multiboard, :map, required: true
+  attr :sort, :string, required: true
+  attr :tiles, :list, required: true
+  attr :class, :string, required: true
+  attr :button_class, :string, required: true
+
+  # A saved multiboard's own menu: moving it in your order, its colour, and
+  # deleting it. It is always yours, so the menu is always there.
+  defp multiboard_menu(assigns) do
+    key = tile_key(assigns.multiboard)
+
+    assigns =
+      assign(assigns,
+        key: key,
+        first?: tile_key(List.first(assigns.tiles)) == key,
+        last?: tile_key(List.last(assigns.tiles)) == key
+      )
+
+    ~H"""
+    <div class={@class}>
+      <div tabindex="0" role="button" class={@button_class} title="More">
+        <.icon name="hero-ellipsis-horizontal" class="size-4" />
+      </div>
+      <ul
+        tabindex="0"
+        class="menu dropdown-content z-10 w-52 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+      >
+        <li :if={@sort == "manual" and not @first?}>
+          <button phx-click="nudge" phx-value-id={@key} phx-value-dir="up">
+            <.icon name="hero-arrow-up" class="size-4" /> Move up
+          </button>
+        </li>
+        <li :if={@sort == "manual" and not @last?}>
+          <button phx-click="nudge" phx-value-id={@key} phx-value-dir="down">
+            <.icon name="hero-arrow-down" class="size-4" /> Move down
+          </button>
+        </li>
+        <li class="menu-title px-3 pb-1 pt-2 text-xs">Colour</li>
+        <li class="px-2 pb-2">
+          <div class="flex flex-wrap gap-1.5 hover:bg-transparent active:bg-transparent">
+            <.color_swatch
+              :for={name <- Palette.names()}
+              id={"multiboard-color-#{@multiboard.id}-#{name}"}
+              color={name}
+              selected={@multiboard.color == name}
+              class="size-5"
+              phx-click="multiboard_color"
+              phx-value-id={@multiboard.id}
+              phx-value-color={name}
+            />
+          </div>
+        </li>
+        <li>
+          <button
+            id={"multiboard-delete-#{@multiboard.id}"}
+            phx-click="delete_multiboard"
+            phx-value-id={@multiboard.id}
+            data-confirm={"Delete the multiboard “#{@multiboard.name}”? The boards and their cards stay as they are."}
+            class="text-error"
+          >
+            <.icon name="hero-trash" class="size-4" /> Delete
           </button>
         </li>
       </ul>

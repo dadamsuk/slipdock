@@ -193,6 +193,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:no, "one way only"},
        {:no, "one way only"}
      ]},
+    {"Save a multiboard view by name, for the home page",
+     [
+       {:yes, "/api/multiboards"},
+       {:no, "not a tool: use the API or the CLI"},
+       {:yes, "slipdock save-multiboard, multiboards"},
+       {:yes, "through the CLI"},
+       {:no, "one way only"},
+       {:no, "one way only"}
+     ]},
     {"Get your addresses for emailing cards and wiki pages onto a board, or rotate them",
      [
        {:yes, "GET /api/boards/:id/inbound, /api/me/inbound (?folder= for a wiki folder's)"},

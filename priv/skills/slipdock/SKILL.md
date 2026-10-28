@@ -215,6 +215,9 @@ slipdock deploy setup <board> [--prompt]   # owner: turn delivery metrics on, is
 slipdock incident-of <card> <deploy-id>    # an incident card names the deploy that caused it (--clear to undo)
 slipdock work [--board B] [--done]      # what is waiting on you (waits, review/waiting flags, runner trouble), then your cards
 slipdock multiboard [--list 12 --list "ops/To Do"] [--limit N] [--by board|list|grid]  # top N cards of lists across boards (no --list: the saved view)
+slipdock save-multiboard "Ops queue" --list "ops/To Do" --color rose  # save a view by name: a tile on the home page
+slipdock multiboards; slipdock multiboard <saved>      # saved ones; one with its cards (id or name)
+slipdock set-multiboard <saved> [--name N] [--color C] [--list L]...; slipdock delete-multiboard <saved>
 slipdock swimlanes <board> [view options]   # grid of cards grouped on two axes (see below)
 slipdock table <board> [view options] [--group A] [--fields id,title,column,priority,flags,tags,start,due,completed,percent,time,checklist,comments,deps,subcards,created,updated]
 slipdock views <board>                      # saved swimlane views
