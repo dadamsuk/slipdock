@@ -214,6 +214,7 @@ slipdock deploy run --env E -- <cmd…>   # in CI, with SLIPDOCK_DEPLOY_TOKEN: r
 slipdock deploy setup <board> [--prompt]   # owner: turn delivery metrics on, issue the deploy token, print the CI step
 slipdock incident-of <card> <deploy-id>    # an incident card names the deploy that caused it (--clear to undo)
 slipdock work [--board B] [--done]      # what is waiting on you (waits, review/waiting flags, runner trouble), then your cards
+slipdock multiboard [--list 12 --list "ops/To Do"] [--limit N] [--by board|list|grid]  # top N cards of lists across boards (no --list: the saved view)
 slipdock swimlanes <board> [view options]   # grid of cards grouped on two axes (see below)
 slipdock table <board> [view options] [--group A] [--fields id,title,column,priority,flags,tags,start,due,completed,percent,time,checklist,comments,deps,subcards,created,updated]
 slipdock views <board>                      # saved swimlane views

@@ -86,6 +86,10 @@ Briefly, with the detail in [the manual](docs/manual.md):
   needs you, oldest first (waits, `review` and `waiting` flags on your cards,
   runner trouble, cards in progress with nobody on them), and the header counts
   it on every page; `slipdock work` and `GET /api/work` list the same.
+- **Multiboard** — the top N cards of lists picked from any of your boards,
+  on one page from the home page's toolbar, laid out by board, by list or as
+  a grid of tiles. The view is remembered and lives in the URL, so it can be
+  bookmarked; `slipdock multiboard` and `GET /api/multiboard` show the same.
 - **A board's pulse** — [flow numbers from every move](docs/manual.md#flow-the-pulse-a-cards-state-and-its-age):
   each card move is recorded with who made it (a person, an agent or an
   automation), and the board works out what is in progress, what waits on a

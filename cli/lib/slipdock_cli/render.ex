@@ -238,6 +238,32 @@ defmodule SlipdockCLI.Render do
       do: IO.puts(dim("nothing waiting on you, nothing assigned"))
   end
 
+  @doc """
+  `slipdock multiboard`: each section's heading (none for the grid), then its
+  cards with the list they are in — and the board too where the heading
+  does not already say it.
+  """
+  def multiboard(%{"sections" => sections, "by" => by}) do
+    Enum.each(sections, fn s ->
+      if s["label"], do: IO.puts(bold("#{s["label"]} (#{length(s["cards"])})"))
+      if s["cards"] == [], do: IO.puts(dim("  no cards"))
+
+      Enum.each(s["cards"], fn c ->
+        where =
+          case by do
+            "list" -> ""
+            "grid" -> dim("  #{c["board"]} › #{c["column"]}")
+            _ -> dim("  #{c["column"]}")
+          end
+
+        IO.puts("  ##{c["id"]} #{c["title"]}" <> where)
+      end)
+    end)
+
+    if sections == [],
+      do: IO.puts(dim("no lists chosen: pass --list, or pick them on the Multiboard page"))
+  end
+
   defp choices(%{"choices" => [_ | _] = choices}) do
     numbered =
       choices |> Enum.with_index(1) |> Enum.map_join("  ", fn {c, n} -> "[#{n}] #{c}" end)

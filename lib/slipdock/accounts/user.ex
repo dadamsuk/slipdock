@@ -17,6 +17,9 @@ defmodule Slipdock.Accounts.User do
     # table), and the order the boards are listed in. Both are theirs alone.
     field :board_layout, :string, default: "grid"
     field :board_sort, :string, default: "manual"
+    # The multiboard overview's lists, top N and layout (#1479), as
+    # `Slipdock.Multiboard.prefs/1` reads them.
+    field :multiboard, :map, default: %{}
     # Meeting capture out of sight for this person, when the server's admin
     # lets people choose (see `Slipdock.Meetings.visible?/2`). A display
     # preference: the API and the CLI answer the same either way.
@@ -123,6 +126,9 @@ defmodule Slipdock.Accounts.User do
     |> validate_inclusion(:board_layout, @layouts)
     |> validate_inclusion(:board_sort, @sorts)
   end
+
+  @doc "What the multiboard overview shows (#1479): see `Slipdock.Multiboard`."
+  def multiboard_changeset(user, attrs), do: cast(user, attrs, [:multiboard])
 
   @doc "This person's display preferences: for now, whether meeting capture is hidden."
   def display_changeset(user, attrs), do: cast(user, attrs, [:hide_meetings])

@@ -80,6 +80,16 @@ way in: what it is, the pictures, and how to get it running.
   the card, so share the board before assigning someone new — with an assignee
   swimlane axis that puts a shared card in each person's lane, and **My work** (`/work`) lists everything assigned to you across all
   boards and levels, each with its path in the tree
+- **Multiboard** (`/multiboard`, from the home page's toolbar): pick lists
+  from any of your boards under **Lists** and see the top N cards of each
+  (5 unless you say, up to 50), in the list's own order, archived and
+  snoozed cards left out. **By board** gives a section per board, each row
+  naming its list; **By list** a section per list; **Grid** every card as
+  a tile saying which board and list it is from. Your view is remembered,
+  and is in the URL (`?lists=12,14&top=5&by=grid`) to bookmark or share.
+  `slipdock multiboard --list 12 --list "ops/To Do" --limit 3 --by list`
+  and `GET /api/multiboard` (`lists`, `top`, `by`) give the same; with no
+  lists they show your remembered view
 - Automations: rules written in plain English ("when a card lands in Done,
   email ops@example.com"; "move anything untouched for a week back to
   Backlog"), parsed once by the model and then run by the app — plus

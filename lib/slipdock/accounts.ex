@@ -102,6 +102,11 @@ defmodule Slipdock.Accounts do
     user |> User.board_view_changeset(attrs) |> Repo.update()
   end
 
+  @doc "Saves what this person's multiboard overview shows (#1479)."
+  def update_multiboard(%User{} = user, prefs) when is_map(prefs) do
+    user |> User.multiboard_changeset(%{multiboard: prefs}) |> Repo.update()
+  end
+
   @doc "Saves this person's display preferences (see `User.display_changeset/2`)."
   def update_display(%User{} = user, attrs) do
     user |> User.display_changeset(attrs) |> Repo.update()

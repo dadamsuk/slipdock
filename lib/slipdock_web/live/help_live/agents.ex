@@ -184,6 +184,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"See the top cards of lists from several boards (Multiboard)",
+     [
+       {:yes, "GET /api/multiboard"},
+       {:no, "not a tool: use the API or the CLI"},
+       {:yes, "slipdock multiboard"},
+       {:yes, "through the CLI"},
+       {:no, "one way only"},
+       {:no, "one way only"}
+     ]},
     {"Get your addresses for emailing cards and wiki pages onto a board, or rotate them",
      [
        {:yes, "GET /api/boards/:id/inbound, /api/me/inbound (?folder= for a wiki folder's)"},
