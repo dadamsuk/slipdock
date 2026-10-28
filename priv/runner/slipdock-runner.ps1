@@ -152,11 +152,20 @@ function Stop-JobTree([System.Diagnostics.Process]$proc) {
   try { $proc.WaitForExit(10000) | Out-Null } catch { }
 }
 
+# The job's out and err are read while it still writes them, and Windows
+# PowerShell's Start-Process holds them open without read sharing, so
+# ReadAllText fails there (#1481): each is opened sharing read and write, and
+# one that still can't be read is left out of this heartbeat's log.
 function Read-Log {
   $text = ''
   foreach ($f in @('log', 'out', 'err')) {
     $p = Join-Path $Work $f
-    if (Test-Path -LiteralPath $p) { $text += [IO.File]::ReadAllText($p, $Utf8) }
+    if (Test-Path -LiteralPath $p) {
+      try {
+        $fs = New-Object IO.FileStream($p, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+        try { $text += (New-Object IO.StreamReader($fs, $Utf8)).ReadToEnd() } finally { $fs.Dispose() }
+      } catch { }
+    }
   }
   if ($text.Length -gt $LogTail) { $text = $text.Substring($text.Length - $LogTail) }
   return $text
@@ -235,57 +244,75 @@ function Invoke-Job($claim) {
     return
   }
 
-  # The job is a child process running this script again in -RunJob mode, so
-  # cancel and timeout can stop it, and everything it started, cleanly.
-  $shell = (Get-Process -Id $PID).Path
-  $selfPath = $PSCommandPath
-  $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$selfPath`"",
-    '-Config', "`"$Config`"", '-RunJob', $fn)
-  $proc = Start-Process -FilePath $shell -ArgumentList $arguments -PassThru -NoNewWindow `
-    -RedirectStandardOutput (Join-Path $Work 'out') -RedirectStandardError (Join-Path $Work 'err')
-  $null = $proc.Handle
+  # Anything that goes wrong from here on is said in the runner's log, the
+  # job is stopped and failed, and the runner carries on: left to stop the
+  # runner, it would leave the job's process running with nobody to report
+  # on it, and the error on a stderr nobody sees (#1481).
+  $proc = $null
+  try {
+    # The job is a child process running this script again in -RunJob mode, so
+    # cancel and timeout can stop it, and everything it started, cleanly.
+    $shell = (Get-Process -Id $PID).Path
+    $selfPath = $PSCommandPath
+    $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$selfPath`"",
+      '-Config', "`"$Config`"", '-RunJob', $fn)
+    $proc = Start-Process -FilePath $shell -ArgumentList $arguments -PassThru -NoNewWindow `
+      -RedirectStandardOutput (Join-Path $Work 'out') -RedirectStandardError (Join-Path $Work 'err')
+    $null = $proc.Handle
 
-  $started = Get-Date
-  $last = [datetime]::MinValue
-  $ended = ''
-  while (-not $proc.HasExited) {
-    if (((Get-Date) - $started).TotalSeconds -ge $JobTimeout) { $ended = 'timeout'; break }
-    if (((Get-Date) - $last).TotalSeconds -ge $Heartbeat) {
-      $last = Get-Date
-      $a = Send-Slipdock "/api/runner/jobs/$JobId/heartbeat" (Read-Log) 15
-      if ($a.Status -eq 200 -and $a.Body.Trim() -eq 'cancel') { $ended = 'cancelled'; break }
-      if ($a.Status -eq 404) { $ended = 'lost'; break }
+    $started = Get-Date
+    $last = [datetime]::MinValue
+    $ended = ''
+    while (-not $proc.HasExited) {
+      if (((Get-Date) - $started).TotalSeconds -ge $JobTimeout) { $ended = 'timeout'; break }
+      if (((Get-Date) - $last).TotalSeconds -ge $Heartbeat) {
+        $last = Get-Date
+        $a = Send-Slipdock "/api/runner/jobs/$JobId/heartbeat" (Read-Log) 15
+        if ($a.Status -eq 200 -and $a.Body.Trim() -eq 'cancel') { $ended = 'cancelled'; break }
+        if ($a.Status -eq 404) { $ended = 'lost'; break }
+      }
+      Start-Sleep -Milliseconds 500
     }
-    Start-Sleep -Milliseconds 500
-  }
 
-  switch ($ended) {
-    'timeout' {
-      Say "job #${JobId}: over its ${JobTimeout}s - stopped"
-      Stop-JobTree $proc
-      Add-Log "slipdock-runner: stopped after ${JobTimeout}s"
-      Invoke-AfterJob 124 'timeout'
-      Complete-Job 124 'timeout'
+    switch ($ended) {
+      'timeout' {
+        Say "job #${JobId}: over its ${JobTimeout}s - stopped"
+        Stop-JobTree $proc
+        Add-Log "slipdock-runner: stopped after ${JobTimeout}s"
+        Invoke-AfterJob 124 'timeout'
+        Complete-Job 124 'timeout'
+      }
+      'cancelled' {
+        Say "job #${JobId}: cancelled from the board - stopped"
+        Stop-JobTree $proc
+        Add-Log 'slipdock-runner: cancelled from the board'
+        Invoke-AfterJob 130 'cancelled'
+        Complete-Job 130 'cancelled'
+      }
+      'lost' {
+        Say "job #${JobId}: no longer this runner's - stopped"
+        Stop-JobTree $proc
+        Invoke-AfterJob 130 'cancelled'
+      }
+      default {
+        $proc.WaitForExit()
+        $rc = $proc.ExitCode
+        if ($null -eq $rc) { $rc = 1 }
+        Say "job #${JobId}: exit $rc"
+        if ($rc -eq 0) { Invoke-AfterJob 0 'done' } else { Invoke-AfterJob $rc 'failed' }
+        Complete-Job $rc ''
+      }
     }
-    'cancelled' {
-      Say "job #${JobId}: cancelled from the board - stopped"
-      Stop-JobTree $proc
-      Add-Log 'slipdock-runner: cancelled from the board'
-      Invoke-AfterJob 130 'cancelled'
-      Complete-Job 130 'cancelled'
-    }
-    'lost' {
-      Say "job #${JobId}: no longer this runner's - stopped"
-      Stop-JobTree $proc
-      Invoke-AfterJob 130 'cancelled'
-    }
-    default {
-      $proc.WaitForExit()
-      $rc = $proc.ExitCode
-      if ($null -eq $rc) { $rc = 1 }
-      Say "job #${JobId}: exit $rc"
-      if ($rc -eq 0) { Invoke-AfterJob 0 'done' } else { Invoke-AfterJob $rc 'failed' }
-      Complete-Job $rc ''
+  } catch {
+    $err = $_
+    Say "job #${JobId}: the runner failed while running it - $($err.Exception.Message) (line $($err.InvocationInfo.ScriptLineNumber)); stopped and failed"
+    try {
+      if ($proc -and -not $proc.HasExited) { Stop-JobTree $proc }
+      Add-Log "slipdock-runner: failed while running the job: $($err.Exception.Message)"
+      Invoke-AfterJob 1 'failed'
+      Complete-Job 1 'failed'
+    } catch {
+      Say "job #${JobId}: and could not finish it - $_"
     }
   }
 }
@@ -301,31 +328,40 @@ $quiet = 0
 
 try {
   while ($true) {
-    $claim = Send-Slipdock "/api/runner/claim?$query" '' ($Wait + 15)
-    if ($claim.Status -eq 200) {
-      $backoff = 1
-      $quiet = 0
-      Invoke-Job $claim
-    } elseif ($claim.Status -eq 204) {
-      $backoff = 1
-      $quiet = 0
-      # A server stopping for a deploy says how long to wait before asking
-      # again, by when its replacement is there to answer.
-      $pause = 0
-      if ([int]::TryParse((Get-Header $claim 'Retry-After'), [ref]$pause) -and $pause -gt 0 -and -not $Once) {
-        Start-Sleep -Seconds ([Math]::Min($pause, 60))
+    # Nothing that goes wrong in a round stops the runner without a word in
+    # its log: the task's window is hidden, so stderr reaches nobody (#1481).
+    try {
+      $claim = Send-Slipdock "/api/runner/claim?$query" '' ($Wait + 15)
+      if ($claim.Status -eq 200) {
+        $backoff = 1
+        $quiet = 0
+        Invoke-Job $claim
+      } elseif ($claim.Status -eq 204) {
+        $backoff = 1
+        $quiet = 0
+        # A server stopping for a deploy says how long to wait before asking
+        # again, by when its replacement is there to answer.
+        $pause = 0
+        if ([int]::TryParse((Get-Header $claim 'Retry-After'), [ref]$pause) -and $pause -gt 0 -and -not $Once) {
+          Start-Sleep -Seconds ([Math]::Min($pause, 60))
+        }
+      } elseif ($claim.Status -eq 401 -or $claim.Status -eq 403) {
+        Say "the server refused this runner (HTTP $($claim.Status)): $($claim.Body)"
+        exit 1
+      } elseif (-not $Once -and $claim.Status -in @(0, 502, 503, 504) -and $quiet -lt 3) {
+        # A claim the proxy lost when the app went down for a deploy (502, or
+        # the connection dropped without a proxy) is retried at once, and
+        # quietly: only a few in a row are worth a line in the log.
+        $quiet++
+        Start-Sleep -Seconds 1
+      } else {
+        Say "could not reach the queue (HTTP $($claim.Status)) - trying again in ${backoff}s"
+        if ($Once) { exit 1 }
+        Start-Sleep -Seconds $backoff
+        $backoff = [Math]::Min($backoff * 2, 60)
       }
-    } elseif ($claim.Status -eq 401 -or $claim.Status -eq 403) {
-      Say "the server refused this runner (HTTP $($claim.Status)): $($claim.Body)"
-      exit 1
-    } elseif (-not $Once -and $claim.Status -in @(0, 502, 503, 504) -and $quiet -lt 3) {
-      # A claim the proxy lost when the app went down for a deploy (502, or
-      # the connection dropped without a proxy) is retried at once, and
-      # quietly: only a few in a row are worth a line in the log.
-      $quiet++
-      Start-Sleep -Seconds 1
-    } else {
-      Say "could not reach the queue (HTTP $($claim.Status)) - trying again in ${backoff}s"
+    } catch {
+      Say "runner error: $($_.Exception.Message) (line $($_.InvocationInfo.ScriptLineNumber)) - trying again in ${backoff}s"
       if ($Once) { exit 1 }
       Start-Sleep -Seconds $backoff
       $backoff = [Math]::Min($backoff * 2, 60)

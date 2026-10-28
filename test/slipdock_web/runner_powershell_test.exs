@@ -181,6 +181,83 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
     assert out =~ "refused this runner (HTTP 401)"
   end
 
+  # #1481: Windows PowerShell holds the job's out and err open without read
+  # sharing, and the heartbeat's ReadAllText failed on them and stopped the
+  # runner. Linux doesn't lock those the same way, so the job here locks the
+  # runner's `log` beside them, exclusively, across a few heartbeats: the
+  # heartbeats carry on without it, and the job finishes with all of it.
+  test "a log file the runner can't open for a heartbeat doesn't stop it", ctx do
+    {:ok, queued} = queue(ctx.card, "hold")
+
+    hold = ~S"""
+    function Job-Hold {
+      $runner = (Get-Process -Id $PID).Parent.Id
+      $out = Get-ChildItem "/proc/$runner/fd" | ForEach-Object { & readlink $_.FullName } |
+        Where-Object { $_ -like '*slipdock-runner-*/out' } | Select-Object -First 1
+      $fs = [IO.File]::Open((Join-Path (Split-Path -Parent $out) 'log'), 'Open', 'ReadWrite', 'None')
+      Write-Output 'holding the log'
+      Start-Sleep -Seconds 4
+      $fs.Dispose()
+      Write-Output 'let go'
+    }
+    """
+
+    {out, 0} = run_once(ctx, config(ctx, hold))
+    refute out =~ "failed"
+
+    done = job(queued)
+    assert {done.status, done.exit_code} == {"done", 0}
+    assert done.output =~ "holding the log"
+    assert done.output =~ "let go"
+    assert after_lines(ctx) == ["done 0"]
+  end
+
+  test "an error while a job runs is logged, and the job stopped and failed", ctx do
+    {:ok, queued} = queue(ctx.card, "sleep")
+    # A Before-Job that breaks the heartbeat sum: the error comes once the
+    # job's process is running, where the runner used to die and leave it.
+    {out, 0} = run_once(ctx, config(ctx, "function Before-Job { $script:Heartbeat = 'x' }"))
+
+    assert out =~ "job ##{queued.id}: the runner failed while running it"
+    assert File.read!(Path.join(ctx.dir, "runner.log")) =~ "the runner failed while running it"
+
+    failed = job(queued)
+    assert {failed.status, failed.exit_code} == {"failed", 1}
+    assert failed.output =~ "slipdock-runner: failed while running the job"
+    assert after_lines(ctx) == ["failed 1"]
+
+    child = Path.join(ctx.dir, "child")
+    if File.exists?(child), do: refute(alive?(child |> File.read!() |> String.trim()))
+  end
+
+  test "an error outside a job goes in the runner's log, not only to stderr", ctx do
+    {out, 1} = run_once(ctx, config(ctx, "$Wait = 'x'"))
+    assert out =~ "runner error:"
+    assert File.read!(Path.join(ctx.dir, "runner.log")) =~ "runner error:"
+  end
+
+  # CI runs this one on Windows PowerShell 5.1 as well (the windows-runner
+  # job); here it keeps the script itself working.
+  test "the Windows smoke script passes under pwsh, and fails on a runner that dies", ctx do
+    smoke = Path.expand("../powershell/runner_smoke.ps1", __DIR__)
+
+    {out, 0} = System.cmd(@pwsh, ["-NoProfile", "-File", smoke], stderr_to_stdout: true)
+    assert out =~ ~r/ok: \d+ heartbeats, finished with \?exit=0/
+
+    dead = Path.join(ctx.dir, "dead.ps1")
+
+    File.write!(
+      dead,
+      ~S{param($Config, [switch]$Once) [Console]::Error.WriteLine('boom'); exit 1}
+    )
+
+    {out, 1} =
+      System.cmd(@pwsh, ["-NoProfile", "-File", smoke, "-Runner", dead], stderr_to_stdout: true)
+
+    assert out =~ "boom"
+    assert out =~ "FAIL: the job was never finished"
+  end
+
   describe "through a deploy" do
     alias SlipdockWeb.RunnerStubQueue, as: Stub
 
@@ -236,6 +313,22 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
   end
 
   describe "install.ps1" do
+    # Task Scheduler is Windows-only, so this reads what the installer
+    # registers (#1481): restart-on-failure doesn't cover a runner that
+    # started and then exited, so a repeating trigger brings it back, and
+    # IgnoreNew keeps that from starting a second one beside it.
+    test "the task starts at logon and again every 5 minutes, never twice at once" do
+      script = SlipdockWeb.RunnerInstallController.files()["install.ps1"]
+
+      assert script =~ "New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME"
+
+      assert script =~
+               ~r/New-ScheduledTaskTrigger -Once -At \(Get-Date\) -RepetitionInterval \(New-TimeSpan -Minutes 5\)/
+
+      assert script =~ "-MultipleInstances IgnoreNew"
+      assert script =~ "within 5 minutes if it stops"
+    end
+
     defp install(ctx, args) do
       installer = Path.join(ctx.dir, "install.ps1")
       File.write!(installer, SlipdockWeb.RunnerInstallController.files()["install.ps1"])
