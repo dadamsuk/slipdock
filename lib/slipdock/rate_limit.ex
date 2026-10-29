@@ -18,6 +18,8 @@ defmodule Slipdock.RateLimit do
 
   `config :slipdock, :rate_limit, enabled: false` turns it off, which is what
   the test environment does except where a test is about this module.
+  `now: ms` pins the clock `hit/3` and `remaining/3` read, so a test that
+  makes a burst of calls can't have it split across a window's edge.
   """
 
   use GenServer
@@ -33,7 +35,7 @@ defmodule Slipdock.RateLimit do
   @spec hit(String.t(), pos_integer(), pos_integer()) :: :ok | {:error, non_neg_integer()}
   def hit(key, limit, window_ms) do
     if enabled?() do
-      now = System.system_time(:millisecond)
+      now = now()
       window = div(now, window_ms)
       resets_at = (window + 1) * window_ms
       # The expiry rides along in the row so the sweep can compare rows from
@@ -90,7 +92,7 @@ defmodule Slipdock.RateLimit do
   """
   @spec remaining(String.t(), pos_integer(), pos_integer()) :: non_neg_integer()
   def remaining(key, limit, window_ms) do
-    window = div(System.system_time(:millisecond), window_ms)
+    window = div(now(), window_ms)
 
     case :ets.lookup(@table, {key, window}) do
       [{_, count, _resets_at}] -> max(limit - count, 0)
@@ -105,6 +107,8 @@ defmodule Slipdock.RateLimit do
   end
 
   def enabled?, do: Slipdock.Config.get(:rate_limit, [])[:enabled] != false
+
+  defp now, do: Slipdock.Config.get(:rate_limit, [])[:now] || System.system_time(:millisecond)
 
   # ── the table ──────────────────────────────────────────────────────────
 
