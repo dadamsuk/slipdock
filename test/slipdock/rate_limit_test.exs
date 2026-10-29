@@ -66,4 +66,50 @@ defmodule Slipdock.RateLimitTest do
       assert s in 59..60
     end
   end
+
+  describe "hit/3 and remaining/3" do
+    defp at(ms), do: Application.put_env(:slipdock, :rate_limit, enabled: true, now: ms)
+
+    test "allows the limit within a window, then refuses with the time to the reset" do
+      at(60_000 + 15_000)
+
+      assert RateLimit.hit("h", 2, 60_000) == :ok
+      assert RateLimit.remaining("h", 2, 60_000) == 1
+      assert RateLimit.hit("h", 2, 60_000) == :ok
+      assert RateLimit.remaining("h", 2, 60_000) == 0
+      assert RateLimit.hit("h", 2, 60_000) == {:error, 46}
+      assert RateLimit.remaining("h", 2, 60_000) == 0
+    end
+
+    test "a pinned clock keeps a burst in one window" do
+      # The flake in #1480: a burst read the real clock, crossed a minute
+      # edge, and the count started again from zero partway through.
+      at(119_999)
+      for _ <- 1..3, do: assert(RateLimit.hit("burst", 3, 60_000) == :ok)
+      assert {:error, 1} = RateLimit.hit("burst", 3, 60_000)
+    end
+
+    test "the next window starts a fresh count" do
+      at(119_999)
+      assert RateLimit.hit("edge", 1, 60_000) == :ok
+      assert {:error, _} = RateLimit.hit("edge", 1, 60_000)
+
+      at(120_000)
+      assert RateLimit.remaining("edge", 1, 60_000) == 1
+      assert RateLimit.hit("edge", 1, 60_000) == :ok
+    end
+
+    test "always allows when rate limiting is off, and records nothing" do
+      Application.put_env(:slipdock, :rate_limit, enabled: false, now: 0)
+
+      for _ <- 1..3, do: assert(RateLimit.hit("off", 1, 60_000) == :ok)
+      assert RateLimit.remaining("off", 1, 60_000) == 1
+    end
+
+    test "reads the real clock when none is pinned" do
+      assert RateLimit.hit("real", 1, :timer.hours(1)) == :ok
+      assert {:error, s} = RateLimit.hit("real", 1, :timer.hours(1))
+      assert s in 1..3600
+    end
+  end
 end

@@ -30,7 +30,9 @@ defmodule Slipdock.Automations.LimitsTest do
 
   defp with_rate_limit(_ctx) do
     previous = Application.get_env(:slipdock, :rate_limit)
-    Application.put_env(:slipdock, :rate_limit, enabled: true)
+    # The clock is pinned mid-hour: on the real one a burst can cross a
+    # minute's edge, the count starts again, and nothing is held back (#1480).
+    Application.put_env(:slipdock, :rate_limit, enabled: true, now: 500 * 3_600_000 + 1_800_000)
     Slipdock.RateLimit.reset()
 
     on_exit(fn ->
