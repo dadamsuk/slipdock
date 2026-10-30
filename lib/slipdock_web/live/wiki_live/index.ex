@@ -1039,7 +1039,6 @@ defmodule SlipdockWeb.WikiLive.Index do
   # what the page says. See `Slipdock.Wiki.Autosaves`.
 
   @autosave_after_ms Application.compile_env(:slipdock, :wiki_autosave_after_ms, 3000)
-  @autosaved_fields ~w(title summary body status folder_id icon color)
 
   defp assign_autosave(socket, autosave) do
     assign(socket,
@@ -1070,7 +1069,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     socket = assign(socket, autosave_pending: nil)
 
     cond do
-      not unchanged?(editing, params) -> write_autosave(socket, params)
+      not Autosaves.unchanged?(editing, params) -> write_autosave(socket, params)
       # Back to what the page says: there is nothing left to keep.
       page && autosave -> clear_autosave(socket)
       autosave -> write_autosave(socket, params)
@@ -1095,7 +1094,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   defp autosave_attrs(socket, params) do
-    attrs = Map.take(params, @autosaved_fields)
+    attrs = Map.take(params, Autosaves.fields())
 
     case socket.assigns do
       %{page: nil, new_parent: parent, new_column: column} ->
@@ -1105,17 +1104,6 @@ defmodule SlipdockWeb.WikiLive.Index do
         attrs
     end
   end
-
-  defp unchanged?(%Page{} = page, params) do
-    params
-    |> Map.take(@autosaved_fields)
-    |> Enum.all?(fn {field, value} ->
-      form_text(value) == form_text(Map.get(page, String.to_existing_atom(field)))
-    end)
-  end
-
-  defp form_text(nil), do: ""
-  defp form_text(value), do: value |> to_string() |> String.replace("\r\n", "\n")
 
   # The save or the Cancel it was waiting for: nothing more to write.
   defp clear_autosave(socket) do
@@ -1258,20 +1246,9 @@ defmodule SlipdockWeb.WikiLive.Index do
     |> push_event("image_failed", %{upload: "page_image"})
   end
 
-  @upload_placeholder "![Uploading image…]()"
-
   # How long a change waits for the rest of its burst (see the
   # `:wiki_changed` handler). Short enough that one edit still shows at once.
   @reload_after_ms Application.compile_env(:slipdock, :wiki_reload_after_ms, 300)
-
-  # The placeholder is the browser's, not the document's: it must never be saved.
-  defp strip_placeholder(nil), do: nil
-
-  defp strip_placeholder(text),
-    do:
-      text
-      |> String.replace(@upload_placeholder <> "\n", "")
-      |> String.replace(@upload_placeholder, "")
 
   ## Events -------------------------------------------------------------------
 
@@ -1294,7 +1271,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     # in the form with its error, and LiveView refuses to submit a form with
     # an upload error in it: the page could not be saved at all.
     socket = Helpers.drop_invalid_uploads(socket, :page_image)
-    params = Map.update(params, "body", nil, &strip_placeholder/1)
+    params = Map.update(params, "body", nil, &Helpers.strip_upload_placeholder/1)
     changeset = Wiki.change_page(socket.assigns.editing, params)
 
     {:noreply,
@@ -1333,7 +1310,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   def handle_event("save", %{"page" => params} = all, socket) do
-    params = Map.update(params, "body", nil, &strip_placeholder/1)
+    params = Map.update(params, "body", nil, &Helpers.strip_upload_placeholder/1)
 
     if socket.assigns.can_write do
       {:noreply,

@@ -3335,8 +3335,13 @@ An image can go into a new page straight away, before it has a title or a
 save. It is held in a temporary auto-save folder, and shown only to you, until
 Save makes it an ordinary attachment of the page; one you delete from the text
 first is not kept. Held images don't count towards the board's storage until
-then, and each person can hold up to 500 MB of them. The shared-page editor
-at `/shared/pages/:id/edit` has no auto-save.
+then, and each person can hold up to 500 MB of them.
+
+The editor for a page shared with you keeps your work the same way, and takes
+pasted images. You may not be able to open its board, so what you left
+unsaved is listed under **Unsaved work** on **Shared with me**, for as long as
+the page stays shared with you to edit. If someone has saved the page since,
+Save shows you their version to merge.
 
 A page has three names, and they do different jobs. Its **code** — `W-31` —
 is short, globally unique and stable across renames, so it is what belongs in

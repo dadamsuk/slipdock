@@ -11,6 +11,11 @@ defmodule SlipdockWeb.SharedLive do
   can do here is what `Slipdock.Wiki.Sharing` lets them: edit and rename a
   page, and make pages, drawings and folders inside a shared folder.
 
+  The editor keeps unsaved work as the wiki's does (#1534,
+  `Slipdock.Wiki.Autosaves`), and takes pasted images. A writer here may not be
+  able to read the board, so what they left unsaved is listed on this view's
+  front page. The editor has no `[[` picker: that searches the whole board.
+
   It follows the shares live: a grant given or taken back
   (`Slipdock.Access.subscribe_shares/1`) redraws the tree, and the page
   being read goes away with a word if it is no longer shared.
@@ -18,9 +23,14 @@ defmodule SlipdockWeb.SharedLive do
   use SlipdockWeb, :live_view
 
   alias Slipdock.{Access, Boards, Wiki}
-  alias Slipdock.Wiki.{Drawings, Folder, Page, SharedTree}
+  alias Slipdock.Boards.{Attachment, Board}
+  alias Slipdock.Wiki.{Autosaves, Drawings, Folder, Page, SharedTree}
+  alias SlipdockWeb.BoardLive.Helpers
   alias SlipdockWeb.SharedComponents
   alias SlipdockWeb.Wiki.Renderer
+
+  @autosave_after_ms Application.compile_env(:slipdock, :wiki_autosave_after_ms, 3000)
+  @form_fields ~w(title body)
 
   @impl true
   def mount(_params, _session, socket) do
@@ -28,7 +38,15 @@ defmodule SlipdockWeb.SharedLive do
     if connected?(socket), do: Access.subscribe_shares(user.id)
 
     {:ok,
-     assign(socket,
+     socket
+     |> allow_upload(:page_image,
+       accept: ~w(.png .jpg .jpeg .gif .webp image/png image/jpeg image/gif image/webp),
+       max_entries: 5,
+       max_file_size: Attachment.image_max_size(),
+       auto_upload: true,
+       progress: &handle_upload/3
+     )
+     |> assign(
        tree: SharedTree.for_user(user),
        page: nil,
        folder: nil,
@@ -37,6 +55,15 @@ defmodule SlipdockWeb.SharedLive do
        html: "",
        form: nil,
        base_hash: nil,
+       conflict: nil,
+       # Auto-save (#1534): the row for what is open, the form waiting for the
+       # timer, whether it has landed, and what the editor was restored from.
+       autosave: nil,
+       autosave_pending: nil,
+       autosave_timer: false,
+       autosaved?: false,
+       restored_from: nil,
+       unsaved: [],
        # "Also file in…" (#818): folders of the reader's own to file it in.
        also_targets: nil,
        page_title: "Shared with me"
@@ -44,8 +71,11 @@ defmodule SlipdockWeb.SharedLive do
   end
 
   @impl true
-  def handle_params(params, _uri, socket),
-    do: {:noreply, show(socket, socket.assigns.live_action, params)}
+  def handle_params(params, _uri, socket) do
+    # Before anything moves: what is waiting belongs to the page being left.
+    socket = flush_autosave(socket)
+    {:noreply, socket |> show(socket.assigns.live_action, params) |> assign_unsaved()}
+  end
 
   defp show(socket, :index, _params),
     do: assign(socket, page: nil, folder: nil, node: nil, form: nil, page_title: "Shared with me")
@@ -54,6 +84,9 @@ defmodule SlipdockWeb.SharedLive do
     with %Page{} = page <- Wiki.get_page(id),
          level = Access.page_permission(socket.assigns.current_user, page),
          true <- is_nil(page.archived_at) and Wiki.visible?(page, level) do
+      # A share changing under an open editor leaves what is being typed alone.
+      open? = action == :edit and socket.assigns.form != nil and same_page?(socket, page)
+
       socket =
         assign(socket,
           page: page,
@@ -67,11 +100,11 @@ defmodule SlipdockWeb.SharedLive do
         action == :page ->
           assign(socket, form: nil, html: render_body(socket, page))
 
+        socket.assigns.can_write and open? ->
+          socket
+
         socket.assigns.can_write ->
-          assign(socket,
-            form: to_form(%{"title" => page.title, "body" => page.body}, as: :page),
-            base_hash: page.content_hash
-          )
+          open_editor(socket, page)
 
         true ->
           socket
@@ -101,6 +134,26 @@ defmodule SlipdockWeb.SharedLive do
     end
   end
 
+  defp same_page?(%{assigns: %{page: %Page{id: id}}}, %Page{id: id}), do: true
+  defp same_page?(_socket, _page), do: false
+
+  # What they typed and never saved comes back by itself, against the hash it
+  # was typed on, so a change made since is still caught.
+  defp open_editor(socket, page) do
+    autosave = Autosaves.for_page(socket.assigns.current_user, page)
+    kept = Map.take((autosave && autosave.attrs) || %{}, @form_fields)
+
+    assign(socket,
+      form: to_form(Map.merge(%{"title" => page.title, "body" => page.body}, kept), as: :page),
+      base_hash: (autosave && autosave.base_hash) || page.content_hash,
+      conflict: nil,
+      autosave: autosave,
+      autosave_pending: nil,
+      autosaved?: false,
+      restored_from: autosave && autosave.updated_at
+    )
+  end
+
   defp gone(socket) do
     socket
     |> put_flash(:error, "That isn't shared with you, or not any more.")
@@ -111,31 +164,175 @@ defmodule SlipdockWeb.SharedLive do
     do:
       Renderer.to_html(page.body || "", page: page, as: socket.assigns.current_user, shared: true)
 
+  ## Auto-save ------------------------------------------------------------------
+  #
+  # As in the wiki's editor: the form comes to the server as it is typed, each
+  # one is noted, and a timer writes the latest. See `Slipdock.Wiki.Autosaves`.
+
+  defp queue_autosave(socket, params) do
+    socket = assign(socket, autosave_pending: params)
+
+    if socket.assigns.autosave_timer do
+      socket
+    else
+      Process.send_after(self(), :autosave, @autosave_after_ms)
+      assign(socket, autosave_timer: true)
+    end
+  end
+
+  defp flush_autosave(%{assigns: %{autosave_pending: nil}} = socket), do: socket
+
+  defp flush_autosave(socket) do
+    %{autosave_pending: params, autosave: autosave, page: page} = socket.assigns
+    socket = assign(socket, autosave_pending: nil)
+
+    cond do
+      not Autosaves.unchanged?(page, params) -> write_autosave(socket, params)
+      # Back to what the page says: there is nothing left to keep.
+      autosave -> clear_autosave(socket)
+      true -> socket
+    end
+  end
+
+  defp write_autosave(socket, params) do
+    %{current_user: user, page: page, autosave: autosave, base_hash: base} = socket.assigns
+
+    # Merged: the same row may hold what the wiki's editor keeps besides these.
+    attrs = Map.merge((autosave && autosave.attrs) || %{}, params)
+
+    case Autosaves.save(user, %Board{id: page.board_id}, page, autosave, attrs, base) do
+      {:ok, saved} -> assign(socket, autosave: saved, autosaved?: true)
+      {:error, _} -> socket
+    end
+  end
+
+  defp clear_autosave(socket) do
+    Autosaves.discard(socket.assigns.autosave)
+    assign(socket, autosave: nil, autosave_pending: nil, autosaved?: false, restored_from: nil)
+  end
+
+  defp assign_unsaved(socket) do
+    %{current_user: user, live_action: action} = socket.assigns
+    assign(socket, unsaved: if(action == :index, do: Autosaves.shared_with(user), else: []))
+  end
+
+  ## Uploads ---------------------------------------------------------------------
+
+  defp handle_upload(name, entry, socket) do
+    cond do
+      not entry.done? ->
+        {:noreply, socket}
+
+      socket.assigns.form && socket.assigns.can_write ->
+        meta = %{
+          filename: entry.client_name,
+          content_type: entry.client_type,
+          size: entry.client_size
+        }
+
+        result =
+          consume_uploaded_entry(socket, entry, fn %{path: path} ->
+            {:ok, Wiki.add_attachment(socket.assigns.page, meta, path)}
+          end)
+
+        {:noreply, uploaded(socket, result)}
+
+      true ->
+        {:noreply,
+         socket
+         |> cancel_upload(name, entry.ref)
+         |> Helpers.image_failed(name)
+         |> put_flash(:error, "That was shared with you to read, not to change.")}
+    end
+  end
+
+  defp uploaded(socket, {:ok, %Attachment{} = attachment}) do
+    push_event(socket, "image_uploaded", %{
+      upload: "page_image",
+      markdown: "![#{attachment.filename}](#{Boards.attachment_url(attachment)})"
+    })
+  end
+
+  defp uploaded(socket, _other) do
+    socket
+    |> put_flash(:error, "That image could not be stored.")
+    |> Helpers.image_failed(:page_image)
+  end
+
   ## Events ---------------------------------------------------------------------
 
+  defp form_params(params) do
+    params
+    |> Map.take(@form_fields)
+    |> Map.update("body", nil, &Helpers.strip_upload_placeholder/1)
+  end
+
   @impl true
+  def handle_event("validate", %{"page" => params}, socket) do
+    if socket.assigns.form && socket.assigns.can_write do
+      # An upload refused (too big, not an image) would otherwise sit in the
+      # form with its error, and LiveView won't submit a form with one in it.
+      socket = Helpers.drop_invalid_uploads(socket, :page_image)
+      params = form_params(params)
+      {:noreply, socket |> assign(form: to_form(params, as: :page)) |> queue_autosave(params)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Cancel means it: what was typed goes, auto-save and all.
+  def handle_event("cancel_edit", _params, socket) do
+    {:noreply,
+     socket
+     |> clear_autosave()
+     |> push_patch(to: ~p"/shared/pages/#{socket.assigns.page.id}")}
+  end
+
+  # From the banner over a restored editor: start again from the page.
+  def handle_event("discard_autosave", params, socket) when not is_map_key(params, "id") do
+    {:noreply,
+     socket
+     |> clear_autosave()
+     |> push_navigate(to: ~p"/shared/pages/#{socket.assigns.page.id}/edit")}
+  end
+
+  # From the list of unsaved work.
+  def handle_event("discard_autosave", %{"id" => id}, socket) do
+    socket.assigns.current_user
+    |> Autosaves.shared_with()
+    |> Enum.find(&(to_string(&1.id) == id))
+    |> Autosaves.discard()
+
+    {:noreply, assign_unsaved(socket)}
+  end
+
+  def handle_event("dismiss_conflict", _params, socket),
+    do: {:noreply, assign(socket, conflict: nil)}
+
   def handle_event("save", %{"page" => params}, socket) do
     %{page: page, current_user: user, base_hash: base} = socket.assigns
+    params = form_params(params)
 
     with true <- socket.assigns.can_write,
          {:ok, page} <-
-           Wiki.update_page(page, Map.take(params, ["title", "body"]),
-             user: user,
-             via: "web",
-             base_hash: base
-           ) do
+           Wiki.update_page(page, params, user: user, via: "web", base_hash: base) do
       {:noreply,
        socket
+       |> clear_autosave()
        |> assign(tree: SharedTree.for_user(user))
        |> put_flash(:info, "Saved.")
        |> push_patch(to: ~p"/shared/pages/#{page.id}")}
     else
-      {:error, :conflict, _} ->
+      {:error, :conflict, current} ->
+        # Re-based on the version now shown, so saving after merging is a save.
+        # Copying the text and reopening can't do it: the auto-save comes back.
         {:noreply,
-         put_flash(
-           socket,
-           :error,
-           "Somebody changed it while you were writing. Copy your text, then open it again."
+         socket
+         |> put_flash(:error, "Somebody changed it while you were writing.")
+         |> assign(
+           form: to_form(params, as: :page),
+           conflict: current,
+           base_hash: current.content_hash
          )}
 
       error ->
@@ -246,11 +443,22 @@ defmodule SlipdockWeb.SharedLive do
   ## Live -----------------------------------------------------------------------
 
   @impl true
+  def handle_info(:autosave, socket) do
+    {:noreply, socket |> assign(autosave_timer: false) |> flush_autosave()}
+  end
+
+  def handle_info({:put_flash, kind, message}, socket),
+    do: {:noreply, put_flash(socket, kind, message)}
+
   def handle_info({:shares_changed}, socket) do
-    socket = assign(socket, tree: SharedTree.for_user(socket.assigns.current_user))
+    socket =
+      socket
+      |> flush_autosave()
+      |> assign(tree: SharedTree.for_user(socket.assigns.current_user))
 
     # What is open may have been the share that went.
-    {:noreply, show(socket, socket.assigns.live_action, current_params(socket))}
+    {:noreply,
+     socket |> show(socket.assigns.live_action, current_params(socket)) |> assign_unsaved()}
   end
 
   def handle_info(_message, socket), do: {:noreply, socket}
@@ -294,7 +502,7 @@ defmodule SlipdockWeb.SharedLive do
           </p>
         </aside>
         <main class="min-w-0 flex-1 overflow-y-auto p-6">
-          <.index :if={@live_action == :index} tree={@tree} />
+          <.index :if={@live_action == :index} tree={@tree} unsaved={@unsaved} />
           <.page_view
             :if={@live_action == :page and @page}
             page={@page}
@@ -302,7 +510,15 @@ defmodule SlipdockWeb.SharedLive do
             can_write={@can_write}
             also_targets={@also_targets}
           />
-          <.page_edit :if={@live_action == :edit and @form} page={@page} form={@form} />
+          <.page_edit
+            :if={@live_action == :edit and @form}
+            page={@page}
+            form={@form}
+            uploads={@uploads}
+            conflict={@conflict}
+            autosaved?={@autosaved?}
+            restored_from={@restored_from}
+          />
           <.folder_view
             :if={@live_action == :folder and @node}
             node={@node}
@@ -320,6 +536,7 @@ defmodule SlipdockWeb.SharedLive do
   defp current_key(_), do: nil
 
   attr :tree, :list, required: true
+  attr :unsaved, :list, required: true
 
   defp index(assigns) do
     ~H"""
@@ -329,6 +546,37 @@ defmodule SlipdockWeb.SharedLive do
         Pages and folders other people have shared with you. You see what they shared and nothing
         else of where it is kept.
       </p>
+      <section
+        :if={@unsaved != []}
+        id="unsaved-pages"
+        class="rounded-xl border border-base-300 bg-base-200/40 px-4 py-3 text-sm"
+      >
+        <h2 class="font-medium">Unsaved work</h2>
+        <p class="text-xs text-base-content/60">
+          Only you can see this. It is kept for {Autosaves.ttl_days()} days.
+        </p>
+        <ul class="mt-2 space-y-1">
+          <li :for={autosave <- @unsaved} class="flex items-center justify-between gap-2">
+            <.link
+              navigate={~p"/shared/pages/#{autosave.page.id}/edit"}
+              class="link min-w-0 truncate"
+            >
+              Editing {autosave.page.title}
+            </.link>
+            <span class="flex shrink-0 items-center gap-2 text-xs text-base-content/50">
+              {SlipdockWeb.SlipdockComponents.relative_time(autosave.updated_at)}
+              <button
+                type="button"
+                phx-click="discard_autosave"
+                phx-value-id={autosave.id}
+                class="btn btn-ghost btn-xs"
+              >
+                Discard
+              </button>
+            </span>
+          </li>
+        </ul>
+      </section>
       <div class="md:hidden">
         <SharedComponents.shared_tree groups={@tree} id="shared-tree-mobile" />
       </div>
@@ -384,21 +632,92 @@ defmodule SlipdockWeb.SharedLive do
 
   attr :page, :any, required: true
   attr :form, :any, required: true
+  attr :uploads, :any, required: true
+  attr :conflict, :any, default: nil
+  attr :autosaved?, :boolean, default: false
+  attr :restored_from, :any, default: nil
 
   defp page_edit(assigns) do
     ~H"""
-    <.form for={@form} id="shared-edit-form" phx-submit="save" class="mx-auto max-w-3xl space-y-4">
+    <.form
+      for={@form}
+      id="shared-edit-form"
+      phx-change="validate"
+      phx-submit="save"
+      class="mx-auto max-w-3xl space-y-4"
+    >
+      <div
+        :if={@restored_from}
+        id="autosave-restored"
+        class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-sm"
+      >
+        <span>
+          Restored your unsaved work from {SlipdockWeb.SlipdockComponents.relative_time(
+            @restored_from
+          )}.
+        </span>
+        <button type="button" phx-click="discard_autosave" class="btn btn-ghost btn-xs">
+          Discard it
+        </button>
+      </div>
+      <div
+        :if={@conflict}
+        id="shared-conflict"
+        class="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm"
+      >
+        <div class="flex items-start gap-3">
+          <.icon name="hero-exclamation-triangle" class="size-5 shrink-0 text-rose-600" />
+          <div class="min-w-0 flex-1">
+            <p class="font-medium">
+              This page changed while you were writing. Nothing has been overwritten.
+            </p>
+            <p class="mt-1 text-base-content/70">
+              Below is the page as it now stands. Merge what you need into your text, then save
+              again.
+            </p>
+            <pre
+              class="kanban-scroll mt-3 max-h-64 overflow-auto rounded-lg bg-base-100 p-3 text-xs"
+              phx-no-curly-interpolation
+            ><%= @conflict.body %></pre>
+          </div>
+          <button type="button" phx-click="dismiss_conflict" class="btn btn-ghost btn-xs btn-square">
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+      </div>
       <.input field={@form[:title]} label="Title" />
-      <.input
-        field={@form[:body]}
-        type="textarea"
-        label="Text"
-        rows="20"
-        class="textarea w-full font-mono"
-      />
-      <div class="flex gap-2">
+      <div id="shared-body-paste" phx-hook="PasteImage" data-upload="page_image">
+        <label for="page_body" class="mb-1 block text-sm font-medium">
+          Text
+          <span class="ml-1 font-normal text-base-content/50">— paste or drop an image to attach it</span>
+        </label>
+        <div
+          id={"shared-body-editor-#{@page.id}"}
+          phx-hook="MarkdownEditor"
+          phx-update="ignore"
+          data-editor-class="md-editor-page"
+        >
+          <textarea
+            id="page_body"
+            name="page[body]"
+            rows="20"
+            class="textarea w-full font-mono"
+            phx-debounce="200"
+          ><%= Phoenix.HTML.Form.normalize_value("textarea", @form[:body].value) %></textarea>
+        </div>
+        <.live_file_input upload={@uploads.page_image} class="hidden" />
+      </div>
+      <div class="flex items-center gap-2">
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
-        <.link patch={~p"/shared/pages/#{@page.id}"} class="btn btn-ghost btn-sm">Cancel</.link>
+        <button type="button" phx-click="cancel_edit" class="btn btn-ghost btn-sm">Cancel</button>
+        <span
+          :if={@autosaved?}
+          id="autosave-status"
+          role="status"
+          class="text-xs text-base-content/50"
+        >
+          Auto-saved
+        </span>
       </div>
     </.form>
     """
