@@ -1022,6 +1022,14 @@ defmodule SlipdockCLI.Render do
           _ -> ""
         end
 
+    off =
+      off <>
+        case a["text_status"] do
+          "done" -> " (text read)"
+          "failed" -> " (text couldn't be read)"
+          _ -> ""
+        end
+
     "#{a["filename"]} (#{a["content_type"]}, #{size(a["size"])}) #{a["url"]}#{off} [attachment ##{a["id"]}]"
   end
 
@@ -1230,13 +1238,15 @@ defmodule SlipdockCLI.Render do
     end)
 
     pages = Enum.count(results, &(&1["kind"] == "page"))
-    cards = length(results) - pages
+    files = Enum.count(results, &(&1["kind"] == "file"))
+    cards = length(results) - pages - files
 
     IO.puts(
       dim(
         [
           cards > 0 && "#{cards} card#{if cards == 1, do: "", else: "s"}",
-          pages > 0 && "#{pages} page#{if pages == 1, do: "", else: "s"}"
+          pages > 0 && "#{pages} page#{if pages == 1, do: "", else: "s"}",
+          files > 0 && "#{files} file#{if files == 1, do: "", else: "s"}"
         ]
         |> Enum.filter(& &1)
         |> Enum.join(", ")
@@ -1249,12 +1259,16 @@ defmodule SlipdockCLI.Render do
   end
 
   defp result_heading(%{"kind" => "page", "page" => page}), do: "#{page["code"]} #{page["title"]}"
+  defp result_heading(%{"kind" => "file", "file" => file}), do: file["name"]
   defp result_heading(%{"card" => card}), do: "##{card["id"]} #{card["title"]}"
 
   defp result_where(%{"kind" => "page", "page" => page}) do
     "#{page["board"]["name"]} › wiki" <>
       if(page["summary"], do: " · #{page["summary"]}", else: "")
   end
+
+  defp result_where(%{"kind" => "file", "file" => file}),
+    do: "#{file["board"]["name"]} › wiki · file"
 
   defp result_where(%{"card" => card}) do
     "#{card["board"]["name"]}" <>

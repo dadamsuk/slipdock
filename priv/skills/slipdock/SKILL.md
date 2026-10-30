@@ -349,6 +349,8 @@ slipdock attachments <id>                    # list files; slipdock detach <id> 
 slipdock download <attachment-id> [--out F]  # save a file's bytes (its own name here; --out - to stdout)
 slipdock card-front <id> <attachment-id> --off   # keep an image off the card's thumbnail (--hide-on-card on attach)
 slipdock transcribe <id> <attachment-id> --wait  # a card's recording to text (needs the admin's transcription server)
+slipdock attachment-text <attachment-id>         # the words read from a PDF or image (read by itself; search finds them)
+slipdock read-text <id> <attachment-id>          # read a card's PDF or image again, after a failure
 slipdock blocked-by <id> <card-id>... [--off]   # <id> waits for those cards (dependency; any board you can read)
 slipdock blocks <id> <card-id>... [--off]       # <id> holds those cards up
 slipdock archive <id>... | slipdock restore <id>... | slipdock delete <id>...

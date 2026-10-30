@@ -645,6 +645,27 @@ defmodule SlipdockWeb.API.CardController do
   the 202 carries the attachment marked `running`, and reading it again
   (`GET /api/cards/:id/attachments`) shows the `transcript` once it is done.
   """
+  def read_attachment_text(conn, %{"id" => id, "attachment_id" => attachment_id}) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :write),
+         %{} = attachment <- attachment_of(card, attachment_id) do
+      case Slipdock.OCR.retry(attachment) do
+        {:ok, _} ->
+          attachment = attachment.id |> Boards.get_attachment!() |> Repo.preload(:document_text)
+          conn |> put_status(:accepted) |> json(%{attachment: Uploads.json(attachment)})
+
+        {:error, :running} ->
+          {:error, :conflict, Slipdock.OCR.describe(:running)}
+
+        {:error, reason} ->
+          {:error, :unprocessable_entity, Slipdock.OCR.describe(reason)}
+      end
+    else
+      nil -> {:error, :not_found, "attachment"}
+      other -> other
+    end
+  end
+
   def transcribe_attachment(conn, %{"id" => id, "attachment_id" => attachment_id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),

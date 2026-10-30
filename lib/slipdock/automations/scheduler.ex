@@ -51,6 +51,7 @@ defmodule Slipdock.Automations.Scheduler do
     resume_captures()
     make_recurring_cards()
     wake_snoozed_cards()
+    read_documents()
     tick()
   rescue
     exception ->
@@ -84,6 +85,13 @@ defmodule Slipdock.Automations.Scheduler do
     Slipdock.Snooze.tick()
   rescue
     exception -> Logger.error("Waking snoozed cards failed: #{Exception.message(exception)}")
+  end
+
+  # Uploaded files still to be read for text (see `Slipdock.OCR`).
+  defp read_documents do
+    Slipdock.OCR.sweep()
+  rescue
+    exception -> Logger.error("Document reading sweep failed: #{Exception.message(exception)}")
   end
 
   # Meeting captures a restart or a crash left half-read (see

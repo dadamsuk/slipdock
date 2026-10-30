@@ -13,6 +13,9 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   `link: true` (#1147) sends no bytes: it answers with a single-use URL,
   good for ten minutes, for a shell to fetch the file from with curl, of any
   size and without a token.
+
+  `text: true` (#1527) sends the words read from a PDF or an image instead of
+  the file, which is usually what an agent wanted from a scan.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -57,6 +60,10 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
           type: "integer",
           description: "The attachment's id, from get_card or read_page."
         },
+        text: %{
+          type: "boolean",
+          description: "Send the words read from a PDF or image (OCR) instead of the file."
+        },
         link: %{
           type: "boolean",
           description:
@@ -74,6 +81,7 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
 
   @impl true
   def call(%{"link" => true} = args, context), do: link(args, context)
+  def call(%{"text" => true} = args, context), do: text(args, context)
 
   def call(args, context) do
     auth = Args.auth(context)
@@ -89,6 +97,26 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
         |> Map.put(:url, context.base_url <> Boards.attachment_url(attachment))
 
       answer(attachment, bytes, info)
+    end
+  end
+
+  defp text(args, context) do
+    with {:ok, id} <- attachment_id(args),
+         {:ok, attachment} <- fetch(id),
+         :ok <- readable(attachment, Args.auth(context)) do
+      read = Slipdock.OCR.text_of(attachment)
+      words = (read && read.text) || ""
+
+      {:ok,
+       %{
+         id: attachment.id,
+         filename: attachment.filename,
+         status: read && read.status,
+         error: read && read.error,
+         pages: read && read.pages,
+         truncated: (read && read.truncated) || String.length(words) > @max_text,
+         text: String.slice(words, 0, @max_text)
+       }}
     end
   end
 

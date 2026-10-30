@@ -700,6 +700,11 @@ defmodule SlipdockWeb.APIGuide do
       202 and works in the background; the attachment's `transcript_status`
       goes `running` → `done` (with `transcript`) or `failed` (with
       `transcript_error`). Read the transcript before summarising a call.
+      PDFs and images are read for text by themselves, and search finds it:
+      the attachment's `text_status` says how far that has got,
+      `GET /api/attachments/:id/text` (MCP `download_file` with `text: true`)
+      is the words, and `POST .../attachments/:attachment_id/read-text` tries
+      again.
     - **Moving a card to another board** —
       `POST /api/cards/:id/move {"board": "errands", "column": "To Do"}`. The
       card's subcards, comments, history and links go with it, its tags travel

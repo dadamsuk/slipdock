@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe read-text attachment-text card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   defp card_ref?(ref), do: String.match?(ref, ~r/\A#?\d+\z/)
 
@@ -706,6 +706,18 @@ defmodule SlipdockCLI.Boards do
         IO.puts("#{a["filename"]} [attachment ##{a["id"]}] #{where} the front of card ##{id}")
       end)
     end)
+  end
+
+  def run("read-text", [id, aid], o) do
+    HTTP.post("/cards/#{enc(id)}/attachments/#{enc(aid)}/read-text", %{})
+    |> out(o, fn %{"attachment" => a} ->
+      IO.puts("reading #{a["filename"]} [attachment ##{a["id"]}] again")
+    end)
+  end
+
+  def run("attachment-text", [aid], o) do
+    HTTP.get("/attachments/#{enc(aid)}/text")
+    |> out(o, fn %{"text" => read} -> print_document_text(read) end)
   end
 
   def run("transcribe", [id, aid], o) do
@@ -1503,6 +1515,16 @@ defmodule SlipdockCLI.Boards do
       _ -> 3_000
     end
   end
+
+  defp print_document_text(%{"status" => "failed", "error" => error}),
+    do: fail("couldn't read the text: #{error}")
+
+  defp print_document_text(%{"status" => "done", "text" => text}) when text in [nil, ""],
+    do: IO.puts("no text was found in the file")
+
+  defp print_document_text(%{"status" => "done", "text" => text}), do: IO.puts(text)
+  defp print_document_text(%{"status" => nil}), do: fail("only PDFs and images are read for text")
+  defp print_document_text(_), do: IO.puts("not read yet")
 
   defp print_transcript(%{"transcript_status" => "done"} = a) do
     case a["transcript"] do

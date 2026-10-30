@@ -29,6 +29,14 @@ defmodule Slipdock.DockerfileTest do
     assert before_setup =~ ~r{^ENV MIX_TAILWIND_PATH=/opt/tailwind/tailwindcss$}m
   end
 
+  test "the running image has what reads uploaded documents" do
+    [_, runner] = String.split(@dockerfile, "FROM ${RUNNER_IMAGE}", parts: 2)
+
+    for package <- ~w(tesseract-ocr tesseract-ocr-eng poppler-utils) do
+      assert runner =~ ~r/\b#{package}\b/
+    end
+  end
+
   test "checks the download against the release's checksums" do
     assert @dockerfile =~ "sha256sums.txt"
     assert @dockerfile =~ "sha256sum -c -"

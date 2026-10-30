@@ -26,7 +26,7 @@ defmodule SlipdockWeb.MCP.Tools.Search do
       properties: %{
         q: %{type: "string", description: "What to look for, in words."},
         board: %{type: "string", description: "Only this board (id, code or name)."},
-        kind: %{type: "string", enum: ["all", "card", "page"]},
+        kind: %{type: "string", enum: ["all", "card", "page", "file"]},
         archived: %{type: "boolean", description: "Include archived cards. Default false."},
         limit: %{type: "integer", description: "Default 10, max #{@max}."}
       },
@@ -63,7 +63,8 @@ defmodule SlipdockWeb.MCP.Tools.Search do
       k when k in [nil, "", "all"] -> {:ok, :all}
       "card" -> {:ok, :card}
       "page" -> {:ok, :page}
-      _ -> {:error, "kind must be card, page or all"}
+      "file" -> {:ok, :file}
+      _ -> {:error, "kind must be card, page, file or all"}
     end
   end
 
@@ -89,6 +90,19 @@ defmodule SlipdockWeb.MCP.Tools.Search do
       url: base <> "/boards/#{card.board_id}/cards/#{card.id}"
     }
     |> Map.merge(best_match(r, card, base))
+  end
+
+  defp result(%{file: %{} = file} = r, base) do
+    %{
+      kind: "file",
+      id: file.id,
+      title: file.name,
+      board: file.board.code,
+      score: Float.round(r.score, 3),
+      excerpt: excerpt(r),
+      url: base <> Slipdock.Wiki.Files.open_path(file)
+    }
+    |> Map.merge(best_match(r, file, base))
   end
 
   defp result(%{page: page} = r, base) do

@@ -839,6 +839,7 @@ defmodule SlipdockWeb.Router do
     # details, and its bytes for `slipdock download`.
     get "/attachments/:id", AttachmentController, :show
     get "/attachments/:id/file", AttachmentController, :file
+    get "/attachments/:id/text", AttachmentController, :text
     get "/cards/:id/attachments", CardController, :attachments
     post "/cards/:id/attachments", CardController, :add_attachment
     patch "/cards/:id/attachments/:attachment_id", CardController, :update_attachment
@@ -846,6 +847,10 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/attachments/:attachment_id/transcribe",
          CardController,
          :transcribe_attachment
+
+    post "/cards/:id/attachments/:attachment_id/read-text",
+         CardController,
+         :read_attachment_text
 
     delete "/cards/:id/attachments/:attachment_id", CardController, :remove_attachment
     post "/cards/:id/status", CardController, :add_status_update

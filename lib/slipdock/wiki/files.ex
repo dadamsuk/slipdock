@@ -15,6 +15,7 @@ defmodule Slipdock.Wiki.Files do
   alias Slipdock.{Boards, Quota, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
+  alias Slipdock.Search.Indexer
   alias Slipdock.Wiki
   alias Slipdock.Wiki.{Changes, DrawingSession, Excalidraw, Sharing, WikiFile}
 
@@ -66,6 +67,7 @@ defmodule Slipdock.Wiki.Files do
          :ok <- copy(source, key),
          {:ok, file} <- Repo.insert(changeset) do
       touched(file)
+      Slipdock.OCR.enqueue(file)
       # Pages that embed or link this file by name before it arrived.
       Wiki.resolve_waiting(board.id, [file.name])
       {:ok, file}
@@ -101,6 +103,7 @@ defmodule Slipdock.Wiki.Files do
          {:ok, updated} <- Repo.update(changeset) do
       Boards.remove_files([file.key])
       touched(updated)
+      Slipdock.OCR.requeue(updated)
 
       # Somebody drawing in it hears of it and merges it in (#826).
       if !opts[:drawing_session] and Excalidraw.name?(updated.name),
@@ -153,6 +156,7 @@ defmodule Slipdock.Wiki.Files do
 
     with {:ok, archived} <- file |> Ecto.Changeset.change(archived_at: at) |> Repo.update() do
       Changes.record(file.board_id, "file", file.id, "archived")
+      Indexer.enqueue_file(file.id)
       Wiki.broadcast_board(file.board_id)
       {:ok, archived}
     end
@@ -284,6 +288,7 @@ defmodule Slipdock.Wiki.Files do
 
   defp touched(file) do
     Changes.record(file.board_id, "file", file.id)
+    Indexer.enqueue_file(file.id)
     Wiki.broadcast_board(file.board_id)
   end
 

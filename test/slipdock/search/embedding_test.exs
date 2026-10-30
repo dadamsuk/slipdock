@@ -131,7 +131,8 @@ defmodule Slipdock.Search.EmbeddingTest do
 
     test "kinds, labels and which kinds are pages" do
       assert Embedding.kinds() ==
-               ~w(card comment status_update page page_section provenance transcript)
+               ~w(card comment status_update page page_section provenance transcript
+                  document page_document file_document)
 
       assert Enum.map(Embedding.kinds(), &Embedding.label/1) ==
                [
@@ -141,13 +142,18 @@ defmodule Slipdock.Search.EmbeddingTest do
                  "page",
                  "page section",
                  "said in a meeting",
-                 "recording transcript"
+                 "recording transcript",
+                 "text in a file",
+                 "text in a file",
+                 "text in a file"
                ]
 
       # Something the schema does not know is shown as it is rather than raising.
       assert Embedding.label("attachment") == "attachment"
 
-      assert Enum.filter(Embedding.kinds(), &Embedding.page?/1) == ~w(page page_section)
+      assert Enum.filter(Embedding.kinds(), &Embedding.page?/1) ==
+               ~w(page page_section page_document)
+
       refute Embedding.page?("attachment")
     end
   end

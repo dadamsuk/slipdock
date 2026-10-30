@@ -746,6 +746,28 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
     end
   end
 
+  describe "download_file with text: true" do
+    test "sends the words read from the file, not the file", ctx do
+      Slipdock.TestConfig.put(:ocr, run: fn _, _ -> {"Invoice 42", 0} end)
+      a = attach(ctx.card, "scan.png", @png, "image/png")
+      Slipdock.OCR.run_next()
+
+      assert %{"status" => "done", "text" => "Invoice 42", "filename" => "scan.png"} =
+               ctx.conn
+               |> call("download_file", %{attachment: a.id, text: true})
+               |> ok!()
+    end
+
+    test "says so when there is nothing read", ctx do
+      a = attach(ctx.card, "a.txt", "hi", "text/plain")
+
+      assert %{"status" => nil, "text" => ""} =
+               ctx.conn
+               |> call("download_file", %{attachment: a.id, text: true})
+               |> ok!()
+    end
+  end
+
   describe "download_file" do
     defp attach(card, name, bytes, type) do
       path = Path.join(System.tmp_dir!(), "mcp-dl-#{System.unique_integer([:positive])}")
