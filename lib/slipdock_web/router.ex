@@ -550,6 +550,7 @@ defmodule SlipdockWeb.Router do
     # files, since the uploaded archive isn't kept.
     get "/tools/:slug/package.tar.gz", ToolController, :package
     get "/me/drive", MeController, :drive
+    post "/notes", NoteController, :create
 
     # The caller's own OpenRouter key: what every AI feature spends for them.
     put "/me/ai-key", MeController, :put_ai_key

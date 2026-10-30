@@ -28,7 +28,7 @@ import Sortable from "../vendor/sortable"
 import {installConfirm} from "./confirm"
 import {columnDrop, dropZones, pointOf, zoneAt} from "./card_drop"
 import {ModalDialog} from "./modal_dialog"
-import {boardHotkey, searchHotkey} from "./board_hotkey"
+import {boardHotkey, noteHotkey, searchHotkey} from "./board_hotkey"
 import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
@@ -749,6 +749,15 @@ Hooks.AutoGrow = {
       })
       this.el.focus()
     }
+    // With data-submit-on-ctrl-enter, Enter is a new line and Ctrl-Enter submits.
+    if (this.el.dataset.submitOnCtrlEnter !== undefined) {
+      this.el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing) {
+          e.preventDefault()
+          this.el.form && this.el.form.requestSubmit()
+        }
+      })
+    }
   },
   updated() { this.resize() },
   resize() { this.el.style.height = "auto"; this.el.style.height = this.el.scrollHeight + "px" },
@@ -1019,6 +1028,14 @@ Hooks.Keys = {
 
     // Shift-Alt-S is search everything, from anywhere too.
     if (searchHotkey(e)) return this.send(e, "search_everything", {})
+
+    // Shift-Alt-N is a quick note, answered by the overlay's own component.
+    if (noteHotkey(e)) {
+      if (!document.getElementById("quick-note")) return
+      e.preventDefault()
+      e.stopPropagation()
+      return this.pushEventTo("#quick-note", "toggle", {})
+    }
 
     if (e.metaKey || e.ctrlKey || e.altKey) return
 

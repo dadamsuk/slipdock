@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Wiki do
   alias SlipdockCLI.Meld
   alias SlipdockCLI.Render
 
-  @commands ~w(folder wiki page export import writeup shared)
+  @commands ~w(folder wiki page note export import writeup shared)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -123,6 +123,17 @@ defmodule SlipdockCLI.Wiki do
 
   # What other people have shared with you, by owner (#820). `page read`
   # and `page edit` take the codes it prints like any page's.
+  # A quick note: the server names it and files it, and says where.
+  def run("note", words, o) do
+    text = if words == [], do: page_body(o), else: Enum.join(words, " ")
+
+    HTTP.post("/notes", %{"text" => text})
+    |> out(o, fn %{"note" => note} ->
+      IO.puts("noted #{note["code"]}  #{note["title"]}")
+      IO.puts("  in #{note["vault"]} #{note["location"]}")
+    end)
+  end
+
   def run("shared", [], o), do: HTTP.get("/shared") |> out(o, &Render.shared(&1["shared"]))
   def run("shared", _args, _o), do: fail("usage: slipdock shared")
 
