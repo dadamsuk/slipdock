@@ -2,6 +2,7 @@ defmodule Slipdock.Wiki.QuickNoteTest do
   @moduledoc "Quick notes (#1538): the name, the place, and what happens without a model."
   use Slipdock.DataCase, async: true
 
+  import ExUnit.CaptureLog
   import Slipdock.Fixtures
 
   alias Slipdock.{Accounts, Repo, Vaults, Wiki}
@@ -70,14 +71,91 @@ defmodule Slipdock.Wiki.QuickNoteTest do
     test "a folder it made up, or one that climbs, lands at the setting", ctx do
       user = at_home(ctx.user, ctx.vault, "Inbox")
 
-      for path <- ["Nowhere", "Nowhere/Deeper", "Projects/New/Deeper", "../Projects", 7] do
-        Slipdock.AIStub.reply_with(%{"title" => "Lost", "folder" => path})
+      for path <- ["Nowhere", "Nowhere/Deeper", "", "/", "../Projects", 7] do
+        Slipdock.AIStub.reply_sequence([
+          %{"title" => "Lost", "folder" => path},
+          %{"title" => "Lost", "folder" => path}
+        ])
+
         assert {:ok, note} = save(user)
         assert note.page.folder_id == ctx.inbox.id, inspect(path)
         assert note.placed_by == :settings
       end
 
       assert {:error, :not_found, _} = Folders.find(ctx.board, "Nowhere")
+    end
+
+    test "a path too deep stops at the last real place on it", ctx do
+      Slipdock.AIStub.reply_with(%{"title" => "Deep", "folder" => "Projects/New/Deeper"})
+
+      assert {:ok, note} = save(ctx.user)
+      assert note.location == "Projects"
+      assert note.placed_by == :ai
+      assert {:error, :not_found, _} = Folders.find(ctx.board, "Projects/New")
+    end
+
+    test "the examples copied along with a folder are dropped", ctx do
+      Slipdock.AIStub.reply_with(%{
+        "title" => "T",
+        "folder" => ~s(Projects/Acme (e.g. "A"; "B"\))
+      })
+
+      assert {:ok, note} = save(ctx.user)
+      assert note.page.folder_id == ctx.acme.id
+    end
+
+    test "with nothing usable it asks once more, and the second answer counts", ctx do
+      Slipdock.AIStub.reply_sequence([
+        %{"title" => "First title"},
+        %{"folder" => "Projects/Acme"}
+      ])
+
+      assert {:ok, note} = save(ctx.user)
+      assert note.page.folder_id == ctx.acme.id
+      assert note.placed_by == :ai
+      assert note.page.title == "2026-10-30 15.39 First title"
+
+      assert_received {:ai_request, %{"messages" => first}}
+      assert_received {:ai_request, %{"messages" => second}}
+      assert length(second) == length(first) + 2
+      refute_received {:ai_request, _}
+    end
+
+    test "a good first answer is not asked for twice", ctx do
+      Slipdock.AIStub.reply_with(%{"title" => "T", "folder" => "Inbox"})
+
+      assert {:ok, _} = save(ctx.user)
+      assert_received {:ai_request, _}
+      refute_received {:ai_request, _}
+    end
+
+    test "the top of the vault is not offered, and a folder is required", ctx do
+      Slipdock.AIStub.reply_with(%{"title" => "T", "folder" => "Inbox"})
+      assert {:ok, _} = save(ctx.user)
+
+      assert_received {:ai_request, %{"messages" => [system, %{"content" => shown}]}}
+      refute shown =~ "top of the vault"
+      assert system["content"] =~ "always give one"
+      refute system["content"] =~ "Leave it out"
+    end
+
+    test "a second board mounted on a path takes notes, new folders too", ctx do
+      jobs = board_fixture(%{"name" => "Jobs QN"})
+      {:ok, nourish} = Wiki.create_folder(jobs, %{"name" => "Nourish"})
+      {:ok, _} = Vaults.add_mapping(ctx.vault, ctx.user, %{path: "/Jobs", board: jobs})
+
+      Slipdock.AIStub.reply_with(%{"title" => "Call", "folder" => "Jobs/Nourish"})
+      assert {:ok, note} = save(ctx.user)
+      assert note.page.board_id == jobs.id
+      assert note.page.folder_id == nourish.id
+      assert_received {:ai_request, %{"messages" => [_, %{"content" => shown}]}}
+      assert shown =~ "- Jobs/Nourish"
+
+      Slipdock.AIStub.reply_with(%{"title" => "Call", "folder" => "Jobs/Acme"})
+      assert {:ok, note} = save(ctx.user)
+      assert note.location == "Jobs/Acme"
+      assert note.page.board_id == jobs.id
+      assert {:ok, _} = Folders.find(jobs, "Acme")
     end
 
     test "a title that isn't fit for a file name is cleaned", ctx do
@@ -94,7 +172,15 @@ defmodule Slipdock.Wiki.QuickNoteTest do
       Slipdock.AIStub.fail_with(500, "down")
       user = at_home(ctx.user, ctx.vault, "Inbox")
 
-      assert {:ok, note} = save(user, "First line here\nsecond line")
+      log =
+        capture_log(fn ->
+          assert {:ok, note} = save(user, "First line here\nsecond line")
+          send(self(), {:note, note})
+        end)
+
+      assert log =~ "Quick note"
+      refute log =~ "First line here"
+      assert_received {:note, note}
       assert note.page.title == "2026-10-30 15.39 First line here"
       assert note.page.body == "First line here\nsecond line"
       assert note.page.folder_id == ctx.inbox.id

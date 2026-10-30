@@ -1827,11 +1827,12 @@ where it went, with a link to the page; the box empties, ready for the next one.
 
 - **The name** is `YYYY-MM-DD HH.MM` in your own timezone, then a few words the AI model
   takes from what you wrote: `2026-10-30 15.39 Printers banner call`.
-- **The place** is the folder of the vault the model thinks fits best. It may add one new
-  folder beneath an existing one, never a new top-level folder, and only somewhere you can write.
+- **The place** is the folder of the vault the model thinks fits best, by what the note is
+  about. It may add one new folder beneath an existing one, never a new top-level folder, and
+  only somewhere you can write. If its first answer can't be used it is asked once more.
 - **Your settings** (Account → Settings → Quick notes) pick the vault and a location in it.
-  The location is where a note goes when the model can't place it. With nothing set, it is
-  the top of your first vault.
+  The location is where a note goes when the model can't place it, and the save says so.
+  With nothing set, it is the top of your first vault.
 - **No model, or one that fails:** the note is still saved, at your location, named after
   its first words.
 - Closing the box keeps what you typed until you leave the page, and a failed save keeps it too.
