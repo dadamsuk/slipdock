@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End to end in a real browser (#1533): Ctrl-Shift-S goes to Search everything
+# End to end in a real browser (#1533): Shift-Alt-S goes to Search everything
 # from any page, even mid-sentence, with the cursor in the box; on the search
 # page it only puts the cursor back, and from Ask it switches to Search.
 #
