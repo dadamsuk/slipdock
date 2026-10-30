@@ -20,7 +20,7 @@ const box = '#deep-search input[name=q]'
 const connected = () => page.waitForSelector('.phx-connected')
 const inBox = () => page.$eval(box, (el) => document.activeElement === el)
 const picked = () => page.$eval(box, (el) => el.value.slice(el.selectionStart, el.selectionEnd))
-const press = () => page.keyboard.press('Control+Shift+S')
+const press = () => page.keyboard.press('Shift+Alt+KeyS')
 const until = async (test, why) => {
   try { await page.waitForFunction(test, null, { timeout: 5000 }) } catch { fail(why) }
 }

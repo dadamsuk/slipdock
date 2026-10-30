@@ -1845,7 +1845,7 @@ dialogs leave the page's keys alone.
   shell, `slipdock page switch <board> <letters…>`
 - `Ctrl-Shift-1` … `9`, `0` — **open a board** (or vault) you gave that digit (see
   [A board's hotkey](#a-boards-hotkey), [Switching to a vault](#switching-to-a-vault))
-- `Ctrl-Shift-S` — **search everything** (`Cmd-Shift-S` on a Mac): the [search
+- `Shift-Alt-S` — **search everything** (`Shift-Option-S` on a Mac): the [search
   page](#deep-search-and-ask), with the cursor in its box. Already there, it just puts the
   cursor back, your results intact; from Ask it switches to Search and takes
   the question with it

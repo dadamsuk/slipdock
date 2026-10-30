@@ -266,7 +266,7 @@ defmodule SlipdockWeb.SearchLiveTest do
     assert render_async(view) =~ "Invoice rounding is wrong on refunds"
   end
 
-  describe "Ctrl-Shift-S" do
+  describe "Shift-Alt-S" do
     test "goes to the search page from anywhere else, closing any open palette", ctx do
       {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       render_hook(view, "shortcut_panel", %{"panel" => "help"})
@@ -304,7 +304,7 @@ defmodule SlipdockWeb.SearchLiveTest do
     end
 
     test "is on the shortcut sheet" do
-      assert {"Ctrl-Shift-S", "Search everything"} in SlipdockWeb.Shortcuts.all()
+      assert {"Shift-Alt-S", "Search everything"} in SlipdockWeb.Shortcuts.all()
     end
   end
 

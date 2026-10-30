@@ -125,7 +125,7 @@ defmodule SlipdockWeb.SearchLive.Index do
 
   ## Events -------------------------------------------------------------------
 
-  # Ctrl-Shift-S, here already (see `SlipdockWeb.ShortcutsHook`): the box, with
+  # Shift-Alt-S, here already (see `SlipdockWeb.ShortcutsHook`): the box, with
   # what is in it picked. From Ask it is the toggle, carrying the query across.
   @impl true
   def handle_event("search_everything", _, %{assigns: %{mode: :ask}} = socket) do

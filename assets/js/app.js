@@ -988,7 +988,7 @@ Hooks.Keys = {
     this.typed = ""
     this.open = null
     document.addEventListener("keydown", (this.onKey = e => this.key(e)), true)
-    // Ctrl-Shift-S on the search page itself: nothing to navigate to, so the
+    // Shift-Alt-S on the search page itself: nothing to navigate to, so the
     // page asks for the cursor instead.
     this.handleEvent("focus_search", () => {
       const box = document.querySelector("#deep-search input[name=q]")
@@ -1017,7 +1017,7 @@ Hooks.Keys = {
     const digit = boardHotkey(e)
     if (digit !== null) return this.send(e, "board_hotkey", {digit})
 
-    // Ctrl-Shift-S is search everything, from anywhere too.
+    // Shift-Alt-S is search everything, from anywhere too.
     if (searchHotkey(e)) return this.send(e, "search_everything", {})
 
     if (e.metaKey || e.ctrlKey || e.altKey) return

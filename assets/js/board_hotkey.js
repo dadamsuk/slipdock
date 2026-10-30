@@ -10,9 +10,12 @@ export function boardHotkey(e) {
   return m ? m[1] : null
 }
 
-// Ctrl-Shift-S (#1533), or Cmd-Shift-S: search everything. Unlike a digit this
-// goes by the letter typed, as Ctrl-P and Ctrl-O do, so it follows the layout.
+// Shift-Alt-S (#1533): search everything. It goes by the letter typed, as Ctrl-P
+// and Ctrl-O do, so it follows the layout. Option on a Mac turns the letter into
+// "Í", so anything that is not a plain letter falls back to the key itself.
+// Ctrl is ruled out because AltGr reports as Ctrl-Alt.
 export function searchHotkey(e) {
-  if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.altKey) return false
-  return (e.key || "").toLowerCase() === "s"
+  if (!e.shiftKey || !e.altKey || e.ctrlKey || e.metaKey) return false
+  const key = (e.key || "").toLowerCase()
+  return /^[a-z]$/.test(key) ? key === "s" : e.code === "KeyS"
 }
