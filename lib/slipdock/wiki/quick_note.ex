@@ -7,10 +7,12 @@ defmodule Slipdock.Wiki.QuickNote do
   The page is named `YYYY-MM-DD HH.MM <title>`, in the writer's own timezone.
   One model call gives both the title and the folder, and neither is trusted:
   the title is cleaned for use as a file name, and a folder counts only if it
-  is one the writer can write to, or one new folder beneath such a place.
-  Anything else, or no model, or a model that fails, falls back to a title
-  taken from the note's first words and the location in their settings. A
-  note is never lost to the model.
+  is one the writer can write to, or one new folder beneath such a place. A
+  path deeper than that lands at the nearest real place along it. An answer
+  with no usable folder is asked for once more. After that, or with no model,
+  or a model that fails, it falls back to a title taken from the note's first
+  words and the location in their settings, and says so (`placed_by`). A note
+  is never lost to the model.
 
   The main vault is `users.quick_note_vault_id`, or the first vault they have.
   The location, `users.quick_note_folder`, is a vault path; left unset, or no
@@ -18,6 +20,8 @@ defmodule Slipdock.Wiki.QuickNote do
   """
 
   import Ecto.Query, warn: false
+
+  require Logger
 
   alias Slipdock.Accounts.User
   alias Slipdock.{Access, AI, Repo, Timezones, Vaults}
@@ -151,55 +155,107 @@ defmodule Slipdock.Wiki.QuickNote do
 
   defp suggest(user, vault, places, text) do
     if AI.configured?(user) do
-      opts = [user: user, organise: true, max_tokens: 200, temperature: 0.1]
+      messages = messages(vault, places, text)
+      first = ask(messages, user)
 
-      case AI.complete_json(messages(vault, places, text), opts) do
-        {:ok, %{} = answer} -> answer
-        _ -> %{}
+      if target(first, places) do
+        first
+      else
+        Map.merge(first, ask(messages ++ again(first), user))
       end
     else
       %{}
     end
   end
 
-  # A place the model named that is real, or one new folder beneath a real
-  # place other than the top of the vault; otherwise the fallback.
-  defp place(%{"folder" => path}, places, fallback) when is_binary(path) do
-    with {:ok, path} <- AutoOrganise.clean_path(path),
-         %{} = place <- find(places, path) || new_folder(places, path) do
-      {:ok, place, :ai}
-    else
-      _ -> {:ok, fallback, :settings}
+  defp ask(messages, user) do
+    opts = [user: user, organise: true, max_tokens: 400, temperature: 0.1]
+
+    case AI.complete_json(messages, opts) do
+      {:ok, %{} = answer} ->
+        answer
+
+      other ->
+        Logger.warning("Quick note: no answer from the model: #{inspect(other)}")
+        %{}
     end
   end
 
-  defp place(_suggestion, _places, fallback), do: {:ok, fallback, :settings}
+  defp again(answer) do
+    [
+      %{role: "assistant", content: Jason.encode!(answer)},
+      %{
+        role: "user",
+        content:
+          "That has no folder from the list. Answer again, with \"folder\" copied " <>
+            "exactly from the list, or one new folder directly beneath one of them."
+      }
+    ]
+  end
 
-  defp new_folder(places, path) do
-    {name, parents} = path |> String.split("/") |> List.pop_at(-1)
-
-    with [_ | _] <- parents,
-         %{} = parent <- find(places, Enum.join(parents, "/")),
-         attrs = %{"name" => name, "parent_id" => parent.folder_id},
-         {:ok, folder} <- Folders.create(parent.board, attrs) do
-      %{path: parent.path <> "/" <> folder.name, board: parent.board, folder_id: folder.id}
+  # Where the model's answer points: `{:found, place}`, `{:new, parent, name}`
+  # for one new folder beneath a real place other than the top of the vault,
+  # or nil. A path going deeper than that stops at the last real place on it.
+  defp target(%{"folder" => path}, places) when is_binary(path) do
+    with {:ok, path} when path != "" <- path |> strip_examples() |> AutoOrganise.clean_path() do
+      case find(places, path) do
+        nil -> beneath(places, String.split(path, "/"))
+        place -> {:found, place}
+      end
     else
       _ -> nil
+    end
+  end
+
+  defp target(_suggestion, _places), do: nil
+
+  # The list shows "Path (e.g. "A page")", and a model may copy all of it.
+  defp strip_examples(path), do: String.replace(path, ~r/\s*\(e\.g\..*$/s, "")
+
+  defp beneath(places, segments) do
+    Enum.find_value((length(segments) - 1)..1//-1, fn depth ->
+      case find(places, segments |> Enum.take(depth) |> Enum.join("/")) do
+        nil -> nil
+        parent when depth == length(segments) - 1 -> {:new, parent, List.last(segments)}
+        parent -> {:found, parent}
+      end
+    end)
+  end
+
+  defp place(suggestion, places, fallback) do
+    case target(suggestion, places) do
+      {:found, place} ->
+        {:ok, place, :ai}
+
+      {:new, parent, name} ->
+        case Folders.create(parent.board, %{"name" => name, "parent_id" => parent.folder_id}) do
+          {:ok, folder} ->
+            path = parent.path <> "/" <> folder.name
+            {:ok, %{path: path, board: parent.board, folder_id: folder.id}, :ai}
+
+          _ ->
+            {:ok, parent, :ai}
+        end
+
+      nil ->
+        Logger.warning("Quick note: unusable folder #{inspect(suggestion["folder"])}")
+        {:ok, fallback, :settings}
     end
   end
 
   defp messages(vault, places, text) do
     examples = examples(vault)
 
+    # The top of the vault is not on offer: it is where a note goes when
+    # nothing else will do, and offering it invites the lazy answer.
     tree =
       places
+      |> Enum.reject(&(&1.path == ""))
       |> Enum.take(@folders)
       |> Enum.map_join("\n", fn %{path: path} ->
-        label = if path == "", do: "(top of the vault)", else: path
-
         case examples[String.downcase(path)] do
-          nil -> "- #{label}"
-          some -> "- #{label} (e.g. #{Enum.map_join(some, "; ", &inspect/1)})"
+          nil -> "- #{path}"
+          some -> "- #{path} (e.g. #{Enum.map_join(some, "; ", &inspect/1)})"
         end
       end)
 
@@ -214,9 +270,13 @@ defmodule Slipdock.Wiki.QuickNote do
         Rules:
         - "title": three to six plain words saying what the note is about, in
           the note's own language. No date, no punctuation, no quotes.
-        - "folder": the existing folder the note fits best, copied exactly.
-          Only when none fits, a new folder directly beneath an existing one.
-          Leave it out if you cannot place the note with confidence.
+        - "folder": always give one. The existing folder this note belongs
+          in, by its subject, copied exactly from the list without the
+          examples. A note about a job, person, company or project goes with
+          that subject, even if the only fit is broad.
+          If the subject has no folder of its own but the area it belongs to
+          has, a new folder directly beneath that area's, named after the
+          subject. Never a new folder at the top.
 
         Answer with one JSON object and nothing else:
         {"title": "...", "folder": "..."}

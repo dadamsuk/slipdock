@@ -20,6 +20,29 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
   defp submit(view, text, key \\ 0),
     do: view |> form("#quick-note-form-#{key}", %{"text" => text}) |> render_submit()
 
+  test "a note the model couldn't place says so", %{conn: conn} do
+    Slipdock.AIStub.reply_sequence([%{"title" => "One"}, %{"title" => "Two"}])
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    open(view)
+    submit(view, "ring the printers")
+    render_async(view)
+
+    assert has_element?(view, "#quick-note-fallback", "could not choose a folder")
+  end
+
+  test "a note the model placed shows no fallback line", %{conn: conn} do
+    Slipdock.AIStub.reply_with(%{"title" => "One", "folder" => "Inbox"})
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    open(view)
+    submit(view, "ring the printers")
+    render_async(view)
+
+    assert has_element?(view, "#quick-note-where")
+    refute has_element?(view, "#quick-note-fallback")
+  end
+
   test "the button opens it, Save files it and says where", %{conn: conn, board: board} do
     Slipdock.AIStub.reply_with(%{"title" => "Printers", "folder" => "Inbox"})
     {:ok, view, _html} = live(conn, ~p"/")

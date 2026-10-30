@@ -126,6 +126,9 @@ defmodule SlipdockWeb.QuickNoteComponent do
               </.link>
               <span class="text-base-content/60">
                 Saved in <span id="quick-note-where" class="font-medium">{where(@saved)}</span>
+                <span :if={@saved.placed_by == :settings} id="quick-note-fallback">
+                  (AI could not choose a folder, so this is your Quick notes location)
+                </span>
               </span>
             </div>
           </div>

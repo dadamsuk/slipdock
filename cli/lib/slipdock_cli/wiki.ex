@@ -130,7 +130,8 @@ defmodule SlipdockCLI.Wiki do
     HTTP.post("/notes", %{"text" => text})
     |> out(o, fn %{"note" => note} ->
       IO.puts("noted #{note["code"]}  #{note["title"]}")
-      IO.puts("  in #{note["vault"]} #{note["location"]}")
+      fallback = if note["placed_by"] == "settings", do: "  (your fallback location)"
+      IO.puts("  in #{note["vault"]} #{note["location"]}#{fallback}")
     end)
   end
 

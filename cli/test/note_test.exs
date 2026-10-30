@@ -32,6 +32,19 @@ defmodule SlipdockCLI.NoteTest do
     assert out =~ "in Mind /Inbox"
   end
 
+  test "a note the model couldn't place says it went to the fallback" do
+    note = %{code: "W-9", title: "T", vault: "Mind", location: "/", placed_by: "settings"}
+
+    System.put_env(
+      "SLIPDOCK_URL",
+      FakeServer.start([{201, :json.encode(%{note: note}) |> IO.iodata_to_binary()}])
+    )
+
+    out = capture_io(fn -> Wiki.run("note", ["ring"], []) end)
+
+    assert out =~ "in Mind /  (your fallback location)"
+  end
+
   test "`page ai` prints the answer, and what it left out" do
     answer = %{text: "All about printers.", truncated: true, concealed: true}
 
