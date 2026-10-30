@@ -17,6 +17,7 @@ defmodule SlipdockWeb.Shortcuts do
        {"Ctrl-O", "Open a card — type its title, id or link, or a page's code"},
        {"Ctrl-O on a wiki", "Open a note — a few letters of its title, an alias or its path"},
        {"Ctrl-Shift-1…9, 0", "Open the board or vault given that digit in its settings"},
+       {"Ctrl-Shift-S", "Search everything"},
        {"h", "All boards"},
        {"b", "Switch board or vault — then its own key"},
        {"q", "Quick add a card"},

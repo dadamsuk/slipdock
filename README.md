@@ -222,7 +222,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   network at all. Neither one, no AI features; nothing is sent anywhere
   without one.
 - **Built for the keyboard and the phone** — [a command palette, a key for
-  every board and vault, Ctrl-Shift-digit hotkeys, card labels you can jump to](docs/manual.md#keyboard),
+  every board and vault, Ctrl-Shift-digit hotkeys, Ctrl-Shift-S to search everything, card labels you can jump to](docs/manual.md#keyboard),
   [boards and vaults pinned to the header as icons](docs/manual.md#header-links), and
   [a layout below 640px that is a pager rather than a sideways
   scroll](docs/manual.md#on-a-phone).

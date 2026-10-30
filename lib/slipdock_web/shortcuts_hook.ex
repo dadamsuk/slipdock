@@ -6,7 +6,8 @@ defmodule SlipdockWeb.ShortcutsHook do
   and handles the palettes the `Keys` hook opens — the help sheet (`?`), the
   board switcher (`b`, which lists your vaults too), the view switcher (`v`), the command palette
   (`Ctrl-P`) and the card finder (`Ctrl-O`), and follows a board's hotkey
-  (`Ctrl-Shift-` a digit) — before the LiveView sees them,
+  (`Ctrl-Shift-` a digit) and goes to Search everything (`Ctrl-Shift-S`) —
+  before the LiveView sees them,
   except that on a wiki `Ctrl-O` is the note switcher (`:notes`, see
   `Slipdock.Wiki.Switcher`),
   the same arrangement `SlipdockWeb.AlertsHook` uses. Pages that have somewhere
@@ -126,6 +127,18 @@ defmodule SlipdockWeb.ShortcutsHook do
 
       board ->
         {:halt, push_navigate(socket, to: SlipdockWeb.SwimlaneComponents.board_home_path(board))}
+    end
+  end
+
+  # Ctrl+Shift+S (#1533). The search page is already there, and going to it
+  # again would throw its results away, so it answers this itself.
+  defp handle_event("search_everything", _params, socket) do
+    socket = assign(socket, shortcuts: @closed)
+
+    if socket.view == SlipdockWeb.SearchLive.Index do
+      {:cont, socket}
+    else
+      {:halt, push_navigate(socket, to: "/search")}
     end
   end
 
