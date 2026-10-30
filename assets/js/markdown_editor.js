@@ -47,6 +47,14 @@ export function catchUp(state, value, start, end) {
   return change ? {changes: change, selection} : {selection}
 }
 
+// The transaction that puts `text` at `at` as a paragraph of its own, given
+// the document `before` it.
+export function insertion(before, at, text) {
+  const gap = before === "" || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n"
+  const insert = `${gap}${text}\n`
+  return {changes: {from: at, insert}, selection: {anchor: at + insert.length}}
+}
+
 // The key events the textarea's own phx-keydown answers (Escape stops
 // editing a card's description). LiveView only hears a key binding from the
 // element that has it, and the keys now land in the editor, so they are
@@ -124,6 +132,9 @@ export const MarkdownEditor = {
     }
     ta.addEventListener("invalid", this.onInvalid)
 
+    // The page editor takes text from the AI tools beside it (#1539).
+    if (ta.id === "page_body") this.handleEvent("wiki-editor:insert", ({text}) => this.insert(text))
+
     if (ta.hasAttribute("autofocus")) this.view.focus()
   },
 
@@ -156,6 +167,13 @@ export const MarkdownEditor = {
     const ta = this.textarea
     const spec = catchUp(this.view.state, ta.value, ta.selectionStart, ta.selectionEnd)
     if (spec) this.view.dispatch({...spec, scrollIntoView: true})
+  },
+
+  insert(text) {
+    const state = this.view.state
+    const at = state.selection.main.to
+    this.view.dispatch({...insertion(state.sliceDoc(0, at), at, text), scrollIntoView: true})
+    this.view.focus()
   },
 
   key(key) {

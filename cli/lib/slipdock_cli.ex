@@ -299,6 +299,8 @@ defmodule SlipdockCLI do
                                         what a version changed (default: the latest),
                                         or with --against how it differs from version M
     page revert <page> --rev N [--message M]
+    page ai <page> <tool>               an AI tool over the page, on your AI key: summarise,
+                                        key_points, actions, titles or improve. It only answers
     page sections <page>                the heading paths a section may be addressed by
     page section <page> <path>          print one section
     page section <page> <path> --append TEXT | --body TEXT | --file F [--message M]

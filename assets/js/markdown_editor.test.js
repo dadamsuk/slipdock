@@ -4,7 +4,7 @@
 import {test} from "node:test"
 import assert from "node:assert/strict"
 import {EditorState} from "../vendor/codemirror.js"
-import {MarkdownEditor, catchUp, diff, forwardedKey, selectionFor} from "./markdown_editor.js"
+import {MarkdownEditor, catchUp, diff, forwardedKey, insertion, selectionFor} from "./markdown_editor.js"
 
 function textarea({value = "", attrs = {}, disabled = false} = {}) {
   const listeners = {}
@@ -73,6 +73,7 @@ function setup(taOpts = {}) {
   const hook = Object.create(MarkdownEditor)
   hook.el = {dataset: {editorClass: "md-editor-field"}, querySelector: () => ta}
   hook.mountEditor = fakeMount(log)
+  hook.handleEvent = (name, fn) => { log[name] = fn }
   hook.mounted()
   return {hook, ta, log, documentListeners}
 }
@@ -245,4 +246,17 @@ test("a wrapper without a textarea is left alone", () => {
   hook.mounted()
   assert.equal(hook.view, undefined)
   hook.destroyed()
+})
+
+test("insertion makes a paragraph of its own, wherever the caret is", () => {
+  assert.deepEqual(insertion("", 0, "Hi"), {changes: {from: 0, insert: "Hi\n"}, selection: {anchor: 3}})
+  assert.equal(insertion("Words", 5, "Hi").changes.insert, "\n\nHi\n")
+  assert.equal(insertion("Words\n", 6, "Hi").changes.insert, "\nHi\n")
+  assert.equal(insertion("Words\n\n", 7, "Hi").changes.insert, "Hi\n")
+  assert.equal(insertion("Words", 5, "Hi").selection.anchor, 5 + "\n\nHi\n".length)
+})
+
+test("only the page editor takes text from the AI tools", () => {
+  assert.equal(setup({attrs: {id: "comment_body"}}).log["wiki-editor:insert"], undefined)
+  assert.equal(typeof setup({attrs: {id: "page_body"}}).log["wiki-editor:insert"], "function")
 })

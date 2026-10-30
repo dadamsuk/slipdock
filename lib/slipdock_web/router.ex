@@ -780,6 +780,7 @@ defmodule SlipdockWeb.Router do
     get "/cards/:id/pages", PageController, :for_card
     post "/cards/:id/pages", PageController, :write_up
     post "/pages/:id/cards", PageController, :make_card
+    post "/pages/:id/ai", PageController, :ai
     get "/pages/:id/revisions", PageController, :revisions
     post "/pages/:id/revisions/purge", PageController, :purge_revisions
     get "/pages/:id/revisions/:rev", PageController, :revision

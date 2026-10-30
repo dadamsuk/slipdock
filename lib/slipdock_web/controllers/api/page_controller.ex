@@ -18,7 +18,7 @@ defmodule SlipdockWeb.API.PageController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Wiki}
-  alias Slipdock.Wiki.{Archive, FolderPlacements, FrontMatter, Page, Placements, Query}
+  alias Slipdock.Wiki.{Archive, FolderPlacements, FrontMatter, Page, PageTools, Placements, Query}
   alias SlipdockWeb.API.Authorize
   alias Slipdock.Wiki.Sharing
   alias SlipdockWeb.API.Uploads
@@ -733,6 +733,22 @@ defmodule SlipdockWeb.API.PageController do
       conn
       |> put_status(:created)
       |> json(%{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+    end
+  end
+
+  @doc """
+  Runs one of the AI tools over a page (#1539): `Slipdock.Wiki.PageTools`, on
+  the caller's AI key. It only answers, so reading the page is enough.
+  """
+  def ai(conn, %{"id" => id} = params) do
+    with {:ok, page} <- fetch_page(conn, id, :read),
+         {:ok, answer} <-
+           PageTools.run(
+             params["tool"],
+             %{title: page.title, body: page.body},
+             conn.assigns.current_user
+           ) do
+      json(conn, %{page: page.code, answer: answer})
     end
   end
 
