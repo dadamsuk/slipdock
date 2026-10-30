@@ -211,6 +211,8 @@ defmodule SlipdockWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     get "/attachments/:id/:filename", AttachmentController, :show
+    # An image in a wiki page not saved yet, for its writer alone (#1532).
+    get "/autosave-files/:id/:filename", AutosaveFileController, :show
     # A Tool's skill as claude.ai's or ChatGPT's upload takes it (#963).
     get "/tools/:slug/download/:skill/claude.zip", ToolDownloadController, :claude
     get "/tools/:slug/download/:skill/chatgpt.zip", ToolDownloadController, :chatgpt

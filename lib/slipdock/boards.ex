@@ -4679,7 +4679,7 @@ defmodule Slipdock.Boards do
     ) ++
       Repo.all(
         from(f in Slipdock.Wiki.WikiFile, where: f.board_id in subquery(ids), select: f.key)
-      ) ++ Slipdock.Meetings.audio_keys(boards)
+      ) ++ Slipdock.Meetings.audio_keys(boards) ++ Slipdock.Wiki.Autosaves.board_keys(ids)
   end
 
   @doc "Removes uploaded files by key, and any folder they leave empty."

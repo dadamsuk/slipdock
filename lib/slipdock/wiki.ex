@@ -573,6 +573,12 @@ defmodule Slipdock.Wiki do
 
   Options say who is writing, and are recorded on the first revision:
   `:user`, `:via` (see `Slipdock.Wiki.Revision`), `:agent`, `:message`.
+
+  `:finish_body` is `(page -> {:ok, body} | {:error, message})`, run once the
+  page exists and before its first revision is written, so whatever needs the
+  page's id to finish the text can do so inside the same transaction. An
+  `{:error, message}` writes nothing and answers `{:error, {:finish_body,
+  message}}`. The editor uses it for images held for an unsaved page (#1532).
   """
   def create_page(%Board{} = board, attrs, opts \\ []) do
     attrs = stringify(attrs)
@@ -640,6 +646,7 @@ defmodule Slipdock.Wiki do
 
         case Repo.insert(changeset) do
           {:ok, page} ->
+            page = finish_body(page, opts[:finish_body])
             {:ok, _} = write_revision(page, opts, force: true)
             log(board.id, page, "page_created", "wrote “#{page.title}”")
             page
@@ -662,6 +669,23 @@ defmodule Slipdock.Wiki do
       Changes.record(board.id, "page", page.id)
       broadcast(board.id)
       {:ok, page}
+    end
+  end
+
+  defp finish_body(page, nil), do: page
+
+  defp finish_body(page, finish) do
+    case finish.(page) do
+      {:ok, body} when body == page.body ->
+        page
+
+      {:ok, body} ->
+        page
+        |> Ecto.Changeset.change(body: body, content_hash: Page.hash(body))
+        |> Repo.update!()
+
+      {:error, message} ->
+        Repo.rollback({:finish_body, message})
     end
   end
 

@@ -24,6 +24,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.{Access, Boards, Fields, Votes, Wiki}
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
+  alias Slipdock.Wiki.{Autosave, AutosaveFile, Autosaves}
   alias Slipdock.Wiki.{AutoOrganise, Folder, Icons, Page, Tree, TreeStates, WikiFile}
   alias SlipdockWeb.BoardLive.{BoardView, Helpers}
   alias SlipdockWeb.Params
@@ -140,6 +141,14 @@ defmodule SlipdockWeb.WikiLive.Index do
       show_preview: true,
       conflict: nil,
       base_hash: nil,
+      # Auto-save (#1532): the row for what is open, the form waiting for the
+      # timer, when it last landed, and what the editor was opened from.
+      autosave: nil,
+      autosave_pending: nil,
+      autosave_timer: false,
+      autosaved?: false,
+      restored_from: nil,
+      unsaved: [],
       new_parent: nil,
       new_column: nil,
       new_folder: nil,
@@ -522,6 +531,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_params(params, uri, %{assigns: %{live_action: :vault}} = socket) do
     # The address is read again on every patch: a row of the vault's tree
     # opens by patching to its address, so the tree stays put.
+    socket = flush_autosave(socket)
     %{vault_view: vault, vault_addresses: addresses} = socket.assigns
 
     with {:ok, target, board_id} <- vault_target(vault, params),
@@ -547,6 +557,9 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   def handle_params(params, _uri, socket) do
+    # Before anything moves: what is waiting belongs to the page being left.
+    socket = flush_autosave(socket)
+
     # A row of another board in the tree patches to that board's wiki.
     case switch_board(socket, Params.id(params["id"]), params) do
       {:ok, socket} -> show_params(socket, params)
@@ -574,6 +587,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       |> assign(live_action: action, folder: nil, tree_drawer: false, file_shown: nil)
       |> assign(vault_dir: dir)
       |> apply_action(action, Map.merge(%{"id" => to_string(board.id)}, extra))
+      |> assign_unsaved()
 
     # Opened by id from a board's wiki: settle on the address itself.
     socket =
@@ -591,11 +605,10 @@ defmodule SlipdockWeb.WikiLive.Index do
     # Opening something from the drawer shuts it, and puts away a file shown
     # in the page's place (#773): the page is what was asked for.
     socket =
-      apply_action(
-        assign(socket, folder: nil, tree_drawer: false, file_shown: nil),
-        socket.assigns.live_action,
-        params
-      )
+      socket
+      |> assign(folder: nil, tree_drawer: false, file_shown: nil)
+      |> apply_action(socket.assigns.live_action, params)
+      |> assign_unsaved()
 
     {:noreply, assign_current(socket)}
   end
@@ -723,10 +736,14 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp apply_action(socket, :new, params) do
     if socket.assigns.can_write do
-      parent = parent_from(socket.assigns.board, params["parent"])
+      %{board: board, current_user: user} = socket.assigns
+      # Coming back to a new page that was never saved (#1532).
+      autosave = params["autosave"] && Autosaves.get_new(user, board, params["autosave"])
+      attrs = (autosave && autosave.attrs) || %{}
+      parent = parent_from(socket.assigns.board, attrs["parent"] || params["parent"])
       # "Add a page…" at the foot of a list comes straight here with the list
       # it was pressed in, and the page is placed there when it is saved.
-      column = column_from(socket.assigns.board, params["column"])
+      column = column_from(socket.assigns.board, attrs["column"] || params["column"])
       # "New page" pressed inside a folder files it there without asking.
       folder = folder_from(socket.assigns.board, params["folder"])
 
@@ -748,8 +765,9 @@ defmodule SlipdockWeb.WikiLive.Index do
         new_folder: folder
       )
       |> assign(page_title: "New page")
-      |> assign_form(blank)
-      |> assign(preview: render_body(socket, nil, blank.body))
+      |> assign_form(blank, attrs)
+      |> assign_autosave(autosave)
+      |> assign(preview: render_body(socket, nil, attrs["body"] || blank.body))
     else
       refuse(socket, "You can't write on this board.")
     end
@@ -786,17 +804,22 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp apply_page_action(socket, :edit, _params) do
     if socket.assigns.can_write do
       page = socket.assigns.page
+      # What they had typed and never saved comes back by itself (#1532).
+      autosave = Autosaves.for_page(socket.assigns.current_user, page)
+      attrs = (autosave && autosave.attrs) || %{}
 
       # The hash the editor opened against, held apart from `@page` on
       # purpose: a live update from someone else must not quietly re-base the
-      # save it is meant to catch.
+      # save it is meant to catch. A restored edit keeps the one it was typed
+      # against, so a change made since is still caught.
       socket
-      |> assign_form(page)
+      |> assign_form(page, attrs)
+      |> assign_autosave(autosave)
       |> assign(
-        preview: render_body(socket, page, page.body),
+        preview: render_body(socket, page, attrs["body"] || page.body),
         conflict: nil,
         revision: nil,
-        base_hash: page.content_hash
+        base_hash: (autosave && autosave.base_hash) || page.content_hash
       )
     else
       refuse(socket, "You can't edit this page.")
@@ -1004,8 +1027,114 @@ defmodule SlipdockWeb.WikiLive.Index do
     |> push_patch(to: ~p"/boards/#{socket.assigns.board}/wiki")
   end
 
-  defp assign_form(socket, %Page{} = page) do
-    assign(socket, form: to_form(Wiki.change_page(page, %{})), editing: page)
+  defp assign_form(socket, %Page{} = page, attrs) do
+    assign(socket, form: to_form(Wiki.change_page(page, attrs)), editing: page)
+  end
+
+  ## Auto-save ----------------------------------------------------------------
+  #
+  # The form goes to the server on every pause anyway, for the preview. Each
+  # one is noted here, and a timer writes the latest, so a long burst of typing
+  # is a write every few seconds. Nothing is written for a form that still says
+  # what the page says. See `Slipdock.Wiki.Autosaves`.
+
+  @autosave_after_ms Application.compile_env(:slipdock, :wiki_autosave_after_ms, 3000)
+  @autosaved_fields ~w(title summary body status folder_id icon color)
+
+  defp assign_autosave(socket, autosave) do
+    assign(socket,
+      autosave: autosave,
+      autosave_pending: nil,
+      autosaved?: false,
+      restored_from: autosave && autosave.updated_at
+    )
+  end
+
+  defp queue_autosave(%{assigns: %{can_write: false}} = socket, _params), do: socket
+
+  defp queue_autosave(socket, params) do
+    socket = assign(socket, autosave_pending: params)
+
+    if socket.assigns.autosave_timer do
+      socket
+    else
+      Process.send_after(self(), :autosave, @autosave_after_ms)
+      assign(socket, autosave_timer: true)
+    end
+  end
+
+  defp flush_autosave(%{assigns: %{autosave_pending: nil}} = socket), do: socket
+
+  defp flush_autosave(socket) do
+    %{autosave_pending: params, autosave: autosave, editing: editing, page: page} = socket.assigns
+    socket = assign(socket, autosave_pending: nil)
+
+    cond do
+      not unchanged?(editing, params) -> write_autosave(socket, params)
+      # Back to what the page says: there is nothing left to keep.
+      page && autosave -> clear_autosave(socket)
+      autosave -> write_autosave(socket, params)
+      true -> socket
+    end
+  end
+
+  defp write_autosave(socket, params) do
+    %{current_user: user, board: board, page: page, autosave: autosave} = socket.assigns
+
+    case Autosaves.save(
+           user,
+           board,
+           page,
+           autosave,
+           autosave_attrs(socket, params),
+           socket.assigns.base_hash
+         ) do
+      {:ok, saved} -> assign(socket, autosave: saved, autosaved?: true)
+      {:error, _} -> socket
+    end
+  end
+
+  defp autosave_attrs(socket, params) do
+    attrs = Map.take(params, @autosaved_fields)
+
+    case socket.assigns do
+      %{page: nil, new_parent: parent, new_column: column} ->
+        Map.merge(attrs, %{"parent" => parent && parent.slug, "column" => column && column.id})
+
+      _ ->
+        attrs
+    end
+  end
+
+  defp unchanged?(%Page{} = page, params) do
+    params
+    |> Map.take(@autosaved_fields)
+    |> Enum.all?(fn {field, value} ->
+      form_text(value) == form_text(Map.get(page, String.to_existing_atom(field)))
+    end)
+  end
+
+  defp form_text(nil), do: ""
+  defp form_text(value), do: value |> to_string() |> String.replace("\r\n", "\n")
+
+  # The save or the Cancel it was waiting for: nothing more to write.
+  defp clear_autosave(socket) do
+    Autosaves.discard(socket.assigns.autosave)
+    assign(socket, autosave: nil, autosave_pending: nil, autosaved?: false, restored_from: nil)
+  end
+
+  # What is waiting to be picked up again, where a writer would look for it:
+  # the wiki's front page, and the page they would otherwise start afresh.
+  defp assign_unsaved(%{assigns: assigns} = socket) do
+    assign(socket,
+      unsaved:
+        if(
+          assigns.can_write and assigns.live_action in [:index, :new] and
+            is_nil(assigns.autosave),
+          do: Autosaves.on_board(assigns.current_user, assigns.board),
+          else: []
+        )
+    )
   end
 
   # Rendering needs the page (for `[[!toc]]` and friends), the board (to read
@@ -1051,20 +1180,20 @@ defmodule SlipdockWeb.WikiLive.Index do
       not entry.done? ->
         {:noreply, socket}
 
-      is_nil(page) or not socket.assigns.can_write ->
-        # A brand-new page has nowhere to hang a file yet; save it first.
+      not socket.assigns.can_write ->
         {:noreply,
          socket
          |> cancel_upload(name, entry.ref)
          |> push_event("image_failed", %{upload: "page_image"})
-         |> put_flash(:error, "Save the page before adding images to it.")}
+         |> put_flash(:error, "You can't write on this board.")}
+
+      is_nil(page) ->
+        # A brand-new page has nowhere to hang a file yet, so its auto-save
+        # holds it until the page exists.
+        {:noreply, hold_image(socket, entry)}
 
       true ->
-        meta = %{
-          filename: entry.client_name,
-          content_type: entry.client_type,
-          size: entry.client_size
-        }
+        meta = upload_meta(entry)
 
         result =
           consume_uploaded_entry(socket, entry, fn %{path: path} ->
@@ -1073,6 +1202,47 @@ defmodule SlipdockWeb.WikiLive.Index do
 
         {:noreply, uploaded(socket, result)}
     end
+  end
+
+  defp upload_meta(entry) do
+    %{filename: entry.client_name, content_type: entry.client_type, size: entry.client_size}
+  end
+
+  defp hold_image(socket, entry) do
+    socket =
+      case socket.assigns do
+        %{autosave: %Autosave{}} -> socket
+        %{autosave_pending: nil, form: form} -> write_autosave(socket, form.params || %{})
+        %{autosave_pending: params} -> write_autosave(socket, params)
+      end
+
+    case socket.assigns.autosave do
+      %Autosave{} = autosave ->
+        user = socket.assigns.current_user
+
+        result =
+          consume_uploaded_entry(socket, entry, fn %{path: path} ->
+            {:ok, Autosaves.add_file(autosave, user, upload_meta(entry), path)}
+          end)
+
+        held(socket, result)
+
+      nil ->
+        held(socket, {:error, "That image could not be stored."})
+    end
+  end
+
+  defp held(socket, {:ok, %AutosaveFile{} = file}) do
+    push_event(socket, "image_uploaded", %{
+      upload: "page_image",
+      markdown: "![#{file.filename}](#{Autosaves.file_url(file)})"
+    })
+  end
+
+  defp held(socket, {:error, message}) do
+    socket
+    |> put_flash(:error, message)
+    |> push_event("image_failed", %{upload: "page_image"})
   end
 
   defp uploaded(socket, {:ok, %Attachment{} = attachment}) do
@@ -1130,7 +1300,36 @@ defmodule SlipdockWeb.WikiLive.Index do
     {:noreply,
      socket
      |> assign(form: to_form(Map.put(changeset, :action, :validate)))
-     |> assign(preview: render_body(socket, socket.assigns.page, params["body"] || ""))}
+     |> assign(preview: render_body(socket, socket.assigns.page, params["body"] || ""))
+     |> queue_autosave(params)}
+  end
+
+  # Cancel means it: what was typed goes, auto-save and all.
+  def handle_event("cancel_edit", _params, socket) do
+    %{board: board, page: page} = socket.assigns
+
+    {:noreply,
+     socket
+     |> clear_autosave()
+     |> push_navigate(to: if(page, do: page_path(board, page), else: wiki_path(board)))}
+  end
+
+  # From the banner over a restored editor: start again from the page.
+  def handle_event("discard_autosave", %{"id" => id}, socket) do
+    %{board: board, current_user: user} = socket.assigns
+    Autosaves.discard(Autosaves.get(user, board, id))
+    {:noreply, assign_unsaved(socket)}
+  end
+
+  def handle_event("discard_autosave", _params, socket) do
+    %{board: board, page: page} = socket.assigns
+
+    to =
+      if page,
+        do: ~p"/boards/#{board}/wiki/#{page.slug}/edit",
+        else: ~p"/boards/#{board}/wiki/new"
+
+    {:noreply, socket |> clear_autosave() |> push_navigate(to: to)}
   end
 
   def handle_event("save", %{"page" => params} = all, socket) do
@@ -3779,10 +3978,13 @@ defmodule SlipdockWeb.WikiLive.Index do
       |> Map.put_new("folder_id", folder && folder.id)
       |> Map.update!("folder_id", &blank_to_nil/1)
 
+    autosave = socket.assigns.autosave
+
     case Wiki.create_page(board, params,
            user: socket.assigns.current_user,
            via: "web",
-           message: message
+           message: message,
+           finish_body: autosave && (&Autosaves.adopt(autosave, &1, &1.body))
          ) do
       {:ok, page} ->
         # Started from the foot of a list: it belongs in that list.
@@ -3793,8 +3995,12 @@ defmodule SlipdockWeb.WikiLive.Index do
           end
 
         socket
+        |> clear_autosave()
         |> put_flash(:info, "Wrote “#{page.title}”.#{note}")
         |> push_patch(to: ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      {:error, {:finish_body, message}} ->
+        put_flash(socket, :error, message)
 
       {:error, changeset} ->
         assign(socket, form: to_form(changeset))
@@ -3819,6 +4025,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     case Wiki.update_page(page, Map.delete(params, "base_hash"), opts) do
       {:ok, saved} ->
         socket
+        |> clear_autosave()
         |> put_flash(:info, "Saved." <> purged(saved, purge, socket.assigns.current_user))
         |> push_patch(to: ~p"/boards/#{socket.assigns.board}/wiki/#{saved.slug}")
 
@@ -3880,6 +4087,10 @@ defmodule SlipdockWeb.WikiLive.Index do
   # second for minutes — and each reload reads the whole wiki. So a change
   # only books a reload a moment off, and those that land before it share it:
   # one reload per burst, not one per page, and the tab stays answerable.
+  def handle_info(:autosave, socket) do
+    {:noreply, socket |> assign(autosave_timer: false) |> flush_autosave()}
+  end
+
   def handle_info({:wiki_changed, _board_id}, socket) do
     if socket.assigns[:reload_booked] do
       {:noreply, socket}
@@ -4627,6 +4838,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 if(@live_action in [:new, :edit], do: "max-w-none", else: "max-w-4xl")
               ]}
             >
+              <.unsaved_pages :if={@unsaved != []} board={@board} unsaved={@unsaved} />
               <%= case @live_action do %>
                 <% :index when not is_nil(@folder) -> %>
                   <.folder_body
@@ -4662,6 +4874,8 @@ defmodule SlipdockWeb.WikiLive.Index do
                     uploads={@uploads}
                     column={@new_column}
                     outline={@folder_outline}
+                    autosaved?={@autosaved?}
+                    restored_from={@restored_from}
                   />
                 <% :history -> %>
                   <.history_body board={@board} page={@page} revisions={@revisions} />
@@ -6850,6 +7064,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :uploads, :any, required: true
   attr :column, :any, default: nil, doc: "the list a new page will be placed in"
   attr :outline, :list, default: [], doc: "the board's folders, for the Folder picker"
+  attr :autosaved?, :boolean, default: false
+  attr :restored_from, :any, default: nil, doc: "when the restored auto-save was written"
 
   defp editor(assigns) do
     ~H"""
@@ -6883,14 +7099,34 @@ defmodule SlipdockWeb.WikiLive.Index do
             <.icon name={if @show_preview, do: "hero-eye", else: "hero-eye-slash"} class="size-4" />
             Preview
           </button>
-          <.link
-            navigate={if @page, do: page_path(@board, @page), else: wiki_path(@board)}
-            class="btn btn-ghost btn-sm"
+          <span
+            :if={@autosaved?}
+            id="autosave-status"
+            role="status"
+            class="text-xs text-base-content/50"
           >
+            Auto-saved
+          </span>
+          <button type="button" phx-click="cancel_edit" class="btn btn-ghost btn-sm">
             Cancel
-          </.link>
+          </button>
           <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </div>
+      </div>
+
+      <div
+        :if={@restored_from}
+        id="autosave-restored"
+        class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-sm"
+      >
+        <span>
+          Restored your unsaved work from {SlipdockWeb.SlipdockComponents.relative_time(
+            as_datetime(@restored_from)
+          )}.
+        </span>
+        <button type="button" phx-click="discard_autosave" class="btn btn-ghost btn-xs">
+          Discard it
+        </button>
       </div>
 
       <div
@@ -7051,6 +7287,49 @@ defmodule SlipdockWeb.WikiLive.Index do
         />
       </div>
     </.form>
+    """
+  end
+
+  attr :board, :any, required: true
+  attr :unsaved, :list, required: true
+
+  # Work left in the editor and never saved, to pick up or let go of (#1532).
+  defp unsaved_pages(assigns) do
+    ~H"""
+    <section
+      id="unsaved-pages"
+      class="mb-4 rounded-xl border border-base-300 bg-base-200/40 px-4 py-3 text-sm"
+    >
+      <h2 class="font-medium">Unsaved work</h2>
+      <p class="text-xs text-base-content/60">
+        Only you can see this. It is kept for {Autosaves.ttl_days()} days.
+      </p>
+      <ul class="mt-2 space-y-1">
+        <li :for={autosave <- @unsaved} class="flex items-center justify-between gap-2">
+          <.link
+            navigate={
+              if autosave.page,
+                do: ~p"/boards/#{@board}/wiki/#{autosave.page.slug}/edit",
+                else: ~p"/boards/#{@board}/wiki/new?autosave=#{autosave.id}"
+            }
+            class="link min-w-0 truncate"
+          >
+            {if autosave.page, do: "Editing #{autosave.page.title}", else: Autosave.title(autosave)}
+          </.link>
+          <span class="flex shrink-0 items-center gap-2 text-xs text-base-content/50">
+            {SlipdockWeb.SlipdockComponents.relative_time(as_datetime(autosave.updated_at))}
+            <button
+              type="button"
+              phx-click="discard_autosave"
+              phx-value-id={autosave.id}
+              class="btn btn-ghost btn-xs"
+            >
+              Discard
+            </button>
+          </span>
+        </li>
+      </ul>
+    </section>
     """
   end
 
