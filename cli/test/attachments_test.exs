@@ -106,6 +106,28 @@ defmodule SlipdockCLI.AttachmentsTest do
     assert out =~ "[attachment #1]" and out =~ "[attachment #2]"
   end
 
+  test "attachment-text prints the words, or says why there are none" do
+    serve([
+      {200, ~s({"text":{"status":"done","text":"Invoice 42"}})},
+      {200, ~s({"text":{"status":"done","text":""}})},
+      {200, ~s({"text":{"status":"queued","text":null}})}
+    ])
+
+    assert capture_io(fn -> Boards.run("attachment-text", ["5"], []) end) =~ "Invoice 42"
+    assert_received {:request, "GET", "/api/attachments/5/text", _}
+    assert capture_io(fn -> Boards.run("attachment-text", ["5"], []) end) =~ "no text was found"
+    assert capture_io(fn -> Boards.run("attachment-text", ["5"], []) end) =~ "not read yet"
+  end
+
+  test "read-text asks for the card's file to be read again" do
+    serve([{202, ~s({"attachment":{"id":5,"filename":"scan.pdf"}})}])
+
+    out = capture_io(fn -> Boards.run("read-text", ["12", "5"], []) end)
+
+    assert_received {:request, "POST", "/api/cards/12/attachments/5/read-text", _}
+    assert out =~ "reading scan.pdf [attachment #5] again"
+  end
+
   test "attachments lists each file, and says so when there are none" do
     serve([
       {200,

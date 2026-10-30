@@ -68,6 +68,9 @@ config :slipdock, :login_fallback_path, Path.expand("../tmp/test_sign_in_links.l
 # `Slipdock.Search.Indexer.flush/0` when they want the index brought up to date.
 config :slipdock, :search, interval: :manual
 
+# Uploaded files are read when a test calls `Slipdock.OCR.run_next/0`.
+config :slipdock, :ocr, worker: false
+
 # A live drawing saves when a test says so (`DrawingSession.flush/1`) or
 # leaves, not on a clock; the tests about the clock set their own.
 config :slipdock, :drawing_sessions, idle_ms: 60_000, max_ms: 600_000

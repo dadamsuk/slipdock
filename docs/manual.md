@@ -47,7 +47,9 @@ way in: what it is, the pictures, and how to get it running.
   `priv/uploads/`, `SLIPDOCK_UPLOADS_DIR` to move it; served with access checks).
   The API and CLI upload them too — see [Attachments over the API](#attachments-over-the-api).
   A card's first image is a thumbnail on its front — see [Images on the card front](#images-on-the-card-front).
-  A recording plays in place, and can be transcribed — see [Recordings](#recordings)
+  A recording plays in place, and can be transcribed — see [Recordings](#recordings).
+  PDFs and images are read for text, so search finds what is in them — see
+  [Reading text from files](#reading-text-from-files)
 - Email: forward or send a message to your board's own address and it is a
   card, attachments included, or to its page address and it is a wiki page
   (`+ Title` adds to one) — see [Emailing your board](#emailing-your-board)
@@ -1513,6 +1515,38 @@ it (202), and each attachment carries `transcript_status` (`running`, `done`,
 transcribe <id> <attachment-id> [--wait]`; an admin sets the server with
 `slipdock admin set transcription_server_url=https://host:8765
 transcription_server_token=…`.
+
+### Reading text from files
+
+Every PDF and image uploaded to a card, a wiki page or a wiki folder is read
+for text in the background, so that search finds what is in it, including in
+a scan or a photo of a page. There is nothing to turn on. Files uploaded
+before this existed are worked through a few at a time.
+
+It all happens on your server: `pdftotext` reads a PDF's text layer,
+`tesseract` reads images and any PDF page that is only a picture, and nothing
+is sent to an AI provider. The Docker image includes both, with English. Other
+languages need their `tesseract-ocr-<lang>` package in the image and
+`SLIPDOCK_OCR_LANGS` set, such as `eng+deu`. Installed by hand, without those
+programs, uploads work as before and wait to be read until they are installed.
+
+Files are read one at a time. A file is left out over 100 MB, and a document
+stops at 500 pages, 100 scanned pages, a million characters or 30 minutes:
+what was read by then is kept and the card says it is only the start. A PDF
+page with a text layer is not also read as a picture, so words in a chart on
+it aren't found.
+
+On a card, the text is under the file, or the reason it couldn't be read with
+**Try again**. Search needs the same setup as the rest of [semantic
+search](#semantic-search): an embedding model. A wiki file comes back as a
+result of its own, for anyone who can read the board.
+
+On the API, each attachment carries `text_status` (`queued`, `running`,
+`done`, `failed`), `GET /api/attachments/:id/text` gives the words, and `POST
+/api/cards/:id/attachments/:attachment_id/read-text` reads a card's file again
+(202, or 409 while it is being read). From the CLI, `slipdock attachment-text
+<attachment-id>` and `slipdock read-text <id> <attachment-id>`. Over MCP,
+`download_file` with `text: true`. Search takes `kind: file`.
 
 ### Attachments over the API
 
@@ -5894,7 +5928,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `page_history` | A page's revisions, newest first (`limit`, default 20): who saved each, how (`web`, `cli`, `mcp`…), the message and when. With `rev`, that revision's body and the diff it made against the one before, or with `against` (another revision id) the diff from that version instead; `diff: true` alone gives the latest save's diff. Long unchanged stretches come back as `skip` with a count, so a one-line edit does not return the whole page. |
 | `list_vaults` | Your [vaults](#vaults) and their mappings; with `vault`, one of them; with `vault` and `path`, which mapping that vault path lands in (the longest matching prefix) and what is left of the path below it. |
 | `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. |
-| `download_file` | A file attached to a card or a page, by its `attachment` id (`get_card` and `read_page` list them, `read_page` under `attachments`). The attachment's details come first; then a text file's contents as `text` (cut at 100,000 characters, with `truncated`), an image as an MCP image block, or anything else up to 5 MB as an embedded resource in base64. A bigger file is refused with its link in the web app. Checked as reading the card or page is: a file the token can't reach is not found. **`link: true`** (#1147) sends no bytes: it answers with the attachment's details and a `download_url` that works once, for 10 minutes, with no token (`curl -fsSo cv.docx <download_url>`), so a file of any size reaches a shell without passing through the model. A read-only token may have one. The link is checked again as that token when it is used; a used, expired or unknown one is `410 link_gone`. |
+| `download_file` | A file attached to a card or a page, by its `attachment` id (`get_card` and `read_page` list them, `read_page` under `attachments`). The attachment's details come first; then a text file's contents as `text` (cut at 100,000 characters, with `truncated`), an image as an MCP image block, or anything else up to 5 MB as an embedded resource in base64. A bigger file is refused with its link in the web app. Checked as reading the card or page is: a file the token can't reach is not found. **`text: true`** (#1527) sends the words read from a PDF or an image instead (`status`, `error`, `pages`, `truncated`, `text`). **`link: true`** (#1147) sends no bytes: it answers with the attachment's details and a `download_url` that works once, for 10 minutes, with no token (`curl -fsSo cv.docx <download_url>`), so a file of any size reaches a shell without passing through the model. A read-only token may have one. The link is checked again as that token when it is used; a used, expired or unknown one is `410 link_gone`. |
 | `list_automations` | A board's [automation rules](#automations-and-alerts), as `GET /api/boards/:board/automations` gives them: each one's name, trigger, `spec`, `scope`, whether it is `enabled`, and how often it has run; `rule` (an id or name) gives one. `vocabulary: true` adds every trigger, condition and action a spec may use and the ready-made presets, so a client can write one without guessing. Only the board's owner, on a write token, may read them, as over HTTP. |
 | `list_tools` | The [Tools](#tools) the caller can install — their own, the ones shared with them, the ones listed for everyone — each with its `kind` and the board their install made (`installed.board`), which is how a Tool's skill finds its board. With `tool` (and optionally `version`), that Tool in full: its README, board blueprint, skills with shas and download links, files, and, for its owner, where listing stands. With `tool` and `file` (a path in the package, like `skills/<skill>/SKILL.md`), that file's text from the latest version, or from `version` (text up to 200 KB; anything else names the API URL to fetch). With `skill`, that skill's `SKILL.md`, or with `file` a path in its folder. With `link: true`, a single-use `download_url` (10 minutes, no token) for the file, the skill's claude.ai zip, or the skills tarball. Read-only. |
 | `garden` | A board's open [tidy-up suggestions](#tidying-up), as `GET /api/boards/:board/garden` gives them: each with its check, explanation, the cards and pages it is about, the steps applying it takes and any alternatives; plus the last run and every check's settings. `run: true` looks the board over first (write access); `check` narrows to one. Changes nothing on the board. |

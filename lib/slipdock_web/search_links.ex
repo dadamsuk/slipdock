@@ -11,7 +11,7 @@ defmodule SlipdockWeb.SearchLinks do
   """
 
   alias Slipdock.Boards.Card
-  alias Slipdock.Wiki.Page
+  alias Slipdock.Wiki.{Files, Page, WikiFile}
 
   @doc "The path of `match` (a chunk with `kind`, `source_id` and `section`) within its card or page."
   def path(%Card{} = card, match) do
@@ -23,10 +23,15 @@ defmodule SlipdockWeb.SearchLinks do
     end
   end
 
+  def path(%WikiFile{} = file, _match), do: Files.open_path(file)
+
   def path(%Page{} = page, match) do
     base = "/boards/#{page.board_id}/wiki/#{page.slug}"
 
     case match do
+      %{kind: "page_document"} ->
+        base
+
       %{section: section} when is_binary(section) and section != "" ->
         base <> "#" <> SlipdockWeb.Wiki.Renderer.anchor(section_title(section))
 
@@ -44,6 +49,11 @@ defmodule SlipdockWeb.SearchLinks do
     do: "transcript-#{id}-part-#{n}"
 
   def anchor(%{kind: "transcript", source_id: id}), do: "transcript-#{id}"
+
+  def anchor(%{kind: "document", source_id: id, section: "part " <> n}),
+    do: "document-#{id}-part-#{n}"
+
+  def anchor(%{kind: "document", source_id: id}), do: "document-#{id}"
   def anchor(_), do: nil
 
   @doc """
@@ -51,7 +61,7 @@ defmodule SlipdockWeb.SearchLinks do
   writes, or nil. Anything else is ignored rather than looked for.
   """
   def at(value) when is_binary(value) do
-    if value =~ ~r/\A(comment|status-update|provenance|transcript)-\d+(-part-\d+)?\z/,
+    if value =~ ~r/\A(comment|status-update|provenance|transcript|document)-\d+(-part-\d+)?\z/,
       do: value
   end
 
@@ -79,6 +89,14 @@ defmodule SlipdockWeb.SearchLinks do
       [_, file, part] -> "transcript of #{file}, #{part}"
       [_, file] -> "transcript of #{file}"
       _ -> "recording transcript"
+    end
+  end
+
+  def label(%{kind: kind, body: body}) when kind in ~w(document page_document file_document) do
+    case Regex.run(~r/\AText of the file “([^”]*)”.*?(part \d+ of \d+)?:\n/u, body) do
+      [_, file, part] -> "text of #{file}, #{part}"
+      [_, file] -> "text of #{file}"
+      _ -> "text in a file"
     end
   end
 

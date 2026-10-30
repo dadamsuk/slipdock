@@ -51,7 +51,7 @@ defmodule Slipdock.Search do
   alias Slipdock.Boards.{Board, Card}
   alias Slipdock.Repo
   alias Slipdock.Search.{Chunk, Embedding, Indexer, Vector}
-  alias Slipdock.Wiki.Page
+  alias Slipdock.Wiki.{Page, WikiFile}
   alias Slipdock.AI.Embeddings
 
   # How many chunks a search scores before rolling up, and how many cards it
@@ -102,10 +102,11 @@ defmodule Slipdock.Search do
 
   Returns `{:ok, results}`, each result a map of:
 
-    * `:kind` — `"card"` or `"page"`
-    * `:subject` — the card or the page, whichever it is
+    * `:kind` — `"card"`, `"page"` or `"file"`
+    * `:subject` — the card, the page or the wiki file, whichever it is
     * `:card` — the card, with `:board` and `:column` preloaded; nil for a page
     * `:page` — the page, with `:board` preloaded; nil for a card
+    * `:file` — the wiki file, with `:board` preloaded; nil otherwise
     * `:score` — the best chunk score, 0.0–1.0-ish
     * `:matches` — the chunks that matched, best first, each with `:kind`,
       `:body`, `:score`, `:source_id` and (for a page) `:section`
@@ -115,7 +116,7 @@ defmodule Slipdock.Search do
     * `:limit` — how many results to return (default #{@default_limit})
     * `:archived` — include archived cards (default `false`)
     * `:board_id` — restrict to one board and its sub-boards
-    * `:kind` — `:card`, `:page` or `:all` (the default)
+    * `:kind` — `:card`, `:page`, `:file` or `:all` (the default)
     * `:min_score` — override the relevance floor
     * `:token` — the API token asking, whose board scope narrows the user's
       reach further (see `Slipdock.Access.narrow/3`); nil for a person
@@ -267,6 +268,7 @@ defmodule Slipdock.Search do
         section: e.section,
         card_id: e.card_id,
         page_id: e.page_id,
+        file_id: e.file_id,
         board_id: e.board_id,
         body: e.body,
         vector: e.vector,
@@ -313,10 +315,13 @@ defmodule Slipdock.Search do
   end
 
   defp filter_kind(query, kind) when kind in [:card, "card"],
-    do: from([e, _c, _p] in query, where: is_nil(e.page_id))
+    do: from([e, _c, _p] in query, where: not is_nil(e.card_id))
 
   defp filter_kind(query, kind) when kind in [:page, "page"],
     do: from([e, _c, _p] in query, where: not is_nil(e.page_id))
+
+  defp filter_kind(query, kind) when kind in [:file, "file"],
+    do: from([e, _c, _p] in query, where: not is_nil(e.file_id))
 
   defp filter_kind(query, _), do: query
 
@@ -327,9 +332,11 @@ defmodule Slipdock.Search do
   defp roll_up([], _user), do: []
 
   defp roll_up(chunks, user) do
+    {file_chunks, chunks} = Enum.split_with(chunks, &Embedding.file?(&1.kind))
     {page_chunks, card_chunks} = Enum.split_with(chunks, &Embedding.page?(&1.kind))
 
-    (card_results(card_chunks) ++ page_results(page_chunks, user))
+    (card_results(card_chunks) ++
+       page_results(page_chunks, user) ++ file_results(file_chunks, user))
     |> Enum.sort_by(& &1.score, :desc)
   end
 
@@ -365,7 +372,19 @@ defmodule Slipdock.Search do
     end)
   end
 
-  defp result(kind, subject, card, page, matches) do
+  # As a page: the reader's own permission decides, and the board's scope
+  # that found the chunk is only the first filter.
+  defp file_results(chunks, user) do
+    by_file = Enum.group_by(chunks, & &1.file_id)
+    ids = Map.keys(by_file)
+
+    from(f in WikiFile, where: f.id in ^ids and is_nil(f.archived_at), preload: [:board])
+    |> Repo.all()
+    |> Enum.filter(&Slipdock.Access.can_read?(Slipdock.Access.file_permission(user, &1)))
+    |> Enum.map(&result("file", &1, nil, nil, by_file[&1.id], &1))
+  end
+
+  defp result(kind, subject, card, page, matches, file \\ nil) do
     matches = Enum.sort_by(matches, & &1.score, :desc)
 
     %{
@@ -373,6 +392,7 @@ defmodule Slipdock.Search do
       subject: subject,
       card: card,
       page: page,
+      file: file,
       score: hd(matches).score,
       matches:
         Enum.map(
@@ -442,7 +462,7 @@ defmodule Slipdock.Search do
         :comments,
         :status_updates,
         :provenance,
-        :attachments
+        attachments: :document_text
       ]
     )
   end
@@ -485,7 +505,7 @@ defmodule Slipdock.Search do
   ## Pages --------------------------------------------------------------------
 
   @doc "The query that loads a page with everything `Slipdock.Search.Chunk` needs."
-  def page_query, do: from(p in Page, preload: [:board])
+  def page_query, do: from(p in Page, preload: [:board, attachments: :document_text])
 
   @doc "Loads pages by id, with everything `Slipdock.Search.Chunk` needs."
   def load_pages([]), do: []
@@ -528,6 +548,45 @@ defmodule Slipdock.Search do
   @doc "Every page id, oldest first — what `mix slipdock.reindex` walks."
   def all_page_ids, do: Repo.all(from(p in Page, order_by: [asc: p.id], select: p.id))
 
+  ## Wiki files ---------------------------------------------------------------
+
+  @doc "Loads wiki files by id, with everything `Slipdock.Search.Chunk` needs."
+  def load_files([]), do: []
+
+  def load_files(ids) do
+    Repo.all(from(f in WikiFile, where: f.id in ^ids, preload: [:board, :document_text]))
+  end
+
+  @doc "Re-embeds a list of loaded wiki files in one pass."
+  @spec index_files([WikiFile.t()]) :: {:ok, map} | {:error, String.t()}
+  def index_files([]), do: {:ok, %{embedded: 0, unchanged: 0, removed: 0}}
+
+  def index_files(files) do
+    chunks = Enum.flat_map(files, &Chunk.for_file/1)
+    ids = Enum.map(files, & &1.id)
+
+    embed_chunks(chunks, existing_where(dynamic([e], e.file_id in ^ids)), fn ->
+      do_remove_orphans(dynamic([e], e.file_id in ^ids), chunks)
+    end)
+  end
+
+  @doc "Drops everything indexed for a wiki file."
+  @spec forget_file(integer) :: map
+  def forget_file(file_id) when is_integer(file_id) do
+    {n, _} = Repo.delete_all(from(e in Embedding, where: e.file_id == ^file_id))
+    %{embedded: 0, unchanged: 0, removed: n}
+  end
+
+  @doc "Every wiki file with text read from it — what `mix slipdock.reindex` walks."
+  def all_file_ids do
+    from(t in Slipdock.OCR.Text,
+      where: not is_nil(t.wiki_file_id) and t.status == "done",
+      order_by: [asc: t.wiki_file_id],
+      select: t.wiki_file_id
+    )
+    |> Repo.all()
+  end
+
   ## Embedding ----------------------------------------------------------------
 
   # The half of indexing that does not care what it is indexing: skip what has
@@ -563,6 +622,7 @@ defmodule Slipdock.Search do
             section: chunk.section,
             card_id: chunk.card_id,
             page_id: chunk.page_id,
+            file_id: Map.get(chunk, :file_id),
             board_id: chunk.board_id,
             body: chunk.body,
             content_hash: Chunk.hash(chunk.body),
@@ -587,6 +647,7 @@ defmodule Slipdock.Search do
              [
                :card_id,
                :page_id,
+               :file_id,
                :board_id,
                :body,
                :content_hash,

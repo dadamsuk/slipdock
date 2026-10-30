@@ -664,9 +664,19 @@ defmodule SlipdockWeb.API.JSON do
       transcript_status: a.transcript_status,
       transcript: a.transcript,
       transcript_error: a.transcript_error,
+      text_status: text_status(a),
       inserted_at: a.inserted_at
     }
   end
+
+  # Where reading the file for text has got to (see `Slipdock.OCR`). The text
+  # itself is `GET /api/attachments/:id/text`: it can be a megabyte.
+  defp text_status(%Slipdock.Boards.Attachment{
+         document_text: %Slipdock.OCR.Text{status: status}
+       }),
+       do: status
+
+  defp text_status(_attachment), do: nil
 
   def card_url(%Slipdock.Boards.CardUrl{} = u) do
     %{

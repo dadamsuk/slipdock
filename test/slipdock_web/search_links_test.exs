@@ -25,7 +25,9 @@ defmodule SlipdockWeb.SearchLinksTest do
             {"status_update", "", "status-update-7"},
             {"provenance", "", "provenance-7"},
             {"transcript", "", "transcript-7"},
-            {"transcript", "part 3", "transcript-7-part-3"}
+            {"transcript", "part 3", "transcript-7-part-3"},
+            {"document", "", "document-7"},
+            {"document", "part 3", "document-7-part-3"}
           ] do
         assert SearchLinks.path(@card, %{kind: kind, source_id: 7, section: section}) ==
                  "/boards/3/cards/12?at=#{at}"
@@ -42,13 +44,44 @@ defmodule SlipdockWeb.SearchLinksTest do
   end
 
   test "at/1 takes only what path/2 writes" do
-    for good <- ~w(comment-1 status-update-22 provenance-3 transcript-4 transcript-4-part-12) do
+    for good <-
+          ~w(comment-1 status-update-22 provenance-3 transcript-4 transcript-4-part-12 document-4
+                  document-4-part-2) do
       assert SearchLinks.at(good) == good
     end
 
     for bad <- [nil, "", "card-1", "comment-", "comment-1;x", "transcript-4-part-", "<script>"] do
       assert SearchLinks.at(bad) == nil
     end
+  end
+
+  test "a match in a wiki file goes to the file, and one on a page to the page" do
+    file = %Slipdock.Wiki.WikiFile{id: 9, name: "scan.pdf"}
+    assert SearchLinks.path(file, %{kind: "file_document", section: "part 2"}) == "/files/9"
+
+    page = %Slipdock.Wiki.Page{board_id: 3, slug: "runbook"}
+
+    assert SearchLinks.path(page, %{kind: "page_document", source_id: 4, section: "part 2"}) ==
+             "/boards/3/wiki/runbook"
+  end
+
+  test "label/1 names the file a document's text came from" do
+    match = %{
+      kind: "document",
+      section: "part 2",
+      body: "Text of the file “a.pdf” on card “T” (B), part 2 of 5:\nwords"
+    }
+
+    assert SearchLinks.label(match) == "text of a.pdf, part 2 of 5"
+
+    assert SearchLinks.label(%{
+             kind: "file_document",
+             section: "",
+             body: "Text of the file “a.pdf” in the wiki of “B”:\nwords"
+           }) == "text of a.pdf"
+
+    assert SearchLinks.label(%{kind: "page_document", section: "", body: "odd"}) ==
+             "text in a file"
   end
 
   test "label/1 says what the match is, a transcript by file and part" do

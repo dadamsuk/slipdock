@@ -43,6 +43,8 @@ defmodule Slipdock.Boards.Attachment do
     field :transcript_status, :string
     field :transcript_error, :string
     field :transcript_started_at, :utc_datetime
+    # What could be read out of a PDF or an image (see `Slipdock.OCR`).
+    has_one :document_text, Slipdock.OCR.Text
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :page, Slipdock.Wiki.Page
     timestamps(type: :utc_datetime)

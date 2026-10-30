@@ -310,6 +310,10 @@ defmodule SlipdockWeb.SearchLive.Index do
   defp kind_icon("status_update"), do: "hero-signal"
   defp kind_icon("provenance"), do: "hero-microphone"
   defp kind_icon("transcript"), do: "hero-musical-note"
+
+  defp kind_icon(kind) when kind in ~w(document page_document file_document),
+    do: "hero-paper-clip"
+
   defp kind_icon(_), do: "hero-document-text"
 
   @snippet 260
@@ -366,11 +370,20 @@ defmodule SlipdockWeb.SearchLive.Index do
   defp source_board(%{page: page}), do: page.board && page.board.name
   defp source_board(%{card: card}), do: board_name(card)
 
-  # A result is a card or a wiki page; both know where they live.
+  # A result is a card, a wiki page or a wiki file; each knows where it lives.
+  defp result_path(%{file: %{} = file}), do: Slipdock.Wiki.Files.open_path(file)
+
   defp result_path(%{kind: "page", page: page}),
     do: ~p"/boards/#{page.board_id}/wiki/#{page.slug}"
 
   defp result_path(%{card: card}), do: card_path(card)
+
+  defp result_title(%{file: %{name: name}}), do: name
+  defp result_title(%{subject: subject}), do: subject.title
+
+  defp result_icon("page"), do: "hero-document-text"
+  defp result_icon("file"), do: "hero-paper-clip"
+  defp result_icon(_), do: "hero-rectangle-stack"
 
   defp board_name(%{board: %{name: name}}), do: name
   defp board_name(_), do: nil
@@ -709,17 +722,17 @@ defmodule SlipdockWeb.SearchLive.Index do
         <.link navigate={result_path(result)} class="block px-4 py-3 hover:bg-base-200/40">
           <div class="flex items-start gap-3">
             <.icon
-              name={if result.kind == "page", do: "hero-document-text", else: "hero-rectangle-stack"}
+              name={result_icon(result.kind)}
               class="mt-1 size-4 shrink-0 text-base-content/35"
             />
             <div class="min-w-0 flex-1">
               <p class="truncate font-semibold">
                 <span :if={result.card && result.card.completed} class="mr-1 text-success">✓</span>
-                {result.subject.title}
+                {result_title(result)}
               </p>
               <p class="mt-0.5 truncate text-xs text-base-content/50">
                 {result.subject.board.name}
-                <span :if={result.kind == "page"}>› wiki</span>
+                <span :if={result.kind in ["page", "file"]}>› wiki</span>
                 <span :if={result.card && result.card.column}>› {result.card.column.name}</span>
                 <span :if={result.card && result.card.archived_at} class="text-warning">
                   · archived
@@ -750,7 +763,7 @@ defmodule SlipdockWeb.SearchLive.Index do
             <%!-- Each match is a way in of its own: to the comment, the update,
                   the part of a transcript, the section that said it. --%>
             <.link
-              navigate={SearchLinks.path(result.card || result.page, match)}
+              navigate={SearchLinks.path(result.card || result.page || result.file, match)}
               class="match-link group/match min-w-0 flex-1"
             >
               <span class="font-medium text-base-content/60 group-hover/match:underline">

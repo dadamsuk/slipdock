@@ -43,6 +43,87 @@ defmodule SlipdockWeb.API.AttachmentDownloadTest do
     |> put_req_header("accept", "application/json")
   end
 
+  describe "the text read from a file" do
+    setup do
+      Slipdock.TestConfig.put(:ocr, run: fn _, _ -> {"Invoice 42", 0} end)
+    end
+
+    test "the details say where it has got to, and /text is the words", %{conn: conn, card: card} do
+      id = upload(conn, "/api/cards/#{card.id}/attachments", "shot.png", @png)
+
+      assert %{"attachment" => %{"text_status" => "queued"}} =
+               conn |> get("/api/attachments/#{id}") |> json_response(200)
+
+      assert %{"text" => %{"status" => "queued", "text" => nil}} =
+               conn |> get("/api/attachments/#{id}/text") |> json_response(200)
+
+      assert Slipdock.OCR.run_next() == :ok
+
+      assert %{"text" => %{"status" => "done", "text" => "Invoice 42", "truncated" => false}} =
+               conn |> get("/api/attachments/#{id}/text") |> json_response(200)
+
+      assert %{"card" => %{"attachments" => [%{"text_status" => "done"}]}} =
+               conn |> get("/api/cards/#{card.id}") |> json_response(200)
+    end
+
+    test "a file that isn't read has no status", %{conn: conn, card: card} do
+      id = upload(conn, "/api/cards/#{card.id}/attachments", "a.txt", "hi", "text/plain")
+
+      assert %{"text" => %{"status" => nil, "text" => nil}} =
+               conn |> get("/api/attachments/#{id}/text") |> json_response(200)
+    end
+
+    test "is checked like the file: a stranger gets a 404", %{conn: conn, card: card} do
+      id = upload(conn, "/api/cards/#{card.id}/attachments", "shot.png", @png)
+      stranger = user_fixture("text-stranger@example.com")
+
+      assert stranger
+             |> with_token([])
+             |> get("/api/attachments/#{id}/text")
+             |> json_response(404)
+    end
+
+    test "read-text reads it again, for a writer, and 422s a file that isn't read", %{
+      conn: conn,
+      card: card
+    } do
+      id = upload(conn, "/api/cards/#{card.id}/attachments", "shot.png", @png)
+      Slipdock.OCR.run_next()
+
+      assert %{"attachment" => %{"text_status" => "queued"}} =
+               conn
+               |> post("/api/cards/#{card.id}/attachments/#{id}/read-text")
+               |> json_response(202)
+
+      assert conn
+             |> post("/api/cards/#{card.id}/attachments/#{id}/read-text")
+             |> json_response(202)
+
+      txt = upload(conn, "/api/cards/#{card.id}/attachments", "a.txt", "hi", "text/plain")
+
+      assert conn
+             |> post("/api/cards/#{card.id}/attachments/#{txt}/read-text")
+             |> json_response(422)
+
+      assert conn
+             |> post("/api/cards/#{card.id}/attachments/999999999/read-text")
+             |> json_response(404)
+    end
+
+    test "read-text answers 409 while it is being read", %{conn: conn, card: card} do
+      id = upload(conn, "/api/cards/#{card.id}/attachments", "shot.png", @png)
+
+      Slipdock.OCR.Text
+      |> Slipdock.Repo.get_by!(attachment_id: id)
+      |> Ecto.Changeset.change(status: "running")
+      |> Slipdock.Repo.update!()
+
+      assert conn
+             |> post("/api/cards/#{card.id}/attachments/#{id}/read-text")
+             |> json_response(409)
+    end
+  end
+
   describe "a card's file" do
     test "its details name the card, and its bytes come back as a download", %{
       conn: conn,

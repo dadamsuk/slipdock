@@ -235,6 +235,8 @@ defmodule Slipdock.Meetings.Context do
           case Search.search(owner, text, limit: @per_chunk * 3) do
             {:ok, results} ->
               results
+              # A meeting's actions land on cards and pages, not on a file.
+              |> Enum.reject(&(&1.kind == "file"))
               |> Enum.filter(&(board_of(&1) in scope))
               |> Enum.take(@per_chunk)
               |> Enum.flat_map(fn result ->

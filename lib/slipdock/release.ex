@@ -311,6 +311,7 @@ defmodule Slipdock.Release do
         %{embedded: 0, unchanged: 0, removed: 0}
         |> walk("cards", Search.all_card_ids(), &Search.load_cards/1, &Search.index_cards/1)
         |> walk("wiki pages", Search.all_page_ids(), &Search.load_pages/1, &Search.index_pages/1)
+        |> walk("wiki files", Search.all_file_ids(), &Search.load_files/1, &Search.index_files/1)
 
       seconds = Float.round((System.monotonic_time(:millisecond) - started) / 1000, 1)
 

@@ -71,6 +71,20 @@ defmodule Slipdock.Search.Indexer do
     :exit, _ -> :ok
   end
 
+  @doc "Queues a wiki file for re-embedding. Same contract as `enqueue/1`."
+  @spec enqueue_file(integer | nil) :: :ok
+  def enqueue_file(nil), do: :ok
+
+  def enqueue_file(file_id) when is_integer(file_id) do
+    if enabled?() do
+      GenServer.cast(__MODULE__, {:enqueue, {:file, file_id}})
+    else
+      :ok
+    end
+  catch
+    :exit, _ -> :ok
+  end
+
   @doc "Queues several cards at once."
   def enqueue_all(card_ids) when is_list(card_ids), do: Enum.each(card_ids, &enqueue/1)
 
@@ -182,20 +196,24 @@ defmodule Slipdock.Search.Indexer do
     end
   end
 
-  # One queue, two kinds of thing in it: cards and pages embed the same way
-  # and are merely loaded and swept differently.
+  # One queue, three kinds of thing in it: cards, pages and files embed the
+  # same way and are merely loaded and swept differently.
   defp embed(entries) do
     card_ids = for {:card, id} <- entries, do: id
     page_ids = for {:page, id} <- entries, do: id
+    file_ids = for {:file, id} <- entries, do: id
 
     with {:ok, cards} <- embed_cards(card_ids),
-         {:ok, pages} <- embed_pages(page_ids) do
-      counts = Map.merge(cards, pages, fn _k, a, b -> a + b end)
+         {:ok, pages} <- embed_pages(page_ids),
+         {:ok, files} <- embed_files(file_ids) do
+      sum = fn _k, a, b -> a + b end
+      counts = cards |> Map.merge(pages, sum) |> Map.merge(files, sum)
 
       if counts.embedded > 0 or counts.removed > 0 do
         Logger.info(
           "Search index: #{counts.embedded} embedded, #{counts.unchanged} unchanged, " <>
-            "#{counts.removed} removed across #{length(card_ids)} cards and #{length(page_ids)} pages"
+            "#{counts.removed} removed across #{length(card_ids)} cards, " <>
+            "#{length(page_ids)} pages and #{length(file_ids)} files"
         )
       end
 
@@ -226,6 +244,14 @@ defmodule Slipdock.Search.Indexer do
     pages = Search.load_pages(page_ids)
     Enum.each(page_ids -- Enum.map(pages, & &1.id), &Search.forget_page/1)
     Search.index_pages(pages)
+  end
+
+  defp embed_files([]), do: {:ok, %{embedded: 0, unchanged: 0, removed: 0}}
+
+  defp embed_files(file_ids) do
+    files = Search.load_files(file_ids)
+    Enum.each(file_ids -- Enum.map(files, & &1.id), &Search.forget_file/1)
+    Search.index_files(files)
   end
 
   defp schedule(%{timer: nil} = state) do

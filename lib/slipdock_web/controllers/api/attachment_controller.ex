@@ -6,7 +6,8 @@ defmodule SlipdockWeb.API.AttachmentController do
 
   `GET /api/attachments/:id` is the file's details, as `attachments` lists
   them, plus the `card` or `page` it hangs off; `GET /api/attachments/:id/file`
-  is its bytes, always as a download. Either is checked as reading that card
+  is its bytes, always as a download; `GET /api/attachments/:id/text` is the
+  words read from a PDF or an image. Each is checked as reading that card
   or page is, with the token's scope narrowing it: a file the user can't see
   is a 404 like one that never was, and one their token is scoped away from
   is the 403 that says so.
@@ -42,10 +43,27 @@ defmodule SlipdockWeb.API.AttachmentController do
     end
   end
 
+  @doc "What has been read from a PDF or an image, and where that has got to."
+  def text(conn, %{"id" => id}) do
+    with {:ok, attachment} <- fetch(conn, id) do
+      json(conn, %{text: text_json(attachment)})
+    end
+  end
+
+  defp text_json(attachment) do
+    case Slipdock.OCR.text_of(attachment) do
+      nil ->
+        %{status: nil, text: nil}
+
+      read ->
+        Map.take(read, [:status, :text, :error, :pages, :ocr_pages, :truncated])
+    end
+  end
+
   defp fetch(conn, id) do
     with {:ok, id} <- attachment_id(id),
          %Attachment{} = attachment <- Repo.get(Attachment, id),
-         attachment = Repo.preload(attachment, [:card, :page]),
+         attachment = Repo.preload(attachment, [:card, :page, :document_text]),
          true <- readable?(conn.assigns.current_user, attachment),
          :ok <- narrow(conn, attachment) do
       {:ok, attachment}

@@ -37,6 +37,8 @@ defmodule Slipdock.Application do
       Slipdock.Automations.Scheduler,
       # Embeds changed cards for semantic search, off the saver's back.
       Slipdock.Search.Indexer,
+      # Reads uploaded PDFs and images for text, one at a time.
+      Slipdock.OCR.Worker,
       # Sends the server's errors to PostHog, when a project key is set.
       Slipdock.Posthog.ErrorTracking,
       # Start to serve requests, typically the last entry

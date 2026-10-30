@@ -13,6 +13,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
 
   alias Slipdock.{Boards, Dates, Palette, Transcription}
   alias Slipdock.Boards.{Attachment, Card}
+  alias Slipdock.OCR.Text, as: OCRText
   alias SlipdockWeb.RichText
 
   attr :board, :any, required: true
@@ -503,6 +504,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
               >{part}</p>
             </div>
           </details>
+          <.document_text attachment={a} at={@at} target={@target} can_write={@can_write} />
         </li>
       </ul>
       <div
@@ -545,6 +547,69 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     do: String.starts_with?(at <> "-", "transcript-#{a.id}-")
 
   defp opened_at?(_at, _a), do: false
+
+  # What was read from a PDF or an image (see `Slipdock.OCR`). Waiting in the
+  # queue shows nothing: it is background work that nobody asked for, and a
+  # file with no words in it simply never shows anything either.
+  attr :attachment, :map, required: true
+  attr :at, :any, default: nil
+  attr :target, :any, required: true
+  attr :can_write, :boolean, default: false
+
+  defp document_text(%{attachment: %{document_text: %OCRText{} = read}} = assigns) do
+    assigns = assign(assigns, read: read, a: assigns.attachment)
+
+    ~H"""
+    <p
+      :if={@read.status == "running"}
+      id={"document-reading-#{@a.id}"}
+      class="basis-full text-xs text-base-content/50"
+    >
+      <span class="loading loading-spinner loading-xs"></span> Reading the text…
+    </p>
+    <p
+      :if={@read.status == "failed"}
+      id={"document-error-#{@a.id}"}
+      class="basis-full text-xs text-error"
+    >
+      Couldn't read the text: {@read.error}
+      <button
+        :if={@can_write}
+        id={"read-text-#{@a.id}"}
+        phx-target={@target}
+        type="button"
+        class="link"
+        phx-click="read_text"
+        phx-value-id={@a.id}
+      >
+        Try again
+      </button>
+    </p>
+    <details
+      :if={OCRText.readable?(@read)}
+      id={"document-#{@a.id}"}
+      open={@at && String.starts_with?(@at <> "-", "document-#{@a.id}-")}
+      class="basis-full rounded-lg bg-base-100/70 px-2 py-1 text-sm"
+    >
+      <summary class="cursor-pointer text-xs font-medium text-base-content/60">
+        Text in this file <span :if={@read.truncated} class="font-normal">(the start of it)</span>
+      </summary>
+      <div class="mt-1 max-h-80 overflow-y-auto">
+        <p
+          :for={{part, n} <- Enum.with_index(Slipdock.Search.Chunk.document_parts(@read.text), 1)}
+          id={"document-#{@a.id}-part-#{n}"}
+          class={[
+            "whitespace-pre-wrap rounded",
+            @at == "document-#{@a.id}-part-#{n}" && "bg-warning/15"
+          ]}
+          phx-no-format
+        >{part}</p>
+      </div>
+    </details>
+    """
+  end
+
+  defp document_text(assigns), do: ~H""
 
   defp transcribe_label(a) do
     cond do

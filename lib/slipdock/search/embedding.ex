@@ -9,13 +9,14 @@ defmodule Slipdock.Search.Embedding do
   for a page, which is written in several pieces so that editing one section
   re-embeds one section.
 
-  `card_id` / `page_id` (exactly one) and `board_id` are denormalised so
+  `card_id` / `page_id` / `file_id` (exactly one) and `board_id` are denormalised so
   results roll up without a join and permission filtering is one `in`.
   """
   use Ecto.Schema
   import Ecto.Changeset
 
-  @kinds ~w(card comment status_update page page_section provenance transcript)
+  @kinds ~w(card comment status_update page page_section provenance transcript
+            document page_document file_document)
 
   schema "search_embeddings" do
     field :kind, :string
@@ -32,6 +33,7 @@ defmodule Slipdock.Search.Embedding do
 
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :page, Slipdock.Wiki.Page
+    belongs_to :file, Slipdock.Wiki.WikiFile
     belongs_to :board, Slipdock.Boards.Board
 
     timestamps(type: :utc_datetime)
@@ -47,10 +49,14 @@ defmodule Slipdock.Search.Embedding do
   def label("page_section"), do: "page section"
   def label("provenance"), do: "said in a meeting"
   def label("transcript"), do: "recording transcript"
+  def label(kind) when kind in ~w(document page_document file_document), do: "text in a file"
   def label(other), do: other
 
   @doc "Whether a chunk of this kind came from a wiki page."
-  def page?(kind), do: kind in ~w(page page_section)
+  def page?(kind), do: kind in ~w(page page_section page_document)
+
+  @doc "Whether a chunk of this kind came from a wiki file of its own."
+  def file?(kind), do: kind == "file_document"
 
   def changeset(embedding, attrs) do
     embedding
@@ -60,6 +66,7 @@ defmodule Slipdock.Search.Embedding do
       :section,
       :card_id,
       :page_id,
+      :file_id,
       :board_id,
       :body,
       :content_hash,
@@ -79,7 +86,7 @@ defmodule Slipdock.Search.Embedding do
     ])
     |> validate_inclusion(:kind, @kinds)
     |> check_constraint(:card_id,
-      name: :search_embeddings_card_xor_page,
+      name: :search_embeddings_one_owner,
       message: "must belong to exactly one of a card or a page"
     )
     |> unique_constraint([:kind, :source_id, :section])

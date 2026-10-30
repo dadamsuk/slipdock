@@ -36,7 +36,7 @@ defmodule SlipdockCLI do
                   the words that were written; covers cards, comments and status updates)
     search <words...>                   search every board you can see
         --board B     only that board and its sub-boards
-        --kind cards|pages|all   cards and their comments, wiki pages, or both (default)
+        --kind cards|pages|files|all   cards and comments, wiki pages, wiki files, or all (default)
         --limit N     how many results (default 20, max 50)
         --archived    include archived cards (a card's #id or link
                       as the query finds it, archived or not)
@@ -667,6 +667,8 @@ defmodule SlipdockCLI do
     transcribe <id> <attachment-id> [--wait]
                                         send a card's recording to the transcription server;
                                         --wait prints the transcript once it is done
+    attachment-text <attachment-id>     print the words read from a PDF or image (OCR)
+    read-text <id> <attachment-id>      read a card's PDF or image for text again
     card-front <id> <attachment-id>... [--off]
                                         let an image be the card's thumbnail (--off: keep it off)
     attachments <id>                    list a card's or page's files

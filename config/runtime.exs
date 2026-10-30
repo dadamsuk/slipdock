@@ -366,6 +366,10 @@ if dims = System.get_env("SLIPDOCK_AI_EMBED_DIMENSIONS") do
   config :slipdock, :ai, embed_dimensions: String.to_integer(dims)
 end
 
+if langs = System.get_env("SLIPDOCK_OCR_LANGS") do
+  config :slipdock, :ocr, langs: langs
+end
+
 if dir = System.get_env("SLIPDOCK_UPLOADS_DIR") do
   config :slipdock, :uploads_dir, dir
 end

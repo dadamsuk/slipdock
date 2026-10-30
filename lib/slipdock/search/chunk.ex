@@ -4,7 +4,8 @@ defmodule Slipdock.Search.Chunk do
 
   One chunk per thing that was written by a person: the card itself (title,
   description, checklist and its facets), each comment, each status update,
-  the transcript of each recording on it, and **each section of a page**. Embedding them separately rather than
+  the transcript of each recording on it, the text read from each PDF or image
+  on it (see `Slipdock.OCR`), and **each section of a page**. Embedding them separately rather than
   rolling a card into one vector is what lets a search for "the Stripe
   webhook problem" land on the comment that said it, and it means editing one
   comment — or one section — re-embeds one chunk rather than everything.
@@ -21,8 +22,9 @@ defmodule Slipdock.Search.Chunk do
   read.
   """
 
-  alias Slipdock.Boards.{Card, Comment, StatusUpdate}
-  alias Slipdock.Wiki.{Markup, Page, Section}
+  alias Slipdock.Boards.{Attachment, Card, Comment, StatusUpdate}
+  alias Slipdock.OCR.Text
+  alias Slipdock.Wiki.{Markup, Page, Section, WikiFile}
 
   @type t :: %{
           kind: String.t(),
@@ -51,7 +53,8 @@ defmodule Slipdock.Search.Chunk do
       Enum.map(card.comments, &comment_chunk(&1, card)) ++
       Enum.map(card.status_updates, &status_chunk(&1, card)) ++
       provenance_chunks(card) ++
-      transcript_chunks(card)
+      transcript_chunks(card) ++
+      card_document_chunks(card)
   end
 
   @doc """
@@ -70,7 +73,29 @@ defmodule Slipdock.Search.Chunk do
   def for_page(%Page{status: "draft"}), do: []
   def for_page(%Page{archived_at: at}) when not is_nil(at), do: []
 
-  def for_page(%Page{} = page) do
+  def for_page(%Page{} = page), do: page_body_chunks(page) ++ page_document_chunks(page)
+
+  @doc """
+  Every chunk for a wiki file, which must be preloaded with `:board` and
+  `:document_text`: the words read from it. An archived file has none.
+  """
+  @spec for_file(WikiFile.t()) :: [t]
+  def for_file(%WikiFile{archived_at: at}) when not is_nil(at), do: []
+
+  def for_file(%WikiFile{document_text: text} = file) do
+    place = "in the wiki of “#{file.board.name}”"
+
+    document_chunks(file.name, text, place, %{
+      kind: "file_document",
+      source_id: file.id,
+      card_id: nil,
+      page_id: nil,
+      file_id: file.id,
+      board_id: file.board_id
+    })
+  end
+
+  defp page_body_chunks(%Page{} = page) do
     body = plain(page.body)
 
     cond do
@@ -186,6 +211,68 @@ defmodule Slipdock.Search.Chunk do
   end
 
   defp transcript_chunks(_card), do: []
+
+  # The words in the PDFs and images attached to a card or a page. Like a
+  # transcript they run long and have no headings to split on.
+  defp card_document_chunks(%Card{attachments: list} = card) when is_list(list) do
+    Enum.flat_map(list, fn %Attachment{} = a ->
+      document_chunks(
+        a.filename,
+        a.document_text,
+        "on card “#{card.title}” (#{where_inline(card)})",
+        %{
+          kind: "document",
+          source_id: a.id,
+          card_id: card.id,
+          page_id: nil,
+          file_id: nil,
+          board_id: card.board_id
+        }
+      )
+    end)
+  end
+
+  defp card_document_chunks(_card), do: []
+
+  defp page_document_chunks(%Page{attachments: list} = page) when is_list(list) do
+    Enum.flat_map(list, fn %Attachment{} = a ->
+      document_chunks(a.filename, a.document_text, "on the wiki page “#{page.title}”", %{
+        kind: "page_document",
+        source_id: a.id,
+        card_id: nil,
+        page_id: page.id,
+        file_id: nil,
+        board_id: page.board_id
+      })
+    end)
+  end
+
+  defp page_document_chunks(_page), do: []
+
+  defp document_chunks(name, %Text{} = read, place, owner) do
+    if Text.readable?(read) do
+      parts = document_parts(read.text)
+
+      for {part, n} <- Enum.with_index(parts, 1) do
+        heading =
+          "Text of the file “#{name}” #{place}" <>
+            if(length(parts) > 1, do: ", part #{n} of #{length(parts)}:", else: ":")
+
+        Map.merge(owner, %{
+          section: if(length(parts) > 1, do: "part #{n}", else: ""),
+          body: join([heading, part])
+        })
+      end
+    else
+      []
+    end
+  end
+
+  defp document_chunks(_name, _read, _place, _owner), do: []
+
+  @doc "A document's text as the parts it is indexed in; see `transcript_parts/1`."
+  @spec document_parts(String.t() | nil) :: [String.t()]
+  def document_parts(text), do: transcript_parts(text)
 
   @doc """
   A transcript as the parts it is indexed in: whole lines, as many as fit a

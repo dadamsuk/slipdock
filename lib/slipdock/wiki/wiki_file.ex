@@ -22,6 +22,8 @@ defmodule Slipdock.Wiki.WikiFile do
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :folder, Slipdock.Wiki.Folder
     belongs_to :created_by, Slipdock.Accounts.User
+    # What could be read out of a PDF or an image (see `Slipdock.OCR`).
+    has_one :document_text, Slipdock.OCR.Text
 
     timestamps(type: :utc_datetime)
   end

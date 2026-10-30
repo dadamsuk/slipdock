@@ -151,6 +151,7 @@ defmodule SlipdockWeb.API.SearchController do
       subject: subject(result),
       card: result.card && card_result(result.card),
       page: result.page && page_result(result.page),
+      file: result[:file] && file_result(result.file),
       score: Float.round(score, 4),
       matches:
         Enum.map(matches, fn m ->
@@ -161,7 +162,7 @@ defmodule SlipdockWeb.API.SearchController do
             score: Float.round(m.score, 4),
             text: m.body,
             # Straight to the comment, update or transcript part that matched.
-            url: SlipdockWeb.SearchLinks.path(result.card || result.page, m)
+            url: SlipdockWeb.SearchLinks.path(result.card || result.page || result[:file], m)
           }
         end)
     }
@@ -171,6 +172,19 @@ defmodule SlipdockWeb.API.SearchController do
 
   defp subject(%{kind: "page", page: page}),
     do: %{title: page.title, url: ~p"/boards/#{page.board_id}/wiki/#{page.slug}"}
+
+  defp subject(%{kind: "file", file: file}),
+    do: %{title: file.name, url: Slipdock.Wiki.Files.open_path(file)}
+
+  defp file_result(file) do
+    %{
+      id: file.id,
+      name: file.name,
+      content_type: file.content_type,
+      board: %{id: file.board.id, name: file.board.name, code: file.board.code},
+      url: Slipdock.Wiki.Files.open_path(file)
+    }
+  end
 
   defp card_result(card) do
     %{
@@ -212,7 +226,9 @@ defmodule SlipdockWeb.API.SearchController do
   defp kind("cards"), do: {:ok, :card}
   defp kind("page"), do: {:ok, :page}
   defp kind("pages"), do: {:ok, :page}
-  defp kind(other), do: {:error, "kind must be card, page or all (got #{inspect(other)})"}
+  defp kind("file"), do: {:ok, :file}
+  defp kind("files"), do: {:ok, :file}
+  defp kind(other), do: {:error, "kind must be card, page, file or all (got #{inspect(other)})"}
 
   # The assistant reads cards and wiki pages, so a source is either.
   defp source(%{page: page, why: why}) do

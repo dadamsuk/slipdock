@@ -548,7 +548,7 @@ defmodule Slipdock.Boards do
       :assignees,
       :checklist_items,
       [comments: :user],
-      :attachments,
+      [attachments: :document_text],
       :urls,
       :status_updates,
       :votes,
@@ -4439,6 +4439,7 @@ defmodule Slipdock.Boards do
          :ok <- store_file(source, key),
          {sha256, _size} = Attachment.file_sha256(Path.join(uploads_dir(), key)),
          {:ok, attachment} <- Repo.insert(Ecto.Changeset.put_change(changeset, :sha256, sha256)) do
+      Slipdock.OCR.enqueue(attachment)
       {:ok, attachment}
     else
       {:error, %Ecto.Changeset{} = cs} ->
@@ -4509,6 +4510,13 @@ defmodule Slipdock.Boards do
     end)
   end
 
+  @doc "Text has been read from an attachment (see `Slipdock.OCR`): show it, and index it."
+  def attachment_text_changed(%Attachment{} = attachment) do
+    broadcast_attachment(attachment)
+    Indexer.enqueue(attachment.card_id)
+    Indexer.enqueue_page(attachment.page_id)
+  end
+
   defp broadcast_attachment(attachment) do
     case Repo.preload(attachment, [:card, :page]) do
       %Attachment{card: %Card{board_id: board_id}} -> broadcast(board_id)
@@ -4524,8 +4532,9 @@ defmodule Slipdock.Boards do
     |> tap_ok(fn a ->
       remove_files([a.key])
 
-      # Its transcript was in search; reindexing the card takes it out.
-      if a.card_id && a.transcript_status == "done", do: Indexer.enqueue(a.card_id)
+      # Its text and transcript were in search; reindexing takes them out.
+      Indexer.enqueue(a.card_id)
+      Indexer.enqueue_page(a.page_id)
 
       case attachment do
         %Attachment{card: %Card{board_id: board_id}} ->
