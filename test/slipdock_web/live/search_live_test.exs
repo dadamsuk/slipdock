@@ -266,6 +266,48 @@ defmodule SlipdockWeb.SearchLiveTest do
     assert render_async(view) =~ "Invoice rounding is wrong on refunds"
   end
 
+  describe "Ctrl-Shift-S" do
+    test "goes to the search page from anywhere else, closing any open palette", ctx do
+      {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      render_hook(view, "shortcut_panel", %{"panel" => "help"})
+
+      assert {:error, {:live_redirect, %{to: "/search"}}} =
+               render_hook(view, "search_everything", %{})
+    end
+
+    test "on the search page keeps the results and asks for the cursor", ctx do
+      {:ok, view, _html} = live(ctx.conn, ~p"/search")
+      view |> form("#deep-search") |> render_change(%{"q" => "invoice rounding refunds"})
+      assert render_async(view) =~ "Invoice rounding is wrong on refunds"
+
+      assert render_hook(view, "search_everything", %{}) =~ "Invoice rounding is wrong on refunds"
+      assert_push_event(view, "focus_search", %{})
+      refute_patched(view)
+    end
+
+    test "on the search page closes a palette left open", ctx do
+      {:ok, view, _html} = live(ctx.conn, ~p"/search")
+      assert render_hook(view, "shortcut_panel", %{"panel" => "help"}) =~ "Keyboard"
+
+      refute render_hook(view, "search_everything", %{}) =~ "data-key-capture"
+    end
+
+    test "from Ask switches to Search with what is in the box, and asks for the cursor", ctx do
+      {:ok, view, _html} = live(ctx.conn, ~p"/ask")
+      view |> form("#deep-search") |> render_change(%{"q" => "invoice rounding refunds"})
+
+      render_hook(view, "search_everything", %{})
+
+      assert_patch(view, ~p"/search?#{[q: "invoice rounding refunds"]}")
+      assert_push_event(view, "focus_search", %{})
+      assert has_element?(view, "[role=tab][aria-selected=true]", "Search")
+    end
+
+    test "is on the shortcut sheet" do
+      assert {"Ctrl-Shift-S", "Search everything"} in SlipdockWeb.Shortcuts.all()
+    end
+  end
+
   test "a result links to the card it is about", ctx do
     {:ok, view, _html} = live(ctx.conn, ~p"/search")
     view |> form("#deep-search") |> render_change(%{"q" => "invoice rounding refunds"})

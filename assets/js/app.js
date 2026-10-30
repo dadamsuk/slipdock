@@ -28,7 +28,7 @@ import Sortable from "../vendor/sortable"
 import {installConfirm} from "./confirm"
 import {columnDrop, dropZones, pointOf, zoneAt} from "./card_drop"
 import {ModalDialog} from "./modal_dialog"
-import {boardHotkey} from "./board_hotkey"
+import {boardHotkey, searchHotkey} from "./board_hotkey"
 import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
@@ -988,6 +988,14 @@ Hooks.Keys = {
     this.typed = ""
     this.open = null
     document.addEventListener("keydown", (this.onKey = e => this.key(e)), true)
+    // Ctrl-Shift-S on the search page itself: nothing to navigate to, so the
+    // page asks for the cursor instead.
+    this.handleEvent("focus_search", () => {
+      const box = document.querySelector("#deep-search input[name=q]")
+      if (!box) return
+      box.focus()
+      box.select()
+    })
   },
 
   destroyed() {
@@ -1008,6 +1016,9 @@ Hooks.Keys = {
     // itself (e.code), since Shift turns the character into "!" or "@".
     const digit = boardHotkey(e)
     if (digit !== null) return this.send(e, "board_hotkey", {digit})
+
+    // Ctrl-Shift-S is search everything, from anywhere too.
+    if (searchHotkey(e)) return this.send(e, "search_everything", {})
 
     if (e.metaKey || e.ctrlKey || e.altKey) return
 

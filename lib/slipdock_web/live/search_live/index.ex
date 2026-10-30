@@ -125,9 +125,21 @@ defmodule SlipdockWeb.SearchLive.Index do
 
   ## Events -------------------------------------------------------------------
 
+  # Ctrl-Shift-S, here already (see `SlipdockWeb.ShortcutsHook`): the box, with
+  # what is in it picked. From Ask it is the toggle, carrying the query across.
+  @impl true
+  def handle_event("search_everything", _, %{assigns: %{mode: :ask}} = socket) do
+    {:noreply,
+     socket
+     |> push_patch(to: mode_path(:search, socket.assigns.query))
+     |> push_event("focus_search", %{})}
+  end
+
+  def handle_event("search_everything", _, socket),
+    do: {:noreply, push_event(socket, "focus_search", %{})}
+
   # The box, typed in. Search runs as you type (an embedding call, cheap and
   # quick); Ask waits for Enter, because a model call should be asked for.
-  @impl true
   def handle_event("typed", %{"q" => q}, socket) do
     q = String.trim(q)
     socket = assign(socket, query: q)
