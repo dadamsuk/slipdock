@@ -26,6 +26,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.Palette
   alias Slipdock.Wiki.{Autosave, AutosaveFile, Autosaves}
   alias Slipdock.Wiki.{AutoOrganise, Folder, Icons, Page, Tree, TreeStates, WikiFile}
+  alias SlipdockWeb.WikiLive.PageToolsComponent
   alias SlipdockWeb.BoardLive.{BoardView, Helpers}
   alias SlipdockWeb.Params
   alias SlipdockWeb.Wiki.Renderer
@@ -125,6 +126,8 @@ defmodule SlipdockWeb.WikiLive.Index do
       # of each page, since a page grant can raise it.
       can_comment: Access.can_comment?(perm),
       can_manage: perm == :owner,
+      # The AI tools beside a page (#1539): whether they can run, and open.
+      page_tools_ai: Slipdock.AI.configured?(socket.assigns.current_user),
       meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
       # The board's `…` menu, as its own views have it: where its panels
       # are, and whether it offers Email to this board.
@@ -139,6 +142,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       # The editor's preview beside the source; a writer can put it away
       # for the whole width, and the browser remembers (EditorPrefs).
       show_preview: true,
+      page_tools: false,
       conflict: nil,
       base_hash: nil,
       # Auto-save (#1532): the row for what is open, the form waiting for the
@@ -2887,6 +2891,11 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("dismiss_conflict", _params, socket),
     do: {:noreply, assign(socket, conflict: nil)}
 
+  # The AI tools beside the page: open or shut, and they stay so from page to
+  # page, each with its own clean panel.
+  def handle_event("toggle_page_tools", _params, socket),
+    do: {:noreply, assign(socket, page_tools: not socket.assigns.page_tools)}
+
   # A passage of a page becomes a card: its first line is the title, the rest
   # the description, and the link is written into both ends so neither side
   # has to remember the other.
@@ -4064,6 +4073,11 @@ defmodule SlipdockWeb.WikiLive.Index do
   # second for minutes — and each reload reads the whole wiki. So a change
   # only books a reload a moment off, and those that land before it share it:
   # one reload per burst, not one per page, and the tab stays answerable.
+  # An action from the AI tools became a card, which may have written its
+  # number into the page.
+  def handle_info({:page_tool_card, %Page{} = page}, socket),
+    do: {:noreply, reload(socket, page)}
+
   def handle_info(:autosave, socket) do
     {:noreply, socket |> assign(autosave_timer: false) |> flush_autosave()}
   end
@@ -4853,6 +4867,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     outline={@folder_outline}
                     autosaved?={@autosaved?}
                     restored_from={@restored_from}
+                    page_tools={page_tools_button(assigns)}
                   />
                 <% :history -> %>
                   <.history_body board={@board} page={@page} revisions={@revisions} />
@@ -4890,12 +4905,26 @@ defmodule SlipdockWeb.WikiLive.Index do
                     form_key={@form_key}
                     shares={@page_shares}
                     marks={@marks}
+                    page_tools={page_tools_button(assigns)}
                   />
               <% end %>
             </div>
           </main>
 
           <.file_panel :if={@file_shown} shown={@file_shown} />
+
+          <.live_component
+            :if={@page_tools and page_tools_button(assigns) != nil and is_nil(@file_shown)}
+            module={PageToolsComponent}
+            id={"page-tools-#{(@page && @page.id) || "new"}"}
+            board={@board}
+            page={@page}
+            title={page_tools_source(assigns).title}
+            text={page_tools_source(assigns).text}
+            editing={@live_action in [:new, :edit]}
+            can_write={@can_write}
+            current_user={@current_user}
+          />
         </div>
       </div>
 
@@ -6388,6 +6417,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :form_key, :integer, default: 0
   attr :shares, :integer, default: 0
   attr :marks, :any, default: nil, doc: "the reader's favourites, for the page's heart"
+  attr :page_tools, :any, default: nil, doc: "the AI tools button: its pressed state, or nil"
 
   defp page_body(assigns) do
     ~H"""
@@ -6457,6 +6487,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             <.icon name="hero-paint-brush" class="size-4" />
             {if @can_write, do: "Edit drawing", else: "Open drawing"}
           </.link>
+          <.page_tools_toggle pressed={@page_tools} />
           <.link
             :if={@can_write}
             patch={~p"/boards/#{@board}/wiki/#{@page.slug}/edit"}
@@ -7031,6 +7062,45 @@ defmodule SlipdockWeb.WikiLive.Index do
     """
   end
 
+  # Nil where the tools have nothing to work on, or no model to ask: a page
+  # that isn't there, a drawing, or a screen that isn't one page's text.
+  defp page_tools_button(%{page_tools_ai: false}), do: nil
+
+  defp page_tools_button(%{live_action: :new, form: %{}} = assigns), do: assigns.page_tools
+
+  defp page_tools_button(%{live_action: action, page: %Page{} = page} = assigns)
+       when action in [:show, :edit] do
+    if Slipdock.Wiki.Excalidraw.page?(page), do: nil, else: assigns.page_tools
+  end
+
+  defp page_tools_button(_assigns), do: nil
+
+  # When editing, what is in the editor; when reading, what is saved.
+  defp page_tools_source(%{live_action: action, form: form}) when action in [:new, :edit] do
+    %{title: form[:title].value, text: to_string(form[:body].value)}
+  end
+
+  defp page_tools_source(%{page: page}), do: %{title: page.title, text: page.body}
+
+  attr :pressed, :any, required: true
+
+  defp page_tools_toggle(assigns) do
+    ~H"""
+    <button
+      :if={not is_nil(@pressed)}
+      type="button"
+      id="page-tools-toggle"
+      phx-click="toggle_page_tools"
+      aria-pressed={to_string(@pressed)}
+      title="AI tools: summarise, extract actions and more"
+      class={["btn btn-sm gap-1.5", if(@pressed, do: "btn-soft", else: "btn-ghost")]}
+    >
+      <.icon name="hero-sparkles" class="size-4" />
+      <span class="hidden sm:inline">AI tools</span>
+    </button>
+    """
+  end
+
   attr :form, :any, required: true
   attr :page, :any, default: nil
   attr :board, :any, required: true
@@ -7043,6 +7113,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :outline, :list, default: [], doc: "the board's folders, for the Folder picker"
   attr :autosaved?, :boolean, default: false
   attr :restored_from, :any, default: nil, doc: "when the restored auto-save was written"
+  attr :page_tools, :any, default: nil, doc: "the AI tools button: its pressed state, or nil"
 
   defp editor(assigns) do
     ~H"""
@@ -7076,6 +7147,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             <.icon name={if @show_preview, do: "hero-eye", else: "hero-eye-slash"} class="size-4" />
             Preview
           </button>
+          <.page_tools_toggle pressed={@page_tools} />
           <span
             :if={@autosaved?}
             id="autosave-status"

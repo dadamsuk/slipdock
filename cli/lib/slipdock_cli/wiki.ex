@@ -295,6 +295,16 @@ defmodule SlipdockCLI.Wiki do
 
   # `read` is the source you would edit; `render` is what it says once every
   # reference has been followed. Answering a question wants the second.
+  # An AI tool over a page: the answer's Markdown, on the caller's AI key.
+  def run("page", ["ai", ref, tool], o) do
+    HTTP.post("/pages/#{enc(ref)}/ai", %{"tool" => tool})
+    |> out(o, fn %{"answer" => answer} ->
+      IO.puts(answer["text"])
+      if answer["truncated"], do: IO.puts("(only the start of the page was read)")
+      if answer["concealed"], do: IO.puts("(encrypted passages were left out)")
+    end)
+  end
+
   def run("page", ["render", ref], o) do
     HTTP.get("/pages/#{enc(ref)}/render", format: o[:format])
     |> out(o, fn r -> IO.puts(r["body"] || "") end)

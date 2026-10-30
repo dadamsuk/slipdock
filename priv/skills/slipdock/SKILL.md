@@ -543,6 +543,7 @@ slipdock page ls <board> [--q TEXT] [--archived|--all] [--template] [--draft]
 slipdock page tree <board>                    # the page tree, nesting shown by indent
 slipdock page read <page>                     # the Markdown source (--json for the metadata too)
 slipdock page new <board> <title...> [--body TEXT|--file F|--body -] [--parent P] [--summary S] [--message M] [--draft]
+slipdock page ai <page> summarise|key_points|actions|titles|improve   # an AI tool over a page, on your AI key; writes nothing
 slipdock note <text...> | slipdock note --body -   # a quick note: the server names it, files it in the main vault and says where
 slipdock page edit <page> [--title T] [--summary S] [--body TEXT|--file F|--body -] [--message M] [--base-hash H] [--draft|--publish]
 slipdock page mv <page> [--parent P | --root] [--position N|top|bottom]

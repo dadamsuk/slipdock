@@ -50,6 +50,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.WritePage,
     Tools.UpdatePage,
     Tools.QuickNote,
+    Tools.PageTool,
     Tools.FileFolder,
     Tools.Share,
     Tools.RevertPage,

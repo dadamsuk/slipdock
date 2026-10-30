@@ -2528,6 +2528,12 @@ defmodule SlipdockWeb.APIGuide do
     `quick_note` saves text to the person's main vault; the server names it,
     picks the folder, and answers with `code`, `title`, `vault` and `location`.
 
+    The AI tools beside a page: `POST /api/pages/:id/ai {"tool"}`, `slipdock page
+    ai <page> <tool>` or the MCP tool `page_tool` run `summarise`, `key_points`,
+    `actions`, `titles` or `improve` over the saved page on the caller's AI key,
+    and write nothing. `answer.text` is Markdown, `answer.items` the lines of a
+    list; `POST /api/pages/:id/cards` makes a card of an action.
+
     ### Drawings (Excalidraw)
 
     Obsidian's Excalidraw plugin keeps a drawing as a `.excalidraw.md` page

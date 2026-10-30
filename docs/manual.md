@@ -211,7 +211,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 53 tools (five of them only
+  other MCP clients get the boards and the wiki as 54 tools (five of them only
   while meeting mode or chat capture is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -1838,6 +1838,29 @@ where it went, with a link to the page; the box empties, ready for the next one.
 
 From a shell, `slipdock note ring the printers` (or `--body -` to read stdin); `POST
 /api/notes {text}` and the `quick_note` MCP tool do the same.
+
+## AI tools beside a page
+
+With an AI model set (Account → AI model), **AI tools** at the top of a wiki page, reading or
+editing it, opens a panel beside it (full screen on a phone). Each tool asks the model once, on
+your own key, and only answers:
+
+- **Summarise**, **Key points** and **Suggest titles**: what they say.
+- **Extract actions** lists what the page says someone has to do. **Make a card** beside one
+  puts it in the board's first list, linked to the page, as a selection made into a card is.
+  It is offered while reading a saved page you can write to.
+- **Improve the writing**, while editing, fixes the spelling and grammar and shortens sentences.
+
+Reading, the tools work on the saved page. Editing, they work on what is in the editor, saved
+or not, and **Add to the page** puts the answer at the cursor as a paragraph of its own. Nothing
+is saved until you save. **Copy** takes it anywhere else.
+
+Encrypted passages are left out and never reach the model. A page over 30,000 characters is
+cut there, and the panel says so. Drawings have no tools.
+
+From a shell, `slipdock page ai W-31 summarise` (also `key_points`, `actions`, `titles`,
+`improve`); `POST /api/pages/:id/ai {tool}` and the `page_tool` MCP tool do the same. They
+need only read access to the page.
 
 ## Keyboard
 
@@ -6001,6 +6024,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 | `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `also` / `not_in` (other folders it is also filed in), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
 | `quick_note` | Saves text as a note in the person's main vault: the server names it and picks the folder, as [Quick notes](#quick-notes) does, and answers with its code, title, vault and `location`. `write_page` is for choosing the board and title. |
+| `page_tool` | Runs an AI tool over a page on your AI key (see [AI tools beside a page](#ai-tools-beside-a-page)) and returns the answer: `summarise`, `key_points`, `actions`, `titles` or `improve`. Writes nothing. |
 | `file_folder` | Files a wiki folder in one more folder as well as its home (`also`), or takes it out of one (`not_in`): a folder on its board, on `in_board`, or a vault path. Same board or same vault, write on both, never inside itself. Answers with where it is filed now (`also_in`). |
 | `share` | Shares a wiki page (`page`, a code) or folder (`folder`, with `board`) with a person (`with`, an email) or a group of yours (`group`), `level` read, comment or write; a folder shares everything at home in it. `off: true` takes it back; neither `with` nor `group` lists who has it. Only the board's writers share; somebody it was shared with gets `shared_no_reshare`. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |

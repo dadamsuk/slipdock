@@ -31,4 +31,19 @@ defmodule SlipdockCLI.NoteTest do
     assert out =~ "noted W-9  2026-10-30 15.39 Printers"
     assert out =~ "in Mind /Inbox"
   end
+
+  test "`page ai` prints the answer, and what it left out" do
+    answer = %{text: "All about printers.", truncated: true, concealed: true}
+
+    System.put_env(
+      "SLIPDOCK_URL",
+      FakeServer.start([{200, :json.encode(%{answer: answer}) |> IO.iodata_to_binary()}])
+    )
+
+    out = capture_io(fn -> Wiki.run("page", ["ai", "W-9", "summarise"], []) end)
+
+    assert out =~ "All about printers."
+    assert out =~ "only the start of the page"
+    assert out =~ "encrypted passages were left out"
+  end
 end
