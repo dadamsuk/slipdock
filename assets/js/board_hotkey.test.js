@@ -1,7 +1,7 @@
 // node --test assets/js
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {boardHotkey, searchHotkey} from "./board_hotkey.js"
+import {boardHotkey, noteHotkey, searchHotkey} from "./board_hotkey.js"
 
 const key = (code, mods = {}) => ({code, ctrlKey: true, shiftKey: true, ...mods})
 
@@ -55,4 +55,19 @@ test("anything short of Shift-Alt-S is not search", () => {
   assert.equal(searchHotkey({key: "S", code: "KeyS", metaKey: true, altKey: true, shiftKey: true}), false)
   assert.equal(searchHotkey({key: "A", code: "KeyA", shiftKey: true, altKey: true}), false)
   assert.equal(searchHotkey({shiftKey: true, altKey: true}), false)
+})
+
+test("Shift-Alt-N is a quick note, by the letter or, on a Mac, the key", () => {
+  const mods = {shiftKey: true, altKey: true}
+  assert.equal(noteHotkey({key: "N", code: "KeyN", ...mods}), true)
+  assert.equal(noteHotkey({key: "˜", code: "KeyN", ...mods}), true)
+  assert.equal(noteHotkey({key: "S", code: "KeyS", ...mods}), false)
+  assert.equal(searchHotkey({key: "N", code: "KeyN", ...mods}), false)
+})
+
+test("Shift-Alt-N stands down with Ctrl or Cmd held, or AltGr", () => {
+  const mods = {key: "N", code: "KeyN", shiftKey: true, altKey: true}
+  assert.equal(noteHotkey({...mods, ctrlKey: true}), false)
+  assert.equal(noteHotkey({...mods, metaKey: true}), false)
+  assert.equal(noteHotkey({...mods, shiftKey: false}), false)
 })

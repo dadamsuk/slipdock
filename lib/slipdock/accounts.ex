@@ -86,6 +86,11 @@ defmodule Slipdock.Accounts do
     user |> User.quick_add_changeset(attrs) |> Repo.update()
   end
 
+  @doc "Where quick notes land. The caller has checked the vault is theirs."
+  def update_quick_note(%User{} = user, attrs) do
+    user |> User.quick_note_changeset(attrs) |> Repo.update()
+  end
+
   def change_quick_add(%User{} = user, attrs \\ %{}), do: User.quick_add_changeset(user, attrs)
 
   @doc "Inbound mail settings (#1249): `inbound_ack`, a link back for each card mail makes."

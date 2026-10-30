@@ -10,6 +10,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   alias Slipdock.AI
   alias Slipdock.HeaderLinks
   alias Slipdock.QuickAdd.Capture
+  alias Slipdock.Wiki.QuickNote
 
   @impl true
   def update(assigns, socket) do
@@ -25,6 +26,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
          |> assign_quick_add(Accounts.change_quick_add(socket.assigns.current_user))
          |> assign_ai_key()
          |> assign_header_links()
+         |> assign_quick_note()
          |> assign(google_drive: Slipdock.Google.status(socket.assigns.current_user))}
   end
 
@@ -65,6 +67,19 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
       else: listed
   end
 
+  defp quick_note_attrs(_user, ""),
+    do: {:ok, %{quick_note_vault_id: nil, quick_note_folder: nil}}
+
+  defp quick_note_attrs(user, location) do
+    with [id, path] <- String.split(location, ":", parts: 2),
+         {id, ""} <- Integer.parse(id),
+         {:ok, vault} <- Slipdock.Vaults.get_vault(user, id) do
+      {:ok, %{quick_note_vault_id: vault.id, quick_note_folder: path}}
+    else
+      _ -> :error
+    end
+  end
+
   # The links pinned to the header, and what could be pinned: boards the
   # person can open and their own vaults, less what is pinned already.
   defp assign_header_links(socket) do
@@ -96,6 +111,24 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   defp header_links_changed(socket) do
     send(self(), :header_links_changed)
     assign_header_links(socket)
+  end
+
+  # The places a quick note can land, by vault. The value carries both the
+  # vault and the path, as one choice.
+  defp assign_quick_note(socket) do
+    user = socket.assigns.current_user
+
+    options =
+      for vault <- Slipdock.Vaults.list_vaults(user) do
+        places = QuickNote.places(vault, user)
+        {vault.name, Enum.map(places, &{"/" <> &1.path, "#{vault.id}:#{&1.path}"})}
+      end
+
+    current =
+      if user.quick_note_vault_id,
+        do: "#{user.quick_note_vault_id}:#{user.quick_note_folder}"
+
+    assign(socket, quick_note_options: options, quick_note_location: current)
   end
 
   # The quick add settings, with the lists narrowed to the chosen board's.
@@ -190,6 +223,25 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
 
       {:error, cs} ->
         {:noreply, assign_quick_add(socket, cs)}
+    end
+  end
+
+  def handle_event("save_quick_note", %{"location" => location}, socket) do
+    user = socket.assigns.current_user
+
+    case quick_note_attrs(user, location) do
+      {:ok, attrs} ->
+        {:ok, user} = Accounts.update_quick_note(user, attrs)
+        send(self(), {:current_user, user})
+
+        {:noreply,
+         socket
+         |> assign(current_user: user)
+         |> assign_quick_note()
+         |> flash(:info, "Quick note settings saved.")}
+
+      :error ->
+        {:noreply, flash(socket, :error, "That isn't one of your vaults.")}
     end
   end
 
@@ -452,6 +504,39 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
             </div>
           </fieldset>
           <button type="submit" class="btn btn-primary btn-sm">Pin to header</button>
+        </form>
+      </section>
+
+      <section
+        id="quick-note-settings"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="text-lg font-semibold">Quick notes</h2>
+        <p class="text-sm text-base-content/60">
+          Where a note written with Shift-Alt-N goes when AI can't choose a better folder in
+          that vault. The vault you pick here is the one notes are filed in.
+        </p>
+        <p :if={@quick_note_options == []} class="mt-4 text-sm text-base-content/50">
+          You have no vault yet. <.link navigate={~p"/vaults"} class="link">Make one</.link>
+          to use quick notes.
+        </p>
+        <form
+          :if={@quick_note_options != []}
+          id="quick-note-form"
+          phx-submit="save_quick_note"
+          phx-target={@myself}
+          class="mt-4 space-y-2"
+        >
+          <.input
+            type="select"
+            id="quick-note-location"
+            name="location"
+            label="Location"
+            prompt="The top of my first vault"
+            value={@quick_note_location}
+            options={@quick_note_options}
+          />
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </form>
       </section>
 

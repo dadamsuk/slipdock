@@ -13,6 +13,10 @@ defmodule Slipdock.Accounts.User do
     field :inbound_ack, :boolean, default: false
     belongs_to :quick_add_board, Slipdock.Boards.Board
     belongs_to :quick_add_column, Slipdock.Boards.Column
+    # Where a quick note lands unless the model places it (#1538): a vault of
+    # their own, and a vault path in it.
+    belongs_to :quick_note_vault, Slipdock.Vaults.Vault
+    field :quick_note_folder, :string
     # How this person likes the board index: "grid" (cards) or "compact" (a
     # table), and the order the boards are listed in. Both are theirs alone.
     field :board_layout, :string, default: "grid"
@@ -98,6 +102,13 @@ defmodule Slipdock.Accounts.User do
   a list of its own clears the list.
   """
   def inbound_changeset(user, attrs), do: cast(user, attrs, [:inbound_ack])
+
+  def quick_note_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:quick_note_vault_id, :quick_note_folder])
+    |> validate_length(:quick_note_folder, max: 500)
+    |> foreign_key_constraint(:quick_note_vault_id)
+  end
 
   def quick_add_changeset(user, attrs) do
     user

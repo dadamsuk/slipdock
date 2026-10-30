@@ -15,7 +15,16 @@ export function boardHotkey(e) {
 // "Í", so anything that is not a plain letter falls back to the key itself.
 // Ctrl is ruled out because AltGr reports as Ctrl-Alt.
 export function searchHotkey(e) {
+  return shiftAlt(e, "s")
+}
+
+// Shift-Alt-N (#1538): a quick note, read the same way.
+export function noteHotkey(e) {
+  return shiftAlt(e, "n")
+}
+
+function shiftAlt(e, letter) {
   if (!e.shiftKey || !e.altKey || e.ctrlKey || e.metaKey) return false
   const key = (e.key || "").toLowerCase()
-  return /^[a-z]$/.test(key) ? key === "s" : e.code === "KeyS"
+  return /^[a-z]$/.test(key) ? key === letter : e.code === `Key${letter.toUpperCase()}`
 }

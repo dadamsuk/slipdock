@@ -211,7 +211,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 52 tools (five of them only
+  other MCP clients get the boards and the wiki as 53 tools (five of them only
   while meeting mode or chat capture is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -1819,6 +1819,26 @@ views that cannot survive being narrowed render something else instead.
 Everything else — cards, modals, panels and the AI drawer — is full-screen
 and allows for the home indicator's safe area.
 
+## Quick notes
+
+The pencil at the top right, `Shift-Alt-N`, or **Quick note** in the phone's menu opens a box
+to write in, on any page. **Save** (or `Ctrl-Enter`) files it in your main vault and shows
+where it went, with a link to the page; the box empties, ready for the next one.
+
+- **The name** is `YYYY-MM-DD HH.MM` in your own timezone, then a few words the AI model
+  takes from what you wrote: `2026-10-30 15.39 Printers banner call`.
+- **The place** is the folder of the vault the model thinks fits best. It may add one new
+  folder beneath an existing one, never a new top-level folder, and only somewhere you can write.
+- **Your settings** (Account → Settings → Quick notes) pick the vault and a location in it.
+  The location is where a note goes when the model can't place it. With nothing set, it is
+  the top of your first vault.
+- **No model, or one that fails:** the note is still saved, at your location, named after
+  its first words.
+- Closing the box keeps what you typed until you leave the page, and a failed save keeps it too.
+
+From a shell, `slipdock note ring the printers` (or `--body -` to read stdin); `POST
+/api/notes {text}` and the `quick_note` MCP tool do the same.
+
 ## Keyboard
 
 Press `?` anywhere for this list on screen. Nothing fires while you are typing
@@ -1849,6 +1869,8 @@ dialogs leave the page's keys alone.
   page](#deep-search-and-ask), with the cursor in its box. Already there, it just puts the
   cursor back, your results intact; from Ask it switches to Search and takes
   the question with it
+- `Shift-Alt-N` — **a quick note** (`Shift-Option-N` on a Mac), from anywhere, even
+  mid-sentence; the same key shuts it. See [Quick notes](#quick-notes)
 - `h` — all boards (the board takes this one while the keyboard is on it)
 - `b` — **switch board**: every board you can open, then your vaults, each with
   its own key; press that key to go there
@@ -5978,6 +6000,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `delete_board` | Deletes a board you own and everything on it. `confirm` must repeat the board's code. |
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 | `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `also` / `not_in` (other folders it is also filed in), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
+| `quick_note` | Saves text as a note in the person's main vault: the server names it and picks the folder, as [Quick notes](#quick-notes) does, and answers with its code, title, vault and `location`. `write_page` is for choosing the board and title. |
 | `file_folder` | Files a wiki folder in one more folder as well as its home (`also`), or takes it out of one (`not_in`): a folder on its board, on `in_board`, or a vault path. Same board or same vault, write on both, never inside itself. Answers with where it is filed now (`also_in`). |
 | `share` | Shares a wiki page (`page`, a code) or folder (`folder`, with `board`) with a person (`with`, an email) or a group of yours (`group`), `level` read, comment or write; a folder shares everything at home in it. `off: true` takes it back; neither `with` nor `group` lists who has it. Only the board's writers share; somebody it was shared with gets `shared_no_reshare`. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |

@@ -114,6 +114,17 @@ defmodule SlipdockWeb.Layouts do
             </div>
             <.header_links :if={@quick_add} links={@quick_add.links} />
             <.quick_add_bar :if={@quick_add} quick_add={@quick_add} />
+            <button
+              :if={@quick_add}
+              type="button"
+              id="quick-note-open"
+              phx-click={JS.push("toggle", target: "#quick-note")}
+              class="btn btn-ghost btn-sm btn-square hidden sm:inline-flex"
+              aria-label="Quick note"
+              title="Quick note (Shift-Alt-N)"
+            >
+              <.icon name="hero-pencil-square" class="size-5" />
+            </button>
             <%!-- Ctrl-O and Ctrl-P on a desktop; on a phone there is no Ctrl, and
                 the card finder is the fastest way to a card on a screen that
                 shows one list at a time. Same two panels, same two events. --%>
@@ -260,6 +271,13 @@ defmodule SlipdockWeb.Layouts do
       <main class="min-h-0 flex-1">
         {render_slot(@inner_block)}
       </main>
+
+      <.live_component
+        :if={@quick_add && @current_user}
+        module={SlipdockWeb.QuickNoteComponent}
+        id="quick-note"
+        current_user={@current_user}
+      />
 
       <.mobile_bar
         :if={@current_user}
@@ -541,6 +559,11 @@ defmodule SlipdockWeb.Layouts do
     <.menu_link :if={@phone} navigate={~p"/ask"} icon="hero-sparkles" on={@active == :ask}>
       Ask
     </.menu_link>
+    <li :if={@phone}>
+      <button type="button" id="quick-note-menu" phx-click={JS.push("toggle", target: "#quick-note")}>
+        <.icon name="hero-pencil-square" class="size-4" /> Quick note
+      </button>
+    </li>
 
     <li class="menu-title mt-1 border-t border-base-300/60 pt-2">Set up</li>
     <.menu_link navigate={~p"/templates"} icon="hero-squares-plus" on={@active == :templates}>

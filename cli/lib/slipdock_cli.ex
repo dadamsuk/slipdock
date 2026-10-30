@@ -256,6 +256,8 @@ defmodule SlipdockCLI do
                                         the same with every reference resolved: links
                                         followed, #412 filled in with what the card says
                                         now, [[!toc]] expanded
+    note <text...>                      save a quick note in your main vault; the server
+                                        names and files it, and says where (--body - reads stdin)
     page new <board> <title...>         write a page
         --body TEXT | --file F | --body -   (- reads the body from stdin)
         --parent P    put it under another page
