@@ -85,11 +85,11 @@ defmodule SlipdockWeb.WikiLive.PageToolsComponent do
   defp label(tool), do: List.keyfind(PageTools.tools(), tool, 0) |> elem(1)
 
   # Written out here, where Tailwind's scan finds the icon classes.
-  defp icon("summarise"), do: "hero-bars-3-bottom-left"
-  defp icon("key_points"), do: "hero-list-bullet"
-  defp icon("actions"), do: "hero-check-circle"
-  defp icon("titles"), do: "hero-tag"
-  defp icon("improve"), do: "hero-pencil"
+  defp tool_icon("summarise"), do: "hero-bars-3-bottom-left"
+  defp tool_icon("key_points"), do: "hero-list-bullet"
+  defp tool_icon("actions"), do: "hero-check-circle"
+  defp tool_icon("titles"), do: "hero-tag"
+  defp tool_icon("improve"), do: "hero-pencil"
 
   @impl true
   def render(assigns) do
@@ -137,7 +137,7 @@ defmodule SlipdockWeb.WikiLive.PageToolsComponent do
           disabled={not is_nil(@busy)}
           class="btn btn-ghost btn-sm justify-start gap-2"
         >
-          <.icon name={icon(tool)} class="size-4" />
+          <.icon name={tool_icon(tool)} class="size-4" />
           {if @busy == tool, do: "Working…", else: label}
         </button>
       </div>
