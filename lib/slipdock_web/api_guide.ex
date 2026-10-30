@@ -2524,6 +2524,10 @@ defmodule SlipdockWeb.APIGuide do
     `recording_drive_id` later with the `base` hash you got back, and on a
     409 change only that key in the content you are sent back.
 
+    A quick note: `POST /api/notes {"text"}`, `slipdock note` or the MCP tool
+    `quick_note` saves text to the person's main vault; the server names it,
+    picks the folder, and answers with `code`, `title`, `vault` and `location`.
+
     ### Drawings (Excalidraw)
 
     Obsidian's Excalidraw plugin keeps a drawing as a `.excalidraw.md` page
