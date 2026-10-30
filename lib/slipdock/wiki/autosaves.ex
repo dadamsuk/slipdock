@@ -13,19 +13,39 @@ defmodule Slipdock.Wiki.Autosaves do
 
   Everything here is one person's: every read is by user, and nothing here
   reaches the page, its history, search or sync until they save.
+
+  The shared-page editor (#1534) keeps its work here too. Its writers may not be
+  able to read the board, so theirs is listed by `shared_with/1`, on Shared with
+  me, rather than by `on_board/2`.
   """
   import Ecto.Query, warn: false
 
   alias Slipdock.Accounts.User
   alias Slipdock.Boards
   alias Slipdock.Boards.{Attachment, Board}
-  alias Slipdock.{Quota, Repo, Wiki}
-  alias Slipdock.Wiki.{Autosave, AutosaveFile, Page}
+  alias Slipdock.{Access, Quota, Repo, Wiki}
+  alias Slipdock.Wiki.{Autosave, AutosaveFile, Page, Sharing}
 
   @ttl_days 30
   @max_held_bytes 500 * 1024 * 1024
+  @fields ~w(title summary body status folder_id icon color)
 
   def ttl_days, do: @ttl_days
+
+  @doc "The form fields an auto-save keeps."
+  def fields, do: @fields
+
+  @doc "Whether the form still says what the page says: nothing to keep."
+  def unchanged?(%Page{} = page, params) do
+    params
+    |> Map.take(@fields)
+    |> Enum.all?(fn {field, value} ->
+      form_text(value) == form_text(Map.get(page, String.to_existing_atom(field)))
+    end)
+  end
+
+  defp form_text(nil), do: ""
+  defp form_text(value), do: value |> to_string() |> String.replace("\r\n", "\n")
 
   @doc "The most a person can hold in images not saved yet: 500 MB."
   def max_held_bytes, do: Slipdock.Config.get(:autosave_max_held_bytes, @max_held_bytes)
@@ -57,6 +77,25 @@ defmodule Slipdock.Wiki.Autosaves do
       preload: [:page]
     )
     |> Repo.all()
+  end
+
+  @doc """
+  The edits `user` has unsaved on pages shared with them to write, the latest
+  first. A board's own writers find theirs on its wiki instead, and a share
+  taken back takes the entry with it: the row waits, unlisted, for its expiry.
+  """
+  def shared_with(%User{id: user_id} = user) do
+    from(a in Autosave,
+      join: p in assoc(a, :page),
+      where: a.user_id == ^user_id and is_nil(p.archived_at),
+      order_by: [desc: a.updated_at, desc: a.id],
+      preload: [page: p]
+    )
+    |> Repo.all()
+    |> Enum.filter(fn %{page: page} ->
+      Access.can_write?(Access.share_permission(user, page)) and
+        not Sharing.board_writer?(user, page.board_id)
+    end)
   end
 
   @doc "One of `user`'s, on `board`, by id, or nil."

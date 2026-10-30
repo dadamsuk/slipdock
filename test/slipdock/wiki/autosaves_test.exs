@@ -260,4 +260,20 @@ defmodule Slipdock.Wiki.AutosavesTest do
       refute File.exists?(Autosaves.file_path(file))
     end
   end
+
+  describe "unchanged?/2 (#1534)" do
+    setup do
+      %{page: %Slipdock.Wiki.Page{title: "Plan", body: "One\ntwo", summary: nil}}
+    end
+
+    test "reads a browser's line endings and a blank field as the page's", %{page: page} do
+      assert Autosaves.unchanged?(page, %{"title" => "Plan", "body" => "One\r\ntwo"})
+      assert Autosaves.unchanged?(page, %{"summary" => ""})
+    end
+
+    test "sees a change, and ignores what is not a form field", %{page: page} do
+      refute Autosaves.unchanged?(page, %{"body" => "One"})
+      assert Autosaves.unchanged?(page, %{"_target" => "anything"})
+    end
+  end
 end
