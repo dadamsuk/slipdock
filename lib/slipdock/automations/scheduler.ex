@@ -48,6 +48,7 @@ defmodule Slipdock.Automations.Scheduler do
   defp safe_tick do
     sweep_runner_jobs()
     prune_wiki_changes()
+    prune_autosaves()
     resume_captures()
     make_recurring_cards()
     wake_snoozed_cards()
@@ -71,6 +72,13 @@ defmodule Slipdock.Automations.Scheduler do
     Slipdock.Wiki.Changes.prune_hourly()
   rescue
     exception -> Logger.error("Wiki change log prune failed: #{Exception.message(exception)}")
+  end
+
+  # Unsaved wiki work nobody came back for (see `Slipdock.Wiki.Autosaves`).
+  defp prune_autosaves do
+    Slipdock.Wiki.Autosaves.prune()
+  rescue
+    exception -> Logger.error("Autosave prune failed: #{Exception.message(exception)}")
   end
 
   # Recurring cards whose next instance is due (see `Slipdock.Recurrence`).

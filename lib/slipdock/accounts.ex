@@ -497,7 +497,8 @@ defmodule Slipdock.Accounts do
 
              keys =
                Slipdock.Boards.file_keys(from(b in Board, where: b.owner_id == ^user.id)) ++
-                 Slipdock.Meetings.audio_keys_of_owner(user)
+                 Slipdock.Meetings.audio_keys_of_owner(user) ++
+                 Slipdock.Wiki.Autosaves.user_keys(user)
 
              Repo.delete!(user)
              {:ok, {handed_over, keys}}

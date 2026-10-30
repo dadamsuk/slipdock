@@ -3317,6 +3317,23 @@ or dropping an image attaches it as before (one that can't be taken — over
 rest of the text saves as usual). In a card's description, Escape
 finishes editing. What is saved is the Markdown, exactly as typed.
 
+**Auto-save.** The page editor keeps your work as you type, every few seconds,
+and says *Auto-saved* beside the buttons. That copy is yours alone: it is not
+a revision, nobody else sees it, and search and sync know nothing of it until
+you press **Save**. Come back to a page you left mid-edit and it opens as you
+left it, with **Discard it** to start again from the page; if someone has
+saved the page since, Save shows you their version to merge, as it always
+does. New pages you never saved are listed under **Unsaved work** on the
+wiki's front page and on the New page screen. **Cancel** throws the work away,
+and anything left untouched goes after 30 days.
+
+An image can go into a new page straight away, before it has a title or a
+save. It is held in a temporary auto-save folder, and shown only to you, until
+Save makes it an ordinary attachment of the page; one you delete from the text
+first is not kept. Held images don't count towards the board's storage until
+then, and each person can hold up to 500 MB of them. The shared-page editor
+at `/shared/pages/:id/edit` has no auto-save.
+
 A page has three names, and they do different jobs. Its **code** — `W-31` —
 is short, globally unique and stable across renames, so it is what belongs in
 a commit message or a link. Its **slug** comes off the title and is what the

@@ -302,7 +302,9 @@ defmodule Slipdock.Wiki.Page do
     # back out with the same bytes.
     |> cast(attrs, [:body], empty_values: [])
     |> cast(attrs, [:file_name])
-    |> update_change(:title, &String.trim/1)
+    # Blank reaches here as nil: the editor sends it on every change until a
+    # title is typed, and `validate_required` is what answers it.
+    |> update_change(:title, &(&1 && String.trim(&1)))
     |> follow_title(attrs)
     |> validate_length(:file_name, max: 255)
     |> validate_format(:file_name, ~r/\A[^\/\\]+\z/, message: "can't hold a slash")

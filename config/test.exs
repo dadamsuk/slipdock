@@ -46,6 +46,9 @@ config :slipdock, :board_key_claims, Slipdock.BoardKeyClaims
 # Automations: no background clock, and deliveries run inline so tests can
 # assert on them (and stay inside the SQL sandbox). Callbacks go to a
 # `Req.Test` stub rather than out of the machine.
+# Tests send the editor its `:autosave` tick themselves.
+config :slipdock, :wiki_autosave_after_ms, :timer.hours(1)
+
 config :slipdock, :automations,
   enabled: true,
   interval: :manual,
