@@ -250,4 +250,41 @@ defmodule Slipdock.ShortNamesTest do
       assert ShortNames.backfill(ids: [long.id]) == %{named: 0, by_model: 0}
     end
   end
+
+  describe "improve_systematic/0" do
+    test "the model's name replaces a systematic one, and a second run has nothing to do", %{
+      column: column
+    } do
+      card = card!(column, @long)
+
+      typed =
+        card!(column, "Another title long enough to want a short name", %{"short_name" => "Mine"})
+
+      plain = card!(column, "Short title")
+      AIStub.reply_with("Improved")
+
+      assert ShortNames.improve_systematic() == %{tried: 1, by_model: 1}
+      assert Repo.get!(Card, card.id).short_name == "Improved"
+      assert Repo.get!(Card, typed.id).short_name == "Mine"
+      assert Repo.get!(Card, plain.id).short_name == nil
+
+      assert ShortNames.improve_systematic() == %{tried: 0, by_model: 0}
+    end
+
+    test "a failed call leaves the systematic name, to try again", %{column: column} do
+      card = card!(column, @long)
+      Req.Test.stub(Slipdock.AI, &Plug.Conn.send_resp(&1, 500, "boom"))
+
+      assert ShortNames.improve_systematic() == %{tried: 1, by_model: 0}
+      assert Repo.get!(Card, card.id).short_name == ShortNames.systematic(@long)
+    end
+
+    test "with no key, nothing changes", %{column: column} do
+      card = card!(column, @long)
+      TestConfig.merge(:ai, api_key: nil)
+
+      assert ShortNames.improve_systematic() == %{tried: 1, by_model: 0}
+      assert Repo.get!(Card, card.id).short_name == ShortNames.systematic(@long)
+    end
+  end
 end

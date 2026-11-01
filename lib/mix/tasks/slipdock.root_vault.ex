@@ -4,7 +4,7 @@ defmodule Mix.Tasks.Slipdock.RootVault do
   Runs `Slipdock.Vaults.RootMigration` and writes a report.
 
       mix slipdock.root_vault --dry-run --out DIR [--rename kb=GMinds]
-        [--keep-folder Handbook] [--user ID] [--no-model]
+        [--keep-folder Handbook] [--keep-page W-1] [--user ID] [--no-model]
 
   Starts the Repo and PubSub only, so no jobs, mail or automations fire.
   `--dry-run` rolls back. Without it the changes are saved, so that takes
@@ -20,6 +20,7 @@ defmodule Mix.Tasks.Slipdock.RootVault do
     out: :string,
     rename: :keep,
     keep_folder: :keep,
+    keep_page: :keep,
     user: :keep,
     model: :boolean
   ]
@@ -48,6 +49,7 @@ defmodule Mix.Tasks.Slipdock.RootVault do
         model: opts[:model] != false,
         rename: renames(opts),
         keep_folders: Keyword.get_values(opts, :keep_folder),
+        keep_pages: Keyword.get_values(opts, :keep_page),
         user_ids: user_ids(opts)
       )
 
