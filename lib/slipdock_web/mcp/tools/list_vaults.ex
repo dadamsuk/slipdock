@@ -85,14 +85,14 @@ defmodule SlipdockWeb.MCP.Tools.ListVaults do
                   }}
 
         {nil, nil} ->
-          {:ok, %{vaults: user |> Vaults.list_vaults() |> Enum.map(&V.vault/1)}}
+          {:ok, %{vaults: user |> Vaults.list_vaults() |> Enum.map(&V.vault(&1, user))}}
 
         {nil, _path} ->
           {:error, "say which vault the path is in"}
 
         {ref, nil} ->
           with {:ok, vault} <- Args.refusal(Vaults.get_vault(user, ref)),
-               do: {:ok, %{vault: V.vault(vault)}}
+               do: {:ok, %{vault: V.vault(vault, user)}}
 
         {ref, path} ->
           with {:ok, vault} <- Args.refusal(Vaults.get_vault(user, ref)),

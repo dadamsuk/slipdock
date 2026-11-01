@@ -54,14 +54,29 @@ defmodule Slipdock.Vaults.Sync do
   `%{kind: "stub", id:, path:, hash:, content:}`), with its directories in
   `folders`. `base_url` is what a stub's link starts with.
 
-      %{cursor: 931, entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:},
-                               %{kind: "file", id:, board_id:, path:, hash:, size:, name:}],
-        folders: ["Projects", "Projects/Acme"]}
+      %{cursor: 931,
+        entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:, icon:, color:,
+                    writable:, shareable:},
+                  %{kind: "file", id:, board_id:, path:, hash:, size:, name:,
+                    writable:, shareable:}],
+        folders: ["Projects", "Projects/Acme"],
+        folder_details: %{"Projects" => %{id:, board_id:, icon:, color:, writable:, shareable:}}}
 
   `folders` is every folder of the vault as a directory, empty ones too, so
   a client can make the ones it hasn't got and take away the ones the
   server no longer has. It is its own key rather than entries of a kind of
   their own, which a client from before it would take for pages.
+
+  `folder_details` says more about the same folders, keyed by vault path, and
+  so has no entry for a directory that is only there for a stub, nor for a
+  folder mapped at the vault's root. `icon` and `color` are names, nil when
+  plain, whether or not the board shows them (`wiki_tree_icons`).
+
+  `writable` and `shareable` mean what they mean in the web tree, for this
+  reader and token: `writable` that they can write to the row's board, and
+  `shareable` that they may share the row, which takes the same right and
+  doesn't apply to a file. Stubs carry none of this: a stub isn't the
+  reader's to change.
 
   `cursor` is the change feed's position taken *before* the listing was
   read, so following the feed from it sees anything that changed while it
@@ -82,7 +97,12 @@ defmodule Slipdock.Vaults.Sync do
         from(p in Page, where: p.id in ^ids) |> Repo.all()
       end)
       |> Enum.filter(&Wiki.visible?(&1, Map.get(levels, &1.board_id, :none)))
-      |> Enum.map(&(entry(layout, &1, also) |> Map.drop([:content])))
+      |> Enum.map(fn page ->
+        layout
+        |> entry(page, also)
+        |> Map.drop([:content])
+        |> Map.merge(rights(levels, page.board_id))
+      end)
 
     files =
       layout.files
@@ -90,7 +110,12 @@ defmodule Slipdock.Vaults.Sync do
       |> then(&from(f in WikiFile, where: f.id in ^&1))
       |> Repo.all()
       |> Enum.filter(&Access.can_read?(Map.get(levels, &1.board_id, :none)))
-      |> Enum.map(&file_entry(layout, &1))
+      |> Enum.map(fn file ->
+        layout
+        |> file_entry(file)
+        |> Map.merge(rights(levels, file.board_id))
+        |> Map.put(:shareable, false)
+      end)
 
     # What is shared with the reader and filed here, as stubs (#819), for
     # a client that knows what they are.
@@ -100,23 +125,37 @@ defmodule Slipdock.Vaults.Sync do
         else: {[], []}
 
     entries = Enum.sort_by(entries ++ files ++ stubs, & &1.path)
-    folders = Enum.sort(Enum.uniq(folders(layout, levels) ++ stub_dirs))
+    folder_details = folder_details(layout, levels)
+    folders = Enum.sort(Enum.uniq(Map.keys(folder_details) ++ stub_dirs))
 
-    %{cursor: cursor, entries: entries, folders: folders}
+    %{cursor: cursor, entries: entries, folders: folders, folder_details: folder_details}
   end
 
-  # The folders on the boards `levels` lets the reader open, as directories.
+  # The folders on the boards `levels` lets the reader open, by directory.
   # A folder mapped at the vault's root is the root itself, so no directory.
-  defp folders(layout, levels) do
+  # Two folders can land on one directory; the older one speaks for it.
+  defp folder_details(layout, levels) do
     ids = Map.keys(layout.folders)
 
-    from(f in Folder, where: f.id in ^ids, select: {f.id, f.board_id})
+    from(f in Folder, where: f.id in ^ids, order_by: [asc: f.id])
     |> Repo.all()
-    |> Enum.filter(fn {_id, board_id} -> Access.can_read?(Map.get(levels, board_id, :none)) end)
-    |> Enum.map(fn {id, _board_id} -> layout.folders[id] end)
-    |> Enum.reject(&(&1 in [nil, ""]))
-    |> Enum.uniq()
-    |> Enum.sort()
+    |> Enum.filter(&Access.can_read?(Map.get(levels, &1.board_id, :none)))
+    |> Enum.reject(&(layout.folders[&1.id] in [nil, ""]))
+    |> Enum.reduce(%{}, fn folder, details ->
+      Map.put_new(
+        details,
+        layout.folders[folder.id],
+        Map.merge(
+          %{id: folder.id, board_id: folder.board_id, icon: folder.icon, color: folder.color},
+          rights(levels, folder.board_id)
+        )
+      )
+    end)
+  end
+
+  defp rights(levels, board_id) do
+    writable = Access.can_write?(Map.get(levels, board_id, :none))
+    %{writable: writable, shareable: writable}
   end
 
   @doc "One page's file: `{:ok, %{id:, path:, hash:, content:, ...}}`."
@@ -145,6 +184,8 @@ defmodule Slipdock.Vaults.Sync do
       board_id: page.board_id,
       code: page.code,
       title: page.title,
+      icon: page.icon,
+      color: page.color,
       path: placed.path,
       hash: hash(content),
       content: content
