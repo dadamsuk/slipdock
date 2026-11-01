@@ -15,7 +15,8 @@
 # After a job:
 #   * Pass log: the job's Claude Code transcript (the newest one written since
 #     the job started that mentions the card's URL) goes to $PASSLOG, which
-#     can turn it into a wiki page pinned to the card.
+#     can turn it into a page in the card's folder. passlog.sh, beside this
+#     file, is one that does.
 #   * A job that timed out or failed sends an alert through $NOTIFY.
 #
 # What it leaves to the server: putting back a card the job left in
@@ -32,8 +33,9 @@ STATE=${SLIPDOCK_HOOK_STATE:-$HOME/.local/state/slipdock-runner}
 # Where Claude Code keeps this project's transcripts: ~/.claude/projects/
 # and the job's working directory with every / and . as a -.
 TRANSCRIPTS=${SLIPDOCK_HOOK_TRANSCRIPTS:-$HOME/.claude/projects/-home-me-src-app}
-# PASSLOG TRANSCRIPT --exit N — empty to skip. One server's turns the
-# transcript into a wiki page with `slipdock page new … --card`.
+# PASSLOG TRANSCRIPT --exit N — empty to skip. passlog.sh, beside this file,
+# turns the transcript into the page `Pass <card> (<YYYY-MM-DD HH.MM>)` with
+# `slipdock page new … --card`, so it lands in the card's folder.
 PASSLOG=${SLIPDOCK_HOOK_PASSLOG:-}
 # NOTIFY TITLE MESSAGE — empty to only log. For example:
 #   ntfy:     curl -fsS -H "Title: $1" -d "$2" https://ntfy.sh/your-topic

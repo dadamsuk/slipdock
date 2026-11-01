@@ -24,7 +24,7 @@ defmodule Slipdock.QuickAdd.Model do
   {"title": "…", "board": "…", "column": "…", "priority": "none|low|medium|high|critical", "flags": ["…"], "tags": ["…"], "assignee": "…", "start": "…", "due": "…"}
 
   Rules:
-  - "title" is required and is the only key you must always return: the line with the parts you lifted out taken away, tidied into a short title in the user's own words. Never invent detail, never pad it out, and keep names, numbers and jargon exactly as typed.
+  - "title" is required and is the only key you must always return: the line with the parts you lifted out taken away, tidied into a concise title in the user's own words: at most 60 characters when the line allows, the specific thing first. Never invent detail, never pad it out, and keep names, numbers and jargon exactly as typed.
   - Include another key only when the line actually says it. Omit it rather than guess; there is no harm in a card that only has a title.
   - Dates: do NOT work them out — the app does that. Copy the phrase the line uses into "due" (a deadline: "by Friday", "due tomorrow", "for the 3rd") or "start" (when the work begins: "start Monday", "from next week"), rewritten as one of these forms and nothing else: today, tomorrow, yesterday, mon…sun, next mon…next sun, next week, next month, eow, eom, "in 3 days", "in 2 weeks", "in 2 months", "1 oct", "2026-10-01". A line with one date and no word about starting means "due".
   - "board" and "column" must be copied character for character from the BOARDS catalogue below, and the column must be one of that board's own lists. Use them only when the line names one ("on the Marketing board", "straight into Doing"); otherwise leave both out and the default is used.

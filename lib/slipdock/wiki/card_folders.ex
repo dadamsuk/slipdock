@@ -8,6 +8,12 @@ defmodule Slipdock.Wiki.CardFolders do
   display. On disk it is `short_name || title`, read through `sources/1`, so a
   long title never makes a long path. Archiving the card leaves it where it is.
 
+  A page in the folder titled like the card is the card's write-up. Its file
+  is named as the folder is (`own_page_name/2`), derived rather than stored,
+  so a new short name reaches it too: `Cards/<short>/<short>.md`. Not
+  `index.md`: to the importer and to `Slipdock.Wiki.Archive` that means a page
+  with children.
+
   Attaching an existing page to a card is a pin, and moves nothing.
   """
 
@@ -141,6 +147,42 @@ defmodule Slipdock.Wiki.CardFolders do
   `Slipdock.Wiki.DiskName.assign/2`: `%{folder_id => {name, fallback}}`.
   """
   def sources(board_ids) do
+    board_ids
+    |> rows()
+    |> Map.new(fn {folder_id, card_id, short_name, title} ->
+      {folder_id, {short_name || title, "Card #{card_id}"}}
+    end)
+  end
+
+  @doc """
+  What `own_page_name/2` needs to know about the card folders of `board_ids`:
+  `%{folder_id => %{title:, name:}}`.
+  """
+  def own_pages(board_ids) do
+    board_ids
+    |> rows()
+    |> Map.new(fn {folder_id, _card_id, short_name, title} ->
+      {folder_id, %{title: String.trim(title), name: short_name || title}}
+    end)
+  end
+
+  @doc """
+  The name a page's file takes from its card, nil for a page that takes none:
+  `page` (`parent_id`, `folder_id`, `title`) has to sit at the top of a card's
+  folder and be titled exactly like the card. A write-up whose card has been
+  retitled since goes back to its own title.
+  """
+  def own_page_name(%{parent_id: nil, folder_id: folder_id, title: title}, own_pages)
+      when not is_nil(folder_id) do
+    case own_pages[folder_id] do
+      %{title: card_title, name: name} -> if String.trim(title) == card_title, do: name
+      nil -> nil
+    end
+  end
+
+  def own_page_name(_page, _own_pages), do: nil
+
+  defp rows(board_ids) do
     from(f in Folder,
       join: c in Card,
       on: c.id == f.card_id,
@@ -148,8 +190,5 @@ defmodule Slipdock.Wiki.CardFolders do
       select: {f.id, c.id, c.short_name, c.title}
     )
     |> Repo.all()
-    |> Map.new(fn {folder_id, card_id, short_name, title} ->
-      {folder_id, {short_name || title, "Card #{card_id}"}}
-    end)
   end
 end

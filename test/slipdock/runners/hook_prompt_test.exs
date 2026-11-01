@@ -42,6 +42,9 @@ defmodule Slipdock.Runners.HookPromptTest do
       text = HookPrompt.text("server", "https://slipdock.example/")
       assert text =~ "https://slipdock.example/runner/examples/after-job-hook.sh\n"
       assert text =~ "https://slipdock.example/runner/examples/after-job-hook-test.sh\n"
+      assert text =~ "https://slipdock.example/runner/examples/passlog.sh\n"
+      assert text =~ "Pass $SLIPDOCK_CARD (<YYYY-MM-DD HH.MM>)"
+      refute text =~ "slipdock page pin"
     end
 
     test "is PowerShell for the Windows runner" do

@@ -116,7 +116,7 @@ defmodule Slipdock.Meetings.UndoTest do
     capture = committed(ctx)
     [page_change] = Enum.filter(capture.change_set["changes"], &(&1["op"] == "decision_entry"))
     assert page_change["created_page"]
-    assert page_change["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
+    assert page_change["page_title"] == "2026-10-07 Pricing sync"
     {:ok, _} = Undo.undo(capture, ctx.owner)
     assert Repo.get!(Page, page_change["page_id"]).archived_at
   end
@@ -156,7 +156,7 @@ defmodule Slipdock.Meetings.UndoTest do
       |> reviewed_capture(ctx.owner, [decision_finding()])
       |> Commit.commit(ctx.owner)
 
-    assert [%{"page_title" => "Decisions / Pricing sync · 7 Oct 2026"}] =
+    assert [%{"page_title" => "2026-10-07 Pricing sync"}] =
              Enum.filter(again.change_set["changes"], &(&1["op"] == "decision_entry"))
   end
 

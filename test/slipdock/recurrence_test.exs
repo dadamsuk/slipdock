@@ -118,6 +118,86 @@ defmodule Slipdock.RecurrenceTest do
     end
   end
 
+  describe "an occurrence's short name" do
+    setup ctx do
+      card =
+        card_fixture(ctx.backlog, %{"title" => "Weekly review", "due_date" => "2027-01-11"})
+
+      {:ok, series} = Recurrence.set(card, %{"rule" => "mon"}, ctx.owner)
+      %{card: card, series: series}
+    end
+
+    defp next(series, at) do
+      series = Repo.get!(Series, series.id)
+      complete(Repo.get!(Card, series.card_id))
+      assert Recurrence.tick(at) == 1
+      Boards.get_card!(Repo.get!(Series, series.id).card_id)
+    end
+
+    test "is the title and the due date; the title stays", ctx do
+      new = next(ctx.series, ~U[2027-01-18 07:00:00Z])
+
+      assert new.title == "Weekly review"
+      assert new.short_name == "Weekly review 2027-01-18"
+      assert new.short_name_edited
+    end
+
+    test "is distinct per occurrence, and the date doesn't pile up", ctx do
+      one = next(ctx.series, ~U[2027-01-18 07:00:00Z])
+      two = next(ctx.series, ~U[2027-01-25 07:00:00Z])
+      three = next(ctx.series, ~U[2027-02-01 07:00:00Z])
+
+      assert Enum.map([one, two, three], & &1.short_name) == [
+               "Weekly review 2027-01-18",
+               "Weekly review 2027-01-25",
+               "Weekly review 2027-02-01"
+             ]
+    end
+
+    test "starts from a short name the card has", ctx do
+      {:ok, _} = Boards.update_card(ctx.card, %{"short_name" => "Review"})
+      assert next(ctx.series, ~U[2027-01-18 07:00:00Z]).short_name == "Review 2027-01-18"
+    end
+
+    test "fits, for a long title, which it keeps", ctx do
+      long = "Weekly review of the whole marketing pipeline and every open deal"
+      {:ok, _} = Boards.update_card(ctx.card, %{"title" => long})
+      new = next(ctx.series, ~U[2027-01-18 07:00:00Z])
+
+      assert new.title == long
+      assert String.length(new.short_name) <= Slipdock.Boards.ShortNames.max_length()
+      assert new.short_name =~ ~r/… 2027-01-18$/
+    end
+
+    test "the model leaves it alone", ctx do
+      Slipdock.TestConfig.merge(:short_names, refine: :inline)
+      Slipdock.AIStub.reply_with("Named by model")
+
+      long = "Weekly review of the whole marketing pipeline and every open deal"
+      {:ok, _} = Boards.update_card(ctx.card, %{"title" => long})
+      new = next(ctx.series, ~U[2027-01-18 07:00:00Z])
+      assert new.short_name =~ ~r/ 2027-01-18$/
+
+      assert Slipdock.Boards.ShortNames.refine(new) == :kept
+      assert Repo.get!(Card, new.id).short_name == new.short_name
+    end
+
+    test "an after-done series names its occurrences too", ctx do
+      card = card_fixture(ctx.backlog, %{"title" => "Water the plants"})
+      {:ok, series} = Recurrence.set(card, %{"rule" => "3d after"}, ctx.owner)
+      complete(card)
+
+      series = Repo.get!(Series, series.id)
+      assert %Date{} = series.next_on
+
+      moment = DateTime.new!(series.next_on, ~T[23:59:00], "Etc/UTC")
+      assert Recurrence.tick(moment) == 1
+
+      new = Boards.get_card!(Repo.get!(Series, series.id).card_id)
+      assert new.short_name == "Water the plants #{series.next_on}"
+    end
+  end
+
   describe "tick/1, fixed rules" do
     setup ctx do
       card =

@@ -41,7 +41,10 @@ defmodule Slipdock.Meetings.Commit do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Card, Column}
   alias Slipdock.Meetings.{Capture, Describe, Finding, Version}
-  alias Slipdock.Wiki.Page
+  alias Slipdock.Wiki.{GeneratedTitles, Page}
+
+  @meetings_folder "Meetings"
+  @decisions_heading "## Decisions"
 
   ## Building ------------------------------------------------------------------
 
@@ -425,10 +428,11 @@ defmodule Slipdock.Meetings.Commit do
 
   ## Decisions -------------------------------------------------------------------
 
-  # One page per meeting: it opens with the meeting's summary and key topics,
-  # and every decision a capture writes goes on it,
-  # "Decisions / <meeting> · <date>", grouped under a `## <topic>`
-  # heading when they span more than one topic. An earlier entry a new
+  # One page per meeting, "<YYYY-MM-DD> <meeting in a few words>", filed in the
+  # board's `Meetings` folder: it opens with the meeting's summary and key
+  # topics, and every decision a capture writes goes in its `## Decisions`
+  # section, grouped under a `## <topic>` heading when they span more than one
+  # topic. An earlier entry a new
   # decision replaces is struck where it is — on this meeting's page, an
   # earlier meeting's, or an older page per topic — found among the
   # decisions the context step read. Each side links to the other's page.
@@ -544,7 +548,7 @@ defmodule Slipdock.Meetings.Commit do
         {title, earlier}
 
       nil ->
-        base = "Decisions / #{String.slice(capture.title || "", 0, 160)} · #{date(capture)}"
+        base = meeting_title(capture)
 
         title =
           Stream.iterate(1, &(&1 + 1))
@@ -564,6 +568,19 @@ defmodule Slipdock.Meetings.Commit do
         {title, []}
     end
   end
+
+  # Named from what the reading said the meeting was: its own few words, else
+  # its first topic, which is a few words too. The capture's title comes last,
+  # being as often as not the recording's file name.
+  defp meeting_title(capture) do
+    named = get_in(capture.readings || %{}, ["notes", "name"])
+    topic = capture |> Meetings.notes() |> Map.get("topics") |> List.first()
+
+    GeneratedTitles.meeting(meeting_day(capture), [named, topic && topic["title"], capture.title])
+  end
+
+  defp meeting_day(%Capture{started_at: nil, inserted_at: at}), do: DateTime.to_date(at)
+  defp meeting_day(%Capture{started_at: at}), do: DateTime.to_date(at)
 
   # The page an earlier commit of this capture made, while it is still there.
   defp made_page(%Capture{change_set: %{"changes" => changes}}) do
@@ -644,7 +661,8 @@ defmodule Slipdock.Meetings.Commit do
   # The top of a new page: the meeting, its date, who was there and the way
   # back to the capture, then its summary and key topics. Plain paragraphs,
   # not list items or headings — the context step reads list items and
-  # `###` headings as decisions, and `##` headings are the decisions' topics.
+  # `###` headings as decisions, and `##` headings after `## Decisions` are
+  # the decisions' topics.
   @doc false
   def header(capture) do
     who =
@@ -659,7 +677,7 @@ defmodule Slipdock.Meetings.Commit do
     "Notes from the meeting “#{capture.title}” on #{date(capture)}.#{who} " <>
       "From [the meeting's capture](/boards/#{capture.board_id}/meetings/#{capture.id}).\n" <>
       notes_text(Meetings.notes(capture)) <>
-      "\n**Decisions**, newest last; a replaced decision is struck through.\n"
+      "\n#{@decisions_heading}\n\nNewest last; a replaced decision is struck through.\n"
   end
 
   defp notes_text(%{"summary" => summary, "topics" => topics}) do
@@ -779,7 +797,9 @@ defmodule Slipdock.Meetings.Commit do
     end
   end
 
-  defp topic_heading?(line), do: String.match?(line, ~r/^##(?!#)\s+\S/)
+  defp topic_heading?(line) do
+    String.trim(line) != @decisions_heading and String.match?(line, ~r/^##(?!#)\s+\S/)
+  end
 
   # A line onto the end of a page; a list starts a paragraph of its own.
   defp append_line(body, line) do
@@ -1282,13 +1302,15 @@ defmodule Slipdock.Meetings.Commit do
     result =
       case c["page_id"] && Repo.get(Page, c["page_id"]) do
         nil ->
-          with {:ok, page} <-
+          with {:ok, folder} <- Wiki.Folders.ensure_path(board, nil, [@meetings_folder]),
+               {:ok, page} <-
                  Wiki.create_page(
                    board,
                    %{
                      "title" => c["page_title"],
                      "slug" => c["page_slug"],
-                     "body" => c["body_after"]
+                     "body" => c["body_after"],
+                     "folder_id" => folder.id
                    },
                    user: user,
                    via: "meeting",

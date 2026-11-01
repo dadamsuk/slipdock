@@ -194,13 +194,13 @@ defmodule Slipdock.Meetings.ContextTest do
     {:ok, _} =
       Wiki.create_page(
         ctx.board,
-        %{"title" => "Decisions / Pricing sync · 7 Oct 2026", "body" => body},
+        %{"title" => "2026-10-07 Pricing sync", "body" => body},
         user: ctx.owner
       )
 
     context = Context.gather(capture(ctx.board, ctx.owner, said(["hello"])))
 
-    assert [%{"title" => "Decisions / Pricing sync · 7 Oct 2026", "entries" => entries}] =
+    assert [%{"title" => "2026-10-07 Pricing sync", "entries" => entries}] =
              context["decisions"]
 
     assert entries == [

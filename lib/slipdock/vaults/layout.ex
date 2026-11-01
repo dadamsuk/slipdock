@@ -13,6 +13,8 @@ defmodule Slipdock.Vaults.Layout do
       safe on any machine; the titles stay whole in the listing;
     * a page is `Title.md`, or `Title/index.md` when it has children, which
       sit beside that index as they do in an export;
+    * a card's write-up, a page in its folder titled like the card, is named
+      as the folder is (`CardFolders.own_page_name/2`);
     * two things wanting one name — two pages titled alike in one folder, a
       page with children and a folder of the same name — are told apart by
       the later one taking a number (`Title (2).md`), compared case aside,
@@ -94,6 +96,7 @@ defmodule Slipdock.Vaults.Layout do
       |> Repo.all()
 
     by_id = Map.new(pages, &{&1.id, &1})
+    own_pages = CardFolders.own_pages(board_ids)
 
     parents =
       for p <- pages, p.parent_id && by_id[p.parent_id], into: MapSet.new(), do: p.parent_id
@@ -119,7 +122,7 @@ defmodule Slipdock.Vaults.Layout do
 
           dir ->
             children? = MapSet.member?(parents, page.id)
-            {stem, path} = name(page, dir, children?, taken)
+            {stem, path} = name(page, dir, children?, taken, own_pages)
 
             dirs = if children?, do: Map.put(dirs, page.id, join(dir, stem)), else: dirs
 
@@ -418,8 +421,8 @@ defmodule Slipdock.Vaults.Layout do
   end
 
   # The page's file name, numbered past everything placed before it.
-  defp name(page, dir, children?, taken) do
-    base = page |> file_name() |> DiskName.disk_name()
+  defp name(page, dir, children?, taken, own_pages) do
+    base = page |> file_name(own_pages) |> DiskName.disk_name()
 
     Stream.iterate(1, &(&1 + 1))
     |> Stream.map(fn n ->
@@ -435,9 +438,10 @@ defmodule Slipdock.Vaults.Layout do
   defp file_path(dir, stem, true), do: join(join(dir, stem), "index.md")
   defp file_path(dir, stem, false), do: join(dir, stem <> ".md")
 
-  # The name the page's own file had, kept; otherwise its title.
-  defp file_name(%{file_name: name}) when is_binary(name) and name != "", do: name
-  defp file_name(page), do: page.title
+  # The name the page's own file had, kept; otherwise what its card calls
+  # it, if it is the card's write-up; otherwise its title.
+  defp file_name(%{file_name: name}, _own_pages) when is_binary(name) and name != "", do: name
+  defp file_name(page, own_pages), do: CardFolders.own_page_name(page, own_pages) || page.title
 
   defp prefixes(dir) do
     segments = String.split(dir, "/", trim: true)

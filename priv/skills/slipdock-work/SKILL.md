@@ -160,6 +160,10 @@ whole card before touching it.
   the page that exists beats a fourth page about deployment. Pass `--message` on
   every edit, and `--base-hash` on any edit to a page you did not just write
   yourself, so a save can never quietly land on top of someone else's.
+- **Keep titles short.** A card title is about 60 characters at most, a series as `<Series> <n>: <what>`
+  (`Agent supervision 5: Parked jobs`), the detail in the description. A card's
+  title becomes a folder and shows in tight lists, and a sequence of cards that
+  share their first 40 characters can't be told apart there.
 - **Don't** delete cards (archive instead), rewrite a title to match what you
   actually did, tidy other people's cards, or leave a card in progress with no
   comment newer than the move. Archiving or reordering a whole **board** is

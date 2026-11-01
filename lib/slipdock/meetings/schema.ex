@@ -181,7 +181,7 @@ defmodule Slipdock.Meetings.Schema do
   `body`, `text`) for its words, and at most #{@max_topics} are kept.
   """
   def notes(%{} = doc) do
-    %{
+    notes = %{
       "summary" => text(doc["summary"]) && String.trim(doc["summary"]),
       "topics" =>
         case doc["topics"] do
@@ -189,6 +189,11 @@ defmodule Slipdock.Meetings.Schema do
           _ -> []
         end
     }
+
+    case text(doc["name"]) do
+      nil -> notes
+      name -> Map.put(notes, "name", shorten(String.trim(name), 120))
+    end
   end
 
   def notes(_doc), do: %{"summary" => nil, "topics" => []}

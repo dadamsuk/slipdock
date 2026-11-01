@@ -122,14 +122,14 @@ defmodule SlipdockWeb.Meetings.ProvenanceTest do
     plans = Repo.reload!(plans)
 
     assert plans.body =~
-             "- ~~Monthly plan only~~ (replaced by “Annual plan at 20% off” on [[decisions-pricing-sync-7-oct-2026|Decisions / Pricing sync · 7 Oct 2026]])"
+             "- ~~Monthly plan only~~ (replaced by “Annual plan at 20% off” on [[2026-10-07-pricing-sync|2026-10-07 Pricing sync]])"
 
     assert plans.body =~ "- Free tier stays"
 
     [pricing] =
       Enum.filter(
         capture.change_set["changes"],
-        &(&1["page_title"] == "Decisions / Pricing sync · 7 Oct 2026")
+        &(&1["page_title"] == "2026-10-07 Pricing sync")
       )
 
     page = Repo.get!(Wiki.Page, pricing["page_id"])

@@ -211,7 +211,13 @@ defmodule Slipdock.Meetings.Reader do
         end
       end)
 
-    %{"summary" => if(summary == "", do: nil, else: summary), "topics" => topics}
+    joined = %{"summary" => if(summary == "", do: nil, else: summary), "topics" => topics}
+
+    # The first stretch to name the meeting names it.
+    case Enum.find_value(notes, & &1["name"]) do
+      nil -> joined
+      name -> Map.put(joined, "name", name)
+    end
   end
 
   # A stretch whose answer ran out of room (a busy meeting: many findings,
@@ -334,6 +340,8 @@ defmodule Slipdock.Meetings.Reader do
   findings: the summary and topics cover the rest.
 
   What to answer:
+  - "name": the meeting in a few words, at most six: what it was about. No
+    date, no file name.
   - "summary": three to six sentences: what the meeting was for, and what
     came of it.
   - "topics": the main subjects discussed, usually three to eight, each
@@ -375,12 +383,13 @@ defmodule Slipdock.Meetings.Reader do
      the DECISIONS listed, put that decision's words in "supersedes".
   6. "confirmed": true when somebody else agreed out loud ("yes", "agreed",
      repeating it back).
-  7. Answer with one JSON object only: {"summary": "...", "topics": [...],
-     "findings": [...]}, no prose. "findings" may be empty.
-  8. Every finding has a "title": the action or the decision, in a short line
+  7. Answer with one JSON object only: {"name": "...", "summary": "...",
+     "topics": [...], "findings": [...]}, no prose. "findings" may be empty.
+  8. Every finding has a "title": the action or the decision, in at most 60
+     characters, the specific thing first, with any detail in "body"
      ("Send Nick the product changes by email").
 
-  Each finding: {"kind", "title" (a short line), "body"?, "evidence":
+  Each finding: {"kind", "title" (60 characters at most), "body"?, "evidence":
   [{"line": "L12", "quote": "..."}], "owner"?, "due"?, "card"?, "change"?:
   {"field": due_date|start_date|assignee|list|title|priority|completed|description,
   "to": "..."}, "comment"?, "topic"?, "decided_by"?, "supersedes"?, "confirmed"?}
@@ -408,6 +417,8 @@ defmodule Slipdock.Meetings.Reader do
   agreed, leave it out of the findings (the topics can mention it).
 
   What to answer:
+  - "name": the conversation in a few words, at most six: what it was about.
+    No date.
   - "summary": three to six sentences: what the conversation was about, and
     what the person came away with.
   - "topics": the main subjects discussed, usually two to six, each
@@ -446,12 +457,13 @@ defmodule Slipdock.Meetings.Reader do
   5. A decision gets a short "topic" (e.g. "Pricing"); if it replaces one of
      the DECISIONS listed, put that decision's words in "supersedes".
   6. "confirmed": true when the person agreed to it in so many words.
-  7. Answer with one JSON object only: {"summary": "...", "topics": [...],
-     "findings": [...]}, no prose. "findings" may be empty.
-  8. Every finding has a "title": the action or the decision, in a short line
+  7. Answer with one JSON object only: {"name": "...", "summary": "...",
+     "topics": [...], "findings": [...]}, no prose. "findings" may be empty.
+  8. Every finding has a "title": the action or the decision, in at most 60
+     characters, the specific thing first, with any detail in "body"
      ("Ship the pricing page on Friday").
 
-  Each finding: {"kind", "title" (a short line), "body"?, "evidence":
+  Each finding: {"kind", "title" (60 characters at most), "body"?, "evidence":
   [{"line": "L12", "quote": "..."}], "owner"?, "due"?, "card"?, "change"?:
   {"field": due_date|start_date|assignee|list|title|priority|completed|description,
   "to": "..."}, "comment"?, "topic"?, "decided_by"?, "supersedes"?, "confirmed"?}

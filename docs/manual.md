@@ -777,7 +777,9 @@ Repeating work — "every Monday: review invoices", "first of the month: renew
 the certificate", "water the plants three days after I last did" — lives on
 the card it repeats. The card is the series' current instance; when the next
 one comes due, the server makes it by **copying the current instance as it is
-then**, so a checklist or description you improve carries forward.
+then**, so a checklist or description you improve carries forward. The title
+stays the same; each occurrence's short name adds its due date
+(`Weekly review 2026-11-02`), so a series' folders tell themselves apart.
 
 **Setting it.** On the card, under **Repeat**, press **Repeat…**. Pick a
 preset, worded for the card's date — daily, every weekday, weekly on its day,
@@ -2585,7 +2587,8 @@ tested with `is`, `is_not`, `contains`, `any_of`, `none_of`, `is_set`,
 **Actions.** Email an address or whoever the card is assigned to; raise an
 alert; move the card; set priority; add or remove tags and flags; assign or
 unassign; comment; set or clear the due date; complete, reopen or archive;
-add checklist items; create a card; start a wiki page; call a URL back;
+add checklist items; create a card (with no title given it is
+`<rule>: <card> <date>`, as an alert's is); start a wiki page; call a URL back;
 write a line in the activity log; colour the card (`set_colours`: its
 `cover`, every edge with `border`, or one with `border_top`, `border_right`,
 `border_bottom`, `border_left`, each a palette colour or `none`). Text in an action can use
@@ -2909,8 +2912,12 @@ putting back a card a job left in progress, and alerting on it — is the
 server's (`requeue_stuck` and `job_finished`, above), so the hooks never
 move cards. The prompt points at a worked example, one server's own hooks
 and their test, served at `/runner/examples/after-job-hook.sh` and
-`/runner/examples/after-job-hook-test.sh` (from `priv/runner/examples/`).
-For the shell runner it reads:
+`/runner/examples/after-job-hook-test.sh`, and a pass-log script for them,
+`/runner/examples/passlog.sh` (all from `priv/runner/examples/`). That script
+writes `Pass <card> (<YYYY-MM-DD HH.MM>)` into the card's folder with
+`slipdock page new … --card`, so nothing in the title repeats the card; set
+`SLIPDOCK_HOOK_PASSLOG` to its path to use it. For the shell runner the prompt
+reads:
 
 ````text
 Write the before-job and after-job hooks for the Slipdock runner on this machine.
@@ -2933,13 +2940,14 @@ The contract every hook works under:
 What to write — ask me before you start, then write it:
 
 1. Which notifier I use, if any: PushOver, ntfy, Slack, email, or something else, and where its credentials live (an environment variable or a file only I can read — never in the hook itself). Send an alert when a job times out or fails, with the card's link.
-2. What to keep from each job. For a Claude job, a record of the pass can be made from its Claude Code transcript: in the before-job hook, touch a marker file named after the job; in the after-job hook, take the newest .jsonl in the folder under ~/.claude/projects named after the job's working directory (every / and . turned into -) written since that marker that mentions $SLIPDOCK_CARD_URL. (Or have the job function pass claude a --session-id of its own and look that file up.) It can be summarised into a page on the board's wiki (`slipdock page new <board> <title> --file F`, then `slipdock page pin <page> --card $SLIPDOCK_CARD` so it shows under the card) or kept on disk. Ask me which, if any.
+2. What to keep from each job. For a Claude job, a record of the pass can be made from its Claude Code transcript: in the before-job hook, touch a marker file named after the job; in the after-job hook, take the newest .jsonl in the folder under ~/.claude/projects named after the job's working directory (every / and . turned into -) written since that marker that mentions $SLIPDOCK_CARD_URL. (Or have the job function pass claude a --session-id of its own and look that file up.) It can be summarised into a page for the card (`slipdock page new <board> "Pass $SLIPDOCK_CARD (<YYYY-MM-DD HH.MM>)" --file F --card $SLIPDOCK_CARD`, which files it in the card's folder and pins it there; the title says nothing the folder already says, and a pass that writes several files uses a folder `Pass <n>/`) or kept on disk. Ask me which, if any.
 3. A test script for the hooks, run against fake notify and pass-log commands and a folder of fake transcripts, that checks each status, a missing environment, a failing notifier and the exit code, and that the hooks never touch the board.
 
-A worked example to start from — one server's own hooks, with their test:
+A worked example to start from — one server's own hooks, with their test and a pass-log script:
 
 https://your-server/runner/examples/after-job-hook.sh
 https://your-server/runner/examples/after-job-hook-test.sh
+https://your-server/runner/examples/passlog.sh
 
 When it's written and its test passes, show me the two lines for the runner's config — before_job() { ~/.local/bin/slipdock-hook before; } and after_job() { ~/.local/bin/slipdock-hook after; } — or the commands to type into the wizard's hook fields (Advanced → Hooks), and remind me that the hooks run as the runner's user, with its PATH.
 ````
@@ -3160,16 +3168,17 @@ edits, N the next question.
 after, comments, the lines added to and struck on decisions pages, cards that
 slip as a knock-on, who is assigned, what is left out, and whether anything
 has moved since it was read. Each meeting gets one wiki page of its own,
-*Decisions / Pricing sync · 7 Oct 2026* (a second capture of a meeting of the
-same name on the same day gets *… (2)*, never the first one's page). The page
-opens with the meeting, its date, who was there and a link back to the
+*2026-10-07 Pricing sync*, named from what the reading says the meeting was
+about rather than the recording's file name, and filed in the board's
+`Meetings` folder (a second capture named the same on the same day gets
+*… (2)*, never the first one's page). The page opens with the meeting, its date, who was there and a link back to the
 capture, then the meeting's **summary** and **key topics** (shown above the
-findings on the review, to read rather than settle), then its decisions; when
-the decisions span more than one topic, each topic is a heading. A meeting
+findings on the review, to read rather than settle), then a **Decisions**
+section; when the decisions span more than one topic, each topic is a heading. A meeting
 with a summary and no decisions still gets its page. The preview shows a new
 page whole, exactly as it will be written. A decision that replaces an earlier one strikes it through on whichever
-decisions page it is — an earlier meeting's, or an older page per topic such
-as *Decisions / Pricing* — and the two link to each other.
+decisions page it is — an earlier meeting's, an older *Decisions / …* page, or
+one per topic such as *Decisions / Pricing* — and the two link to each other.
 
 Each open question has **listen and resolve**, which opens them one at a time:
 the passage with the lines around it, what the transcriber was unsure of, what
@@ -3990,7 +3999,8 @@ list leaves its pages behind, unplaced rather than deleted.
 
 **Both ways.** A card's panel has a **Docs** section listing every page that
 mentions it, pinned first, with **Write it up** to start one — pre-titled,
-pinned, and filled in from a template page when the board has one — and a
+pinned, and filled in from a template page when the board has one, and on disk
+named as the card's folder is, `Cards/<short>/<short>.md` — and a
 picker to attach a page somebody has already written, which is the commoner
 case. It lists the pages changed most lately as soon as you click into it,
 and finds one by title, folder or code, in your vault, as the `[[`

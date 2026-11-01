@@ -68,6 +68,15 @@ defmodule Slipdock.QuickAddCaptureTest do
       refute inspect(messages) =~ "banners"
     end
 
+    test "the model is asked for a concise title, the specific thing first", %{user: user} do
+      Slipdock.AIStub.reply_with(%{"title" => "Call the printers"})
+
+      assert {:ok, _} = capture(user, "call the printers")
+      assert_receive {:ai_request, %{"messages" => [%{"content" => system} | _]}}
+      assert system =~ "at most 60 characters"
+      assert system =~ "the specific thing first"
+    end
+
     test "the model is told today, the boards, their lists and tags, and the people", %{
       user: user
     } do
