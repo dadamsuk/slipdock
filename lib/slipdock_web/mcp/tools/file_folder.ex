@@ -92,7 +92,7 @@ defmodule SlipdockWeb.MCP.Tools.FileFolder do
 
   defp placement(auth, folder, args, key, user) do
     with {:ok, ref} <- Args.required(args, key),
-         {:ok, target} <- target(auth, folder, ref, args["in_board"]),
+         {:ok, target} <- target(auth, folder, ref, args["in_board"], key == "also"),
          {:ok, _} <- Args.refusal(act(key, folder, target, user)),
          do: :ok
   end
@@ -100,13 +100,15 @@ defmodule SlipdockWeb.MCP.Tools.FileFolder do
   defp act("also", folder, target, user), do: FolderPlacements.add(folder, target, user)
   defp act("not_in", folder, target, user), do: FolderPlacements.remove(folder, target, user)
 
-  defp target(_auth, folder, "/" <> _ = path, _board),
-    do: Args.refusal(Placements.folder_at(folder, path))
+  defp target(auth, folder, "/" <> _ = path, _board, create?) do
+    user = auth.assigns.current_user
+    Args.refusal(Placements.folder_at(folder, path, create: create?, user: user))
+  end
 
-  defp target(auth, folder, ref, board_ref) when board_ref in [nil, ""],
-    do: target(auth, folder, ref, folder.board_id)
+  defp target(auth, folder, ref, board_ref, create?) when board_ref in [nil, ""],
+    do: target(auth, folder, ref, folder.board_id, create?)
 
-  defp target(auth, _folder, ref, board_ref) do
+  defp target(auth, _folder, ref, board_ref, _create?) do
     with {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, board_ref, :read)),
          do: Args.refusal(Wiki.find_folder(board, ref))
   end

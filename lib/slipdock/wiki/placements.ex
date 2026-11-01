@@ -26,7 +26,7 @@ defmodule Slipdock.Wiki.Placements do
 
   alias Slipdock.{Access, Repo, Vaults, Wiki}
   alias Slipdock.Accounts.User
-  alias Slipdock.Wiki.{Folder, Page, Placement}
+  alias Slipdock.Wiki.{Folder, Folders, Page, Placement}
 
   @doc "The folders a page is also filed in, with their boards, in the order they were added."
   def folders(%Page{id: id}) do
@@ -126,7 +126,13 @@ defmodule Slipdock.Wiki.Placements do
   @doc """
   The folder a vault path names, for a page (or a folder) on a board in a vault:
   `"/Projects/Notes"` is the folder `Notes` under whatever `/Projects` is mapped to.
-  With `create: true` the folders along it are made, as filing makes them.
+  Every way of filing by vault path comes through here, for a page or a folder.
+
+  With `create: true` whichever levels are missing are made, as filing makes
+  them, and a folder that is there is used. Naming a `user` makes that
+  conditional on them writing on both boards, the item's and the one the path
+  lands on: a sharee finds folders but never makes them (#816), and filing
+  would refuse them anyway, after leaving an empty folder behind.
   """
   def folder_at(item, path, opts \\ [])
 
@@ -137,19 +143,26 @@ defmodule Slipdock.Wiki.Placements do
               "#{label(item)} is not on a board in a vault, so it has no vault paths"},
          {:ok, mapping, rest} <- Vaults.locate(vault, path) do
       mapping = Repo.preload(mapping, [:board, :folder])
-      base = if mapping.folder, do: Wiki.folder_path(mapping.folder), else: nil
-      full = [base, rest] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join("/")
+      segments = String.split(rest, "/", trim: true)
 
       cond do
-        full == "" ->
+        is_nil(mapping.folder) and segments == [] ->
           {:error, :unprocessable_entity, "#{path} is a board's wiki, not a folder in it"}
 
-        opts[:create] ->
-          Wiki.create_folder(mapping.board, %{"name" => full})
+        may_make?(opts, item, mapping) ->
+          Folders.ensure_path(mapping.board, mapping.folder, segments)
 
         true ->
-          Wiki.find_folder(mapping.board, full)
+          Folders.at_path(mapping.board, mapping.folder, segments)
       end
+    end
+  end
+
+  defp may_make?(opts, item, mapping) do
+    case {opts[:create], opts[:user]} do
+      {true, nil} -> true
+      {true, user} -> writer?(user, item.board_id) and writer?(user, mapping.board_id)
+      _ -> false
     end
   end
 

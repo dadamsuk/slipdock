@@ -153,14 +153,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
   defp act("also", page, folder, user), do: Slipdock.Wiki.Placements.add(page, folder, user)
   defp act("not_in", page, folder, user), do: Slipdock.Wiki.Placements.remove(page, folder, user)
 
-  # Only a writer on the page's board makes the folders a path names (#816).
   defp placement_folder(page, "/" <> _ = path, create?, user),
-    do:
-      Args.refusal(
-        Slipdock.Wiki.Placements.folder_at(page, path,
-          create: create? and Slipdock.Wiki.Sharing.board_writer?(user, page.board_id)
-        )
-      )
+    do: Args.refusal(Slipdock.Wiki.Placements.folder_at(page, path, create: create?, user: user))
 
   defp placement_folder(page, ref, create?, user) do
     board = Wiki.board_of(page)
