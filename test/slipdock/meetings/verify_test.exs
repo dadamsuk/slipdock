@@ -48,7 +48,8 @@ defmodule Slipdock.Meetings.VerifyTest do
         )
       )
 
-  defp questions(capture), do: Repo.all(from(q in Question, where: q.capture_id == ^capture.id))
+  defp questions(capture),
+    do: Repo.all(from(q in Question, where: q.capture_id == ^capture.id, order_by: q.id))
 
   describe "word for word (G2)" do
     test "a quote in the transcript is kept, with exactly where it is", %{capture: capture} do
