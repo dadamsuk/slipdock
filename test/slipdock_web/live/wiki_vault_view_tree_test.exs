@@ -72,6 +72,22 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
              ["Knowledge Base", "Aardvark" | Enum.map(1..8, &"Board #{&1}")]
   end
 
+  test "a board's row opens its folder here, in the one tree, not its own wiki", %{
+    conn: conn,
+    vault: vault,
+    boards: [{board, _} | _]
+  } do
+    {:ok, view, _html} = live(conn, SlipdockWeb.VaultUrls.url(vault))
+    row = row(vault_tree(view, ["vault"]), "vault", board.name)
+
+    assert row.href == "/wiki/Board%201"
+    assert row.nav == "patch"
+
+    render_patch(view, row.href)
+    assert has_element?(view, "h1", "Board 1")
+    assert has_element?(view, "#vault-crumbs a[href='/wiki']", "Wiki")
+  end
+
   test "the boards follow the home page's hand-made order", %{
     conn: conn,
     user: user,

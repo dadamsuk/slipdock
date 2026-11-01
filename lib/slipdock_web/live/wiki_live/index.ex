@@ -3120,12 +3120,15 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   # In the vault view a row opens at its vault address, patched in even when
   # the page is on another board (see `switch_board/3`).
+  # A board's own row too (W-2201): it opens the board's folder here, in the
+  # one tree, not the board's wiki on its own.
   defp in_vault_view(rows, %{vault_view: %{} = vault, vault_addresses: addresses}) do
     Enum.map(rows, fn row ->
       path =
         case row do
           %{kind: "page", id: id} -> addresses.pages[id]
           %{kind: "folder", id: id} when is_integer(id) -> addresses.folders[id]
+          %{kind: "folder", key: "board:" <> id} -> board_address(addresses, id)
           _ -> nil
         end
 
@@ -3136,6 +3139,13 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   defp in_vault_view(rows, _assigns), do: rows
+
+  defp board_address(addresses, id) do
+    case Integer.parse(id) do
+      {n, ""} -> addresses.boards[n]
+      _ -> nil
+    end
+  end
 
   # `{writable, readable}`: the boards whose rows the reader can move, rename
   # and archive (this one when they can write to it, and the vault's others
