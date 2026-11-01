@@ -628,6 +628,7 @@ defmodule SlipdockCLI.Wiki do
         "summary" => o[:summary],
         "parent" => o[:parent],
         "folder" => o[:folder],
+        "card" => o[:card],
         "status" => if(o[:draft], do: "draft"),
         "template" => o[:template] && true,
         "message" => o[:message]

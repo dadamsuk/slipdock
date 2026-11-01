@@ -24,7 +24,7 @@ defmodule Slipdock.Vaults.Layout do
 
   alias Slipdock.Repo
   alias Slipdock.Vaults.{Mapping, Vault}
-  alias Slipdock.Wiki.{DiskName, Folder, Page}
+  alias Slipdock.Wiki.{CardFolders, DiskName, Folder, Page}
 
   @type page :: %{
           id: pos_integer,
@@ -234,7 +234,7 @@ defmodule Slipdock.Vaults.Layout do
 
     folders = Map.new(rows, fn {id, _board, parent, name} -> {id, {parent, name}} end)
     by_board = Enum.group_by(mappings, & &1.board_id)
-    names = sibling_names(rows)
+    names = sibling_names(rows, CardFolders.sources(board_ids))
 
     for {id, board_id, _parent, _name} <- rows,
         dir = folder_dir(id, folders, names, Map.get(by_board, board_id, [])),
@@ -265,13 +265,13 @@ defmodule Slipdock.Vaults.Layout do
   end
 
   # Every folder's disk name, told apart from its siblings, oldest first.
-  defp sibling_names(rows) do
+  defp sibling_names(rows, card_folders) do
     rows
     |> Enum.group_by(fn {_id, board, parent, _name} -> {board, parent} end)
     |> Enum.flat_map(fn {_at, siblings} ->
       siblings
       |> Enum.sort_by(&elem(&1, 0))
-      |> Enum.map(fn {id, _board, _parent, name} -> {id, name} end)
+      |> Enum.map(fn {id, _board, _parent, name} -> {id, Map.get(card_folders, id, name)} end)
       |> DiskName.assign()
     end)
     |> Map.new()

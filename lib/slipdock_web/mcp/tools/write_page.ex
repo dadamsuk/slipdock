@@ -3,7 +3,7 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
   @behaviour SlipdockWeb.MCP.Tool
 
   alias Slipdock.{Access, Wiki}
-  alias SlipdockWeb.API.Authorize
+  alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.Args
 
@@ -33,6 +33,10 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
           description: "Page code (W-31), or slug/title with board. Not for create."
         },
         board: %{type: "string", description: "Board for create, or for finding page by title."},
+        card: %{
+          type: "integer",
+          description: "With create: a page for this card, in its folder and pinned to it."
+        },
         title: %{type: "string", description: "For create."},
         body: %{type: "string", description: "Markdown."},
         section: %{
@@ -80,11 +84,23 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
   defp body(%{"body" => body}) when is_binary(body), do: {:ok, body}
   defp body(_), do: {:error, "body is required"}
 
+  defp write("create", %{"card" => id} = args, body, auth, opts) when not is_nil(id),
+    do: write_for_card(id, args, body, auth, opts)
+
   defp write("create", args, body, auth, opts) do
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, title} <- Args.required(args, "title"),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :write)) do
       Args.refusal(Wiki.create_page(board, %{"title" => title, "body" => body}, opts))
+    end
+  end
+
+  # A page for a card lands on the card's board, in its folder, pinned to it.
+  defp write_for_card(id, args, body, auth, opts) do
+    with {:ok, title} <- Args.required(args, "title"),
+         {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
+         :ok <- Args.refusal(Authorize.card(auth, card, :write)) do
+      Args.refusal(Wiki.create_page_from_card(card, opts ++ [title: title, body: body]))
     end
   end
 

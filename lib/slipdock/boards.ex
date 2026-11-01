@@ -1885,6 +1885,8 @@ defmodule Slipdock.Boards do
       if Map.has_key?(changeset.changes, :title) do
         from(b in Board, where: b.parent_card_id == ^updated.id)
         |> Repo.update_all(set: [name: Board.name_for_card(updated.title)])
+
+        Slipdock.Wiki.CardFolders.renamed(updated)
       end
 
       broadcast(updated.board_id)
