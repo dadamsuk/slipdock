@@ -262,6 +262,7 @@ defmodule SlipdockCLI do
         --body TEXT | --file F | --body -   (- reads the body from stdin)
         --parent P    put it under another page
         --folder F    file it in a folder — a name or a path, made if it is new
+        --card N      a page for that card: in its folder, pinned to it
         --summary S   one line, shown in listings
         --message M   why, recorded in the page's history
         --draft       only writers can see it

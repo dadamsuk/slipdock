@@ -1,10 +1,10 @@
 defmodule SlipdockCLI.ShortNameTest do
-  @moduledoc "`--short-name` on add and edit (#1590)."
+  @moduledoc "`--short-name` on add and edit (#1590), and `page new --card` (#1591)."
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
 
-  alias SlipdockCLI.{Boards, FakeServer}
+  alias SlipdockCLI.{Boards, FakeServer, Wiki}
 
   setup do
     home = Path.join(System.tmp_dir!(), "slipdock-short-#{System.unique_integer([:positive])}")
@@ -43,6 +43,15 @@ defmodule SlipdockCLI.ShortNameTest do
 
   test "an empty one is sent, to hand it back" do
     assert run("edit", ["9"], short_name: "")["short_name"] == ""
+  end
+
+  test "page new --card sends the card, for its folder" do
+    page = ~s({"page":{"id":4,"code":"W-4","title":"Log","slug":"log","board_id":3}})
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{201, page}]))
+    capture_io(fn -> Wiki.run("page", ["new", "3", "Log"], card: "9", body: "b") end)
+
+    assert_received {:request, "POST", _path, body}
+    assert JSON.decode!(body)["card"] == "9"
   end
 
   test "left out, it isn't sent" do

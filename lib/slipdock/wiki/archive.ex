@@ -31,7 +31,7 @@ defmodule Slipdock.Wiki.Archive do
 
   alias Slipdock.Boards.Board
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{DiskName, FrontMatter, Page}
+  alias Slipdock.Wiki.{CardFolders, DiskName, FrontMatter, Page}
 
   ## Out -----------------------------------------------------------------------
 
@@ -47,7 +47,7 @@ defmodule Slipdock.Wiki.Archive do
   def files(%Board{} = board, opts \\ []) do
     pages = Wiki.list_pages(board, Keyword.take(opts, [:archived, :status, :template]))
     folders = Wiki.folders(board)
-    dirs = folder_dirs(folders)
+    dirs = folder_dirs(folders, CardFolders.sources([board.id]))
 
     # Each directory's folders, so a page with children can't take their name.
     taken = Enum.group_by(folders, & &1.parent_id, &Map.get(dirs, &1.id))
@@ -63,21 +63,25 @@ defmodule Slipdock.Wiki.Archive do
   defp basenames(paths), do: Enum.map(paths, &Path.basename/1)
 
   # Every folder's directory, siblings told apart by `DiskName.assign/2`.
-  defp folder_dirs(folders) do
+  defp folder_dirs(folders, card_folders) do
     by_parent = Enum.group_by(folders, & &1.parent_id)
-    folder_dirs(by_parent, nil, "")
+    folder_dirs(by_parent, card_folders, nil, "")
   end
 
-  defp folder_dirs(by_parent, parent_id, prefix) do
+  defp folder_dirs(by_parent, card_folders, parent_id, prefix) do
     siblings = by_parent |> Map.get(parent_id, []) |> Enum.sort_by(& &1.id)
-    names = siblings |> Enum.map(&{&1.id, &1.name}) |> DiskName.assign()
+
+    names =
+      siblings
+      |> Enum.map(&{&1.id, Map.get(card_folders, &1.id, &1.name)})
+      |> DiskName.assign()
 
     Enum.reduce(siblings, %{}, fn folder, dirs ->
       dir = Path.join(prefix, names[folder.id])
 
       dirs
       |> Map.put(folder.id, dir)
-      |> Map.merge(folder_dirs(by_parent, folder.id, dir))
+      |> Map.merge(folder_dirs(by_parent, card_folders, folder.id, dir))
     end)
   end
 

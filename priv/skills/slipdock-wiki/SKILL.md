@@ -33,6 +33,8 @@ A page answers to three names, and they are not interchangeable:
 
 Every `<page>` argument takes any of the three.
 
+A page written for a card (`slipdock writeup <id>`, `page new <board> <title> --card <id>`, MCP `write_page` with `card`) lands in the card's folder, `<Board>/Cards/<card>/`, and is pinned to it. Pinning an existing page moves nothing.
+
 ## Finding
 
 ```sh
