@@ -94,7 +94,7 @@ way in: what it is, the pictures, and how to get it running.
   lists they show your remembered view
 - **Saved multiboards**: press **Save** on the Multiboard page to keep the
   view under a name and a colour. It becomes a tile on your home page among
-  your boards and vaults, which you drag (or **Move up**/**Move down** from
+  your boards, which you drag (or **Move up**/**Move down** from
   its menu) like a board, recolour from that menu, or delete there; deleting
   it leaves the boards alone. It opens at `/multiboard/<id>`, where changing
   the lists, the number of cards or the layout changes the saved one, and
@@ -1642,10 +1642,10 @@ by default; the usual filters, search and saved views apply.
 ## Your boards
 
 The index at `/` is where the boards themselves are looked after, and how it
-reads is yours: two controls sit beside **New board** and **New vault**, and
-both are remembered between visits. Your vault is listed among your boards,
-as a card, in the same order (see [Vaults](#vaults) for what a vault's card
-shows).
+reads is yours: two controls sit beside **New board**, and both are
+remembered between visits. Your wiki isn't a card here: **Wiki** opens it
+(see [Your wiki](#your-wiki)), and your Knowledge Base, being a wiki and not
+a board to work on, isn't listed.
 
 **Layout.** The cards are the default — a colour band, the code, the
 switcher key when the board has one and your Ctrl+Shift digit when you have
@@ -1655,14 +1655,13 @@ lists, cards, how far along it is and when anything last happened anywhere in
 its tree. Worth switching to once there are more boards than fit on a screen.
 
 **Order.** *My order* is the default, and it starts as the order the boards
-were made in. Drag the handle on a card or a row to move a board or a vault,
+were made in. Drag the handle on a card or a row to move a board or a multiboard,
 or use **Move up** / **Move down** in its menu for the same thing without a
-mouse. For more than one move, press **Reorder** in the toolbar: every board,
-vault and multiboard is then a dashed tile you can grab anywhere, nothing on
+mouse. For more than one move, press **Reorder** in the toolbar: every board
+and multiboard is then a dashed tile you can grab anywhere, nothing on
 it opens when pressed, and each drop is saved as you make it. It switches to
 *My order* if another sort was on. **Done** (or Escape) ends it.
-Setting the order from the command line, which names boards only,
-leaves the vault behind the same number of boards as before.
+Your wiki's tree takes the same order at its top, after the Knowledge Base.
 The other orders — name, recently active, newest, oldest, most cards — sort
 without disturbing yours: switch back to *My order* and every board is where
 you left it. **The order is yours alone.** A board shared with four people
@@ -1701,7 +1700,7 @@ menu sit at the right-hand end, after **Views**, in every view of the board.
 
 The **avatar menu** is in sections, and marks the page you are on:
 
-- **Places**: Boards, My work, Wiki, Vaults. Search, Ask and Favourites are
+- **Places**: Boards, My work, Wiki. Search, Ask and Favourites are
   not repeated here: they are buttons beside it.
 - **Set up**: Templates, Groups, Tools, Set up an agent.
 - **You**: **Account & settings** (one entry: Settings, API tokens, Import &
@@ -1824,17 +1823,17 @@ and allows for the home indicator's safe area.
 ## Quick notes
 
 The pencil at the top right, `Shift-Alt-N`, or **Quick note** in the phone's menu opens a box
-to write in, on any page. **Save** (or `Ctrl-Enter`) files it in your main vault and shows
+to write in, on any page. **Save** (or `Ctrl-Enter`) files it in your wiki and shows
 where it went, with a link to the page; the box empties, ready for the next one.
 
 - **The name** is `YYYY-MM-DD HH.MM` in your own timezone, then a few words the AI model
   takes from what you wrote: `2026-10-30 15.39 Printers banner call`.
-- **The place** is the folder of the vault the model thinks fits best, by what the note is
+- **The place** is the folder of your wiki the model thinks fits best, by what the note is
   about. It may add one new folder beneath an existing one, never a new top-level folder, and
   only somewhere you can write. If its first answer can't be used it is asked once more.
-- **Your settings** (Account → Settings → Quick notes) pick the vault and a location in it.
+- **Your settings** (Account → Settings → Quick notes) pick a location in your wiki.
   The location is where a note goes when the model can't place it, and the save says so.
-  With nothing set, it is the top of your first vault.
+  With nothing set, it is the top of your Knowledge Base.
 - **No model, or one that fails:** the note is still saved, at your location, named after
   its first words.
 - Closing the box keeps what you typed until you leave the page, and a failed save keeps it too.
@@ -1885,12 +1884,12 @@ dialogs leave the page's keys alone.
   (`W-31`) for that page. Titles find live cards only. On a wiki it is
   the **note switcher** instead (`Cmd-O` on a Mac): type a few letters of a
   note's title, one of its aliases or its path, in order but not necessarily
-  together (`acmcall` finds `Projects/Acme/Call`), across every board of the
-  vault the board is in, or the board alone. Nothing typed lists the notes
+  together (`acmcall` finds `Projects/Acme/Call`), across your whole wiki,
+  or the board alone. Nothing typed lists the notes
   changed most lately, and a page's code still goes straight to it. On a
   shell, `slipdock page switch <board> <letters…>`
-- `Ctrl-Shift-1` … `9`, `0` — **open a board** (or vault) you gave that digit (see
-  [A board's hotkey](#a-boards-hotkey), [Switching to a vault](#switching-to-a-vault))
+- `Ctrl-Shift-1` … `9`, `0` — **open a board** (or your wiki) you gave that digit (see
+  [A board's hotkey](#a-boards-hotkey), [Switching to your wiki](#switching-to-your-wiki))
 - `Shift-Alt-S` — **search everything** (`Shift-Option-S` on a Mac): the [search
   page](#deep-search-and-ask), with the cursor in its box. Already there, it just puts the
   cursor back, your results intact; from Ask it switches to Search and takes
@@ -1898,7 +1897,7 @@ dialogs leave the page's keys alone.
 - `Shift-Alt-N` — **a quick note** (`Shift-Option-N` on a Mac), from anywhere, even
   mid-sentence; the same key shuts it. See [Quick notes](#quick-notes)
 - `h` — all boards (the board takes this one while the keyboard is on it)
-- `b` — **switch board**: every board you can open, then your vault, with
+- `b` — **switch board**: every board you can open, then your wiki, with
   its own key; press that key to go there
 - `q` — quick add a card (see below)
 - `l` — alerts (the board takes this one too, while it holds the keyboard)
@@ -2002,37 +2001,38 @@ yours from the shell (`PUT /api/boards/<board>/hotkey`). Giving a digit to one
 board takes it off whichever had it. A digit with no board, or on a board you
 can no longer open or have archived, says so rather than going anywhere.
 
-### Switching to a vault
+### Switching to your wiki
 
-Your vault is reached the same two ways. It has a shortcut key from the
-same set as the boards' — so `b` then a key never means two things — taken
-from its name when it is made, and listed in the switcher after your boards
-(and in the command palette, `Ctrl-P`). A vault can also have one of your
-`Ctrl-Shift` digits; giving it one takes the digit off whichever board or
-vault had it. Set both under *Shortcut key* and *Hotkey* in the vault's
-settings, or with `slipdock vault set <vault> --shortcut K --hotkey <0-9|none>`
-(`PATCH /api/vaults/<vault> {"shortcut": "nt", "hotkey": 2}`). `slipdock vault
-show` says which keys open a vault, and `slipdock hotkeys` lists vaults'
-digits with the boards'. Its tile on the home page shows both, as a board's
-does.
+<a id="switching-to-a-vault"></a>
+
+Your wiki is reached the same two ways. It has a shortcut key from the
+same set as the boards' — so `b` then a key never means two things — and is
+listed in the switcher after your boards (and in the command palette,
+`Ctrl-P`, as *Your wiki*). It can also have one of your `Ctrl-Shift` digits;
+giving it one takes the digit off whichever board had it. Set both under
+*Shortcut key* and *Hotkey* in Wiki settings, or with `slipdock wiki set
+--shortcut K --hotkey <0-9|none>` (`PATCH /api/wiki {"shortcut": "nt",
+"hotkey": 2}`). `slipdock wiki show` says which keys open it, and
+`slipdock hotkeys` lists its digit with the boards'.
 
 ### Header links
 
-Boards and wiki vaults you go to all day can be pinned to the header, at the
+Boards you go to all day, and your wiki, can be pinned to the header, at the
 top right of every page just left of the quick add button, each as an icon
 you choose (the same set wiki folders and pages wear); hover one for its name.
 Pin them under *Header links* in [Account › Settings](/account/settings):
-choose the board or vault and its icon, then *Pin to header*. The arrows move
+choose the board (or your wiki) and its icon, then *Pin to header*. The arrows move
 one along and *Remove* unpins it. Up to eight; pinning one already pinned
 changes its icon.
 
-They are yours alone, like hotkeys: any board you can open, and your own
-vaults. A board you can no longer open, or have archived, drops off the header
+They are yours alone, like hotkeys: any board you can open, and your wiki. A board you can no longer open, or have archived, drops off the header
 (an archived one comes back with it). A phone's header has no room for them —
 the Favourites tab is the same idea there.
 
 From the shell: `slipdock header` lists yours and the icons,
-`slipdock header add board|vault <ref> --icon NAME` pins one,
+`slipdock header add board <ref> --icon NAME` or `slipdock header add wiki
+--icon NAME` pins one (`POST /api/header-links` with `board`, or
+`{"wiki": true}`),
 `slipdock header move <id> left|right` and `slipdock header rm <id>`
 (`GET`/`POST /api/header-links`, `PATCH`/`DELETE /api/header-links/<id>`).
 
@@ -3440,8 +3440,8 @@ line: `slipdock folder new <board> <name> --icon star --color amber`,
 so does a page's when it has pages under it. The double chevron at the top of
 the sidebar shuts every folder at once, and opens them all again once they
 are all shut. An empty folder has no chevron, there being nothing in it to
-show. Which folders you had open is kept for you on the server, per board and per
-vault, so the tree opens the same way next time, on any machine, and
+show. Which folders you had open is kept for you on the server, per board and for
+your wiki, so the tree opens the same way next time, on any machine, and
 following a link to another page doesn't spring it open or shut. The
 crosshair at the top of the tree shows where you are again after you have
 shut or scrolled it away. On a
@@ -3462,7 +3462,7 @@ has the keyboard.
 card beside the tree shows what is in it without opening it: its summary, the
 start of its text (headings kept, code and embedded files left out, encrypted
 text a 🔒), its tags, how many pages are under it, which board it is on when
-that is another board of the vault, and who changed it last and when. Moving
+that is another board, and who changed it last and when. Moving
 off the page puts it away. A touch screen has no hover, so there a tap opens
 the page as before.
 
@@ -3497,31 +3497,31 @@ folder's rows arrive 500 at a time as you scroll down to them, and the page
 you are reading is always loaded, however far down its folder it is.
 
 **Jumping to a note.** `Ctrl-O` (`Cmd-O`) on a wiki opens the note switcher:
-a few letters of a note's title, an alias or its vault path, matched in order
-the way editors' switchers match, across the whole vault (see *Keyboard*).
+a few letters of a note's title, an alias or its path, matched in order
+the way editors' switchers match, across your whole wiki (see *Keyboard*).
 
-**A vault's own view.** A vault opens from its tile on the home page into a
-view of its own, at `/vaults/<vault>`: the vault's tree down the side, every
-board a folder at the top of it, and pages addressed by their vault paths, the same as the files on disk —
-`/vaults/Notes/Projects/Roadmap`, with `.md` or without, case aside.
-A page opens inside the view, under the vault's breadcrumbs, with a quiet
-*on Handbook* saying which board holds it: its permissions, history and
+**The whole wiki.** **Wiki** opens your whole wiki at `/wiki`: its tree down
+the side, your Knowledge Base and then every board a folder at the top of it,
+and pages addressed by their paths, the same as the files on disk —
+`/wiki/Projects/Roadmap`, with `.md` or without, case aside.
+A page opens inside the view, under the wiki's breadcrumbs, with a quiet
+*on Handbook* saying which board holds it (the top of the wiki names none): its permissions, history and
 comments are that board's, and editing, history and new pages behave as on a
 board's wiki (a new note made in a folder lands on that folder's board).
-Folder **Move…** and dragging across boards work in its tree. A search or a filter runs across every board of the vault, keeping
-only the paths that hold a match. **Settings** (`/vaults/<vault>/.settings`)
-is the Vault page, where the vault is renamed and its keys set.
-Board wiki addresses keep working. Beside the tree, the vault view lists the
-notes edited most lately rather than folder cards: at the vault's top, across
+Folder **Move…** and dragging across boards work in its tree. A search or a filter runs across every board in it, keeping
+only the paths that hold a match. **Settings** (`/wiki/.settings`)
+is Wiki settings, where its keys are set.
+Board wiki addresses keep working. Beside the tree, the wiki lists the
+notes edited most lately rather than folder cards: at its top, across
 every folder and board; with a folder (or a board) open, only what is
 in it and the folders inside it, newest first, each saying which folder it
 sits in.
 
-**A board's wiki** is the vault from the board's folder down, like a chroot:
+**A board's wiki** is your wiki from the board's folder down, like a chroot:
 its own folders and pages, and the sub-boards of its epics in their folders
 under `Cards`, by name when the tree is sorted by name, and nothing above.
 A sub-board's wiki shows only its own part. There is no switch between trees:
-the board's tree is the right part of the vault already.
+the board's tree is the right part of your wiki already.
 
 Opening a page of another board from a board's tree keeps that tree and its
 breadcrumbs: Roadmap opened from Handbook's tree opens at
@@ -3529,7 +3529,7 @@ breadcrumbs: Roadmap opened from Handbook's tree opens at
 quiet *on Project Work* beside the breadcrumbs that opens it in Project Work's own
 wiki. The filter bar and the tree's search cover what the tree shows, so
 from Handbook they find Projects pages, and from Project Work they don't find
-Handbook's. A board of the vault you can't open isn't in your tree.
+Handbook's. A board you can't open isn't in your tree.
 Organising works across it on the boards you can write to: a page dragged
 onto *Projects* moves to Project Work, after asking.
 
@@ -3550,8 +3550,7 @@ a tree arranged by hand stays arranged. A folder sorted by name (the
 default) or by date keeps that order: what is dropped beside a row is filed
 there but takes its a-z place, and the tree says so; choose **Sort: As
 arranged** to order it by hand, and it comes back as last arranged. Rest a drag on a shut folder and it opens, so you can drop deeper
-without opening it first. In a vault, a file moved here moves on disk at the
-next sync.
+without opening it first. A file moved here moves on disk at the next sync.
 
 **Organise mode.** The pencil at the top of the wiki's sidebar gives every
 row a handle to drag by, with a reminder of what a drop does. It is how a
@@ -3588,8 +3587,8 @@ made on the way.
   wiki): a note written on 12 October 2026, organised into *Meetings*, goes
   to *Meetings/2026-10* under the same name. One folder per month, year,
   year then month (*2026/10*) or day. A note's own `created:` or `date:`
-  front matter is its date when it has one, since a note brought in from a
-  vault was only *added* the day it was imported; choose **When it was
+  front matter is its date when it has one, since a note brought in from
+  Obsidian was only *added* the day it was imported; choose **When it was
   added here** to ignore it.
 - **AI suggestions** asks a cheap model (Claude Haiku by default, or the
   model you picked under Account → AI model) to read the board's folders,
@@ -3602,8 +3601,8 @@ made on the way.
 - **Flatten** brings everything filed in the folder's subfolders, however
   deep, back up into it. The emptied subfolders stay.
 
-Only the folder's own board is organised; to move things to another board of
-a vault, use **Move…**. A file whose name is already taken where it would go
+Only the folder's own board is organised; to move things to another board,
+use **Move…**. A file whose name is already taken where it would go
 is left where it is, and the message says so. From the command line:
 `slipdock folder organise <board> <folder> --by date --parent Meetings
 --dry-run`.
@@ -3611,9 +3610,9 @@ is left where it is, and the message says so. From the command line:
 Right-click the tree's background for the same things at the top of the
 wiki, including how the top is sorted. The top is sorted by name until
 someone chooses otherwise, so a wiki reads a-z, ignoring case, folders and
-pages alike, including folders a vault's sync adds later. With a token,
+pages alike, including folders a sync adds later. With a token,
 `slipdock set-board <board> --wiki-sort modified` or `PATCH /api/boards/:board/tree
-{"sort": "modified"}` sets it, and `GET /api/vaults/:id/sync` carries what a client
+{"sort": "modified"}` sets it, and `GET /api/wiki/sync` carries what a client
 needs to draw the same order.
 
 **Picking several.** Ctrl-click (Cmd-click on a Mac) picks rows one at a time
@@ -3621,8 +3620,8 @@ and Shift-click picks every row from the last one. A bar above the tree then
 moves, archives or tags them all at once, and a row's menu acts on all of
 them. Esc lets go.
 
-**Moving a page to another board.** In a vault, a page can move to any other
-board of the vault you can write to: drag it there in the vault's tree, or
+**Moving a page to another board.** A page can move to any other board in
+the same wiki you can write to: drag it there in the wiki's tree, or
 use **Move…** from its menu. Before it moves you are shown what it takes and
 what it can't. It keeps its code (`W-31`), history, comments, checklist,
 links and its other folders, and the pages under it go with it. Tags and
@@ -3633,15 +3632,15 @@ an assignee who can't open that board, and its parent page. On a shell,
 `slipdock page mv <page> --board B [--folder F] [--dry-run]`.
 
 **Moving a folder to another board.** In the wiki, a folder's **Move…**
-offers every board of the vault you can write to and its folders, and
-dragging a folder onto another board in the vault's tree does the same.
+offers every board in the wiki you can write to and its folders, and
+dragging a folder onto another board in the wiki's tree does the same.
 Either way you are shown what goes first — how many folders, pages and files,
 what can't be carried, what stays behind, pages landing beside one of the
 same title — and nothing moves until you confirm. Pick several rows (pages
 and folders together) and **Move** them as one, with one combined report; a
 page inside a folder you also picked goes with the folder, once.
 
-A folder moves to any board you can write to — in a vault or not — with its
+A folder moves to any board you can write to, with its
 subfolders, every page at home in them (and the pages under those pages) and
 the files kept in them, in one go:
 `slipdock folder mv <board> <folder> --board B [--parent F] [--contents]
@@ -3652,13 +3651,13 @@ its code, history, comments, checklist and links, and carries its tags,
 field values, pins and assignee the way a single page does. `--dry-run`
 reports it all first, folder by folder: how many pages, what can't be
 carried, any page that stays behind (one filed there under a parent page
-that isn't moving), filing in other folders that can't follow across boards
-outside a vault, and pages landing beside one of the same title. It is
+that isn't moving), filing in other folders that can't follow to a board in
+another wiki, and pages landing beside one of the same title. It is
 refused, with nothing changed, when a folder of that name is already where
 it would land, or when you can't write to both boards; and it happens all at once
-or not at all. A synced vault sees each moved note as the same file at its
+or not at all. A synced copy of the wiki sees each moved note as the same file at its
 new path. Over the API it is `PATCH /api/boards/:board/folders/:folder` with
-`to_board`; over MCP, `manage_vault` with `action: "move_folder"`.
+`to_board`; over MCP, `manage_wiki` with `action: "move_folder"`.
 
 **Searching the tree** matches a page's title and summary *and* a folder's
 name, and hides everything that doesn't match. A folder that matches brings
@@ -3678,7 +3677,7 @@ which **Tag…** in the tree puts on one page or a selection and `slipdock page
 edit <page> --tag T` sets from the command line (over the API, `add_tags`,
 `remove_tags` and `tags` on `PATCH /api/pages/:id`; over MCP, `update_page`). A
 tag has to exist on the board first, and a name that isn't there is refused. A
-note in a vault also has tags of its own (`note_tags`), from its front matter
+note also has tags of its own (`note_tags`), from its front matter
 and inline `#tags`: those are edited in the text, and nothing above touches them.
 
 **Picking a folder is a tree you type at.** Everywhere the app asks which
@@ -3690,8 +3689,8 @@ you cannot choose, like the one you are moving, is greyed rather than hidden.
 
 **One page, several folders.** A page has one **home** folder and can be
 **also filed in** others, like a symbolic link: every one opens the same
-page, with one body and one history. On a board in a vault the other folders
-can be on any board of the vault. Listing a folder includes the pages also
+page, with one body and one history. The other folders can be on any board
+in the same wiki. Listing a folder includes the pages also
 filed there, marked `also: true` over the API, and each page appears once.
 Archiving or moving a page keeps its other folders; taking it out of one
 never archives it; deleting a folder takes only its placements. In the
@@ -3700,7 +3699,7 @@ on the extra ones. Its menu there has **Also file in…** to add one, and the
 extra row's menu has **Take out of this folder**. Only readers who can open
 the page's own board see it in the other folders.
 `slipdock page file <page> --also F` (or `--not-in F`) — F a folder on its
-board, on `--board B`, or a vault path such as `/Projects/Notes` — and
+board, on `--board B`, or a wiki path such as `/Projects/Notes` — and
 `{"also": F}` / `{"not_in": F}` on `POST /api/pages/:id/folder` (MCP:
 `update_page`'s `also` and `not_in`) do it; a page's JSON lists them as
 `also_in`.
@@ -3709,7 +3708,7 @@ board, on `--board B`, or a vault path such as `/Projects/Notes` — and
 the same way (#808): it appears there with its whole subtree — pages, files,
 drawings and subfolders — and there is still one folder with one set of
 contents, at home under its parent. The rules are the pages': the other
-folder is on its board or on a board of the same vault, you need write on
+folder is on its board or on a board in the same wiki, you need write on
 both, and it is never its home parent. Nor is it ever inside its own subtree,
 whether the way down runs through home parents or through other placements;
 moving a folder home under one filed inside it is refused the same way. In
@@ -3720,12 +3719,12 @@ is anything inside it, there. Its menu has **Open**, **Open in a new tab**,
 **Take out of this folder** and **Copy link**; any folder's menu has **Also
 file in…**. The folder's page says where else it is filed. Listing a folder
 (`page ls --folder`, `list_pages`' `folder`) includes the pages anywhere
-under the folders placed there, marked `also`. A synced vault writes the
-folder once, at home. Moving it to another board drops the placements the
-move leaves outside one board or vault, and says which
+under the folders placed there, marked `also`. A synced copy of the wiki
+writes the folder once, at home. Moving it to another board drops the
+placements the move leaves outside one board or wiki, and says which
 (`folder_filing_dropped`); deleting either folder takes its placements.
 `slipdock folder file <board> <folder> --also F` (or `--not-in F`; both
-repeat; `--board B` for a folder on another board of the vault, or a vault
+repeat; `--board B` for a folder on another board in the wiki, or a wiki
 path), `{"also": F}` / `{"not_in": F}` (with `in_board`) on
 `PATCH /api/folders/:id` or `/api/boards/:board/folders/<path>`, and the MCP
 tool `file_folder` do it. A folder's JSON lists them as `also_in`;
@@ -3759,7 +3758,7 @@ Images pasted into a page are the page's own, and always go with it. A published
 page (`/w/…`) still shows no embeds.
 
 **Shared with me.** Whatever has been shared with you appears under **Shared
-with me**, below every one of your wiki and vault trees and on the Wiki page,
+with me**, below every one of your wiki trees and on the Wiki page,
 grouped by whose it is; a shared folder opens to its whole subtree, and the
 section is hidden when nothing is shared. It follows the shares live: one given
 appears, one taken back goes, and a page open when its share is taken back sends
@@ -3783,14 +3782,14 @@ always had.
 
 **Filing a shared item in your own tree.** **Also file in…** on a page or
 folder in the Shared view files it in a folder of one of your own boards — the
-one time something is filed outside its own board or vault. You need to read it
+one time something is filed outside its own board or wiki. You need to read it
 through the share and write the folder. It shows there only to people who can
 read it (others on your board see nothing), opens in the Shared view, and comes
 out again with **Take out of this folder**, which never touches the share.
 Taking the share back takes the placement away too; sharing again doesn't bring
 it back.
 
-**In a synced vault** a shared item filed there syncs as **stubs**, never its
+**In a synced wiki** a shared item filed there syncs as **stubs**, never its
 content: `Title.md` holding one line, a link to it in Slipdock (`name.png.md`
 for a file), and a shared folder as a directory of stubs mirroring its subtree.
 They follow renames and moves inside the share, and go when the share or the
@@ -3854,12 +3853,13 @@ when the title alone finds the page from where you are writing, and
 `[[W-31]]` otherwise (another board's page, a title two pages share, or one
 with `/`, `|` or `#` in it).
 
-The picker reaches your whole vault: on a board somebody else shared with
-you, that board's owner's pages you can open come first, then your own vault's,
-each showing which vault it is in. A page from another vault or board is linked by its code, and `[[W-31]]` finds that page
+The picker reaches your whole wiki: on a board somebody else shared with
+you, that board's owner's pages you can open come first, then your own wiki's,
+each showing whose wiki it is in. A page from another wiki or board is linked by its code, and `[[W-31]]` finds that page
 wherever it is, for anyone who may open it; to anyone else it reads as
 plain text. The card's attach box offers the same pages, and so does
-`slipdock page switch <board> <letters> --all` (`?vaults=all` on the API).
+`slipdock page switch <board> <letters> --all` (`?vaults=all` on the API, a
+name kept from before).
 
 As in Obsidian, `[[Retry policy#Backoff]]` goes to a heading of a page and
 `[[Retry policy#^a1b2]]` to a block — a paragraph or list item ending in
@@ -4003,7 +4003,7 @@ pinned, and filled in from a template page when the board has one, and on disk
 named as the card's folder is, `Cards/<short>/<short>.md` — and a
 picker to attach a page somebody has already written, which is the commoner
 case. It lists the pages changed most lately as soon as you click into it,
-and finds one by title, folder or code, in your vault, as the `[[`
+and finds one by title, folder or code, in your wiki, as the `[[`
 picker does. The page, in turn, has a **Cards this is about** section with the same
 pin toggle and the same picker, so the two are one click from each other in
 both directions. A pinned link is a person's judgement rather than something
@@ -4020,7 +4020,7 @@ Bodies may use the same `{{…}}` placeholders an automation action does —
 and Obsidian's own: `{{title}}` (the new page's title), `{{date}}`
 (`2026-03-07`), `{{time}}` (`14:05`), and `{{date:dddd D MMMM YYYY}}` or
 `{{time:h:mm A}}` in Moment's format, as Obsidian writes them — so a template
-brought over from a vault works as it is. Dates and times are UTC.
+brought over from Obsidian works as it is. Dates and times are UTC.
 A board template can carry `pages` as well as lists, so a new board arrives
 with its documentation skeleton rather than an empty wiki. A page can also be
 a **favourite**, alongside boards, lists, cards and views.
@@ -4140,124 +4140,147 @@ list drafts, templates and archived pages at all.
 
 The full specification, and the decisions behind it, is in `docs/wiki.md`.
 
-### Vaults
+### Your wiki
 
-A **vault** is a folder tree of Markdown (and other) files: notes, images,
-PDFs. The word is borrowed from Obsidian, which keeps notes that way, but
-Slipdock doesn't need Obsidian; any editor that works on a folder of Markdown
-will do. Here you have exactly one, and it is your whole wiki as one such
-tree, which `slipdock sync` mirrors to a folder on each computer (see
-[Syncing a vault to a folder](#syncing-a-vault-to-a-folder)).
+<a id="vaults"></a>
 
-It is made the first time it is wanted and holds no pages of its own, and
-nothing about its layout is configured:
+You have one **wiki**: everything written on your boards as one folder tree
+of Markdown (and other) files, notes, images and PDFs, the way Obsidian keeps
+notes. Slipdock doesn't need Obsidian; any editor that works on a folder of
+Markdown will do. `slipdock sync` mirrors the tree to a folder on each
+computer (see [Syncing your wiki to a folder](#syncing-your-wiki-to-a-folder)).
+
+Nothing about its layout is configured:
 
 ```
+/Knowledge Base                  → your Knowledge Base, always first
 /Handbook                        → the Handbook board's wiki
 /Project Work                    → the Project Work board's wiki
 /Project Work/Cards/Launch       → the Launch epic's folder, and its sub-board
 /Project Work/Cards/Launch/Cards/Press → a subcard's sub-board, one level down
 ```
 
-Every root board you own is a folder off the root, archived ones too:
-archived is a flag in the listing and never part of a path, so archiving or
-restoring moves nothing. A new board shows at once, and renaming a board
+**Your Knowledge Base** is the part of your wiki that belongs to no board of
+work: notes, references, whatever you keep. Everybody has one, made the first
+time it is wanted. It is always the first folder at the top. Underneath it is
+a board that is a wiki and nothing else, so its pages have codes, history,
+links and sync like any other, but it is on no list of boards, counts against
+no limit, and opening its board takes you to its place in the wiki. Quick
+notes go to the top of it unless you choose another place.
+
+**Every board you own** is a folder at the top, after the Knowledge Base, in
+the order your home page keeps by hand: the boards you placed, by their place,
+then the rest, oldest first. A new board shows at once, and renaming a board
 renames its folder. Everything in a board's wiki is in its folder. Board
-folders are disk names, safe on any machine, and two boards whose names clash,
-case aside, are numbered in age order: `Keystone`, `KEYSTONE (2)`. Boards
-somebody else shared with you are not in your vault (see stubs below). The
-vault's root holds boards and nothing else: a file written straight into it,
-or into a folder that is no board, is refused.
+folders are disk names, safe on any machine, and two boards whose names
+clash, case aside, are numbered in age order: `Keystone`, `KEYSTONE (2)`.
+The root holds boards and nothing else: a file written straight into it, or
+into a folder that is no board, is refused.
 
-The vault is also where a plain `[[link]]` on any of your boards is looked for.
+**An archived board is out of the tree**, the sync listing and the feed. An
+archived board is set aside, so its wiki is no longer loaded with the rest.
+Open it from the archived boards on your home page and its own wiki shows its
+tree as before; restore it to have its wiki back in yours. Links to its pages
+still work.
 
-**On the home page** the vault is listed among your boards, as one card, in
-your order like any board (drag it, or **Move up** / **Move down**), and
-sorted with them by name, age, activity or cards: its name, your boards, how
-many pages it holds and the folders it is synced to, with when each last
-synced. It appears once you own a board. Your boards stay listed as boards.
+**Boards somebody shared with you** are not in your wiki. They are in their
+owner's. You read them on the board, or under **Shared with me** (see stubs
+below).
 
-**The Vault page** (avatar menu › **Vault**, or **Settings** at the top of a
-vault view's tree) has a link to the vault's tree, its name, its shortcut and
-hotkey, its recordings folder, and the folders it is synced to: every
-`slipdock sync` token that has listed the vault or followed its feed, by the
-token's label, with when it last did.
+**Wiki** in the menu, or on the home page, opens the tree from the top, at
+`/wiki`. **Settings** at the top of the tree (`/wiki/.settings`) has the
+wiki's shortcut and hotkey, its recordings folder, and the folders it is
+synced to: every `slipdock sync` token that has listed it or followed its
+feed, by the token's label, with when it last did. Old `/vaults/…` addresses
+land in the same place under `/wiki`.
 
-The same is on the CLI (`slipdock vault ls`, `show`, `rename`, `set`,
-`locate`), the API (`/api/vaults`, whose one vault carries `pages`, `boards`
-and `mirrors`) and MCP (`list_vaults`, `manage_vault`).
+The same is on the CLI (`slipdock wiki show`, `set`, `locate`, `tree`), the
+API (`GET /api/wiki`, which carries `pages`, `boards`, `mirrors` and
+`knowledge_base`) and MCP (`wiki_info`, `manage_wiki`).
 
-**Links across a vault.** On a board in a vault, a plain `[[Note]]` looks
-on its own board first and then on every board of the vault. Every page
-there has a vault path — its board's folder, the folders below it, the pages
-it sits under, its title: the layout an export writes — and a link matches
-by name (title, slug or alias, compared as file names are, case aside).
-When several pages match, the shortest path wins; write more of it,
-`[[X/Dup]]` or `[[Projects/X/Dup]]`, to pick another, the way Obsidian
-does. A link written relative to its note, as Obsidian writes them when
-its new link format is relative — `[[../Tasks/Inbox]]`, `[[./Plan]]`, or
-`[[2026/Journal/Note]]` from the note's own folder — is read from the
-note's folder. A link or embed naming a file, `[[Report.pdf]]` or
-`![[photo.png]]`, finds the wiki file of that name and links to it, and is
-not counted as a wanted page. `[[QVM/Page]]` still means board QVM first. The words are never
-rewritten, a resolved link is kept by id so a rename cannot break it, and a
-page or file written later brings links on any board of the vault to life. Backlinks
-cross boards with the links. `slipdock vault resolve <vault> <link>` says
-which page a link finds; `slipdock vault wanted <vault>` (or
-`GET /api/vaults/:id/wanted`, MCP `page_info` with `vault`) lists the pages
-wanted anywhere in it. A board in no vault resolves exactly as before.
+**Links across your wiki.** A plain `[[Note]]` looks on its own board first
+and then across your whole wiki. Every page there has a path — its board's
+folder, the folders below it, the pages it sits under, its title: the layout
+an export writes — and a link matches by name (title, slug or alias,
+compared as file names are, case aside). When several pages match, the
+shortest path wins; write more of it, `[[X/Dup]]` or `[[Projects/X/Dup]]`,
+to pick another, the way Obsidian does. A link written relative to its note,
+as Obsidian writes them when its new link format is relative —
+`[[../Tasks/Inbox]]`, `[[./Plan]]`, or `[[2026/Journal/Note]]` from the
+note's own folder — is read from the note's folder. A link or embed naming a
+file, `[[Report.pdf]]` or `![[photo.png]]`, finds the wiki file of that name
+and links to it, and is not counted as a wanted page. `[[QVM/Page]]` still
+means board QVM first. The words are never rewritten, a resolved link is kept
+by id so a rename cannot break it, and a page or file written later brings
+links on any of your boards to life. Backlinks cross boards with the links.
+`slipdock wiki resolve <link>` says which page a link finds; `slipdock wiki
+wanted` (or `GET /api/wiki/wanted`, MCP `page_info`) lists the pages wanted
+anywhere in it. A board somebody shared with you resolves its links in its
+owner's wiki.
 
 **What changed, for sync.** Every change to a page, a folder or a page's
-attachment is logged with an increasing **cursor**, on every board. A
-vault's feed — `GET /api/vaults/:id/changes?since=<cursor>`,
-`slipdock vault changes <vault> --since N`, or MCP `list_vaults` with
-`changes_since` — answers with what changed on any of its boards after that
-cursor, each page or folder once and as it is now (a page's code, title,
-`content_hash`, home folder, whether it is archived, and its vault path), or
-`deleted`; `more: true` means ask again at once. Renaming a card, a short
-name or a board shows as `moved`, with the old path in `from_path`, on the
-folder and on everything under it: never a delete and a create, and a moved
-file keeps its hash unless its bytes changed. `slipdock sync` moves the files
-here, and an edit made here follows them. Without a cursor it answers
-with the one to start from. A client can also keep a websocket open at
-`/socket/websocket?token=<API token>&vsn=2.0.0` and join `vault:<id or name>`:
-each change pushes `change` with the new cursor, so it knows when to ask.
-The log keeps 90 days (`config :slipdock, :wiki_changes, retention_days:`);
-asked from a cursor older than that, the feed answers `resync: true` and the
-current cursor, which means list the vault again rather than trust the gap.
+attachment is logged with an increasing **cursor**, on every board. Your
+wiki's feed — `GET /api/wiki/changes?since=<cursor>`, `slipdock wiki changes
+--since N`, or MCP `wiki_info` with `changes_since` — answers with what
+changed on any of its boards after that cursor, each page or folder once and
+as it is now (a page's code, title, `content_hash`, home folder, whether it
+is archived, and its path), or `deleted`; `more: true` means ask again at
+once. Renaming a card, a short name or a board shows as `moved`, with the old
+path in `from_path`, on the folder and on everything under it: never a delete
+and a create, and a moved file keeps its hash unless its bytes changed.
+Archiving a board shows only as that board's change, `archived` (drop its
+folder), and restoring it as `restored` (list again). `slipdock sync` moves
+the files here, and an edit made here follows them. Without a cursor it
+answers with the one to start from. A client can also keep a websocket open
+at `/socket/websocket?token=<API token>&vsn=2.0.0` and join `vault:<id>`
+(the id `GET /api/vaults` gives): each change pushes `change` with the new
+cursor, so it knows when to ask. The log keeps 90 days
+(`config :slipdock, :wiki_changes, retention_days:`); asked from a cursor
+older than that, the feed answers `resync: true` and the current cursor,
+which means list the wiki again rather than trust the gap.
 
 **Names in trees and lists.** Account › Settings, or the button at the top
-of the tree, chooses full titles or short names for the wiki and vault
-trees, card folders and breadcrumbs. It is yours, everywhere you sign in, and
+of the tree, chooses full titles or short names for the wiki's tree, card
+folders and breadcrumbs. It is yours, everywhere you sign in, and
 `slipdock names short` or `PUT /api/me/display` set the same thing. A card
 with no short name shows its title, and pages have no short names. A name too
 long for its space ends in an ellipsis on screen, with the whole of it on
-hover. `slipdock folder ls --short-names` and `slipdock vault tree
+hover. `slipdock folder ls --short-names` and `slipdock wiki tree
 --short-names` do the same in a terminal.
 
-**Tags in notes.** On a board in a vault, a note's front matter `tags` and
-every inline `#tag` in its body are its tags, nested ones (`#area/sub`)
-included, as Obsidian reads them: not inside code, headings, links or HTML,
-and only where `#` starts a word, so a URL's `#fragment` is not one. They are
-the note's own, kept apart from the board's card tags so they never fill the
-tag picker, stored lower-case, and shown as chips at the top of the page. A
-tag whose first part is all digits stays a card reference (`#412`). List the
-notes under a tag — and anything nested beneath it — with
-`slipdock page ls <board> --note-tag area`, `?note_tag=area` on the API or
-`note_tag` on MCP's `list_pages`; `slipdock page tags <board>` (or
-`GET /api/boards/:board/pages/tags`) counts them. On a board in no vault
-nothing changes: `#word` is a word.
+**Tags in notes.** A note's front matter `tags` and every inline `#tag` in
+its body are its tags, nested ones (`#area/sub`) included, as Obsidian reads
+them: not inside code, headings, links or HTML, and only where `#` starts a
+word, so a URL's `#fragment` is not one. They are the note's own, kept apart
+from the board's card tags so they never fill the tag picker, stored
+lower-case, and shown as chips at the top of the page. A tag whose first part
+is all digits stays a card reference (`#412`). List the notes under a tag —
+and anything nested beneath it — with `slipdock page ls <board> --note-tag
+area`, `?note_tag=area` on the API or `note_tag` on MCP's `list_pages`;
+`slipdock page tags <board>` (or `GET /api/boards/:board/pages/tags`) counts
+them.
 
-### Syncing a vault to a folder
+**Moving a board's wiki into another.** An operator can move one board's
+whole wiki into a folder of another board of the same person, keeping page
+codes, history and files and rewriting any `[[link]]` whose target moves
+(each checked to find the same page, and saved as a revision):
+`mix slipdock.move_wiki --user EMAIL --from CODE --to CODE --folder NAME
+--dry-run` (then `--apply`), or `Slipdock.Release.move_wiki/1` in a release.
+The folder holding the board's card folders stays, since a card's pages live
+with the card.
 
-`slipdock sync` keeps a folder on your computer and a vault level with each
+### Syncing your wiki to a folder
+
+<a id="syncing-a-vault-to-a-folder"></a>
+
+`slipdock sync` keeps a folder on your computer and your wiki level with each
 other, both ways. The server is where the notes live; the folder is a
 working copy that stays a valid Obsidian vault, so Obsidian, vim, a script
 or anything else that writes a file can add to it, and what they write
 becomes a page.
 
 ```sh
-slipdock sync init ~/Notes --vault Brain    # bind the folder, then bring the vault down
+slipdock sync init ~/Notes                   # bind the folder, then bring your wiki down
 slipdock sync ~/Notes                        # one pass, both ways
 slipdock sync ~/Notes --watch                # keep at it
 slipdock sync from-server ~/Notes            # one pass, only bringing changes down
@@ -4278,7 +4301,7 @@ in another board's folder it becomes a page on that board. Notes made
 in the folder are always plain files. A page filed in several folders is
 written once, at its home, with `also-in: [Path/One, Path/Two]` in its front
 matter; edit that list and the page is filed accordingly. Images, PDFs,
-`.excalidraw` drawings and other files are kept at the same vault path, up
+`.excalidraw` drawings and other files are kept at the same path, up
 to 250 MB each, and `![[photo.png]]` draws them in the web app too.
 
 **Opening a file.** Click a file in the tree, or a `[[Report.pdf]]` link
@@ -4311,7 +4334,7 @@ or a long press) has **Archive…** and **Delete…**, and Delete on the
 keyboard asks to archive the highlighted file. Archiving takes it out of
 the tree but keeps its bytes, which still count towards the board owner's
 storage. Deleting it is for good and gives that storage back; only the
-board's owner can delete a file, and a synced vault takes its copy away too.
+board's owner can delete a file, and a synced copy of your wiki takes its copy away too.
 
 **Over the API.** `GET /api/boards/<board>/files` lists the board's live
 files by path (`folder=` keeps to one folder and what is under it), each
@@ -4371,29 +4394,30 @@ two of them undo each other's changes and make conflicts out of nothing.
 
 ### Importing an Obsidian vault
 
-An Obsidian vault you already have comes in once with `slipdock vault import`,
-and then the same folder carries on as a synced mirror:
+An Obsidian vault (the folder Obsidian opens) you already have comes in once
+with `slipdock wiki import`, and then the same folder carries on as a synced
+mirror:
 
 ```sh
-slipdock vault import ~/Obsidian --vault Brain --dry-run   # what would happen; nothing is written
-slipdock vault import ~/Obsidian --vault Brain             # do it
-slipdock sync init ~/Obsidian --vault Brain                # then keep it level, both ways
+slipdock wiki import ~/Obsidian --dry-run   # what would happen; nothing is written
+slipdock wiki import ~/Obsidian             # do it
+slipdock sync init ~/Obsidian               # then keep it level, both ways
 ```
 
 Each path goes to the board whose folder holds it (the deepest one
 wins), each note becomes a page and every other file — images, PDFs,
-drawings, `.canvas` — a file at the same vault path. A note goes up byte for
+drawings, `.canvas` — a file at the same path. A note goes up byte for
 byte: its front matter (key order, quoting and comments), tags, aliases and
 links, an Excalidraw drawing's `.excalidraw.md`, and Meld's ciphertext,
 which is never decrypted. What the import leaves out, it says: whatever
 sync leaves alone (`.obsidian/`, `.trash/`, `.slipdockignore`), paths in no
-board's folder, files over 250 MB, and paths the vault already has — the
+board's folder, files over 250 MB, and paths your wiki already has — the
 same bytes count as already there, anything else is listed and left as it
 is, never overwritten.
 
 The dry run also reads every note's `[[links]]`, `![[embeds]]` and local
 Markdown links, and lists those that would find nothing — by Obsidian's
-rules, against the folder and what is already in the vault: a bare name
+rules, against the folder and what is already in your wiki: a bare name
 finds a note or file of that name anywhere, `Folder/Note` one whose path
 ends that way, and an alias counts as a name. It lists what only an
 Obsidian plugin draws (Dataview, Tasks, Templater, a Kanban board, a
@@ -4406,7 +4430,7 @@ The folder's files are not touched. The import remembers what each became in
 **Then sync.** Stop Obsidian Sync (or whatever else syncs the folder) first,
 then `slipdock sync init` the same folder. It adopts what the import sent
 rather than sending it again: a note still as it was imported takes the
-vault's copy of itself (the same note, perhaps with a `title` key the server
+wiki's copy of itself (the same note, perhaps with a `title` key the server
 added), a note edited since goes up to the page it became, and one edited on
 both sides is a conflict like any other. Nothing is archived or removed by
 adopting: a file deleted since comes back down, and one whose page was
@@ -4457,9 +4481,9 @@ To make it play:
 1. **Connect Google Drive** on **Account → Settings** (read-only). The
    section is only there when the server has a Google client (see the
    README).
-2. **Set the vault's recordings folder** on the Vault page (e.g.
-   `Meeting Recordings`), or `slipdock vault set Notes --recordings-folder
-   "Meeting Recordings"`. The recordings are streamed through the vault
+2. **Set your wiki's recordings folder** on Wiki settings (e.g.
+   `Meeting Recordings`), or `slipdock wiki set --recordings-folder
+   "Meeting Recordings"`. The recordings are streamed through the wiki
    owner's connection, for anyone who can read the page, and only files
    under that folder will play. `slipdock drive status` shows where you
    stand.
@@ -4546,21 +4570,21 @@ Transcribed automatically
 **The audio** stays on Google Drive and is never uploaded to Slipdock, which
 streams it from Drive when someone presses play. It has to be audio
 (`audio/*`; an `.m4a` that Drive labels `video/mp4` is fine too) and inside
-the vault's recordings folder. Write MP4s with their index at the front
+the wiki's recordings folder. Write MP4s with their index at the front
 ("faststart", `moov` before `mdat`; `ffmpeg -movflags +faststart`), so
 playback starts and seeks without fetching the end of the file first.
 
 **How the page gets in**, either way:
 
-- **Through the vault's folder.** Write the `.md` file into a local folder
-  that `slipdock sync` keeps level with the vault (see
-  [Syncing a vault to a folder](#syncing-a-vault-to-a-folder)). It arrives
+- **Through your wiki's folder.** Write the `.md` file into a local folder
+  that `slipdock sync` keeps level with your wiki (see
+  [Syncing your wiki to a folder](#syncing-your-wiki-to-a-folder)). It arrives
   like any other note.
 - **Over the API**, with a write token:
-  `PUT /api/vaults/<vault>/sync/pages` with `{"path": "Meetings/2026-09-16
+  `PUT /api/wiki/sync/pages` with `{"path": "Meetings/2026-09-16
   weekly-sync.md", "content": "<the whole file>"}`. The answer has the page's
   `id` and `hash`. To add `recording_drive_id` later, `PUT
-  /api/vaults/<vault>/sync/pages/<id>` with the new content and `"base":
+  /api/wiki/sync/pages/<id>` with the new content and `"base":
   "<hash>"`. A `409` means the page changed meanwhile, and carries it as it
   now stands: add your front-matter key to *that* content and send it again,
   rather than overwriting it. Keep sends that failed in an outbox and retry
@@ -4600,11 +4624,11 @@ The bar names the problem:
 | It says | Fix |
 | --- | --- |
 | Google Drive isn't set up on this server (`not_configured`) | The admin sets `GOOGLE_CLIENT_ID`/`SECRET` (README, *Google Drive*). |
-| Google Drive isn't connected (`not_connected`) | The vault owner connects Drive on **Account → Settings**. |
+| Google Drive isn't connected (`not_connected`) | The wiki's owner connects Drive on **Account → Settings**. |
 | Drive access was revoked (`revoked`) | Connect again on **Account → Settings** (weekly, in Google's Testing mode). |
-| No recordings folder set (`no_folder`) | The vault owner sets it on the Vault page, or `slipdock vault set V --recordings-folder PATH`. |
-| This page isn't in a vault (`no_vault`) | Map the page's board into a vault. |
-| Not in the vault's recordings folder (`outside_folder`) | Move the file under that folder, or fix the `recording:` path (from the root of My Drive). |
+| No recordings folder set (`no_folder`) | The wiki's owner sets it in Wiki settings, or `slipdock wiki set --recordings-folder PATH`. |
+| This page is in nobody's wiki (`no_vault`) | Its board has no owner; give it one. |
+| Not in the wiki's recordings folder (`outside_folder`) | Move the file under that folder, or fix the `recording:` path (from the root of My Drive). |
 | That file isn't audio (`not_audio`) | Point `recording:` at the audio, not a video or document. |
 | Recording not found on Drive (`not_found`) | The path or `recording_drive_id` is wrong, or the upload hasn't landed yet. |
 
@@ -4612,7 +4636,7 @@ The bar names the problem:
 
 A note can hold an encrypted passage, written in the format of
 [Meld Encrypt](https://github.com/meld-cp/obsidian-encrypt), the Obsidian
-plugin. The vault's Obsidian opens Slipdock's, and Slipdock opens Meld's
+plugin. Obsidian, on a synced copy of your wiki, opens Slipdock's, and Slipdock opens Meld's
 (every version Meld has written). Encrypting and decrypting happen in your
 browser or on your machine, and the passphrase and the plain text never
 reach the server.
@@ -4679,7 +4703,7 @@ is kept with the wiki's other files.
   down to whoever drew last and naming everybody who drew in it. If the
   connection drops, the editor says so, and sends everything it has when it
   is back. A change that arrives another way while the drawing is open — a
-  vault sync from Obsidian, an agent or the API — is merged in the same way
+  sync from Obsidian, an agent or the API — is merged in the same way
   and shows up in the editor; if it isn't a drawing at all, the editor warns
   you, the change is kept in the page's history, and your next stroke saves
   the drawing back.
@@ -5462,6 +5486,22 @@ GET    /api/pages/query-vocabulary        the grammar a ```slipdock block is wri
 POST   /api/pages/query    {board, body}  try a block without writing it anywhere
 GET    /api/skills                         GET  /api/skills/:name    GET /api/skills/:name/*file
 
+# Your one wiki (see Your wiki): its address names none
+GET    /api/wiki                          {wiki: {url, pages, boards, mirrors, shortcut, hotkey,
+                                          recordings_folder, knowledge_base}, boards: every board's
+                                          folders and pages}
+PATCH  /api/wiki                          {shortcut, hotkey, recordings_folder}  answers {wiki}
+GET    /api/wiki/locate  ?path=           GET  /api/wiki/resolve  ?link=     GET /api/wiki/wanted
+GET    /api/wiki/changes ?since=          the feed sync follows
+GET    /api/wiki/sync                     the listing: entries, folders, folder_details,
+                                          virtual_folders, boards (each with position)
+GET    /api/wiki/sync/pages/:page         PUT /api/wiki/sync/pages[/:page] {path, content, base}
+DELETE /api/wiki/sync/pages/:page         ?base=
+GET    /api/wiki/sync/files/:file         POST /api/wiki/sync/files[/:file_id]  (multipart)
+PATCH  /api/wiki/sync/files/:file_id      {path, base}   DELETE ?base= &purge=true
+POST   /api/header-links                  {board | wiki: true, icon}
+# /api/vaults and /api/vaults/:id/... answer the same, kept for older clients; will be removed.
+
 # Meeting capture: only while meeting mode is on (404 "meeting mode is off on this server" otherwise),
 # and on for the caller (404 meetings_not_allowed otherwise)
 GET    /api/meetings                      is it on, where it shows, what may be sent
@@ -5649,17 +5689,19 @@ slipdock folder organise qvm-v1-rem Inbox --by date --parent Meetings --dry-run 
 slipdock folder rm qvm-v1-rem Choices --purge  # and the pages in it, history and all (owner only)
 slipdock page file W-31 --folder "Design/Decisions"   # where it is kept; --no-folder takes it out
 slipdock page ls qvm-v1-rem --folder decisions       # or --no-folder for the unfiled
-slipdock page file W-31 --also Ideas [--board B]   # also filed there too (or a /vault/path); --not-in F takes it out
+slipdock page file W-31 --also Ideas [--board B]   # also filed there too (or a /wiki/path); --not-in F takes it out
 slipdock folder file qvm-v1-rem Design --also Ideas --also /Projects/Notes   # a folder too, all in it; --not-in F
 slipdock folder show qvm-v1-rem Design          # its path, and where else it is filed
-slipdock vault ls                                   # your one vault: boards, pages, synced folders
-slipdock vault locate Notes /Projects/Acme.md       # which board a path lands in, and the rest
-slipdock vault rename Notes Brain
-slipdock vault resolve Notes X/Dup | slipdock vault wanted Notes   # links across the whole vault
-slipdock vault changes Notes [--since 812]     # what changed after a cursor: what sync polls
-slipdock vault tree Notes [--short-names]      # every folder and file by name, archived ones marked
+slipdock wiki                                       # every board's folders and pages
+slipdock wiki show                                  # your wiki: its boards, pages, keys, synced folders
+slipdock wiki set --shortcut nt --hotkey 2 --recordings-folder "Meeting Recordings"
+slipdock wiki locate /Projects/Acme.md              # which board a path lands in, and the rest
+slipdock wiki resolve X/Dup | slipdock wiki wanted  # links across your whole wiki
+slipdock wiki changes [--since 812]            # what changed after a cursor: what sync polls
+slipdock wiki tree [--short-names]             # every folder and file by name
+slipdock wiki import ~/Obsidian [--dry-run]    # an Obsidian vault in, once
 slipdock names [full|short]                    # Names in trees and lists: says or sets it
-slipdock page tags brain | slipdock page ls brain --note-tag area   # a vault's notes' own #tags
+slipdock page tags brain | slipdock page ls brain --note-tag area   # notes' own #tags
 slipdock page props W-31 [--file F | --clear]  # the front matter its file came with, kept exactly
 slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it
 slipdock page read W-31                        # the Markdown source (--json for the hash and the rest)
@@ -5978,7 +6020,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `list_pages` | A board's wiki pages in order — code, title, summary, folder, parent and pinned cards — filtered by `q`, `archived` (`exclude`, `include` or `only`), `template` and `draft`; `tree: true` nests children under their parents. `shared: true` (no board) lists what other people have shared with you, by owner. |
 | `page_info` | Finding the way round a wiki, by `what`: `links` (a page's outgoing, unresolved and incoming links), `sections` (its heading paths, as `write_page`'s section modes take them), `wanted` (a board's linked-to pages nobody has written) and `resolve` (is there a page for this `title`, and the `[[link]]` to write). Drafts stay out of sight of readers who cannot edit them. |
 | `page_history` | A page's revisions, newest first (`limit`, default 20): who saved each, how (`web`, `cli`, `mcp`…), the message and when. With `rev`, that revision's body and the diff it made against the one before, or with `against` (another revision id) the diff from that version instead; `diff: true` alone gives the latest save's diff. Long unchanged stretches come back as `skip` with a count, so a one-line edit does not return the whole page. |
-| `list_vaults` | Your one [vault](#vaults), with its boards; with `vault` and `path`, which board that vault path lands in and what is left of the path below it; with `vault` and `link`, the page a `[[link]]` finds; with `vault` and `changes_since`, what changed after a cursor. |
+| `wiki_info` | Your one [wiki](#your-wiki), with its boards and Knowledge Base; with `path`, which board that path lands in and what is left of the path below it; with `link`, the page a `[[link]]` finds; with `changes_since`, what changed after a cursor. |
 | `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. |
 | `download_file` | A file attached to a card or a page, by its `attachment` id (`get_card` and `read_page` list them, `read_page` under `attachments`). The attachment's details come first; then a text file's contents as `text` (cut at 100,000 characters, with `truncated`), an image as an MCP image block, or anything else up to 5 MB as an embedded resource in base64. A bigger file is refused with its link in the web app. Checked as reading the card or page is: a file the token can't reach is not found. **`text: true`** (#1527) sends the words read from a PDF or an image instead (`status`, `error`, `pages`, `truncated`, `text`). **`link: true`** (#1147) sends no bytes: it answers with the attachment's details and a `download_url` that works once, for 10 minutes, with no token (`curl -fsSo cv.docx <download_url>`), so a file of any size reaches a shell without passing through the model. A read-only token may have one. The link is checked again as that token when it is used; a used, expired or unknown one is `410 link_gone`. |
 | `list_automations` | A board's [automation rules](#automations-and-alerts), as `GET /api/boards/:board/automations` gives them: each one's name, trigger, `spec`, `scope`, whether it is `enabled`, and how often it has run; `rule` (an id or name) gives one. `vocabulary: true` adds every trigger, condition and action a spec may use and the ready-made presets, so a client can write one without guessing. Only the board's owner, on a write token, may read them, as over HTTP. |
@@ -6004,12 +6046,12 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `delete_board` | Deletes a board you own and everything on it. `confirm` must repeat the board's code. |
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 | `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `also` / `not_in` (other folders it is also filed in), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
-| `quick_note` | Saves text as a note in the person's main vault: the server names it and picks the folder, as [Quick notes](#quick-notes) does, and answers with its code, title, vault and `location`. `write_page` is for choosing the board and title. |
+| `quick_note` | Saves text as a note in the person's wiki: the server names it and picks the folder, as [Quick notes](#quick-notes) does, and answers with its code, title and `location`. `write_page` is for choosing the board and title. |
 | `page_tool` | Runs an AI tool over a page on your AI key (see [AI tools beside a page](#ai-tools-beside-a-page)) and returns the answer: `summarise`, `key_points`, `actions`, `titles` or `improve`. Writes nothing. |
-| `file_folder` | Files a wiki folder in one more folder as well as its home (`also`), or takes it out of one (`not_in`): a folder on its board, on `in_board`, or a vault path. Same board or same vault, write on both, never inside itself. Answers with where it is filed now (`also_in`). |
+| `file_folder` | Files a wiki folder in one more folder as well as its home (`also`), or takes it out of one (`not_in`): a folder on its board, on `in_board`, or a wiki path. Same board or same wiki, write on both, never inside itself. Answers with where it is filed now (`also_in`). |
 | `share` | Shares a wiki page (`page`, a code) or folder (`folder`, with `board`) with a person (`with`, an email) or a group of yours (`group`), `level` read, comment or write; a folder shares everything at home in it. `off: true` takes it back; neither `with` nor `group` lists who has it. Only the board's writers share; somebody it was shared with gets `shared_no_reshare`. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
-| `manage_vault` | Changes your [vault](#vaults), by `action`: `rename` (`vault`, `name`), and `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board. |
+| `manage_wiki` | Changes your [wiki](#your-wiki), by `action`: `set` (`shortcut`, `recordings_folder`), and `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board. |
 | `manage_automation` | Changes a board's [automation rules](#automations-and-alerts), by `action`, as the API does and for its owner only: `create` from a `spec` (exact, no model), a `preset` with its `params`, or `text` (a sentence the server's model turns into a spec, on the AI key), with optional `name` and `scope` (`board`, or `tree` for its sub-boards too); `update` a `rule` (id or name) with any of `name`, `scope`, `enabled` and `spec`, or `text` to have the model rewrite it; `delete` a `rule` with `confirm: true` — `enabled: false` turns it off without losing it. A spec that doesn't validate is refused with the reason. |
 | `install_tool` | Builds the board a [Tool](#tools) comes with, for the caller: the lists, folders, tags, page skeletons and rules from its `board.json`, and its board files in a `Tool` folder, by `tool` (its name), with optional `version` and `board_name`. Answers with the board's code and url and what was added. Installing again answers with the board already made, and makes nothing. `tool: "handbook"` with `board` puts the built-in handbook on that board's root instead. |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
@@ -6089,7 +6131,7 @@ under the **+** menu; in Claude Code you mention one, as in
 | `slipdock://work` | [My work](#roll-ups-the-outline-and-my-work): the cards assigned to you, by when they are due. |
 
 The list a client shows (`resources/list`) is not everything you can read: a
-picker of every page in a big vault is no use. It is My work, your
+picker of every page in a big wiki is no use. It is My work, your
 [favourites](#favourites) (boards, cards, views and pages, in the order you
 marked them) and the pages pinned to your favourite boards. To put something
 in the menu, make it a favourite. Anything else is reached by its URI.

@@ -42,8 +42,8 @@ writes out goes wrong above about 1 KB (#1040), so with a shell where the file i
 `slipdock attach`, or `upload_file` with `card`/`page` and `link: true` (#1147), which answers with a
 single-use `upload_url`, good for 10 minutes and needing no token, for `curl -F file=@FILE -F
 sha256=<hex> <upload_url>` (also `filename`, `replace`, `hide_on_card`), keeps the bytes out of the
-model. `download_file` with `link: true` is the same the other way: `curl -fsSo FILE <download_url>`. A file already in a synced vault is copied by the server with `vault`
-and `vault_file` (its vault path or id; no content). `content_base64` must carry `sha256` (hex, of
+model. `download_file` with `link: true` is the same the other way: `curl -fsSo FILE <download_url>`. A file already in the user's synced wiki is copied by the server with
+`vault_file` (its path in the wiki, or its id; no content) and `vault` (the wiki's id, as `GET /api/vaults` gives it: an argument name kept from before). `content_base64` must carry `sha256` (hex, of
 the bytes before base64), and a `sha256_mismatch` refusal means re-encode and resend. The answer's
 `sha256` is of the bytes as stored, and `get_card`/`read_page` list it for every file: compare that
 with the source's hash to verify a file, rather than downloading it. Anything over a few KB goes
@@ -71,7 +71,7 @@ fields) is still the CLI or the API.
 
 Everything below is a wrapper around a JSON API, and the API is the fallback: it needs nothing
 but `curl`. Do not tell the user to install the CLI (it is an escript and wants Erlang) —
-use the API, and mention the CLI only if they ask for something nicer to type, or for vault
+use the API, and mention the CLI only if they ask for something nicer to type, or for wiki
 sync, which only the CLI does. On Windows that is one line in PowerShell, from their own
 server: `irm "$B/cli/install.ps1" | iex`, then `slipdock auth`. Elsewhere it is built from
 the repository's `cli/`.
@@ -389,8 +389,8 @@ slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | f
 slipdock fav page <page>                                  # a wiki page, by code (W-31), slug or board/slug
 slipdock unfav <same args>                                # or `fav ... --off`
 slipdock hotkeys | slipdock hotkey <board> <0-9|none>     # Ctrl+Shift+digit opens that board in the web app
-slipdock vault set <vault> --shortcut K --hotkey <0-9|none> # a vault's key in the b switcher, and its digit
-slipdock header | header add board|vault <ref> --icon NAME  # boards/vaults pinned as icons left of quick add
+slipdock wiki set --shortcut K --hotkey <0-9|none>   # the wiki's key in the b switcher, and its digit
+slipdock header | header add board <ref> --icon NAME | header add wiki --icon NAME  # pinned as icons left of quick add
 slipdock header move <id> left|right | header rm <id>
 ```
 
@@ -546,7 +546,7 @@ slipdock page tree <board>                    # the page tree, nesting shown by 
 slipdock page read <page>                     # the Markdown source (--json for the metadata too)
 slipdock page new <board> <title...> [--body TEXT|--file F|--body -] [--parent P] [--summary S] [--message M] [--draft]
 slipdock page ai <page> summarise|key_points|actions|titles|improve   # an AI tool over a page, on your AI key; writes nothing
-slipdock note <text...> | slipdock note --body -   # a quick note: the server names it, files it in the main vault and says where
+slipdock note <text...> | slipdock note --body -   # a quick note: the server names it, files it in the wiki (default: the top of the Knowledge Base) and says where
 slipdock page edit <page> [--title T] [--summary S] [--body TEXT|--file F|--body -] [--message M] [--base-hash H] [--draft|--publish]
 slipdock page edit <page> --tag T [--off] | --set-tag T | --no-tags   # the board's tags, by name; a note's own #tags are its text, not these
 slipdock page mv <page> [--parent P | --root] [--position N|top|bottom]
@@ -573,27 +573,29 @@ slipdock folder show <board> <folder>         # its path, and where else it is f
 slipdock page new <board> <title...> --folder F   # or file it as you write it
 ```
 
-A vault is a folder tree of Markdown (and other) files (Obsidian's word; Obsidian isn't
-required). The user has exactly one vault, derived from their boards with nothing to set up:
-every root board they own, archived too, is a folder off the root, and a sub-board sits in its
-epic's folder (`<Board>/Cards/<Epic>/`). Boards shared by someone else are not in it.
+The user has one **wiki**: a folder tree of Markdown (and other) files, with nothing to set
+up. At the top is their **Knowledge Base** (always first: notes that belong to no board; a
+hidden wiki-only board, on no list of boards), then a folder for every root board they own, in
+their home page's order; a sub-board sits in its epic's folder (`<Board>/Cards/<Epic>/`), a
+card's own pages in `<Board>/Cards/<card>/`. Archived boards are out of it (restore one to
+bring its wiki back); boards shared by someone else are not in it.
 ```
-slipdock vault ls | slipdock vault show <vault> | slipdock vault rename <vault> <name...>
-slipdock vault locate <vault> <path>     # which board a path lands in, and the rest of it
+slipdock wiki show                    # its boards, Knowledge Base, page count, synced folders
+slipdock wiki locate <path>           # which board a path lands in, and the rest of it
+slipdock wiki tree [--short-names] | slipdock wiki resolve <link> | slipdock wiki wanted
 ```
-`vault ls` also shows its boards, page count and the folders it is synced to (each sync token's
-label and last sync). People do the same on the web app's Vault page (`/vaults`, avatar menu ›
-Vault); the vault also has a view of its own, its pages at their vault paths (its `url` in
-`--json`, e.g. `/vaults/Notes/Projects/Roadmap`).
+People open it from **Wiki** in the web app (`/wiki`, its pages at their paths, e.g.
+`/wiki/Projects/Roadmap`); its keys, recordings folder and synced folders are under Wiki
+settings (`/wiki/.settings`).
 
-`slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault
+`slipdock sync` mirrors the wiki both ways to a local folder that stays a valid Obsidian vault
 (notes as `.md`, other files at the same path; a delete archives; changed on both sides, the
 local copy is saved as `Name (conflict DATE host).md`):
 ```
-slipdock sync init <dir> --vault V | slipdock sync [<dir>] [--watch] | slipdock sync status [<dir>]
+slipdock sync init <dir> | slipdock sync [<dir>] [--watch] | slipdock sync status [<dir>]
 slipdock sync from-server [<dir>] | slipdock sync to-server [<dir>]   # one way only: what it skips waits, listed as held
 slipdock sync service install|uninstall|print [<dir>]   # keep --watch running in the background
-slipdock vault import <dir> --vault V [--dry-run]       # an existing Obsidian vault, in once
+slipdock wiki import <dir> [--dry-run]                  # an existing Obsidian vault, in once
 ```
 
 `<page>` is the page's **code** (`W-31`), its slug, or `board-code/slug`. The code is stable

@@ -91,10 +91,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   a grid of tiles. The view is remembered and lives in the URL, so it can be
   bookmarked; `slipdock multiboard` and `GET /api/multiboard` show the same.
   A view can be **saved** with a name and a colour: it then sits on the home
-  page among your boards and vaults, dragged into place like they are
+  page among your boards, dragged into place like they are
   (`slipdock save-multiboard`, `/api/multiboards`).
-- **Reorder** — a mode on the home page where every board, vault and saved
-  multiboard is dragged by the whole tile, into an order of your own.
+- **Reorder** — a mode on the home page where every board and saved
+  multiboard is dragged by the whole tile, into an order of your own, which
+  the top of your wiki's tree follows too.
 - **A board's pulse** — [flow numbers from every move](docs/manual.md#flow-the-pulse-a-cards-state-and-its-age):
   each card move is recorded with who made it (a person, an agent or an
   automation), and the board works out what is in progress, what waits on a
@@ -128,7 +129,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   cheapest model or, with no AI key, a clean cut at a word. Yours if you type one:
   `slipdock edit 12 --short-name "Parked jobs"` or `short_name` over the API and MCP.
   A setting of your own, **Names in trees and lists**, shows short names or full
-  titles in the wiki and vault trees and breadcrumbs (`slipdock names short`), and
+  titles in the wiki's tree and breadcrumbs (`slipdock names short`), and
   a sync client gets the title, short name and disk path of everything. Renaming
   a card, a short name or a board reaches a synced folder as a move. What the
   server writes names itself the same way: a write-up is `Cards/<short>/<short>.md`,
@@ -192,15 +193,17 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **A wiki per board** — [Markdown pages in a tree of folders](docs/manual.md#wiki),
   written in an Obsidian-style live-preview editor (descriptions and comments too),
   that stays quick with thousands of notes (loaded a folder at a time, only the rows
-  on screen drawn), icons and colours on folders and pages, `[[links]]` (typing `[[` opens a page picker: by title, folder or `W-` code, recent first, across your vault), live card chips, live query blocks, backlinks, revisions,
-  templates, export and public links. Every board you own is a folder of your one
-  [vault](docs/manual.md#vaults), a folder tree of Markdown (and other)
+  on screen drawn), icons and colours on folders and pages, `[[links]]` (typing `[[` opens a page picker: by title, folder or `W-` code, recent first, across your wiki), live card chips, live query blocks, backlinks, revisions,
+  templates, export and public links. You have one
+  [wiki](docs/manual.md#your-wiki): your **Knowledge Base** first, for what
+  belongs to no board, then a folder for every board you own (archived ones
+  left out), a folder tree of Markdown (and other)
   files, the way Obsidian keeps notes (Obsidian itself isn't needed): links, `#tags`, aliases,
   embeds and front matter as Obsidian reads them, a page or a whole folder filed in several
-  folders, and [`slipdock sync`](docs/manual.md#syncing-a-vault-to-a-folder)
+  folders, and [`slipdock sync`](docs/manual.md#syncing-your-wiki-to-a-folder)
   to mirror it both ways to a folder on each computer, Obsidian included (or one way,
   `sync from-server` / `sync to-server`), after
-  a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the vault you have,
+  a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the Obsidian vault you have,
   Excalidraw [drawings](docs/manual.md#drawings) drawn in the page and drawn
   in together live, with everyone's pointers on the canvas,
   [meeting pages](docs/manual.md#meeting-recordings-from-google-drive) that play
@@ -233,8 +236,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   network at all. Neither one, no AI features; nothing is sent anywhere
   without one.
 - **Built for the keyboard and the phone** — [a command palette, a key for
-  every board and vault, Ctrl-Shift-digit hotkeys, Shift-Alt-S to search everything, Shift-Alt-N for a [quick note](docs/manual.md#quick-notes), card labels you can jump to](docs/manual.md#keyboard),
-  [boards and vaults pinned to the header as icons](docs/manual.md#header-links), and
+  every board and your wiki, Ctrl-Shift-digit hotkeys, Shift-Alt-S to search everything, Shift-Alt-N for a [quick note](docs/manual.md#quick-notes), card labels you can jump to](docs/manual.md#keyboard),
+  [boards and your wiki pinned to the header as icons](docs/manual.md#header-links), and
   [a layout below 640px that is a pager rather than a sideways
   scroll](docs/manual.md#on-a-phone).
 - **A tour that is made of the thing it describes** — the first time somebody
@@ -250,7 +253,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   can be [shared on its own](docs/manual.md#sharing-pages-and-folders), to a
   person or a group: it shows under their **Shared with me** without the rest
   of the board along with the images and files the page embeds, a share to
-  edit can't delete, move out or pass anything on, and a synced vault gets link stubs rather than the content. A board somebody shared with you
+  edit can't delete, move out or pass anything on, and a synced wiki gets link stubs rather than the content. A board somebody shared with you
   says whose it is on your board list, so a list of boards is never a list of
   boards of unknown provenance, and its *…* menu has a **Shared** page saying
   who handed it over with a **Discard** button that gives the access back —
@@ -761,13 +764,13 @@ an OAuth client you make once:
 
    Unlike the settings above, these are read on every start. Unset, the Drive
    connection isn't offered at all.
-3. People connect Drive on **Account → Settings**, and set the vault's
-   recordings folder on the Vault page (or `slipdock vault set V
+3. People connect Drive on **Account → Settings**, and set their wiki's
+   recordings folder in Wiki settings (or `slipdock wiki set
    --recordings-folder PATH`).
 
 The scope is `drive.readonly`. Tokens are stored encrypted with a key derived
 from `SECRET_KEY_BASE`, so changing that key means everyone connects again. A
-vault's recordings are served through its owner's connection to anyone who can
+wiki's recordings are served through its owner's connection to anyone who can
 read the board, and only files under its recordings folder are served. A
 client that holds an API token plays the same stream from
 `GET /api/pages/:id/recording`.
@@ -974,14 +977,14 @@ the rest of its sections, one call each with `section`), `list_boards`, `get_boa
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
-the diff one save made, or between any two), `list_vaults` (your vault, or which board a vault path lands in), `activity`
+the diff one save made, or between any two), `wiki_info` (your wiki and its Knowledge Base, which board a path lands in, the page a link finds, what changed), `activity`
 (a board's log, or one card's), `download_file` (a card's or page's attached file: text as text, an image as an image; `text: true` gives the words read from a PDF or image; `link: true` gives a single-use, ten-minute URL to curl it from a shell instead) `list_automations` (a board's rules, owner only, with the spec grammar on request) `list_tools` (the [Tools](#tools) you can install, the board each install made, and with `file` one file of a Tool) and `garden` (a board's open [tidy-up suggestions](docs/manual.md#tidying-up); `run: true` looks the board over first) to read; `create_card`,
-`update_card`, `move_card`, `comment`, `leave_handoff` (where you left a card: the one next step and a short note, which `get_card` shows first), `garden_decide` (apply, dismiss or undo one tidy-up suggestion the person approved, with `confirm: true`), `upload_file` (attach a file of up to 10 MB to a card or page; `sha256` refuses bytes that changed on the way and is required with `content_base64`, since base64 a model writes out goes wrong above about 1 KB — a caller with a shell asks for `link: true` instead, and gets a single-use upload URL, good for ten minutes and needing no token, to `curl -F file=@… -F sha256=…` the file to (it takes and answers what `/api/cards/:id/attachments` does, so neither the bytes nor a long-lived token pass through the model), and naming a vault and a file's path in it copies a file the synced vault already holds without its bytes passing through the model; and the answer carries the stored file's `sha256`, as `get_card` and `read_page` listings do; a bigger file goes in verified chunks — `append: true` with each chunk's `sha256`, then `finish: true` with the whole file's — and only the finished file becomes an attachment; `replace: true` deletes older files of the same name once it is stored, so a rebuild leaves one copy), `delete_attachment` (a file off a card or page by its id, with `confirm: true`), `complete_card`, `status_update` (a card's stated health, with a note), `archive_card`,
+`update_card`, `move_card`, `comment`, `leave_handoff` (where you left a card: the one next step and a short note, which `get_card` shows first), `garden_decide` (apply, dismiss or undo one tidy-up suggestion the person approved, with `confirm: true`), `upload_file` (attach a file of up to 10 MB to a card or page; `sha256` refuses bytes that changed on the way and is required with `content_base64`, since base64 a model writes out goes wrong above about 1 KB — a caller with a shell asks for `link: true` instead, and gets a single-use upload URL, good for ten minutes and needing no token, to `curl -F file=@… -F sha256=…` the file to (it takes and answers what `/api/cards/:id/attachments` does, so neither the bytes nor a long-lived token pass through the model), and naming a file's path in your wiki (`vault_file`) copies a file your synced wiki already holds without its bytes passing through the model; and the answer carries the stored file's `sha256`, as `get_card` and `read_page` listings do; a bigger file goes in verified chunks — `append: true` with each chunk's `sha256`, then `finish: true` with the whole file's — and only the finished file becomes an attachment; `replace: true` deletes older files of the same name once it is stored, so a rebuild leaves one copy), `delete_attachment` (a file off a card or page by its id, with `confirm: true`), `complete_card`, `status_update` (a card's stated health, with a note), `archive_card`,
 `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`,
-`delete_board`, `write_page`, `quick_note` (a note the server names and files in your vault), `page_tool` (an AI tool over a page: summarise, extract actions and more), `update_page` (rename, summary, move, file, archive or
+`delete_board`, `write_page`, `quick_note` (a note the server names and files in your wiki), `page_tool` (an AI tool over a page: summarise, extract actions and more), `update_page` (rename, summary, move, file, archive or
 restore, pin to a card), `file_folder` (file a wiki folder in other folders as well as
 its home), `share` (share a wiki page or folder with a person or group, or take it
-back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_vault` (rename the vault, move a folder to another board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built) to write, and
+back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_wiki` (set your wiki's keys or recordings folder, move a folder to another board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, and for capture — `capture_meeting` while an admin has meeting mode on,
 `capture_chat` (send this conversation) while chat capture is on (the default), and `get_capture`,

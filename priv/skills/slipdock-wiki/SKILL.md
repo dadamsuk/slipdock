@@ -41,9 +41,9 @@ A page written for a card (`slipdock writeup <id>`, `page new <board> <title> --
 slipdock wiki                              # every board's wiki at once, folders and all
 slipdock folder ls <board>                 # one board's filing: folders, then pages
 slipdock folder open <board> [<folder>]    # one level only, with counts: cheap on a big wiki
-slipdock page switch <board> acme call     # fuzzy: title, alias or vault path, across the vault
-slipdock page switch <board> rose --all    # ...and every other vault of yours; link those as [[W-31]]
-slipdock page mv W-31 --board projects --folder Acme --dry-run   # to another board of the vault; drop --dry-run to move
+slipdock page switch <board> acme call     # fuzzy: title, alias or path, across your wiki
+slipdock page switch <board> rose --all    # ...and wikis shared with you too; link those as [[W-31]]
+slipdock page mv W-31 --board projects --folder Acme --dry-run   # to another board of your wiki; drop --dry-run to move
 slipdock page tree <board>                 # the shape of the wiki, nesting by indent
 slipdock page ls <board> --q retry         # substring of title or body
 slipdock page ls <board> --all             # archived pages too (--archived for those alone)
@@ -151,8 +151,8 @@ slipdock folder rm <board> Choices                 # the folder only
 **One page, several folders.** A page lives in one home folder and can be
 *also filed in* others — the same page, not a copy:
 `slipdock page file <page> --also "Design/Decisions"` (`--not-in` to undo;
-`--board B`, or a vault path like `/Projects/Notes`, for another board in the
-same vault; a path uses the folders that are there and makes only what is
+`--board B`, or a wiki path like `/Projects/Notes`, for another board in the
+same wiki; a path uses the folders that are there and makes only what is
 missing). File it twice rather than writing it twice.
 A folder can be filed in more places the same way, with everything in it:
 `slipdock folder file <board> <folder> --also F` (`--not-in F` to undo; both
@@ -181,35 +181,39 @@ send it back with `--file F` (or `--clear`). Never paste front matter into the
 body: it lives beside the body, and a `---` block in the body is just text.
 Its `aliases` are other names `[[links]]` find the page by.
 
-## The vault: every board as one Obsidian-style tree
+## The wiki: everything as one Obsidian-style tree
 
-The user has exactly one **vault**, and it holds no pages. It is derived from
-their boards, with nothing to set up: every root board they own, archived too,
-is a folder off the root (`/<board name>`), and a sub-board sits in its epic's
-folder (`<Board>/Cards/<Epic>/`). Boards shared by someone else are not in it,
-and the root holds boards only. In the web app a board's wiki shows the vault
-from that board's folder down, so to point someone at a note, the board it is
-on is enough.
+The user has one **wiki**, with nothing to set up. At the top is their
+**Knowledge Base** (always first): notes that belong to no board of work. It is
+a hidden board of its own, kind `wiki`, on no list of boards; write to it like
+any board, by its code (`slipdock wiki show` gives it). After it, every root
+board they own is a folder (`/<board name>`), in their home page's order; a
+sub-board sits in its epic's folder (`<Board>/Cards/<Epic>/`) and a card's own
+pages in `<Board>/Cards/<card>/`. Archived boards are out of it (restoring one
+brings its wiki back); boards shared by someone else are not in it, and the
+root holds boards only. In the web app a board's wiki shows the tree from that
+board's folder down, and **Wiki** (`/wiki`) shows all of it, so to point
+someone at a note, the board it is on is enough.
 
 ```sh
-slipdock vault ls                                  # the vault, its boards and pages
-slipdock vault locate Notes /Projects/Acme/Call.md     # which board, and the rest of the path
+slipdock wiki show                           # your wiki, its boards, Knowledge Base and pages
+slipdock wiki locate /Projects/Acme/Call.md  # which board, and the rest of the path
 ```
 
-On a board in a vault, `[[Note]]` looks on its own board, then across the
-whole vault; when two notes share a name the shortest vault path wins, and
-`[[Folder/Note]]` picks one. `slipdock vault resolve <vault> <link>` says
-which page a link finds before you write it; `slipdock vault wanted <vault>`
-is the vault's backlog of unwritten pages.
+`[[Note]]` looks on its own board, then across the whole wiki; when two notes
+share a name the shortest path wins, and `[[Folder/Note]]` picks one.
+`slipdock wiki resolve <link>` says which page a link finds before you write
+it; `slipdock wiki wanted` is the wiki's backlog of unwritten pages.
 
-`slipdock vault changes <vault> --since N` lists what changed in the vault after
+`slipdock wiki changes --since N` lists what changed in the wiki after
 cursor N (without `--since`, the cursor to start from) — the feed a sync polls.
 A renamed card, short name or board shows as `moved`, old path → new, on all
-that moved. `slipdock vault tree <vault>` lists everything by name; add
-`--short-names` to it, `vault changes` or `folder ls` for card folders' short
+that moved; an archived board shows only as that board, `archived`.
+`slipdock wiki tree` lists everything by name; add
+`--short-names` to it, `wiki changes` or `folder ls` for card folders' short
 names. `slipdock names [full|short]` says or sets the user's own choice.
 
-`slipdock sync init <dir> --vault V` binds a local folder to a vault, and
+`slipdock sync init <dir>` binds a local folder to the wiki, and
 `slipdock sync [<dir>]` (or `--watch`) keeps the two level both ways: a note is
 `Title.md` (`Title/index.md` with children), renaming the file renames the page,
 a delete archives it, and a note changed on both sides keeps the server's
@@ -220,13 +224,13 @@ only sends them up; what either skips stays waiting for the next pass.
 user keeps notes in a synced folder, editing the file and letting sync carry it
 is as good as `page edit` — but don't do both to one note at once.
 
-`slipdock vault import <dir> --vault V --dry-run` reports what bringing an
+`slipdock wiki import <dir> --dry-run` reports what bringing an
 existing Obsidian vault in would create or skip and which links, embeds and
 plugin blocks won't resolve; without `--dry-run` it does it (one way, once,
-never overwriting what the vault has). Run the dry run and show the user before
+never overwriting what the wiki has). Run the dry run and show the user before
 the real import: it creates a page for every note.
 
-On a board in a vault, a note's front matter `tags` and inline `#tags` (and
+A note's front matter `tags` and inline `#tags` (and
 nested `#area/sub`) are its own tags, apart from the board's card tags:
 `slipdock page tags <board>` counts them, `slipdock page ls <board> --note-tag
 area` lists the notes under one. `#412` is still a card.
@@ -238,8 +242,8 @@ backticks if the transcript has a line starting with ```` ``` ````). Its front
 matter says where the audio is: `recording: gdrive:<path from My Drive>`, plus
 `recording_drive_id` and `recording_duration` when known, and
 `type: meeting`. The audio stays on Google Drive. The web app plays it in step
-with the transcript once the vault owner has connected Drive and set the
-vault's recordings folder (`slipdock vault set V --recordings-folder PATH`;
+with the transcript once the wiki's owner has connected Drive and set the
+wiki's recordings folder (`slipdock wiki set --recordings-folder PATH`;
 `slipdock drive status` shows both). Don't upload the audio, and don't write
 a separate `.vtt` file. Moments tagged while recording go in the summary as one
 line, `Tags: #important (0:05) #action (12:40)`, and show inline in the
@@ -309,7 +313,7 @@ slipdock page from <board> "Decision record" --title "Dropping the queue" --set 
 
 A template's `{{…}}` are Slipdock's (`{{card.title}}`, `{{today}}`, `--set`
 values) and Obsidian's (`{{title}}`, `{{date}}`, `{{time}}`,
-`{{date:YYYY-MM-DD}}`), so templates brought over from a vault work as they are.
+`{{date:YYYY-MM-DD}}`), so templates brought over from Obsidian work as they are.
 
 **Pin the page to the card it explains.** A page nobody can reach from the
 work is a page nobody reads; pinning puts it at the top of that card's Docs.
