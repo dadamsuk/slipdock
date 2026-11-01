@@ -44,6 +44,29 @@ defmodule Slipdock.Release do
     summary
   end
 
+  @doc """
+  One board's wiki into a folder of another (`Slipdock.Wiki.WikiMove`), for
+  a release: Repo and PubSub only. `opts`: `user` (an email), `from` and `to`
+  (board codes), `folder`. A dry run unless `apply: true` is passed.
+  """
+  def move_wiki(opts) do
+    load()
+    {:ok, _} = Application.ensure_all_started(:ecto_sql)
+    {:ok, _} = Application.ensure_all_started(:phoenix_pubsub)
+
+    {:ok, _} =
+      Phoenix.PubSub.Supervisor.start_link(name: Slipdock.PubSub, adapter: Phoenix.PubSub.PG2)
+
+    {:ok, result, _} =
+      Ecto.Migrator.with_repo(Slipdock.Repo, fn _repo ->
+        Slipdock.Wiki.WikiMove.run_named(opts[:user], opts[:from], opts[:to], opts[:folder],
+          dry_run: opts[:apply] != true
+        )
+      end)
+
+    result
+  end
+
   @doc "Runs any pending migrations against the configured database."
   def migrate do
     load()
