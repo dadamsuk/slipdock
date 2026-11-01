@@ -243,6 +243,12 @@ defmodule Slipdock.Wiki.Folders do
          do: create_checked(board, attrs)
   end
 
+  @doc """
+  Makes a folder with exactly this name, a slash being part of it: for a name
+  nobody typed as a path, such as a card's title.
+  """
+  def create_literal(%Board{} = board, attrs), do: insert(board, stringify(attrs))
+
   defp create_checked(board, attrs) do
     case String.split(to_string(attrs["name"] || ""), "/", trim: true) do
       [] ->

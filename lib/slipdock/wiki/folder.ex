@@ -34,6 +34,8 @@ defmodule Slipdock.Wiki.Folder do
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :parent, __MODULE__
+    # A card's own folder (`Slipdock.Wiki.CardFolders`): set there, not cast.
+    belongs_to :card, Slipdock.Boards.Card
 
     has_many :children, __MODULE__, foreign_key: :parent_id, preload_order: [asc: :position]
     has_many :pages, Slipdock.Wiki.Page, preload_order: [asc: :position]

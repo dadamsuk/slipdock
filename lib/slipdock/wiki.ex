@@ -1569,7 +1569,7 @@ defmodule Slipdock.Wiki do
       "body" => template.body |> obsidian.() |> render_template(bindings),
       "summary" => template.summary |> obsidian.() |> render_template(bindings),
       "parent_id" => parent_id(board, opts[:parent]),
-      "folder_id" => folder_id(board, opts[:folder])
+      "folder_id" => home_folder_id(board, opts)
     }
 
     with {:ok, page} <-
@@ -1580,8 +1580,9 @@ defmodule Slipdock.Wiki do
   end
 
   @doc """
-  "Write it up": a page for a card, pre-titled, pinned to it, and pre-filled
-  from a template when the board has one.
+  "Write it up": a page for a card, pre-titled, pinned to it, filed in the
+  card's folder (`Slipdock.Wiki.CardFolders`) unless told where, and
+  pre-filled from a template when the board has one.
 
   The pin is the point. A page that explains a card is no use if the person
   looking at the card cannot see that it exists.
@@ -1600,7 +1601,7 @@ defmodule Slipdock.Wiki do
           "body" => default_writeup(card, opts[:body]),
           "summary" => opts[:summary],
           "parent_id" => parent_id(board, opts[:parent]),
-          "folder_id" => folder_id(board, opts[:folder])
+          "folder_id" => home_folder_id(board, opts)
         }
 
         with {:ok, page} <-
@@ -1621,6 +1622,22 @@ defmodule Slipdock.Wiki do
           maybe_pin_to_card(page, card)
           {:ok, page}
         end
+    end
+  end
+
+  # Where a new page goes: where it was told to, else, being for a card on
+  # this board, that card's folder. A template used for another board's card
+  # stays where it is made: the page belongs to this board, the pin says the rest.
+  defp home_folder_id(%Board{id: board_id} = board, opts) do
+    told? = opts[:folder] != nil or opts[:parent] != nil
+
+    case opts[:card] do
+      %Card{board_id: ^board_id} = card when not told? ->
+        {:ok, folder} = Slipdock.Wiki.CardFolders.ensure(card)
+        folder.id
+
+      _ ->
+        folder_id(board, opts[:folder])
     end
   end
 

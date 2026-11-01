@@ -1359,6 +1359,12 @@ defmodule SlipdockWeb.APIGuide do
     the cheapest model when there is a key. `short_name` on a card write sets
     your own, and `""` hands it back.
 
+    A page written for a card lives in the card's folder,
+    `<Board>/Cards/<card>/`, made on first use and tied to the card by id, so
+    renaming the card renames it: `POST /api/cards/:id/pages`, or `card` on
+    `POST /api/boards/:b/pages` and MCP `write_page`. Attaching an existing
+    page (`pin_card`) is a link, and moves nothing.
+
     ### Waits, pauses and a card's state
 
     **A wait** is a card waiting on a person: what it `needs`, who it is

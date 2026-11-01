@@ -109,6 +109,20 @@ defmodule SlipdockWeb.API.PageController do
 
   defp truthy?(value), do: Enum.member?(~w(true 1 yes on), to_string(value))
 
+  # A page for a card: on the card's board, in its folder, pinned to it.
+  def create(conn, %{"board" => _, "card" => card_ref} = params) when not is_nil(card_ref) do
+    with {:ok, card} <- fetch_card(card_ref),
+         :ok <- Authorize.card(conn, card, :write),
+         {:ok, page} <-
+           Wiki.create_page_from_card(
+             card,
+             write_opts(conn, params) ++
+               [title: params["title"], body: params["body"], folder: params["folder"]]
+           ) do
+      conn |> put_status(:created) |> json(%{page: V.page(with_users(page))})
+    end
+  end
+
   def create(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, attrs} <- page_attrs(conn, board, params),
