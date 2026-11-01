@@ -48,6 +48,7 @@ defmodule Slipdock.Wiki.Archive do
     pages = Wiki.list_pages(board, Keyword.take(opts, [:archived, :status, :template]))
     folders = Wiki.folders(board)
     dirs = folder_dirs(folders, CardFolders.sources([board.id]))
+    own_pages = CardFolders.own_pages([board.id])
 
     # Each directory's folders, so a page with children can't take their name.
     taken = Enum.group_by(folders, & &1.parent_id, &Map.get(dirs, &1.id))
@@ -56,7 +57,12 @@ defmodule Slipdock.Wiki.Archive do
     |> Wiki.tree_from()
     |> Enum.group_by(& &1.page.folder_id)
     |> Enum.flat_map(fn {folder_id, nodes} ->
-      walk(nodes, Map.get(dirs, folder_id, ""), taken |> Map.get(folder_id, []) |> basenames())
+      walk(
+        nodes,
+        Map.get(dirs, folder_id, ""),
+        taken |> Map.get(folder_id, []) |> basenames(),
+        own_pages
+      )
     end)
   end
 
@@ -88,9 +94,13 @@ defmodule Slipdock.Wiki.Archive do
   # Two pages in one directory may share a title, and writing one over the
   # other would lose writing, the one thing an export must never do: the
   # later one is numbered. A directory's `index.md` is its page's own.
-  defp walk(nodes, prefix, taken) do
+  defp walk(nodes, prefix, taken, own_pages) do
     nodes = Enum.sort_by(nodes, & &1.page.id)
-    names = nodes |> Enum.map(&{&1.page.id, &1.page.title}) |> DiskName.assign(taken)
+
+    names =
+      nodes
+      |> Enum.map(&{&1.page.id, CardFolders.own_page_name(&1.page, own_pages) || &1.page.title})
+      |> DiskName.assign(taken)
 
     Enum.flat_map(nodes, fn %{page: page, children: children} ->
       name = names[page.id]
@@ -101,7 +111,11 @@ defmodule Slipdock.Wiki.Archive do
 
         _ ->
           folder = Path.join(prefix, name)
-          [{Path.join(folder, "index.md"), file(page)} | walk(children, folder, ["index"])]
+
+          [
+            {Path.join(folder, "index.md"), file(page)}
+            | walk(children, folder, ["index"], own_pages)
+          ]
       end
     end)
   end

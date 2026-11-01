@@ -312,7 +312,7 @@ defmodule Slipdock.Meetings.Verify do
     owner = raw |> owner(members) |> in_meeting(heard) |> chat_owner(raw, members, capture)
     unfound = unfound_card?(raw, link, candidates)
     unsure = Enum.any?(f.evidence, & &1.line.voice_unsure)
-    answered = raw["kind"] == "open_question" && wiki_answer(f.evidence, candidates)
+    answered = raw["kind"] == "open_question" && wiki_answer(f.evidence, candidates, capture)
 
     signals =
       ["quoted"] ++
@@ -777,12 +777,13 @@ defmodule Slipdock.Meetings.Verify do
 
   # An open question a page in the context already answers, read off the
   # same lines.
-  defp wiki_answer(evidence, candidates) do
+  defp wiki_answer(evidence, candidates, capture) do
     lines = MapSet.new(evidence, & &1.line.line_id)
+    decisions = Enum.map((capture.context || %{})["decisions"] || [], & &1["page_id"])
 
     Enum.find(candidates, fn c ->
       c["type"] == "page" and c["strength"] in ["id", "name", "similarity"] and
-        Enum.any?(c["lines"], &MapSet.member?(lines, &1)) and
+        Enum.any?(c["lines"], &MapSet.member?(lines, &1)) and c["id"] not in decisions and
         not String.match?(c["title"] || "", ~r/^decisions\b/i)
     end)
   end

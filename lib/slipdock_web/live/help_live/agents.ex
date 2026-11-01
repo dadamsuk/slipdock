@@ -962,6 +962,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
       </p>
     </.part>
 
+    <.part title="Names worth keeping" id="help-names">
+      <p>
+        The skills and the guide ask for card titles of about 60 characters at most, a
+        series as <code>&lt;Series&gt; &lt;n&gt;: &lt;what&gt;</code>, with the detail in
+        the description. A title becomes a folder in a synced vault, and a page written
+        for a card sits in that folder, so it needn't repeat the card's title.
+      </p>
+    </.part>
+
     <.part title="The handbook" id="help-handbook">
       <p>
         One Tool is built in. <code>slipdock tools install-board handbook --board B</code>

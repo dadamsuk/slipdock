@@ -371,14 +371,15 @@ defmodule Slipdock.Meetings.Context do
 
   @doc """
   The decisions already written down on the boards in scope: every page whose
-  title starts "Decisions", and each entry on it — a list item or a `###`
-  heading — with whether it has been struck through (superseded). A
+  title starts "Decisions", every meeting's page (it says which capture it
+  came from, whatever it is called), and each entry on them — a list item or
+  a `###` heading — with whether it has been struck through (superseded). A
   meeting's page groups its decisions under `## <topic>` headings and opens
   with a sentence about the meeting; neither is an entry.
   """
   def decisions(pages) do
     pages
-    |> Enum.filter(&Regex.match?(~r/^decisions\b/i, &1.title))
+    |> Enum.filter(&decisions_page?/1)
     |> Enum.map(fn page ->
       %{
         "page_id" => page.id,
@@ -389,6 +390,11 @@ defmodule Slipdock.Meetings.Context do
         "entries" => entries(page.body || "")
       }
     end)
+  end
+
+  defp decisions_page?(page) do
+    Regex.match?(~r/^decisions\b/i, page.title) or
+      Regex.match?(~r{\[the meeting's capture\]\(/boards/\d+/meetings/\d+\)}, page.body || "")
   end
 
   defp entries(body) do

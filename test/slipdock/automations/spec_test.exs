@@ -78,11 +78,18 @@ defmodule Slipdock.Automations.SpecTest do
     end
 
     test "an action missing several required keys names them all" do
-      assert error(spec(%{"type" => "card_created"}, [%{"type" => "alert"}])) ==
-               "action “alert” needs title"
+      assert error(spec(%{"type" => "card_created"}, [%{"type" => "comment"}])) ==
+               "action “comment” needs body"
 
       assert error(spec(%{"type" => "card_created"}, [%{"type" => "add_tags", "tags" => []}])) ==
                "action “add_tags” needs tags"
+    end
+
+    test "an alert and a new card may leave their title to the server" do
+      for type <- ~w(alert create_card) do
+        assert {:ok, %{"actions" => [%{"type" => ^type}]}} =
+                 Spec.validate(spec(%{"type" => "card_created"}, [%{"type" => type}]))
+      end
     end
 
     test "a later bad action even when the earlier ones are fine" do

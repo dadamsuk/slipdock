@@ -569,6 +569,43 @@ defmodule Slipdock.Automations.RunnerTest do
       assert Enum.map(made.tags, & &1.name) == ["follow-up"]
     end
 
+    test "with no title it says what fired, on what and when", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Launch"})
+      rule = rule(ctx.board, [%{"type" => "create_card"}])
+      today = Date.utc_today()
+
+      assert run(rule, card) == [{:ok, "created “#{rule.name}: Launch #{today}”"}]
+    end
+
+    test "with no title, a card's short name stands for it", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Launch", "short_name" => "Lift"})
+      rule = rule(ctx.board, [%{"type" => "create_card"}])
+
+      assert [{:ok, made}] = run(rule, card)
+      assert made =~ "#{rule.name}: Lift "
+    end
+
+    test "with no title and no card, the rule and the date", ctx do
+      rule = rule(ctx.board, [%{"type" => "create_card"}])
+
+      assert [{:ok, made}] = Runner.run(rule, %{type: "schedule", board_id: ctx.board.id})
+      assert made == "created “#{rule.name} #{Date.utc_today()}”"
+    end
+
+    test "a title that comes out blank falls back too", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Launch"})
+      rule = rule(ctx.board, [%{"type" => "create_card", "title" => "  "}])
+
+      assert run(rule, card) == [{:ok, "created “#{rule.name}: Launch #{Date.utc_today()}”"}]
+    end
+
+    test "a title given wins over the default", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Launch"})
+      rule = rule(ctx.board, [%{"type" => "create_card", "title" => "Mine"}])
+
+      assert run(rule, card) == [{:ok, "created “Mine”"}]
+    end
+
     test "a list it can't find means the first list; a bad value is reported", ctx do
       rule =
         rule(ctx.board, [%{"type" => "create_card", "title" => "Lost", "column" => "Nowhere"}])
@@ -579,6 +616,22 @@ defmodule Slipdock.Automations.RunnerTest do
       bad = rule(ctx.board, [%{"type" => "create_card", "title" => "Bad", "priority" => "asap"}])
       assert [{:error, message}] = Runner.run(bad, %{type: "schedule", board_id: ctx.board.id})
       assert message =~ "priority"
+    end
+  end
+
+  describe "run/3 — an alert's title" do
+    test "with none given it says what fired, on what and when", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Launch"})
+      rule = rule(ctx.board, [%{"type" => "alert"}])
+
+      assert run(rule, card) == [{:ok, "alerted: #{rule.name}: Launch #{Date.utc_today()}"}]
+    end
+
+    test "with no card, the rule and the date", ctx do
+      rule = rule(ctx.board, [%{"type" => "alert"}])
+
+      assert Runner.run(rule, %{type: "schedule", board_id: ctx.board.id}) ==
+               [{:ok, "alerted: #{rule.name} #{Date.utc_today()}"}]
     end
   end
 

@@ -103,8 +103,9 @@ defmodule Slipdock.Automations.Spec do
   @actions [
     {"email", ["to"], ["subject", "body"], "send an email"},
     {"notify_assignee", [], ["subject", "body"], "email everybody the card is assigned to"},
-    {"alert", ["title"], ["body", "severity"],
-     "raise a dismissable alert in the header bar (severity: info, warning, urgent)"},
+    {"alert", [], ["title", "body", "severity"],
+     "raise a dismissable alert in the header bar (severity: info, warning, urgent); " <>
+       "with no title it is called `<rule>: <card> <date>`"},
     {"move_card", ["column"], [], "move the card to another list"},
     {"set_priority", ["priority"], [], "set the priority (none, low, medium, high, critical)"},
     {"set_colours", [],
@@ -127,9 +128,9 @@ defmodule Slipdock.Automations.Spec do
     {"reopen_card", [], [], "un-tick the card"},
     {"archive_card", [], [], "archive the card"},
     {"add_checklist_items", ["items"], [], "add checklist items to the card"},
-    {"create_card", ["title"],
-     ["column", "description", "priority", "due_date", "assignee", "tags"],
-     "add a new card to a list"},
+    {"create_card", [],
+     ["title", "column", "description", "priority", "due_date", "assignee", "tags"],
+     "add a new card to a list; with no title it is called `<rule>: <card> <date>`"},
     {"create_page", [], ["title", "template", "parent", "body", "summary"],
      "start a wiki page for the card, pinned to it (from a template page if named)"},
     {"webhook", ["url"], ["method"],
@@ -753,7 +754,8 @@ defmodule Slipdock.Automations.Spec do
         "add #{length(List.wrap(a["items"]))} checklist items"
 
       "create_card" ->
-        "create “#{a["title"]}”" <> where(a["column"], "in")
+        if(a["title"], do: "create “#{a["title"]}”", else: "create a card") <>
+          where(a["column"], "in")
 
       "create_page" ->
         "start a wiki page" <> page_title(a["title"])

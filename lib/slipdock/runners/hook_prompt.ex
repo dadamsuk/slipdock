@@ -23,12 +23,13 @@ defmodule Slipdock.Runners.HookPrompt do
 
   @example "after-job-hook.sh"
   @example_test "after-job-hook-test.sh"
+  @example_passlog "passlog.sh"
 
   @doc "The environment variables a hook is given, in order."
   def env_vars, do: Enum.map(@env, &elem(&1, 0))
 
   @doc "The worked example's file names, as served under `/runner/examples/`."
-  def example_files, do: [@example, @example_test]
+  def example_files, do: [@example, @example_test, @example_passlog]
 
   @doc "Whether the scenario's runner runs hooks this prompt is for (the shell and Windows runners)."
   def for_scenario?(scenario), do: scenario in ~w(server windows)
@@ -56,13 +57,14 @@ defmodule Slipdock.Runners.HookPrompt do
     What to write — ask me before you start, then write it:
 
     1. Which notifier I use, if any: PushOver, ntfy, Slack, email, or something else, and where its credentials live (an environment variable or a file only I can read — never in the hook itself). Send an alert when a job times out or fails, with the card's link.
-    2. What to keep from each job. For a Claude job, a record of the pass can be made from its Claude Code transcript: in the before-job hook, touch a marker file named after the job; in the after-job hook, take the newest .jsonl in the folder under ~/.claude/projects named after the job's working directory (every / and . turned into -) written since that marker that mentions $SLIPDOCK_CARD_URL. (Or have the job function pass claude a --session-id of its own and look that file up.) It can be summarised into a page on the board's wiki (`slipdock page new <board> <title> --file F`, then `slipdock page pin <page> --card $SLIPDOCK_CARD` so it shows under the card) or kept on disk. Ask me which, if any.
+    2. What to keep from each job. For a Claude job, a record of the pass can be made from its Claude Code transcript: in the before-job hook, touch a marker file named after the job; in the after-job hook, take the newest .jsonl in the folder under ~/.claude/projects named after the job's working directory (every / and . turned into -) written since that marker that mentions $SLIPDOCK_CARD_URL. (Or have the job function pass claude a --session-id of its own and look that file up.) It can be summarised into a page for the card (`slipdock page new <board> "Pass $SLIPDOCK_CARD (<YYYY-MM-DD HH.MM>)" --file F --card $SLIPDOCK_CARD`, which files it in the card's folder and pins it there; the title says nothing the folder already says, and a pass that writes several files uses a folder `Pass <n>/`) or kept on disk. Ask me which, if any.
     3. A test script for the hooks, run against fake notify and pass-log commands and a folder of fake transcripts, that checks each status, a missing environment, a failing notifier and the exit code, and that the hooks never touch the board.
 
-    A worked example to start from — one server's own hooks, with their test:
+    A worked example to start from — one server's own hooks, with their test and a pass-log script:
 
     #{base_url}/runner/examples/#{@example}
     #{base_url}/runner/examples/#{@example_test}
+    #{base_url}/runner/examples/#{@example_passlog}
 
     #{wiring(windows?)}
     """

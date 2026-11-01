@@ -261,7 +261,7 @@ defmodule SlipdockWeb.Meetings.AgentsTest do
 
       result = ok!(call(ctx.conn, "commit_capture", %{capture: ctx.capture.id, preview: preview}))
       assert result["committed"] == true
-      assert "decisions on Decisions / Pricing sync · 7 Oct 2026" in result["written"]
+      assert "decisions on 2026-10-07 Pricing sync" in result["written"]
 
       assert Repo.exists?(
                from(e in Event,

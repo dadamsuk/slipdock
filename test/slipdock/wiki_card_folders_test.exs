@@ -5,8 +5,9 @@ defmodule Slipdock.WikiCardFoldersTest do
   import Slipdock.Fixtures
 
   alias Slipdock.{Boards, Repo, Vaults, Wiki}
-  alias Slipdock.Vaults.Layout
-  alias Slipdock.Wiki.{Archive, CardFolders, Folder, Page}
+  alias Slipdock.Boards.Card
+  alias Slipdock.Vaults.{Layout, Sync}
+  alias Slipdock.Wiki.{Archive, CardFolders, Changes, Folder, Page}
 
   @long "Agent supervision 5/9: Parked jobs must be released on timeout"
 
@@ -23,6 +24,178 @@ defmodule Slipdock.WikiCardFoldersTest do
   end
 
   defp folders(board), do: Repo.all(from(f in Folder, where: f.board_id == ^board.id))
+
+  describe "a write-up's file" do
+    defp vault_path(user, page) do
+      Layout.build(Vaults.root(user)).pages[page.id].path
+    end
+
+    defp long_card(board) do
+      card_fixture(hd(board.columns), %{"title" => @long})
+    end
+
+    test "keeps the page's title and takes the card's short name on disk",
+         %{board: board, user: user} do
+      card = long_card(board)
+      page = write_up(card, user)
+
+      assert page.title == @long
+      assert page.file_name == nil
+
+      assert vault_path(user, page) ==
+               "Folders/Cards/#{card.short_name}/#{card.short_name}.md"
+    end
+
+    test "with no short name, the title it shares with the folder", ctx do
+      page = write_up(ctx.card, ctx.user)
+      assert vault_path(ctx.user, page) == "Folders/Cards/Fix the thing/Fix the thing.md"
+    end
+
+    test "follows a new short name, and the feed says so", %{board: board, user: user} do
+      card = long_card(board)
+      page = write_up(card, user)
+      vault = Vaults.root(user)
+      cursor = Changes.since(vault, nil, user).cursor
+      was = vault_path(user, page)
+
+      {:ok, _} = Boards.update_card(Repo.get!(Card, card.id), %{"short_name" => "Parked jobs"})
+
+      assert vault_path(user, page) == "Folders/Cards/Parked jobs/Parked jobs.md"
+
+      assert %{from_path: ^was, path: "Folders/Cards/Parked jobs/Parked jobs.md"} =
+               Enum.find(
+                 Changes.since(vault, cursor, user).changes,
+                 &(&1.subject == "page" and &1.id == page.id)
+               )
+    end
+
+    test "goes back to its own title when the card is retitled", ctx do
+      page = write_up(ctx.card, ctx.user)
+      {:ok, _} = Boards.update_card(Repo.get!(Card, ctx.card.id), %{"title" => "Renamed"})
+
+      assert vault_path(ctx.user, page) == "Folders/Cards/Renamed/Fix the thing.md"
+    end
+
+    test "only the page titled like the card", %{board: board, user: user} do
+      card = long_card(board)
+      other = write_up(card, user, title: "Notes")
+      assert vault_path(user, other) == "Folders/Cards/#{card.short_name}/Notes.md"
+    end
+
+    test "not a child page titled like the card", %{board: board, user: user} do
+      card = long_card(board)
+      parent = write_up(card, user, title: "Parent")
+      child = write_up(card, user, title: @long, parent: parent.id)
+      dir = "Folders/Cards/#{card.short_name}/Parent"
+
+      assert String.starts_with?(vault_path(user, child), dir <> "/Agent supervision 5-9")
+    end
+
+    test "a second page titled like the card is numbered", %{board: board, user: user} do
+      card = long_card(board)
+      write_up(card, user)
+      second = write_up(card, user)
+
+      assert vault_path(user, second) ==
+               "Folders/Cards/#{card.short_name}/#{card.short_name} (2).md"
+    end
+
+    test "a page with children takes it too", %{board: board, user: user} do
+      card = long_card(board)
+      page = write_up(card, user)
+      write_up(card, user, title: "Child", parent: page.id)
+
+      assert vault_path(user, page) ==
+               "Folders/Cards/#{card.short_name}/#{card.short_name}/index.md"
+    end
+
+    test "a name the file was given is kept", %{board: board, user: user} do
+      card = long_card(board)
+      page = write_up(card, user)
+      {:ok, page} = Wiki.update_page(page, %{"file_name" => "My note"}, user: user)
+
+      assert vault_path(user, page) == "Folders/Cards/#{card.short_name}/My note.md"
+    end
+
+    test "the same page in another folder is its title", %{board: board, user: user} do
+      card = long_card(board)
+      {:ok, folder} = Wiki.create_folder(board, %{"name" => "Elsewhere"})
+      page = write_up(card, user, folder: folder.id)
+
+      assert String.starts_with?(vault_path(user, page), "Folders/Elsewhere/Agent supervision")
+    end
+
+    test "the export agrees, and a round trip keeps the title", %{board: board, user: user} do
+      card = long_card(board)
+      write_up(card, user)
+      files = Map.new(Archive.files(board))
+      path = "Cards/#{card.short_name}/#{card.short_name}.md"
+
+      assert files[path] =~ "title: #{@long}"
+
+      other = board_fixture(%{"name" => "Back"}, owner: user)
+      assert %{skipped: []} = Archive.import_files(other, Map.to_list(files), user: user)
+      assert [%Page{title: @long}] = Wiki.list_pages(other)
+    end
+
+    test "the export's child pages are not touched", %{board: board, user: user} do
+      card = long_card(board)
+      parent = write_up(card, user, title: "Parent")
+      write_up(card, user, title: @long, parent: parent.id)
+
+      assert Enum.any?(Archive.files(board), fn {path, _} ->
+               String.starts_with?(
+                 path,
+                 "Cards/#{card.short_name}/Parent/Agent supervision 5-9"
+               )
+             end)
+    end
+
+    test "a link finds it by its whole title, never the shortened name (W-2201 rule 5)",
+         %{board: board, user: user} do
+      card = long_card(board)
+      page = write_up(card, user)
+      index = Vaults.Index.build(Vaults.root(user))
+
+      assert [%{id: id}] = Vaults.Index.match(index, card.title)
+      assert id == page.id
+      assert Vaults.Index.match(index, card.short_name) == []
+    end
+
+    test "an edit synced back at the same path changes nothing of its name",
+         %{board: board, user: user} do
+      card = long_card(board)
+      page = write_up(card, user)
+      vault = Vaults.root(user)
+      path = vault_path(user, page)
+
+      {:ok, %{hash: base}} = Sync.read_page(vault, user, page.id)
+
+      assert {:ok, _} =
+               Sync.write_page(vault, user, %{
+                 "id" => page.id,
+                 "path" => path,
+                 "content" => "edited\n",
+                 "base" => base
+               })
+
+      saved = Repo.get!(Page, page.id)
+      assert saved.title == @long
+      assert saved.body =~ "edited"
+      assert saved.file_name == nil
+      assert vault_path(user, saved) == path
+    end
+
+    test "a card moved off the board leaves the page its title", %{board: board, user: user} do
+      card = long_card(board)
+      page = write_up(card, user)
+      other = board_fixture(%{"name" => "Other"}, owner: user)
+      {:ok, _} = Boards.move_card_to_board(Repo.get!(Card, card.id), hd(other.columns))
+      CardFolders.find(Repo.get!(Card, card.id))
+
+      assert vault_path(user, page) =~ ~r{\AFolders/Cards/.*/Agent supervision 5-9}
+    end
+  end
 
   describe "the folder" do
     test "isn't made until the card gets a page", %{board: board, card: card} do

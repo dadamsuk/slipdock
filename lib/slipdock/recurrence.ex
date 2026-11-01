@@ -40,7 +40,7 @@ defmodule Slipdock.Recurrence do
 
   alias Slipdock.{Boards, Repo, Timezones}
   alias Slipdock.Accounts.User
-  alias Slipdock.Boards.{Card, Column}
+  alias Slipdock.Boards.{Card, Column, ShortNames}
   alias Slipdock.Recurrence.{Rule, Series}
 
   ## Reading
@@ -619,7 +619,12 @@ defmodule Slipdock.Recurrence do
   defp make_instance(series, current) do
     column = target_column(series, current)
 
-    case Boards.copy_card(current, column, at: :top, attrs: dated(current, series.next_on)) do
+    attrs =
+      current
+      |> dated(series.next_on)
+      |> Map.put("short_name", ShortNames.occurrence(current, series.next_on))
+
+    case Boards.copy_card(current, column, at: :top, attrs: attrs) do
       {:ok, copy} ->
         from(c in Card, where: c.id == ^copy.id) |> Repo.update_all(set: [series_id: series.id])
 

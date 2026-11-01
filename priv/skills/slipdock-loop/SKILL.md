@@ -357,6 +357,13 @@ On a handbook board the handbook comes first: what the project *is* goes in
 its section pages, and a choice between alternatives is a new page in
 `Handbook/Decisions` (see the docs gate in step 7).
 
+### Cards you file
+
+**Card titles** are about 60 characters at most, a series as `<Series> <n>: <what>`
+(`Agent supervision 5: Parked jobs`), the detail in the description. A card's
+title becomes a folder and shows in tight lists, and a sequence of cards that
+share their first 40 characters can't be told apart there.
+
 ### How a comment reads
 
 Comments are Markdown, rendered on the card, and a person skims them. Write
