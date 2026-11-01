@@ -527,6 +527,21 @@ defmodule Slipdock.Vaults.Sync do
     end
   end
 
+  @doc """
+  Deletes a file for good, bytes and all, guarded by its base. Only the
+  owner of the file's board may, as in the web tree; `archive_file/5` is
+  what a sync does.
+  """
+  def purge_file(%Vault{} = vault, %User{} = user, id, base, opts \\ []) do
+    layout = Layout.build(vault)
+
+    with {:ok, file} <- vault_file(layout, id, user, :owner, opts),
+         :ok <- check_file_base(layout, file, base),
+         {:ok, deleted} <- Files.delete(file) do
+      {:ok, %{kind: "file", id: deleted.id, deleted: true}}
+    end
+  end
+
   defp file_entry(layout, %WikiFile{} = file) do
     %{
       kind: "file",
@@ -557,6 +572,9 @@ defmodule Slipdock.Vaults.Sync do
 
         need == :write and not Access.can_write?(level) ->
           {:error, :forbidden, "you don't edit #{file.name}"}
+
+        need == :owner and level != :owner ->
+          {:error, :forbidden, "only the board's owner can delete a file for good"}
 
         true ->
           {:ok, file}

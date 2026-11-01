@@ -4,8 +4,8 @@ defmodule SlipdockWeb.API.VaultSyncTest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Accounts, Repo, Vaults, Wiki}
-  alias Slipdock.Wiki.Page
+  alias Slipdock.{Access, Accounts, Quota, Repo, Vaults, Wiki}
+  alias Slipdock.Wiki.{Files, Page, WikiFile}
 
   setup %{conn: conn, user: user} do
     kb = board_fixture(%{"name" => "Keystone", "code" => "kb6"}, owner: user)
@@ -173,6 +173,103 @@ defmodule SlipdockWeb.API.VaultSyncTest do
              |> json_response(200)
 
       assert conn |> get("/api/vaults/Brain/sync/files/#{id}") |> json_response(404)
+    end
+
+    defp posted(conn, path \\ "a.pdf") do
+      conn
+      |> post("/api/vaults/Brain/sync/files", %{
+        "path" => path,
+        "file" => upload("pdf bytes", Path.basename(path))
+      })
+      |> json_response(200)
+      |> Map.fetch!("file")
+    end
+
+    defp with_token(user, opts) do
+      {token, _} = Accounts.create_api_token(user, "purge", opts)
+
+      build_conn()
+      |> put_req_header("accept", "application/json")
+      |> put_req_header("authorization", "Bearer #{token}")
+    end
+
+    test "purge=true deletes a file for its owner, bytes and all", %{conn: conn, user: user} do
+      %{"id" => id, "hash" => hash} = posted(conn)
+      file = Repo.get!(WikiFile, id)
+      assert Quota.used(user, :storage) == byte_size("pdf bytes")
+
+      assert %{"file" => %{"id" => ^id, "deleted" => true}} =
+               conn
+               |> delete("/api/vaults/Brain/sync/files/#{id}?purge=true&base=#{hash}")
+               |> json_response(200)
+
+      refute Repo.get(WikiFile, id)
+      refute File.exists?(Files.disk_path(file))
+      assert Quota.used(user, :storage) == 0
+      assert %{"entries" => []} = conn |> get("/api/vaults/Brain/sync") |> json_response(200)
+    end
+
+    test "without purge a file is only archived", %{conn: conn} do
+      %{"id" => id} = posted(conn)
+      file = Repo.get!(WikiFile, id)
+
+      for query <- ["", "?purge=false"] do
+        Repo.update!(Ecto.Changeset.change(Repo.get!(WikiFile, id), archived_at: nil))
+
+        assert %{"file" => %{"id" => ^id, "archived" => true}} =
+                 conn
+                 |> delete("/api/vaults/Brain/sync/files/#{id}#{query}")
+                 |> json_response(200)
+
+        assert Repo.get!(WikiFile, id).archived_at
+      end
+
+      assert File.exists?(Files.disk_path(file))
+    end
+
+    test "a writer who isn't the board's owner can't purge, but can archive",
+         %{conn: conn, user: user, vault: vault} do
+      owner = user_fixture("purge-owner@example.com")
+      shared = board_fixture(%{"name" => "Shared", "code" => "kb6s"}, owner: owner)
+      {:ok, _} = Access.grant(shared, user, "write", owner)
+      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Shared", board: shared})
+      %{"id" => id} = posted(conn, "Shared/a.pdf")
+      assert Repo.get!(WikiFile, id).board_id == shared.id
+
+      assert %{"error" => error} =
+               conn
+               |> delete("/api/vaults/Brain/sync/files/#{id}?purge=true")
+               |> json_response(403)
+
+      assert error =~ "owner"
+      assert Repo.get!(WikiFile, id).archived_at == nil
+
+      assert %{"file" => %{"archived" => true}} =
+               conn
+               |> delete("/api/vaults/Brain/sync/files/#{id}")
+               |> json_response(200)
+    end
+
+    test "the owner's read-only token can't purge", %{conn: conn, user: user} do
+      %{"id" => id} = posted(conn)
+
+      assert user
+             |> with_token(scope: "read")
+             |> delete("/api/vaults/Brain/sync/files/#{id}?purge=true")
+             |> json_response(403)
+
+      assert Repo.get!(WikiFile, id).archived_at == nil
+    end
+
+    test "a stale base refuses a purge and shows the file as it stands", %{conn: conn} do
+      %{"id" => id, "hash" => hash} = posted(conn)
+
+      assert %{"current" => %{"hash" => ^hash}} =
+               conn
+               |> delete("/api/vaults/Brain/sync/files/#{id}?purge=true&base=stale")
+               |> json_response(409)
+
+      assert Repo.get(WikiFile, id)
     end
 
     test "a post without the file is a bad request", %{conn: conn} do
