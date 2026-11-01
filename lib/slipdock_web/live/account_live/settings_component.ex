@@ -95,10 +95,10 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     vaults =
       for vault <- Slipdock.Vaults.list_vaults(user),
           not MapSet.member?(pinned, {:vault, vault.id}),
-          do: {vault.name, "vault:#{vault.id}"}
+          do: {"Wiki", "vault:#{vault.id}"}
 
     targets =
-      [{"Boards", boards}, {"Wiki vaults", vaults}] |> Enum.reject(&(elem(&1, 1) == []))
+      [{"Boards", boards}, {"Wiki", vaults}] |> Enum.reject(&(elem(&1, 1) == []))
 
     socket
     |> assign(header_links: links, header_link_targets: targets)
@@ -121,7 +121,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     options =
       for vault <- Slipdock.Vaults.list_vaults(user) do
         places = QuickNote.places(vault, user)
-        {vault.name, Enum.map(places, &{"/" <> &1.path, "#{vault.id}:#{&1.path}"})}
+        {"Your wiki", Enum.map(places, &{"/" <> &1.path, "#{vault.id}:#{&1.path}"})}
       end
 
     current =
@@ -241,7 +241,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
          |> flash(:info, "Quick note settings saved.")}
 
       :error ->
-        {:noreply, flash(socket, :error, "That isn't one of your vaults.")}
+        {:noreply, flash(socket, :error, "That isn't your wiki.")}
     end
   end
 
@@ -373,7 +373,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
       >
         <h2 class="text-lg font-semibold">Names in trees and lists</h2>
         <p class="text-sm text-base-content/60">
-          How the wiki and vault trees, card folders and breadcrumbs name a card's folder.
+          How the wiki's tree, card folders and breadcrumbs name a card's folder.
           A card with no short name always shows its title, and a name too long for its
           space is shortened on screen.
         </p>
@@ -436,7 +436,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
       >
         <h2 class="text-lg font-semibold">Header links</h2>
         <p class="text-sm text-base-content/60">
-          Boards and wiki vaults you go to often, pinned to the top right of every page,
+          Boards, and your wiki, that you go to often, pinned to the top right of every page,
           left of quick add, as the icon you choose. Up to {HeaderLinks.max()}.
         </p>
         <ul :if={@header_links != []} class="mt-4 divide-y divide-base-300/60">
@@ -496,7 +496,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
           :if={@header_link_targets == [] and length(@header_links) < HeaderLinks.max()}
           class="mt-4 text-sm text-base-content/50"
         >
-          Every board and vault you have is pinned already.
+          Every board you have, and your wiki, is pinned already.
         </p>
         <form
           :if={@header_link_targets != [] and length(@header_links) < HeaderLinks.max()}
@@ -507,7 +507,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
           class="mt-4 space-y-3"
         >
           <label class="block text-sm">
-            <span class="mb-1 block font-medium">Board or vault</span>
+            <span class="mb-1 block font-medium">Board or wiki</span>
             <select name="header_link[target]" class="select select-sm w-full sm:w-80">
               {Phoenix.HTML.Form.options_for_select(@header_link_targets, @header_link_target)}
             </select>
@@ -542,11 +542,10 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
         <h2 class="text-lg font-semibold">Quick notes</h2>
         <p class="text-sm text-base-content/60">
           Where a note written with Shift-Alt-N goes when AI can't choose a better folder in
-          that vault. The vault you pick here is the one notes are filed in.
+          your wiki.
         </p>
         <p :if={@quick_note_options == []} class="mt-4 text-sm text-base-content/50">
-          You have no vault yet. <.link navigate={~p"/vaults"} class="link">Make one</.link>
-          to use quick notes.
+          Nowhere in your wiki can be written to yet.
         </p>
         <form
           :if={@quick_note_options != []}
@@ -560,7 +559,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
             id="quick-note-location"
             name="location"
             label="Location"
-            prompt="The top of my first vault"
+            prompt="The top of my Knowledge Base"
             value={@quick_note_location}
             options={@quick_note_options}
           />
@@ -839,7 +838,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
           href={~p"/account/google"}
           method="delete"
           id="google-drive-disconnect"
-          data-confirm="Disconnect Google Drive? Recordings in your vaults stop playing until you connect again."
+          data-confirm="Disconnect Google Drive? Recordings in your wiki stop playing until you connect again."
           class="btn btn-ghost btn-sm"
         >
           Disconnect

@@ -49,7 +49,7 @@ defmodule SlipdockWeb.API.VaultsTest do
     assert shown["id"] == vault.id
     assert shown["owned"] == true
     assert shown["shortcut"] == vault.shortcut
-    assert shown["url"] == "/vaults/Notes"
+    assert shown["url"] == "/wiki"
     assert shown["mirrors"] == []
     assert Map.has_key?(shown, "recordings_folder")
     refute Map.has_key?(shown, "mappings")

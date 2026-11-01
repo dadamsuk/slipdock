@@ -21,7 +21,7 @@ defmodule SlipdockWeb.MCP.Tools.FileFolder do
   def description,
     do:
       "Files a folder in one more folder as well as its home (also), or takes it out of one (not_in): " <>
-        "one folder and all in it, shown in several places. Same board or same vault; never inside itself."
+        "one folder and all in it, shown in several places. Same board or same wiki; never inside itself."
 
   @impl true
   def input_schema do
@@ -36,7 +36,7 @@ defmodule SlipdockWeb.MCP.Tools.FileFolder do
         also: %{
           type: "string",
           description:
-            "File it here as well: a folder on its board (or on in_board), or a vault path like /Projects/Notes."
+            "File it here as well: a folder on its board (or on in_board), or a wiki path like /Projects/Notes."
         },
         not_in: %{type: "string", description: "Take it out of a folder it is also filed in."},
         in_board: %{

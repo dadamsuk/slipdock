@@ -577,7 +577,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 Opens this board from any page: <kbd class="kbd kbd-xs">Ctrl</kbd>
                 + <kbd class="kbd kbd-xs">Shift</kbd>
                 + the digit. The digit is yours alone,
-                and picking one another board or vault has moves it here.
+                and picking one another board or your wiki has moves it here.
               </p>
             </div>
             <.input field={@form[:description]} type="textarea" label="Description" />

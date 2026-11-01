@@ -67,8 +67,9 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
   test "the vault's top lists every board as a folder", %{conn: conn, vault: vault} do
     {:ok, view, _html} = live(conn, SlipdockWeb.VaultUrls.url(vault))
 
+    # The Knowledge Base first, always (W-2201).
     assert titles(vault_tree(view, ["vault"]), "vault") ==
-             ["Aardvark" | Enum.map(1..8, &"Board #{&1}")]
+             ["Knowledge Base", "Aardvark" | Enum.map(1..8, &"Board #{&1}")]
   end
 
   test "the boards follow the home page's hand-made order", %{
@@ -85,7 +86,7 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
 
     # The placed three first, in their order; the rest after, oldest first.
     assert titles(vault_tree(view, ["vault"]), "vault") ==
-             ["Board 8", "Board 3", "Board 1", "Aardvark"] ++
+             ["Knowledge Base", "Board 8", "Board 3", "Board 1", "Aardvark"] ++
                Enum.map([2, 4, 5, 6, 7], &"Board #{&1}")
   end
 
@@ -155,7 +156,7 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
     boards: [{board, _} | _]
   } do
     {:ok, view, _html} = live(conn, SlipdockWeb.VaultUrls.url(vault))
-    assert has_element?(view, "#vault-crumbs", "Brain")
+    assert has_element?(view, "#vault-crumbs", "Wiki")
     refute has_element?(view, "#vault-board")
 
     page_fixture(board, %{"title" => "Plan"})

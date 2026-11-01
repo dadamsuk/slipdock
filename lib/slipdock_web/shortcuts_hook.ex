@@ -212,7 +212,7 @@ defmodule SlipdockWeb.ShortcutsHook do
   defp boards(socket) do
     case socket.assigns[:current_user] do
       nil -> []
-      user -> Access.list_boards(user)
+      user -> Access.list_boards(user, wiki: false)
     end
   end
 

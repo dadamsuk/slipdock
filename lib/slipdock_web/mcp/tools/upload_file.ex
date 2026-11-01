@@ -57,8 +57,8 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
         "pass through you. With a shell where the file is: card or page with link: true " <>
         "returns a single-use upload_url, good for 10 minutes, and no token is needed to use " <>
         "it: curl -F file=@a.docx -F sha256=<hex> <upload_url> (also takes filename, replace, " <>
-        "hide_on_card) answers with the attachment. A file in a synced vault: vault and " <>
-        "vault_file (its path in the vault, or its id), and the server copies it. Otherwise " <>
+        "hide_on_card) answers with the attachment. A file in your wiki: wiki_file (its path " <>
+        "in the wiki, or its id), and the server copies it. Otherwise " <>
         "text for a text file's contents, or content_base64 with sha256 (required: the hex " <>
         "SHA-256 of the bytes before base64; a file that changed on the way is refused with " <>
         "sha256_mismatch and not stored), anything over 1 KB in chunks: the first with " <>
@@ -83,20 +83,19 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
         filename: %{
           type: "string",
           description:
-            "The name to store it under, e.g. shot.png. Left out with vault_file, the file's own."
+            "The name to store it under, e.g. shot.png. Left out with wiki_file, the file's own."
         },
         content_base64: %{
           type: "string",
           description: "The file's bytes, base64, with sha256. Over 1 KB, in chunks (append)."
         },
         text: %{type: "string", description: "Or a text file's contents, as they are."},
-        vault: %{type: "string", description: "With vault_file: the vault's name or id."},
-        vault_file: %{
+        wiki_file: %{
           type: "string",
           description:
-            "Or copy a file the vault already holds: its path in the vault (e.g. " <>
+            "Or copy a file your wiki already holds: its path in the wiki (e.g. " <>
               "Jobs/cv.docx) or its id. No content in the call; sha256, if sent, is checked " <>
-              "against the vault's copy."
+              "against the wiki's copy."
         },
         sha256: %{
           type: "string",
@@ -150,6 +149,15 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
 
   @impl true
   def call(%{"link" => true} = args, context), do: link(args, context)
+
+  # A file of the caller's wiki (W-2201) is the vault file it always was.
+  def call(%{"wiki_file" => file} = args, context) do
+    args
+    |> Map.delete("wiki_file")
+    |> Map.put("vault_file", file)
+    |> Map.put_new_lazy("vault", fn -> to_string(Vaults.root(context.user).id) end)
+    |> call(context)
+  end
 
   def call(args, context) do
     case {args["finish"], args["append"]} do

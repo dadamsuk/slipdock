@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.HomeReorderModeLiveTest do
   @moduledoc """
-  The home page's Reorder mode (#1485): a button that makes every board,
-  vault and multiboard tile its own drag handle, with its links and menus out
+  The home page's Reorder mode (#1485): a button that makes every board and
+  multiboard tile its own drag handle, with its links and menus out
   of the way, switching the sort to "My order" and saving each drop.
   """
   use SlipdockWeb.ConnCase, async: true
@@ -9,16 +9,15 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.{Accounts, Multiboard, Vaults}
+  alias Slipdock.{Accounts, Multiboard}
 
   setup %{user: user} do
     alpha = board_fixture(%{"name" => "Alpha", "code" => "alrmh"}, owner: user)
     zulu = board_fixture(%{"name" => "Zulu", "code" => "zurmh"}, owner: user)
-    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     [_, todo | _] = alpha.columns
     {:ok, mb} = Multiboard.create_saved(user, %{"name" => "Queue"}, %{lists: [todo.id]})
 
-    %{alpha: alpha, zulu: zulu, vault: vault, mb: mb}
+    %{alpha: alpha, zulu: zulu, mb: mb}
   end
 
   defp tiles(view) do
@@ -40,7 +39,7 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
     view |> element("#reorder-boards") |> render_click()
 
     assert has_element?(view, "#reorder-boards[aria-pressed=true]", "Done")
-    assert has_element?(view, "#reorder-hint", "Drag boards, vaults and multiboards")
+    assert has_element?(view, "#reorder-hint", "Drag boards and multiboards")
     # No handle option: Sortable takes a press anywhere on a tile.
     refute has_element?(view, "#boards[data-handle]")
     assert has_element?(view, "#boards[data-reordering=true][data-disabled=false]")
@@ -48,7 +47,7 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
     assert has_element?(view, "#boards[class*='pointer-events-none']")
     refute has_element?(view, "#new-board-tile")
 
-    for id <- [ctx.alpha.id, ctx.zulu.id, "vault-#{ctx.vault.id}", "multiboard-#{ctx.mb.id}"] do
+    for id <- [ctx.alpha.id, ctx.zulu.id, "multiboard-#{ctx.mb.id}"] do
       assert to_string(id) in tiles(view)
     end
 
@@ -100,28 +99,26 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
     assert has_element?(view, "#reorder-boards[aria-pressed=false]")
   end
 
-  test "drops in the mode move boards, vaults and multiboards, and stay", %{conn: conn} = ctx do
+  test "drops in the mode move boards and multiboards, and stay", %{conn: conn} = ctx do
     {:ok, view, _} = live(conn, ~p"/")
     view |> element("#reorder-boards") |> render_click()
 
-    vault = "vault-#{ctx.vault.id}"
     mb = "multiboard-#{ctx.mb.id}"
     alpha = to_string(ctx.alpha.id)
     zulu = to_string(ctx.zulu.id)
 
     render_hook(view, "reorder", %{"id" => mb, "before" => nil})
-    render_hook(view, "reorder", %{"id" => vault, "before" => mb})
     render_hook(view, "reorder", %{"id" => zulu, "before" => alpha})
-    assert tiles(view) == [zulu, alpha, vault, mb]
+    assert tiles(view) == [zulu, alpha, mb]
     # Still reordering after each drop.
     assert has_element?(view, "#reorder-hint")
 
     render_hook(view, "reorder", %{"id" => mb, "before" => zulu})
-    assert tiles(view) == [mb, zulu, alpha, vault]
+    assert tiles(view) == [mb, zulu, alpha]
 
     # Kept: a fresh visit lists them the same way, out of the mode.
     {:ok, again, _} = live(conn, ~p"/")
-    assert tiles(again) == [mb, zulu, alpha, vault]
+    assert tiles(again) == [mb, zulu, alpha]
     refute has_element?(again, "#reorder-hint")
   end
 

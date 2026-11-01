@@ -2,7 +2,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageAutomation do
   @moduledoc """
   Adding, changing and deleting a board's automation rules, through the same
   `SlipdockWeb.API.AutomationWrites` the HTTP API uses. One tool with an
-  `action`, as `manage_vault` is, because three tools would cost every
+  `action`, as `manage_wiki` is, because three tools would cost every
   session context. Rules act on everyone's cards, so only the board's owner
   may touch them.
   """

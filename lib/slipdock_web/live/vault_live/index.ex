@@ -1,9 +1,9 @@
 defmodule SlipdockWeb.VaultLive.Index do
   @moduledoc """
-  The vault's page (W-2201): the one vault its owner has, with a link to its
-  tree, its name and keys, its recordings folder and the folders it is synced
-  to. There is nothing to lay out here: every board its owner has is a folder
-  of it already.
+  The wiki's settings (W-2201), at `/wiki/.settings`: the keys that open a
+  person's one wiki, its recordings folder and the folders it is synced to.
+  There is nothing to lay out here: their Knowledge Base and every board they
+  have are folders of it already.
   """
   use SlipdockWeb, :live_view
 
@@ -11,30 +11,14 @@ defmodule SlipdockWeb.VaultLive.Index do
   alias SlipdockWeb.SlipdockComponents
 
   @impl true
-  def mount(params, _session, socket) do
-    socket =
-      assign(socket,
-        page_title: "Vault",
-        google: Slipdock.Google.status(socket.assigns.current_user)
-      )
-
-    case params["vault"] do
-      nil ->
-        {:ok, load(socket)}
-
-      # Reached from the vault's view (#752).
-      ref ->
-        case Vaults.get_vault(socket.assigns.current_user, ref) do
-          {:ok, vault} ->
-            {:ok, socket |> assign(page_title: "#{vault.name} · Settings") |> load()}
-
-          _ ->
-            {:ok,
-             socket
-             |> put_flash(:error, "There's no vault of yours by that name.")
-             |> push_navigate(to: ~p"/vaults")}
-        end
-    end
+  def mount(_params, _session, socket) do
+    {:ok,
+     socket
+     |> assign(
+       page_title: "Wiki · Settings",
+       google: Slipdock.Google.status(socket.assigns.current_user)
+     )
+     |> load()}
   end
 
   defp load(socket) do
@@ -50,19 +34,6 @@ defmodule SlipdockWeb.VaultLive.Index do
   end
 
   @impl true
-  def handle_event("rename", %{"vault_id" => id, "name" => name}, socket) do
-    with {:ok, vault} <- own_vault(socket, id),
-         {:ok, _} <- Vaults.update_vault(vault, %{"name" => name}) do
-      {:noreply, socket |> clear_flash(:error) |> load()}
-    else
-      {:error, %Ecto.Changeset{} = cs} ->
-        {:noreply, flash(socket, :error, "Vault name #{name_error(cs)}.")}
-
-      _ ->
-        {:noreply, flash(socket, :error, "That vault isn't there any more.")}
-    end
-  end
-
   # Its key in the board switcher and its Ctrl+Shift digit (#1204), saved
   # together. A blank key takes a fresh one from the name.
   def handle_event("keys", %{"vault_id" => id} = params, socket) do
@@ -73,7 +44,7 @@ defmodule SlipdockWeb.VaultLive.Index do
          {:ok, vault} <- Vaults.set_shortcut(vault, params["shortcut"]),
          {:ok, digit} <- Slipdock.Hotkeys.put(user, vault, params["hotkey"]) do
       message =
-        "Press b then #{vault.shortcut} to open #{vault.name}" <>
+        "Press b then #{vault.shortcut} to open your wiki" <>
           if(digit, do: ", or Ctrl+Shift+#{digit} from any page.", else: ".")
 
       {:noreply, socket |> flash(:info, message) |> load()}
@@ -85,7 +56,7 @@ defmodule SlipdockWeb.VaultLive.Index do
         {:noreply, flash(socket, :error, "Hotkey #{message}.")}
 
       _ ->
-        {:noreply, flash(socket, :error, "That vault isn't there any more.")}
+        {:noreply, flash(socket, :error, "Your wiki isn't there any more.")}
     end
   end
 
@@ -95,8 +66,8 @@ defmodule SlipdockWeb.VaultLive.Index do
       message =
         if vault.recordings_folder,
           do:
-            "#{vault.name} plays its recordings from #{vault.recordings_folder} on Google Drive.",
-          else: "#{vault.name} has no recordings folder now."
+            "Your wiki plays its recordings from #{vault.recordings_folder} on Google Drive.",
+          else: "Your wiki has no recordings folder now."
 
       {:noreply, socket |> flash(:info, message) |> load()}
     else
@@ -104,7 +75,7 @@ defmodule SlipdockWeb.VaultLive.Index do
         {:noreply, flash(socket, :error, folder_error(reason, folder))}
 
       _ ->
-        {:noreply, flash(socket, :error, "That vault isn't there any more.")}
+        {:noreply, flash(socket, :error, "Your wiki isn't there any more.")}
     end
   end
 
@@ -142,8 +113,6 @@ defmodule SlipdockWeb.VaultLive.Index do
   defp folder_error(:not_found, folder), do: "There's no folder \"#{folder}\" in your My Drive."
   defp folder_error(_, _), do: "Google Drive couldn't be asked just now. Try again."
 
-  defp name_error(cs), do: cs.errors[:name] |> Kernel.||({"is invalid", []}) |> elem(0)
-
   defp shortcut_error(cs),
     do: cs.errors[:shortcut] |> Kernel.||({"is invalid", []}) |> elem(0)
 
@@ -161,17 +130,17 @@ defmodule SlipdockWeb.VaultLive.Index do
       quick_add={@quick_add}
       shortcuts={@shortcuts}
       viewport={@viewport}
-      nav_active={:vaults}
+      nav_active={:wiki}
     >
-      <:nav><span class="font-semibold">Vault</span></:nav>
+      <:nav><span class="font-semibold">Wiki settings</span></:nav>
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:py-10 sm:px-6">
           <div>
-            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Your vault</h1>
+            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Wiki settings</h1>
             <p id="vaults-what" class="mt-1 text-sm text-base-content/60">
-              Your whole wiki as one Obsidian-style tree of notes. Every board you own is a
-              folder at the top of it, archived ones too, and a sub-board sits in its epic's
-              folder. Each page stays on its board.
+              Your wiki is one tree of notes: your Knowledge Base first, then a folder
+              for every board you have, a sub-board in its epic's folder. Archived boards
+              are left out; restore one to have its wiki back.
             </p>
           </div>
 
@@ -183,23 +152,12 @@ defmodule SlipdockWeb.VaultLive.Index do
               <span class="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <.icon name="hero-rectangle-stack" class="size-5" />
               </span>
-              <form phx-submit="rename" class="flex flex-1 gap-2">
-                <input type="hidden" name="vault_id" value={@vault.id} />
-                <input
-                  type="text"
-                  name="name"
-                  value={@vault.name}
-                  class="input input-sm flex-1 font-semibold"
-                  aria-label="Vault name"
-                  maxlength={Slipdock.Vaults.Vault.name_length()}
-                />
-                <button type="submit" class="btn btn-sm">Rename</button>
-              </form>
+              <span class="flex-1 font-semibold">Your wiki</span>
               <.link
                 id={"open-vault-#{@vault.id}"}
                 navigate={SlipdockWeb.VaultUrls.url(@vault)}
                 class="btn btn-ghost btn-sm"
-                title="Open the vault: its tree and its pages at their vault paths"
+                title="Open your wiki: its tree and its pages"
               >
                 <.icon name="hero-arrow-top-right-on-square" class="size-4" /> Open
               </.link>
@@ -230,7 +188,7 @@ defmodule SlipdockWeb.VaultLive.Index do
             </ul>
             <p :if={@mirrors == []} class="mt-1 px-2 text-xs text-base-content/50">
               Not synced to a folder yet:
-              <code>slipdock sync init ~/Notes --vault {@vault.name}</code>
+              <code>slipdock sync init ~/Notes</code>
             </p>
           </div>
         </div>
@@ -285,7 +243,7 @@ defmodule SlipdockWeb.VaultLive.Index do
       <button type="submit" class="btn btn-sm">Save</button>
       <p class="w-full text-xs text-base-content/50">
         Press <kbd class="kbd kbd-xs">b</kbd>
-        anywhere, then the key, to open this vault, as you would a board; clear it to take a
+        anywhere, then the key, to open your wiki, as you would a board; clear it to take a
         fresh one from the name. The hotkey opens it from any page with
         <kbd class="kbd kbd-xs">Ctrl</kbd>
         + <kbd class="kbd kbd-xs">Shift</kbd>
@@ -328,7 +286,7 @@ defmodule SlipdockWeb.VaultLive.Index do
         class="w-full text-xs text-base-content/50"
       >
         <.link navigate={~p"/account/settings"} class="link">Connect Google Drive</.link>
-        to play this vault's meeting recordings from it.
+        to play your wiki's meeting recordings from it.
       </p>
     </form>
     """

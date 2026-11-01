@@ -236,7 +236,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         </h2>
         <p class="mt-1 text-sm text-base-content/60">
           A command-line client that wraps every call the agent would otherwise make with <code>curl</code>. Nicer to read in a transcript, and it keeps the token for
-          you. It is also what mirrors a vault to a local folder (<code>slipdock sync</code>).
+          you. It is also what mirrors your wiki to a local folder (<code>slipdock sync</code>).
           On Windows, in PowerShell, one line installs it from here for you alone —
           Erlang too, through winget, if there is none — and puts it on your PATH:
         </p>

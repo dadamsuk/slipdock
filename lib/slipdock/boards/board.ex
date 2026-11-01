@@ -314,6 +314,15 @@ defmodule Slipdock.Boards.Board do
   @doc "The kinds a board may be, besides an ordinary board (nil)."
   def kinds, do: @kinds
 
+  @doc """
+  Whether the board is a person's Knowledge Base (W-2201): a wiki and nothing
+  else, kept out of every list of boards and first in their wiki's tree. Set
+  only by `Slipdock.Wiki.KnowledgeBase`, never in settings, so "wiki" is not
+  among `kinds/0`.
+  """
+  def wiki?(%__MODULE__{kind: "wiki"}), do: true
+  def wiki?(_), do: false
+
   @doc "Whether the board is a sprint board: its cards are sprints."
   def sprints?(%__MODULE__{kind: "sprints"}), do: true
   def sprints?(_), do: false

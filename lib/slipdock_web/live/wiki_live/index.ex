@@ -52,6 +52,15 @@ defmodule SlipdockWeb.WikiLive.Index do
   # the vault's tree and the vault's breadcrumbs. `?page=` and `?folder=`
   # (ids) are how a board's wiki links here before it knows the path.
   @impl true
+  # `/wiki`: the person's one wiki (W-2201), which no address names, with
+  # their Knowledge Base made the first time it is wanted.
+  def mount(params, session, %{assigns: %{live_action: :vault}} = socket)
+      when not is_map_key(params, "vault") and not is_map_key(params, "id") do
+    user = socket.assigns.current_user
+    {:ok, _} = Slipdock.Wiki.KnowledgeBase.ensure(user)
+    mount(Map.put(params, "vault", to_string(Slipdock.Vaults.root(user).id)), session, socket)
+  end
+
   def mount(%{"vault" => ref} = params, session, socket) do
     user = socket.assigns.current_user
 
@@ -73,14 +82,14 @@ defmodule SlipdockWeb.WikiLive.Index do
          socket
          |> put_flash(
            :info,
-           "#{vault.name} has nothing in it yet: every board you make is a folder of it."
+           "Your wiki has nothing in it yet: every board you make is a folder of it."
          )
          |> push_navigate(to: SlipdockWeb.VaultUrls.settings(vault))}
 
       _ ->
         {:ok,
          socket
-         |> put_flash(:error, "There's nothing at that address in your vaults.")
+         |> put_flash(:error, "There's nothing at that address in your wiki.")
          |> push_navigate(to: ~p"/")}
     end
   end
@@ -957,7 +966,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp recording_help({:error, :no_folder}, page, user) do
     case Slipdock.Vaults.for_board(page.board_id) do
       %{user_id: owner_id} = vault when not is_nil(user) and owner_id == user.id ->
-        %{settings_url: ~p"/vaults" <> "#recordings-folder-#{vault.id}", owner: nil}
+        %{settings_url: ~p"/wiki/.settings" <> "#recordings-folder-#{vault.id}", owner: nil}
 
       %{} = vault ->
         vault = Slipdock.Repo.preload(vault, :user)
@@ -3774,7 +3783,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         "Pages filed there under a page that isn't moving: " <>
           Enum.join(report.left_behind, ", "),
       report.filing_dropped > 0 &&
-        "#{count(report.filing_dropped, "filing")} in folders on boards outside the vault"
+        "#{count(report.filing_dropped, "filing")} in folders on boards outside your wiki"
     ]
     |> Enum.filter(& &1)
   end
@@ -4163,7 +4172,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             class="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 font-semibold hover:bg-base-200"
           >
             <.icon name="hero-rectangle-stack" class="size-4 shrink-0 text-primary" />
-            <span class="truncate">{@vault_view.name}</span>
+            <span class="truncate">Wiki</span>
           </.link>
           <%= for crumb <- vault_crumbs(@vault_view, @vault_addresses, @page, @folder, @current_user.tree_names) do %>
             <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
@@ -4573,17 +4582,17 @@ defmodule SlipdockWeb.WikiLive.Index do
                 <.icon name={if @organising, do: "hero-check", else: "hero-pencil"} class="size-4" />
               </button>
             </div>
-            <%!-- In the vault view the tree is the vault's, and its settings
-                  are a click away. --%>
+            <%!-- In the wiki view the tree is the whole wiki's, and its
+                  settings are a click away. --%>
             <div :if={@vault_view} class="mb-2 flex items-center gap-1">
               <span class="min-w-0 flex-1 truncate px-1 text-xs font-semibold text-base-content/60">
-                Every board in {@vault_view.name}
+                Your wiki
               </span>
               <.link
                 id="vault-settings"
                 navigate={SlipdockWeb.VaultUrls.settings(@vault_view)}
                 class="btn btn-ghost btn-xs gap-1"
-                title="The vault's name, keys, recordings folder and synced folders"
+                title="Your wiki's keys, recordings folder and synced folders"
               >
                 <.icon name="hero-cog-6-tooth" class="size-3.5" /> Settings
               </.link>
@@ -5488,7 +5497,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         <h2 class="text-lg font-semibold">Delete {@prompt.file.name}?</h2>
         <p class="text-sm text-base-content/60">
           It is deleted for good, and its storage given back. This cannot be undone, and a
-          synced vault takes its copy away too.
+          synced copy of your wiki takes its copy away too.
         </p>
         <p :if={not @prompt.owner} id="tree-delete-file-owner-only" class="text-sm text-warning">
           Only the board's owner can delete a file for good. Archive puts it away instead.
@@ -6049,7 +6058,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
       {if @vault_dir in ["", nil],
-        do: @vault.name,
+        do: "Wiki",
         else: @vault_dir |> String.trim("/") |> Path.basename()}
     </h1>
     <p class="mt-2 text-sm text-base-content/60">

@@ -33,9 +33,15 @@ defmodule SlipdockWeb.API.VaultController do
          {:ok, vault} <- shortcut(vault, params),
          {:ok, _} <- hotkey(conn, vault, params),
          {:ok, vault} <- recordings_folder(vault, params) do
-      json(conn, %{vault: V.vault(vault, user(conn))})
+      json(conn, described(conn, vault))
     end
   end
+
+  # `/api/wiki` speaks of the caller's wiki; `/api/vaults/:id` as it did.
+  defp described(%{assigns: %{own_wiki: true}} = conn, vault),
+    do: %{wiki: V.wiki(vault, user(conn))}
+
+  defp described(conn, vault), do: %{vault: V.vault(vault, user(conn))}
 
   defp rename(vault, params) when is_map_key(params, "name"),
     do: Vaults.update_vault(vault, Map.take(params, ["name"]))

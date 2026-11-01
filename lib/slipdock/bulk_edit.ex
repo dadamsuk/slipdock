@@ -57,7 +57,7 @@ defmodule Slipdock.BulkEdit do
   def destinations(user, %Board{} = board) do
     others =
       user
-      |> Access.list_boards()
+      |> Access.list_boards(wiki: false)
       |> Enum.filter(
         &(&1.id != board.id and Access.can_write?(Access.board_permission(user, &1)))
       )

@@ -18,15 +18,15 @@ defmodule SlipdockWeb.VaultSwitchingLiveTest do
     %{plan: plan, vault: vault}
   end
 
-  test "the switcher lists your vault with its key, after your boards", ctx do
+  test "the switcher lists your wiki with its key, after your boards", ctx do
     %{conn: conn, plan: plan, vault: vault} = ctx
     {:ok, view, _} = live(conn, ~p"/boards/#{plan}")
     html = render_hook(view, "shortcut_panel", %{"panel" => "boards"})
 
     assert has_element?(
              view,
-             ~s{#switch-vault-#{vault.id}[href="#{VaultUrls.url(vault)}"][data-shortcut="#{vault.shortcut}"]},
-             vault.name
+             ~s{#switch-vault-#{vault.id}[href="/wiki"][data-shortcut="#{vault.shortcut}"]},
+             "Wiki"
            )
 
     {board_at, _} = :binary.match(html, ~s(href="/boards/#{plan.id}"))
@@ -34,7 +34,7 @@ defmodule SlipdockWeb.VaultSwitchingLiveTest do
     assert board_at < vault_at
   end
 
-  test "somebody else's vault is not in your switcher", %{conn: conn, plan: plan} do
+  test "somebody else's wiki is not in your switcher", %{conn: conn, plan: plan} do
     {:ok, theirs} =
       "other@example.com"
       |> user_fixture()
@@ -46,14 +46,15 @@ defmodule SlipdockWeb.VaultSwitchingLiveTest do
     refute has_element?(view, "#switch-vault-#{theirs.id}")
   end
 
-  test "the command palette offers the vault", %{conn: conn, plan: plan, vault: vault} do
+  test "the command palette offers your wiki", %{conn: conn, plan: plan} do
     {:ok, view, _} = live(conn, ~p"/boards/#{plan}")
     render_hook(view, "shortcut_panel", %{"panel" => "command"})
-    html = render_hook(view, "palette_filter", %{"q" => vault.name})
-    assert html =~ VaultUrls.url(vault)
+    html = render_hook(view, "palette_filter", %{"q" => "your wiki"})
+    assert html =~ "/wiki"
+    refute html =~ "Vaults"
   end
 
-  test "Ctrl+Shift and the vault's digit opens the vault", ctx do
+  test "Ctrl+Shift and the wiki's digit opens the wiki", ctx do
     %{conn: conn, user: user, plan: plan, vault: vault} = ctx
     {:ok, 3} = Hotkeys.put(user, vault, 3)
     {:ok, view, _} = live(conn, ~p"/boards/#{plan}")
@@ -64,13 +65,16 @@ defmodule SlipdockWeb.VaultSwitchingLiveTest do
     assert to == VaultUrls.url(vault)
   end
 
-  test "the home page shows a vault's keys on its tile", ctx do
+  test "the wiki's settings show its keys; the home page has no tile for it", ctx do
     %{conn: conn, user: user, vault: vault} = ctx
     {:ok, 8} = Hotkeys.put(user, vault, 8)
-    {:ok, view, _} = live(conn, ~p"/")
 
-    assert has_element?(view, "#vault-#{vault.id} kbd", vault.shortcut)
-    assert has_element?(view, "#vault-hotkey-#{vault.id}", "Ctrl+Shift+8")
+    {:ok, home, _} = live(conn, ~p"/")
+    refute has_element?(home, "#vault-#{vault.id}")
+
+    {:ok, view, _} = live(conn, ~p"/wiki/.settings")
+    assert has_element?(view, "#vault-keys-#{vault.id}")
+    assert render(view) =~ ~s(value="#{vault.shortcut}")
   end
 
   describe "vault settings" do

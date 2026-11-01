@@ -46,38 +46,6 @@ defmodule SlipdockWeb.BoardLive.Index do
      |> load_boards()}
   end
 
-  # Your vault, listed among the boards (#751) once you have a board of your
-  # own for it to hold: the boards in it, its pages and where it is synced,
-  # keyed by the vault's id. The vault itself carries what the sort reads.
-  defp vault_entries(user, boards) do
-    case Enum.filter(boards, &(&1.owner_id == user.id)) do
-      [] ->
-        %{}
-
-      owned ->
-        vault = Slipdock.Vaults.root(user)
-        mirrors = Slipdock.Vaults.mirrors(vault)
-
-        vault = %{
-          vault
-          | last_activity_at:
-              latest(
-                Enum.map(owned, & &1.last_activity_at) ++ Enum.map(mirrors, & &1.last_synced_at)
-              ),
-            card_count: owned |> Enum.map(&length(&1.cards)) |> Enum.sum()
-        }
-
-        %{
-          vault.id => %{
-            vault: vault,
-            boards: owned,
-            pages: Slipdock.Vaults.page_count(vault),
-            mirrors: mirrors
-          }
-        }
-    end
-  end
-
   # Your saved multiboards (#1482), keyed by id: each with how many of its
   # lists you can still read and the boards they are on, in your board order.
   defp multiboard_entries(user, readable) do
@@ -99,13 +67,6 @@ defmodule SlipdockWeb.BoardLive.Index do
          boards:
            for(b <- Map.values(readable), b.id in board_ids, do: b) |> Enum.sort_by(& &1.name)
        }}
-    end
-  end
-
-  defp latest(times) do
-    case Enum.reject(times, &is_nil/1) do
-      [] -> nil
-      times -> Enum.max(times, DateTime)
     end
   end
 
@@ -164,25 +125,23 @@ defmodule SlipdockWeb.BoardLive.Index do
   defp load_boards(socket) do
     %{current_user: user, sort: sort} = socket.assigns
 
-    boards = Access.list_boards(user, activity: true)
-    vaults = vault_entries(user, boards)
+    boards = Access.list_boards(user, activity: true, wiki: false)
     multiboards = multiboard_entries(user, boards)
 
     assign(socket,
       boards: boards,
-      vaults: vaults,
       multiboards: multiboards,
-      # Boards, vaults and saved multiboards in the one sequence, in the
-      # reader's order.
+      # Boards and saved multiboards in the one sequence, in the reader's
+      # order. The wiki is the Wiki link's, not a tile (W-2201).
       tiles:
         Boards.sort_boards(
-          boards ++
-            Enum.map(Map.values(vaults), & &1.vault) ++
-            Enum.map(Map.values(multiboards), & &1.multiboard),
+          boards ++ Enum.map(Map.values(multiboards), & &1.multiboard),
           sort
         ),
       archived:
-        user |> Access.list_boards(archived: true, activity: true) |> Boards.sort_boards(sort),
+        user
+        |> Access.list_boards(archived: true, activity: true, wiki: false)
+        |> Boards.sort_boards(sort),
       shared_cards: Access.shared_cards(user),
       # An admin's support sessions, each with the boards it opens: nothing
       # else lists somebody else's boards, so this is the way in.
@@ -423,11 +382,8 @@ defmodule SlipdockWeb.BoardLive.Index do
     )
   end
 
-  # A board, or a vault listed among them as "vault-<id>": what a drag or a
-  # nudge moves.
-  defp find_tile(socket, "vault-" <> id),
-    do: Enum.find(Map.values(socket.assigns.vaults), &(to_string(&1.vault.id) == id))[:vault]
-
+  # A board, or a multiboard listed among them as "multiboard-<id>": what a
+  # drag or a nudge moves.
   defp find_tile(socket, "multiboard-" <> id),
     do:
       Enum.find(Map.values(socket.assigns.multiboards), &(to_string(&1.multiboard.id) == id))[
@@ -436,9 +392,8 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   defp find_tile(socket, id), do: find_board(socket, id)
 
-  # How a board or a vault is told apart from the rest of the list, in the
+  # How a board or a multiboard is told apart from the rest of the list, in the
   # page and in what a drag sends back.
-  defp tile_key(%Vault{id: id}), do: "vault-#{id}"
   defp tile_key(%SavedMultiboard{id: id}), do: "multiboard-#{id}"
   defp tile_key(%Board{id: id}), do: to_string(id)
 
@@ -559,7 +514,7 @@ defmodule SlipdockWeb.BoardLive.Index do
                 class={["btn btn-sm", if(@reordering, do: "btn-primary", else: "btn-ghost")]}
                 phx-click="toggle_reorder"
                 aria-pressed={to_string(@reordering)}
-                title="Drag boards, vaults and multiboards into your own order"
+                title="Drag boards and multiboards into your own order"
               >
                 <.icon
                   name={if @reordering, do: "hero-check", else: "hero-arrows-up-down"}
@@ -598,7 +553,7 @@ defmodule SlipdockWeb.BoardLive.Index do
                 </button>
               </div>
               <%!-- The other way to read every board: not their cards, but
-                    everything written on them (see `SlipdockWeb.WikiLive.All`). --%>
+                    everything written on them: the one wiki (W-2201). --%>
               <%!-- The top cards of lists picked from any of them (#1479). --%>
               <.link
                 id="open-multiboard"
@@ -773,7 +728,7 @@ defmodule SlipdockWeb.BoardLive.Index do
           >
             <span class="inline-flex items-center gap-2">
               <.icon name="hero-arrows-pointing-out" class="size-4 text-primary" />
-              Drag boards, vaults and multiboards into the order you want. Each drop is saved.
+              Drag boards and multiboards into the order you want. Each drop is saved.
             </span>
             <button type="button" class="btn btn-primary btn-xs" phx-click="exit_reorder">
               Done
@@ -784,7 +739,6 @@ defmodule SlipdockWeb.BoardLive.Index do
             :if={@board_layout == "grid" and @tiles != []}
             id="boards"
             boards={@tiles}
-            vaults={@vaults}
             multiboards={@multiboards}
             hotkeys={@hotkeys}
             current_user={@current_user}
@@ -796,7 +750,6 @@ defmodule SlipdockWeb.BoardLive.Index do
             :if={@board_layout == "compact" and @tiles != []}
             id="boards"
             boards={@tiles}
-            vaults={@vaults}
             multiboards={@multiboards}
             hotkeys={@hotkeys}
             current_user={@current_user}
@@ -876,10 +829,8 @@ defmodule SlipdockWeb.BoardLive.Index do
   ## The two layouts -----------------------------------------------------------
 
   attr :id, :string, required: true
-  # Boards, and on the main list the vaults among them (see `tiles`).
+  # Boards, and on the main list the multiboards among them (see `tiles`).
   attr :boards, :list, required: true
-  # What each vault's card shows, by vault id (see `vault_entries/1`).
-  attr :vaults, :map, default: %{}
   # And each saved multiboard's, by its id (see `multiboard_entries/2`).
   attr :multiboards, :map, default: %{}
   attr :hotkeys, :map, default: %{}
@@ -910,13 +861,6 @@ defmodule SlipdockWeb.BoardLive.Index do
       ]}
     >
       <%= for tile <- @boards do %>
-        <.vault_card
-          :if={match?(%Vault{}, tile)}
-          entry={@vaults[tile.id]}
-          hotkey={@hotkeys[{:vault, tile.id}]}
-          sort={@sort}
-          tiles={@boards}
-        />
         <.multiboard_card
           :if={match?(%SavedMultiboard{}, tile)}
           entry={@multiboards[tile.id]}
@@ -1046,7 +990,6 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   attr :id, :string, required: true
   attr :boards, :list, required: true
-  attr :vaults, :map, default: %{}
   attr :multiboards, :map, default: %{}
   attr :hotkeys, :map, default: %{}
   attr :current_user, :map, required: true
@@ -1081,13 +1024,6 @@ defmodule SlipdockWeb.BoardLive.Index do
           class={@reordering && reorder_class()}
         >
           <%= for board <- @boards do %>
-            <.vault_row
-              :if={match?(%Vault{}, board)}
-              entry={@vaults[board.id]}
-              hotkey={@hotkeys[{:vault, board.id}]}
-              sort={@sort}
-              tiles={@boards}
-            />
             <.multiboard_row
               :if={match?(%SavedMultiboard{}, board)}
               entry={@multiboards[board.id]}
@@ -1198,30 +1134,6 @@ defmodule SlipdockWeb.BoardLive.Index do
     """
   end
 
-  attr :vault, :map, required: true
-  attr :hotkey, :integer, default: nil
-
-  # A vault's keys, as `board_keys/1` shows a board's (#1204).
-  defp vault_keys(assigns) do
-    ~H"""
-    <kbd
-      :if={@vault.shortcut}
-      class="kbd kbd-xs shrink-0 font-normal"
-      title="Press b then this key to jump here"
-    >
-      {@vault.shortcut}
-    </kbd>
-    <kbd
-      :if={@hotkey}
-      id={"vault-hotkey-#{@vault.id}"}
-      class="kbd kbd-xs shrink-0 font-normal"
-      title={"Ctrl+Shift+#{@hotkey} opens this vault from any page"}
-    >
-      Ctrl+Shift+{@hotkey}
-    </kbd>
-    """
-  end
-
   attr :board, :map, required: true
   attr :boards, :list, required: true
   attr :current_user, :map, required: true
@@ -1289,166 +1201,6 @@ defmodule SlipdockWeb.BoardLive.Index do
             data-confirm={"Delete “#{@board.name}” and all of its cards? This cannot be undone."}
           >
             <.icon name="hero-trash" class="size-4" /> Delete board
-          </button>
-        </li>
-      </ul>
-    </div>
-    """
-  end
-
-  attr :entry, :map, required: true
-  attr :hotkey, :integer, default: nil
-  attr :sort, :string, required: true
-  attr :tiles, :list, required: true
-
-  # The vault's card, among the boards': it owns no pages, so it shows the
-  # boards it is made of, how many pages they hold and where it is synced.
-  defp vault_card(assigns) do
-    assigns = assign(assigns, tile_class: @tile_class, vault: assigns.entry.vault)
-
-    ~H"""
-    <div id={"vault-#{@vault.id}"} data-id={tile_key(@vault)} class={@tile_class}>
-      <.link id={"vault-tile-#{@vault.id}"} navigate={vault_href(@vault)} class="block">
-        <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(vault_color(@entry))]}></div>
-        <div class="p-3.5 sm:p-4">
-          <h2 class="flex items-center gap-2 truncate text-base font-semibold">
-            <.icon name="hero-archive-box" class="size-4 shrink-0 text-base-content/50" />
-            <span class="truncate">{@vault.name}</span>
-            <span class="chip chip-line shrink-0 text-2xs font-normal">vault</span>
-            <.vault_keys vault={@vault} hotkey={@hotkey} />
-          </h2>
-          <p class="mt-0.5 line-clamp-2 text-sm text-base-content/60 sm:min-h-[1.25rem]">
-            {Enum.map_join(@entry.boards, " · ", & &1.name)}
-          </p>
-          <div class="mt-2.5 flex items-center gap-3 text-xs text-base-content/60 sm:mt-4">
-            <span class="inline-flex items-center gap-1">
-              <.icon name="hero-document-text" class="size-3.5" />
-              {@entry.pages} {if @entry.pages == 1, do: "page", else: "pages"}
-            </span>
-            <span class="inline-flex items-center gap-1">
-              <.icon name="hero-view-columns" class="size-3.5" />
-              {length(@entry.boards)} {if length(@entry.boards) == 1, do: "board", else: "boards"}
-            </span>
-          </div>
-          <p
-            :for={m <- Enum.take(@entry.mirrors, 2)}
-            class="mt-1.5 flex items-center gap-1 truncate text-xs text-base-content/50"
-          >
-            <.icon name="hero-computer-desktop" class="size-3.5 shrink-0" />
-            <span class="truncate">{m.label || "an unnamed token"}</span>
-            <span class="shrink-0">· {relative_time(m.last_synced_at)}</span>
-          </p>
-        </div>
-      </.link>
-      <div class="absolute left-2 top-2 flex items-center gap-1">
-        <span
-          :if={@sort == "manual"}
-          class="board-handle btn btn-circle btn-ghost btn-sm cursor-grab bg-base-100/70 opacity-0 backdrop-blur transition group-hover:opacity-100 no-hover:opacity-100"
-          title="Drag to reorder"
-        >
-          <.icon name="hero-bars-2" class="size-4" />
-        </span>
-      </div>
-      <.vault_menu
-        vault={@vault}
-        sort={@sort}
-        tiles={@tiles}
-        class="dropdown dropdown-end absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
-        button_class="btn btn-circle btn-ghost btn-sm bg-base-100/70 backdrop-blur"
-      />
-    </div>
-    """
-  end
-
-  attr :entry, :map, required: true
-  attr :hotkey, :integer, default: nil
-  attr :sort, :string, required: true
-  attr :tiles, :list, required: true
-
-  # The same vault as a row of the compact list.
-  defp vault_row(assigns) do
-    assigns = assign(assigns, vault: assigns.entry.vault)
-
-    ~H"""
-    <tr id={"vault-#{@vault.id}"} data-id={tile_key(@vault)} class="group hover:bg-base-200/60">
-      <td :if={@sort == "manual"} class="board-handle cursor-grab align-middle">
-        <.icon
-          name="hero-bars-2"
-          class="size-4 text-base-content/30 group-hover:text-base-content/60"
-        />
-      </td>
-      <td class="align-middle">
-        <.link
-          id={"vault-tile-#{@vault.id}"}
-          navigate={vault_href(@vault)}
-          class="flex items-center gap-2"
-        >
-          <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(vault_color(@entry))]}></span>
-          <span class="max-w-56 truncate font-medium">{@vault.name}</span>
-          <span class="chip chip-line shrink-0 text-2xs font-normal">vault</span>
-          <.vault_keys vault={@vault} hotkey={@hotkey} />
-        </.link>
-      </td>
-      <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">
-        {@entry.pages} {if @entry.pages == 1, do: "page", else: "pages"} · {Enum.map_join(
-          @entry.boards,
-          " · ",
-          & &1.name
-        )}
-      </td>
-      <td class="text-right text-base-content/40">—</td>
-      <td class="text-right tabular-nums text-base-content/60">{@vault.card_count}</td>
-      <td><span class="text-xs text-base-content/40">—</span></td>
-      <td class="hidden whitespace-nowrap text-xs text-base-content/50 sm:table-cell">
-        {@vault.last_activity_at && relative_time(@vault.last_activity_at)}
-      </td>
-      <td>
-        <.vault_menu
-          vault={@vault}
-          sort={@sort}
-          tiles={@tiles}
-          class="dropdown dropdown-end"
-          button_class="btn btn-ghost btn-xs btn-square"
-        />
-      </td>
-    </tr>
-    """
-  end
-
-  attr :vault, :map, required: true
-  attr :sort, :string, required: true
-  attr :tiles, :list, required: true
-  attr :class, :string, required: true
-  attr :button_class, :string, required: true
-
-  # A vault's own menu: moving it among the boards, in your own order.
-  defp vault_menu(assigns) do
-    key = tile_key(assigns.vault)
-
-    assigns =
-      assign(assigns,
-        key: key,
-        first?: tile_key(List.first(assigns.tiles)) == key,
-        last?: tile_key(List.last(assigns.tiles)) == key
-      )
-
-    ~H"""
-    <div :if={@sort == "manual" and not (@first? and @last?)} class={@class}>
-      <div tabindex="0" role="button" class={@button_class} title="More">
-        <.icon name="hero-ellipsis-horizontal" class="size-4" />
-      </div>
-      <ul
-        tabindex="0"
-        class="menu dropdown-content z-10 w-44 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
-      >
-        <li :if={@sort == "manual" and not @first?}>
-          <button phx-click="nudge" phx-value-id={@key} phx-value-dir="up">
-            <.icon name="hero-arrow-up" class="size-4" /> Move up
-          </button>
-        </li>
-        <li :if={@sort == "manual" and not @last?}>
-          <button phx-click="nudge" phx-value-id={@key} phx-value-dir="down">
-            <.icon name="hero-arrow-down" class="size-4" /> Move down
           </button>
         </li>
       </ul>
@@ -1628,9 +1380,4 @@ defmodule SlipdockWeb.BoardLive.Index do
     """
   end
 
-  # A vault has no colour of its own: it takes the one of its first board.
-  defp vault_color(%{boards: [board | _]}), do: board.color
-
-  # Where a vault's tile goes: its own view (#752).
-  defp vault_href(vault), do: SlipdockWeb.VaultUrls.url(vault)
 end

@@ -40,6 +40,11 @@ defmodule SlipdockWeb.Router do
     plug :require_token_write
   end
 
+  # `/api/wiki/...`: the caller's own wiki, which its address doesn't name.
+  pipeline :own_wiki do
+    plug SlipdockWeb.Plugs.OwnWiki
+  end
+
   # Meeting capture (see `Slipdock.Meetings`): the API's routes, which are not
   # there at all while an admin has meeting mode and chat capture both off.
   pipeline :meetings do
@@ -210,6 +215,10 @@ defmodule SlipdockWeb.Router do
   scope "/", SlipdockWeb do
     pipe_through [:browser, :require_authenticated_user]
 
+    # Where vaults were (#752): the same place in the one wiki now.
+    get "/vaults", WikiRedirectController, :show
+    get "/vaults/*rest", WikiRedirectController, :show
+
     get "/attachments/:id/:filename", AttachmentController, :show
     # An image in a wiki page not saved yet, for its writer alone (#1532).
     get "/autosave-files/:id/:filename", AutosaveFileController, :show
@@ -311,17 +320,13 @@ defmodule SlipdockWeb.Router do
       # The top cards of lists picked from any board, on one page (#1479).
       live "/multiboard", MultiboardLive.Index, :index
       live "/multiboard/:id", MultiboardLive.Index, :show
-      # Vaults: which boards' wikis lay out as one Obsidian-style tree (W-103).
-      live "/vaults", VaultLive.Index, :index
-      # A vault's own view (#752): its tree, and its pages at their vault
-      # paths, the same paths as the files on disk. `.settings` can't be a
-      # note's name (Obsidian hides dotfiles), so it can't shadow one.
-      live "/vaults/:vault/.settings", VaultLive.Index, :settings
-      live "/vaults/:vault", WikiLive.Index, :vault
-      live "/vaults/:vault/*path", WikiLive.Index, :vault
-      # Every board's documents in one tree: boards as the top level, then
-      # each board's folders and pages (see `SlipdockWeb.WikiLive.All`).
-      live "/wiki", WikiLive.All, :index
+      # The person's one wiki (W-2201): their Knowledge Base, then a folder
+      # for each board, its pages at their paths, the same paths as the
+      # files on disk. `.settings` can't be a note's name (Obsidian hides
+      # dotfiles), so it can't shadow one.
+      live "/wiki", WikiLive.Index, :vault
+      live "/wiki/.settings", VaultLive.Index, :settings
+      live "/wiki/*path", WikiLive.Index, :vault
       # The board's wiki: a tree of Markdown pages beside its cards.
       live "/boards/:id/wiki", WikiLive.Index, :index
       live "/boards/:id/wiki/new", WikiLive.Index, :new
@@ -509,6 +514,29 @@ defmodule SlipdockWeb.Router do
     delete "/me/voiceprint", VoiceprintController, :delete
   end
 
+  # The caller's one wiki (W-2201): every board they own as one tree of
+  # files, with their Knowledge Base first. The same actions as
+  # `/api/vaults/:id/...`, the wiki being the caller's own (`OwnWiki`).
+  scope "/api/wiki", SlipdockWeb.API do
+    pipe_through [:api, :own_wiki]
+
+    patch "/", VaultController, :update
+    get "/locate", VaultController, :locate
+    get "/resolve", VaultController, :resolve
+    get "/wanted", VaultController, :wanted
+    get "/changes", VaultController, :changes
+    get "/sync", VaultSyncController, :index
+    get "/sync/pages/:page", VaultSyncController, :show_page
+    put "/sync/pages", VaultSyncController, :put_page
+    put "/sync/pages/:page", VaultSyncController, :put_page
+    delete "/sync/pages/:page", VaultSyncController, :delete_page
+    get "/sync/files/:file", VaultSyncController, :show_file
+    post "/sync/files", VaultSyncController, :post_file
+    post "/sync/files/:file_id", VaultSyncController, :post_file
+    patch "/sync/files/:file_id", VaultSyncController, :patch_file
+    delete "/sync/files/:file_id", VaultSyncController, :delete_file
+  end
+
   scope "/api", SlipdockWeb.API do
     pipe_through :api
 
@@ -691,6 +719,8 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/sprints", SprintController, :create
 
     # The caller's vault: every board they own as one tree of files (W-2201).
+    # `/wiki/...` below is its address now; these stay so a client built
+    # against them keeps working until it moves.
     get "/vaults", VaultController, :index
     get "/vaults/:id", VaultController, :show
     patch "/vaults/:id", VaultController, :update
@@ -717,8 +747,9 @@ defmodule SlipdockWeb.Router do
     post "/pages/query", PageController, :check_query
     get "/boards/:board/pages", PageController, :index
     post "/boards/:board/pages", PageController, :create
-    # Folders: where pages are filed, nested to any depth. `/wiki` is every
-    # board the reader can open, folders and all — the Wiki view's own call.
+    # Folders: where pages are filed, nested to any depth. `/wiki` is the
+    # caller's one wiki (W-2201): what it is, and every board the reader can
+    # open, folders and all.
     get "/wiki", PageController, :wiki
     get "/boards/:board/folders", PageController, :folders
     # The wiki's files that are not pages (#1156): a list, and one by its

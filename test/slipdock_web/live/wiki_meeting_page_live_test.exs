@@ -125,7 +125,7 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
     # #784: the owner is given the setting itself, and no name to ask.
     assert has_element?(
              view,
-             player(page) <> "[data-settings-url='/vaults#recordings-folder-#{vault.id}']"
+             player(page) <> "[data-settings-url='/wiki/.settings#recordings-folder-#{vault.id}']"
            )
 
     refute has_element?(view, player(page) <> "[data-vault-owner]")

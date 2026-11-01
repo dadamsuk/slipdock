@@ -24,7 +24,7 @@ defmodule SlipdockWeb.MCP.Tools.PageInfo do
   def description,
     do:
       "what=links: a page's outgoing, incoming and unresolved links. sections: its heading " <>
-        "paths, as write_page's section takes them. wanted: a board's (or a vault's) " <>
+        "paths, as write_page's section takes them. wanted: a board's (no board: your wiki's) " <>
         "linked-to, unwritten pages. resolve: is there a page for a title, and how to link it."
 
   @impl true
@@ -41,8 +41,7 @@ defmodule SlipdockWeb.MCP.Tools.PageInfo do
           type: "string",
           description: "wanted, resolve: the board. Board id, code or name."
         },
-        title: %{type: "string", description: "resolve: the page title to look for."},
-        vault: %{type: "string", description: "wanted: a vault (id or name) instead of a board."}
+        title: %{type: "string", description: "resolve: the page title to look for."}
       },
       required: ["what"],
       additionalProperties: false
@@ -94,12 +93,10 @@ defmodule SlipdockWeb.MCP.Tools.PageInfo do
   # The pages doing the wanting are listed by name, so a draft among them
   # stays out of sight of anyone who could not open it, and so does an
   # archived one; a want only they asked for is not listed at all.
-  defp wanted(%{"vault" => ref} = args, _auth, context) when is_binary(ref) do
-    with {:ok, ref} <- Args.required(args, "vault"),
-         {:ok, vault} <- Args.refusal(Slipdock.Vaults.get_vault(context.user, ref)) do
-      wanted = Slipdock.Vaults.wanted(vault, context.user)
-      {:ok, %{vault: %{id: vault.id, name: vault.name}, wanted: Enum.map(wanted, &V.wanted/1)}}
-    end
+  # No board: the whole of the caller's wiki (W-2201).
+  defp wanted(args, _auth, context) when not is_map_key(args, "board") do
+    wanted = context.user |> Slipdock.Vaults.root() |> Slipdock.Vaults.wanted(context.user)
+    {:ok, %{wiki: true, wanted: Enum.map(wanted, &V.wanted/1)}}
   end
 
   defp wanted(args, auth, context) do

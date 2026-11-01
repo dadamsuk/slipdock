@@ -35,7 +35,11 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
     with {:ok, archived} <- SlipdockWeb.MCP.Args.boolean(args, "archived", false) do
       boards =
         user
-        |> Access.list_boards(archived: if(archived, do: :all, else: false), token: token)
+        |> Access.list_boards(
+          archived: if(archived, do: :all, else: false),
+          token: token,
+          wiki: false
+        )
         |> Boards.sort_boards(user.board_sort || "manual")
         |> Enum.map(&summary(&1, user))
 

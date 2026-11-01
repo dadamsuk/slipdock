@@ -201,15 +201,15 @@ defmodule SlipdockWeb.Commands do
     end
   end
 
-  # Your vaults, which the board switcher lists too (#1204).
+  # Your wiki, which the board switcher lists too (#1204), by its key.
   defp vaults(vaults) do
     for vault <- vaults do
       %{
-        label: vault.name,
-        group: "Vaults",
+        label: "Your wiki",
+        group: "Wiki",
         icon: "hero-archive-box",
         key: vault.shortcut,
-        keywords: ["vault"],
+        keywords: ["wiki", "knowledge base", "notes"],
         to: {:navigate, SlipdockWeb.VaultUrls.url(vault)}
       }
     end

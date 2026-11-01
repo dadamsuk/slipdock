@@ -20,7 +20,7 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
   end
 
   test "without a connection the field is off and says what to do", %{conn: conn, vault: vault} do
-    {:ok, view, _html} = live(conn, ~p"/vaults")
+    {:ok, view, _html} = live(conn, ~p"/wiki/.settings")
     assert has_element?(view, "#recordings-folder-input-#{vault.id}[disabled]")
     assert has_element?(view, "#recordings-folder-#{vault.id} a[href='/account/settings']")
   end
@@ -28,7 +28,7 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
   test "saves a folder that is there", %{conn: conn, user: user, vault: vault} do
     connect!(user)
     drive!([@folder])
-    {:ok, view, _html} = live(conn, ~p"/vaults")
+    {:ok, view, _html} = live(conn, ~p"/wiki/.settings")
 
     html =
       view
@@ -44,7 +44,7 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
   test "refuses a folder that isn't there", %{conn: conn, user: user, vault: vault} do
     connect!(user)
     drive!([@folder])
-    {:ok, view, _html} = live(conn, ~p"/vaults")
+    {:ok, view, _html} = live(conn, ~p"/wiki/.settings")
 
     html =
       view
@@ -57,7 +57,7 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
 
   test "is not there on a server without Google", %{conn: conn, vault: vault} do
     Slipdock.TestConfig.put(:google, [])
-    {:ok, view, _html} = live(conn, ~p"/vaults")
+    {:ok, view, _html} = live(conn, ~p"/wiki/.settings")
     refute has_element?(view, "#recordings-folder-#{vault.id}")
   end
 
@@ -74,7 +74,7 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
     end
 
     test "a good folder after a missing one clears the error", %{conn: conn, vault: vault} do
-      {:ok, view, _html} = live(conn, ~p"/vaults")
+      {:ok, view, _html} = live(conn, ~p"/wiki/.settings")
       assert save(view, vault, "Elsewhere") =~ "no folder &quot;Elsewhere&quot;"
 
       html = save(view, vault, "Meeting Recordings")
@@ -83,7 +83,7 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
     end
 
     test "a missing folder after a good one clears the success", %{conn: conn, vault: vault} do
-      {:ok, view, _html} = live(conn, ~p"/vaults")
+      {:ok, view, _html} = live(conn, ~p"/wiki/.settings")
       assert save(view, vault, "Meeting Recordings") =~ "plays its recordings from"
 
       html = save(view, vault, "Elsewhere")
@@ -93,17 +93,17 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
 
     test "clearing the folder after a failure clears the error",
          %{conn: conn, user: user, vault: vault} do
-      {:ok, view, _html} = live(conn, ~p"/vaults")
+      {:ok, view, _html} = live(conn, ~p"/wiki/.settings")
       assert save(view, vault, "Elsewhere") =~ "no folder"
 
       html = save(view, vault, "")
-      assert html =~ "Notes has no recordings folder now."
+      assert html =~ "Your wiki has no recordings folder now."
       refute html =~ "no folder &quot;Elsewhere&quot;"
       assert Vaults.get_vault(user, vault.id) |> elem(1) |> Map.get(:recordings_folder) == nil
     end
 
     test "other vault events clear a stale error too", %{conn: conn, vault: vault} do
-      {:ok, view, _html} = live(conn, ~p"/vaults")
+      {:ok, view, _html} = live(conn, ~p"/wiki/.settings")
       assert save(view, vault, "Elsewhere") =~ "no folder"
 
       html =

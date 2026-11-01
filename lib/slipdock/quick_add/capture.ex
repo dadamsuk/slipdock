@@ -418,7 +418,7 @@ defmodule Slipdock.QuickAdd.Capture do
 
   defp writable_boards(user) do
     user
-    |> Access.list_boards()
+    |> Access.list_boards(wiki: false)
     |> Enum.filter(&Access.can_write?(Access.board_permission(user, &1)))
   end
 

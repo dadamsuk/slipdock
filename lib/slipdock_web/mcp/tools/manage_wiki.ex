@@ -1,8 +1,8 @@
-defmodule SlipdockWeb.MCP.Tools.ManageVault do
+defmodule SlipdockWeb.MCP.Tools.ManageWiki do
   @moduledoc """
-  Changing the vault's settings (see `Slipdock.Vaults`), and moving a folder
-  between boards. One tool with an `action`, because each tool costs every
-  session context.
+  Changing the caller's wiki (W-2201): its settings, and moving a folder
+  between its boards. One tool with an `action`, because each tool costs
+  every session context. A wiki has no name, so there is no renaming it.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -11,20 +11,20 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.Args
 
-  @actions ~w(rename move_folder)
+  @actions ~w(set move_folder)
 
   @impl true
-  def name, do: "manage_vault"
+  def name, do: "manage_wiki"
 
   @impl true
-  def title, do: "Change a vault"
+  def title, do: "Change your wiki"
 
   @impl true
   def description,
     do:
-      "rename the vault (vault, name), or move_folder: a folder (board, folder) with what is " <>
-        "in it to another board (to_board, optional parent; contents: true moves only what is " <>
-        "in it). Pages keep codes and history; dry_run reports it."
+      "set your wiki's shortcut or recordings_folder, or move_folder: a folder (board, " <>
+        "folder) and what is in it to another board (to_board, parent; contents: only what is " <>
+        "in it). Codes and history kept; dry_run reports."
 
   @impl true
   def input_schema do
@@ -32,8 +32,11 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
       type: "object",
       properties: %{
         action: %{type: "string", enum: @actions},
-        vault: %{type: "string", description: "Vault id or name."},
-        name: %{type: "string", description: "The vault's (new) name."},
+        shortcut: %{type: "string", description: "set: the key after b that opens your wiki."},
+        recordings_folder: %{
+          type: "string",
+          description: "set: a My Drive folder its meeting recordings play from; \"\" for none."
+        },
         board: %{
           type: "string",
           description: "Board id, code or name: the folder's board."
@@ -76,14 +79,17 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
     end
   end
 
-  defp act("rename", args, user, _context) do
-    with {:ok, vault} <- vault(args, user),
-         {:ok, name} <- Args.required(args, "name"),
-         {:ok, vault} <- Args.refusal(Vaults.update_vault(vault, %{"name" => name})),
-         do: {:ok, %{vault: V.vault(vault, user)}}
+  defp act("set", args, user, _context) do
+    wiki = Vaults.root(user)
+
+    with {:ok, shortcut} <- Args.optional(args, "shortcut"),
+         {:ok, folder} <- Args.optional(args, "recordings_folder"),
+         {:ok, wiki} <- if(shortcut, do: set_shortcut(wiki, shortcut), else: {:ok, wiki}),
+         {:ok, wiki} <- if(folder, do: set_recordings(wiki, folder), else: {:ok, wiki}),
+         do: {:ok, %{wiki: V.wiki(wiki, user)}}
   end
 
-  # Not a vault's own change: a folder of one board becoming another's (#745).
+  # A folder of one board becoming another's (#745).
   defp act("move_folder", args, user, context) do
     auth = Args.auth(context)
 
@@ -111,10 +117,22 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
     end
   end
 
-  defp vault(args, user) do
-    with {:ok, ref} <- Args.required(args, "vault"),
-         do: Args.refusal(Vaults.get_vault(user, ref))
+  defp set_shortcut(wiki, shortcut) do
+    case Vaults.set_shortcut(wiki, shortcut) do
+      {:ok, wiki} -> {:ok, wiki}
+      {:error, %Ecto.Changeset{} = cs} -> {:error, "shortcut #{changeset_error(cs, :shortcut)}"}
+    end
   end
+
+  defp set_recordings(wiki, folder) do
+    case Vaults.set_recordings_folder(wiki, folder) do
+      {:ok, wiki} -> {:ok, wiki}
+      {:error, reason} -> {:error, "recordings_folder: #{reason}"}
+    end
+  end
+
+  defp changeset_error(cs, field),
+    do: cs.errors[field] |> Kernel.||({"is invalid", []}) |> elem(0)
 
   defp folder(_board, nil), do: {:ok, nil}
   defp folder(board, ref), do: Args.refusal(Wiki.find_folder(board, ref))

@@ -43,7 +43,7 @@ defmodule Slipdock.Multiboard do
   def choices(%User{} = user, opts) do
     boards =
       user
-      |> Access.list_boards(token: opts[:token])
+      |> Access.list_boards(token: opts[:token], wiki: false)
       |> Boards.sort_boards(user.board_sort || "manual")
 
     columns =

@@ -188,7 +188,9 @@ defmodule Slipdock.Quota do
   def used(user_id, :boards) when is_integer(user_id) do
     Repo.aggregate(
       from(b in Board,
-        where: b.owner_id == ^user_id and is_nil(b.root_id) and is_nil(b.archived_at)
+        where:
+          b.owner_id == ^user_id and is_nil(b.root_id) and is_nil(b.archived_at) and
+            (is_nil(b.kind) or b.kind != "wiki")
       ),
       :count
     )
@@ -493,7 +495,9 @@ defmodule Slipdock.Quota do
 
     boards =
       from(b in Board,
-        where: b.owner_id in ^user_ids and is_nil(b.root_id) and is_nil(b.archived_at),
+        where:
+          b.owner_id in ^user_ids and is_nil(b.root_id) and is_nil(b.archived_at) and
+            (is_nil(b.kind) or b.kind != "wiki"),
         group_by: b.owner_id,
         select: {b.owner_id, count(b.id)}
       )

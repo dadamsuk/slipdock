@@ -110,7 +110,7 @@ defmodule Slipdock.Inbound.QuickAdd do
 
   defp writable(user) do
     user
-    |> Access.list_boards()
+    |> Access.list_boards(wiki: false)
     |> Enum.filter(&Access.can_write?(Access.board_permission(user, &1)))
     |> Enum.reject(&Board.archived?/1)
   end

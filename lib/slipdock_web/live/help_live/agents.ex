@@ -46,7 +46,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
           "reads better in a transcript than raw curl, and does a few things nothing else does.",
       when:
         "The agent works in a terminal on your machine, or you want what only the " <>
-          "CLI has: syncing a vault to a folder, files over 10 MB, imports and exports."
+          "CLI has: syncing your wiki to a folder, files over 10 MB, imports and exports."
     },
     %{
       slug: "skills",
@@ -310,7 +310,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:some, "from the board"},
        {:no, ""}
      ]},
-    {"Mirror a vault to a local folder",
+    {"Mirror your wiki to a local folder",
      [
        {:no, ""},
        {:no, ""},
@@ -757,7 +757,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
           Set up runners, or run an automation now and read its callbacks. Do that on the
           board, or with the CLI.
         </li>
-        <li>Mirror a vault to a folder on disk. Only the CLI does that.</li>
+        <li>Mirror your wiki to a folder on disk. Only the CLI does that.</li>
       </ul>
     </.part>
     """
@@ -802,7 +802,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <ul class="list-disc space-y-1 pl-5">
         <li>
           <code>slipdock sync</code>
-          mirrors a vault to a local folder and keeps the two in step, so you can edit pages
+          mirrors your wiki to a local folder and keeps the two in step, so you can edit pages
           in Obsidian or any other editor; <code>slipdock sync from-server</code>
           and <code>slipdock sync to-server</code>
           run a pass one way only.

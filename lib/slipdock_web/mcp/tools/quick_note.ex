@@ -15,7 +15,7 @@ defmodule SlipdockWeb.MCP.Tools.QuickNote do
   @impl true
   def description,
     do:
-      "Saves text as a note in the person's main vault. The server names it " <>
+      "Saves text as a note in the person's wiki. The server names it " <>
         "(date, time, a title from the content) and picks the folder, and says where it went. " <>
         "Use write_page to choose the board and title."
 

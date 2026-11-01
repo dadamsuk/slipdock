@@ -57,7 +57,7 @@ defmodule SlipdockWeb.VaultRecentLiveTest do
   end
 
   test "with no folder open, the newest notes from every folder and board", ctx do
-    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes")
+    {:ok, view, _} = live(ctx.conn, "/wiki")
 
     assert listed(view) == [ctx.nested.id, ctx.journal.id, ctx.idea.id, ctx.top.id]
     # No folder cards: the tree is the filing.
@@ -80,12 +80,12 @@ defmodule SlipdockWeb.VaultRecentLiveTest do
 
     assert has_element?(
              view,
-             "#vault-recent-#{ctx.idea.id} a[href='/vaults/RecentNotes/Keystone/Big%20Ideas/Plain%20text']"
+             "#vault-recent-#{ctx.idea.id} a[href='/wiki/Keystone/Big%20Ideas/Plain%20text']"
            )
   end
 
   test "a folder lists what is in it and in the folders inside it, newest first", ctx do
-    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes/Keystone/Big%20Ideas")
+    {:ok, view, _} = live(ctx.conn, "/wiki/Keystone/Big%20Ideas")
 
     assert listed(view) == [ctx.nested.id, ctx.idea.id]
     # Where is said from the folder down, not from the top of the vault.
@@ -98,14 +98,14 @@ defmodule SlipdockWeb.VaultRecentLiveTest do
   end
 
   test "a board lists only its own notes", ctx do
-    {:ok, view, html} = live(ctx.conn, "/vaults/RecentNotes/Journal%20Desk")
+    {:ok, view, html} = live(ctx.conn, "/wiki/Journal%20Desk")
 
     assert listed(view) == [ctx.journal.id]
     assert html =~ "in this folder and the ones inside it"
   end
 
   test "an empty folder says so rather than listing nothing", ctx do
-    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes/Keystone/Nothing%20Yet")
+    {:ok, view, _} = live(ctx.conn, "/wiki/Keystone/Nothing%20Yet")
 
     assert listed(view) == []
     assert has_element?(view, "#vault-recent", "No notes in this folder yet.")
@@ -113,7 +113,7 @@ defmodule SlipdockWeb.VaultRecentLiveTest do
 
   test "a note edited moves to the top of its folder's list", ctx do
     {:ok, _} = Wiki.update_page(ctx.idea, %{"body" => "Changed just now."})
-    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes/Keystone/Big%20Ideas")
+    {:ok, view, _} = live(ctx.conn, "/wiki/Keystone/Big%20Ideas")
 
     assert listed(view) == [ctx.idea.id, ctx.nested.id]
   end

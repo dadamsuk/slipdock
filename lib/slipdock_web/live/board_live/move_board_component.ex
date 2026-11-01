@@ -75,7 +75,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
       true ->
         boards =
           user
-          |> Access.list_boards()
+          |> Access.list_boards(wiki: false)
           |> Enum.filter(
             &(&1.id != card.board_id and Access.can_write?(Access.board_permission(user, &1)))
           )

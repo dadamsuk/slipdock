@@ -210,26 +210,26 @@ defmodule SlipdockWeb.WikiTreeRecentLiveTest do
     end
 
     test "the vault view lists every board's pages, at their vault addresses", ctx do
-      {:ok, view, _} = live(ctx.conn, "/vaults/Minds")
+      {:ok, view, _} = live(ctx.conn, "/wiki")
       render_hook(view, "tree_view", %{"view" => "recent"})
 
       assert recent_ids(view) == ctx.order
 
       assert has_element?(
                view,
-               "#wiki-recent-#{ctx.acme.id} a[href='/vaults/Minds/Jobs/Applied/Acme%20role']",
+               "#wiki-recent-#{ctx.acme.id} a[href='/wiki/Jobs/Applied/Acme%20role']",
                "Acme role"
              )
 
       assert has_element?(
                view,
-               "#wiki-recent-#{ctx.new.id} a[href='/vaults/Minds/Recent/New%20plan']"
+               "#wiki-recent-#{ctx.new.id} a[href='/wiki/Recent/New%20plan']"
              )
     end
 
     test "the vault's index lists them under Recently changed too", ctx do
-      {:ok, _view, html} = live(ctx.conn, "/vaults/Minds")
-      assert html =~ ~s(href="/vaults/Minds/Jobs/Applied/Acme%20role")
+      {:ok, _view, html} = live(ctx.conn, "/wiki")
+      assert html =~ ~s(href="/wiki/Jobs/Applied/Acme%20role")
     end
 
     test "a board lists its own and its sub-boards' pages, opening with ?in=", ctx do
@@ -265,7 +265,7 @@ defmodule SlipdockWeb.WikiTreeRecentLiveTest do
     end
 
     test "the filter bar narrows every board's pages too", ctx do
-      {:ok, view, _} = live(ctx.conn, "/vaults/Minds")
+      {:ok, view, _} = live(ctx.conn, "/wiki")
       render_hook(view, "tree_view", %{"view" => "recent"})
       render_hook(view, "search", %{"q" => "role"})
 
@@ -283,7 +283,7 @@ defmodule SlipdockWeb.WikiTreeRecentLiveTest do
       # Shared once, then no longer.
       Repo.delete_all(from(g in Slipdock.Access.Grant, where: g.board_id == ^lent.id))
 
-      {:ok, view, _} = live(ctx.conn, "/vaults/Minds")
+      {:ok, view, _} = live(ctx.conn, "/wiki")
       render_hook(view, "tree_view", %{"view" => "recent"})
 
       ids = recent_ids(view)

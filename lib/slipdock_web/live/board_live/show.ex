@@ -93,40 +93,61 @@ defmodule SlipdockWeb.BoardLive.Show do
     # A card shared on its own: the board stays hidden, only that card opens.
     card_only = perm == :none and card_readable?(user, board, params["card_id"])
 
-    if perm == :none and not card_only do
-      {:ok,
-       socket
-       |> put_flash(:error, "You don't have access to that board.")
-       |> push_navigate(to: ~p"/")}
-    else
-      if connected?(socket) do
-        Boards.subscribe(board.id)
-        Boards.subscribe_templates()
-        Automations.subscribe_callbacks(board.id)
-        Slipdock.Runners.subscribe_board(board.id)
-        # A deploy arriving moves the delivery strip (#1134).
-        Phoenix.PubSub.subscribe(Slipdock.PubSub, Slipdock.Deployments.topic(board))
-      end
+    cond do
+      perm == :none and not card_only ->
+        {:ok,
+         socket
+         |> put_flash(:error, "You don't have access to that board.")
+         |> push_navigate(to: ~p"/")}
 
-      {:ok,
-       socket
-       |> assign(
-         perm: perm,
-         can_write: Access.can_write?(perm),
-         inbound: Access.can_write?(perm) and Slipdock.Inbound.enabled?(),
-         can_manage: perm == :owner,
-         view_only: perm == :view,
-         card_only: card_only,
-         allowed_views: Access.accessible_views(user, board),
-         groups: Accounts.list_groups(user),
-         # The placed wiki page whose panel is open (`?page=`); the panel
-         # itself is `BoardLive.PageComponent`.
-         page_id: nil,
-         view_grants: [],
-         share_key: 0
-       )
-       |> mount_assigns(board)}
+      # A Knowledge Base is a wiki and nothing else (W-2201): its board
+      # opens as its place in the wiki.
+      Slipdock.Boards.Board.wiki?(board) ->
+        {:ok, push_navigate(socket, to: knowledge_base_url(board))}
+
+      true ->
+        mount_board(board, user, perm, card_only, socket)
     end
+  end
+
+  defp knowledge_base_url(board) do
+    case Slipdock.Vaults.for_board(board) do
+      nil ->
+        ~p"/boards/#{board}/wiki"
+
+      vault ->
+        SlipdockWeb.VaultUrls.url(vault, Slipdock.Vaults.addresses(vault).boards[board.id] || "")
+    end
+  end
+
+  defp mount_board(board, user, perm, card_only, socket) do
+    if connected?(socket) do
+      Boards.subscribe(board.id)
+      Boards.subscribe_templates()
+      Automations.subscribe_callbacks(board.id)
+      Slipdock.Runners.subscribe_board(board.id)
+      # A deploy arriving moves the delivery strip (#1134).
+      Phoenix.PubSub.subscribe(Slipdock.PubSub, Slipdock.Deployments.topic(board))
+    end
+
+    {:ok,
+     socket
+     |> assign(
+       perm: perm,
+       can_write: Access.can_write?(perm),
+       inbound: Access.can_write?(perm) and Slipdock.Inbound.enabled?(),
+       can_manage: perm == :owner,
+       view_only: perm == :view,
+       card_only: card_only,
+       allowed_views: Access.accessible_views(user, board),
+       groups: Accounts.list_groups(user),
+       # The placed wiki page whose panel is open (`?page=`); the panel
+       # itself is `BoardLive.PageComponent`.
+       page_id: nil,
+       view_grants: [],
+       share_key: 0
+     )
+     |> mount_assigns(board)}
   end
 
   defp mount_assigns(socket, board) do

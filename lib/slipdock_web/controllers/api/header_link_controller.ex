@@ -68,6 +68,11 @@ defmodule SlipdockWeb.API.HeaderLinkController do
     Authorize.fetch_board(conn, ref, :read)
   end
 
+  # The caller's one wiki (W-2201), which needs no name: `{"wiki": true}`.
+  defp target(conn, %{"wiki" => wiki}) when wiki in [true, "true"],
+    do: {:ok, Slipdock.Vaults.root(conn.assigns.current_user)}
+
+  # As `wiki`, from before a wiki stopped being a named vault.
   defp target(conn, %{"vault" => ref}) when ref not in [nil, ""] do
     case HeaderLinks.resolve(conn.assigns.current_user, :vault, ref) do
       {:ok, vault} -> {:ok, vault}
@@ -75,7 +80,7 @@ defmodule SlipdockWeb.API.HeaderLinkController do
     end
   end
 
-  defp target(_conn, _params), do: {:error, :bad_request, "board or vault is required"}
+  defp target(_conn, _params), do: {:error, :bad_request, "board, or wiki: true, is required"}
 
   defp add(user, target, icon) do
     case HeaderLinks.add(user, target, icon) do
@@ -93,8 +98,14 @@ defmodule SlipdockWeb.API.HeaderLinkController do
 
   defp entries(user), do: Enum.map(HeaderLinks.list(user), &entry/1)
 
+  # The wiki: `wiki: true`, and `vault` as before for a client that reads it.
   defp entry(%{kind: :vault} = link),
-    do: %{id: link.id, icon: link.icon, vault: %{id: link.target.id, name: link.name}}
+    do: %{
+      id: link.id,
+      icon: link.icon,
+      wiki: true,
+      vault: %{id: link.target.id, name: link.name}
+    }
 
   defp entry(link),
     do: %{

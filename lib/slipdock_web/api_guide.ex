@@ -732,11 +732,12 @@ defmodule SlipdockWeb.APIGuide do
       `GET /api/hotkeys` lists them, and
       `PUT /api/boards/:board/hotkey {"digit": 1}` gives a board one (taking
       it off any other board) or `{"digit": null}` takes it away. Read access
-      is enough. Set one only when the person asks. A vault takes a digit too,
-      and a switcher key: `PATCH /api/vaults/:id {"hotkey": 2, "shortcut": "nt"}`.
-    - **Header links** — boards and vaults pinned as icons left of quick add,
-      the token holder's own: `GET /api/header-links` (with the `icons`),
-      `POST /api/header-links {"board": "ops", "icon": "star"}` (or `"vault"`),
+      is enough. Set one only when the person asks. The wiki takes a digit
+      too, and a switcher key: `PATCH /api/wiki {"hotkey": 2, "shortcut": "nt"}`.
+    - **Header links** — boards and the wiki pinned as icons left of quick
+      add, the token holder's own: `GET /api/header-links` (with the `icons`),
+      `POST /api/header-links {"board": "ops", "icon": "star"}` (or
+      `{"wiki": true, "icon": …}`),
       `PATCH /api/header-links/:id {"move": "left"}`, `DELETE` to unpin.
       Pin only when asked.
     - **Passkeys** — `GET /api/me/passkeys` lists the token holder's own
@@ -2231,8 +2232,8 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -H "$H" B/api/boards/1/folders          # the filing, nested, pages and all
     curl -s -H "$H" B/api/wiki                      # every board you can open, folders and all
     curl -s -H "$H" "B/api/boards/1/tree?folder=Design"   # one level: rows and counts, no bodies
-    curl -s -H "$H" "B/api/boards/1/pages/switch?q=acme+call"   # the quick switcher: fuzzy title, alias, path; &vaults=all: every vault of yours
-    # to another board of the page's vault, keeping its code; dry_run says what would stay behind
+    curl -s -H "$H" "B/api/boards/1/pages/switch?q=acme+call"   # the quick switcher: fuzzy title, alias, path; &vaults=all: your whole wiki
+    # to another board of your wiki, keeping its code; dry_run says what would stay behind
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/pages/W-31/move -d '{"board": "projects", "folder": "Acme", "dry_run": true}'
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
@@ -2280,8 +2281,8 @@ defmodule SlipdockWeb.APIGuide do
     **also filed in** other folders, as a symbolic link would be — one body,
     one history. `POST /api/pages/W-31/folder {"also": "Ideas"}` adds one
     (made if new), `{"not_in": "Ideas"}` takes it away, `board` names another
-    board's folder, and a vault path (`"/Projects/Notes"`) reaches any board of
-    the page's vault. A path uses the folders that are there and makes only
+    board's folder, and a wiki path (`"/Projects/Notes"`) reaches any board of
+    the wiki. A path uses the folders that are there and makes only
     the levels that aren't, for a folder's `also` as well, if you write on both
     boards. A page's JSON lists them as `also_in`; a folder's
     listing (`?folder=`, `/folders`) includes them marked `"also": true`, each
@@ -2291,8 +2292,8 @@ defmodule SlipdockWeb.APIGuide do
     folders too (#808), and shows there with everything in it; its `parent_id`
     stays its home. `PATCH /api/folders/4 {"also": "Ideas"}` (or
     `/api/boards/1/folders/<path>`) adds one, `{"not_in": "Ideas"}` takes it
-    away; the other folder is named by path, by id, on `in_board`, or by vault
-    path. Same rules as pages: same board or vault, write on both, never its
+    away; the other folder is named by path, by id, on `in_board`, or by wiki
+    path. Same rules as pages: same board or wiki, write on both, never its
     home parent, and never inside its own subtree (through placements too) —
     each refusal is a 422 saying why. A folder's JSON lists them as `also_in`;
     `GET /api/boards/1/folders/<path>` reads one; listing a folder adds the
@@ -2328,7 +2329,7 @@ defmodule SlipdockWeb.APIGuide do
     `shared_no_move_out`, `shared_no_create`, `shared_no_reshare`,
     `shared_no_encrypt`, `shared_no_organise` — stop, and tell the person; a
     retry won't help. A sharee can also file a shared item in a folder of
-    their own (`also`); a vault sync then gets **stubs** — one line, a link —
+    their own (`also`); a wiki sync then gets **stubs** — one line, a link —
     never the content. MCP: `share` (`off: true` to take it back; neither
     `with` nor `group` to list), `list_pages {"shared": true}`.
     CLI: `slipdock page share <page> <email|group> [--write] [--off]`,
@@ -2358,16 +2359,18 @@ defmodule SlipdockWeb.APIGuide do
     one click away at `/search?q=…&board=N` (which is a link worth handing
     somebody when the name they tried is not what the page is called).
 
-    ### The vault: every board you own as one Obsidian-style tree
+    ### The wiki: your Knowledge Base and every board, as one tree
 
-    A vault is a folder tree of Markdown (and other) files; the word is
-    Obsidian's, but nothing here needs Obsidian. You have exactly one, made the
-    first time it is wanted, and it is derived rather than configured: every
-    root board you own is a folder off the root at `/<board name>`, and a
-    sub-board sits in its epic's folder, `<Board>/Cards/<Epic>/`. Everything
-    in a board's wiki is in its folder. Boards shared with you by someone else
-    are not in it. A new or renamed board needs no call. Board names that
-    clash, case aside, are numbered, the oldest plain.
+    Your wiki is one folder tree of Markdown (and other) files, made the first
+    time it is wanted and derived rather than configured. At the top is your
+    **Knowledge Base**, first always: a wiki and nothing else (underneath, a
+    board of kind `wiki`, on no list of boards and counted against no limit).
+    Then every root board you own is a folder at `/<board name>`, in the order
+    your home page keeps by hand, and a sub-board sits in its epic's folder,
+    `<Board>/Cards/<Epic>/`. Everything in a board's wiki is in its folder.
+    Boards shared with you by someone else are not in it. A new or renamed
+    board needs no call. Board names that clash, case aside, are numbered,
+    the oldest plain.
 
     An **archived board is out of the tree**: not in `boards`, the sync
     listing or the feed, which says only that it was archived (a `board`
@@ -2377,40 +2380,40 @@ defmodule SlipdockWeb.APIGuide do
     its wiki in the tree again. Its pages still answer `[[links]]`.
 
     ```sh
-    curl -s -H "$H" B/api/vaults          # one vault: `pages`, `boards`, `mirrors`
-    curl -s -H "$H" "B/api/vaults/Notes/locate?path=/Projects/Acme/Call.md"
+    curl -s -H "$H" B/api/wiki     # `wiki`: pages, boards, mirrors, knowledge_base; and every board's folders
+    curl -s -H "$H" "B/api/wiki/locate?path=/Projects/Acme/Call.md"
     # → {"board": {"id": 7, "path": "/Projects", ...}, "rest": "Acme/Call.md"}
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
-         B/api/vaults/Notes -d '{"name": "Brain"}'
+         B/api/wiki -d '{"shortcut": "w"}'
     ```
 
-    Each of `boards` has `id`, `code`, `name`, `path`, `archived`,
-    `wiki_tree_icons` and `wiki_sort`. `PATCH` also takes `shortcut`, `hotkey`
-    and `recordings_folder`. `locate` answers with the deepest board holding
-    the path, a sub-board being inside its parent's folder, and is a 404 at
-    the root or in no board. `mirrors` are the folders the vault is synced
-    to, as far as the server knows: each API token that has listed it
-    (`/sync`) or followed its feed, by label, with `last_synced_at`. On a
-    shell: `slipdock vault ls|show|rename|set|locate`; over MCP, `list_vaults`
-    and `manage_vault`; in the web app, the Vault page (`/vaults`). A vault's
-    `url` is its own view in the web app, where a page's address is its vault
-    path (`/vaults/Notes/Projects/Roadmap`): give the person that
-    link rather than a board's when the page is in their vault.
+    `wiki.boards` has each board's `id`, `code`, `name`, `path`, `archived`,
+    `wiki_tree_icons` and `wiki_sort`; `knowledge_base` is `{id, code, name}`.
+    `PATCH` takes `shortcut`, `hotkey` and `recordings_folder`; a wiki has no
+    name. `locate` answers with the deepest board holding the path, a
+    sub-board being inside its parent's folder, and is a 404 at the root or
+    in no board. `mirrors` are the folders the wiki is synced to, as far as
+    the server knows: each API token that has listed it (`/sync`) or followed
+    its feed, by label, with `last_synced_at`. On a shell: `slipdock wiki
+    show|set|locate|resolve|wanted|changes|tree`; over MCP, `wiki_info` and
+    `manage_wiki`; in the web app, `/wiki`, where a page's address is its
+    path (`/wiki/Projects/Roadmap`): give the person that link rather than a
+    board's. `/api/vaults/...` answers as `/api/wiki/...` does, for older
+    clients; it will go.
 
-    **Links reach across the vault.** On a board in a vault, a plain
-    `[[Note]]` tries its own board, then every board of the vault: each page
-    has a vault path (board, folders, parent pages, title), the last
-    part of a link matches a title, slug or alias, any parts before it the
-    end of the path, and the shortest path wins a tie — so `[[X/Note]]`
-    picks one. `GET /api/vaults/:id/resolve?link=X/Note` answers which page
-    and its path; `GET /api/vaults/:id/wanted` lists what is linked to and
-    unwritten anywhere in the vault. Boards in no vault are unchanged.
+    **Links reach across the wiki.** A plain `[[Note]]` tries its own board,
+    then the whole wiki: each page has a path (board, folders, parent pages,
+    title), the last part of a link matches a title, slug or alias, any parts
+    before it the end of the path, and the shortest path wins a tie — so
+    `[[X/Note]]` picks one. `GET /api/wiki/resolve?link=X/Note` answers which
+    page and its path; `GET /api/wiki/wanted` lists what is linked to and
+    unwritten anywhere in it.
 
-    **The change feed.** `GET /api/vaults/:id/changes` gives the cursor to
+    **The change feed.** `GET /api/wiki/changes` gives the cursor to
     start from; `?since=<cursor>` then gives every page, folder, attachment
-    and wiki-file change on the vault's boards after it — each once, as it is now (a page's
+    and wiki-file change on the wiki's boards after it — each once, as it is now (a page's
     `code`, `title`, `icon`, `color`, `position`, `inserted_at`, `updated_at`,
-    `content_hash`, `folder_id`, `archived` and vault `path`), or `"action": "deleted"` — with the next `cursor` and
+    `content_hash`, `folder_id`, `archived` and `path`), or `"action": "deleted"` — with the next `cursor` and
     `more`. A new icon or colour is a change too, and leaves the hashes alone.
     Every page, folder, file and board carries `title`, `short_name` (a card
     folder's, else null), `path` (the listing's, from disk names, null for what
@@ -2424,35 +2427,36 @@ defmodule SlipdockWeb.APIGuide do
     unless the bytes changed too: a page also filed in a folder that moved
     names it in `also-in`, and comes as `changed`.
     Keep a websocket on `/socket/websocket?token=<token>&vsn=2.0.0`, join
-    `vault:<id>`, and a `change` event with the cursor says when to ask.
-    The log keeps a window (90 days by default): `"resync": true` means your
-    cursor is older than that — list the vault again, then follow on.
+    the wiki's `channel` (from `GET /api/wiki`), and a `change` event with
+    the cursor says when to ask. The log keeps a window (90 days by
+    default): `"resync": true` means your cursor is older than that — list
+    the wiki again, then follow on.
 
-    **Sync: the vault as a folder of files.** `slipdock sync init DIR --vault V`
+    **Sync: the wiki as a folder of files.** `slipdock sync init DIR`
     binds a local folder and `slipdock sync` (or `--watch`, or `slipdock sync
-    service install`) keeps it level with the vault both ways (`slipdock sync
+    service install`) keeps it level with the wiki both ways (`slipdock sync
     from-server` or `to-server` for a pass one way only); the folder
     stays a valid Obsidian vault. `slipdock sync status` says what is waiting
     on each side and which conflict copies are left. An existing Obsidian
-    vault comes in once with `slipdock vault import DIR --vault V` (try
+    vault comes in once with `slipdock wiki import DIR` (try
     `--dry-run` first: what would be created or skipped, and the links,
     embeds and plugin blocks that won't resolve); notes go up byte for byte,
-    nothing already in the vault is overwritten. Underneath is
-    `/api/vaults/:id/sync`:
+    nothing already in the wiki is overwritten. Underneath is
+    `/api/wiki/sync`:
 
     ```sh
-    curl -s -H "$H" B/api/vaults/Notes/sync            # every file: kind, id, path, hash; folders; cursor
-    curl -s -H "$H" B/api/vaults/Notes/sync/pages/412  # one note's file: path, hash, content
+    curl -s -H "$H" B/api/wiki/sync            # every file: kind, id, path, hash; folders; cursor
+    curl -s -H "$H" B/api/wiki/sync/pages/412  # one note's file: path, hash, content
     curl -s -X PUT -H "$H" -H 'content-type: application/json' \\
-         B/api/vaults/Notes/sync/pages/412 -d '{"path": "Projects/Acme.md", "content": "…", "base": "<hash>"}'
+         B/api/wiki/sync/pages/412 -d '{"path": "Projects/Acme.md", "content": "…", "base": "<hash>"}'
     curl -s -X PUT -H "$H" -H 'content-type: application/json' \\
-         B/api/vaults/Notes/sync/pages -d '{"path": "Ideas/New.md", "content": "…"}'
-    curl -s -X DELETE -H "$H" "B/api/vaults/Notes/sync/pages/412?base=<hash>"   # archives
-    curl -s -H "$H" B/api/vaults/Notes/sync/files/9 -o photo.png                # bytes
-    curl -s -H "$H" -F path=Img/photo.png -F file=@photo.png B/api/vaults/Notes/sync/files
+         B/api/wiki/sync/pages -d '{"path": "Ideas/New.md", "content": "…"}'
+    curl -s -X DELETE -H "$H" "B/api/wiki/sync/pages/412?base=<hash>"   # archives
+    curl -s -H "$H" B/api/wiki/sync/files/9 -o photo.png                # bytes
+    curl -s -H "$H" -F path=Img/photo.png -F file=@photo.png B/api/wiki/sync/files
     ```
 
-    Paths are vault paths of files: a page is `Title.md`, or `Title/index.md`
+    Paths are paths of files: a page is `Title.md`, or `Title/index.md`
     when it has children; a title a file name can't hold has its characters
     substituted, and the true title is kept in front matter. A **hash** is the
     sha256 of the exact bytes sync writes (front matter included, `also-in:
@@ -2461,7 +2465,7 @@ defmodule SlipdockWeb.APIGuide do
     against; a stale one is a 409 with the file as it now stands. Writing a
     file at a new path renames or refiles the page; a directory that is no
     folder yet becomes one. Files that are not notes (images, PDFs,
-    `.excalidraw`) are kept at their vault path as wiki files —
+    `.excalidraw`) are kept at their path as wiki files —
     `POST /sync/files[/:id]` multipart, `PATCH /sync/files/:id {path, base}`
     to move, `DELETE` to archive — and `![[photo.png]]` draws them.
     `DELETE /sync/files/:id?purge=true` deletes one and its bytes for good and
@@ -2469,11 +2473,11 @@ defmodule SlipdockWeb.APIGuide do
     guards it as usual (409), and the feed says `deleted`. A
     recorded meeting is a page like any other: see *Meeting pages* below.
 
-    The listing is enough to draw the vault's tree. Each page has `icon` and
+    The listing is enough to draw the wiki's tree. Each page has `icon` and
     `color` (names, or null); each page and file has `writable` and
     `shareable`, for you and this token: whether you can write to its board,
     and whether you may share it, which a file never is. `folders` is the
-    directories as strings; `folder_details` maps the same vault paths to
+    directories as strings; `folder_details` maps the same paths to
     `{id, board_id, icon, color, writable, shareable}`. With `?stubs=1`, a
     stub carries none of these, and a directory only a stub needs isn't in
     `folder_details`. `boards` lists the boards you can open, each `{id, name,
@@ -2489,8 +2493,8 @@ defmodule SlipdockWeb.APIGuide do
     `archived`: a card above it put it away (an archived board is not listed), and a path never says so. A
     card's folder has its `card_id`. Show titles or short names as the person
     chose: `tree_names` in `GET /api/me`, `full` or `short`, set with `PUT
-    /api/me/display {"tree_names": "short"}` or `slipdock names short`. `GET /api/vaults/:id` says whether the vault is yours
-    (`owned`), and each of its `boards`' `wiki_tree_icons` whether that board's
+    /api/me/display {"tree_names": "short"}` or `slipdock names short`. In
+    `GET /api/wiki`, each of `wiki.boards`' `wiki_tree_icons` says whether that board's
     tree shows icons and colours at all; turning that off isn't in the change
     feed.
 
@@ -2498,7 +2502,7 @@ defmodule SlipdockWeb.APIGuide do
     has `inserted_at` and `updated_at`, and a page a `position`; a file's is
     null. `folder_details` adds `position`, `sort`, `inserted_at`, `updated_at`,
     and `also_pages` and `also_folders`, the ids of what is also filed there.
-    `GET /api/vaults/:id` adds each board's `wiki_sort`. Within a directory, the sort is the folder's
+    `GET /api/wiki` adds each board's `wiki_sort`. Within a directory, the sort is the folder's
     `sort`, or if that is null its board's `wiki_sort`, which is `name` until
     someone chooses. A page's own directory (no `folder_details`, an `index.md` above
     the rest) is always `manual`. Then draw, in this order:
@@ -2520,13 +2524,13 @@ defmodule SlipdockWeb.APIGuide do
     drag names only the page moved in the feed, though its siblings' positions
     change, so take the listing again after a change to redraw in order.
 
-    **Notes in a vault tag themselves.** On a board in a vault, a page's front
+    **Notes tag themselves.** In your wiki, a page's front
     matter `tags` and its inline `#tags` (nested `#area/sub` too; not in code,
     headings or links; an all-digit `#412` is still a card) are its
     `note_tags`, lower-case and apart from the board's card `tags`.
     `GET /api/boards/:board/pages?note_tag=area` lists the notes tagged
     `area` or anything under it, and `GET /api/boards/:board/pages/tags`
-    counts them. Off a vault, `note_tags` is always empty.
+    counts them. On a board shared with you, `note_tags` is always empty.
 
     **A page's board tags.** A page's `tags` are the board's own, the ones
     its cards wear: `PATCH /api/pages/:id` takes `add_tags`, `remove_tags` and
@@ -2540,7 +2544,7 @@ defmodule SlipdockWeb.APIGuide do
 
     A recorded meeting is **one page**: the summary, a `## Recording`
     section, and the whole WebVTT transcript in a ```vtt block under
-    `## Transcript`. The audio stays on the vault owner's Google Drive and
+    `## Transcript`. The audio stays on the wiki owner's Google Drive and
     is never stored here; the page names it in front matter:
 
     ````markdown
@@ -2587,14 +2591,14 @@ defmodule SlipdockWeb.APIGuide do
     audio types, getting the page in, why it won't play), is in the manual:
     docs/manual.md, *Meeting transcripts: what Slipdock expects*.
 
-    It plays when the vault owner has connected Google Drive (Account →
-    Settings; read-only) and set the vault's recordings folder, and only for
-    files under that folder: `PATCH /api/vaults/:id {"recordings_folder":
+    It plays when the wiki's owner has connected Google Drive (Account →
+    Settings; read-only) and set the wiki's recordings folder, and only for
+    files under that folder: `PATCH /api/wiki {"recordings_folder":
     "Meeting Recordings"}` (checked against Drive; `""` clears it), or
-    `slipdock vault set V --recordings-folder PATH`. `GET /api/me/drive`
-    (`slipdock drive status`) says whether you are connected and your vault's
-    folder. Write the page like any other vault note, with
-    `PUT /api/vaults/:id/sync/pages {"path", "content"}`; add
+    `slipdock wiki set --recordings-folder PATH`. `GET /api/me/drive`
+    (`slipdock drive status`) says whether you are connected and your wiki's
+    folder. Write the page like any other note, with
+    `PUT /api/wiki/sync/pages {"path", "content"}`; add
     `recording_drive_id` later with the `base` hash you got back, and on a
     409 change only that key in the content you are sent back.
 
@@ -2611,8 +2615,9 @@ defmodule SlipdockWeb.APIGuide do
     `unavailable`.
 
     A quick note: `POST /api/notes {"text"}`, `slipdock note` or the MCP tool
-    `quick_note` saves text to the person's main vault; the server names it,
-    picks the folder, and answers with `code`, `title`, `vault` and `location`.
+    `quick_note` saves text to the person's wiki; the server names it, picks
+    the folder (the top of their Knowledge Base when nothing fits better), and
+    answers with `code`, `title` and `location`.
 
     The AI tools beside a page: `POST /api/pages/:id/ai {"tool"}`, `slipdock page
     ai <page> <tool>` or the MCP tool `page_tool` run `summarise`, `key_points`,
@@ -2636,7 +2641,7 @@ defmodule SlipdockWeb.APIGuide do
     changes merged element by element the way Excalidraw's own collaboration
     merges them (each element's `version`, then `versionNonce`; a deleted
     element is kept with `isDeleted: true`). A write you make while it is
-    open — `PATCH /api/pages/:id`, `write_page`, a vault sync, a `.excalidraw`
+    open — `PATCH /api/pages/:id`, `write_page`, a wiki sync, a `.excalidraw`
     file replaced — lands as usual and is then merged into what they are
     drawing: an element you changed wins only if you bumped its `version`
     past theirs, an element you added stays, and an element you simply left

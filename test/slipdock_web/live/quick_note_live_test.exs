@@ -78,8 +78,11 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
     assert Wiki.list_pages(board) == []
   end
 
-  test "a refused save keeps what was typed", %{conn: conn, board: board} do
+  test "a refused save keeps what was typed", %{conn: conn, board: board, user: user} do
     {:ok, _} = Slipdock.Boards.delete_board(board)
+    # Nowhere left to write: the Knowledge Base put away too.
+    {:ok, kb} = Slipdock.Wiki.KnowledgeBase.ensure(user)
+    Slipdock.Repo.update!(Ecto.Changeset.change(kb, archived_at: DateTime.utc_now(:second)))
 
     {:ok, view, _html} = live(conn, ~p"/")
     open(view)

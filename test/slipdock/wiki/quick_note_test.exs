@@ -161,7 +161,9 @@ defmodule Slipdock.Wiki.QuickNoteTest do
 
       assert {:ok, note} = save(ctx.user)
       assert note.page.title == "2026-10-30 15.39 a b c d and a"
-      assert Vaults.addresses(ctx.vault).pages[note.page.id] == "Brain QN/" <> note.page.title
+
+      assert Vaults.addresses(ctx.vault).pages[note.page.id] ==
+               "Knowledge Base/" <> note.page.title
     end
   end
 
@@ -191,13 +193,13 @@ defmodule Slipdock.Wiki.QuickNoteTest do
       assert note.page.title == "2026-10-30 15.39 Note"
     end
 
-    test "a setting that has gone falls back to the first board", ctx do
+    test "a setting that has gone falls back to the Knowledge Base", ctx do
       Slipdock.AIStub.reply_with(%{"title" => "T"})
       user = at_home(ctx.user, ctx.vault, "Renamed since")
 
       assert {:ok, note} = save(user)
-      assert note.location == "Brain QN"
-      assert note.page.board_id == ctx.board.id
+      assert note.location == "Knowledge Base"
+      assert note.page.board_id == Slipdock.Wiki.KnowledgeBase.get(ctx.user).id
       assert note.page.folder_id == nil
     end
   end
@@ -209,17 +211,18 @@ defmodule Slipdock.Wiki.QuickNoteTest do
       assert Wiki.list_pages(ctx.board) == []
     end
 
-    test "somebody with no boards has nowhere to put one" do
+    test "somebody with no boards puts it in their Knowledge Base" do
+      Slipdock.AIStub.reply_with(%{"title" => "T"})
       user = user_fixture("novault@example.com")
-      assert {:error, :unprocessable_entity, message} = save(user)
-      assert message =~ "can be written to"
+      assert {:ok, note} = save(user)
+      assert note.location == "Knowledge Base"
     end
 
     test "boards a token can't write to are no place for it", ctx do
       assert {:error, :unprocessable_entity, message} =
                save(ctx.user, "Text", allow: fn _board -> false end)
 
-      assert message =~ "Mind"
+      assert message =~ "your wiki"
       assert Wiki.list_pages(ctx.board) == []
     end
 

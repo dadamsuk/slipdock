@@ -545,9 +545,6 @@ defmodule SlipdockWeb.Layouts do
     <.menu_link navigate={~p"/"} icon="hero-view-columns" on={@active == :boards}>Boards</.menu_link>
     <.menu_link navigate={~p"/work"} icon="hero-user" on={@active == :work}>My work</.menu_link>
     <.menu_link navigate={~p"/wiki"} icon="hero-book-open" on={@active == :wiki}>Wiki</.menu_link>
-    <.menu_link navigate={~p"/vaults"} icon="hero-rectangle-stack" on={@active == :vaults}>
-      Vault
-    </.menu_link>
     <.menu_link
       :if={@phone}
       navigate={~p"/search"}
@@ -755,7 +752,7 @@ defmodule SlipdockWeb.Layouts do
               <span class="chip chip-line shrink-0 font-mono text-2xs">{board.code}</span>
             </.link>
           </li>
-          <%!-- Your vaults, reached the same way (#1204). --%>
+          <%!-- Your wiki, reached the same way (#1204). --%>
           <li :for={vault <- @shortcuts.vaults}>
             <.link
               id={"switch-vault-#{vault.id}"}
@@ -765,8 +762,8 @@ defmodule SlipdockWeb.Layouts do
             >
               <.palette_key key={vault.shortcut} />
               <.icon name="hero-archive-box" class="size-3 shrink-0 text-base-content/50" />
-              <span class="min-w-0 flex-1 truncate">{vault.name}</span>
-              <span class="chip chip-line shrink-0 text-2xs">vault</span>
+              <span class="min-w-0 flex-1 truncate">Wiki</span>
+              <span class="chip chip-line shrink-0 text-2xs">wiki</span>
             </.link>
           </li>
           <li

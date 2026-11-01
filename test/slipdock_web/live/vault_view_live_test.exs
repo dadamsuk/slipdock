@@ -29,39 +29,39 @@ defmodule SlipdockWeb.VaultViewLiveTest do
 
   test "a page opens at its vault path, spaces and all, with the vault's breadcrumbs", ctx do
     %{conn: conn, hunt: hunt} = ctx
-    {:ok, view, html} = live(conn, "/vaults/Notes/Journal%20Desk/Intake%20Questions")
+    {:ok, view, html} = live(conn, "/wiki/Journal%20Desk/Intake%20Questions")
 
     assert html =~ "Why us?"
-    assert has_element?(view, "#vault-crumbs a", "Notes")
+    assert has_element?(view, "#vault-crumbs a[href='/wiki']", "Wiki")
 
     assert has_element?(
              view,
-             "#vault-crumbs a[href='/vaults/Notes/Journal%20Desk']",
+             "#vault-crumbs a[href='/wiki/Journal%20Desk']",
              "Journal Desk"
            )
 
     assert has_element?(view, "#vault-board", "on Journal Desk")
     assert has_element?(view, "#vault-board[href='/boards/#{hunt.id}/wiki/intake-questions']")
-    assert has_element?(view, "#vault-settings[href='/vaults/Notes/.settings']")
+    assert has_element?(view, "#vault-settings[href='/wiki/.settings']")
   end
 
   test "a page in a board's folder, case aside, .md or not", %{conn: conn} do
-    {:ok, _view, html} = live(conn, "/vaults/notes/keystone/big%20ideas/PLAIN%20TEXT.md")
+    {:ok, _view, html} = live(conn, "/wiki/keystone/big%20ideas/PLAIN%20TEXT.md")
     assert html =~ "Write it down."
   end
 
   test "the vault's top lists every board's notes, a board and a folder their own", ctx do
     %{conn: conn} = ctx
-    {:ok, _view, html} = live(conn, "/vaults/Notes")
+    {:ok, _view, html} = live(conn, "/wiki")
     assert html =~ "Plain text"
     assert html =~ "Intake Questions"
 
-    {:ok, view, _html} = live(conn, "/vaults/Notes/Journal%20Desk")
+    {:ok, view, _html} = live(conn, "/wiki/Journal%20Desk")
     assert has_element?(view, "h1", "Journal Desk")
     assert render(view) =~ "Intake Questions"
     refute render(view) =~ "Plain text"
 
-    {:ok, view, _html} = live(conn, "/vaults/Notes/Keystone/Big%20Ideas")
+    {:ok, view, _html} = live(conn, "/wiki/Keystone/Big%20Ideas")
     assert has_element?(view, "#vault-crumbs a", "Big Ideas")
     assert render(view) =~ "Plain text"
   end
@@ -69,19 +69,19 @@ defmodule SlipdockWeb.VaultViewLiveTest do
   test "its top stands on a live board when the first is archived", ctx do
     %{conn: conn, kb: kb, hunt: hunt} = ctx
     {:ok, _} = Slipdock.Boards.archive_board(hunt)
-    {:ok, view, _html} = live(conn, "/vaults/Notes")
+    {:ok, view, _html} = live(conn, "/wiki")
     assert has_element?(view, "#wiki-tree[data-board='#{kb.id}']")
   end
 
   test "an archived board keeps its address", %{conn: conn, hunt: hunt} do
     {:ok, _} = Slipdock.Boards.archive_board(hunt)
-    {:ok, _view, html} = live(conn, "/vaults/Notes/Journal%20Desk/Intake%20Questions")
+    {:ok, _view, html} = live(conn, "/wiki/Journal%20Desk/Intake%20Questions")
     assert html =~ "Why us?"
   end
 
   test "the tree is the vault's, and its rows open at their vault addresses", ctx do
     %{conn: conn, kb: kb, hunt: hunt} = ctx
-    {:ok, view, _} = live(conn, "/vaults/Notes/Journal%20Desk/Intake%20Questions")
+    {:ok, view, _} = live(conn, "/wiki/Journal%20Desk/Intake%20Questions")
 
     # Whatever the hook remembers, the vault view's tree is the vault's.
     reply =
@@ -89,32 +89,32 @@ defmodule SlipdockWeb.VaultViewLiveTest do
 
     assert reply.scope == "vault"
     # The home page's hand-made order: neither is placed, so oldest first.
-    assert titles(reply, "vault") == ["Keystone", "Journal Desk"]
+    assert titles(reply, "vault") == ["Knowledge Base", "Keystone", "Journal Desk"]
     row = row(reply, "board:#{kb.id}", "Big Ideas")
-    assert row.href == "/vaults/Notes/Keystone/Big%20Ideas"
+    assert row.href == "/wiki/Keystone/Big%20Ideas"
     assert row.nav == "patch"
 
     assert row(reply, "board:#{hunt.id}", "Intake Questions").href ==
-             "/vaults/Notes/Journal%20Desk/Intake%20Questions"
+             "/wiki/Journal%20Desk/Intake%20Questions"
   end
 
   # The tree's rows open by patching (none of them by a fresh view, which
   # would tear the tree down and draw it again from nothing on every click).
   test "a row opens by patching, onto another board too, in the same view", ctx do
     %{conn: conn, kb: kb, hunt: hunt, questions: questions} = ctx
-    {:ok, view, _} = live(conn, "/vaults/Notes/Keystone/Big%20Ideas/Plain%20text")
+    {:ok, view, _} = live(conn, "/wiki/Keystone/Big%20Ideas/Plain%20text")
     render_hook(view, "tree_view", %{"view" => "recent"})
     before = version(view)
     assert topics(view) == ["wiki:#{kb.id}"]
 
     # A page on another board: its board's wiki, under the vault's tree.
-    html = render_patch(view, "/vaults/Notes/Journal%20Desk/Intake%20Questions")
+    html = render_patch(view, "/wiki/Journal%20Desk/Intake%20Questions")
     assert html =~ "Why us?"
     assert has_element?(view, "#vault-board", "on Journal Desk")
 
     assert has_element?(
              view,
-             "#vault-crumbs a[href='/vaults/Notes/Journal%20Desk']",
+             "#vault-crumbs a[href='/wiki/Journal%20Desk']",
              "Journal Desk"
            )
 
@@ -128,15 +128,15 @@ defmodule SlipdockWeb.VaultViewLiveTest do
 
     # Another page of the same board changes only what is shown.
     after_switch = version(view)
-    assert render_patch(view, "/vaults/Notes/Journal%20Desk") =~ "Intake Questions"
+    assert render_patch(view, "/wiki/Journal%20Desk") =~ "Intake Questions"
     assert version(view) == after_switch
   end
 
   test "patched to an address with nothing there, the view starts afresh", %{conn: conn} do
-    {:ok, view, _} = live(conn, "/vaults/Notes/Keystone/Big%20Ideas")
+    {:ok, view, _} = live(conn, "/wiki/Keystone/Big%20Ideas")
 
-    assert {:error, {:live_redirect, %{to: "/vaults/Notes/Nope"}}} =
-             render_patch(view, "/vaults/Notes/Nope")
+    assert {:error, {:live_redirect, %{to: "/wiki/Nope"}}} =
+             render_patch(view, "/wiki/Nope")
   end
 
   test "a board shared by somebody else has no address in the vault", ctx do
@@ -146,27 +146,31 @@ defmodule SlipdockWeb.VaultViewLiveTest do
     share_fixture(lent, user, "read")
     {:ok, _} = Wiki.create_page(lent, %{"title" => "Borrowed", "body" => "Read me."})
 
-    assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, "/vaults/Notes/Lent/Borrowed")
+    assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, "/wiki/Lent/Borrowed")
   end
 
-  test "an address with nothing there, or someone else's vault, goes home", ctx do
+  test "an address with nothing there goes home", ctx do
     %{conn: conn} = ctx
-    assert {:error, {:live_redirect, %{to: "/", flash: _}}} = live(conn, "/vaults/Notes/Nope")
-
-    stranger = user_fixture("stranger-view@example.com")
-    _ = Vaults.root(stranger)
-    assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, "/vaults/Theirs")
+    assert {:error, {:live_redirect, %{to: "/", flash: _}}} = live(conn, "/wiki/Nope")
   end
 
-  test "a vault with no boards sends you to its settings, and says why" do
+  test "an address from when it was a named vault lands in the same place", ctx do
+    %{conn: conn} = ctx
+
+    assert redirected_to(get(conn, "/vaults/Notes/Journal%20Desk/Intake%20Questions")) ==
+             "/wiki/Journal%20Desk/Intake%20Questions"
+
+    assert redirected_to(get(conn, "/vaults/Theirs")) == "/wiki"
+    assert redirected_to(get(conn, "/vaults")) == "/wiki"
+    assert redirected_to(get(conn, "/vaults/Notes/.settings")) == "/wiki/.settings"
+  end
+
+  test "somebody with no boards finds their Knowledge Base there" do
     user = user_fixture("no-boards-view@example.com")
-    vault = Vaults.root(user)
+    {:ok, view, _html} = live(conn_as(user), "/wiki")
 
-    assert {:error, {:live_redirect, %{to: to, flash: flash}}} =
-             live(conn_as(user), "/vaults/#{vault.name}")
-
-    assert to == "/vaults/#{vault.name}/.settings"
-    assert flash["info"] =~ "nothing in it yet"
+    assert titles(tree_load(view, %{"scope" => "vault", "keys" => ["vault"]}), "vault") ==
+             ["Knowledge Base"]
   end
 
   test "a page asked for by id settles on its vault address", ctx do
@@ -176,25 +180,29 @@ defmodule SlipdockWeb.VaultViewLiveTest do
     refute has_element?(view, "#open-in-vault")
 
     # By id, it settles on the page's own address.
-    assert {:error, {:live_redirect, %{to: "/vaults/Notes/Journal%20Desk/Intake%20Questions"}}} =
-             live(conn, "/vaults/Notes?page=#{questions.id}")
+    assert {:error, {:live_redirect, %{to: "/wiki/Journal%20Desk/Intake%20Questions"}}} =
+             live(conn, "/wiki?page=#{questions.id}")
   end
 
-  test "settings: the vault's page, and Open and the home tile lead to the tree", ctx do
+  test "settings: the wiki's page, and Open and the home page's Wiki link lead to the tree",
+       ctx do
     %{conn: conn} = ctx
-    {:ok, view, html} = live(conn, "/vaults/Notes/.settings")
+    {:ok, view, html} = live(conn, "/wiki/.settings")
 
-    assert html =~ "Your vault"
-    refute html =~ "Mount a board"
-    assert has_element?(view, "#open-vault-#{ctx.vault.id}[href='/vaults/Notes']")
+    assert html =~ "Wiki settings"
+    # No text a person reads says "vault" (ids and form fields aside).
+    refute html =~ ~r/>[^<]*\bvaults?\b[^<]*</i
+    refute html =~ "Rename"
+    assert has_element?(view, "#open-vault-#{ctx.vault.id}[href='/wiki']")
 
     {:ok, home, _} = live(conn, ~p"/")
-    assert has_element?(home, "#vault-tile-#{ctx.vault.id}[href='/vaults/Notes']")
+    refute has_element?(home, "[id^='vault-tile-']")
+    assert has_element?(home, "a[href='/wiki']", "Wiki")
   end
 
   test "a folder of the vault says which board it is on", ctx do
     %{conn: conn, kb: kb, notes: notes} = ctx
-    {:ok, view, _} = live(conn, "/vaults/Notes/Keystone/Big%20Ideas")
+    {:ok, view, _} = live(conn, "/wiki/Keystone/Big%20Ideas")
 
     reply =
       tree_load(view, %{"scope" => "vault", "keys" => ["board:#{kb.id}", "folder:#{notes.id}"]})
@@ -224,7 +232,7 @@ defmodule SlipdockWeb.VaultViewLiveTest do
     {:ok, _} = Slipdock.Wiki.create_page(sub, %{"title" => "Inner note"}, user: user)
     vault = Slipdock.Vaults.root(user)
 
-    {:ok, _view, html} = live(conn, "/vaults/#{vault.name}/Plans/Cards/Launch/Inner note")
+    {:ok, _view, html} = live(conn, "/wiki/Plans/Cards/Launch/Inner note")
 
     assert html =~ "Inner note"
   end

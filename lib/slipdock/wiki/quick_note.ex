@@ -14,8 +14,9 @@ defmodule Slipdock.Wiki.QuickNote do
   words and the location in their settings, and says so (`placed_by`). A note
   is never lost to the model.
 
-  Notes go to the writer's one vault (`Slipdock.Vaults.root/1`). The location, `users.quick_note_folder`, is a vault path; left unset, or no
-  longer there, it is the top-most place they can write to.
+  Notes go to the writer's one wiki (`Slipdock.Vaults.root/1`). The location,
+  `users.quick_note_folder`, is a path in it; left unset, or no longer there,
+  it is the top of their Knowledge Base.
   """
 
   import Ecto.Query, warn: false
@@ -47,7 +48,8 @@ defmodule Slipdock.Wiki.QuickNote do
 
   @doc """
   Everywhere in `vault` a note can go: its boards and the folders in them, on
-  boards `allow` passes, top-most first. `allow` takes a board and defaults to
+  boards `allow` passes, the Knowledge Base's first (W-2201), then top-most
+  first. `allow` takes a board and defaults to
   whether `user` can write to it.
   """
   @spec places(Vault.t(), User.t(), keyword) :: [place]
@@ -70,7 +72,9 @@ defmodule Slipdock.Wiki.QuickNote do
       %{path: path, board: boards[board_id], folder_id: folder_id}
     end
     |> Enum.uniq_by(&String.downcase(&1.path))
-    |> Enum.sort_by(&{length(String.split(&1.path, "/")), String.downcase(&1.path)})
+    |> Enum.sort_by(
+      &{not Board.wiki?(&1.board), length(String.split(&1.path, "/")), String.downcase(&1.path)}
+    )
   end
 
   @doc """
@@ -86,6 +90,7 @@ defmodule Slipdock.Wiki.QuickNote do
     text = String.trim(to_string(text))
 
     with :ok <- written(text),
+         {:ok, _} <- Slipdock.Wiki.KnowledgeBase.ensure(user),
          vault = vault(user),
          {:ok, places} <- writable(vault, user, opts) do
       fallback = home(user, vault, places)
@@ -103,7 +108,7 @@ defmodule Slipdock.Wiki.QuickNote do
 
   defp writable(vault, user, opts) do
     case places(vault, user, opts) do
-      [] -> {:error, :unprocessable_entity, "Nothing in #{vault.name} can be written to."}
+      [] -> {:error, :unprocessable_entity, "Nothing in your wiki can be written to."}
       places -> {:ok, places}
     end
   end

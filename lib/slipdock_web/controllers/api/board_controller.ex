@@ -32,7 +32,8 @@ defmodule SlipdockWeb.API.BoardController do
       |> Access.list_boards(
         archived: archived_filter(params["archived"]),
         activity: true,
-        token: conn.assigns[:api_token]
+        token: conn.assigns[:api_token],
+        wiki: false
       )
       |> Boards.sort_boards(sort)
 
@@ -84,7 +85,7 @@ defmodule SlipdockWeb.API.BoardController do
 
       boards =
         user
-        |> Access.list_boards(token: conn.assigns[:api_token])
+        |> Access.list_boards(token: conn.assigns[:api_token], wiki: false)
         |> Boards.sort_boards("manual")
 
       json(conn, %{boards: Enum.map(boards, &V.board_summary(&1, user))})

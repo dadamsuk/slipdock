@@ -44,7 +44,7 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
         note_tag: %{
           type: "string",
           description:
-            "Only notes tagged this (#tags, on a board in a vault), or nested under it."
+            "Only notes tagged this (#tags, in your wiki), or nested under it."
         },
         archived: %{
           type: "string",

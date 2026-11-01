@@ -580,6 +580,9 @@ defmodule Slipdock.Access do
   Root boards the user can open: owned, granted (directly or via a group),
   reachable through a granted view, plus unclaimed legacy boards.
 
+  `wiki: false` leaves out the person's Knowledge Base (W-2201), for a list
+  of boards to work on rather than everything they can read.
+
   Archived boards are left out unless `:archived` says otherwise — `false`
   (the default) for the boards in play, `true` for the archived ones alone,
   `:all` for both. Archiving is only about what gets listed: it takes nobody's
@@ -612,6 +615,7 @@ defmodule Slipdock.Access do
     )
     |> scope_to_token(opts[:token])
     |> Boards.filter_archived(Keyword.get(opts, :archived, false))
+    |> then(&if(opts[:wiki] == false, do: where(&1, [b], is_nil(b.kind) or b.kind != "wiki"), else: &1))
     |> Repo.all()
     |> Repo.preload(
       owner: [],

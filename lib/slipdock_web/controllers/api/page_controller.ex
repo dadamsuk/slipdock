@@ -1327,7 +1327,8 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   @doc """
-  The whole wiki, every board the reader can open: boards as the top level,
+  The reader's one wiki (W-2201): `wiki`, what it is (as `PATCH /api/wiki`
+  answers), and `boards`, every board the reader can open, as the top level,
   then each board's folders and pages.
 
   One call rather than one per board, because "where is everything written"
@@ -1335,6 +1336,7 @@ defmodule SlipdockWeb.API.PageController do
   """
   def wiki(conn, params) do
     user = conn.assigns.current_user
+    {:ok, _} = Slipdock.Wiki.KnowledgeBase.ensure(user)
 
     boards =
       user
@@ -1352,7 +1354,7 @@ defmodule SlipdockWeb.API.PageController do
         }
       end)
 
-    json(conn, %{boards: boards})
+    json(conn, %{wiki: V.wiki(Slipdock.Vaults.root(user), user), boards: boards})
   end
 
   defp folder_attrs(board, params) do

@@ -36,7 +36,7 @@ defmodule SlipdockWeb.API.NoteControllerTest do
       conn |> post(~p"/api/notes", %{text: "ring them"}) |> json_response(201) |> Map.get("note")
 
     assert note["title"] =~ ~r/ Printers$/
-    assert note["vault"] == "Mind"
+    refute Map.has_key?(note, "vault")
     assert note["location"] == "/Brain QA/Inbox"
     assert note["placed_by"] == "ai"
     assert [%{body: "ring them"} = page] = Wiki.list_pages(board)
@@ -53,14 +53,18 @@ defmodule SlipdockWeb.API.NoteControllerTest do
     assert conn |> post(~p"/api/notes", %{}) |> json_response(422)
   end
 
-  test "the MCP tool saves one", %{conn: conn, board: board} do
+  test "the MCP tool saves one", %{conn: conn, board: board, user: user} do
     Slipdock.AIStub.reply_with(%{"title" => "Printers"})
 
     result = mcp(conn, %{text: "ring them"})
 
     assert result["isError"] == false
-    assert result["structuredContent"]["note"]["location"] == "/Brain QA"
-    assert [%{body: "ring them"}] = Wiki.list_pages(board)
+    # With no folder of its own, a note goes to the top of the Knowledge Base.
+    assert result["structuredContent"]["note"]["location"] == "/Knowledge Base"
+    assert Wiki.list_pages(board) == []
+
+    assert [%{body: "ring them"}] =
+             user |> Slipdock.Wiki.KnowledgeBase.get() |> Wiki.list_pages()
   end
 
   test "the MCP tool wants text", %{conn: conn} do

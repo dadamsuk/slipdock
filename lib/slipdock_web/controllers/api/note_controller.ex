@@ -17,11 +17,10 @@ defmodule SlipdockWeb.API.NoteController do
   end
 
   @doc "A saved note as the API and the MCP tool give it."
-  def json(%{page: page, vault: vault, location: location, placed_by: placed_by}) do
+  def json(%{page: page, location: location, placed_by: placed_by}) do
     %{
       code: page.code,
       title: page.title,
-      vault: vault.name,
       location: "/" <> location,
       placed_by: placed_by
     }

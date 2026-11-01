@@ -267,7 +267,7 @@ defmodule Slipdock.Sprints do
     own = Boards.subtree_board_ids(sprint.id)
 
     user
-    |> Access.list_boards()
+    |> Access.list_boards(wiki: false)
     |> Enum.filter(&(&1.id not in own and Access.can_write?(Access.board_permission(user, &1))))
   end
 
@@ -358,7 +358,7 @@ defmodule Slipdock.Sprints do
     own = board && Board.root_id(board)
 
     user
-    |> Access.list_boards()
+    |> Access.list_boards(wiki: false)
     |> Enum.filter(
       &(&1.id != own and not Board.sprints?(&1) and
           Access.can_write?(Access.board_permission(user, &1)))

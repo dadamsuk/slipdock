@@ -610,7 +610,10 @@ defmodule Slipdock.Boards do
       Multi.new()
       |> Multi.insert(
         :board,
-        %Board{template_id: template && template.id, kind: template_kind(template, opts)}
+        %Board{
+          template_id: template && template.id,
+          kind: if(opts[:wiki], do: "wiki", else: template_kind(template, opts))
+        }
         |> Board.changeset(attrs)
         |> vault_key_check()
         |> Ecto.Changeset.change(Keyword.take(opts, [:parent_card_id, :root_id, :owner_id]))
@@ -635,8 +638,10 @@ defmodule Slipdock.Boards do
         # board (see `Slipdock.Blueprint`).
         if template, do: apply_template_extras(board, template, opts[:owner_id])
         broadcast(board.id)
-        # Nobody is subscribed to a new tree yet, its owner included.
-        if is_nil(board.parent_card_id), do: notify_users_boards_changed([board.owner_id])
+        # Nobody is subscribed to a new tree yet, its owner included. A
+        # Knowledge Base is on no list of boards, so nobody's needs redrawing.
+        if is_nil(board.parent_card_id) and not Board.wiki?(board),
+          do: notify_users_boards_changed([board.owner_id])
         {:ok, board}
 
       {:error, step, changeset, _} when step in [:board, :saved] ->
@@ -753,6 +758,8 @@ defmodule Slipdock.Boards do
 
     cond do
       get.(:root_id) || get.(:parent_card_id) -> changeset
+      # A Knowledge Base is everybody's own, and counts against nothing.
+      get.(:kind) == "wiki" -> changeset
       is_nil(get.(:owner_id)) -> Ecto.Changeset.add_error(changeset, :owner_id, "can't be blank")
       true -> Quota.enforce_owner(changeset, get.(:owner_id), :boards)
     end
@@ -1063,7 +1070,8 @@ defmodule Slipdock.Boards do
 
   @doc """
   Each of `boards` ranked as `user`'s home page lists boards sorted by hand,
-  as a map of board id to a rank from 0: the boards they have placed, by
+  as a map of board id to a rank from 0: their Knowledge Base first, which
+  the home page doesn't list (W-2201), then the boards they have placed, by
   their place, then the rest, oldest first. The wiki's tree follows it at
   its top, and the sync listing sends it, so every client agrees.
   """
@@ -1072,9 +1080,10 @@ defmodule Slipdock.Boards do
 
     boards
     |> Enum.sort_by(fn board ->
-      case order[board.id] do
-        nil -> {1, 0, made_key(board)}
-        position -> {0, position, {0, 0, board.id}}
+      case {Board.wiki?(board), order[board.id]} do
+        {true, _} -> {0, 0, made_key(board)}
+        {false, nil} -> {2, 0, made_key(board)}
+        {false, position} -> {1, position, {0, 0, board.id}}
       end
     end)
     |> Enum.with_index()

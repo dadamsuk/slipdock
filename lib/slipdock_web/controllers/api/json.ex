@@ -936,6 +936,22 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   @doc """
+  The reader's one wiki (W-2201), as `/api/wiki` gives it: what `vault/2`
+  says, less the name and id a person no longer sees, and where their
+  Knowledge Base is.
+  """
+  def wiki(%Slipdock.Vaults.Vault{} = v, %Slipdock.Accounts.User{} = reader) do
+    kb = Slipdock.Wiki.KnowledgeBase.get(reader)
+
+    v
+    |> vault(reader)
+    |> Map.drop([:id, :name, :owned])
+    |> Map.put(:knowledge_base, kb && %{id: kb.id, code: kb.code, name: kb.name})
+    # The websocket topic its changes are announced on.
+    |> Map.put(:channel, "vault:#{v.id}")
+  end
+
+  @doc """
   One board in a vault: where its folder is and what a client needs to show
   it. `archived` is a flag and nothing more: the path stays the same.
   """
