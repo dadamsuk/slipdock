@@ -2456,7 +2456,10 @@ defmodule SlipdockWeb.APIGuide do
     folder yet becomes one. Files that are not notes (images, PDFs,
     `.excalidraw`) are kept at their vault path as wiki files —
     `POST /sync/files[/:id]` multipart, `PATCH /sync/files/:id {path, base}`
-    to move, `DELETE` to archive — and `![[photo.png]]` draws them. A
+    to move, `DELETE` to archive — and `![[photo.png]]` draws them.
+    `DELETE /sync/files/:id?purge=true` deletes one and its bytes for good and
+    gives the storage back: the board's owner only (403 otherwise), `base`
+    guards it as usual (409), and the feed says `deleted`. A
     recorded meeting is a page like any other: see *Meeting pages* below.
 
     The listing is enough to draw the vault's tree. Each page has `icon` and

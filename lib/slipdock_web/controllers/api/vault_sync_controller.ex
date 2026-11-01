@@ -110,16 +110,24 @@ defmodule SlipdockWeb.API.VaultSyncController do
     end
   end
 
-  @doc "Archives a file whose copy was deleted. `?base=` guards a change made elsewhere."
+  @doc """
+  Archives a file whose copy was deleted. `?base=` guards a change made
+  elsewhere. `?purge=true` deletes it and its bytes for good, and only the
+  board's owner may do that.
+  """
   def delete_file(conn, %{"id" => ref, "file_id" => id} = params) do
+    remove = if truthy?(params["purge"]), do: &Sync.purge_file/5, else: &Sync.archive_file/5
+
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
-         {:ok, entry} <- Sync.archive_file(vault, user(conn), id, params["base"], opts(conn)) do
+         {:ok, entry} <- remove.(vault, user(conn), id, params["base"], opts(conn)) do
       json(conn, %{file: entry})
     end
   end
 
   defp upload(%Plug.Upload{path: path}), do: {:ok, path}
   defp upload(_), do: {:error, :bad_request, "send the file as multipart `file`"}
+
+  defp truthy?(value), do: to_string(value) in ~w(true 1 yes on)
 
   defp opts(conn), do: [token: conn.assigns[:api_token]]
 

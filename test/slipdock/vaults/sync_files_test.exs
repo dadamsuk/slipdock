@@ -155,6 +155,46 @@ defmodule Slipdock.Vaults.SyncFilesTest do
              Changes.since(vault, cursor, user)
   end
 
+  test "a purged file loses its bytes and storage, and the feed says it went",
+       %{vault: vault, user: user} do
+    entry = put!(vault, user, "a.pdf", "some bytes")
+    file = Repo.get!(WikiFile, entry.id)
+    %{cursor: cursor} = Changes.since(vault, nil, user)
+    assert Quota.used(user, :storage) == byte_size("some bytes")
+
+    assert {:ok, %{deleted: true, id: id}} = Sync.purge_file(vault, user, entry.id, entry.hash)
+
+    assert id == entry.id
+    refute Repo.get(WikiFile, entry.id)
+    refute File.exists?(Files.disk_path(file))
+    assert Sync.listing(vault, user).entries == []
+    assert Quota.used(user, :storage) == 0
+
+    assert %{changes: [%{subject: "file", action: "deleted", id: ^id}]} =
+             Changes.since(vault, cursor, user)
+  end
+
+  test "a stale base leaves a purge undone", %{vault: vault, user: user} do
+    entry = put!(vault, user, "a.pdf", "bytes")
+    file = Repo.get!(WikiFile, entry.id)
+
+    assert {:error, :conflict, %{hash: hash}} = Sync.purge_file(vault, user, entry.id, "stale")
+
+    assert hash == entry.hash
+    assert File.exists?(Files.disk_path(file))
+    assert Repo.get!(WikiFile, entry.id).archived_at == nil
+  end
+
+  test "purging a file the vault no longer lists is refused", %{vault: vault, user: user} do
+    entry = put!(vault, user, "a.pdf", "bytes")
+    assert {:ok, _} = Sync.archive_file(vault, user, entry.id, nil)
+
+    assert {:error, :not_found, _} = Sync.purge_file(vault, user, entry.id, nil)
+    assert {:error, :not_found, _} = Sync.purge_file(vault, user, 0, nil)
+    assert {:error, :bad_request, _} = Sync.purge_file(vault, user, "nope", nil)
+    assert Repo.get(WikiFile, entry.id)
+  end
+
   test "two files of one name in one folder are told apart by the later one's id",
        %{vault: vault, user: user, kb: kb} do
     {:ok, first} = Files.create(kb, %{name: "x.png"}, source("1"))
