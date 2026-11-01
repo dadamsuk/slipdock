@@ -71,6 +71,24 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
              ["Aardvark" | Enum.map(1..8, &"Board #{&1}")]
   end
 
+  test "the boards follow the home page's hand-made order", %{
+    conn: conn,
+    user: user,
+    vault: vault,
+    boards: boards
+  } do
+    [{b1, _}, _, {b3, _} | _] = boards
+    {b8, _} = List.last(boards)
+    :ok = Slipdock.Boards.reorder_boards(user, [b8.id, b3.id, b1.id])
+
+    {:ok, view, _html} = live(conn, SlipdockWeb.VaultUrls.url(vault))
+
+    # The placed three first, in their order; the rest after, oldest first.
+    assert titles(vault_tree(view, ["vault"]), "vault") ==
+             ["Board 8", "Board 3", "Board 1", "Aardvark"] ++
+               Enum.map([2, 4, 5, 6, 7], &"Board #{&1}")
+  end
+
   test "many containers in one reply cost no more board reads than one", %{
     conn: conn,
     vault: vault,

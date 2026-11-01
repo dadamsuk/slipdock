@@ -1062,6 +1062,26 @@ defmodule Slipdock.Boards do
   end
 
   @doc """
+  Each of `boards` ranked as `user`'s home page lists boards sorted by hand,
+  as a map of board id to a rank from 0: the boards they have placed, by
+  their place, then the rest, oldest first. The wiki's tree follows it at
+  its top, and the sync listing sends it, so every client agrees.
+  """
+  def home_ranks(%User{} = user, boards) do
+    order = board_order(user)
+
+    boards
+    |> Enum.sort_by(fn board ->
+      case order[board.id] do
+        nil -> {1, 0, made_key(board)}
+        position -> {0, position, {0, 0, board.id}}
+      end
+    end)
+    |> Enum.with_index()
+    |> Map.new(fn {board, rank} -> {board.id, rank} end)
+  end
+
+  @doc """
   Sets the order `user` lists boards in: `ids` is every board they can see, in
   the order they want them. The order is theirs alone — nobody else's index
   moves — and a board left out of `ids` loses its place and falls back to the

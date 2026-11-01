@@ -88,7 +88,8 @@ defmodule SlipdockWeb.VaultViewLiveTest do
       tree_load(view, %{"scope" => "board", "keys" => ["board:#{kb.id}", "board:#{hunt.id}"]})
 
     assert reply.scope == "vault"
-    assert titles(reply, "vault") == ["Journal Desk", "Keystone"]
+    # The home page's hand-made order: neither is placed, so oldest first.
+    assert titles(reply, "vault") == ["Keystone", "Journal Desk"]
     row = row(reply, "board:#{kb.id}", "Big Ideas")
     assert row.href == "/vaults/Notes/Keystone/Big%20Ideas"
     assert row.nav == "patch"

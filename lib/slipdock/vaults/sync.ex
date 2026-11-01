@@ -70,7 +70,8 @@ defmodule Slipdock.Vaults.Sync do
                                                also_folders: [9], writable:, shareable:}},
         virtual_folders: [%{path: "Projects/Cards", board_id:, title: "Cards", short_name: nil,
                             card_id: nil, archived: false}],
-        boards: [%{id:, name:, title:, short_name: nil, path: "Projects", archived:}]}
+        boards: [%{id:, name:, title:, short_name: nil, path: "Projects", archived:,
+                   position:}]}
 
   `folders` is every directory of the vault, empty ones too: boards, wiki
   folders and card folders, and the `Cards` and epic directories that exist
@@ -164,7 +165,7 @@ defmodule Slipdock.Vaults.Sync do
 
     folder_details = folder_details(layout, names, levels, MapSet.new(entries, & &1.id))
     entries = Enum.sort_by(entries ++ files ++ stubs, & &1.path)
-    boards = board_details(vault, levels)
+    boards = board_details(vault, levels, reader)
     virtual = virtual_folders(names, levels)
 
     folders =
@@ -193,9 +194,14 @@ defmodule Slipdock.Vaults.Sync do
   end
 
   # The boards `levels` lets the reader open. Archived is a flag, never part
-  # of a path.
-  defp board_details(vault, levels) do
-    for %{board: board, path: path} <- Vaults.boards(vault),
+  # of a path. `position` is the order the top of the tree takes: the
+  # reader's home page sorted by hand (`Slipdock.Boards.home_ranks/2`), so a
+  # client sorts by it and agrees with the web.
+  defp board_details(vault, levels, reader) do
+    vault_boards = Vaults.boards(vault)
+    order = Slipdock.Boards.home_ranks(reader, Enum.map(vault_boards, & &1.board))
+
+    for %{board: board, path: path} <- vault_boards,
         Access.can_read?(Map.get(levels, board.id, :none)) do
       %{
         id: board.id,
@@ -203,7 +209,8 @@ defmodule Slipdock.Vaults.Sync do
         title: board.name,
         short_name: nil,
         path: path,
-        archived: not is_nil(board.archived_at)
+        archived: not is_nil(board.archived_at),
+        position: order[board.id]
       }
     end
   end

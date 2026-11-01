@@ -24,6 +24,16 @@ defmodule Slipdock.BoardOrderVaultsTest do
     |> Enum.map(&{&1.__struct__ |> Module.split() |> List.last(), &1.id})
   end
 
+  test "home_ranks: placed boards by their place, then the rest oldest first", ctx do
+    %{user: user, a: a, b: b} = ctx
+    c = board_fixture(%{"name" => "0 first by name", "code" => "bovc"}, owner: user)
+
+    assert Boards.home_ranks(user, [c, b, a]) == %{a.id => 0, b.id => 1, c.id => 2}
+
+    :ok = Boards.reorder_boards(user, [c, a])
+    assert Boards.home_ranks(user, [a, b, c]) == %{c.id => 0, a.id => 1, b.id => 2}
+  end
+
   test "a vault takes its place among the boards, by any of its names", ctx do
     %{user: user, a: a, b: b, vault: vault} = ctx
 

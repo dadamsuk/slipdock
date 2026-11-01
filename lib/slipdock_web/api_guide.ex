@@ -2471,7 +2471,10 @@ defmodule SlipdockWeb.APIGuide do
     `{id, board_id, icon, color, writable, shareable}`. With `?stubs=1`, a
     stub carries none of these, and a directory only a stub needs isn't in
     `folder_details`. `boards` lists the boards you can open, each `{id, name,
-    title, short_name, path, archived}`. `folders` takes in the boards'
+    title, short_name, path, archived, position}`: `position` is the order
+    the top of the tree takes, the one your home page keeps by hand (boards
+    you placed by their place, the rest after them, oldest first), so sort
+    the top by it and you agree with the web. `folders` takes in the boards'
     directories, and the `Cards` and epic directories a sub-board needs when
     no folder stands for them; `virtual_folders` lists those last as `{path,
     board_id, title, short_name, card_id, archived}`. Every page, file and

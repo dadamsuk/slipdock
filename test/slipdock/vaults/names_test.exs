@@ -103,6 +103,19 @@ defmodule Slipdock.Vaults.NamesTest do
                Enum.filter(listing(ctx).boards, &(&1.id == id))
     end
 
+    test "boards carry the home page's hand-made order as position", ctx do
+      older = board_fixture(%{"name" => "Archive desk", "code" => "nms2"}, owner: ctx.user)
+      newer = board_fixture(%{"name" => "Zebra", "code" => "nms3"}, owner: ctx.user)
+      :ok = Boards.reorder_boards(ctx.user, [newer.id])
+
+      positions = Map.new(listing(ctx).boards, &{&1.id, &1.position})
+
+      # Placed first; the rest after it, oldest first, whatever their names.
+      assert positions[newer.id] == 0
+      assert positions[ctx.board.id] == 1
+      assert positions[older.id] == 2
+    end
+
     test "a title too long for a path is whole in the listing and bounded on disk", ctx do
       title = String.duplicate("very long words ", 12) |> String.trim()
       {:ok, _} = Boards.update_card(ctx.card, %{"title" => title, "short_name" => "Short"})

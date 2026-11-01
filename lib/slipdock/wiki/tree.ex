@@ -419,7 +419,7 @@ defmodule Slipdock.Wiki.Tree do
 
     case key do
       "vault" ->
-        {:ok, level(layout, key, "", [], boards, extra)}
+        {:ok, layout |> level(key, "", [], boards, extra) |> in_home_order(vault, boards)}
 
       "dir:" <> path ->
         if Enum.any?(layout.mappings, &under?(&1.path, path)),
@@ -674,6 +674,18 @@ defmodule Slipdock.Wiki.Tree do
   # folders by name: before the first folder whose name sorts after theirs,
   # so a tree sorted by name stays sorted and a hand-ordered one keeps its
   # order.
+  # The top of a vault is its owner's boards, in the order their home page
+  # keeps them by hand (`Slipdock.Boards.home_ranks/2`). Anything else at
+  # the top stays after the boards, in the order it came.
+  defp in_home_order(rows, %Vault{user_id: user_id}, boards) do
+    owner = %Slipdock.Accounts.User{id: user_id}
+    ranks = Slipdock.Boards.home_ranks(owner, for({_id, {board, _}} <- boards, do: board))
+    Enum.sort_by(rows, &(row_rank(&1, ranks) || map_size(ranks)))
+  end
+
+  defp row_rank(%{mount: true, board_id: id}, ranks), do: ranks[id]
+  defp row_rank(_row, _ranks), do: nil
+
   defp arrange(rows, mounts) do
     {folders, rest} = Enum.split_with(rows, &(&1.kind in ["folder", "dir"]))
     {more, rest} = Enum.split_with(rest, &(&1.kind == "more"))
