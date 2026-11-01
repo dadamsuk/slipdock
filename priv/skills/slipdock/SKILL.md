@@ -379,6 +379,7 @@ slipdock velocity <board>                                 # committed / complete
 slipdock set-board <board> --sprints | --no-sprints       # make a board a sprint board (each card a sprint)
 slipdock set-board <board> --simple | --no-simple         # plain to-do list: hides % complete, start, health, time, votes, deps
 slipdock set-board <board> --default-view wiki            # what opening the board shows in the web app (board, table, wiki…)
+slipdock set-board <board> --wiki-sort modified           # how the top of the wiki's tree is sorted, and the folders following it (manual, name, modified, created)
 slipdock set-board <board> --no-page-card-features        # the board's wiki pages hide status, checklist, links, fields, votes, comments
 slipdock set-board <board> --handoff-label Parked --handoff-prompt-file p.txt  # rename "Left off" in the web app, and Auto generate's instructions ("" = default)
 slipdock set-board <board> --inbound-senders "ann@example.com,bob@example.com"  # who else may mail the board's card addresses (replaces the list; "" clears); only when asked

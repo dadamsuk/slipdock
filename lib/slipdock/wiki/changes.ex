@@ -94,9 +94,10 @@ defmodule Slipdock.Wiki.Changes do
       %{changes: [...], cursor: 931, more: false}
 
   Each subject appears once, at its latest change in the window, with what
-  it is now — a page's code, title, icon, colour, `content_hash`, home
-  folder, whether it is archived, and its vault path; a folder's path, icon
-  and colour; an attachment's page, name and size — or `deleted` when it is
+  it is now — a page's code, title, icon, colour, position, times,
+  `content_hash`, home folder, whether it is archived, and its vault path; a
+  folder's path, icon, colour, position, sort and times; an attachment's
+  page, name and size — or `deleted` when it is
   gone. A new icon or colour is a change like any other, and leaves
   `content_hash` and the sync hash alone, since neither is in the file. Pages the reader cannot open
   are left out. Pass the `cursor` back as `since` next time; `more: true`
@@ -229,6 +230,9 @@ defmodule Slipdock.Wiki.Changes do
               title: page.title,
               icon: page.icon,
               color: page.color,
+              position: page.position,
+              inserted_at: page.inserted_at,
+              updated_at: page.updated_at,
               content_hash: page.content_hash,
               folder_id: page.folder_id,
               parent_id: page.parent_id,
@@ -255,7 +259,11 @@ defmodule Slipdock.Wiki.Changes do
             name: folder.name,
             path: Wiki.folder_path(folder),
             icon: folder.icon,
-            color: folder.color
+            color: folder.color,
+            position: folder.position,
+            sort: folder.sort,
+            inserted_at: folder.inserted_at,
+            updated_at: folder.updated_at
           })
         ]
     end
@@ -295,6 +303,8 @@ defmodule Slipdock.Wiki.Changes do
             |> Map.merge(%{
               name: file.name,
               folder_id: file.folder_id,
+              inserted_at: file.inserted_at,
+              updated_at: file.updated_at,
               size: file.size,
               sha256: file.sha256,
               archived: not is_nil(file.archived_at)

@@ -3618,7 +3618,10 @@ is left where it is, and the message says so. From the command line:
 Right-click the tree's background for the same things at the top of the
 wiki, including how the top is sorted. The top is sorted by name until
 someone chooses otherwise, so a wiki reads a-z, ignoring case, folders and
-pages alike, including folders a vault's sync adds later.
+pages alike, including folders a vault's sync adds later. With a token,
+`slipdock set-board <board> --wiki-sort modified` or `PATCH /api/boards/:board/tree
+{"sort": "modified"}` sets it, and `GET /api/vaults/:id/sync` carries what a client
+needs to draw the same order.
 
 **Picking several.** Ctrl-click (Cmd-click on a Mac) picks rows one at a time
 and Shift-click picks every row from the last one. A bar above the tree then

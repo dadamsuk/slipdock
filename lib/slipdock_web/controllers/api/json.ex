@@ -109,6 +109,7 @@ defmodule SlipdockWeb.API.JSON do
       simple: b.simple,
       page_card_features: b.page_card_features,
       wiki_tree_icons: b.wiki_tree_icons,
+      wiki_sort: b.wiki_sort,
       show_pulse: b.show_pulse,
       delivery_metrics: b.delivery_metrics,
       card_ref_pattern: b.card_ref_pattern,
@@ -183,6 +184,9 @@ defmodule SlipdockWeb.API.JSON do
       # Whether the wiki's tree shows pages' and folders' icons and colours
       # (#792). The names are in the listings either way.
       wiki_tree_icons: b.wiki_tree_icons,
+      # How the wiki's tree orders the top of the board and every folder that
+      # follows it (#789): by name until someone chooses.
+      wiki_sort: b.wiki_sort,
       # The view opening the board lands on in the web app ("board", "wiki",
       # "table"…), from the board list, the switcher and favourites.
       default_view: Board.home_view(b),
@@ -942,9 +946,14 @@ defmodule SlipdockWeb.API.JSON do
         id: m.board.id,
         code: m.board.code,
         name: m.board.name,
-        wiki_tree_icons: m.board.wiki_tree_icons
+        wiki_tree_icons: m.board.wiki_tree_icons,
+        wiki_sort: m.board.wiki_sort
       },
-      folder: m.folder && %{id: m.folder.id, path: Slipdock.Wiki.folder_path(m.folder)},
+      # `sort` because a folder mapped at the vault's root has no directory,
+      # so no row in the sync listing's `folder_details` to say it.
+      folder:
+        m.folder &&
+          %{id: m.folder.id, path: Slipdock.Wiki.folder_path(m.folder), sort: m.folder.sort},
       # Kept inside the vault (#757): named on the vault's tile in the web
       # app, not among its owner's boards.
       inside: m.inside,

@@ -700,6 +700,7 @@ defmodule SlipdockCLI do
         [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
         [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
         [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
+        [--wiki-sort manual|name|modified|created]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -708,6 +709,8 @@ defmodule SlipdockCLI do
                                         hidden — not deleted); --no-page-card-features hides
                                         status, checklist, links, fields, votes and comments
                                         on every page of the board's wiki (not deleted);
+                                        --wiki-sort orders the top of the wiki's tree and the
+                                        folders that follow it, and needs only write access;
                                         --show-pulse puts the board's pulse over its lists;
                                         --automation-wip makes the first in-progress list's
                                         WIP limit hold runner jobs and list sends;
@@ -960,6 +963,7 @@ defmodule SlipdockCLI do
     add_page: :boolean,
     add_document: :boolean,
     page_card_features: :boolean,
+    wiki_sort: :string,
     show_pulse: :boolean,
     show_age: :boolean,
     # `slipdock deploy` (#1134).
