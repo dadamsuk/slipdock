@@ -2411,8 +2411,9 @@ defmodule SlipdockWeb.APIGuide do
     **The change feed.** `GET /api/vaults/:id/changes` gives the cursor to
     start from; `?since=<cursor>` then gives every page, folder, attachment
     and wiki-file change on the vault's boards after it — each once, as it is now (a page's
-    `code`, `title`, `content_hash`, `folder_id`, `archived` and vault
-    `path`), or `"action": "deleted"` — with the next `cursor` and `more`.
+    `code`, `title`, `icon`, `color`, `content_hash`, `folder_id`, `archived`
+    and vault `path`), or `"action": "deleted"` — with the next `cursor` and
+    `more`. A new icon or colour is a change too, and leaves the hashes alone.
     Keep a websocket on `/socket/websocket?token=<token>&vsn=2.0.0`, join
     `vault:<id>`, and a `change` event with the cursor says when to ask.
     The log keeps a window (90 days by default): `"resync": true` means your
@@ -2455,6 +2456,18 @@ defmodule SlipdockWeb.APIGuide do
     `POST /sync/files[/:id]` multipart, `PATCH /sync/files/:id {path, base}`
     to move, `DELETE` to archive — and `![[photo.png]]` draws them. A
     recorded meeting is a page like any other: see *Meeting pages* below.
+
+    The listing is enough to draw the vault's tree. Each page has `icon` and
+    `color` (names, or null); each page and file has `writable` and
+    `shareable`, for you and this token: whether you can write to its board,
+    and whether you may share it, which a file never is. `folders` is the
+    directories as strings; `folder_details` maps the same vault paths to
+    `{id, board_id, icon, color, writable, shareable}`. With `?stubs=1`, a
+    stub carries none of these, and a directory only a stub needs isn't in
+    `folder_details`. `GET /api/vaults/:id` says whether the vault is yours
+    (`owned`, which is who may dress a mount), and each mapping's
+    `board.wiki_tree_icons` whether that board's tree shows icons and colours
+    at all; turning that off isn't in the change feed, nor is a mount's dress.
 
     **Notes in a vault tag themselves.** On a board in a vault, a page's front
     matter `tags` and its inline `#tags` (nested `#area/sub` too; not in code,

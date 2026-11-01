@@ -111,7 +111,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
                else: Vaults.create_vault(user, %{"name" => name})
              )
            ),
-         do: {:ok, %{vault: V.vault(vault)}}
+         do: {:ok, %{vault: V.vault(vault, user)}}
   end
 
   defp act("inside", args, user, _context) do
@@ -120,14 +120,14 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
          {:ok, inside} <- Args.boolean(args, "inside", true),
          {:ok, _} <- Args.refusal(Vaults.set_inside(vault, path, inside)),
          {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)),
-         do: {:ok, %{vault: V.vault(vault)}}
+         do: {:ok, %{vault: V.vault(vault, user)}}
   end
 
   defp act("rename", args, user, _context) do
     with {:ok, vault} <- vault(args, user),
          {:ok, name} <- Args.required(args, "name"),
          {:ok, vault} <- Args.refusal(Vaults.update_vault(vault, %{"name" => name})),
-         do: {:ok, %{vault: V.vault(vault)}}
+         do: {:ok, %{vault: V.vault(vault, user)}}
   end
 
   defp act("delete", args, user, _context) do
@@ -135,7 +135,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
          {:ok, confirmed} <- Args.boolean(args, "confirm", false) do
       if confirmed do
         # Rendered first, so the reply still counts what it held.
-        deleted = V.vault(vault)
+        deleted = V.vault(vault, user)
 
         with {:ok, _} <- Args.refusal(Vaults.delete_vault(vault)),
              do: {:ok, %{deleted: deleted}}
@@ -163,7 +163,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
       else
         with {:ok, _} <- Args.refusal(Vaults.add_mapping(vault, user, attrs)),
              {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)),
-             do: {:ok, %{vault: V.vault(vault)}}
+             do: {:ok, %{vault: V.vault(vault, user)}}
       end
     end
   end
@@ -178,7 +178,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
       else
         with {:ok, _} <- Args.refusal(Vaults.remove_mapping(vault, path)),
              {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)),
-             do: {:ok, %{vault: V.vault(vault)}}
+             do: {:ok, %{vault: V.vault(vault, user)}}
       end
     end
   end
@@ -232,7 +232,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
            %{
              result: result,
              board: %{id: board.id, code: board.code, name: board.name},
-             vault: V.vault(vault)
+             vault: V.vault(vault, user)
            }}
         end
       end

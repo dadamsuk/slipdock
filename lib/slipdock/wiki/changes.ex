@@ -94,9 +94,11 @@ defmodule Slipdock.Wiki.Changes do
       %{changes: [...], cursor: 931, more: false}
 
   Each subject appears once, at its latest change in the window, with what
-  it is now — a page's code, title, `content_hash`, home folder, whether it
-  is archived, and its vault path; a folder's path; an attachment's page,
-  name and size — or `deleted` when it is gone. Pages the reader cannot open
+  it is now — a page's code, title, icon, colour, `content_hash`, home
+  folder, whether it is archived, and its vault path; a folder's path, icon
+  and colour; an attachment's page, name and size — or `deleted` when it is
+  gone. A new icon or colour is a change like any other, and leaves
+  `content_hash` and the sync hash alone, since neither is in the file. Pages the reader cannot open
   are left out. Pass the `cursor` back as `since` next time; `more: true`
   means call again straight away.
 
@@ -225,6 +227,8 @@ defmodule Slipdock.Wiki.Changes do
             |> Map.merge(%{
               code: page.code,
               title: page.title,
+              icon: page.icon,
+              color: page.color,
               content_hash: page.content_hash,
               folder_id: page.folder_id,
               parent_id: page.parent_id,
@@ -247,7 +251,12 @@ defmodule Slipdock.Wiki.Changes do
         [
           row
           |> base(row.action)
-          |> Map.merge(%{name: folder.name, path: Wiki.folder_path(folder)})
+          |> Map.merge(%{
+            name: folder.name,
+            path: Wiki.folder_path(folder),
+            icon: folder.icon,
+            color: folder.color
+          })
         ]
     end
   end

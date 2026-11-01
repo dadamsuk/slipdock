@@ -16,7 +16,9 @@ defmodule SlipdockWeb.API.VaultController do
   action_fallback SlipdockWeb.API.FallbackController
 
   def index(conn, _params) do
-    json(conn, %{vaults: conn |> user() |> Vaults.list_vaults() |> Enum.map(&V.vault/1)})
+    json(conn, %{
+      vaults: conn |> user() |> Vaults.list_vaults() |> Enum.map(&V.vault(&1, user(conn)))
+    })
   end
 
   @doc """
@@ -33,7 +35,7 @@ defmodule SlipdockWeb.API.VaultController do
 
     case result do
       {:ok, vault} ->
-        conn |> put_status(:created) |> json(%{vault: V.vault(vault)})
+        conn |> put_status(:created) |> json(%{vault: V.vault(vault, user(conn))})
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:error, changeset}
@@ -45,7 +47,7 @@ defmodule SlipdockWeb.API.VaultController do
 
   def show(conn, %{"id" => ref}) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref) do
-      json(conn, %{vault: V.vault(vault)})
+      json(conn, %{vault: V.vault(vault, user(conn))})
     end
   end
 
@@ -56,7 +58,7 @@ defmodule SlipdockWeb.API.VaultController do
          {:ok, vault} <- shortcut(vault, params),
          {:ok, _} <- hotkey(conn, vault, params),
          {:ok, vault} <- recordings_folder(vault, params) do
-      json(conn, %{vault: V.vault(vault)})
+      json(conn, %{vault: V.vault(vault, user(conn))})
     end
   end
 
@@ -127,7 +129,7 @@ defmodule SlipdockWeb.API.VaultController do
   def delete(conn, %{"id" => ref}) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
          # Rendered first, so the reply still counts what it held.
-         deleted = V.vault(vault),
+         deleted = V.vault(vault, user(conn)),
          {:ok, _} <- Vaults.delete_vault(vault) do
       json(conn, %{deleted: deleted})
     end
@@ -171,7 +173,7 @@ defmodule SlipdockWeb.API.VaultController do
              inside: truthy?(params["inside"])
            }),
          {:ok, vault} <- Vaults.get_vault(user(conn), vault.id) do
-      conn |> put_status(:created) |> json(%{vault: V.vault(vault)})
+      conn |> put_status(:created) |> json(%{vault: V.vault(vault, user(conn))})
     end
   end
 
@@ -196,7 +198,7 @@ defmodule SlipdockWeb.API.VaultController do
           json(conn, %{
             result: result,
             board: %{id: board.id, code: board.code, name: board.name},
-            vault: V.vault(vault)
+            vault: V.vault(vault, user(conn))
           })
         end
       end
@@ -231,7 +233,7 @@ defmodule SlipdockWeb.API.VaultController do
       else
         with {:ok, _} <- Vaults.remove_mapping(vault, mapping),
              {:ok, vault} <- Vaults.get_vault(user(conn), vault.id),
-             do: json(conn, %{vault: V.vault(vault)})
+             do: json(conn, %{vault: V.vault(vault, user(conn))})
       end
     end
   end
@@ -257,7 +259,7 @@ defmodule SlipdockWeb.API.VaultController do
              Vaults.set_inside(vault, mapping, truthy?(params["inside"]))
            end),
          {:ok, vault} <- Vaults.get_vault(user(conn), vault.id) do
-      json(conn, %{vault: V.vault(vault)})
+      json(conn, %{vault: V.vault(vault, user(conn))})
     end
   end
 

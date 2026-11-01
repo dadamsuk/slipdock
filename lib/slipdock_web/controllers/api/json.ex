@@ -108,6 +108,7 @@ defmodule SlipdockWeb.API.JSON do
       kind: b.kind,
       simple: b.simple,
       page_card_features: b.page_card_features,
+      wiki_tree_icons: b.wiki_tree_icons,
       show_pulse: b.show_pulse,
       delivery_metrics: b.delivery_metrics,
       card_ref_pattern: b.card_ref_pattern,
@@ -179,6 +180,9 @@ defmodule SlipdockWeb.API.JSON do
       # Whether the wiki's pages show the card contents (status, checklist,
       # links, fields, votes, comments). The data is there either way.
       page_card_features: b.page_card_features,
+      # Whether the wiki's tree shows pages' and folders' icons and colours
+      # (#792). The names are in the listings either way.
+      wiki_tree_icons: b.wiki_tree_icons,
       # The view opening the board lands on in the web app ("board", "wiki",
       # "table"…), from the board list, the switcher and favourites.
       default_view: Board.home_view(b),
@@ -892,13 +896,17 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
-  @doc "A vault and its mappings (see `Slipdock.Vaults`)."
-  def vault(%Slipdock.Vaults.Vault{} = v) do
+  @doc """
+  A vault and its mappings (see `Slipdock.Vaults`), for `reader`: `owned`
+  says whether it is theirs, which is what lets them dress a mount.
+  """
+  def vault(%Slipdock.Vaults.Vault{} = v, %Slipdock.Accounts.User{} = reader) do
     counts = Slipdock.Vaults.page_counts(v)
 
     %{
       id: v.id,
       name: v.name,
+      owned: v.user_id == reader.id,
       # How it is reached in the web app (#1204): b then `shortcut`, and its
       # owner's Ctrl+Shift digit, if they gave it one.
       shortcut: v.shortcut,
@@ -930,7 +938,12 @@ defmodule SlipdockWeb.API.JSON do
     %{
       id: m.id,
       path: Slipdock.Vaults.Mapping.display_path(m),
-      board: %{id: m.board.id, code: m.board.code, name: m.board.name},
+      board: %{
+        id: m.board.id,
+        code: m.board.code,
+        name: m.board.name,
+        wiki_tree_icons: m.board.wiki_tree_icons
+      },
       folder: m.folder && %{id: m.folder.id, path: Slipdock.Wiki.folder_path(m.folder)},
       # Kept inside the vault (#757): named on the vault's tile in the web
       # app, not among its owner's boards.
