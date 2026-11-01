@@ -2506,6 +2506,14 @@ defmodule SlipdockWeb.APIGuide do
     `area` or anything under it, and `GET /api/boards/:board/pages/tags`
     counts them. Off a vault, `note_tags` is always empty.
 
+    **A page's board tags.** A page's `tags` are the board's own, the ones
+    its cards wear: `PATCH /api/pages/:id` takes `add_tags`, `remove_tags` and
+    `tags` (which replaces the set; `[]` clears it), by name, as a card does,
+    and so does `update_page` (`slipdock page edit W-31 --tag T`). They live
+    on the root board: `GET /api/boards/:board/tags` lists them, and one that
+    isn't there is a 422 naming it, with nothing changed. `note_tags` are the
+    note's own, edited in its text, and these keys never touch them.
+
     ### Meeting pages (recordings on Google Drive)
 
     A recorded meeting is **one page**: the summary, a `## Recording`
@@ -2847,7 +2855,7 @@ defmodule SlipdockWeb.APIGuide do
     {"page_card_features": false}` (`slipdock set-board B
     --no-page-card-features`), and a board's JSON carries
     `page_card_features`. The web app then leaves status, checklist, links,
-    fields, votes and comments off every page of that wiki. Nothing is
+    fields, votes and comments off every page of that wiki; tags stay on. Nothing is
     deleted and the endpoints above still answer, so read the flag before
     commenting on such a page: the people reading it will not see the comment.
 

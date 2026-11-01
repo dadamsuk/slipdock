@@ -19,7 +19,7 @@ defmodule SlipdockWeb.API.PageController do
 
   alias Slipdock.{Boards, Wiki}
   alias Slipdock.Wiki.{Archive, FolderPlacements, FrontMatter, Page, PageTools, Placements, Query}
-  alias SlipdockWeb.API.Authorize
+  alias SlipdockWeb.API.{Authorize, CardWrites}
   alias Slipdock.Wiki.Sharing
   alias SlipdockWeb.API.Uploads
   alias SlipdockWeb.API.JSON, as: V
@@ -157,9 +157,11 @@ defmodule SlipdockWeb.API.PageController do
     with {:ok, page} <- fetch_page(conn, id, :write),
          board <- Wiki.board_of(page),
          params <- Map.put_new(params, "flags", page.flags),
+         {:ok, tags} <- CardWrites.resolve_page_tags(board, params),
          {:ok, attrs} <- page_attrs(conn, board, params),
          {:ok, attrs} <- front_matter(attrs, params, page.front_matter),
          {:ok, page} <- Wiki.update_page(page, attrs, write_opts(conn, params)),
+         {:ok, _} <- CardWrites.apply_page_tags(page, tags),
          :ok <- set_fields(board, page, params["fields"]) do
       json(conn, %{page: V.page(with_users(Wiki.get_page!(page.id)))})
     end

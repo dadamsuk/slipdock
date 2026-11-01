@@ -366,4 +366,80 @@ defmodule SlipdockWeb.MCP.UpdatePageToolTest do
       refute Wiki.get_page!(ctx.guide.id).archived_at
     end
   end
+
+  describe "board tags (#1586)" do
+    setup %{board: board} do
+      Enum.each(~w(alpha beta), &tag_fixture(board, &1))
+      :ok
+    end
+
+    defp tag_names(page) do
+      page.id |> Wiki.get_page!() |> Wiki.tags() |> Enum.map(& &1.name) |> Enum.sort()
+    end
+
+    test "adds, removes and replaces by name, and answers with them", ctx do
+      answer = ctx.conn |> call(%{page: ctx.guide.code, add_tags: ~w(alpha beta)}) |> ok!()
+      assert Enum.sort(answer["tags"]) == ~w(alpha beta)
+
+      ctx.conn |> call(%{page: ctx.guide.code, remove_tags: ~w(alpha)}) |> ok!()
+      assert tag_names(ctx.guide) == ~w(beta)
+
+      ctx.conn |> call(%{page: ctx.guide.code, tags: ~w(alpha)}) |> ok!()
+      assert tag_names(ctx.guide) == ~w(alpha)
+
+      ctx.conn |> call(%{page: ctx.guide.code, tags: []}) |> ok!()
+      assert tag_names(ctx.guide) == []
+    end
+
+    test "an unknown tag is refused by name, and nothing changes", ctx do
+      text =
+        ctx.conn
+        |> call(%{page: ctx.guide.code, title: "Changed", add_tags: ~w(alpha nope)})
+        |> error!()
+
+      assert text =~ ~s(no tag "nope")
+      assert text =~ "alpha, beta"
+      assert Wiki.get_page!(ctx.guide.id).title == "Guide"
+      assert tag_names(ctx.guide) == []
+    end
+
+    test "a read-only token is refused", ctx do
+      {token, _} = Accounts.create_api_token(ctx.user, "ro", scope: "read")
+
+      text =
+        ctx.conn
+        |> put_req_header("authorization", "Bearer " <> token)
+        |> call(%{page: ctx.guide.code, add_tags: ~w(alpha)})
+        |> error!()
+
+      assert text =~ "read-only"
+      assert tag_names(ctx.guide) == []
+    end
+
+    test "a token limited to another board is refused", ctx do
+      other = board_fixture(%{"name" => "Other", "code" => "tagsother"}, owner: ctx.user)
+      {token, _} = Accounts.create_api_token(ctx.user, "one", scope_boards: [other.id])
+
+      ctx.conn
+      |> put_req_header("authorization", "Bearer " <> token)
+      |> call(%{page: ctx.guide.code, add_tags: ~w(alpha)})
+      |> error!()
+
+      assert tag_names(ctx.guide) == []
+    end
+
+    test "the tool says what it is, and within the length a tool may be", %{conn: conn} do
+      tool =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/mcp", Jason.encode!(%{jsonrpc: "2.0", id: 1, method: "tools/list"}))
+        |> json_response(200)
+        |> get_in(["result", "tools"])
+        |> Enum.find(&(&1["name"] == "update_page"))
+
+      assert String.length(tool["description"]) < 250
+      assert tool["inputSchema"]["properties"]["tags"]["description"] =~ "note_tags"
+      assert Map.has_key?(tool["inputSchema"]["properties"], "add_tags")
+    end
+  end
 end

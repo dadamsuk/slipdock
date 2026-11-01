@@ -272,6 +272,9 @@ defmodule SlipdockCLI do
         --draft | --publish
         the card facets, so a doc on the board reads like one:
         --priority P  --flag F (repeatable) / --flag F --off
+        --tag T (repeatable) / --tag T --off   the board's tags, by name
+        --set-tag T (repeatable) replaces them all  --no-tags clears them
+                                    (not the note's own #tags: those are its text)
         --start DATE | --no-start   --due DATE | --no-due
         --percent N | --no-percent  --color C | --no-color
         --assignee EMAIL | --no-assignee   --done | --undone
@@ -947,6 +950,8 @@ defmodule SlipdockCLI do
     url: :string,
     column: :keep,
     tag: :keep,
+    set_tag: :keep,
+    no_tags: :boolean,
     priority: :keep,
     flag: :keep,
     rows: :string,

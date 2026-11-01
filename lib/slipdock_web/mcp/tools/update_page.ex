@@ -24,9 +24,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
   @impl true
   def description,
     do:
-      "Changes a page but not its body: title, summary, front_matter, also/not_in folders, parent (\"\" for the top) and " <>
-        "position, folder, icon and color, archived (false restores), and pinning it as the page for a card. " <>
-        "Only what you pass changes. write_page edits the body."
+      "Changes a page but not its body: title, summary, front_matter, board tags, folders (also/not_in), parent, " <>
+        "position, icon, color, archived, and pinning it to a card. Only what you pass changes. write_page edits the body."
 
   @impl true
   def input_schema do
@@ -73,6 +72,22 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
           description: "Tints its icon; \"\" for none."
         },
         archived: %{type: "boolean", description: "true puts it away with its children."},
+        tags: %{
+          type: "array",
+          items: %{type: "string"},
+          description:
+            "Replaces the page's board tags (the root board's, as on a card); [] clears. Not note_tags, which live in the text."
+        },
+        add_tags: %{
+          type: "array",
+          items: %{type: "string"},
+          description: "Board tag names to put on the page."
+        },
+        remove_tags: %{
+          type: "array",
+          items: %{type: "string"},
+          description: "Board tag names to take off."
+        },
         pin_card: %{type: "integer", description: "Card this is *the* page for."},
         unpin_card: %{type: "integer"},
         message: %{type: "string", description: "Why, for the page history."}
@@ -95,6 +110,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
     with {:ok, page} <- page(args, auth, context.user),
          board <- Wiki.board_of(page),
          {:ok, archived} <- Args.boolean(args, "archived"),
+         {:ok, tags} <- Args.refusal(CardWrites.resolve_page_tags(board, args)),
          {:ok, attrs} <- attrs(args),
          {:ok, attrs} <- folder(board, attrs, args, context.user),
          {:ok, attrs} <- front_matter(page, attrs, args),
@@ -104,6 +120,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
          :ok <- may_archive(page, archived, context.user),
          {:ok, page} <- restore(page, archived),
          {:ok, page} <- save(page, attrs, opts(args, context)),
+         {:ok, _} <- Args.refusal(CardWrites.apply_page_tags(page, tags)),
          :ok <- placement(page, args, "also", context),
          :ok <- placement(page, args, "not_in", context),
          {:ok, page} <- reposition(page, move),
@@ -129,6 +146,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
          :icon,
          :color
        ])
+       |> Map.put(:tags, page |> Wiki.tags() |> Enum.map(& &1.name))
        |> Map.put(
          :also_in,
          Enum.map(Slipdock.Wiki.Placements.folders(page), &Wiki.folder_path/1)
