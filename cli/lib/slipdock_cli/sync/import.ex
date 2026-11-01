@@ -3,15 +3,15 @@ defmodule SlipdockCLI.Sync.Import do
 
   alias SlipdockCLI.FS
 
-  # `slipdock vault import DIR --vault V` (W-103 R9): an existing Obsidian
-  # vault brought into a Slipdock vault once, each path routed through the
-  # vault's boards. One way only: nothing on the server comes down, and the
+  # `slipdock wiki import DIR` (W-103 R9): an existing Obsidian vault brought
+  # into your wiki once, each path routed through your wiki's boards. One way only: nothing on the server comes down, and the
   # folder's own files are never touched.
   #
   # Notes go up as pages with their bytes as they are (front matter, tags,
   # aliases, links, Excalidraw's `.excalidraw.md` and Meld ciphertext all
   # ride along untouched); everything else goes up as a file at the same
-  # vault path. Whatever is already on the server at a path is left alone.
+  # path in your wiki. Whatever is already on the server at a path is left
+  # alone.
   #
   # What was sent is remembered in `DIR/.slipdock/import.json`: each path's
   # id on the server, the hash of the file as it was read, and the hash the
@@ -78,19 +78,19 @@ defmodule SlipdockCLI.Sync.Import do
   def spent(_root, _imported, _errors), do: :kept
 
   @doc """
-  The entries of a record that belong to `vault_id`, for the sync engine to
+  The entries of a record made against the server at `url`, for the sync engine to
   adopt (`Engine.run/4`'s `:imported`); nil when there are none.
   """
-  def entries_for(nil, _vault_id), do: nil
+  def entries_for(nil, _url), do: nil
 
-  def entries_for(record, vault_id) do
-    if get_in(record, ["vault", "id"]) == vault_id, do: record["entries"], else: nil
+  def entries_for(record, url) do
+    if record["url"] == url, do: record["entries"], else: nil
   end
 
   ## The plan -----------------------------------------------------------------
 
   @doc """
-  What an import of `root` into `vault` would do, given the vault's
+  What an import of `root` into `wiki` would do, given the wiki's
   `listing` as the sync API answers it and a previous `record` (or nil):
 
       %{create: [item], present: [item], imported: [item], differs: [item],
@@ -101,12 +101,12 @@ defmodule SlipdockCLI.Sync.Import do
   for one the server already has. `create` is in the order to send it:
   shallow first, a page's own `index.md` before what sits beside it.
   """
-  def plan(root, vault, listing, record \\ nil) do
+  def plan(root, wiki, listing, record \\ nil) do
     local = Scan.scan(root)
     server = listing["entries"] || []
     by_path = Map.new(server, &{String.downcase(&1["path"]), &1})
     by_key = MapSet.new(server, &{kind(&1), &1["id"]})
-    recorded = entries_for(record, vault["id"]) || %{}
+    recorded = (record && record["entries"]) || %{}
 
     items =
       Enum.map(local, fn {path, f} ->
@@ -115,7 +115,7 @@ defmodule SlipdockCLI.Sync.Import do
           kind: kind_of_path(path),
           sha: f.sha,
           size: f.size,
-          board: route(vault["boards"] || [], path)
+          board: route(wiki["boards"] || [], path)
         }
       end)
 
@@ -173,8 +173,8 @@ defmodule SlipdockCLI.Sync.Import do
   end
 
   @doc """
-  The board a vault path lands in: the deepest board's folder holding it,
-  compared without regard to case. Nil at the vault's root or in no board.
+  The board a path in your wiki lands in: the deepest board's folder holding
+  it, compared without regard to case. Nil at the wiki's root or in no board.
   """
   def route(boards, path) do
     lower = String.downcase(path)
@@ -440,20 +440,19 @@ defmodule SlipdockCLI.Sync.Import do
     put_in(record, ["entries", item.path], entry)
   end
 
-  @doc "A fresh record for `vault` on the server at `url`, or the one already there for it."
-  def record_for(nil, url, vault), do: new_record(url, vault)
+  @doc "A fresh record for your wiki on the server at `url`, or the one already there for it."
+  def record_for(nil, url), do: new_record(url)
 
-  def record_for(record, url, vault) do
-    if get_in(record, ["vault", "id"]) == vault["id"],
-      do: Map.put_new(record, "entries", %{}),
-      else: new_record(url, vault)
+  def record_for(record, url) do
+    if record["url"] == url,
+      do: record |> Map.delete("vault") |> Map.put_new("entries", %{}),
+      else: new_record(url)
   end
 
-  defp new_record(url, vault) do
+  defp new_record(url) do
     %{
-      "version" => 1,
+      "version" => 2,
       "url" => url,
-      "vault" => %{"id" => vault["id"], "name" => vault["name"]},
       "host" => Engine.hostname(),
       "entries" => %{}
     }

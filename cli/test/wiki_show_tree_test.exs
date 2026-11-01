@@ -1,13 +1,16 @@
-defmodule SlipdockCLI.VaultLsTest do
-  @moduledoc "`slipdock vault ls`: its boards, page count and the folders a vault is synced to."
+defmodule SlipdockCLI.WikiShowTreeTest do
+  @moduledoc """
+  `slipdock wiki show`, `wiki tree` and `wiki changes`: your wiki's boards,
+  page count and synced folders, its tree, and what changed.
+  """
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
 
-  alias SlipdockCLI.{FakeServer, Vaults}
+  alias SlipdockCLI.{FakeServer, WholeWiki}
 
   setup do
-    home = Path.join(System.tmp_dir!(), "slipdock-vaultls-#{System.unique_integer([:positive])}")
+    home = Path.join(System.tmp_dir!(), "slipdock-wikishow-#{System.unique_integer([:positive])}")
     File.mkdir_p!(home)
     saved = Map.new(~w(HOME SLIPDOCK_URL SLIPDOCK_TOKEN KANBAN_TOKEN), &{&1, System.get_env(&1)})
     System.put_env("HOME", home)
@@ -26,18 +29,21 @@ defmodule SlipdockCLI.VaultLsTest do
 
   defp json(term), do: term |> :json.encode() |> IO.iodata_to_binary()
 
-  defp ls(response) do
+  defp show(response) do
     System.put_env("SLIPDOCK_URL", FakeServer.start([{200, response}]))
-    capture_io(fn -> Vaults.run("vault", ["ls"], []) end)
+    out = capture_io(fn -> WholeWiki.wiki(["show"], []) end)
+    assert_received {:request, "GET", path, _}
+    assert path =~ ~r{/api/wiki$}
+    out
   end
 
   test "prints each board, the page count and every synced folder" do
     out =
-      ls(
-        ~s({"vaults":[{"id":1,"name":"Notes","pages":202,"boards":[
+      show(
+        ~s({"wiki":{"pages":202,"boards":[
         {"id":5,"code":"kb","name":"Keystone","path":"/Keystone","archived":false},
         {"id":6,"code":"jobs","name":"Journal Desk","path":"/Journal Desk","archived":false}],
-        "mirrors":[{"label":"slipdock CLI on laptop","last_synced_at":"2026-10-13T10:00:00Z"}]}]})
+        "mirrors":[{"label":"slipdock CLI on laptop","last_synced_at":"2026-10-13T10:00:00Z"}]},"boards":[]})
       )
 
     assert out =~ ~r{/Keystone\s+kb$}m
@@ -47,13 +53,13 @@ defmodule SlipdockCLI.VaultLsTest do
   end
 
   test "with one page and no mirrors" do
-    out = ls(~s({"vaults":[{"id":1,"name":"Notes","pages":1,"boards":[],"mirrors":[]}]}))
+    out = show(~s({"wiki":{"pages":1,"boards":[],"mirrors":[]},"boards":[]}))
     assert out =~ "1 page"
     refute out =~ "1 pages"
     refute out =~ "synced to"
   end
 
-  describe "vault tree" do
+  describe "wiki tree" do
     @listing %{
       "cursor" => 1,
       "folders" => ["Key", "Key/Cards", "Key/Cards/Parked jobs", "Key/Cards/Plain"],
@@ -80,13 +86,16 @@ defmodule SlipdockCLI.VaultLsTest do
       ]
     }
 
-    defp tree(args, opts) do
+    defp tree(opts) do
       System.put_env("SLIPDOCK_URL", FakeServer.start([{200, json(@listing)}]))
-      capture_io(fn -> Vaults.run("vault", args, opts) end)
+      out = capture_io(fn -> WholeWiki.wiki(["tree"], opts) end)
+      assert_received {:request, "GET", path, _}
+      assert path =~ ~r{/api/wiki/sync$}
+      out
     end
 
     test "full titles, indented, archived marked" do
-      out = tree(["tree", "Notes"], [])
+      out = tree([])
 
       assert out =~ "Keystone/"
       assert out =~ "archived"
@@ -96,7 +105,7 @@ defmodule SlipdockCLI.VaultLsTest do
     end
 
     test "--short-names, falling back to the title" do
-      out = tree(["tree", "Notes"], short_names: true)
+      out = tree(short_names: true)
 
       assert out =~ "    Parked jobs/\n"
       refute out =~ "released on timeout"
@@ -104,7 +113,7 @@ defmodule SlipdockCLI.VaultLsTest do
     end
   end
 
-  describe "vault changes" do
+  describe "wiki changes" do
     defp changes(opts) do
       body = %{
         "cursor" => 9,
@@ -123,7 +132,7 @@ defmodule SlipdockCLI.VaultLsTest do
       }
 
       System.put_env("SLIPDOCK_URL", FakeServer.start([{200, json(body)}]))
-      capture_io(fn -> Vaults.run("vault", ["changes", "Notes"], opts) end)
+      capture_io(fn -> WholeWiki.wiki(["changes"], opts) end)
     end
 
     test "a move says from where to where" do

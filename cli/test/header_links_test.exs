@@ -33,7 +33,8 @@ defmodule SlipdockCLI.HeaderLinksTest do
 
     assert_received {:request, "GET", "/api/header-links", _}
     assert out =~ ~r/5\s+star\s+Plan\s+plan\s+3/
-    assert out =~ ~r/6\s+book-open\s+Notes\s+vault\s+7/
+    assert out =~ ~r/6\s+book-open\s+Your wiki\s+wiki/
+    refute out =~ "Notes"
     assert out =~ "icons: star book-open"
   end
 
@@ -44,17 +45,32 @@ defmodule SlipdockCLI.HeaderLinksTest do
     assert out =~ "icons: star"
   end
 
-  test "header add sends the kind, the reference and the icon" do
+  test "header add board sends the board and the icon" do
     serve([
       {201,
-       ~s({"header_link":{"id":9,"icon":"fire","vault":{"id":7,"name":"Notes"}},"header_links":[]})}
+       ~s({"header_link":{"id":9,"icon":"fire","board":{"id":3,"name":"Plan","code":"plan"}},"header_links":[]})}
     ])
 
-    out = capture_io(fn -> Boards.run("header", ["add", "vault", "Notes"], icon: "fire") end)
+    out = capture_io(fn -> Boards.run("header", ["add", "board", "plan"], icon: "fire") end)
 
     assert_received {:request, "POST", "/api/header-links", body}
-    assert JSON.decode!(body) == %{"vault" => "Notes", "icon" => "fire"}
-    assert out =~ "pinned Notes to the header as fire"
+    assert JSON.decode!(body) == %{"board" => "plan", "icon" => "fire"}
+    assert out =~ "pinned Plan to the header as fire"
+  end
+
+  test "header add wiki pins your one wiki, which nothing names" do
+    response =
+      ~s({"header_link":{"id":9,"icon":"fire","vault":{"id":7,"name":"Notes"}},"header_links":[]})
+
+    # The old `add vault <ref>` lands on the same wiki: there is only one.
+    for args <- [["add", "wiki"], ["add", "vault", "Notes"]] do
+      serve([{201, response}])
+      out = capture_io(fn -> Boards.run("header", args, icon: "fire") end)
+
+      assert_received {:request, "POST", "/api/header-links", body}
+      assert JSON.decode!(body) == %{"wiki" => true, "icon" => "fire"}
+      assert out =~ "pinned your wiki to the header as fire"
+    end
   end
 
   test "header move and rm call the link by id" do

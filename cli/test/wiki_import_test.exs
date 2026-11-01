@@ -1,6 +1,6 @@
-defmodule SlipdockCLI.VaultImportTest do
+defmodule SlipdockCLI.WikiImportTest do
   @moduledoc """
-  `slipdock vault import` (W-103 R9.1–R9.3): an Obsidian vault brought in
+  `slipdock wiki import` (W-103 R9.1–R9.3): an Obsidian vault brought in
   once, routed to the board whose folder holds it, bytes as they are, nothing on the
   server overwritten, and a dry run that says what would happen and which
   links, embeds and plugin syntax won't resolve.
@@ -9,7 +9,7 @@ defmodule SlipdockCLI.VaultImportTest do
 
   import ExUnit.CaptureIO
 
-  alias SlipdockCLI.{FakeServer, FakeVault, Vaults}
+  alias SlipdockCLI.{FakeServer, FakeVault, WholeWiki}
   alias SlipdockCLI.Sync.{Import, State}
 
   @boards [
@@ -40,11 +40,11 @@ defmodule SlipdockCLI.VaultImportTest do
 
   defp plan(ctx, vault \\ @vault, record \\ nil) do
     {:ok, listing} = FakeVault.list(ctx.vault)
-    Import.plan(ctx.root, vault, listing, Import.record_for(record, "http://test", vault))
+    Import.plan(ctx.root, vault, listing, Import.record_for(record, "http://test"))
   end
 
   defp import!(ctx, vault \\ @vault) do
-    record = Import.record_for(Import.load_record(ctx.root), "http://test", vault)
+    record = Import.record_for(Import.load_record(ctx.root), "http://test")
     {:ok, listing} = FakeVault.list(ctx.vault)
     plan = Import.plan(ctx.root, vault, listing, record)
     Import.run(ctx.root, plan, {FakeVault, ctx.vault}, record)
@@ -59,7 +59,7 @@ defmodule SlipdockCLI.VaultImportTest do
       assert Import.route(@boards, "Keystones/Note.md") == nil
     end
 
-    test "the vault's root is in no board" do
+    test "the wiki's root is in no board" do
       assert Import.route(@boards, "Note.md") == nil
     end
   end
@@ -215,7 +215,8 @@ defmodule SlipdockCLI.VaultImportTest do
       assert record["entries"]["Keystone/img/cat.png"]["kind"] == "file"
 
       assert Import.load_record(ctx.root) == record
-      assert record["vault"] == %{"id" => 3, "name" => "Brain"}
+      assert record["url"] == "http://test"
+      refute Map.has_key?(record, "vault")
       # The folder's own files are untouched, and it is not made a mirror.
       assert File.read!(Path.join(ctx.root, "Keystone/Secret.md")) == meld
       refute File.exists?(State.path(ctx.root))
@@ -296,7 +297,7 @@ defmodule SlipdockCLI.VaultImportTest do
          ctx do
       write(ctx, "Keystone/Race.md", "mine")
       {:ok, listing} = FakeVault.list(ctx.vault)
-      record = Import.record_for(nil, "http://test", @vault)
+      record = Import.record_for(nil, "http://test")
       plan = Import.plan(ctx.root, @vault, listing, record)
       FakeVault.put(ctx.vault, "Keystone/Race.md", "theirs")
 
@@ -306,13 +307,26 @@ defmodule SlipdockCLI.VaultImportTest do
       assert FakeVault.by_path(ctx.vault, "Keystone/Race.md").content == "theirs"
     end
 
-    test "a record for another vault is set aside, not reused" do
-      old = %{"vault" => %{"id" => 99}, "entries" => %{"Keystone/A.md" => %{}}}
-      assert Import.record_for(old, "http://test", @vault)["entries"] == %{}
-      assert Import.record_for(old, "http://test", @vault)["vault"]["id"] == 3
-      assert Import.entries_for(old, 3) == nil
-      assert Import.entries_for(old, 99) == %{"Keystone/A.md" => %{}}
-      assert Import.entries_for(nil, 3) == nil
+    test "a record made against another server is set aside, not reused" do
+      old = %{"url" => "http://other", "entries" => %{"Keystone/A.md" => %{}}}
+      assert Import.record_for(old, "http://test")["entries"] == %{}
+      assert Import.record_for(old, "http://test")["url"] == "http://test"
+      assert Import.entries_for(old, "http://test") == nil
+      assert Import.entries_for(old, "http://other") == %{"Keystone/A.md" => %{}}
+      assert Import.entries_for(nil, "http://test") == nil
+    end
+
+    test "a record from when it named a vault is kept, the vault dropped" do
+      old = %{
+        "url" => "http://test",
+        "vault" => %{"id" => 3, "name" => "Brain"},
+        "entries" => %{"Keystone/A.md" => %{"id" => 1}}
+      }
+
+      kept = Import.record_for(old, "http://test")
+      assert kept["entries"] == %{"Keystone/A.md" => %{"id" => 1}}
+      refute Map.has_key?(kept, "vault")
+      assert Import.entries_for(old, "http://test") == %{"Keystone/A.md" => %{"id" => 1}}
     end
   end
 
@@ -337,21 +351,21 @@ defmodule SlipdockCLI.VaultImportTest do
       %{dir: dir}
     end
 
-    @vault_json ~s({"vault":{"id":3,"name":"Brain","boards":[{"id":1,"code":"kb","name":"Keystone","path":"/Keystone"}]}})
+    @wiki_json ~s({"wiki":{"boards":[{"id":1,"code":"kb","name":"Keystone","path":"/Keystone"}]},"boards":[]})
 
     test "a dry run asks, writes nothing, and says what it would do", %{dir: dir} do
       put(dir, "Keystone/Note.md", "[[Nowhere]]\n```dataview\nLIST\n```\n")
       put(dir, "Keystone/cat.png", "png")
       File.mkdir_p!(Path.join(dir, ".obsidian"))
-      url = FakeServer.start([{200, @vault_json}, {200, ~s({"cursor":1,"entries":[]})}])
+      url = FakeServer.start([{200, @wiki_json}, {200, ~s({"cursor":1,"entries":[]})}])
       System.put_env("SLIPDOCK_URL", url)
 
-      out =
-        capture_io(fn -> Vaults.run("vault", ["import", dir], vault: "Brain", dry_run: true) end)
+      out = capture_io(fn -> WholeWiki.wiki(["import", dir], dry_run: true) end)
 
-      assert_received {:request, "GET", "/api/vaults/Brain", _}
-      assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
+      assert_received {:request, "GET", "/api/wiki", _}
+      assert_received {:request, "GET", "/api/wiki/sync?stubs=1", _}
       refute_received {:request, _, _, _}
+      assert out =~ "into your wiki"
       assert out =~ "dry run"
       assert out =~ "would create: 1 note, 1 file"
       assert out =~ "/Keystone → Keystone wiki"
@@ -368,20 +382,35 @@ defmodule SlipdockCLI.VaultImportTest do
 
       url =
         FakeServer.start([
-          {200, @vault_json},
+          {200, @wiki_json},
           {200, ~s({"cursor":1,"entries":[]})},
           {200, ~s({"page":{"kind":"page","id":7,"path":"Keystone/Note.md","hash":"#{hash}"}})}
         ])
 
       System.put_env("SLIPDOCK_URL", url)
 
-      out = capture_io(fn -> Vaults.run("vault", ["import", dir], vault: "Brain") end)
+      out = capture_io(fn -> WholeWiki.wiki(["import", dir], []) end)
 
-      assert_received {:request, "PUT", "/api/vaults/3/sync/pages", body}
+      assert_received {:request, "PUT", "/api/wiki/sync/pages", body}
       assert body =~ ~s("content":"hi")
       assert out =~ "created: 1 note, 0 files"
-      assert out =~ "slipdock sync init"
+      assert out =~ "slipdock sync init #{dir}`"
+      refute out =~ "--vault"
       assert Import.load_record(dir)["entries"]["Keystone/Note.md"]["id"] == 7
+    end
+
+    test "--vault is ignored, with a note: there is one wiki", %{dir: dir} do
+      put(dir, "Keystone/Note.md", "hi")
+      url = FakeServer.start([{200, @wiki_json}, {200, ~s({"cursor":1,"entries":[]})}])
+      System.put_env("SLIPDOCK_URL", url)
+
+      err =
+        capture_io(:stderr, fn ->
+          capture_io(fn -> WholeWiki.wiki(["import", dir], vault: "Brain", dry_run: true) end)
+        end)
+
+      assert err =~ "--vault is no longer needed"
+      assert_received {:request, "GET", "/api/wiki", _}
     end
 
     test "a long list is cut short unless --all", %{dir: dir} do
@@ -397,12 +426,12 @@ defmodule SlipdockCLI.VaultImportTest do
         plugins: []
       }
 
-      out = capture_io(fn -> Vaults.print_import(dir, @vault, plan, nil) end)
+      out = capture_io(fn -> WholeWiki.print_import(dir, plan, nil) end)
       assert out =~ "in no board's folder: 25"
       assert out =~ "5 more (--all to see them)"
       refute out =~ "n25.md"
 
-      out = capture_io(fn -> Vaults.print_import(dir, @vault, plan, nil, all: true) end)
+      out = capture_io(fn -> WholeWiki.print_import(dir, plan, nil, all: true) end)
       assert out =~ "n25.md"
     end
   end

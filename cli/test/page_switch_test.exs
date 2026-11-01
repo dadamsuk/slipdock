@@ -53,7 +53,7 @@ defmodule SlipdockCLI.PageSwitchTest do
     assert out =~ "no note's title, alias or path matches"
   end
 
-  test "--all asks for every vault and prints a match's vault (#1303)" do
+  test "--all still asks the server for everything, and a match names no vault (#1303)" do
     {path, out} =
       run(
         ["switch", "brain", "rose"],
@@ -62,10 +62,11 @@ defmodule SlipdockCLI.PageSwitchTest do
       )
 
     assert path =~ "vaults=all"
-    assert out =~ "Garden · Plants/Rose pruning · Garden board"
+    assert out =~ "Plants/Rose pruning · Garden board"
+    refute out =~ "Garden ·"
   end
 
-  test "without --all the vault is left out of the query" do
+  test "without --all nothing more is asked for" do
     {path, _out} = run(["switch", "brain", "rose"], [], ~s({"matches":[]}))
     refute path =~ "vaults"
   end

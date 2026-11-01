@@ -3,12 +3,12 @@ defmodule SlipdockCLI.Sync do
 
   alias SlipdockCLI.FS
 
-  # `slipdock sync`: a vault mirrored both ways to a local folder that stays
-  # a valid Obsidian vault (W-103 R2). The server is the source of truth; the
-  # folder is a working copy, and anything that writes a text file into it
-  # writes into the vault.
+  # `slipdock sync`: your wiki mirrored both ways to a local folder that
+  # stays a valid Obsidian vault (W-103 R2). The server is the source of
+  # truth; the folder is a working copy, and anything that writes a text
+  # file into it writes into your wiki.
   #
-  #   sync init DIR --vault V    bind a folder to a vault, then run once
+  #   sync init DIR              bind a folder to your wiki, then run once
   #   sync [DIR]                 one pass, both ways
   #   sync from-server [DIR]     one pass that only brings changes down
   #   sync to-server [DIR]       one pass that only sends changes up
@@ -31,41 +31,40 @@ defmodule SlipdockCLI.Sync do
   def commands, do: @commands
 
   def run("sync", ["init", dir], o) do
-    if is_nil(o[:vault]), do: fail("say which vault: slipdock sync init #{dir} --vault V")
+    if o[:vault],
+      do: IO.puts(:stderr, "note: --vault is no longer needed: you have one wiki, and it is that")
+
     root = Path.expand(dir)
 
     if refuse_reinit?(root, o) do
-      {:ok, state} = State.load(root)
-
       fail(
-        "#{dir} is already a mirror of #{state["vault"]["name"]} — run `slipdock sync #{dir}`, " <>
+        "#{dir} is already a mirror of your wiki — run `slipdock sync #{dir}`, " <>
           "or init again with --force to bind it afresh"
       )
     end
 
-    vault =
-      case HTTP.get("/vaults/#{enc(o[:vault])}") do
-        {:ok, %{"vault" => vault}} -> vault
+    wiki =
+      case HTTP.get("/wiki") do
+        {:ok, %{"wiki" => wiki}} -> wiki
         error -> out(error, o, fn _ -> :ok end)
       end
 
-    if vault["boards"] == [],
-      do: fail("#{vault["name"]} has no boards yet — make a board first")
+    if wiki["boards"] == [],
+      do: fail("your wiki has nothing in it yet — make a board first")
 
     FS.mkdir_p!(root)
-    State.save(root, State.new(HTTP.base_url(), vault, Engine.hostname()))
-    IO.puts("bound #{dir} to the vault #{Render.bold(vault["name"])}")
-
-    vault_id = vault["id"]
+    url = HTTP.base_url()
+    State.save(root, State.new(url, Engine.hostname()))
+    IO.puts("bound #{dir} to your wiki")
 
     case Import.load_record(root) do
-      %{"vault" => %{"id" => ^vault_id}, "entries" => entries} ->
-        IO.puts("adopting the #{map_size(entries)} files `vault import` sent up from here")
+      %{"url" => ^url, "entries" => entries} ->
+        IO.puts("adopting the #{map_size(entries)} files `wiki import` sent up from here")
 
-      %{"vault" => %{"name" => name}} ->
+      %{"url" => other} ->
         IO.puts(
           :stderr,
-          "this folder was imported into #{name}, not #{vault["name"]}: " <>
+          "this folder was imported into #{other}, not #{url}: " <>
             "its files are matched by path and hash only"
         )
 
@@ -77,7 +76,7 @@ defmodule SlipdockCLI.Sync do
     pass(root, o)
   end
 
-  def run("sync", ["init"], _o), do: fail("usage: slipdock sync init DIR --vault V")
+  def run("sync", ["init"], _o), do: fail("usage: slipdock sync init DIR")
 
   def run("sync", ["service", action | rest], o) when action in ~w(install uninstall print) do
     root = root!(List.first(rest) || ".")
@@ -113,7 +112,7 @@ defmodule SlipdockCLI.Sync do
   def run("sync", _args, _o),
     do:
       fail(
-        "usage: slipdock sync init DIR --vault V | " <>
+        "usage: slipdock sync init DIR | " <>
           "sync [from-server|to-server] [DIR] [--watch [--interval S]] | " <>
           "sync status [DIR] | sync service install|uninstall|print [DIR]"
       )
@@ -143,11 +142,11 @@ defmodule SlipdockCLI.Sync do
     with_lock(root, fn ->
       {:ok, state} = State.load(root)
 
-      # A folder `vault import` sent up is adopted, not sent again (R9.4).
+      # A folder `wiki import` sent up is adopted, not sent again (R9.4).
       # Its record is spent once a pass has come through without an error.
-      imported = root |> Import.load_record() |> Import.entries_for(state["vault"]["id"])
+      imported = root |> Import.load_record() |> Import.entries_for(state["url"])
 
-      case Engine.run(root, state, {Remote, state["vault"]["id"]},
+      case Engine.run(root, state, {Remote, :wiki},
              imported: imported,
              direction: o[:direction]
            ) do
@@ -181,7 +180,7 @@ defmodule SlipdockCLI.Sync do
 
     with true <- wrote?,
          {:ok, %{"cursor" => latest}} when is_integer(latest) <-
-           Remote.changes(state["vault"]["id"], nil) do
+           Remote.changes(:wiki, nil) do
       Map.put(state, "cursor", latest)
     else
       _ -> state
@@ -203,7 +202,7 @@ defmodule SlipdockCLI.Sync do
     tools = Status.other_tools(root)
 
     server =
-      case Remote.changes(state["vault"]["id"], state["cursor"]) do
+      case Remote.changes(:wiki, state["cursor"]) do
         {:ok, %{"resync" => true}} -> {:resync, nil}
         {:ok, %{"changes" => changes} = r} -> {:waiting, length(changes), r["more"] == true}
         {:error, :unauthorized} -> {:error, "not signed in — run `slipdock auth`"}
@@ -213,7 +212,6 @@ defmodule SlipdockCLI.Sync do
     if o[:json] do
       Render.json(%{
         "root" => root,
-        "vault" => state["vault"],
         "url" => state["url"],
         "last_run" => state["last_run"],
         "last_result" => state["last_result"],
@@ -242,9 +240,7 @@ defmodule SlipdockCLI.Sync do
   end
 
   defp print_status(root, state, pending, server, conflicts, tools) do
-    IO.puts(
-      Render.bold(state["vault"]["name"]) <> "  " <> Render.dim("#{root} ⇄ #{state["url"]}")
-    )
+    IO.puts(Render.bold("Your wiki") <> "  " <> Render.dim("#{root} ⇄ #{state["url"]}"))
 
     case state["last_run"] do
       nil ->
@@ -282,7 +278,7 @@ defmodule SlipdockCLI.Sync do
 
       {:resync, _} ->
         IO.puts(
-          "there: the last sync was too long ago to follow; the next one lists the vault afresh"
+          "there: the last sync was too long ago to follow; the next one lists your wiki afresh"
         )
 
       {:error, msg} ->
@@ -355,9 +351,7 @@ defmodule SlipdockCLI.Sync do
     {:ok, state} = State.load(root)
     cursor = pass.() || state["cursor"]
 
-    Watch.loop(root, cursor, pass, &Remote.changes(state["vault"]["id"], &1),
-      interval_ms: interval * 1000
-    )
+    Watch.loop(root, cursor, pass, &Remote.changes(:wiki, &1), interval_ms: interval * 1000)
   end
 
   defp stamp, do: Time.utc_now() |> Time.truncate(:second) |> Time.to_iso8601()
@@ -370,7 +364,7 @@ defmodule SlipdockCLI.Sync do
     if o[:stamp] && quiet?, do: :ok, else: print_report(report, state, o)
   end
 
-  defp print_report(report, state, o) do
+  defp print_report(report, _state, o) do
     for %{path: p} <- report.sent, do: IO.puts("↑ " <> p)
     for %{path: p} <- report.received, do: IO.puts("↓ " <> p)
     for %{from: f, path: p} <- report.moved, do: IO.puts("→ #{f} → #{p}")
@@ -417,12 +411,12 @@ defmodule SlipdockCLI.Sync do
         _ -> ""
       end
 
-    IO.puts(Render.dim("#{when_}#{state["vault"]["name"]}#{only}: #{counts}"))
+    IO.puts(Render.dim("#{when_}your wiki#{only}: #{counts}"))
   end
 
   defp json(report, state, direction) do
     %{
-      "vault" => state["vault"],
+      "url" => state["url"],
       "direction" =>
         case direction do
           :down -> "from-server"
@@ -496,7 +490,7 @@ defmodule SlipdockCLI.Sync do
         root
 
       :error ->
-        fail("#{dir} is not a synced folder — start one with: slipdock sync init DIR --vault V")
+        fail("#{dir} is not a synced folder — start one with: slipdock sync init DIR")
     end
   end
 

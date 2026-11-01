@@ -29,7 +29,8 @@ defmodule SlipdockCLI.NoteTest do
     out = capture_io(fn -> Wiki.run("note", ["ring", "them"], []) end)
 
     assert out =~ "noted W-9  2026-10-30 15.39 Printers"
-    assert out =~ "in Mind /Inbox"
+    assert out =~ "in your wiki at /Inbox"
+    refute out =~ "Mind"
   end
 
   test "a note the model couldn't place says it went to the fallback" do
@@ -42,7 +43,7 @@ defmodule SlipdockCLI.NoteTest do
 
     out = capture_io(fn -> Wiki.run("note", ["ring"], []) end)
 
-    assert out =~ "in Mind /  (your fallback location)"
+    assert out =~ "in your wiki at /  (your fallback location)"
   end
 
   test "`page ai` prints the answer, and what it left out" do

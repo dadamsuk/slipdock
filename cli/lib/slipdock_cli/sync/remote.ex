@@ -1,9 +1,10 @@
 defmodule SlipdockCLI.Sync.Remote do
   @moduledoc false
 
-  # The server, as the sync engine talks to it: a vault as files. A behaviour
-  # so the engine can be driven against an in-memory vault in tests; the one
-  # real implementation is the HTTP API (`/api/vaults/:id/sync`).
+  # The server, as the sync engine talks to it: your wiki as files. A
+  # behaviour so the engine can be driven against an in-memory wiki in tests;
+  # the one real implementation is the HTTP API (`/api/wiki/sync`). The
+  # context is unused here: a person has one wiki, which no address names.
   #
   # Every answer is normalised to `{:ok, map}`, `{:conflict, current}` (the
   # file as the server now has it, content and all) or `{:error, message}`.
@@ -28,31 +29,31 @@ defmodule SlipdockCLI.Sync.Remote do
 
   @impl true
   # `stubs`: this client writes stubs of what is shared with you (#819).
-  def list(vault), do: HTTP.get("/vaults/#{vault}/sync", stubs: 1) |> norm(nil)
+  def list(_wiki), do: HTTP.get("/wiki/sync", stubs: 1) |> norm(nil)
 
   @impl true
-  def read(vault, id), do: HTTP.get("/vaults/#{vault}/sync/pages/#{id}") |> norm("page")
+  def read(_wiki, id), do: HTTP.get("/wiki/sync/pages/#{id}") |> norm("page")
 
   @impl true
-  def write(vault, nil, params),
-    do: HTTP.put("/vaults/#{vault}/sync/pages", params) |> norm("page")
+  def write(_wiki, nil, params),
+    do: HTTP.put("/wiki/sync/pages", params) |> norm("page")
 
-  def write(vault, id, params),
-    do: HTTP.put("/vaults/#{vault}/sync/pages/#{id}", params) |> norm("page")
-
-  @impl true
-  def archive(vault, id, base),
-    do: HTTP.delete("/vaults/#{vault}/sync/pages/#{id}", base: base) |> norm("page")
+  def write(_wiki, id, params),
+    do: HTTP.put("/wiki/sync/pages/#{id}", params) |> norm("page")
 
   @impl true
-  def changes(vault, cursor),
-    do: HTTP.get("/vaults/#{vault}/changes", since: cursor) |> norm(nil)
+  def archive(_wiki, id, base),
+    do: HTTP.delete("/wiki/sync/pages/#{id}", base: base) |> norm("page")
+
+  @impl true
+  def changes(_wiki, cursor),
+    do: HTTP.get("/wiki/changes", since: cursor) |> norm(nil)
 
   # A file's bytes go straight to `dest` on disk; the answer is their hash,
   # worked out from what arrived rather than taken on trust.
   @impl true
-  def read_file(vault, id, dest) do
-    case HTTP.download("/vaults/#{vault}/sync/files/#{id}", dest) do
+  def read_file(_wiki, id, dest) do
+    case HTTP.download("/wiki/sync/files/#{id}", dest) do
       :ok -> {:ok, SlipdockCLI.Sync.Scan.sha_file(dest)}
       error -> norm(error, nil)
     end
@@ -61,8 +62,8 @@ defmodule SlipdockCLI.Sync.Remote do
   # Streamed from disk a megabyte at a time (`HTTP.post_multipart/3`), so a
   # 250 MB file is never in memory.
   @impl true
-  def write_file(vault, id, params, source) do
-    path = if id, do: "/vaults/#{vault}/sync/files/#{id}", else: "/vaults/#{vault}/sync/files"
+  def write_file(_wiki, id, params, source) do
+    path = if id, do: "/wiki/sync/files/#{id}", else: "/wiki/sync/files"
     fields = params |> Enum.reject(fn {_k, v} -> is_nil(v) end)
     name = Path.basename(params["path"] || source)
 
@@ -73,12 +74,12 @@ defmodule SlipdockCLI.Sync.Remote do
   end
 
   @impl true
-  def move_file(vault, id, params),
-    do: HTTP.patch("/vaults/#{vault}/sync/files/#{id}", params) |> norm("file")
+  def move_file(_wiki, id, params),
+    do: HTTP.patch("/wiki/sync/files/#{id}", params) |> norm("file")
 
   @impl true
-  def archive_file(vault, id, base),
-    do: HTTP.delete("/vaults/#{vault}/sync/files/#{id}", base: base) |> norm("file")
+  def archive_file(_wiki, id, base),
+    do: HTTP.delete("/wiki/sync/files/#{id}", base: base) |> norm("file")
 
   defp norm({:ok, data}, nil), do: {:ok, data}
   defp norm({:ok, data}, key), do: {:ok, data[key]}

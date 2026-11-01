@@ -4,7 +4,8 @@ defmodule SlipdockCLI.Sync.State do
   alias SlipdockCLI.FS
 
   # A mirror's memory, in `<dir>/.slipdock/state.json` (W-103 R2.3): which
-  # server and vault the folder is bound to, the change feed's cursor, and for
+  # server the folder is bound to (your one wiki there), the change feed's
+  # cursor, and for
   # every file the id of what it is on the server and the hash both sides
   # last agreed on. That hash is what tells "changed here", "changed there"
   # and "changed on both" apart, and the id is what makes a rename the same
@@ -31,11 +32,10 @@ defmodule SlipdockCLI.Sync.State do
     end
   end
 
-  def new(url, vault, host) do
+  def new(url, host) do
     %{
-      "version" => 1,
+      "version" => 2,
       "url" => url,
-      "vault" => %{"id" => vault["id"], "name" => vault["name"]},
       "host" => host,
       "cursor" => nil,
       "entries" => %{},
@@ -50,7 +50,7 @@ defmodule SlipdockCLI.Sync.State do
     case FS.read(path(root)) do
       {:ok, text} ->
         {state, _, ""} = :json.decode(text, :ok, %{null: nil})
-        {:ok, state}
+        {:ok, upgrade(state)}
 
       error ->
         error
@@ -58,6 +58,16 @@ defmodule SlipdockCLI.Sync.State do
   rescue
     _ -> {:error, :corrupt}
   end
+
+  @doc """
+  A state from when a folder was bound to a named vault: the server's one
+  wiki now, so the vault it named is dropped, and the next save writes the
+  new shape.
+  """
+  def upgrade(%{"vault" => _} = state),
+    do: state |> Map.delete("vault") |> Map.put("version", 2)
+
+  def upgrade(state), do: state
 
   @doc "Written whole to a temp file and renamed over, so a crash never leaves half a state."
   def save(root, state) do

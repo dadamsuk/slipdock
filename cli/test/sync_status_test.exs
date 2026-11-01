@@ -119,11 +119,11 @@ defmodule SlipdockCLI.SyncStatusTest do
       root = Path.join(home, "Vault")
       write(root, ".obsidian/sync.json", "{}")
       url = FakeServer.start([{200, ~s({"cursor":1,"entries":[]})}])
-      State.save(root, State.new(url, %{"id" => 3, "name" => "Brain"}, "h"))
+      State.save(root, State.new(url, "h"))
 
       err = capture_io(:stderr, fn -> capture_io(fn -> Sync.run("sync", [root], []) end) end)
       assert err =~ "Obsidian Sync seems to be syncing this folder too"
-      assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
+      assert_received {:request, "GET", "/api/wiki/sync?stubs=1", _}
     end
   end
 
@@ -134,7 +134,7 @@ defmodule SlipdockCLI.SyncStatusTest do
       write(root, "Plan (conflict 2026-10-12 laptop).md", "mine")
 
       state = %{
-        State.new("http://placeholder", %{"id" => 3, "name" => "Brain"}, "h")
+        State.new("http://placeholder", "h")
         | "entries" => %{"Note.md" => entry(1, "as synced")},
           "conflicts" => [
             "Plan (conflict 2026-10-12 laptop).md",
@@ -163,8 +163,8 @@ defmodule SlipdockCLI.SyncStatusTest do
       {out, err} =
         with_io(:stderr, fn -> capture_io(fn -> Sync.run("sync", ["status", root], []) end) end)
 
-      assert_received {:request, "GET", "/api/vaults/3/changes?since=40", _}
-      assert out =~ "Brain"
+      assert_received {:request, "GET", "/api/wiki/changes?since=40", _}
+      assert out =~ "Your wiki"
       assert out =~ "(5 min ago) — sent 2"
       # The conflict copy is new here too, so it is on its way up.
       assert out =~ "here: 2 changes waiting to be sent"
@@ -182,7 +182,7 @@ defmodule SlipdockCLI.SyncStatusTest do
       url = FakeServer.start([{200, ~s({"changes":[],"cursor":90,"more":false,"resync":true})}])
       State.save(root, %{state | "url" => url})
       out = capture_io(fn -> Sync.run("sync", ["status", root], []) end)
-      assert out =~ "lists the vault afresh"
+      assert out =~ "lists your wiki afresh"
 
       State.save(root, %{state | "url" => "http://127.0.0.1:1"})
       System.delete_env("SLIPDOCK_URL")
@@ -216,11 +216,11 @@ defmodule SlipdockCLI.SyncStatusTest do
         {200, ~s({"changes":[],"cursor":11,"more":false})}
       ])
 
-    State.save(root, State.new(url, %{"id" => 3, "name" => "Brain"}, "h"))
+    State.save(root, State.new(url, "h"))
     capture_io(fn -> Sync.run("sync", [root], []) end)
 
-    assert_received {:request, "PUT", "/api/vaults/3/sync/pages", _}
-    assert_received {:request, "GET", "/api/vaults/3/changes", _}
+    assert_received {:request, "PUT", "/api/wiki/sync/pages", _}
+    assert_received {:request, "GET", "/api/wiki/changes", _}
     {:ok, state} = State.load(root)
     assert state["cursor"] == 11
   end

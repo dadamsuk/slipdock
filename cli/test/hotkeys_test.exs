@@ -36,43 +36,44 @@ defmodule SlipdockCLI.HotkeysTest do
     assert out =~ ~r/Ctrl\+Shift\+0\s+Ops\s+ops\s+4/
   end
 
-  test "hotkeys lists a vault's digit as a vault (#1204)" do
-    serve([{200, ~s({"hotkeys":[{"digit":2,"vault":{"id":7,"name":"Notes"}}]})}])
-    out = capture_io(fn -> Boards.run("hotkeys", [], []) end)
+  test "hotkeys lists the wiki's digit as your wiki, whatever the server calls it (#1204)" do
+    for kind <- ~w(vault wiki) do
+      serve([{200, ~s({"hotkeys":[{"digit":2,"#{kind}":{"id":7,"name":"Notes"}}]})}])
+      out = capture_io(fn -> Boards.run("hotkeys", [], []) end)
 
-    assert out =~ ~r/Ctrl\+Shift\+2\s+Notes\s+vault\s+7/
+      assert out =~ ~r/Ctrl\+Shift\+2\s+Your wiki\s+wiki/
+      refute out =~ "Notes"
+    end
   end
 
-  test "vault set sends the shortcut and hotkey and says what opens it (#1204)" do
-    serve([{200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":2,"boards":[]}})}])
+  test "wiki set sends the shortcut and hotkey and says what opens it (#1204)" do
+    serve([{200, ~s({"wiki":{"shortcut":"nt","hotkey":2,"boards":[]}})}])
 
     out =
       capture_io(fn ->
-        SlipdockCLI.Vaults.run("vault", ["set", "Notes"], shortcut: "nt", hotkey: "2")
+        SlipdockCLI.WholeWiki.wiki(["set"], shortcut: "nt", hotkey: "2")
       end)
 
-    assert_received {:request, "PATCH", "/api/vaults/Notes", body}
+    assert_received {:request, "PATCH", "/api/wiki", body}
     assert JSON.decode!(body) == %{"shortcut" => "nt", "hotkey" => "2"}
-    assert out =~ "b then nt now opens Notes"
-    assert out =~ "Ctrl+Shift+2 now opens Notes"
+    assert out =~ "b then nt now opens your wiki"
+    assert out =~ "Ctrl+Shift+2 now opens your wiki"
     refute out =~ "recordings"
   end
 
-  test "vault set --hotkey none says the vault has none now" do
-    serve([
-      {200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":null,"boards":[]}})}
-    ])
+  test "wiki set --hotkey none says your wiki has none now" do
+    serve([{200, ~s({"wiki":{"shortcut":"nt","hotkey":null,"boards":[]}})}])
 
-    out = capture_io(fn -> SlipdockCLI.Vaults.run("vault", ["set", "7"], hotkey: "none") end)
+    out = capture_io(fn -> SlipdockCLI.WholeWiki.wiki(["set"], hotkey: "none") end)
 
-    assert_received {:request, "PATCH", "/api/vaults/7", body}
+    assert_received {:request, "PATCH", "/api/wiki", body}
     assert JSON.decode!(body) == %{"hotkey" => "none"}
-    assert out =~ "Notes has no hotkey now"
+    assert out =~ "your wiki has no hotkey now"
   end
 
-  test "vault show says which keys open it" do
-    serve([{200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":2,"boards":[]}})}])
-    out = capture_io(fn -> SlipdockCLI.Vaults.run("vault", ["show", "7"], []) end)
+  test "wiki show says which keys open it" do
+    serve([{200, ~s({"wiki":{"shortcut":"nt","hotkey":2,"boards":[]},"boards":[]})}])
+    out = capture_io(fn -> SlipdockCLI.WholeWiki.wiki(["show"], []) end)
 
     assert out =~ "opens with b then nt or Ctrl+Shift+2"
   end

@@ -263,26 +263,19 @@ defmodule SlipdockCLI.Boards do
 
   ## Header links -----------------------------------------------------------
   #
-  # Boards and vaults pinned to the web app's header, left of quick add, each
-  # as an icon (#1205). The token holder's own, like hotkeys.
+  # Boards, and your wiki, pinned to the web app's header, left of quick add,
+  # each as an icon (#1205). The token holder's own, like hotkeys.
 
-  @header_usage "usage: slipdock header [add board|vault <ref> --icon NAME | rm <id> | move <id> left|right]"
+  @header_usage "usage: slipdock header [add board <ref> --icon NAME | add wiki --icon NAME | rm <id> | move <id> left|right]"
 
   def run("header", [], o),
     do: HTTP.get("/header-links") |> out(o, &Render.header_links/1)
 
-  def run("header", ["add", kind, ref], o) when kind in ["board", "vault"] do
-    unless o[:icon], do: fail("--icon is required (slipdock header lists the icons)")
+  def run("header", ["add", "board", ref], o), do: add_header(%{"board" => ref}, o)
 
-    HTTP.post("/header-links", %{kind => ref, "icon" => o[:icon]})
-    |> out(o, fn r ->
-      link = r["header_link"]
-
-      IO.puts(
-        "pinned #{(link["board"] || link["vault"])["name"]} to the header as #{link["icon"]}"
-      )
-    end)
-  end
+  # Your one wiki, which nothing names. ("vault <ref>" is what it was.)
+  def run("header", ["add", "wiki"], o), do: add_header(%{"wiki" => true}, o)
+  def run("header", ["add", "vault", _ref], o), do: add_header(%{"wiki" => true}, o)
 
   def run("header", ["rm", id], o) do
     HTTP.delete("/header-links/#{enc(id)}")
@@ -1768,5 +1761,17 @@ defmodule SlipdockCLI.Boards do
 
     HTTP.post("/cards/#{enc(id)}/wait", body)
     |> out(o, fn r -> IO.puts("##{id} " <> Render.wait_line(r["wait"])) end)
+  end
+
+  # A board, or your wiki, pinned to the header (#1205).
+  defp add_header(target, o) do
+    unless o[:icon], do: fail("--icon is required (slipdock header lists the icons)")
+
+    HTTP.post("/header-links", Map.put(target, "icon", o[:icon]))
+    |> out(o, fn r ->
+      link = r["header_link"]
+      name = if link["board"], do: link["board"]["name"], else: "your wiki"
+      IO.puts("pinned #{name} to the header as #{link["icon"]}")
+    end)
   end
 end

@@ -1107,8 +1107,11 @@ defmodule SlipdockCLI.Render do
   def hotkeys(hotkeys) do
     rows =
       Enum.map(hotkeys, fn
-        %{"vault" => v} = h ->
-          ["Ctrl+Shift+#{h["digit"]}", v["name"], "vault", to_string(v["id"])]
+        %{"vault" => _} = h ->
+          ["Ctrl+Shift+#{h["digit"]}", "Your wiki", "wiki", ""]
+
+        %{"wiki" => _} = h ->
+          ["Ctrl+Shift+#{h["digit"]}", "Your wiki", "wiki", ""]
 
         h ->
           [
@@ -1132,8 +1135,11 @@ defmodule SlipdockCLI.Render do
   def header_links(%{"header_links" => links} = r) do
     rows =
       Enum.map(links, fn
-        %{"vault" => v} = l ->
-          [to_string(l["id"]), l["icon"], v["name"], "vault", to_string(v["id"])]
+        %{"vault" => _} = l ->
+          [to_string(l["id"]), l["icon"], "Your wiki", "wiki", ""]
+
+        %{"wiki" => _} = l ->
+          [to_string(l["id"]), l["icon"], "Your wiki", "wiki", ""]
 
         %{"board" => b} = l ->
           [to_string(l["id"]), l["icon"], b["name"], b["code"] || "", to_string(b["id"])]

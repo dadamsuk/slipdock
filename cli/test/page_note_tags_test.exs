@@ -46,7 +46,8 @@ defmodule SlipdockCLI.PageNoteTagsTest do
 
   test "page tags with none says where they come from" do
     {_path, out} = run(["tags", "brain"], [], ~s({"tags":[]}))
-    assert out =~ "in a vault"
+    assert out =~ "front matter tags or #tags"
+    refute out =~ "vault"
   end
 
   test "page ls --note-tag sends the filter" do

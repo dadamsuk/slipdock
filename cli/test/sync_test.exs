@@ -32,30 +32,32 @@ defmodule SlipdockCLI.SyncTest do
     %{home: home}
   end
 
-  @vault ~s({"vault":{"id":3,"name":"Brain","boards":[{"id":1,"code":"kb","name":"Keystone","path":"/Keystone"}]}})
+  @wiki ~s({"wiki":{"boards":[{"id":1,"code":"kb","name":"Keystone","path":"/Keystone"}]},"boards":[]})
   @hash :crypto.hash(:sha256, "Back off.\n") |> Base.encode16(case: :lower)
   @listing ~s({"cursor":12,"entries":[{"kind":"page","id":7,"path":"Ops/Retry.md","hash":"#{@hash}"}]})
   @page ~s({"page":{"kind":"page","id":7,"path":"Ops/Retry.md","hash":"#{@hash}","content":"Back off.\\n"}})
 
-  test "init binds a folder to a vault, records where, and brings the vault down", %{home: home} do
-    url = FakeServer.start([{200, @vault}, {200, @listing}, {200, @page}])
+  test "init binds a folder to your wiki, records where, and brings it down", %{home: home} do
+    url = FakeServer.start([{200, @wiki}, {200, @listing}, {200, @page}])
     System.put_env("SLIPDOCK_URL", url)
     dir = Path.join(home, "Brain")
 
-    out = capture_io(fn -> Sync.run("sync", ["init", dir], vault: "Brain") end)
+    out = capture_io(fn -> Sync.run("sync", ["init", dir], []) end)
 
-    assert_received {:request, "GET", "/api/vaults/Brain", _}
-    assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
-    assert_received {:request, "GET", "/api/vaults/3/sync/pages/7", _}
+    assert_received {:request, "GET", "/api/wiki", _}
+    assert_received {:request, "GET", "/api/wiki/sync?stubs=1", _}
+    assert_received {:request, "GET", "/api/wiki/sync/pages/7", _}
 
-    assert out =~ "bound #{dir} to the vault"
+    assert out =~ "bound #{dir} to your wiki"
+    refute out =~ "vault"
     assert out =~ "↓ Ops/Retry.md"
     assert out =~ "received 1"
     assert File.read!(Path.join(dir, "Ops/Retry.md")) == "Back off.\n"
 
     {:ok, state} = State.load(dir)
     assert state["url"] == url
-    assert state["vault"] == %{"id" => 3, "name" => "Brain"}
+    refute Map.has_key?(state, "vault")
+    assert state["version"] == 2
     assert state["cursor"] == 12
     assert state["entries"]["Ops/Retry.md"] == %{"id" => 7, "kind" => "page", "hash" => @hash}
     assert state["last_run"]
@@ -65,26 +67,26 @@ defmodule SlipdockCLI.SyncTest do
 
   test "init on a folder `vault import` sent up adopts it, then lets the record go",
        %{home: home} do
-    url = FakeServer.start([{200, @vault}, {200, @listing}])
+    url = FakeServer.start([{200, @wiki}, {200, @listing}])
     System.put_env("SLIPDOCK_URL", url)
     dir = Path.join(home, "Obsidian")
     File.mkdir_p!(Path.join(dir, "Ops"))
     File.write!(Path.join(dir, "Ops/Retry.md"), "Back off.\n")
 
     Import.save_record(dir, %{
-      "vault" => %{"id" => 3, "name" => "Brain"},
+      "url" => url,
       "entries" => %{
         "Ops/Retry.md" => %{"kind" => "page", "id" => 7, "sha" => @hash, "hash" => @hash}
       }
     })
 
-    out = capture_io(fn -> Sync.run("sync", ["init", dir], vault: "Brain") end)
+    out = capture_io(fn -> Sync.run("sync", ["init", dir], []) end)
 
     assert out =~ "adopting the 1 files"
     assert out =~ "sent 0, received 0"
-    # Only the vault and its listing were asked for: nothing sent, nothing fetched.
-    assert_received {:request, "GET", "/api/vaults/Brain", _}
-    assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
+    # Only the wiki and its listing were asked for: nothing sent, nothing fetched.
+    assert_received {:request, "GET", "/api/wiki", _}
+    assert_received {:request, "GET", "/api/wiki/sync?stubs=1", _}
     refute_received {:request, _, _, _}
     {:ok, state} = State.load(dir)
     assert state["entries"]["Ops/Retry.md"]["id"] == 7
@@ -93,38 +95,91 @@ defmodule SlipdockCLI.SyncTest do
 
   test "init refuses a folder that is already a mirror unless --force is given", %{home: home} do
     dir = Path.join(home, "Brain")
-    refute Sync.refuse_reinit?(dir, vault: "Brain")
+    refute Sync.refuse_reinit?(dir, [])
 
-    State.save(dir, State.new("http://x", %{"id" => 3, "name" => "Brain"}, "host"))
+    State.save(dir, State.new("http://x", "host"))
 
     # --force left out entirely is nil: this used to raise on `not nil`.
-    assert Sync.refuse_reinit?(dir, vault: "Brain")
-    assert Sync.refuse_reinit?(dir, vault: "Brain", force: false)
-    refute Sync.refuse_reinit?(dir, vault: "Brain", force: true)
+    assert Sync.refuse_reinit?(dir, [])
+    assert Sync.refuse_reinit?(dir, force: false)
+    refute Sync.refuse_reinit?(dir, force: true)
   end
 
-  test "init warns when the folder was imported into another vault", %{home: home} do
-    System.put_env(
-      "SLIPDOCK_URL",
-      FakeServer.start([{200, @vault}, {200, @listing}, {200, @page}])
-    )
+  test "init warns when the folder was imported into another server's wiki", %{home: home} do
+    url = FakeServer.start([{200, @wiki}, {200, @listing}, {200, @page}])
+    System.put_env("SLIPDOCK_URL", url)
 
     dir = Path.join(home, "Obsidian")
-    Import.save_record(dir, %{"vault" => %{"id" => 99, "name" => "Old"}, "entries" => %{}})
+    Import.save_record(dir, %{"url" => "http://other", "entries" => %{}})
+
+    err =
+      capture_io(:stderr, fn ->
+        capture_io(fn -> Sync.run("sync", ["init", dir], []) end)
+      end)
+
+    assert err =~ "imported into http://other, not #{url}"
+    # Another server's record is not this one's to spend.
+    assert File.exists?(Import.record_path(dir))
+  end
+
+  test "init takes --vault still, and says it is no longer needed", %{home: home} do
+    url = FakeServer.start([{200, @wiki}, {200, @listing}, {200, @page}])
+    System.put_env("SLIPDOCK_URL", url)
+    dir = Path.join(home, "Brain")
 
     err =
       capture_io(:stderr, fn ->
         capture_io(fn -> Sync.run("sync", ["init", dir], vault: "Brain") end)
       end)
 
-    assert err =~ "imported into Old, not Brain"
-    # Another vault's record is not this one's to spend.
-    assert File.exists?(Import.record_path(dir))
+    assert err =~ "--vault is no longer needed"
+    assert_received {:request, "GET", "/api/wiki", _}
+    refute_received {:request, "GET", "/api/vaults/" <> _, _}
+    {:ok, state} = State.load(dir)
+    refute Map.has_key?(state, "vault")
+  end
+
+  test "a mirror bound to a vault before keeps syncing, and is saved in the new shape",
+       %{home: home} do
+    url = FakeServer.start([{200, @listing}, {200, @page}])
+    System.put_env("SLIPDOCK_URL", url)
+    dir = Path.join(home, "Old mirror")
+    File.mkdir_p!(Path.join(dir, ".slipdock"))
+
+    # What a state file looked like when a folder was bound to vault 3.
+    old = %{
+      "version" => 1,
+      "url" => url,
+      "vault" => %{"id" => 3, "name" => "Brain"},
+      "host" => "host",
+      "cursor" => nil,
+      "entries" => %{},
+      "conflicts" => [],
+      "errors" => [],
+      "last_run" => nil,
+      "last_result" => nil
+    }
+
+    File.write!(Path.join(dir, ".slipdock/state.json"), :json.encode(old))
+
+    out = capture_io(fn -> Sync.run("sync", [dir], []) end)
+
+    assert_received {:request, "GET", "/api/wiki/sync?stubs=1", _}
+    assert_received {:request, "GET", "/api/wiki/sync/pages/7", _}
+    assert out =~ "received 1"
+    assert out =~ "your wiki"
+    refute out =~ "Brain"
+    assert File.read!(Path.join(dir, "Ops/Retry.md")) == "Back off.\n"
+
+    saved = dir |> Path.join(".slipdock/state.json") |> File.read!() |> JSON.decode!()
+    refute Map.has_key?(saved, "vault")
+    assert saved["version"] == 2
+    assert saved["cursor"] == 12
   end
 
   test "the import record is spent only by a pass with no errors", %{home: home} do
     dir = Path.join(home, "Obsidian")
-    record = %{"vault" => %{"id" => 3}, "entries" => %{}}
+    record = %{"url" => "http://test", "entries" => %{}}
 
     Import.save_record(dir, record)
     assert Import.spent(dir, %{}, [%{path: "A.md", error: "boom"}]) == :kept
@@ -143,13 +198,13 @@ defmodule SlipdockCLI.SyncTest do
     File.write!(Path.join(dir, "Ops/Retry.md"), "Back off.\n")
 
     State.save(dir, %{
-      State.new(url, %{"id" => 3, "name" => "Brain"}, "host")
+      State.new(url, "host")
       | "entries" => %{"Ops/Retry.md" => %{"id" => 7, "kind" => "page", "hash" => @hash}}
     })
 
     out = capture_io(fn -> Sync.run("sync", [Path.join(dir, "Ops")], json: true) end)
 
-    assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
+    assert_received {:request, "GET", "/api/wiki/sync?stubs=1", _}
     assert System.get_env("SLIPDOCK_URL") == url
     assert out =~ ~s("cursor": 12)
     assert out =~ ~s("sent": [])
@@ -169,7 +224,7 @@ defmodule SlipdockCLI.SyncTest do
       dir = Path.join(home, "Brain")
       File.mkdir_p!(dir)
       File.write!(Path.join(dir, "New.md"), "fresh")
-      State.save(dir, State.new(url, %{"id" => 3, "name" => "Brain"}, "host"))
+      State.save(dir, State.new(url, "host"))
       %{dir: dir}
     end
 
@@ -178,9 +233,9 @@ defmodule SlipdockCLI.SyncTest do
 
       assert out =~ "· New.md"
       assert out =~ "(not sent)"
-      assert out =~ "Brain (from the server only): sent 0"
+      assert out =~ "your wiki (from the server only): sent 0"
       assert out =~ "held 1"
-      assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
+      assert_received {:request, "GET", "/api/wiki/sync?stubs=1", _}
       refute_received {:request, _, _, _}
       {:ok, state} = State.load(dir)
       assert state["last_result"]["held"] == 1
@@ -194,7 +249,7 @@ defmodule SlipdockCLI.SyncTest do
         assert out =~ ~s("direction": "to-server")
       end)
 
-      assert_received {:request, "PUT", "/api/vaults/3/sync/pages", _}
+      assert_received {:request, "PUT", "/api/wiki/sync/pages", _}
       {:ok, state} = State.load(dir)
       assert state["entries"]["New.md"]["id"] == 8
       assert state["cursor"] == 14
@@ -203,7 +258,7 @@ defmodule SlipdockCLI.SyncTest do
     test "a pass both ways says so in its JSON", %{dir: dir} do
       out = capture_io(fn -> Sync.run("sync", [dir], json: true) end)
       assert out =~ ~s("direction": "both")
-      assert_received {:request, "PUT", "/api/vaults/3/sync/pages", _}
+      assert_received {:request, "PUT", "/api/wiki/sync/pages", _}
     end
   end
 
@@ -214,7 +269,7 @@ defmodule SlipdockCLI.SyncTest do
 
     State.save(
       dir,
-      Map.put(State.new(url, %{"id" => 3, "name" => "Brain"}, "host"), "folders", ["Old"])
+      Map.put(State.new(url, "host"), "folders", ["Old"])
     )
 
     out = capture_io(fn -> Sync.run("sync", [dir], []) end)
@@ -229,7 +284,7 @@ defmodule SlipdockCLI.SyncTest do
 
   test "State.find_root looks upwards, and says when there is no mirror", %{home: home} do
     dir = Path.join(home, "Brain")
-    State.save(dir, State.new("http://x", %{"id" => 1, "name" => "B"}, "h"))
+    State.save(dir, State.new("http://x", "h"))
     File.mkdir_p!(Path.join(dir, "a/b"))
 
     assert State.find_root(Path.join(dir, "a/b")) == {:ok, dir}
@@ -264,7 +319,7 @@ defmodule SlipdockCLI.SyncTest do
       assert {:conflict, %{"id" => 7, "content" => "c"}} =
                Remote.write(3, 7, %{"path" => "A.md", "content" => "x", "base" => "old"})
 
-      assert_received {:request, "PUT", "/api/vaults/3/sync/pages/7", body}
+      assert_received {:request, "PUT", "/api/wiki/sync/pages/7", body}
       assert body =~ ~s("base":"old")
     end
 
@@ -277,10 +332,10 @@ defmodule SlipdockCLI.SyncTest do
       assert {:ok, %{"id" => 7}} =
                Remote.write(3, nil, %{"path" => "Ops/Retry.md", "content" => "x"})
 
-      assert_received {:request, "PUT", "/api/vaults/3/sync/pages", _}
+      assert_received {:request, "PUT", "/api/wiki/sync/pages", _}
 
       assert {:ok, %{"archived" => true}} = Remote.archive(3, 7, "abc")
-      assert_received {:request, "DELETE", "/api/vaults/3/sync/pages/7?base=abc", _}
+      assert_received {:request, "DELETE", "/api/wiki/sync/pages/7?base=abc", _}
     end
 
     test "a file's bytes stream to disk and come back as their hash; a 404 is an error",
@@ -298,7 +353,7 @@ defmodule SlipdockCLI.SyncTest do
       assert {:ok, hash} = Remote.read_file(3, 8, dest)
       assert File.read!(dest) == "raw bytes"
       assert hash == :crypto.hash(:sha256, "raw bytes") |> Base.encode16(case: :lower)
-      assert_received {:request, "GET", "/api/vaults/3/sync/files/8", _}
+      assert_received {:request, "GET", "/api/wiki/sync/files/8", _}
 
       assert {:error, "file 9 in this vault not found (HTTP 404)"} = Remote.read_file(3, 9, dest)
     end
@@ -316,7 +371,7 @@ defmodule SlipdockCLI.SyncTest do
       assert {:ok, %{"id" => 4}} =
                Remote.write_file(3, 4, %{"path" => "Img/pic.png", "base" => "old"}, src)
 
-      assert_received {:request, "POST", "/api/vaults/3/sync/files/4", body}
+      assert_received {:request, "POST", "/api/wiki/sync/files/4", body}
       assert body =~ ~s(name="path")
       assert body =~ "Img/pic.png"
       assert body =~ ~s(name="base")
@@ -324,10 +379,10 @@ defmodule SlipdockCLI.SyncTest do
       assert body =~ "PNGDATA"
 
       assert {:ok, _} = Remote.move_file(3, 4, %{"path" => "b.png", "base" => "h"})
-      assert_received {:request, "PATCH", "/api/vaults/3/sync/files/4", _}
+      assert_received {:request, "PATCH", "/api/wiki/sync/files/4", _}
 
       assert {:ok, %{"archived" => true}} = Remote.archive_file(3, 4, "h")
-      assert_received {:request, "DELETE", "/api/vaults/3/sync/files/4?base=h", _}
+      assert_received {:request, "DELETE", "/api/wiki/sync/files/4?base=h", _}
     end
 
     test "errors come back as messages, and a 401 as :unauthorized" do

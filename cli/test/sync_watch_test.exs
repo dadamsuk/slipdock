@@ -63,7 +63,7 @@ defmodule SlipdockCLI.SyncWatchTest do
       write(root, "Open.md", "open")
 
       state = %{
-        State.new("http://test", %{"id" => 1, "name" => "B"}, "h")
+        State.new("http://test", "h")
         | "entries" => %{"Old.md" => %{"id" => kept + 100, "kind" => "page", "hash" => "x"}}
       }
 
@@ -385,11 +385,11 @@ defmodule SlipdockCLI.SyncWatchTest do
 
     test "two folders with one name get two services" do
       refute Service.name("/a/Notes") == Service.name("/b/Notes")
-      assert Service.name("/a/...") =~ ~r/^vault-/
+      assert Service.name("/a/...") =~ ~r/^wiki-/
     end
 
     test "print shows the file and the commands, and installs nothing", %{root: root} do
-      State.save(root, State.new("http://x", %{"id" => 1, "name" => "B"}, "h"))
+      State.save(root, State.new("http://x", "h"))
       out = capture_io(fn -> Sync.run("sync", ["service", "print", root], []) end)
 
       assert out =~ "sync --watch"

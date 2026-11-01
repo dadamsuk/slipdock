@@ -17,7 +17,7 @@ defmodule SlipdockCLI do
     Sync,
     Tools,
     Util,
-    Vaults,
+    WholeWiki,
     Wiki
   }
 
@@ -231,9 +231,9 @@ defmodule SlipdockCLI do
     unfav <same args>                   stop favouriting it (or `fav ... --off`)
     hotkeys                             your board hotkeys: Ctrl+Shift+a digit in the web app
     hotkey <board> <0-9|none>           give a board a digit (it leaves any other board), or none
-    header                              your header links: boards and vaults pinned left of
-                                        quick add in the web app, and the icons they can wear
-    header add board|vault <ref> --icon NAME
+    header                              your header links: boards, and your wiki, pinned left
+                                        of quick add in the web app, and the icons they can wear
+    header add board <ref> --icon NAME | header add wiki --icon NAME
                                         pin one (again: change its icon); up to 8
     header rm <id>                      unpin one
     header move <id> left|right         move one a place along
@@ -247,7 +247,7 @@ defmodule SlipdockCLI do
     page tree <board>                   the page tree, nesting shown by indent
     page read <page>                    print the Markdown source
     page tags <board>                   the tags its notes give themselves (front matter tags
-                                        and inline #tags, on a board in a vault), with counts.
+                                        and inline #tags), with counts.
                                         page ls <board> --note-tag T lists the notes tagged T
                                         or anything under it (T/sub)
     page props <page> [--body TEXT | --file F | --clear]
@@ -258,7 +258,7 @@ defmodule SlipdockCLI do
                                         the same with every reference resolved: links
                                         followed, #412 filled in with what the card says
                                         now, [[!toc]] expanded
-    note <text...>                      save a quick note in your main vault; the server
+    note <text...>                      save a quick note in your wiki; the server
                                         names and files it, and says where (--body - reads stdin)
     page new <board> <title...>         write a page
         --body TEXT | --file F | --body -   (- reads the body from stdin)
@@ -292,10 +292,10 @@ defmodule SlipdockCLI do
                                         file it in one more folder as well as its home
                                         (one page, several places), or take it out of
                                         one. F is a folder on its board, on --board B,
-                                        or a vault path ("/Projects/Notes") in its vault
+                                        or a path in your wiki ("/Projects/Notes")
     page mv <page> [--parent P | --root] [--position N|top|bottom]
     page mv <page> --board B [--folder F] [--dry-run]
-                                        to another board of its vault: it keeps its code,
+                                        to another board of yours: it keeps its code,
                                         history and comments; tags, fields and pins go where
                                         that board has a match (--dry-run says which won't)
     page rm <page> [--purge]            archive it (--purge deletes, owner only)
@@ -363,8 +363,7 @@ defmodule SlipdockCLI do
                                         and a title already on the board is skipped
     page switch <board> <letters...> [--limit N] [--all]
                                         the quick switcher: notes whose title, alias or path
-                                        the letters run through in order, across the vault;
-                                        --all searches every vault of yours
+                                        the letters run through in order, across your wiki
     page card <card-id>                 the pages that talk about a card, pinned first
     page from <board> <template> --title T [--set k=v]... [--card N] [--folder F]
                                         a page from a template page, {{placeholders}} filled
@@ -421,8 +420,8 @@ defmodule SlipdockCLI do
                                         file it in one more folder as well as its home
                                         (one folder and all in it, several places), or
                                         take it out of one; both repeat. F is a folder on
-                                        its board, on --board B, an id, or a vault path
-                                        ("/Projects/Notes") in its vault. Never inside
+                                        its board, on --board B, an id, or a path in
+                                        your wiki ("/Projects/Notes"). Never inside
                                         itself, by any route
     folder rm <board> <folder> [--purge]
                                         delete the folder only: its subfolders move up and
@@ -439,46 +438,44 @@ defmodule SlipdockCLI do
                                         everything in its subfolders back up into it.
                                         Missing folders are made. --dry-run: the plan only
 
-  VAULT  (your whole wiki as one Obsidian-style tree: every board you own, archived
-          ones too, is a folder off the root, and a sub-board sits in its epic's folder)
-    vault ls                            your vault: its boards, page count and the folders
-                                        it is synced to
-    vault show <vault>                  the same, by id or name
-    vault rename <vault> <name...>
-    vault set <vault> [--shortcut K] [--hotkey 0-9|none] [--recordings-folder PATH]
+  YOUR WIKI  (one tree: your Knowledge Base first, then a folder for every board you
+              own, a sub-board in its epic's folder; archived boards are left out)
+    wiki show                           your wiki: its Knowledge Base, its boards, page count
+                                        and the folders it is synced to
+    wiki set [--shortcut K] [--hotkey 0-9|none] [--recordings-folder PATH]
                                         the folder on your Google Drive its meeting
                                         recordings are in ("" clears it); a page whose
                                         front matter says recording: gdrive:<path> plays
                                         it beside its transcript
-    drive status                        your Google Drive connection, and your vault's
+    drive status                        your Google Drive connection, and your wiki's
                                         recordings folder
-    vault locate <vault> <path>         which board a vault path lands in, and the rest
-    vault resolve <vault> <link...>     the page a [[link]] finds anywhere in the vault
+    wiki locate <path>                  which board a path in your wiki lands in, and the rest
+    wiki resolve <link...>              the page a [[link]] finds anywhere in your wiki
                                         (Note, or Folder/Note; the shortest path wins)
-    vault wanted <vault>                pages linked to but never written, every board at once
-    vault tree <vault> [--short-names]  every folder and file by name, archived ones marked
-    vault changes <vault> [--since N] [--limit N] [--short-names]
+    wiki wanted                         pages linked to but never written, every board at once
+    wiki tree [--short-names]           every folder and file by name
+    wiki changes [--since N] [--limit N] [--short-names]
                                         what changed (pages, folders, attachments) after cursor
                                         N, each once and as it is now; without --since, the
                                         cursor to start from. What sync polls
-    vault import <dir> --vault V [--dry-run] [--all]
+    wiki import <dir> [--dry-run] [--all]
                                         bring an existing Obsidian vault in, once: each note a
-                                        page and each other file a file at its vault path,
-                                        in the board whose folder holds it, bytes as they are (front matter,
+                                        page and each other file a file at its path in your
+                                        wiki, in the board whose folder holds it, bytes as they are (front matter,
                                         Excalidraw, Meld ciphertext). What the server has at a
                                         path already is left alone. --dry-run says what would be
                                         created or skipped, and which links, embeds and plugin
                                         blocks won't resolve. Afterwards, `sync init` on the
                                         same folder adopts the files instead of duplicating them
 
-  SYNC  (a vault mirrored both ways to a local folder that stays a valid Obsidian
+  SYNC  (your wiki mirrored both ways to a local folder that stays a valid Obsidian
          vault. The server is the source of truth; the folder is a working copy,
-         and anything that writes a file into it writes into the vault)
-    sync init <dir> --vault V           bind a folder to a vault, then run once. Files already
-                                        there that match the vault are adopted, not duplicated
+         and anything that writes a file into it writes into your wiki)
+    sync init <dir>                     bind a folder to your wiki, then run once. Files already
+                                        there that match your wiki are adopted, not duplicated
     sync [<dir>]                        one pass, both ways (default: the folder you are in).
                                         A .md file is a page; images, PDFs, .excalidraw and
-                                        other files are kept at the same vault path (250 MB
+                                        other files are kept at the same path (250 MB
                                         each), so ![[image.png]] works on both sides.
                                         A rename or move is the same page; a delete archives
                                         it. Changed on both sides: the server's version keeps
@@ -1237,7 +1234,7 @@ defmodule SlipdockCLI do
     Automations,
     Runners,
     Wiki,
-    Vaults,
+    WholeWiki,
     Sync,
     Skills,
     Tools,

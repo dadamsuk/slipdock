@@ -14,7 +14,7 @@ defmodule SlipdockCLI.SyncEngineTest do
     File.mkdir_p!(root)
     on_exit(fn -> File.rm_rf!(root) end)
     vault = FakeVault.start()
-    state = State.new("http://test", %{"id" => 1, "name" => "Brain"}, "testhost")
+    state = State.new("http://test", "testhost")
     %{root: root, vault: vault, state: state}
   end
 
@@ -607,7 +607,7 @@ defmodule SlipdockCLI.SyncEngineTest do
     @vault %{"id" => 1, "name" => "Brain", "boards" => [%{"path" => "/Keystone"}]}
 
     defp import!(ctx) do
-      record = Import.record_for(nil, "http://test", @vault)
+      record = Import.record_for(nil, "http://test")
       {:ok, listing} = FakeVault.list(ctx.vault)
       plan = Import.plan(ctx.root, @vault, listing, record)
       {record, %{errors: []}} = Import.run(ctx.root, plan, {FakeVault, ctx.vault}, record)

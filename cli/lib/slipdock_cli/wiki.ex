@@ -13,6 +13,9 @@ defmodule SlipdockCLI.Wiki do
   @commands ~w(folder wiki page note export import writeup shared)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
+  # The whole-wiki subcommands, answered by `SlipdockCLI.WholeWiki`.
+  @whole SlipdockCLI.WholeWiki.subcommands()
+
   def commands, do: @commands
 
   ## Wiki --------------------------------------------------------------------
@@ -131,7 +134,8 @@ defmodule SlipdockCLI.Wiki do
     |> out(o, fn %{"note" => note} ->
       IO.puts("noted #{note["code"]}  #{note["title"]}")
       fallback = if note["placed_by"] == "settings", do: "  (your fallback location)"
-      IO.puts("  in #{note["vault"]} #{note["location"]}#{fallback}")
+      at = "/" <> String.trim_leading(note["location"] || "", "/")
+      IO.puts("  in your wiki at #{at}#{fallback}")
     end)
   end
 
@@ -141,6 +145,11 @@ defmodule SlipdockCLI.Wiki do
   # Every board's wiki at once: what the Wiki view on the web shows.
   def run("wiki", [], o),
     do: HTTP.get("/wiki") |> out(o, &Render.wiki(&1["boards"]))
+
+  # Your wiki as a whole (W-2201): what it is, where a path or a link lands,
+  # what changed, its tree, an import. See `SlipdockCLI.WholeWiki`.
+  def run("wiki", [sub | _] = args, o) when sub in @whole,
+    do: SlipdockCLI.WholeWiki.wiki(args, o)
 
   # The wiki's files that are not pages (#1156): a Tool's board files are
   # among them, in its `Tool` folder.
@@ -185,7 +194,10 @@ defmodule SlipdockCLI.Wiki do
   def run("wiki", _args, _o),
     do:
       fail(
-        "usage: slipdock wiki | wiki files <board> [--folder F] | wiki get <board> <path> [--out F|-] [--force]"
+        "usage: slipdock wiki | wiki files <board> [--folder F] | " <>
+          "wiki get <board> <path> [--out F|-] [--force] | wiki show | wiki set | " <>
+          "wiki locate PATH | wiki resolve LINK | wiki wanted | wiki changes | " <>
+          "wiki tree | wiki import DIR"
       )
 
   def run("page", ["ls", ref], o) do
@@ -203,8 +215,7 @@ defmodule SlipdockCLI.Wiki do
   end
 
   # The quick switcher from a shell: a few letters of a note's title, an
-  # alias or its path, across the board's vault — or, with --all, every
-  # vault of yours.
+  # alias or its path, across your wiki.
   def run("page", ["switch", ref | words], o) when words != [] do
     HTTP.get("/boards/#{enc(ref)}/pages/switch",
       q: Enum.join(words, " "),
@@ -231,7 +242,7 @@ defmodule SlipdockCLI.Wiki do
               "  " <>
               Render.dim(
                 Enum.map_join(
-                  Enum.reject([m["vault"], m["path"], m["board"]], &is_nil/1),
+                  Enum.reject([m["path"], m["board"]], &is_nil/1),
                   " · ",
                   & &1
                 )
@@ -247,7 +258,7 @@ defmodule SlipdockCLI.Wiki do
     HTTP.get("/boards/#{enc(ref)}/pages/tags")
     |> out(o, fn
       %{"tags" => []} ->
-        IO.puts(Render.dim("no note tags — they are read on boards that are in a vault"))
+        IO.puts(Render.dim("no note tags — front matter tags or #tags in a note"))
 
       %{"tags" => tags} ->
         Enum.each(tags, fn t ->

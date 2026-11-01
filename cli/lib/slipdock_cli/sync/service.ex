@@ -117,7 +117,7 @@ defmodule SlipdockCLI.Sync.Service do
       |> String.downcase()
       |> String.replace(~r/[^a-z0-9]+/, "-")
       |> String.trim("-")
-      |> then(&if(&1 == "", do: "vault", else: &1))
+      |> then(&if(&1 == "", do: "wiki", else: &1))
 
     digest = :crypto.hash(:sha256, root) |> Base.encode16(case: :lower) |> binary_part(0, 6)
     "#{base}-#{digest}"
