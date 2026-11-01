@@ -10,7 +10,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.{Args, Tools}
 
-  @fields ~w(title description priority due_date start_date percent_complete color border_top
+  @fields ~w(title short_name description priority due_date start_date percent_complete color border_top
              border_right border_bottom border_left)
   @lists ~w(add_flags remove_flags add_tags remove_tags assignees add_assignees remove_assignees)
   @id_lists ~w(add_blocked_by remove_blocked_by check_items uncheck_items)
@@ -48,6 +48,10 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
       properties: %{
         card: %{type: "integer"},
         title: %{type: "string"},
+        short_name: %{
+          type: "string",
+          description: "At most 40 characters, for tight spaces. \"\" hands it back to be made."
+        },
         description: %{type: "string", description: "Replaces the whole description."},
         priority: %{type: "string", enum: ["none", "low", "medium", "high", "critical"]},
         due_date: %{type: "string", description: "YYYY-MM-DD; \"\" clears it."},

@@ -88,6 +88,10 @@ config :slipdock, :posthog,
   error_tracking: false,
   req_options: [plug: {Req.Test, Slipdock.Posthog.ErrorTracking}]
 
+# A long card title would otherwise ask the stub below for a short name, in
+# every test that makes one. `Slipdock.ShortNamesTest` turns it on.
+config :slipdock, :short_names, refine: :off
+
 # AI calls are answered by a Req.Test stub (see test/support/ai_stub.ex).
 config :slipdock, :ai,
   api_key: "test-key",

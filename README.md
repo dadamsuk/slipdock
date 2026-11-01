@@ -124,6 +124,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   a prompt for Claude Code to wire it up. `slipdock dora <board>`, `GET
   /api/boards/:id/dora` or `get_board` with `dora: true`; `slipdock deploy
   backfill --from-tags` for day one.
+- **Short names** — a long card title gets a short name by itself, from the
+  cheapest model or, with no AI key, a clean cut at a word. Yours if you type one:
+  `slipdock edit 12 --short-name "Parked jobs"` or `short_name` over the API and MCP.
 - **Recurring cards** — [repeating work kept on the card](docs/manual.md#recurring-cards)
   ("every Monday: review invoices", "the last Friday of the month", "three days
   after I last did it"): the next one is a copy of the current one, checklist
