@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.MCP.Tools.ListVaults do
   @moduledoc """
-  The caller's vaults and their mappings (see `Slipdock.Vaults`), or with a
-  `path`, where in one vault that path lands.
+  The caller's one vault (see `Slipdock.Vaults`), or with a `path`, which
+  board in it that path lands in.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -18,18 +18,16 @@ defmodule SlipdockWeb.MCP.Tools.ListVaults do
   @impl true
   def description,
     do:
-      "Your vaults: board wikis laid out as one Obsidian-style vault, each mapping a vault " <>
-        "path to a board's wiki or a folder of it, with how many pages each holds and the " <>
-        "folders the vault is synced to (each sync token, last sync). Give vault and path to ask which mapping " <>
-        "a path lands in (longest prefix wins) and what is left of it; vault and link, which " <>
-        "page a [[link]] finds in it; vault and changes_since, what changed after a cursor."
+      "Your one vault: every board you own as a folder off the root. Lists it; with path, the " <>
+        "board a vault path falls in and the rest; with link, the page a [[link]] finds; with " <>
+        "changes_since, what changed after a cursor."
 
   @impl true
   def input_schema do
     %{
       type: "object",
       properties: %{
-        vault: %{type: "string", description: "Vault id or name; leave out to list them all."},
+        vault: %{type: "string", description: "Vault id or name; leave out for your own."},
         path: %{type: "string", description: "A vault path to locate, e.g. /Projects/Acme.md."},
         link: %{
           type: "string",
@@ -96,8 +94,8 @@ defmodule SlipdockWeb.MCP.Tools.ListVaults do
 
         {ref, path} ->
           with {:ok, vault} <- Args.refusal(Vaults.get_vault(user, ref)),
-               {:ok, mapping, rest} <- Args.refusal(Vaults.locate(vault, path)),
-               do: {:ok, %{mapping: V.vault_mapping(mapping), rest: rest}}
+               {:ok, board_id, rest} <- Args.refusal(Vaults.locate(vault, path)),
+               do: {:ok, %{board: V.vault_board(vault, board_id), rest: rest}}
       end
     end
   end

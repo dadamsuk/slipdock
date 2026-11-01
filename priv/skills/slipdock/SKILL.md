@@ -574,28 +574,17 @@ slipdock page new <board> <title...> --folder F   # or file it as you write it
 ```
 
 A vault is a folder tree of Markdown (and other) files (Obsidian's word; Obsidian isn't
-required). Vaults lay several boards' wikis out as one such tree (a vault path → a board's wiki
-or a folder of it, longest prefix winning; one vault per board):
+required). The user has exactly one vault, derived from their boards with nothing to set up:
+every root board they own, archived too, is a folder off the root, and a sub-board sits in its
+epic's folder (`<Board>/Cards/<Epic>/`). Boards shared by someone else are not in it.
 ```
-slipdock vault ls | slipdock vault show <vault> | slipdock vault new <name...>
-slipdock vault map <vault> <path> --board B [--folder F] [--inside] [--dry-run] | slipdock vault unmap <vault> <path> [--dry-run]
-slipdock vault inside <vault> <path> [--off] | slipdock vault new <name...> --with-board
-slipdock vault dress <vault> <path> [--icon NAME] [--color NAME]   # what the mount wears in the vault's tree
-slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> | slipdock vault rm <vault>
+slipdock vault ls | slipdock vault show <vault> | slipdock vault rename <vault> <name...>
+slipdock vault locate <vault> <path>     # which board a path lands in, and the rest of it
 ```
-A board that only holds a vault's pages can be kept inside it (`--inside`, `vault inside`): the
-owner's home page names it on the vault's tile instead of among their boards, and `boards` marks it
-`in <vault>`; it's still an ordinary board at its address. `vault new --with-board` makes the
-vault with such a board at `/`.
-`vault ls` also shows how many pages each mapping holds and the folders the vault is synced to
-(each sync token's label and last sync); `--dry-run` on map/unmap previews which pages join,
-move or leave the vault before changing it. A mapping over pages another mapped board already
-has at those paths is refused with the count. The one-step way out:
-`slipdock vault split <vault> /Projects --board B [--dry-run]` (or `--new-board NAME`) moves what is
-in that folder to B's top and maps `/Projects` onto B; notes keep their vault paths, so synced
-folders see no change. Dry-run first and show the person the report. People do the same on the web app's Vaults screen
-(`/vaults`, avatar menu › Vaults); each vault also has a view of its own, its pages
-at their vault paths (a vault's `url` in `--json`, e.g. `/vaults/Notes/Projects/Roadmap`).
+`vault ls` also shows its boards, page count and the folders it is synced to (each sync token's
+label and last sync). People do the same on the web app's Vault page (`/vaults`, avatar menu ›
+Vault); the vault also has a view of its own, its pages at their vault paths (its `url` in
+`--json`, e.g. `/vaults/Notes/Projects/Roadmap`).
 
 `slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault
 (notes as `.md`, other files at the same path; a delete archives; changed on both sides, the

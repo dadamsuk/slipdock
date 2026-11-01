@@ -1,5 +1,5 @@
 defmodule SlipdockCLI.VaultLsTest do
-  @moduledoc "`slipdock vault ls`: each mapping's page count and the folders a vault is synced to."
+  @moduledoc "`slipdock vault ls`: its boards, page count and the folders a vault is synced to."
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
@@ -29,38 +29,25 @@ defmodule SlipdockCLI.VaultLsTest do
     capture_io(fn -> Vaults.run("vault", ["ls"], []) end)
   end
 
-  test "prints each mapping's pages and every synced folder" do
+  test "prints each board, the page count and every synced folder" do
     out =
       ls(
-        ~s({"vaults":[{"id":1,"name":"Notes","mappings":[
-        {"id":3,"path":"/","board":{"id":5,"code":"kb","name":"Keystone"},"folder":null,"pages":201},
-        {"id":4,"path":"/Journal","board":{"id":6,"code":"jobs","name":"Journal Desk"},"folder":null,"pages":1}],
+        ~s({"vaults":[{"id":1,"name":"Notes","pages":202,"boards":[
+        {"id":5,"code":"kb","name":"Keystone","path":"/Keystone","archived":false},
+        {"id":6,"code":"jobs","name":"Journal Desk","path":"/Journal Desk","archived":false}],
         "mirrors":[{"label":"slipdock CLI on laptop","last_synced_at":"2026-10-13T10:00:00Z"}]}]})
       )
 
-    assert out =~ ~r{/\s+→ Keystone wiki.*kb · 201 pages}
-    assert out =~ ~r{/Journal\s+→ Journal Desk wiki.*jobs · 1 page$}m
+    assert out =~ ~r{/Keystone\s+kb$}m
+    assert out =~ ~r{/Journal Desk\s+jobs$}m
+    assert out =~ "202 pages"
     assert out =~ "synced to slipdock CLI on laptop, last 2026-10-13T10:00:00Z"
   end
 
-  test "an older server's reply, without counts or mirrors, still prints" do
-    out =
-      ls(~s({"vaults":[{"id":1,"name":"Notes","mappings":[
-        {"id":3,"path":"/","board":{"id":5,"code":"kb","name":"Keystone"},"folder":null}]}]}))
-
-    assert out =~ "Keystone wiki"
-    refute out =~ "pages"
+  test "with one page and no mirrors" do
+    out = ls(~s({"vaults":[{"id":1,"name":"Notes","pages":1,"boards":[],"mirrors":[]}]}))
+    assert out =~ "1 page"
+    refute out =~ "1 pages"
     refute out =~ "synced to"
-  end
-
-  test "warns about pages at a path another mapping owns" do
-    out =
-      ls(
-        ~s({"vaults":[{"id":1,"name":"Notes","mappings":[],"mirrors":[],
-        "overlaps":[{"path":"Journal/Acme.md","board":"Keystone","mapping":"/","under":"/Journal","owner":"Journal Desk"}]}]})
-      )
-
-    assert out =~
-             "warning: 1 page(s) of Keystone sit under /Journal, which Journal Desk's mapping owns"
   end
 end

@@ -39,7 +39,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
         {"wiki-linking", "Linking and live queries"},
         {"wiki-organising", "Organising"},
         {"wiki-history", "History"},
-        {"wiki-vaults", "Vaults and your own folder"},
+        {"wiki-vaults", "Your vault and your own folder"},
         {"wiki-publishing", "Publishing"}
       ]
     },
@@ -374,13 +374,12 @@ defmodule SlipdockWeb.HelpLive.Guides do
       </p>
     </.part>
 
-    <.part title="Vaults and your own folder" id="wiki-vaults">
+    <.part title="Your vault and your own folder" id="wiki-vaults">
       <p>
-        A <strong>vault</strong>
-        combines several boards' wikis into one folder tree of your own, for example a
-        handbook at <code>/</code>
-        and a project's notes at <code>/Projects</code>. <code>slipdock sync</code>
-        mirrors a vault to a folder on your computer and keeps the two in step, so you can
+        Your <strong>vault</strong>
+        is all your wikis as one folder tree: every board you own is a folder at the top of
+        it, archived ones too, and a sub-board sits in its epic's folder. <code>slipdock sync</code>
+        mirrors the vault to a folder on your computer and keeps the two in step, so you can
         write in Obsidian or any editor that works on a folder of Markdown. An existing
         Obsidian vault can be imported. See <.link patch={~p"/help/agents/cli"} class="link">the CLI</.link>.
       </p>

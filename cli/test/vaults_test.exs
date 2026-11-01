@@ -24,9 +24,9 @@ defmodule SlipdockCLI.VaultsTest do
     end)
   end
 
-  @one ~s({"id":3,"name":"Notes","mappings":[
-    {"id":1,"path":"/","board":{"id":1,"code":"kb","name":"Keystone"},"folder":null},
-    {"id":2,"path":"/Journal","board":{"id":2,"code":"jobs","name":"Journal Desk"},"folder":{"id":9,"path":"Notes"}}]})
+  @one ~s({"id":3,"name":"Notes","pages":12,"boards":[
+    {"id":2,"code":"jobs","name":"Journal Desk","path":"/Journal Desk","archived":true},
+    {"id":1,"code":"kb","name":"Keystone","path":"/Keystone","archived":false}]})
   @vault ~s({"vault":#{@one}})
 
   defp run(args, opts \\ [], response \\ @vault) do
@@ -36,103 +36,53 @@ defmodule SlipdockCLI.VaultsTest do
     {method, path, body, out}
   end
 
-  test "ls lists each vault with its mappings, root first" do
+  test "ls shows the vault, its boards and its pages, archived marked" do
     {"GET", path, _, out} = run(["ls"], [], ~s({"vaults":[#{@one}]}))
     assert path =~ "/api/vaults"
     assert out =~ "Notes"
-    assert out =~ "Keystone wiki"
-    assert out =~ "Journal Desk wiki, folder Notes"
+    assert out =~ "/Keystone"
+    assert out =~ ~r{/Journal Desk\s+jobs · archived}
+    refute out =~ ~r{/Keystone\s+kb · archived}
+    assert out =~ "12 pages"
   end
 
-  test "ls with none says how to make one" do
-    {_, _, _, out} = run(["ls"], [], ~s({"vaults":[]}))
-    assert out =~ "slipdock vault new"
+  test "show says when the vault has no boards yet" do
+    {_, _, _, out} = run(["show", "Notes"], [], ~s({"vault":{"id":3,"name":"Notes","boards":[]}}))
+    assert out =~ "no boards yet"
   end
 
-  test "new sends the words as one name" do
-    {"POST", path, body, out} = run(["new", "My", "Notes"])
-    assert path =~ "/api/vaults"
-    assert body =~ ~s("name":"My Notes")
-    assert out =~ "made Notes"
-  end
-
-  test "new --with-board asks for a board to hold its pages (#757)" do
-    {"POST", _path, body, _out} = run(["new", "Brain"], with_board: true)
-    assert body =~ ~s("with_board":true)
-
-    {"POST", _path, body, _out} = run(["new", "Brain"])
-    refute body =~ "with_board"
-  end
-
-  test "map --inside keeps the board inside the vault" do
-    {"POST", _path, body, _out} = run(["map", "Notes", "/"], board: "kb", inside: true)
-    assert body =~ ~s("inside":true)
-  end
-
-  test "inside keeps a mapped board inside, --off lets it out, and ls says which" do
-    inside =
-      ~s({"vault":{"id":3,"name":"Notes","mappings":[
-        {"id":1,"path":"/","board":{"id":1,"code":"kb","name":"Keystone"},"folder":null,"inside":true}]}})
-
-    {"PATCH", path, body, out} = run(["inside", "Notes", "/"], [], inside)
-    assert path =~ "/api/vaults/Notes/mappings"
-    assert body =~ ~s("inside":true)
-    assert body =~ ~s("path":"/")
-    assert out =~ "kept inside Notes"
-    assert out =~ "· kept inside"
-
-    {"PATCH", _path, body, out} = run(["inside", "Notes", "/"], off: true)
-    assert body =~ ~s("inside":false)
-    assert out =~ "let out Notes"
-    refute out =~ "· kept inside"
-  end
-
-  test "dress sends the icon and colour for the path, and ls shows them (#797)" do
-    dressed =
-      ~s({"vault":{"id":3,"name":"Notes","mappings":[
-        {"id":1,"path":"/Jobs","board":{"id":1,"code":"jobs","name":"Job Hunt"},"folder":null,"icon":"briefcase","color":"amber"}]}})
-
-    {"PATCH", path, body, out} =
-      run(["dress", "Notes", "/Jobs"], [icon: "briefcase", color: "amber"], dressed)
-
-    assert path =~ "/vaults/Notes/mappings"
-    assert JSON.decode!(body) == %{"path" => "/Jobs", "icon" => "briefcase", "color" => "amber"}
-    assert out =~ "dressed Notes"
-    assert out =~ "· briefcase amber"
-
-    # Only what is given goes: a colour alone leaves the icon as it is.
-    {"PATCH", _path, body, _out} = run(["dress", "Notes", "/Jobs"], color: "none")
-    assert JSON.decode!(body) == %{"path" => "/Jobs", "color" => "none"}
-  end
-
-  test "map sends path, board and folder" do
-    {"POST", path, body, out} = run(["map", "Notes", "/Journal"], board: "jobs", folder: "Notes")
-    assert path =~ "/api/vaults/Notes/mappings"
-    assert body =~ ~s("path":"/Journal")
-    assert body =~ ~s("board":"jobs")
-    assert body =~ ~s("folder":"Notes")
-    assert out =~ "mapped Notes"
-  end
-
-  test "unmap names the mapping by path in the query" do
-    {"DELETE", path, _, _} = run(["unmap", "Notes", "/Journal"])
-    assert path =~ "/api/vaults/Notes/mappings?path=%2FJournal"
-  end
-
-  test "locate prints the mapping and what is left of the path" do
-    response =
-      ~s({"mapping":{"id":2,"path":"/Journal","board":{"id":2,"code":"jobs","name":"Journal Desk"},"folder":null},"rest":"Acme/Call.md"})
-
-    {"GET", path, _, out} = run(["locate", "Notes", "/Journal/Acme/Call.md"], [], response)
-    assert path =~ "/api/vaults/Notes/locate?path="
-    assert out =~ "/Journal"
-    assert out =~ "then Acme/Call.md"
-  end
-
-  test "rm says the pages stay" do
-    {"DELETE", path, _, out} = run(["rm", "Notes"], [], ~s({"deleted":{"id":3,"name":"Notes"}}))
+  test "rename sends the words as one name" do
+    {"PATCH", path, body, out} = run(["rename", "Notes", "My", "Notes"])
     assert path =~ "/api/vaults/Notes"
-    assert out =~ "every page stays"
+    assert body =~ ~s("name":"My Notes")
+    assert out =~ "renamed Notes"
+  end
+
+  test "help no longer offers the mounting commands" do
+    help = capture_io(fn -> SlipdockCLI.main(["help"]) end)
+
+    for gone <- ~w(new rm map unmap inside dress split),
+        do: refute(help =~ "vault #{gone} ", "vault #{gone} is still in the help")
+
+    assert help =~ "vault locate <vault> <path>"
+    assert help =~ "vault import <dir>"
+  end
+
+  test "--inside, --with-board and --new-board are no longer options" do
+    switches = SlipdockCLI.switches()
+
+    for option <- [:inside, :with_board, :new_board],
+        do: refute(Keyword.has_key?(switches, option))
+  end
+
+  test "locate prints the board and what is left of the path" do
+    response =
+      ~s({"board":{"id":2,"code":"jobs","name":"Journal Desk","path":"/Journal Desk"},"rest":"Acme/Call.md"})
+
+    {"GET", path, _, out} = run(["locate", "Notes", "/Journal Desk/Acme/Call.md"], [], response)
+    assert path =~ "/api/vaults/Notes/locate?path="
+    assert out =~ "/Journal Desk"
+    assert out =~ "then Acme/Call.md"
   end
 
   test "resolve sends the link's words and prints the page and its path" do
@@ -182,7 +132,7 @@ defmodule SlipdockCLI.VaultsTest do
   describe "recordings on Google Drive (W-1690)" do
     test "vault set --recordings-folder sends the folder" do
       response =
-        ~s({"vault":{"id":3,"name":"Notes","mappings":[],"recordings_folder":"Meeting Recordings"}})
+        ~s({"vault":{"id":3,"name":"Notes","boards":[],"recordings_folder":"Meeting Recordings"}})
 
       {"PATCH", path, body, out} =
         run(["set", "Notes"], [recordings_folder: "Meeting Recordings"], response)
@@ -193,14 +143,14 @@ defmodule SlipdockCLI.VaultsTest do
     end
 
     test "vault set with an empty folder clears it" do
-      response = ~s({"vault":{"id":3,"name":"Notes","mappings":[],"recordings_folder":null}})
+      response = ~s({"vault":{"id":3,"name":"Notes","boards":[],"recordings_folder":null}})
       {"PATCH", _path, body, out} = run(["set", "Notes"], [recordings_folder: ""], response)
       assert body =~ ~s("recordings_folder":"")
       assert out =~ "Notes has no recordings folder now"
     end
 
     test "show names the recordings folder" do
-      response = ~s({"vault":{"id":3,"name":"Notes","mappings":[],"recordings_folder":"Rec"}})
+      response = ~s({"vault":{"id":3,"name":"Notes","boards":[],"recordings_folder":"Rec"}})
       {"GET", _, _, out} = run(["show", "Notes"], [], response)
       assert out =~ "recordings: Rec on Google Drive"
     end

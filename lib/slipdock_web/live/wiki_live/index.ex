@@ -46,8 +46,8 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   # The vault view (#752): a vault's own page, its tree and its pages at
   # their vault paths. What the address names decides which board's wiki
-  # this is a view of — the page's, the folder's, or the board mounted at
-  # the top — and everything else is that board's wiki as ever, shown with
+  # this is a view of — the page's, the folder's, the board's, or at the top
+  # the owner's first — and everything else is that board's wiki as ever, shown with
   # the vault's tree and the vault's breadcrumbs. `?page=` and `?folder=`
   # (ids) are how a board's wiki links here before it knows the path.
   @impl true
@@ -72,7 +72,7 @@ defmodule SlipdockWeb.WikiLive.Index do
          socket
          |> put_flash(
            :info,
-           "#{vault.name} has nothing mapped into it yet: map a board's wiki onto it."
+           "#{vault.name} has nothing in it yet: every board you make is a folder of it."
          )
          |> push_navigate(to: SlipdockWeb.VaultUrls.settings(vault))}
 
@@ -165,9 +165,9 @@ defmodule SlipdockWeb.WikiLive.Index do
       # version it bumps when the tree should be asked for again (a
       # filter, a toggle, a change by anyone), what the filter bar lets
       # through, and whether it is this board's tree or its vault's.
-      # On a board in a vault the tree is the vault's from where the
-      # board is mounted down, its own rows and what is mounted below
-      # them together (#758); `tree_root` is the key of its top.
+      # On a board in a vault the tree is the vault's from the board's
+      # folder down, its own rows and the sub-boards below them
+      # together (#758); `tree_root` is the key of its top.
       tree_version: 0,
       tree_filter: nil,
       # Whether the search box looks inside pages too, not only at names.
@@ -182,7 +182,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       tree_scope: "board",
       tree_root: "root",
       # Opened from another board's tree (`?in=`): that board, whose tree
-      # and breadcrumbs are kept, and where its wiki is mounted.
+      # and breadcrumbs are kept, and where its folder is.
       tree_context: nil,
       tree_context_root: nil,
       # The tree, or "recent": this board's pages, last edited first
@@ -199,7 +199,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       vault_target: nil,
       vault_addresses: nil,
       # The vault path the index is looking at (#1211): "" for the whole
-      # vault, a folder's or mount's path, nil off the vault view.
+      # vault, a board's or folder's path, nil off the vault view.
       vault_dir: nil,
       # The middle column's own listings: the index's folders and recent
       # pages, or what is in the folder being looked at.
@@ -213,7 +213,6 @@ defmodule SlipdockWeb.WikiLive.Index do
       # change, in the one place a reader is trying to read.
       organising: false,
       folder_modal: nil,
-      mount_modal: nil,
       # The Share dialog (#813): what is being shared, who has it, and the
       # groups the reader may pick from.
       share_modal: nil,
@@ -377,8 +376,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp assign_tree_recent(socket), do: assign(socket, tree_recent: [])
 
   # The `n` pages edited last of what the tree shows, each with where it
-  # opens: in a vault, what is mounted below this tree's top as well as its
-  # own board's (#1202), so a board mounted inside another is in its Recent.
+  # opens: in a vault, the sub-boards below this tree's top as well as its
+  # own board's (#1202).
   defp recent_rows(socket, n) do
     filter = scope_filter(socket, socket.assigns.tree_scope)
     only = filter && filter.only
@@ -396,8 +395,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   # Where in the vault this tree starts: the vault's top in the vault view,
-  # the board it was opened from, or where this board's wiki is mounted.
-  # Nil off a vault, or when only a folder of this board is mapped.
+  # the board it was opened from, or this board's folder. Nil off a vault.
   defp recent_root(%{assigns: %{vault: nil}}), do: nil
   defp recent_root(%{assigns: %{tree_context: %{}, tree_context_root: root}}), do: root
   defp recent_root(%{assigns: %{tree_scope: "vault"}}), do: ""
@@ -686,11 +684,10 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   # A page or folder of this board opened from another board's tree, as
-  # `?in=<board>` says (#758): that board's tree is kept, from where its
-  # wiki is mounted down, so a reader walking Handbook's wiki into
-  # Projects stays in Handbook's wiki. Only a board of the same vault the
-  # reader can open, with this board mounted below it; anything else is
-  # this board's own wiki as ever.
+  # `?in=<board>` says (#758): that board's tree is kept, from its folder
+  # down, so a reader walking a board's wiki into a sub-board of it stays in
+  # that board's wiki. Only a board of the same vault the reader can open,
+  # with this board below it; anything else is this board's own wiki as ever.
   defp assign_context(socket, ref) do
     %{board: board, vault: vault} = socket.assigns
 
@@ -699,7 +696,7 @@ defmodule SlipdockWeb.WikiLive.Index do
          boards = vault_boards(socket),
          {:ok, {context, _opts}} <- Map.fetch(boards, id),
          root when is_binary(root) <- Tree.vault_root(vault, id, boards),
-         true <- mounted_under?(vault, board.id, root) do
+         true <- under_root?(vault, board.id, root) do
       assign(socket,
         tree_context: context,
         tree_context_root: root,
@@ -711,14 +708,11 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  defp mounted_under?(vault, board_id, root) do
-    vault
-    |> Slipdock.Repo.preload(:mappings, force: true)
-    |> Map.get(:mappings)
-    |> Enum.any?(fn m ->
-      m.board_id == board_id and
-        (root == "" or m.path == root or String.starts_with?(m.path, root <> "/"))
-    end)
+  defp under_root?(vault, board_id, root) do
+    case Slipdock.Vaults.Layout.dirs(vault).boards[board_id] do
+      nil -> false
+      path -> root == "" or path == root or String.starts_with?(path, root <> "/")
+    end
   end
 
   # The index does double duty: the whole wiki, or one folder of it with
@@ -1775,34 +1769,6 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("close_share", _params, socket),
     do: {:noreply, assign(socket, share_modal: nil)}
 
-  # A board or folder mounted in the vault wears what its mapping says
-  # (#797). The mapping is the vault's, so only the vault's owner dresses it.
-  def handle_event("dress_mount", %{"mapping" => ref}, socket) do
-    with %{} = vault <- own_vault(socket),
-         {:ok, mapping} <- Slipdock.Vaults.find_mapping(vault, ref) do
-      {:noreply, assign(socket, mount_modal: mapping)}
-    else
-      _ -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("close_mount_modal", _params, socket),
-    do: {:noreply, assign(socket, mount_modal: nil)}
-
-  def handle_event("save_mount", params, socket) do
-    with %{} = mapping <- socket.assigns.mount_modal,
-         %{} = vault <- own_vault(socket),
-         {:ok, mapping} <- Slipdock.Vaults.dress_mapping(vault, mapping.id, params) do
-      {:noreply,
-       socket
-       |> assign(mount_modal: nil)
-       |> put_flash(:info, "#{Slipdock.Vaults.Mapping.display_path(mapping)} saved.")
-       |> load_tree()}
-    else
-      _ -> {:noreply, put_flash(socket, :error, "That couldn't be saved.")}
-    end
-  end
-
   def handle_event("save_folder", %{"name" => name} = params, socket) do
     modal = socket.assigns.folder_modal
     parent_id = blank_to_nil(params["parent_id"])
@@ -2303,9 +2269,6 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  # "Give it its own board…" (#747): what is in a vault folder moves to a
-  # board of its own and the folder's vault path is mapped onto it. Only the
-  # vault's owner, who alone changes its mappings, is offered it.
   # A folder's "Organise…" (#791): a way to sort what is filed in it, a
   # preview of where each item would go with a box to untick it, then the
   # ticked ones filed. The AI's suggestions are asked for on a button, since
@@ -2421,108 +2384,6 @@ defmodule SlipdockWeb.WikiLive.Index do
       {:noreply, socket}
     else
       _ -> {:noreply, put_flash(socket, :error, "Nothing was picked to organise.")}
-    end
-  end
-
-  def handle_event("split_folder", %{"id" => id}, socket) do
-    with %{} = vault <- own_vault(socket),
-         %Folder{} = folder <- tree_item(socket, "folder:#{id}"),
-         path when is_binary(path) <- Slipdock.Vaults.Split.vault_path(vault, folder) do
-      candidates =
-        vault
-        |> Slipdock.Vaults.mapping_candidates(socket.assigns.current_user)
-        |> Enum.map(fn
-          {%{id: board_id} = board, _reason} when board_id == folder.board_id ->
-            {board, "the folder is on it already"}
-
-          other ->
-            other
-        end)
-
-      {:noreply,
-       assign(socket,
-         tree_prompt: %{
-           kind: :split,
-           folder: folder,
-           path: path,
-           candidates: candidates,
-           choice: "",
-           new_name: folder.name,
-           preview: nil,
-           error: nil
-         }
-       )}
-    else
-      _ -> {:noreply, put_flash(socket, :error, "That folder can't be given a board from here.")}
-    end
-  end
-
-  def handle_event("split_draft", params, socket) do
-    with %{kind: :split} = prompt <- socket.assigns.tree_prompt,
-         %{} = vault <- own_vault(socket) do
-      # The name field only exists once "A new board…" is picked; until then
-      # the folder's own name is the suggestion.
-      prompt = %{
-        prompt
-        | choice: params["board"] || "",
-          new_name: Map.get(params, "new_name", prompt.new_name)
-      }
-
-      prompt =
-        case split_target(socket, prompt) do
-          nil ->
-            %{prompt | preview: nil, error: nil}
-
-          target ->
-            case Slipdock.Vaults.Split.preview(
-                   vault,
-                   socket.assigns.current_user,
-                   prompt.path,
-                   target
-                 ) do
-              {:ok, preview} -> %{prompt | preview: preview, error: nil}
-              {:error, _status, message} -> %{prompt | preview: nil, error: message}
-            end
-        end
-
-      {:noreply, assign(socket, tree_prompt: prompt)}
-    else
-      _ -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("confirm_split", _params, socket) do
-    with %{kind: :split} = prompt <- socket.assigns.tree_prompt,
-         %{} = vault <- own_vault(socket),
-         target when not is_nil(target) <- split_target(socket, prompt),
-         {:ok, %{board: board} = result} <-
-           Slipdock.Vaults.Split.run(vault, socket.assigns.current_user, prompt.path, target) do
-      socket =
-        socket
-        |> assign(tree_prompt: nil)
-        |> put_flash(
-          :info,
-          "/#{prompt.path} is #{board.name}'s now: #{count(result.move.pages, "page")} moved, " <>
-            "and their files in synced folders are unchanged."
-        )
-        |> load_tree()
-
-      current = socket.assigns.page && Wiki.get_page(socket.assigns.page.id)
-
-      {:noreply,
-       case current do
-         %Page{board_id: id} = page when id == board.id ->
-           push_navigate(socket, to: ~p"/boards/#{board}/wiki/#{page.slug}")
-
-         _ ->
-           assign_current(socket)
-       end}
-    else
-      {:error, _status, message} ->
-        {:noreply, put_flash(socket, :error, "Nothing changed: #{message}")}
-
-      _ ->
-        {:noreply, socket}
     end
   end
 
@@ -2928,7 +2789,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   # A filter in the vault's tree filters every board of it (R11.5), worked out
   # when asked for; this board's is worked out with the filter bar. On a
   # board in a vault, and in another board's tree, it filters what that tree
-  # shows: the vault from where the board is mounted down (#758).
+  # shows: the vault from the board's folder down (#758).
   defp scope_filter(%{assigns: %{tree_filter: nil}}, _scope), do: nil
 
   defp scope_filter(socket, "vault") do
@@ -2962,9 +2823,8 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  # Where this board's wiki is mounted in its vault, when its whole wiki is:
-  # its tree is the vault's from there down. Nil off a vault, or when only a
-  # folder of it is mapped.
+  # This board's folder in its vault: its tree is the vault's from there
+  # down. Nil off a vault.
   defp board_vault_root(%{assigns: %{vault: nil}}), do: nil
 
   defp board_vault_root(socket),
@@ -3015,7 +2875,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   # A board in a vault: its own rows, read with its folders and counts once,
-  # and what is mounted below them, its top being its mapping's.
+  # and what is below them, its top being its place in the vault.
   defp load_nodes(%{assigns: %{vault: %{} = vault, board: board}} = socket, _board, keys, through) do
     boards =
       Map.update!(vault_boards(socket), board.id, fn {board, opts} ->
@@ -3134,16 +2994,18 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp board_key(_socket, key), do: key
 
   # Every container "open all" opens: the folders, and in a vault the
-  # vault's own folders and every mapped board's folders too.
+  # boards and every folder on them too.
   defp all_container_keys(socket, "vault") do
     boards = vault_boards(socket)
     Tree.vault_folder_keys(socket.assigns.vault, boards)
   end
 
-  defp all_container_keys(%{assigns: %{vault: %{} = vault}} = socket, _board),
-    do:
-      Enum.map(socket.assigns.all_folders, &"folder:#{&1.id}") ++
-        Tree.vault_folder_keys(vault, vault_boards(socket))
+  defp all_container_keys(%{assigns: %{vault: %{} = vault}} = socket, _board) do
+    case board_vault_root(socket) do
+      nil -> Enum.map(socket.assigns.all_folders, &"folder:#{&1.id}")
+      root -> Tree.vault_folder_keys(vault, vault_boards(socket), root: root)
+    end
+  end
 
   defp all_container_keys(socket, _board),
     do: Enum.map(socket.assigns.all_folders, &"folder:#{&1.id}")
@@ -3225,7 +3087,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     base =
       row
-      |> Map.take([:kind, :id, :board_id, :title, :count, :pages, :code, :placed_in, :mapping])
+      |> Map.take([:kind, :id, :board_id, :title, :count, :pages, :code, :placed_in])
       |> Map.merge(%{
         key: key,
         href: row_href(row, key),
@@ -3333,30 +3195,8 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp row_href(_row, _key), do: nil
 
-  # The vault this board is in, when the reader owns it.
-  defp own_vault(%{assigns: %{vault: %{user_id: id} = vault, current_user: %{id: id}}}),
-    do: vault
-
-  defp own_vault(_socket), do: nil
-
-  # The board the split dialog has picked: one of the listed boards that can
-  # be mapped, or a new one by the name typed.
-  defp split_target(_socket, %{choice: "new", new_name: name}),
-    do: if(String.trim(name) == "", do: nil, else: {:new, name})
-
-  defp split_target(_socket, %{choice: choice, candidates: candidates}) do
-    with id when is_integer(id) <- Params.id(choice),
-         {board, nil} <- Enum.find(candidates, fn {b, _} -> b.id == id end) do
-      board
-    else
-      _ -> nil
-    end
-  end
-
   # What a vault view's address names, and the board whose wiki shows it.
   defp vault_target(vault, params) do
-    vault = Slipdock.Repo.preload(vault, [mappings: [:board, :folder]], force: true)
-
     found =
       cond do
         id = Params.id(params["page"]) ->
@@ -3367,7 +3207,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
         true ->
           case Enum.join(params["path"] || [], "/") do
-            "" -> with {:mapping, m} <- top_of(vault), do: {:top, m}
+            "" -> top_of(vault)
             path -> Slipdock.Vaults.resolve_address(vault, path)
           end
       end
@@ -3385,14 +3225,11 @@ defmodule SlipdockWeb.WikiLive.Index do
              do: {:ok, {:folder, id}, folder.board_id},
              else: (_ -> :error)
 
-      {:top, %{folder_id: nil, board_id: board_id}} ->
+      {:top, board_id} ->
         {:ok, {:index, ""}, board_id}
 
-      {_, %{folder_id: nil, board_id: board_id, path: path}} ->
-        {:ok, {:index, path}, board_id}
-
-      {_, %{folder_id: folder_id, board_id: board_id}} ->
-        {:ok, {:folder, folder_id}, board_id}
+      {:board, id} ->
+        {:ok, {:index, Slipdock.Vaults.addresses(vault).boards[id]}, id}
 
       {:empty, vault} ->
         {:error, :empty, vault}
@@ -3402,12 +3239,15 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  # The top of a vault: the board mounted at `/`, or the first one mounted
-  # anywhere.
-  defp top_of(%{mappings: []} = vault), do: {:empty, vault}
+  # The top of a vault is no board's, but the view needs one to stand on:
+  # the first root board, a live one if there is one.
+  defp top_of(vault) do
+    roots = for %{board: b} <- Slipdock.Vaults.boards(vault), is_nil(b.parent_card_id), do: b
 
-  defp top_of(%{mappings: mappings}) do
-    {:mapping, Enum.find(mappings, &(&1.path == "")) || hd(mappings)}
+    case Enum.find(roots, &is_nil(&1.archived_at)) || List.first(roots) do
+      nil -> {:empty, vault}
+      board -> {:top, board.id}
+    end
   end
 
   # The vault view's address for what is shown now.
@@ -4532,7 +4372,6 @@ defmodule SlipdockWeb.WikiLive.Index do
             phx-hook="WikiTree"
             data-board={@board.id}
             data-vault={@vault && @vault.id}
-            data-vault-owner={to_string(!!@vault and @vault.user_id == @current_user.id)}
             data-organising={to_string(@organising)}
             data-can-write={to_string(@can_write)}
             data-inbound={to_string(@inbound)}
@@ -4648,7 +4487,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 id="vault-settings"
                 navigate={SlipdockWeb.VaultUrls.settings(@vault_view)}
                 class="btn btn-ghost btn-xs gap-1"
-                title="Mount a board's wiki at a path, and what is synced where"
+                title="The vault's name, keys, recordings folder and synced folders"
               >
                 <.icon name="hero-cog-6-tooth" class="size-3.5" /> Settings
               </.link>
@@ -4929,7 +4768,6 @@ defmodule SlipdockWeb.WikiLive.Index do
       </div>
 
       <.folder_modal :if={@folder_modal} modal={@folder_modal} outline={@folder_outline} />
-      <.mount_modal :if={@mount_modal} mapping={@mount_modal} />
       <.folder_delete_modal :if={@folder_delete} folder={@folder_delete} owner={@can_manage} />
       <.tree_prompt :if={@tree_prompt} prompt={@tree_prompt} />
       <.share_modal :if={@share_modal} modal={@share_modal} />
@@ -5042,40 +4880,6 @@ defmodule SlipdockWeb.WikiLive.Index do
             <button type="submit" class="btn btn-primary btn-sm">
               {if @modal.folder, do: "Save", else: "Make folder"}
             </button>
-          </div>
-        </form>
-      </div>
-    </.modal>
-    """
-  end
-
-  attr :mapping, :any, required: true
-
-  # What a board or folder mounted in the vault wears in its tree (#797).
-  defp mount_modal(assigns) do
-    ~H"""
-    <.modal id="mount-modal" on_close={JS.push("close_mount_modal")} size="sm">
-      <div class="space-y-5 p-6">
-        <h2 class="text-lg font-semibold">
-          {Slipdock.Vaults.Mapping.display_path(@mapping)}
-        </h2>
-        <p class="text-sm text-base-content/60">
-          Mounted from {@mapping.board.name}. What it wears here is the vault's.
-        </p>
-        <form id="mount-form" phx-submit="save_mount" class="space-y-4">
-          <.dress_picker
-            id="mount-dress"
-            kind={:folder}
-            icon_name="icon"
-            color_name="color"
-            icon={@mapping.icon}
-            color={@mapping.color}
-          />
-          <div class="flex justify-end gap-2">
-            <button type="button" phx-click="close_mount_modal" class="btn btn-ghost btn-sm">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-primary btn-sm">Save</button>
           </div>
         </form>
       </div>
@@ -5307,86 +5111,6 @@ defmodule SlipdockWeb.WikiLive.Index do
             class="btn btn-primary btn-sm"
           >
             Move
-          </button>
-        </div>
-      </div>
-    </.modal>
-    """
-  end
-
-  # Giving a vault folder its own board (#747): which board, then what a
-  # synced folder would see, before anything changes.
-  defp tree_prompt(%{prompt: %{kind: :split}} = assigns) do
-    ~H"""
-    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
-      <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Give /{@prompt.path} its own board</h2>
-        <p class="text-sm text-base-content/70">
-          What is in “{@prompt.folder.name}” moves to the board you pick, and /{@prompt.path} is mapped onto that board. The notes keep their vault paths, so synced folders
-          see no change to them.
-        </p>
-        <form id="split-form" phx-change="split_draft" class="space-y-2">
-          <select name="board" class="select select-sm w-full" aria-label="Board">
-            <option value="" selected={@prompt.choice == ""}>Pick a board…</option>
-            <option value="new" selected={@prompt.choice == "new"}>A new board…</option>
-            <option
-              :for={{board, reason} <- @prompt.candidates}
-              value={board.id}
-              disabled={not is_nil(reason)}
-              selected={@prompt.choice == to_string(board.id)}
-            >
-              {board.name}{if reason, do: " — #{reason}"}
-            </option>
-          </select>
-          <input
-            :if={@prompt.choice == "new"}
-            type="text"
-            name="new_name"
-            value={@prompt.new_name}
-            class="input input-sm w-full"
-            aria-label="New board's name"
-            phx-debounce="400"
-          />
-        </form>
-        <p :if={@prompt.error} id="split-error" class="text-sm text-error">{@prompt.error}</p>
-        <div :if={@prompt.preview} id="split-preview" class="space-y-1 text-sm">
-          <% p = @prompt.preview %>
-          <p>
-            {count(p.move.pages, "page")} and {count(p.move.folders, "folder")} move from {p.from} to {if p.new_board,
-              do: "a new board, #{p.into}",
-              else: p.into}.
-          </p>
-          <p>Synced folders: {count(p.unchanged, "file")} unchanged.</p>
-          <p :if={p.joining.count > 0}>
-            {p.into}'s own {count(p.joining.count, "page")} join /{@prompt.path}:
-            <span class="font-mono text-xs">{Enum.join(p.joining.sample, ", ")}</span>
-          </p>
-          <div
-            :if={p.renamed != [] or p.move.title_clashes != [] or p.move.left_behind != []}
-            id="split-clashes"
-            class="rounded-lg bg-warning/10 p-3"
-          >
-            <p :if={p.move.title_clashes != []}>
-              Same title as a page already there: {Enum.join(p.move.title_clashes, ", ")}
-            </p>
-            <p :for={r <- p.renamed} class="font-mono text-xs">{r.from} → {r.to}</p>
-            <p :if={p.move.left_behind != []}>
-              Staying behind: {Enum.join(p.move.left_behind, ", ")}
-            </p>
-          </div>
-        </div>
-        <div class="flex justify-end gap-2">
-          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
-            Cancel
-          </button>
-          <button
-            id="split-confirm"
-            type="button"
-            phx-click="confirm_split"
-            class="btn btn-primary btn-sm"
-            disabled={is_nil(@prompt.preview)}
-          >
-            Move and map
           </button>
         </div>
       </div>
@@ -6212,7 +5936,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   # In the vault view the tree beside it is the filing, so the page is the
   # notes changed most lately: the whole vault's at its top, else those
-  # under the board or folder mounted here.
+  # under the board or folder here.
   defp index_body(%{vault: %{}} = assigns) do
     ~H"""
     <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">

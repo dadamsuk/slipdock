@@ -330,8 +330,7 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
     setup do
       user = user_fixture("pages@example.com")
       board = board_fixture(%{"name" => "Notes"}, owner: user)
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+      {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
       vault |> Ecto.Changeset.change(recordings_folder: "Rec") |> Repo.update!()
       connect!(user)
 

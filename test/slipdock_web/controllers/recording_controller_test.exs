@@ -29,8 +29,7 @@ defmodule SlipdockWeb.RecordingControllerTest do
 
   setup %{user: user} do
     board = board_fixture(%{"name" => "Notes"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     vault = vault |> Ecto.Changeset.change(recordings_folder: "Rec") |> Repo.update!()
     connect!(user)
     drive!(@drive)
@@ -105,9 +104,12 @@ defmodule SlipdockWeb.RecordingControllerTest do
            }
   end
 
-  test "a page on a board in no vault", %{conn: conn, user: user} do
-    other = board_fixture(%{"name" => "Loose"}, owner: user)
+  test "a page on a board in no vault: one nobody owns", %{conn: conn, user: user} do
+    owner = user_fixture("rec-gone@example.com")
+    other = board_fixture(%{"name" => "Loose"}, owner: owner)
+    share_fixture(other, user, "read")
     page = meeting(other, "recording: gdrive:Rec/m.m4a")
+    other |> Ecto.Changeset.change(owner_id: nil) |> Repo.update!()
 
     # Not the same as a vault without a folder (#784).
     assert json_response(get(conn, ~p"/wiki-pages/#{page.id}/recording"), 409) == %{

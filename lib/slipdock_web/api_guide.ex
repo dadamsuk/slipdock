@@ -2347,74 +2347,42 @@ defmodule SlipdockWeb.APIGuide do
     one click away at `/search?q=…&board=N` (which is a link worth handing
     somebody when the name they tried is not what the page is called).
 
-    ### Vaults: board wikis as one Obsidian-style vault
+    ### The vault: every board you own as one Obsidian-style tree
 
     A vault is a folder tree of Markdown (and other) files; the word is
-    Obsidian's, but nothing here needs Obsidian. A Slipdock **vault** is
-    yours alone and holds no pages: it is a set of
-    **mappings**, each a vault path → a board's wiki or one folder of it, so
-    several boards' wikis read as one tree of files (`/` → Handbook,
-    `/Projects` → Project Work). A mapping inside another is fine; the longest
-    matching prefix wins. You can only map a board you can write to, and a
-    board belongs to one vault — that vault is where a plain `[[link]]` on it
-    is looked for.
+    Obsidian's, but nothing here needs Obsidian. You have exactly one, made the
+    first time it is wanted, and it is derived rather than configured: every
+    root board you own, archived ones too, is a folder off the root at
+    `/<board name>`, and a sub-board sits in its epic's folder,
+    `<Board>/Cards/<Epic>/`. Everything in a board's wiki is in its folder.
+    Boards shared with you by someone else are not in it. A new, renamed or
+    archived board needs no call: archived is a flag, and the path stays the
+    same. Board names that clash, case aside, are numbered, the oldest plain.
 
     ```sh
-    curl -s -H "$H" B/api/vaults          # yours: mappings (each with its `pages`) and `mirrors`
-    curl -s -X POST -H "$H" -H 'content-type: application/json' \\
-         B/api/vaults -d '{"name": "Notes"}'
-    curl -s -X POST -H "$H" -H 'content-type: application/json' \\
-         B/api/vaults/Notes/mappings -d '{"path": "/Projects", "board": "projects", "folder": "Inbox"}'
+    curl -s -H "$H" B/api/vaults          # one vault: `pages`, `boards`, `mirrors`
     curl -s -H "$H" "B/api/vaults/Notes/locate?path=/Projects/Acme/Call.md"
-    # → {"mapping": {"path": "/Projects", "board": {...}, ...}, "rest": "Acme/Call.md"}
-    # "dry_run": true on a mapping (or &dry_run=true on its removal) previews it, changing nothing:
-    # `arriving`/`leaving` pages with their vault paths, `moving` ones and the `mirrors` affected
-    curl -s -X DELETE -H "$H" "B/api/vaults/Notes/mappings?path=/Projects"
+    # → {"board": {"id": 7, "path": "/Projects", ...}, "rest": "Acme/Call.md"}
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
          B/api/vaults/Notes -d '{"name": "Brain"}'
-    curl -s -X DELETE -H "$H" B/api/vaults/Brain   # its mappings go; the pages stay
     ```
 
-    A mapping that would put one mapping's pages at paths another owns
-    (`/Projects` onto Project Work while Handbook at `/` still has pages in
-    `Projects`) is a 422 naming the count: move those pages first, or map
-    elsewhere. `overlaps` on a vault lists any made before that check.
-    The way out of that refusal, in one step: `POST /api/vaults/:id/split`
-    with `path` (`/Projects`) and `board` (or `new_board` to make one) moves
-    what is in that folder to the board's top and maps `path` onto it; the
-    notes keep their vault paths, so synced folders see no change to them.
-    `dry_run` reports it first (`unchanged`, `renamed`, `joining`, `move`).
-    Shell: `slipdock vault split V /Projects --board B [--dry-run]`; MCP:
-    `manage_vault` `split`.
-    A board that only holds a vault's pages can be kept *inside* it: for
-    the vault's owner it leaves the web app's board list and is named on the
-    vault's tile, while staying the same board everywhere else (its URL,
-    search, cards, rules; anyone it is shared with sees it as usual).
-    `"inside": true` on a mapping of a whole board (never a folder), or
-    `PATCH /api/vaults/:id/mappings` with `path` (or `/mappings/:mapping`)
-    and `inside: true|false` later; each mapping says `inside`, and
-    `GET /api/boards` gives `inside_vault` (the vault's name, or null).
-    `POST /api/vaults` with `with_board: true` makes the vault a board of
-    the same name, mapped at `/` and kept inside. Shell: `slipdock vault
-    map V / --board B --inside`, `slipdock vault inside V / [--off]`,
-    `slipdock vault new NAME --with-board`; MCP: `manage_vault` `inside`,
-    and `inside`/`with_board` on `map`/`create`.
-    What a mapping's row wears in the vault's tree: `icon` and `color` on
-    the same `PATCH` (a wiki icon name and a palette colour, blank or
-    `none` for none; only what is given changes); each mapping says them.
-    Shell: `slipdock vault dress V /Jobs --icon briefcase --color amber`.
-    `mirrors` are the folders the vault is synced to, as far as the server
-    knows: each API token that has listed it (`/sync`) or followed its feed,
-    by label, with `last_synced_at`. On a shell: `slipdock vault
-    ls|show|new|rename|rm|map|unmap|locate`; over MCP, `list_vaults` and
-    `manage_vault`; in the web app, the Vaults screen (`/vaults`). A vault's
+    Each of `boards` has `id`, `code`, `name`, `path`, `archived`,
+    `wiki_tree_icons` and `wiki_sort`. `PATCH` also takes `shortcut`, `hotkey`
+    and `recordings_folder`. `locate` answers with the deepest board holding
+    the path, a sub-board being inside its parent's folder, and is a 404 at
+    the root or in no board. `mirrors` are the folders the vault is synced
+    to, as far as the server knows: each API token that has listed it
+    (`/sync`) or followed its feed, by label, with `last_synced_at`. On a
+    shell: `slipdock vault ls|show|rename|set|locate`; over MCP, `list_vaults`
+    and `manage_vault`; in the web app, the Vault page (`/vaults`). A vault's
     `url` is its own view in the web app, where a page's address is its vault
     path (`/vaults/Notes/Projects/Roadmap`): give the person that
     link rather than a board's when the page is in their vault.
 
     **Links reach across the vault.** On a board in a vault, a plain
     `[[Note]]` tries its own board, then every board of the vault: each page
-    has a vault path (mapping path, folders, parent pages, title), the last
+    has a vault path (board, folders, parent pages, title), the last
     part of a link matches a title, slug or alias, any parts before it the
     end of the path, and the shortest path wins a tie — so `[[X/Note]]`
     picks one. `GET /api/vaults/:id/resolve?link=X/Note` answers which page
@@ -2480,17 +2448,17 @@ defmodule SlipdockWeb.APIGuide do
     directories as strings; `folder_details` maps the same vault paths to
     `{id, board_id, icon, color, writable, shareable}`. With `?stubs=1`, a
     stub carries none of these, and a directory only a stub needs isn't in
-    `folder_details`. `GET /api/vaults/:id` says whether the vault is yours
-    (`owned`, which is who may dress a mount), and each mapping's
-    `board.wiki_tree_icons` whether that board's tree shows icons and colours
-    at all; turning that off isn't in the change feed, nor is a mount's dress.
+    `folder_details`. `boards` lists the boards you can open, each `{id, name,
+    path, archived}`. `GET /api/vaults/:id` says whether the vault is yours
+    (`owned`), and each of its `boards`' `wiki_tree_icons` whether that board's
+    tree shows icons and colours at all; turning that off isn't in the change
+    feed.
 
     It is enough to sort that tree as the web app does, too. Each page and file
     has `inserted_at` and `updated_at`, and a page a `position`; a file's is
     null. `folder_details` adds `position`, `sort`, `inserted_at`, `updated_at`,
     and `also_pages` and `also_folders`, the ids of what is also filed there.
-    `GET /api/vaults/:id` adds each mapping's `board.wiki_sort` and, on a
-    mapped folder, `folder.sort`. Within a directory, the sort is the folder's
+    `GET /api/vaults/:id` adds each board's `wiki_sort`. Within a directory, the sort is the folder's
     `sort`, or if that is null its board's `wiki_sort`, which is `name` until
     someone chooses. A page's own directory (no `folder_details`, an `index.md` above
     the rest) is always `manual`. Then draw, in this order:
@@ -2584,7 +2552,7 @@ defmodule SlipdockWeb.APIGuide do
     files under that folder: `PATCH /api/vaults/:id {"recordings_folder":
     "Meeting Recordings"}` (checked against Drive; `""` clears it), or
     `slipdock vault set V --recordings-folder PATH`. `GET /api/me/drive`
-    (`slipdock drive status`) says whether you are connected and each vault's
+    (`slipdock drive status`) says whether you are connected and your vault's
     folder. Write the page like any other vault note, with
     `PUT /api/vaults/:id/sync/pages {"path", "content"}`; add
     `recording_drive_id` later with the `base` hash you got back, and on a

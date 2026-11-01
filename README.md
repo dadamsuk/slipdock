@@ -184,9 +184,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **A wiki per board** — [Markdown pages in a tree of folders](docs/manual.md#wiki),
   written in an Obsidian-style live-preview editor (descriptions and comments too),
   that stays quick with thousands of notes (loaded a folder at a time, only the rows
-  on screen drawn), icons and colours on folders and pages, `[[links]]` (typing `[[` opens a page picker: by title, folder or `W-` code, recent first, across every vault you have), live card chips, live query blocks, backlinks, revisions,
-  templates, export and public links. Several boards' wikis can be laid out as
-  one [vault](docs/manual.md#vaults), a folder tree of Markdown (and other)
+  on screen drawn), icons and colours on folders and pages, `[[links]]` (typing `[[` opens a page picker: by title, folder or `W-` code, recent first, across your vault), live card chips, live query blocks, backlinks, revisions,
+  templates, export and public links. Every board you own is a folder of your one
+  [vault](docs/manual.md#vaults), a folder tree of Markdown (and other)
   files, the way Obsidian keeps notes (Obsidian itself isn't needed): links, `#tags`, aliases,
   embeds and front matter as Obsidian reads them, a page or a whole folder filed in several
   folders, and [`slipdock sync`](docs/manual.md#syncing-a-vault-to-a-folder)
@@ -753,8 +753,8 @@ an OAuth client you make once:
 
    Unlike the settings above, these are read on every start. Unset, the Drive
    connection isn't offered at all.
-3. People connect Drive on **Account → Settings**, and set each vault's
-   recordings folder on the vaults screen (or `slipdock vault set V
+3. People connect Drive on **Account → Settings**, and set the vault's
+   recordings folder on the Vault page (or `slipdock vault set V
    --recordings-folder PATH`).
 
 The scope is `drive.readonly`. Tokens are stored encrypted with a key derived
@@ -966,14 +966,14 @@ the rest of its sections, one call each with `section`), `list_boards`, `get_boa
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
-the diff one save made, or between any two), `list_vaults` (your vaults, or where a vault path lands), `activity`
+the diff one save made, or between any two), `list_vaults` (your vault, or which board a vault path lands in), `activity`
 (a board's log, or one card's), `download_file` (a card's or page's attached file: text as text, an image as an image; `text: true` gives the words read from a PDF or image; `link: true` gives a single-use, ten-minute URL to curl it from a shell instead) `list_automations` (a board's rules, owner only, with the spec grammar on request) `list_tools` (the [Tools](#tools) you can install, the board each install made, and with `file` one file of a Tool) and `garden` (a board's open [tidy-up suggestions](docs/manual.md#tidying-up); `run: true` looks the board over first) to read; `create_card`,
 `update_card`, `move_card`, `comment`, `leave_handoff` (where you left a card: the one next step and a short note, which `get_card` shows first), `garden_decide` (apply, dismiss or undo one tidy-up suggestion the person approved, with `confirm: true`), `upload_file` (attach a file of up to 10 MB to a card or page; `sha256` refuses bytes that changed on the way and is required with `content_base64`, since base64 a model writes out goes wrong above about 1 KB — a caller with a shell asks for `link: true` instead, and gets a single-use upload URL, good for ten minutes and needing no token, to `curl -F file=@… -F sha256=…` the file to (it takes and answers what `/api/cards/:id/attachments` does, so neither the bytes nor a long-lived token pass through the model), and naming a vault and a file's path in it copies a file the synced vault already holds without its bytes passing through the model; and the answer carries the stored file's `sha256`, as `get_card` and `read_page` listings do; a bigger file goes in verified chunks — `append: true` with each chunk's `sha256`, then `finish: true` with the whole file's — and only the finished file becomes an attachment; `replace: true` deletes older files of the same name once it is stored, so a rebuild leaves one copy), `delete_attachment` (a file off a card or page by its id, with `confirm: true`), `complete_card`, `status_update` (a card's stated health, with a note), `archive_card`,
 `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`,
-`delete_board`, `write_page`, `quick_note` (a note the server names and files in your main vault), `page_tool` (an AI tool over a page: summarise, extract actions and more), `update_page` (rename, summary, move, file, archive or
+`delete_board`, `write_page`, `quick_note` (a note the server names and files in your vault), `page_tool` (an AI tool over a page: summarise, extract actions and more), `update_page` (rename, summary, move, file, archive or
 restore, pin to a card), `file_folder` (file a wiki folder in other folders as well as
 its home), `share` (share a wiki page or folder with a person or group, or take it
-back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault, map vault paths onto board wikis, move a folder to another board, give a vault folder its own board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built) to write, and
+back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_vault` (rename the vault, move a folder to another board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, and for capture — `capture_meeting` while an admin has meeting mode on,
 `capture_chat` (send this conversation) while chat capture is on (the default), and `get_capture`,

@@ -688,12 +688,10 @@ defmodule SlipdockWeb.Router do
     put "/boards/:board/sprints/sources", SprintController, :put_sources
     post "/boards/:board/sprints", SprintController, :create
 
-    # Vaults: board wikis laid out as one Obsidian-style vault (W-103).
+    # The caller's vault: every board they own as one tree of files (W-2201).
     get "/vaults", VaultController, :index
-    post "/vaults", VaultController, :create
     get "/vaults/:id", VaultController, :show
     patch "/vaults/:id", VaultController, :update
-    delete "/vaults/:id", VaultController, :delete
     get "/vaults/:id/locate", VaultController, :locate
     get "/vaults/:id/resolve", VaultController, :resolve
     get "/vaults/:id/wanted", VaultController, :wanted
@@ -709,14 +707,6 @@ defmodule SlipdockWeb.Router do
     post "/vaults/:id/sync/files/:file_id", VaultSyncController, :post_file
     patch "/vaults/:id/sync/files/:file_id", VaultSyncController, :patch_file
     delete "/vaults/:id/sync/files/:file_id", VaultSyncController, :delete_file
-    post "/vaults/:id/mappings", VaultController, :map
-    # Give a vault folder its own board: move its contents and map its path (#747).
-    post "/vaults/:id/split", VaultController, :split
-    delete "/vaults/:id/mappings", VaultController, :unmap
-    delete "/vaults/:id/mappings/:mapping", VaultController, :unmap
-    # Keep a board mapped whole inside the vault, or let it out (#757).
-    patch "/vaults/:id/mappings", VaultController, :update_mapping
-    patch "/vaults/:id/mappings/:mapping", VaultController, :update_mapping
     # The board's wiki (see `Slipdock.Wiki`). `:id` takes a numeric id, a page
     # code like W-31, or board-code/slug.
     get "/pages/resolve", PageController, :resolve

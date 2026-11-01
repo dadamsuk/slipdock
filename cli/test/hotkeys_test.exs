@@ -44,7 +44,7 @@ defmodule SlipdockCLI.HotkeysTest do
   end
 
   test "vault set sends the shortcut and hotkey and says what opens it (#1204)" do
-    serve([{200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":2,"mappings":[]}})}])
+    serve([{200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":2,"boards":[]}})}])
 
     out =
       capture_io(fn ->
@@ -60,7 +60,7 @@ defmodule SlipdockCLI.HotkeysTest do
 
   test "vault set --hotkey none says the vault has none now" do
     serve([
-      {200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":null,"mappings":[]}})}
+      {200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":null,"boards":[]}})}
     ])
 
     out = capture_io(fn -> SlipdockCLI.Vaults.run("vault", ["set", "7"], hotkey: "none") end)
@@ -71,7 +71,7 @@ defmodule SlipdockCLI.HotkeysTest do
   end
 
   test "vault show says which keys open it" do
-    serve([{200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":2,"mappings":[]}})}])
+    serve([{200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":2,"boards":[]}})}])
     out = capture_io(fn -> SlipdockCLI.Vaults.run("vault", ["show", "7"], []) end)
 
     assert out =~ "opens with b then nt or Ctrl+Shift+2"

@@ -8,7 +8,8 @@ defmodule Slipdock.WikiNoteTagsTest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Boards, Vaults, Wiki}
+  alias Slipdock.{Boards, Repo, Vaults, Wiki}
+  alias Slipdock.Boards.Board
   alias Slipdock.Wiki.NoteTags
 
   describe "extract/2" do
@@ -58,8 +59,7 @@ defmodule Slipdock.WikiNoteTagsTest do
       user = user_fixture()
       board = board_fixture(%{"name" => "Brain", "code" => "brain"}, owner: user)
       outside = board_fixture(%{"name" => "Work", "code" => "work3"}, owner: user)
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+      {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
       %{user: user, board: board, outside: outside, vault: vault}
     end
 
@@ -81,7 +81,9 @@ defmodule Slipdock.WikiNoteTagsTest do
       assert page.note_tags == ["other"]
     end
 
-    test "a board outside a vault is unchanged: #word is a word", ctx do
+    test "a board nobody owns is in no vault: #word is a word", ctx do
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.outside.id), set: [owner_id: nil])
+
       {:ok, page} =
         Wiki.create_page(ctx.outside, %{"title" => "Note", "body" => "#idea"}, user: ctx.user)
 
@@ -89,21 +91,11 @@ defmodule Slipdock.WikiNoteTagsTest do
       assert Wiki.list_pages(ctx.outside, note_tag: "idea") == []
     end
 
-    test "joining a vault reads the board's notes; leaving clears them", ctx do
+    test "any board its owner has reads them, with nothing to set up", ctx do
       {:ok, page} =
         Wiki.create_page(ctx.outside, %{"title" => "Note", "body" => "#idea"}, user: ctx.user)
 
-      {:ok, _} = Vaults.add_mapping(ctx.vault, ctx.user, %{path: "/Work", board: ctx.outside})
-      assert Wiki.get_page!(page.id).note_tags == ["idea"]
-
-      {:ok, _} = Vaults.remove_mapping(ctx.vault, "/Work")
-      assert Wiki.get_page!(page.id).note_tags == []
-
-      {:ok, in_vault} =
-        Wiki.create_page(ctx.board, %{"title" => "Kept", "body" => "#x"}, user: ctx.user)
-
-      {:ok, _} = Vaults.delete_vault(ctx.vault)
-      assert Wiki.get_page!(in_vault.id).note_tags == []
+      assert page.note_tags == ["idea"]
     end
 
     test "listing by tag finds the tag and what is nested under it", ctx do

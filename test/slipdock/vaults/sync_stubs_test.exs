@@ -43,8 +43,7 @@ defmodule Slipdock.Vaults.SyncStubsTest do
     mine = board_fixture(%{"name" => "Mine"}, owner: sharee)
     {:ok, inbox} = Wiki.create_folder(mine, %{"name" => "Inbox"})
     page_fixture(mine, %{"title" => "My note", "folder_id" => inbox.id}, user: sharee)
-    {:ok, vault} = Vaults.create_vault(sharee, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, sharee, %{path: "/", board: mine})
+    {:ok, vault} = sharee |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
 
     %{
       owner: owner,
@@ -70,12 +69,15 @@ defmodule Slipdock.Vaults.SyncStubsTest do
     {:ok, _} = Access.grant(c.plan, c.sharee, "read", c.owner)
     {:ok, _} = Placements.add(c.plan, c.inbox, c.sharee)
 
-    assert %{"Inbox/Plan.md" => stub} = stubs(listing(c))
+    assert %{"Mine/Inbox/Plan.md" => stub} = stubs(listing(c))
     assert stub.content == "[Plan](#{@base}/shared/pages/#{c.plan.id})\n"
     assert stub.hash == Sync.hash(stub.content)
     refute stub.content =~ "SECRET"
     # The sharee's own note syncs as ever, beside it.
-    assert Enum.any?(listing(c).entries, &(&1.kind == "page" and &1.path == "Inbox/My note.md"))
+    assert Enum.any?(
+             listing(c).entries,
+             &(&1.kind == "page" and &1.path == "Mine/Inbox/My note.md")
+           )
   end
 
   test "a shared folder is a directory of stubs mirroring its subtree, files included", c do
@@ -87,16 +89,16 @@ defmodule Slipdock.Vaults.SyncStubsTest do
 
     assert Map.keys(found) |> Enum.sort() ==
              [
-               "Inbox/Shared/Deep/Inner.md",
-               "Inbox/Shared/Deep/chart.png.md",
-               "Inbox/Shared/Plan.md"
+               "Mine/Inbox/Shared/Deep/Inner.md",
+               "Mine/Inbox/Shared/Deep/chart.png.md",
+               "Mine/Inbox/Shared/Plan.md"
              ]
 
-    assert found["Inbox/Shared/Deep/chart.png.md"].content =~
+    assert found["Mine/Inbox/Shared/Deep/chart.png.md"].content =~
              "[chart.png](#{@base}/files/#{c.chart.id}"
 
-    assert "Inbox/Shared" in listed.folders
-    assert "Inbox/Shared/Deep" in listed.folders
+    assert "Mine/Inbox/Shared" in listed.folders
+    assert "Mine/Inbox/Shared/Deep" in listed.folders
 
     # Not a word, nor a byte, of what was shared.
     for {_path, stub} <- found, do: refute(stub.content =~ "SECRET")
@@ -105,16 +107,16 @@ defmodule Slipdock.Vaults.SyncStubsTest do
   test "renamed inside the share, the stub follows", c do
     {:ok, _} = Access.grant(c.shared, c.sharee, "read", c.owner)
     {:ok, _} = FolderPlacements.add(c.shared, c.inbox, c.sharee)
-    before = stubs(listing(c))["Inbox/Shared/Plan.md"]
+    before = stubs(listing(c))["Mine/Inbox/Shared/Plan.md"]
 
     {:ok, _} = Wiki.update_page(c.plan, %{"title" => "Plan B"}, user: c.owner)
     {:ok, _} = Wiki.update_page(c.inner, %{"folder_id" => c.shared.id}, user: c.owner)
 
     found = stubs(listing(c))
-    refute Map.has_key?(found, "Inbox/Shared/Plan.md")
-    assert found["Inbox/Shared/Plan B.md"].id == before.id
-    assert Map.has_key?(found, "Inbox/Shared/Inner.md")
-    refute Map.has_key?(found, "Inbox/Shared/Deep/Inner.md")
+    refute Map.has_key?(found, "Mine/Inbox/Shared/Plan.md")
+    assert found["Mine/Inbox/Shared/Plan B.md"].id == before.id
+    assert Map.has_key?(found, "Mine/Inbox/Shared/Inner.md")
+    refute Map.has_key?(found, "Mine/Inbox/Shared/Deep/Inner.md")
   end
 
   test "revoking the share, or taking the placement out, takes the stubs away", c do
@@ -128,7 +130,7 @@ defmodule Slipdock.Vaults.SyncStubsTest do
 
     {:ok, _} = Access.grant(c.plan, c.sharee, "read", c.owner)
     {:ok, _} = Placements.add(c.plan, c.inbox, c.sharee)
-    assert Map.has_key?(stubs(listing(c)), "Inbox/Plan.md")
+    assert Map.has_key?(stubs(listing(c)), "Mine/Inbox/Plan.md")
     {:ok, _} = Placements.remove(c.plan, c.inbox, c.sharee)
     assert stubs(listing(c)) == %{}
   end
@@ -145,17 +147,18 @@ defmodule Slipdock.Vaults.SyncStubsTest do
     {:ok, _} = Access.grant(c.plan, c.sharee, "read", c.owner)
     {:ok, _} = Placements.add(c.plan, c.inbox, c.sharee)
 
-    assert Map.has_key?(stubs(listing(c)), "Inbox/Plan (shared).md")
+    assert Map.has_key?(stubs(listing(c)), "Mine/Inbox/Plan (shared).md")
   end
 
   test "the owner's own sync is unchanged", c do
-    {:ok, owner_vault} = Vaults.create_vault(c.owner, %{"name" => "Owner's vault"})
-    {:ok, _} = Vaults.add_mapping(owner_vault, c.owner, %{path: "/", board: c.theirs})
+    {:ok, owner_vault} =
+      c.owner |> Vaults.root() |> Vaults.update_vault(%{"name" => "Owner's vault"})
+
     {:ok, _} = Access.grant(c.plan, c.sharee, "read", c.owner)
     {:ok, _} = Placements.add(c.plan, c.inbox, c.sharee)
 
     listed = Sync.listing(owner_vault, c.owner, stubs: true, base_url: @base)
     refute Enum.any?(listed.entries, &(&1.kind == "stub"))
-    assert Enum.any?(listed.entries, &(&1.kind == "page" and &1.path == "Shared/Plan.md"))
+    assert Enum.any?(listed.entries, &(&1.kind == "page" and &1.path == "Owner's/Shared/Plan.md"))
   end
 end

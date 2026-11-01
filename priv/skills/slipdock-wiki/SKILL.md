@@ -181,26 +181,19 @@ send it back with `--file F` (or `--clear`). Never paste front matter into the
 body: it lives beside the body, and a `---` block in the body is just text.
 Its `aliases` are other names `[[links]]` find the page by.
 
-## Vaults: several wikis as one Obsidian-style vault
+## The vault: every board as one Obsidian-style tree
 
-A **vault** is the user's own, and holds no pages: it maps vault paths onto
-board wikis, or onto one folder of a wiki, so the wikis read as one tree of
-Markdown files (`/` → Handbook, `/Projects` → Project Work). The longest matching
-prefix wins; a board can be in one vault only, and only a board the user can
-write to. Deleting a vault removes its mappings and never a page. In the web
-app a board's wiki shows the vault from where the board is mounted down
-(Handbook at `/` shows Projects among its folders; Project Work shows only
-`/Projects`), so to point someone at a note, the board it is on is enough.
+The user has exactly one **vault**, and it holds no pages. It is derived from
+their boards, with nothing to set up: every root board they own, archived too,
+is a folder off the root (`/<board name>`), and a sub-board sits in its epic's
+folder (`<Board>/Cards/<Epic>/`). Boards shared by someone else are not in it,
+and the root holds boards only. In the web app a board's wiki shows the vault
+from that board's folder down, so to point someone at a note, the board it is
+on is enough.
 
 ```sh
-slipdock vault ls                                  # the vaults, with their mappings
-slipdock vault new Notes
-slipdock vault map Notes / --board kb              # the vault's root
-slipdock vault map Notes /Projects --board projects --folder Inbox
-slipdock vault inside Notes /                      # keep the board at / inside the vault (--off: let it out)
-slipdock vault dress Notes /Jobs --icon briefcase --color amber   # what a mount wears in the tree (none: take off)
-slipdock vault locate Notes /Projects/Acme/Call.md     # which mapping, and the rest of the path
-slipdock vault unmap Notes /Projects
+slipdock vault ls                                  # the vault, its boards and pages
+slipdock vault locate Notes /Projects/Acme/Call.md     # which board, and the rest of the path
 ```
 
 On a board in a vault, `[[Note]]` looks on its own board, then across the

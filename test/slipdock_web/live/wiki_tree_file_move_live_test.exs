@@ -97,9 +97,7 @@ defmodule SlipdockWeb.WikiTreeFileMoveLiveTest do
   test "a file doesn't cross to another board of the vault", ctx do
     %{conn: conn, kb: kb, user: user, cat: cat} = ctx
     jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsfmv"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
     {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
 

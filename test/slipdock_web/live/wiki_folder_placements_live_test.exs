@@ -139,9 +139,7 @@ defmodule SlipdockWeb.WikiFolderPlacementsLiveTest do
 
   test "in a vault, a folder from another board is placed and opened", ctx do
     jobs = board_fixture(%{"name" => "Journal", "code" => "jobsfp"}, owner: ctx.user)
-    {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.kb})
-    {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: jobs})
+    {:ok, _} = ctx.user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
     page_fixture(jobs, %{"title" => "Client", "folder_id" => acme.id})
     {:ok, _} = FolderPlacements.add(acme, ctx.other, ctx.user)

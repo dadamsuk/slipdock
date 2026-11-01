@@ -15,7 +15,9 @@ defmodule Slipdock.VaultSwitchingTest do
     plan = board_fixture(%{"name" => "Plan"}, owner: user)
 
     {:ok, vault} =
-      Vaults.create_vault(user, %{"name" => "Notes #{System.unique_integer([:positive])}"})
+      user
+      |> Vaults.root()
+      |> Vaults.update_vault(%{"name" => "Notes #{System.unique_integer([:positive])}"})
 
     %{user: user, plan: plan, vault: vault}
   end
@@ -43,8 +45,8 @@ defmodule Slipdock.VaultSwitchingTest do
       assert Repo.get!(Vault, vault.id).shortcut == vault.shortcut
     end
 
-    test "another vault's key is refused", %{user: user, vault: vault} do
-      {:ok, other} = Vaults.create_vault(user, %{"name" => "Other #{vault.id}"})
+    test "another person's vault's key is refused", %{vault: vault} do
+      other = Vaults.root(user_fixture("switch-other@example.com"))
       assert {:error, cs} = Vaults.set_shortcut(other, vault.shortcut)
       assert cs.errors[:shortcut]
     end
@@ -71,8 +73,7 @@ defmodule Slipdock.VaultSwitchingTest do
     } do
       Repo.update_all(from(v in Vault, where: v.id == ^vault.id), set: [shortcut: nil])
 
-      {:ok, theirs} =
-        Vaults.create_vault(user_fixture("other@example.com"), %{"name" => "Theirs #{vault.id}"})
+      theirs = Vaults.root(user_fixture("other@example.com"))
 
       listed = Vaults.switchable(user)
       assert [%Vault{id: id, shortcut: key}] = listed
@@ -121,16 +122,12 @@ defmodule Slipdock.VaultSwitchingTest do
       assert Hotkeys.list(stranger) == []
     end
 
-    test "none takes it away, and deleting the vault takes the digit with it", %{
+    test "none takes it away", %{
       user: user,
       vault: vault
     } do
       {:ok, 5} = Hotkeys.put(user, vault, 5)
       assert {:ok, nil} = Hotkeys.put(user, vault, "none")
-      assert Hotkeys.target(user, 5) == nil
-
-      {:ok, 5} = Hotkeys.put(user, vault, 5)
-      {:ok, _} = Vaults.delete_vault(vault)
       assert Hotkeys.target(user, 5) == nil
       assert Hotkeys.list(user) == []
     end

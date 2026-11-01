@@ -66,29 +66,29 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
 
   test "refusals: its home, a folder on a board outside its vault, nothing named", %{
     conn: conn,
-    page: page
+    page: page,
+    user: user
   } do
+    lender = user_fixture("plapi-lender@example.com")
+    theirs = board_fixture(%{"name" => "Theirs", "code" => "platheirs"}, owner: lender)
+    {:ok, _} = Wiki.create_folder(theirs, %{"name" => "Notes"})
+    share_fixture(theirs, user, "write")
+
     assert conn |> file(page, %{"also" => "Home"}) |> json_response(422)
 
     assert conn
-           |> file(page, %{"also" => "Notes", "board" => "plajobs"})
+           |> file(page, %{"also" => "Notes", "board" => "platheirs"})
            |> json_response(422)
 
     assert conn |> file(page, %{"also" => ""}) |> json_response(400)
-    assert conn |> file(page, %{"also" => "/Journal/Notes"}) |> json_response(422)
+    assert conn |> file(page, %{"also" => "/No board/Notes"}) |> json_response(404)
   end
 
   test "by vault path, onto another board of the vault", %{
     conn: conn,
-    user: user,
     board: board,
-    jobs: jobs,
     page: page
   } do
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
-
     body = conn |> file(page, %{"also" => "/Journal/Notes"}) |> json_response(200)
     assert [%{"path" => "Notes", "board" => "plajobs"}] = body["page"]["also_in"]
 
@@ -116,8 +116,7 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
 
   describe "by the vault path of a folder (#1583)" do
     setup %{user: user, board: board} do
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+      {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
       {:ok, inbox} = Wiki.create_folder(board, %{"name" => "Inbox"})
       %{inbox: inbox}
     end
@@ -125,7 +124,7 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
     test "one that exists is used, and none is added", c do
       before = length(Folders.list(c.board))
 
-      body = c.conn |> file(c.page, %{"also" => "/Inbox"}) |> json_response(200)
+      body = c.conn |> file(c.page, %{"also" => "/Brain/Inbox"}) |> json_response(200)
 
       assert [%{"folder_id" => id}] = body["page"]["also_in"]
       assert id == c.inbox.id
@@ -133,7 +132,8 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
     end
 
     test "a new one is made, nested included", c do
-      body = c.conn |> file(c.page, %{"also" => "/Inbox/2026/November"}) |> json_response(200)
+      body =
+        c.conn |> file(c.page, %{"also" => "/Brain/Inbox/2026/November"}) |> json_response(200)
 
       assert [%{"path" => "Inbox/2026/November"}] = body["page"]["also_in"]
       assert [_] = Enum.filter(Folders.list(c.board), &(&1.name == "Inbox"))
@@ -148,7 +148,7 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
         assert sharee
                |> conn_as()
                |> put_req_header("accept", "application/json")
-               |> file(c.page, %{"also" => "/Made/By/Sharee"})
+               |> file(c.page, %{"also" => "/Brain/Made/By/Sharee"})
                |> json_response(status)
 
         assert length(Folders.list(c.board)) == before
@@ -164,7 +164,7 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
     test "update_page over MCP goes the same way", c do
       before = length(Folders.list(c.board))
 
-      result = call(c.conn, "update_page", %{page: c.page.code, also: "/Inbox"})
+      result = call(c.conn, "update_page", %{page: c.page.code, also: "/Brain/Inbox"})
 
       assert result["structuredContent"]["also_in"] == ["Inbox"]
       assert length(Folders.list(c.board)) == before

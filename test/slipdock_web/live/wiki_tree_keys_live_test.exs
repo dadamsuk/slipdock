@@ -63,7 +63,8 @@ defmodule SlipdockWeb.WikiTreeKeysLiveTest do
     page: page,
     user: owner
   } do
-    other = board_fixture(%{"name" => "Other", "code" => "treekeys2"}, owner: owner)
+    lender = user_fixture("keys.lender@example.com")
+    other = board_fixture(%{"name" => "Other", "code" => "treekeys2"}, owner: lender)
     theirs = page_fixture(other, %{"title" => "Theirs"})
     {:ok, view, _} = live(conn_as(owner), ~p"/boards/#{board}/wiki")
 

@@ -9,8 +9,7 @@ defmodule SlipdockWeb.API.NoteControllerTest do
   setup %{user: user} do
     board = board_fixture(%{"name" => "Brain QA"})
     {:ok, _} = Wiki.create_folder(board, %{"name" => "Inbox"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Mind"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Mind"})
     %{board: board}
   end
 
@@ -31,14 +30,14 @@ defmodule SlipdockWeb.API.NoteControllerTest do
   end
 
   test "POST /api/notes saves a note and says where", %{conn: conn, board: board} do
-    Slipdock.AIStub.reply_with(%{"title" => "Printers", "folder" => "Inbox"})
+    Slipdock.AIStub.reply_with(%{"title" => "Printers", "folder" => "Brain QA/Inbox"})
 
     note =
       conn |> post(~p"/api/notes", %{text: "ring them"}) |> json_response(201) |> Map.get("note")
 
     assert note["title"] =~ ~r/ Printers$/
     assert note["vault"] == "Mind"
-    assert note["location"] == "/Inbox"
+    assert note["location"] == "/Brain QA/Inbox"
     assert note["placed_by"] == "ai"
     assert [%{body: "ring them"} = page] = Wiki.list_pages(board)
     assert page.code == note["code"]
@@ -60,7 +59,7 @@ defmodule SlipdockWeb.API.NoteControllerTest do
     result = mcp(conn, %{text: "ring them"})
 
     assert result["isError"] == false
-    assert result["structuredContent"]["note"]["location"] == "/"
+    assert result["structuredContent"]["note"]["location"] == "/Brain QA"
     assert [%{body: "ring them"}] = Wiki.list_pages(board)
   end
 

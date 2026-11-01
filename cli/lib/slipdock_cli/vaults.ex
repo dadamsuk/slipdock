@@ -3,8 +3,8 @@ defmodule SlipdockCLI.Vaults do
 
   alias SlipdockCLI.FS
 
-  # Vaults: board wikis laid out as one Obsidian-style vault (W-103). A vault
-  # is named by its id or its name; a path is vault-relative, "/" the root.
+  # The vault: every board you own as one Obsidian-style tree (W-2201). It is
+  # named by its id or its name; a path is vault-relative, "/" the root.
 
   import SlipdockCLI.Util
 
@@ -22,14 +22,6 @@ defmodule SlipdockCLI.Vaults do
 
   def run("vault", ["show", ref], o),
     do: HTTP.get("/vaults/#{enc(ref)}") |> out(o, &vault(&1["vault"]))
-
-  def run("vault", ["new" | words], o) when words != [] do
-    HTTP.post(
-      "/vaults",
-      compact(%{"name" => Enum.join(words, " "), "with_board" => o[:with_board]})
-    )
-    |> out(o, &vault(&1["vault"], "made"))
-  end
 
   def run("vault", ["rename", ref | words], o) when words != [] do
     HTTP.patch("/vaults/#{enc(ref)}", %{"name" => Enum.join(words, " ")})
@@ -81,77 +73,10 @@ defmodule SlipdockCLI.Vaults do
   def run("drive", ["status"], o), do: HTTP.get("/me/drive") |> out(o, &drive/1)
   def run("drive", [], o), do: run("drive", ["status"], o)
 
-  def run("vault", ["rm", ref], o) do
-    HTTP.delete("/vaults/#{enc(ref)}")
-    |> out(o, fn r ->
-      IO.puts("deleted the vault #{r["deleted"]["name"]} — every page stays on its board")
-    end)
-  end
-
-  def run("vault", ["map", ref, path], o) do
-    if is_nil(o[:board]), do: fail("say which board: --board B (and --folder F for one folder)")
-
-    body =
-      compact(%{
-        "path" => path,
-        "board" => o[:board],
-        "folder" => o[:folder],
-        "inside" => o[:inside]
-      })
-
-    if o[:dry_run] do
-      HTTP.post("/vaults/#{enc(ref)}/mappings", Map.put(body, "dry_run", true))
-      |> out(o, &print_preview(&1["preview"], :map))
-    else
-      HTTP.post("/vaults/#{enc(ref)}/mappings", body) |> out(o, &vault(&1["vault"], "mapped"))
-    end
-  end
-
-  # Keep a board mapped whole inside the vault, or let it out (#757).
-  def run("vault", ["inside", ref, path], o) do
-    HTTP.patch("/vaults/#{enc(ref)}/mappings", %{"path" => path, "inside" => !o[:off]})
-    |> out(o, &vault(&1["vault"], if(o[:off], do: "let out", else: "kept inside")))
-  end
-
-  # What a mapping's row wears in the vault's tree (#797): an icon and a
-  # colour, as a wiki folder's; "none" takes one off.
-  def run("vault", ["dress", ref, path], o) do
-    body = compact(%{"path" => path, "icon" => o[:icon], "color" => o[:color]})
-
-    if map_size(body) == 1,
-      do: fail("say what it wears: --icon NAME and/or --color NAME (none takes one off)")
-
-    HTTP.patch("/vaults/#{enc(ref)}/mappings", body) |> out(o, &vault(&1["vault"], "dressed"))
-  end
-
-  def run("vault", ["unmap", ref, path], o) do
-    if o[:dry_run] do
-      HTTP.delete("/vaults/#{enc(ref)}/mappings", path: path, dry_run: "true")
-      |> out(o, &print_preview(&1["preview"], :unmap))
-    else
-      HTTP.delete("/vaults/#{enc(ref)}/mappings", path: path)
-      |> out(o, &vault(&1["vault"], "unmapped"))
-    end
-  end
-
-  def run("vault", ["split", ref, path], o) do
-    body =
-      cond do
-        is_binary(o[:new_board]) -> %{"new_board" => o[:new_board]}
-        is_binary(o[:board]) -> %{"board" => o[:board]}
-        true -> fail("say which board: --board B, or --new-board NAME to make one")
-      end
-
-    body = Map.merge(body, compact(%{"path" => path, "dry_run" => o[:dry_run]}))
-
-    HTTP.post("/vaults/#{enc(ref)}/split", body)
-    |> out(o, &print_split/1)
-  end
-
   def run("vault", ["locate", ref, path], o) do
     HTTP.get("/vaults/#{enc(ref)}/locate", path: path)
     |> out(o, fn r ->
-      IO.puts(mapping_line(r["mapping"]))
+      IO.puts(board_line(r["board"]))
       if r["rest"] != "", do: IO.puts("  then " <> r["rest"])
     end)
   end
@@ -224,11 +149,8 @@ defmodule SlipdockCLI.Vaults do
         error -> out(error, o, fn _ -> :ok end)
       end
 
-    if vault["mappings"] == [],
-      do:
-        fail(
-          "#{vault["name"]} has nothing mapped yet — `slipdock vault map` a board into it first"
-        )
+    if vault["boards"] == [],
+      do: fail("#{vault["name"]} has no boards yet — make a board first")
 
     listing =
       case Remote.list(vault["id"]) do
@@ -261,10 +183,9 @@ defmodule SlipdockCLI.Vaults do
   def run("vault", _args, _o),
     do:
       fail(
-        "usage: slipdock vault ls | show V | new NAME | rename V NAME | rm V | " <>
+        "usage: slipdock vault ls | show V | rename V NAME | " <>
           "set V [--shortcut K] [--hotkey 0-9|none] [--recordings-folder PATH] | " <>
-          "map V PATH --board B [--folder F] [--dry-run] | unmap V PATH [--dry-run] | " <>
-          "split V PATH --board B|--new-board NAME [--dry-run] | locate V PATH | resolve V LINK | " <>
+          "locate V PATH | resolve V LINK | " <>
           "wanted V | changes V [--since N] | import DIR --vault V [--dry-run]"
       )
 
@@ -287,10 +208,10 @@ defmodule SlipdockCLI.Vaults do
     IO.puts("#{verb}: #{counts(created)}")
 
     created
-    |> Enum.group_by(& &1.mapping)
-    |> Enum.sort_by(fn {m, _} -> m["path"] end)
-    |> Enum.each(fn {m, items} ->
-      IO.puts("  " <> String.pad_trailing(target(m), 36) <> " " <> counts(items))
+    |> Enum.group_by(& &1.board)
+    |> Enum.sort_by(fn {b, _} -> b["path"] end)
+    |> Enum.each(fn {b, items} ->
+      IO.puts("  " <> String.pad_trailing(target(b), 36) <> " " <> counts(items))
     end)
 
     there = plan.present ++ plan.imported
@@ -306,7 +227,7 @@ defmodule SlipdockCLI.Vaults do
       o
     )
 
-    section("skipped, no mapping covers them", plan.unmapped, o)
+    section("skipped, in no board's folder", plan.outside, o)
     section("skipped, over the 250 MB limit", plan.too_big, o)
 
     if plan.ignored != [] do
@@ -347,10 +268,7 @@ defmodule SlipdockCLI.Vaults do
   defp plural(1, word), do: "1 #{word}"
   defp plural(n, word), do: "#{n} #{word}s"
 
-  defp target(%{"folder" => %{"path" => folder}} = m),
-    do: "#{m["path"]} → #{m["board"]["name"]} wiki, #{folder}"
-
-  defp target(m), do: "#{m["path"]} → #{m["board"]["name"]} wiki"
+  defp target(b), do: "#{b["path"]} → #{b["name"]} wiki"
 
   defp section(_title, [], _o), do: :ok
 
@@ -365,7 +283,7 @@ defmodule SlipdockCLI.Vaults do
 
   defp import_json(vault, plan, report) do
     item = fn i ->
-      %{"path" => i.path, "kind" => i.kind, "mapping" => i.mapping && i.mapping["path"]}
+      %{"path" => i.path, "kind" => i.kind, "board" => i.board && i.board["path"]}
       |> Map.merge(if Map.has_key?(i, :id), do: %{"id" => i.id}, else: %{})
       |> Map.merge(if Map.has_key?(i, :to), do: %{"to" => i.to}, else: %{})
     end
@@ -376,7 +294,7 @@ defmodule SlipdockCLI.Vaults do
       "create" => Enum.map(plan.create, item),
       "already_there" => Enum.map(plan.present ++ plan.imported, item),
       "differs" => Enum.map(plan.differs, item),
-      "unmapped" => plan.unmapped,
+      "outside" => plan.outside,
       "too_big" => plan.too_big,
       "ignored" => plan.ignored,
       "unresolved" =>
@@ -397,86 +315,6 @@ defmodule SlipdockCLI.Vaults do
     end
   end
 
-  @doc false
-  # What a mapping would do before it is made (or taken out): `--dry-run`.
-  def print_preview(p, kind) do
-    verb = if kind == :map, do: "mapping", else: "unmapping"
-    IO.puts("#{verb} #{p["path"]} would — nothing is changed yet:")
-
-    if kind == :map do
-      preview_group("bring into the vault", p["arriving"], & &1)
-      preview_group("take over from another mapping", p["moving"], &move_line/1)
-      preview_group("clash with pages already at those paths", p["clashes"], &clash_line/1)
-    else
-      preview_group("take out of the vault (they stay on their board)", p["leaving"], & &1)
-      preview_group("move to another path", p["moving"], &move_line/1)
-    end
-
-    case p["mirrors"] || [] do
-      [] -> :ok
-      names -> IO.puts(Render.dim("synced folders that follow: " <> Enum.join(names, ", ")))
-    end
-  end
-
-  @doc false
-  # A folder given its own board, or what doing so would do.
-  def print_split(%{"preview" => p}) do
-    IO.puts(
-      "#{p["path"]} would move from #{p["from"]} to #{board_label(p)} — nothing is changed yet:"
-    )
-
-    split_lines(p)
-  end
-
-  def print_split(%{"result" => r, "board" => board}) do
-    IO.puts(
-      "#{r["path"]} now belongs to #{board["name"]} (#{board["code"]}), mapped in the vault:"
-    )
-
-    split_lines(r)
-  end
-
-  defp board_label(%{"new_board" => true, "into" => name}), do: "a new board, #{name}"
-  defp board_label(%{"into" => name}), do: name
-
-  defp split_lines(r) do
-    move = r["move"] || %{}
-    IO.puts("  #{move["pages"]} page(s) and #{move["folders"]} folder(s) move")
-    IO.puts("  synced folders: #{r["unchanged"]} file(s) unchanged")
-
-    for %{"from" => from, "to" => to} <- r["renamed"] || [],
-        do: IO.puts("    renamed: #{from} → #{to}")
-
-    preview_group("the board's own pages arrive", r["joining"], & &1)
-
-    for {label, key} <- [
-          {"land beside pages of the same title", "title_clashes"},
-          {"stay behind", "left_behind"}
-        ],
-        (items = move[key] || []) != [],
-        do: IO.puts("  #{label}: #{Enum.join(items, ", ")}")
-
-    for {label, key} <- [{"drop tags", "tags"}, {"drop field values", "fields"}],
-        (items = get_in(move, [key, "dropped"]) || []) != [],
-        do: IO.puts("  #{label}: #{Enum.join(items, ", ")}")
-  end
-
-  defp preview_group(_title, nil, _fun), do: :ok
-  defp preview_group(_title, %{"count" => 0}, _fun), do: :ok
-
-  defp preview_group(title, %{"count" => n, "sample" => sample}, fun) do
-    IO.puts("  #{title}: #{n}")
-    Enum.each(sample, &IO.puts("    " <> fun.(&1)))
-    if n > length(sample), do: IO.puts(Render.dim("    … #{n - length(sample)} more"))
-  end
-
-  defp move_line(%{"from" => same, "to" => same}), do: same
-  defp move_line(%{"from" => from, "to" => to}), do: "#{from} → #{to}"
-
-  defp clash_line(%{"path" => path, "board" => board}), do: "#{path} (on #{board})"
-  defp clash_line(other), do: inspect(other)
-
-  defp vaults([]), do: IO.puts(Render.dim("no vaults — `slipdock vault new NAME` makes one"))
   defp vaults(list), do: Enum.each(list, &vault/1)
 
   defp drive(%{"drive" => d, "vaults" => vaults}) do
@@ -508,22 +346,12 @@ defmodule SlipdockCLI.Vaults do
     head = Render.bold(v["name"]) <> "  " <> Render.dim("id #{v["id"]}")
     IO.puts(if verb, do: "#{verb} " <> head, else: head)
 
-    case v["mappings"] do
-      [] -> IO.puts("  " <> Render.dim("nothing mapped yet"))
-      mappings -> Enum.each(mappings, &IO.puts("  " <> mapping_line(&1)))
+    case v["boards"] do
+      [] -> IO.puts("  " <> Render.dim("no boards yet"))
+      boards -> Enum.each(boards, &IO.puts("  " <> board_line(&1)))
     end
 
-    case v["overlaps"] || [] do
-      [] ->
-        :ok
-
-      [first | _] = overlaps ->
-        IO.puts(
-          "  warning: #{length(overlaps)} page(s) of #{first["board"]} sit under " <>
-            "#{first["under"]}, which #{first["owner"]}'s mapping owns (#{first["path"]}…): " <>
-            "move them to #{first["owner"]} or take that mapping out"
-        )
-    end
+    if v["pages"], do: IO.puts("  " <> Render.dim(plural(v["pages"], "page")))
 
     if v["recordings_folder"],
       do: IO.puts("  " <> Render.dim("recordings: #{v["recordings_folder"]} on Google Drive"))
@@ -543,26 +371,8 @@ defmodule SlipdockCLI.Vaults do
   end
 
   @doc false
-  def mapping_line(m) do
-    target =
-      case m["folder"] do
-        nil -> "#{m["board"]["name"]} wiki"
-        folder -> "#{m["board"]["name"]} wiki, folder #{folder["path"]}"
-      end
-
-    pages =
-      case m["pages"] do
-        nil -> ""
-        1 -> " · 1 page"
-        n -> " · #{n} pages"
-      end
-
-    inside = if m["inside"], do: " · kept inside", else: ""
-    dress = [m["icon"], m["color"]] |> Enum.reject(&is_nil/1) |> Enum.join(" ")
-    dress = if dress == "", do: "", else: " · " <> dress
-
-    String.pad_trailing(m["path"], 16) <>
-      " → " <>
-      target <> "  " <> Render.dim((m["board"]["code"] || "") <> pages <> inside <> dress)
+  def board_line(b) do
+    archived = if b["archived"], do: " · archived", else: ""
+    String.pad_trailing(b["path"], 16) <> " " <> Render.dim((b["code"] || "") <> archived)
   end
 end

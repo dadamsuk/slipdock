@@ -79,11 +79,14 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
 
     assert msg =~ "inside"
 
-    {:ok, _} = Wiki.create_folder(ctx.jobs, %{"name" => "Notes"})
+    lender = user_fixture("fp-lender@example.com")
+    theirs = board_fixture(%{"name" => "Lent", "code" => "fpvlent"}, owner: lender)
+    {:ok, _} = Wiki.create_folder(theirs, %{"name" => "Notes"})
+    share_fixture(theirs, ctx.user, "write")
 
     assert %{"error" => msg} =
              ctx.conn
-             |> patch_folder(ctx.folder, %{"also" => "Notes", "in_board" => "fpapijobs"})
+             |> patch_folder(ctx.folder, %{"also" => "Notes", "in_board" => "fpvlent"})
              |> json_response(422)
 
     assert msg =~ "same vault"
@@ -91,8 +94,8 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
     assert ctx.conn |> patch_folder(ctx.folder, %{"also" => ""}) |> json_response(400)
 
     assert ctx.conn
-           |> patch_folder(ctx.folder, %{"also" => "/Journal/Notes"})
-           |> json_response(422)
+           |> patch_folder(ctx.folder, %{"also" => "/No board/Notes"})
+           |> json_response(404)
   end
 
   test "a folder id on a board the caller can't read is not found", ctx do
@@ -104,26 +107,23 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
   end
 
   test "write on the target is needed: a 403 with the reason", ctx do
+    # Two boards of one vault, the caller writing on one and reading the other.
     owner = user_fixture("owner@example.com")
+    source = board_fixture(%{"name" => "Writable", "code" => "fpwrite"}, owner: owner)
     shared = board_fixture(%{"name" => "Shared", "code" => "fpshared"}, owner: owner)
+    share_fixture(source, ctx.user, "write")
     share_fixture(shared, ctx.user, "read")
-    share_fixture(ctx.board, owner, "write")
-    {:ok, vault} = Vaults.create_vault(owner, %{"name" => "V"})
-    {:ok, _} = Vaults.add_mapping(vault, owner, %{path: "/", board: shared})
-    {:ok, _} = Vaults.add_mapping(vault, owner, %{path: "/Brain", board: ctx.board})
+    {:ok, topic} = Wiki.create_folder(source, %{"name" => "Topic"})
     {:ok, notes} = Wiki.create_folder(shared, %{"name" => "Notes"})
 
     assert %{"error" => msg} =
-             ctx.conn |> patch_folder(ctx.folder, %{"also" => notes.id}) |> json_response(403)
+             ctx.conn |> patch_folder(topic, %{"also" => notes.id}) |> json_response(403)
 
     assert msg =~ "edit both"
-    assert FolderPlacements.folders(ctx.folder) == []
+    assert FolderPlacements.folders(topic) == []
   end
 
   test "across the vault by vault path", ctx do
-    {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-    {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-    {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
     {:ok, _} = Wiki.create_folder(ctx.jobs, %{"name" => "Notes"})
 
     body =
@@ -141,16 +141,15 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
 
   describe "by the vault path of a folder (#1583)" do
     setup ctx do
-      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
+      {:ok, _} = ctx.user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
       :ok
     end
 
     test "one that exists is used, and none is added", ctx do
       before = length(Folders.list(ctx.board))
 
-      body = ctx.conn |> patch_folder(ctx.folder, %{"also" => "/Other"}) |> json_response(200)
+      body =
+        ctx.conn |> patch_folder(ctx.folder, %{"also" => "/Brain/Other"}) |> json_response(200)
 
       assert [%{"folder_id" => id}] = body["folder"]["also_in"]
       assert id == ctx.other.id
@@ -159,7 +158,9 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
 
     test "a new one is made, as for a page, nested included", ctx do
       body =
-        ctx.conn |> patch_folder(ctx.folder, %{"also" => "/Other/New/Leaf"}) |> json_response(200)
+        ctx.conn
+        |> patch_folder(ctx.folder, %{"also" => "/Brain/Other/New/Leaf"})
+        |> json_response(200)
 
       assert [%{"path" => "Other/New/Leaf"}] = body["folder"]["also_in"]
       assert [_] = Enum.filter(Folders.list(ctx.board), &(&1.name == "Other"))
@@ -176,13 +177,9 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
       theirs = board_fixture(%{"name" => "Theirs", "code" => "fptheirs"}, owner: owner)
       share_fixture(theirs, ctx.user, "read")
       share_fixture(ctx.board, owner, "write")
-      {:ok, vault} = Vaults.create_vault(owner, %{"name" => "W"})
-      {:ok, _} = Vaults.add_mapping(vault, owner, %{path: "/", board: theirs})
-
       other = board_fixture(%{"name" => "Mine", "code" => "fpmine"}, owner: ctx.user)
       {:ok, mine} = Wiki.create_folder(other, %{"name" => "Mine"})
       share_fixture(other, owner, "write")
-      {:ok, _} = Vaults.add_mapping(vault, owner, %{path: "/Mine", board: other})
 
       assert ctx.conn |> patch_folder(mine, %{"also" => "/Made"}) |> json_response(404)
       assert Folders.list(theirs) == []
@@ -191,7 +188,7 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
     test "file_folder over MCP goes the same way", ctx do
       before = length(Folders.list(ctx.board))
 
-      result = mcp(ctx.conn, %{board: "fpapi", folder: "Home/Topic", also: "/Other"})
+      result = mcp(ctx.conn, %{board: "fpapi", folder: "Home/Topic", also: "/Brain/Other"})
 
       assert [%{"path" => "Other"}] = result["structuredContent"]["also_in"]
       assert length(Folders.list(ctx.board)) == before
@@ -201,9 +198,13 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
   test "a move to another board reports the placements it dropped", ctx do
     ctx.conn |> patch_folder(ctx.folder, %{"also" => "Other"}) |> json_response(200)
 
+    lender = user_fixture("fp-away@example.com")
+    away = board_fixture(%{"name" => "Away", "code" => "fpaway"}, owner: lender)
+    share_fixture(away, ctx.user, "write")
+
     body =
       ctx.conn
-      |> patch_folder(ctx.folder, %{"to_board" => "fpapijobs"})
+      |> patch_folder(ctx.folder, %{"to_board" => "fpaway"})
       |> json_response(200)
 
     assert body["report"]["folder_filing_dropped"] == [
@@ -299,9 +300,7 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
     end
 
     test "on another board of the vault, by in_board or by vault path", ctx do
-      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
+      {:ok, _} = ctx.user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
       {:ok, _} = Wiki.create_folder(ctx.jobs, %{"name" => "Notes"})
       {:ok, _} = Wiki.create_folder(ctx.jobs, %{"name" => "Desk"})
 

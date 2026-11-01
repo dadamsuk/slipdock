@@ -142,8 +142,7 @@ defmodule SlipdockWeb.API.PageBoardTagsTest do
   end
 
   test "note_tags are left alone, and the two never mix", ctx do
-    {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "Notes"})
-    {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
+    {:ok, _} = ctx.user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
 
     {:ok, note} =
       Wiki.create_page(ctx.board, %{"title" => "N", "body" => "#mine"}, user: ctx.user)

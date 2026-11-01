@@ -17,9 +17,7 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
   setup %{user: user} do
     kb = board_fixture(%{"name" => "KB", "code" => "kborg"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsorg"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     {:ok, specs} = Wiki.create_folder(kb, %{"name" => "Specs"})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
     one = page_fixture(kb, %{"title" => "One"})
