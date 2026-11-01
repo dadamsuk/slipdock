@@ -43,7 +43,7 @@ writes out goes wrong above about 1 KB (#1040), so with a shell where the file i
 single-use `upload_url`, good for 10 minutes and needing no token, for `curl -F file=@FILE -F
 sha256=<hex> <upload_url>` (also `filename`, `replace`, `hide_on_card`), keeps the bytes out of the
 model. `download_file` with `link: true` is the same the other way: `curl -fsSo FILE <download_url>`. A file already in the user's synced wiki is copied by the server with
-`vault_file` (its path in the wiki, or its id; no content) and `vault` (the wiki's id, as `GET /api/vaults` gives it: an argument name kept from before). `content_base64` must carry `sha256` (hex, of
+`wiki_file` (its path in your wiki, or its id; no content). `content_base64` must carry `sha256` (hex, of
 the bytes before base64), and a `sha256_mismatch` refusal means re-encode and resend. The answer's
 `sha256` is of the bytes as stored, and `get_card`/`read_page` list it for every file: compare that
 with the source's hash to verify a file, rather than downloading it. Anything over a few KB goes

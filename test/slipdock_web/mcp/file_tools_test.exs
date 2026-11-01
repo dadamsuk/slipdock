@@ -408,7 +408,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
     end
   end
 
-  describe "upload_file from a vault file (#1040)" do
+  describe "upload_file from a file of your wiki (#1040)" do
     setup ctx do
       {:ok, vault} =
         ctx.user
@@ -428,7 +428,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
 
     test "copies it onto a card by its path, byte for byte, under its own name", ctx do
       %{"card" => card_id, "attachment" => a} =
-        upload!(ctx.conn, %{card: ctx.card.id, vault: "brain1040", vault_file: "files/cv.docx"})
+        upload!(ctx.conn, %{card: ctx.card.id, wiki_file: "files/cv.docx"})
 
       assert card_id == ctx.card.id
       assert a["filename"] == "CV.docx"
@@ -440,7 +440,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
 
       [stored] = card_files(ctx.card)
       assert File.read!(Boards.attachment_path(stored)) == ctx.bytes
-      # A copy: the vault keeps its file.
+      # A copy: the wiki keeps its file.
       assert {:ok, _, _} =
                Slipdock.Vaults.Sync.read_file(ctx.vault, ctx.user, ctx.entry.id)
     end
@@ -449,8 +449,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       %{"page" => code, "attachment" => a} =
         upload!(ctx.conn, %{
           page: ctx.page.code,
-          vault: "#{ctx.vault.id}",
-          vault_file: "#{ctx.entry.id}",
+          wiki_file: "#{ctx.entry.id}",
           filename: "David CV.docx",
           sha256: String.upcase(sha256(ctx.bytes))
         })
@@ -465,28 +464,26 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
         ctx.conn
         |> call("upload_file", %{
           card: ctx.card.id,
-          vault: "Brain1040",
-          vault_file: "Files/CV.docx",
+          wiki_file: "Files/CV.docx",
           sha256: sha256("another version")
         })
         |> error!()
 
-      assert text =~ "sha256_mismatch: Files/CV.docx in the vault has sha256 #{sha256(ctx.bytes)}"
+      assert text =~ "sha256_mismatch: Files/CV.docx in your wiki has sha256 #{sha256(ctx.bytes)}"
       assert text =~ "Nothing was stored"
       assert card_files(ctx.card) == []
     end
 
     test "says what is wrong with the arguments, and stores nothing", ctx do
-      base = %{card: ctx.card.id, vault: "Brain1040", vault_file: "Files/CV.docx"}
+      base = %{card: ctx.card.id, wiki_file: "Files/CV.docx"}
 
       bad = [
-        {Map.delete(base, :vault), "vault is required"},
-        {%{base | vault: "Nope"}, "no vault \"Nope\""},
-        {%{base | vault_file: "Files/Missing.docx"}, "file at Files/Missing.docx"},
-        {%{base | vault_file: "999999999"}, "file 999999999"},
-        {%{base | vault_file: "../etc/passwd"}, "hidden files"},
-        {Map.put(base, :text, "x"), "vault_file or the content, not both"},
-        {Map.put(base, :content_base64, "eA=="), "vault_file or the content, not both"},
+        {Map.put(base, :vault, "Brain1040"), "no argument \"vault\""},
+        {%{base | wiki_file: "Files/Missing.docx"}, "file at Files/Missing.docx"},
+        {%{base | wiki_file: "999999999"}, "file 999999999"},
+        {%{base | wiki_file: "../etc/passwd"}, "hidden files"},
+        {Map.put(base, :text, "x"), "wiki_file or the content, not both"},
+        {Map.put(base, :content_base64, "eA=="), "wiki_file or the content, not both"},
         {Map.put(base, :append, true), "copied whole"},
         {Map.delete(base, :card), "card, or page"}
       ]
@@ -498,23 +495,16 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert card_files(ctx.card) == []
     end
 
-    test "only the caller's own vaults, and only with a token that writes", ctx do
+    test "only the caller's own wiki, and only with a token that writes", ctx do
+      # A stranger's path is looked for in their own wiki, where it isn't.
       assert ctx.conn
              |> with_token(ctx.stranger, [])
-             |> call("upload_file", %{
-               card: ctx.secret.id,
-               vault: "Brain1040",
-               vault_file: "Files/CV.docx"
-             })
-             |> error!() =~ "no vault"
+             |> call("upload_file", %{card: ctx.secret.id, wiki_file: "Files/CV.docx"})
+             |> error!() =~ "file at Files/CV.docx"
 
       assert ctx.conn
              |> with_token(ctx.user, scope: "read")
-             |> call("upload_file", %{
-               card: ctx.card.id,
-               vault: "Brain1040",
-               vault_file: "Files/CV.docx"
-             })
+             |> call("upload_file", %{card: ctx.card.id, wiki_file: "Files/CV.docx"})
              |> error!() =~ "read-only"
 
       assert card_files(ctx.card) == []
@@ -524,7 +514,8 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
     test "the description sends a caller with a shell to an upload link (#1147)" do
       text = UploadFile.description()
       assert text =~ "link: true"
-      assert text =~ "vault_file"
+      assert text =~ "wiki_file"
+      refute text =~ "vault"
       assert text =~ "sha256 (required"
     end
   end

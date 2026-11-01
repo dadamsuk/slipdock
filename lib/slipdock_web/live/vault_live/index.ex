@@ -65,8 +65,7 @@ defmodule SlipdockWeb.VaultLive.Index do
          {:ok, vault} <- Vaults.set_recordings_folder(vault, folder) do
       message =
         if vault.recordings_folder,
-          do:
-            "Your wiki plays its recordings from #{vault.recordings_folder} on Google Drive.",
+          do: "Your wiki plays its recordings from #{vault.recordings_folder} on Google Drive.",
           else: "Your wiki has no recordings folder now."
 
       {:noreply, socket |> flash(:info, message) |> load()}
@@ -187,8 +186,7 @@ defmodule SlipdockWeb.VaultLive.Index do
               </li>
             </ul>
             <p :if={@mirrors == []} class="mt-1 px-2 text-xs text-base-content/50">
-              Not synced to a folder yet:
-              <code>slipdock sync init ~/Notes</code>
+              Not synced to a folder yet: <code>slipdock sync init ~/Notes</code>
             </p>
           </div>
         </div>

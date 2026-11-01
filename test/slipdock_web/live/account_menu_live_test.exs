@@ -90,7 +90,6 @@ defmodule SlipdockWeb.AccountMenuLiveTest do
             ~s(href="/"),
             ~s(href="/work"),
             ~s(href="/wiki"),
-            ~s(href="/vaults"),
             ">Set up<",
             ~s(href="/templates"),
             ~s(href="/groups"),

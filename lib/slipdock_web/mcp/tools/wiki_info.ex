@@ -58,7 +58,9 @@ defmodule SlipdockWeb.MCP.Tools.WikiInfo do
 
   defp changes(wiki, since, user, context) do
     with :ok <- cursor(since),
-         do: {:ok, Slipdock.Wiki.Changes.since(wiki, since, user, limit: 200, token: context[:token])}
+         do:
+           {:ok,
+            Slipdock.Wiki.Changes.since(wiki, since, user, limit: 200, token: context[:token])}
   end
 
   defp cursor(since) when is_integer(since) and since >= 0, do: :ok

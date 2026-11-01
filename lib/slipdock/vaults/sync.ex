@@ -705,7 +705,7 @@ defmodule Slipdock.Vaults.Sync do
 
     cond do
       segments == [] ->
-        {:error, :bad_request, "say which file: a path in the vault"}
+        {:error, :bad_request, "say which file: a path in the wiki"}
 
       Enum.any?(segments, &String.starts_with?(&1, ".")) ->
         {:error, :unprocessable_entity, "#{path}: hidden files and . or .. are not synced"}
@@ -721,7 +721,7 @@ defmodule Slipdock.Vaults.Sync do
     end
   end
 
-  def clean_path(_path, _ext), do: {:error, :bad_request, "say which file: a path in the vault"}
+  def clean_path(_path, _ext), do: {:error, :bad_request, "say which file: a path in the wiki"}
 
   defp content(content) when is_binary(content), do: {:ok, content}
   defp content(_), do: {:error, :bad_request, "send the file's content"}

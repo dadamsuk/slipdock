@@ -43,8 +43,7 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
         },
         note_tag: %{
           type: "string",
-          description:
-            "Only notes tagged this (#tags, in your wiki), or nested under it."
+          description: "Only notes tagged this (#tags, in your wiki), or nested under it."
         },
         archived: %{
           type: "string",

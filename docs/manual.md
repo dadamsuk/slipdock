@@ -4232,8 +4232,8 @@ Archiving a board shows only as that board's change, `archived` (drop its
 folder), and restoring it as `restored` (list again). `slipdock sync` moves
 the files here, and an edit made here follows them. Without a cursor it
 answers with the one to start from. A client can also keep a websocket open
-at `/socket/websocket?token=<API token>&vsn=2.0.0` and join `vault:<id>`
-(the id `GET /api/vaults` gives): each change pushes `change` with the new
+at `/socket/websocket?token=<API token>&vsn=2.0.0` and join the wiki's
+`channel` (from `GET /api/wiki`): each change pushes `change` with the new
 cursor, so it knows when to ask. The log keeps 90 days
 (`config :slipdock, :wiki_changes, retention_days:`); asked from a cursor
 older than that, the feed answers `resync: true` and the current cursor,

@@ -231,8 +231,10 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
       assert titles.(reader(ctx.board)) == ["Rollback plan"]
     end
 
-    test "board is required", ctx do
-      assert ctx.conn |> call(%{what: "wanted"}) |> error!() =~ "board is required"
+    test "with no board, the whole wiki's", ctx do
+      result = ctx.conn |> call(%{what: "wanted"}) |> ok!()
+      assert result["wiki"] == true
+      assert is_list(result["wanted"])
     end
 
     test "another tenant's board reads as not there", ctx do

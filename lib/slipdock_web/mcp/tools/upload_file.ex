@@ -290,11 +290,11 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
 
   defp no_vault_content(args) do
     if Map.has_key?(args, "content_base64") or Map.has_key?(args, "text"),
-      do: {:error, "send vault_file or the content, not both"},
+      do: {:error, "send wiki_file or the content, not both"},
       else: :ok
   end
 
-  # An id, or a path in the vault.
+  # An id, or a path in the wiki.
   defp vault_file(vault, ref, context) do
     opts = [token: context[:token]]
 
@@ -315,7 +315,7 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
         {actual, _size} = Attachment.file_sha256(path)
 
         {:error,
-         "sha256_mismatch: #{entry.path} in the vault has sha256 #{actual}, not the one you " <>
+         "sha256_mismatch: #{entry.path} in your wiki has sha256 #{actual}, not the one you " <>
            "sent, so the vault holds another version of it (has the sync caught up?). Nothing " <>
            "was stored."}
 

@@ -52,9 +52,9 @@ defmodule Slipdock.Wiki.Switcher do
 
   @doc """
   The pages a `[[` page picker on `board` offers `user` (#1303): `pool/2`
-  first, then the pages of every other vault of theirs that they may open,
-  each marked `elsewhere:` with that vault's name. A board is in one vault
-  at most, so no page comes twice.
+  first, then, on a board shared with them, the pages of their own wiki
+  they may open, each marked `elsewhere: "your wiki"`. A board is in one
+  wiki at most, so no page comes twice.
   """
   @spec linkable_pool(User.t(), Board.t()) :: [entry]
   def linkable_pool(%User{} = user, %Board{} = board) do
@@ -65,7 +65,7 @@ defmodule Slipdock.Wiki.Switcher do
       for vault <- Vaults.list_vaults(user),
           is_nil(here) or vault.id != here.id,
           entry <- vault_pool(user, vault),
-          do: Map.put(entry, :elsewhere, vault.name)
+          do: Map.put(entry, :elsewhere, "your wiki")
   end
 
   defp vault_pool(user, vault) do

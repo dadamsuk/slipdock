@@ -36,8 +36,10 @@ defmodule SlipdockWeb.API.WikiApiTest do
 
     refute Map.has_key?(wiki, "name")
     refute Map.has_key?(wiki, "id")
+
     assert Enum.map(wiki["boards"], & &1["path"]) |> Enum.sort() ==
              ["/Keystone", "/Knowledge Base"]
+
     assert Enum.any?(boards, &(&1["code"] == "wakb"))
   end
 

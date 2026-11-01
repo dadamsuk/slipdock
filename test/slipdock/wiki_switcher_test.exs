@@ -175,7 +175,7 @@ defmodule Slipdock.WikiSwitcherTest do
     } do
       by_id = user |> Switcher.linkable_pool(lent) |> Map.new(&{&1.id, &1})
 
-      assert by_id[call.id].elsewhere == "Brain"
+      assert by_id[call.id].elsewhere == "your wiki"
       assert by_id[borrowed.id][:elsewhere] == nil
       refute Map.has_key?(by_id, secret.id)
 
@@ -196,7 +196,7 @@ defmodule Slipdock.WikiSwitcherTest do
       by_id = user |> Switcher.linkable_pool(loose) |> Map.new(&{&1.id, &1})
 
       assert by_id[own.id][:elsewhere] == nil
-      assert by_id[call.id].elsewhere == "Brain"
+      assert by_id[call.id].elsewhere == "your wiki"
     end
 
     test "this vault's pages come first, recent or matched", %{

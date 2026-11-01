@@ -642,6 +642,7 @@ defmodule Slipdock.Boards do
         # Knowledge Base is on no list of boards, so nobody's needs redrawing.
         if is_nil(board.parent_card_id) and not Board.wiki?(board),
           do: notify_users_boards_changed([board.owner_id])
+
         {:ok, board}
 
       {:error, step, changeset, _} when step in [:board, :saved] ->

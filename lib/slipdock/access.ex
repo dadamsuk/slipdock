@@ -615,7 +615,9 @@ defmodule Slipdock.Access do
     )
     |> scope_to_token(opts[:token])
     |> Boards.filter_archived(Keyword.get(opts, :archived, false))
-    |> then(&if(opts[:wiki] == false, do: where(&1, [b], is_nil(b.kind) or b.kind != "wiki"), else: &1))
+    |> then(
+      &if(opts[:wiki] == false, do: where(&1, [b], is_nil(b.kind) or b.kind != "wiki"), else: &1)
+    )
     |> Repo.all()
     |> Repo.preload(
       owner: [],

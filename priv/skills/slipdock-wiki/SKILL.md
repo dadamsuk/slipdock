@@ -42,7 +42,7 @@ slipdock wiki                              # every board's wiki at once, folders
 slipdock folder ls <board>                 # one board's filing: folders, then pages
 slipdock folder open <board> [<folder>]    # one level only, with counts: cheap on a big wiki
 slipdock page switch <board> acme call     # fuzzy: title, alias or path, across your wiki
-slipdock page switch <board> rose --all    # ...and wikis shared with you too; link those as [[W-31]]
+slipdock page switch <board> rose --all    # on a board shared with you, your own wiki too; link those as [[W-31]]
 slipdock page mv W-31 --board projects --folder Acme --dry-run   # to another board of your wiki; drop --dry-run to move
 slipdock page tree <board>                 # the shape of the wiki, nesting by indent
 slipdock page ls <board> --q retry         # substring of title or body

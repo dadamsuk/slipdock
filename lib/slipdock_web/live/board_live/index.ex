@@ -1379,5 +1379,4 @@ defmodule SlipdockWeb.BoardLive.Index do
     </div>
     """
   end
-
 end

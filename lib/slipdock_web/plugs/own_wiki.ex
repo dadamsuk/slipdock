@@ -17,7 +17,11 @@ defmodule SlipdockWeb.Plugs.OwnWiki do
     {:ok, _} = Slipdock.Wiki.KnowledgeBase.ensure(user)
     id = to_string(Slipdock.Vaults.root(user).id)
 
-    %{conn | params: Map.put(conn.params, "id", id), path_params: Map.put(conn.path_params, "id", id)}
+    %{
+      conn
+      | params: Map.put(conn.params, "id", id),
+        path_params: Map.put(conn.path_params, "id", id)
+    }
     |> assign(:own_wiki, true)
   end
 

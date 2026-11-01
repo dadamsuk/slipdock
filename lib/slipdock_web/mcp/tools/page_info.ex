@@ -24,7 +24,7 @@ defmodule SlipdockWeb.MCP.Tools.PageInfo do
   def description,
     do:
       "what=links: a page's outgoing, incoming and unresolved links. sections: its heading " <>
-        "paths, as write_page's section takes them. wanted: a board's (no board: your wiki's) " <>
+        "paths, as write_page's section takes them. wanted: a board's (or your wiki's) " <>
         "linked-to, unwritten pages. resolve: is there a page for a title, and how to link it."
 
   @impl true
