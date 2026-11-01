@@ -209,6 +209,28 @@ defmodule Slipdock.Boards.ShortNames do
   end
 
   @doc """
+  Asks the model again for every card still on its systematic name: what a
+  run with no model left behind. Run it in the live app, where the AI calls
+  work (`bin/slipdock rpc`), not from a bare `eval`. Oldest first, one at a
+  time, and safe to stop and run again; a card it couldn't improve just stays.
+
+      %{tried: 12, by_model: 9}
+  """
+  def improve_systematic do
+    cards =
+      Repo.all(
+        from(c in Card,
+          where: not is_nil(c.short_name) and not c.short_name_edited,
+          where: fragment("char_length(trim(?)) > ?", c.title, ^@long),
+          order_by: [asc: c.id]
+        )
+      )
+      |> Enum.filter(&(&1.short_name == systematic(&1.title)))
+
+    %{tried: length(cards), by_model: Enum.count(cards, &match?({:ok, _}, refine(&1)))}
+  end
+
+  @doc """
   Gives every long-titled card with no short name one, oldest first. Safe to
   run again and with no key: a card already named is left alone. `:ids`
   limits it to those cards, `:model` false skips the model.

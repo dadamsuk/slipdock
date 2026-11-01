@@ -42,7 +42,8 @@ defmodule Slipdock.Vaults.RootReport do
     moved =
       Enum.map(report.moved.moved, &"#{&1.code}\t#{&1.from || "(no folder)"}\t#{&1.title}\n")
 
-    kept = Enum.map(report.moved.kept, &"#{&1.code}\t#{&1.folder}\t#{&1.title}\n")
+    kept =
+      Enum.map(report.moved.kept, &"#{&1.code}\t#{&1.folder || "(no folder)"}\t#{&1.title}\n")
 
     File.write!(Path.join(dir, "#{tag}-card-pages.tsv"), moved)
     File.write!(Path.join(dir, "#{tag}-kept-pages.tsv"), kept)
