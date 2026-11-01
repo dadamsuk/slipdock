@@ -370,7 +370,12 @@ slipdock page edit W-31 --priority high --flag review --due 2026-10-09
 slipdock page edit W-31 --assignee sam@example.com --percent 40 --color amber
 slipdock page edit W-31 --start 2026-10-01 --done      # --undone, --no-due, --no-color, …
 slipdock page edit W-31 --flag review --off            # take a flag off
+slipdock page edit W-31 --tag ops                      # the board's tags: --tag T --off, --set-tag T, --no-tags
 ```
+
+`--tag` takes a tag already on the root board, by name, and one that isn't there is
+refused. These are the board's tags, as the tree's **Tag…** puts on a page, not a note's
+own `note_tags` (front matter and inline `#tags`), which are edited in its text.
 
 `--priority` takes the card vocabulary (`none|low|medium|high|critical`),
 `--flag` a card flag (`blocked`, `review`, …, repeatable), `--percent` 0–100.

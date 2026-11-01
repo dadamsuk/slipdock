@@ -328,15 +328,22 @@ defmodule SlipdockWeb.API.CardWrites do
   def resolve_tags(_board, nil), do: {:ok, nil}
 
   def resolve_tags(board, names) when is_list(names) do
-    Enum.reduce_while(names, {:ok, []}, fn name, {:ok, acc} ->
-      case Boards.find_tag(board, name) do
-        {:ok, tag} -> {:cont, {:ok, acc ++ [tag]}}
-        _ -> {:halt, {:error, :unprocessable_entity, unknown_tag(board, name)}}
-      end
+    Enum.reduce_while(names, {:ok, []}, fn
+      name, {:ok, acc} when is_binary(name) or is_integer(name) ->
+        case Boards.find_tag(board, name) do
+          {:ok, tag} -> {:cont, {:ok, acc ++ [tag]}}
+          _ -> {:halt, {:error, :unprocessable_entity, unknown_tag(board, name)}}
+        end
+
+      _other, _acc ->
+        {:halt, {:error, :unprocessable_entity, "tags must be a list of tag names"}}
     end)
   end
 
   def resolve_tags(board, name) when is_binary(name), do: resolve_tags(board, [name])
+
+  def resolve_tags(_board, _other),
+    do: {:error, :unprocessable_entity, "tags must be a list of tag names"}
 
   # Tags are made on the board, never by naming one on a card, so the way out
   # of a typo is to know which there are.
@@ -355,11 +362,36 @@ defmodule SlipdockWeb.API.CardWrites do
   def maybe_adjust_tags(_card, nil, nil), do: {:ok, nil}
 
   def maybe_adjust_tags(card, add, remove) do
-    current = Boards.get_card!(card.id).tags
+    Boards.set_card_tags(card, adjusted_tags(Boards.get_card!(card.id).tags, add, remove))
+  end
+
+  defp adjusted_tags(current, add, remove) do
     remove_ids = Enum.map(remove || [], & &1.id)
     kept = Enum.reject(current, &(&1.id in remove_ids))
-    added = Enum.reject(add || [], fn t -> Enum.any?(kept, &(&1.id == t.id)) end)
-    Boards.set_card_tags(card, kept ++ added)
+    kept ++ Enum.reject(add || [], fn t -> Enum.any?(kept, &(&1.id == t.id)) end)
+  end
+
+  @doc """
+  The board tags a request asks of a page: `tags`, `add_tags` and
+  `remove_tags`, by name, on the page's root board as a card's are. Call it
+  before changing anything, so an unknown tag refuses the whole request, then
+  hand the answer to `apply_page_tags/2`. Never `note_tags`, which are the
+  note's own text.
+  """
+  def resolve_page_tags(board, params) do
+    with {:ok, tags} <- resolve_tags(board, params["tags"]),
+         {:ok, add} <- resolve_tags(board, params["add_tags"]),
+         {:ok, remove} <- resolve_tags(board, params["remove_tags"]) do
+      {:ok, {tags, add, remove}}
+    end
+  end
+
+  @doc "Applies `resolve_page_tags/2`'s answer: `tags` replaces, then add and remove adjust."
+  def apply_page_tags(page, {nil, nil, nil}), do: {:ok, page}
+
+  def apply_page_tags(page, {tags, add, remove}) do
+    current = tags || Slipdock.Wiki.tags(Slipdock.Wiki.get_page!(page.id))
+    Slipdock.Wiki.set_tags(page, adjusted_tags(current, add, remove))
   end
 
   def maybe_move(board, card, ref, actor \\ Slipdock.Actor.unknown())

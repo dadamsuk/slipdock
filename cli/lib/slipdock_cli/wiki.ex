@@ -638,6 +638,10 @@ defmodule SlipdockCLI.Wiki do
 
   def run("page", ["edit", ref], o) do
     flags = Keyword.get_values(o, :flag)
+    tags = Keyword.get_values(o, :tag)
+    set_tags = Keyword.get_values(o, :set_tag)
+
+    if o[:no_tags] && set_tags != [], do: fail("--no-tags or --set-tag, not both")
 
     body =
       compact(%{
@@ -656,6 +660,9 @@ defmodule SlipdockCLI.Wiki do
         "folder" => if(o[:no_folder], do: "", else: o[:folder]),
         "add_flags" => if(flags != [] and o[:off] != true, do: flags),
         "remove_flags" => if(flags != [] and o[:off] == true, do: flags),
+        "add_tags" => if(tags != [] and o[:off] != true, do: tags),
+        "remove_tags" => if(tags != [] and o[:off] == true, do: tags),
+        "tags" => if(set_tags != [], do: set_tags),
         "start_date" => if(o[:no_start], do: nil, else: o[:start]),
         "due_date" => if(o[:no_due], do: nil, else: o[:due]),
         "percent_complete" => if(o[:no_percent], do: nil, else: o[:percent]),
@@ -671,6 +678,7 @@ defmodule SlipdockCLI.Wiki do
       |> then(fn b -> if o[:no_percent], do: Map.put(b, "percent_complete", nil), else: b end)
       |> then(fn b -> if o[:no_color], do: Map.put(b, "color", nil), else: b end)
       |> then(fn b -> if o[:no_icon], do: Map.put(b, "icon", nil), else: b end)
+      |> then(fn b -> if o[:no_tags], do: Map.put(b, "tags", []), else: b end)
 
     if Map.drop(body, ["message", "base_hash"]) == %{},
       do: fail("nothing to change — pass --title, --body/--file, a facet, --draft or --publish")

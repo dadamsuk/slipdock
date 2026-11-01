@@ -3682,6 +3682,14 @@ a plain match on the text. Search (`/search`) reads bodies and matches by
 meaning: **Full text search for: _what you typed_** is one click to the same
 words there, already narrowed to this board.
 
+**Two kinds of tag.** A page has the board's tags, the ones its cards wear,
+which **Tag…** in the tree puts on one page or a selection and `slipdock page
+edit <page> --tag T` sets from the command line (over the API, `add_tags`,
+`remove_tags` and `tags` on `PATCH /api/pages/:id`; over MCP, `update_page`). A
+tag has to exist on the board first, and a name that isn't there is refused. A
+note in a vault also has tags of its own (`note_tags`), from its front matter
+and inline `#tags`: those are edited in the text, and nothing above touches them.
+
 **Picking a folder is a tree you type at.** Everywhere the app asks which
 folder — filing the page you are reading, the Folder field in the editor, the
 "Inside" of the New folder dialog — it shows the filing as a tree and narrows
@@ -5727,6 +5735,7 @@ slipdock page query-help                       # the grammar a ```slipdock block
 slipdock page query qvm-v1-rem --body -        # try a block before writing it into a page
 slipdock page edit W-31 --priority high --flag review --due 2026-10-09 --assignee sam@example.com
 slipdock page edit W-31 --percent 40 --color amber --done   # the card facets, on a document
+slipdock page edit W-31 --tag ops --tag urgent   # the board's tags (--tag T --off, --set-tag T replaces, --no-tags clears)
 slipdock comment W-31 "needs a worked example"  # comment, check, status, vote, weblink and
 slipdock check W-31 "worked example"           # unweblink all take a page code as readily
 slipdock status W-31 at_risk "stalled on SRE"  # as a card number

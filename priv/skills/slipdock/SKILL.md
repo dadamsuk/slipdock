@@ -35,7 +35,7 @@ does), and `read_page` reads one. `page_info` answers what `page links`, `page s
 `page wanted` and `page resolve` do — ask it for `sections` before a `write_page` section edit
 rather than guessing the heading path. `page_history` is `page history` and `page diff` (`rev`, `rev` + `against` to
 compare two versions, or `diff: true` for the latest save), and `revert_page` is `page revert`: it needs the page's current
-`content_hash` as `base_hash`. `update_page` is `page edit --title/--summary`, `page mv`, `page file`,
+`content_hash` as `base_hash`. `update_page` is `page edit --title/--summary/--tag`, `page mv`, `page file`,
 `page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`).
 `upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`). Base64 a model
 writes out goes wrong above about 1 KB (#1040), so with a shell where the file is, don't send it:
@@ -547,6 +547,7 @@ slipdock page new <board> <title...> [--body TEXT|--file F|--body -] [--parent P
 slipdock page ai <page> summarise|key_points|actions|titles|improve   # an AI tool over a page, on your AI key; writes nothing
 slipdock note <text...> | slipdock note --body -   # a quick note: the server names it, files it in the main vault and says where
 slipdock page edit <page> [--title T] [--summary S] [--body TEXT|--file F|--body -] [--message M] [--base-hash H] [--draft|--publish]
+slipdock page edit <page> --tag T [--off] | --set-tag T | --no-tags   # the board's tags, by name; a note's own #tags are its text, not these
 slipdock page mv <page> [--parent P | --root] [--position N|top|bottom]
 slipdock page rm <page> [--purge] | slipdock page restore <page>
 slipdock page history <page> [--limit N] | slipdock page diff <page> [--rev N] [--against M] | slipdock page revert <page> --rev N
