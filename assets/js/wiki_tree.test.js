@@ -892,18 +892,11 @@ test("a tree that was hidden draws itself, at the page, when it is opened as a d
   assert.deepEqual(scrolled, [true])
 })
 
-test("a folder offers its own board to the vault's owner only (#747)", () => {
+test("a folder no longer offers a board of its own (#1593)", () => {
   const row = folder(4, {href: "/boards/1/wiki?folder=4"})
-  const owner = menuItems(row, {board: 1, canWrite: true, vaultOwner: true, selected: new Set()})
-  const item = owner.find(i => i.label === "Give it its own board…")
-  assert.deepEqual(item && item.payload, {id: "4"})
-  assert.equal(item.event, "split_folder")
-
-  const other = menuItems(row, {board: 1, canWrite: true, vaultOwner: false, selected: new Set()})
-  assert.ok(!labels(other).includes("Give it its own board…"))
-
-  const page7 = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, vaultOwner: true, selected: new Set()})
-  assert.ok(!labels(page7).includes("Give it its own board…"))
+  const items = menuItems(row, {board: 1, canWrite: true, selected: new Set()})
+  assert.ok(!labels(items).includes("Give it its own board…"))
+  assert.ok(!items.some(i => i.event === "split_folder"))
 })
 
 // A page's preview (#760).
@@ -1041,32 +1034,23 @@ test("a writer's folder offers Organise…; a page, a selection and a reader don
   assert.ok(!labels(menuItems(page(7, {href: "/x"}), {board: 1, canWrite: true, selected: new Set()})).includes("Organise…"))
 })
 
-// A board or folder mounted in a vault (#797): one mapping's mount has a
-// menu, whose owner can dress it; a vault folder several sit below has none.
-const mount = (extra = {}) => ({kind: "folder", key: "board:6", id: "board:6", title: "Jobs", mount: true, count: 1, pages: 4, board_id: 6, mapping: 12, href: "/boards/6/wiki", ...extra})
+// A board in a vault: it has a menu of its own; a folder that is only the way
+// down to a board has none.
+const mount = (extra = {}) => ({kind: "folder", key: "board:6", id: "board:6", title: "Jobs", mount: true, count: 1, pages: 4, board_id: 6, href: "/boards/6/wiki", ...extra})
 
-test("hasMenu: one mapping's mount has a menu, a shared vault folder doesn't (#797)", () => {
+test("hasMenu: a board has a menu, the way down to one doesn't", () => {
   assert.ok(hasMenu(mount()))
-  assert.ok(hasMenu(mount({kind: "dir", href: undefined})))
-  assert.ok(!hasMenu(mount({mapping: undefined})))
+  assert.ok(!hasMenu(mount({board_id: undefined})))
   assert.ok(!hasMenu({kind: "dir", key: "dir:Work", mount: true, count: 1}))
   assert.ok(hasMenu(folder(1)) && hasMenu(page(1)))
 })
 
-test("menuItems: the vault's owner can give a mount an icon and a colour (#797)", () => {
-  const owner = menuItems(mount(), {vaultOwner: true, board: 1})
-  assert.deepEqual(owner.map(i => i.label), ["Open", "Open in a new tab", "Icon and colour…", "Copy link"])
-  const dress = owner.find(i => i.event === "dress_mount")
-  assert.deepEqual(dress.payload, {mapping: "12"})
-  // Not the folder's own edits: the mount is the mapping's, not a folder.
-  assert.ok(!owner.some(i => ["rename_folder", "tree_dialog", "ask_delete_folder"].includes(i.event)))
-})
-
-test("menuItems: anyone else reading a mount can open and link it, not dress it (#797)", () => {
-  const reader = menuItems(mount({writable: true}), {vaultOwner: false, board: 1})
-  assert.deepEqual(reader.map(i => i.label), ["Open", "Open in a new tab", "Copy link"])
-  // With nowhere to open, there is nothing for them at all.
-  assert.deepEqual(menuItems(mount({kind: "dir", href: undefined}), {vaultOwner: false}), [])
+test("menuItems: a board in a vault can be opened and linked, and no more", () => {
+  const items = menuItems(mount({writable: true}), {board: 1})
+  assert.deepEqual(items.map(i => i.label), ["Open", "Open in a new tab", "Copy link"])
+  assert.ok(!items.some(i => ["dress_mount", "rename_folder", "tree_dialog", "ask_delete_folder"].includes(i.event)))
+  // With nowhere to open, there is nothing at all.
+  assert.deepEqual(menuItems(mount({href: undefined}), {}), [])
 })
 
 test("a mount's row has its menu button, and its count sits where a folder's does (#797)", () => {

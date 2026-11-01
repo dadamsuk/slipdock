@@ -324,10 +324,10 @@ export function rowHtml(item, index, ctx) {
     badges + `</a>` + menu + `</div>`
 }
 
-// Whether a row has a menu: pages, folders and files, and what one mapping
-// mounts in a vault (#797); not a vault folder several are mounted below.
+// Whether a row has a menu: pages, folders and files, and a board in a vault;
+// not a folder that is only the way down to one.
 export function hasMenu(row) {
-  if (row.mount) return !!row.mapping
+  if (row.mount) return !!row.board_id
   return ["page", "folder", "file"].includes(row.kind)
 }
 
@@ -391,12 +391,10 @@ export function menuItems(row, ctx) {
     return items
   }
 
-  // A board or folder mounted in the vault: opened, linked, and dressed
-  // by the vault's owner, since what it wears there is the mapping's (#797).
-  if (row.mount && row.mapping) {
+  // A board in the vault: opened and linked.
+  if (row.mount && row.board_id) {
     add(!!row.href, {label: "Open", icon: "hero-folder-open", href: row.href, nav})
     add(!!row.href, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
-    add(ctx.vaultOwner, {label: "Icon and colour…", icon: "hero-swatch", event: "dress_mount", payload: {mapping: String(row.mapping)}, group: "edit"})
     add(!!row.href, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href, group: "share"})
     return items
   }
@@ -430,9 +428,6 @@ export function menuItems(row, ctx) {
     add(writable && !many, {label: "Edit folder…", icon: "hero-pencil", event: "rename_folder", payload: {id}, group: "edit"})
     // Sort what is filed in it by date, tag or the AI's suggestions (#791).
     add(writable && !many, {label: "Organise…", icon: "hero-sparkles", event: "organise_folder", payload: {id}, group: "edit"})
-    // Its contents to a board of their own, mapped at its vault path (#747):
-    // for whoever owns the vault, since it changes the vault's mappings.
-    add(writable && !many && ctx.vaultOwner, {label: "Give it its own board…", icon: "hero-arrow-up-on-square-stack", event: "split_folder", payload: {id}, group: "edit"})
   } else {
     add(writable && !many, {label: "New note inside", icon: "hero-document-plus", href: `${base}/new?parent=${id}`, nav, group: "new"})
     add(writable && !many, {label: "Rename…", icon: "hero-pencil", event: "rename_page", payload: {id}, group: "edit"})
@@ -634,7 +629,6 @@ export const WikiTree = {
       organising: this.el.dataset.organising === "true",
       canWrite: this.el.dataset.canWrite === "true",
       inbound: this.el.dataset.inbound === "true",
-      vaultOwner: this.el.dataset.vaultOwner === "true",
     }
   },
 
