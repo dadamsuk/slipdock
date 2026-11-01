@@ -59,6 +59,8 @@ defmodule SlipdockCLI do
       --label TEXT  what the approval screen calls this client (default: this host)
       --scope read|write   what to ask for (default: write)
   auth <token>                        save an API token directly (create one at /account/tokens)
+    names [full|short]                  says or sets Names in trees and lists: full titles
+                                        or short names, in the web app and clients
     whoami                              show who you are signed in as (and how many things
                                         are waiting on you)
     work [--board B] [--done]           my work: what is waiting on you (waits, review and
@@ -380,7 +382,8 @@ defmodule SlipdockCLI do
     wiki get <board> <path> [--out F|-] [--force]
                                         save one by its path ("Tool/cv.docx") under its
                                         own name here, as F, or to stdout (--out -)
-    folder ls <board>                   the board's filing, pages and all
+    folder ls <board> [--short-names]   the board's filing, pages and all; card folders by
+                                        their short names (pages have none)
     folder open <board> [<folder>] [--page P] [--all]
                                         one level of the tree, as the web's tree loads it:
                                         folders, pages and files with how much is under each,
@@ -453,7 +456,8 @@ defmodule SlipdockCLI do
     vault resolve <vault> <link...>     the page a [[link]] finds anywhere in the vault
                                         (Note, or Folder/Note; the shortest path wins)
     vault wanted <vault>                pages linked to but never written, every board at once
-    vault changes <vault> [--since N] [--limit N]
+    vault tree <vault> [--short-names]  every folder and file by name, archived ones marked
+    vault changes <vault> [--since N] [--limit N] [--short-names]
                                         what changed (pages, folders, attachments) after cursor
                                         N, each once and as it is now; without --since, the
                                         cursor to start from. What sync polls
@@ -920,6 +924,7 @@ defmodule SlipdockCLI do
 
   @switches [
     json: :boolean,
+    short_names: :boolean,
     from: :string,
     scope: :string,
     remove: :boolean,

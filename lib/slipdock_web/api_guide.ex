@@ -2395,6 +2395,17 @@ defmodule SlipdockWeb.APIGuide do
     `code`, `title`, `icon`, `color`, `position`, `inserted_at`, `updated_at`,
     `content_hash`, `folder_id`, `archived` and vault `path`), or `"action": "deleted"` — with the next `cursor` and
     `more`. A new icon or colour is a change too, and leaves the hashes alone.
+    Every page, folder, file and board carries `title`, `short_name` (a card
+    folder's, else null), `path` (the listing's, from disk names, null for what
+    is archived itself) and `archived` (itself, or its board or a card above
+    it); a card's folder has `card_id`. A rename of a card, a short name or a
+    board comes as `"action": "moved"` with the old path in `from_path` on
+    the folder and on everything that moved under it, with `"subject":
+    "board"` for a board's own folder: move what you hold, by id, and don't
+    delete anything. Moved more than once since your cursor, `from_path` is
+    the first path. It isn't in the file, so a moved file's hash is as it was,
+    unless the bytes changed too: a page also filed in a folder that moved
+    names it in `also-in`, and comes as `changed`.
     Keep a websocket on `/socket/websocket?token=<token>&vsn=2.0.0`, join
     `vault:<id>`, and a `change` event with the cursor says when to ask.
     The log keeps a window (90 days by default): `"resync": true` means your
@@ -2449,7 +2460,16 @@ defmodule SlipdockWeb.APIGuide do
     `{id, board_id, icon, color, writable, shareable}`. With `?stubs=1`, a
     stub carries none of these, and a directory only a stub needs isn't in
     `folder_details`. `boards` lists the boards you can open, each `{id, name,
-    path, archived}`. `GET /api/vaults/:id` says whether the vault is yours
+    title, short_name, path, archived}`. `folders` takes in the boards'
+    directories, and the `Cards` and epic directories a sub-board needs when
+    no folder stands for them; `virtual_folders` lists those last as `{path,
+    board_id, title, short_name, card_id, archived}`. Every page, file and
+    `folder_details` entry also has `title` (whole, however long), `short_name`
+    (a card folder's when it has one, else null; a page has none) and
+    `archived`: a board or a card put it away, and a path never says so. A
+    card's folder has its `card_id`. Show titles or short names as the person
+    chose: `tree_names` in `GET /api/me`, `full` or `short`, set with `PUT
+    /api/me/display {"tree_names": "short"}` or `slipdock names short`. `GET /api/vaults/:id` says whether the vault is yours
     (`owned`), and each of its `boards`' `wiki_tree_icons` whether that board's
     tree shows icons and colours at all; turning that off isn't in the change
     feed.

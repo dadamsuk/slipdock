@@ -15,6 +15,7 @@ defmodule Slipdock.Boards do
 
   alias Slipdock.Boards.ShortNames
   alias Slipdock.Vaults.Vault
+  alias Slipdock.Wiki.{Changes, CardFolders}
   alias Slipdock.Multiboard.Saved, as: SavedMultiboard
   alias Slipdock.Boards.{BoardOrder, CardLink, CardUrl, FieldDefinition, FieldValue, Milestone}
   alias Slipdock.Boards.StatusUpdate
@@ -983,11 +984,19 @@ defmodule Slipdock.Boards do
   end
 
   def update_board(%Board{} = board, attrs) do
-    board
-    |> Board.changeset(attrs |> put_code(board) |> put_shortcut(board))
-    |> vault_key_check()
-    |> Repo.update()
-    |> tap_ok(&broadcast(&1.id))
+    changeset =
+      board
+      |> Board.changeset(attrs |> put_code(board) |> put_shortcut(board))
+      |> vault_key_check()
+
+    # A root board's name is its folder's on disk, so a new one moves the lot.
+    renamed? = Map.has_key?(changeset.changes, :name)
+
+    Changes.tracking(if(renamed?, do: board.id), fn -> Repo.update(changeset) end)
+    |> tap_ok(fn updated ->
+      if renamed?, do: Changes.record(updated.id, "board", updated.id)
+      broadcast(updated.id)
+    end)
   end
 
   def delete_board(%Board{} = board) do
@@ -1037,6 +1046,7 @@ defmodule Slipdock.Boards do
     |> Repo.update()
     |> tap_ok(fn b ->
       log(Repo, b.id, nil, "board", "#{verb} board “#{b.name}”")
+      Changes.record(b.id, "board", b.id, verb)
       broadcast(b.id)
     end)
   end
@@ -1874,20 +1884,22 @@ defmodule Slipdock.Boards do
     # Who was on it, read only when this write changes that.
     before = if assignees, do: assignee_ids(card), else: []
     changeset = Card.changeset(card, attrs)
+    titled? = Map.has_key?(changeset.changes, :title)
+    named? = titled? or Map.has_key?(changeset.changes, :short_name)
+    save = fn -> save_with_assignees(changeset, &Repo.update/1, assignees) end
 
-    changeset
-    |> save_with_assignees(&Repo.update/1, assignees)
+    if(named?, do: CardFolders.tracking(card, save), else: save.())
     |> tap_ok(fn updated ->
       (describe_card_changes(card, changeset) ++ describe_assignees(card, before, assignees))
       |> Enum.each(&log(Repo, updated.board_id, updated.id, "card", &1))
 
       # A sub-board is named after its card.
-      if Map.has_key?(changeset.changes, :title) do
+      if titled? do
         from(b in Board, where: b.parent_card_id == ^updated.id)
         |> Repo.update_all(set: [name: Board.name_for_card(updated.title)])
-
-        Slipdock.Wiki.CardFolders.renamed(updated)
       end
+
+      if named?, do: CardFolders.renamed(updated)
 
       broadcast(updated.board_id)
       Indexer.enqueue(updated)
@@ -2199,8 +2211,10 @@ defmodule Slipdock.Boards do
     |> tap_ok(fn c ->
       log(Repo, c.board_id, c.id, "card", "archived “#{c.title}”")
 
-      if is_nil(card.archived_at),
-        do: record_move(c, "archived", Repo.get(Column, c.column_id), nil, actor(opts))
+      if is_nil(card.archived_at) do
+        record_move(c, "archived", Repo.get(Column, c.column_id), nil, actor(opts))
+        CardFolders.archived(c, "archived")
+      end
 
       Slipdock.Recurrence.card_archived(c)
 
@@ -2228,8 +2242,10 @@ defmodule Slipdock.Boards do
     |> tap_ok(fn c ->
       log(Repo, c.board_id, c.id, "card", "restored “#{c.title}”")
 
-      if card.archived_at,
-        do: record_move(c, "restored", nil, Repo.get(Column, c.column_id), actor(opts))
+      if card.archived_at do
+        record_move(c, "restored", nil, Repo.get(Column, c.column_id), actor(opts))
+        CardFolders.archived(c, "restored")
+      end
 
       broadcast(c.board_id)
       Indexer.enqueue(c)
@@ -4546,7 +4562,7 @@ defmodule Slipdock.Boards do
           broadcast(board_id)
 
         %Attachment{page: %{board_id: board_id}} ->
-          Slipdock.Wiki.Changes.record(board_id, "attachment", a.id, "deleted")
+          Changes.record(board_id, "attachment", a.id, "deleted")
           broadcast(board_id)
 
         _ ->

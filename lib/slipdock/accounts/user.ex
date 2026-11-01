@@ -2,6 +2,8 @@ defmodule Slipdock.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @tree_names ~w(full short)
+
   schema "users" do
     field :email, :string
     field :name, :string
@@ -28,6 +30,9 @@ defmodule Slipdock.Accounts.User do
     # lets people choose (see `Slipdock.Meetings.visible?/2`). A display
     # preference: the API and the CLI answer the same either way.
     field :hide_meetings, :boolean, default: false
+    # "Names in trees and lists": full titles, or short names where a thing
+    # has one. See `Slipdock.Vaults.Names`.
+    field :tree_names, :string, default: "full"
     # This person's IANA timezone, for recurring cards and snooze. Nil until
     # the browser first says; read through `Slipdock.Timezones.of/1`.
     field :timezone, :string
@@ -141,8 +146,16 @@ defmodule Slipdock.Accounts.User do
   @doc "What the multiboard overview shows (#1479): see `Slipdock.Multiboard`."
   def multiboard_changeset(user, attrs), do: cast(user, attrs, [:multiboard])
 
-  @doc "This person's display preferences: for now, whether meeting capture is hidden."
-  def display_changeset(user, attrs), do: cast(user, attrs, [:hide_meetings])
+  @doc "This person's display preferences: whether meeting capture is hidden, and `tree_names`."
+  def display_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:hide_meetings, :tree_names])
+    |> validate_required([:tree_names])
+    |> validate_inclusion(:tree_names, @tree_names)
+  end
+
+  @doc "The choices for `tree_names`."
+  def tree_names, do: @tree_names
 
   @doc """
   The admin's view of somebody: whether they may administer this server, what

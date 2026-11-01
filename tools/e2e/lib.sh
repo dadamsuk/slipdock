@@ -1,5 +1,5 @@
 # Shared by the tools/e2e scripts: a throwaway database with two boards in
-# one vault (Keystone at /, Journal Desk at /Plans), a folder Specs with a
+# the user's vault (/Keystone and /Journal Desk), a folder Specs with a
 # note "Acme call" in it, a server of its own, and a sign-in link. Source it,
 # then call e2e_start; it sets KB HUNT SPECS PAGE LINK BASE, and the server
 # and database go when the script exits.
@@ -27,13 +27,10 @@ e2e_start() {
 
   local ids
   ids=$(mix run -e '
-    alias Slipdock.{Accounts, Boards, Vaults, Wiki}
+    alias Slipdock.{Accounts, Boards, Wiki}
     {:ok, user} = Accounts.get_or_create_user_by_email("e2e@example.com")
     {:ok, kb} = Boards.create_board(%{"name" => "Keystone", "code" => "kbe2e"}, owner_id: user.id)
     {:ok, hunt} = Boards.create_board(%{"name" => "Journal Desk", "code" => "hunte2e"}, owner_id: user.id)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: Boards.get_board!(kb.id)})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Plans", board: Boards.get_board!(hunt.id)})
     {:ok, specs} = Wiki.create_folder(kb, %{"name" => "Specs"})
     {:ok, page} = Wiki.create_page(kb, %{"title" => "Acme call", "body" => "Went well.", "folder_id" => specs.id}, user: user)
     IO.puts("IDS #{kb.id} #{hunt.id} #{specs.id} #{page.id}")

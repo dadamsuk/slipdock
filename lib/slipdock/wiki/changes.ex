@@ -4,8 +4,8 @@ defmodule Slipdock.Wiki.Changes do
 
   Every mutation of a page, a folder, a page's attachment or a wiki file
   (`Slipdock.Wiki.WikiFile`) appends a row:
-  `board`, `subject` and its id, and what happened (`changed`, `archived`,
-  `restored`, `deleted`). The row's id is the **cursor**, increasing and
+  `board`, `subject` and its id, and what happened (`changed`, `moved`,
+  `archived`, `restored`, `deleted`). The row's id is the **cursor**, increasing and
   never reused, so "what has changed since cursor 812?" has one exact answer
   however many boards a vault spans.
 
@@ -18,6 +18,14 @@ defmodule Slipdock.Wiki.Changes do
   older than what is kept is told `resync: true`: re-list the vault, because
   some changes — deletions among them — are no longer here to be read.
 
+  **Moves.** A card, a short name or a board renamed changes paths without
+  touching what lies under them, so `tracking/2` compares where everything
+  was before the rename with where it is after and writes a `moved` row, with
+  the old path in `from_path`, for each thing whose path is different: the
+  folder and everything under it, and anything a clash renumbered. It costs a
+  placing of the vault (no bodies) on each side of a rename of something that
+  has a folder, and nothing on any other save.
+
   A change is also announced on `"vault_changes:<vault id>"` as
   `{:vault_change, vault_id, cursor}`, which is what the websocket channel
   passes on, so an open client knows to poll rather than polling blind.
@@ -27,10 +35,10 @@ defmodule Slipdock.Wiki.Changes do
 
   alias Slipdock.{Access, Repo, Vaults}
   alias Slipdock.Accounts.User
-  alias Slipdock.Boards.Attachment
-  alias Slipdock.Vaults.{Index, Vault}
+  alias Slipdock.Boards.{Attachment, Board}
+  alias Slipdock.Vaults.{Layout, Names, Vault}
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{Change, Folder, Page}
+  alias Slipdock.Wiki.{Change, Folder, Page, Placement, WikiFile}
 
   @pubsub Slipdock.PubSub
 
@@ -70,6 +78,104 @@ defmodule Slipdock.Wiki.Changes do
   def record_pages(board_id, ids, action),
     do: Enum.each(ids, &record(board_id, "page", &1, action))
 
+  @doc """
+  Runs `fun`, a rename on `board_id` that may change paths, and records what
+  it moved in the board's vault. Answers what `fun` does. A nil `board_id`
+  says nothing can move, and just runs it. Never fails the write it records.
+  """
+  def tracking(nil, fun), do: fun.()
+
+  def tracking(board_id, fun) do
+    vault = Vaults.for_board(board_id)
+    before = vault && before_rename(vault)
+    result = fun.()
+    if before, do: record_moves(vault, before)
+    result
+  end
+
+  defp before_rename(vault) do
+    places(vault)
+  rescue
+    _ -> nil
+  end
+
+  # Where everything is, as `{subject, id} => {board_id, path}`.
+  defp places(vault), do: vault |> Layout.build() |> places_in()
+
+  defp places_in(layout) do
+    pages = for {id, p} <- layout.pages, do: {{"page", id}, {p.board_id, p.path}}
+    files = for {id, f} <- layout.files, do: {{"file", id}, {f.board_id, f.path}}
+    folders = for {id, d} <- layout.folders, do: {{"folder", id}, {layout.folder_boards[id], d}}
+    boards = for {id, dir} <- layout.boards, do: {{"board", id}, {id, dir}}
+
+    Map.new(pages ++ files ++ folders ++ boards)
+  end
+
+  defp record_moves(vault, before) do
+    now = places(vault)
+
+    moved =
+      for {key, {board_id, path}} <- now,
+          {_board, was} <- [before[key]],
+          was != path do
+        {key, board_id, was}
+      end
+
+    rows =
+      Enum.map(moved, fn {{subject, id}, board_id, was} ->
+        row(board_id, subject, id, "moved", was, DateTime.utc_now())
+      end)
+
+    insert(vault, rows ++ rewritten(moved, now))
+  rescue
+    _ -> :ok
+  end
+
+  # A file names the other folders its page is filed in (`also-in`), so a
+  # folder moving changes the bytes of a page that stayed where it was.
+  defp rewritten(moved, now) do
+    folder_ids = for {{"folder", id}, _board, _was} <- moved, do: id
+    moved_pages = MapSet.new(for {{"page", id}, _board, _was} <- moved, do: id)
+
+    from(pl in Placement, where: pl.folder_id in ^folder_ids, select: pl.page_id)
+    |> Repo.all()
+    |> Enum.uniq()
+    |> Enum.reject(&MapSet.member?(moved_pages, &1))
+    |> Enum.flat_map(fn id ->
+      case now[{"page", id}] do
+        {board_id, _path} -> [row(board_id, "page", id, "changed", nil, DateTime.utc_now())]
+        nil -> []
+      end
+    end)
+  end
+
+  defp row(board_id, subject, subject_id, action, from_path, at) do
+    %{
+      board_id: board_id,
+      subject: subject,
+      subject_id: subject_id,
+      action: action,
+      from_path: from_path,
+      inserted_at: at
+    }
+  end
+
+  # A move can be thousands of rows, and one announcement is enough for them.
+  defp insert(_vault, []), do: :ok
+
+  defp insert(%Vault{id: vault_id}, rows) do
+    cursor =
+      rows
+      |> Enum.chunk_every(1000)
+      |> Enum.map(fn chunk ->
+        {_count, ids} = Repo.insert_all(Change, chunk, returning: [:id])
+        ids |> Enum.map(& &1.id) |> Enum.max()
+      end)
+      |> Enum.max()
+
+    Phoenix.PubSub.broadcast(@pubsub, topic(vault_id), {:vault_change, vault_id, cursor})
+  end
+
   defp announce(board_id, cursor) do
     case Vaults.for_board(board_id) do
       %Vault{id: vault_id} ->
@@ -96,9 +202,21 @@ defmodule Slipdock.Wiki.Changes do
   Each subject appears once, at its latest change in the window, with what
   it is now — a page's code, title, icon, colour, position, times,
   `content_hash`, home folder, whether it is archived, and its vault path; a
-  folder's path, icon, colour, position, sort and times; an attachment's
-  page, name and size — or `deleted` when it is
-  gone. A new icon or colour is a change like any other, and leaves
+  folder's path, title, short name, card id, icon, colour, position, sort and
+  times; a file's path, title, folder, times, size and hash; a board's path
+  and title; an attachment's page, name and size — or `deleted` when it is
+  gone. `path` is the one the listing has, built from disk names, and nil for
+  what is archived itself and so has no file. `archived` is true for what is
+  archived itself, and for whatever sits on an archived board or under an
+  archived card, which keeps its path; only the former has a nil `path`.
+
+  A subject whose path changed in the window is `moved`, with `from_path`
+  the path it had at the start of the window: however many times it moved, a
+  client holding the old path has what it needs, and a subject that came back
+  to where it was is merely `changed`. Edited as well as moved, it is still
+  `moved`; compare hashes for the bytes.
+
+  A new icon or colour is a change like any other, and leaves
   `content_hash` and the sync hash alone, since neither is in the file. Pages the reader cannot open
   are left out. Pass the `cursor` back as `since` next time; `more: true`
   means call again straight away.
@@ -208,14 +326,36 @@ defmodule Slipdock.Wiki.Changes do
       |> Enum.uniq_by(&{&1.subject, &1.subject_id})
       |> Enum.reverse()
 
-    paths = if Enum.any?(latest, &(&1.subject == "page")), do: page_paths(vault), else: %{}
+    from =
+      rows
+      |> Enum.reject(&is_nil(&1.from_path))
+      |> Enum.uniq_by(&{&1.subject, &1.subject_id})
+      |> Map.new(&{{&1.subject, &1.subject_id}, &1.from_path})
 
-    Enum.flat_map(latest, &entry(&1, paths, reader))
+    place = if rows == [], do: nil, else: place(vault)
+
+    latest
+    |> Enum.flat_map(&entry(&1, place, reader))
+    |> Enum.map(&moved(&1, from[{&1.subject, &1.id}]))
   end
 
-  defp page_paths(vault), do: vault |> Index.build() |> Map.new(&{&1.id, "/" <> &1.path})
+  defp place(vault) do
+    layout = Layout.build(vault)
+    %{layout: layout, names: Names.build(layout)}
+  end
 
-  defp entry(%Change{subject: "page"} = row, paths, reader) do
+  # A move stays a move under later saves, and one undone is no move at all.
+  defp moved(%{action: action} = change, was) when action in ["changed", "moved"] do
+    path = change[:path]
+
+    if is_nil(was) or is_nil(path) or was == path,
+      do: %{change | action: "changed"},
+      else: Map.merge(change, %{action: "moved", from_path: was})
+  end
+
+  defp moved(change, _was), do: change
+
+  defp entry(%Change{subject: "page"} = row, %{layout: layout, names: names}, reader) do
     case Repo.get(Page, row.subject_id) do
       nil ->
         [base(row, "deleted")]
@@ -236,8 +376,10 @@ defmodule Slipdock.Wiki.Changes do
               content_hash: page.content_hash,
               folder_id: page.folder_id,
               parent_id: page.parent_id,
-              archived: not is_nil(page.archived_at),
-              path: paths[page.id]
+              short_name: nil,
+              archived:
+                not is_nil(page.archived_at) or under_archived?(layout.pages[page.id], names),
+              path: layout.pages[page.id][:path]
             })
           ]
         else
@@ -246,18 +388,24 @@ defmodule Slipdock.Wiki.Changes do
     end
   end
 
-  defp entry(%Change{subject: "folder"} = row, _paths, _reader) do
+  defp entry(%Change{subject: "folder"} = row, %{layout: layout, names: names}, _reader) do
     case Repo.get(Folder, row.subject_id) do
       nil ->
         [base(row, "deleted")]
 
       folder ->
+        name = names.folders[folder.id] || %{}
+
         [
           row
           |> base(row.action)
           |> Map.merge(%{
             name: folder.name,
-            path: Wiki.folder_path(folder),
+            title: name[:title] || folder.name,
+            short_name: name[:short_name],
+            card_id: folder.card_id,
+            archived: name[:archived] == true,
+            path: layout.folders[folder.id],
             icon: folder.icon,
             color: folder.color,
             position: folder.position,
@@ -269,7 +417,7 @@ defmodule Slipdock.Wiki.Changes do
     end
   end
 
-  defp entry(%Change{subject: "attachment"} = row, _paths, reader) do
+  defp entry(%Change{subject: "attachment"} = row, _place, reader) do
     case Repo.get(Attachment, row.subject_id) |> Repo.preload(:page) do
       nil ->
         [base(row, "deleted")]
@@ -288,13 +436,13 @@ defmodule Slipdock.Wiki.Changes do
     end
   end
 
-  defp entry(%Change{subject: "file"} = row, _paths, reader) do
-    case Repo.get(Slipdock.Wiki.WikiFile, row.subject_id) do
+  defp entry(%Change{subject: "file"} = row, %{layout: layout, names: names}, reader) do
+    case Repo.get(WikiFile, row.subject_id) do
       nil ->
         [base(row, "deleted")]
 
       file ->
-        board = Repo.get(Slipdock.Boards.Board, file.board_id)
+        board = Repo.get(Board, file.board_id)
 
         if board && Access.can_read?(Access.board_permission(reader, board)),
           do: [
@@ -302,19 +450,51 @@ defmodule Slipdock.Wiki.Changes do
             |> base(row.action)
             |> Map.merge(%{
               name: file.name,
+              title: file.name,
+              short_name: nil,
+              path: layout.files[file.id][:path],
               folder_id: file.folder_id,
               inserted_at: file.inserted_at,
               updated_at: file.updated_at,
               size: file.size,
               sha256: file.sha256,
-              archived: not is_nil(file.archived_at)
+              archived:
+                not is_nil(file.archived_at) or under_archived?(layout.files[file.id], names)
             })
           ],
           else: []
     end
   end
 
-  defp entry(_row, _paths, _reader), do: []
+  defp entry(%Change{subject: "board"} = row, %{layout: layout, names: names}, reader) do
+    board = Repo.get(Board, row.subject_id)
+
+    cond do
+      is_nil(board) ->
+        [base(row, "deleted")]
+
+      Access.can_read?(Access.board_permission(reader, board)) ->
+        [
+          row
+          |> base(row.action)
+          |> Map.merge(%{
+            name: board.name,
+            title: board.name,
+            short_name: nil,
+            path: layout.boards[board.id],
+            archived: names.boards[board.id][:archived] == true
+          })
+        ]
+
+      true ->
+        []
+    end
+  end
+
+  defp entry(_row, _place, _reader), do: []
+
+  defp under_archived?(nil, _names), do: false
+  defp under_archived?(%{dir: dir}, names), do: Names.archived?(names, dir)
 
   defp base(row, action),
     do: %{

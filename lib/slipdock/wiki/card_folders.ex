@@ -16,7 +16,7 @@ defmodule Slipdock.Wiki.CardFolders do
   alias Slipdock.Boards.{Board, Card}
   alias Slipdock.Repo
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{Folder, Folders}
+  alias Slipdock.Wiki.{Changes, Folder, Folders}
 
   @root "Cards"
 
@@ -76,16 +76,65 @@ defmodule Slipdock.Wiki.CardFolders do
     end
   end
 
-  @doc "Keeps the folder's stored name on the card's title, when it has a folder."
-  def renamed(%Card{} = card) do
-    from(f in Folder, where: f.card_id == ^card.id)
-    |> Repo.update_all(set: [name: display_name(card)])
+  @doc "Whether the card has a directory in a vault, its own folder or its sub-board's."
+  def on_disk?(%Card{id: id}) do
+    Repo.exists?(from(f in Folder, where: f.card_id == ^id)) or
+      Repo.exists?(from(b in Board, where: b.parent_card_id == ^id))
+  end
 
+  @doc """
+  Runs `fun`, which saves a new title or short name for `card`, and records
+  what that moved (`Slipdock.Wiki.Changes.tracking/2`). A card with no
+  directory moves nothing, so its save costs nothing extra.
+  """
+  def tracking(%Card{} = card, fun) do
+    Changes.tracking(if(on_disk?(card), do: card.board_id), fun)
+  end
+
+  @doc """
+  Keeps the folder's stored name on the card's title, when it has a folder,
+  and tells the feed the card's directory has new names, even when its path
+  stayed the same.
+  """
+  def renamed(%Card{} = card) do
+    {_count, folders} =
+      from(f in Folder, where: f.card_id == ^card.id, select: {f.id, f.board_id})
+      |> Repo.update_all(set: [name: display_name(card)])
+
+    for {id, board_id} <- folders, do: Changes.record(board_id, "folder", id)
+    record_sub_boards(card, "changed")
     :ok
+  end
+
+  @doc "Tells the feed the card's directory is put away or back, which moves nothing."
+  def archived(%Card{} = card, action) do
+    from(f in Folder, where: f.card_id == ^card.id, select: {f.id, f.board_id})
+    |> Repo.all()
+    |> Enum.each(fn {id, board_id} -> Changes.record(board_id, "folder", id, action) end)
+
+    record_sub_boards(card, action)
+  end
+
+  defp record_sub_boards(card, action) do
+    from(b in Board, where: b.parent_card_id == ^card.id, select: b.id)
+    |> Repo.all()
+    |> Enum.each(&Changes.record(&1, "board", &1, action))
   end
 
   defp display_name(%Card{title: title}),
     do: title |> String.trim() |> String.slice(0, Folder.name_length())
+
+  @doc "The card folders among `folder_ids`: `%{folder_id => %{title:, short_name:}}`."
+  def labels(folder_ids) do
+    from(f in Folder,
+      join: c in Card,
+      on: c.id == f.card_id,
+      where: f.id in ^folder_ids,
+      select: {f.id, %{title: c.title, short_name: c.short_name, card_id: c.id}}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
 
   @doc """
   What each card folder of `board_ids` is called on disk, for

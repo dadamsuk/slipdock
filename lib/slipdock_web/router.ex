@@ -556,6 +556,8 @@ defmodule SlipdockWeb.Router do
     put "/me/ai-key", MeController, :put_ai_key
     post "/me/ai-key", MeController, :put_ai_key
     delete "/me/ai-key", MeController, :delete_ai_key
+    put "/me/display", MeController, :put_display
+    post "/me/display", MeController, :put_display
     put "/me/ai-provider", MeController, :put_ai_provider
     post "/me/ai-provider", MeController, :put_ai_provider
     get "/me/ai-models", MeController, :ai_models

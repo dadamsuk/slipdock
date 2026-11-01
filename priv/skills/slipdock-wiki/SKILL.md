@@ -204,6 +204,10 @@ is the vault's backlog of unwritten pages.
 
 `slipdock vault changes <vault> --since N` lists what changed in the vault after
 cursor N (without `--since`, the cursor to start from) — the feed a sync polls.
+A renamed card, short name or board shows as `moved`, old path → new, on all
+that moved. `slipdock vault tree <vault>` lists everything by name; add
+`--short-names` to it, `vault changes` or `folder ls` for card folders' short
+names. `slipdock names [full|short]` says or sets the user's own choice.
 
 `slipdock sync init <dir> --vault V` binds a local folder to a vault, and
 `slipdock sync [<dir>]` (or `--watch`) keeps the two level both ways: a note is

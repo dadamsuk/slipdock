@@ -22,12 +22,19 @@ defmodule SlipdockCLI.Sync.Engine do
   #     sent up again as a new one (R2.5);
   #   * gone from one path and a file with the same hash new at another — a
   #     rename or a move, the same page or file (R2.3). A renamed file that
-  #     is not a note is moved on the server without sending its bytes again.
+  #     is not a note is moved on the server without sending its bytes again;
+  #   * at a new path on the server, by id — moved here too, nothing fetched
+  #     unless its bytes changed, and an edit made here follows it there
+  #     rather than undoing the move. Moves go in the order that frees each
+  #     path before the next needs it: `Foo (2)` becoming `Foo` waits for
+  #     what was `Foo`. Paths swapped outright can't be ordered, and end as
+  #     conflict copies, with nothing lost.
   #
   # Folders come last, once every file is where it belongs: one new on the
-  # server is made here, even empty, and one deleted there goes from here —
-  # but only when nothing is left in it but empty folders, so a file the
-  # server never had is never lost with it.
+  # server is made here, even empty, one the server moved (the same id at a
+  # new path) moves here, and one deleted there goes from here — but only
+  # when nothing is left in it but empty folders, so a file the server never
+  # had is never lost with it.
   #
   # Every write to the server names the hash it was made against, so a change
   # made on the server since this pass listed it is a conflict, not an
@@ -111,7 +118,7 @@ defmodule SlipdockCLI.Sync.Engine do
         |> unseen()
         |> stubs(stubs, Map.new(old_stubs), all_local)
 
-      {acc, folders} = folders(acc, listing["folders"], state, patterns)
+      {acc, folders} = folders(acc, listing, state, patterns)
 
       report = acc.report |> Map.new(fn {k, v} -> {k, Enum.reverse(v)} end)
 
@@ -125,6 +132,7 @@ defmodule SlipdockCLI.Sync.Engine do
         |> Map.put("entries", Map.merge(Map.new(set_aside), acc.entries))
         |> Map.put("cursor", listing["cursor"])
         |> Map.put("folders", folders)
+        |> Map.put("dir_ids", dir_ids(listing, state, acc.direction))
         |> Map.put("conflicts", conflicts)
         |> Map.put("errors", Enum.map(report.errors, &%{"path" => &1.path, "error" => &1.error}))
         |> Map.put(
@@ -188,6 +196,7 @@ defmodule SlipdockCLI.Sync.Engine do
 
     acc.old
     |> Enum.sort_by(fn {path, _e} -> order(Map.get(moved_to, path, path)) end)
+    |> moves_last(acc, moved_to, local)
     |> Enum.reduce(acc, fn {path, e}, acc ->
       key = {kind(e), e["id"]}
       base = e["hash"]
@@ -216,6 +225,31 @@ defmodule SlipdockCLI.Sync.Engine do
       f = %{path: path, lpath: lpath, key: key, base: base, s: s, lsha: lsha}
       reconcile(acc, {lstate, sstate}, f)
     end)
+  end
+
+  # What the server moved goes after everything else, which may free the
+  # paths those moves want, and each after whatever is leaving its target.
+  defp moves_last(entries, acc, moved_to, local) do
+    {moving, staying} =
+      Enum.split_with(entries, fn {path, e} ->
+        s = acc.server[{kind(e), e["id"]}]
+        s && s["path"] != path && Map.has_key?(local, path) && !Map.has_key?(moved_to, path)
+      end)
+
+    target = fn {_path, e} -> acc.server[{kind(e), e["id"]}]["path"] end
+    staying ++ vacated_first(moving, target, [])
+  end
+
+  defp vacated_first([], _target, done), do: done
+
+  defp vacated_first(moving, target, done) do
+    leaving = MapSet.new(moving, &elem(&1, 0))
+    {ready, blocked} = Enum.split_with(moving, &(not MapSet.member?(leaving, target.(&1))))
+
+    # Nothing ready: paths swapped outright, left to the conflict rules.
+    if ready == [],
+      do: done ++ blocked,
+      else: vacated_first(blocked, target, done ++ ready)
   end
 
   # A file missing from where it was, and one file new somewhere else with
@@ -251,6 +285,32 @@ defmodule SlipdockCLI.Sync.Engine do
   end
 
   defp reconcile(acc, {:deleted, :gone}, _f), do: acc
+
+  # Edited here, and moved on the server. Sent from where it is, it would
+  # move back: the edit goes to the new path. A pass that only sends leaves
+  # both alone for a pass that can do both.
+  defp reconcile(
+         %{direction: :up} = acc,
+         {:changed, :same},
+         %{path: p, lpath: p, s: %{"path" => to}} = f
+       )
+       when to != p do
+    acc |> keep(p, f.key, f.base) |> hold(p, "moved to #{to} on the server, not here")
+  end
+
+  defp reconcile(acc, {:changed, sstate}, %{path: p, lpath: p, s: %{"path" => to}} = f)
+       when sstate in [:same, :changed] and acc.direction != :up and to != p do
+    case move_file(acc, p, to, f.lsha) do
+      {:ok, acc} ->
+        acc
+        |> claim_path(to)
+        |> report(:moved, %{from: p, path: to})
+        |> reconcile({:changed, sstate}, %{f | path: to, lpath: to})
+
+      {:changed, acc} ->
+        keep(acc, p, f.key, f.base)
+    end
+  end
 
   defp reconcile(%{direction: :up} = acc, {l, :gone}, f) when l in [:same, :renamed] do
     acc
@@ -452,24 +512,35 @@ defmodule SlipdockCLI.Sync.Engine do
   # done here. A mirror made before folders were remembered makes none the
   # first time, since it can't tell a folder new on the server from one
   # deleted here.
-  defp folders(%{direction: :up} = acc, _listed, state, _patterns), do: {acc, state["folders"]}
-  defp folders(acc, nil, state, _patterns), do: {acc, state["folders"]}
+  defp folders(%{direction: :up} = acc, _listing, state, _patterns), do: {acc, state["folders"]}
 
-  defp folders(acc, listed, state, patterns) do
+  defp folders(acc, listing, state, _patterns) when not is_map_key(listing, "folders"),
+    do: {acc, state["folders"]}
+
+  defp folders(acc, listing, state, patterns) do
+    listed = listing["folders"]
     # A folder pattern ends in a slash, so a folder is asked about with one.
     ignored? = &(Scan.ignored?(&1, patterns) or Scan.ignored?(&1 <> "/", patterns))
     listed = Enum.reject(listed, ignored?)
     had = state["folders"]
     now = MapSet.new(listed)
+    gone_to = moved_dirs(state["dir_ids"], listing)
 
     acc =
       (had || [])
       |> Enum.reject(&(MapSet.member?(now, &1) or ignored?.(&1)))
       |> Enum.sort_by(&(-length(String.split(&1, "/"))))
       |> Enum.reduce(acc, fn dir, acc ->
-        if remove_dir(Path.join(acc.root, dir)) == :ok,
-          do: report(acc, :removed, %{path: dir <> "/", folder: true}),
-          else: acc
+        cond do
+          to = gone_to[dir] ->
+            move_dir(acc, dir, to)
+
+          remove_dir(Path.join(acc.root, dir)) == :ok ->
+            report(acc, :removed, %{path: dir <> "/", folder: true})
+
+          true ->
+            acc
+        end
       end)
 
     new =
@@ -482,6 +553,59 @@ defmodule SlipdockCLI.Sync.Engine do
     for dir <- new, do: FS.mkdir_p(Path.join(acc.root, dir))
 
     {acc, listed}
+  end
+
+  # What each directory is on the server, so that one at a new path can be
+  # told from one deleted and another made. Stays as agreed in a pass that
+  # leaves folders alone.
+  defp dir_ids(_listing, state, :up), do: state["dir_ids"]
+
+  defp dir_ids(listing, _state, _direction) do
+    boards = for b <- listing["boards"] || [], into: %{}, do: {b["path"], "board:#{b["id"]}"}
+
+    folders =
+      for {path, f} <- listing["folder_details"] || %{}, into: %{} do
+        {path, "folder:#{f["id"]}"}
+      end
+
+    Map.merge(boards, folders)
+  end
+
+  # Where the directories the state remembers have gone: `%{old => new}`.
+  defp moved_dirs(nil, _listing), do: %{}
+
+  defp moved_dirs(had, listing) do
+    now = dir_ids(listing, nil, :both)
+    paths = Map.new(now, fn {path, id} -> {id, path} end)
+
+    for {path, id} <- had,
+        not Map.has_key?(now, path),
+        to = paths[id],
+        into: %{},
+        do: {path, to}
+  end
+
+  # A directory the server moved: its files went one by one, so usually only
+  # what is left of it needs seeing to. Empty, or holding only what the
+  # server never had, it goes as it is to a new place, and to one that is
+  # taken already only if nothing is in it. A move, either way: never removed.
+  defp move_dir(acc, from, to) do
+    src = Path.join(acc.root, from)
+    dest = Path.join(acc.root, to)
+
+    cond do
+      not FS.exists?(src) ->
+        acc
+
+      FS.exists?(dest) ->
+        remove_dir(src)
+        acc
+
+      true ->
+        FS.mkdir_p!(Path.dirname(dest))
+        :ok = FS.rename(src, dest)
+        report(acc, :moved, %{from: from <> "/", path: to <> "/", folder: true})
+    end
   end
 
   # A directory with nothing in it but empty directories, taken away; one

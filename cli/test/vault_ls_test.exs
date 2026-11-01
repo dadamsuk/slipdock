@@ -24,6 +24,8 @@ defmodule SlipdockCLI.VaultLsTest do
     end)
   end
 
+  defp json(term), do: term |> :json.encode() |> IO.iodata_to_binary()
+
   defp ls(response) do
     System.put_env("SLIPDOCK_URL", FakeServer.start([{200, response}]))
     capture_io(fn -> Vaults.run("vault", ["ls"], []) end)
@@ -49,5 +51,90 @@ defmodule SlipdockCLI.VaultLsTest do
     assert out =~ "1 page"
     refute out =~ "1 pages"
     refute out =~ "synced to"
+  end
+
+  describe "vault tree" do
+    @listing %{
+      "cursor" => 1,
+      "folders" => ["Key", "Key/Cards", "Key/Cards/Parked jobs", "Key/Cards/Plain"],
+      "boards" => [%{"id" => 1, "title" => "Keystone", "path" => "Key", "archived" => true}],
+      "virtual_folders" => [
+        %{"title" => "Cards", "path" => "Key/Cards", "archived" => false}
+      ],
+      "folder_details" => %{
+        "Key/Cards/Parked jobs" => %{
+          "id" => 2,
+          "title" => "Parked jobs must be released on timeout",
+          "short_name" => "Parked jobs",
+          "archived" => false
+        },
+        "Key/Cards/Plain" => %{
+          "id" => 3,
+          "title" => "Plain",
+          "archived" => false
+        }
+      },
+      "entries" => [
+        %{"kind" => "page", "path" => "Key/Cards/Plain/Note.md", "title" => "My note: one"},
+        %{"kind" => "file", "path" => "Key/x.pdf", "name" => "x.pdf"}
+      ]
+    }
+
+    defp tree(args, opts) do
+      System.put_env("SLIPDOCK_URL", FakeServer.start([{200, json(@listing)}]))
+      capture_io(fn -> Vaults.run("vault", args, opts) end)
+    end
+
+    test "full titles, indented, archived marked" do
+      out = tree(["tree", "Notes"], [])
+
+      assert out =~ "Keystone/"
+      assert out =~ "archived"
+      assert out =~ "    Parked jobs must be released on timeout/"
+      assert out =~ "      My note: one"
+      assert out =~ "  x.pdf"
+    end
+
+    test "--short-names, falling back to the title" do
+      out = tree(["tree", "Notes"], short_names: true)
+
+      assert out =~ "    Parked jobs/\n"
+      refute out =~ "released on timeout"
+      assert out =~ "    Plain/"
+    end
+  end
+
+  describe "vault changes" do
+    defp changes(opts) do
+      body = %{
+        "cursor" => 9,
+        "more" => false,
+        "changes" => [
+          %{
+            "cursor" => 9,
+            "subject" => "folder",
+            "action" => "moved",
+            "from_path" => "Key/Cards/Old",
+            "path" => "Key/Cards/New long",
+            "short_name" => "New"
+          },
+          %{"cursor" => 8, "subject" => "page", "action" => "changed", "path" => "Key/A.md"}
+        ]
+      }
+
+      System.put_env("SLIPDOCK_URL", FakeServer.start([{200, json(body)}]))
+      capture_io(fn -> Vaults.run("vault", ["changes", "Notes"], opts) end)
+    end
+
+    test "a move says from where to where" do
+      assert changes([]) =~ "folder moved  Key/Cards/Old → Key/Cards/New long"
+    end
+
+    test "--short-names says the name, or the path where there is none" do
+      out = changes(short_names: true)
+
+      assert out =~ "Key/Cards/Old → New"
+      assert out =~ "page changed  Key/A.md"
+    end
   end
 end

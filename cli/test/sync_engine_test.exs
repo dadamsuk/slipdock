@@ -223,6 +223,211 @@ defmodule SlipdockCLI.SyncEngineTest do
     refute File.dir?(Path.join(ctx.root, "Inbox"))
   end
 
+  describe "what the server moved" do
+    test "comes here as a move, with nothing fetched", ctx do
+      id = FakeVault.put(ctx.vault, "Cards/Old/Note.md", "body")
+      {state, _} = pass(ctx)
+
+      FakeVault.move(ctx.vault, id, "Cards/New/Note.md")
+      {state, report} = pass(ctx, state)
+
+      assert [%{from: "Cards/Old/Note.md", path: "Cards/New/Note.md"}] = report.moved
+      assert report.received == [] and report.sent == []
+      refute Enum.any?(report.removed, &(&1[:folder] != true))
+      refute Enum.any?(FakeVault.calls(ctx.vault), &match?({:read, _}, &1))
+      assert read(ctx, "Cards/New/Note.md") == "body"
+      assert Map.keys(state["entries"]) == ["Cards/New/Note.md"]
+    end
+
+    test "a chain of them: each waits for its target to be free", ctx do
+      first = FakeVault.put(ctx.vault, "Cards/Fix/Note.md", "first")
+      second = FakeVault.put(ctx.vault, "Cards/Fix (2)/Note.md", "second")
+      third = FakeVault.put(ctx.vault, "Cards/Fix (3)/Note.md", "third")
+      {state, _} = pass(ctx)
+
+      # The oldest renamed: the others each take the number before.
+      FakeVault.move(ctx.vault, first, "Cards/Other/Note.md")
+      FakeVault.move(ctx.vault, second, "Cards/Fix/Note.md")
+      FakeVault.move(ctx.vault, third, "Cards/Fix (2)/Note.md")
+      {_state, report} = pass(ctx, state)
+
+      assert report.conflicts == [] and report.sent == [] and report.received == []
+      assert length(report.moved) == 3
+      assert read(ctx, "Cards/Other/Note.md") == "first"
+      assert read(ctx, "Cards/Fix/Note.md") == "second"
+      assert read(ctx, "Cards/Fix (2)/Note.md") == "third"
+      refute File.dir?(Path.join(ctx.root, "Cards/Fix (3)"))
+      assert map_size(FakeVault.pages(ctx.vault)) == 3
+    end
+
+    test "into the place of one archived there: no conflict copy brings it back", ctx do
+      gone = FakeVault.put(ctx.vault, "Z/Note.md", "gone")
+      moved = FakeVault.put(ctx.vault, "A/Note.md", "moved")
+      {state, _} = pass(ctx)
+
+      FakeVault.archive(ctx.vault, gone)
+      FakeVault.move(ctx.vault, moved, "Z/Note.md")
+      {_state, report} = pass(ctx, state)
+
+      assert report.conflicts == []
+      assert read(ctx, "Z/Note.md") == "moved"
+      assert map_size(FakeVault.pages(ctx.vault)) == 1
+    end
+
+    test "two paths swapped outright lose nothing", ctx do
+      a = FakeVault.put(ctx.vault, "A.md", "a")
+      b = FakeVault.put(ctx.vault, "B.md", "b")
+      {state, _} = pass(ctx)
+
+      FakeVault.move(ctx.vault, a, "B.md")
+      FakeVault.move(ctx.vault, b, "A.md")
+      {_state, report} = pass(ctx, state)
+
+      assert report.conflicts != []
+      contents = for {_id, p} <- FakeVault.pages(ctx.vault), do: p.content
+      assert "a" in contents and "b" in contents
+    end
+
+    test "an edit here follows it rather than moving it back", ctx do
+      id = FakeVault.put(ctx.vault, "Cards/Old/Note.md", "body")
+      {state, _} = pass(ctx)
+
+      FakeVault.move(ctx.vault, id, "Cards/New/Note.md")
+      write(ctx, "Cards/Old/Note.md", "edited here")
+      {state, report} = pass(ctx, state)
+
+      assert FakeVault.pages(ctx.vault)[id].path == "Cards/New/Note.md"
+      assert FakeVault.pages(ctx.vault)[id].content == "edited here"
+      assert [%{from: "Cards/Old/Note.md", path: "Cards/New/Note.md"}] = report.moved
+      assert [%{path: "Cards/New/Note.md"}] = report.sent
+      assert files(ctx) == ["Cards/New/Note.md"]
+      assert Map.keys(state["entries"]) == ["Cards/New/Note.md"]
+    end
+
+    test "changed on both sides, the copy sits at the new path", ctx do
+      id = FakeVault.put(ctx.vault, "Cards/Old/Note.md", "base")
+      {state, _} = pass(ctx)
+
+      FakeVault.move(ctx.vault, id, "Cards/New/Note.md")
+      FakeVault.put(ctx.vault, "Cards/New/Note.md", "theirs")
+      write(ctx, "Cards/Old/Note.md", "mine")
+      {_state, report} = pass(ctx, state)
+
+      assert [%{copy: copy}] = report.conflicts
+      assert String.starts_with?(copy, "Cards/New/Note (conflict")
+      assert read(ctx, "Cards/New/Note.md") == "theirs"
+      refute File.dir?(Path.join(ctx.root, "Cards/Old"))
+    end
+
+    test "moved and changed there: the bytes come down at the new path", ctx do
+      id = FakeVault.put(ctx.vault, "Old/Note.md", "base")
+      {state, _} = pass(ctx)
+
+      FakeVault.move(ctx.vault, id, "New/Note.md")
+      FakeVault.put(ctx.vault, "New/Note.md", "newer")
+      {_state, report} = pass(ctx, state)
+
+      assert [%{path: "New/Note.md"}] = report.received
+      assert files(ctx) == ["New/Note.md"]
+      assert read(ctx, "New/Note.md") == "newer"
+    end
+
+    test "to-server: an edit waits, unsent, rather than moving it back", ctx do
+      id = FakeVault.put(ctx.vault, "Old/Note.md", "body")
+      {state, _} = pass(ctx)
+
+      FakeVault.move(ctx.vault, id, "New/Note.md")
+      write(ctx, "Old/Note.md", "edited here")
+      {state, report} = pass(ctx, state, :up)
+
+      assert report.sent == []
+      assert [%{path: "Old/Note.md", why: why}] = report.held
+      assert why =~ "New/Note.md"
+      assert FakeVault.pages(ctx.vault)[id].path == "New/Note.md"
+
+      # And a pass both ways then does what was held back.
+      {_state, report} = pass(ctx, state)
+      assert [%{path: "New/Note.md"}] = report.sent
+      assert FakeVault.pages(ctx.vault)[id].content == "edited here"
+    end
+
+    test "from-server: an edit moves with it and waits to be sent", ctx do
+      id = FakeVault.put(ctx.vault, "Old/Note.md", "body")
+      {state, _} = pass(ctx)
+
+      FakeVault.move(ctx.vault, id, "New/Note.md")
+      write(ctx, "Old/Note.md", "edited here")
+      {_state, report} = pass(ctx, state, :down)
+
+      assert [%{path: "New/Note.md"}] = report.held
+      assert read(ctx, "New/Note.md") == "edited here"
+      assert FakeVault.pages(ctx.vault)[id].content == "body"
+    end
+
+    test "an empty folder moves too, rather than being removed and made", ctx do
+      FakeVault.add_folder(ctx.vault, "Cards/Old", 7)
+      {state, _} = pass(ctx)
+      assert File.dir?(Path.join(ctx.root, "Cards/Old"))
+
+      FakeVault.move_folder(ctx.vault, 7, "Cards/New")
+      {state, report} = pass(ctx, state)
+
+      assert report.removed == []
+      assert [%{from: "Cards/Old/", path: "Cards/New/", folder: true}] = report.moved
+      assert File.dir?(Path.join(ctx.root, "Cards/New"))
+      refute File.dir?(Path.join(ctx.root, "Cards/Old"))
+      assert state["dir_ids"] == %{"Cards/New" => "folder:7"}
+    end
+
+    test "a folder emptied by its files moving isn't called removed", ctx do
+      id = FakeVault.put(ctx.vault, "Cards/Old/Note.md", "body")
+      FakeVault.add_folder(ctx.vault, "Cards/Old", 7)
+      {state, _} = pass(ctx)
+
+      FakeVault.move(ctx.vault, id, "Cards/New/Note.md")
+      FakeVault.move_folder(ctx.vault, 7, "Cards/New")
+      {_state, report} = pass(ctx, state)
+
+      assert report.removed == []
+      assert [%{path: "Cards/New/Note.md"}] = report.moved
+    end
+
+    test "what the server never had goes with a moved folder", ctx do
+      FakeVault.add_folder(ctx.vault, "Old", 7)
+      {state, _} = pass(ctx)
+      write(ctx, "Old/.keep", "mine")
+
+      FakeVault.move_folder(ctx.vault, 7, "New")
+      {_state, _report} = pass(ctx, state)
+
+      assert read(ctx, "New/.keep") == "mine"
+    end
+
+    test "a folder really deleted is still removed", ctx do
+      FakeVault.add_folder(ctx.vault, "Gone", 7)
+      {state, _} = pass(ctx)
+
+      FakeVault.delete_folder(ctx.vault, "Gone")
+      Agent.update(ctx.vault, &%{&1 | dir_ids: %{}})
+      {_state, report} = pass(ctx, state)
+
+      assert [%{path: "Gone/", folder: true}] = report.removed
+      assert report.moved == []
+    end
+
+    test "to-server leaves what it knows of folders as it was", ctx do
+      FakeVault.add_folder(ctx.vault, "Old", 7)
+      {state, _} = pass(ctx)
+
+      FakeVault.move_folder(ctx.vault, 7, "New")
+      {state, report} = pass(ctx, state, :up)
+
+      assert report.moved == []
+      assert state["dir_ids"] == %{"Old" => "folder:7"}
+      assert File.dir?(Path.join(ctx.root, "Old"))
+    end
+  end
+
   test "what the server writes back after a write replaces the local file", ctx do
     vault =
       FakeVault.start(

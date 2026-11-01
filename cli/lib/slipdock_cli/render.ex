@@ -1454,23 +1454,27 @@ defmodule SlipdockCLI.Render do
   A board's filing: folders, nested, with the pages in each and then the
   pages filed nowhere.
   """
-  def folders(folders, pages) do
+  def folders(folders, pages, short? \\ false) do
     if folders == [] and pages == [] do
       IO.puts(dim("nothing written"))
     else
-      folder_nodes(folders, 0)
+      folder_nodes(folders, 0, short?)
       page_tree_lines(pages, 0)
     end
   end
 
-  defp folder_nodes(nodes, depth) do
+  @doc "What to call a folder: its short name if asked for and it has one, else its title."
+  def folder_name(%{"short_name" => short}, true) when is_binary(short), do: short
+  def folder_name(f, _short?), do: f["title"] || f["name"]
+
+  defp folder_nodes(nodes, depth, short?) do
     Enum.each(nodes, fn f ->
       IO.puts(
         String.duplicate("  ", depth) <>
-          bold(f["name"]) <> "/  " <> dim(f["slug"]) <> also_in(f)
+          bold(folder_name(f, short?)) <> "/  " <> dim(f["slug"]) <> also_in(f)
       )
 
-      folder_nodes(f["folders"] || [], depth + 1)
+      folder_nodes(f["folders"] || [], depth + 1, short?)
       page_tree_lines(f["pages"] || [], depth + 1)
     end)
   end
@@ -1617,7 +1621,7 @@ defmodule SlipdockCLI.Render do
     Enum.each(boards, fn b ->
       IO.puts("")
       IO.puts(bold(b["name"]) <> "  " <> dim(b["code"] || ""))
-      folder_nodes(b["folders"] || [], 1)
+      folder_nodes(b["folders"] || [], 1, false)
       page_tree_lines(b["pages"] || [], 1)
 
       if (b["folders"] || []) == [] and (b["pages"] || []) == [],

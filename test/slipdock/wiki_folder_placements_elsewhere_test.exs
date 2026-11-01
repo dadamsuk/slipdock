@@ -60,9 +60,8 @@ defmodule Slipdock.WikiFolderPlacementsElsewhereTest do
       # The feed names the placed folders at their home paths, once each.
       changes = Changes.since(ctx.vault, start, ctx.user).changes
       folder_paths = for %{subject: "folder", path: path} <- changes, do: path
-      # (A folder's path in the feed is its path on its own board.)
-      assert Enum.sort(folder_paths) == ["Notes", "Specs", "Specs/Old"]
-      refute Enum.any?(changes, &(&1[:path] && String.starts_with?(&1.path, "Ideas/")))
+      assert Enum.sort(folder_paths) == ["Journal/Notes", "Keystone/Specs", "Keystone/Specs/Old"]
+      refute Enum.any?(changes, &(&1[:path] && String.starts_with?(&1.path, "Keystone/Ideas/")))
     end
   end
 
