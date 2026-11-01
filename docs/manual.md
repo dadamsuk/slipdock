@@ -4616,6 +4616,30 @@ playback starts and seeks without fetching the end of the file first.
 **Old-style notes**, with a separate `.vtt` file or a play link of the
 recorder's own, are left exactly as they are, and don't get the player.
 
+**Playing it outside the browser.** A client holding an API token gets the
+audio from `GET /api/pages/:id/recording`, where `:id` is the page's id, its
+code or `board-code/slug` (with the `/` written `%2F`):
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" -H "Range: bytes=0-1048575" \
+  https://your-server/api/pages/W-31/recording -o part.m4a
+```
+
+- It streams from Drive as the web player does: `Range` is passed on and the
+  answer is 200 or 206 with `Content-Range`, so a player can seek. Nothing is
+  stored on the server.
+- The rule is the web player's too: **read on the board**. A page shared with
+  someone outside the board answers 404, as does a page they can't read, an
+  archived page, and a draft, unless they can edit the board.
+- A read-only token may play. A token limited to other boards gets a `403`.
+- A missing or revoked token gets a `401`.
+- A strict `Accept: audio/mp4` gets a `406`, because this is a JSON API route
+  and refusals are JSON. Send `Accept: */*` or leave the header out.
+- A refusal is a status and a JSON `reason`, the codes in the table below:
+  `409` for `not_connected`, `revoked`, `no_folder` and `no_vault`, `403` for
+  `outside_folder` and `not_audio`, `404` for `not_found` and `no_recording`,
+  `502` for `unavailable`.
+
 #### Why it won't play
 
 The bar names the problem:
@@ -5465,6 +5489,7 @@ POST   /api/pages/:id/move                 {parent, position: N|top|bottom}
 GET    /api/pages/:id/revisions            GET    /api/pages/:id/revisions/:rev   ?diff=previous|<rev id>
 POST   /api/pages/:id/revert               {revision_id, message}
 GET    /api/pages/:id/render               ?format=markdown|html|text  (references resolved)
+GET    /api/pages/:id/recording            a meeting page's audio, with Range  (see Meeting transcripts)
 GET    /api/pages/:id/sections             the heading paths a section may be addressed by
 GET    /api/pages/:id/section/*path        PUT (replace)  POST (append — cannot conflict)
 POST   /api/pages/:id/append               {body, message}
