@@ -36,6 +36,7 @@ defmodule Slipdock.Vaults.Sync do
     Changes,
     Files,
     Folder,
+    FolderPlacement,
     FrontMatter,
     Page,
     Placement,
@@ -56,11 +57,13 @@ defmodule Slipdock.Vaults.Sync do
 
       %{cursor: 931,
         entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:, icon:, color:,
-                    writable:, shareable:},
-                  %{kind: "file", id:, board_id:, path:, hash:, size:, name:,
-                    writable:, shareable:}],
+                    position:, inserted_at:, updated_at:, writable:, shareable:},
+                  %{kind: "file", id:, board_id:, path:, hash:, size:, name:, position: nil,
+                    inserted_at:, updated_at:, writable:, shareable:}],
         folders: ["Projects", "Projects/Acme"],
-        folder_details: %{"Projects" => %{id:, board_id:, icon:, color:, writable:, shareable:}}}
+        folder_details: %{"Projects" => %{id:, board_id:, icon:, color:, position:, sort:,
+                                          inserted_at:, updated_at:, also_pages: [412],
+                                          also_folders: [9], writable:, shareable:}}}
 
   `folders` is every folder of the vault as a directory, empty ones too, so
   a client can make the ones it hasn't got and take away the ones the
@@ -77,6 +80,16 @@ defmodule Slipdock.Vaults.Sync do
   `shareable` that they may share the row, which takes the same right and
   doesn't apply to a file. Stubs carry none of this: a stub isn't the
   reader's to change.
+
+  The rest is what it takes to put a directory in the web tree's order
+  (`Slipdock.Wiki.Tree.children/3`, #1585), the rules being in the API guide.
+  `position` and the times are the ones the tree sorts on, so `updated_at`
+  is what "Last changed first" means. A file's `position` is nil: files have
+  none, and the tree lists them by name whatever the folder's sort. `sort` is
+  the folder's own, nil when it follows its board. A page's `position` is only
+  its place at home: `also_pages` and `also_folders` are the ids of what is
+  also filed in a folder, in the order placements keep there, which no sort
+  changes. They name only what this listing shows.
 
   `cursor` is the change feed's position taken *before* the listing was
   read, so following the feed from it sees anything that changed while it
@@ -124,8 +137,8 @@ defmodule Slipdock.Vaults.Sync do
         do: Slipdock.Vaults.Stubs.build(vault, layout, reader, opts[:base_url] || ""),
         else: {[], []}
 
+    folder_details = folder_details(layout, levels, MapSet.new(entries, & &1.id))
     entries = Enum.sort_by(entries ++ files ++ stubs, & &1.path)
-    folder_details = folder_details(layout, levels)
     folders = Enum.sort(Enum.uniq(Map.keys(folder_details) ++ stub_dirs))
 
     %{cursor: cursor, entries: entries, folders: folders, folder_details: folder_details}
@@ -134,23 +147,70 @@ defmodule Slipdock.Vaults.Sync do
   # The folders on the boards `levels` lets the reader open, by directory.
   # A folder mapped at the vault's root is the root itself, so no directory.
   # Two folders can land on one directory; the older one speaks for it.
-  defp folder_details(layout, levels) do
+  defp folder_details(layout, levels, listed_pages) do
     ids = Map.keys(layout.folders)
 
-    from(f in Folder, where: f.id in ^ids, order_by: [asc: f.id])
-    |> Repo.all()
-    |> Enum.filter(&Access.can_read?(Map.get(levels, &1.board_id, :none)))
-    |> Enum.reject(&(layout.folders[&1.id] in [nil, ""]))
-    |> Enum.reduce(%{}, fn folder, details ->
+    folders =
+      from(f in Folder, where: f.id in ^ids, order_by: [asc: f.id])
+      |> Repo.all()
+      |> Enum.filter(&Access.can_read?(Map.get(levels, &1.board_id, :none)))
+      |> Enum.reject(&(layout.folders[&1.id] in [nil, ""]))
+
+    folder_ids = Enum.map(folders, & &1.id)
+    also_pages = also_pages(folder_ids, listed_pages)
+    also_folders = also_folders(folder_ids)
+
+    Enum.reduce(folders, %{}, fn folder, details ->
       Map.put_new(
         details,
         layout.folders[folder.id],
         Map.merge(
-          %{id: folder.id, board_id: folder.board_id, icon: folder.icon, color: folder.color},
+          %{
+            id: folder.id,
+            board_id: folder.board_id,
+            icon: folder.icon,
+            color: folder.color,
+            position: folder.position,
+            sort: folder.sort,
+            inserted_at: folder.inserted_at,
+            updated_at: folder.updated_at,
+            also_pages: Map.get(also_pages, folder.id, []),
+            also_folders: Map.get(also_folders, folder.id, [])
+          },
           rights(levels, folder.board_id)
         )
       )
     end)
+  end
+
+  # What is also filed in each folder, in the tree's order. A placement's page
+  # can be one the reader can't open, or on a board outside the vault.
+  defp also_pages(folder_ids, listed_pages) do
+    from(pl in Placement,
+      join: p in Page,
+      on: p.id == pl.page_id,
+      where: pl.folder_id in ^folder_ids,
+      order_by: [asc: pl.position, asc: fragment("lower(?)", p.title), asc: p.id],
+      select: {pl.folder_id, p.id}
+    )
+    |> Repo.all()
+    |> Enum.filter(fn {_folder_id, id} -> MapSet.member?(listed_pages, id) end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+
+  defp also_folders(folder_ids) do
+    listed = MapSet.new(folder_ids)
+
+    from(pl in FolderPlacement,
+      join: f in Folder,
+      on: f.id == pl.folder_id,
+      where: pl.in_folder_id in ^folder_ids,
+      order_by: [asc: pl.position, asc: fragment("lower(?)", f.name), asc: f.id],
+      select: {pl.in_folder_id, f.id}
+    )
+    |> Repo.all()
+    |> Enum.filter(fn {_in_folder_id, id} -> MapSet.member?(listed, id) end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
 
   defp rights(levels, board_id) do
@@ -186,6 +246,9 @@ defmodule Slipdock.Vaults.Sync do
       title: page.title,
       icon: page.icon,
       color: page.color,
+      position: page.position,
+      inserted_at: page.inserted_at,
+      updated_at: page.updated_at,
       path: placed.path,
       hash: hash(content),
       content: content
@@ -472,7 +535,10 @@ defmodule Slipdock.Vaults.Sync do
       name: file.name,
       path: layout.files[file.id].path,
       hash: file.sha256,
-      size: file.size
+      size: file.size,
+      position: nil,
+      inserted_at: file.inserted_at,
+      updated_at: file.updated_at
     }
   end
 

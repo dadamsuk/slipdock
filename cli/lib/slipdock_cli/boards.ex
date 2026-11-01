@@ -1024,14 +1024,18 @@ defmodule SlipdockCLI.Boards do
           end
       })
 
-    if body == %{},
+    if body == %{} and is_nil(o[:wiki_sort]),
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file) or --inbound-senders"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders or --wiki-sort"
         )
 
-    HTTP.patch("/boards/#{enc(ref)}", body)
+    # The wiki's sort has its own route: a writer may set it, not only the owner.
+    sorted =
+      if o[:wiki_sort], do: HTTP.patch("/boards/#{enc(ref)}/tree", %{"sort" => o[:wiki_sort]})
+
+    if(body == %{}, do: sorted, else: HTTP.patch("/boards/#{enc(ref)}", body))
     |> out(o, fn r -> IO.puts("updated board ##{r["board"]["id"]}: #{r["board"]["name"]}") end)
   end
 

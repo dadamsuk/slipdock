@@ -56,6 +56,33 @@ defmodule SlipdockCLI.SetBoardTest do
     assert JSON.decode!(body) == %{"page_card_features" => true}
   end
 
+  test "--wiki-sort goes to the tree's own route, which a writer may use" do
+    {opts, ["set-board", "docs"], []} =
+      OptionParser.parse(["set-board", "docs", "--wiki-sort", "modified"],
+        strict: SlipdockCLI.switches()
+      )
+
+    assert opts[:wiki_sort] == "modified"
+    serve([{200, @updated}])
+
+    out = capture_io(fn -> Boards.run("set-board", ["docs"], wiki_sort: "modified") end)
+
+    assert out =~ "updated board #3: Docs"
+    assert_received {:request, "PATCH", "/api/boards/docs/tree", body}
+    assert JSON.decode!(body) == %{"sort" => "modified"}
+    refute_received {:request, "PATCH", "/api/boards/docs", _}
+  end
+
+  test "--wiki-sort with another change sends both" do
+    serve([{200, @updated}, {200, @updated}])
+
+    capture_io(fn -> Boards.run("set-board", ["docs"], wiki_sort: "name", name: "Docs") end)
+
+    assert_received {:request, "PATCH", "/api/boards/docs/tree", _}
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"name" => "Docs"}
+  end
+
   test "--default-view parses as a string and sends it" do
     {opts, ["set-board", "docs"], []} =
       OptionParser.parse(["set-board", "docs", "--default-view", "wiki"],

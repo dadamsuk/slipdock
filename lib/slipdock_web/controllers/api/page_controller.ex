@@ -994,6 +994,16 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
+  # How the top of a board's tree is sorted, and with it every folder that
+  # follows the top (#1585). A writer's to choose, as in the web tree, where
+  # the rest of `PATCH /boards/:board` is the owner's.
+  def set_tree_sort(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
+         {:ok, board} <- Wiki.set_tree_sort(board, nil, params["sort"]) do
+      json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
+    end
+  end
+
   defp tree_node(board, %{"folder" => ref}) when ref not in [nil, ""] do
     case Wiki.find_folder(board, ref) do
       {:ok, folder} -> {:ok, {:folder, folder.id}}

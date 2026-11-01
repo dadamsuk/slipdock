@@ -2215,6 +2215,8 @@ defmodule SlipdockWeb.APIGuide do
          B/api/pages/W-31/move -d '{"board": "projects", "folder": "Acme", "dry_run": true}'
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
          "B/api/boards/1/folders/Design" -d '{"sort": "name"}'   # manual, name, modified, created; board follows the board's (by name unless chosen)
+    curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
+         B/api/boards/1/tree -d '{"sort": "modified"}'           # the top of the tree, and the folders following it; write access
     # a whole folder to another board you can write to: subfolders, pages (codes and history kept)
     # and files; "parent" a folder there, "contents": true moves only what is in it, dry_run reports
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
@@ -2411,8 +2413,8 @@ defmodule SlipdockWeb.APIGuide do
     **The change feed.** `GET /api/vaults/:id/changes` gives the cursor to
     start from; `?since=<cursor>` then gives every page, folder, attachment
     and wiki-file change on the vault's boards after it — each once, as it is now (a page's
-    `code`, `title`, `icon`, `color`, `content_hash`, `folder_id`, `archived`
-    and vault `path`), or `"action": "deleted"` — with the next `cursor` and
+    `code`, `title`, `icon`, `color`, `position`, `inserted_at`, `updated_at`,
+    `content_hash`, `folder_id`, `archived` and vault `path`), or `"action": "deleted"` — with the next `cursor` and
     `more`. A new icon or colour is a change too, and leaves the hashes alone.
     Keep a websocket on `/socket/websocket?token=<token>&vsn=2.0.0`, join
     `vault:<id>`, and a `change` event with the cursor says when to ask.
@@ -2468,6 +2470,33 @@ defmodule SlipdockWeb.APIGuide do
     (`owned`, which is who may dress a mount), and each mapping's
     `board.wiki_tree_icons` whether that board's tree shows icons and colours
     at all; turning that off isn't in the change feed, nor is a mount's dress.
+
+    It is enough to sort that tree as the web app does, too. Each page and file
+    has `inserted_at` and `updated_at`, and a page a `position`; a file's is
+    null. `folder_details` adds `position`, `sort`, `inserted_at`, `updated_at`,
+    and `also_pages` and `also_folders`, the ids of what is also filed there.
+    `GET /api/vaults/:id` adds each mapping's `board.wiki_sort` and, on a
+    mapped folder, `folder.sort`. Within a directory, the sort is the folder's
+    `sort`, or if that is null its board's `wiki_sort`, which is `name` until
+    someone chooses. A page's own directory (no `folder_details`, an `index.md` above
+    the rest) is always `manual`. Then draw, in this order:
+
+    1. **Folders at home there.** By `name`, ignoring case, when the sort is
+       `name`; otherwise by `position`, then name, whatever the sort.
+    2. **Folders also filed there**, in the order of `also_folders`.
+    3. **Pages at home there.** `manual`: `position`, then title, then id.
+       `name`: title ignoring case, then id. `modified`: `updated_at`, newest
+       first, then id, highest first. `created`: the same on `inserted_at`.
+    4. **Pages also filed there**, in the order of `also_pages`. A page's
+       `position` is its place at home only, and no sort reorders these.
+       A stub isn't in `also_pages`.
+    5. **Files**, by name ignoring case, whatever the sort.
+
+    `PATCH /api/folders/:id {"sort"}` sets a folder's and
+    `PATCH /api/boards/:board/tree {"sort"}` the top of a board's, with write
+    access for both. A folder's change is in the feed; a board's isn't. A
+    drag names only the page moved in the feed, though its siblings' positions
+    change, so take the listing again after a change to redraw in order.
 
     **Notes in a vault tag themselves.** On a board in a vault, a page's front
     matter `tags` and its inline `#tags` (nested `#area/sub` too; not in code,

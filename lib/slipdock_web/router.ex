@@ -735,6 +735,7 @@ defmodule SlipdockWeb.Router do
     get "/boards/:board/files/*path", WikiFileController, :show
     # One level of the tree at a time, never a body (W-103 R11.1).
     get "/boards/:board/tree", PageController, :tree
+    patch "/boards/:board/tree", PageController, :set_tree_sort
     post "/boards/:board/folders", PageController, :create_folder
     get "/folders/:id", PageController, :show_folder
     # Sharing a page or folder, and what has been shared with you (#820).
