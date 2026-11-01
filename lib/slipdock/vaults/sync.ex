@@ -116,7 +116,9 @@ defmodule Slipdock.Vaults.Sync do
     %{cursor: cursor} = Changes.since(vault, nil, reader, token: opts[:token])
     layout = Layout.build(vault)
     names = Names.build(layout)
-    levels = levels(vault, reader, opts[:token])
+    # An archived board's tree isn't in the listing (W-2201): as far as the
+    # listing goes, nobody can read it, so nothing of it is listed.
+    levels = vault |> levels(reader, opts[:token]) |> Map.drop(Vaults.hidden_board_ids(vault))
 
     also = also_in(layout, Map.keys(layout.pages))
 

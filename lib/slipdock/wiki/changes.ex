@@ -207,8 +207,9 @@ defmodule Slipdock.Wiki.Changes do
   and title; an attachment's page, name and size — or `deleted` when it is
   gone. `path` is the one the listing has, built from disk names, and nil for
   what is archived itself and so has no file. `archived` is true for what is
-  archived itself, and for whatever sits on an archived board or under an
-  archived card, which keeps its path; only the former has a nil `path`.
+  archived itself, and for whatever sits under an archived card, which keeps
+  its path; only the former has a nil `path`. An archived board is out of the
+  feed but for its own `archived` and `restored` changes.
 
   A subject whose path changed in the window is `moved`, with `from_path`
   the path it had at the start of the window: however many times it moved, a
@@ -243,10 +244,18 @@ defmodule Slipdock.Wiki.Changes do
     end
   end
 
+  # An archived board's tree is out of the vault's (W-2201): of it, only the
+  # board's own change comes, archived or restored, so a client drops its
+  # folder, or lists again to have it back.
   defp window(vault, board_ids, since, reader, limit) do
+    hidden = vault |> Vaults.hidden_board_ids() |> MapSet.to_list()
+    shown = board_ids -- hidden
+
     rows =
       from(c in Change,
-        where: c.board_id in ^board_ids and c.id > ^since,
+        where:
+          (c.board_id in ^shown or (c.board_id in ^hidden and c.subject == "board")) and
+            c.id > ^since,
         order_by: [asc: c.id],
         limit: ^(limit + 1)
       )

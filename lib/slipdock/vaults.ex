@@ -4,9 +4,11 @@ defmodule Slipdock.Vaults do
   one tree of files.
 
   A vault holds no pages and configures nothing. Every root board its owner
-  has, archived too, is a folder off its root, and a sub-board is its epic's
-  folder (`Slipdock.Vaults.Layout`). So there is nothing to keep in step: a
-  new, renamed or archived board simply shows. What a vault row does hold is
+  has is a folder off its root, and a sub-board is its epic's folder
+  (`Slipdock.Vaults.Layout`). So there is nothing to keep in step: a new or
+  renamed board simply shows. An archived board keeps its place in the
+  layout, so links to its pages still resolve, but is out of the tree, the
+  sync listing and the feed (`hidden_board_ids/1`). What a vault row does hold is
   what hangs off the whole: its name, switcher key, place on the home page,
   recordings folder and mirrors.
 
@@ -119,6 +121,35 @@ defmodule Slipdock.Vaults do
 
   @doc "The ids of every board in a vault, sub-boards and archived ones too."
   def board_ids(%Vault{} = vault), do: vault |> Layout.boards() |> Enum.map(& &1.id)
+
+  @doc """
+  The ids of the vault's boards that are out of its tree: every board whose
+  root board is archived (only a root board can be). An archived board is
+  browsed from the archive, not the tree, so the tree, the sync listing and
+  the feed leave these out. Their pages still answer `[[links]]`.
+  """
+  def hidden_board_ids(%Vault{} = vault) do
+    ids = board_ids(vault)
+
+    from(b in Board,
+      left_join: r in Board,
+      on: r.id == b.root_id,
+      where: b.id in ^ids and (not is_nil(b.archived_at) or not is_nil(r.archived_at)),
+      select: b.id
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc """
+  The vault's boards in its tree, each with the path of its folder,
+  sub-boards too, in path order: none whose root is archived
+  (`hidden_board_ids/1`).
+  """
+  def tree_boards(%Vault{} = vault) do
+    hidden = hidden_board_ids(vault)
+    vault |> boards() |> Enum.reject(&MapSet.member?(hidden, &1.board.id))
+  end
 
   @doc """
   The vault's boards, each with the path of its folder, sub-boards and

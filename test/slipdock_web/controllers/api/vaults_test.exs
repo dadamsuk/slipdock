@@ -30,10 +30,13 @@ defmodule SlipdockWeb.API.VaultsTest do
            ] = boards
   end
 
-  test "an archived board is flagged, at the same path", %{conn: conn, kb: kb} do
-    {:ok, _} = Boards.archive_board(kb)
+  test "an archived board isn't among its boards; restored, it is again", %{conn: conn, kb: kb} do
+    {:ok, kb} = Boards.archive_board(kb)
+    refute Enum.find(show(conn)["boards"], &(&1["code"] == "kb5"))
 
-    assert %{"path" => "/Keystone", "archived" => true} =
+    {:ok, _} = Boards.unarchive_board(kb)
+
+    assert %{"path" => "/Keystone", "archived" => false} =
              Enum.find(show(conn)["boards"], &(&1["code"] == "kb5"))
   end
 
@@ -59,16 +62,21 @@ defmodule SlipdockWeb.API.VaultsTest do
     assert [%{"label" => "test", "last_synced_at" => _}] = show(conn)["mirrors"]
   end
 
-  test "the listing says each board's path and whether it is archived", ctx do
-    {:ok, _} = Boards.archive_board(ctx.kb)
-
+  test "the listing says each board's path, and leaves an archived one out", ctx do
     assert %{"boards" => boards} =
              ctx.conn |> get("/api/vaults/Notes/sync") |> json_response(200)
 
     assert [
              %{"path" => "Journal Desk", "archived" => false},
-             %{"path" => "Keystone", "archived" => true}
-           ] = boards
+             %{"path" => "Keystone", "archived" => false}
+           ] = Enum.sort_by(boards, & &1["path"])
+
+    {:ok, _} = Boards.archive_board(ctx.kb)
+
+    assert %{"boards" => [%{"path" => "Journal Desk"}], "folders" => folders} =
+             ctx.conn |> get("/api/vaults/Notes/sync") |> json_response(200)
+
+    refute "Keystone" in folders
   end
 
   test "renames it, by id or name; a bad name is a 422", %{conn: conn, vault: vault} do

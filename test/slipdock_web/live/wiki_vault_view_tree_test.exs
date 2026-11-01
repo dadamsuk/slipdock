@@ -89,6 +89,41 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
                Enum.map([2, 4, 5, 6, 7], &"Board #{&1}")
   end
 
+  describe "an archived board" do
+    setup %{boards: [{board, [notes | _]} | _]} do
+      {:ok, board} = Slipdock.Boards.archive_board(board)
+      %{archived: board, notes: notes}
+    end
+
+    test "is out of the vault's tree", %{conn: conn, vault: vault} do
+      {:ok, view, _html} = live(conn, SlipdockWeb.VaultUrls.url(vault))
+      refute "Board 1" in titles(vault_tree(view, ["vault"]), "vault")
+    end
+
+    test "still shows its own wiki, opened from the archive", %{
+      conn: conn,
+      archived: board,
+      notes: notes
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+      assert notes.name in titles(tree_load(view), "root")
+    end
+
+    test "still answers a link to one of its pages", %{
+      user: user,
+      stand: stand,
+      archived: board,
+      notes: notes
+    } do
+      target = page_fixture(board, %{"title" => "Kept note", "folder_id" => notes.id}, user: user)
+      from = page_fixture(stand, %{"title" => "Linker"}, user: user)
+      [ref] = Slipdock.Wiki.Links.extract("[[Board 1/Notes 1/Kept note]]")
+
+      assert [%{to: {:page, %{id: id}}}] = Slipdock.Wiki.Links.resolve(stand, [ref], from: from)
+      assert id == target.id
+    end
+  end
+
   test "many containers in one reply cost no more board reads than one", %{
     conn: conn,
     vault: vault,

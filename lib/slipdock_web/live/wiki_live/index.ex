@@ -665,8 +665,12 @@ defmodule SlipdockWeb.WikiLive.Index do
   # is read with: drafts and archived pages only where they can write.
   defp vault_boards(%{assigns: %{vault: nil}}), do: %{}
 
+  # An archived board's tree is out of the vault's (W-2201), unless it is the
+  # one being read, opened from the archive.
   defp vault_boards(socket) do
-    %{vault: vault, current_user: user, show: show} = socket.assigns
+    %{vault: vault, current_user: user, show: show, board: here} = socket.assigns
+    hidden = Slipdock.Vaults.hidden_board_ids(vault)
+    here_root = Slipdock.Boards.Board.root_id(here)
 
     vault
     |> Slipdock.Vaults.board_ids()
@@ -676,14 +680,20 @@ defmodule SlipdockWeb.WikiLive.Index do
           []
 
         board ->
-          perm = Access.board_permission(user, board)
-
-          if Access.can_read?(perm),
-            do: [{id, {board, list_opts(Access.can_write?(perm), show) ++ [as: user]}}],
-            else: []
+          if MapSet.member?(hidden, id) and Slipdock.Boards.Board.root_id(board) != here_root,
+            do: [],
+            else: vault_board_entry(user, show, id, board)
       end
     end)
     |> Map.new()
+  end
+
+  defp vault_board_entry(user, show, id, board) do
+    perm = Access.board_permission(user, board)
+
+    if Access.can_read?(perm),
+      do: [{id, {board, list_opts(Access.can_write?(perm), show) ++ [as: user]}}],
+      else: []
   end
 
   # A page or folder of this board opened from another board's tree, as

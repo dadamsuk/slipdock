@@ -181,13 +181,35 @@ defmodule Slipdock.Vaults.NamesTest do
       refute entry(listing(ctx), ctx.page.id).archived
     end
 
-    test "an archived board marks everything on it", ctx do
-      {:ok, _} = Boards.archive_board(ctx.board)
+    test "an archived board is out of the listing, and back when restored", ctx do
+      {:ok, board} = Boards.archive_board(ctx.board)
       listed = listing(ctx)
 
-      assert entry(listed, ctx.page.id).archived
-      assert listed.folder_details["Keystone/Cards"].archived
-      assert hd(listed.boards).archived
+      refute entry(listed, ctx.page.id)
+      refute listed.folder_details["Keystone/Cards"]
+      assert listed.boards == []
+      refute "Keystone" in listed.folders
+
+      {:ok, _} = Boards.unarchive_board(board)
+      listed = listing(ctx)
+
+      assert %{archived: false} = entry(listed, ctx.page.id)
+      assert [%{path: "Keystone", archived: false}] = listed.boards
+    end
+
+    test "of an archived board the feed says only that it was, and was restored", ctx do
+      start = cursor(ctx)
+      {:ok, board} = Boards.archive_board(ctx.board)
+      {:ok, _} = Wiki.update_page(ctx.page, %{"body" => "Edited while archived"})
+
+      id = board.id
+      assert [%{subject: "board", id: ^id, action: "archived", archived: true}] = feed(ctx, start)
+
+      start = cursor(ctx)
+      {:ok, _} = Boards.unarchive_board(board)
+
+      assert [%{subject: "board", id: ^id, action: "restored", archived: false}] =
+               feed(ctx, start)
     end
 
     test "an archived epic marks the sub-board and the virtual directory", ctx do

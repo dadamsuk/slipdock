@@ -2363,12 +2363,18 @@ defmodule SlipdockWeb.APIGuide do
     A vault is a folder tree of Markdown (and other) files; the word is
     Obsidian's, but nothing here needs Obsidian. You have exactly one, made the
     first time it is wanted, and it is derived rather than configured: every
-    root board you own, archived ones too, is a folder off the root at
-    `/<board name>`, and a sub-board sits in its epic's folder,
-    `<Board>/Cards/<Epic>/`. Everything in a board's wiki is in its folder.
-    Boards shared with you by someone else are not in it. A new, renamed or
-    archived board needs no call: archived is a flag, and the path stays the
-    same. Board names that clash, case aside, are numbered, the oldest plain.
+    root board you own is a folder off the root at `/<board name>`, and a
+    sub-board sits in its epic's folder, `<Board>/Cards/<Epic>/`. Everything
+    in a board's wiki is in its folder. Boards shared with you by someone else
+    are not in it. A new or renamed board needs no call. Board names that
+    clash, case aside, are numbered, the oldest plain.
+
+    An **archived board is out of the tree**: not in `boards`, the sync
+    listing or the feed, which says only that it was archived (a `board`
+    change, `"action": "archived"`: drop its folder) and, if it comes back,
+    restored (list again). Browse it from the archived boards
+    (`GET /api/boards?archived=true`) and its own wiki; restore it to have
+    its wiki in the tree again. Its pages still answer `[[links]]`.
 
     ```sh
     curl -s -H "$H" B/api/vaults          # one vault: `pages`, `boards`, `mirrors`
@@ -2408,7 +2414,7 @@ defmodule SlipdockWeb.APIGuide do
     `more`. A new icon or colour is a change too, and leaves the hashes alone.
     Every page, folder, file and board carries `title`, `short_name` (a card
     folder's, else null), `path` (the listing's, from disk names, null for what
-    is archived itself) and `archived` (itself, or its board or a card above
+    is archived itself) and `archived` (itself, or a card above
     it); a card's folder has `card_id`. A rename of a card, a short name or a
     board comes as `"action": "moved"` with the old path in `from_path` on
     the folder and on everything that moved under it, with `"subject":
@@ -2480,7 +2486,7 @@ defmodule SlipdockWeb.APIGuide do
     board_id, title, short_name, card_id, archived}`. Every page, file and
     `folder_details` entry also has `title` (whole, however long), `short_name`
     (a card folder's when it has one, else null; a page has none) and
-    `archived`: a board or a card put it away, and a path never says so. A
+    `archived`: a card above it put it away (an archived board is not listed), and a path never says so. A
     card's folder has its `card_id`. Show titles or short names as the person
     chose: `tree_names` in `GET /api/me`, `full` or `short`, set with `PUT
     /api/me/display {"tree_names": "short"}` or `slipdock names short`. `GET /api/vaults/:id` says whether the vault is yours
