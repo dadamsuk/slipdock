@@ -13,7 +13,9 @@ defmodule Slipdock.HeaderLinksTest do
     ops = board_fixture(%{"name" => "Ops"}, owner: user)
 
     {:ok, vault} =
-      Vaults.create_vault(user, %{"name" => "Notes #{System.unique_integer([:positive])}"})
+      user
+      |> Vaults.root()
+      |> Vaults.update_vault(%{"name" => "Notes #{System.unique_integer([:positive])}"})
 
     %{user: user, plan: plan, ops: ops, vault: vault}
   end
@@ -98,13 +100,6 @@ defmodule Slipdock.HeaderLinksTest do
       {:ok, _} = Access.revoke(grant)
 
       assert HeaderLinks.list(other) == []
-    end
-
-    test "a deleted vault's link goes with it", %{user: user, vault: vault} do
-      {:ok, _} = HeaderLinks.add(user, vault, "star")
-      {:ok, _} = Vaults.delete_vault(vault)
-      assert HeaderLinks.list(user) == []
-      assert Repo.aggregate(HeaderLink, :count) == 0
     end
 
     test "is empty for nobody", do: assert(HeaderLinks.list(nil) == [])

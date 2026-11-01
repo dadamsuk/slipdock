@@ -10,7 +10,7 @@ defmodule Slipdock.BoardOrderVaultsTest do
     user = user_fixture()
     a = board_fixture(%{"name" => "A", "code" => "bova"}, owner: user)
     b = board_fixture(%{"name" => "B", "code" => "bovb"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
     %{user: user, a: a, b: b, vault: vault}
   end
 
@@ -53,21 +53,10 @@ defmodule Slipdock.BoardOrderVaultsTest do
            ]
   end
 
-  test "a vault left out of an order naming vaults loses its place", ctx do
-    %{user: user, a: a, b: b, vault: vault} = ctx
-    {:ok, other} = Vaults.create_vault(user, %{"name" => "W"})
-
-    :ok = Boards.reorder_boards(user, [vault, other, a, b])
-    :ok = Boards.reorder_boards(user, [other, a, b])
-
-    assert Repo.reload(other).position == 0
-    assert Repo.reload(vault).position == nil
-  end
-
   test "nobody else's vault is placed, and their vaults keep their places", ctx do
     %{user: user, a: a, vault: vault} = ctx
     stranger = user_fixture("bov-stranger@example.com")
-    {:ok, theirs} = Vaults.create_vault(stranger, %{"name" => "Theirs"})
+    {:ok, theirs} = stranger |> Vaults.root() |> Vaults.update_vault(%{"name" => "Theirs"})
     :ok = Boards.reorder_boards(stranger, [theirs])
 
     :ok = Boards.reorder_boards(user, [{:vault, theirs.id}, vault, a])

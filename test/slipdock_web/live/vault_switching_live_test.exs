@@ -14,7 +14,7 @@ defmodule SlipdockWeb.VaultSwitchingLiveTest do
 
   setup %{user: user} do
     plan = board_fixture(%{"name" => "Plan"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain #{plan.id}"})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain #{plan.id}"})
     %{plan: plan, vault: vault}
   end
 
@@ -35,7 +35,12 @@ defmodule SlipdockWeb.VaultSwitchingLiveTest do
   end
 
   test "somebody else's vault is not in your switcher", %{conn: conn, plan: plan} do
-    {:ok, theirs} = Vaults.create_vault(user_fixture("other@example.com"), %{"name" => "Theirs"})
+    {:ok, theirs} =
+      "other@example.com"
+      |> user_fixture()
+      |> Vaults.root()
+      |> Vaults.update_vault(%{"name" => "Theirs"})
+
     {:ok, view, _} = live(conn, ~p"/boards/#{plan}")
     render_hook(view, "shortcut_panel", %{"panel" => "boards"})
     refute has_element?(view, "#switch-vault-#{theirs.id}")

@@ -95,15 +95,6 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
     end
   end
 
-  # A page for a card lands on the card's board, in its folder, pinned to it.
-  defp write_for_card(id, args, body, auth, opts) do
-    with {:ok, title} <- Args.required(args, "title"),
-         {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
-         :ok <- Args.refusal(Authorize.card(auth, card, :write)) do
-      Args.refusal(Wiki.create_page_from_card(card, opts ++ [title: title, body: body]))
-    end
-  end
-
   defp write(mode, args, body, auth, opts) do
     with {:ok, page} <- find(args, auth) do
       case mode do
@@ -123,6 +114,15 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
           with {:ok, _} <- Args.required(args, "base_hash"),
                do: Args.refusal(Wiki.update_page(page, %{"body" => body}, opts))
       end
+    end
+  end
+
+  # A page for a card lands on the card's board, in its folder, pinned to it.
+  defp write_for_card(id, args, body, auth, opts) do
+    with {:ok, title} <- Args.required(args, "title"),
+         {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
+         :ok <- Args.refusal(Authorize.card(auth, card, :write)) do
+      Args.refusal(Wiki.create_page_from_card(card, opts ++ [title: title, body: body]))
     end
   end
 

@@ -1,12 +1,8 @@
 defmodule Slipdock.Vaults.Vault do
   @moduledoc """
-  A vault: one logical Obsidian-style vault, owned by one person, made of
-  board wikis.
-
-  It holds no pages of its own. What it holds is its **mappings** (see
-  `Slipdock.Vaults.Mapping`), which say which vault path lands in which
-  board's wiki — and, by naming the boards that belong together, how a plain
-  `[[link]]` on one of them is resolved (W-103, R1 and R4).
+  A vault: a person's whole wiki as one Obsidian-style tree, one per person
+  (W-2201). It holds no pages and no layout: `Slipdock.Vaults.Layout` derives
+  that from the boards. This row is what hangs off the whole.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -26,13 +22,12 @@ defmodule Slipdock.Vaults.Vault do
     # nil until it has been placed.
     field :position, :integer
     # Filled in for the home page, so `Slipdock.Boards.sort_boards/2` can
-    # sort vaults among the boards: the last thing that happened on the
-    # boards it keeps inside it or the last sync, and those boards' cards.
+    # sort the vault among the boards: the last thing that happened on its
+    # boards or the last sync, and those boards' cards.
     field :last_activity_at, :utc_datetime, virtual: true
     field :card_count, :integer, virtual: true, default: 0
 
     belongs_to :user, Slipdock.Accounts.User
-    has_many :mappings, Slipdock.Vaults.Mapping, preload_order: [asc: :path]
     has_many :mirrors, Slipdock.Vaults.Mirror, preload_order: [desc: :last_synced_at]
 
     timestamps(type: :utc_datetime)
@@ -43,7 +38,7 @@ defmodule Slipdock.Vaults.Vault do
   def changeset(vault, attrs) do
     vault
     |> cast(attrs, [:name])
-    |> update_change(:name, &String.trim/1)
+    |> update_change(:name, &(&1 && String.trim(&1)))
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: @name_length)
     |> validate_format(:name, ~r/^[^\/]+$/, message: "cannot contain a slash")

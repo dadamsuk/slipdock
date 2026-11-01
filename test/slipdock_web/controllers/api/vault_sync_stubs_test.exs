@@ -12,8 +12,7 @@ defmodule SlipdockWeb.API.VaultSyncStubsTest do
     plan = page_fixture(theirs, %{"title" => "Plan", "body" => "SECRET"}, user: owner)
     mine = board_fixture(%{"name" => "Mine"}, owner: sharee)
     {:ok, inbox} = Wiki.create_folder(mine, %{"name" => "Inbox"})
-    {:ok, vault} = Vaults.create_vault(sharee, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, sharee, %{path: "/", board: mine})
+    {:ok, vault} = sharee |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     {:ok, _} = Access.grant(plan, sharee, "read", owner)
     {:ok, _} = Wiki.Placements.add(plan, inbox, sharee)
     %{vault: vault, plan: plan}
@@ -26,7 +25,7 @@ defmodule SlipdockWeb.API.VaultSyncStubsTest do
       |> get("/api/vaults/#{c.vault.id}/sync?stubs=1")
       |> json_response(200)
 
-    assert [%{"kind" => "stub", "path" => "Inbox/Plan.md", "content" => content}] =
+    assert [%{"kind" => "stub", "path" => "Mine/Inbox/Plan.md", "content" => content}] =
              Enum.filter(body["entries"], &(&1["kind"] == "stub"))
 
     assert content =~ ~r{^\[Plan\]\(https?://[^)]+/shared/pages/#{c.plan.id}\)\n$}

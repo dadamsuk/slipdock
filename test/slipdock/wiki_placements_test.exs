@@ -9,7 +9,7 @@ defmodule Slipdock.WikiPlacementsTest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Vaults, Wiki}
+  alias Slipdock.Wiki
   alias Slipdock.Wiki.Placements
 
   setup do
@@ -95,12 +95,13 @@ defmodule Slipdock.WikiPlacementsTest do
     end
 
     test "only within the vault the page's board is in", ctx do
-      assert {:error, :unprocessable_entity, msg} = Placements.add(ctx.page, ctx.there, ctx.user)
-      assert msg =~ "same vault"
+      lender = user_fixture("placement-lender@example.com")
+      theirs = board_fixture(%{"name" => "Theirs", "code" => "placeth"}, owner: lender)
+      {:ok, folder} = Wiki.create_folder(theirs, %{"name" => "Lent"})
+      share_fixture(theirs, ctx.user, "write")
 
-      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
+      assert {:error, :unprocessable_entity, msg} = Placements.add(ctx.page, folder, ctx.user)
+      assert msg =~ "same vault"
 
       assert {:ok, [_]} = Placements.add(ctx.page, ctx.there, ctx.user)
       assert [%{id: id, also: true}] = Wiki.list_pages(ctx.jobs, folder: ctx.there, as: ctx.user)
@@ -108,10 +109,6 @@ defmodule Slipdock.WikiPlacementsTest do
     end
 
     test "needs write on both boards; a reader of only the folder's board does not see it", ctx do
-      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
-
       helper = user_fixture("helper@example.com")
       share_fixture(ctx.jobs, helper, "write")
       assert {:error, :forbidden, _} = Placements.add(ctx.page, ctx.there, helper)
@@ -123,124 +120,95 @@ defmodule Slipdock.WikiPlacementsTest do
       assert [_] = Placements.pages_in(ctx.there, ctx.user)
     end
 
-    test "a vault path names a folder on whichever board it is mapped to", ctx do
-      assert {:error, :unprocessable_entity, _} = Placements.folder_at(ctx.page, "/Journal/Notes")
-
-      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-
-      {:ok, _} =
-        Vaults.add_mapping(vault, ctx.user, %{
-          path: "/Journal",
-          board: ctx.jobs,
-          folder: ctx.there
-        })
-
-      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/Journal")
+    test "a vault path names a folder on whichever board it falls in", ctx do
+      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/Journal/Notes")
       assert id == ctx.there.id
-      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/Journal/Acme")
-      assert {:ok, acme} = Placements.folder_at(ctx.page, "/Journal/Acme", create: true)
+      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/Journal/Notes/Acme")
+      assert {:ok, acme} = Placements.folder_at(ctx.page, "/Journal/Notes/Acme", create: true)
       assert acme.board_id == ctx.jobs.id
       assert Wiki.folder_path(acme) == "Notes/Acme"
-      assert {:error, :unprocessable_entity, _} = Placements.folder_at(ctx.page, "/")
     end
 
-    # The vault of the duplicate-folder tests: `/` the board, `/Journal` a folder on jobs.
-    defp vault_of(ctx) do
-      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-
-      {:ok, _} =
-        Vaults.add_mapping(vault, ctx.user, %{
-          path: "/Journal",
-          board: ctx.jobs,
-          folder: ctx.there
-        })
-
-      vault
+    test "a board's own folder, the root and a place in no board are no folder", ctx do
+      assert {:error, :unprocessable_entity, msg} = Placements.folder_at(ctx.page, "/Journal")
+      assert msg =~ "a board's wiki"
+      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/")
+      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/Nowhere/Else")
+      assert {:error, :unprocessable_entity, _} = Placements.folder_at(ctx.page, "/Journal/../x")
     end
 
     defp count(board), do: length(Slipdock.Wiki.Folders.list(board))
 
     test "making by vault path uses what is there, at every level (#1583)", ctx do
-      vault_of(ctx)
       {:ok, top} = Wiki.create_folder(ctx.board, %{"name" => "Inbox"})
       {:ok, inner} = Wiki.create_folder(ctx.board, %{"name" => "Deep", "parent_id" => top.id})
       before = count(ctx.board)
 
-      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/Inbox", create: true)
+      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/Brain/Inbox", create: true)
       assert id == top.id
-      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/inbox/DEEP", create: true)
+      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/brain/inbox/DEEP", create: true)
       assert id == inner.id
       assert count(ctx.board) == before
 
-      # The mapped folder is itself the target, not a new folder of its name.
+      # On another board too, not a new folder of its name.
       jobs_before = count(ctx.jobs)
-      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/Journal", create: true)
+      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/Journal/Notes", create: true)
       assert id == ctx.there.id
       assert count(ctx.jobs) == jobs_before
     end
 
     test "only the missing levels are made (#1583)", ctx do
-      vault_of(ctx)
       {:ok, top} = Wiki.create_folder(ctx.board, %{"name" => "Inbox"})
       before = count(ctx.board)
 
-      assert {:ok, leaf} = Placements.folder_at(ctx.page, "/Inbox/New/Leaf", create: true)
+      assert {:ok, leaf} = Placements.folder_at(ctx.page, "/Brain/Inbox/New/Leaf", create: true)
       assert Wiki.folder_path(leaf) == "Inbox/New/Leaf"
       assert count(ctx.board) == before + 2
       assert Wiki.get_folder(leaf.parent_id).parent_id == top.id
 
-      assert {:ok, fresh} = Placements.folder_at(ctx.page, "/Fresh", create: true)
+      assert {:ok, fresh} = Placements.folder_at(ctx.page, "/Brain/Fresh", create: true)
       assert fresh.parent_id == nil
       assert count(ctx.board) == before + 3
     end
 
     test "a path names one place: not a same-named folder elsewhere, nor an id", ctx do
-      vault_of(ctx)
       {:ok, top} = Wiki.create_folder(ctx.board, %{"name" => "Top"})
       {:ok, nested} = Wiki.create_folder(ctx.board, %{"name" => "Inbox", "parent_id" => top.id})
 
-      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/Inbox")
-      assert {:ok, root} = Placements.folder_at(ctx.page, "/Inbox", create: true)
+      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/Brain/Inbox")
+      assert {:ok, root} = Placements.folder_at(ctx.page, "/Brain/Inbox", create: true)
       assert root.id != nested.id and root.parent_id == nil
 
       # A folder called 2026 is a name, whatever folder has that number.
-      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/#{top.id}")
-      assert {:ok, named} = Placements.folder_at(ctx.page, "/#{top.id}", create: true)
+      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/Brain/#{top.id}")
+      assert {:ok, named} = Placements.folder_at(ctx.page, "/Brain/#{top.id}", create: true)
       assert named.name == "#{top.id}" and named.id != top.id
     end
 
-    test "with two folders of a name it starts from the mapped one, not the first", ctx do
-      {:ok, a} = Wiki.create_folder(ctx.jobs, %{"name" => "Same"})
+    test "with two folders of a name the path picks by its disk name", ctx do
+      {:ok, _a} = Wiki.create_folder(ctx.jobs, %{"name" => "Same"})
       {:ok, b} = Wiki.create_folder(ctx.jobs, %{"name" => "Same"})
       {:ok, kept} = Wiki.create_folder(ctx.jobs, %{"name" => "Kept", "parent_id" => b.id})
-      assert a.id != b.id
 
-      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
+      assert {:ok, %{id: id}} =
+               Placements.folder_at(ctx.page, "/Journal/Same (2)/Kept", create: true)
 
-      {:ok, _} =
-        Vaults.add_mapping(vault, ctx.user, %{path: "/Dup", board: ctx.jobs, folder: b})
-
-      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/Dup/Kept", create: true)
       assert id == kept.id
     end
 
     test "a named user makes folders only writing on both boards", ctx do
-      vault_of(ctx)
       helper = user_fixture("placement-helper@example.com")
       share_fixture(ctx.board, helper, "write")
       share_fixture(ctx.jobs, helper, "read")
       jobs_before = count(ctx.jobs)
 
       assert {:error, :not_found, _} =
-               Placements.folder_at(ctx.page, "/Journal/Acme", create: true, user: helper)
+               Placements.folder_at(ctx.page, "/Journal/Notes/Acme", create: true, user: helper)
 
       assert count(ctx.jobs) == jobs_before
 
       assert {:ok, %{name: "Mine"}} =
-               Placements.folder_at(ctx.page, "/Mine", create: true, user: ctx.user)
+               Placements.folder_at(ctx.page, "/Brain/Mine", create: true, user: ctx.user)
     end
   end
 

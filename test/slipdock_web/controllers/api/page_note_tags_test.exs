@@ -9,8 +9,7 @@ defmodule SlipdockWeb.API.PageNoteTagsTest do
 
   setup %{conn: conn, user: user} do
     board = board_fixture(%{"name" => "Brain", "code" => "brainapi"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
 
     {:ok, a} =
       Wiki.create_page(board, %{"title" => "A", "body" => "#area/sub and #solo"}, user: user)

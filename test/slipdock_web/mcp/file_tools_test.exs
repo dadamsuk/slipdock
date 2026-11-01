@@ -410,22 +410,25 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
 
   describe "upload_file from a vault file (#1040)" do
     setup ctx do
-      {:ok, vault} = Slipdock.Vaults.create_vault(ctx.user, %{"name" => "Brain1040"})
-      {:ok, _} = Slipdock.Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
+      {:ok, vault} =
+        ctx.user
+        |> Slipdock.Vaults.root()
+        |> Slipdock.Vaults.update_vault(%{"name" => "Brain1040"})
+
       bytes = :crypto.strong_rand_bytes(50_000)
       source = Path.join(System.tmp_dir!(), "vault-1040-#{System.unique_integer([:positive])}")
       File.write!(source, bytes)
       on_exit(fn -> File.rm(source) end)
 
       {:ok, entry} =
-        Slipdock.Vaults.Sync.write_file(vault, ctx.user, %{"path" => "Jobs/CV.docx"}, source)
+        Slipdock.Vaults.Sync.write_file(vault, ctx.user, %{"path" => "Files/CV.docx"}, source)
 
       %{vault: vault, bytes: bytes, entry: entry}
     end
 
     test "copies it onto a card by its path, byte for byte, under its own name", ctx do
       %{"card" => card_id, "attachment" => a} =
-        upload!(ctx.conn, %{card: ctx.card.id, vault: "brain1040", vault_file: "jobs/cv.docx"})
+        upload!(ctx.conn, %{card: ctx.card.id, vault: "brain1040", vault_file: "files/cv.docx"})
 
       assert card_id == ctx.card.id
       assert a["filename"] == "CV.docx"
@@ -463,23 +466,23 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
         |> call("upload_file", %{
           card: ctx.card.id,
           vault: "Brain1040",
-          vault_file: "Jobs/CV.docx",
+          vault_file: "Files/CV.docx",
           sha256: sha256("another version")
         })
         |> error!()
 
-      assert text =~ "sha256_mismatch: Jobs/CV.docx in the vault has sha256 #{sha256(ctx.bytes)}"
+      assert text =~ "sha256_mismatch: Files/CV.docx in the vault has sha256 #{sha256(ctx.bytes)}"
       assert text =~ "Nothing was stored"
       assert card_files(ctx.card) == []
     end
 
     test "says what is wrong with the arguments, and stores nothing", ctx do
-      base = %{card: ctx.card.id, vault: "Brain1040", vault_file: "Jobs/CV.docx"}
+      base = %{card: ctx.card.id, vault: "Brain1040", vault_file: "Files/CV.docx"}
 
       bad = [
         {Map.delete(base, :vault), "vault is required"},
         {%{base | vault: "Nope"}, "no vault \"Nope\""},
-        {%{base | vault_file: "Jobs/Missing.docx"}, "file at Jobs/Missing.docx"},
+        {%{base | vault_file: "Files/Missing.docx"}, "file at Files/Missing.docx"},
         {%{base | vault_file: "999999999"}, "file 999999999"},
         {%{base | vault_file: "../etc/passwd"}, "hidden files"},
         {Map.put(base, :text, "x"), "vault_file or the content, not both"},
@@ -501,7 +504,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
              |> call("upload_file", %{
                card: ctx.secret.id,
                vault: "Brain1040",
-               vault_file: "Jobs/CV.docx"
+               vault_file: "Files/CV.docx"
              })
              |> error!() =~ "no vault"
 
@@ -510,7 +513,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
              |> call("upload_file", %{
                card: ctx.card.id,
                vault: "Brain1040",
-               vault_file: "Jobs/CV.docx"
+               vault_file: "Files/CV.docx"
              })
              |> error!() =~ "read-only"
 

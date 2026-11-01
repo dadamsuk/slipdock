@@ -8,137 +8,94 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
 
   alias Slipdock.{Accounts, Vaults, Wiki}
 
-  test "with no vaults, there are no vault cards, but a vault can still be made", %{conn: conn} do
-    {:ok, view, _} = live(conn, ~p"/")
+  test "with no board of your own: the empty state and no vault tile", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/")
+    assert html =~ "No boards yet"
     refute has_element?(view, "[id^=vault-tile-]")
-    assert has_element?(view, "#new-vault", "New vault")
+    refute has_element?(view, "#boards")
   end
 
-  test "a tile per vault: its boards, pages and synced folders", %{conn: conn, user: user} do
+  test "a board somebody shared is no vault of yours", %{conn: conn, user: user} do
+    lender = user_fixture("home-lender@example.com")
+    lent = board_fixture(%{"name" => "Lent", "code" => "lenth"}, owner: lender)
+    share_fixture(lent, user, "read")
+
+    {:ok, view, _} = live(conn, ~p"/")
+    assert has_element?(view, "#board-#{lent.id}", "Lent")
+    refute has_element?(view, "[id^=vault-tile-]")
+  end
+
+  test "one tile: its boards, pages and synced folders", %{conn: conn, user: user} do
     kb = board_fixture(%{"name" => "Keystone", "code" => "kbh"}, owner: user)
     hunt = board_fixture(%{"name" => "Journal Desk", "code" => "hunth"}, owner: user)
     {:ok, _} = Wiki.create_page(kb, %{"title" => "One"})
     {:ok, _} = Wiki.create_page(hunt, %{"title" => "Two"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: hunt})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     {_raw, token} = Accounts.create_api_token(user, "slipdock CLI on laptop")
     Vaults.touch_mirror(vault, token)
-    {:ok, _empty} = Vaults.create_vault(user, %{"name" => "Empty"})
 
     {:ok, view, _} = live(conn, ~p"/")
 
     tile = "#vault-tile-#{vault.id}"
     assert has_element?(view, tile, "Notes")
     assert has_element?(view, tile, "2 pages")
-    assert has_element?(view, tile, "Keystone · Journal Desk")
+    assert has_element?(view, tile, "2 boards")
+    assert has_element?(view, tile, "Journal Desk")
+    assert has_element?(view, tile, "Keystone")
     assert has_element?(view, tile, "slipdock CLI on laptop")
-    assert has_element?(view, "#boards a", "No boards mapped yet")
+    assert [_] = Regex.scan(~r/id="vault-tile-/, render(view))
   end
 
-  test "somebody else's vault is not shown", %{conn: conn} do
-    stranger = user_fixture("home-stranger@example.com")
-    {:ok, _} = Vaults.create_vault(stranger, %{"name" => "Theirs"})
-    {:ok, _view, html} = live(conn, ~p"/")
-    refute html =~ "Theirs"
+  test "boards list as boards, with nothing kept inside the vault", %{conn: conn, user: user} do
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kbin"}, owner: user)
+    plain = board_fixture(%{"name" => "Plain Board", "code" => "plainin"}, owner: user)
+    {:ok, view, html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#board-#{kb.id}", "Keystone")
+    assert has_element?(view, "#board-#{plain.id}", "Plain Board")
+    refute has_element?(view, "[id^=vault-inside-]")
+    refute html =~ "pages stored on"
   end
 
-  test "makes a vault from the home page, and says when the name won't do", %{
-    conn: conn,
-    user: user
-  } do
-    {:ok, _} = Vaults.create_vault(user, %{"name" => "First"})
-    {:ok, view, _} = live(conn, ~p"/")
+  test "there is no way to make a vault", %{conn: conn, user: user} do
+    board_fixture(%{"name" => "Keystone", "code" => "kbnv"}, owner: user)
+    {:ok, view, html} = live(conn, ~p"/")
 
-    view |> element("#new-vault") |> render_click()
-    view |> form("#new-vault-form", %{"name" => "Second"}) |> render_submit()
-    assert [_, _] = Vaults.list_vaults(user)
-    assert has_element?(view, "#boards a", "Second")
+    refute has_element?(view, "#new-vault")
+    refute has_element?(view, "#new-vault-tile")
     refute has_element?(view, "#new-vault-form")
-
-    view |> element("#new-vault") |> render_click()
-    html = view |> form("#new-vault-form", %{"name" => "second"}) |> render_submit()
-    assert html =~ "already have a vault with that name"
-    assert length(Vaults.list_vaults(user)) == 2
+    refute html =~ "New vault"
+    assert has_element?(view, "#new-board-tile")
   end
 
-  describe "a board kept inside its vault (#757)" do
-    setup %{user: user} do
-      kb = board_fixture(%{"name" => "Keystone", "code" => "kbin"}, owner: user)
-      plain = board_fixture(%{"name" => "Plain Board", "code" => "plainin"}, owner: user)
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb, inside: true})
-      %{kb: kb, plain: plain, vault: vault}
-    end
+  test "the tile's count and activity come from the boards you own", %{user: user} do
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kbcnt"}, owner: user)
+    [column | _] = Slipdock.Repo.preload(kb, :columns).columns
+    card_fixture(column, %{"title" => "One"})
+    card_fixture(column, %{"title" => "Two"})
+    gone = card_fixture(column, %{"title" => "Gone"})
+    {:ok, _} = Slipdock.Boards.archive_card(gone)
 
-    test "leaves the owner's boards and is named on the vault's tile", ctx do
-      %{conn: conn, kb: kb, plain: plain, vault: vault} = ctx
-      [column | _] = Slipdock.Repo.preload(kb, :columns).columns
-      card_fixture(column, %{"title" => "Something to do"})
-      {:ok, view, _} = live(conn, ~p"/")
+    lender = user_fixture("home-count@example.com")
+    lent = board_fixture(%{"name" => "Lent", "code" => "lentcnt"}, owner: lender)
+    [lent_column | _] = Slipdock.Repo.preload(lent, :columns).columns
+    card_fixture(lent_column, %{"title" => "Not mine"})
+    share_fixture(lent, user, "read")
 
-      refute has_element?(view, "#board-#{kb.id}")
-      assert has_element?(view, "#board-#{plain.id}", plain.name)
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Counted"})
+    {:ok, user} = Accounts.update_board_view(user, %{"board_layout" => "compact"})
 
-      inside = "#vault-inside-#{vault.id}-#{kb.id}"
+    {:ok, view, _} = live(log_in_user(build_conn(), user), ~p"/")
+    vault = Vaults.root(user)
 
-      assert has_element?(
-               view,
-               "#{inside}[href='/boards/#{kb.id}']",
-               "pages stored on Keystone"
-             )
-
-      assert has_element?(view, inside, "1 card")
-    end
-
-    test "still reachable at its address", %{conn: conn, kb: kb} do
-      assert {:ok, _view, html} = live(conn, ~p"/boards/#{kb}")
-      assert html =~ "Keystone"
-    end
-
-    test "anyone it is shared with sees an ordinary board", %{kb: kb, user: owner} do
-      member = user_fixture("inside-member@example.com")
-      {:ok, _} = Slipdock.Access.grant(kb, member, "read", owner)
-
-      {:ok, view, _} = live(conn_as(member), ~p"/")
-      assert has_element?(view, "#board-#{kb.id}", "Keystone")
-      refute has_element?(view, "[id^=vault-tile-]")
-    end
-
-    test "back on the home page when unmapped, or the vault is deleted", ctx do
-      %{conn: conn, kb: kb, vault: vault, user: user} = ctx
-      {:ok, _} = Vaults.remove_mapping(vault, "/")
-      {:ok, view, _} = live(conn, ~p"/")
-      assert has_element?(view, "#boards", "Keystone")
-
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb, inside: true})
-      {:ok, _} = Vaults.delete_vault(vault)
-      {:ok, view, _} = live(conn, ~p"/")
-      assert has_element?(view, "#boards", "Keystone")
-    end
-
-    test "a new vault can come with a board to hold its pages, kept inside", ctx do
-      %{conn: conn, user: user} = ctx
-      {:ok, view, _} = live(conn, ~p"/")
-      view |> element("#new-vault") |> render_click()
-
-      html =
-        view
-        |> form("#new-vault-form", %{"name" => "Brain", "with_board" => "true"})
-        |> render_submit()
-
-      assert html =~ "with a board of the same name holding its pages"
-      {:ok, brain} = Vaults.get_vault(user, "Brain")
-      assert [%{path: "", inside: true, board: board}] = brain.mappings
-      assert has_element?(view, "#vault-inside-#{brain.id}-#{board.id}", "pages stored on Brain")
-      refute has_element?(view, "#board-#{board.id}")
-    end
+    assert view |> element("tr#vault-#{vault.id} td.tabular-nums") |> render() =~ ">2<"
+    assert has_element?(view, "tr#vault-#{vault.id}", "just now")
   end
 
   describe "among the boards" do
     setup %{user: user} do
       alpha = board_fixture(%{"name" => "Alpha", "code" => "alvlt"}, owner: user)
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Middle"})
+      {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Middle"})
       zulu = board_fixture(%{"name" => "Zulu", "code" => "zuvlt"}, owner: user)
 
       # A second apart, as they would be made by hand: within one second, a
@@ -174,13 +131,12 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
     end
 
     test "follows the sort, and is in the compact list too", ctx do
-      %{conn: conn, user: user, alpha: alpha, vault: vault, zulu: zulu} = ctx
+      %{conn: conn, alpha: alpha, vault: vault, zulu: zulu} = ctx
       {:ok, view, _} = live(conn, ~p"/")
 
       html = view |> form("#board-sort", %{"sort" => "newest"}) |> render_change()
       assert tiles(html) == [board: zulu.id, vault: vault.id, board: alpha.id]
 
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: zulu})
       html = view |> form("#board-sort", %{"sort" => "name"}) |> render_change()
       assert tiles(html) == [board: alpha.id, vault: vault.id, board: zulu.id]
       # Only one way to drag: not while sorted by name.
@@ -190,7 +146,7 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
       assert html =~ "<table"
       assert tiles(html) == [board: alpha.id, vault: vault.id, board: zulu.id]
       assert has_element?(view, "tr#vault-#{vault.id} a[href='/vaults/Middle']", "Middle")
-      assert has_element?(view, "tr#vault-#{vault.id}", "0 pages · Zulu")
+      assert has_element?(view, "tr#vault-#{vault.id}", "0 pages · Alpha · Zulu")
     end
 
     test "is moved like a board, and the order is kept", ctx do
@@ -223,41 +179,12 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
     test "somebody else's vault can't be moved by naming it", ctx do
       %{conn: conn, alpha: alpha, vault: vault, zulu: zulu} = ctx
       stranger = user_fixture("vault-mover@example.com")
-      {:ok, theirs} = Vaults.create_vault(stranger, %{"name" => "Theirs"})
+      {:ok, theirs} = stranger |> Vaults.root() |> Vaults.update_vault(%{"name" => "Theirs"})
       {:ok, view, _} = live(conn, ~p"/")
 
       html = render_hook(view, "reorder", %{"id" => "vault-#{theirs.id}", "before" => nil})
       assert tiles(html) == [board: alpha.id, vault: vault.id, board: zulu.id]
       assert Slipdock.Repo.reload(theirs).position == nil
     end
-
-    test "New vault looks and works like New board, button and tile", %{conn: conn, user: user} do
-      {:ok, view, _} = live(conn, ~p"/")
-
-      assert has_element?(view, "button.btn.btn-primary.btn-sm[phx-click=start_create]")
-      assert has_element?(view, "button#new-vault.btn.btn-primary.btn-sm")
-
-      [board_tile] = view |> element("#new-board-tile") |> render() |> class_of()
-      [vault_tile] = view |> element("#new-vault-tile") |> render() |> class_of()
-      assert board_tile == vault_tile
-
-      view |> element("#new-vault-tile") |> render_click()
-      assert has_element?(view, "#new-vault-form")
-      refute has_element?(view, "#new-vault")
-      refute has_element?(view, "#new-vault-tile")
-
-      # One form open at a time.
-      view |> element("#new-board-tile") |> render_click()
-      refute has_element?(view, "#new-vault-form")
-      assert has_element?(view, "#new-board")
-
-      view |> element("#new-vault") |> render_click()
-      refute has_element?(view, "#new-board")
-      view |> form("#new-vault-form", %{"name" => "Fresh"}) |> render_submit()
-      assert {:ok, _} = Vaults.get_vault(user, "Fresh")
-      assert has_element?(view, "#new-vault-tile")
-    end
-
-    defp class_of(html), do: Regex.run(~r/class="([^"]*)"/, html, capture: :all_but_first)
   end
 end

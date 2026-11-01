@@ -29,8 +29,7 @@ defmodule SlipdockWeb.API.RecordingControllerTest do
 
   setup %{user: user} do
     board = board_fixture(%{"name" => "Recording API"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Recording API"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Recording API"})
     vault = vault |> Ecto.Changeset.change(recordings_folder: "Rec") |> Repo.update!()
     connect!(user)
     drive!(@drive)
@@ -226,9 +225,12 @@ defmodule SlipdockWeb.API.RecordingControllerTest do
       assert json_response(play(gone.id, token), 404) == %{"reason" => "not_found"}
     end
 
-    test "no_vault", %{user: user, token: token} do
-      loose = board_fixture(%{"name" => "Recording API loose"}, owner: user)
+    test "no_vault: a board nobody owns", %{user: user, token: token} do
+      owner = user_fixture("rec-gone@example.com")
+      loose = board_fixture(%{"name" => "Recording API loose"}, owner: owner)
+      share_fixture(loose, user, "read")
       page = meeting(loose, "recording: gdrive:Rec/m.m4a")
+      loose |> Ecto.Changeset.change(owner_id: nil) |> Repo.update!()
 
       assert json_response(play(page.id, token), 409) == %{"reason" => "no_vault"}
     end

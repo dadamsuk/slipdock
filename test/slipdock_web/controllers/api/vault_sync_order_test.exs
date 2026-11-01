@@ -14,13 +14,13 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
 
   setup %{conn: conn, user: user} do
     board = board_fixture(%{"name" => "Ordered", "code" => "or85"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Shelf"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Shelf"})
     %{conn: put_req_header(conn, "accept", "application/json"), board: board, vault: vault}
   end
 
   defp listing(conn), do: conn |> get("/api/vaults/Shelf/sync") |> json_response(200)
   defp vault_json(conn), do: conn |> get("/api/vaults/Shelf") |> json_response(200)
+  defp boards_json(conn), do: vault_json(conn)["vault"]["boards"]
 
   defp with_token(conn, user, opts \\ []) do
     {token, _} = Accounts.create_api_token(user, "order", opts)
@@ -136,7 +136,7 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
                "position" => 7,
                "inserted_at" => "1970-01-12T13:46:40Z",
                "updated_at" => "1970-01-24T03:33:20Z"
-             } = entry(listing(conn), "Dated.md")
+             } = entry(listing(conn), "Ordered/Dated.md")
 
       assert Repo.get!(Page, id).updated_at == ~U[1970-01-24 03:33:20Z]
     end
@@ -145,7 +145,7 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
       id = page!(board, "Edited", nil, 0, 1_000_000, 2_000_000)
       {:ok, _} = Wiki.update_page(Repo.get!(Page, id), %{"body" => "New words"})
 
-      row = entry(listing(conn), "Edited.md")
+      row = entry(listing(conn), "Ordered/Edited.md")
       assert row["inserted_at"] == "1970-01-12T13:46:40Z"
       assert row["updated_at"] > "2020-01-01T00:00:00Z"
     end
@@ -153,7 +153,7 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
     test "a write answers with them too", %{conn: conn} do
       answer =
         conn
-        |> put("/api/vaults/Shelf/sync/pages", %{"path" => "Fresh.md", "content" => "Hi"})
+        |> put("/api/vaults/Shelf/sync/pages", %{"path" => "Ordered/Fresh.md", "content" => "Hi"})
         |> json_response(200)
 
       assert %{"page" => %{"position" => position} = page} = answer
@@ -164,7 +164,7 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
     test "a file has times and no position", %{conn: conn, board: board, user: user} do
       file(board, user, "photo.png")
 
-      row = entry(listing(conn), "photo.png")
+      row = entry(listing(conn), "Ordered/photo.png")
       assert Map.fetch!(row, "position") == nil
       assert is_binary(row["inserted_at"]) and is_binary(row["updated_at"])
     end
@@ -181,12 +181,12 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
                "sort" => nil,
                "also_pages" => [],
                "also_folders" => []
-             } = details["Plain"]
+             } = details["Ordered/Plain"]
 
       assert id == plain.id
-      assert is_binary(details["Plain"]["inserted_at"])
-      assert is_binary(details["Plain"]["updated_at"])
-      assert %{"position" => 4, "sort" => "created"} = details["Sorted"]
+      assert is_binary(details["Ordered/Plain"]["inserted_at"])
+      assert is_binary(details["Ordered/Plain"]["updated_at"])
+      assert %{"position" => 4, "sort" => "created"} = details["Ordered/Sorted"]
     end
 
     test "a stub carries none of them, and no order", %{conn: conn, board: board, user: user} do
@@ -201,7 +201,7 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
 
       assert [stub] = Enum.filter(body["entries"], &(&1["kind"] == "stub"))
       for key <- ~w(position inserted_at updated_at), do: refute(Map.has_key?(stub, key))
-      assert body["folder_details"]["Inbox"]["also_pages"] == []
+      assert body["folder_details"]["Ordered/Inbox"]["also_pages"] == []
     end
 
     test "the change feed says them too", %{conn: conn, board: board, vault: vault} do
@@ -229,20 +229,12 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
   end
 
   describe "which sort applies" do
-    test "wiki_sort is on the mapping, and is by name until chosen", %{conn: conn, board: board} do
-      assert [%{"board" => %{"wiki_sort" => "name"}}] = vault_json(conn)["vault"]["mappings"]
-      assert tree(board, :root) == drawn(listing(conn), "", "name")
-    end
-
-    test "a folder mapped at the root says its sort on the mapping", %{conn: conn, user: user} do
-      board = board_fixture(%{"name" => "Rooted", "code" => "or87"}, owner: user)
-      folder = folder!(board, "Top", 0)
-      {:ok, _} = Folders.update(folder, %{"sort" => "modified"})
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Rooted vault"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board, folder: folder})
-
-      answer = conn |> get("/api/vaults/#{vault.id}") |> json_response(200)
-      assert [%{"folder" => %{"sort" => "modified"}}] = answer["vault"]["mappings"]
+    test "wiki_sort is on the vault's board, and is by name until chosen", %{
+      conn: conn,
+      board: board
+    } do
+      assert [%{"path" => "/Ordered", "wiki_sort" => "name"}] = boards_json(conn)
+      assert tree(board, :root) == drawn(listing(conn), "Ordered", "name")
     end
   end
 
@@ -263,13 +255,13 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
     for sort <- ~w(manual name modified created) do
       test "the top, and a folder following it, by #{sort}", %{conn: conn, board: board} = ctx do
         {:ok, _} = Wiki.set_tree_sort(board, nil, unquote(sort))
-        vault_sort = hd(vault_json(conn)["vault"]["mappings"])["board"]["wiki_sort"]
+        vault_sort = hd(boards_json(conn))["wiki_sort"]
         assert vault_sort == unquote(sort)
 
         shown = listing(conn)
-        assert shown["folder_details"]["Inside"]["sort"] == nil
-        assert drawn(shown, "", vault_sort) == tree(board, :root)
-        assert drawn(shown, "Inside", vault_sort) == tree(board, {:folder, ctx.inside.id})
+        assert shown["folder_details"]["Ordered/Inside"]["sort"] == nil
+        assert drawn(shown, "Ordered", vault_sort) == tree(board, :root)
+        assert drawn(shown, "Ordered/Inside", vault_sort) == tree(board, {:folder, ctx.inside.id})
       end
 
       test "a folder by its own #{sort} under another top", %{conn: conn, board: board} = ctx do
@@ -278,9 +270,9 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
         {:ok, _} = Folders.update(ctx.inside, %{"sort" => unquote(sort)})
 
         shown = listing(conn)
-        assert shown["folder_details"]["Inside"]["sort"] == unquote(sort)
-        assert drawn(shown, "Inside", top) == tree(board, {:folder, ctx.inside.id})
-        assert drawn(shown, "", top) == tree(board, :root)
+        assert shown["folder_details"]["Ordered/Inside"]["sort"] == unquote(sort)
+        assert drawn(shown, "Ordered/Inside", top) == tree(board, {:folder, ctx.inside.id})
+        assert drawn(shown, "Ordered", top) == tree(board, :root)
       end
     end
 
@@ -288,7 +280,7 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
       orders =
         for sort <- ~w(manual name modified created) do
           {:ok, _} = Wiki.set_tree_sort(board, nil, sort)
-          conn |> listing() |> drawn("", sort) |> Enum.filter(&(elem(&1, 0) == "page"))
+          conn |> listing() |> drawn("Ordered", sort) |> Enum.filter(&(elem(&1, 0) == "page"))
         end
 
       assert orders == [
@@ -302,9 +294,11 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
     test "folders stay as arranged unless the sort is by name",
          %{conn: conn, board: board} = ctx do
       {:ok, _} = Wiki.set_tree_sort(board, nil, "modified")
-      zebra = listing(conn)["folder_details"]["zebra"]["id"]
+      zebra = listing(conn)["folder_details"]["Ordered/zebra"]["id"]
 
-      assert [{"folder", ^zebra}, {"folder", id} | _] = drawn(listing(conn), "", "modified")
+      assert [{"folder", ^zebra}, {"folder", id} | _] =
+               drawn(listing(conn), "Ordered", "modified")
+
       assert id == ctx.inside.id
     end
 
@@ -314,7 +308,7 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
       file(board, user, "A.png", ctx.inside.id)
       {:ok, _} = Folders.update(ctx.inside, %{"sort" => "modified"})
 
-      shown = drawn(listing(conn), "Inside", "name")
+      shown = drawn(listing(conn), "Ordered/Inside", "name")
       assert shown == tree(board, {:folder, ctx.inside.id})
       assert [{"file", _}, {"file", _}] = Enum.take(shown, -2)
     end
@@ -335,8 +329,10 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
     test "comes in the placements' order, not the pages' own", %{conn: conn} = ctx do
       shown = listing(conn)
 
-      assert shown["folder_details"]["Shelf"]["also_pages"] == [ctx.first, ctx.second]
-      assert entry(shown, "Zulu.md")["position"] > entry(shown, "Alpha.md")["position"]
+      assert shown["folder_details"]["Ordered/Shelf"]["also_pages"] == [ctx.first, ctx.second]
+
+      assert entry(shown, "Ordered/Zulu.md")["position"] >
+               entry(shown, "Ordered/Alpha.md")["position"]
     end
 
     test "a page's position there can differ from its position at home", %{conn: conn} = ctx do
@@ -344,32 +340,31 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
       |> Repo.update_all(set: [position: 5])
 
       shown = listing(conn)
-      assert shown["folder_details"]["Shelf"]["also_pages"] == [ctx.second, ctx.first]
-      assert entry(shown, "Zulu.md")["position"] == 9
+      assert shown["folder_details"]["Ordered/Shelf"]["also_pages"] == [ctx.second, ctx.first]
+      assert entry(shown, "Ordered/Zulu.md")["position"] == 9
     end
 
     test "comes after the pages at home, under every sort", %{conn: conn, board: board} = ctx do
       for sort <- ~w(manual name modified created) do
         {:ok, _} = Folders.update(ctx.shelf, %{"sort" => sort})
-        assert drawn(listing(conn), "Shelf", "name") == tree(board, {:folder, ctx.shelf.id})
+
+        assert drawn(listing(conn), "Ordered/Shelf", "name") ==
+                 tree(board, {:folder, ctx.shelf.id})
       end
     end
 
     test "leaves out a draft the reader can't open", %{conn: conn, user: user} = ctx do
-      owner = user_fixture("order-draft@example.com")
-      theirs = board_fixture(%{"name" => "Theirs", "code" => "or88"}, owner: owner)
-      {:ok, lent} = Wiki.create_page(theirs, %{"title" => "Lent"})
-      {:ok, draft} = Wiki.create_page(theirs, %{"title" => "Hidden", "status" => "draft"})
+      other = board_fixture(%{"name" => "Theirs", "code" => "or88"}, owner: user)
+      {:ok, lent} = Wiki.create_page(other, %{"title" => "Lent"})
+      {:ok, draft} = Wiki.create_page(other, %{"title" => "Hidden", "status" => "draft"})
 
-      {:ok, _} = Access.grant(theirs, user, "write", owner)
-      {:ok, _} = Vaults.add_mapping(ctx.vault, user, %{path: "/Theirs", board: theirs})
       {:ok, _} = Placements.add(lent, ctx.shelf, user)
       {:ok, _} = Placements.add(draft, ctx.shelf, user)
 
-      assert draft.id in listing(conn)["folder_details"]["Shelf"]["also_pages"]
+      assert draft.id in listing(conn)["folder_details"]["Ordered/Shelf"]["also_pages"]
 
-      {:ok, _} = Access.grant(theirs, user, "read", owner)
-      also = listing(conn)["folder_details"]["Shelf"]["also_pages"]
+      also = (conn |> with_token(user, scope: "read") |> listing())["folder_details"]
+      also = also["Ordered/Shelf"]["also_pages"]
 
       assert lent.id in also
       refute draft.id in also
@@ -378,13 +373,12 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
     test "leaves out a folder on a board the token can't open", ctx do
       other = board_fixture(%{"name" => "Beyond", "code" => "or89"}, owner: ctx.user)
       beyond = folder!(other, "Beyond", 0)
-      {:ok, _} = Vaults.add_mapping(ctx.vault, ctx.user, %{path: "/Beyond", board: other})
       {:ok, _} = FolderPlacements.add(beyond, ctx.shelf, ctx.user)
 
-      assert [_] = listing(ctx.conn)["folder_details"]["Shelf"]["also_folders"]
+      assert [_] = listing(ctx.conn)["folder_details"]["Ordered/Shelf"]["also_folders"]
 
       body = ctx.conn |> with_token(ctx.user, scope_boards: [ctx.board.id]) |> listing()
-      assert body["folder_details"]["Shelf"]["also_folders"] == []
+      assert body["folder_details"]["Ordered/Shelf"]["also_folders"] == []
     end
 
     test "says a folder filed there, in order", %{conn: conn, board: board, user: user} = ctx do
@@ -394,13 +388,13 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
       {:ok, _} = FolderPlacements.add(later, ctx.shelf, user)
 
       shown = listing(conn)
-      assert shown["folder_details"]["Shelf"]["also_folders"] == [earlier.id, later.id]
-      assert drawn(shown, "Shelf", "name") == tree(board, {:folder, ctx.shelf.id})
+      assert shown["folder_details"]["Ordered/Shelf"]["also_folders"] == [earlier.id, later.id]
+      assert drawn(shown, "Ordered/Shelf", "name") == tree(board, {:folder, ctx.shelf.id})
     end
   end
 
   describe "setting the top's sort" do
-    test "with a token, and the listing's mapping says it", %{
+    test "with a token, and the vault's board says it", %{
       conn: conn,
       user: user,
       board: board
@@ -413,7 +407,7 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
 
       assert answer["board"]["wiki_sort"] == "modified"
       assert Slipdock.Boards.get_board!(board.id).wiki_sort == "modified"
-      assert [%{"board" => %{"wiki_sort" => "modified"}}] = vault_json(conn)["vault"]["mappings"]
+      assert [%{"wiki_sort" => "modified"}] = boards_json(conn)
     end
 
     test "refuses a sort that isn't one, or none, or board", %{conn: conn, board: board} do

@@ -49,11 +49,8 @@ defmodule SlipdockCLI.Sync do
         error -> out(error, o, fn _ -> :ok end)
       end
 
-    if vault["mappings"] == [],
-      do:
-        fail(
-          "#{vault["name"]} has nothing mapped yet — `slipdock vault map` a board into it first"
-        )
+    if vault["boards"] == [],
+      do: fail("#{vault["name"]} has no boards yet — make a board first")
 
     FS.mkdir_p!(root)
     State.save(root, State.new(HTTP.base_url(), vault, Engine.hostname()))

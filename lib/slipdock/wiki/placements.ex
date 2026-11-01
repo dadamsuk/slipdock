@@ -26,6 +26,8 @@ defmodule Slipdock.Wiki.Placements do
 
   alias Slipdock.{Access, Repo, Vaults, Wiki}
   alias Slipdock.Accounts.User
+  alias Slipdock.Boards.Board
+  alias Slipdock.Vaults.Layout
   alias Slipdock.Wiki.{Folder, Folders, Page, Placement}
 
   @doc "The folders a page is also filed in, with their boards, in the order they were added."
@@ -125,7 +127,8 @@ defmodule Slipdock.Wiki.Placements do
 
   @doc """
   The folder a vault path names, for a page (or a folder) on a board in a vault:
-  `"/Projects/Notes"` is the folder `Notes` under whatever `/Projects` is mapped to.
+  `"/Projects/Notes"` is the folder `Notes` on the board `Projects`. Where an
+  epic's folder and its sub-board share a directory, the folder answers.
   Every way of filing by vault path comes through here, for a page or a folder.
 
   With `create: true` whichever levels are missing are made, as filing makes
@@ -141,27 +144,37 @@ defmodule Slipdock.Wiki.Placements do
            Vaults.for_board(board_id) ||
              {:error, :unprocessable_entity,
               "#{label(item)} is not on a board in a vault, so it has no vault paths"},
-         {:ok, mapping, rest} <- Vaults.locate(vault, path) do
-      mapping = Repo.preload(mapping, [:board, :folder])
-      segments = String.split(rest, "/", trim: true)
+         {:ok, _board_id, _rest} <- Vaults.locate(vault, path),
+         {:ok, normal} <- Vaults.normalize_path(path),
+         {:ok, spot, segments} <- place(vault, normal) do
+      board = Repo.get!(Board, spot.board_id)
+      folder = spot.folder_id && Repo.get!(Folder, spot.folder_id)
 
       cond do
-        is_nil(mapping.folder) and segments == [] ->
+        is_nil(folder) and segments == [] ->
           {:error, :unprocessable_entity, "#{path} is a board's wiki, not a folder in it"}
 
-        may_make?(opts, item, mapping) ->
-          Folders.ensure_path(mapping.board, mapping.folder, segments)
+        may_make?(opts, item, board.id) ->
+          Folders.ensure_path(board, folder, segments)
 
         true ->
-          Folders.at_path(mapping.board, mapping.folder, segments)
+          Folders.at_path(board, folder, segments)
       end
     end
   end
 
-  defp may_make?(opts, item, mapping) do
+  defp place(vault, path) do
+    case vault |> Layout.build() |> Layout.place_dir(path) do
+      {:folder, spot, segments} -> {:ok, spot, segments}
+      {:parent, _page_id} -> {:error, :unprocessable_entity, "/#{path} is a page, not a folder"}
+      {:error, reason} -> {:error, :unprocessable_entity, reason}
+    end
+  end
+
+  defp may_make?(opts, item, board_id) do
     case {opts[:create], opts[:user]} do
       {true, nil} -> true
-      {true, user} -> writer?(user, item.board_id) and writer?(user, mapping.board_id)
+      {true, user} -> writer?(user, item.board_id) and writer?(user, board_id)
       _ -> false
     end
   end

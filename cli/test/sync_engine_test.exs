@@ -399,7 +399,7 @@ defmodule SlipdockCLI.SyncEngineTest do
       %{ctx | vault: vault}
     end
 
-    @vault %{"id" => 1, "name" => "Brain", "mappings" => [%{"path" => "/"}]}
+    @vault %{"id" => 1, "name" => "Brain", "boards" => [%{"path" => "/Keystone"}]}
 
     defp import!(ctx) do
       record = Import.record_for(nil, "http://test", @vault)
@@ -428,9 +428,9 @@ defmodule SlipdockCLI.SyncEngineTest do
         )
 
     test "untouched on both sides: adopted, the server's version comes down, nothing new", ctx do
-      write(ctx, "Note.md", "body")
-      write(ctx, "Sub/Other.md", "other")
-      write(ctx, "img/cat.png", "png")
+      write(ctx, "Keystone/Note.md", "body")
+      write(ctx, "Keystone/Sub/Other.md", "other")
+      write(ctx, "Keystone/img/cat.png", "png")
       imported = import!(ctx)
       before = length(writes(ctx))
 
@@ -440,106 +440,109 @@ defmodule SlipdockCLI.SyncEngineTest do
       assert report.conflicts == [] and report.sent == []
       assert map_size(FakeVault.pages(ctx.vault)) == 2
       assert map_size(FakeVault.files(ctx.vault)) == 1
-      assert read(ctx, "Note.md") == "---\ntitle: T\n---\nbody"
-      assert files(ctx) == ["Note.md", "Sub/Other.md", "img/cat.png"]
-      assert state["entries"]["Note.md"]["id"] == imported["Note.md"]["id"]
+      assert read(ctx, "Keystone/Note.md") == "---\ntitle: T\n---\nbody"
+      assert files(ctx) == ["Keystone/Note.md", "Keystone/Sub/Other.md", "Keystone/img/cat.png"]
+      assert state["entries"]["Keystone/Note.md"]["id"] == imported["Keystone/Note.md"]["id"]
 
       {_state, report} = pass(ctx, state)
       assert quiet?(report)
     end
 
     test "without the record, the same folder would be a conflict on every note", ctx do
-      write(ctx, "Note.md", "body")
+      write(ctx, "Keystone/Note.md", "body")
       import!(ctx)
 
       {_state, report} = adopt(ctx, nil)
 
-      assert [%{path: "Note.md"}] = report.conflicts
+      assert [%{path: "Keystone/Note.md"}] = report.conflicts
     end
 
     test "edited here since the import: the edit goes up to the same page", ctx do
-      write(ctx, "Note.md", "body")
+      write(ctx, "Keystone/Note.md", "body")
       imported = import!(ctx)
-      write(ctx, "Note.md", "edited")
+      write(ctx, "Keystone/Note.md", "edited")
 
       {state, report} = adopt(ctx, imported)
 
       assert report.conflicts == []
-      assert [%{path: "Note.md"}] = report.sent
+      assert [%{path: "Keystone/Note.md"}] = report.sent
       assert map_size(FakeVault.pages(ctx.vault)) == 1
-      assert FakeVault.by_path(ctx.vault, "Note.md").content == "---\ntitle: T\n---\nedited"
+
+      assert FakeVault.by_path(ctx.vault, "Keystone/Note.md").content ==
+               "---\ntitle: T\n---\nedited"
+
       {_state, report} = pass(ctx, state)
       assert quiet?(report)
     end
 
     test "edited there since the import: the server's edit comes down", ctx do
-      write(ctx, "Note.md", "body")
+      write(ctx, "Keystone/Note.md", "body")
       imported = import!(ctx)
-      FakeVault.put(ctx.vault, "Note.md", "theirs")
+      FakeVault.put(ctx.vault, "Keystone/Note.md", "theirs")
 
       {_state, report} = adopt(ctx, imported)
 
       assert report.conflicts == [] and report.sent == []
-      assert read(ctx, "Note.md") == "theirs"
+      assert read(ctx, "Keystone/Note.md") == "theirs"
     end
 
     test "edited on both sides: a conflict, as for any page, and nothing lost", ctx do
-      write(ctx, "Note.md", "body")
+      write(ctx, "Keystone/Note.md", "body")
       imported = import!(ctx)
-      FakeVault.put(ctx.vault, "Note.md", "theirs")
-      write(ctx, "Note.md", "mine")
+      FakeVault.put(ctx.vault, "Keystone/Note.md", "theirs")
+      write(ctx, "Keystone/Note.md", "mine")
 
       {_state, report} = adopt(ctx, imported)
 
-      assert [%{path: "Note.md", copy: copy}] = report.conflicts
-      assert read(ctx, "Note.md") == "theirs"
+      assert [%{path: "Keystone/Note.md", copy: copy}] = report.conflicts
+      assert read(ctx, "Keystone/Note.md") == "theirs"
       assert read(ctx, copy) =~ "mine"
     end
 
     test "renamed on the server since: the file follows, no second page", ctx do
-      write(ctx, "Note.md", "body")
+      write(ctx, "Keystone/Note.md", "body")
       imported = import!(ctx)
-      FakeVault.move(ctx.vault, imported["Note.md"]["id"], "Renamed.md")
+      FakeVault.move(ctx.vault, imported["Keystone/Note.md"]["id"], "Keystone/Renamed.md")
 
       {_state, _report} = adopt(ctx, imported)
 
-      assert files(ctx) == ["Renamed.md"]
+      assert files(ctx) == ["Keystone/Renamed.md"]
       assert map_size(FakeVault.pages(ctx.vault)) == 1
     end
 
     test "a file deleted here since is not archived there: it comes back down", ctx do
-      write(ctx, "Note.md", "body")
+      write(ctx, "Keystone/Note.md", "body")
       imported = import!(ctx)
-      File.rm!(Path.join(ctx.root, "Note.md"))
+      File.rm!(Path.join(ctx.root, "Keystone/Note.md"))
 
       {_state, report} = adopt(ctx, imported)
 
       assert report.archived == []
       assert map_size(FakeVault.pages(ctx.vault)) == 1
-      assert exists?(ctx, "Note.md")
+      assert exists?(ctx, "Keystone/Note.md")
     end
 
     test "a page archived there since does not take the file with it", ctx do
-      write(ctx, "Note.md", "body")
+      write(ctx, "Keystone/Note.md", "body")
       imported = import!(ctx)
-      FakeVault.archive(ctx.vault, imported["Note.md"]["id"])
+      FakeVault.archive(ctx.vault, imported["Keystone/Note.md"]["id"])
 
       {_state, report} = adopt(ctx, imported)
 
       assert report.removed == []
-      assert read(ctx, "Note.md") =~ "body"
+      assert read(ctx, "Keystone/Note.md") =~ "body"
     end
 
     test "a path the state already knows is not adopted over", ctx do
-      write(ctx, "Note.md", "body")
+      write(ctx, "Keystone/Note.md", "body")
       imported = import!(ctx)
       {state, _} = adopt(ctx, imported)
-      write(ctx, "Note.md", "later")
+      write(ctx, "Keystone/Note.md", "later")
 
       {:ok, _state, report} =
         Engine.run(ctx.root, state, {FakeVault, ctx.vault}, imported: imported)
 
-      assert [%{path: "Note.md"}] = report.sent
+      assert [%{path: "Keystone/Note.md"}] = report.sent
       assert report.conflicts == []
     end
   end

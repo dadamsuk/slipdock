@@ -19,9 +19,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
     user = user_fixture()
     kb = board_fixture(%{"name" => "Keystone", "code" => "kb2"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     %{user: user, kb: kb, jobs: jobs, vault: vault}
   end
 
@@ -43,7 +41,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
 
   test "a new file is stored at its vault path, its folders made, and listed by hash",
        %{vault: vault, user: user, kb: kb} do
-    entry = put!(vault, user, "Images/Diagram.png", "png bytes")
+    entry = put!(vault, user, "Keystone/Images/Diagram.png", "png bytes")
 
     file = Repo.get!(WikiFile, entry.id)
     assert file.board_id == kb.id
@@ -51,9 +49,9 @@ defmodule Slipdock.Vaults.SyncFilesTest do
     assert file.sha256 == sha("png bytes")
     assert file.content_type == "image/png"
     assert File.read!(Files.disk_path(file)) == "png bytes"
-    assert entry.path == "Images/Diagram.png"
+    assert entry.path == "Keystone/Images/Diagram.png"
 
-    assert [%{kind: "file", path: "Images/Diagram.png", hash: hash, size: 9}] =
+    assert [%{kind: "file", path: "Keystone/Images/Diagram.png", hash: hash, size: 9}] =
              Sync.listing(vault, user).entries
 
     assert hash == sha("png bytes")
@@ -62,33 +60,37 @@ defmodule Slipdock.Vaults.SyncFilesTest do
 
   test "read_file_at finds a file by its vault path, case aside, and only one that is there (#1040)",
        %{vault: vault, user: user, jobs: jobs} do
-    entry = put!(vault, user, "Journal/Docs/CV.docx", "docx bytes")
+    entry = put!(vault, user, "Journal Desk/Docs/CV.docx", "docx bytes")
 
-    assert {:ok, %WikiFile{id: id, board_id: board_id}, %{path: "Journal/Docs/CV.docx"}} =
-             Sync.read_file_at(vault, user, "/journal/docs/cv.docx")
+    assert {:ok, %WikiFile{id: id, board_id: board_id}, %{path: "Journal Desk/Docs/CV.docx"}} =
+             Sync.read_file_at(vault, user, "/journal desk/docs/cv.docx")
 
     assert id == entry.id
     assert board_id == jobs.id
 
-    assert {:error, :not_found, "file at Journal/Docs/Other.docx in this vault"} =
-             Sync.read_file_at(vault, user, "Journal/Docs/Other.docx")
+    assert {:error, :not_found, "file at Journal Desk/Docs/Other.docx in this vault"} =
+             Sync.read_file_at(vault, user, "Journal Desk/Docs/Other.docx")
 
     assert {:error, :unprocessable_entity, _} = Sync.read_file_at(vault, user, "../CV.docx")
-    assert {:error, :unprocessable_entity, _} = Sync.read_file_at(vault, user, "Journal.md")
+
+    assert {:error, :unprocessable_entity, _} =
+             Sync.read_file_at(vault, user, "Keystone/Journal.md")
 
     # Someone the vault isn't theirs to read finds nothing there.
     stranger = user_fixture("stranger1040@example.com")
 
     assert {:error, :not_found, _} =
-             Sync.read_file_at(vault, stranger, "Journal/Docs/CV.docx")
+             Sync.read_file_at(vault, stranger, "Journal Desk/Docs/CV.docx")
   end
 
   test "new bytes against the right base replace the old, whose bytes go; a stale base conflicts",
        %{vault: vault, user: user} do
-    entry = put!(vault, user, "a.pdf", "one")
+    entry = put!(vault, user, "Keystone/a.pdf", "one")
     old_path = Files.disk_path(Repo.get!(WikiFile, entry.id))
 
-    replaced = put!(vault, user, "a.pdf", "two", %{"id" => entry.id, "base" => entry.hash})
+    replaced =
+      put!(vault, user, "Keystone/a.pdf", "two", %{"id" => entry.id, "base" => entry.hash})
+
     assert replaced.id == entry.id
     assert replaced.hash == sha("two")
     refute File.exists?(old_path)
@@ -97,7 +99,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
              Sync.write_file(
                vault,
                user,
-               %{"path" => "a.pdf", "id" => entry.id, "base" => entry.hash},
+               %{"path" => "Keystone/a.pdf", "id" => entry.id, "base" => entry.hash},
                source("three")
              )
 
@@ -106,35 +108,41 @@ defmodule Slipdock.Vaults.SyncFilesTest do
 
   test "a path another file has is a conflict, and a page's directory or a note is refused",
        %{vault: vault, user: user, kb: kb} do
-    put!(vault, user, "a.pdf", "one")
+    put!(vault, user, "Keystone/a.pdf", "one")
 
-    assert {:error, :conflict, %{path: "a.pdf"}} =
-             Sync.write_file(vault, user, %{"path" => "A.pdf"}, source("x"))
+    assert {:error, :conflict, %{path: "Keystone/a.pdf"}} =
+             Sync.write_file(vault, user, %{"path" => "Keystone/A.pdf"}, source("x"))
 
     {:ok, parent} = Wiki.create_page(kb, %{"title" => "Deploys"})
     {:ok, _} = Wiki.create_page(kb, %{"title" => "Rollback", "parent_id" => parent.id})
 
     assert {:error, :unprocessable_entity, msg} =
-             Sync.write_file(vault, user, %{"path" => "Deploys/x.png"}, source("x"))
+             Sync.write_file(vault, user, %{"path" => "Keystone/Deploys/x.png"}, source("x"))
 
     assert msg =~ "page's own folder"
 
     assert {:error, :unprocessable_entity, _} =
-             Sync.write_file(vault, user, %{"path" => "x.md"}, source("x"))
+             Sync.write_file(vault, user, %{"path" => "Keystone/x.md"}, source("x"))
   end
 
   test "moving a file renames it without new bytes; to another board it is copied there",
        %{vault: vault, user: user, jobs: jobs} do
-    entry = put!(vault, user, "a.pdf", "bytes")
+    entry = put!(vault, user, "Keystone/a.pdf", "bytes")
 
     {:ok, moved} =
-      Sync.move_file(vault, user, entry.id, %{"path" => "Docs/b.pdf", "base" => entry.hash})
+      Sync.move_file(vault, user, entry.id, %{
+        "path" => "Keystone/Docs/b.pdf",
+        "base" => entry.hash
+      })
 
-    assert moved.path == "Docs/b.pdf"
+    assert moved.path == "Keystone/Docs/b.pdf"
     assert Repo.get!(WikiFile, entry.id).name == "b.pdf"
 
     {:ok, across} =
-      Sync.move_file(vault, user, entry.id, %{"path" => "Journal/b.pdf", "base" => entry.hash})
+      Sync.move_file(vault, user, entry.id, %{
+        "path" => "Journal Desk/b.pdf",
+        "base" => entry.hash
+      })
 
     assert across.replaced == entry.id
     assert Repo.get!(WikiFile, across.id).board_id == jobs.id
@@ -144,7 +152,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
 
   test "a deleted file is archived, guarded by its base, and the feed says so",
        %{vault: vault, user: user} do
-    entry = put!(vault, user, "a.pdf", "bytes")
+    entry = put!(vault, user, "Keystone/a.pdf", "bytes")
     %{cursor: cursor} = Changes.since(vault, nil, user)
 
     assert {:error, :conflict, _} = Sync.archive_file(vault, user, entry.id, "stale")
@@ -157,7 +165,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
 
   test "a purged file loses its bytes and storage, and the feed says it went",
        %{vault: vault, user: user} do
-    entry = put!(vault, user, "a.pdf", "some bytes")
+    entry = put!(vault, user, "Keystone/a.pdf", "some bytes")
     file = Repo.get!(WikiFile, entry.id)
     %{cursor: cursor} = Changes.since(vault, nil, user)
     assert Quota.used(user, :storage) == byte_size("some bytes")
@@ -175,7 +183,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
   end
 
   test "a stale base leaves a purge undone", %{vault: vault, user: user} do
-    entry = put!(vault, user, "a.pdf", "bytes")
+    entry = put!(vault, user, "Keystone/a.pdf", "bytes")
     file = Repo.get!(WikiFile, entry.id)
 
     assert {:error, :conflict, %{hash: hash}} = Sync.purge_file(vault, user, entry.id, "stale")
@@ -186,7 +194,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
   end
 
   test "purging a file the vault no longer lists is refused", %{vault: vault, user: user} do
-    entry = put!(vault, user, "a.pdf", "bytes")
+    entry = put!(vault, user, "Keystone/a.pdf", "bytes")
     assert {:ok, _} = Sync.archive_file(vault, user, entry.id, nil)
 
     assert {:error, :not_found, _} = Sync.purge_file(vault, user, entry.id, nil)
@@ -201,8 +209,8 @@ defmodule Slipdock.Vaults.SyncFilesTest do
     {:ok, second} = Files.create(kb, %{name: "x.png"}, source("2"))
     layout = Layout.build(vault)
 
-    assert layout.files[first.id].path == "x.png"
-    assert layout.files[second.id].path == "x (2).png"
+    assert layout.files[first.id].path == "Keystone/x.png"
+    assert layout.files[second.id].path == "Keystone/x (2).png"
     assert user
   end
 
@@ -262,7 +270,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
     test "a whole encrypted note (.mdenc) is a file, its bytes kept, and read back the same",
          %{vault: vault, user: user} do
       for {note, n} <- Enum.with_index(@vectors["notes"]) do
-        path = "Private/Diary #{n}.mdenc"
+        path = "Keystone/Private/Diary #{n}.mdenc"
         entry = put!(vault, user, path, note["file"])
         file = Repo.get!(WikiFile, entry.id)
         assert File.read!(Files.disk_path(file)) == note["file"]
@@ -277,13 +285,13 @@ defmodule Slipdock.Vaults.SyncFilesTest do
       content = "---\ntags: [secret]\n---\n" <> body
 
       {:ok, written} =
-        Sync.write_page(vault, user, %{"path" => "Secrets.md", "content" => content})
+        Sync.write_page(vault, user, %{"path" => "Keystone/Secrets.md", "content" => content})
 
       assert written.content == content
       assert Wiki.get_page!(written.id).encrypted
 
       listed = Sync.listing(vault, user).entries |> Map.new(&{&1.path, &1.hash})
-      assert listed["Secrets.md"] == Sync.hash(content)
+      assert listed["Keystone/Secrets.md"] == Sync.hash(content)
     end
   end
 end

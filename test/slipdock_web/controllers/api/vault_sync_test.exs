@@ -9,8 +9,7 @@ defmodule SlipdockWeb.API.VaultSyncTest do
 
   setup %{conn: conn, user: user} do
     kb = board_fixture(%{"name" => "Keystone", "code" => "kb6"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     %{conn: put_req_header(conn, "accept", "application/json"), kb: kb, vault: vault}
   end
 
@@ -20,7 +19,7 @@ defmodule SlipdockWeb.API.VaultSyncTest do
     listing = conn |> get("/api/vaults/Brain/sync") |> json_response(200)
     assert is_integer(listing["cursor"])
 
-    assert [%{"kind" => "page", "id" => id, "path" => "Note.md", "hash" => hash}] =
+    assert [%{"kind" => "page", "id" => id, "path" => "Keystone/Note.md", "hash" => hash}] =
              listing["entries"]
 
     assert id == page.id
@@ -30,15 +29,18 @@ defmodule SlipdockWeb.API.VaultSyncTest do
 
     created =
       conn
-      |> put("/api/vaults/Brain/sync/pages", %{"path" => "Ideas/New.md", "content" => "fresh"})
+      |> put("/api/vaults/Brain/sync/pages", %{
+        "path" => "Keystone/Ideas/New.md",
+        "content" => "fresh"
+      })
       |> json_response(200)
 
-    assert %{"page" => %{"path" => "Ideas/New.md", "title" => "New"}} = created
+    assert %{"page" => %{"path" => "Keystone/Ideas/New.md", "title" => "New"}} = created
 
     edited =
       conn
       |> put("/api/vaults/Brain/sync/pages/#{page.id}", %{
-        "path" => "Note.md",
+        "path" => "Keystone/Note.md",
         "content" => "two",
         "base" => hash
       })
@@ -49,7 +51,7 @@ defmodule SlipdockWeb.API.VaultSyncTest do
     conflict =
       conn
       |> put("/api/vaults/Brain/sync/pages/#{page.id}", %{
-        "path" => "Note.md",
+        "path" => "Keystone/Note.md",
         "content" => "three",
         "base" => hash
       })
@@ -70,15 +72,20 @@ defmodule SlipdockWeb.API.VaultSyncTest do
     assert Repo.get!(Page, page.id).archived_at
   end
 
-  test "a path nothing is mapped at, or one that climbs, is refused", %{conn: conn, user: user} do
-    {:ok, _} = Vaults.create_vault(user, %{"name" => "Empty"})
-
+  test "a path in no board, at the root, or one that climbs, is refused", %{conn: conn} do
     assert conn
-           |> put("/api/vaults/Empty/sync/pages", %{"path" => "x.md", "content" => "x"})
+           |> put("/api/vaults/Brain/sync/pages", %{"path" => "Nowhere/x.md", "content" => "x"})
            |> json_response(422)
 
     assert conn
-           |> put("/api/vaults/Brain/sync/pages", %{"path" => "../x.md", "content" => "x"})
+           |> put("/api/vaults/Brain/sync/pages", %{"path" => "x.md", "content" => "x"})
+           |> json_response(422)
+
+    assert conn
+           |> put("/api/vaults/Brain/sync/pages", %{
+             "path" => "Keystone/../x.md",
+             "content" => "x"
+           })
            |> json_response(422)
 
     assert conn |> get("/api/vaults/Brain/sync/pages/nope") |> json_response(400)
@@ -86,7 +93,7 @@ defmodule SlipdockWeb.API.VaultSyncTest do
 
   test "somebody else's vault is not found", %{conn: conn} do
     stranger = user_fixture("stranger@example.com")
-    {:ok, theirs} = Vaults.create_vault(stranger, %{"name" => "Theirs"})
+    {:ok, theirs} = stranger |> Vaults.root() |> Vaults.update_vault(%{"name" => "Theirs"})
     assert conn |> get("/api/vaults/#{theirs.id}/sync") |> json_response(404)
   end
 
@@ -104,7 +111,7 @@ defmodule SlipdockWeb.API.VaultSyncTest do
 
     assert conn
            |> put("/api/vaults/Brain/sync/pages/#{page.id}", %{
-             "path" => "Note.md",
+             "path" => "Keystone/Note.md",
              "content" => "x"
            })
            |> json_response(403)
@@ -123,13 +130,14 @@ defmodule SlipdockWeb.API.VaultSyncTest do
       created =
         conn
         |> post("/api/vaults/Brain/sync/files", %{
-          "path" => "Img/a.png",
-          "file" => upload("png", "a.png")
+          "path" => "Keystone/Img/a.png",
+          "file" => upload("png", "Keystone/a.png")
         })
         |> json_response(200)
         |> Map.fetch!("file")
 
-      assert %{"kind" => "file", "path" => "Img/a.png", "size" => 3, "hash" => hash} = created
+      assert %{"kind" => "file", "path" => "Keystone/Img/a.png", "size" => 3, "hash" => hash} =
+               created
 
       assert [%{"kind" => "file", "id" => id}] =
                conn
@@ -144,17 +152,20 @@ defmodule SlipdockWeb.API.VaultSyncTest do
 
       moved =
         conn
-        |> patch("/api/vaults/Brain/sync/files/#{id}", %{"path" => "b.png", "base" => hash})
+        |> patch("/api/vaults/Brain/sync/files/#{id}", %{
+          "path" => "Keystone/b.png",
+          "base" => hash
+        })
         |> json_response(200)
 
-      assert moved["file"]["path"] == "b.png"
+      assert moved["file"]["path"] == "Keystone/b.png"
 
       replaced =
         conn
         |> post("/api/vaults/Brain/sync/files/#{id}", %{
-          "path" => "b.png",
+          "path" => "Keystone/b.png",
           "base" => hash,
-          "file" => upload("png2", "b.png")
+          "file" => upload("png2", "Keystone/b.png")
         })
         |> json_response(200)
 
@@ -162,9 +173,9 @@ defmodule SlipdockWeb.API.VaultSyncTest do
 
       assert conn
              |> post("/api/vaults/Brain/sync/files/#{id}", %{
-               "path" => "b.png",
+               "path" => "Keystone/b.png",
                "base" => hash,
-               "file" => upload("png3", "b.png")
+               "file" => upload("png3", "Keystone/b.png")
              })
              |> json_response(409)
 
@@ -175,7 +186,7 @@ defmodule SlipdockWeb.API.VaultSyncTest do
       assert conn |> get("/api/vaults/Brain/sync/files/#{id}") |> json_response(404)
     end
 
-    defp posted(conn, path \\ "a.pdf") do
+    defp posted(conn, path \\ "Keystone/a.pdf") do
       conn
       |> post("/api/vaults/Brain/sync/files", %{
         "path" => path,
@@ -227,27 +238,28 @@ defmodule SlipdockWeb.API.VaultSyncTest do
       assert File.exists?(Files.disk_path(file))
     end
 
-    test "a writer who isn't the board's owner can't purge, but can archive",
-         %{conn: conn, user: user, vault: vault} do
+    test "a board shared with the caller is no part of their vault", %{conn: conn, user: user} do
       owner = user_fixture("purge-owner@example.com")
       shared = board_fixture(%{"name" => "Shared", "code" => "kb6s"}, owner: owner)
       {:ok, _} = Access.grant(shared, user, "write", owner)
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Shared", board: shared})
-      %{"id" => id} = posted(conn, "Shared/a.pdf")
-      assert Repo.get!(WikiFile, id).board_id == shared.id
 
-      assert %{"error" => error} =
-               conn
-               |> delete("/api/vaults/Brain/sync/files/#{id}?purge=true")
-               |> json_response(403)
+      source = Path.join(System.tmp_dir!(), "purge-#{System.unique_integer([:positive])}")
+      File.write!(source, "bytes")
+      on_exit(fn -> File.rm(source) end)
+      {:ok, file} = Files.create(shared, %{name: "a.pdf", folder_id: nil}, source, owner)
 
-      assert error =~ "owner"
-      assert Repo.get!(WikiFile, id).archived_at == nil
+      assert conn
+             |> post("/api/vaults/Brain/sync/files", %{
+               "path" => "Shared/a.pdf",
+               "file" => upload("pdf bytes", "a.pdf")
+             })
+             |> json_response(422)
 
-      assert %{"file" => %{"archived" => true}} =
-               conn
-               |> delete("/api/vaults/Brain/sync/files/#{id}")
-               |> json_response(200)
+      assert conn
+             |> delete("/api/vaults/Brain/sync/files/#{file.id}?purge=true")
+             |> json_response(404)
+
+      assert Repo.get!(WikiFile, file.id).archived_at == nil
     end
 
     test "the owner's read-only token can't purge", %{conn: conn, user: user} do
@@ -274,7 +286,7 @@ defmodule SlipdockWeb.API.VaultSyncTest do
 
     test "a post without the file is a bad request", %{conn: conn} do
       assert conn
-             |> post("/api/vaults/Brain/sync/files", %{"path" => "a.png"})
+             |> post("/api/vaults/Brain/sync/files", %{"path" => "Keystone/a.png"})
              |> json_response(400)
     end
   end

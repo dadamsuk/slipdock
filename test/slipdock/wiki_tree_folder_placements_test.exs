@@ -77,9 +77,7 @@ defmodule Slipdock.WikiTreeFolderPlacementsTest do
 
   test "a placed folder on a board the reader can't open is not shown", ctx do
     jobs = board_fixture(%{"name" => "Journal", "code" => "tfpjobs"}, owner: ctx.user)
-    {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-    {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-    {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: jobs})
+    {:ok, _} = ctx.user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
     {:ok, away} = Wiki.create_folder(jobs, %{"name" => "Away"})
     {:ok, _} = FolderPlacements.add(away, ctx.other, ctx.user)
 

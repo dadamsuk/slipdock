@@ -584,10 +584,10 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
 
     test "keys that are garbage, gone or another board's are left out", %{
       conn: conn,
-      board: board,
-      user: user
+      board: board
     } do
-      other = board_fixture(%{"name" => "Other", "code" => "otherfold"}, owner: user)
+      lender = user_fixture("otherfold.lender@example.com")
+      other = board_fixture(%{"name" => "Other", "code" => "otherfold"}, owner: lender)
       {:ok, theirs} = Wiki.create_folder(other, %{"name" => "Theirs"})
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
 

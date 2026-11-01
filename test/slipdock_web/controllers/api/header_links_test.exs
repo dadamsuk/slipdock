@@ -8,7 +8,7 @@ defmodule SlipdockWeb.API.HeaderLinksTest do
 
   setup %{conn: conn, user: user} do
     plan = board_fixture(%{"name" => "Plan"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain #{plan.id}"})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain #{plan.id}"})
     %{conn: put_req_header(conn, "accept", "application/json"), plan: plan, vault: vault}
   end
 

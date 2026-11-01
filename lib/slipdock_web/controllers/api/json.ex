@@ -904,12 +904,10 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   @doc """
-  A vault and its mappings (see `Slipdock.Vaults`), for `reader`: `owned`
-  says whether it is theirs, which is what lets them dress a mount.
+  A vault (see `Slipdock.Vaults`), for `reader`: its settings, how many pages
+  it holds, and the boards in it.
   """
   def vault(%Slipdock.Vaults.Vault{} = v, %Slipdock.Accounts.User{} = reader) do
-    counts = Slipdock.Vaults.page_counts(v)
-
     %{
       id: v.id,
       name: v.name,
@@ -920,16 +918,14 @@ defmodule SlipdockWeb.API.JSON do
       hotkey: Slipdock.Hotkeys.get(%Slipdock.Accounts.User{id: v.user_id}, v),
       # The vault's own view in the web app (#752).
       url: SlipdockWeb.VaultUrls.url(v),
-      mappings: Enum.map(v.mappings, &vault_mapping(&1, Map.get(counts, &1.id, 0))),
+      pages: Slipdock.Vaults.page_count(v),
+      boards: v |> Slipdock.Vaults.boards() |> Enum.map(&vault_board/1),
       # The folders it is synced to, as far as the server can tell: each
       # token that has listed it or followed its feed (`touch_mirror/2`).
       mirrors:
         v
         |> Slipdock.Vaults.mirrors()
         |> Enum.map(&%{label: &1.label, last_synced_at: &1.last_synced_at}),
-      # Pages at a path another mapping owns (`Vaults.overlaps/1`): none,
-      # unless made before mappings were checked for it.
-      overlaps: Slipdock.Vaults.overlaps(v),
       # Where its meeting recordings are on the owner's Google Drive (W-1690).
       recordings_folder: v.recordings_folder,
       inserted_at: v.inserted_at,
@@ -938,33 +934,23 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   @doc """
-  One vault mapping: a vault path and the wiki, or folder, it lands in, and
-  (when known) how many live pages it holds.
+  One board in a vault: where its folder is and what a client needs to show
+  it. `archived` is a flag and nothing more: the path stays the same.
   """
-  def vault_mapping(%Slipdock.Vaults.Mapping{} = m, pages \\ nil) do
+  def vault_board(%Slipdock.Vaults.Vault{} = v, board_id) do
+    v |> Slipdock.Vaults.boards() |> Enum.find(&(&1.board.id == board_id)) |> vault_board()
+  end
+
+  def vault_board(%{board: b, path: path}) do
     %{
-      id: m.id,
-      path: Slipdock.Vaults.Mapping.display_path(m),
-      board: %{
-        id: m.board.id,
-        code: m.board.code,
-        name: m.board.name,
-        wiki_tree_icons: m.board.wiki_tree_icons,
-        wiki_sort: m.board.wiki_sort
-      },
-      # `sort` because a folder mapped at the vault's root has no directory,
-      # so no row in the sync listing's `folder_details` to say it.
-      folder:
-        m.folder &&
-          %{id: m.folder.id, path: Slipdock.Wiki.folder_path(m.folder), sort: m.folder.sort},
-      # Kept inside the vault (#757): named on the vault's tile in the web
-      # app, not among its owner's boards.
-      inside: m.inside,
-      # What its row wears in the vault's tree (#797).
-      icon: m.icon,
-      color: m.color
+      id: b.id,
+      code: b.code,
+      name: b.name,
+      path: "/" <> path,
+      archived: not is_nil(b.archived_at),
+      wiki_tree_icons: b.wiki_tree_icons,
+      wiki_sort: b.wiki_sort
     }
-    |> then(&if(pages, do: Map.put(&1, :pages, pages), else: &1))
   end
 
   @doc """

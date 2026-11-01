@@ -17,7 +17,7 @@ defmodule SlipdockWeb.VaultUrls do
     end
   end
 
-  @doc "The vault's settings: its mappings, synced folders, name."
+  @doc "The vault's settings: its name, keys, recordings folder and synced folders."
   def settings(%Vault{name: name}), do: "/vaults/" <> escape(name) <> "/.settings"
 
   defp escape(segment), do: URI.encode(segment, &URI.char_unreserved?/1)

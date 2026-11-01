@@ -14,7 +14,7 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
   setup %{user: user} do
     alpha = board_fixture(%{"name" => "Alpha", "code" => "alrmh"}, owner: user)
     zulu = board_fixture(%{"name" => "Zulu", "code" => "zurmh"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     [_, todo | _] = alpha.columns
     {:ok, mb} = Multiboard.create_saved(user, %{"name" => "Queue"}, %{lists: [todo.id]})
 
@@ -47,7 +47,6 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
     # The tiles' links and menus can't be pressed while the mode is on.
     assert has_element?(view, "#boards[class*='pointer-events-none']")
     refute has_element?(view, "#new-board-tile")
-    refute has_element?(view, "#new-vault-tile")
 
     for id <- [ctx.alpha.id, ctx.zulu.id, "vault-#{ctx.vault.id}", "multiboard-#{ctx.mb.id}"] do
       assert to_string(id) in tiles(view)
@@ -156,7 +155,9 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
 
   test "with one tile there is nothing to reorder", %{conn: conn} do
     user = user_fixture("solo-reorder@example.com")
-    board_fixture(%{"name" => "Only", "code" => "onrmh"}, owner: user)
+    lender = user_fixture("solo-lender@example.com")
+    lent = board_fixture(%{"name" => "Only", "code" => "onrmh"}, owner: lender)
+    share_fixture(lent, user, "read")
     {:ok, view, _} = live(log_in_user(conn, user), ~p"/")
 
     refute has_element?(view, "#reorder-boards")

@@ -7,6 +7,7 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Ecto.Query, only: [from: 2]
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
   import Slipdock.GoogleStub
@@ -37,8 +38,7 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
 
   setup %{user: user} do
     board = board_fixture(%{"name" => "Notes"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     vault = vault |> Ecto.Changeset.change(recordings_folder: "Rec") |> Repo.update!()
     connect!(user)
     # Drawing a page must never reach Drive.
@@ -153,6 +153,13 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
 
   test "a board in no vault says so, with no settings link", %{conn: conn, user: user} do
     loose = board_fixture(%{"name" => "Loose"}, owner: user)
+    share_fixture(loose, user, "write")
+
+    Slipdock.Repo.update_all(
+      from(b in Slipdock.Boards.Board, where: b.id == ^loose.id),
+      set: [owner_id: nil]
+    )
+
     page = meeting(loose, "recording: gdrive:Rec/m.m4a", @recording_section)
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{loose}/wiki/#{page.slug}")

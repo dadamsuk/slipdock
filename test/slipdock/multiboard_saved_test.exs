@@ -109,7 +109,7 @@ defmodule Slipdock.MultiboardSavedTest do
     test "takes its place among the boards and vaults, by any of its names", ctx do
       %{user: user, a: a, b: b} = ctx
       m = save(user, "M")
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
+      {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
 
       :ok = Boards.reorder_boards(user, [b, m, vault, a])
 
@@ -137,7 +137,7 @@ defmodule Slipdock.MultiboardSavedTest do
       %{user: user, a: a, b: b} = ctx
       c = board_fixture(%{"name" => "C", "code" => "msvc"}, owner: user)
       m = save(user, "M")
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
+      {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
 
       :ok = Boards.reorder_boards(user, [a, m, b, vault, c])
       :ok = Boards.reorder_boards(user, [c.id, b.id, a.id])
@@ -154,7 +154,7 @@ defmodule Slipdock.MultiboardSavedTest do
     test "an order naming vaults but no multiboards keeps the multiboards' places", ctx do
       %{user: user, a: a, b: b} = ctx
       m = save(user, "M")
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
+      {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
 
       :ok = Boards.reorder_boards(user, [m, a, vault, b])
       :ok = Boards.reorder_boards(user, [vault, b.id, a.id])
@@ -188,7 +188,7 @@ defmodule Slipdock.MultiboardSavedTest do
       :ok = Boards.reorder_boards(user, [a, b, m])
 
       :ok = Boards.nudge_board(user, m, :up, [a, b, m])
-      assert order(user) == [{"Board", a.id}, {"Saved", m.id}, {"Board", b.id}]
+      assert Enum.take(order(user), 3) == [{"Board", a.id}, {"Saved", m.id}, {"Board", b.id}]
 
       :ok = Boards.place_board(user, m, a.id, [a, m, b])
       assert hd(order(user)) == {"Saved", m.id}

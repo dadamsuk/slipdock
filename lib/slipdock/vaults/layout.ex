@@ -3,7 +3,11 @@ defmodule Slipdock.Vaults.Layout do
   A vault laid out as files: where on disk a sync writes every page, and
   which folder or parent page a path on disk names (W-103 R2.10, R2.11).
 
-  The layout is `Slipdock.Vaults.Index`'s, made into file names:
+  It is derived from the boards and kept nowhere (W-2201): every root board
+  the vault's owner has, archived too, is a folder off the root, and a
+  sub-board is its epic's folder, `<Board>/Cards/<Epic>`, at any depth. So a
+  new, renamed or archived board needs no bookkeeping. The rules below turn
+  that into file names:
 
     * every segment is a disk name (`Slipdock.Wiki.DiskName`), bounded and
       safe on any machine; the titles stay whole in the listing;
@@ -23,7 +27,8 @@ defmodule Slipdock.Vaults.Layout do
   import Ecto.Query, warn: false
 
   alias Slipdock.Repo
-  alias Slipdock.Vaults.{Mapping, Vault}
+  alias Slipdock.Boards.{Board, Card}
+  alias Slipdock.Vaults.Vault
   alias Slipdock.Wiki.{CardFolders, DiskName, Folder, Page}
 
   @type page :: %{
@@ -43,23 +48,32 @@ defmodule Slipdock.Vaults.Layout do
           file_paths: %{String.t() => pos_integer},
           folders: %{pos_integer => String.t()},
           folder_dirs: %{String.t() => pos_integer},
-          mappings: [%{board_id: pos_integer, folder_id: pos_integer | nil, path: String.t()}]
+          boards: %{pos_integer => String.t()},
+          folder_boards: %{pos_integer => pos_integer}
         }
 
-  @doc "Where every live page and mapped folder of the vault sits on disk."
-  @spec build(Vault.t()) :: t
-  def build(%Vault{id: vault_id}) do
-    mappings =
-      Repo.all(
-        from(m in Mapping,
-          where: m.vault_id == ^vault_id,
-          select: %{board_id: m.board_id, folder_id: m.folder_id, path: m.path}
-        )
-      )
+  @typedoc """
+  Where the vault's containers are: `boards` and `folders` as disk paths,
+  `full_boards` and `full_folders` as segments of whole names (what a link
+  matches), `virtual` the directories that are neither (a `Cards` folder or
+  an epic's folder nobody has made yet), and `folder_boards` whose each is.
+  """
+  @type dirs :: %{
+          boards: %{pos_integer => String.t()},
+          folders: %{pos_integer => String.t()},
+          full_boards: %{pos_integer => [String.t()]},
+          full_folders: %{pos_integer => [String.t()]},
+          folder_boards: %{pos_integer => pos_integer},
+          virtual: [String.t()]
+        }
 
-    board_ids = mappings |> Enum.map(& &1.board_id) |> Enum.uniq()
-    by_board = Enum.group_by(mappings, & &1.board_id)
-    folder_dirs = folder_dirs(mappings)
+  @doc "Where every live page and folder of the vault sits on disk."
+  @spec build(Vault.t()) :: t
+  def build(%Vault{} = vault) do
+    found = dirs(vault)
+    roots = found.boards
+    board_ids = Map.keys(roots)
+    folder_dirs = found.folders
 
     pages =
       from(p in Page,
@@ -82,11 +96,12 @@ defmodule Slipdock.Vaults.Layout do
       for p <- pages, p.parent_id && by_id[p.parent_id], into: MapSet.new(), do: p.parent_id
 
     # A page with children is a directory too, and must not be one a folder
-    # or a mapping already is.
+    # or a board already is.
     taken =
       folder_dirs
       |> Map.values()
-      |> Kernel.++(Enum.map(mappings, & &1.path))
+      |> Kernel.++(Map.values(roots))
+      |> Kernel.++(found.virtual)
       |> Enum.flat_map(&prefixes/1)
       |> Map.new(&{String.downcase(&1), :folder})
 
@@ -95,7 +110,7 @@ defmodule Slipdock.Vaults.Layout do
       |> Enum.map(&{&1, depth(&1, by_id, 0)})
       |> Enum.sort_by(fn {page, depth} -> {depth, page.id} end)
       |> Enum.reduce({[], taken, %{}}, fn {page, _depth}, {acc, taken, dirs} ->
-        case base_dir(page, by_id, dirs, folder_dirs, by_board) do
+        case base_dir(page, by_id, dirs, folder_dirs, roots) do
           nil ->
             {acc, taken, dirs}
 
@@ -125,7 +140,7 @@ defmodule Slipdock.Vaults.Layout do
 
     page_map = Map.new(placed, &{&1.id, &1})
 
-    files = place_files(board_ids, folder_dirs, by_board, taken)
+    files = place_files(board_ids, folder_dirs, roots, taken)
 
     %{
       pages: page_map,
@@ -140,14 +155,15 @@ defmodule Slipdock.Vaults.Layout do
       file_paths: Map.new(files, &{String.downcase(&1.path), &1.id}),
       folders: folder_dirs,
       folder_dirs: Map.new(folder_dirs, fn {id, dir} -> {String.downcase(dir), id} end),
-      mappings: mappings
+      boards: roots,
+      folder_boards: found.folder_boards
     }
   end
 
   # A vault's other files (W-103 R2.9): each in its folder's directory, or
-  # at its board's mapped root, under its own name, numbered when something
+  # at its board's root, under its own name, numbered when something
   # placed earlier has that name already.
-  defp place_files(board_ids, folder_dirs, by_board, taken) do
+  defp place_files(board_ids, folder_dirs, roots, taken) do
     from(f in Slipdock.Wiki.WikiFile,
       where: f.board_id in ^board_ids and is_nil(f.archived_at),
       order_by: [asc: f.id],
@@ -157,7 +173,7 @@ defmodule Slipdock.Vaults.Layout do
     |> Enum.reduce({[], taken}, fn file, {acc, taken} ->
       dir =
         case file.folder_id do
-          nil -> root_dir(Map.get(by_board, file.board_id, []))
+          nil -> roots[file.board_id]
           id -> folder_dirs[id]
         end
 
@@ -194,12 +210,12 @@ defmodule Slipdock.Vaults.Layout do
   end
 
   # The directory a page's file goes in: its parent's own directory, or, at
-  # the top of the tree, wherever its folder (or its board's root) is mapped.
-  defp base_dir(page, by_id, dirs, folder_dirs, by_board) do
+  # the top of the tree, its folder's or its board's.
+  defp base_dir(page, by_id, dirs, folder_dirs, roots) do
     case page.parent_id && by_id[page.parent_id] do
       nil ->
         case page.folder_id do
-          nil -> root_dir(Map.get(by_board, page.board_id, []))
+          nil -> roots[page.board_id]
           folder_id -> folder_dirs[folder_id]
         end
 
@@ -209,80 +225,176 @@ defmodule Slipdock.Vaults.Layout do
     end
   end
 
-  defp root_dir(mappings) do
-    case Enum.find(mappings, &is_nil(&1.folder_id)) do
-      nil -> nil
-      m -> m.path
-    end
-  end
-
   @doc """
-  Where every mapped folder of `mappings`' boards sits in the vault, as
-  `%{folder_id => dir}`: the deepest mapping above it, then the folders
-  below that mapping's own. A folder nothing maps is left out. One narrow
-  query of the folders, so the tree can ask without placing every page.
+  The vault's boards in order of depth, roots first: every root board its
+  owner has, archived too, then the sub-boards under them. Id, name and the
+  card a sub-board belongs to.
   """
-  def folder_dirs(mappings) do
-    board_ids = mappings |> Enum.map(& &1.board_id) |> Enum.uniq()
-
-    rows =
-      from(f in Folder,
-        where: f.board_id in ^board_ids,
-        select: {f.id, f.board_id, f.parent_id, f.name}
+  def boards(%Vault{user_id: user_id}) do
+    roots =
+      from(b in Board,
+        where: b.owner_id == ^user_id and is_nil(b.parent_card_id),
+        order_by: [asc: b.id],
+        select: %{id: b.id, name: b.name, parent_card_id: b.parent_card_id}
       )
       |> Repo.all()
 
-    folders = Map.new(rows, fn {id, _board, parent, name} -> {id, {parent, name}} end)
-    by_board = Enum.group_by(mappings, & &1.board_id)
-    names = sibling_names(rows, CardFolders.sources(board_ids))
+    subs =
+      from(b in Board,
+        where: b.root_id in ^Enum.map(roots, & &1.id) and not is_nil(b.parent_card_id),
+        order_by: [asc: b.id],
+        select: %{id: b.id, name: b.name, parent_card_id: b.parent_card_id}
+      )
+      |> Repo.all()
 
-    for {id, board_id, _parent, _name} <- rows,
-        dir = folder_dir(id, folders, names, Map.get(by_board, board_id, [])),
-        dir != nil,
-        into: %{},
-        do: {id, dir}
+    roots ++ subs
   end
 
-  # A folder's directory: the deepest mapping above it, then the folders
-  # below that mapping's own. Nil when nothing maps it.
-  defp folder_dir(id, folders, names, mappings) do
-    chain = chain(id, folders, [])
+  @doc """
+  Where the vault's boards and folders are. One narrow query each, so a
+  caller can ask without placing every page.
+  """
+  @spec dirs(Vault.t()) :: dirs
+  def dirs(%Vault{} = vault) do
+    boards = boards(vault)
+    {roots, subs} = Enum.split_with(boards, &is_nil(&1.parent_card_id))
+    board_ids = Enum.map(boards, & &1.id)
 
-    mappings
-    |> Enum.map(fn m ->
-      {if(m.folder_id, do: Enum.find_index(chain, &(&1 == m.folder_id)), else: -1), m}
+    folders =
+      from(f in Folder,
+        where: f.board_id in ^board_ids,
+        order_by: [asc: f.id],
+        select: %{
+          id: f.id,
+          board_id: f.board_id,
+          parent_id: f.parent_id,
+          name: f.name,
+          card_id: f.card_id
+        }
+      )
+      |> Repo.all()
+
+    epics =
+      from(c in Card,
+        where: c.id in ^Enum.map(subs, & &1.parent_card_id),
+        order_by: [asc: c.id],
+        select: %{id: c.id, board_id: c.board_id, short_name: c.short_name, title: c.title}
+      )
+      |> Repo.all()
+
+    world = %{
+      children: Enum.group_by(folders, &{&1.board_id, &1.parent_id}),
+      card_folders: for(f <- folders, f.card_id, into: %{}, do: {f.card_id, f}),
+      epics: Enum.group_by(epics, & &1.board_id),
+      subs: Map.new(subs, &{&1.parent_card_id, &1}),
+      sources: CardFolders.sources(board_ids)
+    }
+
+    state = %{
+      boards: %{},
+      folders: %{},
+      full_boards: %{},
+      full_folders: %{},
+      folder_boards: Map.new(folders, &{&1.id, &1.board_id}),
+      virtual: [],
+      used: %{}
+    }
+
+    names = roots |> Enum.map(&{&1.id, {&1.name, "Board #{&1.id}"}}) |> DiskName.assign()
+
+    roots
+    |> Enum.reduce(state, fn board, state ->
+      lay_board(board, names[board.id], [board.name], world, state)
     end)
-    |> Enum.reject(fn {depth, _m} -> is_nil(depth) end)
-    |> Enum.max_by(fn {depth, _m} -> depth end, fn -> nil end)
-    |> case do
-      nil ->
-        nil
+    |> Map.drop([:used])
+  end
 
-      {depth, m} ->
-        below = chain |> Enum.drop(depth + 1) |> Enum.map(&names[&1])
-        Enum.reduce(below, m.path, &join(&2, &1))
+  # A board's top level, in the directory it has been given.
+  defp lay_board(board, dir, full, world, state) do
+    state = %{
+      state
+      | boards: Map.put(state.boards, board.id, dir),
+        full_boards: Map.put(state.full_boards, board.id, full)
+    }
+
+    top = Map.get(world.children, {board.id, nil}, [])
+    waiting = homeless_epics(board.id, world)
+    cards = Enum.find(top, &cards_folder?/1)
+
+    items =
+      Enum.map(top, &{:folder, &1}) ++
+        if(waiting != [] and is_nil(cards), do: [{:cards, waiting}], else: [])
+
+    lay(items, dir, full, Map.put(world, :cards_folder, cards && cards.id), waiting, state)
+  end
+
+  # Epics of this board whose folder nobody has made yet: they have their
+  # place all the same, or their sub-boards would have none.
+  defp homeless_epics(board_id, world) do
+    world.epics
+    |> Map.get(board_id, [])
+    |> Enum.reject(&Map.has_key?(world.card_folders, &1.id))
+  end
+
+  defp cards_folder?(%{parent_id: nil, name: name}),
+    do: String.downcase(name) == String.downcase(CardFolders.root_name())
+
+  # One directory's children: named together, then each laid out in turn.
+  defp lay(items, dir, full, world, waiting, state) do
+    named = items |> Enum.map(&{item_key(&1), item_source(&1, world)})
+    names = DiskName.assign(named, Map.get(state.used, dir, []))
+
+    state = %{
+      state
+      | used: Map.update(state.used, dir, Map.values(names), &(Map.values(names) ++ &1))
+    }
+
+    Enum.reduce(items, state, fn item, state ->
+      lay_item(item, join(dir, names[item_key(item)]), full, world, waiting, state)
+    end)
+  end
+
+  defp item_key({:folder, folder}), do: {:folder, folder.id}
+  defp item_key({:cards, _epics}), do: :cards
+  defp item_key({:epic, epic}), do: {:epic, epic.id}
+
+  defp item_source({:folder, folder}, world), do: Map.get(world.sources, folder.id, folder.name)
+  defp item_source({:cards, _epics}, _world), do: CardFolders.root_name()
+  defp item_source({:epic, epic}, _world), do: {epic.short_name || epic.title, "Card #{epic.id}"}
+
+  defp lay_item({:folder, folder}, dir, full, world, waiting, state) do
+    full = full ++ [folder.name]
+
+    state = %{
+      state
+      | folders: Map.put(state.folders, folder.id, dir),
+        full_folders: Map.put(state.full_folders, folder.id, full)
+    }
+
+    below = Map.get(world.children, {folder.board_id, folder.id}, [])
+    epics = if world.cards_folder == folder.id, do: waiting, else: []
+    items = Enum.map(below, &{:folder, &1}) ++ Enum.map(epics, &{:epic, &1})
+    state = lay(items, dir, full, world, [], state)
+
+    case folder.card_id && world.subs[folder.card_id] do
+      nil -> state
+      sub -> lay_board(sub, dir, full, world, state)
     end
   end
 
-  # Every folder's disk name, told apart from its siblings, oldest first.
-  defp sibling_names(rows, card_folders) do
-    rows
-    |> Enum.group_by(fn {_id, board, parent, _name} -> {board, parent} end)
-    |> Enum.flat_map(fn {_at, siblings} ->
-      siblings
-      |> Enum.sort_by(&elem(&1, 0))
-      |> Enum.map(fn {id, _board, _parent, name} -> {id, Map.get(card_folders, id, name)} end)
-      |> DiskName.assign()
-    end)
-    |> Map.new()
+  defp lay_item({:cards, epics}, dir, full, world, _waiting, state) do
+    full = full ++ [CardFolders.root_name()]
+    state = %{state | virtual: [dir | state.virtual]}
+    lay(Enum.map(epics, &{:epic, &1}), dir, full, world, [], state)
   end
 
-  defp chain(nil, _folders, acc), do: acc
+  defp lay_item({:epic, epic}, dir, full, world, _waiting, state) do
+    full = full ++ [epic.title]
+    state = %{state | virtual: [dir | state.virtual]}
 
-  defp chain(id, folders, acc) do
-    case folders[id] do
-      {parent_id, _name} when length(acc) < 64 -> chain(parent_id, folders, [id | acc])
-      _ -> acc
+    case world.subs[epic.id] do
+      nil -> state
+      sub -> lay_board(sub, dir, full, world, state)
     end
   end
 
@@ -325,10 +437,14 @@ defmodule Slipdock.Vaults.Layout do
     * `{:folder, %{board_id:, folder_id:}, segments}` — in the deepest folder
       already at that path (`folder_id` nil for a board's root), then the
       folders named by `segments` below it (made as needed);
-    * `{:error, reason}` — in no mapping, or a folder inside a page.
+    * `{:error, reason}` — in no board, or a folder inside a page.
   """
   def place(layout, path) do
-    dir = path |> Path.dirname() |> then(&if(&1 == ".", do: "", else: &1))
+    place_dir(layout, path |> Path.dirname() |> then(&if(&1 == ".", do: "", else: &1)))
+  end
+
+  @doc "`place/2` for a directory rather than a file in it."
+  def place_dir(layout, dir) do
     key = String.downcase(dir)
 
     cond do
@@ -338,48 +454,39 @@ defmodule Slipdock.Vaults.Layout do
       Enum.any?(Map.keys(layout.page_dirs), &String.starts_with?(key, &1 <> "/")) ->
         {:error, "#{dir} is inside a page, and a page holds pages, not folders"}
 
+      dir == "" ->
+        {:error, "the vault's root holds boards: put it in a board's folder"}
+
       true ->
-        segments = String.split(dir, "/", trim: true)
-
-        layout.mappings
-        |> Enum.filter(fn m -> prefix?(String.split(m.path, "/", trim: true), segments) end)
-        |> Enum.max_by(&length(String.split(&1.path, "/", trim: true)), fn -> nil end)
-        |> case do
-          nil ->
-            {:error, "nothing in the vault is mapped at /#{dir}"}
-
-          m ->
-            deepest_folder(layout, m, segments)
-        end
+        deepest(layout, String.split(dir, "/", trim: true))
     end
   end
 
   # A folder's disk name can be shortened or numbered, so the path is matched
-  # against where the folders are rather than by their names.
-  defp deepest_folder(layout, mapping, segments) do
-    top = length(String.split(mapping.path, "/", trim: true))
+  # against where things are rather than by their names: a folder first, as
+  # an epic's folder and its sub-board share a directory.
+  defp deepest(layout, segments) do
+    boards = Map.new(layout.boards, fn {id, dir} -> {String.downcase(dir), id} end)
 
-    found =
-      length(segments)..(top + 1)//-1
-      |> Enum.find_value(fn n ->
-        id = layout.folder_dirs[segments |> Enum.take(n) |> Enum.join("/") |> String.downcase()]
-        if id, do: {id, n}
-      end)
+    length(segments)..1//-1
+    |> Enum.find_value(fn n ->
+      key = segments |> Enum.take(n) |> Enum.join("/") |> String.downcase()
+      rest = Enum.drop(segments, n)
 
-    {folder_id, used} = found || {mapping.folder_id, top}
+      cond do
+        id = layout.folder_dirs[key] ->
+          {:folder, %{board_id: layout.folder_boards[id], folder_id: id}, rest}
 
-    {:folder, %{board_id: mapping.board_id, folder_id: folder_id}, Enum.drop(segments, used)}
+        id = boards[key] ->
+          {:folder, %{board_id: id, folder_id: nil}, rest}
+
+        true ->
+          nil
+      end
+    end)
+    |> case do
+      nil -> {:error, "no board in the vault is called #{hd(segments)}"}
+      found -> found
+    end
   end
-
-  defp prefix?(prefix, segments) do
-    length(prefix) <= length(segments) and
-      Enum.zip(prefix, segments)
-      |> Enum.all?(fn {a, b} -> String.downcase(a) == String.downcase(b) end)
-  end
-
-  @doc """
-  The vault-relative directory of a folder, for `also-in`, or nil when the
-  folder is in no mapped part of the vault.
-  """
-  def folder_dir(layout, folder_id), do: layout.folders[folder_id]
 end

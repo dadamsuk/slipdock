@@ -5,7 +5,7 @@ defmodule SlipdockCLI.Sync.Import do
 
   # `slipdock vault import DIR --vault V` (W-103 R9): an existing Obsidian
   # vault brought into a Slipdock vault once, each path routed through the
-  # vault's mappings. One way only: nothing on the server comes down, and the
+  # vault's boards. One way only: nothing on the server comes down, and the
   # folder's own files are never touched.
   #
   # Notes go up as pages with their bytes as they are (front matter, tags,
@@ -94,10 +94,10 @@ defmodule SlipdockCLI.Sync.Import do
   `listing` as the sync API answers it and a previous `record` (or nil):
 
       %{create: [item], present: [item], imported: [item], differs: [item],
-        unmapped: [path], too_big: [path], ignored: [path],
+        outside: [path], too_big: [path], ignored: [path],
         unresolved: [%{path:, link:, embed:}], plugins: [%{path:, what:}]}
 
-  An item is `%{path:, kind:, sha:, size:, mapping:}`, plus `id:` and `hash:`
+  An item is `%{path:, kind:, sha:, size:, board:}`, plus `id:` and `hash:`
   for one the server already has. `create` is in the order to send it:
   shallow first, a page's own `index.md` before what sits beside it.
   """
@@ -115,7 +115,7 @@ defmodule SlipdockCLI.Sync.Import do
           kind: kind_of_path(path),
           sha: f.sha,
           size: f.size,
-          mapping: route(vault["mappings"] || [], path)
+          board: route(vault["boards"] || [], path)
         }
       end)
 
@@ -125,8 +125,8 @@ defmodule SlipdockCLI.Sync.Import do
         s = by_path[String.downcase(item.path)]
 
         cond do
-          is_nil(item.mapping) ->
-            add(acc, :unmapped, item.path)
+          is_nil(item.board) ->
+            add(acc, :outside, item.path)
 
           r && r["sha"] == item.sha && MapSet.member?(by_key, {r["kind"], r["id"]}) ->
             add(acc, :imported, Map.merge(item, %{id: r["id"], hash: r["hash"]}))
@@ -159,7 +159,7 @@ defmodule SlipdockCLI.Sync.Import do
   end
 
   defp empty,
-    do: %{create: [], present: [], imported: [], differs: [], unmapped: [], too_big: []}
+    do: %{create: [], present: [], imported: [], differs: [], outside: [], too_big: []}
 
   defp add(acc, key, item), do: Map.update!(acc, key, &[item | &1])
 
@@ -173,18 +173,17 @@ defmodule SlipdockCLI.Sync.Import do
   end
 
   @doc """
-  The mapping a vault path lands in: the longest mapped prefix, compared
-  without regard to case (W-103 R1.3). Nil when no mapping covers it.
+  The board a vault path lands in: the deepest board's folder holding it,
+  compared without regard to case. Nil at the vault's root or in no board.
   """
-  def route(mappings, path) do
+  def route(boards, path) do
     lower = String.downcase(path)
 
-    mappings
-    |> Enum.filter(fn m ->
-      prefix = m["path"] |> String.trim("/") |> String.downcase()
-      prefix == "" or String.starts_with?(lower, prefix <> "/")
+    boards
+    |> Enum.filter(fn b ->
+      String.starts_with?(lower, (b["path"] |> String.trim("/") |> String.downcase()) <> "/")
     end)
-    |> Enum.max_by(fn m -> String.length(String.trim(m["path"], "/")) end, fn -> nil end)
+    |> Enum.max_by(fn b -> String.length(String.trim(b["path"], "/")) end, fn -> nil end)
   end
 
   ## Links and plugin syntax --------------------------------------------------

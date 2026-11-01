@@ -80,20 +80,18 @@ defmodule Slipdock.Wiki.DrawingSessionOutsideTest do
 
   test "a vault sync while somebody draws: both reach the next save", %{
     user: user,
-    board: board,
     page: page
   } do
     {:ok, session, _} = DrawingSession.join({:page, page.id}, user)
     {:ok, _} = DrawingSession.push(session, [el("oval1", 4, %{"x" => 1})])
 
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     body = body_with(scene_json(%{"box1" => %{"version" => 3, "x" => 321}}))
 
     {:ok, _} =
       Sync.write_page(vault, user, %{
         "id" => page.id,
-        "path" => "Plan.excalidraw.md",
+        "path" => "Sketches/Plan.excalidraw.md",
         "content" => page.front_matter <> body
       })
 

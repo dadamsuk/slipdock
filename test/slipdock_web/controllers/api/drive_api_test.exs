@@ -17,7 +17,7 @@ defmodule SlipdockWeb.API.DriveTest do
   }
 
   setup %{conn: conn, user: user} do
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     %{conn: put_req_header(conn, "accept", "application/json"), vault: vault}
   end
 

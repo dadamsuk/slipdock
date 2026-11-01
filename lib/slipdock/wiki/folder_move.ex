@@ -26,14 +26,12 @@ defmodule Slipdock.Wiki.FolderMove do
       placements that went.
 
   Refused, with nothing changed: the target is the folder's own board, the
-  user can't write to both, the target parent is not on the target, a moving
-  folder is a vault mapping's target (take that mapping out first), or a
+  user can't write to both, the target parent is not on the target, or a
   folder of the same name already sits where one would land.
 
   `preview/4` reports all of that; `to_board/4` does it in one transaction,
   and records a change for every page, folder and file on both boards, so a
-  synced vault sees each as the same thing at a new path — or at the same
-  path, when the vault's mappings put it there.
+  synced vault sees each as the same thing at a new path.
   """
 
   import Ecto.Query, warn: false
@@ -41,7 +39,6 @@ defmodule Slipdock.Wiki.FolderMove do
   alias Slipdock.{Access, Repo, Vaults, Wiki}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
-  alias Slipdock.Vaults.Mapping
   alias Slipdock.Wiki.{Changes, Folder, Move, Page, Placement, WikiFile}
 
   @doc """
@@ -100,7 +97,6 @@ defmodule Slipdock.Wiki.FolderMove do
          :ok <- check_parent(parent, target),
          subtree = [folder | Wiki.Folders.descendants(folder)],
          subtree_ids = Enum.map(subtree, & &1.id),
-         :ok <- check_mapped(subtree_ids),
          # The folders that move as folders: all of them, or all but the one
          # emptied into the target parent.
          moving_folders = if(contents?, do: tl(subtree), else: subtree),
@@ -174,27 +170,6 @@ defmodule Slipdock.Wiki.FolderMove do
 
   defp check_parent(_parent, target),
     do: {:error, :unprocessable_entity, "that folder is not on #{target.name}"}
-
-  # A folder a vault maps onto belongs to that mapping's board; moving it
-  # would leave the mapping pointing across boards.
-  defp check_mapped(ids) do
-    case Repo.one(
-           from(m in Mapping,
-             join: f in Folder,
-             on: f.id == m.folder_id,
-             where: m.folder_id in ^ids,
-             select: {f.name, m.path},
-             limit: 1
-           )
-         ) do
-      nil ->
-        :ok
-
-      {name, path} ->
-        {:error, :unprocessable_entity,
-         "#{name} is mapped into a vault at #{Mapping.display_path(path)}: take that mapping out first"}
-    end
-  end
 
   # A folder of the same name (case aside) already where one would land.
   defp check_names(landing, target, parent) do

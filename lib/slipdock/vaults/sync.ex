@@ -18,8 +18,8 @@ defmodule Slipdock.Vaults.Sync do
 
   **A path is a place.** Writing a file at a new path files the page there:
   a new name is a new title (R2.10), a new directory a new folder or parent
-  page (made as needed), and a directory under another board's mapping
-  moves the page to that board — as a new page there, the old one archived,
+  page (made as needed), and a directory in another board's folder moves
+  the page to that board — as a new page there, the old one archived,
   since a page's history belongs to its board.
   """
 
@@ -72,8 +72,7 @@ defmodule Slipdock.Vaults.Sync do
   their own, which a client from before it would take for pages.
 
   `folder_details` says more about the same folders, keyed by vault path, and
-  so has no entry for a directory that is only there for a stub, nor for a
-  folder mapped at the vault's root. `icon` and `color` are names, nil when
+  so has no entry for a directory that is only there for a stub. `icon` and `color` are names, nil when
   plain, whether or not the board shows them (`wiki_tree_icons`).
 
   `writable` and `shareable` mean what they mean in the web tree, for this
@@ -142,11 +141,25 @@ defmodule Slipdock.Vaults.Sync do
     entries = Enum.sort_by(entries ++ files ++ stubs, & &1.path)
     folders = Enum.sort(Enum.uniq(Map.keys(folder_details) ++ stub_dirs))
 
-    %{cursor: cursor, entries: entries, folders: folders, folder_details: folder_details}
+    %{
+      cursor: cursor,
+      entries: entries,
+      folders: folders,
+      folder_details: folder_details,
+      boards: board_details(vault, levels)
+    }
+  end
+
+  # The boards `levels` lets the reader open. Archived is a flag, never part
+  # of a path.
+  defp board_details(vault, levels) do
+    for %{board: board, path: path} <- Vaults.boards(vault),
+        Access.can_read?(Map.get(levels, board.id, :none)) do
+      %{id: board.id, name: board.name, path: path, archived: not is_nil(board.archived_at)}
+    end
   end
 
   # The folders on the boards `levels` lets the reader open, by directory.
-  # A folder mapped at the vault's root is the root itself, so no directory.
   # Two folders can land on one directory; the older one speaks for it.
   defp folder_details(layout, levels, listed_pages) do
     ids = Map.keys(layout.folders)
@@ -155,7 +168,7 @@ defmodule Slipdock.Vaults.Sync do
       from(f in Folder, where: f.id in ^ids, order_by: [asc: f.id])
       |> Repo.all()
       |> Enum.filter(&Access.can_read?(Map.get(levels, &1.board_id, :none)))
-      |> Enum.reject(&(layout.folders[&1.id] in [nil, ""]))
+      |> Enum.reject(&is_nil(layout.folders[&1.id]))
 
     folder_ids = Enum.map(folders, & &1.id)
     also_pages = also_pages(folder_ids, listed_pages)
@@ -257,7 +270,7 @@ defmodule Slipdock.Vaults.Sync do
   end
 
   # The other folders each page is filed in (R12.5), as vault paths, in the
-  # order they were added. A folder in no mapped part of the vault has no
+  # order they were added. A folder in no part of the vault has no
   # path to write, and is left out of the file (and alone on the server).
   defp also_in(layout, page_ids) do
     from(pl in Placement,

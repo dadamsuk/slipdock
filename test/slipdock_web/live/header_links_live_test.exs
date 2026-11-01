@@ -9,7 +9,7 @@ defmodule SlipdockWeb.HeaderLinksLiveTest do
 
   setup %{user: user} do
     plan = board_fixture(%{"name" => "Plan"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain #{plan.id}"})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain #{plan.id}"})
     %{plan: plan, vault: vault}
   end
 

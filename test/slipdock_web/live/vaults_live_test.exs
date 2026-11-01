@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.VaultsLiveTest do
-  @moduledoc "The vaults screen: see, make, rename and delete vaults (W-103 R1.1)."
+  @moduledoc "The vault's page (W-2201): the root vault's tree link, name and synced folders."
   use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
@@ -12,52 +12,61 @@ defmodule SlipdockWeb.VaultsLiveTest do
     %{kb: kb}
   end
 
-  test "the account menu reaches it, and with no vaults it says what one is", %{conn: conn} do
+  test "the account menu reaches it, and it says what a vault is", %{conn: conn, user: user} do
     {:ok, _view, html} = live(conn, ~p"/")
     assert html =~ ~s(href="/vaults")
 
     {:ok, view, _html} = live(conn, ~p"/vaults")
-    assert has_element?(view, "#vaults-empty", "You have no vaults yet")
-    assert has_element?(view, "#vaults-what", "owns no pages")
+    assert has_element?(view, "#vaults-what", "Every board you own is a folder")
+    assert has_element?(view, "#vault-#{Vaults.root(user).id}")
   end
 
-  test "lists each vault with its mappings, page counts and synced folders", ctx do
+  test "shows the one vault, its page count, a link to its tree and its synced folders", ctx do
     %{conn: conn, user: user, kb: kb} = ctx
-    {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Journal"})
     {:ok, _} = Wiki.create_page(kb, %{"title" => "A"})
-    {:ok, _} = Wiki.create_page(kb, %{"title" => "B", "folder_id" => folder.id})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    {:ok, root} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, jobs} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: kb, folder: folder})
+    {:ok, _} = Wiki.create_page(kb, %{"title" => "B"})
+    vault = Vaults.root(user)
     {_raw, token} = Accounts.create_api_token(user, "slipdock CLI on laptop")
     Vaults.touch_mirror(vault, token)
 
     {:ok, view, _html} = live(conn, ~p"/vaults")
 
-    refute has_element?(view, "#vaults-empty")
-    assert has_element?(view, "#mapping-#{root.id}", "Keystone")
-    assert has_element?(view, "#mapping-#{root.id}", "1 page")
-    assert has_element?(view, "#mapping-#{jobs.id}", "folder Journal")
-    assert has_element?(view, "#mapping-#{jobs.id}", "1 page")
+    assert has_element?(view, "#vault-pages-#{vault.id}", "2 pages")
+    assert has_element?(view, "#open-vault-#{vault.id}[href='/vaults/#{vault.name}']")
     assert has_element?(view, "#vault-#{vault.id} [id^=mirror-]", "slipdock CLI on laptop")
   end
 
-  test "makes a vault, and refuses a name it can't take", %{conn: conn, user: user} do
+  test "its tree link opens the root's tree", ctx do
+    %{conn: conn, user: user} = ctx
+    vault = Vaults.root(user)
+
     {:ok, view, _html} = live(conn, ~p"/vaults")
 
-    view |> form("form[phx-submit=create]", %{"name" => "Brain"}) |> render_submit()
-    assert [%{name: "Brain"}] = Vaults.list_vaults(user)
-    assert has_element?(view, "input[aria-label='Vault name'][value=Brain]")
-    assert has_element?(view, "[id^=vault-] p", "Nothing mapped yet")
+    {:ok, tree, _html} =
+      view |> element("#open-vault-#{vault.id}") |> render_click() |> follow_redirect(conn)
 
-    html = view |> form("form[phx-submit=create]", %{"name" => "a/b"}) |> render_submit()
-    assert html =~ "cannot contain a slash"
-    assert length(Vaults.list_vaults(user)) == 1
+    assert has_element?(tree, "#vault-settings")
+    assert render(tree) =~ "Every board in #{vault.name}"
   end
 
-  test "renames a vault, and says so when the name is taken", %{conn: conn, user: user} do
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.create_vault(user, %{"name" => "Other"})
+  test "nothing of the mounting is left", %{conn: conn, user: user} do
+    vault = Vaults.root(user)
+    {:ok, view, html} = live(conn, ~p"/vaults")
+
+    refute has_element?(view, "#map-form-#{vault.id}")
+    refute has_element?(view, "#delete-vault-#{vault.id}")
+    refute has_element?(view, "form[phx-submit=create]")
+    refute html =~ "Mappings"
+  end
+
+  test "says how to sync it when nothing is synced", %{conn: conn, user: user} do
+    vault = Vaults.root(user)
+    {:ok, view, _html} = live(conn, ~p"/vaults")
+    assert has_element?(view, "#vault-#{vault.id} code", "slipdock sync init")
+  end
+
+  test "renames the vault, and refuses a name it can't take", %{conn: conn, user: user} do
+    vault = Vaults.root(user)
     {:ok, view, _html} = live(conn, ~p"/vaults")
 
     view
@@ -68,268 +77,42 @@ defmodule SlipdockWeb.VaultsLiveTest do
 
     html =
       view
-      |> form("#vault-#{vault.id} form[phx-submit=rename]", %{"name" => "other"})
+      |> form("#vault-#{vault.id} form[phx-submit=rename]", %{"name" => "a/b"})
       |> render_submit()
 
-    assert html =~ "already have a vault with that name"
+    assert html =~ "cannot contain a slash"
     assert {:ok, %{name: "Notes"}} = Vaults.get_vault(user, vault.id)
   end
 
-  test "deleting confirms that pages stay and names the synced folders, then keeps them", ctx do
-    %{conn: conn, user: user, kb: kb} = ctx
-    {:ok, page} = Wiki.create_page(kb, %{"title" => "Kept"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {_raw, token} = Accounts.create_api_token(user, "slipdock CLI on laptop")
-    Vaults.touch_mirror(vault, token)
+  test "its settings address shows the same page; somebody else's is not found", ctx do
+    %{conn: conn, user: user} = ctx
+    vault = Vaults.root(user)
+    {:ok, view, _html} = live(conn, "/vaults/#{vault.name}/.settings")
+    assert has_element?(view, "#vault-#{vault.id}")
 
-    {:ok, view, _html} = live(conn, ~p"/vaults")
-
-    confirm = view |> element("#delete-vault-#{vault.id}") |> render()
-
-    assert confirm =~ "Every page stays on its board"
-    assert confirm =~ "only the layout"
-    assert confirm =~ "stop getting changes: slipdock CLI on laptop"
-
-    view |> element("#delete-vault-#{vault.id}") |> render_click()
-
-    assert Vaults.list_vaults(user) == []
-    assert Wiki.get_page(page.id)
-    assert has_element?(view, "#vaults-empty")
+    assert {:error, {:live_redirect, %{to: "/vaults"}}} =
+             live(conn, "/vaults/Nobody-by-that-name/.settings")
   end
 
-  test "a vault with no synced folder confirms without naming any", %{user: user} do
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    text = SlipdockWeb.VaultLive.Index.delete_confirm(vault, [])
-    assert text =~ "Every page stays on its board"
-    refute text =~ "synced"
-  end
-
-  test "somebody else's vault is not found: not listed, not renamed, not deleted", ctx do
-    %{conn: conn} = ctx
+  test "somebody else's vault is not found: not shown, not renamed", %{conn: conn} do
     stranger = user_fixture("stranger@example.com")
-    {:ok, theirs} = Vaults.create_vault(stranger, %{"name" => "Theirs"})
+    {:ok, theirs} = stranger |> Vaults.root() |> Vaults.update_vault(%{"name" => "Theirs"})
 
     {:ok, view, html} = live(conn, ~p"/vaults")
     refute html =~ "Theirs"
 
     render_submit(view, "rename", %{"vault_id" => to_string(theirs.id), "name" => "Mine now"})
     assert render(view) =~ "isn&#39;t there any more"
-    render_click(view, "delete", %{"id" => to_string(theirs.id)})
-
     assert {:ok, %{name: "Theirs"}} = Vaults.get_vault(stranger, theirs.id)
   end
 
-  test "a board's wiki in a vault has no switch out to the vault (#758)", ctx do
-    %{conn: conn, user: user, kb: kb} = ctx
+  test "a board's wiki has no switch out to the vault (#758)", ctx do
+    %{conn: conn, kb: kb} = ctx
     {:ok, _} = Wiki.create_page(kb, %{"title" => "Note"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb.id}/wiki")
 
-    # The board's wiki is the vault from where it is mounted: nothing to open.
     refute has_element?(view, "#open-in-vault")
     refute has_element?(view, "[data-tree-scope]")
-    refute render(view) =~ "Open in Notes"
-  end
-
-  test "a board mapped whole is kept inside the vault, and let out (#757)", ctx do
-    %{conn: conn, user: user, kb: kb} = ctx
-    {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Journal"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    {:ok, root} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, jobs} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: kb, folder: folder})
-
-    {:ok, view, _html} = live(conn, ~p"/vaults")
-    # Only a whole board can be: no toggle on a folder's mapping.
-    refute has_element?(view, "#inside-mapping-#{jobs.id}")
-    assert has_element?(view, "#inside-mapping-#{root.id}[aria-pressed='false']", "Keep inside")
-
-    html = view |> element("#inside-mapping-#{root.id}") |> render_click()
-    assert html =~ "Keystone is kept inside Notes"
-    assert has_element?(view, "#inside-mapping-#{root.id}[aria-pressed='true']", "Inside")
-    assert Map.has_key?(Vaults.inside_boards(user), kb.id)
-
-    html = view |> element("#inside-mapping-#{root.id}") |> render_click()
-    assert html =~ "back among your boards"
-    assert Vaults.inside_boards(user) == %{}
-  end
-
-  test "makes a vault with a board to hold its pages", %{conn: conn, user: user} do
-    {:ok, view, _html} = live(conn, ~p"/vaults")
-
-    html =
-      view
-      |> form("form[phx-submit='create']", %{"name" => "Brain", "with_board" => "true"})
-      |> render_submit()
-
-    assert html =~ "with a board of the same name holding its pages"
-    {:ok, brain} = Vaults.get_vault(user, "Brain")
-    assert [%{inside: true, board: %{name: "Brain"}}] = brain.mappings
-  end
-
-  describe "mappings" do
-    setup %{user: user} do
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-      %{vault: vault}
-    end
-
-    test "boards that can't be mapped are disabled, with the reason", ctx do
-      %{conn: conn, user: user, vault: vault} = ctx
-      lender = user_fixture("lender@example.com")
-      ro = board_fixture(%{"name" => "Borrowed", "code" => "bor"}, owner: lender)
-      share_fixture(ro, user, "read")
-      taken = board_fixture(%{"name" => "Taken", "code" => "tkn"}, owner: user)
-      {:ok, other} = Vaults.create_vault(user, %{"name" => "Other"})
-      {:ok, _} = Vaults.add_mapping(other, user, %{path: "/", board: taken})
-
-      {:ok, view, _html} = live(conn, ~p"/vaults")
-      form = "#map-form-#{vault.id}"
-
-      assert has_element?(view, "#{form} option[disabled]", "Borrowed — you can't write to it")
-      assert has_element?(view, "#{form} option[disabled]", "Taken — is already in another vault")
-      assert has_element?(view, "#{form} option:not([disabled])", "Keystone")
-    end
-
-    test "previews where things land, then maps, then takes it out again", ctx do
-      %{conn: conn, user: user, kb: kb, vault: vault} = ctx
-      {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
-      {:ok, _} = Wiki.create_page(kb, %{"title" => "Top"})
-      {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
-
-      {:ok, view, _html} = live(conn, ~p"/vaults")
-      form = "#map-form-#{vault.id}"
-
-      view
-      |> form(form, %{"vault_id" => vault.id, "path" => "/", "board_id" => kb.id})
-      |> render_change()
-
-      assert has_element?(view, "#map-preview-#{vault.id}", "2 pages")
-      assert has_element?(view, "#map-preview-#{vault.id} li", "Journal/Acme.md")
-      assert has_element?(view, "#{form} select[name=folder_id] option", "Journal")
-
-      view
-      |> form(form, %{"vault_id" => vault.id, "path" => "/", "board_id" => kb.id})
-      |> render_submit()
-
-      {:ok, vault} = Vaults.get_vault(user, vault.id)
-      assert [%{path: "", board_id: board_id} = root] = vault.mappings
-      assert board_id == kb.id
-      assert has_element?(view, "#mapping-#{root.id}", "2 pages")
-
-      # The same board's folder at its own path takes the folder's pages over:
-      # picking the board first offers its folders.
-      view
-      |> form(form, %{"vault_id" => vault.id, "path" => "/Work", "board_id" => kb.id})
-      |> render_change()
-
-      view
-      |> form(form, %{
-        "vault_id" => vault.id,
-        "path" => "/Work",
-        "board_id" => kb.id,
-        "folder_id" => jobs.id
-      })
-      |> render_change()
-
-      assert has_element?(view, "#map-preview-#{vault.id}", "take over")
-      assert has_element?(view, "#map-preview-#{vault.id} li", "Journal/Acme.md → Work/Acme.md")
-
-      # Taking the root out confirms which files leave.
-      confirm = view |> element("#remove-mapping-#{root.id}") |> render()
-      assert confirm =~ "2 pages leave the vault"
-      assert confirm =~ "the pages stay on their board"
-
-      view |> element("#remove-mapping-#{root.id}") |> render_click()
-      {:ok, vault} = Vaults.get_vault(user, vault.id)
-      assert vault.mappings == []
-    end
-
-    test "a path already mapped is refused before saving", ctx do
-      %{conn: conn, user: user, kb: kb, vault: vault} = ctx
-      other = board_fixture(%{"name" => "Other board", "code" => "ob"}, owner: user)
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-      {:ok, view, _html} = live(conn, ~p"/vaults")
-
-      view
-      |> form("#map-form-#{vault.id}", %{
-        "vault_id" => vault.id,
-        "path" => "/",
-        "board_id" => other.id
-      })
-      |> render_change()
-
-      assert has_element?(view, "#map-error-#{vault.id}", "/ is already mapped in this vault")
-      assert has_element?(view, "#map-form-#{vault.id} button[type=submit][disabled]")
-    end
-
-    test "somebody else's board is refused, even sent by hand", ctx do
-      %{conn: conn, vault: vault} = ctx
-      stranger = user_fixture("stranger@example.com")
-      theirs = board_fixture(%{"name" => "Theirs", "code" => "thr2"}, owner: stranger)
-
-      {:ok, view, html} = live(conn, ~p"/vaults")
-      refute html =~ "Theirs"
-
-      html =
-        render_submit(view, "add_mapping", %{
-          "vault_id" => to_string(vault.id),
-          "path" => "/",
-          "board_id" => to_string(theirs.id)
-        })
-
-      assert html =~ "Not mapped: that board isn&#39;t there"
-      assert {:ok, %{mappings: []}} = Vaults.get_vault(ctx.user, vault.id)
-    end
-  end
-
-  describe "overlaps" do
-    setup %{user: user, kb: kb} do
-      hunt = board_fixture(%{"name" => "Journal Desk", "code" => "work2"}, owner: user)
-      {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
-      {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-      %{hunt: hunt, vault: vault}
-    end
-
-    test "the form says why before saving, and the Map button stays off", ctx do
-      %{conn: conn, hunt: hunt, vault: vault} = ctx
-      {:ok, view, _html} = live(conn, ~p"/vaults")
-
-      view
-      |> form("#map-form-#{vault.id}", %{
-        "vault_id" => vault.id,
-        "path" => "/Journal",
-        "board_id" => hunt.id
-      })
-      |> render_change()
-
-      assert has_element?(view, "#map-error-#{vault.id}", "would overlap 1 page")
-      assert has_element?(view, "#map-error-#{vault.id}", "move them to Journal Desk first")
-      assert has_element?(view, "#map-form-#{vault.id} button[type=submit][disabled]")
-      refute has_element?(view, "#overlaps-#{vault.id}")
-    end
-
-    test "a vault that already has one is flagged", ctx do
-      %{conn: conn, hunt: hunt, vault: vault} = ctx
-
-      Slipdock.Repo.insert!(%Slipdock.Vaults.Mapping{
-        vault_id: vault.id,
-        board_id: hunt.id,
-        path: "Journal"
-      })
-
-      {:ok, view, _html} = live(conn, ~p"/vaults")
-
-      assert has_element?(
-               view,
-               "#overlaps-#{vault.id}",
-               "1 page sits at paths another mapping owns"
-             )
-
-      assert has_element?(view, "#overlaps-#{vault.id} li", "Journal/Acme.md")
-    end
   end
 end

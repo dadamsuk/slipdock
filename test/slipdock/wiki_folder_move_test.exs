@@ -9,7 +9,7 @@ defmodule Slipdock.WikiFolderMoveTest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Repo, Vaults, Wiki}
+  alias Slipdock.{Repo, Wiki}
   alias Slipdock.Boards.Comment
   alias Slipdock.Wiki.{Change, Folder, FolderMove, Page, Placement, Placements}
 
@@ -128,24 +128,24 @@ defmodule Slipdock.WikiFolderMoveTest do
   end
 
   describe "filing in several folders" do
-    test "outside a vault, filing across boards is taken away", ctx do
-      %{user: user, kb: kb, hunt: hunt, jobs: jobs} = ctx
+    test "to a board in another vault, filing across boards is taken away", ctx do
+      %{user: user, kb: kb, jobs: jobs} = ctx
+      lender = user_fixture("foldermove-lender@example.com")
+      lent = board_fixture(%{"name" => "Lent", "code" => "fmlent"}, owner: lender)
+      share_fixture(lent, user, "write")
       {:ok, other} = Wiki.create_folder(kb, %{"name" => "Other"})
       {:ok, _} = Placements.add(ctx.top, other, user)
       {:ok, _} = Placements.add(ctx.stays, jobs, user)
 
-      assert {:ok, report} = FolderMove.preview(jobs, hunt, user)
+      assert {:ok, report} = FolderMove.preview(jobs, lent, user)
       assert report.filing_dropped == 2
 
-      assert {:ok, _} = FolderMove.to_board(jobs, hunt, user)
+      assert {:ok, _} = FolderMove.to_board(jobs, lent, user)
       assert Repo.aggregate(Placement, :count) == 0
     end
 
     test "in one vault, only the folder's own filing moves, and the rest is kept", ctx do
       %{user: user, kb: kb, hunt: hunt, jobs: jobs} = ctx
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Plans", board: hunt})
       {:ok, other} = Wiki.create_folder(kb, %{"name" => "Other"})
       {:ok, _} = Placements.add(ctx.top, other, user)
       {:ok, _} = Placements.add(ctx.stays, jobs, user)
@@ -271,15 +271,6 @@ defmodule Slipdock.WikiFolderMoveTest do
 
       assert {:error, :unprocessable_entity, _} =
                FolderMove.to_board(jobs, hunt, user, parent: other)
-    end
-
-    test "while a vault maps onto a folder in it", ctx do
-      %{user: user, kb: kb, hunt: hunt, jobs: jobs, acme: acme} = ctx
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Acme", board: kb, folder: acme})
-
-      assert {:error, :unprocessable_entity, message} = FolderMove.to_board(jobs, hunt, user)
-      assert message =~ "Acme is mapped into a vault at /Acme"
     end
   end
 end
