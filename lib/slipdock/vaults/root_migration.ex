@@ -18,7 +18,8 @@ defmodule Slipdock.Vaults.RootMigration do
     4. **Card pages:** a page pinned to a card on its own board moves to that
        card's folder, the first pin winning. A child page stays under its
        parent, and a cross-board pin stays a link. `opts[:keep_folders]`
-       names top-level folders whose pages stay put.
+       names top-level folders whose pages stay put, and `opts[:keep_pages]`
+       page codes, for one with no folder.
     5. **Pass logs** take their new titles.
     6. **Links:** each one whose target has changed is rewritten to its full
        path, and only saved if that resolves to the old target. One that can't
@@ -114,7 +115,7 @@ defmodule Slipdock.Vaults.RootMigration do
     sources = sources(vault)
     before = resolve_before(sources, vault, old_index, mapped_boards)
 
-    moved = move_card_pages(vault, opts[:keep_folders] || [])
+    moved = move_card_pages(vault, opts)
     titles = retitle_pass_logs(vault)
     rewrites = rewrite_links(sources, before, vault)
 
@@ -511,10 +512,11 @@ defmodule Slipdock.Vaults.RootMigration do
 
   ## Pages -----------------------------------------------------------------------
 
-  defp move_card_pages(vault, keep_folders) do
+  defp move_card_pages(vault, opts) do
     ids = Vaults.board_ids(vault)
     tops = top_folders(ids)
-    keep = MapSet.new(keep_folders, &String.downcase/1)
+    keep = MapSet.new(opts[:keep_folders] || [], &String.downcase/1)
+    keep_pages = MapSet.new(opts[:keep_pages] || [], &String.upcase/1)
 
     pins =
       from(l in Link,
@@ -538,7 +540,7 @@ defmodule Slipdock.Vaults.RootMigration do
 
     {own, cross} = Enum.split_with(firsts, & &1.same_board)
     {children, own} = Enum.split_with(own, &(&1.parent_id != nil))
-    {kept, own} = Enum.split_with(own, &kept?(&1, tops, keep))
+    {kept, own} = Enum.split_with(own, &kept?(&1, tops, keep, keep_pages))
 
     moved =
       Enum.flat_map(own, fn %{page: page, card: card} ->
@@ -579,9 +581,10 @@ defmodule Slipdock.Vaults.RootMigration do
     }
   end
 
-  defp kept?(%{folder_id: id}, tops, keep) do
-    id != nil and tops[id] != nil and
-      MapSet.member?(keep, tops[id] |> String.split("/") |> hd() |> String.downcase())
+  defp kept?(%{page: page, folder_id: id}, tops, keep, keep_pages) do
+    MapSet.member?(keep_pages, String.upcase(page.code || "")) or
+      (id != nil and tops[id] != nil and
+         MapSet.member?(keep, tops[id] |> String.split("/") |> hd() |> String.downcase()))
   end
 
   # Each folder's path of names from its board's top.

@@ -233,6 +233,21 @@ defmodule Slipdock.Vaults.RootMigrationTest do
       assert Repo.get!(Page, page.id).folder_id == deep.id
     end
 
+    test "a page kept by its code stays with no folder, whatever the case", ctx do
+      page = page!(ctx.kb, ctx.user, "Loose spec")
+      other = page!(ctx.kb, ctx.user, "Loose note")
+      {:ok, _} = Wiki.pin(page, {:card, ctx.card})
+      {:ok, _} = Wiki.pin(other, {:card, ctx.card})
+
+      report = run(ctx.user, keep_pages: [String.downcase(page.code)])
+
+      assert [%{code: code, folder: nil}] = report.moved.kept
+      assert code == page.code
+      assert Repo.get!(Page, page.id).folder_id == nil
+      assert [%{page_id: moved}] = report.moved.moved
+      assert moved == other.id
+    end
+
     test "an archived card keeps its pages' folder; an archived page stays", ctx do
       page = page!(ctx.kb, ctx.user, "On archived")
       gone = page!(ctx.kb, ctx.user, "Archived page")
