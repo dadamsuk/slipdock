@@ -30,7 +30,7 @@ defmodule Slipdock.Vaults.Stubs do
   alias Slipdock.{Access, Repo, Wiki}
   alias Slipdock.Accounts.User
   alias Slipdock.Vaults.{Layout, Vault}
-  alias Slipdock.Wiki.{Archive, Folder, FolderPlacement, Page, Placement, WikiFile}
+  alias Slipdock.Wiki.{DiskName, Folder, FolderPlacement, Page, Placement, WikiFile}
 
   @doc """
   The stubs of `vault` for `reader`: `{entries, dirs}`, the stub files and
@@ -87,20 +87,20 @@ defmodule Slipdock.Vaults.Stubs do
   def content(title, url), do: "[#{escape(title)}](#{url})\n"
 
   defp add_page({entries, dirs, taken}, dir, page, id, base_url) do
-    {path, taken} = free_path(join(dir, Archive.safe_name(page.title) <> ".md"), taken)
+    {path, taken} = free_path(join(dir, DiskName.disk_name(page.title) <> ".md"), taken)
     url = base_url <> "/shared/pages/#{page.id}"
     {[entry(id, path, content(page.title, url)) | entries], dirs, taken}
   end
 
   defp add_file({entries, dirs, taken}, dir, file, id, base_url) do
-    {path, taken} = free_path(join(dir, Archive.safe_name(file.name) <> ".md"), taken)
+    {path, taken} = free_path(join(dir, DiskName.disk_name(file.name) <> ".md"), taken)
     url = base_url <> Wiki.Files.open_path(file)
     {[entry(id, path, content(file.name, url)) | entries], dirs, taken}
   end
 
   # A folder: its directory, and everything the share reaches inside it.
   defp add_folder({entries, dirs, taken}, dir, folder, id, reader, base_url) do
-    {here, taken} = free_path(join(dir, Archive.safe_name(folder.name)), taken)
+    {here, taken} = free_path(join(dir, DiskName.disk_name(folder.name)), taken)
     acc = {entries, [here | dirs], taken}
 
     pages =

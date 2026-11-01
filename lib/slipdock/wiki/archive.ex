@@ -31,7 +31,7 @@ defmodule Slipdock.Wiki.Archive do
 
   alias Slipdock.Boards.Board
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{FrontMatter, Page}
+  alias Slipdock.Wiki.{DiskName, FrontMatter, Page}
 
   ## Out -----------------------------------------------------------------------
 
@@ -46,54 +46,50 @@ defmodule Slipdock.Wiki.Archive do
   @spec files(Board.t(), keyword) :: [{String.t(), String.t()}]
   def files(%Board{} = board, opts \\ []) do
     pages = Wiki.list_pages(board, Keyword.take(opts, [:archived, :status, :template]))
-    folders = Map.new(Wiki.folders(board), &{&1.id, folder_dir(&1)})
+    folders = Wiki.folders(board)
+    dirs = folder_dirs(folders)
+
+    # Each directory's folders, so a page with children can't take their name.
+    taken = Enum.group_by(folders, & &1.parent_id, &Map.get(dirs, &1.id))
 
     pages
     |> Wiki.tree_from()
-    |> Enum.flat_map(fn %{page: page} = node ->
-      walk([node], Map.get(folders, page.folder_id, ""))
+    |> Enum.group_by(& &1.page.folder_id)
+    |> Enum.flat_map(fn {folder_id, nodes} ->
+      walk(nodes, Map.get(dirs, folder_id, ""), taken |> Map.get(folder_id, []) |> basenames())
     end)
-    |> dedupe()
   end
 
-  # Two pages in one directory may share a title, and a filename is not
-  # allowed to be ambiguous: the second one takes its code as well. Silently
-  # writing one over the other would lose writing, which is the one thing an
-  # export must never do.
-  defp dedupe(files) do
-    files
-    |> Enum.reduce({[], MapSet.new()}, fn {path, contents}, {kept, taken} ->
-      path =
-        if MapSet.member?(taken, path) do
-          code = contents |> code_in_front_matter() |> to_string()
-          Path.rootname(path) <> "-" <> code <> Path.extname(path)
-        else
-          path
-        end
+  defp basenames(paths), do: Enum.map(paths, &Path.basename/1)
 
-      {[{path, contents} | kept], MapSet.put(taken, path)}
+  # Every folder's directory, siblings told apart by `DiskName.assign/2`.
+  defp folder_dirs(folders) do
+    by_parent = Enum.group_by(folders, & &1.parent_id)
+    folder_dirs(by_parent, nil, "")
+  end
+
+  defp folder_dirs(by_parent, parent_id, prefix) do
+    siblings = by_parent |> Map.get(parent_id, []) |> Enum.sort_by(& &1.id)
+    names = siblings |> Enum.map(&{&1.id, &1.name}) |> DiskName.assign()
+
+    Enum.reduce(siblings, %{}, fn folder, dirs ->
+      dir = Path.join(prefix, names[folder.id])
+
+      dirs
+      |> Map.put(folder.id, dir)
+      |> Map.merge(folder_dirs(by_parent, folder.id, dir))
     end)
-    |> then(fn {kept, _taken} -> Enum.reverse(kept) end)
   end
 
-  defp code_in_front_matter(contents) do
-    case Regex.run(~r/^code: (\S+)$/m, contents) do
-      [_, code] -> code
-      _ -> Integer.to_string(System.unique_integer([:positive]))
-    end
-  end
+  # Two pages in one directory may share a title, and writing one over the
+  # other would lose writing, the one thing an export must never do: the
+  # later one is numbered. A directory's `index.md` is its page's own.
+  defp walk(nodes, prefix, taken) do
+    nodes = Enum.sort_by(nodes, & &1.page.id)
+    names = nodes |> Enum.map(&{&1.page.id, &1.page.title}) |> DiskName.assign(taken)
 
-  # A folder's path as directories, each segment made safe for a filename.
-  defp folder_dir(folder) do
-    folder
-    |> Wiki.folder_ancestors()
-    |> Kernel.++([folder])
-    |> Enum.map_join("/", &safe_name(&1.name))
-  end
-
-  defp walk(nodes, prefix) do
     Enum.flat_map(nodes, fn %{page: page, children: children} ->
-      name = file_name(page)
+      name = names[page.id]
 
       case children do
         [] ->
@@ -101,7 +97,7 @@ defmodule Slipdock.Wiki.Archive do
 
         _ ->
           folder = Path.join(prefix, name)
-          [{Path.join(folder, "index.md"), file(page)} | walk(children, folder)]
+          [{Path.join(folder, "index.md"), file(page)} | walk(children, folder, ["index"])]
       end
     end)
   end
@@ -253,27 +249,6 @@ defmodule Slipdock.Wiki.Archive do
       [] -> nil
       tags -> Enum.map_join(tags, ", ", & &1.name)
     end
-  end
-
-  # Enough to be a filename on any machine, and still recognisable.
-  defp file_name(%Page{title: title, code: code}) do
-    case safe_name(title) do
-      "" -> code
-      name -> name
-    end
-  end
-
-  # A leading dot goes too: a title of `..` would otherwise be a path segment
-  # that climbs out of the export folder (or the zip), and `.claude` a hidden
-  # directory nobody asked to have written.
-  @doc "A title or folder name as the file or directory name it is written as."
-  def safe_name(name) do
-    name
-    |> to_string()
-    |> String.replace(~r/[\/\\:*?"<>|]+/u, "-")
-    |> String.trim()
-    |> String.replace(~r/^\.+/u, "-")
-    |> String.slice(0, 80)
   end
 
   @doc "The whole wiki as a zip, as `{filename, binary}`."

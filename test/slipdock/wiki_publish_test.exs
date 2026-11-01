@@ -264,6 +264,44 @@ defmodule Slipdock.WikiPublishTest do
       assert files["Index.md"] =~ "See [[Rollback]] and #1."
     end
 
+    test "an export names things as a sync does: numbered, bounded, kept apart",
+         %{board: board, user: user} do
+      {:ok, first} = Wiki.create_page(board, %{"title" => "Clash"}, user: user)
+      {:ok, _} = Wiki.create_page(board, %{"title" => "clash"}, user: user)
+      {:ok, _} = Wiki.create_folder(board, %{"name" => "Parent"})
+
+      {:ok, parent} = Wiki.create_page(board, %{"title" => "Parent"}, user: user)
+
+      {:ok, _} =
+        Wiki.create_page(board, %{"title" => "Kid", "parent_id" => parent.id}, user: user)
+
+      {:ok, _} =
+        Wiki.create_page(board, %{"title" => String.duplicate("long ", 30)}, user: user)
+
+      paths = Archive.files(board) |> Enum.map(&elem(&1, 0))
+
+      assert "Clash.md" in paths
+      assert "clash (2).md" in paths
+      assert first.title == "Clash"
+      # An empty folder writes nothing, and its name is still not the page's.
+      assert "Parent (2)/index.md" in paths
+      assert "Parent (2)/Kid.md" in paths
+      assert Enum.all?(paths, &(String.length(Path.basename(&1, ".md")) <= 60))
+    end
+
+    test "a child page called index doesn't take its parent's file",
+         %{board: board, user: user} do
+      {:ok, parent} = Wiki.create_page(board, %{"title" => "Top"}, user: user)
+
+      {:ok, _} =
+        Wiki.create_page(board, %{"title" => "index", "parent_id" => parent.id}, user: user)
+
+      paths = Archive.files(board) |> Enum.map(&elem(&1, 0))
+
+      assert "Top/index.md" in paths
+      assert "Top/index (2).md" in paths
+    end
+
     test "a title of '..' or a dotfile stays inside the export", %{board: board, user: user} do
       {:ok, up} = Wiki.create_page(board, %{"title" => ".."}, user: user)
       {:ok, up2} = Wiki.create_page(board, %{"title" => "..", "parent_id" => up.id}, user: user)
@@ -279,8 +317,8 @@ defmodule Slipdock.WikiPublishTest do
       {:ok, _} = Wiki.file_page(filed, folder)
 
       paths = Archive.files(board) |> Enum.map(&elem(&1, 0))
-      assert "-/-/-claude/CLAUDE.md" in paths
-      assert "-/- hidden.md" in paths
+      assert "Untitled (2)/Untitled/claude/CLAUDE.md" in paths
+      assert "Untitled/hidden.md" in paths
 
       for path <- paths, segment <- Path.split(path) do
         refute String.starts_with?(segment, "."), "#{path} has a dot segment"

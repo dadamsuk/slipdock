@@ -25,7 +25,7 @@ defmodule Slipdock.Vaults.Index do
 
   alias Slipdock.Repo
   alias Slipdock.Vaults.{Mapping, Vault}
-  alias Slipdock.Wiki.{Archive, Folder, Page}
+  alias Slipdock.Wiki.{DiskName, Folder, Page}
 
   @type entry :: %{
           id: pos_integer,
@@ -198,9 +198,10 @@ defmodule Slipdock.Vaults.Index do
   defp ends_with?(list, suffix),
     do: length(suffix) <= length(list) and Enum.take(list, -length(suffix)) == suffix
 
-  # Names compared as their files are named, case aside: `Retry: why` is the
-  # file `Retry- why`, and a link may be written either way.
-  defp norm(name), do: name |> to_string() |> Archive.safe_name() |> String.downcase()
+  # Names compared cleaned, case aside and never shortened: `Retry: why` is
+  # the file `Retry- why`, and a link may be written either way, while two
+  # titles sharing a long start stay two names.
+  defp norm(name), do: name |> DiskName.clean() |> String.downcase()
 
   @doc "A vault's index, built once for the length of `fun` however often it is asked for."
   def cached(fun) do
