@@ -325,6 +325,7 @@ defmodule SlipdockCLI.Boards do
     body =
       %{
         "title" => Enum.join(title_words, " "),
+        "short_name" => o[:short_name],
         "column" => o[:column],
         "description" => o[:desc],
         "priority" => o[:priority],
@@ -350,6 +351,7 @@ defmodule SlipdockCLI.Boards do
     body =
       %{
         "title" => o[:title],
+        "short_name" => o[:short_name],
         "description" => o[:desc],
         "priority" => o[:priority],
         "start_date" => if(o[:no_start], do: nil, else: o[:start]),

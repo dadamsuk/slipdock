@@ -50,7 +50,8 @@ defmodule Slipdock.Wiki.DiskName do
       name
     else
       cut = String.slice(name, 0, max - 1)
-      head = word_cut(cut, div(max, 2))
+      # The cut landing exactly between two words keeps the last of them.
+      head = if String.at(name, max - 1) == " ", do: cut, else: word_cut(cut, div(max, 2))
       String.replace(head, ~r/[ \-,.;:_]+$/u, "") <> "…"
     end
   end

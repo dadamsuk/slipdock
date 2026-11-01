@@ -202,6 +202,7 @@ defmodule SlipdockWeb.MCP.Tools do
     |> Map.take([
       :id,
       :title,
+      :short_name,
       :description,
       :column,
       :position,
