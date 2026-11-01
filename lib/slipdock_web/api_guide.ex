@@ -1354,6 +1354,11 @@ defmodule SlipdockWeb.APIGuide do
          -d '{"boards": ["roadmap", "qvm-v1-rem", 3]}'   # your own order for the index
     ```
 
+    A long title gets a short name by itself (`short_name`, for tight spaces
+    and the card's folder on disk): over 40 characters one is made on save, by
+    the cheapest model when there is a key. `short_name` on a card write sets
+    your own, and `""` hands it back.
+
     ### Waits, pauses and a card's state
 
     **A wait** is a card waiting on a person: what it `needs`, who it is

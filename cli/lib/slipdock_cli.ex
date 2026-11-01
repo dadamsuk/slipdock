@@ -594,6 +594,7 @@ defmodule SlipdockCLI do
   WRITE
     add <board> <title> [opts]          create a card
         --column C (default: first column)  --desc TEXT  --priority P
+        --short-name T              up to 40 characters for tight spaces (made for you if left out)
         --assignee EMAIL|me (repeatable: everybody on it, the first is the lead)
         --flag F (repeatable)  --tag T (repeatable)  --start YYYY-MM-DD  --due YYYY-MM-DD  --color C
         --percent N (0-100)  --border C, --border-top/-right/-bottom/-left C   (see edit)
@@ -602,6 +603,7 @@ defmodule SlipdockCLI do
     edit <id> [opts]                    change fields on a card
         --title T  --desc TEXT  --priority P  --start DATE | --no-start  --due DATE | --no-due
         --color C | --no-color  --column C
+        --short-name T               a name for tight spaces; "" hands it back to be made
         --border C | --no-border     every edge of the card's front in palette colour C;
         --border-top C  --border-right C  --border-bottom C  --border-left C
                                      one edge (after --border, so the edge wins); C none
@@ -1024,6 +1026,7 @@ defmodule SlipdockCLI do
     board: :string,
     title: :string,
     desc: :string,
+    short_name: :string,
     due: :string,
     no_due: :boolean,
     assignee: :keep,

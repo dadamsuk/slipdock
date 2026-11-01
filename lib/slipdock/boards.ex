@@ -13,6 +13,7 @@ defmodule Slipdock.Boards do
   alias Slipdock.Rollup
   alias Slipdock.CardState
 
+  alias Slipdock.Boards.ShortNames
   alias Slipdock.Vaults.Vault
   alias Slipdock.Multiboard.Saved, as: SavedMultiboard
   alias Slipdock.Boards.{BoardOrder, CardLink, CardUrl, FieldDefinition, FieldValue, Milestone}
@@ -1846,6 +1847,7 @@ defmodule Slipdock.Boards do
       record_move(card, "created", nil, column, creator(opts))
       broadcast(card.board_id)
       Indexer.enqueue(card)
+      if ShortNames.stale?(nil, card), do: ShortNames.refine_later(card)
       Slipdock.Mentions.description_changed(card, nil, card.description, opts[:by])
       automate(%{type: "card_created", card: card, column: column})
     end)
@@ -1887,6 +1889,7 @@ defmodule Slipdock.Boards do
 
       broadcast(updated.board_id)
       Indexer.enqueue(updated)
+      if ShortNames.stale?(card, updated), do: ShortNames.refine_later(updated)
 
       if Map.has_key?(changeset.changes, :description),
         do:

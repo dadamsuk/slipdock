@@ -391,6 +391,9 @@ defmodule SlipdockWeb.API.JSON do
       column: if(Ecto.assoc_loaded?(c.column), do: c.column.name),
       position: c.position,
       title: c.title,
+      # A label for tight spaces, and its folder's name on disk (W-2201).
+      short_name: c.short_name,
+      short_name_edited: c.short_name_edited,
       # "card" or "document" — a card whose whole content is the file on it
       # (see `Slipdock.Kinds`), which is what `cards?kind=` filters by.
       kind: Slipdock.Kinds.kind_of(c),

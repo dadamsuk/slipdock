@@ -7,6 +7,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   """
   use SlipdockWeb, :html
 
+  alias Slipdock.Boards.ShortNames
+
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.ItemComponents
   import SlipdockWeb.BoardLive.Helpers
@@ -80,6 +82,25 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         >{@form[:title].value}</textarea>
       </div>
       <p :if={@form[:title].errors != []} class="text-sm text-error">Title can't be blank.</p>
+      <div
+        :if={@card.short_name || @card.short_name_edited || ShortNames.long?(@form[:title].value)}
+        class="flex items-center gap-2 px-1 text-sm"
+      >
+        <label for="card-short-name" class="text-base-content/50">Short name</label>
+        <input
+          type="text"
+          id="card-short-name"
+          name={@form[:short_name].name}
+          value={@form[:short_name].value}
+          maxlength={ShortNames.max_length()}
+          phx-debounce="500"
+          placeholder="Made for you"
+          class="min-w-0 flex-1 rounded bg-transparent px-1 outline-none ring-primary/40 focus:bg-base-200/60 focus:ring-2"
+        />
+      </div>
+      <p :if={@form[:short_name].errors != []} class="text-sm text-error">
+        A short name is at most {ShortNames.max_length()} characters.
+      </p>
       <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1 text-sm text-base-content/50">
         <%!-- A link, not a button: this sits in the fieldset that is
               disabled for a read-only card, and a reader can share a link

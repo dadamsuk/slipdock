@@ -13,6 +13,10 @@ defmodule Slipdock.Boards.Card do
 
   schema "cards" do
     field :title, :string
+    # A label for when space is tight, and its folder's name on disk (W-2201):
+    # `Slipdock.Boards.ShortNames` keeps it, unless a person has edited it.
+    field :short_name, :string
+    field :short_name_edited, :boolean, default: false
     field :description, :string
     field :position, :integer, default: 0
     field :priority, :string, default: "none"
@@ -351,6 +355,7 @@ defmodule Slipdock.Boards.Card do
     card
     |> cast(attrs, [
       :title,
+      :short_name,
       :description,
       :position,
       :priority,
@@ -375,6 +380,9 @@ defmodule Slipdock.Boards.Card do
     ])
     |> validate_required([:title, :board_id, :column_id])
     |> validate_length(:title, min: 1, max: 200)
+    |> update_change(:short_name, &tidy_short_name/1)
+    |> validate_length(:short_name, max: Slipdock.Boards.ShortNames.max_length())
+    |> Slipdock.Boards.ShortNames.put()
     |> validate_inclusion(:priority, @priorities)
     |> validate_subset(:flags, @flags)
     |> update_change(:date_precision, fn
@@ -408,6 +416,15 @@ defmodule Slipdock.Boards.Card do
       less_than_or_equal_to: Slipdock.TimeTracking.max_minutes()
     )
     |> stamp_completed()
+  end
+
+  defp tidy_short_name(nil), do: nil
+
+  defp tidy_short_name(name) do
+    case String.trim(name) do
+      "" -> nil
+      name -> name
+    end
   end
 
   defp validate_borders(changeset) do
