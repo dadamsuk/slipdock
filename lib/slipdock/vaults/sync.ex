@@ -29,7 +29,7 @@ defmodule Slipdock.Vaults.Sync do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Vaults
-  alias Slipdock.Vaults.{Layout, Vault}
+  alias Slipdock.Vaults.{Layout, Names, Vault}
 
   alias Slipdock.Wiki.{
     Archive,
@@ -57,19 +57,35 @@ defmodule Slipdock.Vaults.Sync do
   `folders`. `base_url` is what a stub's link starts with.
 
       %{cursor: 931,
-        entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:, icon:, color:,
-                    position:, inserted_at:, updated_at:, writable:, shareable:},
-                  %{kind: "file", id:, board_id:, path:, hash:, size:, name:, position: nil,
-                    inserted_at:, updated_at:, writable:, shareable:}],
-        folders: ["Projects", "Projects/Acme"],
-        folder_details: %{"Projects" => %{id:, board_id:, icon:, color:, position:, sort:,
-                                          inserted_at:, updated_at:, also_pages: [412],
-                                          also_folders: [9], writable:, shareable:}}}
+        entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:, short_name: nil,
+                    archived:, icon:, color:, position:, inserted_at:, updated_at:, writable:,
+                    shareable:},
+                  %{kind: "file", id:, board_id:, path:, hash:, size:, name:, title:,
+                    short_name: nil, archived:, position: nil, inserted_at:, updated_at:,
+                    writable:, shareable:}],
+        folders: ["Projects", "Projects/Acme", "Projects/Cards"],
+        folder_details: %{"Projects/Acme" => %{id:, board_id:, title:, short_name:, card_id:,
+                                               archived:, icon:, color:, position:, sort:,
+                                               inserted_at:, updated_at:, also_pages: [412],
+                                               also_folders: [9], writable:, shareable:}},
+        virtual_folders: [%{path: "Projects/Cards", board_id:, title: "Cards", short_name: nil,
+                            card_id: nil, archived: false}],
+        boards: [%{id:, name:, title:, short_name: nil, path: "Projects", archived:}]}
 
-  `folders` is every folder of the vault as a directory, empty ones too, so
-  a client can make the ones it hasn't got and take away the ones the
-  server no longer has. It is its own key rather than entries of a kind of
-  their own, which a client from before it would take for pages.
+  `folders` is every directory of the vault, empty ones too: boards, wiki
+  folders and card folders, and the `Cards` and epic directories that exist
+  only because a sub-board needs a place (`virtual_folders`). So a client can
+  make the ones it hasn't got and take away the ones the server no longer
+  has. It is its own key rather than entries of a kind of their own, which a
+  client from before it would take for pages.
+
+  **Names** (W-2201 §Names). `title` is the full name, `short_name` a card
+  folder's short name and nil for everything else, and `path` is built from
+  disk names, so it can be neither. `card_id` says a folder is a card's.
+  `archived` says a board or a card put the row away, or one above it; an
+  archived page or file itself is not listed. None of this is in a file, so
+  none of it moves a hash, and a path changing leaves the hash alone unless
+  the file's bytes change too (a page's `also-in` naming a folder that moved).
 
   `folder_details` says more about the same folders, keyed by vault path, and
   so has no entry for a directory that is only there for a stub. `icon` and `color` are names, nil when
@@ -98,6 +114,7 @@ defmodule Slipdock.Vaults.Sync do
   def listing(%Vault{} = vault, %User{} = reader, opts \\ []) do
     %{cursor: cursor} = Changes.since(vault, nil, reader, token: opts[:token])
     layout = Layout.build(vault)
+    names = Names.build(layout)
     levels = levels(vault, reader, opts[:token])
 
     also = also_in(layout, Map.keys(layout.pages))
@@ -115,6 +132,10 @@ defmodule Slipdock.Vaults.Sync do
         |> entry(page, also)
         |> Map.drop([:content])
         |> Map.merge(rights(levels, page.board_id))
+        |> Map.merge(%{
+          short_name: nil,
+          archived: Names.archived?(names, layout.pages[page.id].dir)
+        })
       end)
 
     files =
@@ -127,7 +148,11 @@ defmodule Slipdock.Vaults.Sync do
         layout
         |> file_entry(file)
         |> Map.merge(rights(levels, file.board_id))
-        |> Map.put(:shareable, false)
+        |> Map.merge(%{
+          shareable: false,
+          short_name: nil,
+          archived: Names.archived?(names, layout.files[file.id].dir)
+        })
       end)
 
     # What is shared with the reader and filed here, as stubs (#819), for
@@ -137,17 +162,34 @@ defmodule Slipdock.Vaults.Sync do
         do: Slipdock.Vaults.Stubs.build(vault, layout, reader, opts[:base_url] || ""),
         else: {[], []}
 
-    folder_details = folder_details(layout, levels, MapSet.new(entries, & &1.id))
+    folder_details = folder_details(layout, names, levels, MapSet.new(entries, & &1.id))
     entries = Enum.sort_by(entries ++ files ++ stubs, & &1.path)
-    folders = Enum.sort(Enum.uniq(Map.keys(folder_details) ++ stub_dirs))
+    boards = board_details(vault, levels)
+    virtual = virtual_folders(names, levels)
+
+    folders =
+      (Map.keys(folder_details) ++
+         stub_dirs ++ Enum.map(boards, & &1.path) ++ Enum.map(virtual, & &1.path))
+      |> Enum.uniq()
+      |> Enum.sort()
 
     %{
       cursor: cursor,
       entries: entries,
       folders: folders,
       folder_details: folder_details,
-      boards: board_details(vault, levels)
+      virtual_folders: virtual,
+      boards: boards
     }
+  end
+
+  # The directories no folder stands for: their own key, since a client of
+  # `folder_details` can count on an id there.
+  defp virtual_folders(names, levels) do
+    for {path, name} <- Enum.sort(names.virtual),
+        Access.can_read?(Map.get(levels, name.board_id, :none)) do
+      Map.put(name, :path, path)
+    end
   end
 
   # The boards `levels` lets the reader open. Archived is a flag, never part
@@ -155,13 +197,20 @@ defmodule Slipdock.Vaults.Sync do
   defp board_details(vault, levels) do
     for %{board: board, path: path} <- Vaults.boards(vault),
         Access.can_read?(Map.get(levels, board.id, :none)) do
-      %{id: board.id, name: board.name, path: path, archived: not is_nil(board.archived_at)}
+      %{
+        id: board.id,
+        name: board.name,
+        title: board.name,
+        short_name: nil,
+        path: path,
+        archived: not is_nil(board.archived_at)
+      }
     end
   end
 
   # The folders on the boards `levels` lets the reader open, by directory.
   # Two folders can land on one directory; the older one speaks for it.
-  defp folder_details(layout, levels, listed_pages) do
+  defp folder_details(layout, names, levels, listed_pages) do
     ids = Map.keys(layout.folders)
 
     folders =
@@ -182,6 +231,10 @@ defmodule Slipdock.Vaults.Sync do
           %{
             id: folder.id,
             board_id: folder.board_id,
+            title: names.folders[folder.id].title,
+            short_name: names.folders[folder.id].short_name,
+            card_id: folder.card_id,
+            archived: names.folders[folder.id].archived,
             icon: folder.icon,
             color: folder.color,
             position: folder.position,
@@ -562,6 +615,7 @@ defmodule Slipdock.Vaults.Sync do
       id: file.id,
       board_id: file.board_id,
       name: file.name,
+      title: file.name,
       path: layout.files[file.id].path,
       hash: file.sha256,
       size: file.size,

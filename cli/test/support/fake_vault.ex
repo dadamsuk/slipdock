@@ -26,6 +26,7 @@ defmodule SlipdockCLI.FakeVault do
           cursor: 0,
           normalise: opts[:normalise],
           folders: if(opts[:folders] == false, do: false, else: MapSet.new()),
+          dir_ids: %{},
           fail: nil,
           stubs: %{},
           calls: []
@@ -77,6 +78,27 @@ defmodule SlipdockCLI.FakeVault do
 
   def add_folder(vault, path),
     do: Agent.update(vault, fn s -> bump(%{s | folders: MapSet.put(s.folders, path)}) end)
+
+  @doc "A folder with an id, as `folder_details` lists it, so that it can move."
+  def add_folder(vault, path, id) do
+    Agent.update(vault, fn s ->
+      bump(%{s | folders: MapSet.put(s.folders, path), dir_ids: Map.put(s.dir_ids, id, path)})
+    end)
+  end
+
+  @doc "The folder with this id at a new path, what it holds gone with it."
+  def move_folder(vault, id, to) do
+    Agent.update(vault, fn s ->
+      from = s.dir_ids[id]
+      there = fn p -> if p == from, do: to, else: p end
+
+      bump(%{
+        s
+        | folders: MapSet.new(s.folders, there),
+          dir_ids: Map.put(s.dir_ids, id, to)
+      })
+    end)
+  end
 
   @doc "Deletes a folder, its pages and files moved out to the root first."
   def delete_folder(vault, path) do
@@ -244,7 +266,11 @@ defmodule SlipdockCLI.FakeVault do
               "content" => st.content
             }
 
-      listing = %{"cursor" => s.cursor, "entries" => entries ++ files ++ stubs}
+      listing = %{
+        "cursor" => s.cursor,
+        "entries" => entries ++ files ++ stubs,
+        "folder_details" => Map.new(s.dir_ids, fn {id, path} -> {path, %{"id" => id}} end)
+      }
 
       if s.folders,
         do: {:ok, Map.put(listing, "folders", folders(s, entries ++ files))},

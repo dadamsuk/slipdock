@@ -1021,6 +1021,13 @@ test("a page row has no browser tooltip; a folder row keeps one", () => {
   assert.match(link("folder:1"), /title="F1"/)
 })
 
+test("a folder shown by its short name keeps the full name for the hover (#1594)", () => {
+  const {hook, rowsEl} = mountHook({replies: [root([folder(9, {title: "Short", full: "A very long title"})])]})
+  hook.mounted()
+  const link = rowsEl.innerHTML.split(`data-key="folder:9"`)[1].split("<a ")[1].split(">")[0]
+  assert.match(link, /title="A very long title"/)
+})
+
 test("a writer's folder offers Organise…; a page, a selection and a reader don't (#791)", () => {
   const row = folder(4, {href: "/boards/1/wiki?folder=4"})
   const item = menuItems(row, {board: 1, canWrite: true, selected: new Set()}).find(i => i.label === "Organise…")

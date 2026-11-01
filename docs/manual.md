@@ -4204,13 +4204,26 @@ vault's feed — `GET /api/vaults/:id/changes?since=<cursor>`,
 `changes_since` — answers with what changed on any of its boards after that
 cursor, each page or folder once and as it is now (a page's code, title,
 `content_hash`, home folder, whether it is archived, and its vault path), or
-`deleted`; `more: true` means ask again at once. Without a cursor it answers
+`deleted`; `more: true` means ask again at once. Renaming a card, a short
+name or a board shows as `moved`, with the old path in `from_path`, on the
+folder and on everything under it: never a delete and a create, and a moved
+file keeps its hash unless its bytes changed. `slipdock sync` moves the files
+here, and an edit made here follows them. Without a cursor it answers
 with the one to start from. A client can also keep a websocket open at
 `/socket/websocket?token=<API token>&vsn=2.0.0` and join `vault:<id or name>`:
 each change pushes `change` with the new cursor, so it knows when to ask.
 The log keeps 90 days (`config :slipdock, :wiki_changes, retention_days:`);
 asked from a cursor older than that, the feed answers `resync: true` and the
 current cursor, which means list the vault again rather than trust the gap.
+
+**Names in trees and lists.** Account › Settings, or the button at the top
+of the tree, chooses full titles or short names for the wiki and vault
+trees, card folders and breadcrumbs. It is yours, everywhere you sign in, and
+`slipdock names short` or `PUT /api/me/display` set the same thing. A card
+with no short name shows its title, and pages have no short names. A name too
+long for its space ends in an ellipsis on screen, with the whole of it on
+hover. `slipdock folder ls --short-names` and `slipdock vault tree
+--short-names` do the same in a terminal.
 
 **Tags in notes.** On a board in a vault, a note's front matter `tags` and
 every inline `#tag` in its body are its tags, nested ones (`#area/sub`)
@@ -5634,6 +5647,8 @@ slipdock vault locate Notes /Projects/Acme.md       # which board a path lands i
 slipdock vault rename Notes Brain
 slipdock vault resolve Notes X/Dup | slipdock vault wanted Notes   # links across the whole vault
 slipdock vault changes Notes [--since 812]     # what changed after a cursor: what sync polls
+slipdock vault tree Notes [--short-names]      # every folder and file by name, archived ones marked
+slipdock names [full|short]                    # Names in trees and lists: says or sets it
 slipdock page tags brain | slipdock page ls brain --note-tag area   # a vault's notes' own #tags
 slipdock page props W-31 [--file F | --clear]  # the front matter its file came with, kept exactly
 slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it

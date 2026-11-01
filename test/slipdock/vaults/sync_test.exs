@@ -146,9 +146,11 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Elsewhere"})
 
       assert Sync.listing(vault, user).folders == [
+               "Journal Desk",
                "Journal Desk/Elsewhere",
                "Journal Desk/Notes",
                "Journal Desk/Notes/Acme",
+               "Keystone",
                "Keystone/Design",
                "Keystone/Design/Old"
              ]
@@ -173,6 +175,7 @@ defmodule Slipdock.Vaults.SyncTest do
       token = %{scope: "write", scope_boards: [jobs.id]}
 
       assert Sync.listing(vault, user, token: token).folders == [
+               "Journal Desk",
                "Journal Desk/Notes",
                "Journal Desk/Notes/Acme"
              ]

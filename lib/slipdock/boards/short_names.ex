@@ -19,7 +19,7 @@ defmodule Slipdock.Boards.ShortNames do
   alias Slipdock.{AI, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card}
-  alias Slipdock.Wiki.DiskName
+  alias Slipdock.Wiki.{CardFolders, DiskName}
 
   require Logger
 
@@ -165,13 +165,22 @@ defmodule Slipdock.Boards.ShortNames do
   # Only over the systematic name: a person may have typed one meanwhile, or
   # changed the title, and neither is the model's to undo.
   defp save(card, name) do
-    {count, _} =
+    query =
       from(c in Card,
         where: c.id == ^card.id and not c.short_name_edited and c.title == ^card.title
       )
-      |> Repo.update_all(set: [short_name: name])
 
-    if count == 1, do: {:ok, name}, else: :kept
+    if rename(card, query, name) == 1, do: {:ok, name}, else: :kept
+  end
+
+  # The name is what the card's folder is called on disk, so saving it can
+  # move everything under that folder.
+  defp rename(card, query, name) do
+    {count, _} =
+      CardFolders.tracking(card, fn -> Repo.update_all(query, set: [short_name: name]) end)
+
+    if count == 1, do: CardFolders.renamed(%{card | short_name: name})
+    count
   end
 
   defp owner(%Card{board_id: board_id}) do
@@ -204,7 +213,7 @@ defmodule Slipdock.Boards.ShortNames do
     by_model =
       Enum.count(cards, fn card ->
         name = systematic(card.title)
-        Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [short_name: name])
+        rename(card, from(c in Card, where: c.id == ^card.id), name)
 
         opts[:model] != false and match?({:ok, _}, refine(%{card | short_name: name}))
       end)

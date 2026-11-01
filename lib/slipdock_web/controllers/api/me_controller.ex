@@ -35,7 +35,9 @@ defmodule SlipdockWeb.API.MeController do
         id: user.id,
         email: user.email,
         name: user.name,
-        timezone: Slipdock.Timezones.of(user)
+        timezone: Slipdock.Timezones.of(user),
+        # "Names in trees and lists": "full" titles or "short" names.
+        tree_names: user.tree_names
       },
       ai_key: ai_key(user),
       # Endpoint, model and embedding model, so an agent can see what it is
@@ -89,6 +91,25 @@ defmodule SlipdockWeb.API.MeController do
       :ok -> json(conn, %{ai_key: ai_key(user)})
       {:error, message} -> conn |> put_status(:internal_server_error) |> json(%{error: message})
     end
+  end
+
+  @doc """
+  This person's "Names in trees and lists": `tree_names` of `full` or `short`.
+  """
+  def put_display(conn, %{"tree_names" => choice}) do
+    case Slipdock.Accounts.update_display(conn.assigns.current_user, %{tree_names: choice}) do
+      {:ok, user} ->
+        json(conn, %{tree_names: user.tree_names})
+
+      {:error, _changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "tree_names is one of: full, short."})
+    end
+  end
+
+  def put_display(conn, _params) do
+    conn |> put_status(:unprocessable_entity) |> json(%{error: "Send tree_names: full or short."})
   end
 
   @doc """

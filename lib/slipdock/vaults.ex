@@ -173,9 +173,10 @@ defmodule Slipdock.Vaults do
   @doc """
   Where everything of the vault is, as the vault view addresses it (#752):
   `%{pages: %{id => "Projects/Roadmap"}, folders: %{id => "Projects"}, boards:
-  %{id => "Projects"}}` — the paths of its files on disk
+  %{id => "Projects"}, names: Names.t}` — the paths of its files on disk
   (`Slipdock.Vaults.Layout`) without the `.md`, and a page with pages under it
-  at its own name rather than its `index.md`.
+  at its own name rather than its `index.md`. `names` is what to call the
+  directories on those paths (`Slipdock.Vaults.Names`).
   """
   def addresses(%Vault{} = vault) do
     layout = Layout.build(vault)
@@ -183,7 +184,8 @@ defmodule Slipdock.Vaults do
     %{
       pages: Map.new(layout.pages, fn {id, p} -> {id, join_path(p.dir, p.stem)} end),
       folders: layout.folders,
-      boards: layout.boards
+      boards: layout.boards,
+      names: Slipdock.Vaults.Names.build(layout)
     }
   end
 

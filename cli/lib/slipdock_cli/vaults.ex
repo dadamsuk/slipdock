@@ -115,10 +115,9 @@ defmodule SlipdockCLI.Vaults do
 
       r ->
         Enum.each(r["changes"], fn c ->
-          what = c["path"] || c["code"] || c["filename"] || c["name"] || "##{c["id"]}"
-
           IO.puts(
-            String.pad_trailing("#{c["cursor"]}", 8) <> "#{c["subject"]} #{c["action"]}  #{what}"
+            String.pad_trailing("#{c["cursor"]}", 8) <>
+              "#{c["subject"]} #{c["action"]}  #{change_what(c, o)}"
           )
         end)
 
@@ -126,6 +125,12 @@ defmodule SlipdockCLI.Vaults do
           Render.dim("cursor #{r["cursor"]}" <> if(r["more"], do: " — more to come", else: ""))
         )
     end)
+  end
+
+  # Everything in the vault by where it is, each directory by its name:
+  # full titles, or short names with --short-names.
+  def run("vault", ["tree", ref], o) do
+    HTTP.get("/vaults/#{enc(ref)}/sync") |> out(o, &tree(&1, o))
   end
 
   # A one-time import of an Obsidian vault (W-103 R9): see `Sync.Import`.
@@ -179,6 +184,8 @@ defmodule SlipdockCLI.Vaults do
 
   def run("vault", ["import" | _], _o),
     do: fail("usage: slipdock vault import DIR --vault V [--dry-run]")
+
+  def run("vault", ["tree"], _o), do: fail("usage: slipdock vault tree <vault> [--short-names]")
 
   def run("vault", _args, _o),
     do:
@@ -258,6 +265,52 @@ defmodule SlipdockCLI.Vaults do
               "rather than sending them again — but stop Obsidian Sync on this folder first"
           )
         )
+  end
+
+  defp change_what(%{"from_path" => from} = c, o) when is_binary(from),
+    do: "#{from} → #{change_name(c, o)}"
+
+  defp change_what(c, o), do: change_name(c, o)
+
+  defp change_name(c, o) do
+    (o[:short_names] && c["short_name"]) || c["path"] || c["code"] || c["filename"] || c["name"] ||
+      "##{c["id"]}"
+  end
+
+  # The listing as a tree: every directory with what it is called, and what
+  # is in each. Disk names are for disks, so a path is only the last resort.
+  defp tree(listing, o) do
+    short? = o[:short_names] == true
+
+    dirs =
+      (listing["boards"] || []) ++
+        (listing["virtual_folders"] || []) ++
+        Enum.map(listing["folder_details"] || %{}, fn {path, d} -> Map.put(d, "path", path) end)
+
+    named = Map.new(dirs, &{&1["path"], Render.folder_name(&1, short?)})
+    archived = Map.new(dirs, &{&1["path"], &1["archived"]})
+
+    folders = for path <- listing["folders"] || [], do: {path, tree_dir(path, named, archived)}
+
+    files =
+      for e <- listing["entries"] || [] do
+        {e["path"], tree_line(e["path"], e["title"] || e["name"], e["archived"])}
+      end
+
+    (folders ++ files)
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.each(fn {_path, line} -> IO.puts(line) end)
+  end
+
+  defp tree_dir(path, named, archived),
+    do: tree_line(path, (named[path] || Path.basename(path)) <> "/", archived[path])
+
+  defp tree_line(path, name, archived) do
+    depth = length(String.split(path, "/")) - 1
+
+    String.duplicate("  ", depth) <>
+      to_string(name || Path.basename(path)) <>
+      if(archived, do: Render.dim("  archived"), else: "")
   end
 
   defp counts(items) do
