@@ -191,10 +191,12 @@ slipdock writeup 412 --template "Spec template"
 slipdock page make-card W-31 --body -       # a passage of a page becomes a card
 ```
 
-`writeup` is the right answer to "document this card". `make-card` is the
-right answer to a page that has grown a list of things somebody should do:
-turn each into a card rather than leaving the work buried in prose. Both
-write the link into both ends, so neither side has to remember the other.
+`writeup` is the right answer to "document this card". On disk it takes the
+card's short name, and nothing written for a card needs to repeat the card's
+title: its folder says that. `make-card` is the right answer to a page that has grown a list of things somebody should do:
+turn each into a card rather than leaving the work buried in prose, each title
+about 60 characters at most, a series as `<Series> <n>: <what>`, the detail in
+the description. Both write the link into both ends, so neither side has to remember the other.
 
 ## After the work
 

@@ -91,7 +91,7 @@ defmodule Slipdock.Meetings.CommitTest do
       assert comment["body"] =~ "Agreed in the pricing sync: due Friday."
       assert comment["body"] =~ "> update PL-14 by Friday"
 
-      assert decision["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
+      assert decision["page_title"] == "2026-10-07 Pricing sync"
       assert decision["page_id"] == nil
       assert [line] = decision["lines_added"]
       assert line =~ "**Annual plan at 20% off**"
@@ -179,7 +179,7 @@ defmodule Slipdock.Meetings.CommitTest do
       # The new decision on the meeting's page; the old one struck on the
       # older page per topic, where it is.
       [own, decision] = Commit.build(capture)["changes"]
-      assert own["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
+      assert own["page_title"] == "2026-10-07 Pricing sync"
       assert own["lines_struck"] == []
       assert decision["page_id"] == page.id
       assert decision["base_hash"] == page.content_hash
@@ -187,7 +187,7 @@ defmodule Slipdock.Meetings.CommitTest do
       assert decision["lines_struck"] == ["- Monthly plan only"]
 
       assert decision["body_after"] =~
-               "- ~~Monthly plan only~~ (replaced by “Annual plan at 20% off” on [[decisions-pricing-sync-7-oct-2026|Decisions / Pricing sync · 7 Oct 2026]])"
+               "- ~~Monthly plan only~~ (replaced by “Annual plan at 20% off” on [[2026-10-07-pricing-sync|2026-10-07 Pricing sync]])"
 
       assert decision["body_after"] =~ "- Free tier stays"
     end
@@ -245,7 +245,7 @@ defmodule Slipdock.Meetings.CommitTest do
       assert Repo.get!(Comment, comment["comment_id"]).body == comment["body"]
 
       page = Repo.get!(Page, decision["page_id"])
-      assert page.title == "Decisions / Pricing sync · 7 Oct 2026"
+      assert page.title == "2026-10-07 Pricing sync"
       assert page.body == decision["body_after"]
       assert [%{via: "meeting"}] = Wiki.list_revisions(page)
 
@@ -314,9 +314,7 @@ defmodule Slipdock.Meetings.CommitTest do
       assert stale["why"] == "it was changed after the review read it"
       assert Repo.aggregate(Card, :count) == before
 
-      refute Repo.exists?(
-               from(p in Page, where: p.title == "Decisions / Pricing sync · 7 Oct 2026")
-             )
+      refute Repo.exists?(from(p in Page, where: p.title == "2026-10-07 Pricing sync"))
     end
 
     test "a decisions page struck on and edited since the review read it is stale too", ctx do
@@ -341,7 +339,7 @@ defmodule Slipdock.Meetings.CommitTest do
       {:ok, theirs} =
         Wiki.create_page(
           ctx.board,
-          %{"title" => "Decisions / Pricing sync · 7 Oct 2026", "body" => "Somebody's notes.\n"},
+          %{"title" => "2026-10-07 Pricing sync", "body" => "Somebody's notes.\n"},
           user: ctx.owner
         )
 
@@ -352,7 +350,7 @@ defmodule Slipdock.Meetings.CommitTest do
 
       assert [
                %{
-                 "page_title" => "Decisions / Pricing sync · 7 Oct 2026 (2)",
+                 "page_title" => "2026-10-07 Pricing sync (2)",
                  "created_page" => true
                }
              ] =
@@ -453,11 +451,12 @@ defmodule Slipdock.Meetings.CommitTest do
 
       {:ok, committed} = Commit.commit(capture, ctx.owner)
       assert [change] = committed.change_set["changes"]
-      assert change["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
+      assert change["page_title"] == "2026-10-07 Pricing sync"
       assert length(change["finding_ids"]) == 3
 
       page = Repo.get!(Page, change["page_id"])
-      [header, pricing, launch] = String.split(page.body, ~r/\n(?=## )/)
+      [header, section, pricing, launch] = String.split(page.body, ~r/\n(?=## )/)
+      assert section =~ ~r/\A## Decisions\n\nNewest last/
 
       # The header: the meeting, its date, who was there, and the way back.
       assert header =~ "Notes from the meeting “Pricing sync” on 7 Oct 2026."
@@ -502,7 +501,7 @@ defmodule Slipdock.Meetings.CommitTest do
 
       # In order: summary, topics, then the decisions.
       [summary, topics, decisions, entry] =
-        Enum.map(["**Summary.**", "**Key topics**", "**Decisions**", "- **Annual plan"], fn s ->
+        Enum.map(["**Summary.**", "**Key topics**", "## Decisions", "- **Annual plan"], fn s ->
           :binary.match(body, s) |> elem(0)
         end)
 
@@ -513,7 +512,7 @@ defmodule Slipdock.Meetings.CommitTest do
       [read] = Slipdock.Meetings.Context.decisions([Repo.get!(Page, change["page_id"])])
       assert [%{"text" => "**Annual plan at 20% off**" <> _}] = read["entries"]
       refute body =~ ~r/^\s*[-*] (?!\*\*Annual)/m
-      refute body =~ ~r/^#+ /m
+      refute body =~ ~r/^#+ (?!Decisions$)/m
     end
 
     test "a meeting with a summary and no decisions still gets its page; undo archives it",
@@ -537,6 +536,107 @@ defmodule Slipdock.Meetings.CommitTest do
       assert Repo.get!(Page, page.id).archived_at
     end
 
+    test "the page is named from the reading, with no recording name and no slash", ctx do
+      recording = "2026 10 06 14.27.47 cto intro sales/training platform.mp4"
+
+      capture =
+        reviewed_capture(ctx.board, ctx.owner, [decision_finding()], %{}, %{
+          title: recording,
+          started_at: ~U[2026-10-06 10:27:47Z],
+          notes: %{
+            "name" => "CTO intro: sales / training",
+            "summary" => "An intro.",
+            "topics" => [%{"title" => "The role", "summary" => nil}]
+          }
+        })
+
+      {:ok, committed} = Commit.commit(capture, ctx.owner)
+      [change] = committed.change_set["changes"]
+
+      assert change["page_title"] == "2026-10-06 CTO intro: sales training"
+      refute change["page_title"] =~ "/"
+      assert Repo.get!(Page, change["page_id"]).title == change["page_title"]
+    end
+
+    test "with no name the first topic names it, and with neither the capture, tidied", ctx do
+      named = fn attrs ->
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding()], %{}, attrs)
+        |> Commit.build()
+        |> Map.fetch!("changes")
+        |> hd()
+        |> Map.fetch!("page_title")
+      end
+
+      assert named.(%{notes: %{"summary" => "s", "topics" => [%{"title" => "Equity split"}]}}) ==
+               "2026-10-07 Equity split"
+
+      assert named.(%{title: "2026 10 06 14.27.47 cto intro.m4a"}) == "2026-10-07 cto intro"
+      assert named.(%{title: "2026-10-06 14.27.47.mp4"}) == "2026-10-07 Meeting"
+    end
+
+    test "the page goes in the board's Meetings folder, which is shared and survives undo",
+         ctx do
+      {:ok, committed} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding()])
+        |> Commit.commit(ctx.owner)
+
+      [change] = committed.change_set["changes"]
+      page = Repo.get!(Page, change["page_id"])
+      folder = Repo.get!(Slipdock.Wiki.Folder, page.folder_id)
+      assert folder.name == "Meetings"
+      assert is_nil(folder.parent_id)
+
+      {:ok, _} = Slipdock.Meetings.Undo.undo(Meetings.get_capture!(committed.id), ctx.owner)
+      assert Repo.get!(Page, page.id).archived_at
+
+      # Undone, it can't be written twice, and the next capture reuses the folder.
+      {:ok, next} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding()], %{}, %{
+          started_at: ~U[2026-10-09 10:00:00Z]
+        })
+        |> Commit.commit(ctx.owner)
+
+      [change] = next.change_set["changes"]
+      assert Repo.get!(Page, change["page_id"]).folder_id == folder.id
+    end
+
+    test "a Meetings folder already there is used, case aside", ctx do
+      {:ok, folder} = Wiki.create_folder(ctx.board, %{"name" => "meetings"})
+
+      {:ok, committed} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding()])
+        |> Commit.commit(ctx.owner)
+
+      [change] = committed.change_set["changes"]
+      assert Repo.get!(Page, change["page_id"]).folder_id == folder.id
+    end
+
+    test "the context step still reads a meeting's page, by what it says, not its title", ctx do
+      {:ok, committed} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding()])
+        |> Commit.commit(ctx.owner)
+
+      [change] = committed.change_set["changes"]
+      page = Repo.get!(Page, change["page_id"])
+
+      assert [%{"page_id" => id, "entries" => [%{"text" => "**Annual plan" <> _}]}] =
+               Slipdock.Meetings.Context.decisions([page])
+
+      assert id == page.id
+
+      {:ok, plain} =
+        Wiki.create_page(ctx.board, %{"title" => "2026-10-07 Notes", "body" => "- Not one\n"},
+          user: ctx.owner
+        )
+
+      assert Slipdock.Meetings.Context.decisions([plain]) == []
+    end
+
     test "a meeting with neither summary nor decisions writes no page", ctx do
       capture = reviewed_capture(ctx.board, ctx.owner, [action_finding("Sam Smith")])
       set = Commit.build(capture)
@@ -551,7 +651,7 @@ defmodule Slipdock.Meetings.CommitTest do
 
       [change] = committed.change_set["changes"]
       body = Repo.get!(Page, change["page_id"]).body
-      refute body =~ "## "
+      assert [["## Decisions"]] = Regex.scan(~r/^## .*$/m, body)
       assert body =~ ~r/struck through\.\n\n- \*\*Annual plan at 20% off\*\*/
     end
 
@@ -574,9 +674,9 @@ defmodule Slipdock.Meetings.CommitTest do
       [a] = first.change_set["changes"]
       [b] = second.change_set["changes"]
       [c] = third.change_set["changes"]
-      assert a["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
-      assert b["page_title"] == "Decisions / Pricing sync · 7 Oct 2026 (2)"
-      assert c["page_title"] == "Decisions / Pricing sync · 7 Oct 2026 (3)"
+      assert a["page_title"] == "2026-10-07 Pricing sync"
+      assert b["page_title"] == "2026-10-07 Pricing sync (2)"
+      assert c["page_title"] == "2026-10-07 Pricing sync (3)"
       assert b["created_page"] and c["created_page"]
       assert length(Enum.uniq([a["page_id"], b["page_id"], c["page_id"]])) == 3
 
@@ -592,7 +692,7 @@ defmodule Slipdock.Meetings.CommitTest do
         })
         |> Commit.commit(ctx.owner)
 
-      assert [%{"page_title" => "Decisions / Pricing sync · 8 Oct 2026"}] =
+      assert [%{"page_title" => "2026-10-08 Pricing sync"}] =
                next_day.change_set["changes"]
     end
 
@@ -606,7 +706,8 @@ defmodule Slipdock.Meetings.CommitTest do
 
       [change] = committed.change_set["changes"]
       assert String.length(change["page_title"]) <= Page.title_length()
-      assert change["page_title"] =~ ~r/^Decisions \/ Quarterly planning .* · 7 Oct 2026$/
+      assert change["page_title"] =~ ~r/^2026-10-07 Quarterly planning .*…$/
+      assert String.length(change["page_title"]) <= 71
     end
 
     test "replacing decisions strikes them on an earlier meeting's page and a legacy topic page, linking both ways",
@@ -631,7 +732,7 @@ defmodule Slipdock.Meetings.CommitTest do
       [%{"page_id" => earlier_id, "page_title" => earlier_title}] =
         earlier.change_set["changes"]
 
-      assert earlier_title == "Decisions / Kick-off · 1 Oct 2026"
+      assert earlier_title == "2026-10-01 Kick-off"
 
       capture =
         reviewed_capture(ctx.board, ctx.owner, [
@@ -646,11 +747,11 @@ defmodule Slipdock.Meetings.CommitTest do
 
       {:ok, committed} = Commit.commit(capture, ctx.owner)
       [own | struck] = committed.change_set["changes"]
-      assert own["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
+      assert own["page_title"] == "2026-10-07 Pricing sync"
       assert Enum.map(struck, & &1["page_title"]) == [earlier_title, "Decisions / Plans"]
       assert Enum.all?(struck, &(&1["finding_ids"] == [] and &1["lines_added"] == []))
 
-      own_link = "[[decisions-pricing-sync-7-oct-2026|Decisions / Pricing sync · 7 Oct 2026]]"
+      own_link = "[[2026-10-07-pricing-sync|2026-10-07 Pricing sync]]"
 
       # Struck where they are, each saying what replaced it and where.
       assert Repo.get!(Page, earlier_id).body =~
@@ -664,7 +765,7 @@ defmodule Slipdock.Meetings.CommitTest do
       earlier_slug = Repo.get!(Page, earlier_id).slug
 
       assert body =~
-               "Replaces “monthly plan only” on [[#{earlier_slug}|Decisions / Kick-off · 1 Oct 2026]]."
+               "Replaces “monthly plan only” on [[#{earlier_slug}|2026-10-01 Kick-off]]."
 
       assert body =~ "Replaces “free tier stays” on [[decisions-plans|Decisions / Plans]]."
     end
@@ -696,7 +797,7 @@ defmodule Slipdock.Meetings.CommitTest do
       body = Repo.get!(Page, first["page_id"]).body
       assert body =~ ~r/struck through\.\n\n## Pricing\n\n- \*\*Annual plan at 20% off\*\*/
       assert body =~ ~r/\n\n## Launch\n\n- \*\*Launch on Friday\*\*/
-      assert length(Regex.scan(~r/^## /m, body)) == 2
+      assert length(Regex.scan(~r/^## /m, body)) == 3
     end
   end
 end

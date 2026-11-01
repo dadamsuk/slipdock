@@ -1322,6 +1322,8 @@ defmodule Slipdock.AITest do
       # So is archiving them, and a card's title beats a page's twin.
       assert system =~ "\"type\": \"archive\", \"card_ids\""
       assert system =~ "even when a wiki page happens to share that title"
+      # Titles it writes are concise.
+      assert system =~ "at most 60 characters with the specific thing first"
     end
 
     test "chat mode knows edit mode archives cards, rather than calling it impossible" do

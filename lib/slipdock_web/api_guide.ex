@@ -1354,6 +1354,11 @@ defmodule SlipdockWeb.APIGuide do
          -d '{"boards": ["roadmap", "qvm-v1-rem", 3]}'   # your own order for the index
     ```
 
+    Keep titles short: about 60 characters at most, a series as
+    `<Series> <n>: <what>`, the detail in the description. Things written in
+    numbers need titles that tell them apart, and nothing written for a card
+    needs to repeat the card's title: its folder says that already.
+
     A long title gets a short name by itself (`short_name`, for tight spaces
     and the card's folder on disk): over 40 characters one is made on save, by
     the cheapest model when there is a key. `short_name` on a card write sets
@@ -1363,7 +1368,10 @@ defmodule SlipdockWeb.APIGuide do
     `<Board>/Cards/<card>/`, made on first use and tied to the card by id, so
     renaming the card renames it: `POST /api/cards/:id/pages`, or `card` on
     `POST /api/boards/:b/pages` and MCP `write_page`. Attaching an existing
-    page (`pin_card`) is a link, and moves nothing.
+    page (`pin_card`) is a link, and moves nothing. A page there titled like
+    the card, as "write it up" makes, keeps that title and takes the card's
+    short name on disk: `Cards/<short>/<short>.md`. A pass log is
+    `Pass <n> (<YYYY-MM-DD HH.MM>)`, there too.
 
     ### Waits, pauses and a card's state
 
@@ -1529,7 +1537,9 @@ defmodule SlipdockWeb.APIGuide do
     and `paused`. Only `rule` is needed to start one; a card with no due
     date becomes the first occurrence. `GET` reads it (from an older
     instance too, with `current: false`), `DELETE` stops it, and
-    `POST …/recurrence/skip` lets the next one go.
+    `POST …/recurrence/skip` lets the next one go. Every occurrence keeps the
+    title and gets the short name `<title or short name> <YYYY-MM-DD>`, its
+    due date, so their folders tell themselves apart.
     `GET /api/boards/:board/recurring` lists a board's. Over MCP it is
     `update_card`'s `recurrence` (`null` stops it, `skip: true` skips one).
 
@@ -1824,9 +1834,10 @@ defmodule SlipdockWeb.APIGuide do
       undone as a whole. Every finding quotes the transcript word for word (a
       quote that is not there is dropped), and anything uncertain becomes a
       question for a person. Each meeting gets one wiki page of its own,
-      *Decisions / <meeting> · <date>*: its summary and key topics, then its
-      decisions, grouped by topic when there are several; one that replaces an earlier decision strikes it on whichever
-      page holds it.
+      *<YYYY-MM-DD> <meeting in a few words>* in the board's `Meetings` folder:
+      its summary and key topics, then a Decisions section, grouped by topic
+      when there are several; one that replaces an earlier decision strikes it
+      on whichever page holds it.
 
       It is on only for the people an admin has turned it on for (and for
       admins): for anybody else the routes answer 404 `meetings_not_allowed`,
@@ -1851,8 +1862,8 @@ defmodule SlipdockWeb.APIGuide do
       A reading is selective: a short summary and the key topics (`notes` on
       the capture) carry the talk, and findings are only actions somebody took
       on, decisions agreed and changes to existing cards. Findings you send
-      may carry a `summary` and `topics` too, which then stand in for the
-      reading's.
+      may carry a `name` (the meeting in a few words, for its page's title), a
+      `summary` and `topics` too, which then stand in for the reading's.
 
       Over MCP: `capture_meeting` (send a transcript, with your own findings if
       you have them), `get_capture`, `resolve_capture_question`,

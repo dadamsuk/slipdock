@@ -72,6 +72,23 @@ defmodule Slipdock.Meetings.ReaderTest do
            )
   end
 
+  test "the model is asked to name the meeting and keep finding titles concise", %{
+    capture: capture
+  } do
+    AIStub.reply_with(%{"name" => "Pricing", "findings" => []})
+    {:ok, readings} = Reader.read(capture)
+
+    [first, _second] = drain_requests()
+    [%{"content" => system}, _user] = first["messages"]
+    assert system =~ "\"name\": the meeting in a few words"
+    assert system =~ "at most 60\n   characters, the specific thing first"
+    assert readings["notes"]["name"] == "Pricing"
+
+    chat = Reader.system_prompt(%Slipdock.Meetings.Capture{kind: "chat"})
+    assert chat =~ "\"name\": the conversation in a few words"
+    assert chat =~ "at most 60\n   characters, the specific thing first"
+  end
+
   test "the model is given no tools, and the transcript only inside the fence", %{
     capture: capture
   } do
@@ -434,6 +451,20 @@ defmodule Slipdock.Meetings.ReaderTest do
 
       assert Reader.join_notes([]) == %{"summary" => nil, "topics" => []}
     end
+
+    test "the first stretch to name the meeting names it" do
+      none = %{"summary" => nil, "topics" => []}
+
+      assert Reader.join_notes([
+               none,
+               Map.put(none, "name", "Pricing"),
+               Map.put(none, "name", "No")
+             ])[
+               "name"
+             ] == "Pricing"
+
+      refute Map.has_key?(Reader.join_notes([none]), "name")
+    end
   end
 
   describe "an answer cut off by the token limit" do
@@ -575,6 +606,9 @@ defmodule Slipdock.Meetings.ReaderTest do
 
       assert Schema.notes(%{"topics" => "not a list"}) == %{"summary" => nil, "topics" => []}
       assert Schema.notes(nil) == %{"summary" => nil, "topics" => []}
+      assert Schema.notes(%{"name" => "  Pricing sync "})["name"] == "Pricing sync"
+      refute Map.has_key?(Schema.notes(%{"name" => "   "}), "name")
+      refute Map.has_key?(Schema.notes(%{"name" => 7}), "name")
       assert Schema.notes(%{"summary" => 7})["summary"] == nil
     end
 

@@ -19,7 +19,7 @@ defmodule Slipdock.Automations.Runner do
   alias Slipdock.Accounts.User
   alias Slipdock.Automations.{Notifier, Spec}
   alias Slipdock.Boards.{Card, Column, Tag}
-  alias Slipdock.Wiki.Page
+  alias Slipdock.Wiki.{GeneratedTitles, Page}
 
   @doc """
   Whether `rule` should act on `event`. The event is a map with a `:type`
@@ -432,7 +432,7 @@ defmodule Slipdock.Automations.Runner do
 
   defp do_perform("alert", action, ctx) do
     attrs = %{
-      "title" => text(action["title"], ctx, "Alert"),
+      "title" => title(action, ctx),
       "body" => text(action["body"], ctx, nil),
       "severity" => action["severity"] || "info",
       "board_id" => board_id(ctx),
@@ -600,7 +600,7 @@ defmodule Slipdock.Automations.Runner do
 
     if column do
       attrs =
-        %{"title" => text(action["title"], ctx, "Untitled")}
+        %{"title" => title(action, ctx)}
         |> put_if("description", text(action["description"], ctx, nil))
         |> put_if("priority", action["priority"] && to_string(action["priority"]))
         |> put_if("due_date", action["due_date"])
@@ -913,6 +913,19 @@ defmodule Slipdock.Automations.Runner do
   end
 
   def render(template, bindings), do: render(to_string(template), bindings)
+
+  # What a rule that named nothing makes says what fired, on what, and when.
+  # So does one whose title came out blank.
+  defp title(action, ctx) do
+    case text(action["title"], ctx, nil) |> to_string() |> String.trim() do
+      "" ->
+        card = ctx.card && (ctx.card.short_name || ctx.card.title)
+        GeneratedTitles.fired(ctx.rule.name, card, Date.utc_today())
+
+      title ->
+        title
+    end
+  end
 
   defp text(nil, _ctx, default), do: default
   defp text(template, ctx, _default), do: render(to_string(template), ctx.bindings)

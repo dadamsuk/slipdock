@@ -263,6 +263,10 @@ is made). An agent sets one only when the person asked for repeating work:
 "every mon"`, or `PUT /api/cards/:id/recurrence`. See
 [the manual](manual.md#recurring-cards).
 
+Card titles an agent writes stay short: about 60 characters at most, a series
+as `<Series> <n>: <what>`, the detail in the description. A page for a card
+sits in the card's folder, so its title needn't repeat the card's.
+
 A snoozed card is hidden until a day: `list_cards`, `--deps ready` and the
 board's lists leave it out until it wakes, so an agent never picks one up.
 When the person says something can wait until a date, or what a card waits
@@ -408,7 +412,9 @@ site-specific part of a hook (which notifier, what to keep from a pass) it gives
 a prompt to paste into Claude Code on that machine (*Have Claude write this
 hook*, or `slipdock runner setup <board> <runner> --hook-prompt`), which states
 the hook contract and points at a worked example served at
-`/runner/examples/after-job-hook.sh`.
+`/runner/examples/after-job-hook.sh`, with a pass-log script at
+`/runner/examples/passlog.sh` that writes `Pass <card> (<YYYY-MM-DD HH.MM>)`
+into the card's folder.
 
 **A job runs with nobody watching**, so two things are set up for it. A
 Claude runner may use the Slipdock MCP tools without asking (`--allowedTools`

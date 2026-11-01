@@ -55,6 +55,22 @@ defmodule Slipdock.Boards.ShortNames do
   end
 
   @doc """
+  The short name of a recurring card's occurrence on `date`: the card's own,
+  or its title, then the date, so a series' folders tell themselves apart. An
+  earlier occurrence's date is not carried on. Saved as a person's would be,
+  so `refine/1` leaves it alone.
+  """
+  def occurrence(%Card{} = card, %Date{} = date) do
+    stamp = " " <> Date.to_iso8601(date)
+
+    (card.short_name || card.title)
+    |> String.replace(~r/\s+\d{4}-\d{2}-\d{2}\z/u, "")
+    |> String.trim()
+    |> DiskName.shorten(@long - String.length(stamp))
+    |> Kernel.<>(stamp)
+  end
+
+  @doc """
   What a card's new values do to its short name, in the changeset that saves
   them: one typed marks it edited, one cleared hands it back, and a changed
   title makes a new one unless a person's stands.

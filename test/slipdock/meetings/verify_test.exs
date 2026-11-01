@@ -477,6 +477,36 @@ defmodule Slipdock.Meetings.VerifyTest do
       assert [%{"ref" => "W-7", "answers" => true}] = f.known
     end
 
+    test "a meeting's page isn't the wiki answering it, whatever it is called", %{
+      capture: capture
+    } do
+      page = %{
+        "type" => "page",
+        "id" => 7,
+        "ref" => "W-7",
+        "title" => "2026-10-01 Pricing",
+        "strength" => "similarity",
+        "lines" => ["L1"]
+      }
+
+      question = %{
+        "kind" => "open_question",
+        "title" => "Which plans do we sell?",
+        "evidence" => [%{"line" => "L1", "quote" => "Let's settle the pricing page."}]
+      }
+
+      capture =
+        with_readings(capture, [question], nil, nil, %{
+          "candidates" => [page],
+          "decisions" => [%{"page_id" => 7, "entries" => []}]
+        })
+
+      {:ok, _} = Meetings.verify(capture)
+
+      [f] = findings(capture)
+      refute "answered_in_wiki" in f.signals
+    end
+
     test "an open question nobody answered goes to the backlog", %{board: board, owner: owner} do
       {:ok, _} = Slipdock.Boards.create_column(board, %{"name" => "Backlog"})
       capture = capture_fixture(board, owner)
