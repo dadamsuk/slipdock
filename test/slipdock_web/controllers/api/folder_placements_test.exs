@@ -5,7 +5,7 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
   import Slipdock.Fixtures
 
   alias Slipdock.{Vaults, Wiki}
-  alias Slipdock.Wiki.FolderPlacements
+  alias Slipdock.Wiki.{FolderPlacements, Folders}
 
   setup %{conn: conn, user: user} do
     board = board_fixture(%{"name" => "Brain", "code" => "fpapi"}, owner: user)
@@ -137,6 +137,65 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
       |> json_response(200)
 
     assert body["folder"]["also_in"] == []
+  end
+
+  describe "by the vault path of a folder (#1583)" do
+    setup ctx do
+      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
+      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
+      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
+      :ok
+    end
+
+    test "one that exists is used, and none is added", ctx do
+      before = length(Folders.list(ctx.board))
+
+      body = ctx.conn |> patch_folder(ctx.folder, %{"also" => "/Other"}) |> json_response(200)
+
+      assert [%{"folder_id" => id}] = body["folder"]["also_in"]
+      assert id == ctx.other.id
+      assert length(Folders.list(ctx.board)) == before
+    end
+
+    test "a new one is made, as for a page, nested included", ctx do
+      body =
+        ctx.conn |> patch_folder(ctx.folder, %{"also" => "/Other/New/Leaf"}) |> json_response(200)
+
+      assert [%{"path" => "Other/New/Leaf"}] = body["folder"]["also_in"]
+      assert [_] = Enum.filter(Folders.list(ctx.board), &(&1.name == "Other"))
+    end
+
+    test "not_in never makes one", ctx do
+      before = length(Folders.list(ctx.board))
+      assert ctx.conn |> patch_folder(ctx.folder, %{"not_in" => "/Nowhere"}) |> json_response(404)
+      assert length(Folders.list(ctx.board)) == before
+    end
+
+    test "a board the caller only reads gets no folder", ctx do
+      owner = user_fixture("fp-owner@example.com")
+      theirs = board_fixture(%{"name" => "Theirs", "code" => "fptheirs"}, owner: owner)
+      share_fixture(theirs, ctx.user, "read")
+      share_fixture(ctx.board, owner, "write")
+      {:ok, vault} = Vaults.create_vault(owner, %{"name" => "W"})
+      {:ok, _} = Vaults.add_mapping(vault, owner, %{path: "/", board: theirs})
+
+      other = board_fixture(%{"name" => "Mine", "code" => "fpmine"}, owner: ctx.user)
+      {:ok, mine} = Wiki.create_folder(other, %{"name" => "Mine"})
+      share_fixture(other, owner, "write")
+      {:ok, _} = Vaults.add_mapping(vault, owner, %{path: "/Mine", board: other})
+
+      assert ctx.conn |> patch_folder(mine, %{"also" => "/Made"}) |> json_response(404)
+      assert Folders.list(theirs) == []
+    end
+
+    test "file_folder over MCP goes the same way", ctx do
+      before = length(Folders.list(ctx.board))
+
+      result = mcp(ctx.conn, %{board: "fpapi", folder: "Home/Topic", also: "/Other"})
+
+      assert [%{"path" => "Other"}] = result["structuredContent"]["also_in"]
+      assert length(Folders.list(ctx.board)) == before
+    end
   end
 
   test "a move to another board reports the placements it dropped", ctx do

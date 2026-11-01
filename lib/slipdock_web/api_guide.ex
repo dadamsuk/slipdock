@@ -2257,7 +2257,9 @@ defmodule SlipdockWeb.APIGuide do
     one history. `POST /api/pages/W-31/folder {"also": "Ideas"}` adds one
     (made if new), `{"not_in": "Ideas"}` takes it away, `board` names another
     board's folder, and a vault path (`"/Projects/Notes"`) reaches any board of
-    the page's vault. A page's JSON lists them as `also_in`; a folder's
+    the page's vault. A path uses the folders that are there and makes only
+    the levels that aren't, for a folder's `also` as well, if you write on both
+    boards. A page's JSON lists them as `also_in`; a folder's
     listing (`?folder=`, `/folders`) includes them marked `"also": true`, each
     page once. Archiving keeps them; deleting a folder drops its own.
 

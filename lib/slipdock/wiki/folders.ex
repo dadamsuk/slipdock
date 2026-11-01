@@ -151,16 +151,34 @@ defmodule Slipdock.Wiki.Folders do
 
   # A path names folders relative to the root, one segment per level.
   defp follow_path(board, segments) do
-    Enum.reduce_while(segments, {:ok, nil}, fn segment, {:ok, parent} ->
+    case at_path(board, nil, segments) do
+      {:ok, nil} -> {:error, :not_found, "folder"}
+      other -> other
+    end
+  end
+
+  @doc """
+  The folder `segments` name below `parent` (`nil`: the board's root), one
+  level each and nowhere else: unlike `find/2`, a bare name is not looked for
+  across the board, and a number is a name. No segments is `parent` itself.
+  """
+  def at_path(%Board{} = board, parent, segments) do
+    Enum.reduce_while(segments, {:ok, parent}, fn segment, {:ok, parent} ->
       case by_name_or_slug(board, parent && parent.id, segment) do
         nil -> {:halt, {:error, :not_found, "folder #{inspect(segment)}"}}
         folder -> {:cont, {:ok, folder}}
       end
     end)
-    |> case do
-      {:ok, nil} -> {:error, :not_found, "folder"}
-      other -> other
-    end
+  end
+
+  @doc "As `at_path/3`, making whichever levels are missing."
+  def ensure_path(%Board{} = board, parent, segments) do
+    Enum.reduce_while(segments, {:ok, parent}, fn segment, {:ok, parent} ->
+      case ensure(board, parent && parent.id, segment) do
+        {:ok, folder} -> {:cont, {:ok, folder}}
+        error -> {:halt, error}
+      end
+    end)
   end
 
   # `:anywhere` ignores the parent, which is what a bare name means: slugs

@@ -1079,7 +1079,13 @@ defmodule SlipdockWeb.API.PageController do
     with {:ok, folder, board} <- fetch_folder(conn, params, :write),
          {:ok, folder} <- maybe_update_folder(folder, board, rest, user),
          {:ok, _} <-
-           folder_placement(conn, folder, params, "also", &FolderPlacements.add(folder, &1, user)),
+           folder_placement(
+             conn,
+             folder,
+             params,
+             "also",
+             &FolderPlacements.add(folder, &1, user)
+           ),
          {:ok, _} <-
            folder_placement(
              conn,
@@ -1115,18 +1121,19 @@ defmodule SlipdockWeb.API.PageController do
     do: {:ok, nil}
 
   defp folder_placement(conn, folder, params, key, act) do
-    with {:ok, target} <- placement_target(conn, folder, params[key], params["in_board"]),
+    with {:ok, target} <-
+           placement_target(conn, folder, params[key], params["in_board"], key == "also"),
          do: act.(target)
   end
 
-  defp placement_target(_conn, _folder, ref, _board) when ref in [nil, ""],
+  defp placement_target(_conn, _folder, ref, _board, _create?) when ref in [nil, ""],
     do: {:error, :bad_request, "say which folder"}
 
-  defp placement_target(_conn, folder, "/" <> _ = path, _board),
-    do: Placements.folder_at(folder, path)
+  defp placement_target(conn, folder, "/" <> _ = path, _board, create?),
+    do: Placements.folder_at(folder, path, create: create?, user: conn.assigns.current_user)
 
   # An id names the folder wherever it is; `add` checks the board is in reach.
-  defp placement_target(conn, _folder, ref, board_ref)
+  defp placement_target(conn, _folder, ref, board_ref, _create?)
        when is_integer(ref) and board_ref in [nil, ""] do
     with %{} = target <- Wiki.get_folder(ref),
          :ok <- Authorize.board(conn, Boards.get_board!(target.board_id), :read) do
@@ -1136,7 +1143,7 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  defp placement_target(conn, folder, ref, board_ref) do
+  defp placement_target(conn, folder, ref, board_ref, _create?) do
     board_result =
       if board_ref in [nil, ""],
         do: {:ok, Boards.get_board!(folder.board_id)},
@@ -1270,13 +1277,8 @@ defmodule SlipdockWeb.API.PageController do
   defp placement_folder(_conn, _page, ref, _board, _create?) when ref in [nil, ""],
     do: {:error, :bad_request, "say which folder"}
 
-  # Only a writer on the page's board makes the folders a path names: never
-  # somebody the page was shared with (#816).
   defp placement_folder(conn, page, "/" <> _ = path, _board, create?),
-    do:
-      Placements.folder_at(page, path,
-        create: create? and Sharing.board_writer?(conn.assigns.current_user, page.board_id)
-      )
+    do: Placements.folder_at(page, path, create: create?, user: conn.assigns.current_user)
 
   defp placement_folder(conn, page, ref, board_ref, create?) do
     board_result =

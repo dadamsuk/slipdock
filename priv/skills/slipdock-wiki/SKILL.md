@@ -150,7 +150,8 @@ slipdock folder rm <board> Choices                 # the folder only
 *also filed in* others — the same page, not a copy:
 `slipdock page file <page> --also "Design/Decisions"` (`--not-in` to undo;
 `--board B`, or a vault path like `/Projects/Notes`, for another board in the
-same vault). File it twice rather than writing it twice.
+same vault; a path uses the folders that are there and makes only what is
+missing). File it twice rather than writing it twice.
 A folder can be filed in more places the same way, with everything in it:
 `slipdock folder file <board> <folder> --also F` (`--not-in F` to undo; both
 repeat). It is never filed inside itself, and `folder show` / `folder ls` say

@@ -5,7 +5,7 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
   import Slipdock.Fixtures
 
   alias Slipdock.{Vaults, Wiki}
-  alias Slipdock.Wiki.Placements
+  alias Slipdock.Wiki.{Folders, Placements}
 
   setup %{conn: conn, user: user} do
     board = board_fixture(%{"name" => "Brain", "code" => "plapi"}, owner: user)
@@ -112,6 +112,63 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
     assert [%{"path" => "Home"}] = body["page"]["also_in"]
     {:ok, moved} = Wiki.find_folder(Wiki.board_of(page), "Moved")
     assert Wiki.get_page!(page.id).folder_id == moved.id
+  end
+
+  describe "by the vault path of a folder (#1583)" do
+    setup %{user: user, board: board} do
+      {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
+      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+      {:ok, inbox} = Wiki.create_folder(board, %{"name" => "Inbox"})
+      %{inbox: inbox}
+    end
+
+    test "one that exists is used, and none is added", c do
+      before = length(Folders.list(c.board))
+
+      body = c.conn |> file(c.page, %{"also" => "/Inbox"}) |> json_response(200)
+
+      assert [%{"folder_id" => id}] = body["page"]["also_in"]
+      assert id == c.inbox.id
+      assert length(Folders.list(c.board)) == before
+    end
+
+    test "a new one is made, nested included", c do
+      body = c.conn |> file(c.page, %{"also" => "/Inbox/2026/November"}) |> json_response(200)
+
+      assert [%{"path" => "Inbox/2026/November"}] = body["page"]["also_in"]
+      assert [_] = Enum.filter(Folders.list(c.board), &(&1.name == "Inbox"))
+    end
+
+    test "someone with only the page shared finds folders but makes none (#816)", c do
+      for {level, status} <- [{"read", 403}, {"write", 404}] do
+        sharee = user_fixture("plapi-#{level}@example.com")
+        {:ok, _} = Slipdock.Access.grant(c.page, sharee, level, c.user)
+        before = length(Folders.list(c.board))
+
+        assert sharee
+               |> conn_as()
+               |> put_req_header("accept", "application/json")
+               |> file(c.page, %{"also" => "/Made/By/Sharee"})
+               |> json_response(status)
+
+        assert length(Folders.list(c.board)) == before
+      end
+    end
+
+    test "not_in never makes one", c do
+      before = length(Folders.list(c.board))
+      assert c.conn |> file(c.page, %{"not_in" => "/Nowhere"}) |> json_response(404)
+      assert length(Folders.list(c.board)) == before
+    end
+
+    test "update_page over MCP goes the same way", c do
+      before = length(Folders.list(c.board))
+
+      result = call(c.conn, "update_page", %{page: c.page.code, also: "/Inbox"})
+
+      assert result["structuredContent"]["also_in"] == ["Inbox"]
+      assert length(Folders.list(c.board)) == before
+    end
   end
 
   describe "over MCP" do
