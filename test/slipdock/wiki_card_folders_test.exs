@@ -153,11 +153,13 @@ defmodule Slipdock.WikiCardFoldersTest do
 
     test "a link finds it by its whole title, never the shortened name (W-2201 rule 5)",
          %{board: board, user: user} do
-      card = long_card(board)
+      title = "Parked jobs must be released when their lease runs out"
+      card = card_fixture(hd(board.columns), %{"title" => title})
       page = write_up(card, user)
       index = Vaults.Index.build(Vaults.root(user))
 
-      assert [%{id: id}] = Vaults.Index.match(index, card.title)
+      assert card.short_name
+      assert [%{id: id}] = Vaults.Index.match(index, title)
       assert id == page.id
       assert Vaults.Index.match(index, card.short_name) == []
     end
