@@ -26,9 +26,7 @@ defmodule SlipdockWeb.VaultRecentLiveTest do
     nested = page(kb, "Buried note", deep.id, ~U[2026-05-01 09:00:00Z])
     journal = page(hunt, "Intake Questions", nil, ~U[2026-03-01 09:00:00Z])
 
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "RecentNotes"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: hunt})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "RecentNotes"})
 
     %{
       kb: kb,
@@ -69,20 +67,25 @@ defmodule SlipdockWeb.VaultRecentLiveTest do
     assert has_element?(
              view,
              "#vault-recent-#{ctx.nested.id} .vault-recent-where",
-             "Big Ideas / Deeper"
+             "Keystone / Big Ideas / Deeper"
            )
-
-    assert has_element?(view, "#vault-recent-#{ctx.journal.id} .vault-recent-where", "Journal")
-    refute has_element?(view, "#vault-recent-#{ctx.top.id} .vault-recent-where")
 
     assert has_element?(
              view,
-             "#vault-recent-#{ctx.idea.id} a[href='/vaults/RecentNotes/Big%20Ideas/Plain%20text']"
+             "#vault-recent-#{ctx.journal.id} .vault-recent-where",
+             "Journal Desk"
+           )
+
+    assert has_element?(view, "#vault-recent-#{ctx.top.id} .vault-recent-where", "Keystone")
+
+    assert has_element?(
+             view,
+             "#vault-recent-#{ctx.idea.id} a[href='/vaults/RecentNotes/Keystone/Big%20Ideas/Plain%20text']"
            )
   end
 
   test "a folder lists what is in it and in the folders inside it, newest first", ctx do
-    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes/Big%20Ideas")
+    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes/Keystone/Big%20Ideas")
 
     assert listed(view) == [ctx.nested.id, ctx.idea.id]
     # Where is said from the folder down, not from the top of the vault.
@@ -94,15 +97,15 @@ defmodule SlipdockWeb.VaultRecentLiveTest do
     refute has_element?(view, "h2", "Pages")
   end
 
-  test "a board mounted at a path lists only its own notes", ctx do
-    {:ok, view, html} = live(ctx.conn, "/vaults/RecentNotes/Journal")
+  test "a board lists only its own notes", ctx do
+    {:ok, view, html} = live(ctx.conn, "/vaults/RecentNotes/Journal%20Desk")
 
     assert listed(view) == [ctx.journal.id]
     assert html =~ "in this folder and the ones inside it"
   end
 
   test "an empty folder says so rather than listing nothing", ctx do
-    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes/Nothing%20Yet")
+    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes/Keystone/Nothing%20Yet")
 
     assert listed(view) == []
     assert has_element?(view, "#vault-recent", "No notes in this folder yet.")
@@ -110,7 +113,7 @@ defmodule SlipdockWeb.VaultRecentLiveTest do
 
   test "a note edited moves to the top of its folder's list", ctx do
     {:ok, _} = Wiki.update_page(ctx.idea, %{"body" => "Changed just now."})
-    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes/Big%20Ideas")
+    {:ok, view, _} = live(ctx.conn, "/vaults/RecentNotes/Keystone/Big%20Ideas")
 
     assert listed(view) == [ctx.idea.id, ctx.nested.id]
   end

@@ -15,7 +15,7 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
   }
 
   setup %{user: user} do
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     %{vault: vault}
   end
 
@@ -106,8 +106,10 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/vaults")
       assert save(view, vault, "Elsewhere") =~ "no folder"
 
-      html = render_click(view, "delete", %{"id" => vault.id})
-      assert html =~ "Deleted Notes."
+      html =
+        render_submit(view, "keys", %{"vault_id" => vault.id, "shortcut" => "", "hotkey" => ""})
+
+      assert html =~ "Press b then"
       refute html =~ "no folder &quot;Elsewhere&quot;"
     end
   end

@@ -546,7 +546,7 @@ defmodule SlipdockWeb.Layouts do
     <.menu_link navigate={~p"/work"} icon="hero-user" on={@active == :work}>My work</.menu_link>
     <.menu_link navigate={~p"/wiki"} icon="hero-book-open" on={@active == :wiki}>Wiki</.menu_link>
     <.menu_link navigate={~p"/vaults"} icon="hero-rectangle-stack" on={@active == :vaults}>
-      Vaults
+      Vault
     </.menu_link>
     <.menu_link
       :if={@phone}

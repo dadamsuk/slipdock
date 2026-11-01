@@ -10,8 +10,7 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
   setup %{user: user} do
     board = board_fixture(%{"name" => "Brain QL"})
     {:ok, inbox} = Wiki.create_folder(board, %{"name" => "Inbox"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Mind"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Mind"})
     %{board: board, vault: vault, inbox: inbox}
   end
 
@@ -32,7 +31,7 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
   end
 
   test "a note the model placed shows no fallback line", %{conn: conn} do
-    Slipdock.AIStub.reply_with(%{"title" => "One", "folder" => "Inbox"})
+    Slipdock.AIStub.reply_with(%{"title" => "One", "folder" => "Brain QL/Inbox"})
     {:ok, view, _html} = live(conn, ~p"/")
 
     open(view)
@@ -44,7 +43,7 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
   end
 
   test "the button opens it, Save files it and says where", %{conn: conn, board: board} do
-    Slipdock.AIStub.reply_with(%{"title" => "Printers", "folder" => "Inbox"})
+    Slipdock.AIStub.reply_with(%{"title" => "Printers", "folder" => "Brain QL/Inbox"})
     {:ok, view, _html} = live(conn, ~p"/")
     refute has_element?(view, "#quick-note-panel")
 
@@ -52,7 +51,7 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
     submit(view, "ring the printers")
     html = render_async(view)
 
-    assert has_element?(view, "#quick-note-where", "Mind / Inbox")
+    assert has_element?(view, "#quick-note-where", "Mind / Brain QL/Inbox")
     assert html =~ "Printers"
     assert has_element?(view, "#quick-note-text-1", "")
     assert [page] = Wiki.list_pages(board)
@@ -79,16 +78,15 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
     assert Wiki.list_pages(board) == []
   end
 
-  test "a refused save keeps what was typed", %{conn: conn, user: user, vault: vault} do
-    {:ok, _} = Vaults.delete_vault(vault)
-    assert Vaults.list_vaults(user) == []
+  test "a refused save keeps what was typed", %{conn: conn, board: board} do
+    {:ok, _} = Slipdock.Boards.delete_board(board)
 
     {:ok, view, _html} = live(conn, ~p"/")
     open(view)
     submit(view, "keep this")
     render_async(view)
 
-    assert has_element?(view, "#quick-note-error", "Make one under Vaults first.")
+    assert has_element?(view, "#quick-note-error", "can be written to")
     assert has_element?(view, "#quick-note-text-0", "keep this")
   end
 
@@ -106,22 +104,22 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
     {:ok, view, _html} = live(ctx.conn, ~p"/account/settings")
 
     view
-    |> form("#quick-note-form", %{"location" => "#{ctx.vault.id}:Inbox"})
+    |> form("#quick-note-form", %{"location" => "#{ctx.vault.id}:Brain QL/Inbox"})
     |> render_submit()
 
     user = Repo.reload!(ctx.user)
     assert user.quick_note_vault_id == ctx.vault.id
-    assert user.quick_note_folder == "Inbox"
+    assert user.quick_note_folder == "Brain QL/Inbox"
 
     Slipdock.AIStub.reply_with(%{"title" => "T"})
-    assert {:ok, %{location: "Inbox"}} = Slipdock.Wiki.QuickNote.save(user, "x")
+    assert {:ok, %{location: "Brain QL/Inbox"}} = Slipdock.Wiki.QuickNote.save(user, "x")
   end
 
   test "the setting can be cleared", ctx do
     {:ok, user} =
       Accounts.update_quick_note(ctx.user, %{
         quick_note_vault_id: ctx.vault.id,
-        quick_note_folder: "Inbox"
+        quick_note_folder: "Brain QL/Inbox"
       })
 
     {:ok, view, _html} = live(ctx.conn, ~p"/account/settings")
@@ -132,7 +130,7 @@ defmodule SlipdockWeb.QuickNoteLiveTest do
 
   test "somebody else's vault is refused by the setting", ctx do
     other = user_fixture("qnother@example.com")
-    {:ok, theirs} = Vaults.create_vault(other, %{"name" => "Theirs"})
+    {:ok, theirs} = other |> Vaults.root() |> Vaults.update_vault(%{"name" => "Theirs"})
 
     {:ok, view, _html} = live(ctx.conn, ~p"/account/settings")
 

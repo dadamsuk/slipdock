@@ -4,7 +4,7 @@ defmodule SlipdockWeb.API.PageSwitchTest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Vaults, Wiki}
+  alias Slipdock.Wiki
 
   setup %{conn: conn, user: user} do
     board = board_fixture(%{"name" => "Switch API", "code" => "switchapi"}, owner: user)
@@ -20,7 +20,7 @@ defmodule SlipdockWeb.API.PageSwitchTest do
              conn |> get("/api/boards/switchapi/pages/switch?q=rtpol") |> json_response(200)
 
     assert match["id"] == page.id
-    assert match["path"] == "Specs/Retry policy"
+    assert match["path"] == "Switch API/Specs/Retry policy"
     assert match["matched"] == "title"
   end
 
@@ -41,27 +41,24 @@ defmodule SlipdockWeb.API.PageSwitchTest do
     assert conn |> get("/api/boards/privswitch/pages/switch?q=x") |> json_response(404)
   end
 
-  test "?vaults=all adds the caller's other vaults, saying which (#1303)", %{
+  test "the caller's other boards are in the one vault, so ?vaults=all adds none (#1303)", %{
     conn: conn,
     user: user
   } do
     garden = board_fixture(%{"name" => "Garden", "code" => "swapi1303"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Allotment"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: garden})
     {:ok, rose} = Wiki.create_page(garden, %{"title" => "Retry roses"}, user: user)
 
     assert %{"matches" => plain} =
              conn |> get("/api/boards/switchapi/pages/switch?q=retry") |> json_response(200)
 
-    refute Enum.any?(plain, &(&1["id"] == rose.id))
+    assert %{"path" => "Garden/Retry roses", "vault" => nil} =
+             Enum.find(plain, &(&1["id"] == rose.id))
 
     assert %{"matches" => wide} =
              conn
              |> get("/api/boards/switchapi/pages/switch?q=retry&vaults=all")
              |> json_response(200)
 
-    assert %{"vault" => "Allotment", "code" => code} = Enum.find(wide, &(&1["id"] == rose.id))
-    assert code == rose.code
-    assert Enum.any?(wide, &(&1["title"] == "Retry policy" and is_nil(&1["vault"])))
+    assert wide == plain
   end
 end

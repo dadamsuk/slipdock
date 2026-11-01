@@ -14,9 +14,7 @@ defmodule Slipdock.WikiSwitcherTest do
     user = user_fixture()
     kb = board_fixture(%{"name" => "KB", "code" => "kbsw"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsw"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
     {:ok, call} = Wiki.create_page(jobs, %{"title" => "Call"}, user: user)
     {:ok, call} = Wiki.file_page(call, acme)
@@ -63,10 +61,10 @@ defmodule Slipdock.WikiSwitcherTest do
     test "spans the vault's boards, with vault paths", %{user: user, kb: kb, call: call} do
       pool = Switcher.pool(user, kb)
 
-      assert %{path: "Journal/Acme/Call", board: "Journal Desk"} =
+      assert %{path: "Journal Desk/Acme/Call", board: "Journal Desk"} =
                Enum.find(pool, &(&1.id == call.id))
 
-      assert %{path: "Rust ownership"} = Enum.find(pool, &(&1.title == "Rust ownership"))
+      assert %{path: "KB/Rust ownership"} = Enum.find(pool, &(&1.title == "Rust ownership"))
     end
 
     test "finds by title, by alias and by path, saying which", %{user: user, kb: kb} do
@@ -96,6 +94,7 @@ defmodule Slipdock.WikiSwitcherTest do
 
     test "outside a vault, the board alone, with folder paths", %{user: user} do
       lone = board_fixture(%{"name" => "Lone", "code" => "lonesw"}, owner: user)
+      nobodys(lone, user)
       {:ok, folder} = Wiki.create_folder(lone, %{"name" => "Specs"})
       {:ok, page} = Wiki.create_page(lone, %{"title" => "Retry"}, user: user)
       {:ok, _} = Wiki.file_page(page, folder)
@@ -156,82 +155,88 @@ defmodule Slipdock.WikiSwitcherTest do
 
   describe "linkable_pool/2 (#1303)" do
     setup %{user: user} do
-      notes = board_fixture(%{"name" => "Notes", "code" => "notsw1303"}, owner: user)
-      {:ok, other} = Vaults.create_vault(user, %{"name" => "Garden"})
-      {:ok, _} = Vaults.add_mapping(other, user, %{path: "/", board: notes})
-      {:ok, rose} = Wiki.create_page(notes, %{"title" => "Rose pruning"}, user: user)
+      lender = user_fixture("switch1303.lender@example.com")
+      lent = board_fixture(%{"name" => "Lent", "code" => "lentsw1303"}, owner: lender)
+      share_fixture(lent, user, "write")
+      {:ok, borrowed} = Wiki.create_page(lent, %{"title" => "Borrowed"}, user: lender)
 
-      stranger = user_fixture("switch1303.stranger@example.com")
-      hidden = board_fixture(%{"name" => "Hidden", "code" => "hidsw1303"}, owner: stranger)
-      {:ok, theirs} = Vaults.create_vault(stranger, %{"name" => "Theirs"})
-      {:ok, _} = Vaults.add_mapping(theirs, stranger, %{path: "/", board: hidden})
-      {:ok, secret} = Wiki.create_page(hidden, %{"title" => "Rose secret"}, user: stranger)
+      hidden = board_fixture(%{"name" => "Hidden", "code" => "hidsw1303"}, owner: lender)
+      {:ok, secret} = Wiki.create_page(hidden, %{"title" => "Rose secret"}, user: lender)
 
-      %{notes: notes, rose: rose, secret: secret}
+      %{lent: lent, borrowed: borrowed, secret: secret}
     end
 
-    test "adds every other vault's pages, marked with the vault, and nobody else's", %{
+    test "on a board shared from another vault, adds your own, marked, and nobody else's", %{
       user: user,
-      kb: kb,
-      rose: rose,
+      lent: lent,
+      borrowed: borrowed,
       call: call,
       secret: secret
     } do
-      pool = Switcher.linkable_pool(user, kb)
-      by_id = Map.new(pool, &{&1.id, &1})
+      by_id = user |> Switcher.linkable_pool(lent) |> Map.new(&{&1.id, &1})
 
-      assert by_id[rose.id].elsewhere == "Garden"
-      assert by_id[call.id][:elsewhere] == nil
+      assert by_id[call.id].elsewhere == "Brain"
+      assert by_id[borrowed.id][:elsewhere] == nil
       refute Map.has_key?(by_id, secret.id)
 
       # The plain switcher stays inside the board's vault.
-      refute Enum.any?(Switcher.pool(user, kb), &(&1.id == rose.id))
+      refute Enum.any?(Switcher.pool(user, lent), &(&1.id == call.id))
     end
 
-    test "a board outside any vault gets its own pages and every vault's", %{
-      user: user,
-      rose: rose,
-      call: call
-    } do
+    test "on your own board, nothing is elsewhere", %{user: user, kb: kb, call: call} do
+      by_id = user |> Switcher.linkable_pool(kb) |> Map.new(&{&1.id, &1})
+      assert by_id[call.id][:elsewhere] == nil
+    end
+
+    test "a board in no vault gets its own pages and your vault's", %{user: user, call: call} do
       loose = board_fixture(%{"name" => "Loose", "code" => "loosw1303"}, owner: user)
+      nobodys(loose, user)
       {:ok, own} = Wiki.create_page(loose, %{"title" => "Loose end"}, user: user)
 
       by_id = user |> Switcher.linkable_pool(loose) |> Map.new(&{&1.id, &1})
 
       assert by_id[own.id][:elsewhere] == nil
-      assert by_id[rose.id].elsewhere == "Garden"
       assert by_id[call.id].elsewhere == "Brain"
     end
 
     test "this vault's pages come first, recent or matched", %{
       user: user,
-      kb: kb,
-      rose: rose,
-      rust: rust
+      lent: lent,
+      borrowed: borrowed,
+      call: call
     } do
-      # The other vault's page is the newest of all, and still comes after.
+      # Your own vault's page is the newest of all, and still comes after.
       Repo.update_all(
-        from(p in Slipdock.Wiki.Page, where: p.id != ^rose.id),
+        from(p in Slipdock.Wiki.Page, where: p.id != ^call.id),
         set: [updated_at: ~U[2020-01-01 00:00:00Z]]
       )
 
-      pool = Switcher.linkable_pool(user, kb)
+      pool = Switcher.linkable_pool(user, lent)
       recent = Switcher.search(pool, "", 50)
 
-      assert Enum.find_index(recent, &(&1.id == rust.id)) <
-               Enum.find_index(recent, &(&1.id == rose.id))
+      assert Enum.find_index(recent, &(&1.id == borrowed.id)) <
+               Enum.find_index(recent, &(&1.id == call.id))
 
       # The same words match both titles equally well: this vault's wins.
-      {:ok, here} = Wiki.create_page(kb, %{"title" => "Rose pruning"}, user: user)
+      {:ok, here} = Wiki.create_page(lent, %{"title" => "Call"}, user: user)
 
       assert [%{id: first}, %{id: second} | _] =
-               user |> Switcher.linkable_pool(kb) |> Switcher.search("rose pruning")
+               user |> Switcher.linkable_pool(lent) |> Switcher.search("call")
 
-      assert {first, second} == {here.id, rose.id}
+      assert {first, second} == {here.id, call.id}
 
       # A far better match from elsewhere still wins.
-      assert [%{id: id} | _] = Switcher.search(pool, "rose")
-      assert id == rose.id
+      assert [%{id: id} | _] = Switcher.search(pool, "call")
+      assert id == call.id
     end
+  end
+
+  # Takes the board out of every vault, leaving `user` able to read it.
+  defp nobodys(board, user) do
+    share_fixture(board, user, "write")
+
+    Repo.update_all(from(b in Slipdock.Boards.Board, where: b.id == ^board.id),
+      set: [owner_id: nil]
+    )
   end
 end

@@ -13,8 +13,7 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
 
   setup %{conn: conn, user: user} do
     board = board_fixture(%{"name" => "Dressed", "code" => "dr15"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Wardrobe"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Wardrobe"})
     %{conn: put_req_header(conn, "accept", "application/json"), board: board, vault: vault}
   end
 
@@ -51,50 +50,35 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
 
       body = listing(conn)
 
-      assert %{"icon" => "star", "color" => "rose"} = entry(body, "Worn.md")
-      assert %{"icon" => nil, "color" => nil} = entry(body, "Plain.md")
+      assert %{"icon" => "star", "color" => "rose"} = entry(body, "Dressed/Worn.md")
+      assert %{"icon" => nil, "color" => nil} = entry(body, "Dressed/Plain.md")
 
-      assert body["folders"] == ["Bare", "Fancy"]
+      assert body["folders"] == ["Dressed/Bare", "Dressed/Fancy"]
 
       assert %{
-               "Bare" => %{"id" => bare_id, "icon" => nil, "color" => nil},
-               "Fancy" => %{"id" => worn_id, "icon" => "bolt", "color" => "teal"}
+               "Dressed/Bare" => %{"id" => bare_id, "icon" => nil, "color" => nil},
+               "Dressed/Fancy" => %{"id" => worn_id, "icon" => "bolt", "color" => "teal"}
              } = body["folder_details"]
 
       assert bare_id == plain.id
       assert worn_id == worn.id
-      assert body["folder_details"]["Fancy"]["board_id"] == board.id
+      assert body["folder_details"]["Dressed/Fancy"]["board_id"] == board.id
     end
 
-    test "a mapped subfolder is keyed by its vault path, not its board path", ctx do
+    test "a board's folder is keyed by its vault path, not its board path", ctx do
       board = board_fixture(%{"name" => "Studio", "code" => "dr19"}, owner: ctx.user)
       {:ok, design} = Wiki.create_folder(board, %{"name" => "Design"})
       {:ok, old} = Wiki.create_folder(board, %{"name" => "Old", "parent_id" => design.id})
-      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "Mapped"})
 
-      {:ok, _} =
-        Vaults.add_mapping(vault, ctx.user, %{path: "/Work", board: board, folder: design})
+      body = listing(ctx.conn)
 
-      body = ctx.conn |> get("/api/vaults/Mapped/sync") |> json_response(200)
+      assert %{"Studio/Design" => work, "Studio/Design/Old" => %{"id" => old_id}} =
+               body["folder_details"]
 
-      assert %{"Work" => work, "Work/Old" => %{"id" => old_id}} = body["folder_details"]
       assert work["id"] == design.id
       assert old_id == old.id
-      assert body["folders"] == ["Work", "Work/Old"]
+      assert body["folders"] == ["Studio/Design", "Studio/Design/Old"]
       refute Map.has_key?(body["folder_details"], "Design/Old")
-    end
-
-    test "a folder mapped at the root is the root, so no details", ctx do
-      board = board_fixture(%{"name" => "Rooted", "code" => "dr20"}, owner: ctx.user)
-      {:ok, folder} = Wiki.create_folder(board, %{"name" => "Rooted"})
-      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "AtRoot"})
-
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: board, folder: folder})
-
-      body = ctx.conn |> get("/api/vaults/AtRoot/sync") |> json_response(200)
-
-      assert body["folder_details"] == %{}
-      assert body["folders"] == []
     end
   end
 
@@ -111,23 +95,22 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
     test "an owner may do both, but a file is not shared", %{conn: conn} do
       body = listing(conn)
 
-      assert rights(entry(body, "Note.md")) == {true, true}
-      assert rights(body["folder_details"]["Box"]) == {true, true}
-      assert rights(entry(body, "photo.png")) == {true, false}
+      assert rights(entry(body, "Dressed/Note.md")) == {true, true}
+      assert rights(body["folder_details"]["Dressed/Box"]) == {true, true}
+      assert rights(entry(body, "Dressed/photo.png")) == {true, false}
     end
 
     test "a read-only token may do neither", %{conn: conn, user: user} do
       body = conn |> with_token(user, scope: "read") |> listing()
 
-      assert rights(entry(body, "Note.md")) == {false, false}
-      assert rights(body["folder_details"]["Box"]) == {false, false}
-      assert rights(entry(body, "photo.png")) == {false, false}
+      assert rights(entry(body, "Dressed/Note.md")) == {false, false}
+      assert rights(body["folder_details"]["Dressed/Box"]) == {false, false}
+      assert rights(entry(body, "Dressed/photo.png")) == {false, false}
     end
 
     test "a token limited to another board sees none of this one", ctx do
       other = board_fixture(%{"name" => "Other", "code" => "dr16"}, owner: ctx.user)
       {:ok, _} = Wiki.create_page(other, %{"title" => "Elsewhere"})
-      {:ok, _} = Vaults.add_mapping(ctx.vault, ctx.user, %{path: "/Other", board: other})
 
       body = ctx.conn |> with_token(ctx.user, scope_boards: [other.id]) |> listing()
 
@@ -137,22 +120,18 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
       assert body["folders"] == []
     end
 
-    test "a reader of a mapped board may do neither there, and keeps their own", ctx do
+    test "a board shared with the reader is no part of it, and theirs keeps its rights", ctx do
       owner = user_fixture("dress-owner@example.com")
       theirs = board_fixture(%{"name" => "Theirs", "code" => "dr17"}, owner: owner)
       {:ok, _} = Wiki.create_page(theirs, %{"title" => "Lent"})
       {:ok, _} = Wiki.create_folder(theirs, %{"name" => "Shelf"})
-
-      # A mapping takes write, so they lose it after mapping the board.
       {:ok, _} = Access.grant(theirs, ctx.user, "write", owner)
-      {:ok, _} = Vaults.add_mapping(ctx.vault, ctx.user, %{path: "/Theirs", board: theirs})
-      {:ok, _} = Access.grant(theirs, ctx.user, "read", owner)
 
       body = listing(ctx.conn)
 
-      assert rights(entry(body, "Theirs/Lent.md")) == {false, false}
-      assert rights(body["folder_details"]["Theirs/Shelf"]) == {false, false}
-      assert rights(entry(body, "Note.md")) == {true, true}
+      refute entry(body, "Theirs/Lent.md")
+      refute Map.has_key?(body["folder_details"], "Theirs/Shelf")
+      assert rights(entry(body, "Dressed/Note.md")) == {true, true}
     end
   end
 
@@ -174,7 +153,7 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
   describe "the change feed" do
     test "a page's new dress is a change, and leaves its hashes alone", %{conn: conn} = ctx do
       {:ok, page} = Wiki.create_page(ctx.board, %{"title" => "Note", "body" => "words"})
-      %{"hash" => hash} = conn |> listing() |> entry("Note.md")
+      %{"hash" => hash} = conn |> listing() |> entry("Dressed/Note.md")
       %{"cursor" => start} = conn |> get("/api/vaults/Wardrobe/changes") |> json_response(200)
 
       {:ok, _} = Wiki.update_page(page, %{"icon" => "fire", "color" => "amber"})
@@ -186,7 +165,7 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
       assert %{"icon" => "fire", "color" => "amber"} = change
       assert change["content_hash"] == page.content_hash
 
-      assert %{"hash" => ^hash, "icon" => "fire"} = conn |> listing() |> entry("Note.md")
+      assert %{"hash" => ^hash, "icon" => "fire"} = conn |> listing() |> entry("Dressed/Note.md")
     end
 
     test "so does a folder's", %{conn: conn, board: board} do
@@ -206,14 +185,14 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
 
   describe "the vault and its boards" do
     test "the vault says it is the reader's, and each board's switch", ctx do
-      assert %{"vault" => %{"owned" => true, "mappings" => [mapping]}} =
+      assert %{"vault" => %{"owned" => true, "boards" => [board]}} =
                ctx.conn |> get("/api/vaults/Wardrobe") |> json_response(200)
 
-      assert mapping["board"]["wiki_tree_icons"] == true
+      assert board["wiki_tree_icons"] == true
 
       {:ok, _} = Wiki.set_tree_icons(ctx.board, false)
 
-      assert %{"vault" => %{"mappings" => [%{"board" => %{"wiki_tree_icons" => false}}]}} =
+      assert %{"vault" => %{"boards" => [%{"wiki_tree_icons" => false}]}} =
                ctx.conn |> get("/api/vaults/Wardrobe") |> json_response(200)
 
       assert %{"vaults" => [%{"owned" => true}]} =

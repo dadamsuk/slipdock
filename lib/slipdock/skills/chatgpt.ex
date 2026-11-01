@@ -53,7 +53,7 @@ defmodule Slipdock.Skills.ChatGPT do
     {"page history / page diff", "page_history"},
     {"page revert", "revert_page"},
     {"vault ls / vault show / vault locate / vault resolve", "list_vaults"},
-    {"vault new / rename / rm / map / unmap", "manage_vault"},
+    {"vault rename", "manage_vault"},
     {"tools / tools show <name>", "list_tools"},
     {"tools install-board <name>", "install_tool"},
     {"claim-job", "claim_job"},

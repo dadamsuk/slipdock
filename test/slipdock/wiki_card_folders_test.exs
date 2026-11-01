@@ -119,9 +119,8 @@ defmodule Slipdock.WikiCardFoldersTest do
   end
 
   describe "on disk" do
-    setup %{board: board, user: user} do
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Disk"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    setup %{user: user} do
+      {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Disk"})
       %{vault: vault}
     end
 
@@ -129,7 +128,7 @@ defmodule Slipdock.WikiCardFoldersTest do
       card = card_fixture(hd(board.columns), %{"title" => @long, "short_name" => "Parked jobs"})
       page = write_up(card, user, title: "Log")
 
-      assert Layout.build(vault).pages[page.id].path == "Cards/Parked jobs/Log.md"
+      assert Layout.build(vault).pages[page.id].path == "Folders/Cards/Parked jobs/Log.md"
     end
 
     test "changing the short name renames it", %{board: board, user: user, vault: vault} do
@@ -137,7 +136,7 @@ defmodule Slipdock.WikiCardFoldersTest do
       page = write_up(card, user, title: "Log")
       {:ok, _} = Boards.update_card(Repo.get!(Boards.Card, card.id), %{"short_name" => "New"})
 
-      assert Layout.build(vault).pages[page.id].path == "Cards/New/Log.md"
+      assert Layout.build(vault).pages[page.id].path == "Folders/Cards/New/Log.md"
     end
 
     test "a card with nothing usable in its name is Card <id>",
@@ -145,7 +144,7 @@ defmodule Slipdock.WikiCardFoldersTest do
       {:ok, card} = Boards.update_card(card, %{"title" => "###"})
       page = write_up(card, user, title: "Log")
 
-      assert Layout.build(vault).pages[page.id].path == "Cards/Card #{card.id}/Log.md"
+      assert Layout.build(vault).pages[page.id].path == "Folders/Cards/Card #{card.id}/Log.md"
     end
 
     test "two cards of one name are numbered, oldest first",
@@ -156,15 +155,15 @@ defmodule Slipdock.WikiCardFoldersTest do
       second = write_up(b, user, title: "Log")
       layout = Layout.build(vault)
 
-      assert layout.pages[first.id].path == "Cards/Same/Log.md"
-      assert layout.pages[second.id].path == "Cards/same (2)/Log.md"
+      assert layout.pages[first.id].path == "Folders/Cards/Same/Log.md"
+      assert layout.pages[second.id].path == "Folders/Cards/same (2)/Log.md"
     end
 
     test "an export agrees with the layout", %{board: board, user: user, vault: vault} do
       card = card_fixture(hd(board.columns), %{"title" => @long, "short_name" => "Parked jobs"})
       page = write_up(card, user, title: "Log")
 
-      paths = Archive.files(board) |> Enum.map(&elem(&1, 0))
+      paths = Archive.files(board) |> Enum.map(&("Folders/" <> elem(&1, 0)))
 
       assert Layout.build(vault).pages[page.id].path in paths
     end

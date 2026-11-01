@@ -16,9 +16,7 @@ defmodule SlipdockWeb.WikiTreePreviewLiveTest do
   setup %{user: user} do
     kb = board_fixture(%{"name" => "Keystone", "code" => "kbpv"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobspv"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
 
     body = """
     # Plans
@@ -92,19 +90,12 @@ defmodule SlipdockWeb.WikiTreePreviewLiveTest do
     assert reply.summary == "Acme, Tuesday"
   end
 
-  test "nothing for a page outside this tree, or one the reader can't read", %{
-    conn: conn,
-    user: user,
-    kb: kb
-  } do
-    mine = board_fixture(%{"name" => "Loose"}, owner: user)
-    loose = page_fixture(mine, %{"title" => "Loose page"}, user: user)
+  test "nothing for a page the reader can't read", %{conn: conn, kb: kb} do
     stranger = user_fixture("stranger@example.com")
     theirs = board_fixture(%{"name" => "Private"}, owner: stranger)
     secret = page_fixture(theirs, %{"title" => "Secret"}, user: stranger)
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki")
 
-    assert preview(view, "page:#{loose.id}") == %{found: false}
     assert preview(view, "page:#{secret.id}") == %{found: false}
   end
 

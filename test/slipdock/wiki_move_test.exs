@@ -16,9 +16,7 @@ defmodule Slipdock.WikiMoveTest do
     user = user_fixture()
     kb = board_fixture(%{"name" => "KB", "code" => "kbmove"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsmove"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
 
     {:ok, page} =
@@ -176,7 +174,9 @@ defmodule Slipdock.WikiMoveTest do
     acme: acme,
     page: page
   } do
-    lone = board_fixture(%{"name" => "Lone", "code" => "lonemove"}, owner: user)
+    lender = user_fixture("move.lender@example.com")
+    lone = board_fixture(%{"name" => "Lone", "code" => "lonemove"}, owner: lender)
+    share_fixture(lone, user, "write")
     assert {:error, :unprocessable_entity, _} = Move.to_board(page, lone, nil, user)
     assert {:error, :unprocessable_entity, _} = Move.preview(page, kb, user)
 

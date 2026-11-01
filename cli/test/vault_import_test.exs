@@ -1,7 +1,7 @@
 defmodule SlipdockCLI.VaultImportTest do
   @moduledoc """
   `slipdock vault import` (W-103 R9.1–R9.3): an Obsidian vault brought in
-  once, routed through the mappings, bytes as they are, nothing on the
+  once, routed to the board whose folder holds it, bytes as they are, nothing on the
   server overwritten, and a dry run that says what would happen and which
   links, embeds and plugin syntax won't resolve.
   """
@@ -12,15 +12,18 @@ defmodule SlipdockCLI.VaultImportTest do
   alias SlipdockCLI.{FakeServer, FakeVault, Vaults}
   alias SlipdockCLI.Sync.{Import, State}
 
-  @mappings [
-    %{"path" => "/", "board" => %{"id" => 1, "code" => "kb", "name" => "Keystone"}},
-    %{
-      "path" => "/Journal",
-      "board" => %{"id" => 2, "code" => "jobs", "name" => "Journal Desk"},
-      "folder" => %{"id" => 9, "path" => "Notes"}
-    }
+  @boards [
+    %{"path" => "/Keystone", "id" => 1, "code" => "kb", "name" => "Keystone"},
+    %{"path" => "/Journal Desk", "id" => 2, "code" => "jobs", "name" => "Journal Desk"},
+    %{"path" => "/Keystone/Cards/Launch", "id" => 3, "code" => "ln", "name" => "Launch"}
   ]
-  @vault %{"id" => 3, "name" => "Brain", "mappings" => @mappings}
+  @vault %{"id" => 3, "name" => "Brain", "boards" => @boards}
+
+  defp put(dir, path, content) do
+    full = Path.join(dir, path)
+    File.mkdir_p!(Path.dirname(full))
+    File.write!(full, content)
+  end
 
   setup do
     root = Path.join(System.tmp_dir!(), "slipdock-import-#{System.unique_integer([:positive])}")
@@ -48,28 +51,26 @@ defmodule SlipdockCLI.VaultImportTest do
   end
 
   describe "routing" do
-    test "the longest mapped prefix wins, without regard to case" do
-      assert Import.route(@mappings, "Note.md")["path"] == "/"
-      assert Import.route(@mappings, "Journal/Acme/Call.md")["path"] == "/Journal"
-      assert Import.route(@mappings, "journal/Call.md")["path"] == "/Journal"
-      # A name that only starts like the mapping is not under it.
-      assert Import.route(@mappings, "Journalsearch.md")["path"] == "/"
+    test "a path goes to the deepest board holding it, without regard to case" do
+      assert Import.route(@boards, "Keystone/Note.md")["path"] == "/Keystone"
+      assert Import.route(@boards, "journal desk/Call.md")["path"] == "/Journal Desk"
+      assert Import.route(@boards, "Keystone/Cards/Launch/Plan.md")["id"] == 3
+      # A name that only starts like the board's is not in it.
+      assert Import.route(@boards, "Keystones/Note.md") == nil
     end
 
-    test "a path no mapping covers routes nowhere" do
-      only_jobs = [Enum.at(@mappings, 1)]
-      assert Import.route(only_jobs, "Note.md") == nil
-      assert Import.route(only_jobs, "Journal/Call.md")["path"] == "/Journal"
+    test "the vault's root is in no board" do
+      assert Import.route(@boards, "Note.md") == nil
     end
   end
 
   describe "the plan" do
     test "notes and files to create, shallow first, with what is never synced left out", ctx do
-      write(ctx, "Deep/Er/Note.md", "deep")
-      write(ctx, "Deep/index.md", "index")
-      write(ctx, "Deep/Aside.md", "aside")
-      write(ctx, "Top.md", "top")
-      write(ctx, "img/cat.png", <<137, 80, 78, 71>>)
+      write(ctx, "Keystone/Deep/Er/Note.md", "deep")
+      write(ctx, "Keystone/Deep/index.md", "index")
+      write(ctx, "Keystone/Deep/Aside.md", "aside")
+      write(ctx, "Keystone/Top.md", "top")
+      write(ctx, "Keystone/img/cat.png", <<137, 80, 78, 71>>)
       write(ctx, ".obsidian/app.json", "{}")
       write(ctx, ".trash/Old.md", "old")
       write(ctx, "Draft.md.swp", "swap")
@@ -77,53 +78,59 @@ defmodule SlipdockCLI.VaultImportTest do
       plan = plan(ctx)
 
       assert Enum.map(plan.create, & &1.path) ==
-               ["Top.md", "Deep/index.md", "Deep/Aside.md", "img/cat.png", "Deep/Er/Note.md"]
+               [
+                 "Keystone/Top.md",
+                 "Keystone/Deep/index.md",
+                 "Keystone/Deep/Aside.md",
+                 "Keystone/img/cat.png",
+                 "Keystone/Deep/Er/Note.md"
+               ]
 
-      assert Enum.find(plan.create, &(&1.path == "img/cat.png")).kind == "file"
-      assert Enum.find(plan.create, &(&1.path == "Top.md")).kind == "page"
+      assert Enum.find(plan.create, &(&1.path == "Keystone/img/cat.png")).kind == "file"
+      assert Enum.find(plan.create, &(&1.path == "Keystone/Top.md")).kind == "page"
       assert plan.ignored == [".obsidian/", ".trash/", "Draft.md.swp"]
     end
 
     test "what the server has already is skipped: the same bytes, or listed when different",
          ctx do
-      write(ctx, "Same.md", "same")
-      write(ctx, "Other.md", "mine")
-      write(ctx, "New.md", "new")
-      FakeVault.put(ctx.vault, "Same.md", "same")
-      FakeVault.put(ctx.vault, "other.md", "theirs")
+      write(ctx, "Keystone/Same.md", "same")
+      write(ctx, "Keystone/Other.md", "mine")
+      write(ctx, "Keystone/New.md", "new")
+      FakeVault.put(ctx.vault, "Keystone/Same.md", "same")
+      FakeVault.put(ctx.vault, "Keystone/other.md", "theirs")
 
       plan = plan(ctx)
 
-      assert Enum.map(plan.create, & &1.path) == ["New.md"]
-      assert [%{path: "Same.md", id: _, hash: _}] = plan.present
-      assert [%{path: "Other.md"}] = plan.differs
+      assert Enum.map(plan.create, & &1.path) == ["Keystone/New.md"]
+      assert [%{path: "Keystone/Same.md", id: _, hash: _}] = plan.present
+      assert [%{path: "Keystone/Other.md"}] = plan.differs
     end
 
-    test "a path no mapping covers is skipped and listed", ctx do
+    test "a path in no board's folder is skipped and listed", ctx do
       write(ctx, "Loose.md", "x")
-      write(ctx, "Journal/Call.md", "y")
+      write(ctx, "Journal Desk/Call.md", "y")
 
-      plan = plan(ctx, %{@vault | "mappings" => [Enum.at(@mappings, 1)]})
+      plan = plan(ctx, @vault)
 
-      assert plan.unmapped == ["Loose.md"]
-      assert [%{path: "Journal/Call.md", mapping: %{"path" => "/Journal"}}] = plan.create
+      assert plan.outside == ["Loose.md"]
+      assert [%{path: "Journal Desk/Call.md", board: %{"path" => "/Journal Desk"}}] = plan.create
     end
   end
 
   describe "links and plugin syntax" do
     test "links resolve by name, path, alias, attachment name or the server; the rest are listed",
          ctx do
-      write(ctx, "People/Ann.md", "---\naliases: [Annie, \"A. N.\"]\n---\nAnn")
-      write(ctx, "Projects/X/Plan.md", "plan")
-      write(ctx, "Drawing.excalidraw.md", "drawing")
-      write(ctx, "img/cat.png", "png")
-      FakeVault.put(ctx.vault, "Server Note.md", "on the server")
+      write(ctx, "Keystone/People/Ann.md", "---\naliases: [Annie, \"A. N.\"]\n---\nAnn")
+      write(ctx, "Keystone/Projects/X/Plan.md", "plan")
+      write(ctx, "Keystone/Drawing.excalidraw.md", "drawing")
+      write(ctx, "Keystone/img/cat.png", "png")
+      FakeVault.put(ctx.vault, "Keystone/Server Note.md", "on the server")
 
-      write(ctx, "Daily.md", """
+      write(ctx, "Keystone/Daily.md", """
       [[Ann]] [[Annie|her]] [[A. N.]] [[X/Plan#Goals]] [[Projects/X/Plan.md]]
       [[Server Note]] ![[cat.png]] ![[img/cat.png|200]] ![[Drawing.excalidraw]]
       [[#Heading]] [[#412]] [link](People/Ann.md) [web](https://example.com) [here](#top)
-      [rel](../Daily.md)
+      [rel](../Keystone/Daily.md)
       [[Nobody]] ![[missing.png]] [broken](Gone%20Away.md)
       ```
       [[In Code]]
@@ -135,15 +142,15 @@ defmodule SlipdockCLI.VaultImportTest do
 
       assert Enum.sort(plan.unresolved) ==
                Enum.sort([
-                 %{path: "Daily.md", link: "[[Nobody]]", embed: false},
-                 %{path: "Daily.md", link: "![[missing.png]]", embed: true},
-                 %{path: "Daily.md", link: "[broken](Gone%20Away.md)", embed: false}
+                 %{path: "Keystone/Daily.md", link: "[[Nobody]]", embed: false},
+                 %{path: "Keystone/Daily.md", link: "![[missing.png]]", embed: true},
+                 %{path: "Keystone/Daily.md", link: "[broken](Gone%20Away.md)", embed: false}
                ])
     end
 
     test "aliases written as a list of lines count too", ctx do
-      write(ctx, "Ann.md", "---\ntitle: Ann\naliases:\n  - Annie\n  - 'Nan'\n---\nAnn")
-      write(ctx, "Ref.md", "[[Annie]] [[Nan]]")
+      write(ctx, "Keystone/Ann.md", "---\ntitle: Ann\naliases:\n  - Annie\n  - 'Nan'\n---\nAnn")
+      write(ctx, "Keystone/Ref.md", "[[Annie]] [[Nan]]")
 
       assert plan(ctx).unresolved == []
     end
@@ -186,31 +193,31 @@ defmodule SlipdockCLI.VaultImportTest do
     test "notes go up byte for byte and files as files; the record says what each became", ctx do
       meld = "Secret: %%🔐β ZXhhbXBsZQ== 🔐%%\n"
       front = "---\n# a comment\ntags: [a, b]\nzeta: 1\nalpha: \"two\"\n---\nBody\n"
-      write(ctx, "Secret.md", meld)
-      write(ctx, "Journal/Call.md", front)
-      write(ctx, "img/cat.png", <<0, 1, 2, 255>>)
+      write(ctx, "Keystone/Secret.md", meld)
+      write(ctx, "Journal Desk/Call.md", front)
+      write(ctx, "Keystone/img/cat.png", <<0, 1, 2, 255>>)
 
       {record, report} = import!(ctx)
 
       assert Enum.map(report.created, & &1.path) |> Enum.sort() ==
-               ["Journal/Call.md", "Secret.md", "img/cat.png"]
+               ["Journal Desk/Call.md", "Keystone/Secret.md", "Keystone/img/cat.png"]
 
       assert report.errors == []
-      assert FakeVault.by_path(ctx.vault, "Secret.md").content == meld
-      assert FakeVault.by_path(ctx.vault, "Journal/Call.md").content == front
-      assert FakeVault.file_by_path(ctx.vault, "img/cat.png").bytes == <<0, 1, 2, 255>>
+      assert FakeVault.by_path(ctx.vault, "Keystone/Secret.md").content == meld
+      assert FakeVault.by_path(ctx.vault, "Journal Desk/Call.md").content == front
+      assert FakeVault.file_by_path(ctx.vault, "Keystone/img/cat.png").bytes == <<0, 1, 2, 255>>
 
-      entry = record["entries"]["Secret.md"]
+      entry = record["entries"]["Keystone/Secret.md"]
       assert entry["kind"] == "page"
-      assert entry["id"] == FakeVault.by_path(ctx.vault, "Secret.md").id
+      assert entry["id"] == FakeVault.by_path(ctx.vault, "Keystone/Secret.md").id
       assert entry["sha"] == FakeVault.hash(meld)
       assert entry["hash"] == FakeVault.hash(meld)
-      assert record["entries"]["img/cat.png"]["kind"] == "file"
+      assert record["entries"]["Keystone/img/cat.png"]["kind"] == "file"
 
       assert Import.load_record(ctx.root) == record
       assert record["vault"] == %{"id" => 3, "name" => "Brain"}
       # The folder's own files are untouched, and it is not made a mirror.
-      assert File.read!(Path.join(ctx.root, "Secret.md")) == meld
+      assert File.read!(Path.join(ctx.root, "Keystone/Secret.md")) == meld
       refute File.exists?(State.path(ctx.root))
     end
 
@@ -224,26 +231,29 @@ defmodule SlipdockCLI.VaultImportTest do
 
       inline = Enum.map_join(vectors["inline"], "\r\n", & &1["text"]) <> "\n"
       [note | _] = vectors["notes"]
-      write(ctx, "Secrets.md", inline)
-      write(ctx, "Private/Diary.mdenc", note["file"])
+      write(ctx, "Keystone/Secrets.md", inline)
+      write(ctx, "Keystone/Private/Diary.mdenc", note["file"])
 
       {record, report} = import!(ctx)
 
       assert report.errors == []
-      assert FakeVault.by_path(ctx.vault, "Secrets.md").content == inline
-      assert FakeVault.file_by_path(ctx.vault, "Private/Diary.mdenc").bytes == note["file"]
-      assert record["entries"]["Private/Diary.mdenc"]["kind"] == "file"
+      assert FakeVault.by_path(ctx.vault, "Keystone/Secrets.md").content == inline
+
+      assert FakeVault.file_by_path(ctx.vault, "Keystone/Private/Diary.mdenc").bytes ==
+               note["file"]
+
+      assert record["entries"]["Keystone/Private/Diary.mdenc"]["kind"] == "file"
     end
 
     test "run again, nothing is sent twice, and only what is new goes up", ctx do
-      write(ctx, "One.md", "one")
+      write(ctx, "Keystone/One.md", "one")
       {_record, _} = import!(ctx)
-      write(ctx, "Two.md", "two")
+      write(ctx, "Keystone/Two.md", "two")
 
       {record, report} = import!(ctx)
 
-      assert Enum.map(report.created, & &1.path) == ["Two.md"]
-      assert Map.keys(record["entries"]) |> Enum.sort() == ["One.md", "Two.md"]
+      assert Enum.map(report.created, & &1.path) == ["Keystone/Two.md"]
+      assert Map.keys(record["entries"]) |> Enum.sort() == ["Keystone/One.md", "Keystone/Two.md"]
       assert length(Enum.filter(FakeVault.calls(ctx.vault), &match?({:write, nil, _}, &1))) == 2
     end
 
@@ -252,53 +262,56 @@ defmodule SlipdockCLI.VaultImportTest do
         FakeVault.start(normalise: fn _path, content -> "---\ntitle: X\n---\n" <> content end)
 
       ctx = %{ctx | vault: vault}
-      write(ctx, "X.md", "body")
+      write(ctx, "Keystone/X.md", "body")
 
       {record, _} = import!(ctx)
 
-      assert record["entries"]["X.md"]["sha"] == FakeVault.hash("body")
-      assert record["entries"]["X.md"]["hash"] == FakeVault.hash("---\ntitle: X\n---\nbody")
+      assert record["entries"]["Keystone/X.md"]["sha"] == FakeVault.hash("body")
+
+      assert record["entries"]["Keystone/X.md"]["hash"] ==
+               FakeVault.hash("---\ntitle: X\n---\nbody")
+
       # Re-run: it was imported, so it is not sent again even though the
       # server's bytes differ from the file's.
       {:ok, listing} = FakeVault.list(vault)
       plan = Import.plan(ctx.root, @vault, listing, record)
       assert plan.create == [] and plan.differs == []
-      assert [%{path: "X.md"}] = plan.imported
+      assert [%{path: "Keystone/X.md"}] = plan.imported
     end
 
     test "a refused write is reported and the rest carry on; a taken path is not overwritten",
          ctx do
-      write(ctx, "A.md", "a")
-      write(ctx, "B.md", "b")
+      write(ctx, "Keystone/A.md", "a")
+      write(ctx, "Keystone/B.md", "b")
       FakeVault.fail_next(ctx.vault, "boom (HTTP 500)")
 
       {record, report} = import!(ctx)
 
-      assert [%{path: "A.md", error: "boom (HTTP 500)"}] = report.errors
-      assert Enum.map(report.created, & &1.path) == ["B.md"]
-      refute Map.has_key?(record["entries"], "A.md")
+      assert [%{path: "Keystone/A.md", error: "boom (HTTP 500)"}] = report.errors
+      assert Enum.map(report.created, & &1.path) == ["Keystone/B.md"]
+      refute Map.has_key?(record["entries"], "Keystone/A.md")
     end
 
     test "a path taken between the listing and the write is a difference, not an overwrite",
          ctx do
-      write(ctx, "Race.md", "mine")
+      write(ctx, "Keystone/Race.md", "mine")
       {:ok, listing} = FakeVault.list(ctx.vault)
       record = Import.record_for(nil, "http://test", @vault)
       plan = Import.plan(ctx.root, @vault, listing, record)
-      FakeVault.put(ctx.vault, "Race.md", "theirs")
+      FakeVault.put(ctx.vault, "Keystone/Race.md", "theirs")
 
       {_record, report} = Import.run(ctx.root, plan, {FakeVault, ctx.vault}, record)
 
-      assert [%{path: "Race.md"}] = report.differs
-      assert FakeVault.by_path(ctx.vault, "Race.md").content == "theirs"
+      assert [%{path: "Keystone/Race.md"}] = report.differs
+      assert FakeVault.by_path(ctx.vault, "Keystone/Race.md").content == "theirs"
     end
 
     test "a record for another vault is set aside, not reused" do
-      old = %{"vault" => %{"id" => 99}, "entries" => %{"A.md" => %{}}}
+      old = %{"vault" => %{"id" => 99}, "entries" => %{"Keystone/A.md" => %{}}}
       assert Import.record_for(old, "http://test", @vault)["entries"] == %{}
       assert Import.record_for(old, "http://test", @vault)["vault"]["id"] == 3
       assert Import.entries_for(old, 3) == nil
-      assert Import.entries_for(old, 99) == %{"A.md" => %{}}
+      assert Import.entries_for(old, 99) == %{"Keystone/A.md" => %{}}
       assert Import.entries_for(nil, 3) == nil
     end
   end
@@ -324,11 +337,11 @@ defmodule SlipdockCLI.VaultImportTest do
       %{dir: dir}
     end
 
-    @vault_json ~s({"vault":{"id":3,"name":"Brain","mappings":[{"id":1,"path":"/","board":{"id":1,"code":"kb","name":"Keystone"},"folder":null}]}})
+    @vault_json ~s({"vault":{"id":3,"name":"Brain","boards":[{"id":1,"code":"kb","name":"Keystone","path":"/Keystone"}]}})
 
     test "a dry run asks, writes nothing, and says what it would do", %{dir: dir} do
-      File.write!(Path.join(dir, "Note.md"), "[[Nowhere]]\n```dataview\nLIST\n```\n")
-      File.write!(Path.join(dir, "cat.png"), "png")
+      put(dir, "Keystone/Note.md", "[[Nowhere]]\n```dataview\nLIST\n```\n")
+      put(dir, "Keystone/cat.png", "png")
       File.mkdir_p!(Path.join(dir, ".obsidian"))
       url = FakeServer.start([{200, @vault_json}, {200, ~s({"cursor":1,"entries":[]})}])
       System.put_env("SLIPDOCK_URL", url)
@@ -341,7 +354,7 @@ defmodule SlipdockCLI.VaultImportTest do
       refute_received {:request, _, _, _}
       assert out =~ "dry run"
       assert out =~ "would create: 1 note, 1 file"
-      assert out =~ "/ → Keystone wiki"
+      assert out =~ "/Keystone → Keystone wiki"
       assert out =~ "never synced: .obsidian/"
       assert out =~ "unresolved links: 1"
       assert out =~ "Note.md → [[Nowhere]]"
@@ -350,14 +363,14 @@ defmodule SlipdockCLI.VaultImportTest do
     end
 
     test "for real, each file is sent and the next step is named", %{dir: dir} do
-      File.write!(Path.join(dir, "Note.md"), "hi")
+      put(dir, "Keystone/Note.md", "hi")
       hash = FakeVault.hash("hi")
 
       url =
         FakeServer.start([
           {200, @vault_json},
           {200, ~s({"cursor":1,"entries":[]})},
-          {200, ~s({"page":{"kind":"page","id":7,"path":"Note.md","hash":"#{hash}"}})}
+          {200, ~s({"page":{"kind":"page","id":7,"path":"Keystone/Note.md","hash":"#{hash}"}})}
         ])
 
       System.put_env("SLIPDOCK_URL", url)
@@ -368,7 +381,7 @@ defmodule SlipdockCLI.VaultImportTest do
       assert body =~ ~s("content":"hi")
       assert out =~ "created: 1 note, 0 files"
       assert out =~ "slipdock sync init"
-      assert Import.load_record(dir)["entries"]["Note.md"]["id"] == 7
+      assert Import.load_record(dir)["entries"]["Keystone/Note.md"]["id"] == 7
     end
 
     test "a long list is cut short unless --all", %{dir: dir} do
@@ -377,7 +390,7 @@ defmodule SlipdockCLI.VaultImportTest do
         present: [],
         imported: [],
         differs: [],
-        unmapped: Enum.map(1..25, &"n#{&1}.md"),
+        outside: Enum.map(1..25, &"n#{&1}.md"),
         too_big: [],
         ignored: [],
         unresolved: [],
@@ -385,7 +398,7 @@ defmodule SlipdockCLI.VaultImportTest do
       }
 
       out = capture_io(fn -> Vaults.print_import(dir, @vault, plan, nil) end)
-      assert out =~ "no mapping covers them: 25"
+      assert out =~ "in no board's folder: 25"
       assert out =~ "5 more (--all to see them)"
       refute out =~ "n25.md"
 

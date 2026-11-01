@@ -61,7 +61,7 @@ defmodule SlipdockWeb.PageLinkLiveTest do
       assert [%{title: "Retry policy", insert: "[[Retry policy]]"} | _] =
                suggest(view, %{"q" => "retry", "fresh" => true})
 
-      assert [%{id: id, path: "Design"} | _] = suggest(view, %{"q" => "design"})
+      assert [%{id: id, path: "Links/Design"} | _] = suggest(view, %{"q" => "design"})
       assert [%{id: ^id} | _] = suggest(view, %{"q" => "design/bill"})
       assert id == spec.id
 
@@ -200,8 +200,7 @@ defmodule SlipdockWeb.PageLinkLiveTest do
   describe "pages in the user's other vaults (#1303)" do
     setup %{user: user} do
       garden = board_fixture(%{"name" => "Garden board", "code" => "plink1303g"}, owner: user)
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Garden"})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: garden})
+      {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Garden"})
       {:ok, plants} = Folders.create(garden, %{"name" => "Plants"})
 
       rose =
@@ -209,8 +208,7 @@ defmodule SlipdockWeb.PageLinkLiveTest do
 
       stranger = user_fixture("plink1303.stranger@example.com")
       hidden = board_fixture(%{"name" => "Hidden", "code" => "plink1303h"}, owner: stranger)
-      {:ok, theirs} = Vaults.create_vault(stranger, %{"name" => "Theirs"})
-      {:ok, _} = Vaults.add_mapping(theirs, stranger, %{path: "/", board: hidden})
+      {:ok, _} = stranger |> Vaults.root() |> Vaults.update_vault(%{"name" => "Theirs"})
       secret = page_fixture(hidden, %{"title" => "Rose secret"}, user: stranger)
 
       %{rose: rose, secret: secret}

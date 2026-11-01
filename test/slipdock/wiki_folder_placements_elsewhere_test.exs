@@ -17,9 +17,7 @@ defmodule Slipdock.WikiFolderPlacementsElsewhereTest do
     user = user_fixture()
     kb = board_fixture(%{"name" => "Keystone", "code" => "fpel"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal", "code" => "fpeljobs"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
 
     {:ok, specs} = Wiki.create_folder(kb, %{"name" => "Specs"})
     {:ok, old} = Wiki.create_folder(kb, %{"name" => "Old", "parent_id" => specs.id})
@@ -55,8 +53,8 @@ defmodule Slipdock.WikiFolderPlacementsElsewhereTest do
 
       listing = Sync.listing(ctx.vault, ctx.user)
       assert Enum.map(listing.entries, & &1.path) == Enum.map(before.entries, & &1.path)
-      assert "Specs/Call.md" in Enum.map(listing.entries, & &1.path)
-      refute Enum.any?(listing.entries, &String.starts_with?(&1.path, "Ideas/"))
+      assert "Keystone/Specs/Call.md" in Enum.map(listing.entries, & &1.path)
+      refute Enum.any?(listing.entries, &String.starts_with?(&1.path, "Keystone/Ideas/"))
       assert listing.folders == Enum.sort(before.folders ++ ["Journal/Notes"])
 
       # The feed names the placed folders at their home paths, once each.

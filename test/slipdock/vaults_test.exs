@@ -1,253 +1,404 @@
 defmodule Slipdock.VaultsTest do
   @moduledoc """
-  Vaults and their mappings (W-103 R1): a vault is a person's own, a mapping
-  puts a vault path onto a board's wiki or one folder of it, the longest
-  prefix wins, a target must be writable, and a board belongs to one vault.
+  The root vault (W-2201): each person has one, made on first need, and it is
+  derived from their boards. Every root board they own is a folder off the
+  root, archived ones too, and a sub-board sits in its epic's folder.
   """
   use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Boards, Vaults, Wiki}
-  alias Slipdock.Vaults.Vault
+  alias Slipdock.{Boards, Repo, Vaults, Wiki}
+  alias Slipdock.Vaults.{Layout, Sync, Vault}
+  alias Slipdock.Wiki.{CardFolders, QuickNote}
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "Keystone", "code" => "kb4"}, owner: user)
-    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs3"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    %{user: user, kb: kb, jobs: jobs, vault: vault}
+    kb = board_fixture(%{"name" => "Keystone", "code" => "vtkb"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "vtjobs"}, owner: user)
+    %{user: user, kb: kb, jobs: jobs, vault: Vaults.root(user)}
   end
 
-  defp map!(vault, user, attrs) do
-    {:ok, mapping} = Vaults.add_mapping(vault, user, attrs)
-    mapping
+  defp paths(vault), do: vault |> Vaults.boards() |> Enum.map(& &1.path)
+
+  defp entry(vault, board), do: Enum.find(Vaults.boards(vault), &(&1.board.id == board.id))
+
+  defp simple do
+    {:ok, template} = Boards.find_template(nil, "Simple")
+    template
   end
 
-  describe "vaults" do
-    test "are found by id or by name, case-insensitively", %{user: user, vault: vault} do
-      assert {:ok, %Vault{id: id}} = Vaults.get_vault(user, "notes")
+  # An epic on `board`, with a sub-board.
+  defp epic!(board, title) do
+    [column | _] = Boards.get_board!(board.id).columns
+    card = card_fixture(column, %{"title" => title})
+    {:ok, sub} = sub_board(card, simple())
+    {card, Boards.get_board!(sub.id)}
+  end
+
+  describe "root/1" do
+    test "makes one row however often it is asked for", %{user: user, vault: vault} do
+      assert Vaults.root(user).id == vault.id
+      assert Vaults.root(user.id).id == vault.id
+      assert Repo.aggregate(from(v in Vault, where: v.user_id == ^user.id), :count) == 1
+      assert [%Vault{id: id}] = Vaults.list_vaults(user)
       assert id == vault.id
-      assert {:ok, %Vault{id: ^id}} = Vaults.get_vault(user, to_string(vault.id))
+    end
+
+    test "gives each person their own", %{vault: vault} do
+      other = user_fixture("root-other@example.com")
+      assert Vaults.root(other).id != vault.id
+      assert Vaults.root(other).shortcut
+    end
+  end
+
+  describe "get_vault/2" do
+    test "finds it by id or by name, case aside", %{user: user, vault: vault} do
+      id = vault.id
+      name = String.upcase(vault.name)
+      assert {:ok, %Vault{id: ^id}} = Vaults.get_vault(user, name)
+      assert {:ok, %Vault{id: ^id}} = Vaults.get_vault(user, to_string(id))
       assert {:error, :not_found, _} = Vaults.get_vault(user, "nope")
     end
 
-    test "are their owner's alone", %{vault: vault} do
+    test "somebody else's is not found", %{vault: vault} do
       stranger = user_fixture("stranger@example.com")
       assert {:error, :not_found, _} = Vaults.get_vault(stranger, vault.id)
-      assert Vaults.list_vaults(stranger) == []
-    end
-
-    test "names are unique per person, case and all, and cannot be blank or hold a slash",
-         %{user: user} do
-      assert {:error, cs} = Vaults.create_vault(user, %{"name" => "NOTES"})
-      assert "you already have a vault with that name" in errors_on(cs).name
-      assert {:error, cs} = Vaults.create_vault(user, %{"name" => "  "})
-      assert errors_on(cs).name != []
-      assert {:error, cs} = Vaults.create_vault(user, %{"name" => "a/b"})
-      assert "cannot contain a slash" in errors_on(cs).name
-
-      other = user_fixture("other@example.com")
-      assert {:ok, _} = Vaults.create_vault(other, %{"name" => "Notes"})
-    end
-
-    test "rename and delete; deleting keeps every page", ctx do
-      %{user: user, kb: kb, vault: vault} = ctx
-      {:ok, page} = Wiki.create_page(kb, %{"title" => "Kept"}, user: user)
-      map!(vault, user, %{path: "/", board: kb})
-
-      assert {:ok, %Vault{name: "Brain"}} = Vaults.update_vault(vault, %{"name" => "Brain"})
-      assert {:ok, _} = Vaults.delete_vault(vault)
-      assert Vaults.list_vaults(user) == []
-      assert Vaults.for_board(kb) == nil
-      assert Wiki.get_page(page.id)
     end
   end
 
-  describe "mappings" do
-    test "map a path to a wiki root or a folder, stored without slashes", ctx do
-      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
-      {:ok, folder} = Wiki.create_folder(jobs, %{"name" => "Notes"})
+  describe "update_vault/2" do
+    test "renames it, and a blank name or a slash is refused", %{vault: vault} do
+      assert {:ok, %Vault{name: "Brain"}} = Vaults.update_vault(vault, %{"name" => "Brain"})
+      assert {:error, cs} = Vaults.update_vault(vault, %{"name" => "  "})
+      assert errors_on(cs).name != []
+      assert {:error, cs} = Vaults.update_vault(vault, %{"name" => "a/b"})
+      assert "cannot contain a slash" in errors_on(cs).name
+    end
+  end
 
-      root = map!(vault, user, %{path: "/", board: kb})
-      sub = map!(vault, user, %{path: "/Journal/", board: jobs, folder: folder})
-
-      assert root.path == ""
-      assert sub.path == "Journal"
-      assert sub.folder_id == folder.id
-
-      assert {:ok, %Vault{mappings: [%{path: ""}, %{path: "Journal"}]}} =
-               Vaults.get_vault(user, "Notes")
-
-      assert Vaults.for_board(jobs).id == vault.id
-      assert Enum.sort(Vaults.board_ids(vault)) == Enum.sort([kb.id, jobs.id])
+  describe "the boards in it" do
+    test "every root board its owner has is a folder off the root", ctx do
+      assert paths(ctx.vault) == ["Journal Desk", "Keystone"]
+      assert Enum.sort(Vaults.board_ids(ctx.vault)) == Enum.sort([ctx.kb.id, ctx.jobs.id])
+      assert Vaults.for_board(ctx.kb).id == ctx.vault.id
+      assert Vaults.in_vault?(ctx.jobs)
     end
 
-    test "the same path twice in one vault is refused", %{
-      user: user,
-      kb: kb,
-      jobs: jobs,
-      vault: vault
-    } do
-      map!(vault, user, %{path: "/Journal", board: kb})
-      assert {:error, cs} = Vaults.add_mapping(vault, user, %{path: "Journal", board: jobs})
-      assert "is already mapped in this vault" in errors_on(cs).path
+    test "a new board shows with no other call", ctx do
+      board_fixture(%{"name" => "Fresh", "code" => "vtfresh"}, owner: ctx.user)
+      assert "Fresh" in paths(ctx.vault)
     end
 
-    test "a board's root, or one folder, is mapped once", %{user: user, kb: kb, vault: vault} do
-      {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Inbox"})
-      map!(vault, user, %{path: "/", board: kb})
+    test "a rename moves its folder with no other call", ctx do
+      {:ok, page} = Wiki.create_page(ctx.kb, %{"title" => "Kept"}, user: ctx.user)
+      {:ok, _} = Boards.update_board(ctx.kb, %{"name" => "Cornerstone"})
 
-      assert {:error, cs} = Vaults.add_mapping(vault, user, %{path: "/Again", board: kb})
-      assert "is already mapped into a vault" in errors_on(cs).board_id
-
-      # A folder of the same board, in the same vault, is a different target.
-      map!(vault, user, %{path: "/Inbox", board: kb, folder: folder})
-
-      assert {:error, cs} =
-               Vaults.add_mapping(vault, user, %{path: "/In2", board: kb, folder: folder})
-
-      assert "is already mapped into a vault" in errors_on(cs).folder_id
+      assert paths(ctx.vault) == ["Cornerstone", "Journal Desk"]
+      assert Vaults.addresses(ctx.vault).pages[page.id] == "Cornerstone/Kept"
     end
 
-    test "a board belongs to one vault", %{user: user, kb: kb, vault: vault} do
-      {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Inbox"})
-      map!(vault, user, %{path: "/", board: kb})
-      {:ok, other} = Vaults.create_vault(user, %{"name" => "Other"})
+    test "archived is a flag, and the path stays the same through it and back", ctx do
+      {:ok, page} = Wiki.create_page(ctx.kb, %{"title" => "Kept"}, user: ctx.user)
+      refute entry(ctx.vault, ctx.kb).board.archived_at
 
+      {:ok, archived} = Boards.archive_board(ctx.kb)
+      assert entry(ctx.vault, ctx.kb).path == "Keystone"
+      assert entry(ctx.vault, ctx.kb).board.archived_at
+      assert Vaults.addresses(ctx.vault).pages[page.id] == "Keystone/Kept"
+
+      {:ok, _} = Boards.unarchive_board(archived)
+      assert entry(ctx.vault, ctx.kb).path == "Keystone"
+      refute entry(ctx.vault, ctx.kb).board.archived_at
+    end
+
+    test "a deleted board goes, its vault staying", ctx do
+      {:ok, _} = Boards.delete_board(ctx.kb)
+      assert paths(ctx.vault) == ["Journal Desk"]
+    end
+
+    test "two boards clashing case aside are numbered, the oldest plain", ctx do
+      second = board_fixture(%{"name" => "KEYSTONE", "code" => "vtkb2"}, owner: ctx.user)
+      third = board_fixture(%{"name" => "keystone", "code" => "vtkb3"}, owner: ctx.user)
+
+      assert entry(ctx.vault, ctx.kb).path == "Keystone"
+      assert entry(ctx.vault, second).path == "KEYSTONE (2)"
+      assert entry(ctx.vault, third).path == "keystone (3)"
+    end
+
+    test "a board somebody else shared is not in it", ctx do
+      stranger = user_fixture("lender@example.com")
+      lent = board_fixture(%{"name" => "Lent", "code" => "vtlent"}, owner: stranger)
+      share_fixture(lent, ctx.user, "write")
+
+      refute "Lent" in paths(ctx.vault)
+      refute lent.id in Vaults.board_ids(ctx.vault)
+      assert Vaults.for_board(lent).id == Vaults.root(stranger).id
+      assert {:error, :not_found, _} = Vaults.locate(ctx.vault, "/Lent/x.md")
+    end
+
+    test "for_board answers with the top owner's vault for a sub-board", ctx do
+      {_epic, sub} = epic!(ctx.kb, "Epic")
+      {_inner, deeper} = epic!(sub, "Inner")
+
+      assert Vaults.for_board(sub).id == ctx.vault.id
+      assert Vaults.for_board(deeper).id == ctx.vault.id
+      assert sub.id in Vaults.board_ids(ctx.vault)
+      assert deeper.id in Vaults.board_ids(ctx.vault)
+    end
+
+    test "an empty vault counts nothing, a live page once, an archived one not", ctx do
+      assert Vaults.page_count(ctx.vault) == 0
+      {:ok, _} = Wiki.create_page(ctx.kb, %{"title" => "One"}, user: ctx.user)
+      {:ok, gone} = Wiki.create_page(ctx.jobs, %{"title" => "Gone"}, user: ctx.user)
+      {:ok, _} = Wiki.archive_page(gone)
+      assert Vaults.page_count(ctx.vault) == 1
+    end
+  end
+
+  describe "a sub-board in its epic's folder" do
+    test "without a folder row, the way down is laid out all the same", ctx do
+      {_epic, sub} = epic!(ctx.kb, "Launch")
+      {_inner, deeper} = epic!(sub, "Press")
+      {:ok, page} = Wiki.create_page(deeper, %{"title" => "Note"}, user: ctx.user)
+
+      assert entry(ctx.vault, sub).path == "Keystone/Cards/Launch"
+      assert entry(ctx.vault, deeper).path == "Keystone/Cards/Launch/Cards/Press"
+
+      layout = Layout.build(ctx.vault)
+      assert layout.pages[page.id].path == "Keystone/Cards/Launch/Cards/Press/Note.md"
+    end
+
+    test "with a real card folder for the epic, it shares that directory", ctx do
+      {epic, sub} = epic!(ctx.kb, "Launch")
+      {:ok, folder} = CardFolders.ensure(epic)
+      {inner, deeper} = epic!(sub, "Press")
+      {:ok, inner_folder} = CardFolders.ensure(inner)
+      {:ok, page} = Wiki.create_page(deeper, %{"title" => "Note"}, user: ctx.user)
+
+      dirs = Layout.dirs(ctx.vault)
+      assert dirs.folders[folder.id] == "Keystone/Cards/Launch"
+      assert dirs.boards[sub.id] == "Keystone/Cards/Launch"
+      assert dirs.folders[inner_folder.id] == "Keystone/Cards/Launch/Cards/Press"
+      assert dirs.boards[deeper.id] == "Keystone/Cards/Launch/Cards/Press"
+
+      layout = Layout.build(ctx.vault)
+      assert layout.pages[page.id].path == "Keystone/Cards/Launch/Cards/Press/Note.md"
+    end
+
+    test "writing to the path lands on the deep board, with no folder rows", ctx do
+      {_epic, sub} = epic!(ctx.kb, "Launch")
+      {_inner, deeper} = epic!(sub, "Press")
+
+      assert {:ok, entry} =
+               Sync.write_page(ctx.vault, ctx.user, %{
+                 "path" => "Keystone/Cards/Launch/Cards/Press/page.md",
+                 "content" => "Words"
+               })
+
+      assert entry.path == "Keystone/Cards/Launch/Cards/Press/page.md"
+      assert Wiki.get_page(entry.id).board_id == deeper.id
+    end
+
+    test "writing to the path lands on the deep board, with real folder rows", ctx do
+      {epic, sub} = epic!(ctx.kb, "Launch")
+      {:ok, _} = CardFolders.ensure(epic)
+      {inner, deeper} = epic!(sub, "Press")
+      {:ok, folder} = CardFolders.ensure(inner)
+
+      assert {:ok, entry} =
+               Sync.write_page(ctx.vault, ctx.user, %{
+                 "path" => "Keystone/Cards/Launch/Cards/Press/page.md",
+                 "content" => "Words"
+               })
+
+      page = Wiki.get_page(entry.id)
+      assert entry.path == "Keystone/Cards/Launch/Cards/Press/page.md"
+      # The folder answers for the directory it shares with the sub-board.
+      assert page.board_id == sub.id
+      assert page.folder_id == folder.id
+      refute page.board_id == deeper.id
+    end
+
+    test "a page in the sub-board's own folder keeps its path through a write", ctx do
+      {_epic, sub} = epic!(ctx.kb, "Launch")
+
+      assert {:ok, entry} =
+               Sync.write_page(ctx.vault, ctx.user, %{
+                 "path" => "Keystone/Cards/Launch/page.md",
+                 "content" => "Words"
+               })
+
+      assert Wiki.get_page(entry.id).board_id == sub.id
+    end
+  end
+
+  describe "writing" do
+    test "at the vault's root is refused", ctx do
       assert {:error, :unprocessable_entity, message} =
-               Vaults.add_mapping(other, user, %{path: "/", board: kb, folder: folder})
+               Sync.write_page(ctx.vault, ctx.user, %{"path" => "Stray.md", "content" => "x"})
 
-      assert message =~ "already in another vault"
+      assert message =~ "root"
     end
 
-    test "only a board you can write to", %{user: user, vault: vault} do
-      stranger = user_fixture("owner2@example.com")
-      read_only = board_fixture(%{"name" => "Read only", "code" => "ro"}, owner: stranger)
-      writable = board_fixture(%{"name" => "Writable", "code" => "rw"}, owner: stranger)
-      share_fixture(read_only, user, "read")
-      share_fixture(writable, user, "write")
+    test "to a path with no such board is refused", ctx do
+      assert {:error, :unprocessable_entity, message} =
+               Sync.write_page(ctx.vault, ctx.user, %{
+                 "path" => "Nowhere/Stray.md",
+                 "content" => "x"
+               })
 
-      assert {:error, :forbidden, _} =
-               Vaults.add_mapping(vault, user, %{path: "/R", board: read_only})
-
-      assert {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/W", board: writable})
+      assert message =~ "Nowhere"
+      assert Repo.aggregate(Wiki.Page, :count) == 0
     end
 
-    test "not an archived board, nor another board's folder, nor no board at all", ctx do
-      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
-      {:ok, folder} = Wiki.create_folder(jobs, %{"name" => "Theirs"})
+    test "to a board's folder makes the page there", ctx do
+      assert {:ok, entry} =
+               Sync.write_page(ctx.vault, ctx.user, %{
+                 "path" => "Journal Desk/Acme/Call.md",
+                 "content" => "x"
+               })
 
-      assert {:error, :unprocessable_entity, "that folder is not on that board"} =
-               Vaults.add_mapping(vault, user, %{path: "/", board: kb, folder: folder})
-
-      assert {:error, :unprocessable_entity, _} = Vaults.add_mapping(vault, user, %{path: "/"})
-
-      {:ok, archived} = Boards.archive_board(kb)
-
-      assert {:error, :unprocessable_entity, msg} =
-               Vaults.add_mapping(vault, user, %{path: "/", board: archived})
-
-      assert msg =~ "archived"
-    end
-
-    test "a path that climbs is refused", %{user: user, kb: kb, vault: vault} do
-      assert {:error, :unprocessable_entity, _} =
-               Vaults.add_mapping(vault, user, %{path: "/a/../b", board: kb})
-
-      assert {:error, :unprocessable_entity, _} = Vaults.normalize_path("./x")
-      assert {:ok, "a/b"} = Vaults.normalize_path("\\a\\\\b\\")
-      assert {:ok, ""} = Vaults.normalize_path(nil)
-    end
-
-    test "removed by id or by path", %{user: user, kb: kb, jobs: jobs, vault: vault} do
-      root = map!(vault, user, %{path: "/", board: kb})
-      map!(vault, user, %{path: "/Journal", board: jobs})
-
-      assert {:ok, _} = Vaults.remove_mapping(vault, "/Journal")
-      assert {:ok, _} = Vaults.remove_mapping(vault, root.id)
-      assert {:error, :not_found, _} = Vaults.remove_mapping(vault, "/Journal")
-      assert {:error, :not_found, _} = Vaults.remove_mapping(vault, "/../x")
-      assert Vaults.for_board(kb) == nil
-    end
-
-    test "go when the board or the folder they point at is deleted", ctx do
-      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
-      {:ok, folder} = Wiki.create_folder(jobs, %{"name" => "Notes"})
-      map!(vault, user, %{path: "/", board: kb})
-      map!(vault, user, %{path: "/Journal", board: jobs, folder: folder})
-
-      {:ok, _} = Wiki.delete_folder(folder)
-      {:ok, _} = Boards.delete_board(kb)
-
-      assert {:ok, %Vault{mappings: []}} = Vaults.get_vault(user, vault.id)
+      assert Wiki.get_page(entry.id).board_id == ctx.jobs.id
     end
   end
 
   describe "locate/2" do
-    setup %{user: user, kb: kb, jobs: jobs, vault: vault} do
-      map!(vault, user, %{path: "/", board: kb})
-      map!(vault, user, %{path: "/Journal", board: jobs})
-      :ok
+    test "answers with the board and the rest", %{vault: vault, kb: kb, jobs: jobs} do
+      jobs_id = jobs.id
+      assert {:ok, ^jobs_id, "Acme/Call.md"} = Vaults.locate(vault, "/Journal Desk/Acme/Call.md")
+      assert {:ok, ^jobs_id, ""} = Vaults.locate(vault, "journal desk")
+      kb_id = kb.id
+      assert {:ok, ^kb_id, "Ideas.md"} = Vaults.locate(vault, "/Keystone/Ideas.md")
     end
 
-    test "the longest matching prefix wins", %{vault: vault, kb: kb, jobs: jobs} do
-      assert {:ok, %{board_id: id}, "Acme/Call.md"} =
-               Vaults.locate(vault, "/Journal/Acme/Call.md")
-
-      assert id == jobs.id
-      assert {:ok, %{board_id: ^id}, ""} = Vaults.locate(vault, "Journal")
-      assert {:ok, %{board_id: kb_id}, "Ideas.md"} = Vaults.locate(vault, "/Ideas.md")
-      assert kb_id == kb.id
+    test "the deepest board wins", ctx do
+      {_epic, sub} = epic!(ctx.kb, "Launch")
+      id = sub.id
+      assert {:ok, ^id, "Note.md"} = Vaults.locate(ctx.vault, "/Keystone/Cards/Launch/Note.md")
     end
 
-    test "matches whole segments, so /Journal does not swallow /Journalsearch", %{
-      vault: vault,
-      kb: kb
-    } do
-      assert {:ok, %{board_id: id}, "Journalsearch/x.md"} =
-               Vaults.locate(vault, "/Journalsearch/x.md")
-
-      assert id == kb.id
+    test "matches whole segments", %{vault: vault} do
+      assert {:error, :not_found, _} = Vaults.locate(vault, "/Keystones/x.md")
     end
 
-    test "nothing mapped above the path is not found", %{user: user} do
-      deep = board_fixture(%{"name" => "Deep", "code" => "deep"}, owner: user)
-      {:ok, bare} = Vaults.create_vault(user, %{"name" => "Bare"})
-      assert {:error, :not_found, _} = Vaults.locate(bare, "/x.md")
-
-      {:ok, sub} = Vaults.create_vault(user, %{"name" => "Sub"})
-      {:ok, folder} = Wiki.create_folder(deep, %{"name" => "Deep"})
-      map!(sub, user, %{path: "/Only/Here", board: deep, folder: folder})
-      assert {:error, :not_found, _} = Vaults.locate(sub, "/Only/x.md")
-      assert {:ok, _, "x.md"} = Vaults.locate(sub, "/Only/Here/x.md")
+    test "the root and a path that climbs are not in a board", %{vault: vault} do
+      assert {:error, :not_found, _} = Vaults.locate(vault, "/")
+      assert {:error, :not_found, _} = Vaults.locate(vault, "/x.md")
+      assert {:error, :unprocessable_entity, _} = Vaults.locate(vault, "/Keystone/../x")
     end
   end
 
-  describe "page counts and mirrors" do
-    test "each live page counts once, under the deepest mapping above it", ctx do
+  describe "normalize_path/1" do
+    test "stores paths without slashes and refuses a climb" do
+      assert {:error, :unprocessable_entity, _} = Vaults.normalize_path("./x")
+      assert {:ok, "a/b"} = Vaults.normalize_path("\\a\\\\b\\")
+      assert {:ok, ""} = Vaults.normalize_path(nil)
+    end
+  end
+
+  describe "addresses (#752)" do
+    test "pages, folders and boards by their vault paths", ctx do
       %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
-      {:ok, notes} = Wiki.create_folder(jobs, %{"name" => "Notes"})
-      {:ok, _} = Wiki.create_page(kb, %{"title" => "One"}, user: user)
-      {:ok, gone} = Wiki.create_page(kb, %{"title" => "Gone"}, user: user)
-      {:ok, _} = Wiki.archive_page(gone)
-      {:ok, _} = Wiki.create_page(jobs, %{"title" => "Loose"}, user: user)
+      {:ok, notes} = Wiki.create_folder(kb, %{"name" => "Big Ideas"})
 
-      {:ok, _} =
-        Wiki.create_page(jobs, %{"title" => "Filed", "folder_id" => notes.id}, user: user)
+      {:ok, idea} =
+        Wiki.create_page(kb, %{"title" => "Plain text", "folder_id" => notes.id}, user: user)
 
-      root = map!(vault, user, %{path: "/", board: kb})
-      jobs_root = map!(vault, user, %{path: "/Journal", board: jobs})
-      filed = map!(vault, user, %{path: "/Filed", board: jobs, folder: notes})
+      {:ok, parent} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
 
-      assert Vaults.page_counts(vault) == %{root.id => 1, jobs_root.id => 1, filed.id => 1}
+      {:ok, child} =
+        Wiki.create_page(jobs, %{"title" => "Call", "parent_id" => parent.id}, user: user)
+
+      addresses = Vaults.addresses(vault)
+      assert addresses.pages[idea.id] == "Keystone/Big Ideas/Plain text"
+      # A page with pages under it is addressed by its own name, not its index.md.
+      assert addresses.pages[parent.id] == "Journal Desk/Acme"
+      assert addresses.pages[child.id] == "Journal Desk/Acme/Call"
+      assert addresses.folders[notes.id] == "Keystone/Big Ideas"
+      assert addresses.boards[kb.id] == "Keystone"
+
+      assert Vaults.resolve_address(vault, "keystone/big ideas/plain text.md") == {:page, idea.id}
+      assert Vaults.resolve_address(vault, "/Journal Desk/Acme/") == {:page, parent.id}
+      assert Vaults.resolve_address(vault, "Keystone/Big Ideas") == {:folder, notes.id}
+      assert Vaults.resolve_address(vault, "journal desk") == {:board, jobs.id}
+      assert Vaults.resolve_address(vault, "Nope") == :error
+    end
+  end
+
+  describe "links" do
+    test "a link finds a page on another board of the root", ctx do
+      {:ok, target} = Wiki.create_page(ctx.jobs, %{"title" => "Far Note"}, user: ctx.user)
+
+      assert {:ok, page, "Journal Desk/Far Note"} =
+               Vaults.resolve_link(ctx.vault, "[[Far Note]]", ctx.user)
+
+      assert page.id == target.id
+
+      {:ok, linker} =
+        Wiki.create_page(ctx.kb, %{"title" => "Linker", "body" => "[[Far Note]]"}, user: ctx.user)
+
+      assert Enum.map(Wiki.outgoing_links(linker), & &1.target_page_id) == [target.id]
     end
 
-    test "an empty vault counts nothing", %{vault: vault} do
-      assert Vaults.page_counts(vault) == %{}
+    test "the page's own board still wins", ctx do
+      {:ok, far} = Wiki.create_page(ctx.jobs, %{"title" => "Same"}, user: ctx.user)
+      {:ok, near} = Wiki.create_page(ctx.kb, %{"title" => "Same"}, user: ctx.user)
+
+      {:ok, kb_linker} =
+        Wiki.create_page(ctx.kb, %{"title" => "L1", "body" => "[[Same]]"}, user: ctx.user)
+
+      {:ok, jobs_linker} =
+        Wiki.create_page(ctx.jobs, %{"title" => "L2", "body" => "[[Same]]"}, user: ctx.user)
+
+      assert Enum.map(Wiki.outgoing_links(kb_linker), & &1.target_page_id) == [near.id]
+      assert Enum.map(Wiki.outgoing_links(jobs_linker), & &1.target_page_id) == [far.id]
+    end
+  end
+
+  describe "what hangs off the vault" do
+    test "a quick note goes to a board's folder in the root", ctx do
+      {:ok, inbox} = Wiki.create_folder(ctx.kb, %{"name" => "Inbox"})
+      assert QuickNote.vault(ctx.user).id == ctx.vault.id
+
+      places = QuickNote.places(ctx.vault, ctx.user)
+      assert %{folder_id: id} = Enum.find(places, &(&1.path == "Keystone/Inbox"))
+      assert id == inbox.id
+      assert Enum.find(places, &(&1.path == "Keystone")).folder_id == nil
+
+      {:ok, user} =
+        Slipdock.Accounts.update_quick_note(ctx.user, %{
+          quick_note_vault_id: ctx.vault.id,
+          quick_note_folder: "Keystone/Inbox"
+        })
+
+      Slipdock.AIStub.reply_with(%{"title" => "Printers"})
+      assert {:ok, note} = QuickNote.save(user, "Ring the printers")
+      assert note.page.board_id == ctx.kb.id
+      assert note.page.folder_id == inbox.id
+      assert note.vault.id == ctx.vault.id
     end
 
-    test "a sync token is recorded once per vault, with its label and the last time", ctx do
+    test "the recordings folder is set on the root and read from a board in it", ctx do
+      Slipdock.GoogleStub.connect!(ctx.user)
+
+      Slipdock.GoogleStub.drive!([
+        %{
+          "id" => "fold",
+          "name" => "Meeting Recordings",
+          "mimeType" => "application/vnd.google-apps.folder",
+          "parents" => ["root"]
+        }
+      ])
+
+      assert {:ok, %{recordings_folder: "Meeting Recordings"}} =
+               Vaults.set_recordings_folder(ctx.vault, "Meeting Recordings")
+
+      assert Vaults.for_board(ctx.kb).recordings_folder == "Meeting Recordings"
+      assert {:ok, %{recordings_folder: nil}} = Vaults.set_recordings_folder(ctx.vault, "")
+    end
+
+    test "a sync token is recorded once, with its label and the last time", ctx do
       %{user: user, vault: vault} = ctx
       {_raw, token} = Slipdock.Accounts.create_api_token(user, "slipdock CLI on laptop")
 
@@ -261,228 +412,6 @@ defmodule Slipdock.VaultsTest do
       # A browser session has no token and is no mirror.
       assert :ok = Vaults.touch_mirror(vault, nil)
       assert length(Vaults.mirrors(vault)) == 1
-
-      # Deleting the vault takes its mirrors with it.
-      {:ok, _} = Vaults.delete_vault(vault)
-      assert Slipdock.Repo.all(Slipdock.Vaults.Mirror) == []
-    end
-  end
-
-  describe "previews" do
-    test "a new mapping lists the pages it brings in, with their vault paths", ctx do
-      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
-      map!(vault, user, %{path: "/", board: kb})
-      {:ok, _} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
-      {:ok, _} = Wiki.create_page(jobs, %{"title" => "Beta"}, user: user)
-
-      assert {:ok, preview} =
-               Vaults.preview_mapping(vault, user, %{path: "/Journal", board: jobs})
-
-      assert preview.path == "/Journal"
-      assert preview.arriving == %{count: 2, sample: ["Journal/Acme.md", "Journal/Beta.md"]}
-      assert preview.moving.count == 0
-      # Nothing is written.
-      assert length(Slipdock.Repo.preload(vault, :mappings, force: true).mappings) == 1
-    end
-
-    test "a mapping inside another takes over the pages under its path", ctx do
-      %{user: user, kb: kb, vault: vault} = ctx
-      {:ok, notes} = Wiki.create_folder(kb, %{"name" => "Notes"})
-      {:ok, _} = Wiki.create_page(kb, %{"title" => "Top"}, user: user)
-
-      {:ok, _} =
-        Wiki.create_page(kb, %{"title" => "Inside", "folder_id" => notes.id}, user: user)
-
-      map!(vault, user, %{path: "/", board: kb})
-
-      assert {:ok, preview} =
-               Vaults.preview_mapping(vault, user, %{path: "/Notes", board: kb, folder: notes})
-
-      assert preview.arriving.count == 0
-
-      assert preview.moving == %{
-               count: 1,
-               sample: [%{from: "Notes/Inside.md", to: "Notes/Inside.md"}]
-             }
-    end
-
-    test "names the synced folders that will gain the files", ctx do
-      %{user: user, kb: kb, vault: vault} = ctx
-      {_raw, token} = Slipdock.Accounts.create_api_token(user, "slipdock CLI on laptop")
-      Vaults.touch_mirror(vault, token)
-
-      assert {:ok, %{mirrors: ["slipdock CLI on laptop"]}} =
-               Vaults.preview_mapping(vault, user, %{path: "/", board: kb})
-    end
-
-    test "is refused for the reasons a mapping is", ctx do
-      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
-      map!(vault, user, %{path: "/", board: kb})
-
-      assert {:error, :unprocessable_entity, "/ is already mapped in this vault"} =
-               Vaults.preview_mapping(vault, user, %{path: "/", board: jobs})
-
-      assert {:error, :unprocessable_entity, "Keystone is already mapped into a vault"} =
-               Vaults.preview_mapping(vault, user, %{path: "/Again", board: kb})
-
-      {:ok, other} = Vaults.create_vault(user, %{"name" => "Other"})
-
-      assert {:error, :unprocessable_entity, "Keystone is already in another vault"} =
-               Vaults.preview_mapping(other, user, %{path: "/", board: kb})
-
-      assert {:error, :unprocessable_entity, _} =
-               Vaults.preview_mapping(vault, user, %{path: "/../x", board: jobs})
-    end
-
-    test "taking a mapping out lists the pages that leave, and those that fall back", ctx do
-      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
-      {:ok, notes} = Wiki.create_folder(kb, %{"name" => "Notes"})
-      {:ok, _} = Wiki.create_page(kb, %{"title" => "Inside", "folder_id" => notes.id}, user: user)
-      {:ok, _} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
-      map!(vault, user, %{path: "/", board: kb})
-      inner = map!(vault, user, %{path: "/Filed", board: kb, folder: notes})
-      map!(vault, user, %{path: "/Journal", board: jobs})
-
-      assert {:ok, gone} = Vaults.preview_unmapping(vault, "/Journal")
-      assert gone.leaving == %{count: 1, sample: ["Journal/Acme.md"]}
-      assert gone.moving.count == 0
-
-      assert {:ok, back} = Vaults.preview_unmapping(vault, inner.id)
-      assert back.leaving.count == 0
-      assert back.moving.sample == [%{from: "Filed/Inside.md", to: "Notes/Inside.md"}]
-
-      assert {:error, :not_found, _} = Vaults.preview_unmapping(vault, "/Nope")
-    end
-
-    test "candidates say why a board can't be mapped", ctx do
-      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
-      stranger = user_fixture("lender@example.com")
-      read_only = board_fixture(%{"name" => "Read only", "code" => "ro2"}, owner: stranger)
-      share_fixture(read_only, user, "read")
-      old = board_fixture(%{"name" => "Old", "code" => "old2"}, owner: user)
-      {:ok, _} = Boards.archive_board(old)
-      {:ok, other} = Vaults.create_vault(user, %{"name" => "Other"})
-      map!(other, user, %{path: "/", board: jobs})
-      map!(vault, user, %{path: "/", board: kb})
-
-      reasons = vault |> Vaults.mapping_candidates(user) |> Map.new(fn {b, r} -> {b.name, r} end)
-
-      # Mapping the same board twice in one vault is allowed.
-      assert reasons["Keystone"] == nil
-      assert reasons["Journal Desk"] == "is already in another vault"
-      assert reasons["Read only"] == "you can't write to it"
-      assert reasons["Old"] == "is archived"
-    end
-  end
-
-  describe "addresses (#752)" do
-    test "pages, folders and mappings by their vault paths, nested mappings too", ctx do
-      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
-      {:ok, notes} = Wiki.create_folder(kb, %{"name" => "Big Ideas"})
-
-      {:ok, idea} =
-        Wiki.create_page(kb, %{"title" => "Plain text", "folder_id" => notes.id}, user: user)
-
-      {:ok, parent} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
-
-      {:ok, child} =
-        Wiki.create_page(jobs, %{"title" => "Call", "parent_id" => parent.id}, user: user)
-
-      map!(vault, user, %{path: "/", board: kb})
-      jobs_map = map!(vault, user, %{path: "/Journal", board: jobs})
-
-      addresses = Vaults.addresses(vault)
-      assert addresses.pages[idea.id] == "Big Ideas/Plain text"
-      # A page with pages under it is addressed by its own name, not its index.md.
-      assert addresses.pages[parent.id] == "Journal/Acme"
-      assert addresses.pages[child.id] == "Journal/Acme/Call"
-      assert addresses.folders[notes.id] == "Big Ideas"
-
-      assert Vaults.resolve_address(vault, "big ideas/plain text.md") == {:page, idea.id}
-      assert Vaults.resolve_address(vault, "/Journal/Acme/") == {:page, parent.id}
-      assert Vaults.resolve_address(vault, "Big Ideas") == {:folder, notes.id}
-      assert {:mapping, %{id: id}} = Vaults.resolve_address(vault, "journal")
-      assert id == jobs_map.id
-      assert Vaults.resolve_address(vault, "Nope") == :error
-    end
-  end
-
-  describe "a board kept inside its vault (#757)" do
-    test "a whole board can be kept inside, and let out again", %{
-      user: user,
-      kb: kb,
-      vault: vault
-    } do
-      mapping = map!(vault, user, %{path: "/", board: kb})
-      refute mapping.inside
-      assert Vaults.inside_boards(user) == %{}
-
-      assert {:ok, %{inside: true}} = Vaults.set_inside(vault, "/", true)
-      assert %{} = inside = Vaults.inside_boards(user)
-      assert %Vault{name: "Notes"} = inside[kb.id]
-
-      assert {:ok, %{inside: false}} = Vaults.set_inside(vault, mapping.id, false)
-      assert Vaults.inside_boards(user) == %{}
-    end
-
-    test "only a whole board: never one folder of it", %{user: user, jobs: jobs, vault: vault} do
-      {:ok, notes} = Wiki.create_folder(jobs, %{"name" => "Notes"})
-      map!(vault, user, %{path: "/Journal", board: jobs, folder: notes})
-
-      assert {:error, :unprocessable_entity, message} = Vaults.set_inside(vault, "/Journal", true)
-      assert message =~ "only a whole board"
-      # Letting a folder's mapping out is a no-op, not an error.
-      assert {:ok, %{inside: false}} = Vaults.set_inside(vault, "/Journal", false)
-
-      {:error, changeset} =
-        Vaults.add_mapping(vault, user, %{
-          path: "/Other",
-          board: jobs,
-          folder: notes,
-          inside: true
-        })
-
-      assert changeset.errors[:inside] || changeset.errors[:folder_id]
-      assert {:error, :not_found, _} = Vaults.set_inside(vault, "/Nowhere", true)
-    end
-
-    test "mapped inside from the start, and gone with the mapping or the vault", %{
-      user: user,
-      kb: kb,
-      vault: vault
-    } do
-      map!(vault, user, %{path: "/", board: kb, inside: true})
-      assert Map.has_key?(Vaults.inside_boards(user), kb.id)
-
-      {:ok, _} = Vaults.remove_mapping(vault, "/")
-      assert Vaults.inside_boards(user) == %{}
-
-      map!(vault, user, %{path: "/", board: kb, inside: true})
-      {:ok, _} = Vaults.delete_vault(vault)
-      assert Vaults.inside_boards(user) == %{}
-    end
-
-    test "somebody else's vault keeps nothing out of your list", %{
-      user: user,
-      kb: kb,
-      vault: vault
-    } do
-      map!(vault, user, %{path: "/", board: kb, inside: true})
-      other = user_fixture("inside-other@example.com")
-      assert Vaults.inside_boards(other) == %{}
-    end
-
-    test "a new vault with a board to hold its pages", %{user: user} do
-      assert {:ok, vault} = Vaults.create_vault_with_board(user, %{"name" => "Brain"})
-      assert [%{path: "", inside: true, folder_id: nil, board: board}] = vault.mappings
-      assert board.name == "Brain"
-      assert board.owner_id == user.id
-      assert Map.has_key?(Vaults.inside_boards(user), board.id)
-
-      # A name that won't do makes neither.
-      boards = length(Slipdock.Access.list_boards(user))
-      assert {:error, _} = Vaults.create_vault_with_board(user, %{"name" => "brain"})
-      assert length(Slipdock.Access.list_boards(user)) == boards
     end
   end
 end

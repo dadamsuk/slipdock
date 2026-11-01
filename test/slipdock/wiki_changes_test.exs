@@ -15,10 +15,15 @@ defmodule Slipdock.WikiChangesTest do
     user = user_fixture()
     kb = board_fixture(%{"name" => "KB", "code" => "chkb"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal", "code" => "chjobs"}, owner: user)
+    # Nobody's, so in no vault.
     outside = board_fixture(%{"name" => "Out", "code" => "chout"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+
+    Slipdock.Repo.update_all(
+      from(b in Slipdock.Boards.Board, where: b.id == ^outside.id),
+      set: [owner_id: nil]
+    )
+
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "V"})
     start = Changes.since(vault, nil, user).cursor
     %{user: user, kb: kb, jobs: jobs, outside: outside, vault: vault, start: start}
   end
@@ -44,7 +49,7 @@ defmodule Slipdock.WikiChangesTest do
     _ = page!(ctx.outside, ctx.user, "Not in the vault")
 
     %{changes: changes, cursor: cursor, more: false} = feed(ctx)
-    assert [%{id: a_id, path: "/A"} = first, %{id: b_id, path: "/Journal/B"}] = changes
+    assert [%{id: a_id, path: "/KB/A"} = first, %{id: b_id, path: "/Journal/B"}] = changes
     assert {a_id, b_id} == {a.id, b.id}
     assert first.subject == "page"
     assert first.action == "changed"

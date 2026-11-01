@@ -10,7 +10,8 @@ defmodule Slipdock.VaultLinksTest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Vaults, Wiki}
+  alias Slipdock.{Repo, Vaults, Wiki}
+  alias Slipdock.Boards.Board
   alias Slipdock.Vaults.Index
   alias Slipdock.Wiki.Links
   alias SlipdockWeb.Wiki.Renderer
@@ -20,15 +21,12 @@ defmodule Slipdock.VaultLinksTest do
     kb = board_fixture(%{"name" => "Keystone", "code" => "vlkb"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal Desk", "code" => "vljobs"}, owner: user)
     projx = board_fixture(%{"name" => "Project X", "code" => "vlprojx"}, owner: user)
+    # Nobody's, so in no vault.
     outside = board_fixture(%{"name" => "Elsewhere", "code" => "vlout"}, owner: user)
+    Repo.update_all(from(b in Board, where: b.id == ^outside.id), set: [owner_id: nil])
     {:ok, notes} = Wiki.create_folder(projx, %{"name" => "Notes"})
 
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
-
-    {:ok, _} =
-      Vaults.add_mapping(vault, user, %{path: "/Projects/X", board: projx, folder: notes})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
 
     %{user: user, kb: kb, jobs: jobs, projx: projx, outside: outside, notes: notes, vault: vault}
   end
@@ -61,9 +59,9 @@ defmodule Slipdock.VaultLinksTest do
     longer = page!(ctx.projx, ctx.user, "Dup", %{"folder_id" => ctx.notes.id})
 
     assert links_to(ctx.kb, ctx.user, "[[Dup]]") == [shorter.id]
-    assert links_to(ctx.kb, ctx.user, "[[X/Dup]]") == [longer.id]
-    assert links_to(ctx.kb, ctx.user, "[[Projects/X/Dup]]") == [longer.id]
-    assert links_to(ctx.kb, ctx.user, "[[Journal/Dup]]") == [shorter.id]
+    assert links_to(ctx.kb, ctx.user, "[[Notes/Dup]]") == [longer.id]
+    assert links_to(ctx.kb, ctx.user, "[[Project X/Notes/Dup]]") == [longer.id]
+    assert links_to(ctx.kb, ctx.user, "[[Journal Desk/Dup]]") == [shorter.id]
   end
 
   test "folders and parent pages are part of the path", ctx do
@@ -77,8 +75,8 @@ defmodule Slipdock.VaultLinksTest do
     assert links_to(ctx.kb, ctx.user, "[[Other/Call]]") == [nil]
 
     paths = ctx.vault |> Index.build() |> Map.new(&{&1.id, &1.path})
-    assert paths[call.id] == "Journal/Acme/Call"
-    assert paths[kid.id] == "Journal/Parent/Kid"
+    assert paths[call.id] == "Journal Desk/Acme/Call"
+    assert paths[kid.id] == "Journal Desk/Parent/Kid"
   end
 
   test "aliases and titles needing a safe file name match too", ctx do
@@ -92,11 +90,6 @@ defmodule Slipdock.VaultLinksTest do
     colon = page!(ctx.jobs, ctx.user, "Retry: why")
     assert links_to(ctx.kb, ctx.user, "[[short]]") == [aliased.id]
     assert links_to(ctx.kb, ctx.user, "[[Retry- why]]") == [colon.id]
-  end
-
-  test "a page in a part of its board no mapping covers is in no vault path", ctx do
-    _loose = page!(ctx.projx, ctx.user, "Loose")
-    assert links_to(ctx.kb, ctx.user, "[[Loose]]") == [nil]
   end
 
   test "an archived page is not a target", ctx do
@@ -117,7 +110,9 @@ defmodule Slipdock.VaultLinksTest do
   end
 
   test "a page written later brings links on other boards of the vault to life", ctx do
-    linker = page!(ctx.kb, ctx.user, "Waiting", %{"body" => "[[Later]] and [[Journal/Later2]]"})
+    linker =
+      page!(ctx.kb, ctx.user, "Waiting", %{"body" => "[[Later]] and [[Journal Desk/Later2]]"})
+
     assert Enum.all?(Wiki.outgoing_links(linker), &(not &1.resolved))
 
     later = page!(ctx.jobs, ctx.user, "Later")
@@ -181,8 +176,8 @@ defmodule Slipdock.VaultLinksTest do
     test "resolve_link names the page and its path", ctx do
       note = page!(ctx.projx, ctx.user, "Deep", %{"folder_id" => ctx.notes.id})
 
-      assert {:ok, %{id: id}, "Projects/X/Deep"} =
-               Vaults.resolve_link(ctx.vault, "[[X/Deep|label]]", ctx.user)
+      assert {:ok, %{id: id}, "Project X/Notes/Deep"} =
+               Vaults.resolve_link(ctx.vault, "[[Notes/Deep|label]]", ctx.user)
 
       assert id == note.id
       assert {:error, :not_found, _} = Vaults.resolve_link(ctx.vault, "Nowhere", ctx.user)
@@ -221,12 +216,12 @@ defmodule Slipdock.VaultLinksTest do
       inbox = page!(ctx.kb, ctx.user, "Inbox", %{"folder_id" => ctx.tasks.id})
       day = page!(ctx.kb, ctx.user, "Plan", %{"folder_id" => ctx.daily.id})
 
-      page = linker(ctx, ctx.daily, "[[../Tasks/Inbox]] [[./Plan|plan]] [[../../Tasks/Inbox]]")
+      page = linker(ctx, ctx.daily, "[[../Tasks/Inbox]] [[./Plan|plan]] [[../../../Tasks/Inbox]]")
 
       assert {"[[../Tasks/Inbox]]", true, inbox.id} in targets(page)
       assert {"[[./Plan|plan]]", true, day.id} in targets(page)
       # Climbing out of the vault reaches nothing.
-      assert {"[[../../Tasks/Inbox]]", false, nil} in targets(page)
+      assert {"[[../../../Tasks/Inbox]]", false, nil} in targets(page)
     end
 
     test "a folder path that finds nothing from the root is read from the note's folder", ctx do

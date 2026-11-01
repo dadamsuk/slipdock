@@ -3,18 +3,17 @@ defmodule Slipdock.Vaults.Index do
   Where every page of a vault sits, as a vault path, and finding pages by a
   link's words the way Obsidian does (W-103 R4).
 
-  A page's vault path is the path of the mapping that holds it, then the
-  folders below that mapping's folder, then the pages it sits under, then its
-  own title — exactly the layout an export writes (`Slipdock.Wiki.Archive`),
-  so a link that resolved in the files resolves here. A board mapped more
-  than once has each page claimed by the deepest mapping above it; a page in
-  no mapped part of its board is in no vault path at all.
+  A page's vault path is its board's place in the vault
+  (`Slipdock.Vaults.Layout`), then its folders, then the pages it sits under,
+  then its own title. All of it in whole names, cleaned and never shortened:
+  a disk name is cut to fit a path, but two pages sharing a long start must
+  not answer to one link (W-2201 rule 5).
 
-  Matching compares names as their files would be named, case aside: the last
-  part of a link against a page's title, slug or aliases, any parts before it
-  against the end of the page's directory path. Of several matches the
-  shortest path wins — fewest segments, then alphabetical — which is the
-  "shortest unique path" rule; writing more of the path picks another.
+  Matching compares names cleaned, case aside: the last part of a link
+  against a page's title, slug or aliases, any parts before it against the
+  end of the page's directory path. Of several matches the shortest path wins
+  — fewest segments, then alphabetical — which is the "shortest unique path"
+  rule; writing more of the path picks another.
 
   Built from a few narrow queries over the vault's boards. A caller resolving
   many links at once wraps the work in `cached/1`, so the index is built once
@@ -24,13 +23,12 @@ defmodule Slipdock.Vaults.Index do
   import Ecto.Query, warn: false
 
   alias Slipdock.Repo
-  alias Slipdock.Vaults.{Mapping, Vault}
-  alias Slipdock.Wiki.{DiskName, Folder, Page}
+  alias Slipdock.Vaults.{Layout, Vault}
+  alias Slipdock.Wiki.{DiskName, Page}
 
   @type entry :: %{
           id: pos_integer,
           board_id: pos_integer,
-          mapping_id: term,
           segments: [String.t()],
           path: String.t(),
           names: [String.t()],
@@ -39,33 +37,9 @@ defmodule Slipdock.Vaults.Index do
 
   @doc "Every live page of the vault with its vault path, shortest paths first."
   @spec build(Vault.t()) :: [entry]
-  def build(%Vault{} = vault), do: vault |> mappings() |> build_from()
-
-  @doc """
-  The vault's mappings in the shape `build_from/1` takes: `{board_id,
-  folder_id, path, mapping_id}`.
-  """
-  def mappings(%Vault{id: vault_id}) do
-    Repo.all(
-      from(m in Mapping,
-        where: m.vault_id == ^vault_id,
-        select: {m.board_id, m.folder_id, m.path, m.id}
-      )
-    )
-  end
-
-  @doc """
-  The index a set of mappings would make — the vault's own, or one with a
-  mapping added or taken away, which is how a change is previewed before it
-  is made. A mapping's id may be any term (`:new` for one not yet saved).
-  """
-  def build_from(mappings) do
-    board_ids = mappings |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
-
-    folders =
-      from(f in Folder, where: f.board_id in ^board_ids, select: {f.id, {f.parent_id, f.name}})
-      |> Repo.all()
-      |> Map.new()
+  def build(%Vault{} = vault) do
+    dirs = Layout.dirs(vault)
+    board_ids = Map.keys(dirs.full_boards)
 
     pages =
       from(p in Page,
@@ -85,44 +59,31 @@ defmodule Slipdock.Vaults.Index do
       |> Repo.all()
 
     by_id = Map.new(pages, &{&1.id, &1})
-    by_board = Enum.group_by(mappings, &elem(&1, 0))
 
     pages
     |> Enum.reject(& &1.archived)
     |> Enum.flat_map(fn page ->
-      case place(page, by_id, folders, Map.get(by_board, page.board_id, [])) do
+      case place(page, by_id, dirs) do
         nil -> []
-        {mapping_id, segments} -> [entry(page, mapping_id, segments)]
+        segments -> [entry(page, segments)]
       end
     end)
     |> Enum.sort_by(&{length(&1.segments), &1.path})
   end
 
-  # The mapping that holds the page and its vault path as segments, or nil
-  # when no mapping holds it. A
-  # child page sits wherever its top ancestor is filed, as in an export.
-  defp place(page, by_id, folders, mappings) do
+  # The page's vault path as segments. A child page sits wherever its top
+  # ancestor is filed, as in an export.
+  defp place(page, by_id, dirs) do
     {top, ancestors} = ancestry(page, by_id, [])
-    chain = folder_chain(top.folder_id, folders, [])
 
-    mappings
-    |> Enum.map(fn {_board, folder_id, path, id} -> {depth(folder_id, chain), path, id} end)
-    |> Enum.reject(fn {depth, _p, _id} -> is_nil(depth) end)
-    |> Enum.max_by(fn {depth, _p, _id} -> depth end, fn -> nil end)
-    |> case do
-      nil ->
-        nil
+    base =
+      case top.folder_id do
+        nil -> dirs.full_boards[top.board_id]
+        id -> dirs.full_folders[id]
+      end
 
-      {depth, path, id} ->
-        below = chain |> Enum.drop(depth + 1) |> Enum.map(&folder_name(&1, folders))
-        {id, split(path) ++ below ++ Enum.map(ancestors, & &1.title) ++ [page.title]}
-    end
+    base && base ++ Enum.map(ancestors, & &1.title) ++ [page.title]
   end
-
-  # How deep in the chain a mapping's folder sits: -1 for a board's root
-  # (above every folder), nil when the page is not under it at all.
-  defp depth(nil, _chain), do: -1
-  defp depth(folder_id, chain), do: Enum.find_index(chain, &(&1 == folder_id))
 
   defp ancestry(%{parent_id: nil} = page, _by_id, acc), do: {page, acc}
 
@@ -135,29 +96,10 @@ defmodule Slipdock.Vaults.Index do
     end
   end
 
-  # Folder ids from the top of the tree down to `folder_id`.
-  defp folder_chain(nil, _folders, acc), do: acc
-
-  defp folder_chain(folder_id, folders, acc) do
-    case folders[folder_id] do
-      {parent_id, _name} when length(acc) < 64 ->
-        folder_chain(parent_id, folders, [folder_id | acc])
-
-      _ ->
-        acc
-    end
-  end
-
-  defp folder_name(id, folders), do: folders |> Map.fetch!(id) |> elem(1)
-
-  defp split(""), do: []
-  defp split(path), do: String.split(path, "/")
-
-  defp entry(page, mapping_id, segments) do
+  defp entry(page, segments) do
     %{
       id: page.id,
       board_id: page.board_id,
-      mapping_id: mapping_id,
       segments: segments,
       path: Enum.join(segments, "/"),
       names:

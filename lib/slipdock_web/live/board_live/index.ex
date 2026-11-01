@@ -42,38 +42,39 @@ defmodule SlipdockWeb.BoardLive.Index do
      |> assign(show_archived: false)
      |> assign(templates: Boards.list_templates(user))
      |> assign(:form, to_form(Boards.change_board(%Board{})))
-     |> assign(creating_vault: false, reordering: false)
+     |> assign(reordering: false)
      |> load_boards()}
   end
 
-  # Your vaults, listed among the boards (#751): each with the boards mapped
-  # into it, its pages and where it is synced, keyed by the vault's id. The
-  # vault itself carries what the sort reads: its activity and its cards.
-  defp vault_entries(user) do
-    for vault <- Slipdock.Vaults.list_vaults(user), into: %{} do
-      # The boards it keeps inside it (#757), named on its card rather than
-      # among the boards, each with its open cards when it has any.
-      inside =
-        for %{inside: true, folder_id: nil, board: board} <- vault.mappings,
-            do: %{board: board, cards: open_cards(board.id)}
+  # Your vault, listed among the boards (#751) once you have a board of your
+  # own for it to hold: the boards in it, its pages and where it is synced,
+  # keyed by the vault's id. The vault itself carries what the sort reads.
+  defp vault_entries(user, boards) do
+    case Enum.filter(boards, &(&1.owner_id == user.id)) do
+      [] ->
+        %{}
 
-      mirrors = Slipdock.Vaults.mirrors(vault)
-      activity = inside |> Enum.map(& &1.board) |> Boards.last_activity_at() |> Map.values()
+      owned ->
+        vault = Slipdock.Vaults.root(user)
+        mirrors = Slipdock.Vaults.mirrors(vault)
 
-      vault = %{
-        vault
-        | last_activity_at: latest(activity ++ Enum.map(mirrors, & &1.last_synced_at)),
-          card_count: inside |> Enum.map(& &1.cards) |> Enum.sum()
-      }
+        vault = %{
+          vault
+          | last_activity_at:
+              latest(
+                Enum.map(owned, & &1.last_activity_at) ++ Enum.map(mirrors, & &1.last_synced_at)
+              ),
+            card_count: owned |> Enum.map(&length(&1.cards)) |> Enum.sum()
+        }
 
-      {vault.id,
-       %{
-         vault: vault,
-         boards: vault.mappings |> Enum.map(& &1.board) |> Enum.uniq_by(& &1.id),
-         inside: inside,
-         pages: vault |> Slipdock.Vaults.page_counts() |> Map.values() |> Enum.sum(),
-         mirrors: mirrors
-       }}
+        %{
+          vault.id => %{
+            vault: vault,
+            boards: owned,
+            pages: Slipdock.Vaults.page_count(vault),
+            mirrors: mirrors
+          }
+        }
     end
   end
 
@@ -106,15 +107,6 @@ defmodule SlipdockWeb.BoardLive.Index do
       [] -> nil
       times -> Enum.max(times, DateTime)
     end
-  end
-
-  defp open_cards(board_id) do
-    import Ecto.Query, only: [from: 2]
-
-    Slipdock.Repo.aggregate(
-      from(c in Slipdock.Boards.Card, where: c.board_id == ^board_id and is_nil(c.archived_at)),
-      :count
-    )
   end
 
   # A sprint template asks which boards its sprints are planned from; the
@@ -172,15 +164,9 @@ defmodule SlipdockWeb.BoardLive.Index do
   defp load_boards(socket) do
     %{current_user: user, sort: sort} = socket.assigns
 
-    # A board one of your vaults keeps inside it is on that vault's tile,
-    # not here (#757). Shared with you from somebody's vault, it is here.
-    inside = Slipdock.Vaults.inside_boards(user)
-
-    readable = Access.list_boards(user, activity: true)
-    boards = Enum.reject(readable, &Map.has_key?(inside, &1.id))
-
-    vaults = vault_entries(user)
-    multiboards = multiboard_entries(user, readable)
+    boards = Access.list_boards(user, activity: true)
+    vaults = vault_entries(user, boards)
+    multiboards = multiboard_entries(user, boards)
 
     assign(socket,
       boards: boards,
@@ -228,7 +214,6 @@ defmodule SlipdockWeb.BoardLive.Index do
     {:noreply,
      assign(socket,
        creating: true,
-       creating_vault: false,
        auto_code: "",
        custom_lists: @default_lists,
        save_template: false,
@@ -238,44 +223,6 @@ defmodule SlipdockWeb.BoardLive.Index do
   end
 
   def handle_event("cancel_create", _, socket), do: {:noreply, assign(socket, creating: false)}
-
-  def handle_event("start_vault", _, socket),
-    do: {:noreply, assign(socket, creating_vault: true, creating: false)}
-
-  def handle_event("cancel_vault", _, socket),
-    do: {:noreply, assign(socket, creating_vault: false)}
-
-  def handle_event("create_vault", %{"name" => name} = params, socket) do
-    user = socket.assigns.current_user
-
-    result =
-      if params["with_board"] == "true",
-        do: Slipdock.Vaults.create_vault_with_board(user, %{"name" => name}),
-        else: Slipdock.Vaults.create_vault(user, %{"name" => name})
-
-    case result do
-      {:ok, vault} ->
-        {:noreply,
-         socket
-         |> assign(creating_vault: false)
-         |> put_flash(
-           :info,
-           if(params["with_board"] == "true",
-             do:
-               "Made the vault #{vault.name}, with a board of the same name holding its pages, kept inside it.",
-             else: "Made the vault #{vault.name}. Map a board's wiki onto it to fill it."
-           )
-         )
-         |> load_boards()}
-
-      {:error, %Ecto.Changeset{} = cs} ->
-        message = cs.errors[:name] |> Kernel.||({"is invalid", []}) |> elem(0)
-        {:noreply, put_flash(socket, :error, "Vault name #{message}.")}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "That vault couldn't be made: #{inspect(reason)}.")}
-    end
-  end
 
   def handle_event("pick_color", %{"color" => color}, socket) do
     {:noreply, assign(socket, new_color: color)}
@@ -412,7 +359,7 @@ defmodule SlipdockWeb.BoardLive.Index do
           do: socket,
           else: socket |> save_view(%{"board_sort" => "manual"}) |> load_boards()
 
-      {:noreply, assign(socket, reordering: true, creating: false, creating_vault: false)}
+      {:noreply, assign(socket, reordering: true, creating: false)}
     end
   end
 
@@ -598,8 +545,6 @@ defmodule SlipdockWeb.BoardLive.Index do
               </h1>
               <p class="mt-1 text-sm text-base-content/60">
                 {length(@boards)} {if length(@boards) == 1, do: "board", else: "boards"}<span :if={
-                  @vaults != %{}
-                }> · {map_size(@vaults)} {if map_size(@vaults) == 1, do: "vault", else: "vaults"}</span><span :if={
                   @multiboards != %{}
                 }> · {map_size(@multiboards)} {if map_size(@multiboards) == 1,
                   do: "multiboard",
@@ -674,14 +619,6 @@ defmodule SlipdockWeb.BoardLive.Index do
               </.link>
               <button :if={!@creating} class="btn btn-primary btn-sm" phx-click="start_create">
                 <.icon name="hero-plus" class="size-4" /> New board
-              </button>
-              <button
-                :if={!@creating_vault}
-                id="new-vault"
-                class="btn btn-primary btn-sm"
-                phx-click="start_vault"
-              >
-                <.icon name="hero-plus" class="size-4" /> New vault
               </button>
             </div>
           </div>
@@ -802,10 +739,8 @@ defmodule SlipdockWeb.BoardLive.Index do
             </.form>
           </div>
 
-          <.vault_form :if={@creating_vault} />
-
           <div
-            :if={@tiles == [] and @archived == [] and !@creating and !@creating_vault}
+            :if={@tiles == [] and @archived == [] and !@creating}
             class="rounded-2xl border-2 border-dashed border-base-content/15 p-16 text-center"
           >
             <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -813,14 +748,11 @@ defmodule SlipdockWeb.BoardLive.Index do
             </div>
             <h2 class="text-lg font-semibold">No boards yet</h2>
             <p class="mt-1 text-sm text-base-content/60">
-              Create your first board, or a vault for your notes, to get started.
+              Create your first board to get started.
             </p>
             <div class="mt-6 flex justify-center gap-2">
               <button class="btn btn-primary" phx-click="start_create">
                 <.icon name="hero-plus" class="size-4" /> New board
-              </button>
-              <button class="btn btn-primary" phx-click="start_vault">
-                <.icon name="hero-plus" class="size-4" /> New vault
               </button>
             </div>
           </div>
@@ -859,7 +791,6 @@ defmodule SlipdockWeb.BoardLive.Index do
             sort={@sort}
             reordering={@reordering}
             add_tile={!@creating and !@reordering}
-            add_vault_tile={!@creating_vault and !@reordering}
           />
           <.board_table
             :if={@board_layout == "compact" and @tiles != []}
@@ -958,10 +889,9 @@ defmodule SlipdockWeb.BoardLive.Index do
   # Reorder mode (#1485): the whole tile is the handle, and nothing in it
   # opens or clicks.
   attr :reordering, :boolean, default: false
-  # Board-sized "+ Add a new board" and "+ Add a new vault" tiles after the
-  # last one, which open the same forms as the New board and New vault buttons.
+  # A board-sized "+ Add a new board" tile after the last one, which opens the
+  # same form as the New board button.
   attr :add_tile, :boolean, default: false
-  attr :add_vault_tile, :boolean, default: false
 
   defp board_grid(assigns) do
     ~H"""
@@ -1011,15 +941,6 @@ defmodule SlipdockWeb.BoardLive.Index do
         class={add_tile_class()}
       >
         <.icon name="hero-plus" class="size-5" /> Add a new board
-      </button>
-      <button
-        :if={@add_vault_tile}
-        id="new-vault-tile"
-        type="button"
-        phx-click="start_vault"
-        class={add_tile_class()}
-      >
-        <.icon name="hero-plus" class="size-5" /> Add a new vault
       </button>
     </div>
     """
@@ -1380,9 +1301,8 @@ defmodule SlipdockWeb.BoardLive.Index do
   attr :sort, :string, required: true
   attr :tiles, :list, required: true
 
-  # A vault's card, among the boards': it owns no pages, so it shows the
-  # boards mapped into it, how many pages they hold, where it is synced, and
-  # the boards it keeps inside it (#757).
+  # The vault's card, among the boards': it owns no pages, so it shows the
+  # boards it is made of, how many pages they hold and where it is synced.
   defp vault_card(assigns) do
     assigns = assign(assigns, tile_class: @tile_class, vault: assigns.entry.vault)
 
@@ -1398,11 +1318,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             <.vault_keys vault={@vault} hotkey={@hotkey} />
           </h2>
           <p class="mt-0.5 line-clamp-2 text-sm text-base-content/60 sm:min-h-[1.25rem]">
-            <%= if @entry.boards == [] do %>
-              No boards mapped yet
-            <% else %>
-              {Enum.map_join(@entry.boards, " · ", & &1.name)}
-            <% end %>
+            {Enum.map_join(@entry.boards, " · ", & &1.name)}
           </p>
           <div class="mt-2.5 flex items-center gap-3 text-xs text-base-content/60 sm:mt-4">
             <span class="inline-flex items-center gap-1">
@@ -1424,23 +1340,6 @@ defmodule SlipdockWeb.BoardLive.Index do
           </p>
         </div>
       </.link>
-      <%!-- The boards it keeps inside it (#757): outside the card's own
-            link, so each opens its board. --%>
-      <div :if={@entry.inside != []} class="-mt-2 px-3.5 pb-3.5 sm:px-4 sm:pb-4">
-        <.link
-          :for={%{board: board, cards: cards} <- @entry.inside}
-          id={"vault-inside-#{@vault.id}-#{board.id}"}
-          navigate={~p"/boards/#{board}"}
-          class="flex w-fit max-w-full items-center gap-1 truncate rounded text-xs text-base-content/50 hover:text-base-content hover:underline"
-          title="The board that stores these pages: their permissions, history and comments"
-        >
-          <.icon name="hero-rectangle-stack" class="size-3.5 shrink-0" />
-          <span class="truncate">pages stored on {board.name}</span>
-          <span :if={cards > 0} class="shrink-0">
-            · {cards} {if cards == 1, do: "card", else: "cards"}
-          </span>
-        </.link>
-      </div>
       <div class="absolute left-2 top-2 flex items-center gap-1">
         <span
           :if={@sort == "manual"}
@@ -1491,9 +1390,11 @@ defmodule SlipdockWeb.BoardLive.Index do
         </.link>
       </td>
       <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">
-        {@entry.pages} {if @entry.pages == 1, do: "page", else: "pages"}<span :if={
-          @entry.boards != []
-        }> · {Enum.map_join(@entry.boards, " · ", & &1.name)}</span>
+        {@entry.pages} {if @entry.pages == 1, do: "page", else: "pages"} · {Enum.map_join(
+          @entry.boards,
+          " · ",
+          & &1.name
+        )}
       </td>
       <td class="text-right text-base-content/40">—</td>
       <td class="text-right tabular-nums text-base-content/60">{@vault.card_count}</td>
@@ -1727,43 +1628,8 @@ defmodule SlipdockWeb.BoardLive.Index do
     """
   end
 
-  # A vault has no colour of its own: it takes the one of the board it keeps
-  # its pages on, or of the first board mapped into it.
-  defp vault_color(%{inside: [%{board: board} | _]}), do: board.color
+  # A vault has no colour of its own: it takes the one of its first board.
   defp vault_color(%{boards: [board | _]}), do: board.color
-  defp vault_color(_), do: "slate"
-
-  # The new-vault form, in the same kind of panel as the new-board one.
-  defp vault_form(assigns) do
-    ~H"""
-    <div class="kanban-pop mb-8 rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10">
-      <form id="new-vault-form" phx-submit="create_vault" class="space-y-4">
-        <label class="block max-w-md">
-          <span class="mb-1 block text-sm font-medium">Vault name</span>
-          <input
-            type="text"
-            name="name"
-            placeholder="e.g. Notes"
-            class="input w-full"
-            maxlength={Vault.name_length()}
-            autocomplete="off"
-            phx-hook="Focus"
-            id="new-vault-name"
-            required
-          />
-        </label>
-        <label class="flex cursor-pointer items-center gap-2 text-sm">
-          <input type="checkbox" name="with_board" value="true" class="checkbox checkbox-sm" />
-          Make a board to hold its pages, kept inside the vault
-        </label>
-        <div class="flex justify-end gap-2">
-          <button type="button" class="btn btn-ghost" phx-click="cancel_vault">Cancel</button>
-          <button type="submit" class="btn btn-primary">Create vault</button>
-        </div>
-      </form>
-    </div>
-    """
-  end
 
   # Where a vault's tile goes: its own view (#752).
   defp vault_href(vault), do: SlipdockWeb.VaultUrls.url(vault)

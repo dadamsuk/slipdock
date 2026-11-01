@@ -1,12 +1,13 @@
 defmodule SlipdockWeb.WikiVaultTreeTest do
   @moduledoc """
   The wiki's tree on a board in a vault (W-103 R11.3, #758): the board's
-  wiki is the vault from where the board is mounted down, so what is
-  mounted below it shows among its folders, and a page on another board
-  opened from it keeps this board's tree. No switch between trees.
+  wiki is the vault from the board's folder down, so a sub-board shows among
+  its folders, and a page on it opened from there keeps this board's tree.
+  No switch between trees.
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Ecto.Query, only: [from: 2]
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
   import SlipdockWeb.WikiTreeHelpers
@@ -15,10 +16,9 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
 
   setup %{user: user} do
     kb = board_fixture(%{"name" => "Keystone", "code" => "kbvt"}, owner: user)
-    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsvt"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+    # A sub-board of Keystone, at Keystone/Cards/Journal Desk.
+    jobs = sub_board!(kb, "Journal Desk")
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     {:ok, _} = Wiki.create_folder(kb, %{"name" => "Archive"})
     {:ok, _} = Wiki.create_folder(kb, %{"name" => "Projects"})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
@@ -28,7 +28,14 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     %{kb: kb, jobs: jobs, vault: vault, acme: acme, call: call, home: home}
   end
 
-  test "the board at the vault's root shows what is mounted below it, among its folders", %{
+  defp sub_board!(board, title) do
+    {:ok, template} = Slipdock.Boards.find_template(nil, "Simple")
+    [column | _] = Slipdock.Boards.get_board!(board.id).columns
+    {:ok, sub} = sub_board(card_fixture(column, %{"title" => title}), template)
+    Slipdock.Boards.get_board!(sub.id)
+  end
+
+  test "a board shows the way down to its sub-boards, among its folders", %{
     conn: conn,
     kb: kb,
     jobs: jobs
@@ -42,16 +49,18 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     reply = tree_load(view)
     assert reply.scope == "board"
     assert reply.root == "root"
-    assert titles(reply, "root") == ["Archive", "Journal", "Projects", "Home"]
+    assert titles(reply, "root") == ["Archive", "Cards", "Projects", "Home"]
 
-    # Journal is Journal Desk's wiki, opened in this board's tree.
-    assert %{nav: "patch", mount: true, href: href} = row(reply, "root", "Journal")
+    # Its row is Journal Desk's wiki, opened in this board's tree.
+    reply = tree_load(view, %{"keys" => ["dir:Keystone/Cards"]})
+    row = row(reply, "dir:Keystone/Cards", "Journal Desk")
+    assert %{nav: "patch", mount: true, href: href} = row
     assert href == "/boards/#{jobs.id}/wiki?in=#{kb.id}"
     assert %{nav: "patch", href: home_href} = row(reply, "root", "Home")
     refute home_href =~ "in="
   end
 
-  test "a board mounted below the root shows only its part of the vault", %{
+  test "a sub-board shows only its part of the vault", %{
     conn: conn,
     jobs: jobs,
     acme: acme
@@ -68,6 +77,13 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
 
   test "a board in no vault is its own wiki, as ever", %{conn: conn, user: user} do
     lone = board_fixture(%{"name" => "Lone", "code" => "lonevt"}, owner: user)
+    share_fixture(lone, user, "write")
+
+    Slipdock.Repo.update_all(
+      from(b in Slipdock.Boards.Board, where: b.id == ^lone.id),
+      set: [owner_id: nil]
+    )
+
     page_fixture(lone, %{"title" => "Alone"})
     {:ok, view, _html} = live(conn, ~p"/boards/#{lone}/wiki")
 
@@ -78,7 +94,7 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     assert titles(reply, "root") == ["Alone"]
   end
 
-  test "a page on a mounted board opens in the tree it was opened from", %{
+  test "a page on a sub-board opens in the tree it was opened from", %{
     conn: conn,
     kb: kb,
     jobs: jobs,
@@ -94,8 +110,8 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
 
     reply = tree_load(view)
     assert reply.root == "board:#{kb.id}"
-    assert titles(reply, "board:#{kb.id}") == ["Archive", "Journal", "Projects", "Home"]
-    assert reply.reveal == ["board:#{jobs.id}", "folder:#{acme.id}"]
+    assert titles(reply, "board:#{kb.id}") == ["Archive", "Cards", "Projects", "Home"]
+    assert reply.reveal == ["dir:Keystone/Cards", "board:#{jobs.id}", "folder:#{acme.id}"]
 
     # Journal Desk's rows stay in this tree; Keystone's go back to its own.
     assert %{nav: "patch", href: href} = row(reply, "folder:#{acme.id}", "Call notes")
@@ -140,12 +156,12 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     home: home,
     user: user
   } do
-    # Knowledgebase is not below Journal Desk's mount.
+    # Keystone is not below Journal Desk.
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki/#{home.slug}?in=#{jobs.id}")
     refute has_element?(view, "#context-crumbs")
     assert tree_load(view).root == "root"
 
-    # A board in no vault, and nonsense.
+    # A board Journal Desk isn't below, and nonsense.
     other = board_fixture(%{"name" => "Other", "code" => "othervt"}, owner: user)
     {:ok, view, _html} = live(conn, ~p"/boards/#{jobs}/wiki?in=#{other.id}")
     refute has_element?(view, "#context-crumbs")
@@ -153,28 +169,20 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     assert tree_load(view).root == "root"
   end
 
-  test "a board the reader can't open gives no context, and no mount", %{
+  test "a board the reader can't open gives no context", %{
     kb: kb,
     jobs: jobs,
     call: call,
     user: owner
   } do
-    reader = user_fixture("vault.reader@example.com")
-    {:ok, _} = Slipdock.Access.grant(kb, reader, "read", owner)
-
-    {:ok, view, _html} = live(conn_as(reader), ~p"/boards/#{kb}/wiki")
-    reply = tree_load(view, %{"keys" => ["board:#{jobs.id}"]})
-    assert titles(reply, "root") == ["Archive", "Projects", "Home"]
-    refute Map.has_key?(reply.nodes, "board:#{jobs.id}")
-
-    # And Journal Desk's reader can't see Keystone through it.
+    # Journal Desk's reader can't see Keystone through it.
     other = user_fixture("jobs.reader@example.com")
     {:ok, _} = Slipdock.Access.grant(jobs, other, "read", owner)
     {:ok, view, _html} = live(conn_as(other), ~p"/boards/#{jobs}/wiki/#{call.slug}?in=#{kb.id}")
     refute has_element?(view, "#context-crumbs")
   end
 
-  test "organising works across the mounts, on what the reader can write", %{
+  test "organising works across sub-boards, on what the reader can write", %{
     conn: conn,
     kb: kb,
     jobs: jobs,
@@ -187,13 +195,12 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     assert %{writable: true} = row(reply, "root", "Home")
     assert %{writable: true} = row(reply, "board:#{jobs.id}", "Acme")
 
-    # A board of the vault this reader can only read has nothing to move.
+    # A reader has nothing to move, here or on the sub-board.
     reader = user_fixture("organise.reader@example.com")
-    {:ok, _} = Slipdock.Access.grant(kb, reader, "write", owner)
-    {:ok, _} = Slipdock.Access.grant(jobs, reader, "read", owner)
+    {:ok, _} = Slipdock.Access.grant(kb, reader, "read", owner)
     {:ok, view, _html} = live(conn_as(reader), ~p"/boards/#{kb}/wiki")
     reply = tree_load(view, %{"keys" => ["board:#{jobs.id}"]})
-    assert %{writable: true} = row(reply, "root", "Home")
+    refute Map.has_key?(row(reply, "root", "Home"), :writable)
     refute Map.has_key?(row(reply, "board:#{jobs.id}", "Acme"), :writable)
   end
 
@@ -208,7 +215,8 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
 
     reply = tree_load(view)
     assert reply.filtering
-    assert titles(reply, "root") == ["Journal"]
+    assert titles(reply, "root") == ["Cards"]
+    assert titles(reply, "dir:Keystone/Cards") == ["Journal Desk"]
     assert titles(reply, "board:#{jobs.id}") == ["Acme"]
     assert titles(reply, "folder:#{acme.id}") == ["Call notes"]
 

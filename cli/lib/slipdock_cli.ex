@@ -436,43 +436,20 @@ defmodule SlipdockCLI do
                                         everything in its subfolders back up into it.
                                         Missing folders are made. --dry-run: the plan only
 
-  VAULTS  (board wikis laid out as one Obsidian-style vault: each mapping puts a
-           vault path onto a board's wiki or one folder of it, the longest prefix
-           winning. A board belongs to one vault, and only one you can write to)
-    vault ls                            your vaults, their mappings (with page counts)
-                                        and the folders each is synced to
-    vault show <vault>                  one of them
-    vault new <name...> [--with-board]  make one; --with-board also makes a board named
-                                        after it to hold its pages, mapped at / and kept
-                                        inside the vault
+  VAULT  (your whole wiki as one Obsidian-style tree: every board you own, archived
+          ones too, is a folder off the root, and a sub-board sits in its epic's folder)
+    vault ls                            your vault: its boards, page count and the folders
+                                        it is synced to
+    vault show <vault>                  the same, by id or name
     vault rename <vault> <name...>
-    vault rm <vault>                    its mappings go; every page stays on its board
     vault set <vault> [--shortcut K] [--hotkey 0-9|none] [--recordings-folder PATH]
                                         the folder on your Google Drive its meeting
                                         recordings are in ("" clears it); a page whose
                                         front matter says recording: gdrive:<path> plays
                                         it beside its transcript
-    drive status                        your Google Drive connection, and each vault's
+    drive status                        your Google Drive connection, and your vault's
                                         recordings folder
-    vault map <vault> <path> --board B [--folder F] [--inside] [--dry-run]
-                                        put a vault path ("/", "/Projects") onto a board's wiki;
-                                        --dry-run lists the pages it brings in and takes over;
-                                        --inside keeps the board inside the vault
-    vault inside <vault> <path> [--off] keep the board mapped whole at <path> inside the
-                                        vault: the web app names it on the vault's tile, not
-                                        among your boards (`boards` marks it). --off lets it out
-    vault dress <vault> <path> [--icon NAME] [--color NAME]
-                                        what the board or folder mounted at <path> wears in
-                                        the vault's tree (the wiki's icon set and palette;
-                                        none takes one off)
-    vault unmap <vault> <path> [--dry-run]
-                                        take a mapping out (--dry-run: which pages leave)
-    vault split <vault> <path> --board B | --new-board NAME [--dry-run]
-                                        give a vault folder its own board: what is in it
-                                        moves to B (or a board made for it) and <path> is
-                                        mapped onto B. The notes keep their vault paths,
-                                        so a synced folder sees no change to them
-    vault locate <vault> <path>         which mapping a vault path lands in, and the rest
+    vault locate <vault> <path>         which board a vault path lands in, and the rest
     vault resolve <vault> <link...>     the page a [[link]] finds anywhere in the vault
                                         (Note, or Folder/Note; the shortest path wins)
     vault wanted <vault>                pages linked to but never written, every board at once
@@ -483,7 +460,7 @@ defmodule SlipdockCLI do
     vault import <dir> --vault V [--dry-run] [--all]
                                         bring an existing Obsidian vault in, once: each note a
                                         page and each other file a file at its vault path,
-                                        routed by the mappings, bytes as they are (front matter,
+                                        in the board whose folder holds it, bytes as they are (front matter,
                                         Excalidraw, Meld ciphertext). What the server has at a
                                         path already is left alone. --dry-run says what would be
                                         created or skipped, and which links, embeds and plugin
@@ -1135,9 +1112,6 @@ defmodule SlipdockCLI do
     per: :string,
     added: :boolean,
     contents: :boolean,
-    new_board: :string,
-    inside: :boolean,
-    with_board: :boolean,
     recordings_folder: :string,
     hotkey: :string,
     append: :string,

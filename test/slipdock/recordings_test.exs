@@ -57,7 +57,7 @@ defmodule Slipdock.RecordingsTest do
 
   setup do
     user = user_fixture()
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
 
     vault =
       Ecto.Changeset.change(vault, recordings_folder: "Meeting Recordings") |> Repo.update!()
@@ -212,9 +212,8 @@ defmodule Slipdock.RecordingsTest do
 
   # #784: a vault without a folder and a board in no vault are told apart.
   describe "for_page/1" do
-    setup %{user: user, vault: vault} do
+    setup %{user: user} do
       board = board_fixture(%{"name" => "Notes"}, owner: user)
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
       %{board: board}
     end
 
@@ -233,6 +232,12 @@ defmodule Slipdock.RecordingsTest do
 
     test "a board in no vault is :no_vault", %{user: user} do
       loose = board_fixture(%{"name" => "Loose"}, owner: user)
+
+      Slipdock.Repo.update_all(
+        from(b in Slipdock.Boards.Board, where: b.id == ^loose.id),
+        set: [owner_id: nil]
+      )
+
       assert Recordings.for_page(page(loose, "recording: #{@recording}")) == {:error, :no_vault}
     end
 

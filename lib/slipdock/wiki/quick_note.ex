@@ -14,8 +14,7 @@ defmodule Slipdock.Wiki.QuickNote do
   words and the location in their settings, and says so (`placed_by`). A note
   is never lost to the model.
 
-  The main vault is `users.quick_note_vault_id`, or the first vault they have.
-  The location, `users.quick_note_folder`, is a vault path; left unset, or no
+  Notes go to the writer's one vault (`Slipdock.Vaults.root/1`). The location, `users.quick_note_folder`, is a vault path; left unset, or no
   longer there, it is the top-most place they can write to.
   """
 
@@ -26,9 +25,9 @@ defmodule Slipdock.Wiki.QuickNote do
   alias Slipdock.Accounts.User
   alias Slipdock.{Access, AI, Repo, Timezones, Vaults}
   alias Slipdock.Boards.Board
-  alias Slipdock.Vaults.{Layout, Mapping, Vault}
+  alias Slipdock.Vaults.{Layout, Vault}
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{AutoOrganise, Folder, Folders}
+  alias Slipdock.Wiki.{AutoOrganise, Folders}
 
   # What the model is shown: enough of the note to read it, and of the vault
   # to see what each folder is for.
@@ -42,55 +41,32 @@ defmodule Slipdock.Wiki.QuickNote do
   @type place :: %{path: String.t(), board: Board.t(), folder_id: pos_integer | nil}
 
   @doc """
-  The vault notes go to for `user`, or nil when they have none. Only ever one
-  of their own.
+  The vault notes go to for `user`: their one vault.
   """
-  def vault(%User{quick_note_vault_id: id} = user) when is_integer(id) do
-    case Vaults.get_vault(user, id) do
-      {:ok, vault} -> vault
-      _ -> first_vault(user)
-    end
-  end
-
-  def vault(%User{} = user), do: first_vault(user)
-
-  defp first_vault(user), do: user |> Vaults.list_vaults() |> List.first()
+  def vault(%User{} = user), do: Vaults.root(user)
 
   @doc """
-  Everywhere in `vault` a note can go: its mappings and the folders under
-  them, on boards `allow` passes, top-most first. `allow` takes a board and
-  defaults to whether `user` can write to it.
+  Everywhere in `vault` a note can go: its boards and the folders in them, on
+  boards `allow` passes, top-most first. `allow` takes a board and defaults to
+  whether `user` can write to it.
   """
   @spec places(Vault.t(), User.t(), keyword) :: [place]
-  def places(%Vault{id: vault_id}, %User{} = user, opts \\ []) do
+  def places(%Vault{} = vault, %User{} = user, opts \\ []) do
     allow = opts[:allow] || (&writer?(user, &1))
-
-    mappings =
-      Repo.all(
-        from(m in Mapping,
-          where: m.vault_id == ^vault_id,
-          select: %{board_id: m.board_id, folder_id: m.folder_id, path: m.path}
-        )
-      )
+    dirs = Layout.dirs(vault)
 
     boards =
       from(b in Board,
-        where: b.id in ^Enum.map(mappings, & &1.board_id) and is_nil(b.archived_at)
+        where: b.id in ^Map.keys(dirs.boards) and is_nil(b.archived_at)
       )
       |> Repo.all()
       |> Enum.filter(allow)
       |> Map.new(&{&1.id, &1})
 
-    dirs = Layout.folder_dirs(mappings)
+    tops = for {board_id, dir} <- dirs.boards, do: {dir, board_id, nil}
+    filed = for {id, dir} <- dirs.folders, do: {dir, dirs.folder_boards[id], id}
 
-    folders =
-      from(f in Folder, where: f.id in ^Map.keys(dirs), select: {f.id, f.board_id})
-      |> Repo.all()
-
-    mounted = for m <- mappings, do: {m.path, m.board_id, m.folder_id}
-    filed = for {id, board_id} <- folders, do: {dirs[id], board_id, id}
-
-    for({path, board_id, folder_id} <- mounted ++ filed, boards[board_id]) do
+    for({path, board_id, folder_id} <- tops ++ filed, boards[board_id]) do
       %{path: path, board: boards[board_id], folder_id: folder_id}
     end
     |> Enum.uniq_by(&String.downcase(&1.path))
@@ -99,7 +75,7 @@ defmodule Slipdock.Wiki.QuickNote do
 
   @doc """
   Saves `text` as a note. `{:ok, %{page:, vault:, location:, placed_by:}}`,
-  where `location` is the vault path it went to (`""` is the top) and
+  where `location` is the vault path it went to and
   `placed_by` is `:ai` or `:settings`; or an error `Slipdock.Wiki.create_page/3`
   would give, or `{:error, :unprocessable_entity, message}`.
 
@@ -110,7 +86,7 @@ defmodule Slipdock.Wiki.QuickNote do
     text = String.trim(to_string(text))
 
     with :ok <- written(text),
-         {:ok, vault} <- found(vault(user)),
+         vault = vault(user),
          {:ok, places} <- writable(vault, user, opts) do
       fallback = home(user, vault, places)
       suggestion = suggest(user, vault, places, text)
@@ -124,12 +100,6 @@ defmodule Slipdock.Wiki.QuickNote do
 
   defp written(""), do: {:error, :unprocessable_entity, "A note needs something in it."}
   defp written(_text), do: :ok
-
-  defp found(nil) do
-    {:error, :unprocessable_entity, "Quick notes go into a vault. Make one under Vaults first."}
-  end
-
-  defp found(vault), do: {:ok, vault}
 
   defp writable(vault, user, opts) do
     case places(vault, user, opts) do

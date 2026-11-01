@@ -40,87 +40,61 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
     text
   end
 
-  test "make a vault, map it, list it, locate a path, unmap, rename, delete", %{
-    conn: conn,
-    user: user
-  } do
-    assert ok!(call(conn, "manage_vault", %{action: "create", name: "Notes"}))["vault"]["name"] ==
-             "Notes"
+  test "list_vaults describes the one vault; path gives the board and the rest", ctx do
+    %{conn: conn, user: user} = ctx
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
 
-    ok!(call(conn, "manage_vault", %{action: "map", vault: "Notes", path: "/", board: "kb8"}))
+    assert [%{"id" => id, "name" => "Notes", "boards" => boards, "pages" => 0}] =
+             ok!(call(conn, "list_vaults", %{}))["vaults"]
 
-    mapped =
-      ok!(
-        call(conn, "manage_vault", %{
-          action: "map",
-          vault: "Notes",
-          path: "/Journal",
-          board: "jobs5",
-          folder: "Notes"
-        })
-      )
-
-    assert Enum.map(mapped["vault"]["mappings"], & &1["path"]) == ["/", "/Journal"]
-
-    assert [%{"name" => "Notes"}] = ok!(call(conn, "list_vaults", %{}))["vaults"]
+    assert id == vault.id
+    assert Enum.map(boards, & &1["path"]) == ["/Journal Desk", "/Keystone"]
     assert ok!(call(conn, "list_vaults", %{vault: "notes"}))["vault"]["name"] == "Notes"
 
-    located = ok!(call(conn, "list_vaults", %{vault: "Notes", path: "/Journal/a.md"}))
-    assert located["mapping"]["path"] == "/Journal"
+    located = ok!(call(conn, "list_vaults", %{vault: "Notes", path: "/Journal Desk/a.md"}))
+    assert located["board"]["code"] == "jobs5"
+    assert located["board"]["path"] == "/Journal Desk"
     assert located["rest"] == "a.md"
-
-    unmapped =
-      ok!(call(conn, "manage_vault", %{action: "unmap", vault: "Notes", path: "/Journal"}))
-
-    assert Enum.map(unmapped["vault"]["mappings"], & &1["path"]) == ["/"]
-
-    ok!(call(conn, "manage_vault", %{action: "rename", vault: "Notes", name: "Brain"}))
-    assert error!(call(conn, "manage_vault", %{action: "delete", vault: "Brain"})) =~ "confirm"
-    ok!(call(conn, "manage_vault", %{action: "delete", vault: "Brain", confirm: true}))
-    assert Vaults.list_vaults(user) == []
   end
 
-  test "inside: map a board inside, let it out; create with_board (#757)", %{
-    conn: conn,
-    user: user
-  } do
-    ok!(call(conn, "manage_vault", %{action: "create", name: "Notes"}))
+  test "manage_vault renames the vault", %{conn: conn, user: user} do
+    vault = Vaults.root(user)
 
-    mapped =
-      ok!(
-        call(conn, "manage_vault", %{action: "map", vault: "Notes", board: "kb8", inside: true})
-      )
+    renamed = ok!(call(conn, "manage_vault", %{action: "rename", vault: vault.id, name: "Brain"}))
 
-    assert [%{"inside" => true}] = mapped["vault"]["mappings"]
-
-    out =
-      ok!(
-        call(conn, "manage_vault", %{action: "inside", vault: "Notes", path: "/", inside: false})
-      )
-
-    assert [%{"inside" => false}] = out["vault"]["mappings"]
-
-    ok!(
-      call(conn, "manage_vault", %{
-        action: "map",
-        vault: "Notes",
-        path: "/Journal",
-        board: "jobs5",
-        folder: "Notes"
-      })
-    )
-
-    assert error!(
-             call(conn, "manage_vault", %{action: "inside", vault: "Notes", path: "/Journal"})
-           ) =~
-             "only a whole board"
-
-    made = ok!(call(conn, "manage_vault", %{action: "create", name: "Brain", with_board: true}))
-    assert [%{"inside" => true, "board" => %{"name" => "Brain"}}] = made["vault"]["mappings"]
-    assert map_size(Vaults.inside_boards(user)) == 1
+    assert renamed["vault"]["name"] == "Brain"
+    assert {:ok, %{name: "Brain"}} = Vaults.get_vault(user, vault.id)
   end
 
-  test "mistakes come back as sentences", %{conn: conn} do
+  test "the actions that went with mounting are refused", %{conn: conn, user: user} do
+    vault = Vaults.root(user)
+
+    for action <- ~w(create delete map unmap inside split) do
+      args = %{action: action, vault: vault.id, name: "More", board: "kb8"}
+      assert error!(call(conn, "manage_vault", args)) =~ "action must be one of"
+    end
+
+    assert [%{id: id}] = Vaults.list_vaults(user)
+    assert id == vault.id
+  end
+
+  test "the arguments that went with mounting are not offered", %{conn: conn} do
+    %{"tools" => tools} =
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/mcp", Jason.encode!(%{jsonrpc: "2.0", id: 1, method: "tools/list"}))
+      |> json_response(200)
+      |> Map.fetch!("result")
+
+    tool = Enum.find(tools, &(&1["name"] == "manage_vault"))
+
+    assert tool["inputSchema"]["properties"]["action"]["enum"] == ["rename", "move_folder"]
+
+    for key <- ~w(path new_board confirm inside with_board),
+        do: refute(Map.has_key?(tool["inputSchema"]["properties"], key))
+  end
+
+  test "mistakes come back as sentences", %{conn: conn, user: user} do
     assert error!(call(conn, "manage_vault", %{action: "fly"})) =~ "action must be one of"
 
     assert error!(call(conn, "manage_vault", %{action: "rename", vault: "Nope", name: "x"})) =~
@@ -128,41 +102,38 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
 
     assert error!(call(conn, "list_vaults", %{path: "/x"})) =~ "which vault"
 
-    call(conn, "manage_vault", %{action: "create", name: "Notes"})
+    assert {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
 
-    assert error!(call(conn, "manage_vault", %{action: "map", vault: "Notes"})) =~
-             "board is required"
-
-    assert error!(call(conn, "manage_vault", %{action: "map", vault: "Notes", board: "nope"})) =~
-             "board"
-
-    assert error!(call(conn, "list_vaults", %{vault: "Notes", path: "/x.md"})) =~ "mapping"
+    assert error!(call(conn, "list_vaults", %{vault: "Notes", path: "/x.md"})) =~ "board"
+    assert error!(call(conn, "list_vaults", %{vault: "Notes", path: "/Nope/x.md"})) =~ "board"
+    assert error!(call(conn, "list_vaults", %{vault: "Notes", path: "/a/../b"})) =~ ".."
+    assert error!(call(conn, "list_vaults", %{vault: "Nope"})) =~ "vault"
   end
 
   test "a read-only token may list but not change", %{user: user} do
-    {:ok, _} = Vaults.create_vault(user, %{"name" => "Notes"})
+    vault = Vaults.root(user)
     {token, _} = Accounts.create_api_token(user, "reader", scope: "read")
     conn = build_conn() |> put_req_header("authorization", "Bearer " <> token)
 
     assert [_] = ok!(call(conn, "list_vaults", %{}))["vaults"]
-    assert error!(call(conn, "manage_vault", %{action: "create", name: "More"})) =~ "read-only"
+
+    assert error!(call(conn, "manage_vault", %{action: "rename", vault: vault.id, name: "More"})) =~
+             "read-only"
   end
 
   test "list_vaults resolves a link, page_info lists a vault's wanted pages", %{
     conn: conn,
     user: user
   } do
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     {:ok, kb} = Slipdock.Access.find_board(user, "kb8")
     {:ok, jobs} = Slipdock.Access.find_board(user, "jobs5")
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     {:ok, note} = Slipdock.Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
     {:ok, _} = Slipdock.Wiki.create_page(kb, %{"title" => "L", "body" => "[[Ghost]]"}, user: user)
 
     found = ok!(call(conn, "list_vaults", %{vault: "Notes", link: "Acme"}))
     assert found["page"]["code"] == note.code
-    assert found["path"] == "/Journal/Acme"
+    assert found["path"] == "/Journal Desk/Acme"
     assert error!(call(conn, "list_vaults", %{link: "Acme"})) =~ "which vault"
 
     wanted = ok!(call(conn, "page_info", %{what: "wanted", vault: "Notes"}))
@@ -170,9 +141,8 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
   end
 
   test "list_vaults gives the change feed after a cursor", %{conn: conn, user: user} do
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     {:ok, kb} = Slipdock.Access.find_board(user, "kb8")
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
     {:ok, _} = Slipdock.Wiki.create_page(kb, %{"title" => "Fresh"}, user: user)
 
     feed = ok!(call(conn, "list_vaults", %{vault: "Notes", changes_since: 0}))
@@ -180,46 +150,6 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
     assert is_integer(feed["cursor"])
     assert error!(call(conn, "list_vaults", %{vault: "Notes", changes_since: -1})) =~ "cursor"
     assert error!(call(conn, "list_vaults", %{changes_since: 0})) =~ "vault"
-  end
-
-  test "map and unmap with dry_run preview and change nothing", %{conn: conn, user: user} do
-    ok!(call(conn, "manage_vault", %{action: "create", name: "Notes"}))
-
-    preview =
-      ok!(
-        call(conn, "manage_vault", %{
-          action: "map",
-          vault: "Notes",
-          path: "/",
-          board: "kb8",
-          dry_run: true
-        })
-      )
-
-    assert preview["dry_run"] == true
-    assert preview["preview"]["arriving"]["count"] == 0
-    {:ok, vault} = Vaults.get_vault(user, "Notes")
-    assert vault.mappings == []
-
-    ok!(call(conn, "manage_vault", %{action: "map", vault: "Notes", path: "/", board: "kb8"}))
-
-    out =
-      ok!(
-        call(conn, "manage_vault", %{action: "unmap", vault: "Notes", path: "/", dry_run: true})
-      )
-
-    assert out["preview"]["path"] == "/"
-    {:ok, vault} = Vaults.get_vault(user, "Notes")
-    assert [_] = vault.mappings
-
-    assert error!(
-             call(conn, "manage_vault", %{
-               action: "unmap",
-               vault: "Notes",
-               path: "/x",
-               dry_run: true
-             })
-           ) =~ "mapping"
   end
 
   test "move_folder: a dry run, then the move, then a refusal", %{conn: conn} do
@@ -260,41 +190,5 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
                to_board: "kb8"
              })
            ) =~ "on that board already"
-  end
-
-  test "split: a dry run, then the folder becomes the board's and its path is mapped", %{
-    conn: conn
-  } do
-    ok!(call(conn, "manage_vault", %{action: "create", name: "Notes"}))
-    ok!(call(conn, "manage_vault", %{action: "map", vault: "Notes", path: "/", board: "jobs5"}))
-
-    dry =
-      ok!(
-        call(conn, "manage_vault", %{
-          action: "split",
-          vault: "Notes",
-          path: "/Notes",
-          board: "kb8",
-          dry_run: true
-        })
-      )
-
-    assert dry["preview"]["into"] == "Keystone"
-
-    done =
-      ok!(
-        call(conn, "manage_vault", %{
-          action: "split",
-          vault: "Notes",
-          path: "/Notes",
-          board: "kb8"
-        })
-      )
-
-    assert done["board"]["code"] == "kb8"
-    assert Enum.map(done["vault"]["mappings"], & &1["path"]) == ["/", "/Notes"]
-
-    assert error!(call(conn, "manage_vault", %{action: "split", vault: "Notes", path: "/Notes"})) =~
-             "say which board"
   end
 end

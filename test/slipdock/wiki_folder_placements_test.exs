@@ -8,7 +8,7 @@ defmodule Slipdock.WikiFolderPlacementsTest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Vaults, Wiki}
+  alias Slipdock.Wiki
   alias Slipdock.Wiki.FolderPlacements
 
   setup do
@@ -22,11 +22,12 @@ defmodule Slipdock.WikiFolderPlacementsTest do
     %{user: user, board: board, jobs: jobs, home: home, folder: folder, other: other}
   end
 
-  defp in_vault(ctx) do
-    {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
-    {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-    {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
-    vault
+  # A board of somebody else's that `user` can write to, so in another vault.
+  defp lent(user) do
+    lender = user_fixture("fplace-lender@example.com")
+    board = board_fixture(%{"name" => "Lent", "code" => "fplent"}, owner: lender)
+    share_fixture(board, user, "write")
+    board
   end
 
   defp paths(folders), do: Enum.map(folders, &Wiki.folder_path/1)
@@ -98,14 +99,14 @@ defmodule Slipdock.WikiFolderPlacementsTest do
   end
 
   test "only on its own board or a board in the same vault", ctx do
-    {:ok, notes} = Wiki.create_folder(ctx.jobs, %{"name" => "Notes"})
+    {:ok, foreign} = Wiki.create_folder(lent(ctx.user), %{"name" => "Foreign"})
 
     assert {:error, :unprocessable_entity, msg} =
-             FolderPlacements.add(ctx.folder, notes, ctx.user)
+             FolderPlacements.add(ctx.folder, foreign, ctx.user)
 
     assert msg =~ "same vault"
 
-    in_vault(ctx)
+    {:ok, notes} = Wiki.create_folder(ctx.jobs, %{"name" => "Notes"})
     assert {:ok, [placed]} = FolderPlacements.add(ctx.folder, notes, ctx.user)
     assert placed.board.code == "fpjobs"
     # A reader of the target board sees it; with nobody named, only its own board's.
@@ -113,18 +114,7 @@ defmodule Slipdock.WikiFolderPlacementsTest do
     assert FolderPlacements.placed_in(notes) == []
   end
 
-  test "a cross-vault target is refused even when both boards are in vaults", ctx do
-    in_vault(ctx)
-    elsewhere = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.user)
-    {:ok, v2} = Vaults.create_vault(ctx.user, %{"name" => "V2"})
-    {:ok, _} = Vaults.add_mapping(v2, ctx.user, %{path: "/", board: elsewhere})
-    {:ok, far} = Wiki.create_folder(elsewhere, %{"name" => "Far"})
-
-    assert {:error, :unprocessable_entity, _} = FolderPlacements.add(ctx.folder, far, ctx.user)
-  end
-
   test "it needs write on both boards", ctx do
-    in_vault(ctx)
     {:ok, notes} = Wiki.create_folder(ctx.jobs, %{"name" => "Notes"})
     reader = user_fixture("reader@example.com")
     share_fixture(ctx.board, reader, "write")
@@ -189,17 +179,17 @@ defmodule Slipdock.WikiFolderPlacementsTest do
   describe "moving a folder to another board" do
     test "drops placements the move strands, and says which", ctx do
       {:ok, _} = FolderPlacements.add(ctx.folder, ctx.other, ctx.user)
+      target = lent(ctx.user)
 
-      assert {:ok, preview} = Wiki.FolderMove.preview(ctx.folder, ctx.jobs, ctx.user)
+      assert {:ok, preview} = Wiki.FolderMove.preview(ctx.folder, target, ctx.user)
       assert preview.folder_filing_dropped == [%{folder: "Home/Topic", in: "Other"}]
 
-      assert {:ok, %{report: report}} = Wiki.FolderMove.to_board(ctx.folder, ctx.jobs, ctx.user)
+      assert {:ok, %{report: report}} = Wiki.FolderMove.to_board(ctx.folder, target, ctx.user)
       assert report.folder_filing_dropped == [%{folder: "Home/Topic", in: "Other"}]
       assert FolderPlacements.folders(Wiki.get_folder(ctx.folder.id)) == []
     end
 
     test "keeps them inside one vault", ctx do
-      in_vault(ctx)
       {:ok, _} = FolderPlacements.add(ctx.folder, ctx.other, ctx.user)
 
       assert {:ok, %{report: report}} = Wiki.FolderMove.to_board(ctx.folder, ctx.jobs, ctx.user)

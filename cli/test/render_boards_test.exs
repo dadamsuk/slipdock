@@ -1,5 +1,5 @@
 defmodule SlipdockCLI.RenderBoardsTest do
-  @moduledoc "`slipdock boards`: the VAULT column for boards kept inside a vault (#757)."
+  @moduledoc "`slipdock boards`: no VAULT column, every board you own being in your vault."
   use ExUnit.Case, async: true
 
   import ExUnit.CaptureIO
@@ -19,18 +19,10 @@ defmodule SlipdockCLI.RenderBoardsTest do
     )
   end
 
-  test "a board kept inside a vault is marked in it" do
-    out =
-      capture_io(fn ->
-        Render.boards([board(1, "kb", %{"inside_vault" => "Notes"}), board(2, "jobs")])
-      end)
-
-    assert out =~ "VAULT"
-    assert out =~ "in Notes"
-  end
-
-  test "with none, there is no VAULT column" do
-    out = capture_io(fn -> Render.boards([board(2, "jobs", %{"inside_vault" => nil})]) end)
+  test "lists boards with no VAULT column, whatever an older server says" do
+    out = capture_io(fn -> Render.boards([board(2, "jobs", %{"inside_vault" => "Notes"})]) end)
+    assert out =~ "JOBS"
     refute out =~ "VAULT"
+    refute out =~ "in Notes"
   end
 end

@@ -5,7 +5,7 @@ defmodule Slipdock.Wiki.QuickNoteTest do
   import ExUnit.CaptureLog
   import Slipdock.Fixtures
 
-  alias Slipdock.{Accounts, Repo, Vaults, Wiki}
+  alias Slipdock.{Accounts, Vaults, Wiki}
   alias Slipdock.Wiki.{Folders, QuickNote}
 
   @at ~U[2026-10-30 15:39:12Z]
@@ -16,8 +16,7 @@ defmodule Slipdock.Wiki.QuickNoteTest do
     {:ok, inbox} = Wiki.create_folder(board, %{"name" => "Inbox"})
     {:ok, projects} = Wiki.create_folder(board, %{"name" => "Projects"})
     {:ok, acme} = Wiki.create_folder(board, %{"name" => "Acme", "parent_id" => projects.id})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Mind"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Mind"})
     %{user: user, board: board, vault: vault, inbox: inbox, acme: acme}
   end
 
@@ -35,19 +34,19 @@ defmodule Slipdock.Wiki.QuickNoteTest do
     test "the model's title and folder make the page", ctx do
       Slipdock.AIStub.reply_with(%{
         "title" => "Printers banners call",
-        "folder" => "projects/ACME"
+        "folder" => "brain qn/projects/ACME"
       })
 
       assert {:ok, note} = save(ctx.user)
       assert note.page.title == "2026-10-30 15.39 Printers banners call"
       assert note.page.body == "Ring the printers about the banners"
       assert note.page.folder_id == ctx.acme.id
-      assert note.location == "Projects/Acme"
+      assert note.location == "Brain QN/Projects/Acme"
       assert note.placed_by == :ai
       assert note.vault.id == ctx.vault.id
 
       assert_received {:ai_request, %{"messages" => [_, %{"content" => shown}]}}
-      assert shown =~ "- Projects/Acme"
+      assert shown =~ "- Brain QN/Projects/Acme"
       assert shown =~ "Ring the printers"
     end
 
@@ -60,18 +59,18 @@ defmodule Slipdock.Wiki.QuickNoteTest do
     end
 
     test "the model may add one folder under a real one", ctx do
-      Slipdock.AIStub.reply_with(%{"title" => "Beta", "folder" => "Projects/Beta"})
+      Slipdock.AIStub.reply_with(%{"title" => "Beta", "folder" => "Brain QN/Projects/Beta"})
 
       assert {:ok, note} = save(ctx.user)
-      assert note.location == "Projects/Beta"
+      assert note.location == "Brain QN/Projects/Beta"
       assert {:ok, folder} = Folders.find(ctx.board, "Projects/Beta")
       assert note.page.folder_id == folder.id
     end
 
     test "a folder it made up, or one that climbs, lands at the setting", ctx do
-      user = at_home(ctx.user, ctx.vault, "Inbox")
+      user = at_home(ctx.user, ctx.vault, "Brain QN/Inbox")
 
-      for path <- ["Nowhere", "Nowhere/Deeper", "", "/", "../Projects", 7] do
+      for path <- ["Nowhere", "Nowhere/Deeper", "", "/", "../Brain QN/Projects", 7] do
         Slipdock.AIStub.reply_sequence([
           %{"title" => "Lost", "folder" => path},
           %{"title" => "Lost", "folder" => path}
@@ -86,10 +85,10 @@ defmodule Slipdock.Wiki.QuickNoteTest do
     end
 
     test "a path too deep stops at the last real place on it", ctx do
-      Slipdock.AIStub.reply_with(%{"title" => "Deep", "folder" => "Projects/New/Deeper"})
+      Slipdock.AIStub.reply_with(%{"title" => "Deep", "folder" => "Brain QN/Projects/New/Deeper"})
 
       assert {:ok, note} = save(ctx.user)
-      assert note.location == "Projects"
+      assert note.location == "Brain QN/Projects"
       assert note.placed_by == :ai
       assert {:error, :not_found, _} = Folders.find(ctx.board, "Projects/New")
     end
@@ -97,7 +96,7 @@ defmodule Slipdock.Wiki.QuickNoteTest do
     test "the examples copied along with a folder are dropped", ctx do
       Slipdock.AIStub.reply_with(%{
         "title" => "T",
-        "folder" => ~s(Projects/Acme (e.g. "A"; "B"\))
+        "folder" => ~s(Brain QN/Projects/Acme (e.g. "A"; "B"\))
       })
 
       assert {:ok, note} = save(ctx.user)
@@ -107,7 +106,7 @@ defmodule Slipdock.Wiki.QuickNoteTest do
     test "with nothing usable it asks once more, and the second answer counts", ctx do
       Slipdock.AIStub.reply_sequence([
         %{"title" => "First title"},
-        %{"folder" => "Projects/Acme"}
+        %{"folder" => "Brain QN/Projects/Acme"}
       ])
 
       assert {:ok, note} = save(ctx.user)
@@ -122,7 +121,7 @@ defmodule Slipdock.Wiki.QuickNoteTest do
     end
 
     test "a good first answer is not asked for twice", ctx do
-      Slipdock.AIStub.reply_with(%{"title" => "T", "folder" => "Inbox"})
+      Slipdock.AIStub.reply_with(%{"title" => "T", "folder" => "Brain QN/Inbox"})
 
       assert {:ok, _} = save(ctx.user)
       assert_received {:ai_request, _}
@@ -130,7 +129,7 @@ defmodule Slipdock.Wiki.QuickNoteTest do
     end
 
     test "the top of the vault is not offered, and a folder is required", ctx do
-      Slipdock.AIStub.reply_with(%{"title" => "T", "folder" => "Inbox"})
+      Slipdock.AIStub.reply_with(%{"title" => "T", "folder" => "Brain QN/Inbox"})
       assert {:ok, _} = save(ctx.user)
 
       assert_received {:ai_request, %{"messages" => [system, %{"content" => shown}]}}
@@ -139,21 +138,20 @@ defmodule Slipdock.Wiki.QuickNoteTest do
       refute system["content"] =~ "Leave it out"
     end
 
-    test "a second board mounted on a path takes notes, new folders too", ctx do
+    test "a second board takes notes, new folders too", ctx do
       jobs = board_fixture(%{"name" => "Jobs QN"})
       {:ok, nourish} = Wiki.create_folder(jobs, %{"name" => "Nourish"})
-      {:ok, _} = Vaults.add_mapping(ctx.vault, ctx.user, %{path: "/Jobs", board: jobs})
 
-      Slipdock.AIStub.reply_with(%{"title" => "Call", "folder" => "Jobs/Nourish"})
+      Slipdock.AIStub.reply_with(%{"title" => "Call", "folder" => "Jobs QN/Nourish"})
       assert {:ok, note} = save(ctx.user)
       assert note.page.board_id == jobs.id
       assert note.page.folder_id == nourish.id
       assert_received {:ai_request, %{"messages" => [_, %{"content" => shown}]}}
-      assert shown =~ "- Jobs/Nourish"
+      assert shown =~ "- Jobs QN/Nourish"
 
-      Slipdock.AIStub.reply_with(%{"title" => "Call", "folder" => "Jobs/Acme"})
+      Slipdock.AIStub.reply_with(%{"title" => "Call", "folder" => "Jobs QN/Acme"})
       assert {:ok, note} = save(ctx.user)
-      assert note.location == "Jobs/Acme"
+      assert note.location == "Jobs QN/Acme"
       assert note.page.board_id == jobs.id
       assert {:ok, _} = Folders.find(jobs, "Acme")
     end
@@ -163,14 +161,14 @@ defmodule Slipdock.Wiki.QuickNoteTest do
 
       assert {:ok, note} = save(ctx.user)
       assert note.page.title == "2026-10-30 15.39 a b c d and a"
-      assert Vaults.addresses(ctx.vault).pages[note.page.id] == note.page.title
+      assert Vaults.addresses(ctx.vault).pages[note.page.id] == "Brain QN/" <> note.page.title
     end
   end
 
   describe "without a usable answer" do
     test "a model that fails still saves the note, at the setting", ctx do
       Slipdock.AIStub.fail_with(500, "down")
-      user = at_home(ctx.user, ctx.vault, "Inbox")
+      user = at_home(ctx.user, ctx.vault, "Brain QN/Inbox")
 
       log =
         capture_log(fn ->
@@ -193,12 +191,13 @@ defmodule Slipdock.Wiki.QuickNoteTest do
       assert note.page.title == "2026-10-30 15.39 Note"
     end
 
-    test "a setting that has gone falls back to the top", ctx do
+    test "a setting that has gone falls back to the first board", ctx do
       Slipdock.AIStub.reply_with(%{"title" => "T"})
       user = at_home(ctx.user, ctx.vault, "Renamed since")
 
       assert {:ok, note} = save(user)
-      assert note.location == ""
+      assert note.location == "Brain QN"
+      assert note.page.board_id == ctx.board.id
       assert note.page.folder_id == nil
     end
   end
@@ -210,10 +209,10 @@ defmodule Slipdock.Wiki.QuickNoteTest do
       assert Wiki.list_pages(ctx.board) == []
     end
 
-    test "nobody with no vault can save one" do
+    test "somebody with no boards has nowhere to put one" do
       user = user_fixture("novault@example.com")
       assert {:error, :unprocessable_entity, message} = save(user)
-      assert message =~ "vault"
+      assert message =~ "can be written to"
     end
 
     test "boards a token can't write to are no place for it", ctx do
@@ -226,22 +225,17 @@ defmodule Slipdock.Wiki.QuickNoteTest do
 
     test "a vault id that isn't theirs is ignored", ctx do
       other = user_fixture("othervault@example.com")
-      {:ok, theirs} = Vaults.create_vault(other, %{"name" => "Theirs"})
+      {:ok, theirs} = other |> Vaults.root() |> Vaults.update_vault(%{"name" => "Theirs"})
       {:ok, user} = Accounts.update_quick_note(ctx.user, %{quick_note_vault_id: theirs.id})
 
       assert QuickNote.vault(user).id == ctx.vault.id
     end
   end
 
-  test "deleting the vault clears the setting", ctx do
-    user = at_home(ctx.user, ctx.vault, "Inbox")
-    {:ok, _} = Vaults.delete_vault(ctx.vault)
+  test "places lists the board and its folders, top first", ctx do
+    assert [%{path: "Brain QN", folder_id: nil} | rest] = QuickNote.places(ctx.vault, ctx.user)
 
-    assert Repo.reload!(user).quick_note_vault_id == nil
-  end
-
-  test "places lists the mapping and its folders, top first", ctx do
-    assert [%{path: ""} | rest] = QuickNote.places(ctx.vault, ctx.user)
-    assert Enum.map(rest, & &1.path) == ["Inbox", "Projects", "Projects/Acme"]
+    assert Enum.map(rest, & &1.path) ==
+             ["Brain QN/Inbox", "Brain QN/Projects", "Brain QN/Projects/Acme"]
   end
 end

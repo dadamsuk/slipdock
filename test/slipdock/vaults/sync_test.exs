@@ -17,9 +17,7 @@ defmodule Slipdock.Vaults.SyncTest do
     kb = board_fixture(%{"name" => "Keystone", "code" => "kb3"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs2"}, owner: user)
     {:ok, notes} = Wiki.create_folder(jobs, %{"name" => "Notes"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs, folder: notes})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     %{user: user, kb: kb, jobs: jobs, notes: notes, vault: vault}
   end
 
@@ -46,16 +44,16 @@ defmodule Slipdock.Vaults.SyncTest do
       page!(jobs, %{"title" => "Call", "folder_id" => notes.id})
       {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme", "parent_id" => notes.id})
       page!(jobs, %{"title" => "Launch", "folder_id" => acme.id})
-      # Not under the mapped folder, so in no vault path at all.
-      page!(jobs, %{"title" => "Elsewhere"})
+      page!(jobs, %{"title" => "Top of its board"})
 
       assert paths(vault) ==
                [
-                 "Deploys/Rollback.md",
-                 "Deploys/index.md",
-                 "Journal/Acme/Launch.md",
-                 "Journal/Call.md",
-                 "Retry- why.md"
+                 "Journal Desk/Notes/Acme/Launch.md",
+                 "Journal Desk/Notes/Call.md",
+                 "Journal Desk/Top of its board.md",
+                 "Keystone/Deploys/Rollback.md",
+                 "Keystone/Deploys/index.md",
+                 "Keystone/Retry- why.md"
                ]
     end
 
@@ -65,42 +63,43 @@ defmodule Slipdock.Vaults.SyncTest do
       second = page!(kb, %{"title" => "note", "slug" => "note-2"})
       layout = Layout.build(vault)
 
-      assert layout.pages[first.id].path == "Note.md"
-      assert layout.pages[second.id].path == "note (2).md"
+      assert layout.pages[first.id].path == "Keystone/Note.md"
+      assert layout.pages[second.id].path == "Keystone/note (2).md"
     end
 
-    test "a page with children does not take a mapping's directory", %{vault: vault, kb: kb} do
+    test "a page with children does not take a folder's directory", %{vault: vault, kb: kb} do
+      {:ok, _} = Wiki.create_folder(kb, %{"name" => "Journal"})
       jobs_page = page!(kb, %{"title" => "Journal"})
       page!(kb, %{"title" => "Child", "parent_id" => jobs_page.id})
       layout = Layout.build(vault)
 
-      assert layout.pages[jobs_page.id].path == "Journal (2)/index.md"
+      assert layout.pages[jobs_page.id].path == "Keystone/Journal (2)/index.md"
     end
 
-    test "a path's place: beside a page's index, in a mapping's folders, or nowhere",
-         %{vault: vault, kb: kb, user: user, jobs: jobs} do
+    test "a path's place: beside a page's index, in a board's folders, or nowhere",
+         %{vault: vault, kb: kb, jobs: jobs} do
       deploys = page!(kb, %{"title" => "Deploys"})
       page!(kb, %{"title" => "Rollback", "parent_id" => deploys.id})
       layout = Layout.build(vault)
 
-      assert {:parent, id} = Layout.place(layout, "Deploys/New.md")
+      assert {:parent, id} = Layout.place(layout, "Keystone/Deploys/New.md")
       assert id == deploys.id
-      assert {:error, _} = Layout.place(layout, "Deploys/Sub/New.md")
+      assert {:error, _} = Layout.place(layout, "Keystone/Deploys/Sub/New.md")
 
       assert {:folder, %{board_id: board_id}, ["Acme"]} =
-               Layout.place(layout, "journal/Acme/x.md")
+               Layout.place(layout, "journal desk/notes/Acme/x.md")
 
       assert board_id == jobs.id
       kb_id = kb.id
 
       assert {:folder, %{board_id: ^kb_id, folder_id: nil}, ["Other"]} =
-               Layout.place(layout, "Other/x.md")
+               Layout.place(layout, "Keystone/Other/x.md")
 
-      {:ok, only_jobs} = Vaults.create_vault(user, %{"name" => "Only jobs"})
-      other = board_fixture(%{"name" => "Other"}, owner: user)
-      {:ok, _} = Vaults.add_mapping(only_jobs, user, %{path: "/Work", board: other})
-      assert {:error, msg} = only_jobs |> Layout.build() |> Layout.place("Elsewhere/x.md")
-      assert msg =~ "nothing in the vault is mapped"
+      assert {:error, msg} = Layout.place(layout, "Elsewhere/x.md")
+      assert msg =~ "no board in the vault is called Elsewhere"
+
+      assert {:error, msg} = Layout.place(layout, "x.md")
+      assert msg =~ "the vault's root holds boards"
     end
   end
 
@@ -114,19 +113,20 @@ defmodule Slipdock.Vaults.SyncTest do
       content = Archive.sync_file(Repo.get!(Page, page.id), file_title: "Retry- why")
       assert content =~ ~s(title: "Retry: why")
       assert entry.hash == Sync.hash(content)
-      assert entry.path == "Retry- why.md"
+      assert entry.path == "Keystone/Retry- why.md"
       refute Map.has_key?(entry, :content)
       assert is_integer(cursor)
 
-      assert {:ok, %{content: ^content, path: "Retry- why.md"}} =
+      assert {:ok, %{content: ^content, path: "Keystone/Retry- why.md"}} =
                Sync.read_page(vault, user, page.id)
     end
 
     test "leaves out what the reader can't open, and a page outside the vault",
          %{vault: vault, user: user, kb: kb, jobs: jobs} do
       page!(kb, %{"title" => "Mine"})
-      outside = page!(jobs, %{"title" => "Outside"})
       stranger = user_fixture("stranger@example.com")
+      theirs = board_fixture(%{"name" => "Theirs"}, owner: stranger)
+      outside = page!(theirs, %{"title" => "Outside"})
 
       assert Sync.listing(vault, stranger).entries == []
       assert {:error, :not_found, _} = Sync.read_page(vault, user, outside.id)
@@ -143,24 +143,24 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, design} = Wiki.create_folder(kb, %{"name" => "Design"})
       {:ok, _} = Wiki.create_folder(kb, %{"name" => "Old", "parent_id" => design.id})
       {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Acme", "parent_id" => notes.id})
-      # Not under the mapped folder, so in no vault path at all.
       {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Elsewhere"})
 
       assert Sync.listing(vault, user).folders == [
-               "Design",
-               "Design/Old",
-               "Journal",
-               "Journal/Acme"
+               "Journal Desk/Elsewhere",
+               "Journal Desk/Notes",
+               "Journal Desk/Notes/Acme",
+               "Keystone/Design",
+               "Keystone/Design/Old"
              ]
     end
 
     test "a deleted folder leaves the listing",
          %{vault: vault, user: user, kb: kb} do
       {:ok, design} = Wiki.create_folder(kb, %{"name" => "Design"})
-      assert "Design" in Sync.listing(vault, user).folders
+      assert "Keystone/Design" in Sync.listing(vault, user).folders
 
       {:ok, _} = Wiki.Folders.delete(design)
-      refute "Design" in Sync.listing(vault, user).folders
+      refute "Keystone/Design" in Sync.listing(vault, user).folders
     end
 
     test "only the folders of boards the reader may open",
@@ -171,7 +171,11 @@ defmodule Slipdock.Vaults.SyncTest do
       assert Sync.listing(vault, user_fixture("stranger@example.com")).folders == []
 
       token = %{scope: "write", scope_boards: [jobs.id]}
-      assert Sync.listing(vault, user, token: token).folders == ["Journal", "Journal/Acme"]
+
+      assert Sync.listing(vault, user, token: token).folders == [
+               "Journal Desk/Notes",
+               "Journal Desk/Notes/Acme"
+             ]
     end
   end
 
@@ -182,7 +186,7 @@ defmodule Slipdock.Vaults.SyncTest do
 
       assert {:ok, entry} =
                Sync.write_page(vault, user, %{
-                 "path" => "Journal/Acme/Call.md",
+                 "path" => "Journal Desk/Notes/Acme/Call.md",
                  "content" => content
                })
 
@@ -192,7 +196,7 @@ defmodule Slipdock.Vaults.SyncTest do
       assert Wiki.folder_path(Slipdock.Wiki.Folders.get!(page.folder_id)) == "Notes/Acme"
       assert Slipdock.Wiki.Folders.get!(page.folder_id).parent_id == notes.id
       assert page.body == "It went well.\n"
-      assert entry.path == "Journal/Acme/Call.md"
+      assert entry.path == "Journal Desk/Notes/Acme/Call.md"
       # Nothing to patch, so the server writes back exactly what was sent.
       assert entry.content == content
       assert entry.hash == Sync.hash(content)
@@ -203,23 +207,26 @@ defmodule Slipdock.Vaults.SyncTest do
 
     test "a second file in the same new directory finds the folder rather than making another",
          %{vault: vault, user: user, jobs: jobs} do
-      {:ok, a} = Sync.write_page(vault, user, %{"path" => "Journal/Acme/A.md", "content" => "a"})
-      {:ok, b} = Sync.write_page(vault, user, %{"path" => "Journal/acme/B.md", "content" => "b"})
+      {:ok, a} =
+        Sync.write_page(vault, user, %{"path" => "Journal Desk/Notes/Acme/A.md", "content" => "a"})
+
+      {:ok, b} =
+        Sync.write_page(vault, user, %{"path" => "Journal Desk/Notes/acme/B.md", "content" => "b"})
 
       assert Repo.get!(Page, a.id).folder_id == Repo.get!(Page, b.id).folder_id
-      assert b.path == "Journal/Acme/B.md"
+      assert b.path == "Journal Desk/Notes/Acme/B.md"
       assert length(Wiki.folders(jobs)) == 2
     end
 
     test "a title a file name can't hold is kept in front matter", %{vault: vault, user: user} do
       {:ok, entry} =
         Sync.write_page(vault, user, %{
-          "path" => "Retry- why.md",
+          "path" => "Keystone/Retry- why.md",
           "content" => "---\ntitle: \"Retry: why\"\n---\n\nBody\n"
         })
 
       assert Repo.get!(Page, entry.id).title == "Retry: why"
-      assert entry.path == "Retry- why.md"
+      assert entry.path == "Keystone/Retry- why.md"
     end
 
     test "a new file where a page already is: a conflict with that page, nothing written",
@@ -227,7 +234,7 @@ defmodule Slipdock.Vaults.SyncTest do
       page = page!(kb, %{"title" => "Note", "body" => "server"})
 
       assert {:error, :conflict, current} =
-               Sync.write_page(vault, user, %{"path" => "note.md", "content" => "local"})
+               Sync.write_page(vault, user, %{"path" => "Keystone/note.md", "content" => "local"})
 
       assert current.id == page.id
       assert current.content == "server"
@@ -242,7 +249,7 @@ defmodule Slipdock.Vaults.SyncTest do
       assert {:ok, entry} =
                Sync.write_page(vault, user, %{
                  "id" => page.id,
-                 "path" => "Note.md",
+                 "path" => "Keystone/Note.md",
                  "content" => "two",
                  "base" => base
                })
@@ -252,7 +259,7 @@ defmodule Slipdock.Vaults.SyncTest do
       assert {:error, :conflict, current} =
                Sync.write_page(vault, user, %{
                  "id" => page.id,
-                 "path" => "Note.md",
+                 "path" => "Keystone/Note.md",
                  "content" => "three",
                  "base" => base
                })
@@ -275,13 +282,13 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, entry} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "New.md",
+          "path" => "Keystone/New.md",
           "content" => content,
           "base" => base
         })
 
       assert Repo.get!(Page, page.id).title == "New"
-      assert entry.path == "New.md"
+      assert entry.path == "Keystone/New.md"
       assert entry.content =~ "title: New"
       refute entry.content =~ "Old"
     end
@@ -294,13 +301,13 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, entry} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "Plan.md",
+          "path" => "Keystone/Plan.md",
           "content" => "---\ntitle: Roadmap\n---\nb",
           "base" => base
         })
 
       assert Repo.get!(Page, page.id).title == "Roadmap"
-      assert entry.path == "Roadmap.md"
+      assert entry.path == "Keystone/Roadmap.md"
     end
 
     test "a file moved into another directory refiles the page, or makes it a child",
@@ -313,12 +320,12 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, moved} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "Ideas/Note.md",
+          "path" => "Keystone/Ideas/Note.md",
           "content" => content,
           "base" => base
         })
 
-      assert moved.path == "Ideas/Note.md"
+      assert moved.path == "Keystone/Ideas/Note.md"
 
       assert Wiki.folder_path(Slipdock.Wiki.Folders.get!(Repo.get!(Page, page.id).folder_id)) ==
                "Ideas"
@@ -326,12 +333,12 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, child} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "Deploys/Note.md",
+          "path" => "Keystone/Deploys/Note.md",
           "content" => content,
           "base" => moved.hash
         })
 
-      assert child.path == "Deploys/Note.md"
+      assert child.path == "Keystone/Deploys/Note.md"
       assert Repo.get!(Page, page.id).parent_id == deploys.id
     end
 
@@ -343,16 +350,16 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, entry} =
         Sync.write_page(vault, user, %{
           "id" => deploys.id,
-          "path" => "Deploys/index.md",
+          "path" => "Keystone/Deploys/index.md",
           "content" => "two",
           "base" => base
         })
 
-      assert entry.path == "Deploys/index.md"
+      assert entry.path == "Keystone/Deploys/index.md"
       assert %Page{title: "Deploys", body: "two", parent_id: nil} = Repo.get!(Page, deploys.id)
     end
 
-    test "a move under another board's mapping makes the page there and archives this one",
+    test "a move into another board's folder makes the page there and archives this one",
          %{vault: vault, user: user, kb: kb, jobs: jobs} do
       page = page!(kb, %{"title" => "Note", "body" => "b"})
       {:ok, %{hash: base, content: content}} = Sync.read_page(vault, user, page.id)
@@ -360,7 +367,7 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, entry} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "Journal/Note.md",
+          "path" => "Journal Desk/Notes/Note.md",
           "content" => content,
           "base" => base
         })
@@ -379,7 +386,7 @@ defmodule Slipdock.Vaults.SyncTest do
       assert {:error, :unprocessable_entity, msg} =
                Sync.write_page(vault, user, %{
                  "id" => deploys.id,
-                 "path" => "Journal/Deploys/index.md",
+                 "path" => "Journal Desk/Notes/Deploys/index.md",
                  "content" => content,
                  "base" => base
                })
@@ -389,11 +396,18 @@ defmodule Slipdock.Vaults.SyncTest do
 
     test "refuses paths that climb, hide or aren't Markdown, and a reader who can't write",
          %{vault: vault, user: user, kb: kb} do
-      for path <- ["../x.md", ".obsidian/x.md", "a/.hidden.md", "x.txt", ""] do
+      for path <- [
+            "Keystone/../x.md",
+            "Keystone/.obsidian/x.md",
+            "Keystone/a/.hidden.md",
+            "Keystone/x.txt",
+            ""
+          ] do
         assert {:error, _, _} = Sync.write_page(vault, user, %{"path" => path, "content" => "x"})
       end
 
-      assert {:error, :bad_request, _} = Sync.write_page(vault, user, %{"path" => "x.md"})
+      assert {:error, :bad_request, _} =
+               Sync.write_page(vault, user, %{"path" => "Keystone/x.md"})
 
       page = page!(kb, %{"title" => "Note"})
       reader = user_fixture("reader@example.com")
@@ -402,7 +416,7 @@ defmodule Slipdock.Vaults.SyncTest do
       assert {:error, :forbidden, _} =
                Sync.write_page(vault, reader, %{
                  "id" => page.id,
-                 "path" => "Note.md",
+                 "path" => "Keystone/Note.md",
                  "content" => "x"
                })
     end
@@ -431,19 +445,17 @@ defmodule Slipdock.Vaults.SyncTest do
   describe "also-in (R12.5)" do
     alias Slipdock.Wiki.Placements
 
-    test "a page filed in other folders says so in front matter, by vault path, and only those in the vault",
-         %{vault: vault, user: user, kb: kb, jobs: jobs, notes: notes} do
+    test "a page filed in other folders says so in front matter, by vault path",
+         %{vault: vault, user: user, kb: kb, notes: notes} do
       {:ok, ideas} = Wiki.create_folder(kb, %{"name" => "Ideas"})
-      {:ok, outside} = Wiki.create_folder(jobs, %{"name" => "Elsewhere"})
       page = page!(kb, %{"title" => "Plan", "body" => "b"})
       %{entries: [%{hash: before}]} = Sync.listing(vault, user)
 
       {:ok, _} = Placements.add(page, ideas, user)
       {:ok, _} = Placements.add(page, notes, user)
-      {:ok, _} = Placements.add(page, outside, user)
 
       {:ok, %{content: content, hash: hash}} = Sync.read_page(vault, user, page.id)
-      assert content == "---\nalso-in: [Ideas, Journal]\n---\n\nb"
+      assert content == "---\nalso-in: [Keystone/Ideas, Journal Desk/Notes]\n---\n\nb"
       # Filing it elsewhere changed its file, so a sync brings it down again.
       refute hash == before
       assert [%{hash: ^hash}] = Sync.listing(vault, user).entries
@@ -458,12 +470,12 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, _} = Placements.add(page, outside, user)
       {:ok, %{hash: base}} = Sync.read_page(vault, user, page.id)
 
-      sent = "---\nalso-in: [Journal/Acme, Later]\n---\n\nb"
+      sent = "---\nalso-in: [Journal Desk/Notes/Acme, Keystone/Later]\n---\n\nb"
 
       {:ok, entry} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "Plan.md",
+          "path" => "Keystone/Plan.md",
           "content" => sent,
           "base" => base
         })
@@ -474,10 +486,8 @@ defmodule Slipdock.Vaults.SyncTest do
         |> Enum.map(&{&1.board_id, Wiki.folder_path(&1)})
         |> Enum.sort()
 
-      # Ideas is gone; Acme (under Notes, which /Journal maps) and Later (on kb)
-      # are new; the folder outside the vault's paths was not the file's to touch.
-      assert paths ==
-               Enum.sort([{jobs.id, "Elsewhere"}, {jobs.id, "Notes/Acme"}, {kb.id, "Later"}])
+      # Ideas and Elsewhere are gone; Acme and Later are new, on their boards.
+      assert paths == Enum.sort([{jobs.id, "Notes/Acme"}, {kb.id, "Later"}])
 
       assert entry.content == sent
       assert entry.hash == Sync.hash(sent)
@@ -485,13 +495,15 @@ defmodule Slipdock.Vaults.SyncTest do
 
     test "a new note can be filed in several folders from the start, and its home is never one",
          %{vault: vault, user: user} do
-      sent = "---\nalso-in: [Ideas, Projects]\n---\n\nb"
-      {:ok, entry} = Sync.write_page(vault, user, %{"path" => "Ideas/Plan.md", "content" => sent})
+      sent = "---\nalso-in: [Keystone/Ideas, Keystone/Projects]\n---\n\nb"
+
+      {:ok, entry} =
+        Sync.write_page(vault, user, %{"path" => "Keystone/Ideas/Plan.md", "content" => sent})
 
       page = Repo.get!(Page, entry.id)
       assert page |> Placements.folders() |> Enum.map(&Wiki.folder_path/1) == ["Projects"]
       # The home folder isn't a placement, so the file the server writes says only the other.
-      assert entry.content == "---\nalso-in: [Projects]\n---\n\nb"
+      assert entry.content == "---\nalso-in: [Keystone/Projects]\n---\n\nb"
     end
 
     test "taking also-in out takes the placements in the vault away, and the key stays out",
@@ -504,7 +516,7 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, entry} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "Plan.md",
+          "path" => "Keystone/Plan.md",
           "content" => "b",
           "base" => base
         })
@@ -519,12 +531,12 @@ defmodule Slipdock.Vaults.SyncTest do
     # server must hand the same bytes back, or a later `sync init` would
     # see every note as changed on both sides.
     @samples %{
-      "Front matter.md" =>
+      "Keystone/Front matter.md" =>
         "---\n# kept\nzeta: 1\ntags: [a, b]\naliases:\n  - Other name\nalpha: \"two\"\n---\nBody with #tag and [[Link]]\n",
-      "Drawing.excalidraw.md" =>
+      "Keystone/Drawing.excalidraw.md" =>
         "---\nexcalidraw-plugin: parsed\ntags: [excalidraw]\n---\n==⚠  Switch to EXCALIDRAW VIEW in the MORE OPTIONS menu of this document. ⚠==\n\n# Text Elements\nHello ^abc123\n\n%%\n# Drawing\n```compressed-json\nN4KAkARALgngDgUwgLgAQQQDwMYEMA2AlgCYBOuA7hADTgQBuCpAzoQPYB2KqATLZMzYBXUtiRoIACyhQ4zZAHoFAc0JRJQgEYA6bGwC2CgF7N6hbEcK4OCtptbErHALRY8RMpWdx8Q1TdIEfARcZgRmBShcZQUebQBGAHZ4mjoghH0EDihmbgBtcDBQMBKIEm4IAElUyTQAawQcmQBGfQBhJlZURtwATgAOfQA5TrSq3QAFeXbS9g72Wt0hiF\n```\n%%\n",
-      "Secret.md" => "Before %%🔐β Y2lwaGVydGV4dA== 🔐%% after\n",
-      "No newline at end.md" => "just text"
+      "Keystone/Secret.md" => "Before %%🔐β Y2lwaGVydGV4dA== 🔐%% after\n",
+      "Keystone/No newline at end.md" => "just text"
     }
 
     test "a note's file is the bytes it was imported from", %{vault: vault, user: user} do
@@ -548,7 +560,7 @@ defmodule Slipdock.Vaults.SyncTest do
 
       assert {:ok, written} =
                Sync.write_page(vault, user, %{
-                 "path" => "Clippings/Clipped.md",
+                 "path" => "Keystone/Clippings/Clipped.md",
                  "content" => content
                })
 
@@ -556,7 +568,10 @@ defmodule Slipdock.Vaults.SyncTest do
       assert Repo.get!(Page, written.id).summary == nil
 
       short = "---\nsummary: Short and sweet\n---\nBody\n"
-      {:ok, written} = Sync.write_page(vault, user, %{"path" => "Short.md", "content" => short})
+
+      {:ok, written} =
+        Sync.write_page(vault, user, %{"path" => "Keystone/Short.md", "content" => short})
+
       assert written.content == short
       assert Repo.get!(Page, written.id).summary == "Short and sweet"
     end
@@ -571,9 +586,12 @@ defmodule Slipdock.Vaults.SyncTest do
       refute Archive.sync_file(%{page | summary: nil}) =~ "summary"
     end
 
-    test "a note in a mapped folder lands on that board", %{vault: vault, user: user, jobs: jobs} do
+    test "a note in a board's folder lands on that board", %{vault: vault, user: user, jobs: jobs} do
       {:ok, written} =
-        Sync.write_page(vault, user, %{"path" => "Journal/Acme/Launch.md", "content" => "offer"})
+        Sync.write_page(vault, user, %{
+          "path" => "Journal Desk/Notes/Acme/Launch.md",
+          "content" => "offer"
+        })
 
       assert written.board_id == jobs.id
       assert written.content == "offer"
@@ -589,9 +607,16 @@ defmodule Slipdock.Vaults.SyncTest do
     test "a note whose front matter gives it another title stays where it was, and links find it",
          %{vault: vault, user: user} do
       content = "---\ntitle: \"CTO Candidate Interview: David\"\n---\nNotes\n"
-      entry = write!(vault, user, "Meetings/2026-03-05 CTO-Candidate-Interview-David.md", content)
 
-      assert entry.path == "Meetings/2026-03-05 CTO-Candidate-Interview-David.md"
+      entry =
+        write!(
+          vault,
+          user,
+          "Keystone/Meetings/2026-03-05 CTO-Candidate-Interview-David.md",
+          content
+        )
+
+      assert entry.path == "Keystone/Meetings/2026-03-05 CTO-Candidate-Interview-David.md"
       assert entry.content == content
       page = Repo.get!(Page, entry.id)
       assert page.title == "CTO Candidate Interview: David"
@@ -608,8 +633,8 @@ defmodule Slipdock.Vaults.SyncTest do
 
     test "a trailing space goes and a long name is bounded, each with its title in the file",
          %{vault: vault, user: user} do
-      spaced = write!(vault, user, "Meetings/2025-05-13 13-01 Catchup .md", "Catch up\n")
-      assert spaced.path == "Meetings/2025-05-13 13-01 Catchup.md"
+      spaced = write!(vault, user, "Keystone/Meetings/2025-05-13 13-01 Catchup .md", "Catch up\n")
+      assert spaced.path == "Keystone/Meetings/2025-05-13 13-01 Catchup.md"
       assert spaced.content == "Catch up\n"
       assert Repo.get!(Page, spaced.id).title == "2025-05-13 13-01 Catchup"
 
@@ -617,8 +642,8 @@ defmodule Slipdock.Vaults.SyncTest do
         "2025-04-24 14-31 Atheneum  McKinsey - Maintaining high quality service delivery in lieu"
 
       assert String.length(name) > 80
-      long = write!(vault, user, name <> ".md", "Long\n")
-      assert long.path == "2025-04-24 14-31 Atheneum McKinsey - Maintaining high….md"
+      long = write!(vault, user, "Keystone/" <> name <> ".md", "Long\n")
+      assert long.path == "Keystone/2025-04-24 14-31 Atheneum McKinsey - Maintaining high….md"
       assert long.content =~ "title: #{name}"
       assert Repo.get!(Page, long.id).title == name
 
@@ -631,23 +656,23 @@ defmodule Slipdock.Vaults.SyncTest do
     test "an empty title key and a note that is only a blank line come back as they went",
          %{vault: vault, user: user} do
       templated = "---\ntitle:\ntags: [daily]\n---\nToday\n"
-      assert write!(vault, user, "Daily/2025-02-27.md", templated).content == templated
-      assert write!(vault, user, "Tasks/Inbox.md", "\n").content == "\n"
+      assert write!(vault, user, "Keystone/Daily/2025-02-27.md", templated).content == templated
+      assert write!(vault, user, "Keystone/Tasks/Inbox.md", "\n").content == "\n"
     end
 
     test "renamed in the app, the file follows the new title", %{vault: vault, user: user} do
-      entry = write!(vault, user, "Catchup .md", "x\n")
+      entry = write!(vault, user, "Keystone/Catchup .md", "x\n")
       page = Repo.get!(Page, entry.id)
 
       {:ok, page} = Wiki.update_page(page, %{"title" => "Weekly catch-up"})
 
       assert page.file_name == nil
       {:ok, read} = Sync.read_page(vault, user, page.id)
-      assert read.path == "Weekly catch-up.md"
+      assert read.path == "Keystone/Weekly catch-up.md"
     end
 
     test "an edit that keeps the title keeps the file name", %{vault: vault, user: user} do
-      entry = write!(vault, user, "Catchup .md", "x\n")
+      entry = write!(vault, user, "Keystone/Catchup .md", "x\n")
       page = Repo.get!(Page, entry.id)
 
       {:ok, page} = Wiki.update_page(page, %{"body" => "y\n"})
@@ -656,12 +681,12 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, again} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "Catchup .md",
+          "path" => "Keystone/Catchup .md",
           "content" => "z\n",
           "base" => Sync.hash("y\n")
         })
 
-      assert again.path == "Catchup.md"
+      assert again.path == "Keystone/Catchup.md"
       assert Repo.get!(Page, page.id).file_name == "Catchup "
     end
 
@@ -673,12 +698,12 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, entry} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "Plain renamed .md",
+          "path" => "Keystone/Plain renamed .md",
           "content" => "b",
           "base" => base
         })
 
-      assert entry.path == "Plain renamed.md"
+      assert entry.path == "Keystone/Plain renamed.md"
       assert Repo.get!(Page, page.id).title == "Plain renamed"
     end
 
@@ -688,7 +713,7 @@ defmodule Slipdock.Vaults.SyncTest do
       page = page!(kb, %{"title" => title, "body" => "b"})
       {:ok, read} = Sync.read_page(vault, user, page.id)
 
-      assert String.length(Path.rootname(read.path)) <= 60
+      assert read.path |> Path.basename(".md") |> String.length() <= 60
 
       {:ok, entry} =
         Sync.write_page(vault, user, %{
@@ -719,10 +744,10 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, second} = Wiki.create_folder(kb, %{"name" => "notes"})
       layout = Layout.build(vault)
 
-      assert layout.folders[first.id] == "Notes"
-      assert layout.folders[second.id] == "notes (2)"
+      assert layout.folders[first.id] == "Keystone/Notes"
+      assert layout.folders[second.id] == "Keystone/notes (2)"
 
-      entry = write!(vault, user, "notes (2)/In second.md", "x\n")
+      entry = write!(vault, user, "Keystone/notes (2)/In second.md", "x\n")
       assert Repo.get!(Page, entry.id).folder_id == second.id
     end
 

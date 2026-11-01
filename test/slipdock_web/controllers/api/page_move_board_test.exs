@@ -12,9 +12,7 @@ defmodule SlipdockWeb.API.PageMoveBoardTest do
   setup %{conn: conn, user: user} do
     kb = board_fixture(%{"name" => "KB", "code" => "kbapimv"}, owner: user)
     jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsapimv"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
+    {:ok, _} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Brain"})
     {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Acme"})
     page = page_fixture(kb, %{"title" => "Call notes"})
     {:ok, _} = Wiki.set_tags(page, [tag_fixture(kb, "KB only")])
@@ -50,7 +48,9 @@ defmodule SlipdockWeb.API.PageMoveBoardTest do
     page: page,
     user: user
   } do
-    board_fixture(%{"name" => "Lone", "code" => "loneapimv"}, owner: user)
+    lender = user_fixture("mv-lender@example.com")
+    lone = board_fixture(%{"name" => "Lone", "code" => "loneapimv"}, owner: lender)
+    share_fixture(lone, user, "write")
 
     assert conn
            |> post("/api/pages/#{page.code}/move", %{board: "loneapimv"})

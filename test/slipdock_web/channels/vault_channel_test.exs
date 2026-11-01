@@ -13,8 +13,7 @@ defmodule SlipdockWeb.VaultChannelTest do
   setup do
     user = user_fixture()
     board = board_fixture(%{"name" => "KB", "code" => "chankb"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+    {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Notes"})
     {token, _} = Accounts.create_api_token(user, "sync", scope: "read")
     %{user: user, board: board, vault: vault, token: token}
   end
