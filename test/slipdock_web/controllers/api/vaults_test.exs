@@ -185,7 +185,7 @@ defmodule SlipdockWeb.API.VaultsTest do
              %{
                "subject" => "page",
                "id" => id,
-               "path" => "/Keystone/Fresh",
+               "path" => "Keystone/Fresh.md",
                "action" => "changed"
              }
            ] =

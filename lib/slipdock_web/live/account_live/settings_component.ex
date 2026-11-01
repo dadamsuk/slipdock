@@ -368,6 +368,34 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     ~H"""
     <div class="space-y-8">
       <section
+        id="tree-names-settings"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="text-lg font-semibold">Names in trees and lists</h2>
+        <p class="text-sm text-base-content/60">
+          How the wiki and vault trees, card folders and breadcrumbs name a card's folder.
+          A card with no short name always shows its title, and a name too long for its
+          space is shortened on screen.
+        </p>
+        <form
+          id="tree-names-form"
+          phx-submit="save_display"
+          phx-target={@myself}
+          class="mt-4 space-y-2"
+        >
+          <.input
+            type="select"
+            id="tree-names"
+            name="display[tree_names]"
+            label="Show"
+            value={@current_user.tree_names}
+            options={[{"Full titles", "full"}, {"Short names", "short"}]}
+          />
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+      </section>
+
+      <section
         :if={@meetings_choice?}
         id="display-settings"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"

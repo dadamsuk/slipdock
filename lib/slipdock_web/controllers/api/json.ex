@@ -889,6 +889,8 @@ defmodule SlipdockWeb.API.JSON do
       parent_id: f.parent_id,
       name: f.name,
       slug: f.slug,
+      # The card it is the folder of, if any (W-2201 rule 3).
+      card_id: f.card_id,
       path: Slipdock.Wiki.folder_path(f),
       position: f.position,
       # Its own order in the tree, or nil to follow the board's (#789).
@@ -958,11 +960,12 @@ defmodule SlipdockWeb.API.JSON do
   nodes, as `Slipdock.Wiki.Folders.tree/2` builds them.
   """
   def folder_tree(nodes, also \\ %{}) when is_list(nodes) do
-    also_in = nodes |> tree_folder_ids() |> Slipdock.Wiki.FolderPlacements.by_folder()
-    folder_tree(nodes, also, also_in)
+    ids = tree_folder_ids(nodes)
+    also_in = Slipdock.Wiki.FolderPlacements.by_folder(ids)
+    folder_tree(nodes, also, also_in, Slipdock.Wiki.CardFolders.labels(ids))
   end
 
-  defp folder_tree(nodes, also, also_in) do
+  defp folder_tree(nodes, also, also_in, labels) do
     Enum.map(nodes, fn %{folder: f, children: children, pages: pages} ->
       # The pages also filed here follow the ones at home, marked `also`,
       # each page once (W-103 R12.6, R12.7).
@@ -977,7 +980,9 @@ defmodule SlipdockWeb.API.JSON do
       f
       |> folder(Map.get(also_in, f.id, []))
       |> Map.merge(%{
-        folders: folder_tree(children, also, also_in),
+        title: (labels[f.id] || %{title: f.name}).title,
+        short_name: labels[f.id][:short_name],
+        folders: folder_tree(children, also, also_in, labels),
         pages: page_tree(pages) ++ placed
       })
     end)

@@ -26,7 +26,7 @@ defmodule SlipdockCLI.Wiki do
 
   def run("folder", ["ls", ref], o) do
     HTTP.get("/boards/#{enc(ref)}/folders", archived: archived_param(o))
-    |> out(o, &Render.folders(&1["folders"], &1["pages"]))
+    |> out(o, &Render.folders(&1["folders"], &1["pages"], o[:short_names] == true))
   end
 
   # One level of the tree, as the browser's tree loads it: what opening the

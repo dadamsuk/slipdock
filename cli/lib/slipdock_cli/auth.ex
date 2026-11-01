@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Auth do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(auth whoami passkeys ai-key ai ai-endpoint ai-models ai-model url logout)
+  @commands ~w(auth whoami names passkeys ai-key ai ai-endpoint ai-models ai-model url logout)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -52,6 +52,17 @@ defmodule SlipdockCLI.Auth do
         out(other, o, fn _ -> :ok end)
     end
   end
+
+  # "Names in trees and lists": this person's choice, wherever they look.
+  def run("names", [], o) do
+    HTTP.get("/me") |> out(o, &IO.puts(&1["user"]["tree_names"]))
+  end
+
+  def run("names", [choice], o) when choice in ["full", "short"] do
+    HTTP.put("/me/display", %{tree_names: choice}) |> out(o, &IO.puts(&1["tree_names"]))
+  end
+
+  def run("names", _args, _o), do: fail("usage: slipdock names [full|short]")
 
   def run("whoami", [], o) do
     HTTP.get("/me")

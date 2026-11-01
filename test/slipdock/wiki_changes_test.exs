@@ -49,7 +49,7 @@ defmodule Slipdock.WikiChangesTest do
     _ = page!(ctx.outside, ctx.user, "Not in the vault")
 
     %{changes: changes, cursor: cursor, more: false} = feed(ctx)
-    assert [%{id: a_id, path: "/KB/A"} = first, %{id: b_id, path: "/Journal/B"}] = changes
+    assert [%{id: a_id, path: "KB/A.md"} = first, %{id: b_id, path: "Journal/B.md"}] = changes
     assert {a_id, b_id} == {a.id, b.id}
     assert first.subject == "page"
     assert first.action == "changed"
@@ -90,7 +90,7 @@ defmodule Slipdock.WikiChangesTest do
     page = page!(ctx.jobs, ctx.user, "Filed", %{"folder_id" => folder.id})
     {:ok, _} = Wiki.update_folder(folder, %{"name" => "Ideas"})
 
-    assert %{subject: "folder", name: "Ideas", path: "Ideas"} =
+    assert %{subject: "folder", name: "Ideas", path: "Journal/Ideas"} =
              Enum.find(feed(ctx).changes, &(&1.subject == "folder"))
 
     cursor = feed(ctx).cursor
@@ -98,7 +98,7 @@ defmodule Slipdock.WikiChangesTest do
     changes = Changes.since(ctx.vault, cursor, ctx.user).changes
     assert Enum.any?(changes, &match?(%{subject: "folder", action: "deleted"}, &1))
 
-    assert %{path: "/Journal/Filed", folder_id: nil} =
+    assert %{path: "Journal/Filed.md", folder_id: nil} =
              Enum.find(changes, &(&1.id == page.id and &1.subject == "page"))
   end
 

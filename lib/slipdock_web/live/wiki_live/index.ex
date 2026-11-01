@@ -21,10 +21,11 @@ defmodule SlipdockWeb.WikiLive.Index do
   import SlipdockWeb.SlipdockComponents,
     only: [view_tabs: 1, filter_menu: 1, modal: 1, favourite_toggle: 1]
 
-  alias Slipdock.{Access, Boards, Fields, Votes, Wiki}
+  alias Slipdock.{Access, Accounts, Boards, Fields, Votes, Wiki}
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
-  alias Slipdock.Wiki.{Autosave, AutosaveFile, Autosaves}
+  alias Slipdock.Vaults.Names
+  alias Slipdock.Wiki.{Autosave, AutosaveFile, Autosaves, CardFolders}
   alias Slipdock.Wiki.{AutoOrganise, Folder, Icons, Page, Tree, TreeStates, WikiFile}
   alias SlipdockWeb.WikiLive.PageToolsComponent
   alias SlipdockWeb.BoardLive.{BoardView, Helpers}
@@ -329,6 +330,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   # the name of a folder is asking (see `Slipdock.Wiki.Tree.filter/3`).
   defp load_tree(socket), do: socket |> load_tree_state() |> assign_listing()
 
+  defp reload_names(socket), do: socket |> update(:tree_version, &(&1 + 1)) |> assign_listing()
+
   # Mount reads the state alone: the listing comes with `handle_params`,
   # which knows which view it is for.
   defp load_tree_state(socket) do
@@ -439,7 +442,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp assign_listing(%{assigns: %{live_action: :index, folder: %Folder{} = folder}} = socket) do
     rows =
       case tree_rows(socket, "folder:#{folder.id}", limit: @folder_listing) do
-        {:ok, rows} -> rows
+        {:ok, rows} -> name_rows(rows, socket)
         _ -> []
       end
 
@@ -467,10 +470,10 @@ defmodule SlipdockWeb.WikiLive.Index do
     {:ok, top} = tree_rows(socket, "root", prepared)
 
     index_folders =
-      for %{kind: "folder"} = folder <- top do
+      for %{kind: "folder"} = folder <- name_rows(top, socket) do
         inner =
           case tree_rows(socket, "folder:#{folder.id}", [limit: @index_pages] ++ prepared) do
-            {:ok, rows} -> rows
+            {:ok, rows} -> name_rows(rows, socket)
             _ -> []
           end
 
@@ -878,6 +881,16 @@ defmodule SlipdockWeb.WikiLive.Index do
   # The cards this page is about: pinned first, then by how often the prose
   # mentions them. A page written up from a card is pinned to it, which is
   # what keeps the two findable from each other after the stub text is gone.
+  # Folders with what to call them: a card's folder has its card's title and
+  # short name, and any other just its name.
+  defp crumbs(folders) do
+    labels = folders |> Enum.map(& &1.id) |> CardFolders.labels()
+
+    Enum.map(folders, fn folder ->
+      {folder, labels[folder.id] || %{title: folder.name, short_name: nil}}
+    end)
+  end
+
   # The folders a page is filed under, outermost first.
   defp folder_crumbs(%Page{} = page) do
     case page.folder_id && Wiki.get_folder(page.folder_id) do
@@ -1657,6 +1670,17 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   def handle_event("tree_view", _params, socket), do: {:noreply, socket}
+
+  # Full titles or short names, from the tree's own header: the same
+  # setting as in account settings, so it follows the person, not the browser.
+  def handle_event("toggle_tree_names", _params, socket) do
+    choice = if tree_names(socket) == "short", do: "full", else: "short"
+
+    case Accounts.update_display(socket.assigns.current_user, %{tree_names: choice}) do
+      {:ok, user} -> {:noreply, socket |> assign(current_user: user) |> reload_names()}
+      {:error, _changeset} -> {:noreply, put_flash(socket, :error, "Couldn't save that.")}
+    end
+  end
 
   def handle_event("toggle_organise", _params, socket) do
     if socket.assigns.can_write do
@@ -3021,11 +3045,35 @@ defmodule SlipdockWeb.WikiLive.Index do
     readable = readable_ids(socket)
 
     rows
+    |> name_rows(socket)
     |> Enum.map(&(&1 |> client_row(writable) |> dress_row(&1, dressed?)))
     |> Enum.map(&mark_shared(&1, shared))
     |> Enum.map(&through_share(&1, readable, writable, socket.assigns.board.id))
     |> in_vault_view(socket.assigns)
     |> in_context(socket.assigns)
+  end
+
+  # Rows as this reader wants things called (`users.tree_names`): a card's
+  # folder by its full title or its short name, `:full` keeping the title for
+  # the row's hover. Pages have no short name.
+  defp name_rows(rows, socket) do
+    choice = tree_names(socket)
+    labels = CardFolders.labels(for %{kind: "folder", id: id} when is_integer(id) <- rows, do: id)
+
+    Enum.map(rows, fn row ->
+      case labels[row[:id]] ||
+             (row[:short_name] && %{title: row.title, short_name: row.short_name}) do
+        nil -> row
+        label -> Map.merge(row, %{title: Names.pick(label, choice), full: label.title})
+      end
+    end)
+  end
+
+  defp tree_names(%{assigns: assigns}) do
+    case assigns[:current_user] do
+      %{tree_names: choice} -> choice
+      _ -> "full"
+    end
   end
 
   # A row of another board in this tree opens with `?in=` the board whose
@@ -3087,7 +3135,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     base =
       row
-      |> Map.take([:kind, :id, :board_id, :title, :count, :pages, :code, :placed_in])
+      |> Map.take([:kind, :id, :board_id, :title, :full, :count, :pages, :code, :placed_in])
       |> Map.merge(%{
         key: key,
         href: row_href(row, key),
@@ -3266,7 +3314,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   # The vault view's breadcrumbs: the vault, then each directory down to
   # what is shown, each a link to its place in the view.
-  defp vault_crumbs(vault, addresses, page, folder) do
+  defp vault_crumbs(vault, addresses, page, folder, choice) do
     path =
       case {page, folder} do
         {%Page{id: id}, _} -> addresses.pages[id]
@@ -3279,10 +3327,10 @@ defmodule SlipdockWeb.WikiLive.Index do
     segments
     |> Enum.with_index(1)
     |> Enum.map(fn {name, n} ->
-      %{
-        name: name,
-        url: SlipdockWeb.VaultUrls.url(vault, segments |> Enum.take(n) |> Enum.join("/"))
-      }
+      at = segments |> Enum.take(n) |> Enum.join("/")
+      {shown, full} = Names.label(addresses.names, at, choice) || {name, name}
+
+      %{name: shown, full: full, url: SlipdockWeb.VaultUrls.url(vault, at)}
     end)
   end
 
@@ -4093,10 +4141,11 @@ defmodule SlipdockWeb.WikiLive.Index do
             <.icon name="hero-rectangle-stack" class="size-4 shrink-0 text-primary" />
             <span class="truncate">{@vault_view.name}</span>
           </.link>
-          <%= for crumb <- vault_crumbs(@vault_view, @vault_addresses, @page, @folder) do %>
+          <%= for crumb <- vault_crumbs(@vault_view, @vault_addresses, @page, @folder, @current_user.tree_names) do %>
             <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
             <.link
               navigate={crumb.url}
+              title={crumb.full}
               class="min-w-0 truncate rounded-lg px-1.5 py-1 hover:bg-base-200"
             >
               {crumb.name}
@@ -4427,6 +4476,26 @@ defmodule SlipdockWeb.WikiLive.Index do
                   <.icon name={icon} class="size-4" />
                 </button>
               </div>
+              <%!-- Full titles or short names: one person's choice, kept with
+                    them rather than in this browser (account settings too). --%>
+              <button
+                id="wiki-tree-names"
+                type="button"
+                phx-click="toggle_tree_names"
+                class={[
+                  "btn btn-ghost btn-xs btn-square shrink-0",
+                  @current_user.tree_names == "short" && "btn-active"
+                ]}
+                aria-pressed={to_string(@current_user.tree_names == "short")}
+                aria-label="Short names"
+                title={
+                  if @current_user.tree_names == "short",
+                    do: "Showing short names: show full titles",
+                    else: "Showing full titles: show short names"
+                }
+              >
+                <.icon name="hero-bars-3-bottom-left" class="size-4" />
+              </button>
               <%!-- Open or shut every folder at once. Not while filtering or
                     organising: a filter opens what it found itself. The
                     hook keeps its icon and title, so it is left alone here. --%>
@@ -4679,6 +4748,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     recent={@vault_dir && @recent}
                     excerpts={@excerpts}
                     can_write={@can_write}
+                    tree_names={@current_user.tree_names}
                   />
                 <% :index -> %>
                   <.index_body
@@ -5729,6 +5799,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :recent, :list, default: nil, doc: "in a vault, its notes newest first instead (#1211)"
   attr :excerpts, :map, default: %{}
   attr :can_write, :boolean, required: true
+  attr :tree_names, :string, default: "full", doc: "`users.tree_names`"
 
   @doc false
   # One folder, looked at: what is in it, and everything you would want to do
@@ -5738,6 +5809,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     assigns =
       assign(assigns,
         children: Enum.filter(assigns.rows, &(&1.kind == "folder")),
+        crumbs: crumbs(Wiki.folder_ancestors(assigns.folder) ++ [assigns.folder]),
         # Where else it is filed (#808): its home is the path above.
         also_in: Wiki.FolderPlacements.folders(assigns.folder),
         pages: Enum.filter(assigns.rows, &(&1.kind == "page")),
@@ -5749,17 +5821,24 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <nav class="mb-2 flex flex-wrap items-center gap-1 text-sm text-base-content/50">
       <.link patch={wiki_path(@board)} class="hover:text-base-content">Wiki</.link>
-      <span :for={up <- Wiki.folder_ancestors(@folder)} class="flex items-center gap-1">
-        <.icon name="hero-chevron-right" class="size-3" />
+      <span
+        :for={{up, name} <- Enum.drop(@crumbs, -1)}
+        class="flex min-w-0 items-center gap-1"
+      >
+        <.icon name="hero-chevron-right" class="size-3 shrink-0" />
         <.link
           patch={~p"/boards/#{@board}/wiki?#{[folder: up.id]}"}
-          class="hover:text-base-content"
+          class="hover:text-base-content max-w-64 truncate"
+          title={name.title}
         >
-          {up.name}
+          {Names.pick(name, @tree_names)}
         </.link>
       </span>
-      <.icon name="hero-chevron-right" class="size-3" />
-      <span class="text-base-content">{@folder.name}</span>
+      <.icon name="hero-chevron-right" class="size-3 shrink-0" />
+      <% {_here, here} = List.last(@crumbs) %>
+      <span class="text-base-content max-w-64 truncate" title={here.title}>
+        {Names.pick(here, @tree_names)}
+      </span>
     </nav>
 
     <div class="flex flex-wrap items-start justify-between gap-3">
@@ -5849,7 +5928,9 @@ defmodule SlipdockWeb.WikiLive.Index do
             class="flex items-center gap-2 rounded-xl border border-base-300 bg-base-100 p-3 text-sm hover:border-primary"
           >
             <.wiki_icon kind={:folder} icon={sub[:icon]} color={sub[:color]} />
-            <span class="min-w-0 flex-1 truncate font-medium">{sub.title}</span>
+            <span class="min-w-0 flex-1 truncate font-medium" title={sub[:full] || sub.title}>
+              {sub.title}
+            </span>
             <span
               :if={sub[:also]}
               class="hero-link size-3 shrink-0 text-base-content/40"
@@ -6004,7 +6085,12 @@ defmodule SlipdockWeb.WikiLive.Index do
                 color={node.folder[:color]}
                 class="size-4 self-center"
               />
-              <span class="min-w-0 flex-1 truncate font-medium">{node.folder.title}</span>
+              <span
+                class="min-w-0 flex-1 truncate font-medium"
+                title={node.folder[:full] || node.folder.title}
+              >
+                {node.folder.title}
+              </span>
               <span class="shrink-0 text-xs text-base-content/40">
                 {count(node.folder.pages, "page")}
               </span>
@@ -6013,7 +6099,8 @@ defmodule SlipdockWeb.WikiLive.Index do
               <li :for={sub <- node.children}>
                 <.link
                   patch={~p"/boards/#{@board}/wiki?#{[folder: sub.id]}"}
-                  class="flex items-center gap-1.5 text-base-content/60 hover:text-base-content"
+                  class="flex min-w-0 items-center gap-1.5 text-base-content/60 hover:text-base-content"
+                  title={sub[:full] || sub.title}
                 >
                   <.wiki_icon
                     kind={:folder}
@@ -6021,7 +6108,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     color={sub[:color]}
                     class="size-3"
                     plain=""
-                  /> {sub.title}
+                  /> <span class="min-w-0 truncate">{sub.title}</span>
                 </.link>
               </li>
               <li :for={page <- node.pages}>
@@ -6158,13 +6245,14 @@ defmodule SlipdockWeb.WikiLive.Index do
         class="mb-2 flex flex-wrap items-center gap-1 text-sm text-base-content/50"
       >
         <span
-          :for={folder <- folder_crumbs(@page)}
-          class="flex items-center gap-1"
-          title="Filed here"
+          :for={{_folder, name} <- crumbs(folder_crumbs(@page))}
+          class="flex min-w-0 items-center gap-1"
         >
-          <.icon name="hero-folder" class="size-3" />
-          <span>{folder.name}</span>
-          <.icon name="hero-chevron-right" class="size-3" />
+          <.icon name="hero-folder" class="size-3 shrink-0" />
+          <span class="max-w-64 truncate" title={"Filed here: #{name.title}"}>
+            {Names.pick(name, (@current_user && @current_user.tree_names) || "full")}
+          </span>
+          <.icon name="hero-chevron-right" class="size-3 shrink-0" />
         </span>
         <span :for={ancestor <- Wiki.ancestors(@page)} class="flex items-center gap-1">
           <.link patch={page_path(@board, ancestor)} class="hover:text-base-content">

@@ -49,14 +49,16 @@ defmodule Slipdock.Vaults.Layout do
           folders: %{pos_integer => String.t()},
           folder_dirs: %{String.t() => pos_integer},
           boards: %{pos_integer => String.t()},
-          folder_boards: %{pos_integer => pos_integer}
+          folder_boards: %{pos_integer => pos_integer},
+          virtual: %{String.t() => map}
         }
 
   @typedoc """
   Where the vault's containers are: `boards` and `folders` as disk paths,
   `full_boards` and `full_folders` as segments of whole names (what a link
   matches), `virtual` the directories that are neither (a `Cards` folder or
-  an epic's folder nobody has made yet), and `folder_boards` whose each is.
+  an epic's folder nobody has made yet), `virtual_details` whose board and
+  epic each of those is, and `folder_boards` whose each folder is.
   """
   @type dirs :: %{
           boards: %{pos_integer => String.t()},
@@ -64,7 +66,8 @@ defmodule Slipdock.Vaults.Layout do
           full_boards: %{pos_integer => [String.t()]},
           full_folders: %{pos_integer => [String.t()]},
           folder_boards: %{pos_integer => pos_integer},
-          virtual: [String.t()]
+          virtual: [String.t()],
+          virtual_details: %{String.t() => map}
         }
 
   @doc "Where every live page and folder of the vault sits on disk."
@@ -156,7 +159,8 @@ defmodule Slipdock.Vaults.Layout do
       folders: folder_dirs,
       folder_dirs: Map.new(folder_dirs, fn {id, dir} -> {String.downcase(dir), id} end),
       boards: roots,
-      folder_boards: found.folder_boards
+      folder_boards: found.folder_boards,
+      virtual: found.virtual_details
     }
   end
 
@@ -278,7 +282,13 @@ defmodule Slipdock.Vaults.Layout do
       from(c in Card,
         where: c.id in ^Enum.map(subs, & &1.parent_card_id),
         order_by: [asc: c.id],
-        select: %{id: c.id, board_id: c.board_id, short_name: c.short_name, title: c.title}
+        select: %{
+          id: c.id,
+          board_id: c.board_id,
+          short_name: c.short_name,
+          title: c.title,
+          archived_at: c.archived_at
+        }
       )
       |> Repo.all()
 
@@ -297,6 +307,7 @@ defmodule Slipdock.Vaults.Layout do
       full_folders: %{},
       folder_boards: Map.new(folders, &{&1.id, &1.board_id}),
       virtual: [],
+      virtual_details: %{},
       used: %{}
     }
 
@@ -382,20 +393,28 @@ defmodule Slipdock.Vaults.Layout do
     end
   end
 
-  defp lay_item({:cards, epics}, dir, full, world, _waiting, state) do
+  defp lay_item({:cards, [first | _] = epics}, dir, full, world, _waiting, state) do
     full = full ++ [CardFolders.root_name()]
-    state = %{state | virtual: [dir | state.virtual]}
+    state = virtual(state, dir, %{board_id: first.board_id, card: nil})
     lay(Enum.map(epics, &{:epic, &1}), dir, full, world, [], state)
   end
 
   defp lay_item({:epic, epic}, dir, full, world, _waiting, state) do
     full = full ++ [epic.title]
-    state = %{state | virtual: [dir | state.virtual]}
+    state = virtual(state, dir, %{board_id: epic.board_id, card: epic})
 
     case world.subs[epic.id] do
       nil -> state
       sub -> lay_board(sub, dir, full, world, state)
     end
+  end
+
+  defp virtual(state, dir, details) do
+    %{
+      state
+      | virtual: [dir | state.virtual],
+        virtual_details: Map.put(state.virtual_details, dir, details)
+    }
   end
 
   # The page's file name, numbered past everything placed before it.

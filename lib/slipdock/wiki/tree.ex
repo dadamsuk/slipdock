@@ -534,7 +534,7 @@ defmodule Slipdock.Wiki.Tree do
 
     native = Map.new(found.folders, fn {id, dir} -> {String.downcase(dir), id} end)
 
-    %{mappings: mappings, dirs: found.folders, native: native}
+    %{mappings: mappings, dirs: found.folders, native: native, virtual: found.virtual_details}
   end
 
   # Where a container sits in the vault, or nil for a page, which holds pages
@@ -692,18 +692,31 @@ defmodule Slipdock.Wiki.Tree do
   defp mount_row(layout, path, boards, pages \\ nil) do
     key = row_key(layout, path)
     mapping = Enum.find(layout.mappings, &same_path?(&1.path, path))
+    epic = get_in(layout, [:virtual, path, :card])
 
     %{
       kind: if(String.starts_with?(key, "dir:"), do: "dir", else: "folder"),
       key: key,
       id: key,
       board_id: mapping && mapping.board_id,
-      title: path |> String.split("/") |> List.last(),
+      title: (epic && epic.title) || board_title(mapping, boards) || last_segment(path),
+      short_name: epic && epic.short_name,
       mount: true,
       count: 1,
       pages: mapping && if(pages, do: pages.(mapping), else: mount_pages(mapping, boards))
     }
   end
+
+  defp board_title(%{board_id: id}, boards) do
+    case boards[id] do
+      {%{name: name}, _opts} -> name
+      _ -> nil
+    end
+  end
+
+  defp board_title(nil, _boards), do: nil
+
+  defp last_segment(path), do: path |> String.split("/") |> List.last()
 
   defp mount_pages(%{board_id: id}, boards) do
     {board, opts} = boards[id]

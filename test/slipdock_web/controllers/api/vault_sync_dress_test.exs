@@ -53,7 +53,7 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
       assert %{"icon" => "star", "color" => "rose"} = entry(body, "Dressed/Worn.md")
       assert %{"icon" => nil, "color" => nil} = entry(body, "Dressed/Plain.md")
 
-      assert body["folders"] == ["Dressed/Bare", "Dressed/Fancy"]
+      assert body["folders"] == ["Dressed", "Dressed/Bare", "Dressed/Fancy"]
 
       assert %{
                "Dressed/Bare" => %{"id" => bare_id, "icon" => nil, "color" => nil},
@@ -77,7 +77,7 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
 
       assert work["id"] == design.id
       assert old_id == old.id
-      assert body["folders"] == ["Studio/Design", "Studio/Design/Old"]
+      assert body["folders"] == ["Dressed", "Studio", "Studio/Design", "Studio/Design/Old"]
       refute Map.has_key?(body["folder_details"], "Design/Old")
     end
   end
@@ -117,7 +117,7 @@ defmodule SlipdockWeb.API.VaultSyncDressTest do
       assert [%{"path" => "Other/Elsewhere.md"} = page] = body["entries"]
       assert rights(page) == {true, true}
       assert body["folder_details"] == %{}
-      assert body["folders"] == []
+      assert body["folders"] == ["Other"]
     end
 
     test "a board shared with the reader is no part of it, and theirs keeps its rights", ctx do
