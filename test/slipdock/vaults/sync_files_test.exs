@@ -195,14 +195,14 @@ defmodule Slipdock.Vaults.SyncFilesTest do
     assert Repo.get(WikiFile, entry.id)
   end
 
-  test "two files of one name in one folder are told apart by the later one's id",
+  test "two files of one name in one folder are told apart by a number on the later one",
        %{vault: vault, user: user, kb: kb} do
     {:ok, first} = Files.create(kb, %{name: "x.png"}, source("1"))
     {:ok, second} = Files.create(kb, %{name: "x.png"}, source("2"))
     layout = Layout.build(vault)
 
     assert layout.files[first.id].path == "x.png"
-    assert layout.files[second.id].path == "x-F#{second.id}.png"
+    assert layout.files[second.id].path == "x (2).png"
     assert user
   end
 

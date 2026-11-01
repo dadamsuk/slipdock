@@ -59,14 +59,14 @@ defmodule Slipdock.Vaults.SyncTest do
                ]
     end
 
-    test "two pages wanting one name, case aside, are told apart by the later one's code",
+    test "two pages wanting one name, case aside, are told apart by a number on the later one",
          %{vault: vault, kb: kb} do
       first = page!(kb, %{"title" => "Note", "slug" => "note-1"})
       second = page!(kb, %{"title" => "note", "slug" => "note-2"})
       layout = Layout.build(vault)
 
       assert layout.pages[first.id].path == "Note.md"
-      assert layout.pages[second.id].path == "note-#{second.code}.md"
+      assert layout.pages[second.id].path == "note (2).md"
     end
 
     test "a page with children does not take a mapping's directory", %{vault: vault, kb: kb} do
@@ -74,7 +74,7 @@ defmodule Slipdock.Vaults.SyncTest do
       page!(kb, %{"title" => "Child", "parent_id" => jobs_page.id})
       layout = Layout.build(vault)
 
-      assert layout.pages[jobs_page.id].path == "Journal-#{jobs_page.code}/index.md"
+      assert layout.pages[jobs_page.id].path == "Journal (2)/index.md"
     end
 
     test "a path's place: beside a page's index, in a mapping's folders, or nowhere",
@@ -91,7 +91,10 @@ defmodule Slipdock.Vaults.SyncTest do
                Layout.place(layout, "journal/Acme/x.md")
 
       assert board_id == jobs.id
-      assert {:folder, %{path: ""}, ["Other"]} = Layout.place(layout, "Other/x.md")
+      kb_id = kb.id
+
+      assert {:folder, %{board_id: ^kb_id, folder_id: nil}, ["Other"]} =
+               Layout.place(layout, "Other/x.md")
 
       {:ok, only_jobs} = Vaults.create_vault(user, %{"name" => "Only jobs"})
       other = board_fixture(%{"name" => "Other"}, owner: user)
@@ -603,10 +606,10 @@ defmodule Slipdock.Vaults.SyncTest do
       assert [%{id: ^id}] = Slipdock.Vaults.Index.match(index, "CTO Candidate Interview: David")
     end
 
-    test "a trailing space or a name over 80 characters is kept, and no title key is added",
+    test "a trailing space goes and a long name is bounded, each with its title in the file",
          %{vault: vault, user: user} do
       spaced = write!(vault, user, "Meetings/2025-05-13 13-01 Catchup .md", "Catch up\n")
-      assert spaced.path == "Meetings/2025-05-13 13-01 Catchup .md"
+      assert spaced.path == "Meetings/2025-05-13 13-01 Catchup.md"
       assert spaced.content == "Catch up\n"
       assert Repo.get!(Page, spaced.id).title == "2025-05-13 13-01 Catchup"
 
@@ -615,8 +618,9 @@ defmodule Slipdock.Vaults.SyncTest do
 
       assert String.length(name) > 80
       long = write!(vault, user, name <> ".md", "Long\n")
-      assert long.path == name <> ".md"
-      assert long.content == "Long\n"
+      assert long.path == "2025-04-24 14-31 Atheneum McKinsey - Maintaining high….md"
+      assert long.content =~ "title: #{name}"
+      assert Repo.get!(Page, long.id).title == name
 
       # Listed the same way, so a sync sees nothing to do.
       listed = Sync.listing(vault, user).entries |> Map.new(&{&1.id, &1.path})
@@ -657,7 +661,7 @@ defmodule Slipdock.Vaults.SyncTest do
           "base" => Sync.hash("y\n")
         })
 
-      assert again.path == "Catchup .md"
+      assert again.path == "Catchup.md"
       assert Repo.get!(Page, page.id).file_name == "Catchup "
     end
 
@@ -674,8 +678,52 @@ defmodule Slipdock.Vaults.SyncTest do
           "base" => base
         })
 
-      assert entry.path == "Plain renamed .md"
+      assert entry.path == "Plain renamed.md"
       assert Repo.get!(Page, page.id).title == "Plain renamed"
+    end
+
+    test "a write at a shortened or numbered path keeps the page's title",
+         %{vault: vault, user: user, kb: kb} do
+      title = String.duplicate("Quarterly planning notes ", 4) <> "final"
+      page = page!(kb, %{"title" => title, "body" => "b"})
+      {:ok, read} = Sync.read_page(vault, user, page.id)
+
+      assert String.length(Path.rootname(read.path)) <= 60
+
+      {:ok, entry} =
+        Sync.write_page(vault, user, %{
+          "id" => page.id,
+          "path" => read.path,
+          "content" => "new body\n",
+          "base" => read.hash
+        })
+
+      assert entry.path == read.path
+      assert Repo.get!(Page, page.id).title == title
+
+      # With no title key at all: the name on disk says nothing about the title.
+      {:ok, _} =
+        Sync.write_page(vault, user, %{
+          "id" => page.id,
+          "path" => read.path,
+          "content" => "bare\n",
+          "base" => entry.hash
+        })
+
+      assert Repo.get!(Page, page.id).title == title
+    end
+
+    test "a write into a numbered folder lands in that folder, not a new one",
+         %{vault: vault, user: user, kb: kb} do
+      {:ok, first} = Wiki.create_folder(kb, %{"name" => "Notes"})
+      {:ok, second} = Wiki.create_folder(kb, %{"name" => "notes"})
+      layout = Layout.build(vault)
+
+      assert layout.folders[first.id] == "Notes"
+      assert layout.folders[second.id] == "notes (2)"
+
+      entry = write!(vault, user, "notes (2)/In second.md", "x\n")
+      assert Repo.get!(Page, entry.id).folder_id == second.id
     end
 
     test "a file name can't hold a slash" do
