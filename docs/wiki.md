@@ -353,6 +353,7 @@ DELETE /api/pages/:id                      archive (?purge=true for owners)
 POST   /api/pages/:id/restore
 
 GET    /api/pages/:id/render               dynamic blocks resolved; ?format=markdown|html|text
+GET    /api/pages/:id/recording            a meeting page's audio, with Range (read on the board)
 GET    /api/pages/:id/section/:path        one heading's text
 PUT    /api/pages/:id/section/:path        replace it        (base_hash aware)
 POST   /api/pages/:id/section/:path        append to it      (never conflicts)

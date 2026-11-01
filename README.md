@@ -757,7 +757,9 @@ an OAuth client you make once:
 The scope is `drive.readonly`. Tokens are stored encrypted with a key derived
 from `SECRET_KEY_BASE`, so changing that key means everyone connects again. A
 vault's recordings are served through its owner's connection to anyone who can
-read the page, and only files under its recordings folder are served.
+read the board, and only files under its recordings folder are served. A
+client that holds an API token plays the same stream from
+`GET /api/pages/:id/recording`.
 
 What a meeting page has to look like to play, for whatever records and
 transcribes your meetings, is in the manual:

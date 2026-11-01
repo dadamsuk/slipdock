@@ -765,6 +765,8 @@ defmodule SlipdockWeb.Router do
     post "/pages/:id/restore", PageController, :restore
     post "/pages/:id/move", PageController, :move
     get "/pages/:id/render", PageController, :render_page
+    # A meeting page's audio, for a client holding a token (#1562).
+    get "/pages/:id/recording", RecordingController, :show
     get "/pages/:id/sections", PageController, :sections
     get "/pages/:id/section/*path", PageController, :read_section
     put "/pages/:id/section/*path", PageController, :replace_section

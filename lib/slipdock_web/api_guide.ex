@@ -2524,6 +2524,18 @@ defmodule SlipdockWeb.APIGuide do
     `recording_drive_id` later with the `base` hash you got back, and on a
     409 change only that key in the content you are sent back.
 
+    A client with a token plays it from `GET /api/pages/:id/recording`
+    (`:id` is an id, a code or `board-code/slug`, with the `/` as `%2F`):
+    the audio itself, for a media player or a proxy, never through a model,
+    so there is no MCP tool. `Range` is passed on, and the answer is 200 or
+    206 with `Content-Range`. It takes read on the board, as in the browser,
+    so a page shared alone answers 404; a read-only token may play, and one
+    limited to other boards gets a 403. A strict `Accept: audio/mp4` is a
+    406, so send `*/*` or leave it out. A refusal is JSON with a `reason`:
+    409 `not_connected` / `revoked` / `no_folder` / `no_vault`, 403
+    `outside_folder` / `not_audio`, 404 `not_found` / `no_recording`, 502
+    `unavailable`.
+
     A quick note: `POST /api/notes {"text"}`, `slipdock note` or the MCP tool
     `quick_note` saves text to the person's main vault; the server names it,
     picks the folder, and answers with `code`, `title`, `vault` and `location`.
