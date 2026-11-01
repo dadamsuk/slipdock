@@ -34,6 +34,7 @@ defmodule Slipdock.Vaults.Sync do
   alias Slipdock.Wiki.{
     Archive,
     Changes,
+    DiskName,
     Files,
     Folder,
     FolderPlacement,
@@ -739,11 +740,11 @@ defmodule Slipdock.Vaults.Sync do
          do: {:ok, board, parent.id, {:id, parent.folder_id}}
   end
 
-  defp target(_layout, {:folder, mapping, segments}, user, opts) do
-    board = Repo.get!(Board, mapping.board_id)
+  defp target(_layout, {:folder, place, segments}, user, opts) do
+    board = Repo.get!(Board, place.board_id)
 
     with :ok <- writable(board, user, opts),
-         do: {:ok, board, nil, {:path, mapping.folder_id, segments}}
+         do: {:ok, board, nil, {:path, place.folder_id, segments}}
   end
 
   defp writable(board, user, opts) do
@@ -752,8 +753,8 @@ defmodule Slipdock.Vaults.Sync do
       else: {:error, :forbidden, "you don't edit #{board.name}"}
   end
 
-  # The folder a path names below a mapping's own, matched by the name its
-  # directory has on disk and made where it is missing.
+  # The folder a path names below the deepest one that exists, matched by the
+  # name its directory would have on disk and made where it is missing.
   defp ensure_folder(_board, {:id, id}), do: {:ok, id}
   defp ensure_folder(_board, {:path, folder_id, []}), do: {:ok, folder_id}
 
@@ -768,7 +769,7 @@ defmodule Slipdock.Vaults.Sync do
           )
       )
       |> Repo.all()
-      |> Enum.find(&(String.downcase(Archive.safe_name(&1.name)) == String.downcase(segment)))
+      |> Enum.find(&(String.downcase(DiskName.disk_name(&1.name)) == String.downcase(segment)))
 
     folder =
       case existing do
@@ -791,9 +792,10 @@ defmodule Slipdock.Vaults.Sync do
 
     title =
       cond do
+        current && stem == layout.pages[current.id].stem && is_nil(said) -> current.title
         is_nil(said) -> stem
         is_nil(current) -> said
-        names?(said, stem, current) -> said
+        names?(said, stem) -> said
         stem == layout.pages[current.id].stem -> said
         true -> stem
       end
@@ -821,7 +823,7 @@ defmodule Slipdock.Vaults.Sync do
   # here. A title changed in the file's front matter, the file not renamed,
   # renames the file after it, as a title changed anywhere else does.
   defp file_name(attrs, stem, title, current, layout) do
-    own = if stem != Archive.safe_name(title), do: stem
+    own = if stem != DiskName.disk_name(title), do: stem
 
     cond do
       is_nil(current) -> Map.put(attrs, "file_name", own)
@@ -831,9 +833,8 @@ defmodule Slipdock.Vaults.Sync do
     end
   end
 
-  defp names?(title, stem, page) do
-    safe = String.downcase(Archive.safe_name(title))
-    String.downcase(stem) in [safe, safe <> "-" <> String.downcase(page.code)]
+  defp names?(title, stem) do
+    String.downcase(stem) == String.downcase(DiskName.disk_name(title))
   end
 
   # A `summary` key becomes the page's summary when it can be one. A longer

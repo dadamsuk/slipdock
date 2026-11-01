@@ -5,14 +5,16 @@ defmodule Slipdock.Vaults.Layout do
 
   The layout is `Slipdock.Vaults.Index`'s, made into file names:
 
-    * every segment is the name a file can hold (`Slipdock.Wiki.Archive.safe_name/1`);
+    * every segment is a disk name (`Slipdock.Wiki.DiskName`), bounded and
+      safe on any machine; the titles stay whole in the listing;
     * a page is `Title.md`, or `Title/index.md` when it has children, which
       sit beside that index as they do in an export;
     * two things wanting one name — two pages titled alike in one folder, a
       page with children and a folder of the same name — are told apart by
-      the later one taking its code (`Title-W-31.md`), compared case aside,
+      the later one taking a number (`Title (2).md`), compared case aside,
       since half the machines a vault is synced to cannot tell `Note.md`
-      from `note.md`.
+      from `note.md`. Folders come first, then pages, then files, each oldest
+      first, so the oldest keeps the plain name.
 
   Built from narrow queries with no bodies in them, so a write can ask where
   everything is without reading every page.
@@ -22,7 +24,7 @@ defmodule Slipdock.Vaults.Layout do
 
   alias Slipdock.Repo
   alias Slipdock.Vaults.{Mapping, Vault}
-  alias Slipdock.Wiki.{Archive, Folder, Page}
+  alias Slipdock.Wiki.{DiskName, Folder, Page}
 
   @type page :: %{
           id: pos_integer,
@@ -88,7 +90,7 @@ defmodule Slipdock.Vaults.Layout do
       |> Enum.flat_map(&prefixes/1)
       |> Map.new(&{String.downcase(&1), :folder})
 
-    {placed, _taken, _dirs} =
+    {placed, taken, _dirs} =
       pages
       |> Enum.map(&{&1, depth(&1, by_id, 0)})
       |> Enum.sort_by(fn {page, depth} -> {depth, page.id} end)
@@ -102,12 +104,11 @@ defmodule Slipdock.Vaults.Layout do
             {stem, path} = name(page, dir, children?, taken)
 
             dirs = if children?, do: Map.put(dirs, page.id, join(dir, stem)), else: dirs
-            taken = Map.put(taken, String.downcase(path), page.id)
 
             taken =
-              if children?,
-                do: Map.put(taken, String.downcase(join(dir, stem)), page.id),
-                else: taken
+              taken
+              |> Map.put(String.downcase(path), page.id)
+              |> Map.put(String.downcase(join(dir, stem)), page.id)
 
             entry = %{
               id: page.id,
@@ -123,15 +124,6 @@ defmodule Slipdock.Vaults.Layout do
       end)
 
     page_map = Map.new(placed, &{&1.id, &1})
-
-    taken =
-      Enum.reduce(placed, taken, fn p, taken ->
-        taken = Map.put(taken, String.downcase(p.path), p.id)
-
-        if p.children?,
-          do: Map.put(taken, String.downcase(join(p.dir, p.stem)), p.id),
-          else: taken
-      end)
 
     files = place_files(board_ids, folder_dirs, by_board, taken)
 
@@ -153,8 +145,8 @@ defmodule Slipdock.Vaults.Layout do
   end
 
   # A vault's other files (W-103 R2.9): each in its folder's directory, or
-  # at its board's mapped root, under its own name — with its id added when
-  # something placed earlier has that name already.
+  # at its board's mapped root, under its own name, numbered when something
+  # placed earlier has that name already.
   defp place_files(board_ids, folder_dirs, by_board, taken) do
     from(f in Slipdock.Wiki.WikiFile,
       where: f.board_id in ^board_ids and is_nil(f.archived_at),
@@ -172,22 +164,23 @@ defmodule Slipdock.Vaults.Layout do
       if is_nil(dir) do
         {acc, taken}
       else
-        name = String.replace(file.name, ~r/[:*?"<>|]+/, "-")
-        path = join(dir, name)
-
-        path =
-          if Map.has_key?(taken, String.downcase(path)) do
-            ext = Path.extname(name)
-            join(dir, Path.basename(name, ext) <> "-F#{file.id}" <> ext)
-          else
-            path
-          end
+        path = free_file_path(file.name, dir, taken)
 
         entry = Map.merge(file, %{path: path, dir: dir})
         {[entry | acc], Map.put(taken, String.downcase(path), {:file, file.id})}
       end
     end)
     |> elem(0)
+  end
+
+  # The first of a file's numbered names nothing in the directory has.
+  defp free_file_path(name, dir, taken) do
+    ext = Path.extname(name)
+    base = name |> Path.basename(ext) |> DiskName.disk_name()
+
+    Stream.iterate(1, &(&1 + 1))
+    |> Stream.map(&join(dir, DiskName.numbered(base, &1) <> ext))
+    |> Enum.find(&(not Map.has_key?(taken, String.downcase(&1))))
   end
 
   # How many pages sit above this one.
@@ -241,9 +234,10 @@ defmodule Slipdock.Vaults.Layout do
 
     folders = Map.new(rows, fn {id, _board, parent, name} -> {id, {parent, name}} end)
     by_board = Enum.group_by(mappings, & &1.board_id)
+    names = sibling_names(rows)
 
     for {id, board_id, _parent, _name} <- rows,
-        dir = folder_dir(id, folders, Map.get(by_board, board_id, [])),
+        dir = folder_dir(id, folders, names, Map.get(by_board, board_id, [])),
         dir != nil,
         into: %{},
         do: {id, dir}
@@ -251,7 +245,7 @@ defmodule Slipdock.Vaults.Layout do
 
   # A folder's directory: the deepest mapping above it, then the folders
   # below that mapping's own. Nil when nothing maps it.
-  defp folder_dir(id, folders, mappings) do
+  defp folder_dir(id, folders, names, mappings) do
     chain = chain(id, folders, [])
 
     mappings
@@ -265,9 +259,22 @@ defmodule Slipdock.Vaults.Layout do
         nil
 
       {depth, m} ->
-        below = chain |> Enum.drop(depth + 1) |> Enum.map(&safe(folders[&1] |> elem(1)))
+        below = chain |> Enum.drop(depth + 1) |> Enum.map(&names[&1])
         Enum.reduce(below, m.path, &join(&2, &1))
     end
+  end
+
+  # Every folder's disk name, told apart from its siblings, oldest first.
+  defp sibling_names(rows) do
+    rows
+    |> Enum.group_by(fn {_id, board, parent, _name} -> {board, parent} end)
+    |> Enum.flat_map(fn {_at, siblings} ->
+      siblings
+      |> Enum.sort_by(&elem(&1, 0))
+      |> Enum.map(fn {id, _board, _parent, name} -> {id, name} end)
+      |> DiskName.assign()
+    end)
+    |> Map.new()
   end
 
   defp chain(nil, _folders, acc), do: acc
@@ -279,19 +286,19 @@ defmodule Slipdock.Vaults.Layout do
     end
   end
 
-  # The page's file name, made unique among everything placed before it.
+  # The page's file name, numbered past everything placed before it.
   defp name(page, dir, children?, taken) do
-    plain = file_name(page)
+    base = page |> file_name() |> DiskName.disk_name()
 
-    Enum.find_value([plain, plain <> "-" <> page.code], fn stem ->
-      path = file_path(dir, stem, children?)
-      own_dir = String.downcase(join(dir, stem))
-
-      if Map.has_key?(taken, String.downcase(path)) or
-           (children? and Map.has_key?(taken, own_dir)),
-         do: nil,
-         else: {stem, path}
-    end) || {plain <> "-" <> page.code, file_path(dir, plain <> "-" <> page.code, children?)}
+    Stream.iterate(1, &(&1 + 1))
+    |> Stream.map(fn n ->
+      stem = DiskName.numbered(base, n)
+      {stem, file_path(dir, stem, children?)}
+    end)
+    |> Enum.find(fn {stem, path} ->
+      not Map.has_key?(taken, String.downcase(path)) and
+        not Map.has_key?(taken, String.downcase(join(dir, stem)))
+    end)
   end
 
   defp file_path(dir, stem, true), do: join(join(dir, stem), "index.md")
@@ -299,15 +306,7 @@ defmodule Slipdock.Vaults.Layout do
 
   # The name the page's own file had, kept; otherwise its title.
   defp file_name(%{file_name: name}) when is_binary(name) and name != "", do: name
-
-  defp file_name(page) do
-    case safe(page.title) do
-      "" -> page.code
-      name -> name
-    end
-  end
-
-  defp safe(name), do: Archive.safe_name(name)
+  defp file_name(page), do: page.title
 
   defp prefixes(dir) do
     segments = String.split(dir, "/", trim: true)
@@ -323,8 +322,9 @@ defmodule Slipdock.Vaults.Layout do
   Where a file at `path` (vault-relative, `Projects/Acme/Call.md`) would go:
 
     * `{:parent, page_id}` — beside a page's `index.md`, so a child of it;
-    * `{:folder, mapping, segments}` — under a mapping, in the folders named
-      by `segments` below the mapping's own folder (made as needed);
+    * `{:folder, %{board_id:, folder_id:}, segments}` — in the deepest folder
+      already at that path (`folder_id` nil for a board's root), then the
+      folders named by `segments` below it (made as needed);
     * `{:error, reason}` — in no mapping, or a folder inside a page.
   """
   def place(layout, path) do
@@ -349,9 +349,26 @@ defmodule Slipdock.Vaults.Layout do
             {:error, "nothing in the vault is mapped at /#{dir}"}
 
           m ->
-            {:folder, m, Enum.drop(segments, length(String.split(m.path, "/", trim: true)))}
+            deepest_folder(layout, m, segments)
         end
     end
+  end
+
+  # A folder's disk name can be shortened or numbered, so the path is matched
+  # against where the folders are rather than by their names.
+  defp deepest_folder(layout, mapping, segments) do
+    top = length(String.split(mapping.path, "/", trim: true))
+
+    found =
+      length(segments)..(top + 1)//-1
+      |> Enum.find_value(fn n ->
+        id = layout.folder_dirs[segments |> Enum.take(n) |> Enum.join("/") |> String.downcase()]
+        if id, do: {id, n}
+      end)
+
+    {folder_id, used} = found || {mapping.folder_id, top}
+
+    {:folder, %{board_id: mapping.board_id, folder_id: folder_id}, Enum.drop(segments, used)}
   end
 
   defp prefix?(prefix, segments) do

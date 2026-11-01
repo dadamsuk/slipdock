@@ -151,6 +151,32 @@ defmodule Slipdock.VaultLinksTest do
     assert html =~ ~s(href="/boards/#{ctx.jobs.id}/wiki/#{note.slug}")
   end
 
+  describe "matching long names (W-2201 rule 5)" do
+    test "two pages sharing over 60 characters answer to their own links",
+         %{user: user, kb: kb, jobs: jobs, vault: vault} do
+      prefix = String.duplicate("Agent supervision and parked jobs ", 3)
+      first = page!(kb, user, prefix <> "the first")
+      second = page!(jobs, user, prefix <> "the second")
+      index = Index.build(vault)
+
+      assert [%{id: id}] = Index.match(index, prefix <> "the first")
+      assert id == first.id
+      assert [%{id: id}] = Index.match(index, prefix <> "the second")
+      assert id == second.id
+    end
+
+    test "a title past the old 80-character cut is matched whole, not by its start",
+         %{user: user, kb: kb, vault: vault} do
+      title = String.duplicate("x", 90) <> " end"
+      page = page!(kb, user, title)
+      index = Index.build(vault)
+
+      assert [%{id: id}] = Index.match(index, title)
+      assert id == page.id
+      assert Index.match(index, String.duplicate("x", 80)) == []
+    end
+  end
+
   describe "the vault's own answers" do
     test "resolve_link names the page and its path", ctx do
       note = page!(ctx.projx, ctx.user, "Deep", %{"folder_id" => ctx.notes.id})
