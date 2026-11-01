@@ -1578,19 +1578,21 @@ defmodule SlipdockWeb.WikiLive.Index do
            via_nodes(socket, via), reveal}
       end
 
+    access = row_access(socket)
+
     {:reply,
      %{
        scope: scope,
        root: root,
        filtering: filter != false and filter != nil,
-       nodes: Map.new(nodes, fn {key, rows} -> {key, client_rows(rows, socket)} end),
+       nodes: Map.new(nodes, fn {key, rows} -> {key, client_rows(rows, socket, access)} end),
        reveal: reveal,
        # How the top of this board's tree is sorted, for its menu.
        sort: Wiki.tree_sort(socket.assigns.board, nil),
        # What was kept of this tree's open folders: the hook's open set, or
        # nil the first time, when a small wiki opens whole.
        open: kept && Enum.filter(kept, &Map.has_key?(nodes_map(nodes), &1)),
-       small: socket.assigns.shown + socket.assigns.hidden <= @tree_small
+       small: tree_small?(socket)
      }, socket}
   end
 
@@ -3037,12 +3039,14 @@ defmodule SlipdockWeb.WikiLive.Index do
   # A row as the hook draws it: its key, where it links to, and whether
   # following that link stays in this view (a patch) or opens another
   # board's wiki. Only what is drawn goes over the wire.
-  defp client_rows(rows, socket) do
-    writable = writable_ids(socket)
+  defp client_rows(rows, socket), do: client_rows(rows, socket, row_access(socket))
+
+  # `access` is `row_access/1`'s, worked out once for every container a
+  # reply carries: in a vault it reads each of its boards, and a reply can
+  # carry hundreds of containers.
+  defp client_rows(rows, socket, {writable, readable}) do
     dressed? = socket.assigns.board.wiki_tree_icons != false
     shared = shared_keys(rows)
-
-    readable = readable_ids(socket)
 
     rows
     |> name_rows(socket)
@@ -3114,18 +3118,39 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp in_vault_view(rows, _assigns), do: rows
 
-  # The boards whose rows the reader can move, rename and archive: this one
-  # when they can write to it, and the vault's others they can write to.
-  defp writable_ids(%{assigns: %{vault: %{} = vault}} = socket) do
-    vault
-    |> Slipdock.Vaults.board_ids()
-    |> Enum.filter(&writable_board(socket, &1))
-    |> MapSet.new()
+  # `{writable, readable}`: the boards whose rows the reader can move, rename
+  # and archive (this one when they can write to it, and the vault's others
+  # they can write to), and the boards whose rows open in their own wiki.
+  # In a vault both come from one read of its boards: a full board load each,
+  # as `writable_board/2` does, is far too slow for a vault of a hundred.
+  defp row_access(%{assigns: %{vault: %{}}} = socket) do
+    %{board: here, can_write: can_write, current_user: user} = socket.assigns
+    boards = vault_boards(socket)
+
+    writable =
+      for {id, {board, _opts}} <- boards,
+          id != here.id,
+          Access.can_write?(Access.board_permission(user, board)),
+          into: MapSet.new(),
+          do: id
+
+    writable = if can_write, do: MapSet.put(writable, here.id), else: writable
+    readable = boards |> Map.keys() |> MapSet.new() |> MapSet.put(here.id)
+    {writable, readable}
   end
 
-  defp writable_ids(socket) do
-    if socket.assigns.can_write, do: MapSet.new([socket.assigns.board.id]), else: MapSet.new()
+  defp row_access(socket) do
+    here = socket.assigns.board.id
+    writable = if socket.assigns.can_write, do: MapSet.new([here]), else: MapSet.new()
+    {writable, MapSet.new([here])}
   end
+
+  # Whether the tree is small enough to open whole on a first visit. The
+  # vault view's tree is the whole vault, not the board it stands on.
+  defp tree_small?(%{assigns: %{vault_view: %{}, tree_scope: "vault"} = assigns}),
+    do: map_size(assigns.vault_addresses.pages) <= @tree_small
+
+  defp tree_small?(socket), do: socket.assigns.shown + socket.assigns.hidden <= @tree_small
 
   defp client_row(%{kind: "more"} = row, _writable),
     do: %{kind: "more", key: "more:#{row.offset}", offset: row.offset, count: 0}
@@ -3158,17 +3183,6 @@ defmodule SlipdockWeb.WikiLive.Index do
     )
     |> then(&if(row[:sort], do: Map.put(&1, :sort, row.sort), else: &1))
   end
-
-  # The boards whose rows open in their own wiki for this reader.
-  defp readable_ids(%{assigns: %{vault: %{}}} = socket),
-    do:
-      socket
-      |> vault_boards()
-      |> Map.keys()
-      |> MapSet.new()
-      |> MapSet.put(socket.assigns.board.id)
-
-  defp readable_ids(socket), do: MapSet.new([socket.assigns.board.id])
 
   # A row of somebody else's, shared with the reader and filed in a folder
   # of theirs (#818): it opens in the Shared view, since its board is not
@@ -4151,7 +4165,10 @@ defmodule SlipdockWeb.WikiLive.Index do
               {crumb.name}
             </.link>
           <% end %>
+          <%!-- Which board holds what is open. The vault's top holds nothing,
+               so it names no board, though the view stands on one. --%>
           <.link
+            :if={@page || @folder}
             id="vault-board"
             navigate={if @page, do: page_path(@board, @page), else: wiki_path(@board)}
             class="ml-2 hidden shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs text-base-content/50 hover:bg-base-200 sm:flex"
