@@ -17,12 +17,15 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
   setup %{user: user} do
     # "Aardvark" sorts first, so it is the board the vault's top stands on.
     stand = board_fixture(%{"name" => "Aardvark", "code" => "vvtaard"}, owner: user)
+    page_fixture(stand, %{"title" => "Aardvark note"}, user: user)
 
     boards =
       for n <- 1..8 do
         board = board_fixture(%{"name" => "Board #{n}", "code" => "vvt#{n}"}, owner: user)
         {:ok, a} = Wiki.create_folder(board, %{"name" => "Notes #{n}"})
         {:ok, b} = Wiki.create_folder(board, %{"name" => "Specs #{n}"})
+        # Something written, or the board is no part of the tree.
+        page_fixture(board, %{"title" => "Note #{n}", "folder_id" => b.id}, user: user)
         {board, [a, b]}
       end
 
@@ -104,6 +107,52 @@ defmodule SlipdockWeb.WikiVaultViewTreeTest do
     assert titles(vault_tree(view, ["vault"]), "vault") ==
              ["Knowledge Base", "Board 8", "Board 3", "Board 1", "Aardvark"] ++
                Enum.map([2, 4, 5, 6, 7], &"Board #{&1}")
+  end
+
+  describe "a board with nothing written" do
+    test "is out of the tree, though it has folders", %{conn: conn, user: user, vault: vault} do
+      empty = board_fixture(%{"name" => "Blank", "code" => "vvtblank"}, owner: user)
+      {:ok, _} = Wiki.create_folder(empty, %{"name" => "Plans"})
+
+      {:ok, view, _html} = live(conn, SlipdockWeb.VaultUrls.url(vault))
+      refute "Blank" in titles(vault_tree(view, ["vault"]), "vault")
+    end
+
+    test "comes in with its first page", %{conn: conn, user: user, vault: vault} do
+      empty = board_fixture(%{"name" => "Blank", "code" => "vvtfirst"}, owner: user)
+      page_fixture(empty, %{"title" => "First"}, user: user)
+
+      {:ok, view, _html} = live(conn, SlipdockWeb.VaultUrls.url(vault))
+      assert "Blank" in titles(vault_tree(view, ["vault"]), "vault")
+    end
+
+    test "shows when a sub-board below it has something written", ctx do
+      %{conn: conn, user: user, vault: vault} = ctx
+      parent = board_fixture(%{"name" => "Parent", "code" => "vvtparent"}, owner: user)
+      {:ok, template} = Slipdock.Boards.find_template(nil, "Simple")
+      [column | _] = Slipdock.Boards.get_board!(parent.id).columns
+      {:ok, sub} = sub_board(card_fixture(column, %{"title" => "Epic"}), template)
+      page_fixture(sub, %{"title" => "Deep note"}, user: user)
+
+      {:ok, view, _html} = live(conn, SlipdockWeb.VaultUrls.url(vault))
+      assert "Parent" in titles(vault_tree(view, ["vault"]), "vault")
+    end
+
+    test "the Knowledge Base shows even when nothing is written in it", ctx do
+      {:ok, view, _html} = live(ctx.conn, SlipdockWeb.VaultUrls.url(ctx.vault))
+      assert "Knowledge Base" in titles(vault_tree(view, ["vault"]), "vault")
+    end
+
+    test "is still listed for a sync, marked empty, so its folders stay", ctx do
+      %{user: user, vault: vault} = ctx
+      empty = board_fixture(%{"name" => "Blank", "code" => "vvtsync"}, owner: user)
+      {:ok, _} = Wiki.create_folder(empty, %{"name" => "Plans"})
+
+      listing = Slipdock.Vaults.Sync.listing(vault, user)
+      assert %{empty: true} = Enum.find(listing.boards, &(&1.id == empty.id))
+      assert "Blank/Plans" in listing.folders
+      assert %{empty: false} = Enum.find(listing.boards, &(&1.name == "Board 1"))
+    end
   end
 
   describe "an archived board" do

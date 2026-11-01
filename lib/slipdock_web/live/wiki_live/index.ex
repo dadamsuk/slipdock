@@ -674,11 +674,12 @@ defmodule SlipdockWeb.WikiLive.Index do
   # is read with: drafts and archived pages only where they can write.
   defp vault_boards(%{assigns: %{vault: nil}}), do: %{}
 
-  # An archived board's tree is out of the vault's (W-2201), unless it is the
-  # one being read, opened from the archive.
+  # An archived board's tree, and a board with nothing written, are out of
+  # the wiki's (W-2201), unless it is the one being read: opened from the
+  # archive, or its own wiki opened to write its first page.
   defp vault_boards(socket) do
     %{vault: vault, current_user: user, show: show, board: here} = socket.assigns
-    hidden = Slipdock.Vaults.hidden_board_ids(vault)
+    hidden = Slipdock.Vaults.out_of_tree_ids(vault)
     here_root = Slipdock.Boards.Board.root_id(here)
 
     vault

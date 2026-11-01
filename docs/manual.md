@@ -4183,6 +4183,12 @@ Open it from the archived boards on your home page and its own wiki shows its
 tree as before; restore it to have its wiki back in yours. Links to its pages
 still work.
 
+**A board with nothing written** on it or on a board below it, no page and no
+file, is left out of the tree too, however many folders it has. Write its first
+page from the board's own wiki and it joins the tree. Your Knowledge Base is
+always there, written in or not. A synced folder keeps such a board's folders:
+the listing marks it `empty` rather than leaving it out.
+
 **Boards somebody shared with you** are not in your wiki. They are in their
 owner's. You read them on the board, or under **Shared with me** (see stubs
 below).

@@ -2370,7 +2370,10 @@ defmodule SlipdockWeb.APIGuide do
     `<Board>/Cards/<Epic>/`. Everything in a board's wiki is in its folder.
     Boards shared with you by someone else are not in it. A new or renamed
     board needs no call. Board names that clash, case aside, are numbered,
-    the oldest plain.
+    the oldest plain. A board with **nothing written** on it or below it (no
+    page or file) is left out of the web's tree; the listing and
+    `wiki.boards` still have it, with `"empty": true`, so a mirror keeps its
+    folders: leave it out of a tree you draw. Its first page brings it in.
 
     An **archived board is out of the tree**: not in `boards`, the sync
     listing or the feed, which says only that it was archived (a `board`
@@ -2388,7 +2391,7 @@ defmodule SlipdockWeb.APIGuide do
     ```
 
     `wiki.boards` has each board's `id`, `code`, `name`, `path`, `archived`,
-    `wiki_tree_icons` and `wiki_sort`; `knowledge_base` is `{id, code, name}`.
+    `empty`, `wiki_tree_icons` and `wiki_sort`; `knowledge_base` is `{id, code, name}`.
     `PATCH` takes `shortcut`, `hotkey` and `recordings_folder`; a wiki has no
     name. `locate` answers with the deepest board holding the path, a
     sub-board being inside its parent's folder, and is a 404 at the root or
@@ -2481,7 +2484,8 @@ defmodule SlipdockWeb.APIGuide do
     `{id, board_id, icon, color, writable, shareable}`. With `?stubs=1`, a
     stub carries none of these, and a directory only a stub needs isn't in
     `folder_details`. `boards` lists the boards you can open, each `{id, name,
-    title, short_name, path, archived, position}`: `position` is the order
+    title, short_name, path, archived, position, empty}` (`empty`: nothing
+    written on it or below it; draw no row for it): `position` is the order
     the top of the tree takes, the one your home page keeps by hand (boards
     you placed by their place, the rest after them, oldest first), so sort
     the top by it and you agree with the web. `folders` takes in the boards'

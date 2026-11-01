@@ -142,9 +142,60 @@ defmodule Slipdock.Vaults do
   end
 
   @doc """
+  The ids of the vault's boards with nothing to show in its tree: no live
+  page or file on them or on any board below them. The Knowledge Base is
+  never one: it is where notes go, so it is always there. The first page
+  written on such a board brings it into the tree.
+  """
+  def empty_board_ids(%Vault{} = vault) do
+    dirs = Layout.dirs(vault).boards
+    ids = Map.keys(dirs)
+
+    wiki =
+      from(b in Board, where: b.id in ^ids and b.kind == "wiki", select: b.id)
+      |> Repo.all()
+      |> MapSet.new()
+
+    filled =
+      from(p in Page,
+        where: p.board_id in ^ids and is_nil(p.archived_at),
+        distinct: true,
+        select: p.board_id
+      )
+      |> Repo.all()
+      |> Kernel.++(
+        Repo.all(
+          from(f in Slipdock.Wiki.WikiFile,
+            where: f.board_id in ^ids and is_nil(f.archived_at),
+            distinct: true,
+            select: f.board_id
+          )
+        )
+      )
+      |> MapSet.new()
+
+    filled_dirs = for {id, dir} <- dirs, MapSet.member?(filled, id), do: String.downcase(dir)
+
+    for {id, dir} <- dirs,
+        not MapSet.member?(wiki, id),
+        dir = String.downcase(dir),
+        not Enum.any?(filled_dirs, &(&1 == dir or String.starts_with?(&1, dir <> "/"))),
+        into: MapSet.new(),
+        do: id
+  end
+
+  @doc """
+  What the tree leaves out (W-2201): `hidden_board_ids/1`, archived, and
+  `empty_board_ids/1`, nothing written.
+  """
+  def out_of_tree_ids(%Vault{} = vault),
+    do: MapSet.union(hidden_board_ids(vault), empty_board_ids(vault))
+
+  @doc """
   The vault's boards in its tree, each with the path of its folder,
   sub-boards too, in path order: none whose root is archived
-  (`hidden_board_ids/1`).
+  (`hidden_board_ids/1`). One with nothing written is here, for a client's
+  sync to keep its folders; the JSON says it is `empty`.
   """
   def tree_boards(%Vault{} = vault) do
     hidden = hidden_board_ids(vault)

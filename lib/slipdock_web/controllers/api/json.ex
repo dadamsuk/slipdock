@@ -921,7 +921,13 @@ defmodule SlipdockWeb.API.JSON do
       # The vault's own view in the web app (#752).
       url: SlipdockWeb.VaultUrls.url(v),
       pages: Slipdock.Vaults.page_count(v),
-      boards: v |> Slipdock.Vaults.tree_boards() |> Enum.map(&vault_board/1),
+      # `empty`: nothing written on it or below it, so a tree leaves it out.
+      boards:
+        (fn empty ->
+           v
+           |> Slipdock.Vaults.tree_boards()
+           |> Enum.map(&Map.put(vault_board(&1), :empty, MapSet.member?(empty, &1.board.id)))
+         end).(Slipdock.Vaults.empty_board_ids(v)),
       # The folders it is synced to, as far as the server can tell: each
       # token that has listed it or followed its feed (`touch_mirror/2`).
       mirrors:

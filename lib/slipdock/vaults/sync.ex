@@ -71,7 +71,7 @@ defmodule Slipdock.Vaults.Sync do
         virtual_folders: [%{path: "Projects/Cards", board_id:, title: "Cards", short_name: nil,
                             card_id: nil, archived: false}],
         boards: [%{id:, name:, title:, short_name: nil, path: "Projects", archived:,
-                   position:}]}
+                   position:, empty:}]}
 
   `folders` is every directory of the vault, empty ones too: boards, wiki
   folders and card folders, and the `Cards` and epic directories that exist
@@ -117,7 +117,9 @@ defmodule Slipdock.Vaults.Sync do
     layout = Layout.build(vault)
     names = Names.build(layout)
     # An archived board's tree isn't in the listing (W-2201): as far as the
-    # listing goes, nobody can read it, so nothing of it is listed.
+    # listing goes, nobody can read it, so nothing of it is listed. A board
+    # with nothing written is, so a mirror keeps the folders made there, and
+    # says `empty` for a client to leave it out of the tree it draws.
     levels = vault |> levels(reader, opts[:token]) |> Map.drop(Vaults.hidden_board_ids(vault))
 
     also = also_in(layout, Map.keys(layout.pages))
@@ -201,6 +203,7 @@ defmodule Slipdock.Vaults.Sync do
   # client sorts by it and agrees with the web.
   defp board_details(vault, levels, reader) do
     vault_boards = Vaults.boards(vault)
+    empty = Vaults.empty_board_ids(vault)
     order = Slipdock.Boards.home_ranks(reader, Enum.map(vault_boards, & &1.board))
 
     for %{board: board, path: path} <- vault_boards,
@@ -212,7 +215,8 @@ defmodule Slipdock.Vaults.Sync do
         short_name: nil,
         path: path,
         archived: not is_nil(board.archived_at),
-        position: order[board.id]
+        position: order[board.id],
+        empty: MapSet.member?(empty, board.id)
       }
     end
   end
