@@ -46,7 +46,7 @@ defmodule SlipdockCLI.ShortNameTest do
   end
 
   test "page new --card sends the card, for its folder" do
-    page = ~s({"page":{"id":4,"code":"W-4","title":"Log","slug":"log","board_id":3}})
+    page = ~s({"page":{"id":4,"code":"W-4","title":"Log","slug":"log","board_id":3,"url":"/w/4"}})
     System.put_env("SLIPDOCK_URL", FakeServer.start([{201, page}]))
     capture_io(fn -> Wiki.run("page", ["new", "3", "Log"], card: "9", body: "b") end)
 
