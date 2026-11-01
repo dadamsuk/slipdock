@@ -96,7 +96,8 @@ defmodule Slipdock.Vaults.Index do
     end
   end
 
-  defp entry(page, segments) do
+  @doc "An entry for a page at `segments`: `build/1`'s, for a layout worked out elsewhere."
+  def entry(page, segments) do
     %{
       id: page.id,
       board_id: page.board_id,
@@ -159,6 +160,21 @@ defmodule Slipdock.Vaults.Index do
 
       _active ->
         fun.()
+    end
+  end
+
+  @doc """
+  Runs `fun` with `index` standing in for the vault's own: what `Links` would
+  have said of another layout, without changing the live one.
+  """
+  def with_index(%Vault{id: id}, index, fun) do
+    outer = Process.get(__MODULE__)
+    Process.put(__MODULE__, Map.put(outer || %{}, id, index))
+
+    try do
+      fun.()
+    after
+      if outer, do: Process.put(__MODULE__, outer), else: Process.delete(__MODULE__)
     end
   end
 
