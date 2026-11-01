@@ -20,31 +20,6 @@ defmodule Slipdock.Release do
   @batch 20
 
   @doc """
-  The move to the one root vault (`Slipdock.Vaults.RootMigration`), for a
-  release, where there is no mix: Repo and PubSub only, so no jobs, mail or
-  automations fire. `opts[:out]` is the report's folder. A dry run unless
-  `apply: true` is passed, since this is the one that can't be taken back.
-  """
-  def root_vault(opts) do
-    load()
-    {:ok, _} = Application.ensure_all_started(:ecto_sql)
-    {:ok, _} = Application.ensure_all_started(:phoenix_pubsub)
-
-    {:ok, _} =
-      Phoenix.PubSub.Supervisor.start_link(name: Slipdock.PubSub, adapter: Phoenix.PubSub.PG2)
-
-    {:ok, summary, _} =
-      Ecto.Migrator.with_repo(Slipdock.Repo, fn _repo ->
-        opts
-        |> Keyword.put(:dry_run, opts[:apply] != true)
-        |> Slipdock.Vaults.RootMigration.run_all()
-        |> Slipdock.Vaults.RootReport.write(opts[:out] || "/tmp/root-vault")
-      end)
-
-    summary
-  end
-
-  @doc """
   One board's wiki into a folder of another (`Slipdock.Wiki.WikiMove`), for
   a release: Repo and PubSub only. `opts`: `user` (an email), `from` and `to`
   (board codes), `folder`. A dry run unless `apply: true` is passed.

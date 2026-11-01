@@ -45,6 +45,12 @@ defmodule Slipdock.VaultsTest do
       assert id == vault.id
     end
 
+    test "the database holds one per person, whatever is asked of it (#1603)", ctx do
+      assert_raise Ecto.ConstraintError, ~r/vaults_one_per_user_index/, fn ->
+        Repo.insert!(%Vault{user_id: ctx.user.id, name: "Second"})
+      end
+    end
+
     test "gives each person their own", %{vault: vault} do
       other = user_fixture("root-other@example.com")
       assert Vaults.root(other).id != vault.id
