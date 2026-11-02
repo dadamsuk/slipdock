@@ -20,6 +20,10 @@ defmodule Slipdock.Verified do
       accepting completes it and moves it to the done list; rejecting needs
       a reason, which is kept, commented and left as the handoff's next
       step. A person completing a pending card accepts it.
+    * **Verify jobs** (`Board.verify_pool`, #1634): with a pool named, a
+      card going pending is queued for that runner pool as a `verify` job,
+      its prompt saying what to check and how to decide. A decision cancels
+      any other verify job still open on the card.
 
   The checks apply to agents (`Slipdock.Actor` kind `"agent"`), not to the
   in-app assistant, which acts on a person's say in the web app, nor to
@@ -170,6 +174,13 @@ defmodule Slipdock.Verified do
       (not before.completed and updated.completed and before.verify_state != "pending") or
         (before.verify_state != "pending" and updated.verify_state == "pending")
 
+    if before.verify_state != "pending" and updated.verify_state == "pending",
+      do: queue_verify_job(updated, user)
+
+    # Accepted by a person completing it: no job need check it now.
+    if before.verify_state == "pending" and updated.verify_state == "accepted",
+      do: cancel_verify_jobs(updated, nil)
+
     if finished? and not blank?(updated.evidence) and board(updated).evidence_required do
       commit =
         if updated.evidence_commit, do: "\n\nCommit: `#{updated.evidence_commit}`", else: ""
@@ -266,7 +277,11 @@ defmodule Slipdock.Verified do
          "the evidence is for commit #{card.evidence_commit}: verify the work at that commit"}
 
       true ->
-        apply_decision(card, decision, %{reason: reason, commit: commit}, actor, user)
+        with {:ok, _} = decided <-
+               apply_decision(card, decision, %{reason: reason, commit: commit}, actor, user) do
+          cancel_verify_jobs(card, actor)
+          decided
+        end
     end
   end
 
@@ -326,6 +341,81 @@ defmodule Slipdock.Verified do
       {:ok, Repo.get!(Card, card.id)}
     end
     |> api_error()
+  end
+
+  ## Verify jobs ---------------------------------------------------------------
+
+  @verify_kind "verify"
+
+  @doc "The job kind a pending card is queued as (#1634)."
+  def verify_kind, do: @verify_kind
+
+  defp queue_verify_job(%Card{} = card, user) do
+    board = board(card)
+
+    if board.verify_work and board.verify_pool do
+      case Slipdock.Runners.queue(card, %{
+             pool: board.verify_pool,
+             kind: @verify_kind,
+             prompt: verify_prompt(card, board)
+           }) do
+        {:ok, _job} ->
+          :ok
+
+        {:error, reason} ->
+          Slipdock.Boards.add_comment(
+            card,
+            "**Verify job not queued** for pool `#{board.verify_pool}`: #{reason}. " <>
+              "It waits for someone to verify it by hand.",
+            by: user
+          )
+      end
+    end
+  end
+
+  @doc """
+  What a verify job's agent is told (#1634): the card, its bar and evidence,
+  and how to decide. Rendered when the job is queued.
+  """
+  def verify_prompt(%Card{} = card, %Board{} = board) do
+    url = "#{Slipdock.Automations.Runner.base_url()}/boards/#{board.id}/cards/#{card.id}"
+    commit = card.evidence_commit
+    at = if commit, do: " --evidence-commit #{commit}", else: ""
+
+    """
+    Verify card ##{card.id} “#{card.title}” on #{board.name} before it counts as done: #{url}
+
+    Another agent did the work and submitted it. You are the second agent: check the work, don't redo it, and don't change the code or the card beyond your decision.
+
+    The bar (what done means):
+    #{if blank?(card.bar), do: "(none written: check it against the card's description)", else: card.bar}
+
+    The evidence it gave:
+    #{if blank?(card.evidence), do: "(none)", else: card.evidence}
+    Commit: #{commit || "(none given)"}
+
+    1. Read the card and its comments: `slipdock card #{card.id}`.
+    2. #{if commit, do: "Check out #{commit} in the project's repository", else: "Find the work in the project's repository"} and check each part of the bar against it: run the tests it names, read the change.
+    3. Decide once:
+       - `slipdock verify #{card.id} accept#{at} --reason "what you checked"`
+       - `slipdock verify #{card.id} reject#{at} --reason "what falls short of the bar, specifically"`
+    A rejection goes back to whoever takes the card next, so say exactly what to fix.
+    """
+  end
+
+  # Whoever decides first decides: the other verify jobs on the card stop.
+  defp cancel_verify_jobs(%Card{id: card_id}, actor) do
+    import Ecto.Query
+    mine = actor_map(actor)["job_id"]
+
+    from(j in Slipdock.Runners.Job,
+      where:
+        j.card_id == ^card_id and j.kind == @verify_kind and
+          j.status in ^Slipdock.Runners.Job.open_statuses()
+    )
+    |> Repo.all()
+    |> Enum.reject(&(&1.id == mine))
+    |> Enum.each(&Slipdock.Runners.cancel_job/1)
   end
 
   defp api_error({:error, %Ecto.Changeset{} = cs}), do: {:error, cs}

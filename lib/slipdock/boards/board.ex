@@ -97,6 +97,9 @@ defmodule Slipdock.Boards.Board do
     # `verify_work` (#1633): an agent's completion waits, pending, for a
     # different agent or a person to accept or reject it.
     field :verify_work, :boolean, default: false
+    # The runner pool a pending card is sent to as a `verify` job (#1634);
+    # nil sends none, and the card waits for whoever decides it.
+    field :verify_pool, :string
 
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most
@@ -462,6 +465,11 @@ defmodule Slipdock.Boards.Board do
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
 
+  defp pool_name(value) when is_binary(value),
+    do: value |> String.trim() |> String.downcase() |> blank_to_nil()
+
+  defp pool_name(value), do: value
+
   defp trim_to_nil(value) when is_binary(value), do: value |> String.trim() |> blank_to_nil()
   defp trim_to_nil(value), do: value
 
@@ -499,11 +507,16 @@ defmodule Slipdock.Boards.Board do
       :bar_required,
       :evidence_required,
       :verify_work,
+      :verify_pool,
       :kind,
       :default_view
     ])
     |> put_senders(attrs)
     |> validate_senders()
+    |> update_change(:verify_pool, &pool_name/1)
+    |> validate_format(:verify_pool, Slipdock.Runners.Runner.name_format(),
+      message: "must be a runner pool's name: lower case letters, digits, - or _"
+    )
     |> update_change(:handoff_label, &trim_to_nil/1)
     |> update_change(:handoff_prompt, &trim_to_nil/1)
     |> validate_length(:handoff_label, max: @handoff_label_length)

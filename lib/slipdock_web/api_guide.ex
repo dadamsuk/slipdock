@@ -1516,7 +1516,7 @@ defmodule SlipdockWeb.APIGuide do
     defaults; the board's `GET` answers both). Agent-facing text keeps
     "Left off:".
     A board's *Verified work* switches (`bar_required`,
-    `evidence_required`, `verify_work`) are set the same
+    `evidence_required`, `verify_work`, `verify_pool`) are set the same
     way; the *Verified work* section describes them when one of your boards
     has one on.
 
@@ -2157,7 +2157,9 @@ defmodule SlipdockWeb.APIGuide do
 
     On a board that verifies work, `verify_card` (`slipdock verify`) is how a
     second agent accepts or rejects a card another one submitted: see
-    *Verified work*, which appears when one of your boards has it on.
+    *Verified work*, which appears when one of your boards has it on. With
+    `verify_pool` set, each submitted card is queued for that pool as a job
+    of kind `verify`, so a runner needs a `job_verify` to take them.
     """
   end
 
@@ -3466,7 +3468,10 @@ defmodule SlipdockWeb.APIGuide do
     is cleared, and the card stays in progress, so whoever takes it next
     fixes what the reason says and completes it again. The submitter can't
     decide its own card (`403`): a different agent is a different token,
-    or a different runner job.
+    or a different runner job. A board with a `verify_pool` also queues
+    each submitted card for that runner pool as a job of kind `verify`,
+    whose prompt carries the bar, the evidence and how to decide; whoever
+    decides first decides, and the other verify jobs on the card stop.
     """
   end
 

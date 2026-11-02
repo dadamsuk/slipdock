@@ -696,6 +696,7 @@ defmodule SlipdockCLI do
         [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
         [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
         [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
+        [--verify-pool POOL]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -730,7 +731,9 @@ defmodule SlipdockCLI do
                                         --evidence-required: agents say what they checked
                                         (done --evidence, --evidence-commit) to complete one;
                                         --verify-work: an agent's completion waits for a
-                                        different agent or a person to accept it (verify)
+                                        different agent or a person to accept it (verify);
+                                        --verify-pool sends each such card to that runner
+                                        pool as a verify job ("" sends none)
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -991,6 +994,7 @@ defmodule SlipdockCLI do
     bar: :string,
     evidence_required: :boolean,
     verify_work: :boolean,
+    verify_pool: :string,
     evidence: :string,
     evidence_commit: :string,
     default_view: :string,

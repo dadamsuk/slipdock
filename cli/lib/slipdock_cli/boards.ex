@@ -1026,6 +1026,8 @@ defmodule SlipdockCLI.Boards do
         "bar_required" => o[:bar_required],
         "evidence_required" => o[:evidence_required],
         "verify_work" => o[:verify_work],
+        # The runner pool pending cards go to as verify jobs (#1634); "" none.
+        "verify_pool" => o[:verify_pool],
         # Deploys and DORA metrics (#1134).
         "delivery_metrics" => o[:delivery_metrics],
         "incident_tag" => o[:incident_tag],
@@ -1051,7 +1053,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required or --[no-]verify-work"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work or --verify-pool"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

@@ -178,6 +178,34 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
     assert Boards.get_board!(ctx.board.id).verify_work
   end
 
+  test "the same token in a runner job is a second agent; the pool field shows when on", ctx do
+    {:ok, _} =
+      Boards.update_board(ctx.board, %{"verify_work" => true, "verify_pool" => "checkers"})
+
+    mcp(ctx.builder, "complete_card", %{card: ctx.card.id})
+
+    [job] = Repo.all(Slipdock.Runners.Job)
+    assert job.kind == "verify" and job.pool == "checkers"
+
+    ctx.builder
+    |> put_req_header("x-slipdock-client", "cli")
+    |> put_req_header("x-slipdock-agent", "1")
+    |> put_req_header("x-slipdock-job", "#{job.id}")
+    |> post(~p"/api/cards/#{ctx.card.id}/verify", %{"decision" => "accept"})
+    |> json_response(200)
+
+    assert Repo.get!(Card, ctx.card.id).completed
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    assert has_element?(view, "#board-verify-pool[value='checkers']")
+    view |> form("#board-form", board: %{"verify_pool" => ""}) |> render_submit()
+    assert Boards.get_board!(ctx.board.id).verify_pool == nil
+
+    {:ok, _} = Boards.update_board(Boards.get_board!(ctx.board.id), %{"verify_work" => false})
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    refute has_element?(view, "#board-verify-pool")
+  end
+
   test "the guide describes verifying only when a board has it on", ctx do
     guide = ctx.builder |> get(~p"/api/guide") |> response(200)
     refute guide =~ "**A second agent verifies.**"

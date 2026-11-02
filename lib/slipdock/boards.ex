@@ -812,7 +812,8 @@ defmodule Slipdock.Boards do
                # Verified work's switches (#1620) hold for the subcards too.
                "bar_required" => parent.bar_required,
                "evidence_required" => parent.evidence_required,
-               "verify_work" => parent.verify_work
+               "verify_work" => parent.verify_work,
+               "verify_pool" => parent.verify_pool
              },
              template: template,
              parent_card_id: card.id,

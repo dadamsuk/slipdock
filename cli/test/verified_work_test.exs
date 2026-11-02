@@ -52,6 +52,17 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     assert JSON.decode!(body) == %{"bar_required" => false}
   end
 
+  test "set-board --verify-work --verify-pool sends both" do
+    serve([{200, @board}])
+
+    capture_io(fn ->
+      Boards.run("set-board", ["docs"], parse(["--verify-work", "--verify-pool", "checkers"]))
+    end)
+
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"verify_work" => true, "verify_pool" => "checkers"}
+  end
+
   test "edit --bar sends the card's bar" do
     serve([{200, @card}])
     capture_io(fn -> Boards.run("edit", ["12"], parse(["--bar", "Tests pass"])) end)

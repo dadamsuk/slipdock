@@ -817,6 +817,17 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   </span>
                 </span>
               </label>
+              <div :if={@board.verify_work} class="pl-6">
+                <.input
+                  field={@form[:verify_pool]}
+                  id="board-verify-pool"
+                  label="Runner pool for verify jobs"
+                  placeholder="none: verify by hand"
+                />
+                <p class="-mt-1 text-xs text-base-content/50">
+                  Each submitted card is queued for this pool as a job of kind <code>verify</code>. Blank queues nothing.
+                </p>
+              </div>
             </div>
             <%!-- What a card's handoff is called on this board, and what the
                 AI is told when it drafts one (#1212). Blank is the default. --%>

@@ -620,6 +620,24 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   is always different, and a person completing a pending card accepts it.
 - An agent moving a card into the done list itself is refused.
 
+### Verify jobs
+
+With verification on, **Runner pool for verify jobs** (`slipdock set-board
+B --verify-pool checkers`, `PATCH /api/boards/:board {"verify_pool":
+"checkers"}`; blank for none) sends each submitted card to that
+[runner](#runners) pool as a job of kind `verify`. Its prompt carries the
+card's link, its bar, the evidence and commit, and the two `slipdock verify`
+commands to decide with. The agent that runs it is in a different runner job
+from the one that did the work, so it counts as a second agent even on the
+same runner token.
+
+- Whoever decides first decides: the other verify jobs still open on the
+  card are cancelled, and a person completing the card cancels them too.
+- Each new submission (after a rejection, say) queues a fresh job.
+- A job the queue won't take (it is full, or over its rate) is said on the
+  card as a comment, and the card waits for someone to verify it by hand.
+- A runner takes `verify` jobs only if its config has a `job_verify`.
+
 ## Waiting on a person (waits)
 
 A card that can't go on until somebody answers something — a decision, a
