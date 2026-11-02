@@ -161,6 +161,13 @@ switch ($Agent) {
   }
 }
 
+# Verify jobs (#1634): the same agent checks a submitted card, on the
+# server's prompt alone. A runner whose own kind is verify has it already.
+$verify = ''
+if ($fn -ne 'Job-Verify') {
+  $verify = "`n# Verify jobs: a board that verifies work sends each card an agent submits`n# here, for a second agent to check against its bar. The same agent runs it,`n# on the server's prompt alone. Delete this to take no verify jobs.`nfunction Job-Verify {`n  $fn`n}`n"
+}
+
 $extra = ''
 if ($Instructions) { $extra += "`n# Added after every job's prompt.`n`$JobInstructions = " + (Literal $Instructions) + "`n" }
 if ($BeforeJob) { $extra += "`n# Runs before each job; the job runs only if this succeeds.`nfunction Before-Job {`n$BeforeJob`n}`n" }
@@ -199,7 +206,7 @@ $job
 function Job-Echo {
   Write-Output `$env:SLIPDOCK_PROMPT
 }
-$extra
+$verify$extra
 "@
 
 # A config already there is kept beside the new one, never lost.

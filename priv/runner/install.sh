@@ -233,6 +233,22 @@ if [ -e "$CONFIG" ]; then
   cp -p "$CONFIG" "$CONFIG.bak.$(date +%Y%m%d%H%M%S)"
 fi
 
+# Verify jobs (#1634): a board that verifies work sends each card an agent
+# submits for a second agent to check, as kind verify. The same agent runs
+# them, on the server's prompt alone (the runner adds no standing
+# instructions to a verify job). A runner whose own kind is verify has it.
+VERIFY=
+if [ "$FN" != job_verify ]; then
+  VERIFY="
+# Verify jobs: a board that verifies work sends each card an agent submits
+# here, for a second agent to check against its bar. The same agent runs it,
+# on the server's prompt alone. Delete this to take no verify jobs.
+job_verify() {
+  $FN
+}
+"
+fi
+
 # Standing instructions go in a quoted heredoc — inside it nothing is
 # expanded or run — inside a function, which every sh parses the same way.
 EXTRA=
@@ -296,7 +312,7 @@ $JOB
 job_echo() {
   printf '%s\n' "\$SLIPDOCK_PROMPT"
 }
-$EXTRA
+$VERIFY$EXTRA
 EOF
 chmod 600 "$CONFIG.tmp"
 mv "$CONFIG.tmp" "$CONFIG"

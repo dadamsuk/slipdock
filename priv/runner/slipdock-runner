@@ -201,8 +201,9 @@ run_job() {
   SLIPDOCK_CARD=$card
   SLIPDOCK_CARD_URL=$(header x-card-url)
   SLIPDOCK_PROMPT=$(cat "$WORK/resp")
-  # Standing instructions from this machine's config, after the card's own.
-  if [ -n "${JOB_INSTRUCTIONS:-}" ]; then
+  # Standing instructions from this machine's config, after the card's own;
+  # not for a verify job, whose agent checks the work rather than doing it.
+  if [ -n "${JOB_INSTRUCTIONS:-}" ] && [ "$kind" != verify ]; then
     SLIPDOCK_PROMPT="$SLIPDOCK_PROMPT
 
 $JOB_INSTRUCTIONS"

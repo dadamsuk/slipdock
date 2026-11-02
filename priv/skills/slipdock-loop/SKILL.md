@@ -254,7 +254,8 @@ tie-breaker at most, and only between cards sharing a position. The filters do
 the skipping for you: `--open` drops completed cards, `--deps ready` drops
 anything waiting on an unfinished card, `--no-assignee` drops other people's
 work. Also skip anything already flagged `blocked` or `waiting` (an open wait
-on a person sets `waiting` itself), anything a
+on a person sets `waiting` itself), anything waiting for verification
+(`verify_state: "pending"`, flagged `review`: see **Verified work**), anything a
 previous pass in this session flagged `review` and handed back, and every
 stand-in (`↪stand-in-for:#N`, `stand_in_for` in the JSON): it marks where a
 card went into a sprint, and the work is that card, not the stand-in.
@@ -530,7 +531,7 @@ anybody reads later:
      The next pass's CI check (step 2a) catches it if it later fails.
 5. **Close on the board**:
    ```sh
-   slipdock done <id>
+   slipdock done <id>          # --evidence/--evidence-commit where the board asks (Verified work)
    slipdock move <id> "Done"
    ```
    `done` sets `completed`; the move is what puts it where the person looks.
@@ -589,6 +590,39 @@ One or two lines to the user: the card, what it was, that it is closed, the
 commit, and how the build went. Then stop — do not reach for the next card. If something is driving the
 passes, it will come back; if a dynamic `/loop` is driving them and the ready
 list still has work, wake up again soon, and if it is empty, wake up rarely.
+
+## Verified work
+
+A board can check what an agent says it finished. The guide's line for the
+board says which checks are on (`verified work: …`), and its *Verified work*
+section says how each works. Each check is off unless that line names it.
+With one on, the pass changes like this:
+
+- **A bar before work starts.** Before the claim's move into the doing list
+  (step 4), write what done means for the card: `slipdock edit <id> --bar
+  "…"`, one line per part. Moving it without one is refused. The bar locks
+  once work starts, so work to it as written and say in the wrap-up how each
+  part was met.
+- **Evidence on completion.** At step 7.5 `slipdock done <id>` carries what
+  you checked and where: `--evidence "mix test --stale: 38 passed, 0 failed;
+  full suite green in CI run <id>" --evidence-commit <sha>`. Without it the
+  completion and the move into Done are refused.
+- **A second agent verifies.** At step 7.5 `slipdock done <id>` *submits*
+  the card: it stays in the doing list, flagged `review`, pending. Don't move
+  it to Done, since that is refused and the acceptance does it. The wrap-up
+  says `Submitted for verification` in place of closing, and the pass ends
+  there; the card is no longer this pass's (step 2 skips `review`). An epic
+  closes the same way, once its subcards are accepted.
+- **A rejected card** comes back with `Rejected: <reason>` as its handoff and
+  the reason as a comment. Picked up again, that reason is the brief: fix
+  exactly that, then complete it again with fresh evidence.
+- **A verify job** (a job of kind `verify`, or a card you are asked to
+  verify) is checking, not doing. Claim nothing, move nothing and change no
+  code. Read the bar and the evidence, check out the evidence's commit, run
+  what the bar names, then decide once: `slipdock verify <id> accept
+  --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
+  <id> reject --reason "<what falls short, specifically>"`. You can't decide
+  a card you submitted yourself (`403`).
 
 ## Handing a card back
 

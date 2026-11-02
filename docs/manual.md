@@ -636,7 +636,12 @@ same runner token.
 - Each new submission (after a rejection, say) queues a fresh job.
 - A job the queue won't take (it is full, or over its rate) is said on the
   card as a comment, and the card waits for someone to verify it by hand.
-- A runner takes `verify` jobs only if its config has a `job_verify`.
+- A runner takes `verify` jobs only if its config has a `job_verify`. The
+  installers (`install.sh`, `install.ps1`) write one (`Job-Verify` on
+  Windows) that runs the same agent as the runner's own kind, on the
+  server's prompt alone: a runner adds no standing instructions to a
+  `verify` job, since its agent checks the work rather than doing it.
+  Delete the function to take no verify jobs.
 
 ## Waiting on a person (waits)
 

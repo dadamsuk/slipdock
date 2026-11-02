@@ -458,6 +458,18 @@ has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
 card. The details, and the HTTP protocol a runner speaks, are in
 [the manual](manual.md#runners) and the guide's *Runners* section.
 
+**Verified work.** A board can check what its agents finish, with each
+check off until it is turned on in the board's settings: a **bar** written
+before work starts, which then locks; **evidence** when a card completes;
+and a **second agent** who accepts the work or rejects it with the reason.
+With a verify pool set, each submitted card is queued as a `verify` job.
+The installer's config gives every runner a `job_verify` that runs the same
+agent on the server's prompt, without the standing instructions, so a runner
+can check another runner's work. Deciding is `verify_card` or `slipdock
+verify`, and never on a card you submitted yourself. The skills
+(`slipdock-loop`, `slipdock-work`) say what changes in a pass; see
+[the manual](manual.md#verified-work).
+
 ## If you self-host
 
 Two things to get right, both about the address:

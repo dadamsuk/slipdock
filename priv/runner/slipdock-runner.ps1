@@ -227,7 +227,8 @@ function Invoke-Job($claim) {
   }
 
   $prompt = $claim.Body
-  if ($JobInstructions) { $prompt = $prompt + "`n`n" + $JobInstructions }
+  # Not for a verify job, whose agent checks the work rather than doing it.
+  if ($JobInstructions -and $kind -ne 'verify') { $prompt = $prompt + "`n`n" + $JobInstructions }
   $env:SLIPDOCK_JOB_ID = $JobId
   $env:SLIPDOCK_JOB_KIND = $kind
   $env:SLIPDOCK_CARD = $card

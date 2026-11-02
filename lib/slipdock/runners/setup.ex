@@ -1027,7 +1027,23 @@ defmodule Slipdock.Runners.Setup do
     job_echo() {
       printf '%s\\n' "$SLIPDOCK_PROMPT"
     }
-    #{config_extra(a)}
+    #{verify_job(fn_name)}#{config_extra(a)}
+    """
+  end
+
+  # What install.sh writes for verify jobs (#1634): the same agent, unless
+  # the runner's own kind is verify.
+  defp verify_job("job_verify"), do: ""
+
+  defp verify_job(fn_name) do
+    """
+
+    # Verify jobs: a board that verifies work sends each card an agent submits
+    # here, for a second agent to check against its bar. The same agent runs it,
+    # on the server's prompt alone. Delete this to take no verify jobs.
+    job_verify() {
+      #{fn_name}
+    }
     """
   end
 

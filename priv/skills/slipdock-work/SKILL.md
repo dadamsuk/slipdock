@@ -83,6 +83,15 @@ whole card before touching it.
   snooze <id> <date> --note "…"`): it leaves the lists and comes back on the
   day, at the top of its list; on finishing, set `completed: true` **and** move it to the done list.
   Complete an epic only when its rollup shows every subcard done.
+- **Verified work, where a board has it on** (its line in the guide says
+  `verified work: …`). Write the card's bar before starting it (`slipdock
+  edit <id> --bar "…"`). Complete it with what you checked
+  (`slipdock done <id> --evidence "…" --evidence-commit <sha>`). On a board
+  where a second agent verifies, `done` submits the card and leaves it
+  pending: don't move it to Done yourself. A rejection comes back as the
+  card's handoff (`Rejected: …`), and that is the next brief. Verifying
+  someone else's card is `slipdock verify <id> accept|reject --reason "…"`,
+  never your own.
 - **Read the handoff first, leave one when you stop short.** A card's handoff
   (`Left off:` at the top of `slipdock card <id>`; `handoff` in its JSON) is
   where whoever had it last left it: the one next step and a short note. Read

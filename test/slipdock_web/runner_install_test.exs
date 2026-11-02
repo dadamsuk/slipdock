@@ -229,6 +229,37 @@ defmodule SlipdockWeb.RunnerInstallTest do
     assert File.read!(Path.join(ctx.home, ".config/slipdock-runner/config")) =~ "job_my_agent() {"
   end
 
+  test "verify jobs (#1634) run the same agent; a runner whose kind is verify has its own", ctx do
+    {_, 0} = install(ctx, @base ++ ~w(--service none))
+    config = File.read!(Path.join(ctx.home, ".config/slipdock-runner/config"))
+    assert config =~ "job_verify() {\n  job_claude\n}"
+
+    # Sourced, job_verify is a function that runs job_claude.
+    {out, 0} =
+      System.cmd(
+        "sh",
+        [
+          "-c",
+          ~S|. "$1"; job_claude() { echo "claude ran"; }; job_verify|,
+          "sh",
+          Path.join(ctx.home, ".config/slipdock-runner/config")
+        ],
+        env: [{"HOME", ctx.home}, {"XDG_CONFIG_HOME", nil}]
+      )
+
+    assert out == "claude ran\n"
+
+    {_, 0} =
+      install(
+        ctx,
+        @base ++
+          ["--agent", "custom", "--kind", "verify", "--command", "check", "--service", "none"]
+      )
+
+    config = File.read!(Path.join(ctx.home, ".config/slipdock-runner/config"))
+    assert length(String.split(config, "job_verify() {")) == 2
+  end
+
   test "a token or address with quotes in it can't break out of the config", ctx do
     {_, 0} =
       System.cmd(

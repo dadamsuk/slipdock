@@ -161,6 +161,23 @@ defmodule SlipdockWeb.RunnerScriptTest do
     assert %{status: "done", output: "dashed\n"} = job(queued)
   end
 
+  test "a verify job runs job_verify on its own prompt, without the standing instructions",
+       ctx do
+    extra = """
+    JOB_INSTRUCTIONS='Work this card with /slipdock-loop.'
+    job_verify() { printf '%s' "$SLIPDOCK_PROMPT" >"$OUT"; }
+    """
+
+    {:ok, queued} = queue(ctx.card, "verify", "Check card 1 against its bar.")
+    {_, 0} = run_once(ctx, config(ctx, extra))
+    assert File.read!(Path.join(ctx.dir, "out")) == "Check card 1 against its bar."
+    assert job(queued).status == "done"
+
+    {:ok, _} = queue(ctx.card, "echo", "Do the card.")
+    {_, 0} = run_once(ctx, config(ctx, extra))
+    assert File.read!(Path.join(ctx.dir, "out")) =~ "Work this card with /slipdock-loop."
+  end
+
   test "a failing job is failed with its exit code and the end of its log", ctx do
     {:ok, queued} = queue(ctx.card, "fail")
     {_out, 0} = run_once(ctx, config(ctx))

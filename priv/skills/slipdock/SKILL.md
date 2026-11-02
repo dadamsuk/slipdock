@@ -301,6 +301,14 @@ slipdock move <id> <column> --board B    # to another board, with the card's sub
                                        # by name, custom fields only where that board has them;
                                        # the command prints anything that was created or dropped
 slipdock done <id>... | slipdock undone <id>...
+slipdock done <id> --evidence "what you checked" --evidence-commit <sha>
+                                       # on a board that asks for evidence; where a second agent
+                                       # verifies, done submits the card (pending, flagged review)
+slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]
+                                       # decide a card someone else submitted: accept completes it
+                                       # and moves it to Done; reject needs the reason
+slipdock edit <id> --bar "what done means"   # the card's bar; locks when work starts on a board
+                                       # that asks for one
 slipdock copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
                                        # a copy as it is now (checklist unticked, subcards reopened;
                                        # no comments, dates or files), straight after it by default
@@ -383,6 +391,10 @@ slipdock set-board <board> --default-view wiki            # what opening the boa
 slipdock set-board <board> --wiki-sort modified           # how the top of the wiki's tree is sorted, and the folders following it (manual, name, modified, created)
 slipdock set-board <board> --no-page-card-features        # the board's wiki pages hide status, checklist, links, fields, votes, comments
 slipdock set-board <board> --handoff-label Parked --handoff-prompt-file p.txt  # rename "Left off" in the web app, and Auto generate's instructions ("" = default)
+slipdock set-board <board> --bar-required --evidence-required --verify-work --verify-pool checkers
+                                       # Verified work, each off by default: a bar before work
+                                       # starts, evidence on completion, a second agent accepts or
+                                       # rejects, and submitted cards queued as verify jobs
 slipdock set-board <board> --inbound-senders "ann@example.com,bob@example.com"  # who else may mail the board's card addresses (replaces the list; "" clears); only when asked
 slipdock handoff <id> --delete                            # delete a card's current handoff outright (one left by mistake); --clear keeps it in the history
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
