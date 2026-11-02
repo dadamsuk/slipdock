@@ -29,7 +29,24 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
           type: "string",
           description: "What you checked (tests run, output); a board may require it."
         },
-        commit: %{type: "string", description: "The commit the evidence is for."}
+        commit: %{type: "string", description: "The commit the evidence is for."},
+        branch: %{type: "string", description: "The commit's branch."},
+        tests: %{
+          type: "array",
+          items: %{type: "string"},
+          description: "The test files added or changed."
+        },
+        suite: %{
+          type: "object",
+          properties: %{
+            result: %{type: "string", enum: ["passed", "failed"]},
+            passed: %{type: "integer", minimum: 0},
+            failed: %{type: "integer", minimum: 0}
+          },
+          required: ["result"],
+          additionalProperties: false,
+          description: "The test suite's result and counts."
+        }
       },
       required: ["card"],
       additionalProperties: false
@@ -47,6 +64,7 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
          {:ok, note} <- Args.optional(args, "comment"),
          {:ok, evidence} <- Args.optional(args, "evidence"),
          {:ok, commit} <- Args.optional(args, "commit"),
+         {:ok, branch} <- Args.optional(args, "branch"),
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          :ok <- comment(card, note, context.user),
@@ -55,7 +73,14 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
          verifies? = Boards.get_board!(card.board_id).verify_work,
          done = if(verifies?, do: nil, else: done_list(card)),
          params =
-           %{"completed" => true, "evidence" => evidence, "evidence_commit" => commit}
+           %{
+             "completed" => true,
+             "evidence" => evidence,
+             "evidence_commit" => commit,
+             "evidence_branch" => branch,
+             "evidence_tests" => args["tests"],
+             "evidence_suite" => args["suite"]
+           }
            |> Map.reject(fn {_, v} -> is_nil(v) end)
            |> then(&if(done, do: Map.put(&1, "column", done.id), else: &1)),
          {:ok, card} <- Args.refusal(CardWrites.update(auth, card, params)) do

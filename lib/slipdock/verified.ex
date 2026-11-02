@@ -129,22 +129,37 @@ defmodule Slipdock.Verified do
   ## Evidence -----------------------------------------------------------------
 
   @evidence_message "is required: this board asks an agent completing a card for what it " <>
-                      "checked (evidence, and the commit it checked at if there is one)"
+                      "checked — none of evidence (what you checked), evidence_commit (and " <>
+                      "evidence_branch), evidence_tests (the test files) or evidence_suite " <>
+                      "({result: passed|failed, passed, failed}) was given"
+
+  # The fields evidence is made of (#1632, #1623): any one of them is some.
+  @evidence_fields ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite)a
 
   defp check_evidence(%Card{} = card, attrs, actor) do
-    if completes?(card, attrs) and gated?(actor) and
-         blank?(given(attrs, :evidence, card.evidence)) and board(card).evidence_required,
+    if completes?(card, attrs) and gated?(actor) and not evidence?(card, attrs) and
+         board(card).evidence_required,
        do: {:error, :evidence, @evidence_message},
        else: :ok
   end
 
+  @doc "Whether `card` carries any evidence (or would, with `attrs`)."
+  def evidence?(card, attrs \\ %{}) do
+    Enum.any?(@evidence_fields, fn key -> present?(given(attrs, key, Map.get(card, key))) end)
+  end
+
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value) when is_list(value) or is_map(value), do: value != [] and value != %{}
+  defp present?(value), do: not is_nil(value)
+
+  defp no_evidence, do: Map.new(@evidence_fields, &{to_string(&1), nil})
+
   # Reopened on a board that asks for evidence: what it carried was for the
   # completion that is being undone (and was kept as a comment then).
   defp clear_evidence(%Card{completed: true} = card, attrs) do
-    if fetch(attrs, :completed) in [false, "false"] and
-         not (blank?(card.evidence) and blank?(card.evidence_commit)) and
+    if fetch(attrs, :completed) in [false, "false"] and evidence?(card) and
          board(card).evidence_required,
-       do: attrs |> stringify() |> Map.merge(%{"evidence" => nil, "evidence_commit" => nil}),
+       do: attrs |> stringify() |> Map.merge(no_evidence()),
        else: attrs
   end
 
@@ -155,7 +170,7 @@ defmodule Slipdock.Verified do
   on a board that asks for it, or nil when it may.
   """
   def check_done_move(%Card{completed: false} = card, %Column{} = to, actor) do
-    if Column.done?(to) and gated?(actor) and blank?(card.evidence) and
+    if Column.done?(to) and gated?(actor) and not evidence?(card) and
          board(card).evidence_required,
        do:
          "this board asks for evidence when an agent completes a card: complete card ##{card.id} " <>
@@ -181,16 +196,42 @@ defmodule Slipdock.Verified do
     if before.verify_state == "pending" and updated.verify_state == "accepted",
       do: cancel_verify_jobs(updated, nil)
 
-    if finished? and not blank?(updated.evidence) and board(updated).evidence_required do
-      commit =
-        if updated.evidence_commit, do: "\n\nCommit: `#{updated.evidence_commit}`", else: ""
-
-      Slipdock.Boards.add_comment(updated, "**Evidence.**\n\n#{updated.evidence}#{commit}",
-        by: user
-      )
-    end
+    if finished? and evidence?(updated) and board(updated).evidence_required,
+      do: Slipdock.Boards.add_comment(updated, evidence_text(updated), by: user)
 
     :ok
+  end
+
+  @doc """
+  A card's evidence as Markdown (#1632, #1623): what was checked, then the
+  commit and branch, the suite's result and the test files.
+  """
+  def evidence_text(%Card{} = card) do
+    suite = card.evidence_suite
+
+    [
+      "**Evidence.**",
+      card.evidence,
+      card.evidence_commit &&
+        "Commit: `#{card.evidence_commit}`" <>
+          if(card.evidence_branch, do: " on `#{card.evidence_branch}`", else: ""),
+      is_nil(card.evidence_commit) && card.evidence_branch && "Branch: `#{card.evidence_branch}`",
+      suite && "Suite: #{suite_text(suite)}",
+      card.evidence_tests not in [nil, []] &&
+        "Tests:\n" <> Enum.map_join(card.evidence_tests, "\n", &"- `#{&1}`")
+    ]
+    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> Enum.join("\n\n")
+  end
+
+  @doc "A suite's result in words: `passed (38 passed, 0 failed)`."
+  def suite_text(%{} = suite) do
+    counts =
+      [{suite["passed"], "passed"}, {suite["failed"], "failed"}]
+      |> Enum.reject(fn {n, _} -> is_nil(n) end)
+      |> Enum.map_join(", ", fn {n, what} -> "#{n} #{what}" end)
+
+    if counts == "", do: suite["result"], else: "#{suite["result"]} (#{counts})"
   end
 
   defp completes?(%Card{completed: false}, attrs), do: fetch(attrs, :completed) in [true, "true"]
@@ -325,7 +366,7 @@ defmodule Slipdock.Verified do
     with {:ok, card} <-
            Slipdock.Boards.update_card(
              card,
-             %{"flags" => card.flags -- ["review"], "evidence" => nil, "evidence_commit" => nil},
+             Map.put(no_evidence(), "flags", card.flags -- ["review"]),
              actor: actor,
              by: user,
              verify_changes: changes
@@ -391,7 +432,7 @@ defmodule Slipdock.Verified do
     #{if blank?(card.bar), do: "(none written: check it against the card's description)", else: card.bar}
 
     The evidence it gave:
-    #{if blank?(card.evidence), do: "(none)", else: card.evidence}
+    #{if evidence?(card), do: card |> evidence_text() |> String.replace_prefix("**Evidence.**\n\n", ""), else: "(none)"}
     Commit: #{commit || "(none given)"}
 
     1. Read the card and its comments: `slipdock card #{card.id}`.

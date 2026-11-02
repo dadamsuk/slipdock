@@ -65,6 +65,12 @@ defmodule Slipdock.Boards.Card do
     # asks for it; posted as a comment when it completes, so it is kept.
     field :evidence, :string
     field :evidence_commit, :string
+    # The structured parts (#1623): the branch, the test files added or
+    # changed, and the suite's result: %{"result" => "passed" | "failed",
+    # "passed" => n, "failed" => n}. Shape is checked, not truth.
+    field :evidence_branch, :string
+    field :evidence_tests, {:array, :string}
+    field :evidence_suite, :map
     # Where an agent's completion stands on a board that verifies work
     # (#1633): nil, "pending", "accepted" or "rejected"; the reason given
     # (a rejection's is required), the commit the verifier checked at, who
@@ -402,6 +408,9 @@ defmodule Slipdock.Boards.Card do
       :bar,
       :evidence,
       :evidence_commit,
+      :evidence_branch,
+      :evidence_tests,
+      :evidence_suite,
       :board_id,
       # Not `:column_id`: a card changes list only through `Boards.move_card/4`
       # and `move_card_to_board/3`, which record who moved it.
@@ -417,6 +426,17 @@ defmodule Slipdock.Boards.Card do
     |> validate_format(:evidence_commit, ~r/\A[0-9a-fA-F]{4,64}\z/,
       message: "must be a commit id (4 to 64 hex digits)"
     )
+    |> update_change(:evidence_branch, &tidy_short_name/1)
+    |> validate_length(:evidence_branch, max: 200)
+    |> update_change(:evidence_tests, &tidy_tests/1)
+    |> validate_length(:evidence_tests, max: 200, message: "lists at most 200 files")
+    |> validate_change(:evidence_tests, fn _, tests ->
+      if Enum.all?(tests || [], &(String.length(&1) <= 300)),
+        do: [],
+        else: [evidence_tests: "has a path over 300 characters"]
+    end)
+    |> update_change(:evidence_suite, &tidy_suite/1)
+    |> validate_change(:evidence_suite, &validate_suite/2)
     |> update_change(:short_name, &tidy_short_name/1)
     |> validate_length(:short_name, max: Slipdock.Boards.ShortNames.max_length())
     |> Slipdock.Boards.ShortNames.put()
@@ -453,6 +473,47 @@ defmodule Slipdock.Boards.Card do
       less_than_or_equal_to: Slipdock.TimeTracking.max_minutes()
     )
     |> stamp_completed()
+  end
+
+  # Test files as a list, trimmed, blanks and repeats gone; none is nil.
+  defp tidy_tests(tests) when is_list(tests) do
+    case tests
+         |> Enum.map(&String.trim(to_string(&1)))
+         |> Enum.reject(&(&1 == ""))
+         |> Enum.uniq() do
+      [] -> nil
+      tests -> tests
+    end
+  end
+
+  defp tidy_tests(tests), do: tests
+
+  # A suite's result with string keys; an empty one is nil.
+  defp tidy_suite(suite) when is_map(suite) do
+    case Map.new(suite, fn {k, v} -> {to_string(k), v} end)
+         |> Map.take(~w(result passed failed)) do
+      empty when map_size(empty) == 0 -> nil
+      suite -> suite
+    end
+  end
+
+  defp tidy_suite(suite), do: suite
+
+  defp validate_suite(_field, nil), do: []
+
+  defp validate_suite(_field, suite) do
+    count? = &(is_nil(&1) or (is_integer(&1) and &1 >= 0))
+
+    cond do
+      suite["result"] not in ["passed", "failed"] ->
+        [evidence_suite: "needs a result: passed or failed"]
+
+      not (count?.(suite["passed"]) and count?.(suite["failed"])) ->
+        [evidence_suite: "counts must be whole numbers, 0 or more"]
+
+      true ->
+        []
+    end
   end
 
   defp tidy_short_name(nil), do: nil

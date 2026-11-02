@@ -3440,12 +3440,16 @@ defmodule SlipdockWeb.APIGuide do
 
   defp verified_step(:evidence) do
     """
-    **Evidence on completion.** Completing a card takes what you checked
-    (the tests you ran and their result, what you looked at) as `evidence`,
-    and the commit you checked at as `evidence_commit` when there is one:
-    `complete_card` `evidence` / `commit`, `slipdock done ID --evidence TEXT
-    --evidence-commit SHA`, or `PATCH /api/cards/:id {"completed": true,
-    "evidence": "…", "evidence_commit": "…"}`. Completing without it, or
+    **Evidence on completion.** Completing a card takes what you checked:
+    `evidence` (in words), `evidence_commit` and `evidence_branch`,
+    `evidence_tests` (the test files you added or changed) and
+    `evidence_suite` (`{"result": "passed"|"failed", "passed": N, "failed":
+    N}`). Give what applies: `complete_card` `evidence` / `commit` /
+    `branch` / `tests` / `suite`, `slipdock done ID --evidence TEXT
+    --evidence-commit SHA --branch B --tests a.exs,b.exs --suite
+    passed:38:0`, or the same fields on `PATCH /api/cards/:id` with
+    `"completed": true`. The server checks their shape, not their truth: a
+    second agent does that. Completing with none of them, or
     moving the card into a done list without it, is refused (`422`). The
     evidence is posted on the card as a comment; reopening the card clears
     it, so the next completion brings its own.

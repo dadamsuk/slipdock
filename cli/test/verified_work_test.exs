@@ -101,6 +101,45 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     assert JSON.decode!(body) == %{"completed" => true}
   end
 
+  test "done --branch --tests --suite send the structured evidence (#1623)" do
+    serve([{200, @card}])
+
+    capture_io(fn ->
+      Boards.run(
+        "done",
+        ["12"],
+        parse(["--branch", "main", "--tests", "a_test.exs, b_test.exs", "--suite", "passed:38:0"])
+      )
+    end)
+
+    assert_received {:request, "PATCH", "/api/cards/12", body}
+
+    assert JSON.decode!(body) == %{
+             "completed" => true,
+             "evidence_branch" => "main",
+             "evidence_tests" => ["a_test.exs", "b_test.exs"],
+             "evidence_suite" => %{"result" => "passed", "passed" => 38, "failed" => 0}
+           }
+  end
+
+  test "card shows the structured evidence" do
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "evidence_commit" => "abc1234",
+            "evidence_branch" => "main",
+            "evidence_tests" => ["a_test.exs"],
+            "evidence_suite" => %{"result" => "failed", "passed" => 3, "failed" => 1}
+          })
+        )
+      end)
+
+    assert out =~ "at abc1234 on main"
+    assert out =~ "suite: failed (3 passed, 1 failed)"
+    assert out =~ "test: a_test.exs"
+  end
+
   test "card shows the evidence and its commit" do
     out =
       capture_io(fn ->

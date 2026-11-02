@@ -94,6 +94,44 @@ defmodule SlipdockWeb.VerifiedEvidenceWebTest do
     assert json["card"]["evidence_commit"] == "abc1234"
   end
 
+  test "on: complete_card takes structured evidence, shown in JSON and on the card (#1623)",
+       ctx do
+    {:ok, _} = on(ctx)
+
+    result =
+      mcp(ctx.agent, "complete_card", %{
+        card: ctx.card.id,
+        commit: "abc1234",
+        branch: "main",
+        tests: ["test/x_test.exs"],
+        suite: %{result: "passed", passed: 12, failed: 0}
+      })
+
+    assert result["isError"] == false
+
+    json = ctx.agent |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(200)
+    assert json["card"]["evidence_branch"] == "main"
+    assert json["card"]["evidence_tests"] == ["test/x_test.exs"]
+
+    assert json["card"]["evidence_suite"] == %{
+             "result" => "passed",
+             "passed" => 12,
+             "failed" => 0
+           }
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    assert has_element?(view, "#card-evidence-suite", "passed (12 passed, 0 failed)")
+    assert has_element?(view, "#card-evidence-tests", "test/x_test.exs")
+    assert has_element?(view, "#card-evidence", "main")
+  end
+
+  test "a malformed suite over MCP is refused with the reason", ctx do
+    result =
+      mcp(ctx.agent, "complete_card", %{card: ctx.card.id, suite: %{result: "passed", passed: -2}})
+
+    assert result["isError"] == true
+  end
+
   test "on: PATCH completed without evidence is a 422 naming evidence", ctx do
     {:ok, _} = on(ctx)
 

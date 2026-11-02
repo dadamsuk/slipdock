@@ -346,6 +346,9 @@ defmodule Slipdock.Portable.Export do
       bar_locked_at: card.bar_locked_at,
       evidence: card.evidence,
       evidence_commit: card.evidence_commit,
+      evidence_branch: card.evidence_branch,
+      evidence_tests: card.evidence_tests,
+      evidence_suite: card.evidence_suite,
       # Minutes, whatever the unit; a running timer's time isn't spent yet.
       time_spent: card.time_spent,
       time_estimate: card.time_estimate,

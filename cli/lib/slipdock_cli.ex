@@ -635,8 +635,11 @@ defmodule SlipdockCLI do
                                          subcards; tags travel by name, custom fields only
                                          where that board has the same one
     done <id>...  |  undone <id>...     mark complete / incomplete
-        [--evidence TEXT] [--evidence-commit SHA]
-                                        what you checked, and the commit, when completing; a
+        [--evidence TEXT] [--evidence-commit SHA] [--branch B] [--tests F,F]
+        [--suite passed|failed[:PASSED[:FAILED]]]
+                                        what you checked, the commit and branch, the test
+                                        files added or changed, and the suite's result
+                                        (--suite passed:38:0), when completing; a
                                         board with --evidence-required asks agents for it. On
                                         a board with --verify-work an agent's done submits it
     verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]
@@ -997,6 +1000,9 @@ defmodule SlipdockCLI do
     verify_pool: :string,
     evidence: :string,
     evidence_commit: :string,
+    branch: :string,
+    tests: :string,
+    suite: :string,
     default_view: :string,
     sprints: :boolean,
     clear: :boolean,

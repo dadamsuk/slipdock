@@ -962,10 +962,17 @@ defmodule SlipdockCLI.Render do
       if note = c["verify_note"], do: IO.puts(indent(note))
     end
 
-    if c["evidence"] not in [nil, ""] do
+    if Enum.any?(
+         ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite),
+         &c[&1]
+       ) do
       IO.puts("")
-      IO.puts(bold("Evidence") <> dim(if s = c["evidence_commit"], do: "  at #{s}", else: ""))
-      IO.puts(indent(c["evidence"]))
+      at = if s = c["evidence_commit"], do: "  at #{s}", else: ""
+      on = if b = c["evidence_branch"], do: " on #{b}", else: ""
+      IO.puts(bold("Evidence") <> dim(at <> on))
+      if c["evidence"], do: IO.puts(indent(c["evidence"]))
+      if s = c["evidence_suite"], do: IO.puts(indent("suite: " <> suite_text(s)))
+      for t <- c["evidence_tests"] || [], do: IO.puts(indent("test: " <> t))
     end
 
     if h = c["handbook"], do: handbook_block(h)
@@ -2455,4 +2462,13 @@ defmodule SlipdockCLI.Render do
   defp actor_name(%{"kind" => "agent"}), do: "an agent"
   defp actor_name(%{"kind" => "human"}), do: "a person"
   defp actor_name(_), do: "somebody"
+
+  defp suite_text(s) do
+    counts =
+      [{s["passed"], "passed"}, {s["failed"], "failed"}]
+      |> Enum.reject(fn {n, _} -> is_nil(n) end)
+      |> Enum.map_join(", ", fn {n, w} -> "#{n} #{w}" end)
+
+    if counts == "", do: s["result"], else: "#{s["result"]} (#{counts})"
+  end
 end

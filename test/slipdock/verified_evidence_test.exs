@@ -108,6 +108,78 @@ defmodule Slipdock.VerifiedEvidenceTest do
                Boards.update_card(card, %{"completed" => true}, actor: ctx.agent)
     end
 
+    test "structured evidence counts on its own, is tidied, and is commented in full (#1623)",
+         ctx do
+      assert {:ok, card} =
+               Boards.update_card(
+                 ctx.card,
+                 %{
+                   "completed" => true,
+                   "evidence_commit" => "abc1234",
+                   "evidence_branch" => " main ",
+                   "evidence_tests" => [
+                     " test/a_test.exs",
+                     "",
+                     "test/a_test.exs",
+                     "test/b_test.exs"
+                   ],
+                   "evidence_suite" => %{result: "passed", passed: 38, failed: 0}
+                 },
+                 actor: ctx.agent,
+                 by: ctx.owner
+               )
+
+      assert card.completed
+      assert card.evidence_branch == "main"
+      assert card.evidence_tests == ["test/a_test.exs", "test/b_test.exs"]
+      assert card.evidence_suite == %{"result" => "passed", "passed" => 38, "failed" => 0}
+
+      [body] = comments(card)
+      assert body =~ "Commit: `abc1234` on `main`"
+      assert body =~ "Suite: passed (38 passed, 0 failed)"
+      assert body =~ "- `test/b_test.exs`"
+
+      # Reopened, every part is cleared.
+      {:ok, card} = Boards.update_card(card, %{"completed" => false}, actor: ctx.agent)
+
+      assert {card.evidence_commit, card.evidence_branch, card.evidence_tests,
+              card.evidence_suite} ==
+               {nil, nil, nil, nil}
+    end
+
+    test "a suite alone is evidence; a malformed one is refused", ctx do
+      assert {:ok, %{completed: true}} =
+               Boards.update_card(
+                 ctx.card,
+                 %{"completed" => true, "evidence_suite" => %{"result" => "failed"}},
+                 actor: ctx.agent
+               )
+
+      other = card_fixture(ctx.doing, %{"title" => "Other"})
+
+      for bad <- [
+            %{"result" => "green"},
+            %{"result" => "passed", "passed" => -1},
+            %{"passed" => 3}
+          ] do
+        assert {:error, cs} = Boards.update_card(other, %{"evidence_suite" => bad})
+        assert %{evidence_suite: [_]} = errors_on(cs)
+      end
+
+      assert {:error, cs} =
+               Boards.update_card(other, %{"evidence_tests" => [String.duplicate("a", 301)]})
+
+      assert %{evidence_tests: [_]} = errors_on(cs)
+    end
+
+    test "the refusal names every field that would do", ctx do
+      {:error, cs} = Boards.update_card(ctx.card, %{"completed" => true}, actor: ctx.agent)
+      %{evidence: [message]} = errors_on(cs)
+
+      for field <- ~w(evidence_commit evidence_branch evidence_tests evidence_suite),
+          do: assert(message =~ field)
+    end
+
     test "a commit that isn't a commit id is refused", ctx do
       assert {:error, cs} =
                Boards.update_card(ctx.card, %{"evidence" => "x", "evidence_commit" => "main; rm"})

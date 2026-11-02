@@ -519,7 +519,14 @@ defmodule SlipdockCLI.Boards do
   def run("done", ids, o) when ids != [] do
     # What was checked, on a board that asks for it (#1632).
     body =
-      %{"completed" => true, "evidence" => o[:evidence], "evidence_commit" => o[:evidence_commit]}
+      %{
+        "completed" => true,
+        "evidence" => o[:evidence],
+        "evidence_commit" => o[:evidence_commit],
+        "evidence_branch" => o[:branch],
+        "evidence_tests" => o[:tests] && split_list(o[:tests]),
+        "evidence_suite" => o[:suite] && suite(o[:suite])
+      }
       |> compact()
 
     each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", body), "completed")
@@ -1803,5 +1810,25 @@ defmodule SlipdockCLI.Boards do
       name = if link["board"], do: link["board"]["name"], else: "your wiki"
       IO.puts("pinned #{name} to the header as #{link["icon"]}")
     end)
+  end
+
+  defp split_list(text),
+    do: text |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+
+  # --suite passed:38:0 → the suite's result and its counts (#1623).
+  defp suite(text) do
+    case String.split(text, ":") do
+      [result | counts] when result in ["passed", "failed"] and length(counts) <= 2 ->
+        counts
+        |> Enum.map(&Integer.parse/1)
+        |> Enum.zip(["passed", "failed"])
+        |> Enum.reduce(%{"result" => result}, fn
+          {{n, ""}, key}, acc when n >= 0 -> Map.put(acc, key, n)
+          _, _ -> fail("--suite: counts are whole numbers, as in passed:38:0")
+        end)
+
+      _ ->
+        fail("--suite is passed or failed, then the counts: passed:38:0")
+    end
   end
 end

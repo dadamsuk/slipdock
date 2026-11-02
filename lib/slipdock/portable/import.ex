@@ -401,6 +401,14 @@ defmodule Slipdock.Portable.Import do
 
   defp pool(_value), do: nil
 
+  # A suite result the card would refuse is dropped rather than the card (#1623).
+  defp suite(%{} = suite) do
+    suite = Map.new(suite, fn {k, v} -> {to_string(k), v} end)
+    if suite["result"] in ["passed", "failed"], do: Map.take(suite, ~w(result passed failed))
+  end
+
+  defp suite(_value), do: nil
+
   defp insert(%module{} = struct, attrs, what) do
     case struct |> module.changeset(attrs) |> Repo.insert(mode: :savepoint) do
       {:ok, row} -> row
@@ -638,7 +646,10 @@ defmodule Slipdock.Portable.Import do
           assignee_id: List.first(assignee_ids),
           bar: text_upto(doc[:bar], Card.bar_length()),
           evidence: text_upto(doc[:evidence], Card.bar_length()),
-          evidence_commit: commit_id(doc[:evidence_commit])
+          evidence_commit: commit_id(doc[:evidence_commit]),
+          evidence_branch: text_upto(doc[:evidence_branch], 200),
+          evidence_tests: if(is_list(doc[:evidence_tests]), do: doc[:evidence_tests]),
+          evidence_suite: suite(doc[:evidence_suite])
         },
         named("card", doc[:title])
       )

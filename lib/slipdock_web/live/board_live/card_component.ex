@@ -1574,7 +1574,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 target={@target}
               />
 
-              <.evidence_section :if={@card.evidence} card={@card} />
+              <.evidence_section :if={Slipdock.Verified.evidence?(@card)} card={@card} />
 
               <.verify_section
                 :if={@card.verify_state}

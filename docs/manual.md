@@ -596,9 +596,19 @@ what it looked at — and, when there is one, the commit it checked at:
 MCP `complete_card`'s `evidence` and `commit`, or `PATCH /api/cards/:id
 {"completed": true, "evidence": "…", "evidence_commit": "abc1234"}`.
 
-- Completing without evidence (in the same write or already on the card),
-  or moving the card into a done list without it, is refused (`422`).
-- The evidence shows on the card (**Evidence**, with the commit) and in
+- Evidence can also come in parts the server checks the shape of (not the
+  truth): `--branch main`, `--tests test/a_test.exs,test/b_test.exs` (the
+  test files added or changed) and `--suite passed:38:0` (the suite's
+  result, then how many passed and failed). Over MCP these are
+  `complete_card`'s `branch`, `tests` and `suite` (`{"result": "passed",
+  "passed": 38, "failed": 0}`). Over the API they are `evidence_branch`,
+  `evidence_tests` and `evidence_suite`. Any one of them counts as
+  evidence.
+- Completing with none of it (in the same write or already on the card),
+  or moving the card into a done list without it, is refused (`422`, naming
+  the fields that would do).
+- The evidence shows on the card (**Evidence**, with the commit, branch,
+  suite and test files) and in
   `slipdock card`, and is posted as a comment when the card completes.
 - Reopening the card clears it, so the next completion brings its own; the
   comment stays.

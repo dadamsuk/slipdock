@@ -270,8 +270,24 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <code :if={@card.evidence_commit} class="font-mono normal-case">
           {String.slice(@card.evidence_commit, 0, 12)}
         </code>
+        <span :if={@card.evidence_branch} class="font-normal normal-case">
+          on <code class="font-mono">{@card.evidence_branch}</code>
+        </span>
       </p>
-      <p class="whitespace-pre-wrap text-sm">{@card.evidence}</p>
+      <p :if={@card.evidence} class="whitespace-pre-wrap text-sm">{@card.evidence}</p>
+      <p
+        :if={@card.evidence_suite}
+        id="card-evidence-suite"
+        class={[
+          "text-sm",
+          if(@card.evidence_suite["result"] == "passed", do: "text-success", else: "text-error")
+        ]}
+      >
+        Suite {Slipdock.Verified.suite_text(@card.evidence_suite)}
+      </p>
+      <ul :if={@card.evidence_tests} id="card-evidence-tests" class="space-y-0.5 text-xs">
+        <li :for={t <- @card.evidence_tests}><code class="font-mono">{t}</code></li>
+      </ul>
     </div>
     """
   end
