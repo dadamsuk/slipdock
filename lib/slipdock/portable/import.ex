@@ -458,6 +458,7 @@ defmodule Slipdock.Portable.Import do
           # Cut to fit rather than lose the board over them (#1212).
           handoff_label: text_upto(doc[:handoff_label], Board.handoff_limits().label),
           handoff_prompt: text_upto(doc[:handoff_prompt], Board.handoff_limits().prompt),
+          bar_required: bool(doc[:bar_required], false),
           kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
         },
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")
@@ -590,7 +591,12 @@ defmodule Slipdock.Portable.Import do
       insert(
         # The list on the struct: `Card.changeset/2` doesn't cast it, so that
         # nothing but a move changes it.
-        %Card{archived_at: if(doc[:archived], do: now()), column_id: ids.columns[doc[:list]]},
+        # Nor the moment its bar locked (#1631): only work starting does that.
+        %Card{
+          archived_at: if(doc[:archived], do: now()),
+          column_id: ids.columns[doc[:list]],
+          bar_locked_at: second(datetime(doc[:bar_locked_at]))
+        },
         %{
           board_id: board.id,
           title: doc[:title] || "Untitled",
@@ -615,7 +621,8 @@ defmodule Slipdock.Portable.Import do
           border_right: dress(doc[:border_right], Slipdock.Palette.names()),
           border_bottom: dress(doc[:border_bottom], Slipdock.Palette.names()),
           border_left: dress(doc[:border_left], Slipdock.Palette.names()),
-          assignee_id: List.first(assignee_ids)
+          assignee_id: List.first(assignee_ids),
+          bar: text_upto(doc[:bar], Card.bar_length())
         },
         named("card", doc[:title])
       )

@@ -71,6 +71,10 @@ Briefly, with the detail in [the manual](docs/manual.md):
   history. The note is Markdown, as comments are. A board can rename *Left off*
   and give Auto generate its own instructions (settings → Handoffs,
   `slipdock set-board --handoff-label / --handoff-prompt-file`).
+- **Verified work** — [optional checks per board](docs/manual.md#verified-work)
+  on what an agent says it finished, all off by default: a bar (what done
+  means) written before work starts, locked once it does
+  (`slipdock set-board --bar-required`, `slipdock edit 12 --bar "…"`).
 - **Waiting on a person** — [a wait on a card](docs/manual.md#waiting-on-a-person-waits):
   what it needs, from whom (or anyone), since when, and optional answer
   choices. It flags the card `waiting`; answering it on the card, in My work,

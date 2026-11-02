@@ -117,6 +117,8 @@ defmodule SlipdockWeb.API.JSON do
       hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
+      # Verified work's switches (#1620), all off by default.
+      bar_required: b.bar_required,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -203,6 +205,8 @@ defmodule SlipdockWeb.API.JSON do
       hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
+      # Verified work's switches (#1620), all off by default.
+      bar_required: b.bar_required,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -454,9 +458,18 @@ defmodule SlipdockWeb.API.JSON do
       updated_at: c.updated_at
     }
     |> put_open_wait(c)
+    |> put_verified(c)
     # What is happening to it and how long it has sat in its list (#1117):
     # only the keys there is something to say for.
     |> Map.merge(Slipdock.CardState.to_map(c.state))
+  end
+
+  # Verified work (#1620): only the keys a card has something in, so a card
+  # on a board with the switches off reads as it always has.
+  defp put_verified(map, %Card{} = c) do
+    [bar: c.bar, bar_locked_at: c.bar_locked_at]
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+    |> Enum.into(map)
   end
 
   # Waiting on a person (#1114): only on a card that is, so a board with no

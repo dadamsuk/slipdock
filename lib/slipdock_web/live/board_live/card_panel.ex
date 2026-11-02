@@ -188,6 +188,53 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     """
   end
 
+  attr :card, Card, required: true
+  attr :form, :any, required: true
+  attr :target, :any, required: true
+
+  @doc """
+  What done means for the card (#1631): on a board that asks for a bar, or a
+  card that has one. It locks for agents when work starts; a person can
+  still change it, so the field stays editable here.
+  """
+  def bar_section(assigns) do
+    ~H"""
+    <.form
+      phx-target={@target}
+      for={@form}
+      id="card-bar-form"
+      phx-change="card_change"
+      phx-submit="card_change"
+      class="space-y-1.5 px-1"
+    >
+      <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <span>Bar</span>
+        <span
+          :if={@card.bar_locked_at}
+          id="card-bar-locked"
+          class="badge badge-ghost badge-xs gap-1 normal-case"
+          title="Locked when work started: agents can't change it"
+        >
+          <.icon name="hero-lock-closed" class="size-3" /> locked
+        </span>
+      </p>
+      <textarea
+        name={@form[:bar].name}
+        id="card-bar"
+        rows="2"
+        phx-debounce="800"
+        phx-hook="AutoGrow"
+        maxlength={Card.bar_length()}
+        placeholder="What done means for this card, written before work starts"
+        class="textarea textarea-bordered textarea-sm w-full"
+      >{@form[:bar].value}</textarea>
+      <p :for={msg <- Enum.map(@form[:bar].errors, &elem(&1, 0))} class="text-sm text-error">
+        {msg}
+      </p>
+    </.form>
+    """
+  end
+
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :card, Card, required: true

@@ -753,6 +753,32 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 </span>
               </label>
             </div>
+            <%!-- Verified work (#1620): optional checks on what agents say
+                they finished. Every switch is off by default. --%>
+            <div id="board-verified-work" class="space-y-1">
+              <span class="text-sm font-medium">Verified work</span>
+              <p class="text-xs text-base-content/50">
+                Checks on agents' work. People complete cards as usual whichever is on.
+              </p>
+              <input type="hidden" name={@form[:bar_required].name} value="false" />
+              <label class="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="board-bar-required"
+                  name={@form[:bar_required].name}
+                  value="true"
+                  checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:bar_required].value)}
+                  class="checkbox checkbox-sm mt-0.5"
+                />
+                <span>
+                  <span class="font-medium">A bar before work starts</span>
+                  <span class="block text-xs text-base-content/50">
+                    An agent writes what done means on the card before moving it into an
+                    in-progress list, and the bar locks then: only a person can change it after.
+                  </span>
+                </span>
+              </label>
+            </div>
             <%!-- What a card's handoff is called on this board, and what the
                 AI is told when it drafts one (#1212). Blank is the default. --%>
             <div class="space-y-1">

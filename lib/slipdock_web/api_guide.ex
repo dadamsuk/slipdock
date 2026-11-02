@@ -40,6 +40,7 @@ defmodule SlipdockWeb.APIGuide do
       chat_capture(),
       wiki(),
       handbook(),
+      verified_work(user, Keyword.get(opts, :token)),
       portable(),
       vocabulary_section(),
       endpoints_section(),
@@ -194,6 +195,7 @@ defmodule SlipdockWeb.APIGuide do
     "Chat capture" => "chats",
     "The wiki: writing things down" => "wiki",
     "The handbook" => "handbook",
+    "Verified work" => "verified",
     "Skills" => "skills",
     "Moving boards between servers" => "moving",
     "Vocabulary" => "vocabulary",
@@ -1513,6 +1515,9 @@ defmodule SlipdockWeb.APIGuide do
     {"handoff_label": "Parked", "handoff_prompt": "…"}` (`""` for the
     defaults; the board's `GET` answers both). Agent-facing text keeps
     "Left off:".
+    A board's *Verified work* switches (`bar_required`) are set the same
+    way; the *Verified work* section describes them when one of your boards
+    has one on.
 
     ```sh
     curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/handoff \\
@@ -3364,12 +3369,64 @@ defmodule SlipdockWeb.APIGuide do
       |> Enum.uniq_by(fn {_, col} -> col.id end)
       |> Enum.map_join(" · ", fn {role, col} -> "#{role}: “#{col.name}” (##{col.id})" end)
 
+    verified =
+      case Slipdock.Verified.switches(full) do
+        [] ->
+          ""
+
+        on ->
+          "\n  - verified work: #{Enum.map_join(on, ", ", &verified_name/1)} (see *Verified work*)"
+      end
+
     """
     - **##{board.id} #{board.name}** (`#{board.code}`) — #{length(board.cards)} top-level cards, #{Enum.count(board.cards, & &1.completed)} done#{if epics > 0, do: ", #{epics} of them epics with subcards"}#{shared_note(board, viewer)}
       - lists: #{lists}
-      - #{if roles == "", do: "nothing on this board says which list means what — ask before choosing work from it", else: roles}
+      - #{if roles == "", do: "nothing on this board says which list means what — ask before choosing work from it", else: roles}#{verified}
     """
     |> String.trim_trailing()
+  end
+
+  defp verified_name(:bar), do: "a bar before work starts"
+
+  # Verified work (#1620): described only when one of the reader's boards
+  # has a switch on, and then only the steps that are on somewhere.
+  defp verified_work(nil, _token), do: ""
+
+  defp verified_work(user, token) do
+    on =
+      user
+      |> Access.list_boards(token: token)
+      |> Enum.flat_map(&Slipdock.Verified.switches/1)
+      |> Enum.uniq()
+
+    if on == [] do
+      ""
+    else
+      steps = Enum.map_join(on, "\n", &verified_step/1)
+
+      """
+
+      ## Verified work
+
+      Some of your boards check what an agent says it finished; each board's
+      line under *Your boards right now* says which checks it has on. They
+      apply to agents only: a person completes cards as usual.
+
+      #{steps}
+      """
+    end
+  end
+
+  defp verified_step(:bar) do
+    """
+    **A bar before work starts.** Before moving a card into an in-progress
+    list, write what done means for it in the card's `bar`
+    (`PATCH /api/cards/:id {"bar": "…"}`, `update_card` `bar`, `slipdock edit
+    ID --bar TEXT`). Moving a card with no bar into an in-progress list is
+    refused (`422`). The bar locks when work starts: changing it after that
+    is refused too, and only a person can. Work to the bar as written, and
+    say on the card how each part of it was met.
+    """
   end
 
   # A board somebody else owns, said on the line that names it: an agent

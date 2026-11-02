@@ -55,6 +55,11 @@ defmodule Slipdock.Boards.Card do
     field :snooze_note, :string
     field :snooze_notify, :boolean, default: false
     field :snooze_wake_on_activity, :boolean, default: true
+    # What done means for this card (#1631), on a board that asks for it
+    # before work starts; `bar_locked_at` is when work started and it locked.
+    # Set only through `Slipdock.Verified`'s checks in `Boards.update_card/3`.
+    field :bar, :string
+    field :bar_locked_at, :utc_datetime
 
     # Set by Slipdock.Rollup when the card is loaded through Slipdock.Boards:
     # progress, effective dates and health rolled up from its subcards.
@@ -351,6 +356,11 @@ defmodule Slipdock.Boards.Card do
   def ends_on(%{start_date: d}), do: d
   def ends_on(_), do: nil
 
+  @bar_length 4000
+
+  @doc "How long a card's bar may be (#1631)."
+  def bar_length, do: @bar_length
+
   def changeset(card, attrs) do
     card
     |> cast(attrs, [
@@ -373,6 +383,7 @@ defmodule Slipdock.Boards.Card do
       :border_right,
       :border_bottom,
       :border_left,
+      :bar,
       :board_id,
       # Not `:column_id`: a card changes list only through `Boards.move_card/4`
       # and `move_card_to_board/3`, which record who moved it.
@@ -380,6 +391,8 @@ defmodule Slipdock.Boards.Card do
     ])
     |> validate_required([:title, :board_id, :column_id])
     |> validate_length(:title, min: 1, max: 200)
+    |> update_change(:bar, &tidy_short_name/1)
+    |> validate_length(:bar, max: @bar_length)
     |> update_change(:short_name, &tidy_short_name/1)
     |> validate_length(:short_name, max: Slipdock.Boards.ShortNames.max_length())
     |> Slipdock.Boards.ShortNames.put()

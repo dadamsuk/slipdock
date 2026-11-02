@@ -69,7 +69,8 @@ defmodule SlipdockWeb.MCP.Tools.MoveCard do
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          board = Boards.get_board!(card.board_id),
          {:ok, column} <- Args.refusal(CardWrites.resolve_column(board, ref || card.column_id)),
-         :ok <- Boards.move_card_to_index(card, column, index, actor: Actor.mcp(context)) do
+         :ok <-
+           Args.refusal(Boards.move_card_to_index(card, column, index, actor: Actor.mcp(context))) do
       {:ok, Tools.card_written(Boards.get_card!(card.id), context.base_url)}
     end
   end

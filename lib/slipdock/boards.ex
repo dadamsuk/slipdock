@@ -808,7 +808,9 @@ defmodule Slipdock.Boards do
                "color" => parent.color,
                "simple" => parent.simple,
                "handoff_label" => parent.handoff_label,
-               "handoff_prompt" => parent.handoff_prompt
+               "handoff_prompt" => parent.handoff_prompt,
+               # Verified work's switches (#1620) hold for the subcards too.
+               "bar_required" => parent.bar_required
              },
              template: template,
              parent_card_id: card.id,
@@ -1909,6 +1911,17 @@ defmodule Slipdock.Boards do
   end
 
   def update_card(%Card{} = card, attrs, opts) do
+    # Verified work (#1620): what an agent may change on a board that checks.
+    case Slipdock.Verified.check_update(card, attrs, Slipdock.Actor.resolve(opts)) do
+      :ok ->
+        save_card(card, attrs, opts)
+
+      {:error, field, message} ->
+        {:error, card |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(field, message)}
+    end
+  end
+
+  defp save_card(%Card{} = card, attrs, opts) do
     {assignees, attrs} = assignee_change(card, attrs)
     attrs = Slipdock.TimeTracking.normalize_attrs(card, attrs)
     # Who was on it, read only when this write changes that.
@@ -2358,9 +2371,22 @@ defmodule Slipdock.Boards do
     # A list on another board would pull the card off its own board without
     # any of what `move_card_to_board/2` carries across — and, from a client
     # that sent somebody else's card, onto the sender's board.
-    if to_column.board_id == card.board_id,
-      do: do_move_card(card, to_column, before_id, Slipdock.Actor.resolve(opts)),
-      else: {:error, :wrong_board}
+    actor = Slipdock.Actor.resolve(opts)
+
+    cond do
+      to_column.board_id != card.board_id ->
+        {:error, :wrong_board}
+
+      to_column.id == card.column_id ->
+        do_move_card(card, to_column, before_id, actor)
+
+      true ->
+        # Verified work (#1620): what an agent may start or finish.
+        case Slipdock.Verified.check_move(card, to_column, actor) do
+          :ok -> do_move_card(card, to_column, before_id, actor)
+          {:error, message} -> {:error, :unprocessable_entity, message}
+        end
+    end
   end
 
   defp do_move_card(%Card{} = card, %Column{} = to_column, before_id, actor) do
@@ -2375,6 +2401,7 @@ defmodule Slipdock.Boards do
       # can fire a rule that moves it on), so the ledger keeps their order.
       record_move(card, "moved", from_column, to_column, actor)
       apply_column_semantics(Repo.get!(Card, card.id), from_column, to_column)
+      Slipdock.Verified.moved(Repo.get!(Card, card.id), to_column)
       follow_stand_ins(card, from_column, to_column)
       moved(card, from_column, to_column, actor)
 
@@ -2560,8 +2587,11 @@ defmodule Slipdock.Boards do
         {:error, "A stand-in stays on its own board — move the card it stands for instead."}
 
       to_column.board_id == card.board_id ->
-        move_card(card.id, to_column.id, nil, opts)
-        {:ok, empty_move_summary(Repo.get!(Card, card.id))}
+        case move_card(card.id, to_column.id, nil, opts) do
+          :ok -> {:ok, empty_move_summary(Repo.get!(Card, card.id))}
+          {:error, _status, message} -> {:error, message}
+          {:error, _} = refused -> refused
+        end
 
       to_column.board_id in subtree_board_ids(card.id) ->
         {:error, "A card can't be moved into its own subcards."}

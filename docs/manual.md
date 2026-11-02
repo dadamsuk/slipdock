@@ -25,6 +25,9 @@ way in: what it is, the pictures, and how to get it running.
 - Handoffs: one short note on a card saying where it was left — the next
   step, the state, the gotchas — read first by whoever picks it up next. See
   [Where it was left](#where-it-was-left-handoffs)
+- Verified work: optional per-board checks on what an agent says it
+  finished — a bar written before work starts that then locks — see
+  [Verified work](#verified-work)
 - Recurring cards: a series on the card that copies the current instance when
   the next is due, in your timezone, without stacking up missed ones —
   [Recurring cards](#recurring-cards)
@@ -548,6 +551,32 @@ Over the API, `POST /api/cards/:id/handoff` with `next_step` and `body` (or
 it with its history; a card's JSON carries it as `handoff`. Over MCP it is the
 `leave_handoff` tool (`delete: true` to delete). Exports
 between servers carry every handoff, signed by whoever imports them.
+
+## Verified work
+
+A board can check what an agent says it finished. Each check is a switch
+under **Verified work** in the board's settings, off by default; with all of
+them off the board behaves as it always has. The checks apply to agents (MCP,
+a runner job, the API with a token, the CLI under an agent): a person
+completes cards as usual, and the in-app assistant and automations are not
+checked either. A card's subcards start with their parent board's switches,
+and the switches travel with a board's export.
+
+### The bar
+
+**A bar before work starts** (`slipdock set-board B --bar-required`,
+`PATCH /api/boards/:board {"bar_required": true}`) asks for each card's
+**bar**: what done means for it, written before work starts. It is the
+**Bar** field on the card (shown on a board with the switch on, or on any
+card that has one), `slipdock edit 12 --bar "…"`, `PATCH /api/cards/:id
+{"bar": "…"}` or MCP `update_card`'s `bar`, up to 4000 characters.
+
+- An agent moving a card with no bar into an in-progress list is refused
+  (`422`), and the card stays where it was.
+- The bar **locks** the first time the card enters an in-progress list with
+  one written (`bar_locked_at` on the card, a *locked* badge on the field).
+  After that an agent changing it is refused; a person still can.
+- Turn the switch off and a locked bar is anybody's to change again.
 
 ## Waiting on a person (waits)
 

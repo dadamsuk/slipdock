@@ -590,6 +590,8 @@ defmodule SlipdockCLI do
         --assignee EMAIL|me (repeatable; replaces who is on it) | --no-assignee
         --add-assignee EMAIL|me  --remove-assignee EMAIL|me   (repeatable; others stay)
         --percent N | --no-percent   (% complete, 0-100)
+        --bar TEXT                   what done means for the card; on a board with
+                                     --bar-required it locks when work starts
         --spent T | --no-spent  --estimate T | --no-estimate   time spent and the estimate.
                                      A bare number is in the card's unit; or say 90m, 1.5h,
                                      2d, 1w, 1mo, "1h 30m" (a day is 8h, a week 5d, a month 4w)
@@ -684,7 +686,7 @@ defmodule SlipdockCLI do
         [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
         [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
         [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
-        [--wiki-sort manual|name|modified|created]
+        [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -714,6 +716,8 @@ defmodule SlipdockCLI do
                                         --inbound-senders "ann@example.com,bob@example.com"
                                         is every address besides your own that may mail the
                                         board's card addresses (replaces the list; "" clears)
+                                        --bar-required: agents write each card's bar (what
+                                        done means) before work starts, and it locks then
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -970,6 +974,8 @@ defmodule SlipdockCLI do
     pattern: :string,
     delivery_metrics: :boolean,
     automation_wip: :boolean,
+    bar_required: :boolean,
+    bar: :string,
     default_view: :string,
     sprints: :boolean,
     clear: :boolean,

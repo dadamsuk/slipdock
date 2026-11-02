@@ -10,7 +10,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.{Args, Tools}
 
-  @fields ~w(title short_name description priority due_date start_date percent_complete color border_top
+  @fields ~w(title short_name description priority due_date start_date percent_complete bar color border_top
              border_right border_bottom border_left)
   @lists ~w(add_flags remove_flags add_tags remove_tags assignees add_assignees remove_assignees)
   @id_lists ~w(add_blocked_by remove_blocked_by check_items uncheck_items)
@@ -57,6 +57,10 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
         due_date: %{type: "string", description: "YYYY-MM-DD; \"\" clears it."},
         start_date: %{type: "string", description: "YYYY-MM-DD; \"\" clears it."},
         percent_complete: %{type: "integer", minimum: 0, maximum: 100},
+        bar: %{
+          type: "string",
+          description: "What done means for it; locks when work starts, where the board asks."
+        },
         color: %{
           border
           | description: "The card's cover colour, from the palette; \"\" takes it off."

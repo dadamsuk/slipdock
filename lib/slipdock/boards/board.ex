@@ -87,6 +87,11 @@ defmodule Slipdock.Boards.Board do
     field :handoff_label, :string
     field :handoff_prompt, :string
 
+    # Verified work (#1620), every switch off by default. `bar_required`:
+    # an agent writes a card's bar before work starts, and it locks then
+    # (see `Slipdock.Verified`).
+    field :bar_required, :boolean, default: false
+
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most
     # `inbound_senders_limit/0`. See `permitted_sender?/2`.
@@ -485,6 +490,7 @@ defmodule Slipdock.Boards.Board do
       :automation_wip,
       :handoff_label,
       :handoff_prompt,
+      :bar_required,
       :kind,
       :default_view
     ])

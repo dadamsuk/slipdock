@@ -350,6 +350,7 @@ defmodule SlipdockCLI.Boards do
         "start_date" => if(o[:no_start], do: nil, else: o[:start]),
         "due_date" => if(o[:no_due], do: nil, else: o[:due]),
         "percent_complete" => if(o[:no_percent], do: nil, else: o[:percent]),
+        "bar" => o[:bar],
         "time_spent" => o[:spent],
         "time_estimate" => o[:estimate],
         "time_unit" => o[:unit],
@@ -998,6 +999,8 @@ defmodule SlipdockCLI.Boards do
         "show_pulse" => o[:show_pulse],
         # WIP limits holding runner jobs and list_top sends (#1116).
         "automation_wip" => o[:automation_wip],
+        # Verified work (#1620): the bar before work starts.
+        "bar_required" => o[:bar_required],
         # Deploys and DORA metrics (#1134).
         "delivery_metrics" => o[:delivery_metrics],
         "incident_tag" => o[:incident_tag],
@@ -1023,7 +1026,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders or --wiki-sort"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort or --[no-]bar-required"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

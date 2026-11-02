@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.CardWrites do
   alias Slipdock.Boards
   alias Slipdock.Boards.{Board, Card}
 
-  @card_fields ~w(title short_name description priority flags start_date due_date date_precision completed percent_complete time_spent time_estimate time_unit log_time color border_top border_right border_bottom border_left)
+  @card_fields ~w(title short_name description priority flags start_date due_date date_precision completed percent_complete time_spent time_estimate time_unit log_time color border_top border_right border_bottom border_left bar)
 
   @doc "The card fields a create or update takes as they are."
   def card_fields, do: @card_fields
@@ -400,9 +400,21 @@ defmodule SlipdockWeb.API.CardWrites do
 
   def maybe_move(board, card, ref, actor) do
     with {:ok, column} <- resolve_column(board, ref) do
-      if column.id == card.column_id,
-        do: {:ok, nil},
-        else: {Boards.move_card_to_index(card, column, :bottom, actor: actor), nil}
+      if column.id == card.column_id do
+        {:ok, nil}
+      else
+        # A move a board's checks refuse (#1620) is the request's answer.
+        case Boards.move_card_to_index(card, column, :bottom, actor: actor) do
+          :ok ->
+            {:ok, nil}
+
+          {:error, :wrong_board} ->
+            {:error, :unprocessable_entity, "that list is on another board"}
+
+          refused ->
+            refused
+        end
+      end
     end
   end
 
