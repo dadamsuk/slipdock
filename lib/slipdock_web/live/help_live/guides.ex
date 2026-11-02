@@ -760,7 +760,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
         A Tool is a ready-made way of working that somebody on this server has packaged up:
         a board with its lists, folders, tags, wiki pages and rules already in place, the
         skills that tell your AI assistant how to use that board, and the docs that explain
-        it. Job Scan, an automated job search, is one.
+        it. Job Search, an automated job search, is one.
       </p>
       <p>
         You'll find the Tools you can use under

@@ -5749,16 +5749,16 @@ slipdock import trello.json                    # a Trello board's JSON export wo
 slipdock skills | slipdock skills install | slipdock skills check   # the agent instructions this server ships
 slipdock skills chatgpt --dir ~/Downloads     # the same skills as zips for ChatGPT, which can't run this
 slipdock tools                                # the Tools you can see: yours, shared, listed
-slipdock tools show job-scan                  # its board, skills, files and versions
+slipdock tools show job-search                # its board, skills, files and versions
 slipdock tools publish ./my-tool              # pack a folder and publish it as a new version
-slipdock tools install job-scan               # its skills into ~/.claude/skills (--dir D)
+slipdock tools install job-search             # its skills into ~/.claude/skills (--dir D)
 slipdock tools check                          # are the installed Tool skills behind?
-slipdock tools install-board job-scan         # have the server build its board (--name, --version)
+slipdock tools install-board job-search       # have the server build its board (--name, --version)
 slipdock tools request-listing my-tool        # ask an admin to list a version for everyone
-slipdock tools file job-scan skills/job-scan/SKILL.md   # one file of the package, latest version
-slipdock tools download job-scan              # the whole package as job-scan-<version>.tar.gz (--out F|-, --version)
-slipdock wiki files job-scan --folder Tool    # a board's wiki files that are not pages
-slipdock wiki get job-scan Tool/cv.docx       # one of them, saved here (--out F, or - for stdout)
+slipdock tools file job-search skills/job-search-scan/SKILL.md   # one file of the package, latest version
+slipdock tools download job-search            # the whole package as job-search-<version>.tar.gz (--out F|-, --version)
+slipdock wiki files jobs --folder Tool        # a board's wiki files that are not pages
+slipdock wiki get jobs Tool/cv.docx           # one of them, saved here (--out F, or - for stdout)
 slipdock favourites                            # what you keep going back to, with the URL of each
 slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board> | fav page W-31
 slipdock hotkey slipdock 1                     # Ctrl+Shift+1 opens it in the web app; `slipdock hotkeys` lists yours
