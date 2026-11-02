@@ -204,6 +204,14 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <.icon name={verify_icon(@card.verify_state)} class="size-4 shrink-0" />
         <span class="font-medium">{verify_title(@card.verify_state)}</span>
         <span class="text-base-content/60">{verify_who(@card)}</span>
+        <span
+          :if={@card.verify_rejections > 0}
+          id="card-verify-rejections"
+          class="badge badge-ghost badge-sm"
+          title="How many times its submitted work was rejected"
+        >
+          rejected {@card.verify_rejections}×
+        </span>
       </p>
       <p :if={@card.verify_note} class="whitespace-pre-wrap text-sm">{@card.verify_note}</p>
       <div :if={@card.verify_state == "pending" && @can_write} class="space-y-2">

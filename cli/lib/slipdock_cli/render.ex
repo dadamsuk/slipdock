@@ -438,7 +438,13 @@ defmodule SlipdockCLI.Render do
                 &"##{&1["id"]}"
               )
         ),
-        if(c["sub_board"], do: "⊞#{c["sub_board"]["completed"]}/#{c["sub_board"]["total"]}"),
+        if(c["sub_board"],
+          do:
+            "⊞#{c["sub_board"]["completed"]}/#{c["sub_board"]["total"]}" <>
+              if(n = c["sub_board"]["awaiting"], do: " (#{n} awaiting verification)", else: "")
+        ),
+        # Waiting for a second agent (#1624).
+        if(c["verify_state"] == "pending", do: "⏳awaiting verification"),
         stand_in_text(c["stand_in_for"]),
         if((c["blocks"] || []) != [],
           do: "blocks:" <> Enum.map_join(c["blocks"], ",", &"##{&1["id"]}")
@@ -958,7 +964,8 @@ defmodule SlipdockCLI.Render do
 
     if state = c["verify_state"] do
       IO.puts("")
-      IO.puts(bold("Verification") <> "  " <> verify_line(state, c))
+      rejected = if n = c["verify_rejections"], do: dim("  · rejected #{n}×"), else: ""
+      IO.puts(bold("Verification") <> "  " <> verify_line(state, c) <> rejected)
       if note = c["verify_note"], do: IO.puts(indent(note))
     end
 

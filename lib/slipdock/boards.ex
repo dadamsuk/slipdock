@@ -504,7 +504,8 @@ defmodule Slipdock.Boards do
           join: col in assoc(c, :column),
           where: is_nil(c.archived_at),
           order_by: [asc: col.position, asc: c.position, asc: c.id],
-          select: [:id, :title, :completed, :archived_at, :board_id, :column_id]
+          # `verify_state`: subcards awaiting verification (#1624).
+          select: [:id, :title, :completed, :archived_at, :board_id, :column_id, :verify_state]
         )
     ]
   end

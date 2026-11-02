@@ -622,20 +622,25 @@ completion a **submission**. The card stays open in its list, flagged
 someone else decides. The card shows **Awaiting verification**, who
 submitted it, and **Accept** and **Reject** for anyone who can edit it.
 
-- **Accept** (`slipdock verify 12 accept`, MCP `verify_card`,
+- **Accept** (`slipdock accept 12`, or `slipdock verify 12 accept`; MCP `verify_card`;
   `POST /api/cards/:id/verify {"decision": "accept"}`) completes the card
   and moves it to the done list. An optional reason is kept as a note, and
   `--evidence-commit` / `commit` records the commit it was checked at. When
   the card has evidence for a commit, a different commit is refused.
-- **Reject** (`slipdock verify 12 reject --reason "…"`) needs the reason.
+- **Reject** (`slipdock reject 12 --reason "…"`) needs the reason.
   The reason is kept on the card, posted as a comment and left as the
   card's handoff (*Rejected: …*), so whoever picks it up next starts there.
-  The evidence is cleared and the card stays in progress, so completing it
-  again submits it again.
+  The evidence is cleared, and the card goes back to the top of the ready
+  list, so it is taken up again and completing it submits it again. The
+  card counts its rejections (*rejected 2×*, `verify_rejections`).
 - **Whoever submitted it can't decide it** (`403`). A different agent means
   a different token, or a different runner job on the same token. A person
   is always different, and a person completing a pending card accepts it.
 - An agent moving a card into the done list itself is refused.
+- A pending card is waiting on whoever owns the board: it is in their *My
+  work* waiting list and `slipdock work` (*Awaiting verification*). An epic
+  isn't done while a subcard awaits: its rollup and its subcard count say
+  how many do (`awaiting`; `⊞1/2 (1 awaiting verification)` in the CLI).
 
 ### Verify jobs
 

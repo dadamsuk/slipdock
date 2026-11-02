@@ -19,7 +19,8 @@ defmodule Slipdock.Verified do
       flagged `review`, until a different actor decides (`decide/5`):
       accepting completes it and moves it to the done list; rejecting needs
       a reason, which is kept, commented and left as the handoff's next
-      step. A person completing a pending card accepts it.
+      step, and the card goes back to the top of the ready list with its
+      rejection counted. A person completing a pending card accepts it.
     * **Verify jobs** (`Board.verify_pool`, #1634): with a pool named, a
       card going pending is queued for that runner pool as a `verify` job,
       its prompt saying what to check and how to decide. A decision cancels
@@ -289,8 +290,9 @@ defmodule Slipdock.Verified do
   recorded as.
 
   Accepting completes the card and moves it to the board's done list.
-  Rejecting leaves it where it is, with the reason as a comment and as the
-  handoff's next step, and its evidence cleared for the next attempt.
+  Rejecting puts it back at the top of the board's ready list (where there
+  is one), with the reason as a comment and as the handoff's next step, its
+  evidence cleared for the next attempt and its rejections counted.
 
   `{:ok, card}`, or `{:error, status, message}` in the API's shapes.
   """
@@ -360,7 +362,8 @@ defmodule Slipdock.Verified do
       verify_by: actor_map(actor),
       verify_note: reason,
       verify_commit: blank_to_nil(commit),
-      verify_at: now()
+      verify_at: now(),
+      verify_rejections: (card.verify_rejections || 0) + 1
     ]
 
     with {:ok, card} <-
@@ -378,6 +381,17 @@ defmodule Slipdock.Verified do
         body: reason,
         via: handoff_via(actor)
       })
+
+      # Back to the top of the ready list, to be taken up again.
+      columns = card |> board() |> Repo.preload(:columns) |> Map.get(:columns)
+
+      case Slipdock.Flow.ready_list(columns) do
+        %Column{id: id} = ready when id != card.column_id ->
+          Slipdock.Boards.move_card_to_index(card, ready, :top, actor: actor)
+
+        _ ->
+          :ok
+      end
 
       {:ok, Repo.get!(Card, card.id)}
     end

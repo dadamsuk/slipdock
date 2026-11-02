@@ -121,6 +121,8 @@ defmodule Slipdock.Work do
     * `"wait"` — an open wait on `user`;
     * `"wait_anyone"` — an open wait on anyone, on a card in a tree `user`
       owns or a card assigned to them (not one they asked themselves);
+    * `"verify"` — a card an agent submitted, waiting for verification
+      (#1624), in a tree `user` owns: they can accept or reject it;
     * `"review"`, `"waiting"` — a card assigned to `user` flagged so
       (`waiting` only without an open wait, which says who it is on);
     * `"gave_up"` — a card the runner gave up on and flagged blocked, in a
@@ -146,7 +148,7 @@ defmodule Slipdock.Work do
 
     candidates =
       waits_on(user, owned, assigned) ++
-        flagged(user, now) ++ job_trouble(owned) ++ unowned(owned, now)
+        awaiting(owned) ++ flagged(user, now) ++ job_trouble(owned) ++ unowned(owned, now)
 
     cards =
       candidates
@@ -189,7 +191,7 @@ defmodule Slipdock.Work do
   def waiting_count(%User{} = user, opts \\ []),
     do: user |> waiting_on_me(Keyword.put(opts, :paths, false)) |> length()
 
-  @reasons ~w(wait wait_anyone review waiting gave_up failed needs_owner)
+  @reasons ~w(wait wait_anyone verify review waiting gave_up failed needs_owner)
   defp rank(%{reason: reason}), do: Enum.find_index(@reasons, &(&1 == reason))
 
   @doc "The reasons an item can have, in the order one card's are chosen from."
@@ -197,6 +199,7 @@ defmodule Slipdock.Work do
 
   defp reason_text(%{reason: "wait", wait: w}), do: "Waiting on you: #{w.needs}"
   defp reason_text(%{reason: "wait_anyone", wait: w}), do: "Waiting on anyone: #{w.needs}"
+  defp reason_text(%{reason: "verify"}), do: "Awaiting verification: accept or reject it"
   defp reason_text(%{reason: "review"}), do: "Flagged review"
   defp reason_text(%{reason: "waiting"}), do: "Flagged waiting"
 
@@ -277,6 +280,17 @@ defmodule Slipdock.Work do
         true -> []
       end
     end)
+  end
+
+  # Cards an agent submitted on a board that verifies work (#1624).
+  defp awaiting([]), do: []
+
+  defp awaiting(owned) do
+    from(c in Card, where: c.verify_state == "pending", select: {c.id, c.verify_at})
+    |> in_trees(owned)
+    |> live()
+    |> Repo.all()
+    |> Enum.map(fn {id, at} -> %{card_id: id, reason: "verify", since: at} end)
   end
 
   # The newest job of each card in an owned tree, when it went wrong.

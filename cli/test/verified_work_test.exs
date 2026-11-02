@@ -170,6 +170,33 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     assert JSON.decode!(body) == %{"decision" => "reject", "reason" => "Fails"}
   end
 
+  test "accept and reject are verify by their own names" do
+    serve([{200, @card}, {200, @card}])
+    capture_io(fn -> Boards.run("accept", ["12"], []) end)
+    assert_received {:request, "POST", "/api/cards/12/verify", body}
+    assert JSON.decode!(body) == %{"decision" => "accept"}
+
+    capture_io(fn -> Boards.run("reject", ["12"], parse(["--reason", "No"])) end)
+    assert_received {:request, "POST", "/api/cards/12/verify", body}
+    assert JSON.decode!(body) == %{"decision" => "reject", "reason" => "No"}
+  end
+
+  test "card shows how often its work was rejected" do
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "verify_state" => "rejected",
+            "verify_rejections" => 2,
+            "verify_by" => %{"kind" => "agent", "agent" => "checker"}
+          })
+        )
+      end)
+
+    assert out =~ "rejected by agent “checker”"
+    assert out =~ "rejected 2×"
+  end
+
   test "card shows where verification stands" do
     out =
       capture_io(fn ->

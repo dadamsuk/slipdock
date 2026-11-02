@@ -57,7 +57,8 @@ defmodule Slipdock.Rollup do
           stated: String.t() | nil,
           sums: %{integer => %{total: float, done: float}},
           depth: non_neg_integer,
-          children: non_neg_integer
+          children: non_neg_integer,
+          awaiting: non_neg_integer
         }
 
   defstruct root_id: nil,
@@ -83,6 +84,7 @@ defmodule Slipdock.Rollup do
     :title,
     :description,
     :completed,
+    :verify_state,
     :archived_at,
     :board_id,
     :column_id,
@@ -339,7 +341,8 @@ defmodule Slipdock.Rollup do
       overdue: false,
       health: :dropped,
       depth: 0,
-      children: 0
+      children: 0,
+      awaiting: 0
     }
   end
 
@@ -361,7 +364,9 @@ defmodule Slipdock.Rollup do
       overdue: overdue,
       health: health(card, blocked, overdue, 0, 1, if(card.completed, do: 1, else: 0)),
       depth: 0,
-      children: 0
+      children: 0,
+      # Waiting for a second agent to accept it (#1624): not done yet.
+      awaiting: if(card.verify_state == "pending" and not card.completed, do: 1, else: 0)
     }
   end
 
@@ -395,7 +400,8 @@ defmodule Slipdock.Rollup do
       overdue: overdue,
       health: health(card, blocked, overdue, max(start_slip, due_slip), total, done),
       depth: 1 + (kids |> Enum.map(& &1.depth) |> Enum.max()),
-      children: length(kids)
+      children: length(kids),
+      awaiting: kids |> Enum.map(&Map.get(&1, :awaiting, 0)) |> Enum.sum()
     }
   end
 

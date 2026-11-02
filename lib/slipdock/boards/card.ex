@@ -82,6 +82,8 @@ defmodule Slipdock.Boards.Card do
     field :verify_submitter, :map
     field :verify_by, :map
     field :verify_at, :utc_datetime
+    # How many times its submitted work was rejected (#1624).
+    field :verify_rejections, :integer, default: 0
 
     # Set by Slipdock.Rollup when the card is loaded through Slipdock.Boards:
     # progress, effective dates and health rolled up from its subcards.

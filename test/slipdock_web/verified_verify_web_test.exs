@@ -206,6 +206,42 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
     refute has_element?(view, "#board-verify-pool")
   end
 
+  test "a rejection over the API counts, and an epic's JSON says a subcard awaits (#1624)",
+       ctx do
+    {:ok, _} = on(ctx)
+
+    ctx.builder
+    |> patch(~p"/api/cards/#{ctx.card.id}", %{"completed" => true})
+    |> json_response(200)
+
+    json =
+      ctx.checker
+      |> post(~p"/api/cards/#{ctx.card.id}/verify", %{"decision" => "reject", "reason" => "No"})
+      |> json_response(200)
+
+    assert json["card"]["verify_rejections"] == 1
+    assert json["card"]["column"] == "To Do"
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    assert has_element?(view, "#card-verify-rejections", "rejected 1×")
+
+    # An epic with a pending subcard.
+    {:ok, t} = Boards.find_template(nil, "Simple")
+    epic = card_fixture(ctx.doing, %{"title" => "Epic"})
+    {:ok, sub} = Boards.create_sub_board(epic, t)
+    [column | _] = Boards.get_board!(sub.id).columns
+    child = card_fixture(column, %{"title" => "Child"})
+    ctx.builder |> patch(~p"/api/cards/#{child.id}", %{"completed" => true}) |> json_response(200)
+
+    json = ctx.builder |> get(~p"/api/cards/#{epic.id}") |> json_response(200)
+    assert json["card"]["sub_board"]["awaiting"] == 1
+    assert json["card"]["rollup"]["awaiting"] == 1
+    refute json["card"]["rollup"]["health"] == "done"
+
+    plain = ctx.builder |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(200)
+    refute Map.has_key?(plain["card"]["rollup"] || %{}, "awaiting")
+  end
+
   test "the guide describes verifying only when a board has it on", ctx do
     guide = ctx.builder |> get(~p"/api/guide") |> response(200)
     refute guide =~ "**A second agent verifies.**"

@@ -3469,8 +3469,9 @@ defmodule SlipdockWeb.APIGuide do
     "accept"|"reject", "reason": "…", "commit": "…"}`). Accepting completes
     it and moves it to the done list. Rejecting needs the reason: it goes
     on the card as a comment and as its handoff's next step, the evidence
-    is cleared, and the card stays in progress, so whoever takes it next
-    fixes what the reason says and completes it again. The submitter can't
+    is cleared, its `verify_rejections` counts one more, and it goes back
+    to the top of the ready list, so whoever takes it next fixes what the
+    reason says and completes it again. The submitter can't
     decide its own card (`403`): a different agent is a different token,
     or a different runner job. A board with a `verify_pool` also queues
     each submitted card for that runner pool as a job of kind `verify`,

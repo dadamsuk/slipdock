@@ -487,7 +487,8 @@ defmodule SlipdockWeb.API.JSON do
       verify_commit: c.verify_commit,
       verify_submitter: c.verify_submitter,
       verify_by: c.verify_by,
-      verify_at: c.verify_at
+      verify_at: c.verify_at,
+      verify_rejections: if(c.verify_rejections > 0, do: c.verify_rejections)
     ]
     |> Enum.reject(fn {_, v} -> is_nil(v) end)
     |> Enum.into(map)
@@ -621,6 +622,8 @@ defmodule SlipdockWeb.API.JSON do
       health: r.health,
       depth: r.depth
     }
+    # Subcards waiting for verification (#1624), only when there are some.
+    |> then(&if(Map.get(r, :awaiting, 0) > 0, do: Map.put(&1, :awaiting, r.awaiting), else: &1))
   end
 
   defp rollup(_), do: nil
@@ -645,6 +648,8 @@ defmodule SlipdockWeb.API.JSON do
     columns = if Ecto.assoc_loaded?(b.columns), do: b.columns, else: []
     cards = if Ecto.assoc_loaded?(b.cards), do: b.cards, else: []
 
+    awaiting = Enum.count(cards, &(&1.verify_state == "pending" and not &1.completed))
+
     %{
       id: b.id,
       name: b.name,
@@ -655,6 +660,8 @@ defmodule SlipdockWeb.API.JSON do
           %{id: col.id, name: col.name, cards: Enum.count(cards, &(&1.column_id == col.id))}
         end)
     }
+    # Subcards waiting for verification (#1624), only when there are some.
+    |> then(&if(awaiting > 0, do: Map.put(&1, :awaiting, awaiting), else: &1))
   end
 
   defp sub_board_summary(_), do: nil

@@ -646,6 +646,8 @@ defmodule SlipdockCLI do
                                         decide a card waiting for verification: accept
                                         completes it, reject needs the reason; not a card
                                         you submitted (--evidence-commit: what you checked at)
+    accept <id> [--reason TEXT]  |  reject <id> --reason TEXT
+                                        the same as verify <id> accept / reject
     flag <id> <flag>... [--off]         add (or remove) flags
     tag <id> <tag>... [--off]           add (or remove) tags
     check <id> <text>                   add a checklist item

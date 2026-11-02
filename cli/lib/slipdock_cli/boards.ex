@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone verify flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe read-text attachment-text card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone verify accept reject flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe read-text attachment-text card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   defp card_ref?(ref), do: String.match?(ref, ~r/\A#?\d+\z/)
 
@@ -545,6 +545,10 @@ defmodule SlipdockCLI.Boards do
     HTTP.post("/cards/#{enc(id)}/verify", body)
     |> out(o, &card_ok(if(decision == "accept", do: "accepted", else: "rejected"), &1))
   end
+
+  # The same, by their own names (#1624).
+  def run("accept", [id], o), do: run("verify", [id, "accept"], o)
+  def run("reject", [id], o), do: run("verify", [id, "reject"], o)
 
   def run("verify", _, _),
     do: fail("usage: slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]")

@@ -16,7 +16,7 @@ defmodule Slipdock.VerifiedVerifyTest do
   setup do
     owner = user_fixture("owner@example.com")
     board = board_fixture(%{"name" => "Verify", "code" => unique_code()}, owner: owner)
-    [_backlog, _todo, doing, done] = board.columns
+    [_backlog, todo, doing, done] = board.columns
     card = card_fixture(doing, %{"title" => "Work"})
 
     agent = fn label, job ->
@@ -26,6 +26,7 @@ defmodule Slipdock.VerifiedVerifyTest do
     %{
       owner: owner,
       board: board,
+      todo: todo,
       doing: doing,
       done: done,
       card: card,
@@ -152,8 +153,16 @@ defmodule Slipdock.VerifiedVerifyTest do
       assert card.verify_state == "rejected"
       assert card.verify_note == "The empty list case fails\nSee the log"
       assert card.evidence == nil and card.evidence_commit == nil
-      assert card.column_id == ctx.doing.id
       refute "review" in card.flags
+
+      # Back at the top of the ready list, its rejection counted (#1624).
+      assert card.column_id == ctx.todo.id
+      assert card.verify_rejections == 1
+
+      assert [%{id: first} | _] =
+               Boards.get_board!(ctx.board.id).columns |> Enum.at(1) |> Map.get(:cards)
+
+      assert first == card.id
       assert Enum.any?(bodies(card), &(&1 =~ "**Rejected** by agent “checker”"))
 
       handoff = Boards.current_handoff(card)
@@ -163,6 +172,36 @@ defmodule Slipdock.VerifiedVerifyTest do
       card = Repo.get!(Card, card.id)
       {:ok, again} = Boards.update_card(card, %{"completed" => true}, actor: ctx.builder)
       assert again.verify_state == "pending"
+
+      {:ok, again} =
+        Verified.decide(again, "reject", %{"reason" => "Still"}, ctx.checker, ctx.owner)
+
+      assert again.verify_rejections == 2
+    end
+
+    test "an epic is not done while a subcard awaits verification (#1624)", ctx do
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = Boards.create_sub_board(ctx.card, t)
+      [column | _] = Boards.get_board!(sub.id).columns
+      first = card_fixture(column, %{"title" => "One"})
+      second = card_fixture(column, %{"title" => "Two"})
+      {:ok, _} = Boards.update_card(first, %{"completed" => true}, actor: Actor.web(ctx.owner))
+      {:ok, _} = Boards.update_card(second, %{"completed" => true}, actor: ctx.builder)
+
+      rollup = Boards.get_card!(ctx.card.id).rollup
+      assert rollup.done == 1 and rollup.total == 2
+      assert rollup.awaiting == 1
+      refute rollup.health == :done
+    end
+
+    test "a pending card is waiting on whoever owns the board, in their work (#1624)", ctx do
+      card = submit(ctx)
+      items = Slipdock.Work.waiting_on_me(ctx.owner)
+      assert [%{reason: "verify", text: text}] = Enum.filter(items, &(&1.card.id == card.id))
+      assert text =~ "Awaiting verification"
+
+      {:ok, _} = Verified.decide(card, "accept", %{}, ctx.checker, ctx.owner)
+      refute Enum.any?(Slipdock.Work.waiting_on_me(ctx.owner), &(&1.card.id == card.id))
     end
 
     test "only a pending card can be decided, and only accept or reject", ctx do

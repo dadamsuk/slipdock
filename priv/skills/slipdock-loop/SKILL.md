@@ -613,8 +613,8 @@ With one on, the pass changes like this:
   says `Submitted for verification` in place of closing, and the pass ends
   there; the card is no longer this pass's (step 2 skips `review`). An epic
   closes the same way, once its subcards are accepted.
-- **A rejected card** comes back with `Rejected: <reason>` as its handoff and
-  the reason as a comment. Picked up again, that reason is the brief: fix
+- **A rejected card** goes back to the top of the ready list with
+  `Rejected: <reason>` as its handoff and the reason as a comment. Picked up again, that reason is the brief: fix
   exactly that, then complete it again with fresh evidence.
 - **A verify job** (a job of kind `verify`, or a card you are asked to
   verify) is checking, not doing. Claim nothing, move nothing and change no
