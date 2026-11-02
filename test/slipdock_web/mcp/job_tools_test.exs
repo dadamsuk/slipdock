@@ -53,6 +53,13 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
     do:
       (conn || ctx.conn) |> call("claim_job", %{board: ctx.board.code, pool: "default"}) |> ok!()
 
+  test "a claimed job's prompt ends with the card's bar, when it has one (#1622)", ctx do
+    {:ok, _} = Slipdock.Boards.update_card(ctx.card, %{"bar" => "The parser reads dates"})
+    {:ok, _} = queue(ctx.card)
+    claimed = claim!(ctx)
+    assert claimed["prompt"] =~ ~r/\AWork on it\n\nThe card's bar .*\nThe parser reads dates\z/s
+  end
+
   test "tools/list offers all three as writes that destroy nothing", %{conn: conn} do
     tools =
       conn

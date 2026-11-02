@@ -59,7 +59,7 @@ defmodule SlipdockWeb.API.RunnerController do
           |> put_resp_header("x-board-id", to_string(job.board_id))
           |> put_resp_header("x-lease-seconds", to_string(Runners.lease_for(conn.assigns.runner)))
           |> context_headers(job)
-          |> text_reply(200, job.prompt, newline: false)
+          |> text_reply(200, Runners.claimed_prompt(job), newline: false)
       end
     end
   end

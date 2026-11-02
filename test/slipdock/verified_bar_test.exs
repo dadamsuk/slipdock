@@ -8,6 +8,7 @@ defmodule Slipdock.VerifiedBarTest do
   # Sync: the export/import test derives board codes, as the other import tests.
   use Slipdock.DataCase, async: false
 
+  import Ecto.Query
   import Slipdock.Fixtures
 
   alias Slipdock.{Actor, Boards, Portable, Verified}
@@ -120,6 +121,43 @@ defmodule Slipdock.VerifiedBarTest do
       {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Done"})
       :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
       assert Repo.get!(Card, card.id).bar_locked_at
+    end
+
+    test "a person changing a locked bar is a line in the activity log (#1622)", ctx do
+      {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Done"})
+      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      card = Repo.get!(Card, card.id)
+
+      {:ok, _} =
+        Boards.update_card(card, %{"bar" => "Done, and documented"}, actor: Actor.web(ctx.owner))
+
+      messages =
+        Repo.all(
+          from(a in Slipdock.Boards.Activity, where: a.card_id == ^card.id, select: a.message)
+        )
+
+      assert "set the bar of “Work”" in messages
+      assert "changed the locked bar of “Work”" in messages
+    end
+
+    test "a claimed job's prompt carries the card's bar; a verify job's is left alone", ctx do
+      {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Tests pass"})
+      {:ok, job} = Slipdock.Runners.queue(card, %{pool: "dev", kind: "claude", prompt: "Do it."})
+
+      assert Slipdock.Runners.claimed_prompt(job) ==
+               "Do it.\n\nThe card's bar (what done means for it); work to it as written:\nTests pass"
+
+      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      assert Slipdock.Runners.claimed_prompt(job) =~ "locked when work started"
+
+      {:ok, verify} =
+        Slipdock.Runners.queue(card, %{pool: "dev", kind: "verify", prompt: "Check."})
+
+      assert Slipdock.Runners.claimed_prompt(verify) == "Check."
+
+      other = card_fixture(ctx.todo, %{"title" => "No bar"})
+      {:ok, plain} = Slipdock.Runners.queue(other, %{pool: "dev", kind: "claude", prompt: "Go."})
+      assert Slipdock.Runners.claimed_prompt(plain) == "Go."
     end
 
     test "turned off again, a locked bar is an agent's to change", ctx do

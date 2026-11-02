@@ -286,7 +286,14 @@ defmodule SlipdockWeb.API.JobController do
         job ->
           json(
             conn,
-            Map.merge(%{job: V.job(job), lease_seconds: Runners.lease_for(runner)}, context(job))
+            Map.merge(
+              # The prompt with the card's bar, when it has one (#1622).
+              %{
+                job: V.job(%{job | prompt: Runners.claimed_prompt(job)}),
+                lease_seconds: Runners.lease_for(runner)
+              },
+              context(job)
+            )
           )
       end
     end

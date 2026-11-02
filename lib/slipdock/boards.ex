@@ -2147,21 +2147,61 @@ defmodule Slipdock.Boards do
 
   defp describe_card_changes(card, changeset) do
     Enum.flat_map(changeset.changes, fn
-      {:title, t} -> ["renamed “#{card.title}” to “#{t}”"]
-      {:completed, true} -> ["completed “#{card.title}”"]
-      {:completed, false} -> ["reopened “#{card.title}”"]
-      {:priority, p} -> ["set priority of “#{card.title}” to #{p}"]
-      {:start_date, nil} -> ["cleared start date on “#{card.title}”"]
-      {:start_date, d} -> ["set start date on “#{card.title}” to #{d}"]
-      {:due_date, nil} -> ["cleared due date on “#{card.title}”"]
-      {:due_date, d} -> ["set due date on “#{card.title}” to #{d}"]
-      {:percent_complete, nil} -> ["cleared % complete on “#{card.title}”"]
-      {:percent_complete, p} -> ["set “#{card.title}” to #{p}% complete"]
-      {:column_id, id} -> ["moved “#{card.title}” to #{Repo.get!(Column, id).name}"]
-      {:flags, flags} -> ["set flags on “#{card.title}” to #{flags_text(flags)}"]
-      {:time_spent, m} -> [time_text("time spent", card, m, changeset)]
-      {:time_estimate, m} -> [time_text("estimate", card, m, changeset)]
-      _ -> []
+      {:title, t} ->
+        ["renamed “#{card.title}” to “#{t}”"]
+
+      {:completed, true} ->
+        ["completed “#{card.title}”"]
+
+      {:completed, false} ->
+        ["reopened “#{card.title}”"]
+
+      {:priority, p} ->
+        ["set priority of “#{card.title}” to #{p}"]
+
+      {:start_date, nil} ->
+        ["cleared start date on “#{card.title}”"]
+
+      {:start_date, d} ->
+        ["set start date on “#{card.title}” to #{d}"]
+
+      {:due_date, nil} ->
+        ["cleared due date on “#{card.title}”"]
+
+      {:due_date, d} ->
+        ["set due date on “#{card.title}” to #{d}"]
+
+      {:percent_complete, nil} ->
+        ["cleared % complete on “#{card.title}”"]
+
+      {:percent_complete, p} ->
+        ["set “#{card.title}” to #{p}% complete"]
+
+      {:column_id, id} ->
+        ["moved “#{card.title}” to #{Repo.get!(Column, id).name}"]
+
+      {:flags, flags} ->
+        ["set flags on “#{card.title}” to #{flags_text(flags)}"]
+
+      {:time_spent, m} ->
+        [time_text("time spent", card, m, changeset)]
+
+      {:time_estimate, m} ->
+        [time_text("estimate", card, m, changeset)]
+
+      # A locked bar changed (by a person: agents are refused) is worth a
+      # line of its own (#1622).
+      {:bar, _} when not is_nil(card.bar_locked_at) ->
+        ["changed the locked bar of “#{card.title}”"]
+
+      {:bar, nil} ->
+        ["cleared the bar of “#{card.title}”"]
+
+      {:bar, _} ->
+        ["set the bar of “#{card.title}”"]
+
+      _ ->
+        []
     end)
   end
 

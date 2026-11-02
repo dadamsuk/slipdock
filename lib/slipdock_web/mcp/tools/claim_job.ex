@@ -76,7 +76,8 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
              card: job.card_id,
              card_url: context.base_url <> "/boards/#{job.board_id}/cards/#{job.card_id}",
              lease_seconds: Runners.lease_for(runner),
-             prompt: job.prompt,
+             # With the card's bar, when it has one (#1622).
+             prompt: Runners.claimed_prompt(job),
              wait: V.wait(wait),
              handoff: handoff && V.handoff(handoff)
            }}

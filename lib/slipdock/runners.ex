@@ -1400,6 +1400,26 @@ defmodule Slipdock.Runners do
   end
 
   @doc """
+  The prompt a claimed job is handed (#1622): as it was queued, followed by
+  the card's bar when it has one, so the agent works to it. A verify job's
+  prompt carries the bar already.
+  """
+  def claimed_prompt(%Job{kind: kind, prompt: prompt}) when kind == "verify", do: prompt
+
+  def claimed_prompt(%Job{} = job) do
+    case Repo.one(from(c in Card, where: c.id == ^job.card_id, select: {c.bar, c.bar_locked_at})) do
+      {bar, locked} when is_binary(bar) and bar != "" ->
+        state = if locked, do: ", locked when work started", else: ""
+
+        (job.prompt || "") <>
+          "\n\nThe card's bar (what done means for it#{state}); work to it as written:\n" <> bar
+
+      _ ->
+        job.prompt
+    end
+  end
+
+  @doc """
   What a claim answers beside the prompt (#1115), for runners that read
   more than the prompt: the wait the job carries on from — the answered
   question that queued it, else the card's open one — and the card's open
