@@ -1515,7 +1515,8 @@ defmodule SlipdockWeb.APIGuide do
     {"handoff_label": "Parked", "handoff_prompt": "…"}` (`""` for the
     defaults; the board's `GET` answers both). Agent-facing text keeps
     "Left off:".
-    A board's *Verified work* switches (`bar_required`) are set the same
+    A board's *Verified work* switches (`bar_required`,
+    `evidence_required`) are set the same
     way; the *Verified work* section describes them when one of your boards
     has one on.
 
@@ -3387,6 +3388,7 @@ defmodule SlipdockWeb.APIGuide do
   end
 
   defp verified_name(:bar), do: "a bar before work starts"
+  defp verified_name(:evidence), do: "evidence on completion"
 
   # Verified work (#1620): described only when one of the reader's boards
   # has a switch on, and then only the steps that are on somewhere.
@@ -3426,6 +3428,20 @@ defmodule SlipdockWeb.APIGuide do
     refused (`422`). The bar locks when work starts: changing it after that
     is refused too, and only a person can. Work to the bar as written, and
     say on the card how each part of it was met.
+    """
+  end
+
+  defp verified_step(:evidence) do
+    """
+    **Evidence on completion.** Completing a card takes what you checked
+    (the tests you ran and their result, what you looked at) as `evidence`,
+    and the commit you checked at as `evidence_commit` when there is one:
+    `complete_card` `evidence` / `commit`, `slipdock done ID --evidence TEXT
+    --evidence-commit SHA`, or `PATCH /api/cards/:id {"completed": true,
+    "evidence": "…", "evidence_commit": "…"}`. Completing without it, or
+    moving the card into a done list without it, is refused (`422`). The
+    evidence is posted on the card as a comment; reopening the card clears
+    it, so the next completion brings its own.
     """
   end
 

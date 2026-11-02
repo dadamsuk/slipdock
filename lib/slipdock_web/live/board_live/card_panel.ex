@@ -189,6 +189,26 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   end
 
   attr :card, Card, required: true
+
+  @doc """
+  What an agent checked when it completed the card, and at which commit
+  (#1632). Read-only: it is what the agent said.
+  """
+  def evidence_section(assigns) do
+    ~H"""
+    <div id="card-evidence" class="space-y-1.5 px-1">
+      <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <span>Evidence</span>
+        <code :if={@card.evidence_commit} class="font-mono normal-case">
+          {String.slice(@card.evidence_commit, 0, 12)}
+        </code>
+      </p>
+      <p class="whitespace-pre-wrap text-sm">{@card.evidence}</p>
+    </div>
+    """
+  end
+
+  attr :card, Card, required: true
   attr :form, :any, required: true
   attr :target, :any, required: true
 

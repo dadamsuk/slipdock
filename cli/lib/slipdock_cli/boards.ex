@@ -516,8 +516,14 @@ defmodule SlipdockCLI.Boards do
     end
   end
 
-  def run("done", ids, o) when ids != [],
-    do: each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", %{"completed" => true}), "completed")
+  def run("done", ids, o) when ids != [] do
+    # What was checked, on a board that asks for it (#1632).
+    body =
+      %{"completed" => true, "evidence" => o[:evidence], "evidence_commit" => o[:evidence_commit]}
+      |> compact()
+
+    each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", body), "completed")
+  end
 
   def run("undone", ids, o) when ids != [],
     do: each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", %{"completed" => false}), "reopened")
@@ -1001,6 +1007,7 @@ defmodule SlipdockCLI.Boards do
         "automation_wip" => o[:automation_wip],
         # Verified work (#1620): the bar before work starts.
         "bar_required" => o[:bar_required],
+        "evidence_required" => o[:evidence_required],
         # Deploys and DORA metrics (#1134).
         "delivery_metrics" => o[:delivery_metrics],
         "incident_tag" => o[:incident_tag],
@@ -1026,7 +1033,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort or --[no-]bar-required"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required or --[no-]evidence-required"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

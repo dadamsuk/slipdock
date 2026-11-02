@@ -1551,6 +1551,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 target={@target}
               />
 
+              <.evidence_section :if={@card.evidence} card={@card} />
+
               <.attachments_section
                 at={@at}
                 can_write={@can_write}

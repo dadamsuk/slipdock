@@ -810,7 +810,8 @@ defmodule Slipdock.Boards do
                "handoff_label" => parent.handoff_label,
                "handoff_prompt" => parent.handoff_prompt,
                # Verified work's switches (#1620) hold for the subcards too.
-               "bar_required" => parent.bar_required
+               "bar_required" => parent.bar_required,
+               "evidence_required" => parent.evidence_required
              },
              template: template,
              parent_card_id: card.id,
@@ -1913,7 +1914,7 @@ defmodule Slipdock.Boards do
   def update_card(%Card{} = card, attrs, opts) do
     # Verified work (#1620): what an agent may change on a board that checks.
     case Slipdock.Verified.check_update(card, attrs, Slipdock.Actor.resolve(opts)) do
-      :ok ->
+      {:ok, attrs} ->
         save_card(card, attrs, opts)
 
       {:error, field, message} ->
@@ -1961,6 +1962,9 @@ defmodule Slipdock.Boards do
         do: Slipdock.Recurrence.completion_changed(updated)
 
       if changeset.changes[:completed] == true, do: unblock_dependents(updated, opts)
+
+      # Evidence a completion carried is kept as a comment (#1632).
+      Slipdock.Verified.saved(card, updated, opts[:by])
 
       # Someone new on a snoozed card wakes it (W-1803).
       if assignees && Enum.any?(assignees, &(&1 not in before)),

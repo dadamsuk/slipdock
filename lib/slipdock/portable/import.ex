@@ -390,6 +390,12 @@ defmodule Slipdock.Portable.Import do
   defp text_upto(value, max) when is_binary(value), do: String.slice(String.trim(value), 0, max)
   defp text_upto(_value, _max), do: nil
 
+  # A commit id that would be refused is dropped rather than the card (#1632).
+  defp commit_id(value) when is_binary(value),
+    do: if(Regex.match?(~r/\A[0-9a-fA-F]{4,64}\z/, value), do: value)
+
+  defp commit_id(_value), do: nil
+
   defp insert(%module{} = struct, attrs, what) do
     case struct |> module.changeset(attrs) |> Repo.insert(mode: :savepoint) do
       {:ok, row} -> row
@@ -459,6 +465,7 @@ defmodule Slipdock.Portable.Import do
           handoff_label: text_upto(doc[:handoff_label], Board.handoff_limits().label),
           handoff_prompt: text_upto(doc[:handoff_prompt], Board.handoff_limits().prompt),
           bar_required: bool(doc[:bar_required], false),
+          evidence_required: bool(doc[:evidence_required], false),
           kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
         },
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")
@@ -622,7 +629,9 @@ defmodule Slipdock.Portable.Import do
           border_bottom: dress(doc[:border_bottom], Slipdock.Palette.names()),
           border_left: dress(doc[:border_left], Slipdock.Palette.names()),
           assignee_id: List.first(assignee_ids),
-          bar: text_upto(doc[:bar], Card.bar_length())
+          bar: text_upto(doc[:bar], Card.bar_length()),
+          evidence: text_upto(doc[:evidence], Card.bar_length()),
+          evidence_commit: commit_id(doc[:evidence_commit])
         },
         named("card", doc[:title])
       )

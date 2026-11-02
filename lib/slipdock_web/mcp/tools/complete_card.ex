@@ -24,7 +24,12 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
       type: "object",
       properties: %{
         card: %{type: "integer"},
-        comment: %{type: "string", description: "What was done, added before closing."}
+        comment: %{type: "string", description: "What was done, added before closing."},
+        evidence: %{
+          type: "string",
+          description: "What you checked (tests run, output); a board may require it."
+        },
+        commit: %{type: "string", description: "The commit the evidence is for."}
       },
       required: ["card"],
       additionalProperties: false
@@ -40,12 +45,16 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
 
     with {:ok, id} <- Args.id(args, "card"),
          {:ok, note} <- Args.optional(args, "comment"),
+         {:ok, evidence} <- Args.optional(args, "evidence"),
+         {:ok, commit} <- Args.optional(args, "commit"),
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          :ok <- comment(card, note, context.user),
          done = done_list(card),
          params =
-           if(done, do: %{"completed" => true, "column" => done.id}, else: %{"completed" => true}),
+           %{"completed" => true, "evidence" => evidence, "evidence_commit" => commit}
+           |> Map.reject(fn {_, v} -> is_nil(v) end)
+           |> then(&if(done, do: Map.put(&1, "column", done.id), else: &1)),
          {:ok, card} <- Args.refusal(CardWrites.update(auth, card, params)) do
       {:ok,
        card

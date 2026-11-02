@@ -956,6 +956,12 @@ defmodule SlipdockCLI.Render do
       IO.puts(indent(c["bar"]))
     end
 
+    if c["evidence"] not in [nil, ""] do
+      IO.puts("")
+      IO.puts(bold("Evidence") <> dim(if s = c["evidence_commit"], do: "  at #{s}", else: ""))
+      IO.puts(indent(c["evidence"]))
+    end
+
     if h = c["handbook"], do: handbook_block(h)
 
     if c["checklist"]["total"] > 0 do

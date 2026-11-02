@@ -256,6 +256,7 @@ defmodule Slipdock.Portable.Export do
       handoff_label: board.handoff_label,
       handoff_prompt: board.handoff_prompt,
       bar_required: board.bar_required,
+      evidence_required: board.evidence_required,
       kind: board.kind,
       archived: board.archived_at != nil,
       # A sub-board hangs off a card; a root board hangs off nothing.
@@ -341,6 +342,8 @@ defmodule Slipdock.Portable.Export do
       percent_complete: card.percent_complete,
       bar: card.bar,
       bar_locked_at: card.bar_locked_at,
+      evidence: card.evidence,
+      evidence_commit: card.evidence_commit,
       # Minutes, whatever the unit; a running timer's time isn't spent yet.
       time_spent: card.time_spent,
       time_estimate: card.time_estimate,

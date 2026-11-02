@@ -56,6 +56,49 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     assert JSON.decode!(body) == %{"bar" => "Tests pass"}
   end
 
+  test "set-board --evidence-required sends the switch" do
+    serve([{200, @board}])
+    capture_io(fn -> Boards.run("set-board", ["docs"], parse(["--no-evidence-required"])) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"evidence_required" => false}
+  end
+
+  test "done --evidence --evidence-commit sends them with the completion; done alone doesn't" do
+    serve([{200, @card}, {200, @card}])
+
+    capture_io(fn ->
+      Boards.run(
+        "done",
+        ["12"],
+        parse(["--evidence", "3 passed", "--evidence-commit", "abc1234"])
+      )
+    end)
+
+    assert_received {:request, "PATCH", "/api/cards/12", body}
+
+    assert JSON.decode!(body) == %{
+             "completed" => true,
+             "evidence" => "3 passed",
+             "evidence_commit" => "abc1234"
+           }
+
+    capture_io(fn -> Boards.run("done", ["12"], []) end)
+    assert_received {:request, "PATCH", "/api/cards/12", body}
+    assert JSON.decode!(body) == %{"completed" => true}
+  end
+
+  test "card shows the evidence and its commit" do
+    out =
+      capture_io(fn ->
+        Render.card(card(%{"evidence" => "3 passed", "evidence_commit" => "abc1234"}))
+      end)
+
+    assert out =~ "Evidence"
+    assert out =~ "at abc1234"
+    assert out =~ "3 passed"
+    refute capture_io(fn -> Render.card(card(%{})) end) =~ "Evidence"
+  end
+
   defp card(extra) do
     Map.merge(
       %{

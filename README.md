@@ -74,7 +74,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Verified work** — [optional checks per board](docs/manual.md#verified-work)
   on what an agent says it finished, all off by default: a bar (what done
   means) written before work starts, locked once it does
-  (`slipdock set-board --bar-required`, `slipdock edit 12 --bar "…"`).
+  (`slipdock set-board --bar-required`, `slipdock edit 12 --bar "…"`), and
+  evidence when it completes (`slipdock done 12 --evidence "…"
+  --evidence-commit abc1234`).
 - **Waiting on a person** — [a wait on a card](docs/manual.md#waiting-on-a-person-waits):
   what it needs, from whom (or anyone), since when, and optional answer
   choices. It flags the card `waiting`; answering it on the card, in My work,

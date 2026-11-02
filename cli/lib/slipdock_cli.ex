@@ -635,6 +635,9 @@ defmodule SlipdockCLI do
                                          subcards; tags travel by name, custom fields only
                                          where that board has the same one
     done <id>...  |  undone <id>...     mark complete / incomplete
+        [--evidence TEXT] [--evidence-commit SHA]
+                                        what you checked, and the commit, when completing; a
+                                        board with --evidence-required asks agents for it
     flag <id> <flag>... [--off]         add (or remove) flags
     tag <id> <tag>... [--off]           add (or remove) tags
     check <id> <text>                   add a checklist item
@@ -687,6 +690,7 @@ defmodule SlipdockCLI do
         [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
         [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
         [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
+        [--evidence-required | --no-evidence-required]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -717,7 +721,9 @@ defmodule SlipdockCLI do
                                         is every address besides your own that may mail the
                                         board's card addresses (replaces the list; "" clears)
                                         --bar-required: agents write each card's bar (what
-                                        done means) before work starts, and it locks then
+                                        done means) before work starts, and it locks then;
+                                        --evidence-required: agents say what they checked
+                                        (done --evidence, --evidence-commit) to complete one
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -976,6 +982,9 @@ defmodule SlipdockCLI do
     automation_wip: :boolean,
     bar_required: :boolean,
     bar: :string,
+    evidence_required: :boolean,
+    evidence: :string,
+    evidence_commit: :string,
     default_view: :string,
     sprints: :boolean,
     clear: :boolean,

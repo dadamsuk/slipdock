@@ -26,7 +26,8 @@ way in: what it is, the pictures, and how to get it running.
   step, the state, the gotchas — read first by whoever picks it up next. See
   [Where it was left](#where-it-was-left-handoffs)
 - Verified work: optional per-board checks on what an agent says it
-  finished — a bar written before work starts that then locks — see
+  finished — a bar written before work starts that then locks, and evidence
+  when it completes — see
   [Verified work](#verified-work)
 - Recurring cards: a series on the card that copies the current instance when
   the next is due, in your timezone, without stacking up missed ones —
@@ -577,6 +578,23 @@ card that has one), `slipdock edit 12 --bar "…"`, `PATCH /api/cards/:id
   one written (`bar_locked_at` on the card, a *locked* badge on the field).
   After that an agent changing it is refused; a person still can.
 - Turn the switch off and a locked bar is anybody's to change again.
+
+### Evidence
+
+**Evidence on completion** (`slipdock set-board B --evidence-required`,
+`PATCH /api/boards/:board {"evidence_required": true}`) asks an agent
+completing a card for what it checked — the tests it ran and their result,
+what it looked at — and, when there is one, the commit it checked at:
+`slipdock done 12 --evidence "mix test: 38 passed" --evidence-commit abc1234`,
+MCP `complete_card`'s `evidence` and `commit`, or `PATCH /api/cards/:id
+{"completed": true, "evidence": "…", "evidence_commit": "abc1234"}`.
+
+- Completing without evidence (in the same write or already on the card),
+  or moving the card into a done list without it, is refused (`422`).
+- The evidence shows on the card (**Evidence**, with the commit) and in
+  `slipdock card`, and is posted as a comment when the card completes.
+- Reopening the card clears it, so the next completion brings its own; the
+  comment stays.
 
 ## Waiting on a person (waits)
 

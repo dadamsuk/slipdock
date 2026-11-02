@@ -60,6 +60,11 @@ defmodule Slipdock.Boards.Card do
     # Set only through `Slipdock.Verified`'s checks in `Boards.update_card/3`.
     field :bar, :string
     field :bar_locked_at, :utc_datetime
+    # What an agent checked when it completed the card, and the commit it
+    # checked at (#1632). Cleared when the card is reopened on a board that
+    # asks for it; posted as a comment when it completes, so it is kept.
+    field :evidence, :string
+    field :evidence_commit, :string
 
     # Set by Slipdock.Rollup when the card is loaded through Slipdock.Boards:
     # progress, effective dates and health rolled up from its subcards.
@@ -384,6 +389,8 @@ defmodule Slipdock.Boards.Card do
       :border_bottom,
       :border_left,
       :bar,
+      :evidence,
+      :evidence_commit,
       :board_id,
       # Not `:column_id`: a card changes list only through `Boards.move_card/4`
       # and `move_card_to_board/3`, which record who moved it.
@@ -393,6 +400,12 @@ defmodule Slipdock.Boards.Card do
     |> validate_length(:title, min: 1, max: 200)
     |> update_change(:bar, &tidy_short_name/1)
     |> validate_length(:bar, max: @bar_length)
+    |> update_change(:evidence, &tidy_short_name/1)
+    |> validate_length(:evidence, max: @bar_length)
+    |> update_change(:evidence_commit, &tidy_short_name/1)
+    |> validate_format(:evidence_commit, ~r/\A[0-9a-fA-F]{4,64}\z/,
+      message: "must be a commit id (4 to 64 hex digits)"
+    )
     |> update_change(:short_name, &tidy_short_name/1)
     |> validate_length(:short_name, max: Slipdock.Boards.ShortNames.max_length())
     |> Slipdock.Boards.ShortNames.put()

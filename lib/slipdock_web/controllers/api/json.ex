@@ -119,6 +119,7 @@ defmodule SlipdockWeb.API.JSON do
       automation_wip: b.automation_wip,
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
+      evidence_required: b.evidence_required,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -207,6 +208,7 @@ defmodule SlipdockWeb.API.JSON do
       automation_wip: b.automation_wip,
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
+      evidence_required: b.evidence_required,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -467,7 +469,12 @@ defmodule SlipdockWeb.API.JSON do
   # Verified work (#1620): only the keys a card has something in, so a card
   # on a board with the switches off reads as it always has.
   defp put_verified(map, %Card{} = c) do
-    [bar: c.bar, bar_locked_at: c.bar_locked_at]
+    [
+      bar: c.bar,
+      bar_locked_at: c.bar_locked_at,
+      evidence: c.evidence,
+      evidence_commit: c.evidence_commit
+    ]
     |> Enum.reject(fn {_, v} -> is_nil(v) end)
     |> Enum.into(map)
   end

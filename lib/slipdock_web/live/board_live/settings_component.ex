@@ -778,6 +778,26 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   </span>
                 </span>
               </label>
+              <input type="hidden" name={@form[:evidence_required].name} value="false" />
+              <label class="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="board-evidence-required"
+                  name={@form[:evidence_required].name}
+                  value="true"
+                  checked={
+                    Phoenix.HTML.Form.normalize_value("checkbox", @form[:evidence_required].value)
+                  }
+                  class="checkbox checkbox-sm mt-0.5"
+                />
+                <span>
+                  <span class="font-medium">Evidence on completion</span>
+                  <span class="block text-xs text-base-content/50">
+                    An agent completing a card says what it checked, and the commit it checked
+                    at. The evidence is kept on the card and as a comment.
+                  </span>
+                </span>
+              </label>
             </div>
             <%!-- What a card's handoff is called on this board, and what the
                 AI is told when it drafts one (#1212). Blank is the default. --%>

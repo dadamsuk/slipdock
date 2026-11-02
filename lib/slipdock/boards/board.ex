@@ -91,6 +91,9 @@ defmodule Slipdock.Boards.Board do
     # an agent writes a card's bar before work starts, and it locks then
     # (see `Slipdock.Verified`).
     field :bar_required, :boolean, default: false
+    # `evidence_required` (#1632): an agent completing a card says what it
+    # checked (and at which commit).
+    field :evidence_required, :boolean, default: false
 
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most
@@ -491,6 +494,7 @@ defmodule Slipdock.Boards.Board do
       :handoff_label,
       :handoff_prompt,
       :bar_required,
+      :evidence_required,
       :kind,
       :default_view
     ])
