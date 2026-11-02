@@ -798,6 +798,25 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   </span>
                 </span>
               </label>
+              <input type="hidden" name={@form[:verify_work].name} value="false" />
+              <label class="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="board-verify-work"
+                  name={@form[:verify_work].name}
+                  value="true"
+                  checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:verify_work].value)}
+                  class="checkbox checkbox-sm mt-0.5"
+                />
+                <span>
+                  <span class="font-medium">A second agent verifies</span>
+                  <span class="block text-xs text-base-content/50">
+                    An agent completing a card submits it: it waits, flagged for review, until a
+                    different agent or a person accepts it (it is then done) or rejects it with
+                    the reason.
+                  </span>
+                </span>
+              </label>
             </div>
             <%!-- What a card's handoff is called on this board, and what the
                 AI is told when it drafts one (#1212). Blank is the default. --%>

@@ -811,7 +811,8 @@ defmodule Slipdock.Boards do
                "handoff_prompt" => parent.handoff_prompt,
                # Verified work's switches (#1620) hold for the subcards too.
                "bar_required" => parent.bar_required,
-               "evidence_required" => parent.evidence_required
+               "evidence_required" => parent.evidence_required,
+               "verify_work" => parent.verify_work
              },
              template: template,
              parent_card_id: card.id,
@@ -1913,21 +1914,28 @@ defmodule Slipdock.Boards do
 
   def update_card(%Card{} = card, attrs, opts) do
     # Verified work (#1620): what an agent may change on a board that checks.
-    case Slipdock.Verified.check_update(card, attrs, Slipdock.Actor.resolve(opts)) do
-      {:ok, attrs} ->
-        save_card(card, attrs, opts)
+    # A verifier's decision (`Slipdock.Verified.decide/5`) brings its own.
+    checked =
+      case opts[:verify_changes] do
+        nil -> Slipdock.Verified.check_update(card, attrs, Slipdock.Actor.resolve(opts))
+        changes -> {:ok, attrs, changes}
+      end
+
+    case checked do
+      {:ok, attrs, changes} ->
+        save_card(card, attrs, changes, opts)
 
       {:error, field, message} ->
         {:error, card |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(field, message)}
     end
   end
 
-  defp save_card(%Card{} = card, attrs, opts) do
+  defp save_card(%Card{} = card, attrs, verify_changes, opts) do
     {assignees, attrs} = assignee_change(card, attrs)
     attrs = Slipdock.TimeTracking.normalize_attrs(card, attrs)
     # Who was on it, read only when this write changes that.
     before = if assignees, do: assignee_ids(card), else: []
-    changeset = Card.changeset(card, attrs)
+    changeset = card |> Card.changeset(attrs) |> Ecto.Changeset.change(verify_changes)
     titled? = Map.has_key?(changeset.changes, :title)
     named? = titled? or Map.has_key?(changeset.changes, :short_name)
     save = fn -> save_with_assignees(changeset, &Repo.update/1, assignees) end

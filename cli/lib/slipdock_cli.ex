@@ -637,7 +637,12 @@ defmodule SlipdockCLI do
     done <id>...  |  undone <id>...     mark complete / incomplete
         [--evidence TEXT] [--evidence-commit SHA]
                                         what you checked, and the commit, when completing; a
-                                        board with --evidence-required asks agents for it
+                                        board with --evidence-required asks agents for it. On
+                                        a board with --verify-work an agent's done submits it
+    verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]
+                                        decide a card waiting for verification: accept
+                                        completes it, reject needs the reason; not a card
+                                        you submitted (--evidence-commit: what you checked at)
     flag <id> <flag>... [--off]         add (or remove) flags
     tag <id> <tag>... [--off]           add (or remove) tags
     check <id> <text>                   add a checklist item
@@ -690,7 +695,7 @@ defmodule SlipdockCLI do
         [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
         [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
         [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
-        [--evidence-required | --no-evidence-required]
+        [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -723,7 +728,9 @@ defmodule SlipdockCLI do
                                         --bar-required: agents write each card's bar (what
                                         done means) before work starts, and it locks then;
                                         --evidence-required: agents say what they checked
-                                        (done --evidence, --evidence-commit) to complete one
+                                        (done --evidence, --evidence-commit) to complete one;
+                                        --verify-work: an agent's completion waits for a
+                                        different agent or a person to accept it (verify)
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -983,6 +990,7 @@ defmodule SlipdockCLI do
     bar_required: :boolean,
     bar: :string,
     evidence_required: :boolean,
+    verify_work: :boolean,
     evidence: :string,
     evidence_commit: :string,
     default_view: :string,

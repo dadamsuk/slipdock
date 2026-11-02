@@ -50,7 +50,10 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          :ok <- comment(card, note, context.user),
-         done = done_list(card),
+         # On a board that verifies work (#1633) the card is submitted, and
+         # stays where it is until it is accepted.
+         verifies? = Boards.get_board!(card.board_id).verify_work,
+         done = if(verifies?, do: nil, else: done_list(card)),
          params =
            %{"completed" => true, "evidence" => evidence, "evidence_commit" => commit}
            |> Map.reject(fn {_, v} -> is_nil(v) end)
@@ -59,12 +62,17 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
       {:ok,
        card
        |> Tools.card_written(context.base_url)
-       |> Map.put(
-         :note,
-         if(done, do: nil, else: "this board has no done list, so the card stayed where it was")
-       )}
+       |> Map.put(:note, note(card, done))}
     end
   end
+
+  defp note(%{verify_state: "pending"}, _done),
+    do:
+      "submitted for verification: a different agent or a person accepts it (verify_card) " <>
+        "before it is done"
+
+  defp note(_card, nil), do: "this board has no done list, so the card stayed where it was"
+  defp note(_card, _done), do: nil
 
   defp comment(_card, nil, _user), do: :ok
 

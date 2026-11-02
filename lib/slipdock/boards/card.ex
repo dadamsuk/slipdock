@@ -65,6 +65,17 @@ defmodule Slipdock.Boards.Card do
     # asks for it; posted as a comment when it completes, so it is kept.
     field :evidence, :string
     field :evidence_commit, :string
+    # Where an agent's completion stands on a board that verifies work
+    # (#1633): nil, "pending", "accepted" or "rejected"; the reason given
+    # (a rejection's is required), the commit the verifier checked at, who
+    # submitted it and who decided (`Slipdock.Actor` maps), and when.
+    # Never cast: only `Slipdock.Verified` sets them.
+    field :verify_state, :string
+    field :verify_note, :string
+    field :verify_commit, :string
+    field :verify_submitter, :map
+    field :verify_by, :map
+    field :verify_at, :utc_datetime
 
     # Set by Slipdock.Rollup when the card is loaded through Slipdock.Boards:
     # progress, effective dates and health rolled up from its subcards.

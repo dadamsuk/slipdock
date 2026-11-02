@@ -513,6 +513,18 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   @doc """
+  Decides a card waiting for verification (#1633): `decision` accept or
+  reject, `reason` (required to reject) and `commit`. Needs write on the
+  card, and someone other than whoever submitted it.
+  """
+  def verify(conn, %{"id" => id} = params) do
+    with {:ok, card} <- fetch_card(id),
+         {:ok, card} <- CardWrites.verify(conn, card, params) do
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
+    end
+  end
+
+  @doc """
   Opens a wait on the card (#1114): `needs` or `questions` (a numbered
   series, #1220), `on` (a person, or
   nothing for anyone), `choices` and `job_id`. Needs write on the card.

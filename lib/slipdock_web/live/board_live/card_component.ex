@@ -41,7 +41,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     edit_handoff cancel_handoff leave_handoff clear_handoff delete_handoff restore_handoff draft_handoff
     edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat
     answer_wait withdraw_wait skip_wait wait_change suggest_answer
-    ask_questions ask_change ask_add ask_remove ask_save ask_cancel)
+    ask_questions ask_change ask_add ask_remove ask_save ask_cancel verify_work)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
@@ -659,6 +659,29 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   defp event("skip_wait", _, socket),
     do: socket.assigns.card |> Boards.answer_wait(me(socket), %{"skip" => true}) |> waited(socket)
+
+  # Accepting or rejecting an agent's completion (#1633), as a person.
+  defp event("verify_work", %{"decision" => decision} = params, socket) do
+    user = socket.assigns.current_user
+
+    with {:ok, card} <- writable(socket),
+         {:ok, _} <-
+           Slipdock.Verified.decide(
+             card,
+             decision,
+             Map.take(params, ["reason"]),
+             Slipdock.Actor.web(user),
+             user
+           ) do
+      {:noreply, assign(socket, card: fresh(socket, card.id))}
+    else
+      {:error, _status, message} ->
+        {:noreply, flash(socket, :error, String.capitalize(message) <> ".")}
+
+      _ ->
+        {:noreply, flash(socket, :error, "You have read-only access to that card.")}
+    end
+  end
 
   defp event("withdraw_wait", _, socket),
     do: socket.assigns.card |> Boards.withdraw_wait(me(socket)) |> waited(socket)
@@ -1552,6 +1575,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               />
 
               <.evidence_section :if={@card.evidence} card={@card} />
+
+              <.verify_section
+                :if={@card.verify_state}
+                card={@card}
+                can_write={@can_write}
+                target={@target}
+              />
 
               <.attachments_section
                 at={@at}

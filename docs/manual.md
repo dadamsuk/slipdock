@@ -26,8 +26,8 @@ way in: what it is, the pictures, and how to get it running.
   step, the state, the gotchas — read first by whoever picks it up next. See
   [Where it was left](#where-it-was-left-handoffs)
 - Verified work: optional per-board checks on what an agent says it
-  finished — a bar written before work starts that then locks, and evidence
-  when it completes — see
+  finished — a bar written before work starts that then locks, evidence
+  when it completes, and a second agent accepting or rejecting it — see
   [Verified work](#verified-work)
 - Recurring cards: a series on the card that copies the current instance when
   the next is due, in your timezone, without stacking up missed ones —
@@ -215,7 +215,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 54 tools (five of them only
+  other MCP clients get the boards and the wiki as 55 tools (five of them only
   while meeting mode or chat capture is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -595,6 +595,30 @@ MCP `complete_card`'s `evidence` and `commit`, or `PATCH /api/cards/:id
   `slipdock card`, and is posted as a comment when the card completes.
 - Reopening the card clears it, so the next completion brings its own; the
   comment stays.
+
+### A second agent verifies
+
+**A second agent verifies** (`slipdock set-board B --verify-work`,
+`PATCH /api/boards/:board {"verify_work": true}`) makes an agent's
+completion a **submission**. The card stays open in its list, flagged
+*needs review*, with `verify_state: "pending"`, and it isn't done until
+someone else decides. The card shows **Awaiting verification**, who
+submitted it, and **Accept** and **Reject** for anyone who can edit it.
+
+- **Accept** (`slipdock verify 12 accept`, MCP `verify_card`,
+  `POST /api/cards/:id/verify {"decision": "accept"}`) completes the card
+  and moves it to the done list. An optional reason is kept as a note, and
+  `--evidence-commit` / `commit` records the commit it was checked at. When
+  the card has evidence for a commit, a different commit is refused.
+- **Reject** (`slipdock verify 12 reject --reason "…"`) needs the reason.
+  The reason is kept on the card, posted as a comment and left as the
+  card's handoff (*Rejected: …*), so whoever picks it up next starts there.
+  The evidence is cleared and the card stays in progress, so completing it
+  again submits it again.
+- **Whoever submitted it can't decide it** (`403`). A different agent means
+  a different token, or a different runner job on the same token. A person
+  is always different, and a person completing a pending card accepts it.
+- An agent moving a card into the done list itself is refused.
 
 ## Waiting on a person (waits)
 
@@ -6087,7 +6111,8 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `garden_decide` | Applies, dismisses or undoes one gardener suggestion (`decision`: `apply`, `dismiss` or `undo`), as `POST /api/garden/suggestions/:id/…` do. Only for what the person approved, so it needs `confirm: true`. `keep` names the card that stays for a duplicate; `choice` takes one of its alternatives. |
 | `upload_file` | Attaches a file to a `card`, or to a `page` (a code, or a slug with `board`): `filename`, and the bytes as `content_base64` or a text file's contents as `text`; `content_type` (else the name decides), `hide_on_card` and `sha256` are optional. `sha256` is the hex SHA-256 of the file's bytes before base64: given, bytes that arrive different (one flipped bit leaves the size as it was) are refused with `sha256_mismatch`, saying what arrived, and nothing is stored. Up to 10 MB — the CLI's `slipdock attach` and the API take bigger files. Answers with the attachment, its `sha256` the hash of the bytes as stored (compare it with the source's to verify in one call), and the `markdown` that embeds or links it, as `POST /api/cards/:id/attachments` does, and counts towards the owner's limits the same way. **In chunks** (#1016), for anything over a few KB, since base64 written out by a model is damaged more often the longer it is: the first chunk with `append: true` (plus `card` or `page`, `filename`) and that chunk's own `sha256` answers with an `upload_id` and `received`; each next chunk sends `upload_id`, `append: true`, `offset` (the last `received`) and its own `sha256`. A chunk that doesn't match is refused with `sha256_mismatch` and the rest is kept, so only it is resent; a resend of a chunk that already landed at that `offset` isn't added twice, and a wrong `offset` is `offset_mismatch`. Then `upload_id`, `finish: true` and the whole file's `sha256` (no content) checks the assembled file and attaches it, with the same access and limit checks as a single call; until then nothing is on the card. A whole file that differs discards the upload. Unfinished uploads expire after a day, and one person may have 10 open. `replace: true` (on a single call, or on the first chunk or `finish`) deletes the card's or page's older files of the same `filename` once the new one is stored, so a rebuild leaves one current copy; their ids come back as `replaced`. The old files go only after the new one is in, so a refused upload keeps them. **`link: true`** (#1147), with only `card` or `page` (and `board`), sends no file: it answers with an `upload_url` that works once, for 10 minutes, with no token. `curl -F file=@cv.docx -F sha256=<hex> <upload_url>` then takes what `POST /api/cards/:id/attachments` takes (`file`, `sha256`, `filename`, `replace`, `hide_on_card`), up to its limit, and answers as it does. It acts as the token that asked for it: that token needs write scope, its access is checked again when the link is used, and deleting the token kills its links. A refused upload (a `sha256_mismatch`, no `file`) stores nothing and leaves the link good to try again; a used, expired or unknown link is `410 link_gone`. For a scheduled task or a shared skill that has a connector but nowhere to keep an API token. |
 | `delete_attachment` | Deletes a file from a card or a page by its `attachment` id (`upload_file`, `get_card` and `read_page` give it), as `DELETE /api/cards/:id/attachments/:attachment_id` does. Needs `confirm: true`. Checked as editing the card or page is; a file the token can't read is not found. |
-| `complete_card` | Marks a card completed and moves it to the done list, with an optional closing comment. |
+| `complete_card` | Marks a card completed and moves it to the done list, with an optional closing comment, and `evidence` / `commit` (what was checked, at which commit; a board may require it). On a board that verifies work it submits the card instead (see [Verified work](#verified-work)). |
+| `verify_card` | Accepts or rejects a card waiting for verification, as `POST /api/cards/:id/verify` does: `decision` (`accept` or `reject`), `reason` (required to reject) and `commit`. Not on a card you submitted. |
 | `status_update` | Posts a status update on a card, as `POST /api/cards/:id/status` does: its `health` (`on_track`, `at_risk`, `off_track`) and an optional `body`. The latest is the card's stated health. |
 | `archive_card` | Puts a card away, or with `restore: true` brings it back. |
 | `delete_card` | Deletes a card with its subcards, comments and files. Needs `confirm: true`. |

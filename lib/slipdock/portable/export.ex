@@ -257,6 +257,7 @@ defmodule Slipdock.Portable.Export do
       handoff_prompt: board.handoff_prompt,
       bar_required: board.bar_required,
       evidence_required: board.evidence_required,
+      verify_work: board.verify_work,
       kind: board.kind,
       archived: board.archived_at != nil,
       # A sub-board hangs off a card; a root board hangs off nothing.

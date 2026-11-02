@@ -120,6 +120,7 @@ defmodule SlipdockWeb.API.JSON do
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
       evidence_required: b.evidence_required,
+      verify_work: b.verify_work,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -209,6 +210,7 @@ defmodule SlipdockWeb.API.JSON do
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
       evidence_required: b.evidence_required,
+      verify_work: b.verify_work,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -473,7 +475,14 @@ defmodule SlipdockWeb.API.JSON do
       bar: c.bar,
       bar_locked_at: c.bar_locked_at,
       evidence: c.evidence,
-      evidence_commit: c.evidence_commit
+      evidence_commit: c.evidence_commit,
+      # Where an agent's completion stands, on a board that verifies (#1633).
+      verify_state: c.verify_state,
+      verify_note: c.verify_note,
+      verify_commit: c.verify_commit,
+      verify_submitter: c.verify_submitter,
+      verify_by: c.verify_by,
+      verify_at: c.verify_at
     ]
     |> Enum.reject(fn {_, v} -> is_nil(v) end)
     |> Enum.into(map)

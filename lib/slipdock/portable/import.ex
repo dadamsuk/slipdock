@@ -466,6 +466,7 @@ defmodule Slipdock.Portable.Import do
           handoff_prompt: text_upto(doc[:handoff_prompt], Board.handoff_limits().prompt),
           bar_required: bool(doc[:bar_required], false),
           evidence_required: bool(doc[:evidence_required], false),
+          verify_work: bool(doc[:verify_work], false),
           kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
         },
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")

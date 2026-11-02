@@ -38,6 +38,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.UploadFile,
     Tools.DeleteAttachment,
     Tools.CompleteCard,
+    Tools.VerifyCard,
     Tools.StatusUpdate,
     Tools.ArchiveCard,
     Tools.DeleteCard,

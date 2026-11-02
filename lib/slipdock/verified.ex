@@ -14,6 +14,12 @@ defmodule Slipdock.Verified do
       it checked at (`evidence_commit`), in the same write or beforehand. The
       evidence is posted as a comment when the card completes, and cleared
       when it is reopened, so the next completion carries its own.
+    * **Verification** (`Board.verify_work`, #1633): an agent completing a
+      card submits it instead. It stays open, `verify_state: "pending"`,
+      flagged `review`, until a different actor decides (`decide/5`):
+      accepting completes it and moves it to the done list; rejecting needs
+      a reason, which is kept, commented and left as the handoff's next
+      step. A person completing a pending card accepts it.
 
   The checks apply to agents (`Slipdock.Actor` kind `"agent"`), not to the
   in-app assistant, which acts on a person's say in the web app, nor to
@@ -29,7 +35,7 @@ defmodule Slipdock.Verified do
 
   @doc "Whether `board` has any of the switches on, and which."
   def switches(%Board{} = board) do
-    [bar: board.bar_required, evidence: board.evidence_required]
+    [bar: board.bar_required, evidence: board.evidence_required, verify: board.verify_work]
     |> Enum.filter(fn {_, on} -> on == true end)
     |> Keyword.keys()
   end
@@ -37,15 +43,20 @@ defmodule Slipdock.Verified do
   ## The bar ------------------------------------------------------------------
 
   @doc """
-  `{:ok, attrs}` — `attrs` as they are to be saved — or
-  `{:error, field, message}` when `actor` may not make the change they
+  `{:ok, attrs, changes}` — `attrs` as they are to be cast, and `changes` to
+  put on the card besides (the verification fields, which are never cast) —
+  or `{:error, field, message}` when `actor` may not make the change they
   describe to `card`: an agent changing a locked bar, or completing a card
   with no evidence on a board that asks for it.
+
+  On a board that verifies work, an agent's completion becomes a
+  submission, and a person's completion of a pending card an acceptance.
   """
   def check_update(%Card{} = card, attrs, actor) do
     with :ok <- check_bar_edit(card, attrs, actor),
          :ok <- check_evidence(card, attrs, actor) do
-      {:ok, clear_evidence(card, attrs)}
+      {attrs, changes} = card |> clear_evidence(attrs) |> verification(card, actor)
+      {:ok, attrs, changes}
     end
   end
 
@@ -84,6 +95,11 @@ defmodule Slipdock.Verified do
 
       message = check_done_move(card, to, actor) ->
         {:error, message}
+
+      Column.done?(to) and not card.completed and gated?(actor) and board(card).verify_work ->
+        {:error,
+         "this board verifies work: submit card ##{card.id} by completing it (complete_card, " <>
+           "`slipdock done`), and a different agent or a person accepts it into the done list"}
 
       true ->
         :ok
@@ -145,11 +161,16 @@ defmodule Slipdock.Verified do
   def check_done_move(_card, _to, _actor), do: nil
 
   @doc """
-  After `before` has been saved as `updated`: a card completed with evidence
-  on a board that asks for it gets the evidence as a comment, by `user`.
+  After `before` has been saved as `updated`: a card completed (or submitted
+  for verification) with evidence on a board that asks for it gets the
+  evidence as a comment, by `user` — once: not again when it is accepted.
   """
-  def saved(%Card{completed: false}, %Card{completed: true} = updated, user) do
-    if not blank?(updated.evidence) and board(updated).evidence_required do
+  def saved(%Card{} = before, %Card{} = updated, user) do
+    finished? =
+      (not before.completed and updated.completed and before.verify_state != "pending") or
+        (before.verify_state != "pending" and updated.verify_state == "pending")
+
+    if finished? and not blank?(updated.evidence) and board(updated).evidence_required do
       commit =
         if updated.evidence_commit, do: "\n\nCommit: `#{updated.evidence_commit}`", else: ""
 
@@ -160,8 +181,6 @@ defmodule Slipdock.Verified do
 
     :ok
   end
-
-  def saved(_before, _updated, _user), do: :ok
 
   defp completes?(%Card{completed: false}, attrs), do: fetch(attrs, :completed) in [true, "true"]
   defp completes?(_card, _attrs), do: false
@@ -175,6 +194,204 @@ defmodule Slipdock.Verified do
   end
 
   defp stringify(attrs), do: Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+  ## Verification -------------------------------------------------------------
+
+  # What a completion means on a board that verifies work.
+  defp verification(attrs, %Card{} = card, actor) do
+    cond do
+      not completes?(card, attrs) ->
+        {attrs, []}
+
+      gated?(actor) and board(card).verify_work ->
+        # Submitted: open, pending, flagged for review.
+        attrs =
+          attrs
+          |> stringify()
+          |> Map.delete("completed")
+          |> Map.put("flags", Enum.uniq(given(attrs, :flags, card.flags) ++ ["review"]))
+
+        {attrs,
+         verify_state: "pending",
+         verify_submitter: actor_map(actor),
+         verify_by: nil,
+         verify_note: nil,
+         verify_commit: nil,
+         verify_at: now()}
+
+      card.verify_state == "pending" and not gated?(actor) ->
+        # A person (or a rule) completing a pending card accepts it.
+        {attrs |> stringify() |> Map.put("flags", given(attrs, :flags, card.flags) -- ["review"]),
+         verify_state: "accepted", verify_by: actor_map(actor), verify_at: now()}
+
+      true ->
+        {attrs, []}
+    end
+  end
+
+  @doc """
+  Decides a pending card: `decision` is `"accept"` or `"reject"`, `params`
+  carry `"reason"` (required to reject) and `"commit"` (the commit the
+  verifier checked at; it must be the evidence's, when both are given).
+  `actor` decides, and must not be who submitted it; `user` is who it is
+  recorded as.
+
+  Accepting completes the card and moves it to the board's done list.
+  Rejecting leaves it where it is, with the reason as a comment and as the
+  handoff's next step, and its evidence cleared for the next attempt.
+
+  `{:ok, card}`, or `{:error, status, message}` in the API's shapes.
+  """
+  def decide(%Card{} = card, decision, params, actor, user) do
+    reason = params |> Map.get("reason") |> trim()
+    commit = params |> Map.get("commit") |> trim()
+
+    cond do
+      decision not in ~w(accept reject) ->
+        {:error, :unprocessable_entity, "decision must be accept or reject"}
+
+      card.verify_state != "pending" ->
+        {:error, :conflict, "card ##{card.id} isn't waiting for verification"}
+
+      same_actor?(card.verify_submitter, actor) ->
+        {:error, :forbidden,
+         "you submitted card ##{card.id}: a different agent, or a person, verifies it"}
+
+      decision == "reject" and reason == "" ->
+        {:error, :unprocessable_entity, "a rejection needs its reason"}
+
+      commit != "" and card.evidence_commit not in [nil, ""] and
+          not commit_matches?(commit, card.evidence_commit) ->
+        {:error, :unprocessable_entity,
+         "the evidence is for commit #{card.evidence_commit}: verify the work at that commit"}
+
+      true ->
+        apply_decision(card, decision, %{reason: reason, commit: commit}, actor, user)
+    end
+  end
+
+  defp apply_decision(card, "accept", %{reason: note, commit: commit}, actor, user) do
+    changes = [
+      verify_state: "accepted",
+      verify_by: actor_map(actor),
+      verify_note: blank_to_nil(note),
+      verify_commit: blank_to_nil(commit),
+      verify_at: now()
+    ]
+
+    with {:ok, card} <-
+           Slipdock.Boards.update_card(
+             card,
+             %{"completed" => true, "flags" => card.flags -- ["review"]},
+             actor: actor,
+             by: user,
+             verify_changes: changes
+           ) do
+      comment(card, "**Accepted** by #{who(actor, user)}.", note, user)
+      done = card |> board() |> Repo.preload(:columns) |> Map.get(:columns) |> done_list()
+
+      if done && done.id != card.column_id,
+        do: Slipdock.Boards.move_card(card.id, done.id, nil, actor: actor)
+
+      {:ok, Repo.get!(Card, card.id)}
+    end
+    |> api_error()
+  end
+
+  defp apply_decision(card, "reject", %{reason: reason, commit: commit}, actor, user) do
+    changes = [
+      verify_state: "rejected",
+      verify_by: actor_map(actor),
+      verify_note: reason,
+      verify_commit: blank_to_nil(commit),
+      verify_at: now()
+    ]
+
+    with {:ok, card} <-
+           Slipdock.Boards.update_card(
+             card,
+             %{"flags" => card.flags -- ["review"], "evidence" => nil, "evidence_commit" => nil},
+             actor: actor,
+             by: user,
+             verify_changes: changes
+           ) do
+      comment(card, "**Rejected** by #{who(actor, user)}.", reason, user)
+
+      Slipdock.Boards.leave_handoff(card, user, %{
+        next_step: String.slice("Rejected: " <> one_line(reason), 0, 280),
+        body: reason,
+        via: handoff_via(actor)
+      })
+
+      {:ok, Repo.get!(Card, card.id)}
+    end
+    |> api_error()
+  end
+
+  defp api_error({:error, %Ecto.Changeset{} = cs}), do: {:error, cs}
+  defp api_error(other), do: other
+
+  defp comment(card, line, note, user) do
+    body = if note in [nil, ""], do: line, else: "#{line}\n\n#{note}"
+    Slipdock.Boards.add_comment(card, body, by: user)
+  end
+
+  defp done_list(columns) do
+    columns |> Enum.sort_by(& &1.position) |> Enum.find(&Column.done?/1)
+  end
+
+  @doc """
+  Whether two actors (`Slipdock.Actor` maps, as stored or as built) are the
+  same one: the same kind, person, token label and runner job. Two runner
+  jobs, two tokens, or a person and an agent are different.
+  """
+  def same_actor?(nil, _actor), do: false
+
+  def same_actor?(a, b) do
+    a = actor_map(a)
+    b = actor_map(b)
+    Map.take(a, ~w(kind user_id agent job_id)) == Map.take(b, ~w(kind user_id agent job_id))
+  end
+
+  defp actor_map(nil), do: nil
+
+  defp actor_map(actor) do
+    Map.new(~w(kind via user_id agent job_id), fn key ->
+      {key, Map.get(actor, key, Map.get(actor, String.to_existing_atom(key)))}
+    end)
+  end
+
+  defp who(actor, user) do
+    a = actor_map(actor)
+
+    cond do
+      a["kind"] == "agent" and a["agent"] -> "agent “#{a["agent"]}”"
+      a["kind"] == "agent" -> "an agent"
+      user -> Slipdock.Accounts.User.display_name(user)
+      true -> "somebody"
+    end
+  end
+
+  defp handoff_via(actor) do
+    case actor_map(actor)["via"] do
+      "web" -> "ui"
+      via when via in ~w(api mcp cli runner) -> via
+      _ -> "api"
+    end
+  end
+
+  defp commit_matches?(a, b) do
+    a = String.downcase(a)
+    b = String.downcase(b)
+    String.starts_with?(a, b) or String.starts_with?(b, a)
+  end
+
+  defp one_line(text), do: text |> String.split(~r/\R/, parts: 2) |> hd()
+
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(text), do: text
+
+  defp now, do: DateTime.utc_now(:second)
 
   ## Helpers ------------------------------------------------------------------
 

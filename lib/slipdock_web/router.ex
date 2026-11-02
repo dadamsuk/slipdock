@@ -855,6 +855,7 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/handoff", CardController, :leave_handoff
     delete "/cards/:id/handoff", CardController, :delete_handoff
     post "/cards/:id/wait", CardController, :open_wait
+    post "/cards/:id/verify", CardController, :verify
     delete "/cards/:id/wait", CardController, :withdraw_wait
     post "/cards/:id/wait/answer", CardController, :answer_wait
     get "/cards/:id/waits", CardController, :waits

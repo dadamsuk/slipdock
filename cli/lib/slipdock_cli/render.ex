@@ -956,6 +956,12 @@ defmodule SlipdockCLI.Render do
       IO.puts(indent(c["bar"]))
     end
 
+    if state = c["verify_state"] do
+      IO.puts("")
+      IO.puts(bold("Verification") <> "  " <> verify_line(state, c))
+      if note = c["verify_note"], do: IO.puts(indent(note))
+    end
+
     if c["evidence"] not in [nil, ""] do
       IO.puts("")
       IO.puts(bold("Evidence") <> dim(if s = c["evidence_commit"], do: "  at #{s}", else: ""))
@@ -2437,4 +2443,16 @@ defmodule SlipdockCLI.Render do
       people -> Enum.map_join(people, ", ", fun)
     end
   end
+
+  # Where an agent's completion stands (#1633), and who it is waiting on.
+  defp verify_line("pending", c),
+    do:
+      "pending — submitted by #{actor_name(c["verify_submitter"])}; another agent or a person decides"
+
+  defp verify_line(state, c), do: "#{state} by #{actor_name(c["verify_by"])}"
+
+  defp actor_name(%{"agent" => agent}) when is_binary(agent), do: "agent “#{agent}”"
+  defp actor_name(%{"kind" => "agent"}), do: "an agent"
+  defp actor_name(%{"kind" => "human"}), do: "a person"
+  defp actor_name(_), do: "somebody"
 end

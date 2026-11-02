@@ -181,6 +181,23 @@ defmodule SlipdockWeb.API.CardWrites do
   end
 
   @doc """
+  Decides a card waiting for verification (#1633), for the API and MCP:
+  `decision` (accept or reject), `reason` and `commit`. Needs write on the
+  card; `Slipdock.Verified.decide/5` says the rest.
+  """
+  def verify(auth, card, params) do
+    with :ok <- SlipdockWeb.API.Authorize.card(auth, card, :write) do
+      Slipdock.Verified.decide(
+        card,
+        params["decision"],
+        params,
+        Slipdock.Actor.from_conn(auth),
+        auth.assigns.current_user
+      )
+    end
+  end
+
+  @doc """
   Opens a wait on `card` from a request's params, as the API and MCP both
   take them (#1114): `needs`, `questions` (a numbered series, #1220:
   `needs` may then be left out), `on` (a person — id, email or "me" — or

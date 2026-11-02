@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe read-text attachment-text card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone verify flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe read-text attachment-text card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   defp card_ref?(ref), do: String.match?(ref, ~r/\A#?\d+\z/)
 
@@ -525,6 +525,23 @@ defmodule SlipdockCLI.Boards do
     each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", body), "completed")
   end
 
+  # A card waiting for verification (#1633): accept it, or reject it with
+  # the reason.
+  def run("verify", [id, decision], o) when decision in ~w(accept reject) do
+    if decision == "reject" and o[:reason] in [nil, ""],
+      do: fail("a rejection needs its reason: --reason TEXT")
+
+    body =
+      %{"decision" => decision, "reason" => o[:reason], "commit" => o[:evidence_commit]}
+      |> compact()
+
+    HTTP.post("/cards/#{enc(id)}/verify", body)
+    |> out(o, &card_ok(if(decision == "accept", do: "accepted", else: "rejected"), &1))
+  end
+
+  def run("verify", _, _),
+    do: fail("usage: slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]")
+
   def run("undone", ids, o) when ids != [],
     do: each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", %{"completed" => false}), "reopened")
 
@@ -1008,6 +1025,7 @@ defmodule SlipdockCLI.Boards do
         # Verified work (#1620): the bar before work starts.
         "bar_required" => o[:bar_required],
         "evidence_required" => o[:evidence_required],
+        "verify_work" => o[:verify_work],
         # Deploys and DORA metrics (#1134).
         "delivery_metrics" => o[:delivery_metrics],
         "incident_tag" => o[:incident_tag],
@@ -1033,7 +1051,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required or --[no-]evidence-required"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required or --[no-]verify-work"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

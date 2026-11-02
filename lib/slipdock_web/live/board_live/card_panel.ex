@@ -189,6 +189,74 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   end
 
   attr :card, Card, required: true
+  attr :can_write, :boolean, required: true
+  attr :target, :any, required: true
+
+  @doc """
+  Where an agent's completion stands on a board that verifies work (#1633):
+  pending, with Accept and a Reject that takes the reason; or accepted or
+  rejected, by whom, with the note.
+  """
+  def verify_section(assigns) do
+    ~H"""
+    <div id="card-verify" class="space-y-2 rounded-lg border border-base-300 px-3 py-2">
+      <p class="flex items-center gap-2 text-sm">
+        <.icon name={verify_icon(@card.verify_state)} class="size-4 shrink-0" />
+        <span class="font-medium">{verify_title(@card.verify_state)}</span>
+        <span class="text-base-content/60">{verify_who(@card)}</span>
+      </p>
+      <p :if={@card.verify_note} class="whitespace-pre-wrap text-sm">{@card.verify_note}</p>
+      <div :if={@card.verify_state == "pending" && @can_write} class="space-y-2">
+        <button
+          type="button"
+          id="verify-accept"
+          phx-click="verify_work"
+          phx-value-decision="accept"
+          phx-target={@target}
+          class="btn btn-success btn-sm"
+        >
+          Accept
+        </button>
+        <form
+          id="verify-reject"
+          phx-submit="verify_work"
+          phx-target={@target}
+          class="flex items-start gap-2"
+        >
+          <input type="hidden" name="decision" value="reject" />
+          <textarea
+            name="reason"
+            rows="1"
+            required
+            placeholder="What falls short of the bar"
+            class="textarea textarea-bordered textarea-sm min-w-0 flex-1"
+          ></textarea>
+          <button type="submit" class="btn btn-ghost btn-sm">Reject</button>
+        </form>
+      </div>
+    </div>
+    """
+  end
+
+  defp verify_icon("pending"), do: "hero-clock"
+  defp verify_icon("accepted"), do: "hero-check-badge"
+  defp verify_icon(_), do: "hero-x-circle"
+
+  defp verify_title("pending"), do: "Awaiting verification"
+  defp verify_title("accepted"), do: "Accepted"
+  defp verify_title(_), do: "Rejected"
+
+  defp verify_who(%Card{verify_state: "pending", verify_submitter: by}),
+    do: "submitted by #{actor_name(by)}"
+
+  defp verify_who(%Card{verify_by: by}), do: "by #{actor_name(by)}"
+
+  defp actor_name(%{"agent" => agent}) when is_binary(agent), do: "agent “#{agent}”"
+  defp actor_name(%{"kind" => "agent"}), do: "an agent"
+  defp actor_name(%{"kind" => "human"}), do: "a person"
+  defp actor_name(_), do: "somebody"
+
+  attr :card, Card, required: true
 
   @doc """
   What an agent checked when it completed the card, and at which commit

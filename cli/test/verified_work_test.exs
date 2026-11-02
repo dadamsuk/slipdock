@@ -1,7 +1,10 @@
 defmodule SlipdockCLI.VerifiedWorkTest do
   @moduledoc """
   Verified work (#1620) on the CLI: the board switches `set-board` sends,
-  `edit --bar`, and what `card` shows of a card's bar.
+  `edit --bar`, `done --evidence`, `verify`, and what `card` shows. The
+  usage refusals end in `System.halt/1`, so they are not run here; the
+  server's own (a rejection with no reason) are in
+  `SlipdockWeb.VerifiedVerifyWebTest`.
   """
   use ExUnit.Case, async: false
 
@@ -97,6 +100,54 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     assert out =~ "at abc1234"
     assert out =~ "3 passed"
     refute capture_io(fn -> Render.card(card(%{})) end) =~ "Evidence"
+  end
+
+  test "verify accept and reject post the decision; a reject needs --reason" do
+    serve([{200, @card}, {200, @card}])
+
+    capture_io(fn ->
+      Boards.run("verify", ["12", "accept"], parse(["--evidence-commit", "abc1234"]))
+    end)
+
+    assert_received {:request, "POST", "/api/cards/12/verify", body}
+    assert JSON.decode!(body) == %{"decision" => "accept", "commit" => "abc1234"}
+
+    out =
+      capture_io(fn -> Boards.run("verify", ["12", "reject"], parse(["--reason", "Fails"])) end)
+
+    assert out =~ "rejected"
+    assert_received {:request, "POST", "/api/cards/12/verify", body}
+    assert JSON.decode!(body) == %{"decision" => "reject", "reason" => "Fails"}
+  end
+
+  test "card shows where verification stands" do
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "verify_state" => "pending",
+            "verify_submitter" => %{"kind" => "agent", "agent" => "builder"}
+          })
+        )
+      end)
+
+    assert out =~ "Verification"
+    assert out =~ "pending — submitted by agent “builder”"
+
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "verify_state" => "rejected",
+            "verify_note" => "Fails on empty",
+            "verify_by" => %{"kind" => "human"}
+          })
+        )
+      end)
+
+    assert out =~ "rejected by a person"
+    assert out =~ "Fails on empty"
+    refute capture_io(fn -> Render.card(card(%{})) end) =~ "Verification"
   end
 
   defp card(extra) do

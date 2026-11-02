@@ -1516,7 +1516,7 @@ defmodule SlipdockWeb.APIGuide do
     defaults; the board's `GET` answers both). Agent-facing text keeps
     "Left off:".
     A board's *Verified work* switches (`bar_required`,
-    `evidence_required`) are set the same
+    `evidence_required`, `verify_work`) are set the same
     way; the *Verified work* section describes them when one of your boards
     has one on.
 
@@ -2154,6 +2154,10 @@ defmodule SlipdockWeb.APIGuide do
     `slipdock cancel-job`, `slipdock claim-job`, `slipdock job-progress`,
     `slipdock finish-job`, `slipdock pause` and `slipdock resume` are the
     same on a shell.
+
+    On a board that verifies work, `verify_card` (`slipdock verify`) is how a
+    second agent accepts or rejects a card another one submitted: see
+    *Verified work*, which appears when one of your boards has it on.
     """
   end
 
@@ -3389,6 +3393,7 @@ defmodule SlipdockWeb.APIGuide do
 
   defp verified_name(:bar), do: "a bar before work starts"
   defp verified_name(:evidence), do: "evidence on completion"
+  defp verified_name(:verify), do: "a second agent verifies"
 
   # Verified work (#1620): described only when one of the reader's boards
   # has a switch on, and then only the steps that are on somewhere.
@@ -3442,6 +3447,26 @@ defmodule SlipdockWeb.APIGuide do
     moving the card into a done list without it, is refused (`422`). The
     evidence is posted on the card as a comment; reopening the card clears
     it, so the next completion brings its own.
+    """
+  end
+
+  defp verified_step(:verify) do
+    """
+    **A second agent verifies.** Completing a card *submits* it: it stays
+    open in its list with `verify_state: "pending"` and the `review` flag,
+    and isn't done until someone else decides. Moving it into a done list
+    yourself is refused. Don't take a pending card as your next work unless
+    you are the verifier. To verify one you did not submit: read its bar and
+    evidence, check the work at the evidence's commit (run the tests), then
+    `verify_card` (`slipdock verify ID accept|reject --reason TEXT
+    --evidence-commit SHA`, `POST /api/cards/:id/verify {"decision":
+    "accept"|"reject", "reason": "…", "commit": "…"}`). Accepting completes
+    it and moves it to the done list. Rejecting needs the reason: it goes
+    on the card as a comment and as its handoff's next step, the evidence
+    is cleared, and the card stays in progress, so whoever takes it next
+    fixes what the reason says and completes it again. The submitter can't
+    decide its own card (`403`): a different agent is a different token,
+    or a different runner job.
     """
   end
 

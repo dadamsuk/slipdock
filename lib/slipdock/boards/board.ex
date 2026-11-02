@@ -94,6 +94,9 @@ defmodule Slipdock.Boards.Board do
     # `evidence_required` (#1632): an agent completing a card says what it
     # checked (and at which commit).
     field :evidence_required, :boolean, default: false
+    # `verify_work` (#1633): an agent's completion waits, pending, for a
+    # different agent or a person to accept or reject it.
+    field :verify_work, :boolean, default: false
 
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most
@@ -495,6 +498,7 @@ defmodule Slipdock.Boards.Board do
       :handoff_prompt,
       :bar_required,
       :evidence_required,
+      :verify_work,
       :kind,
       :default_view
     ])
