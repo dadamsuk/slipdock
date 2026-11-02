@@ -562,6 +562,7 @@ slipdock folder open <board> [<folder>]       # one level of it, with counts (bi
 slipdock folder new <board> "Design/Decisions"    # a path makes every level
 slipdock folder mv <board> <folder> [--name N] [--parent F | --root] [--icon I | --no-icon] [--color C | --no-color]
 slipdock folder mv <board> <folder> --board B [--parent F] [--contents] [--dry-run]   # to another board, pages and all
+slipdock folder organise <board> <folder> --by date|ai|tag|flatten [--parent F | --root] [--per month|year|year_month|day] [--added] [--dry-run]   # sort what is in it; makes missing folders
 slipdock folder rm <board> <folder>           # the folder only: nothing filed in it is deleted
 slipdock page file <page> --folder F | --no-folder
 slipdock page file <page> --also F | --not-in F [--board B]   # also filed in more folders

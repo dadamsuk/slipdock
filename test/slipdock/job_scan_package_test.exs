@@ -77,4 +77,9 @@ defmodule Slipdock.JobScanPackageTest do
     assert setup =~ "`install_tool` with `tool: \"job-scan\"`"
     refute setup =~ "Use `create_board`"
   end
+
+  test "no file in the package still speaks of vaults, which the one wiki replaced" do
+    stale = for {path, content} <- entries(), content =~ ~r/\bvaults?\b/i, do: path
+    assert stale == []
+  end
 end

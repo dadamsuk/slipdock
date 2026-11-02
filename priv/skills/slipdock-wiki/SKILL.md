@@ -145,6 +145,7 @@ slipdock page ls <board> --no-folder               # what is filed nowhere
 slipdock folder mv <board> Decisions --name Choices --parent Design
 slipdock folder mv <board> Decisions --icon light-bulb --color amber   # what it wears in the wiki; --no-icon, --no-color
 slipdock folder mv kb Projects --board projects --dry-run    # to another board: subfolders, pages (codes kept), files
+slipdock folder organise <board> Inbox --by date --parent Meetings --dry-run   # Inbox's notes into Meetings/2026-10…; --by ai|tag|flatten
 slipdock folder rm <board> Choices                 # the folder only
 ```
 

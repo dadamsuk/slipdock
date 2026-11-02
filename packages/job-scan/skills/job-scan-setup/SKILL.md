@@ -270,9 +270,9 @@ pages needs changing.
 - **Do not supply rules.** Not a comp floor, not an excluded sector, not a scoring
   weight. An invented value that looks deliberate is worse than a blank, because the
   person will never think to check it.
-- **Do not create a vault.** Pages belong to the board. A vault only maps them onto a
-  folder someone syncs, and adding one makes the setup depend on software on a
-  particular machine, which is the thing this design exists to avoid.
+- **Do not set up a sync.** Pages belong to the board. `slipdock sync` only mirrors
+  them to a folder on one machine, and relying on it makes the setup depend on
+  software on that machine, which is the thing this design exists to avoid.
 - **Do not touch other boards**, even when a search turns one up that looks related.
 - **Do not create the person's first role cards by hand** to make the board look
   populated. Let the scan do it, so every card has the same provenance.

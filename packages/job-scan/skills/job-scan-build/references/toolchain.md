@@ -70,8 +70,9 @@ Where the document rules name a helper file, fetch it rather than reimplementing
 saves the file locally rather than returning its bytes through the conversation, so it
 is cheap.
 
-**A vault file is not an attachment.** A file the rules describe as synced into a vault
-may carry a file id that `download_file` will not accept. If the helper cannot be
+**A wiki file is not an attachment.** A file the rules describe as kept in a wiki
+folder (one that `slipdock wiki files` lists, or that a local sync put there) may
+carry a file id that `download_file` will not accept. If the helper cannot be
 fetched, **stop and say so**. Do not write your own version of it: the layout it
 produces is part of a structure the person has declared immutable, and an
 approximation will pass the gates while looking wrong on the page.
