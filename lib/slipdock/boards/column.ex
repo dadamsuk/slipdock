@@ -31,6 +31,8 @@ defmodule Slipdock.Boards.Column do
     field :group_by, :string
     # Whether its cards show their time in the list (the age chip).
     field :show_age, :boolean, default: true
+    # Whether its cards show their image on the front (#1664).
+    field :show_images, :boolean, default: true
 
     belongs_to :board, Slipdock.Boards.Board
     has_many :cards, Slipdock.Boards.Card, preload_order: [asc: :position]
@@ -91,7 +93,8 @@ defmodule Slipdock.Boards.Column do
       :sort_by,
       :sort_dir,
       :group_by,
-      :show_age
+      :show_age,
+      :show_images
     ])
     |> validate_required([:name, :board_id])
     |> validate_length(:name, min: 1, max: 60)

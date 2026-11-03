@@ -1693,6 +1693,12 @@ for comfortable cards and off for compact ones, where it shows a small square
 in the row instead. A saved view made before thumbnails existed keeps the
 facets it was saved with, so tick Images there and save it to get them.
 
+A list can keep images off its own cards: untick *Show images on the front
+of this list's cards* in its settings (`slipdock set-column <board> <list>
+--no-show-images`, or `show_images: false` on the list over the API). It is
+on for a new list; off, that list's cards show no thumbnail whatever the
+Display menu says, and the other lists are unchanged.
+
 On the API, `hide_on_card` is on each attachment: `PATCH
 /api/cards/:id/attachments/:attachment_id {"hide_on_card": true}` sets it, and
 an upload can send it as a field. From the CLI, `slipdock card-front <id>

@@ -376,6 +376,7 @@ slipdock new-column <board> <name> [--wip N] [--color C] [--category C]
 slipdock set-column <board> <column> [--name N] [--wip N] [--color C] [--category C]   # category: todo|doing|done|dropped, "" clears
 slipdock set-column <board> <column> --sort due_date [--descending] --group flag   # how the web app draws the list; --sort position / --group none undo it
 slipdock set-column <board> <column> --no-show-age   # its cards leave off the "3d · 1d over usual" chip (--show-age: back on)
+slipdock set-column <board> <column> --no-show-images   # its cards leave their image thumbnail off the front (--show-images: back on)
 slipdock new-tag <board> <name> [--color C]
 slipdock new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]
 slipdock new-board <name> --list "Name[:wip[:color]]"... [--save-template NAME]   # its own lists; --save-template keeps them as a template too

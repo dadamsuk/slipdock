@@ -515,6 +515,7 @@ defmodule Slipdock.Portable.Import do
             position: list[:position] || index,
             wip_limit: list[:wip_limit],
             show_age: list[:show_age] != false,
+            show_images: list[:show_images] != false,
             color: list[:color],
             category: list[:category],
             horizon_from: date(list[:horizon_from]),

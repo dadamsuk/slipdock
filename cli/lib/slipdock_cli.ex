@@ -787,6 +787,8 @@ defmodule SlipdockCLI do
                                         flag|tag|start_date|due_date: how the app draws it
                                         set-column --no-show-age: its cards leave off how
                                         long they have been in it (--show-age: back on)
+                                        set-column --no-show-images: its cards leave
+                                        their image off the front (--show-images: on)
     new-tag <board> <name> [--color C]
     set <id> <key>=<value>...           set custom fields on a card ("" clears; choice by label or key)
     vote <id> <n>                       put n of your votes on a card or page (0 removes them)
@@ -1016,6 +1018,7 @@ defmodule SlipdockCLI do
     wiki_sort: :string,
     show_pulse: :boolean,
     show_age: :boolean,
+    show_images: :boolean,
     # `slipdock deploy` (#1134).
     env: :string,
     sha: :string,
