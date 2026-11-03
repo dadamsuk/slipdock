@@ -705,6 +705,20 @@ never sees a working tree.
 [Runners](#runners): each job in a git worktree of its own, on a branch
 named for its card.
 
+**The lane-check hook.** `slipdock hook install lane-check`, run in the
+repository, installs a git `pre-commit` hook (in the hooks folder every
+worktree of the repository shares; it won't replace a hook of your own).
+Before each commit it runs `slipdock lane-check`, which finds the card
+being worked — `--card ID`, else `$SLIPDOCK_CARD` (a runner job sets it),
+else a branch named `card-<id>` (the worktree runner's branches) — reads
+its paths, and refuses a commit that stages files outside them, listing
+the files; both sides of a rename count. A card with no paths, or no card,
+passes. It never blocks on the network: a board it can't reach, or one
+that doesn't answer in five seconds, gets a warning and the commit goes
+ahead, as it does if `slipdock` isn't on the hook's PATH. `git commit
+--no-verify` skips it for one commit; `slipdock hook uninstall lane-check`
+removes it.
+
 ## Waiting on a person (waits)
 
 A card that can't go on until somebody answers something — a decision, a

@@ -11,6 +11,7 @@ defmodule SlipdockCLI do
     Deploy,
     Garden,
     Inbound,
+    Lanes,
     Meetings,
     Runners,
     Skills,
@@ -825,6 +826,14 @@ defmodule SlipdockCLI do
     run-automation <board> <rule>                  run a timed rule now (forgets what it has done)
     delete-automation <board> <rule>
     dismiss <alert-id>... | dismiss --all           dismiss alerts (yours only; others keep theirs)
+    hook install lane-check | hook uninstall lane-check
+                                                   a git pre-commit hook, in this repository, that
+                                                   keeps a commit inside its card's --paths
+    lane-check [--card ID]                         what that hook runs: the card from --card,
+                                                   $SLIPDOCK_CARD or a card-<id> branch; files
+                                                   staged outside its paths refuse the commit;
+                                                   no card or no paths passes; a board it can't
+                                                   reach warns and passes
     deploy run [--env E] [--tag T] [--dir D] [--dry-run] -- <command…>
                                                    record a deploy around your deploy command (in
                                                    CI): asks the board for the environment's last
@@ -1284,7 +1293,8 @@ defmodule SlipdockCLI do
     Skills,
     Tools,
     Meetings,
-    Deploy
+    Deploy,
+    Lanes
   ]
 
   defp run(cmd, args, o) do
