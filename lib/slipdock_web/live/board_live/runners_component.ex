@@ -32,6 +32,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     {:ok,
      assign(socket,
        runners: [],
+       steps: %{},
        wizard: nil,
        wizard_error: nil,
        setup: nil,
@@ -65,13 +66,16 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   end
 
   defp assign_runners(%{assigns: %{can_manage: true, board: board}} = socket) do
+    runners = Runners.list_runners(board)
+
     socket
-    |> assign(runners: Runners.list_runners(board), pauses: Runners.pauses(board))
+    |> assign(runners: runners, steps: Runners.current_steps(runners))
+    |> assign(pauses: Runners.pauses(board))
     |> assign_details()
   end
 
   defp assign_runners(socket),
-    do: assign(socket, runners: [], shown: nil, details: nil, pauses: [])
+    do: assign(socket, runners: [], steps: %{}, shown: nil, details: nil, pauses: [])
 
   # The runner whose details are open, read again whenever the list is: a
   # revoked one closes them.
@@ -555,6 +559,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               <%= cond do %>
                 <% runner.current_job_id -> %>
                   job #{runner.current_job_id}
+                  <span
+                    :if={@steps[runner.id]}
+                    id={"runner-#{runner.id}-step"}
+                    class="inline-block max-w-48 truncate align-bottom"
+                    title={@steps[runner.id]}
+                  >
+                    · {@steps[runner.id]}
+                  </span>
                 <% runner.last_seen_at -> %>
                   seen {relative_time(runner.last_seen_at)}
                 <% true -> %>
@@ -813,6 +825,10 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             <.link navigate={~p"/boards/#{job.board_id}/cards/#{job.card_id}"} class="link">
               #{job.card_id} {job.card && job.card.title}
             </.link>
+            <span :if={job.step} id={"runner-step-#{@runner.id}"} class="block">
+              {job.step}
+              <span class="text-base-content/60">· {relative_time(job.step_at)}</span>
+            </span>
           <% else %>
             idle
           <% end %>

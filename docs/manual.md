@@ -659,7 +659,12 @@ B --verify-pool checkers`, `PATCH /api/boards/:board {"verify_pool":
 "checkers"}`; blank for none) sends each submitted card to that
 [runner](#runners) pool as a job of kind `verify`. Its prompt carries the
 card's link, its bar, the evidence and commit, and the two `slipdock verify`
-commands to decide with. The agent that runs it is in a different runner job
+commands to decide with. It also asks the agent to say where it is at each
+step with `slipdock job-progress --step "…"` (checked out the commit, tests
+running, tests passed or failed with counts, judging against the bar, the
+decision), and never with a note: the steps show against the job on the
+Runners panel, in `slipdock job` and `slipdock jobs`, and in the job's JSON,
+and the card gets no comment until the decision. The agent that runs it is in a different runner job
 from the one that did the work, so it counts as a second agent even on the
 same runner token.
 
@@ -3279,10 +3284,10 @@ own work rather than from a background loop, so it holds its job on a
 | `slipdock runner show <board> <runner>` | One runner in full: what kind it is, who made it and when, last seen, the API token a Claude session works through, the job it holds now, how many of its jobs ended each way, its latest jobs (`--limit N`, 10 by default) and the rules sending cards to its pool. On the Automations panel, clicking a runner's name shows the same. |
 | `slipdock runner rm <board> <runner>` | Revokes a runner. |
 | `slipdock jobs <board> [--status S]` / `slipdock jobs --card ID` | Jobs, newest first. `S` is `open` or a status. |
-| `slipdock job <id>` | One job: status, runner, prompt, log tail. |
+| `slipdock job <id>` | One job: status, runner, its latest step, prompt, log tail. |
 | `slipdock cancel-job <id>` | Stops a job. |
 | `slipdock claim-job <board> --pool P` | Takes the next job as this session. |
-| `slipdock job-progress <id> [--message NOTE]` | Renews the lease; the note is also a comment on the card (`--message -` reads it from stdin, line breaks and all). Prints `ok` or `cancel`. |
+| `slipdock job-progress [<id>] [--step S] [--message NOTE]` | Renews the lease. `--step` says what the job is doing now: kept on the job (its `step`, shown on the Runners panel and in `slipdock job`/`jobs`), never on the card. The note is also a comment on the card (`--message -` reads it from stdin, line breaks and all). Without an id, the runner job in `$SLIPDOCK_JOB_ID`: the agent a runner started may report on its own job. Prints `ok` or `cancel`. |
 | `slipdock finish-job <id> --status done\|failed\|cancelled\|timeout [--summary S]` | Ends a job this session claimed. |
 
 **The shell runner** (`slipdock-runner`) is a POSIX `sh` script that needs
@@ -6367,7 +6372,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `manage_automation` | Changes a board's [automation rules](#automations-and-alerts), by `action`, as the API does and for its owner only: `create` from a `spec` (exact, no model), a `preset` with its `params`, or `text` (a sentence the server's model turns into a spec, on the AI key), with optional `name` and `scope` (`board`, or `tree` for its sub-boards too); `update` a `rule` (id or name) with any of `name`, `scope`, `enabled` and `spec`, or `text` to have the model rewrite it; `delete` a `rule` with `confirm: true` — `enabled: false` turns it off without losing it. A spec that doesn't validate is refused with the reason. |
 | `install_tool` | Builds the board a [Tool](#tools) comes with, for the caller: the lists, folders, tags, page skeletons and rules from its `board.json`, and its board files in a `Tool` folder, by `tool` (its name), with optional `version` and `board_name`. Answers with the board's code and url and what was added. Installing again answers with the board already made, and makes nothing. `tool: "handbook"` with `board` puts the built-in handbook on that board's root instead. |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
-| `job_progress` | Renews a claimed job's lease; `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
+| `job_progress` | Renews a claimed job's lease; `step`, if given, is kept on the job as what it is doing now (not on the card); `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |
 | `capture_meeting` | Sends a meeting's transcript (WebVTT, SRT, `Name:` lines, a Fireflies or Otter export) to a board for [meeting capture](#meeting-capture), with `title`, `when`, `attendees`, and optionally the agent's own `findings` in the published schema. Nothing is written to the board by it. Recordings go through the CLI or the API. |
 | `capture_chat` | Sends the conversation the model is in (`Name: text` turns, or a Claude or ChatGPT export with `format` and `conversation`) to a board for [chat capture](#meeting-capture), optionally with the model's own `findings`: then no server model or AI key is needed, and every quote is still checked against the conversation. Only while chat capture is on (the default). Nothing is written to the board by it. |

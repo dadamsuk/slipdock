@@ -930,9 +930,12 @@ defmodule SlipdockCLI do
                                                    The board owner's
     resume <board> [--pool P]                      let exactly that pause off again (a person's:
                                                    refused when run under an agent)
-    job-progress <id> [--message NOTE]             renew the job's lease (a session holds it 20 min); the
+    job-progress [<id>] [--step S] [--message NOTE] renew the job's lease (a session holds it 20 min);
+                                                   --step says what you're doing now, shown on the job
+                                                   (Runners panel, job, jobs) and not on the card; the
                                                    note is also a comment on the card (--message - reads
-                                                   it from stdin). Prints ok or cancel
+                                                   it from stdin). Without <id>, the runner job in
+                                                   $SLIPDOCK_JOB_ID. Prints ok or cancel
     finish-job <id> --status done|failed|cancelled|timeout [--summary S]
                                                    end a job this session claimed
     finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]
@@ -1159,6 +1162,8 @@ defmodule SlipdockCLI do
     # `slipdock pause <board> --reason "…"`.
     reason: :string,
     message: :string,
+    # `slipdock job-progress --step "…"` (#1668).
+    step: :string,
     base_hash: :string,
     section: :string,
     hint: :string,

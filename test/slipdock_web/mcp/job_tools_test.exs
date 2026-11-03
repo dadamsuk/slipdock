@@ -214,6 +214,31 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       assert length(after_.comments) == length(before.comments)
     end
 
+    # #1668: a step shows on the job, not on the card.
+    test "a step is kept on the job and posts nothing on the card", ctx do
+      before = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+
+      assert %{"status" => "ok"} =
+               ctx.conn
+               |> call("job_progress", %{job: ctx.job.id, step: "  tests running: mix test  "})
+               |> ok!()
+
+      job = Repo.get!(Job, ctx.job.id)
+      assert job.step == "tests running: mix test"
+      assert job.step_at
+      assert job.status == "running"
+      assert job.log_tail in [nil, ""]
+
+      after_ = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      assert length(after_.comments) == length(before.comments)
+
+      # A blank step leaves the last one where it was.
+      assert %{"status" => "ok"} =
+               ctx.conn |> call("job_progress", %{job: ctx.job.id, step: " "}) |> ok!()
+
+      assert Repo.get!(Job, ctx.job.id).step == "tests running: mix test"
+    end
+
     test "after a cancel, progress says cancel", ctx do
       {:ok, _} = Runners.cancel_job(Repo.get!(Job, ctx.job.id))
 

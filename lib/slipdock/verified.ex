@@ -987,9 +987,15 @@ defmodule Slipdock.Verified do
     #{if evidence?(card), do: card |> evidence_text() |> String.replace_prefix("**Evidence.**\n\n", ""), else: "(none)"}
     Commit: #{commit || "(none given)"}
 
+    Say where you are at each step, so the job shows it while you work: `slipdock job-progress --step "…"` (the job is the one in $SLIPDOCK_JOB_ID; or MCP `job_progress` with `step`). Give a step, never a note or `--message`: a note becomes a comment on the card, and the card stays quiet until you decide.
+
     1. Read the card and its comments: `slipdock card #{card.id}`.
-    2. #{if commit, do: "Check out #{commit} in a clean tree (`git worktree add /tmp/verify-#{card.id} #{commit}`), so nothing uncommitted counts", else: "Find the work in the project's repository, in a clean tree"}, run the suite there, and check each part of the bar against it: the tests it names, the change itself.
-    3. Decide once:
+    2. #{if commit, do: "Check out #{commit} in a clean tree (`git worktree add /tmp/verify-#{card.id} #{commit}`), so nothing uncommitted counts", else: "Find the work in the project's repository, in a clean tree"}, run the suite there, and check each part of the bar against it: the tests it names, the change itself. Steps to report:
+       - `checked out #{commit || "<commit>"}`
+       - `tests running: <which>`
+       - `tests passed: <n>, failed: <n>` (or `tests failed: …`)
+       - `judging against the bar`
+    3. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked"`
        - `slipdock verify #{card.id} reject#{at} --reason "what falls short of the bar, specifically"`
     A rejection goes back to whoever takes the card next, so say exactly what to fix.

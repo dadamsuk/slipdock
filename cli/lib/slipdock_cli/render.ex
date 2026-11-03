@@ -2066,13 +2066,14 @@ defmodule SlipdockCLI.Render do
           to_string(j["id"]),
           job_status(j),
           "#" <> to_string(j["card_id"]) <> " " <> fit(j["card"] || "", 30),
+          fit(j["step"] || "", 40),
           j["pool"] <> "/" <> j["kind"],
           j["runner"] || dim("-"),
           stamp(j["finished_at"] || j["started_at"] || j["claimed_at"] || j["queued_at"])
         ]
       end)
 
-    table(["JOB", "STATUS", "CARD", "POOL/KIND", "RUNNER", "WHEN"], rows)
+    table(["JOB", "STATUS", "CARD", "STEP", "POOL/KIND", "RUNNER", "WHEN"], rows)
   end
 
   def job(j) do
@@ -2080,6 +2081,7 @@ defmodule SlipdockCLI.Render do
     if j["runner"], do: IO.puts("runner:   #{j["runner"]} (attempt #{j["attempts"]})")
     if j["exit_code"], do: IO.puts("exit:     #{j["exit_code"]}")
     if j["error"], do: IO.puts("error:    #{j["error"]}")
+    if j["step"], do: IO.puts("step:     #{j["step"]} (#{stamp(j["step_at"])})")
     IO.puts("queued:   #{stamp(j["queued_at"])}")
     if j["finished_at"], do: IO.puts("finished: #{stamp(j["finished_at"])}")
     IO.puts("\nprompt:\n" <> indent(j["prompt"] || ""))

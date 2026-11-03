@@ -1,5 +1,9 @@
 defmodule SlipdockWeb.MCP.Tools.JobProgress do
-  @moduledoc "A heartbeat for a job taken with `claim_job`, with an optional comment on its card."
+  @moduledoc """
+  A heartbeat for a job taken with `claim_job`, with an optional `step` (the
+  job's latest progress message, shown against the job, #1668) and an
+  optional `note` (a comment on its card).
+  """
   @behaviour SlipdockWeb.MCP.Tool
 
   alias Slipdock.{Boards, Runners}
@@ -15,14 +19,18 @@ defmodule SlipdockWeb.MCP.Tools.JobProgress do
   @impl true
   def description,
     do:
-      "Renews a claimed job's lease; note, if given, is also posted as a comment on the " <>
-        "card. Answers ok, or cancel: then stop and finish_job with outcome cancelled."
+      "Renews a claimed job's lease. step: what you're doing now, shown on the job only. " <>
+        "note: also a card comment. Answers ok, or cancel: stop, finish_job cancelled."
 
   @impl true
   def input_schema do
     %{
       type: "object",
-      properties: %{job: %{type: "integer"}, note: %{type: "string"}},
+      properties: %{
+        job: %{type: "integer"},
+        step: %{type: "string"},
+        note: %{type: "string"}
+      },
       required: ["job"],
       additionalProperties: false
     }
@@ -35,7 +43,8 @@ defmodule SlipdockWeb.MCP.Tools.JobProgress do
   def call(args, context) do
     with {:ok, job, card, runner} <- FinishJob.session_job(args, context),
          {:ok, note} <- Args.optional(args, "note"),
-         {:ok, answer} <- Args.refusal(Runners.heartbeat(runner, job.id, note)) do
+         {:ok, step} <- Args.optional(args, "step"),
+         {:ok, answer} <- Args.refusal(Runners.heartbeat(runner, job.id, note, step: step)) do
       if note, do: Boards.add_comment(card, note, by: context.user)
       {:ok, %{job: job.id, status: to_string(answer)}}
     end
