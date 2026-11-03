@@ -766,6 +766,9 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
               options={model_options(chat_models(@ai_models), @ai.model)}
               class="w-full select font-mono text-xs"
             />
+            <p id="ai-model-cost-warning" class="-mt-1 text-xs font-semibold text-warning">
+              WARNING: Choose cheaper models where possible
+            </p>
           </div>
           <div :if={embedding_models(@ai_models) != []}>
             <.input

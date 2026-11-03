@@ -94,13 +94,18 @@ defmodule SlipdockWeb.AIKeyLiveTest do
       Slipdock.AIStub.stub_models(["local/big", "local/small", "local/text-embedding"])
       :ok = Keys.put_settings(user, %{base_url: "http://box.local:1234/v1"})
 
-      {:ok, view, _html} = live(conn, ~p"/account/settings")
+      {:ok, view, html} = live(conn, ~p"/account/settings")
+      # The warning sits under the selector, which only appears once listed.
+      refute html =~ "Choose cheaper models"
 
       view |> element("button[phx-click=list_ai_models]") |> render_click()
       # The list arrives from an async task.
       html = render_async(view)
       assert html =~ "local/small"
       assert html =~ "3 model(s)"
+
+      assert view |> element("#ai-model-cost-warning") |> render() =~
+               "WARNING: Choose cheaper models where possible"
 
       view
       |> form("form[phx-submit=save_ai_model]", %{

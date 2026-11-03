@@ -126,7 +126,12 @@ defmodule SlipdockWeb.AdminAPITest do
       {:ok, _} = Settings.update(%{signup_mode: :open})
 
       ai = json_response(get(conn, ~p"/api/admin/settings"), 200)["settings"]["ai"]
-      assert ai == %{"system_user" => nil, "source" => "none", "using" => nil}
+
+      assert Map.delete(ai, "models") == %{
+               "system_user" => nil,
+               "source" => "none",
+               "using" => nil
+             }
 
       body =
         patch(conn, ~p"/api/admin/settings", %{"ai_system_user" => String.upcase(admin.email)})
@@ -140,6 +145,37 @@ defmodule SlipdockWeb.AdminAPITest do
       body = patch(conn, ~p"/api/admin/settings", %{"ai_system_user" => ""})
       assert json_response(body, 200)["settings"]["ai"]["system_user"] == nil
       assert Settings.get().ai_system_user_id == nil
+    end
+
+    test "the server's models: set by PATCH with their source, a list as a list, cleared", %{
+      conn: conn
+    } do
+      models = json_response(get(conn, ~p"/api/admin/settings"), 200)["settings"]["ai"]["models"]
+      assert models["model"] == %{"value" => "test/model", "source" => "config"}
+      assert models["quick_model"] == %{"value" => "test/model", "source" => "inherited"}
+      assert models["fallback_models"] == %{"value" => [], "source" => "none"}
+
+      body =
+        patch(conn, ~p"/api/admin/settings", %{
+          "ai_model" => "admin/model",
+          "ai_fallback_models" => ["test/a", "test/b", "test/a"]
+        })
+
+      models = json_response(body, 200)["settings"]["ai"]["models"]
+      assert models["model"] == %{"value" => "admin/model", "source" => "admin"}
+      # The quick model follows the default one, wherever that came from.
+      assert models["quick_model"] == %{"value" => "admin/model", "source" => "inherited"}
+      assert models["fallback_models"] == %{"value" => ["test/a", "test/b"], "source" => "admin"}
+      assert Settings.get().ai_fallback_models == "test/a,test/b"
+
+      body = patch(conn, ~p"/api/admin/settings", %{"ai_model" => "", "ai_fallback_models" => ""})
+      models = json_response(body, 200)["settings"]["ai"]["models"]
+      assert models["model"] == %{"value" => "test/model", "source" => "config"}
+      assert models["fallback_models"]["source"] == "none"
+
+      body = patch(conn, ~p"/api/admin/settings", %{"ai_model" => "two words"})
+      assert json_response(body, 422)
+      assert Settings.get().ai_model == nil
     end
 
     test "the AI user must be an account here, and an admin", %{conn: conn, ordinary: ordinary} do

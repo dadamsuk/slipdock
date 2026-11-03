@@ -27,7 +27,10 @@ config :slipdock, :uploads_dir, Path.expand("../priv/uploads", __DIR__)
 # With neither a key nor an endpoint the features stay hidden.
 # SLIPDOCK_AI_BASE_URL moves the default endpoint for everyone,
 # SLIPDOCK_AI_MODEL picks another model, SLIPDOCK_AI_QUICK_MODEL the one the
-# header's quick add uses (it wants latency over depth).
+# header's quick add uses (it wants latency over depth), and
+# SLIPDOCK_AI_FALLBACK_MODELS the OpenRouter models tried when that one is
+# rate-limited. An admin can set all four under Configuration → AI, which
+# wins over the environment and this file.
 # This app is AGPL-3.0: anyone using it over a network is entitled to its
 # source, so the UI links to it. Point this at your own fork if you run one
 # (SLIPDOCK_SOURCE_URL).
@@ -52,6 +55,13 @@ config :slipdock, :ai,
   # A folder's "Organise… → AI" reads titles and folder paths only, so the
   # cheapest Claude does it well (#791). SLIPDOCK_AI_ORGANISE_MODEL overrides.
   organise_model: "anthropic/claude-haiku-5.5",
+  # Sent with the model above in OpenRouter's `models` array, so a model that
+  # is rate-limited or down is replaced by the next (#1670). None by default.
+  fallback_models: [],
+  # One more try after a 429: this long a wait, or the endpoint's Retry-After
+  # when that is no longer than the max (a longer one isn't waited for).
+  retry_backoff_ms: 1_000,
+  retry_after_max_ms: 5_000,
   # Semantic search (see Slipdock.Search): the embedding model, and how many
   # dimensions to ask it for. text-embedding-3-* are Matryoshka models, so
   # 768 is the full 1536-dimension vector truncated — half the storage for

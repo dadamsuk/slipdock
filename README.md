@@ -256,7 +256,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   Bring an OpenRouter key, or point it at any OpenAI-compatible endpoint of
   your own — LM Studio, Ollama, llama.cpp, vLLM — and nothing leaves your
   network at all. Neither one, no AI features; nothing is sent anywhere
-  without one.
+  without one. An admin picks the server's models and
+  [OpenRouter fallbacks for when one is rate-limited](docs/manual.md#the-servers-models-and-fallbacks)
+  under Configuration → AI.
 - **Built for the keyboard and the phone** — [a command palette, a key for
   every board and your wiki, Ctrl-Shift-digit hotkeys, Shift-Alt-S to search everything, Shift-Alt-N for a [quick note](docs/manual.md#quick-notes), card labels you can jump to](docs/manual.md#keyboard),
   [boards and your wiki pinned to the header as icons](docs/manual.md#header-links), and

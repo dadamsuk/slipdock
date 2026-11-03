@@ -42,6 +42,12 @@ defmodule Slipdock.AI do
       (`SLIPDOCK_AI_QUICK_MODEL`); falls back to `:model`
     * `:organise_model` – the model a folder's AI organise asks
       (`SLIPDOCK_AI_ORGANISE_MODEL`); falls back to `:quick_model`
+    * `:fallback_models` – OpenRouter models to try when the first is
+      rate-limited or down (`SLIPDOCK_AI_FALLBACK_MODELS`, comma-separated)
+
+  An admin can set each of those four under Configuration → AI, which wins
+  over the environment and config (see `model_setting/1`); a person's own
+  model, under Account → AI model, wins over all of them.
     * `:base_url` – the default API root (`SLIPDOCK_AI_BASE_URL`), used by
       anyone who has not pointed at one of their own
     * `:req_options` – extra `Req` options, used by tests to plug in a stub
@@ -131,6 +137,8 @@ defmodule Slipdock.AI do
         true -> shared_key_for(opts[:user])
       end
 
+    model = opts[:model] || settings.model || default_model(opts, custom?)
+
     with true <- present?(key) or keyless?(base_url) or {:error, @no_key},
          {:ok, target, req_options} <- egress(base_url, guarded?) do
       {:ok,
@@ -139,7 +147,8 @@ defmodule Slipdock.AI do
          target: target,
          req_options: req_options,
          api_key: key,
-         model: opts[:model] || settings.model || default_model(opts, custom?),
+         model: model,
+         fallback_models: fallbacks(opts, settings, base_url, model),
          embed_model: settings.embed_model,
          custom?: custom?,
          guarded?: guarded?
@@ -176,6 +185,19 @@ defmodule Slipdock.AI do
       opts[:organise] -> organise_model()
       opts[:quick] -> quick_model()
       true -> model()
+    end
+  end
+
+  # The fallbacks go with the server's own model and nothing else. A person
+  # who picked a model, or an endpoint, gets what they picked: no fallback to
+  # a model they never chose, billed to their key. Nor does a caller that
+  # names a model outright. And only OpenRouter knows what `models` means.
+  defp fallbacks(opts, settings, base_url, model) do
+    if is_binary(model) and is_nil(opts[:model]) and not present?(settings.model) and
+         String.starts_with?(to_string(base_url), @paid_endpoint) do
+      fallback_models() -- [model]
+    else
+      []
     end
   end
 
@@ -268,23 +290,112 @@ defmodule Slipdock.AI do
 
   defp present?(value), do: is_binary(value) and value != ""
 
-  def model, do: config()[:model]
+  @doc """
+  The server's model, when a person has not picked one of their own: the
+  admin's choice, else `SLIPDOCK_AI_MODEL`, else config.exs.
+  """
+  def model, do: model_setting(:model).value
 
   @doc "The endpoint anyone who has not pointed at one of their own uses."
   def default_base_url, do: config()[:base_url]
 
   @doc """
   The model for the short, latency-sensitive calls (the header's quick add):
-  `:quick_model` when one is configured, otherwise the ordinary model.
+  `:quick_model` when one is set, otherwise the ordinary model.
   """
-  def quick_model, do: config()[:quick_model] || model()
+  def quick_model, do: model_setting(:quick_model).value
 
   @doc """
   The model a folder's AI organise asks (#791): `:organise_model` when one
-  is configured — a cheap Claude Haiku on OpenRouter by default — otherwise
-  the quick model.
+  is set — a cheap Claude Haiku on OpenRouter by default — otherwise the
+  quick model.
   """
-  def organise_model, do: config()[:organise_model] || quick_model()
+  def organise_model, do: model_setting(:organise_model).value
+
+  @doc """
+  The models OpenRouter tries, in order, when the first is rate-limited or
+  down (#1670). Only sent with the server's own model, to OpenRouter.
+  """
+  @spec fallback_models() :: [String.t()]
+  def fallback_models, do: model_setting(:fallback_models).value
+
+  @doc """
+  The fallbacks this person's calls go out with: none when they picked a
+  model or an endpoint of their own, or the server's endpoint is not
+  OpenRouter; otherwise `fallback_models/0`, less the model itself.
+  """
+  @spec fallback_models(Slipdock.Accounts.User.t() | nil) :: [String.t()]
+  def fallback_models(user) do
+    settings = if user, do: Keys.settings(user), else: Keys.system_settings()
+    custom? = present?(settings.base_url)
+    model = settings.model || default_model([], custom?)
+    fallbacks([], settings, settings.base_url || default_base_url(), model)
+  end
+
+  @model_settings [:model, :quick_model, :organise_model, :fallback_models]
+
+  @doc "The four model settings an admin can set, in the order the page shows them."
+  def model_settings, do: @model_settings
+
+  @doc "The environment variable each model setting is read from at boot."
+  def model_env(:model), do: "SLIPDOCK_AI_MODEL"
+  def model_env(:quick_model), do: "SLIPDOCK_AI_QUICK_MODEL"
+  def model_env(:organise_model), do: "SLIPDOCK_AI_ORGANISE_MODEL"
+  def model_env(:fallback_models), do: "SLIPDOCK_AI_FALLBACK_MODELS"
+
+  @doc "The settings-row field an admin's choice for a model setting is kept in."
+  def model_field(key) when key in @model_settings, do: :"ai_#{key}"
+
+  @doc """
+  A model setting in force, and where it came from: `%{value:, source:}`.
+
+  The source is `:admin` (Configuration → AI), `:env` (the variable named by
+  `model_env/1`), `:config` (config.exs), `:inherited` (none of those, so the
+  quick model is the ordinary one and the organise model the quick one), or
+  `:none`. `value` is a model id, or a list of them for `:fallback_models`.
+  A person's own model is not part of this: it wins per call, in `provider/1`.
+  """
+  @spec model_setting(atom()) :: %{value: term(), source: atom()}
+  def model_setting(key) when key in @model_settings do
+    admin = admin_value(key)
+    configured = config()[key]
+
+    cond do
+      admin != nil -> %{value: admin, source: :admin}
+      present_value?(configured) -> %{value: configured, source: configured_source(key)}
+      key == :quick_model -> inherited(model())
+      key == :organise_model -> inherited(quick_model())
+      key == :fallback_models -> %{value: [], source: :none}
+      true -> %{value: nil, source: :none}
+    end
+  end
+
+  defp inherited(nil), do: %{value: nil, source: :none}
+  defp inherited(value), do: %{value: value, source: :inherited}
+
+  # The environment and config.exs both land in the same app config; runtime.exs
+  # notes which keys the environment set, so the admin page can say which.
+  defp configured_source(key),
+    do: if(key in List.wrap(config()[:from_env]), do: :env, else: :config)
+
+  defp admin_value(:fallback_models) do
+    case Slipdock.Settings.Instance.split_models(settings_field(:ai_fallback_models)) do
+      [] -> nil
+      ids -> ids
+    end
+  end
+
+  defp admin_value(key) do
+    case settings_field(model_field(key)) do
+      value when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  end
+
+  defp settings_field(field), do: Map.get(Slipdock.Settings.get(), field)
+
+  defp present_value?([_ | _]), do: true
+  defp present_value?(value), do: present?(value)
 
   @doc """
   Sends `messages` (maps with `"role"`/`:role` and `"content"`/`:content`)
@@ -348,20 +459,20 @@ defmodule Slipdock.AI do
           max_tokens: opts[:max_tokens] || 1500,
           temperature: opts[:temperature] || 0.4
         }
-        |> maybe_model(provider.model)
+        |> maybe_model(provider)
         |> maybe_json(opts[:json])
 
       started = System.monotonic_time(:millisecond)
 
-      case Req.post(request(provider), url: "/chat/completions", json: body) do
+      case post_chat(provider, body) do
         {:ok, %Req.Response{status: 200, body: %{"choices" => [choice | _]} = resp}} ->
           Logger.info(
-            "AI completion via #{resp["model"] || body[:model] || provider.base_url} in " <>
+            "AI completion via #{answered_by(resp, provider)} in " <>
               "#{System.monotonic_time(:millisecond) - started}ms" <>
               usage(resp["usage"])
           )
 
-          report_usage(opts[:on_usage], resp, body, provider)
+          report_usage(opts[:on_usage], resp, provider)
 
           case get_in(choice, ["message", "content"]) do
             text when is_binary(text) and text != "" ->
@@ -397,13 +508,14 @@ defmodule Slipdock.AI do
   # Somebody keeping accounts (meeting capture's usage ledger) is told what
   # each call cost, as the endpoint reported it: tokens, and a cost where the
   # provider gives one (OpenRouter does, as `usage.cost`).
-  defp report_usage(nil, _resp, _body, _provider), do: :ok
+  defp report_usage(nil, _resp, _provider), do: :ok
 
-  defp report_usage(fun, resp, body, provider) when is_function(fun, 1) do
+  defp report_usage(fun, resp, provider) when is_function(fun, 1) do
     usage = resp["usage"] || %{}
 
     fun.(%{
-      model: resp["model"] || body[:model] || provider.model,
+      # The model that answered, which with fallbacks need not be the first.
+      model: resp["model"] || provider.model,
       tokens_in: usage["prompt_tokens"],
       tokens_out: usage["completion_tokens"],
       cost: usage["cost"],
@@ -450,14 +562,14 @@ defmodule Slipdock.AI do
           max_tokens: opts[:max_tokens] || 1500,
           temperature: opts[:temperature] || 0.3
         }
-        |> maybe_model(provider.model)
+        |> maybe_model(provider)
 
       started = System.monotonic_time(:millisecond)
 
-      case Req.post(request(provider), url: "/chat/completions", json: body) do
+      case post_chat(provider, body) do
         {:ok, %Req.Response{status: 200, body: %{"choices" => [choice | _]} = resp}} ->
           Logger.info(
-            "AI tool completion via #{resp["model"] || body[:model] || provider.base_url} in " <>
+            "AI tool completion via #{answered_by(resp, provider)} in " <>
               "#{System.monotonic_time(:millisecond) - started}ms" <> usage(resp["usage"])
           )
 
@@ -567,8 +679,64 @@ defmodule Slipdock.AI do
 
   # Nil means "whatever that endpoint has loaded": a single-model local server
   # answers happily with no model named, and guessing one only gets a 404.
-  defp maybe_model(body, nil), do: body
-  defp maybe_model(body, model), do: Map.put(body, :model, model)
+  # With fallbacks (OpenRouter only, see `fallbacks/4`) it is OpenRouter's
+  # `models` array, primary first: it moves down the list by itself when one
+  # is rate-limited or down.
+  defp maybe_model(body, %{model: nil}), do: body
+
+  defp maybe_model(body, %{model: model, fallback_models: [_ | _] = fallbacks}),
+    do: Map.put(body, :models, [model | fallbacks])
+
+  defp maybe_model(body, %{model: model}), do: Map.put(body, :model, model)
+
+  # Which model answered, for the log: the response says, and with fallbacks
+  # it may not be the first one asked.
+  defp answered_by(resp, provider) do
+    resp["model"] || provider.model || provider.base_url
+  end
+
+  # One POST to the chat endpoint, asked once more after a 429 (#1670): a
+  # limit that lifts in a second or two shouldn't reach the person. The wait
+  # is the endpoint's `Retry-After` when it is short, a second otherwise; a
+  # longer `Retry-After` isn't waited for, since nobody is going to sit
+  # watching a spinner for it.
+  defp post_chat(provider, body) do
+    case Req.post(request(provider), url: "/chat/completions", json: body) do
+      {:ok, %Req.Response{status: 429} = resp} = first ->
+        case backoff(resp) do
+          nil ->
+            first
+
+          ms ->
+            Logger.info("AI endpoint rate-limited the call; asking again in #{ms}ms")
+            Process.sleep(ms)
+            Req.post(request(provider), url: "/chat/completions", json: body)
+        end
+
+      other ->
+        other
+    end
+  end
+
+  @doc false
+  # How long to wait before asking again after a 429, or nil not to.
+  def backoff(%Req.Response{} = resp) do
+    default = Keyword.get(config(), :retry_backoff_ms, 1_000)
+    max = Keyword.get(config(), :retry_after_max_ms, 5_000)
+
+    case resp |> Req.Response.get_header("retry-after") |> List.first() do
+      nil ->
+        default
+
+      value ->
+        case Integer.parse(String.trim(value)) do
+          {seconds, ""} when seconds >= 0 and seconds * 1000 <= max -> seconds * 1000
+          {_seconds, ""} -> nil
+          # An HTTP date, or nonsense: not worth parsing for a wait this short.
+          _ -> default
+        end
+    end
+  end
 
   defp maybe_json(body, true), do: Map.put(body, :response_format, %{type: "json_object"})
   defp maybe_json(body, _), do: body

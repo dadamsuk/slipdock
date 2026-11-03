@@ -358,6 +358,26 @@ cond do
     :ok
 end
 
+if models = System.get_env("SLIPDOCK_AI_FALLBACK_MODELS") do
+  config :slipdock, :ai,
+    fallback_models: models |> String.split(~r/[\s,]+/, trim: true) |> Enum.uniq()
+end
+
+# Which of the model settings the environment set, so Configuration → AI can
+# say where the value in force came from (see `Slipdock.AI.model_setting/1`).
+config :slipdock, :ai,
+  from_env:
+    for(
+      {key, var} <- [
+        model: "SLIPDOCK_AI_MODEL",
+        quick_model: "SLIPDOCK_AI_QUICK_MODEL",
+        organise_model: "SLIPDOCK_AI_ORGANISE_MODEL",
+        fallback_models: "SLIPDOCK_AI_FALLBACK_MODELS"
+      ],
+      System.get_env(var),
+      do: key
+    )
+
 if model = System.get_env("SLIPDOCK_AI_EMBED_MODEL") do
   config :slipdock, :ai, embed_model: model
 end

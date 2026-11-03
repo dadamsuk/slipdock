@@ -349,4 +349,82 @@ defmodule SlipdockWeb.ConfigLiveTest do
       assert Settings.get().ai_system_user_id == nil
     end
   end
+
+  describe "AI models (#1670)" do
+    test "each model field carries the cost warning", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/config/ai")
+
+      for key <- ~w(model quick_model organise_model fallback_models) do
+        assert view |> element("#ai-cost-warning-#{key}") |> render() =~
+                 "WARNING: Choose cheaper models where possible"
+      end
+    end
+
+    test "an admin saves them, and each says the value in force and where it came from", %{
+      conn: conn
+    } do
+      {:ok, view, html} = live(conn, ~p"/config/ai")
+      assert html =~ "AI models"
+      assert view |> element("#ai-in-force-model") |> render() =~ "test/model"
+      assert view |> element("#ai-in-force-model") |> render() =~ "config.exs"
+      assert view |> element("#ai-in-force-quick_model") |> render() =~ "the default model"
+
+      view
+      |> form("#ai-models-form", %{
+        "settings" => %{"ai_model" => "admin/model", "ai_fallback_models" => "test/a, test/b"}
+      })
+      |> render_submit()
+
+      assert Settings.get().ai_model == "admin/model"
+      assert Settings.get().ai_fallback_models == "test/a,test/b"
+      assert view |> element("#ai-in-force-model") |> render() =~ "set here"
+      assert view |> element("#ai-in-force-quick_model") |> render() =~ "admin/model"
+      assert view |> element("#ai-in-force-fallback_models") |> render() =~ "test/a, test/b"
+    end
+
+    test "clearing a field falls back to the environment", %{conn: conn} do
+      Slipdock.TestConfig.merge(:ai, model: "env/model", from_env: [:model])
+      {:ok, _} = Settings.update(%{"ai_model" => "admin/model"})
+
+      {:ok, view, _html} = live(conn, ~p"/config/ai")
+      assert view |> element("#ai-in-force-model") |> render() =~ "admin/model"
+
+      view
+      |> form("#ai-models-form", %{"settings" => %{"ai_model" => ""}})
+      |> render_submit()
+
+      assert Settings.get().ai_model == nil
+      in_force = view |> element("#ai-in-force-model") |> render()
+      assert in_force =~ "env/model"
+      assert in_force =~ "from SLIPDOCK_AI_MODEL"
+    end
+
+    test "a model id with a space is refused, not saved", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/config/ai")
+
+      html =
+        view
+        |> form("#ai-models-form", %{"settings" => %{"ai_model" => "two words"}})
+        |> render_submit()
+
+      assert html =~ "one model id"
+      assert Settings.get().ai_model == nil
+    end
+
+    test "the model list fills the suggestions", %{conn: conn} do
+      Slipdock.AIStub.stub_models(["test/model", "test/other-model", "test/text-embedding-small"])
+      {:ok, view, _html} = live(conn, ~p"/config/ai")
+
+      view |> element("#list-models") |> render_click()
+      html = render_async(view)
+
+      assert html =~ ~s(<option value="test/other-model")
+      # An embedding model can't answer a chat.
+      refute html =~ ~s(<option value="test/text-embedding-small")
+    end
+
+    test "an ordinary user is sent away", %{conn: conn, ordinary: ordinary} do
+      assert {:error, {:redirect, %{to: "/"}}} = live(log_in_user(conn, ordinary), ~p"/config/ai")
+    end
+  end
 end

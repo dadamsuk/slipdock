@@ -5599,6 +5599,44 @@ To make a whole instance local, set `SLIPDOCK_AI_BASE_URL` (and
 `SLIPDOCK_AI_MODEL`) instead: everybody who has not chosen for themselves then
 uses it, no keys anywhere, and no board content leaves the network.
 
+### The server's models, and fallbacks
+
+Somebody who hasn't picked a model of their own asks the **server's**.
+An admin sets those under **Configuration → AI** (`/config/ai`, or
+`slipdock admin set ai_model=… ai_quick_model=… ai_organise_model=…
+ai_fallback_models=a,b`):
+
+| Setting | What it is |
+| --- | --- |
+| Default model | Chat, AI edits, the narrative generator and everything else |
+| Quick model | The header's quick add. Empty: the default model |
+| Organise model | A folder's *Organise… → AI suggestions*. Empty: the quick model |
+| Fallback models | OpenRouter models tried in turn when the model is rate-limited or down, separated by commas |
+
+Each field shows the value in force and where it came from: set here, the
+environment (`SLIPDOCK_AI_MODEL`, `SLIPDOCK_AI_QUICK_MODEL`,
+`SLIPDOCK_AI_ORGANISE_MODEL`, `SLIPDOCK_AI_FALLBACK_MODELS`) or the built-in
+default. Clearing a field goes back to the environment, then the default.
+*List models* asks the server's endpoint for its list and offers the ids as
+you type. Per call the order is: **a person's own model**, then the admin's,
+then the environment, then the built-in default.
+
+Under each model field here, and under the model picker on Account → AI
+model, a note reads **WARNING: Choose cheaper models where possible**: every
+call is billed to whoever's key it runs on, and the cheap models do most jobs.
+
+The fallbacks go to OpenRouter in its `models` array, primary first, so a
+rate-limited model is replaced by the next without the person noticing. They
+are sent only to OpenRouter and only with the server's own model. Somebody who
+picked their own model or endpoint gets exactly that, with no fallbacks to a
+model they didn't choose. Whichever model answered is the one logged,
+recorded in meeting usage and shown under a narrative. A `429` is also asked
+once more after a second, or after the endpoint's `Retry-After` when that is
+5 seconds or less. A second `429` reaches the person as *The model is
+rate-limited right now; try again in a moment.*
+
+### AI for search and automations
+
 Unattended work — the search indexer, every search query, scheduled
 automations — has no person to bill, so it uses a *system* key: one admin's
 AI settings. Choose whose under **Configuration → AI for search and
@@ -5632,7 +5670,10 @@ one for the header's quick add alone, where latency matters more than depth
 (it falls back to `SLIPDOCK_AI_MODEL`). `SLIPDOCK_AI_ORGANISE_MODEL` is the
 one a folder's **Organise… → AI suggestions** asks (default
 `anthropic/claude-haiku-5.5`; with `SLIPDOCK_AI_BASE_URL` set and this unset,
-it falls back to the quick model). `SLIPDOCK_AI_EMBED_MODEL` and
+it falls back to the quick model). `SLIPDOCK_AI_FALLBACK_MODELS` lists
+OpenRouter models to fall back to when that one is rate-limited
+(comma-separated, none by default). An admin's choice under Configuration → AI
+wins over all four. `SLIPDOCK_AI_EMBED_MODEL` and
 `SLIPDOCK_AI_EMBED_DIMENSIONS` pick the embedding model behind deep search;
 reindex after changing either (`docker compose run --rm slipdock reindex` on a
 release, `mix slipdock.reindex` from a checkout). Restart the server after

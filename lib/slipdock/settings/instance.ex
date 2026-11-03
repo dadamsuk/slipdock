@@ -142,6 +142,16 @@ defmodule Slipdock.Settings.Instance do
     # Nil leaves it to the environment and the single-admin fallback.
     belongs_to :ai_system_user, Slipdock.Accounts.User
 
+    # The models the server's AI asks (#1670), when a person has not picked
+    # one of their own: the ordinary one, the quick add's, a folder organise's,
+    # and the OpenRouter fallbacks tried when the first is rate-limited or
+    # down (comma-separated ids). Nil leaves each to the environment and then
+    # config.exs — see `Slipdock.AI.model_setting/1`.
+    field :ai_model, :string
+    field :ai_quick_model, :string
+    field :ai_organise_model, :string
+    field :ai_fallback_models, :string
+
     timestamps(type: :utc_datetime)
   end
 
@@ -205,7 +215,8 @@ defmodule Slipdock.Settings.Instance do
                     meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
                     meetings_relisten_model meetings_voiceprints meetings_voiceprint_url
                     transcription_server_url transcription_server_token
-                    transcription_voiceprints)a
+                    transcription_voiceprints ai_model ai_quick_model ai_organise_model
+                    ai_fallback_models)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),
@@ -225,7 +236,7 @@ defmodule Slipdock.Settings.Instance do
   """
   def changeset(instance, attrs) do
     instance
-    |> cast(attrs, @fields)
+    |> cast(models_as_text(attrs), @fields)
     |> blank_to_nil([
       :terms_url,
       :privacy_url,
@@ -246,8 +257,13 @@ defmodule Slipdock.Settings.Instance do
       :meetings_relisten_model,
       :meetings_voiceprint_url,
       :transcription_server_url,
-      :transcription_server_token
+      :transcription_server_token,
+      :ai_model,
+      :ai_quick_model,
+      :ai_organise_model
     ])
+    |> normalise_model_list(:ai_fallback_models)
+    |> validate_model_ids([:ai_model, :ai_quick_model, :ai_organise_model])
     |> validate_inclusion(:meetings_transcription, ~w(none provider endpoint))
     |> validate_inclusion(:meetings_diarisation, ~w(labels endpoint))
     |> validate_web_url(:meetings_diarisation_url)
@@ -412,6 +428,52 @@ defmodule Slipdock.Settings.Instance do
       put_change(changeset, :smtp_verified_at, nil)
     else
       changeset
+    end
+  end
+
+  @doc """
+  A list of model ids as typed: separated by commas, spaces or new lines.
+  Duplicates and blanks are dropped, and the order kept.
+  """
+  @spec split_models(String.t() | nil) :: [String.t()]
+  def split_models(nil), do: []
+
+  def split_models(text) when is_binary(text) do
+    text |> String.split(~r/[\s,]+/, trim: true) |> Enum.uniq()
+  end
+
+  # Stored as "a,b,c", or nil for none, however it was typed: one id per line
+  # from the form, or a list from the API (joined before the cast, which
+  # would refuse a list for a string field).
+  defp models_as_text(attrs) when is_map(attrs) do
+    Map.new(attrs, fn
+      {key, list} when key in [:ai_fallback_models, "ai_fallback_models"] and is_list(list) ->
+        {key, Enum.map_join(list, ",", &to_string/1)}
+
+      other ->
+        other
+    end)
+  end
+
+  # One id each, so a stray space or a pasted list is refused rather than
+  # sent to the endpoint as a model nobody has.
+  defp validate_model_ids(changeset, fields) do
+    Enum.reduce(fields, changeset, fn field, acc ->
+      validate_format(acc, field, ~r/\A\S+\z/, message: "should be one model id, with no spaces")
+    end)
+  end
+
+  defp normalise_model_list(changeset, field) do
+    case get_change(changeset, field) do
+      value when is_binary(value) -> put_change(changeset, field, join_models(value))
+      _ -> changeset
+    end
+  end
+
+  defp join_models(text) do
+    case split_models(text) do
+      [] -> nil
+      ids -> Enum.join(ids, ",")
     end
   end
 

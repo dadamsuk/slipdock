@@ -144,7 +144,12 @@ defmodule SlipdockWeb.API.AdminController do
     %{
       system_user: chosen && chosen.email,
       source: source,
-      using: user && user.email
+      using: user && user.email,
+      # The models the server asks when a person hasn't picked one (#1670):
+      # each `%{value:, source:}`, the source `admin`, `env`, `config`,
+      # `inherited` or `none` — see `Slipdock.AI.model_setting/1`. Set with
+      # `ai_model`, `ai_quick_model`, `ai_organise_model`, `ai_fallback_models`.
+      models: Map.new(Slipdock.AI.model_settings(), &{&1, Slipdock.AI.model_setting(&1)})
     }
   end
 

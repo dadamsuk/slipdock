@@ -272,6 +272,7 @@ defmodule SlipdockWeb.Router do
       live "/config", ConfigLive.Index, :index
       live "/config/mail", ConfigLive.Index, :mail
       live "/config/meetings", ConfigLive.Index, :meetings
+      live "/config/ai", ConfigLive.Index, :ai
       # Tools waiting for an admin to list them for everyone (#964).
       live "/admin/tools", ToolLive.Review, :index
     end

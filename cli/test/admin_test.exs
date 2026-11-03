@@ -243,6 +243,39 @@ defmodule SlipdockCLI.AdminTest do
     assert output =~ "Search & rules AI: sam@example.com (chosen here)"
   end
 
+  test "set ai_fallback_models sends the list, and the answer shows each model's source" do
+    serve([
+      {200,
+       ai_settings(%{
+         "source" => "none",
+         "models" => %{
+           "model" => %{"value" => "test/primary", "source" => "env"},
+           "quick_model" => %{"value" => "test/primary", "source" => "inherited"},
+           "organise_model" => %{"value" => "test/haiku", "source" => "config"},
+           "fallback_models" => %{"value" => ["test/a", "test/b"], "source" => "admin"}
+         }
+       })}
+    ])
+
+    output =
+      capture_io(fn ->
+        Admin.run("admin", ["set", "ai_fallback_models=test/a,test/b"], [])
+      end)
+
+    assert_received {:request, "PATCH", "/api/admin/settings", body}
+    assert JSON.decode!(body) == %{"ai_fallback_models" => "test/a,test/b"}
+
+    assert output =~
+             "AI models:        default test/primary (env) · quick test/primary (inherited) · " <>
+               "organise test/haiku (config) · fallbacks test/a, test/b (admin)"
+  end
+
+  test "a server that says nothing about models shows a dash" do
+    serve([{200, ai_settings(%{"source" => "none"})}])
+    output = capture_io(fn -> Admin.run("admin", ["settings"], []) end)
+    assert output =~ "AI models:        —"
+  end
+
   test "an empty ai_system_user clears it, and off is shown as off" do
     serve([{200, ai_settings(%{"system_user" => nil, "source" => "none", "using" => nil})}])
 

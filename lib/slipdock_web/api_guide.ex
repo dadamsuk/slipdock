@@ -534,13 +534,13 @@ defmodule SlipdockWeb.APIGuide do
     Anything that asks a language model — the written answer from
     `POST /api/ask`, writing an automation rule in English, the chat and edit
     panels, the narrative — runs on the **account holder's own** key or
-    endpoint, kept on the server and never shared between people.
+    endpoint, kept on the server, never shared.
 
     **Search is the exception.** `GET /api/search` (the MCP `search` tool,
     `slipdock search`), the index behind it and scheduled automations run on
     the **server's** AI: one admin's settings, chosen by an admin under
-    Configuration → AI for search and automations. One index can only be
-    searched with the model that built it, so it cannot be yours. Your own key,
+    Configuration → AI for search and automations. An index is searched with
+    the model that built it, so it can't be yours. Your own key,
     endpoint and `embed_model` change nothing about search (`embed_model` is
     read only for the admin chosen there), and `/api/ask` needs both: the
     server's AI to find the cards, yours to write the answer. A search that
@@ -553,7 +553,7 @@ defmodule SlipdockWeb.APIGuide do
                    "set_at": "2026-10-01T15:56:49Z", "ai_available": true},
         "ai": {"base_url": "https://openrouter.ai/api/v1", "own_endpoint": null,
                "model": "google/gemini-2.5-flash-lite", "own_model": null,
-               "embed_model": null}
+               "embed_model": null, "fallback_models": []}
 
     `configured: false` with `ai_available: false` means those endpoints will
     answer `AI features need a model to talk to` and nothing you do to the

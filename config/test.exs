@@ -96,6 +96,8 @@ config :slipdock, :short_names, refine: :off
 config :slipdock, :ai,
   api_key: "test-key",
   model: "test/model",
+  # A 429's retry doesn't wait in tests.
+  retry_backoff_ms: 0,
   key_file: Path.expand("../tmp/test_ai_keys.json", __DIR__),
   req_options: [plug: {Req.Test, Slipdock.AI}]
 
