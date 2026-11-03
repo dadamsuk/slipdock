@@ -57,7 +57,10 @@ defmodule SlipdockWeb.RunnerPowerShellMergeTest do
         esac
         exit 0
         ;;
-      "pr merge") exit "${FAKE_GH_MERGE:-0}" ;;
+      "pr merge")
+        [ -z "${FAKE_GH_SAID:-}" ] || echo "$FAKE_GH_SAID" >&2
+        exit "${FAKE_GH_MERGE:-0}"
+        ;;
     esac
     exit 1
     """)
@@ -106,9 +109,9 @@ defmodule SlipdockWeb.RunnerPowerShellMergeTest do
     path
   end
 
-  defp run_once(ctx, config, env \\ []) do
+  defp run_once(ctx, config, env \\ [], cd \\ nil) do
     System.cmd(@pwsh, ["-NoProfile", "-File", @script, "-Once", "-Config", config],
-      cd: ctx.repo,
+      cd: cd || ctx.repo,
       env:
         [
           {"PATH", "#{ctx.bin}:#{System.get_env("PATH")}"},
@@ -169,10 +172,59 @@ defmodule SlipdockWeb.RunnerPowerShellMergeTest do
     {_out, 0} = run_once(ctx, config(ctx), [{"FAKE_GH_STATE", "MERGED"}])
     assert job(queued).output =~ "is MERGED, not open"
 
+    said = "Head branch was modified. Review and try the merge again."
+    {:ok, queued} = queue_merge(ctx.card)
+    {_out, 0} = run_once(ctx, config(ctx), [{"FAKE_GH_MERGE", "1"}, {"FAKE_GH_SAID", said}])
+    assert job(queued).exit_code == 3
+
+    assert job(queued).output =~
+             "merge: gh pr merge refused https://github.com/acme/widgets/pull/12: #{said}"
+
     {:ok, queued} = queue_merge(ctx.card)
     {_out, 0} = run_once(ctx, config(ctx), [{"FAKE_GH_MERGE", "1"}])
-    assert job(queued).exit_code == 3
-    assert job(queued).output =~ "gh pr merge refused"
+    assert job(queued).output =~ "pull/12: gh gave no reason"
+  end
+
+  # #1666: a service starts the runner somewhere other than the repository.
+  describe "a runner started outside its repository" do
+    test "merges in $WorktreeRepo, ahead of $WorkDir", ctx do
+      {:ok, queued} = queue_merge(ctx.card)
+      config = config(ctx, "$WorktreeRepo = '#{ctx.repo}'\n$WorkDir = '#{ctx.dir}'")
+      {out, 0} = run_once(ctx, config, [], ctx.dir)
+
+      assert job(queued).status == "done", out <> (job(queued).output || "")
+      assert job(queued).merged_sha == @merged
+    end
+
+    test "merges in $WorkDir when there is no $WorktreeRepo", ctx do
+      {:ok, queued} = queue_merge(ctx.card)
+      {out, 0} = run_once(ctx, config(ctx, "$WorkDir = '#{ctx.repo}'"), [], ctx.dir)
+
+      assert job(queued).status == "done", out <> (job(queued).output || "")
+      assert gh_calls(ctx) =~ "gh pr merge 12 --repo acme/widgets"
+    end
+
+    test "with neither, it uses the start directory, and says it has no origin", ctx do
+      {:ok, queued} = queue_merge(ctx.card)
+      {_out, 0} = run_once(ctx, config(ctx), [], ctx.dir)
+
+      assert job(queued).status == "failed"
+      assert job(queued).output =~ "has no origin remote"
+      refute gh_calls(ctx) =~ "pr merge"
+    end
+
+    test "Before-Job runs there too", ctx do
+      {:ok, queued} = queue_merge(ctx.card)
+
+      extra = """
+      $WorkDir = '#{ctx.repo}'
+      function Before-Job { Write-Output "before in $((Get-Location).Path)" }
+      """
+
+      {_out, 0} = run_once(ctx, config(ctx, extra), [], ctx.dir)
+      assert job(queued).output =~ "before in #{ctx.repo}"
+      assert job(queued).status == "done"
+    end
   end
 
   test "$Merge = $false turns it off; a config's own Job-Merge replaces it", ctx do

@@ -81,7 +81,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   can ship by pull request instead of a push to the default branch
   (`slipdock set-board --ship-via pull-request`; the agent names it with
   `slipdock done 12 --pr URL`): accepting it has a runner merge the pull
-  request with its built-in merge kind, and the merge completes the card
+  request with its built-in merge kind, in its own repository wherever it
+  was started, and the merge completes the card
   (`slipdock verify 12 merged` when you merged it yourself). On a board that
   ships by push, a card awaiting verification frees its lane and its
   dependents. Runners say which script they run, and new installs keep

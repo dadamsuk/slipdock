@@ -236,7 +236,35 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       assert card.position == 0
       assert Verified.rejection(card).reason =~ "Merge failed"
       assert Boards.get_card!(card.id).handoff.next_step =~ "Rework: the merge failed"
-      assert Enum.any?(comments(card), &(&1 =~ "Rebase `card-#{card.id}`"))
+      assert Enum.any?(comments(card), &(&1 =~ "rebase `card-#{card.id}` on the default branch"))
+    end
+
+    # #1666: the reason is the job's own words, and a rebase is suggested
+    # only for a conflict or a head that moved.
+    test "a failure a rebase won't fix says the job's reason and no rebase", ctx do
+      said = "merge: gh is not signed in (run gh auth login)"
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "2", output: "x\n#{said}\n"})
+
+      card = Repo.get!(Card, ctx.merging.id)
+      assert card.verify_note == "Merge failed (job ##{ctx.job_id}, failed): #{said}"
+      assert [failed] = Enum.filter(comments(card), &(&1 =~ "**Merge failed.**"))
+      assert failed =~ said
+      assert failed =~ "a rebase won't fix it"
+      refute failed =~ ~r/rebase `/i
+    end
+
+    test "a conflict says gh's reason and suggests rebasing the branch", ctx do
+      said =
+        "merge: gh pr merge refused #{@pr}: X Pull request acme/app#7 is not mergeable: " <>
+          "the merge commit cannot be cleanly created."
+
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "3", output: said})
+
+      card = Repo.get!(Card, ctx.merging.id)
+      assert card.verify_note =~ "cannot be cleanly created"
+      assert [failed] = Enum.filter(comments(card), &(&1 =~ "**Merge failed.**"))
+      assert failed =~ "rebase `card-#{card.id}` on the default branch"
+      assert failed =~ said
     end
 
     test "a person cancelling it sends it back too", ctx do
@@ -247,6 +275,97 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       card = Repo.get!(Card, ctx.merging.id)
       assert card.verify_state == "rejected"
       assert card.verify_note =~ "cancelled"
+    end
+  end
+
+  describe "which failures a rebase fixes" do
+    test "a conflict or a moved head, nothing else" do
+      assert Verified.rebase_fixes?(
+               "merge: gh pr merge refused x: merge conflict between base and head"
+             )
+
+      assert Verified.rebase_fixes?(
+               "merge: x's head is 9, not the accepted commit abc (it moved after the card was accepted)"
+             )
+
+      assert Verified.rebase_fixes?(
+               "merge: gh pr merge refused x: Head branch was modified. Review and try the merge again."
+             )
+
+      assert Verified.rebase_fixes?(
+               "merge: gh pr merge refused x: Head branch is not up to date with the base branch"
+             )
+
+      refute Verified.rebase_fixes?("merge: /srv/app has no origin remote")
+      refute Verified.rebase_fixes?("merge: gh is not signed in (run gh auth login)")
+      refute Verified.rebase_fixes?("merge: gh pr merge refused x: gh gave no reason")
+      refute Verified.rebase_fixes?("merge: x is CLOSED, not open; nothing merged")
+      refute Verified.rebase_fixes?(nil)
+    end
+  end
+
+  # #1666: the verifier's CLI or MCP token is the builder's too, so a
+  # decision made in a runner job names the runner, as the merge does.
+  describe "a decision made in a runner job" do
+    setup ctx do
+      {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "verifier", "pool" => "v"})
+      Runners.report_kinds(runner, "verify")
+      card = submit(ctx.card, ctx)
+      {:ok, _} = Runners.queue(card, %{pool: "v", kind: "verify", prompt: "check it"})
+      %{id: job_id} = Runners.claim(runner)
+      %{verifying: card, verify_job: job_id}
+    end
+
+    test "is credited to the runner, on the comment and the stored decision", ctx do
+      in_job = %{ctx.checker | via: "cli", agent: "slipdock CLI on box", job_id: ctx.verify_job}
+
+      {:ok, card} =
+        Verified.decide(ctx.verifying, "reject", %{"reason" => "no tests"}, in_job, ctx.user)
+
+      assert Enum.any?(comments(card), &(&1 =~ "**Rejected** by runner verifier."))
+      refute Enum.any?(comments(card), &(&1 =~ "slipdock CLI on box"))
+      assert Verified.who(card.verify_by) == "runner verifier"
+      assert Verified.rejection(card).by == "runner verifier"
+      assert card.verify_by["job_id"] == ctx.verify_job
+    end
+
+    test "an accept is credited the same way", ctx do
+      in_job = %{ctx.checker | job_id: ctx.verify_job}
+      {:ok, card} = Verified.decide(ctx.verifying, "accept", %{}, in_job, ctx.user)
+      assert Enum.any?(comments(card), &(&1 =~ "**Accepted** by runner verifier; merging"))
+    end
+
+    test "over REST, from the job the CLI names", ctx do
+      ctx.user
+      |> api("slipdock CLI on box")
+      |> put_req_header("x-slipdock-client", "cli")
+      |> put_req_header("x-slipdock-agent", "1")
+      |> put_req_header("x-slipdock-job", "#{ctx.verify_job}")
+      |> post(~p"/api/cards/#{ctx.verifying.id}/verify", %{
+        "decision" => "reject",
+        "reason" => "no"
+      })
+      |> json_response(200)
+
+      assert Verified.who(Repo.get!(Card, ctx.verifying.id).verify_by) == "runner verifier"
+    end
+
+    test "a job on another card credits nobody but the token", ctx do
+      other = card_fixture(ctx.doing, %{"title" => "Other"})
+      {:ok, elsewhere} = Runners.queue(other, %{pool: "none", kind: "verify", prompt: "x"})
+      in_job = %{ctx.checker | job_id: elsewhere.id}
+
+      {:ok, card} =
+        Verified.decide(ctx.verifying, "reject", %{"reason" => "no"}, in_job, ctx.user)
+
+      assert Enum.any?(comments(card), &(&1 =~ "**Rejected** by agent “checker”."))
+    end
+
+    test "no job is the token's label, as before", ctx do
+      {:ok, card} =
+        Verified.decide(ctx.verifying, "reject", %{"reason" => "no"}, ctx.checker, ctx.user)
+
+      assert Verified.who(card.verify_by) == "agent “checker”"
     end
   end
 
