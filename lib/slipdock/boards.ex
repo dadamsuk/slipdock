@@ -457,20 +457,34 @@ defmodule Slipdock.Boards do
     from(c in Card, where: is_nil(c.archived_at), order_by: [asc: c.position])
   end
 
-  # Dependencies are loaded as light "stubs" (no nested preloads).
-  defp dependency_query do
+  @doc """
+  Dependencies, loaded as light "stubs" (no nested preloads). Each says
+  whether it is `verify_released` (#1661): awaiting verification on a board
+  that ships by push, so it no longer blocks (`Slipdock.Verified.released?/2`).
+  Preload `blocked_by` with this wherever `Card.blocked?/1` is asked.
+  """
+  def dependency_query do
     from(c in Card,
-      select: [
-        :id,
-        :title,
-        :completed,
-        :archived_at,
-        :column_id,
-        :board_id,
-        :priority,
-        :start_date,
-        :due_date
-      ]
+      join: b in Board,
+      on: b.id == c.board_id,
+      select:
+        struct(c, [
+          :id,
+          :title,
+          :completed,
+          :archived_at,
+          :column_id,
+          :board_id,
+          :priority,
+          :start_date,
+          :due_date,
+          :verify_state
+        ]),
+      select_merge: %{
+        verify_released:
+          coalesce(c.verify_state, "") == "pending" and
+            not (b.ship_via == "pull_request" and b.verify_work)
+      }
     )
   end
 
@@ -3192,7 +3206,10 @@ defmodule Slipdock.Boards do
   # handing a card back, most often) flagged it for this dependency, and a
   # flag left on keeps it out of the ready list — runners, `list_top` and the
   # loop all skip it — after the reason has gone.
-  defp unblock_dependents(%Card{} = blocker, opts) do
+  @doc false
+  # Also run by `Slipdock.Verified.saved/3` when a card goes pending on a
+  # board that ships by push: it counts as finished for its dependents (#1661).
+  def unblock_dependents(%Card{} = blocker, opts) do
     from(c in Card,
       join: d in "card_dependencies",
       on: d.blocked_id == c.id,
@@ -3227,7 +3244,14 @@ defmodule Slipdock.Boards do
         do: "##{blocker.id} “#{blocker.title}”",
         else: "card ##{blocker.id} on another board"
 
-    "#{name} is #{if blocker.completed, do: "done", else: "archived"}"
+    state =
+      cond do
+        blocker.completed -> "done"
+        blocker.archived_at -> "archived"
+        true -> "awaiting verification with its work already shipped"
+      end
+
+    "#{name} is #{state}"
   end
 
   # A dependency shows on both cards, so when they are on different boards

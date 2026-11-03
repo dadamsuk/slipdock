@@ -3464,7 +3464,12 @@ defmodule SlipdockWeb.APIGuide do
       another's. Narrow the paths, take other work, or ask a person: a
       person moving the card overrides it. A runner job for such a card is
       held (`Lane: overlaps #N, in progress`) until the other card is done,
-      and a claimed job's prompt lists the card's paths. Stage only files
+      and a claimed job's prompt lists the card's paths. On a board that
+      verifies work and ships by push, a card awaiting verification has
+      shipped: it frees its lane and no longer blocks the cards that depend
+      on it (a dependency stub says `released: true`), until a rejection
+      sends it back for rework. On a board that ships by pull request it
+      keeps both until the merge. Stage only files
       under them; with several sessions in one repository, work in a git
       worktree of your own.
       """

@@ -41,6 +41,25 @@ defmodule Slipdock.Verified do
   def gated?(%{kind: "agent", via: via}) when via != "assistant", do: true
   def gated?(_actor), do: false
 
+  @doc """
+  Whether `card` is awaiting verification on a board that ships by push
+  (#1661). Its work is on the default branch already and nobody is editing
+  its files, so while it is pending it releases its lane (`Slipdock.Lanes`)
+  and counts as finished for the cards that depend on it
+  (`Slipdock.Boards.Card.blocked?/1`, through `Boards.dependency_query/0`).
+  A rejection ends both. On a board that ships by pull request the work is
+  on an unmerged branch, so a pending card keeps both until the merge.
+
+  The queries in `Slipdock.Lanes`, `Slipdock.Rollup` and
+  `Boards.dependency_query/0` say the same in SQL.
+  """
+  def released?(card, board \\ nil)
+
+  def released?(%Card{verify_state: "pending"} = card, board),
+    do: not Board.ships_by_pr?(board || board(card))
+
+  def released?(_card, _board), do: false
+
   @doc "Whether `board` has any of the switches on, and which."
   def switches(%Board{} = board) do
     [bar: board.bar_required, evidence: board.evidence_required, verify: board.verify_work]
@@ -208,8 +227,12 @@ defmodule Slipdock.Verified do
       (not before.completed and updated.completed and before.verify_state != "pending") or
         (before.verify_state != "pending" and updated.verify_state == "pending")
 
-    if before.verify_state != "pending" and updated.verify_state == "pending",
-      do: queue_verify_job(updated, user)
+    if before.verify_state != "pending" and updated.verify_state == "pending" do
+      queue_verify_job(updated, user)
+
+      # Shipped by push: it no longer holds up the cards that depend on it.
+      if released?(updated), do: Slipdock.Boards.unblock_dependents(updated, by: user)
+    end
 
     # Accepted by a person completing it: no job need check it now.
     if before.verify_state == "pending" and updated.verify_state == "accepted",

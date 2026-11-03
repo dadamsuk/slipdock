@@ -729,6 +729,20 @@ are never refused: moving the card yourself is the override, and the card's
 *Paths* field says what it overlaps. The server only compares globs: it
 never sees a working tree.
 
+**Cards awaiting verification.** On a board that verifies work and ships
+by **push**, a card an agent has submitted has its work on the default
+branch already, and nobody is editing its files. While it waits for
+verification it frees its lane (its paths stop counting as in progress, and
+a runner job its lane held goes), and it counts as finished for the cards
+that depend on it: they lose the *blocked* flag, run their *card unblocked*
+rules, and show as ready (a dependency in the API says `released: true`;
+`slipdock card` shows it as *pending verification, shipped*). A rejection
+brings both back: the card goes to the top of the ready list, and moving it
+in to rework it takes its lane again, waiting for any overlapping card in
+progress as lanes do. On a board that ships by **pull request**, a pending
+card's changes are on an unmerged branch, so it keeps its lane and keeps
+blocking its dependents until it is accepted and merged.
+
 **A worktree per runner job.** See *A worktree per job* under
 [Runners](#runners): each job in a git worktree of its own, on a branch
 named for its card.

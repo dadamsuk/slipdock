@@ -433,7 +433,7 @@ defmodule SlipdockCLI.Render do
           do:
             "🔒blocked-by:" <>
               Enum.map_join(
-                Enum.reject(c["blocked_by"] || [], & &1["completed"]),
+                Enum.reject(c["blocked_by"] || [], &(&1["completed"] or &1["released"])),
                 ",",
                 &"##{&1["id"]}"
               )
@@ -2272,7 +2272,7 @@ defmodule SlipdockCLI.Render do
         do:
           "blocked-by:" <>
             Enum.map_join(
-              Enum.reject(c["blocked_by"] || [], & &1["completed"]),
+              Enum.reject(c["blocked_by"] || [], &(&1["completed"] or &1["released"])),
               ",",
               &"##{&1["id"]}"
             )
@@ -2397,6 +2397,7 @@ defmodule SlipdockCLI.Render do
         cond do
           d["completed"] -> "done"
           d["archived"] -> "archived"
+          d["released"] -> "pending verification, shipped"
           true -> "open"
         end
 

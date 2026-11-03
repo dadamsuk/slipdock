@@ -15,7 +15,12 @@ defmodule Slipdock.Lanes do
       other card is in progress, unless its own card is in progress already.
 
   The card's own subcards and parents never count against it: they are the
-  same piece of work. People are never refused — a person moving the card is
+  same piece of work. Nor does a card awaiting verification on a board that
+  ships by push (#1661, `Slipdock.Verified.released?/2`): its work is on the
+  default branch and nobody is editing its files. A rejection sends it back
+  to the ready list, and moving it into a doing list again takes the lane
+  back, through the same check. On a board that ships by pull request a
+  pending card keeps its lane until the merge. People are never refused — a person moving the card is
   the override — and nor are automations. With the switch off, paths are
   recorded and shown and nothing is refused.
 
@@ -219,7 +224,8 @@ defmodule Slipdock.Lanes do
   @doc """
   The first open card in progress on `card`'s tree whose paths overlap
   `paths` (by default the card's own), when the card's board has lanes on;
-  else nil. The card itself, its subcards and its parents don't count.
+  else nil. The card itself, its subcards and its parents don't count, nor
+  does a card `Slipdock.Verified.released?/2`.
   """
   def conflict(%Card{} = card, paths \\ nil) do
     paths = tidy(paths || card.paths)
@@ -236,7 +242,9 @@ defmodule Slipdock.Lanes do
         where:
           (b.id == ^root or b.root_id == ^root) and col.category == "doing" and
             is_nil(c.archived_at) and c.completed == false and c.paths != ^[] and
-            c.id not in ^exclude and c.board_id not in ^below,
+            c.id not in ^exclude and c.board_id not in ^below and
+            (coalesce(c.verify_state, "") != "pending" or
+               (b.ship_via == "pull_request" and b.verify_work)),
         order_by: [asc: c.board_id, asc: col.position, asc: c.position, asc: c.id]
       )
       |> Repo.all()

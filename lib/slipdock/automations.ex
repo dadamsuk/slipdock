@@ -633,7 +633,14 @@ defmodule Slipdock.Automations do
       )
       |> Slipdock.Snooze.not_snoozed(now)
       |> Repo.all()
-      |> Repo.preload([:column, :tags, :assignee, :assignees, :status_updates, :blocked_by])
+      |> Repo.preload([
+        :column,
+        :tags,
+        :assignee,
+        :assignees,
+        :status_updates,
+        blocked_by: Slipdock.Boards.dependency_query()
+      ])
       |> Enum.find(fn card ->
         not Card.blocked?(card) and
           not Enum.any?(card.flags, &(&1 in ["blocked", "waiting"])) and
@@ -786,7 +793,14 @@ defmodule Slipdock.Automations do
     |> where([c], is_nil(c.archived_at))
     |> Slipdock.Snooze.not_snoozed(now)
     |> Repo.all()
-    |> Repo.preload([:column, :tags, :assignee, :assignees, :status_updates, :blocked_by])
+    |> Repo.preload([
+      :column,
+      :tags,
+      :assignee,
+      :assignees,
+      :status_updates,
+      blocked_by: Slipdock.Boards.dependency_query()
+    ])
   end
 
   defp due_card?(%{"type" => "card_stale"} = trigger, card, now, _today) do

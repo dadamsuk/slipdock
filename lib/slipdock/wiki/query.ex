@@ -995,8 +995,8 @@ defmodule Slipdock.Wiki.Query do
           :board,
           :checklist_items,
           :comments,
-          :blocked_by,
-          :blocks
+          :blocks,
+          blocked_by: Slipdock.Boards.dependency_query()
         ])
 
       {:ok, cell(card, field)}

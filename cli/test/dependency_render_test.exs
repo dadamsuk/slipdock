@@ -87,4 +87,26 @@ defmodule SlipdockCLI.DependencyRenderTest do
 
     assert out =~ "#11 A card you can't see (open)"
   end
+
+  test "a blocker awaiting verification on a push board reads as shipped, not open (#1661)" do
+    blocker = %{
+      "id" => 7,
+      "title" => "Pending",
+      "board_id" => 3,
+      "completed" => false,
+      "released" => true
+    }
+
+    out = capture_io(fn -> Render.card(card([blocker])) end)
+    assert out =~ "#7 Pending (pending verification, shipped)"
+
+    line =
+      Render.card_line(
+        Map.put(card([blocker, %{blocker | "id" => 8, "released" => false}]), "priority", "none"),
+        false
+      )
+
+    assert line =~ "blocked-by:#8"
+    refute line =~ "#7"
+  end
 end

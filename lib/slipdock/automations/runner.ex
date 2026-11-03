@@ -1206,7 +1206,14 @@ defmodule Slipdock.Automations.Runner do
   @doc false
   # The facets conditions and templates read, loaded once per run.
   def decorate(%Card{} = card) do
-    Repo.preload(card, [:tags, :column, :assignee, :assignees, :status_updates, :blocked_by])
+    Repo.preload(card, [
+      :tags,
+      :column,
+      :assignee,
+      :assignees,
+      :status_updates,
+      blocked_by: Slipdock.Boards.dependency_query()
+    ])
   end
 
   # A page's `blocked_by` and `description` are virtual (see

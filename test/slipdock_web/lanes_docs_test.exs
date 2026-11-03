@@ -50,4 +50,26 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert cli =~ "slipdock edit <id> --paths"
     assert cli =~ "slipdock hook install lane-check"
   end
+
+  test "a pending card on a push board frees its lane and dependents, said everywhere (#1661)" do
+    manual = read("docs/manual.md")
+    assert manual =~ "**Cards awaiting verification.**"
+    assert manual =~ "`released: true`"
+
+    assert manual =~
+             "keeps its lane and keeps\nblocking its dependents until it is accepted and merged"
+
+    assert read("docs/agents.md") =~ "ships by push, a card awaiting verification frees its lane"
+
+    assert read("priv/skills/slipdock-loop/SKILL.md") =~
+             "a card awaiting\n  verification frees its lane and stops blocking its dependents"
+
+    assert read("priv/skills/slipdock-work/SKILL.md") =~
+             "On a push board a card awaiting verification\n  frees its lane and its dependents"
+
+    guide = File.read!("lib/slipdock_web/api_guide.ex")
+
+    assert guide =~
+             "ships by push, a card awaiting verification has\n      shipped: it frees its lane"
+  end
 end

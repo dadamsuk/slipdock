@@ -166,7 +166,14 @@ defmodule Slipdock.Rollup do
       from(d in "card_dependencies",
         join: c in Card,
         on: c.id == d.blocker_id,
-        where: d.blocked_id in ^card_ids and c.completed == false and is_nil(c.archived_at),
+        join: b in Board,
+        on: b.id == c.board_id,
+        # A blocker awaiting verification on a push board no longer blocks
+        # (#1661, `Slipdock.Verified.released?/2`).
+        where:
+          d.blocked_id in ^card_ids and c.completed == false and is_nil(c.archived_at) and
+            (coalesce(c.verify_state, "") != "pending" or
+               (b.ship_via == "pull_request" and b.verify_work)),
         select: d.blocked_id,
         distinct: true
       )

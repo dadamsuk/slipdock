@@ -650,7 +650,12 @@ or the runner has it on; with none of it on, skip this section.
   **Blocked** by that card (`slipdock blocked-by <id> <other>`), since the
   board unblocks it when the other card is done. Never move it in by some
   other route: only a person overrides a lane. A claimed job's prompt lists
-  the card's paths.
+  the card's paths. On a board that ships by push, a card awaiting
+  verification frees its lane and stops blocking its dependents (its work
+  is on the default branch), so the next card can start; a rejection takes
+  both back, and the rework waits for an overlapping card in progress. On a
+  pull request board a pending card keeps both until the merge: wait,
+  don't build on its unmerged branch.
 - **Stage only the card's paths.** On a card with paths, `git add` the
   files under them by name, never `git add -A` or `.`, and check `git
   status` before committing. Anything else in the working tree is somebody

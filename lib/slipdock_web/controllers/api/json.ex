@@ -704,6 +704,7 @@ defmodule SlipdockWeb.API.JSON do
         title: d.title,
         completed: d.completed,
         archived: not is_nil(d.archived_at),
+        released: d.verify_released == true,
         board_id: d.board_id,
         board: if(match?(%Board{}, d.board), do: d.board.code),
         hidden: d.hidden == true

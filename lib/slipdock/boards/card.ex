@@ -111,6 +111,11 @@ defmodule Slipdock.Boards.Card do
     # when the reader can't see the card at the other end: its title is
     # replaced and only its state, which the computed `blocked` needs, is kept.
     field :hidden, :boolean, virtual: true, default: false
+    # Set on a dependency stub (`Slipdock.Boards.dependency_query/0`): the
+    # card is awaiting verification on a board that ships by push, so its
+    # work is on the default branch already and it counts as finished for
+    # the cards that depend on it (#1661, `Slipdock.Verified.released?/2`).
+    field :verify_released, :boolean, virtual: true, default: false
     # What is happening to it (#1117): a `Slipdock.CardState`, set when it is
     # loaded through `Slipdock.Boards` for a board, a listing or on its own.
     field :state, :any, virtual: true
@@ -289,9 +294,13 @@ defmodule Slipdock.Boards.Card do
   def fuzzy?(%{date_precision: p}), do: p not in [nil, "day"]
   def fuzzy?(_), do: false
 
-  @doc "Whether an unfinished, unarchived card still blocks this one."
+  @doc """
+  Whether an unfinished, unarchived card still blocks this one. A blocker
+  awaiting verification on a board that ships by push counts as finished
+  (`verify_released`, #1661).
+  """
   def blocked?(%{blocked_by: blockers}) when is_list(blockers) do
-    Enum.any?(blockers, &(not &1.completed and is_nil(&1.archived_at)))
+    Enum.any?(blockers, &open_blocker?/1)
   end
 
   def blocked?(_), do: false
@@ -356,10 +365,16 @@ defmodule Slipdock.Boards.Card do
 
   @doc "The blockers that are still open."
   def open_blockers(%{blocked_by: blockers}) when is_list(blockers) do
-    Enum.filter(blockers, &(not &1.completed and is_nil(&1.archived_at)))
+    Enum.filter(blockers, &open_blocker?/1)
   end
 
   def open_blockers(_), do: []
+
+  @doc "Whether `blocker` still holds up the cards that depend on it (see `blocked?/1`)."
+  def open_blocker?(blocker) do
+    not blocker.completed and is_nil(blocker.archived_at) and
+      Map.get(blocker, :verify_released) != true
+  end
 
   @doc """
   Open blockers scheduled to finish after this card is due to start: the
