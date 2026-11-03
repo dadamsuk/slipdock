@@ -12,7 +12,7 @@ defmodule SlipdockWeb.DrawingLiveTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.{Access, Repo}
+  alias Slipdock.{Access, Repo, TestConfig}
   alias Slipdock.Wiki.{DrawingSession, Excalidraw, Files, Page, WikiFile}
 
   @sketch File.read!("test/support/fixtures/excalidraw/Sketch.excalidraw.md")
@@ -291,6 +291,10 @@ defmodule SlipdockWeb.DrawingLiveTest do
 
     test "pointers reach the others, no more than about twenty a second",
          %{conn: conn, reader: reader, drawing: drawing} do
+      # The throttle's clock is stepped by hand, not raced (#1651).
+      clock = start_supervised!({Agent, fn -> 1_000 end})
+      TestConfig.put(:drawing_pointers, now: fn -> Agent.get(clock, & &1) end)
+
       {:ok, one, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
 
       {:ok, two, _} =
@@ -303,6 +307,7 @@ defmodule SlipdockWeb.DrawingLiveTest do
         "selected" => ["box1"]
       })
 
+      Agent.update(clock, &(&1 + 39))
       render_hook(two, "pointer", %{"x" => 11, "y" => 21})
 
       assert_push_event(one, "drawing:pointer", %{
@@ -317,7 +322,8 @@ defmodule SlipdockWeb.DrawingLiveTest do
       refute_push_event(one, "drawing:pointer", %{x: 11}, 20)
       refute_push_event(two, "drawing:pointer", _, 20)
 
-      Process.sleep(50)
+      # 40 ms after the first, the window is over.
+      Agent.update(clock, &(&1 + 1))
       render_hook(two, "pointer", %{"x" => 12, "y" => 22, "tool" => "laser", "evil" => "x"})
       assert_push_event(one, "drawing:pointer", %{x: 12, tool: "laser"} = pointer)
       refute Map.has_key?(pointer, :evil)

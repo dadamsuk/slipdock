@@ -16,7 +16,7 @@ defmodule SlipdockWeb.DrawingLive do
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Access, Repo}
+  alias Slipdock.{Access, Config, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Wiki.{Drawings, DrawingSession, Excalidraw, Page, WikiFile}
@@ -161,10 +161,12 @@ defmodule SlipdockWeb.DrawingLive do
   end
 
   # About twenty a second from each tab at most, whatever the browser sends.
+  # The clock is `config :slipdock, :drawing_pointers, now: fun` when set, so a
+  # test can step time rather than race it on a slow runner (#1651).
   @pointer_ms 40
 
   defp pointer(socket, params) do
-    now = System.monotonic_time(:millisecond)
+    now = pointer_now()
 
     if socket.assigns.pointer_at && now - socket.assigns.pointer_at < @pointer_ms do
       socket
@@ -177,6 +179,13 @@ defmodule SlipdockWeb.DrawingLive do
       )
 
       assign(socket, pointer_at: now)
+    end
+  end
+
+  defp pointer_now do
+    case Config.get(:drawing_pointers, [])[:now] do
+      now when is_function(now, 0) -> now.()
+      _ -> System.monotonic_time(:millisecond)
     end
   end
 
