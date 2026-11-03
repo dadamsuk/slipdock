@@ -6285,223 +6285,163 @@ defmodule SlipdockWeb.WikiLive.Index do
     </div>
 
     <article :if={@page}>
-      <%!-- Two breadcrumbs, because a page sits on two axes: where it is
-            filed, and what it is part of (see `Slipdock.Wiki.Folder`). --%>
-      <nav
-        :if={not is_nil(@page.folder_id) or Wiki.ancestors(@page) != []}
-        class="mb-2 flex flex-wrap items-center gap-1 text-sm text-base-content/50"
-      >
-        <span
-          :for={{_folder, name} <- crumbs(folder_crumbs(@page))}
-          class="flex min-w-0 items-center gap-1"
+      <%!-- What you can do with the page comes first, above where it is
+            filed (#1663): the heart, its code, the tools, Edit, History,
+            the page menu, and the button that opens its details. --%>
+      <div id="page-actions" class="mb-3 flex flex-wrap items-center gap-1">
+        <%!-- Anyone who can read the page may favourite it: it is their
+              own shortcut on /favourites, not a change to the page. --%>
+        <.favourite_toggle
+          :if={@current_user}
+          id={@page.id}
+          kind="page"
+          name={@page.title}
+          marks={@marks}
+          class="btn btn-ghost btn-sm btn-square"
+        />
+        <span class="chip chip-line font-mono text-2xs" title="Page code">{@page.code}</span>
+        <%!-- A drawing opens in the Excalidraw editor (W-103 R5.2); its
+              Markdown is still there under Edit, for the rare fix by hand. --%>
+        <.link
+          :if={Slipdock.Wiki.Excalidraw.page?(@page)}
+          id="open-drawing"
+          navigate={~p"/drawings/page/#{@page.id}"}
+          class="btn btn-primary btn-sm gap-1.5"
         >
-          <.icon name="hero-folder" class="size-3 shrink-0" />
-          <span class="max-w-64 truncate" title={"Filed here: #{name.title}"}>
-            {Names.pick(name, (@current_user && @current_user.tree_names) || "full")}
-          </span>
-          <.icon name="hero-chevron-right" class="size-3 shrink-0" />
-        </span>
-        <span :for={ancestor <- Wiki.ancestors(@page)} class="flex items-center gap-1">
-          <.link patch={page_path(@board, ancestor)} class="hover:text-base-content">
-            {ancestor.title}
-          </.link>
-          <.icon name="hero-chevron-right" class="size-3" />
-        </span>
-      </nav>
-
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div class="min-w-0">
-          <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
-            <.wiki_icon
-              :if={dressed?(Map.from_struct(@page))}
-              kind={:page}
-              icon={@page.icon}
-              color={@page.color}
-              class="size-6"
-            />
-            {@page.title}
-          </h1>
-          <p :if={@page.summary} class="mt-1 text-base-content/60">{@page.summary}</p>
-        </div>
-        <div class="flex shrink-0 items-center gap-1">
-          <%!-- Anyone who can read the page may favourite it: it is their
-                own shortcut on /favourites, not a change to the page. --%>
-          <.favourite_toggle
-            :if={@current_user}
-            id={@page.id}
-            kind="page"
-            name={@page.title}
-            marks={@marks}
+          <.icon name="hero-paint-brush" class="size-4" />
+          {if @can_write, do: "Edit drawing", else: "Open drawing"}
+        </.link>
+        <.page_tools_toggle pressed={@page_tools} />
+        <.link
+          :if={@can_write}
+          patch={~p"/boards/#{@board}/wiki/#{@page.slug}/edit"}
+          class="btn btn-sm gap-1.5"
+        >
+          <.icon name="hero-pencil-square" class="size-4" />
+          {if Slipdock.Wiki.Excalidraw.page?(@page), do: "Edit Markdown", else: "Edit"}
+        </.link>
+        <.link
+          patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history"}
+          class="btn btn-ghost btn-sm gap-1.5"
+        >
+          <.icon name="hero-clock" class="size-4" />
+          <span class="hidden sm:inline">History</span>
+        </.link>
+        <%!-- Everything that changes what the page *is* rather than what
+              it says, behind one menu: publishing, filing it away, and the
+              owner's purge. Archiving is the reversible one and is offered
+              first; deleting says what it will cost. --%>
+        <div :if={@can_write} class="dropdown dropdown-end">
+          <div
+            tabindex="0"
+            role="button"
             class="btn btn-ghost btn-sm btn-square"
-          />
-          <span class="chip chip-line font-mono text-2xs" title="Page code">{@page.code}</span>
-          <%!-- A drawing opens in the Excalidraw editor (W-103 R5.2); its
-                Markdown is still there under Edit, for the rare fix by hand. --%>
-          <.link
-            :if={Slipdock.Wiki.Excalidraw.page?(@page)}
-            id="open-drawing"
-            navigate={~p"/drawings/page/#{@page.id}"}
-            class="btn btn-primary btn-sm gap-1.5"
+            title="Page actions"
           >
-            <.icon name="hero-paint-brush" class="size-4" />
-            {if @can_write, do: "Edit drawing", else: "Open drawing"}
-          </.link>
-          <.page_tools_toggle pressed={@page_tools} />
-          <.link
-            :if={@can_write}
-            patch={~p"/boards/#{@board}/wiki/#{@page.slug}/edit"}
-            class="btn btn-sm gap-1.5"
-          >
-            <.icon name="hero-pencil-square" class="size-4" />
-            {if Slipdock.Wiki.Excalidraw.page?(@page), do: "Edit Markdown", else: "Edit"}
-          </.link>
-          <.link
-            patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history"}
-            class="btn btn-ghost btn-sm gap-1.5"
-          >
-            <.icon name="hero-clock" class="size-4" />
-            <span class="hidden sm:inline">History</span>
-          </.link>
-          <%!-- Everything that changes what the page *is* rather than what
-                it says, behind one menu: publishing, filing it away, and the
-                owner's purge. Archiving is the reversible one and is offered
-                first; deleting says what it will cost. --%>
-          <div :if={@can_write} class="dropdown dropdown-end">
-            <div
-              tabindex="0"
-              role="button"
-              class="btn btn-ghost btn-sm btn-square"
-              title="Page actions"
-            >
-              <.icon name="hero-ellipsis-horizontal" class="size-5" />
-            </div>
-            <ul
-              tabindex="0"
-              class="menu dropdown-content z-40 mt-1 w-64 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
-            >
-              <li :if={is_nil(@page.public_token) and @page.status != "draft"}>
-                <button
-                  type="button"
-                  phx-click="publish"
-                  data-confirm="Publish this page? Anyone with the link will be able to read it."
-                >
-                  <.icon name="hero-globe-alt" class="size-4" /> Publish at a public link
-                </button>
-              </li>
-              <li :if={not is_nil(@page.public_token)}>
-                <button type="button" phx-click="unpublish">
-                  <.icon name="hero-globe-alt" class="size-4" /> Withdraw the public link
-                </button>
-              </li>
-              <li>
-                <button
-                  id="share-page"
-                  type="button"
-                  phx-click="share_item"
-                  phx-value-kind="page"
-                  phx-value-id={@page.id}
-                >
-                  <.icon name="hero-user-plus" class="size-4" /> Share…
-                </button>
-              </li>
-              <li>
-                <.link patch={~p"/boards/#{@board}/wiki/new?#{[parent: @page.id]}"}>
-                  <.icon name="hero-document-plus" class="size-4" /> New page under this one
-                </.link>
-              </li>
-              <li>
-                <a href={~p"/boards/#{@board}/wiki/#{@page.slug}/page.md"} download>
-                  <.icon name="hero-arrow-down-tray" class="size-4" /> Download as Markdown
-                </a>
-              </li>
-              <li :if={is_nil(@page.archived_at)}>
-                <button
-                  type="button"
-                  phx-click="archive"
-                  data-confirm={"Archive “#{@page.title}” and everything under it? Nothing is lost: it can be restored."}
-                >
-                  <.icon name="hero-archive-box" class="size-4" /> Archive this page
-                </button>
-              </li>
-              <li :if={not is_nil(@page.archived_at)}>
-                <button type="button" phx-click="restore">
-                  <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore this page
-                </button>
-              </li>
-              <li :if={@can_manage}>
-                <button
-                  type="button"
-                  phx-click="delete_page"
-                  data-confirm={delete_warning(@page, @children)}
-                  class="text-error"
-                >
-                  <.icon name="hero-trash" class="size-4" /> Delete permanently
-                </button>
-              </li>
-              <li :if={not @can_manage} class="menu-disabled">
-                <span class="text-xs text-base-content/50">
-                  Only the board's owner can delete a page for good.
-                </span>
-              </li>
-            </ul>
+            <.icon name="hero-ellipsis-horizontal" class="size-5" />
           </div>
+          <ul
+            tabindex="0"
+            class="menu dropdown-content z-40 mt-1 w-64 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+          >
+            <li :if={is_nil(@page.public_token) and @page.status != "draft"}>
+              <button
+                type="button"
+                phx-click="publish"
+                data-confirm="Publish this page? Anyone with the link will be able to read it."
+              >
+                <.icon name="hero-globe-alt" class="size-4" /> Publish at a public link
+              </button>
+            </li>
+            <li :if={not is_nil(@page.public_token)}>
+              <button type="button" phx-click="unpublish">
+                <.icon name="hero-globe-alt" class="size-4" /> Withdraw the public link
+              </button>
+            </li>
+            <li>
+              <button
+                id="share-page"
+                type="button"
+                phx-click="share_item"
+                phx-value-kind="page"
+                phx-value-id={@page.id}
+              >
+                <.icon name="hero-user-plus" class="size-4" /> Share…
+              </button>
+            </li>
+            <li>
+              <.link patch={~p"/boards/#{@board}/wiki/new?#{[parent: @page.id]}"}>
+                <.icon name="hero-document-plus" class="size-4" /> New page under this one
+              </.link>
+            </li>
+            <li>
+              <a href={~p"/boards/#{@board}/wiki/#{@page.slug}/page.md"} download>
+                <.icon name="hero-arrow-down-tray" class="size-4" /> Download as Markdown
+              </a>
+            </li>
+            <li :if={is_nil(@page.archived_at)}>
+              <button
+                type="button"
+                phx-click="archive"
+                data-confirm={"Archive “#{@page.title}” and everything under it? Nothing is lost: it can be restored."}
+              >
+                <.icon name="hero-archive-box" class="size-4" /> Archive this page
+              </button>
+            </li>
+            <li :if={not is_nil(@page.archived_at)}>
+              <button type="button" phx-click="restore">
+                <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore this page
+              </button>
+            </li>
+            <li :if={@can_manage}>
+              <button
+                type="button"
+                phx-click="delete_page"
+                data-confirm={delete_warning(@page, @children)}
+                class="text-error"
+              >
+                <.icon name="hero-trash" class="size-4" /> Delete permanently
+              </button>
+            </li>
+            <li :if={not @can_manage} class="menu-disabled">
+              <span class="text-xs text-base-content/50">
+                Only the board's owner can delete a page for good.
+              </span>
+            </li>
+          </ul>
         </div>
-      </div>
-
-      <div
-        :if={@page.archived_at}
-        class="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm"
-      >
-        <.icon name="hero-archive-box" class="size-4 shrink-0 text-amber-700" />
-        <span class="flex-1">This page is archived.</span>
-        <button :if={@can_write} type="button" phx-click="restore" class="btn btn-xs">Restore</button>
+        <%!-- Everything about the page rather than in it (where it is
+              filed, where it sits on the board, its public link, facets,
+              tags and front matter) waits behind this button so the prose
+              comes first (#761). The panel opens just beneath this row.
+              Closed on every page: both ids carry the page's, so moving to
+              another page starts it closed again, while the toggle (a JS
+              command, so it survives patches) keeps it open across this
+              page's own updates (filing it, placing it). --%>
         <button
-          :if={@can_manage}
+          id={"page-details-toggle-#{@page.id}"}
           type="button"
-          phx-click="delete_page"
-          data-confirm={delete_warning(@page, @children)}
-          class="btn btn-ghost btn-xs text-error"
+          class="group btn btn-ghost btn-sm gap-1.5"
+          aria-expanded="false"
+          aria-controls={"page-details-#{@page.id}"}
+          phx-click={
+            JS.toggle_attribute({"hidden", "hidden"}, to: "#page-details-#{@page.id}")
+            |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+          }
         >
-          Delete for good
+          <.icon
+            name="hero-chevron-right"
+            class="size-4 transition-transform group-aria-expanded:rotate-90"
+          /> Page details
         </button>
       </div>
 
       <div
-        :if={@page.status == "draft"}
-        class="mt-4 rounded-xl border border-base-300 bg-base-100 px-4 py-3 text-sm text-base-content/70"
-      >
-        A draft: only people who can write on this board can see it.
-      </div>
-
-      <%!-- Selecting a passage offers to make a card of it, with the link
-            written into both ends. A doc is where a backlog comes from. --%>
-      <button
-        :if={@can_write}
-        id="selection-to-card"
-        type="button"
-        hidden
-        class="btn btn-primary btn-xs absolute z-40 gap-1 shadow-lg"
-        style="position: absolute"
-      >
-        <.icon name="hero-plus" class="size-3" /> Make a card
-      </button>
-      <%!-- Everything about the page rather than in it — where it is filed,
-            where it sits on the board, its public link, facets, tags and
-            front matter — folded away under the title so the prose comes
-            first (#761). Closed on every page: the id carries the page's, so
-            moving to another page starts it closed again, while
-            `ignore_attributes` keeps it open across this page's own updates
-            (filing it, placing it). --%>
-      <details
         id={"page-details-#{@page.id}"}
         data-role="page-details"
-        phx-mounted={JS.ignore_attributes("open")}
-        class="group mt-4"
+        hidden
+        class="mb-4 rounded-xl border border-base-300 bg-base-100/60 px-4 pb-4"
       >
-        <summary class="flex cursor-pointer select-none items-center gap-1 text-xs font-semibold uppercase tracking-wide text-base-content/50 hover:text-base-content/80">
-          <.icon name="hero-chevron-right" class="size-3 transition-transform group-open:rotate-90" />
-          Page details
-        </summary>
         <%!-- When it was written and last changed. Kept by Slipdock, not in
               the page's front matter, so a synced file is never rewritten
               just to move a timestamp (#790). --%>
@@ -6694,7 +6634,83 @@ defmodule SlipdockWeb.WikiLive.Index do
           </summary>
           <pre class="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-base-content/80">{Slipdock.Wiki.FrontMatter.yaml(@page.front_matter)}</pre>
         </details>
-      </details>
+      </div>
+
+      <%!-- Two breadcrumbs, because a page sits on two axes: where it is
+            filed, and what it is part of (see `Slipdock.Wiki.Folder`). --%>
+      <nav
+        :if={not is_nil(@page.folder_id) or Wiki.ancestors(@page) != []}
+        class="mb-2 flex flex-wrap items-center gap-1 text-sm text-base-content/50"
+      >
+        <span
+          :for={{_folder, name} <- crumbs(folder_crumbs(@page))}
+          class="flex min-w-0 items-center gap-1"
+        >
+          <.icon name="hero-folder" class="size-3 shrink-0" />
+          <span class="max-w-64 truncate" title={"Filed here: #{name.title}"}>
+            {Names.pick(name, (@current_user && @current_user.tree_names) || "full")}
+          </span>
+          <.icon name="hero-chevron-right" class="size-3 shrink-0" />
+        </span>
+        <span :for={ancestor <- Wiki.ancestors(@page)} class="flex items-center gap-1">
+          <.link patch={page_path(@board, ancestor)} class="hover:text-base-content">
+            {ancestor.title}
+          </.link>
+          <.icon name="hero-chevron-right" class="size-3" />
+        </span>
+      </nav>
+
+      <div class="min-w-0">
+        <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
+          <.wiki_icon
+            :if={dressed?(Map.from_struct(@page))}
+            kind={:page}
+            icon={@page.icon}
+            color={@page.color}
+            class="size-6"
+          />
+          {@page.title}
+        </h1>
+        <p :if={@page.summary} class="mt-1 text-base-content/60">{@page.summary}</p>
+      </div>
+
+      <div
+        :if={@page.archived_at}
+        class="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm"
+      >
+        <.icon name="hero-archive-box" class="size-4 shrink-0 text-amber-700" />
+        <span class="flex-1">This page is archived.</span>
+        <button :if={@can_write} type="button" phx-click="restore" class="btn btn-xs">Restore</button>
+        <button
+          :if={@can_manage}
+          type="button"
+          phx-click="delete_page"
+          data-confirm={delete_warning(@page, @children)}
+          class="btn btn-ghost btn-xs text-error"
+        >
+          Delete for good
+        </button>
+      </div>
+
+      <div
+        :if={@page.status == "draft"}
+        class="mt-4 rounded-xl border border-base-300 bg-base-100 px-4 py-3 text-sm text-base-content/70"
+      >
+        A draft: only people who can write on this board can see it.
+      </div>
+
+      <%!-- Selecting a passage offers to make a card of it, with the link
+            written into both ends. A doc is where a backlog comes from. --%>
+      <button
+        :if={@can_write}
+        id="selection-to-card"
+        type="button"
+        hidden
+        class="btn btn-primary btn-xs absolute z-40 gap-1 shadow-lg"
+        style="position: absolute"
+      >
+        <.icon name="hero-plus" class="size-3" /> Make a card
+      </button>
 
       <%!-- The player for a transcript and, on a meeting page, its recording
             (W-1690): it finds both in the body and draws its bar there. One

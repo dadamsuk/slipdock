@@ -3758,6 +3758,14 @@ and most pages are in no folder at all, which is the root rather than a limbo.
 to a folder — write a page here, make one inside, rename or move it, delete it
 — gathered in one place rather than only on a hover menu.
 
+**A page's actions come first.** Above its folder and title, one row holds
+everything you do with the page: the heart (a favourite), its code (`W-31`),
+**AI tools**, **Edit**, **History**, the `⋯` menu and **Page details**. Page
+details opens just beneath that row, above the folder: when the page was
+created and updated, who it is shared with, the folder it is filed in, the
+list it sits in on the board, its public link, tags and front matter. It
+starts closed on every page, and stays open while you file or place the page.
+
 **Icons and colours.** A folder or a page can wear an icon and a colour, so
 the things you reach for most stand out. A folder's **Edit folder…** (on its
 own page or its tree menu) and a page's editor both offer the icon set and the

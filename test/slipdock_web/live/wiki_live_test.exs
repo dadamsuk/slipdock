@@ -472,10 +472,8 @@ defmodule SlipdockWeb.WikiLiveTest do
 
       {:ok, view, html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
 
-      details = "details#page-details-#{page.id}"
-      assert has_element?(view, details)
-      refute has_element?(view, "#{details}[open]")
-      assert has_element?(view, "#{details} summary", "Page details")
+      details = "#page-details-#{page.id}[data-role='page-details']"
+      assert has_element?(view, "#{details}[hidden]")
       assert has_element?(view, "#{details} #page-folder-picker")
       assert has_element?(view, "#{details}", "On the board in")
       assert has_element?(view, "#{details} button[phx-value-column='#{todo.id}']")
@@ -485,6 +483,79 @@ defmodule SlipdockWeb.WikiLiveTest do
       {details_at, _} = :binary.match(html, ~s(data-role="page-details"))
       {body_at, _} = :binary.match(html, ~s(id="wiki-body"))
       assert details_at < body_at
+    end
+
+    test "open from a Page details button on the action row (#1663)", %{
+      conn: conn,
+      board: board
+    } do
+      page = page_fixture(board, %{"title" => "The spec"})
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      # A button among the page's actions, not a <summary> of its own.
+      toggle = "#page-actions button#page-details-toggle-#{page.id}"
+      assert has_element?(view, toggle, "Page details")
+      assert has_element?(view, "#{toggle}[type='button'][aria-expanded='false']")
+      assert has_element?(view, "#{toggle}[aria-controls='page-details-#{page.id}']")
+      refute has_element?(view, "[data-role='page-details'] summary")
+
+      # It shows and hides the panel in the browser, and says which it is.
+      [click] =
+        view
+        |> element(toggle)
+        |> render()
+        |> Floki.parse_fragment!()
+        |> Floki.attribute("phx-click")
+
+      assert [
+               ["toggle_attr", %{"attr" => ["hidden", "hidden"], "to" => to}],
+               ["toggle_attr", aria]
+             ] =
+               Jason.decode!(click)
+
+      assert to == "#page-details-#{page.id}"
+      assert aria["attr"] == ["aria-expanded", "true", "false"]
+    end
+
+    test "sit with the actions above the folder and the title (#1663)", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, folder} = Wiki.create_folder(board, %{"name" => "Config"})
+
+      page =
+        page_fixture(board, %{
+          "title" => "Candidate Facts",
+          "summary" => "Everything known.",
+          "folder_id" => folder.id
+        })
+
+      {:ok, view, html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      # Every action is on the one row: the heart, the code, Edit, History,
+      # the page menu and the details button.
+      row = "article #page-actions"
+      assert has_element?(view, "#{row} button[phx-click='toggle_favourite']")
+      assert has_element?(view, "#{row} span[title='Page code']", page.code)
+      assert has_element?(view, "#{row} a[href$='/wiki/#{page.slug}/edit']", "Edit")
+      assert has_element?(view, "#{row} a[href$='/wiki/#{page.slug}/history']")
+      assert has_element?(view, "#{row} [title='Page actions']")
+      assert has_element?(view, "#{row} #page-details-toggle-#{page.id}")
+      refute has_element?(view, "article h1 ~ * #page-details-toggle-#{page.id}")
+
+      # Then the details panel, then the folder, the title and its summary.
+      at = fn needle -> html |> :binary.match(needle) |> elem(0) end
+      actions = at.(~s(id="page-actions"))
+      details = at.(~s(data-role="page-details"))
+      folder_at = at.(~s(title="Filed here: Config"))
+      title = at.("<h1")
+      summary = at.("Everything known.")
+
+      assert actions < details
+      assert details < folder_at
+      assert folder_at < title
+      assert title < summary
     end
 
     test "say that a page is archived or a draft outside the reveal", %{
@@ -534,7 +605,7 @@ defmodule SlipdockWeb.WikiLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
 
-      stamps = "details#page-details-#{page.id} #page-stamps"
+      stamps = "#page-details-#{page.id} #page-stamps"
       assert has_element?(view, stamps, "Created 02 Jan 2026, 03:04")
       assert has_element?(view, "#{stamps} time[datetime='2026-01-02T03:04:05Z']")
 
