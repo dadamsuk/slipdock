@@ -498,12 +498,27 @@ defmodule SlipdockWeb.BoardLive.Index do
               <h1>
                 <Layouts.brand_wordmark class="h-7 sm:h-9" />
               </h1>
-              <p class="mt-1 text-sm text-base-content/60">
-                {length(@boards)} {if length(@boards) == 1, do: "board", else: "boards"}<span :if={
-                  @multiboards != %{}
-                }> · {map_size(@multiboards)} {if map_size(@multiboards) == 1,
-                  do: "multiboard",
-                  else: "multiboards"}</span>
+              <p class="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-base-content/60">
+                <%!-- The other way to read every board: not their cards, but
+                     everything written on them: the one wiki (W-2201). It sits
+                     with the count, on the left (#1662). --%>
+                <.link
+                  id="open-wiki"
+                  navigate={~p"/wiki"}
+                  class="inline-flex items-center gap-1 font-medium text-base-content/80 hover:text-primary"
+                >
+                  <.icon name="hero-book-open" class="size-4" /> Wiki
+                </.link>
+                <span aria-hidden="true">·</span>
+                <span id="board-count">
+                  {length(@boards)} {if length(@boards) == 1, do: "board", else: "boards"}
+                </span>
+                <span :if={@multiboards != %{}} aria-hidden="true">·</span>
+                <span :if={@multiboards != %{}} id="multiboard-count">
+                  {map_size(@multiboards)} {if map_size(@multiboards) == 1,
+                    do: "multiboard",
+                    else: "multiboards"}
+                </span>
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -552,8 +567,6 @@ defmodule SlipdockWeb.BoardLive.Index do
                   <.icon name={icon} class="size-4" />
                 </button>
               </div>
-              <%!-- The other way to read every board: not their cards, but
-                    everything written on them: the one wiki (W-2201). --%>
               <%!-- The top cards of lists picked from any of them (#1479). --%>
               <.link
                 id="open-multiboard"
@@ -563,10 +576,6 @@ defmodule SlipdockWeb.BoardLive.Index do
               >
                 <.icon name="hero-rectangle-group" class="size-4" />
                 <span class="hidden sm:inline">Multiboard</span>
-              </.link>
-              <.link navigate={~p"/wiki"} class="btn btn-ghost btn-sm">
-                <.icon name="hero-book-open" class="size-4" />
-                <span class="hidden sm:inline">Wiki</span>
               </.link>
               <.link navigate={~p"/templates"} class="btn btn-ghost btn-sm">
                 <.icon name="hero-view-columns" class="size-4" />

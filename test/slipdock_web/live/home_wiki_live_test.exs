@@ -32,6 +32,22 @@ defmodule SlipdockWeb.HomeWikiLiveTest do
     assert tiles(html) == [board: alpha.id]
   end
 
+  # #1662: the link sits on the left, before the board count, and only there.
+  test "the Wiki link sits on the left, before the board count", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/")
+
+    assert has_element?(view, "h1 + p > a#open-wiki[href='/wiki']", "Wiki")
+    assert has_element?(view, "h1 + p > #board-count", "1 board")
+
+    [_, after_link] = String.split(html, ~s(id="open-wiki"), parts: 2)
+    assert after_link =~ ~s(id="board-count")
+
+    # No longer among the buttons on the right, beside Multiboard.
+    assert has_element?(view, "#open-multiboard")
+    refute has_element?(view, "#open-multiboard ~ a[href='/wiki']")
+    refute has_element?(view, "#multiboard-count")
+  end
+
   test "the Knowledge Base is no tile, in either layout or among the archived", ctx do
     %{conn: conn, user: user, kb: kb} = ctx
 
