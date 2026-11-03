@@ -351,6 +351,15 @@ defmodule SlipdockWeb.ConfigLiveTest do
   end
 
   describe "AI models (#1670)" do
+    test "each model field carries the cost warning", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/config/ai")
+
+      for key <- ~w(model quick_model organise_model fallback_models) do
+        assert view |> element("#ai-cost-warning-#{key}") |> render() =~
+                 "WARNING: Choose cheaper models where possible"
+      end
+    end
+
     test "an admin saves them, and each says the value in force and where it came from", %{
       conn: conn
     } do

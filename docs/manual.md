@@ -5621,6 +5621,10 @@ default. Clearing a field goes back to the environment, then the default.
 you type. Per call the order is: **a person's own model**, then the admin's,
 then the environment, then the built-in default.
 
+Under each model field here, and under the model picker on Account → AI
+model, a note reads **WARNING: Choose cheaper models where possible**: every
+call is billed to whoever's key it runs on, and the cheap models do most jobs.
+
 The fallbacks go to OpenRouter in its `models` array, primary first, so a
 rate-limited model is replaced by the next without the person noticing. They
 are sent only to OpenRouter and only with the server's own model. Somebody who

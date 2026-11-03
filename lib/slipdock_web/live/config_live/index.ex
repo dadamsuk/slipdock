@@ -609,6 +609,9 @@ defmodule SlipdockWeb.ConfigLive.Index do
             placeholder={"Empty: #{AI.model_env(key)}, then the built-in default"}
             value={Map.get(@settings, AI.model_field(key))}
           />
+          <p id={"ai-cost-warning-#{key}"} class="text-xs font-semibold text-warning">
+            WARNING: Choose cheaper models where possible
+          </p>
           <p class="text-xs text-base-content/60">{model_help(key)}</p>
           <p id={"ai-in-force-#{key}"} class="mt-1 text-xs">
             <span class="text-base-content/60">In force:</span>
