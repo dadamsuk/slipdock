@@ -61,7 +61,7 @@ defmodule SlipdockWeb.ShareComponents do
         <input type="hidden" name="resource" value={@resource} />
         <select
           name="group"
-          class="select select-xs w-36"
+          class="select field w-36"
           title="Share with a group, or leave on 'a person' and enter an email"
         >
           <option value="">a person (by email)</option>
@@ -71,19 +71,19 @@ defmodule SlipdockWeb.ShareComponents do
           type="email"
           name="email"
           placeholder="email@example.com"
-          class="input input-xs w-44"
+          class="input field w-44"
           autocomplete="off"
         />
         <select
           name="level"
-          class="select select-xs w-28"
+          class="select field w-28"
           title="Read only: look. Can comment: look, comment, report a status and vote. Can edit: change it."
         >
           <option value="read">read only</option>
           <option value="comment">can comment</option>
           <option value="write">can edit</option>
         </select>
-        <button type="submit" class="btn btn-xs btn-primary">Share</button>
+        <button type="submit" class="btn btn-sm btn-primary">Share</button>
       </form>
     </div>
     """

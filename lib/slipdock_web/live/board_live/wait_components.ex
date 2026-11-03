@@ -87,7 +87,7 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
                 id={"wait-answer-#{n}"}
                 name={"wait[answers][#{n}]"}
                 rows="1"
-                class="textarea textarea-bordered textarea-xs min-h-0 w-full"
+                class="textarea field w-full"
                 placeholder={placeholder(@wait, n)}
                 maxlength="8000"
                 phx-debounce="300"
@@ -195,7 +195,7 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
             id={"wait-ask-#{n}"}
             name={"ask[questions][#{n}]"}
             rows="1"
-            class="textarea textarea-bordered textarea-xs min-h-0 w-full"
+            class="textarea field w-full"
             placeholder="A question"
             maxlength="1000"
             phx-debounce="300"
@@ -227,7 +227,7 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
         </button>
         <label class="flex items-center gap-1.5 text-xs text-base-content/60">
           On
-          <select id="wait-ask-on" name="ask[on]" class="select select-xs">
+          <select id="wait-ask-on" name="ask[on]" class="select field">
             <option value="" selected={@asking.on in [nil, ""]}>anyone</option>
             <option
               :for={u <- @users}

@@ -1,5 +1,7 @@
 # Visual design review and proposal
 
+> This is the September review that led to the design system, not the system itself. The rules in force (type, radius, surfaces, fields, buttons, chips) are kept in the project handbook, W-1946 UX & UI §Design system, and defined once in `assets/css/app.css`. Fields were left out here; #1672 added them after the card back drifted to four sizes and three borders.
+
 Date: 2026-09-26. Status: all four phases below were implemented the same day (uncommitted); the screenshots in `tmp/design-review/` show the state before the changes. Reviewed against commit `2e072a0` on the dev server, in light and dark themes, at 1440×900 desktop and 390×844 mobile. Screenshots live in `tmp/design-review/` (git-ignored); the proposed-direction mockup is `tmp/design-review/mockup.html`.
 
 ## Summary

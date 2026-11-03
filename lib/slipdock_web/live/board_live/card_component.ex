@@ -1959,7 +1959,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           type="textarea"
           label="Note"
           rows="5"
-          class="textarea textarea-sm w-full font-mono text-xs"
+          class="textarea field w-full"
           placeholder={Slipdock.Boards.Handoff.body_template()}
         />
         <div class="flex items-center gap-2">
