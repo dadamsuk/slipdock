@@ -89,7 +89,7 @@ function Job-Merge {
   if (-not $head.ToLower().StartsWith($want.ToLower())) {
     Write-Output "merge: $pr's head is $head, not the accepted commit $want (it moved after the card was accepted); nothing merged"; exit 2
   }
-  & gh pr merge $num --repo $prRepo --merge --match-head-commit $head --subject "Merge pull request #${num}: card #$env:SLIPDOCK_CARD"
+  & gh pr merge $num --repo $prRepo --merge --match-head-commit $head --subject "Merge PR ${num}: card #$env:SLIPDOCK_CARD"
   if ($LASTEXITCODE -ne 0) {
     Write-Output "merge: gh pr merge refused $pr (a conflict, a failing required check or branch protection)"; exit 3
   }

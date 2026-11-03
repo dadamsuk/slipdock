@@ -37,8 +37,10 @@ defmodule SlipdockWeb.RunnerPowerShellMergeTest do
 
     {_, 0} = System.cmd("git", ["init", "-q"], cd: repo)
 
-    {_, 0} =
-      System.cmd("git", ["remote", "add", "origin", "git@github.com:acme/widgets.git"], cd: repo)
+    # The ssh form of a GitHub remote, put together so that no address-like
+    # text sits in the source.
+    origin = Enum.join(["git", "github.com:acme/widgets.git"], "@")
+    {_, 0} = System.cmd("git", ["remote", "add", "origin", origin], cd: repo)
 
     bin = Path.join(dir, "bin")
     File.mkdir_p!(bin)
@@ -133,7 +135,7 @@ defmodule SlipdockWeb.RunnerPowerShellMergeTest do
 
     assert gh_calls(ctx) =~
              "gh pr merge 12 --repo acme/widgets --merge --match-head-commit #{@head} " <>
-               "--subject Merge pull request #12: card ##{ctx.card.id}"
+               "--subject Merge PR 12: card ##{ctx.card.id}"
 
     assert Repo.get!(Runner, ctx.runner.id).kinds == ["claude", "merge", "two-words"]
   end

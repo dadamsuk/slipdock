@@ -718,7 +718,8 @@ commit, else the builder's). The runner then checks, before merging anything:
 - its head is the accepted commit (`gh pr merge --match-head-commit`), so
   nothing pushed after the acceptance gets merged.
 
-It merges with a merge commit (`Merge pull request #N: card #ID`) and reports
+It merges with a merge commit (`Merge PR N: card #ID`, so a deploy's card
+references don't read the pull request's number as a card) and reports
 the merge commit back. Anything else (a moved head, a closed pull request, a
 conflict or a failing required check, another repository, no `gh` or `gh`
 not signed in) fails the job with the reason. `MERGE=0` (`$Merge = $false`

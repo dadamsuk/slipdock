@@ -147,7 +147,7 @@ defmodule SlipdockWeb.RunnerMergeTest do
 
     assert calls =~
              "gh pr merge 12 --repo acme/widgets --merge --match-head-commit #{@head} " <>
-               "--subject Merge pull request #12: card ##{ctx.card.id}"
+               "--subject Merge PR 12: card ##{ctx.card.id}"
 
     # It said what it takes: the config's kinds and the built-in merge.
     assert Repo.get!(Runner, ctx.runner.id).kinds == ["claude", "merge"]

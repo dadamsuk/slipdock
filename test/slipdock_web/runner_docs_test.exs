@@ -125,7 +125,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert read("docs/agents.md") =~ "built-in `merge` kind"
 
     guide = read("lib/slipdock_web/api_guide.ex")
-    assert guide =~ "`merge` jobs are built into the"
+    assert guide =~ "`merge` jobs (merging an accepted card's pull request)"
     assert guide =~ "`X-Runner-Kinds`"
   end
 end

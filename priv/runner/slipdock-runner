@@ -72,7 +72,7 @@ job_merge() {
       ;;
   esac
   gh pr merge "$num" --repo "$prrepo" --merge --match-head-commit "$head" \
-    --subject "Merge pull request #$num: card #${SLIPDOCK_CARD:-?}" || {
+    --subject "Merge PR $num: card #${SLIPDOCK_CARD:-?}" || {
     echo "merge: gh pr merge refused $pr (a conflict, a failing required check or branch protection)"
     return 3
   }
