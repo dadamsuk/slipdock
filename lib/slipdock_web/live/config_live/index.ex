@@ -17,7 +17,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Accounts, Build, Mailer, Settings}
+  alias Slipdock.{Accounts, AI, Build, Mailer, Settings}
   alias Slipdock.AI.Keys
   alias Slipdock.Settings.Instance
 
@@ -27,6 +27,9 @@ defmodule SlipdockWeb.ConfigLive.Index do
      socket
      |> assign(
        page_title: "Configuration",
+       model_list: nil,
+       model_list_error: nil,
+       listing_models?: false,
        mail_error: nil,
        mail_tested?: false,
        tested_mail: nil,
@@ -129,6 +132,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
       requests: Accounts.list_signup_requests(),
       admin_email_pending: settings.admin_email,
       ai_source: Keys.system_source(),
+      ai_models_in_force: Map.new(AI.model_settings(), &{&1, AI.model_setting(&1)}),
       meetings_usage: Slipdock.Meetings.Usage.server_month(),
       ai_candidates: ai_candidates()
     )
@@ -151,7 +155,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       meetings_transcription meetings_transcription_model
                       meetings_transcription_url meetings_transcription_max_mb
                       meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
-                      meetings_relisten_model meetings_voiceprints meetings_voiceprint_url)
+                      meetings_relisten_model meetings_voiceprints meetings_voiceprint_url
+                      ai_model ai_quick_model ai_organise_model ai_fallback_models)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -173,6 +178,23 @@ defmodule SlipdockWeb.ConfigLive.Index do
       {:error, changeset} ->
         {:noreply, assign(socket, form: to_form(Map.put(changeset, :action, :validate)))}
     end
+  end
+
+  ## AI models
+
+  # The server's endpoint, asked with the shared key or, failing that, the
+  # admin's own — not the admin's own endpoint, whose models are no use as
+  # everybody's default.
+  def handle_event("list-models", _params, socket) do
+    user = socket.assigns.current_user
+    key = AI.shared_key_for(user) || Keys.get(user)
+
+    {:noreply,
+     socket
+     |> assign(listing_models?: true, model_list_error: nil)
+     |> start_async(:model_list, fn ->
+       AI.models(base_url: AI.default_base_url(), api_key: key)
+     end)}
   end
 
   ## Transcription server
@@ -396,6 +418,52 @@ defmodule SlipdockWeb.ConfigLive.Index do
     """
   end
 
+  @impl true
+  def handle_async(:model_list, {:ok, {:ok, models}}, socket) do
+    chat = for m <- models, not m.embedding?, do: m
+    {:noreply, assign(socket, model_list: chat, listing_models?: false)}
+  end
+
+  def handle_async(:model_list, {:ok, {:error, message}}, socket),
+    do: {:noreply, assign(socket, model_list_error: message, listing_models?: false)}
+
+  def handle_async(:model_list, {:exit, reason}, socket) do
+    {:noreply,
+     assign(socket,
+       model_list_error: "Couldn't list the models (#{inspect(reason)}).",
+       listing_models?: false
+     )}
+  end
+
+  defp model_label(:model), do: "Default model"
+  defp model_label(:quick_model), do: "Quick model"
+  defp model_label(:organise_model), do: "Organise model"
+  defp model_label(:fallback_models), do: "Fallback models"
+
+  defp model_help(:model), do: "Chat, AI edits, the narrative generator and everything else."
+
+  defp model_help(:quick_model),
+    do: "The header's quick add: latency over depth. Empty: the default model."
+
+  defp model_help(:organise_model),
+    do: "A folder's Organise… → AI, which reads titles and paths only. Empty: the quick model."
+
+  defp model_help(:fallback_models),
+    do:
+      "Tried in turn by OpenRouter when the model is rate-limited or down, separated by commas. " <>
+        "Never sent to another endpoint, or with a model a person picked for themselves."
+
+  defp in_force_text(%{value: [_ | _] = ids}), do: Enum.join(ids, ", ")
+  defp in_force_text(%{value: id}) when is_binary(id) and id != "", do: id
+  defp in_force_text(_), do: "none"
+
+  defp source_text(:admin, _key), do: "set here"
+  defp source_text(:env, key), do: "from #{AI.model_env(key)}"
+  defp source_text(:config, _key), do: "the built-in default (config.exs)"
+  defp source_text(:inherited, :quick_model), do: "the default model, as none is set"
+  defp source_text(:inherited, :organise_model), do: "the quick model, as none is set"
+  defp source_text(:none, _key), do: "nothing set"
+
   # Who may be the server's AI: admins who are not disabled, each marked with
   # whether they have a key or an endpoint saved, since choosing someone with
   # neither changes nothing.
@@ -464,11 +532,15 @@ defmodule SlipdockWeb.ConfigLive.Index do
             >
               Meetings
             </.link>
+            <.link patch={~p"/config/ai"} role="tab" class={["tab", @tab == :ai && "tab-active"]}>
+              AI
+            </.link>
           </div>
 
           <.server_tab :if={@tab == :index} {assigns} />
           <.mail_tab :if={@tab == :mail} {assigns} />
           <.meetings_tab :if={@tab == :meetings} {assigns} />
+          <.ai_tab :if={@tab == :ai} {assigns} />
         </div>
       </div>
     </Layouts.app>
@@ -509,6 +581,68 @@ defmodule SlipdockWeb.ConfigLive.Index do
         <span class="font-mono font-medium">{@build.version}</span>
       </span>
     </div>
+    """
+  end
+
+  # The models the server's AI asks (#1670) when a person hasn't picked one,
+  # each with the value in force and where it came from.
+  defp ai_tab(assigns) do
+    ~H"""
+    <section
+      id="ai-models"
+      class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+    >
+      <h2 class="text-lg font-semibold">AI models</h2>
+      <p class="mt-1 text-sm text-base-content/60">
+        What the server's AI asks when a person hasn't picked a model of their own under
+        Account → AI model (theirs always wins). Leave a field empty to use the environment
+        (<code class="font-mono text-xs">SLIPDOCK_AI_MODEL</code> and friends), and then the
+        built-in default.
+      </p>
+
+      <.form for={@form} id="ai-models-form" phx-submit="save-settings" class="mt-4 space-y-5">
+        <div :for={key <- AI.model_settings()} id={"ai-setting-#{key}"}>
+          <.input
+            field={@form[AI.model_field(key)]}
+            label={model_label(key)}
+            list="ai-model-list"
+            placeholder={"Empty: #{AI.model_env(key)}, then the built-in default"}
+            value={Map.get(@settings, AI.model_field(key))}
+          />
+          <p class="text-xs text-base-content/60">{model_help(key)}</p>
+          <p id={"ai-in-force-#{key}"} class="mt-1 text-xs">
+            <span class="text-base-content/60">In force:</span>
+            <span class="font-mono">{in_force_text(@ai_models_in_force[key])}</span>
+            <span class="text-base-content/60">
+              — {source_text(@ai_models_in_force[key].source, key)}
+            </span>
+          </p>
+        </div>
+
+        <datalist id="ai-model-list">
+          <option :for={m <- @model_list || []} value={m.id}>{m.name}</option>
+        </datalist>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button
+            type="button"
+            id="list-models"
+            phx-click="list-models"
+            class="btn btn-outline btn-sm"
+            disabled={@listing_models?}
+          >
+            {if @model_list, do: "Refresh model list", else: "List models"}
+          </button>
+          <span :if={@model_list} id="model-list-count" class="text-xs text-base-content/60">
+            {length(@model_list)} models to pick from as you type
+          </span>
+        </div>
+        <p :if={@model_list_error} id="model-list-error" class="text-sm text-error">
+          {@model_list_error}
+        </p>
+      </.form>
+    </section>
     """
   end
 

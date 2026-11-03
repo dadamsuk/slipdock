@@ -124,6 +124,8 @@ defmodule SlipdockCLI.Admin do
                                         invites_create_accounts, login_fallback_enabled,
                                         posthog_key, posthog_host (empty to turn off),
                                         ai_system_user=<admin email> (empty to clear),
+                                        ai_model, ai_quick_model, ai_organise_model,
+                                        ai_fallback_models=a,b (empty: env/config),
                                         meetings_enabled, meetings_visibility
                                         (used_only|every_board), meetings_hideable,
                                         meetings_accept_transcripts|audio|findings,
@@ -238,6 +240,7 @@ defmodule SlipdockCLI.Admin do
     Sign-in fallback: #{if s["login_fallback"]["enabled"], do: s["login_fallback"]["path"], else: "off"}
     Analytics:        #{render_analytics(s["analytics"])}
     Search & rules AI:#{render_ai(s["ai"])}
+    AI models:        #{render_models(s["ai"])}
     Meeting mode:     #{render_meetings(s["meetings"])}
     Transcription:    #{render_transcription_server(s["transcription_server"])}
     Waiting:          #{s["pending_signups"]}\
@@ -281,6 +284,31 @@ defmodule SlipdockCLI.Admin do
     do: "PostHog #{key} → #{a["posthog_host"] || "https://us.i.posthog.com"}"
 
   defp render_analytics(_), do: "off"
+
+  # The server's models and where each came from; older servers say nothing.
+  defp render_models(%{"models" => %{} = m}) do
+    [
+      {"model", "default"},
+      {"quick_model", "quick"},
+      {"organise_model", "organise"},
+      {"fallback_models", "fallbacks"}
+    ]
+    |> Enum.map_join(" · ", fn {key, label} ->
+      %{"value" => value, "source" => source} =
+        Map.get(m, key) || %{"value" => nil, "source" => "none"}
+
+      shown =
+        case value do
+          [_ | _] -> Enum.join(value, ", ")
+          v when is_binary(v) and v != "" -> v
+          _ -> "none"
+        end
+
+      "#{label} #{shown} (#{source})"
+    end)
+  end
+
+  defp render_models(_), do: "—"
 
   # Whose AI settings unattended work runs on, and why that person's.
   defp render_ai(%{"source" => "none"} = ai),

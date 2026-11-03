@@ -177,6 +177,9 @@ defmodule SlipdockWeb.API.MeController do
       own_endpoint: settings.base_url,
       model: settings.model || AI.model(),
       own_model: settings.model,
+      # Tried in turn when the model is rate-limited (OpenRouter only, and
+      # never when the person picked their own model or endpoint).
+      fallback_models: AI.fallback_models(user),
       embed_model: settings.embed_model
     }
   end
