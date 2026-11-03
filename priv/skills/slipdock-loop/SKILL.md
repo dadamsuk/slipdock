@@ -643,7 +643,10 @@ With one on, the pass changes like this:
   check out the evidence's commit in a clean tree (`git worktree add
   /tmp/verify-<id> <sha>`, so nothing uncommitted counts). Run the suite
   and what the bar names there, judge each part of the bar, then decide
-  once: `slipdock verify <id> accept
+  once. Say where you are at each step with `slipdock job-progress --step
+  "…"` (the job in `$SLIPDOCK_JOB_ID`; MCP `job_progress` `step`), never a
+  note: checked out the commit, tests running, their counts, judging, the
+  decision. The card stays quiet until you decide: `slipdock verify <id> accept
   --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
   <id> reject --reason "<what falls short, specifically>"`. You can't decide
   a card you submitted yourself (`403`).

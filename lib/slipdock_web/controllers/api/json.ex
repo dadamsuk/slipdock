@@ -1366,6 +1366,9 @@ defmodule SlipdockWeb.API.JSON do
       error: j.error,
       prompt: j.prompt,
       log_tail: j.log_tail,
+      # The latest progress message its agent gave (#1668), and when.
+      step: j.step,
+      step_at: j.step_at,
       output: j.output,
       queued_at: j.inserted_at,
       claimed_at: j.claimed_at,

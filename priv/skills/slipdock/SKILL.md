@@ -457,12 +457,13 @@ slipdock runner token <board> <runner>        # a new token (the old one stops w
 slipdock runner rm <board> <runner>           # revoke
 slipdock jobs <board> [--status open|queued|running|done|failed|cancelled|timeout]
 slipdock jobs --card ID                       # one card's jobs
-slipdock job <id>                             # status, runner, prompt, the tail of its log
+slipdock job <id>                             # status, runner, latest step, prompt, the tail of its log
 slipdock cancel-job <id>                      # queued: at once; running: on the next heartbeat
 slipdock claim-job <board> --pool P           # take the next job as this session ("nothing queued")
 slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tree or pool); a person resumes
 slipdock resume <board> [--pool P]            # let exactly that pause off (refused under an agent)
 slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
+slipdock job-progress [<id>] --step "…"       # what the job is doing now: on the job only, not the card
 slipdock finish-job <id> --status done|failed|cancelled|timeout [--summary S]
 slipdock finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]   # ask and park in one step
 

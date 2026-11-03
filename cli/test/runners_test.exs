@@ -470,6 +470,59 @@ defmodule SlipdockCLI.RunnersTest do
     assert out == "cancel\n"
   end
 
+  # #1668: a step shows on the job, not as a comment on the card.
+  test "job-progress --step sends the step, and no note" do
+    serve([{200, ~s({"status":"ok"})}])
+
+    out =
+      capture_io(fn -> Runners.run("job-progress", ["7"], step: "tests running: mix test") end)
+
+    assert_received {:request, "POST", "/api/jobs/7/progress", body}
+    assert JSON.decode!(body) == %{"step" => "tests running: mix test"}
+    assert out == "ok\n"
+  end
+
+  test "job-progress with no id reports on the runner job in $SLIPDOCK_JOB_ID" do
+    saved = System.get_env("SLIPDOCK_JOB_ID")
+    System.put_env("SLIPDOCK_JOB_ID", " 42 ")
+
+    on_exit(fn ->
+      if saved,
+        do: System.put_env("SLIPDOCK_JOB_ID", saved),
+        else: System.delete_env("SLIPDOCK_JOB_ID")
+    end)
+
+    serve([{200, ~s({"status":"ok"})}])
+    capture_io(fn -> Runners.run("job-progress", [], step: "judging against the bar") end)
+    assert_received {:request, "POST", "/api/jobs/42/progress", body}
+    assert JSON.decode!(body) == %{"step" => "judging against the bar"}
+  end
+
+  test "job and jobs show a job's latest step" do
+    job = %{
+      "id" => 7,
+      "card_id" => 3,
+      "card" => "Export header",
+      "pool" => "checkers",
+      "kind" => "verify",
+      "status" => "running",
+      "attempts" => 1,
+      "runner" => "box",
+      "step" => "tests passed: 412, failed: 0",
+      "step_at" => "2026-11-03T15:00:00Z",
+      "queued_at" => "2026-11-03T14:58:00Z"
+    }
+
+    one = capture_io(fn -> SlipdockCLI.Render.job(job) end)
+    assert one =~ "step:     tests passed: 412, failed: 0"
+
+    many = capture_io(fn -> SlipdockCLI.Render.jobs([job, %{job | "id" => 8, "step" => nil}]) end)
+    assert many =~ "STEP"
+    assert many =~ "tests passed: 412, failed: 0"
+
+    refute capture_io(fn -> SlipdockCLI.Render.job(%{job | "step" => nil}) end) =~ "step:"
+  end
+
   test "finish-job defaults to done and sends the summary" do
     serve([
       {200, ~s({"job":{"id":7,"status":"done"}})},

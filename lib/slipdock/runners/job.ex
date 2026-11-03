@@ -59,6 +59,11 @@ defmodule Slipdock.Runners.Job do
     # A merge job (#1656): the commit the pull request was merged as, as
     # the runner reported it (`finish?merged=<sha>`).
     field :merged_sha, :string
+    # The latest progress message its agent gave (#1668: `job-progress
+    # --step`, MCP `job_progress` `step`), and when: shown against the job,
+    # never posted on the card.
+    field :step, :string
+    field :step_at, :utc_datetime
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :root_board, Slipdock.Boards.Board

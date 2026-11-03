@@ -34,6 +34,8 @@ defmodule Slipdock.Runners do
   # last lines say how it ended.
   @max_prompt 20_000
   @max_log 8_000
+  # The longest progress message a job keeps (#1668).
+  @max_step 300
   # A burst of rules must not fill the queue faster than anybody can read it.
   @queue_per_minute 60
   @max_open_per_tree 200
@@ -103,6 +105,26 @@ defmodule Slipdock.Runners do
     Repo.all(
       from(r in Runner, where: r.board_id == ^Board.root_id(board), order_by: [desc: r.id])
     )
+  end
+
+  @doc """
+  The latest progress message (#1668) of the job each of `runners` holds
+  now, as `%{runner_id => step}`; a runner with no job, or a job with no
+  step yet, isn't in it.
+  """
+  def current_steps(runners) do
+    ids = for %Runner{current_job_id: id} <- runners, id, do: id
+
+    if ids == [] do
+      %{}
+    else
+      from(j in Job,
+        where: j.id in ^ids and not is_nil(j.step) and not is_nil(j.runner_id),
+        select: {j.runner_id, j.step}
+      )
+      |> Repo.all()
+      |> Map.new()
+    end
   end
 
   @doc """
@@ -1105,8 +1127,12 @@ defmodule Slipdock.Runners do
   Renews the lease. Answers `{:ok, :ok}`, `{:ok, :cancel}` when somebody has
   asked for the job to stop (or it is no longer this runner's to run), or
   `{:error, :not_found}`.
+
+  `opts[:step]` is the agent saying what it is doing now (#1668): kept as
+  the job's `step` (the latest one, at most #{@max_step} characters) with
+  `step_at`, and never posted on the card.
   """
-  def heartbeat(%Runner{} = runner, job_id, log \\ nil) do
+  def heartbeat(%Runner{} = runner, job_id, log \\ nil, opts \\ []) do
     with {:ok, job} <- runner_job(runner, job_id) do
       cond do
         job.status not in ~w(claimed running) ->
@@ -1114,10 +1140,12 @@ defmodule Slipdock.Runners do
 
         true ->
           now = now()
+          step = step_text(opts[:step])
 
           changes =
             [lease_expires_at: DateTime.add(now, lease_for(runner)), updated_at: now]
             |> then(&if(log in [nil, ""], do: &1, else: [{:log_tail, tail(log)} | &1]))
+            |> then(&if(is_nil(step), do: &1, else: [step: step, step_at: now] ++ &1))
             |> then(
               &if(job.status == "claimed",
                 do: [status: "running", started_at: now] ++ &1,
@@ -1327,6 +1355,32 @@ defmodule Slipdock.Runners do
   # A job is only ever reported on by the runner holding it. Anybody else's —
   # another tree's, or one handed to another runner after a lease ran out — is
   # not there as far as this runner is concerned.
+  defp step_text(step) when is_binary(step) do
+    case String.trim(step) do
+      "" -> nil
+      text -> String.slice(text, 0, @max_step)
+    end
+  end
+
+  defp step_text(_), do: nil
+
+  @doc """
+  The runner running `job_id`, for the agent it started (#1668): that agent
+  sends its job's id (`x-slipdock-job`, from `$SLIPDOCK_JOB_ID`) as
+  `actor_job_id`, and may report progress on that job and no other.
+  `{:ok, runner}`, or `{:error, :not_found}` when the ids differ or no
+  runner holds the job.
+  """
+  def job_agent_runner(job_id, actor_job_id) do
+    with id when is_integer(id) <- actor_job_id,
+         %Job{id: ^id, runner_id: runner_id} when not is_nil(runner_id) <- get_job(job_id),
+         %Runner{} = runner <- Repo.get(Runner, runner_id) do
+      {:ok, runner}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
   defp runner_job(runner, job_id) do
     with {id, ""} <- Integer.parse(to_string(job_id)),
          %Job{runner_id: runner_id} = job when runner_id == runner.id <- Repo.get(Job, id) do

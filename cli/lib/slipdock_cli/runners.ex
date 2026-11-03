@@ -224,6 +224,16 @@ defmodule SlipdockCLI.Runners do
     |> out(o, fn %{"pause" => p} -> IO.puts("resumed #{p["scope"]}") end)
   end
 
+  # Without an id, the runner job this agent runs under (#1668): a verify
+  # job's agent says what it is doing with `--step`, which shows on the job
+  # and not on the card.
+  def run("job-progress", [], o) do
+    case String.trim(System.get_env("SLIPDOCK_JOB_ID") || "") do
+      "" -> fail("job-progress needs a job id, or $SLIPDOCK_JOB_ID set by a runner")
+      id -> run("job-progress", [id], o)
+    end
+  end
+
   # `--message -` pipes the note in, so a Markdown comment can keep its lines.
   def run("job-progress", [id], o) do
     note =
@@ -232,7 +242,7 @@ defmodule SlipdockCLI.Runners do
         m -> m
       end
 
-    HTTP.post("/jobs/#{enc(id)}/progress", compact(%{"note" => note}))
+    HTTP.post("/jobs/#{enc(id)}/progress", compact(%{"note" => note, "step" => o[:step]}))
     |> out(o, fn %{"status" => status} -> IO.puts(status) end)
   end
 

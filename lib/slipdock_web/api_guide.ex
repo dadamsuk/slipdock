@@ -2040,7 +2040,11 @@ defmodule SlipdockWeb.APIGuide do
     A session holds its job on a 20-minute lease (a runner on a machine, 90
     seconds): report between steps, and never let 20 minutes pass without a
     `progress`, or the lease runs out and somebody else gets the card. `note` also goes on the card as a
-    comment; finishing the job does not close the card, so close it as usual.
+    comment; `step` (what you're doing now, ≤ 300 characters) is kept on the
+    job only, as its `step` and `step_at`, and shows on the Runners panel and
+    in `slipdock job`/`jobs`. The agent a runner started for a job may report
+    on it too, sending the job's id as `x-slipdock-job` (the CLI does, from
+    `$SLIPDOCK_JOB_ID`). Finishing the job does not close the card, so close it as usual.
     The session shows in the board's runner list as `<token label> (session)`.
 
     **Parking on a question.** A job whose agent needs something only a
@@ -3554,7 +3558,9 @@ defmodule SlipdockWeb.APIGuide do
     decide its own card (`403`): a different agent is a different token,
     or a different runner job. A board with a `verify_pool` also queues
     each submitted card for that runner pool as a job of kind `verify`,
-    whose prompt carries the bar, the evidence and how to decide. The
+    whose prompt carries the bar, the evidence and how to decide, and asks
+    its agent to report each step with `job-progress --step` (no note, so
+    the card stays quiet until the decision). The
     runner that built the card never takes it. Whoever decides first
     decides, and the other verify jobs on the card stop.
     """

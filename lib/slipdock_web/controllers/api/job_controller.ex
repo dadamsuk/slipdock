@@ -323,19 +323,40 @@ defmodule SlipdockWeb.API.JobController do
 
   @doc """
   A session saying it is still at work: renews the lease, keeps `log` as the
-  log tail and posts `note`, if given, as a comment on the card. Answers
-  `{"status": "ok"}` or `{"status": "cancel"}` — stop, somebody cancelled it.
+  log tail, keeps `step` as the job's latest progress message (#1668: shown
+  against the job, not on the card) and posts `note`, if given, as a comment
+  on the card. Answers `{"status": "ok"}` or `{"status": "cancel"}` — stop,
+  somebody cancelled it.
+
+  The agent a runner started for the job (it sends the job's id as
+  `x-slipdock-job`) may report on it too, as a session does; the log tail
+  stays the runner's.
   """
   def progress(conn, %{"id" => id} = params) do
     with {:ok, job, card} <- fetch_job(conn, id, :write),
-         {:ok, runner} <- session_job(job, conn),
-         {:ok, answer} <- Runners.heartbeat(runner, job.id, params["log"] || params["note"]) do
+         {:ok, runner, reporter} <- reporter(job, conn),
+         log = if(reporter == :session, do: params["log"] || params["note"]),
+         {:ok, answer} <- Runners.heartbeat(runner, job.id, log, step: params["step"]) do
       if note = blank(params["note"]),
         do: Boards.add_comment(card, note, by: conn.assigns.current_user)
 
       json(conn, %{status: to_string(answer)})
     end
   end
+
+  # Who may report on a job: the session that claimed it, or the agent its
+  # runner started for it (#1668).
+  defp reporter(job, conn) do
+    with {:error, :forbidden, _} = refused <- session_job(job, conn) |> with_kind(:session) do
+      case Runners.job_agent_runner(job.id, Slipdock.Actor.from_conn(conn).job_id) do
+        {:ok, runner} -> {:ok, runner, :agent}
+        {:error, :not_found} -> refused
+      end
+    end
+  end
+
+  defp with_kind({:ok, runner}, kind), do: {:ok, runner, kind}
+  defp with_kind(error, _kind), do: error
 
   @doc """
   A session saying the job has ended: `outcome` (done, failed, cancelled,
