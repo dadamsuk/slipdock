@@ -320,6 +320,39 @@ defmodule Slipdock.Verified do
 
   def assigned(_card, _before, _now, _actor), do: :ok
 
+  ## Shipping by pull request -------------------------------------------------
+
+  @doc "The branch a card's work goes on when its board ships by pull request (#1655)."
+  def pr_branch(%Card{id: id}), do: "card-#{id}"
+
+  @doc """
+  What the builder of `card` is told when its board ships by pull request
+  (#1655), or nil when it ships by push: never push the default branch,
+  push `card-<id>` and open (or update) the pull request, and name it when
+  completing. Said in a claimed job's prompt and in the card's JSON, so a
+  runner or an older skill needs nothing else to know.
+  """
+  def ship_instructions(%Card{} = card) do
+    if Board.ships_by_pr?(board(card)) do
+      branch = pr_branch(card)
+
+      """
+      This board ships by pull request: never push the default branch.
+      - Work on the branch `#{branch}`: `git fetch origin && git switch #{branch}` if it is on origin (a rejected card's earlier attempt), else `git switch -c #{branch}`. Rebase it on the default branch before pushing.
+      - Commit with the card id (##{card.id}) in the message, then `git push -u origin #{branch}`.
+      - Open the pull request once: `gh pr view #{branch}` shows one already open, which the push has updated; otherwise `gh pr create --head #{branch} --title "#{pr_title(card)}" --fill`.
+      - The build to watch is the pull request's (`gh pr checks #{branch} --watch`).
+      - Complete the card with its URL: `slipdock done #{card.id} --pr <url>` (complete_card `pr`), with the rest of your evidence. Accepting the card merges it; don't merge it yourself.
+      """
+      |> String.trim_trailing()
+    end
+  end
+
+  defp pr_title(%Card{} = card) do
+    title = card.title |> String.replace(~s("), "'") |> String.slice(0, 80)
+    "#{title} (##{card.id})"
+  end
+
   ## Verification -------------------------------------------------------------
 
   # What a completion means on a board that verifies work.

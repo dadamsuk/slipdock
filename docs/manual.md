@@ -692,6 +692,14 @@ work reaches the default branch, and so the deploy:
   that also asks for evidence, an agent's completion without it is refused
   (`422`).
 
+The builder needs no setup to know. On such a board a claimed job's
+prompt ends with what to do (branch `card-<id>`, push it, `gh pr create`
+once, watch the pull request's checks, `done --pr`), and so does the card:
+`slipdock card` shows **Ships by pull request**, and the card's JSON
+(`get_card`, `GET /api/cards/:id`) has `shipping` (`via`, `branch`,
+`instructions`). A rejected card's next attempt pushes the same branch, so
+the same pull request updates rather than a second one opening.
+
 Pull request needs **A second agent verifies**: setting it without
 verification is refused, and turning verification off ships by push again.
 A card's subcards take the board's choice, and an export carries it. The

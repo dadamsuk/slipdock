@@ -466,7 +466,11 @@ With a verify pool set, each submitted card is queued as a `verify` job.
 The installer's config gives every runner a `job_verify` that runs the same
 agent on the server's prompt, without the standing instructions, so a runner
 can check another runner's work. Deciding is `verify_card` or `slipdock
-verify`, and never on a card you submitted yourself. The skills
+verify`, and never on a card you submitted yourself. A board can also
+**ship by pull request**: its agents push a `card-<id>` branch and open a
+pull request, never the default branch, and complete with its URL
+(`slipdock done --pr`). The claimed job's prompt and the card itself
+(`get_card`'s `shipping`) say so, so a runner needs no setup for it. The skills
 (`slipdock-loop`, `slipdock-work`) say what changes in a pass; see
 [the manual](manual.md#verified-work).
 

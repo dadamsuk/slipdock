@@ -145,4 +145,40 @@ defmodule SlipdockWeb.ShipViaWebTest do
     assert guide =~ "**Shipping by pull request**"
     assert guide =~ "ships by pull request: push `card-<id>`"
   end
+
+  describe "the card says how it ships (#1655)" do
+    test "GET /api/cards and MCP get_card carry shipping on a pull_request board only", ctx do
+      json = ctx.agent |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(200)
+      refute Map.has_key?(json["card"], "shipping")
+
+      {:ok, _} =
+        Boards.update_board(ctx.board, %{"verify_work" => true, "ship_via" => "pull_request"})
+
+      json = ctx.agent |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(200)
+      branch = "card-#{ctx.card.id}"
+
+      assert %{"via" => "pull_request", "branch" => ^branch, "instructions" => text} =
+               json["card"]["shipping"]
+
+      assert text =~ "never push the default branch"
+
+      result = mcp(ctx.agent, "get_card", %{card: ctx.card.id})
+      assert [%{"text" => text}] = result["content"]
+      assert Jason.decode!(text)["shipping"]["branch"] == branch
+    end
+
+    test "a claimed job's prompt over MCP claim_job says it too", ctx do
+      {:ok, _} =
+        Boards.update_board(ctx.board, %{"verify_work" => true, "ship_via" => "pull_request"})
+
+      {:ok, _job} =
+        Slipdock.Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "Go."})
+
+      result = mcp(ctx.agent, "claim_job", %{board: ctx.board.code, pool: "dev"})
+      assert result["isError"] == false
+      assert [%{"text" => text}] = result["content"]
+      assert text =~ "This board ships by pull request"
+      assert text =~ "card-#{ctx.card.id}"
+    end
+  end
 end

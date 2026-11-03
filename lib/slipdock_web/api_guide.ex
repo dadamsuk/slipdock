@@ -3488,7 +3488,8 @@ defmodule SlipdockWeb.APIGuide do
     merge needs it, and a board asking for evidence refuses the completion
     without it (`422`). The build to watch is the
     pull request's. A rejected card's next attempt pushes the same branch,
-    so the same pull request updates.
+    so the same pull request updates. A claimed job's prompt and the
+    card's `shipping` (in `get_card`) say all this for the card in hand.
     """
   end
 

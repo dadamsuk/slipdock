@@ -66,6 +66,20 @@ defmodule SlipdockCLI.ShipViaTest do
     refute capture_io(fn -> Render.card(card(%{})) end) =~ "pull request"
   end
 
+  test "card shows how it ships on a pull_request board (#1655), and nothing on a push board" do
+    shipping = %{
+      "via" => "pull_request",
+      "branch" => "card-12",
+      "instructions" => "This board ships by pull request: never push the default branch."
+    }
+
+    out = capture_io(fn -> Render.card(card(%{"shipping" => shipping})) end)
+    assert out =~ "Ships by pull request"
+    assert out =~ "branch card-12"
+    assert out =~ "never push the default branch"
+    refute capture_io(fn -> Render.card(card(%{})) end) =~ "Ships by pull request"
+  end
+
   defp card(extra) do
     Map.merge(
       %{

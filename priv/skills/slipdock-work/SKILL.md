@@ -95,7 +95,13 @@ whole card before touching it.
   next brief. Verifying someone else's card (never your own) means checking
   out the evidence's commit in a clean tree, running the suite, judging it
   against the bar, then `slipdock accept <id>` or `slipdock reject <id>
-  --reason "…"`.
+  --reason "…"`. On a board that **ships by pull request** (the board's
+  line says so, as do the claimed job's prompt and `slipdock card`), never
+  push the default branch: commit on `card-<id>`, push it, open the pull
+  request once (`gh pr create --head card-<id> --title "<title> (#<id>)"
+  --fill`; a rejected card's next attempt pushes the same branch), watch
+  its checks, and complete with `slipdock done <id> --pr <url>`. Accepting
+  the card merges it; don't merge it yourself.
 - **Lanes, where they are on** (the board's line in the guide says `lanes:
   on`). Before starting a card, write the paths its work will touch:
   `slipdock edit <id> --paths "lib/foo/**,docs/manual.md"`, as narrow as the

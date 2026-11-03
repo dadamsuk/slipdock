@@ -622,6 +622,18 @@ With one on, the pass changes like this:
   a `Rework: rejected by …` handoff, the reason as a comment and in the
   job's prompt (`get_card`'s `rejection`). Picked up again, that reason is the brief: fix
   exactly that, then complete it again with fresh evidence.
+- **Shipping by pull request** (`ships by pull request` on the board's
+  line; the claimed job's prompt and `slipdock card` say so too, under
+  *Ships by pull request*). Step 7 changes: **never push the default
+  branch.** Commit on the branch `card-<id>` (switch to it if it is on
+  origin already: a rejected card's next attempt pushes the same branch, so
+  the same pull request updates), rebase it on the default branch, `git
+  push -u origin card-<id>`, and open the pull request once: `gh pr create
+  --head card-<id> --title "<card title> (#<id>)" --fill`, unless `gh pr
+  view card-<id>` shows one open. The build to watch (step 7.3, 7.4) is
+  the pull request's: `gh pr checks card-<id> --watch`. Complete with
+  `slipdock done <id> --pr <url>` beside the other evidence. Don't merge
+  it: accepting the card has a runner merge it.
 - **A verify job** (a job of kind `verify`, or a card you are asked to
   verify) is checking, not doing. Claim nothing, move nothing and change no
   code. Never verify a card you built. Read the bar and the evidence, then

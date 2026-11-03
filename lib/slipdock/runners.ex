@@ -1426,7 +1426,8 @@ defmodule Slipdock.Runners do
   the reason a verifier rejected it, when it is rejected (#1659). A verify
   job's prompt carries the bar already.
   """
-  def claimed_prompt(%Job{kind: kind, prompt: prompt}) when kind == "verify", do: prompt
+  def claimed_prompt(%Job{kind: kind, prompt: prompt}) when kind in ["verify", "merge"],
+    do: prompt
 
   def claimed_prompt(%Job{} = job) do
     case Repo.one(from(c in Card, where: c.id == ^job.card_id, select: {c.bar, c.bar_locked_at})) do
@@ -1441,6 +1442,7 @@ defmodule Slipdock.Runners do
     end
     |> with_paths(job)
     |> with_rejection(job)
+    |> with_shipping(job)
   end
 
   # Sent back by a verifier (#1659): the reason is the brief for the rework,
@@ -1451,6 +1453,17 @@ defmodule Slipdock.Runners do
       (prompt || "") <>
         "\n\nThis card's last submission was rejected by #{by}; fix exactly this, " <>
         "then complete it again with fresh evidence:\n" <> reason
+    else
+      _ -> prompt
+    end
+  end
+
+  # How the work ships (#1655): on a board that ships by pull request, the
+  # builder is told to open one, never to push the default branch.
+  defp with_shipping(prompt, %Job{card_id: card_id}) do
+    with %Card{} = card <- Repo.get(Card, card_id),
+         text when is_binary(text) <- Slipdock.Verified.ship_instructions(card) do
+      (prompt || "") <> "\n\n" <> text
     else
       _ -> prompt
     end

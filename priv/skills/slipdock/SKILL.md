@@ -397,6 +397,8 @@ slipdock set-board <board> --bar-required --evidence-required --verify-work --ve
                                        # Verified work, each off by default: a bar before work
                                        # starts, evidence on completion, a second agent accepts or
                                        # rejects, and submitted cards queued as verify jobs
+slipdock set-board <board> --ship-via pull-request         # needs --verify-work: agents open a PR (card-<id>), never push main; accepting merges it
+slipdock done <id> --pr https://github.com/o/r/pull/7      # on such a board: the pull request the work is in, beside the other evidence
 slipdock set-board <board> --lanes | --no-lanes           # Lanes, off by default: an agent can't start a card whose --paths overlap one in progress
 slipdock hook install lane-check                          # in a repository: a pre-commit hook refusing files outside the card's paths (uninstall to remove); only when asked
 slipdock set-board <board> --inbound-senders "ann@example.com,bob@example.com"  # who else may mail the board's card addresses (replaces the list; "" clears); only when asked

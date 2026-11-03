@@ -18,7 +18,8 @@ defmodule SlipdockWeb.VerifiedDocsTest do
           "### The bar",
           "### Evidence",
           "### A second agent verifies",
-          "### Verify jobs"
+          "### Verify jobs",
+          "### Shipping by pull request"
         ],
         do: assert(manual =~ heading)
 
@@ -30,6 +31,8 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert read("README.md") =~ "**Verified work**"
     assert read("README.md") =~ "`verify_card`"
     assert read("docs/agents.md") =~ "**Verified work.**"
+    assert read("docs/agents.md") =~ "**ship by pull request**"
+    assert read("README.md") =~ "--ship-via pull-request"
   end
 
   test "the skills say what changes in a pass, and the CLI skill names the commands" do
@@ -54,5 +57,18 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     cli = read("priv/skills/slipdock/SKILL.md")
     assert cli =~ "slipdock verify <id> accept|reject"
     assert cli =~ "--verify-pool"
+
+    # #1655: shipping by pull request — never push main, the PR's checks, done --pr.
+    # Compared with its line breaks folded, since the skills wrap their prose.
+    for skill <- [loop, work], skill = String.replace(skill, ~r/\s+/, " ") do
+      assert skill =~ "ships by pull request"
+      assert skill =~ "gh pr create --head card-<id>"
+      assert skill =~ "slipdock done <id> --pr <url>"
+    end
+
+    assert String.replace(loop, ~r/\s+/, " ") =~ "never push the default branch"
+    assert String.replace(loop, ~r/\s+/, " ") =~ "gh pr checks card-<id> --watch"
+    assert cli =~ "--ship-via pull-request"
+    assert cli =~ "--pr https://"
   end
 end

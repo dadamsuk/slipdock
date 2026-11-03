@@ -989,6 +989,13 @@ defmodule SlipdockCLI.Render do
       for t <- c["evidence_tests"] || [], do: IO.puts(indent("test: " <> t))
     end
 
+    # How the work ships, on a board that ships by pull request (#1655).
+    if sh = c["shipping"] do
+      IO.puts("")
+      IO.puts(bold("Ships by pull request") <> dim("  branch #{sh["branch"]}"))
+      IO.puts(indent(sh["instructions"]))
+    end
+
     if h = c["handbook"], do: handbook_block(h)
 
     if c["checklist"]["total"] > 0 do

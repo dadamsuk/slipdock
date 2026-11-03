@@ -1135,6 +1135,24 @@ defmodule SlipdockWeb.API.JSON do
     do: %{card: card_stub(c), count: l.count, pinned: l.pinned, raw: l.raw}
 
   @doc """
+  How the card's work ships, on a board that ships by pull request (#1655):
+  the branch and what the builder does. Nothing on a push board.
+  """
+  def put_shipping(map, %Card{} = card) do
+    case Slipdock.Verified.ship_instructions(card) do
+      nil ->
+        map
+
+      text ->
+        Map.put(map, :shipping, %{
+          via: "pull_request",
+          branch: Slipdock.Verified.pr_branch(card),
+          instructions: text
+        })
+    end
+  end
+
+  @doc """
   Puts a card's handbook (#1265, see `Slipdock.Handbook.for_card/3`) on its
   JSON: the index and the sections to read before building. Left off when
   the card's root board keeps no handbook, or `user` can't read it.
