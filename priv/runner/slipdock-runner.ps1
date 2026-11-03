@@ -30,7 +30,8 @@
 # Built in: the merge kind (#1656), for boards that ship by pull request.
 # Accepting a card there queues a merge job, and this runner merges the
 # card's pull request, needing git and a signed-in gh (GitHub CLI), run in
-# the directory the runner starts in. It merges only a pull request in that
+# the runner's repository: $WorktreeRepo, else $WorkDir, else the directory
+# the runner started in (#1666). It merges only a pull request in that
 # repository's origin, still open, whose head is the commit that was
 # accepted, and reports the merge commit. $Merge = $false in the config turns
 # it off; a config's own Job-Merge replaces it. Every claim tells the server
@@ -98,10 +99,15 @@ function Job-Merge {
   if (-not $head.ToLower().StartsWith($want.ToLower())) {
     Write-Output "merge: $pr's head is $head, not the accepted commit $want (it moved after the card was accepted); nothing merged"; exit 2
   }
-  & gh pr merge $num --repo $prRepo --merge --match-head-commit $head --subject "Merge PR ${num}: card #$env:SLIPDOCK_CARD"
+  # gh's own words are the reason (#1666): a conflict reads differently from
+  # a failing check or branch protection, and only a conflict wants a rebase.
+  $said = ((& gh pr merge $num --repo $prRepo --merge --match-head-commit $head --subject "Merge PR ${num}: card #$env:SLIPDOCK_CARD" 2>&1) | Out-String)
   if ($LASTEXITCODE -ne 0) {
-    Write-Output "merge: gh pr merge refused $pr (a conflict, a failing required check or branch protection)"; exit 3
+    $said = ($said -replace '\s+', ' ').Trim()
+    if (-not $said) { $said = 'gh gave no reason' }
+    Write-Output "merge: gh pr merge refused ${pr}: $said"; exit 3
   }
+  if ($said.Trim()) { Write-Output $said.Trim() }
   $sha = ((& gh pr view $num --repo $prRepo --json mergeCommit --jq '.mergeCommit.oid' 2>$null) | Out-String).Trim()
   $shown = $sha
   if (-not $shown) { $shown = 'an unknown commit' }
@@ -353,8 +359,10 @@ function Invoke-Hook([string]$name) {
   if (-not (Test-Function $name)) { return $true }
   $global:LASTEXITCODE = 0
   $moved = $false
-  if ($script:Lane) { Push-Location -LiteralPath $script:Lane; $moved = $true }
+  $at = $script:Lane
+  if (-not $at) { $at = $script:JobDir }
   try {
+    if ($at) { Push-Location -LiteralPath $at; $moved = $true }
     $output = & $name 2>&1 | Out-String
     if ($output) { Add-Log $output.TrimEnd() }
     return ($global:LASTEXITCODE -eq 0)
@@ -424,8 +432,13 @@ function Invoke-Job($claim) {
   Say "job #${JobId}: $kind for card #$card"
 
   # A merge runs in the repository itself: its card's branch is the pull
-  # request's, and nothing is built.
+  # request's, and nothing is built. That is the runner's repository wherever
+  # the runner was started (a service starts it elsewhere, #1666).
   $script:Lane = ''
+  $script:JobDir = ''
+  if ($kind -eq 'merge') {
+    if ($WorktreeRepo) { $script:JobDir = "$WorktreeRepo" } elseif ($WorkDir) { $script:JobDir = "$WorkDir" }
+  }
   if ($kind -ne 'merge' -and -not (Open-Lane $card)) {
     Say "job #${JobId}: no worktree for it - job not run"
     Invoke-AfterJob 1 'failed'
@@ -455,6 +468,7 @@ function Invoke-Job($claim) {
     $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$selfPath`"",
       '-Config', "`"$Config`"", '-RunJob', $fn)
     $where = $script:Lane
+    if (-not $where) { $where = $script:JobDir }
     if (-not $where) { $where = (Get-Location).Path }
     $proc = Start-Process -FilePath $shell -ArgumentList $arguments -PassThru -NoNewWindow -WorkingDirectory $where `
       -RedirectStandardOutput (Join-Path $Work 'out') -RedirectStandardError (Join-Path $Work 'err')

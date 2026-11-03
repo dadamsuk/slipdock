@@ -404,6 +404,7 @@ defmodule Slipdock.Verified do
   `{:ok, card}`, or `{:error, status, message}` in the API's shapes.
   """
   def decide(%Card{} = card, decision, params, actor, user) do
+    actor = in_runner_job(actor, card)
     reason = params |> Map.get("reason") |> trim()
     commit = params |> Map.get("commit") |> trim()
 
@@ -435,6 +436,24 @@ defmodule Slipdock.Verified do
           cancel_verify_jobs(card, actor)
           decided
         end
+    end
+  end
+
+  # A decision made in a runner job on this card (#1666) is the runner's:
+  # the CLI or MCP token is the same one the builder and interactive
+  # sessions use, so its label can't say who decided. The job must be on
+  # this card and have a runner, so a header naming some other job credits
+  # nothing.
+  defp in_runner_job(actor, %Card{id: card_id}) do
+    a = actor_map(actor) || %{}
+
+    with id when is_integer(id) <- a["job_id"],
+         %Slipdock.Runners.Job{card_id: ^card_id, runner_id: rid} when is_integer(rid) <-
+           Repo.get(Slipdock.Runners.Job, id),
+         %Slipdock.Runners.Runner{name: name} <- Repo.get(Slipdock.Runners.Runner, rid) do
+      Slipdock.Actor.runner(a["user_id"], id, name)
+    else
+      _ -> actor
     end
   end
 
@@ -701,7 +720,8 @@ defmodule Slipdock.Verified do
   def merge_finished(_job, _runner_name), do: :ok
 
   defp merge_failed(card, job, actor) do
-    reason = "Merge failed (job ##{job.id}, #{job.status}): " <> merge_reason(job)
+    said = merge_reason(job)
+    reason = "Merge failed (job ##{job.id}, #{job.status}): " <> said
 
     changes = [
       verify_state: "rejected",
@@ -715,16 +735,38 @@ defmodule Slipdock.Verified do
              actor: actor,
              verify_changes: changes
            ) do
-      comment(
-        card,
-        "**Merge failed.** Rebase `#{pr_branch(card)}` and submit it again.",
-        reason,
-        nil
-      )
+      comment(card, merge_failed_line(card, said), reason, nil)
 
       send_back(card, "Rework: the merge failed, reason under Verification", actor, nil)
     end
   end
+
+  # What to do about a failed merge (#1666): a rebase only helps when the
+  # branch conflicts with the default branch or its head moved; anything
+  # else (gh signed out, the wrong repository, a closed pull request, a
+  # failing check) is fixed where the reason says.
+  defp merge_failed_line(card, said) do
+    if rebase_fixes?(said),
+      do:
+        "**Merge failed.** It conflicts or its head moved: rebase `#{pr_branch(card)}` " <>
+          "on the default branch and submit it again.",
+      else:
+        "**Merge failed.** The merge job's reason is below, and a rebase won't fix it: " <>
+          "fix what it says, then submit the card again."
+  end
+
+  @doc """
+  Whether a failed merge's reason (the merge job's own words) is one a
+  rebase fixes (#1666): a conflict, or a head that moved after acceptance.
+  """
+  def rebase_fixes?(said) when is_binary(said) do
+    Regex.match?(
+      ~r/conflict|not mergeable|cannot be cleanly created|head branch was modified|it moved after|not the accepted commit|is not up to date|behind the base/i,
+      said
+    )
+  end
+
+  def rebase_fixes?(_), do: false
 
   # The runner's own words: its last `merge:` line, else the output's last line.
   defp merge_reason(job) do
@@ -1040,6 +1082,7 @@ defmodule Slipdock.Verified do
     a = actor_map(actor)
 
     cond do
+      a["via"] == "runner" and a["agent"] -> "runner #{a["agent"]}"
       a["kind"] == "agent" and a["agent"] -> "agent “#{a["agent"]}”"
       a["kind"] == "agent" -> "an agent"
       user -> Slipdock.Accounts.User.display_name(user)

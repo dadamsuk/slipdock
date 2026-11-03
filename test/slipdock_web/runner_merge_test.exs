@@ -62,7 +62,10 @@ defmodule SlipdockWeb.RunnerMergeTest do
         esac
         exit 0
         ;;
-      "pr merge") exit "${FAKE_GH_MERGE:-0}" ;;
+      "pr merge")
+        [ -z "${FAKE_GH_SAID:-}" ] || echo "$FAKE_GH_SAID" >&2
+        exit "${FAKE_GH_MERGE:-0}"
+        ;;
     esac
     exit 1
     """)
@@ -109,11 +112,11 @@ defmodule SlipdockWeb.RunnerMergeTest do
     path
   end
 
-  defp run_once(ctx, config, env \\ [], path \\ nil) do
+  defp run_once(ctx, config, env \\ [], path \\ nil, cd \\ nil) do
     path = path || "#{ctx.bin}:#{System.get_env("PATH")}"
 
     System.cmd("sh", [@script, "--once", "--config=#{config}"],
-      cd: ctx.repo,
+      cd: cd || ctx.repo,
       env:
         [
           {"TMPDIR", ctx.dir},
@@ -174,15 +177,76 @@ defmodule SlipdockWeb.RunnerMergeTest do
     refute gh_calls(ctx) =~ "pr merge"
   end
 
-  test "a refused merge (a conflict) fails with the reason", ctx do
+  test "a refused merge (a conflict) fails with gh's own reason", ctx do
     {:ok, queued} = queue_merge(ctx.card)
-    {_out, 0} = run_once(ctx, config(ctx), [{"FAKE_GH_MERGE", "1"}])
+
+    said =
+      "X Pull request acme/widgets#12 is not mergeable: the merge commit cannot be cleanly created."
+
+    {_out, 0} = run_once(ctx, config(ctx), [{"FAKE_GH_MERGE", "1"}, {"FAKE_GH_SAID", said}])
 
     failed = job(queued)
     assert failed.status == "failed"
     assert failed.exit_code == 3
-    assert failed.output =~ "gh pr merge refused"
+
+    assert failed.output =~
+             "merge: gh pr merge refused https://github.com/acme/widgets/pull/12: #{said}"
+
     assert failed.merged_sha == nil
+  end
+
+  test "a refused merge with nothing from gh says gh gave no reason", ctx do
+    {:ok, queued} = queue_merge(ctx.card)
+    {_out, 0} = run_once(ctx, config(ctx), [{"FAKE_GH_MERGE", "1"}])
+
+    assert job(queued).output =~ "pull/12: gh gave no reason"
+    refute job(queued).output =~ "conflict"
+  end
+
+  # #1666: systemd starts the runner in the home directory, not the repository.
+  describe "a runner started outside its repository" do
+    test "merges in WORKTREE_REPO", ctx do
+      {:ok, queued} = queue_merge(ctx.card)
+      config = config(ctx, "WORKTREE_REPO='#{ctx.repo}'\nWORKDIR='#{ctx.dir}'")
+      {_out, 0} = run_once(ctx, config, [], nil, ctx.dir)
+
+      assert job(queued).status == "done", job(queued).output
+      assert job(queued).merged_sha == @merged
+    end
+
+    test "merges in WORKDIR when there is no WORKTREE_REPO", ctx do
+      {:ok, queued} = queue_merge(ctx.card)
+      {_out, 0} = run_once(ctx, config(ctx, "WORKDIR='#{ctx.repo}'"), [], nil, ctx.dir)
+
+      assert job(queued).status == "done", job(queued).output
+      assert gh_calls(ctx) =~ "gh pr merge 12 --repo acme/widgets"
+    end
+
+    test "with neither, it uses the start directory, and says it has no origin", ctx do
+      {:ok, queued} = queue_merge(ctx.card)
+      {_out, 0} = run_once(ctx, config(ctx), [], nil, ctx.dir)
+
+      failed = job(queued)
+      assert failed.status == "failed"
+      assert failed.output =~ "merge: #{ctx.dir} has no origin remote"
+      refute gh_calls(ctx) =~ "pr merge"
+    end
+
+    test "before_job and a config's own job_merge run there too", ctx do
+      {:ok, queued} = queue_merge(ctx.card)
+
+      extra = """
+      WORKDIR='#{ctx.repo}'
+      before_job() { echo "before in $PWD"; }
+      job_merge() { echo "merge in $PWD"; }
+      """
+
+      {_out, 0} = run_once(ctx, config(ctx, extra), [], nil, ctx.dir)
+
+      out = job(queued).output
+      assert out =~ "before in #{ctx.repo}"
+      assert out =~ "merge in #{ctx.repo}"
+    end
   end
 
   test "a pull request in another repository than origin is refused before gh is asked", ctx do

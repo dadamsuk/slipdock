@@ -637,6 +637,10 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   top of the ready list. The feed's cool-down doesn't hold it, so a runner
   rule sends it next, and completing it submits it again. The card counts
   its rejections (*rejected 2×*, `verify_rejections`).
+- A decision made in a runner job on the card (the CLI sends
+  `$SLIPDOCK_JOB_ID` as `x-slipdock-job`; MCP the job it claimed) is
+  credited to the runner: *Accepted by runner verifier*, not the token's
+  label, which the builder and interactive sessions share.
 - A runner job that ends with its card awaiting verification has finished:
   the card stays where it is, and `requeue_stuck` doesn't count it as stuck.
 - **Whoever submitted it can't decide it** (`403`). A different agent means
@@ -714,18 +718,22 @@ runner, with nothing to set up: it goes to the pool of the runner that
 built the card when a runner there can merge, else to any pool on the board
 with one. When the merge succeeds the card completes, moves to Done and
 shows the merge commit (`merge_sha`), and a deploy's commits name it as
-usual. When it fails (a conflict, a head that moved, a closed pull
-request) the card goes back to the top of the ready list as rejected, the
-merge's reason as the rejection: the builder rebases `card-<id>` and
-submits it again. If no runner can merge, nothing is queued and the card
+usual. When it fails the card goes back to the top of the ready list as
+rejected, the merge job's own reason as the rejection. Only a conflict or a
+head that moved suggests rebasing `card-<id>` and submitting it again; any
+other reason (`gh` signed out, another repository, a closed pull request, a
+failing check) says to fix what it says, since a rebase wouldn't help. If no runner can merge, nothing is queued and the card
 says so: update a runner's script, or merge the pull request yourself and
 press **Merged it myself** (`slipdock verify 12 merged [--evidence-commit
 SHA]`, `verify_card` `merged`; a person only).
 
 **Runners merge.** Both runner scripts (`slipdock-runner`,
 `slipdock-runner.ps1`) have a built-in `merge` job kind, so a runner
-needs no config edit to merge. It runs in the directory the runner starts
-in, with `git` and a signed-in `gh` (GitHub CLI). The server sends only data:
+needs no config edit to merge. It runs in the runner's repository,
+wherever the runner was started (a service starts it in the home
+directory): `WORKTREE_REPO`, else `WORKDIR`, else the directory it started
+in (`$WorktreeRepo`, `$WorkDir` on Windows), with `git` and a signed-in
+`gh` (GitHub CLI). The server sends only data:
 the card's pull request and the commit that was accepted (the verifier's
 commit, else the builder's). The runner then checks, before merging anything:
 
@@ -738,7 +746,9 @@ It merges with a merge commit (`Merge PR N: card #ID`, so a deploy's card
 references don't read the pull request's number as a card) and reports
 the merge commit back. Anything else (a moved head, a closed pull request, a
 conflict or a failing required check, another repository, no `gh` or `gh`
-not signed in) fails the job with the reason. `MERGE=0` (`$Merge = $false`
+not signed in) fails the job with the reason; a refused `gh pr merge`
+gives `gh`'s own words, so a conflict reads differently from a failing
+check. `MERGE=0` (`$Merge = $false`
 on Windows) in the config turns it off, and a config's own `job_merge`
 (`Job-Merge`) replaces it. Every claim says which kinds the runner takes
 (`X-Runner-Kinds`), and a merge job goes only to a runner that takes

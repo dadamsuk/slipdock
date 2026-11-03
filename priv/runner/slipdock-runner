@@ -28,7 +28,8 @@
 # Built in: the merge kind (#1656), for boards that ship by pull request.
 # Accepting a card there queues a merge job, and this runner merges the
 # card's pull request, needing git and a signed-in gh (GitHub CLI), run in
-# the repository the runner starts in. It merges only a pull request in that
+# the runner's repository: WORKTREE_REPO, else WORKDIR, else the directory
+# the runner started in (#1666). It merges only a pull request in that
 # repository's origin, still open, whose head is the commit that was
 # accepted, and reports the merge commit. MERGE=0 in the config turns it off;
 # a config's own job_merge replaces it. Every claim tells the server which
@@ -80,11 +81,15 @@ job_merge() {
       return 2
       ;;
   esac
-  gh pr merge "$num" --repo "$prrepo" --merge --match-head-commit "$head" \
-    --subject "Merge PR $num: card #${SLIPDOCK_CARD:-?}" || {
-    echo "merge: gh pr merge refused $pr (a conflict, a failing required check or branch protection)"
+  # gh's own words are the reason (#1666): a conflict reads differently from
+  # a failing check or branch protection, and only a conflict wants a rebase.
+  said=$(gh pr merge "$num" --repo "$prrepo" --merge --match-head-commit "$head" \
+    --subject "Merge PR $num: card #${SLIPDOCK_CARD:-?}" 2>&1) || {
+    said=$(printf '%s' "$said" | tr '\r\n\t' '   ' | sed -e 's/   */ /g' -e 's/  */ /g' -e 's/^ //' -e 's/ $//')
+    echo "merge: gh pr merge refused $pr: ${said:-gh gave no reason}"
     return 3
   }
+  [ -z "$said" ] || printf '%s\n' "$said"
   sha=$(gh pr view "$num" --repo "$prrepo" --json mergeCommit --jq '.mergeCommit.oid' 2>/dev/null)
   echo "merge: merged $pr (head $head) as ${sha:-an unknown commit}"
   [ -n "${SLIPDOCK_MERGED_FILE:-}" ] && printf '%s\n' "$sha" >"$SLIPDOCK_MERGED_FILE"
@@ -273,7 +278,7 @@ run_after_job() {
   SLIPDOCK_EXIT=$1
   SLIPDOCK_STATUS=$2
   export SLIPDOCK_EXIT SLIPDOCK_STATUS
-  (cd "${LANE:-.}" && after_job) >>"$WORK/log" 2>&1 </dev/null || say "job #$JOB_ID: after_job failed (exit $?)"
+  (cd "${LANE:-${JOB_DIR:-.}}" && after_job) >>"$WORK/log" 2>&1 </dev/null || say "job #$JOB_ID: after_job failed (exit $?)"
 }
 
 # lane_open CARD — with WORKTREE on, makes (or reuses) the card's worktree and
@@ -409,8 +414,11 @@ $JOB_INSTRUCTIONS"
   say "job #$JOB_ID: $kind for card #$card"
 
   # A merge runs in the repository itself: its card's branch is the pull
-  # request's, and nothing is built.
+  # request's, and nothing is built. That is the runner's repository wherever
+  # the runner was started (systemd starts it in the home directory, #1666).
   LANE=
+  JOB_DIR=.
+  [ "$kind" = merge ] && JOB_DIR=${WORKTREE_REPO:-${WORKDIR:-.}}
   if [ "$kind" != merge ] && ! lane_open "$card"; then
     say "job #$JOB_ID: no worktree for it — job not run"
     run_after_job 1 failed
@@ -420,7 +428,7 @@ $JOB_INSTRUCTIONS"
   fi
 
   if defined before_job; then
-    (cd "${LANE:-.}" && before_job) >>"$WORK/log" 2>&1 </dev/null
+    (cd "${LANE:-${JOB_DIR:-.}}" && before_job) >>"$WORK/log" 2>&1 </dev/null
     rc=$?
     if [ "$rc" -ne 0 ]; then
       say "job #$JOB_ID: before_job failed (exit $rc) — job not run"
@@ -436,7 +444,7 @@ $JOB_INSTRUCTIONS"
   # The inner subshell keeps an `exit` in the job from skipping the line
   # that records how it ended.
   (
-    (cd "${LANE:-.}" && "$fn") >>"$WORK/log" 2>&1 </dev/null
+    (cd "${LANE:-${JOB_DIR:-.}}" && "$fn") >>"$WORK/log" 2>&1 </dev/null
     echo $? >"$WORK/rc.tmp" && mv "$WORK/rc.tmp" "$WORK/rc"
   ) &
   JOB_PID=$!
