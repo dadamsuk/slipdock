@@ -154,4 +154,21 @@ defmodule Slipdock.FileCleanupTest do
     File.write!(Path.join(Boards.uploads_dir(), "captures"), "not a folder")
     assert Boards.put_file(src, "captures/x.wav") == {:error, :enotdir}
   end
+
+  test "a file further up the path fails at once too, and is left alone", %{src: src} do
+    blocker = Path.join(Boards.uploads_dir(), "captures/2026")
+    File.mkdir_p!(Path.dirname(blocker))
+    File.write!(blocker, "not a folder")
+
+    assert Boards.put_file(src, "captures/2026/11/x.wav") == {:error, :enotdir}
+    assert File.read!(blocker) == "not a folder"
+  end
+
+  test "a file at the top of the uploads folder needs no folder made", %{src: src} do
+    assert Boards.put_file(src, "top.wav") == :ok
+    assert File.read!(Path.join(Boards.uploads_dir(), "top.wav")) == "bytes"
+
+    missing = Path.join(System.tmp_dir!(), "missing-#{System.unique_integer([:positive])}")
+    assert Boards.put_file(missing, "gone.wav") == {:error, :enoent}
+  end
 end

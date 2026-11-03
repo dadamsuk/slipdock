@@ -4770,21 +4770,47 @@ defmodule Slipdock.Boards do
   Folders are shared — every recording is in `captures/` — and
   `remove_files/1` takes a folder away once it is empty, so one can vanish
   between making it and copying into it (`:enoent`, or `:enotdir` from
-  `File.mkdir_p/1`). That is retried, a few times, rather than failing the
-  upload (#1102).
+  `File.mkdir_p/1`, which reports a folder that existed when it tried to
+  make it and was gone when it checked). That is retried rather than
+  failing the upload (#1102): up to 20 times, with a short random pause
+  between, since writers kept in step can lose the same race attempt after
+  attempt (#1636). A failure that won't go away
+  is not retried: a source that isn't there, or a file standing where a
+  folder on the way should be.
   """
-  def put_file(source, key, attempts \\ 5) do
-    dest = Path.join(uploads_dir(), key)
+  def put_file(source, key, attempts \\ 20) do
+    dir = uploads_dir()
+    dest = Path.join(dir, key)
 
     with :ok <- File.mkdir_p(Path.dirname(dest)),
          {:ok, _} <- File.copy(source, dest) do
       :ok
     else
       {:error, reason} when reason in [:enoent, :enotdir] and attempts > 1 ->
-        if File.exists?(source), do: put_file(source, key, attempts - 1), else: {:error, reason}
+        if File.exists?(source) and not file_in_the_way?(dir, Path.dirname(key)) do
+          # A random pause, so writers that keep meeting the same removal
+          # fall out of step with it rather than losing every time.
+          Process.sleep(:rand.uniform(3) - 1)
+          put_file(source, key, attempts - 1)
+        else
+          {:error, reason}
+        end
 
       error ->
         error
+    end
+  end
+
+  # Whether something other than a folder sits at `rel` or a folder above it,
+  # under `dir`: then the folders `rel` needs can never be made. One `stat`
+  # per level, since a folder can vanish between two separate checks.
+  defp file_in_the_way?(_dir, rel) when rel in [".", "/"], do: false
+
+  defp file_in_the_way?(dir, rel) do
+    case File.stat(Path.join(dir, rel)) do
+      {:ok, %File.Stat{type: :directory}} -> false
+      {:ok, _} -> true
+      {:error, _} -> file_in_the_way?(dir, Path.dirname(rel))
     end
   end
 
