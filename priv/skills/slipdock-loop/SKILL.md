@@ -303,6 +303,9 @@ wins**): the move, the assignee, the percentage, the comment.
 If what the card asks for is genuinely unclear, do not guess a scope: hand it
 back (see **Handing a card back**) rather than inventing work on it.
 
+On a board with lanes on, write the card's paths before the move (see
+**Lanes**).
+
 ## 5. Subcards before the parent
 
 `slipdock card <id>` shows `Subcards: board #N · done/total · lists` when the card
@@ -628,6 +631,40 @@ With one on, the pass changes like this:
   --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
   <id> reject --reason "<what falls short, specifically>"`. You can't decide
   a card you submitted yourself (`403`).
+
+## Lanes
+
+Agents side by side in one repository can tread on each other's files: one
+commit sweeps up another session's half-done change, or two take the same
+migration number. Every part of this is optional and off unless the board
+or the runner has it on; with none of it on, skip this section.
+
+- **The board has lanes on** (its line in the guide says `lanes: on`).
+  Before the claim's move into the doing list (step 4), write the paths the
+  card's work will touch, as globs relative to the repository: `slipdock
+  edit <id> --paths "lib/foo/**,test/foo/**,docs/manual.md"`. Keep them as
+  narrow as the brief allows. If the move is refused because they overlap a
+  card in progress, the refusal names that card: don't widen around it.
+  Narrow the paths if the work really is apart, or hand the card back as
+  **Blocked** by that card (`slipdock blocked-by <id> <other>`), since the
+  board unblocks it when the other card is done. Never move it in by some
+  other route: only a person overrides a lane. A claimed job's prompt lists
+  the card's paths.
+- **Stage only the card's paths.** On a card with paths, `git add` the
+  files under them by name, never `git add -A` or `.`, and check `git
+  status` before committing. Anything else in the working tree is somebody
+  else's. If the card truly needs a file outside them, widen the paths on
+  the card first (`slipdock edit <id> --paths …`, and say why in a comment).
+  The lane-check hook, if it is installed, refuses a commit that strays.
+- **Another session in the same repository** (another pass, a runner, a
+  person: `git status` shows changes you didn't make, or `git worktree
+  list` shows others): work in a git worktree of your own unless the runner
+  already put you in one (`$SLIPDOCK_WORKTREE` is set). `git worktree add
+  ../<repo>-lanes/card-<id> -b card-<id>`, do the work and commit there,
+  then rebase on the default branch and push (`git push origin
+  HEAD:<default-branch>`). Remove the worktree when the card closes clean.
+  Check the latest migration number in the default branch right before
+  committing one.
 
 ## Handing a card back
 

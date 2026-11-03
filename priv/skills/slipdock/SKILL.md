@@ -309,6 +309,8 @@ slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]   # o
                                        # and moves it to Done; reject needs the reason
 slipdock edit <id> --bar "what done means"   # the card's bar; locks when work starts on a board
                                        # that asks for one
+slipdock edit <id> --paths "lib/foo/**,docs/x.md"   # the files its work touches (globs; "" clears);
+                                       # write them before starting a card on a lanes board
 slipdock copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
                                        # a copy as it is now (checklist unticked, subcards reopened;
                                        # no comments, dates or files), straight after it by default
@@ -395,6 +397,8 @@ slipdock set-board <board> --bar-required --evidence-required --verify-work --ve
                                        # Verified work, each off by default: a bar before work
                                        # starts, evidence on completion, a second agent accepts or
                                        # rejects, and submitted cards queued as verify jobs
+slipdock set-board <board> --lanes | --no-lanes           # Lanes, off by default: an agent can't start a card whose --paths overlap one in progress
+slipdock hook install lane-check                          # in a repository: a pre-commit hook refusing files outside the card's paths (uninstall to remove); only when asked
 slipdock set-board <board> --inbound-senders "ann@example.com,bob@example.com"  # who else may mail the board's card addresses (replaces the list; "" clears); only when asked
 slipdock handoff <id> --delete                            # delete a card's current handoff outright (one left by mistake); --clear keeps it in the history
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>

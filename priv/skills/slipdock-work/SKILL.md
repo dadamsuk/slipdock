@@ -95,6 +95,16 @@ whole card before touching it.
   out the evidence's commit in a clean tree, running the suite, judging it
   against the bar, then `slipdock accept <id>` or `slipdock reject <id>
   --reason "…"`.
+- **Lanes, where they are on** (the board's line in the guide says `lanes:
+  on`). Before starting a card, write the paths its work will touch:
+  `slipdock edit <id> --paths "lib/foo/**,docs/manual.md"`, as narrow as the
+  brief allows. A move refused for overlapping a card in progress names
+  that card: narrow the paths, or leave the card blocked by it; only a
+  person overrides a lane. Whether or not the board has lanes, on a card
+  with paths stage only files under them, by name, and with another
+  session active in the same repository work in a git worktree of your own
+  (`git worktree add ../<repo>-lanes/card-<id> -b card-<id>`), unless a
+  runner already put you in one (`$SLIPDOCK_WORKTREE`).
 - **Read the handoff first, leave one when you stop short.** A card's handoff
   (`Left off:` at the top of `slipdock card <id>`; `handoff` in its JSON) is
   where whoever had it last left it: the one next step and a short note. Read

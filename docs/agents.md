@@ -470,6 +470,17 @@ verify`, and never on a card you submitted yourself. The skills
 (`slipdock-loop`, `slipdock-work`) say what changes in a pass; see
 [the manual](manual.md#verified-work).
 
+**Lanes.** Agents side by side in one repository stay out of each other's
+files, each part optional and off by default: a card's `paths` (globs, set
+with `update_card` `paths` or `slipdock edit --paths`), a board switch
+(`lanes`) that refuses an agent starting a card whose paths overlap one in
+progress, naming it (a person moving the card overrides it), a runner
+setting that runs each job in a git worktree of its own (`--worktree`), and
+a pre-commit hook a person installs (`slipdock hook install lane-check`)
+that refuses a commit staging files outside the card's paths. The skills
+write the paths before starting, stage only them, and use a worktree when
+another session shares the repository; see [the manual](manual.md#lanes).
+
 ## If you self-host
 
 Two things to get right, both about the address:
