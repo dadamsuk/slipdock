@@ -615,7 +615,7 @@ defmodule Slipdock.Automations do
   `unassigned: true`, nobody's — that pass the rule's conditions. A card
   whose last job from this rule ended under `feed_cooldown_seconds` ago is
   passed over, so one the runner left where it was doesn't go straight back
-  out; `force: true` ignores that. Nil when there is none.
+  out, unless it was rejected since (#1659); `force: true` ignores that. Nil when there is none.
   """
   def next_card(%Rule{} = rule, opts \\ []) do
     trigger = rule.spec["trigger"]
@@ -653,10 +653,16 @@ defmodule Slipdock.Automations do
 
     # A card the rule put back after its job left it in progress is not
     # cooling: the retry is meant to go next, and requeue_stuck bounds it.
+    # Nor is one rejected since its job ended (#1659): the rejection is new
+    # information, and the rework goes next.
     from(j in Slipdock.Runners.Job,
+      join: c in Card,
+      on: c.id == j.card_id,
       where:
         j.rule_id == ^rule.id and j.finished_at > ^since and
-          (is_nil(j.recovery) or j.recovery != "requeued"),
+          (is_nil(j.recovery) or j.recovery != "requeued") and
+          not (c.verify_state == "rejected" and not is_nil(c.verify_at) and
+                 c.verify_at >= j.finished_at),
       select: j.card_id
     )
     |> Repo.all()

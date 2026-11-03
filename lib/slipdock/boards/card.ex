@@ -90,6 +90,10 @@ defmodule Slipdock.Boards.Card do
     field :verify_at, :utc_datetime
     # How many times its submitted work was rejected (#1624).
     field :verify_rejections, :integer, default: 0
+    # The assignees an agent put on the card (#1659), so a rejection takes
+    # off the builder's own assignment and leaves a person's. Never cast:
+    # `Slipdock.Verified.assigned/4` keeps it.
+    field :agent_assignee_ids, {:array, :integer}, default: []
 
     # Set by Slipdock.Rollup when the card is loaded through Slipdock.Boards:
     # progress, effective dates and health rolled up from its subcards.

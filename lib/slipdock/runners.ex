@@ -1422,8 +1422,9 @@ defmodule Slipdock.Runners do
 
   @doc """
   The prompt a claimed job is handed (#1622): as it was queued, followed by
-  the card's bar when it has one, so the agent works to it. A verify job's
-  prompt carries the bar already.
+  the card's bar when it has one, so the agent works to it, its paths, and
+  the reason a verifier rejected it, when it is rejected (#1659). A verify
+  job's prompt carries the bar already.
   """
   def claimed_prompt(%Job{kind: kind, prompt: prompt}) when kind == "verify", do: prompt
 
@@ -1439,6 +1440,20 @@ defmodule Slipdock.Runners do
         job.prompt
     end
     |> with_paths(job)
+    |> with_rejection(job)
+  end
+
+  # Sent back by a verifier (#1659): the reason is the brief for the rework,
+  # read from the card rather than from its handoff.
+  defp with_rejection(prompt, %Job{card_id: card_id}) do
+    with %Card{} = card <- Repo.get(Card, card_id),
+         %{reason: reason, by: by} <- Slipdock.Verified.rejection(card) do
+      (prompt || "") <>
+        "\n\nThis card's last submission was rejected by #{by}; fix exactly this, " <>
+        "then complete it again with fresh evidence:\n" <> reason
+    else
+      _ -> prompt
+    end
   end
 
   # The card's lane (#1628): the paths it declared, to stay inside.

@@ -619,7 +619,8 @@ With one on, the pass changes like this:
   there; the card is no longer this pass's (step 2 skips `review`). An epic
   closes the same way, once its subcards are accepted.
 - **A rejected card** goes back to the top of the ready list with
-  `Rejected: <reason>` as its handoff and the reason as a comment. Picked up again, that reason is the brief: fix
+  a `Rework: rejected by …` handoff, the reason as a comment and in the
+  job's prompt (`get_card`'s `rejection`). Picked up again, that reason is the brief: fix
   exactly that, then complete it again with fresh evidence.
 - **A verify job** (a job of kind `verify`, or a card you are asked to
   verify) is checking, not doing. Claim nothing, move nothing and change no

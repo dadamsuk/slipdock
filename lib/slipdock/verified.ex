@@ -18,9 +18,9 @@ defmodule Slipdock.Verified do
       card submits it instead. It stays open, `verify_state: "pending"`,
       flagged `review`, until a different actor decides (`decide/5`):
       accepting completes it and moves it to the done list; rejecting needs
-      a reason, which is kept, commented and left as the handoff's next
-      step, and the card goes back to the top of the ready list with its
-      rejection counted. A person completing a pending card accepts it.
+      a reason, which is kept and commented (the handoff only points at it),
+      the builder's own assignment comes off, and the card goes back to the
+      top of the ready list with its rejection counted, next for the feed. A person completing a pending card accepts it.
     * **Shipping by pull request** (`Board.ship_via`, #1654): the builder
       opens a pull request instead of pushing the default branch, and names
       it in `evidence_pr`, which a board asking for evidence requires.
@@ -267,6 +267,36 @@ defmodule Slipdock.Verified do
 
   defp stringify(attrs), do: Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 
+  ## Who an agent assigned (#1659) ------------------------------------------
+
+  @doc """
+  After a write changed `card`'s assignees from `before` to `now`, by
+  `actor`: keeps `agent_assignee_ids`, the people an agent put on it. An
+  agent's additions join it; whoever is taken off leaves it; a person (or
+  the assistant, or a rule) adding someone makes that one theirs. A
+  rejection takes off whoever is still on the list (`decide/5`).
+  """
+  def assigned(%Card{} = card, before, now, actor) when is_list(before) and is_list(now) do
+    added = now -- before
+    mine = card.agent_assignee_ids || []
+
+    ids =
+      if gated?(actor),
+        do: Enum.uniq(mine ++ added) -- (before -- now),
+        else: mine -- (added ++ (before -- now))
+
+    ids = Enum.filter(ids, &(&1 in now))
+
+    if Enum.sort(ids) != Enum.sort(mine) do
+      import Ecto.Query
+      Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [agent_assignee_ids: ids])
+    end
+
+    :ok
+  end
+
+  def assigned(_card, _before, _now, _actor), do: :ok
+
   ## Verification -------------------------------------------------------------
 
   # What a completion means on a board that verifies work.
@@ -310,8 +340,10 @@ defmodule Slipdock.Verified do
 
   Accepting completes the card and moves it to the board's done list.
   Rejecting puts it back at the top of the board's ready list (where there
-  is one), with the reason as a comment and as the handoff's next step, its
-  evidence cleared for the next attempt and its rejections counted.
+  is one), with the reason as a comment and on the card (`verify_note`), a
+  handoff pointing at it, the assignees an agent put on it taken off (a
+  person's stay), its evidence cleared for the next attempt and its
+  rejections counted; then the board's feed runs, so it goes next.
 
   `{:ok, card}`, or `{:error, status, message}` in the API's shapes.
   """
@@ -393,13 +425,19 @@ defmodule Slipdock.Verified do
              by: user,
              verify_changes: changes
            ) do
-      comment(card, "**Rejected** by #{who(actor, user)}.", reason, user)
+      by = who(actor, user)
+      comment(card, "**Rejected** by #{by}.", reason, user)
 
+      # The reason is on the comment and the verification block (and in a
+      # claimed job's prompt and get_card): the handoff only points there.
       Slipdock.Boards.leave_handoff(card, user, %{
-        next_step: String.slice("Rejected: " <> one_line(reason), 0, 280),
-        body: reason,
+        next_step: "Rework: rejected by #{by}, reason under Verification",
         via: handoff_via(actor)
       })
+
+      # The builder's own assignment comes off (a person's stays), so a rule
+      # that sends only unassigned cards sends it again.
+      card = unassign_agents(Repo.get!(Card, card.id), actor, user)
 
       # Back to the top of the ready list, to be taken up again.
       columns = card |> board() |> Repo.preload(:columns) |> Map.get(:columns)
@@ -412,10 +450,50 @@ defmodule Slipdock.Verified do
           :ok
       end
 
+      # A rejection is new information: the card isn't cooling, so the
+      # board's feed can send it next.
+      Slipdock.Automations.feed_board(card.board_id)
+
       {:ok, Repo.get!(Card, card.id)}
     end
     |> api_error()
   end
+
+  defp unassign_agents(%Card{agent_assignee_ids: [_ | _] = ids} = card, actor, user) do
+    on = Slipdock.Boards.assignee_ids(card)
+
+    case Enum.filter(ids, &(&1 in on)) do
+      [] ->
+        card
+
+      gone ->
+        case Slipdock.Boards.update_card(card, %{"remove_assignee_ids" => gone},
+               actor: actor,
+               by: user
+             ) do
+          {:ok, card} -> card
+          _ -> card
+        end
+    end
+  end
+
+  defp unassign_agents(card, _actor, _user), do: card
+
+  @doc """
+  The reason a rejected card was sent back with, and who rejected it, for
+  the agent taking it up again (#1659): nil unless `card` is rejected.
+  """
+  def rejection(%Card{verify_state: "rejected", verify_note: note} = card)
+      when is_binary(note) and note != "" do
+    %{
+      reason: note,
+      by: who(card.verify_by),
+      at: card.verify_at,
+      rejections: card.verify_rejections || 0
+    }
+  end
+
+  def rejection(_card), do: nil
 
   ## Verify jobs ---------------------------------------------------------------
 
@@ -633,8 +711,6 @@ defmodule Slipdock.Verified do
     b = String.downcase(b)
     String.starts_with?(a, b) or String.starts_with?(b, a)
   end
-
-  defp one_line(text), do: text |> String.split(~r/\R/, parts: 2) |> hd()
 
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(text), do: text

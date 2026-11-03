@@ -3529,10 +3529,12 @@ defmodule SlipdockWeb.APIGuide do
     --evidence-commit SHA`, `POST /api/cards/:id/verify {"decision":
     "accept"|"reject", "reason": "…", "commit": "…"}`). Accepting completes
     it and moves it to the done list. Rejecting needs the reason: it goes
-    on the card as a comment and as its handoff's next step, the evidence
-    is cleared, its `verify_rejections` counts one more, and it goes back
-    to the top of the ready list, so whoever takes it next fixes what the
-    reason says and completes it again. The submitter can't
+    on the card as a comment and in `get_card`'s `rejection` (a claimed
+    job's prompt carries it too; the handoff only points there), the
+    evidence is cleared, the builder's own assignment comes off, its
+    `verify_rejections` counts one more, and it goes back to the top of
+    the ready list, next for the runners, so whoever takes it next fixes
+    what the reason says and completes it again. The submitter can't
     decide its own card (`403`): a different agent is a different token,
     or a different runner job. A board with a `verify_pool` also queues
     each submitted card for that runner pool as a job of kind `verify`,

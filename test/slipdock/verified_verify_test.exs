@@ -3,7 +3,7 @@ defmodule Slipdock.VerifiedVerifyTest do
   Verified work 3 (#1633): on a board that verifies work, an agent's
   completion is a submission — pending, open, flagged for review — and a
   different actor accepts it (done, in the done list) or rejects it with a
-  reason (kept, commented, the handoff's next step, evidence cleared). The
+  reason (kept, commented, pointed at by the handoff, evidence cleared). The
   submitter can't decide its own card; a person completing one accepts it.
   """
   use Slipdock.DataCase, async: false
@@ -166,7 +166,9 @@ defmodule Slipdock.VerifiedVerifyTest do
       assert Enum.any?(bodies(card), &(&1 =~ "**Rejected** by agent “checker”"))
 
       handoff = Boards.current_handoff(card)
-      assert handoff.next_step == "Rejected: The empty list case fails"
+
+      assert handoff.next_step ==
+               "Rework: rejected by agent “checker”, reason under Verification"
 
       # Fixed and completed again, it is pending again.
       card = Repo.get!(Card, card.id)

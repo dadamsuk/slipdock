@@ -134,6 +134,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
       |> Map.put(:wait, V.wait(waits[card.id]))
       |> Map.put(:last_wait, V.wait(last_waits[card.id]))
       |> Map.put(:url, GetCard.url(card, context.base_url))
+      |> Map.put(:rejection, Slipdock.Verified.rejection(card))
     end)
   end
 

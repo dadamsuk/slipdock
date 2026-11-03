@@ -11,6 +11,9 @@ defmodule Slipdock.Runners.Recovery do
   after that it is flagged blocked and left where it is, with a comment, so
   the runner waits until somebody moves or closes it.
 
+  A card left awaiting verification (`verify_state: "pending"`, #1659) is
+  not stuck: the job finished it, and it waits for the verifier.
+
   Only the job's own card is touched, and only by a job that was handed out
   at least once (a job cancelled while it sat in the queue never had the
   card). The count is per rule and card: the jobs from that rule on that
@@ -145,14 +148,17 @@ defmodule Slipdock.Runners.Recovery do
     end
   end
 
-  # The job's card, if it is still open in an in-progress list.
+  # The job's card, if it is still open in an in-progress list. A card
+  # awaiting verification (#1659) is finished as far as its job goes: it
+  # waits in progress for the verifier, not for a retry.
   defp stuck_card(job) do
     Repo.one(
       from(c in Card,
         join: col in assoc(c, :column),
         where:
           c.id == ^job.card_id and col.category == "doing" and is_nil(c.archived_at) and
-            c.completed == false
+            c.completed == false and
+            (is_nil(c.verify_state) or c.verify_state != "pending")
       )
     )
   end

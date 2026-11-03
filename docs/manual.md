@@ -628,11 +628,17 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   `--evidence-commit` / `commit` records the commit it was checked at. When
   the card has evidence for a commit, a different commit is refused.
 - **Reject** (`slipdock reject 12 --reason "…"`) needs the reason.
-  The reason is kept on the card, posted as a comment and left as the
-  card's handoff (*Rejected: …*), so whoever picks it up next starts there.
-  The evidence is cleared, and the card goes back to the top of the ready
-  list, so it is taken up again and completing it submits it again. The
-  card counts its rejections (*rejected 2×*, `verify_rejections`).
+  The reason is posted as a comment and shown in the card's verification
+  block while it is rejected; the handoff only points there (*Rework:
+  rejected by …, reason under Verification*). An agent taking the card up
+  again gets the reason in its job's prompt and in `get_card`
+  (`rejection`). The evidence is cleared, the assignment the building agent
+  made comes off (one a person made stays), and the card goes back to the
+  top of the ready list. The feed's cool-down doesn't hold it, so a runner
+  rule sends it next, and completing it submits it again. The card counts
+  its rejections (*rejected 2×*, `verify_rejections`).
+- A runner job that ends with its card awaiting verification has finished:
+  the card stays where it is, and `requeue_stuck` doesn't count it as stuck.
 - **Whoever submitted it can't decide it** (`403`). A different agent means
   a different token, or a different runner job on the same token. A person
   is always different, and a person completing a pending card accepts it.

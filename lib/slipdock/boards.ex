@@ -1986,6 +1986,10 @@ defmodule Slipdock.Boards do
       # Evidence a completion carried is kept as a comment (#1632).
       Slipdock.Verified.saved(card, updated, opts[:by])
 
+      # Who an agent put on the card, for a rejection to take off (#1659).
+      if assignees,
+        do: Slipdock.Verified.assigned(updated, before, assignees, Slipdock.Actor.resolve(opts))
+
       # Someone new on a snoozed card wakes it (W-1803).
       if assignees && Enum.any?(assignees, &(&1 not in before)),
         do: Slipdock.Snooze.activity(updated, opts[:by], :assigned)
