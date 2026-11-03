@@ -73,6 +73,23 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
       doing: name_of(roles.doing),
       done: name_of(roles.done)
     }
+    |> put_verified(full)
+  end
+
+  # Verified work's switches (#1620), only on a board with one on.
+  defp put_verified(map, board) do
+    case Slipdock.Verified.switches(board) do
+      [] ->
+        map
+
+      _ ->
+        Map.put(map, :verified_work, %{
+          bar_required: board.bar_required,
+          evidence_required: board.evidence_required,
+          verify_work: board.verify_work,
+          verify_pool: board.verify_pool
+        })
+    end
   end
 
   defp name_of(nil), do: nil

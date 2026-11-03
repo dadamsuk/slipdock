@@ -242,6 +242,50 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
     refute Map.has_key?(plain["card"]["rollup"] || %{}, "awaiting")
   end
 
+  test "MCP's update_board turns the switches on for the owner, and list_boards shows them",
+       ctx do
+    result =
+      mcp(ctx.builder, "update_board", %{
+        board: ctx.board.code,
+        verify_work: true,
+        verify_pool: "Checkers",
+        evidence_required: true
+      })
+
+    assert result["isError"] == false
+    assert result["structuredContent"]["verified_work"]["verify_pool"] == "checkers"
+    board = Boards.get_board!(ctx.board.id)
+    assert board.verify_work and board.evidence_required
+    refute board.bar_required
+
+    assert mcp(ctx.builder, "update_board", %{board: ctx.board.code})["isError"] == true
+
+    bad = mcp(ctx.builder, "update_board", %{board: ctx.board.code, verify_pool: "no spaces"})
+    assert bad["isError"] == true
+
+    # A board with nothing on says nothing of it.
+    {:ok, _} =
+      Boards.update_board(board, %{
+        "verify_work" => false,
+        "evidence_required" => false,
+        "verify_pool" => ""
+      })
+
+    listed = mcp(ctx.builder, "list_boards", %{})["structuredContent"]
+    refute inspect(listed) =~ "verified_work"
+  end
+
+  test "update_board is the owner's alone", ctx do
+    stranger = Slipdock.Fixtures.user_fixture("stranger@example.com")
+    Slipdock.Fixtures.share_fixture(ctx.board, [stranger], "write")
+
+    result =
+      mcp(conn_as(stranger), "update_board", %{board: "#{ctx.board.id}", verify_work: true})
+
+    assert result["isError"] == true
+    refute Boards.get_board!(ctx.board.id).verify_work
+  end
+
   test "the guide describes verifying only when a board has it on", ctx do
     guide = ctx.builder |> get(~p"/api/guide") |> response(200)
     refute guide =~ "**A second agent verifies.**"

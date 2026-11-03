@@ -2155,6 +2155,9 @@ defmodule SlipdockWeb.APIGuide do
     `slipdock finish-job`, `slipdock pause` and `slipdock resume` are the
     same on a shell.
 
+    `update_board` changes a board you own (its name, description, colour,
+    simple mode, default view, handoff label and the Verified work
+    switches), as `PATCH /api/boards/:board` and `slipdock set-board` do.
     On a board that verifies work, `verify_card` (`slipdock verify`) is how a
     second agent accepts or rejects a card another one submitted: see
     *Verified work*, which appears when one of your boards has it on. With

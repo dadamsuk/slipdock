@@ -46,6 +46,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.CreateTag,
     Tools.DeleteList,
     Tools.CreateBoard,
+    Tools.UpdateBoard,
     Tools.ArchiveBoard,
     Tools.DeleteBoard,
     Tools.WritePage,
