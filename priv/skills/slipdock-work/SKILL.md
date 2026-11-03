@@ -85,13 +85,16 @@ whole card before touching it.
   Complete an epic only when its rollup shows every subcard done.
 - **Verified work, where a board has it on** (its line in the guide says
   `verified work: …`). Write the card's bar before starting it (`slipdock
-  edit <id> --bar "…"`). Complete it with what you checked
-  (`slipdock done <id> --evidence "…" --evidence-commit <sha>`). On a board
+  edit <id> --bar "…"`), and never try to change it once work has started.
+  Complete it with what you checked (`slipdock done <id> --evidence-commit
+  <sha> --tests a,b --suite passed:38:0 --evidence "…"`). On a board
   where a second agent verifies, `done` submits the card and leaves it
   pending: don't move it to Done yourself. A rejection comes back as the
-  card's handoff (`Rejected: …`), and that is the next brief. Verifying
-  someone else's card is `slipdock verify <id> accept|reject --reason "…"`,
-  never your own.
+  card's handoff (`Rejected: …`): read that reason first, since it is the
+  next brief. Verifying someone else's card (never your own) means checking
+  out the evidence's commit in a clean tree, running the suite, judging it
+  against the bar, then `slipdock accept <id>` or `slipdock reject <id>
+  --reason "…"`.
 - **Read the handoff first, leave one when you stop short.** A card's handoff
   (`Left off:` at the top of `slipdock card <id>`; `handoff` in its JSON) is
   where whoever had it last left it: the one next step and a short note. Read

@@ -39,9 +39,17 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert loop =~ "--evidence-commit"
     assert loop =~ "slipdock verify <id> accept"
     assert loop =~ "Submitted for verification"
+    # #1626: never change a locked bar; structured evidence; a clean tree;
+    # never verify your own.
+    assert loop =~ "never try to change it"
+    assert loop =~ "--suite"
+    assert loop =~ "git worktree add"
+    assert loop =~ "Never verify a card you built"
 
-    assert read("priv/skills/slipdock-work/SKILL.md") =~
-             "**Verified work, where a board has it on**"
+    work = read("priv/skills/slipdock-work/SKILL.md")
+    assert work =~ "**Verified work, where a board has it on**"
+    assert work =~ "read that reason first"
+    assert work =~ "clean tree"
 
     cli = read("priv/skills/slipdock/SKILL.md")
     assert cli =~ "slipdock verify <id> accept|reject"

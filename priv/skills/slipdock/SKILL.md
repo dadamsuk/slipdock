@@ -301,10 +301,10 @@ slipdock move <id> <column> --board B    # to another board, with the card's sub
                                        # by name, custom fields only where that board has them;
                                        # the command prints anything that was created or dropped
 slipdock done <id>... | slipdock undone <id>...
-slipdock done <id> --evidence "what you checked" --evidence-commit <sha>
+slipdock done <id> --evidence-commit <sha> --branch B --tests a.exs,b.exs --suite passed:38:0 --evidence "…"
                                        # on a board that asks for evidence; where a second agent
                                        # verifies, done submits the card (pending, flagged review)
-slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]
+slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]   # or: slipdock accept|reject <id>
                                        # decide a card someone else submitted: accept completes it
                                        # and moves it to Done; reject needs the reason
 slipdock edit <id> --bar "what done means"   # the card's bar; locks when work starts on a board

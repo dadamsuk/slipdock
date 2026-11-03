@@ -601,12 +601,14 @@ With one on, the pass changes like this:
 - **A bar before work starts.** Before the claim's move into the doing list
   (step 4), write what done means for the card: `slipdock edit <id> --bar
   "…"`, one line per part. Moving it without one is refused. The bar locks
-  once work starts, so work to it as written and say in the wrap-up how each
-  part was met.
+  once work starts: never try to change it after that (only a person can).
+  Work to it as written and say in the wrap-up how each part was met.
 - **Evidence on completion.** At step 7.5 `slipdock done <id>` carries what
-  you checked and where: `--evidence "mix test --stale: 38 passed, 0 failed;
-  full suite green in CI run <id>" --evidence-commit <sha>`. Without it the
-  completion and the move into Done are refused.
+  you checked and where: `--evidence-commit <sha> --branch <branch> --tests
+  <the test files you added or changed, comma-separated> --suite
+  passed:<n>:<failed>`, and `--evidence "…"` for anything else (what you
+  looked at, the CI run). Without any of it, the completion and the move
+  into Done are refused.
 - **A second agent verifies.** At step 7.5 `slipdock done <id>` *submits*
   the card: it stays in the doing list, flagged `review`, pending. Don't move
   it to Done, since that is refused and the acceptance does it. The wrap-up
@@ -618,8 +620,11 @@ With one on, the pass changes like this:
   exactly that, then complete it again with fresh evidence.
 - **A verify job** (a job of kind `verify`, or a card you are asked to
   verify) is checking, not doing. Claim nothing, move nothing and change no
-  code. Read the bar and the evidence, check out the evidence's commit, run
-  what the bar names, then decide once: `slipdock verify <id> accept
+  code. Never verify a card you built. Read the bar and the evidence, then
+  check out the evidence's commit in a clean tree (`git worktree add
+  /tmp/verify-<id> <sha>`, so nothing uncommitted counts). Run the suite
+  and what the bar names there, judge each part of the bar, then decide
+  once: `slipdock verify <id> accept
   --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
   <id> reject --reason "<what falls short, specifically>"`. You can't decide
   a card you submitted yourself (`403`).

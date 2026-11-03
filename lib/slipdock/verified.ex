@@ -515,7 +515,7 @@ defmodule Slipdock.Verified do
     Commit: #{commit || "(none given)"}
 
     1. Read the card and its comments: `slipdock card #{card.id}`.
-    2. #{if commit, do: "Check out #{commit} in the project's repository", else: "Find the work in the project's repository"} and check each part of the bar against it: run the tests it names, read the change.
+    2. #{if commit, do: "Check out #{commit} in a clean tree (`git worktree add /tmp/verify-#{card.id} #{commit}`), so nothing uncommitted counts", else: "Find the work in the project's repository, in a clean tree"}, run the suite there, and check each part of the bar against it: the tests it names, the change itself.
     3. Decide once:
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked"`
        - `slipdock verify #{card.id} reject#{at} --reason "what falls short of the bar, specifically"`
