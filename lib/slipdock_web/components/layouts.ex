@@ -1248,7 +1248,11 @@ defmodule SlipdockWeb.Layouts do
       )
 
     ~H"""
-    <div class="relative contents sm:block" id="alerts-bar">
+    <%!-- A flex box at sm and up, centring the bell on the row's middle
+          line: as a block, the button sat on a text baseline and dropped a
+          few pixels below the icons beside it (#1675). On a phone it is
+          display: contents, so the button lives in the bottom bar. --%>
+    <div class="relative contents sm:flex sm:items-center" id="alerts-bar">
       <button
         type="button"
         phx-click="toggle_alerts"

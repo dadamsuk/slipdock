@@ -57,6 +57,39 @@ defmodule SlipdockWeb.HeaderRowsLiveTest do
     end
   end
 
+  describe "the bell's wrapper (#1675)" do
+    test "is a flex box at sm and up, centring the bell with its neighbours", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+
+      wrapper = classes(view, "header #alerts-bar")
+      assert "sm:flex" in wrapper
+      assert "sm:items-center" in wrapper
+      # A block wrapper set the bell on a text baseline, below the row.
+      refute "sm:block" in wrapper
+      # On a phone it still dissolves into the bottom bar.
+      assert "contents" in wrapper
+    end
+
+    test "stays a flex box while the bell wears a count and the panel is open", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, _} =
+        Slipdock.Automations.raise_alert(%{"board_id" => board.id, "title" => "Overdue"})
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+      view |> element("header #alerts-bar > button") |> render_click()
+
+      assert has_element?(view, "header #alerts-panel")
+      wrapper = classes(view, "header #alerts-bar")
+      assert "sm:flex" in wrapper
+      assert "sm:items-center" in wrapper
+    end
+  end
+
   defp classes(view, selector) do
     view
     |> element(selector)
