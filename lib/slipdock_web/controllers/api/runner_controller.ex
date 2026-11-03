@@ -11,6 +11,11 @@ defmodule SlipdockWeb.API.RunnerController do
       POST /api/runner/jobs/:id/heartbeat     body = log tail → "ok" or "cancel"
       POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → "ok"
 
+  A claim may say which job kinds the runner takes (`X-Runner-Kinds:
+  claude,merge`, #1656): kept on the runner, and a `merge` job goes only to
+  a runner that lists it. A merge job comes with `X-Merge-PR` and
+  `X-Merge-Commit`, and its finish may say `merged=<sha>`.
+
   A job that asked a person something (a wait opened with its id) finishes
   `ok parked`, whatever its exit code. A job sent again after its question
   was answered says so in `X-Wait-Id`, and `X-Handoff-Id` names the card's
@@ -40,7 +45,11 @@ defmodule SlipdockWeb.API.RunnerController do
   @max_body 1_000_000
 
   def claim(conn, params) do
-    runner = conn.assigns.runner
+    runner =
+      Runners.report_kinds(
+        conn.assigns.runner,
+        conn |> get_req_header("x-runner-kinds") |> List.first()
+      )
 
     if params["pool"] not in [nil, "", runner.pool] do
       text_reply(conn, 403, "this runner token is for pool #{runner.pool}, not #{params["pool"]}")
@@ -76,7 +85,13 @@ defmodule SlipdockWeb.API.RunnerController do
 
   def finish(conn, %{"id" => id} = params) do
     {output, conn} = body(conn)
-    attrs = %{exit: params["exit"], status: params["status"], output: output}
+
+    attrs = %{
+      exit: params["exit"],
+      status: params["status"],
+      output: output,
+      merged: params["merged"]
+    }
 
     case Runners.finish(conn.assigns.runner, id, attrs) do
       {:ok, job} -> text_reply(conn, 200, "ok #{job.status}")
@@ -89,11 +104,22 @@ defmodule SlipdockWeb.API.RunnerController do
     %{wait: wait, handoff: handoff} = Runners.claim_context(job)
 
     conn
+    |> merge_headers(Runners.merge_target(job))
     |> then(&if(wait, do: put_resp_header(&1, "x-wait-id", to_string(wait.id)), else: &1))
     |> then(
       &if(handoff, do: put_resp_header(&1, "x-handoff-id", to_string(handoff.id)), else: &1)
     )
   end
+
+  # A merge job (#1656): the pull request and the accepted commit, for the
+  # runner's built-in merge to check before it merges anything.
+  defp merge_headers(conn, %{pr: pr, commit: commit}) do
+    conn
+    |> then(&if(pr, do: put_resp_header(&1, "x-merge-pr", header_text(pr)), else: &1))
+    |> then(&if(commit, do: put_resp_header(&1, "x-merge-commit", header_text(commit)), else: &1))
+  end
+
+  defp merge_headers(conn, nil), do: conn
 
   defp fetch_runner(conn, _opts) do
     token =

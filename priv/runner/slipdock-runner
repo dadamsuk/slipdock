@@ -24,7 +24,63 @@
 # (default: the directory the runner started in), WORKTREE_DIR where the
 # worktrees go (default: <repo>-lanes beside it). A clean worktree is removed
 # after the job; one with uncommitted changes is kept, and the job's log says so.
+#
+# Built in: the merge kind (#1656), for boards that ship by pull request.
+# Accepting a card there queues a merge job, and this runner merges the
+# card's pull request, needing git and a signed-in gh (GitHub CLI), run in
+# the repository the runner starts in. It merges only a pull request in that
+# repository's origin, still open, whose head is the commit that was
+# accepted, and reports the merge commit. MERGE=0 in the config turns it off;
+# a config's own job_merge replaces it. Every claim tells the server which
+# kinds this runner takes, so merge jobs only come to runners that can.
 set -u
+
+# The built-in merge (see above). The server sends only data: the pull
+# request's URL and the accepted commit, both checked here before use.
+job_merge() {
+  pr=${SLIPDOCK_MERGE_PR:-}
+  want=${SLIPDOCK_MERGE_COMMIT:-}
+  [ -n "$pr" ] || { echo "merge: the card names no pull request (its evidence has no PR URL)"; return 2; }
+  [ -n "$want" ] || { echo "merge: the card names no accepted commit"; return 2; }
+  num=$(printf '%s\n' "$pr" | sed -n 's#^https://github\.com/\([A-Za-z0-9_.-]*/[A-Za-z0-9_.-]*\)/pull/\([0-9][0-9]*\)/*$#\2#p')
+  prrepo=$(printf '%s\n' "$pr" | sed -n 's#^https://github\.com/\([A-Za-z0-9_.-]*/[A-Za-z0-9_.-]*\)/pull/\([0-9][0-9]*\)/*$#\1#p')
+  [ -n "$num" ] || { echo "merge: $pr is not a GitHub pull request URL"; return 2; }
+  command -v git >/dev/null 2>&1 || { echo "merge: git is not installed"; return 2; }
+  command -v gh >/dev/null 2>&1 || { echo "merge: gh (GitHub CLI) is not installed"; return 2; }
+  origin=$(git remote get-url origin 2>/dev/null) || { echo "merge: $PWD has no origin remote"; return 2; }
+  repo=$(printf '%s\n' "$origin" | sed -e 's#\.git$##' -e 's#/*$##' -e 's#^git@github\.com:##' \
+    -e 's#^ssh://git@github\.com/##' -e 's#^https://\([^@/]*@\)\{0,1\}github\.com/##')
+  lower() { printf '%s' "$1" | tr 'A-Z' 'a-z'; }
+  [ "$(lower "$repo")" = "$(lower "$prrepo")" ] || {
+    echo "merge: the pull request is in $prrepo, but this runner's repository is $origin; nothing merged"
+    return 2
+  }
+  gh auth status >/dev/null 2>&1 || { echo "merge: gh is not signed in (run gh auth login)"; return 2; }
+  info=$(gh pr view "$num" --repo "$prrepo" --json state,headRefOid --jq '.state + " " + .headRefOid' 2>&1) || {
+    echo "merge: could not read $pr: $info"
+    return 2
+  }
+  state=${info%% *}
+  head=${info#* }
+  [ "$state" = OPEN ] || { echo "merge: $pr is $state, not open; nothing merged"; return 2; }
+  case "$want" in *[!0-9a-fA-F]*) echo "merge: the accepted commit $want is not a commit id"; return 2 ;; esac
+  case "$(lower "$head")" in
+    "$(lower "$want")"*) ;;
+    *)
+      echo "merge: $pr's head is $head, not the accepted commit $want (it moved after the card was accepted); nothing merged"
+      return 2
+      ;;
+  esac
+  gh pr merge "$num" --repo "$prrepo" --merge --match-head-commit "$head" \
+    --subject "Merge pull request #$num: card #${SLIPDOCK_CARD:-?}" || {
+    echo "merge: gh pr merge refused $pr (a conflict, a failing required check or branch protection)"
+    return 3
+  }
+  sha=$(gh pr view "$num" --repo "$prrepo" --json mergeCommit --jq '.mergeCommit.oid' 2>/dev/null)
+  echo "merge: merged $pr (head $head) as ${sha:-an unknown commit}"
+  [ -n "${SLIPDOCK_MERGED_FILE:-}" ] && printf '%s\n' "$sha" >"$SLIPDOCK_MERGED_FILE"
+  return 0
+}
 
 CONFIG=${SLIPDOCK_RUNNER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/slipdock-runner/config}
 ONCE=
@@ -33,7 +89,7 @@ for arg in "$@"; do
     --once) ONCE=1 ;;
     --config=*) CONFIG=${arg#--config=} ;;
     -h | --help)
-      sed -n '2,26p' "$0"
+      sed -n '2,35p' "$0"
       exit 0
       ;;
     *)
@@ -61,6 +117,7 @@ HEARTBEAT=${HEARTBEAT:-20}
 JOB_TIMEOUT=${JOB_TIMEOUT:-3600}
 GRACE=${GRACE:-10}
 LOG_TAIL=${LOG_TAIL:-8000}
+case "${MERGE:-}" in 0 | no | false | off) unset -f job_merge ;; esac
 
 command -v curl >/dev/null 2>&1 || {
   say "curl is needed and was not found"
@@ -72,6 +129,16 @@ chmod 700 "$WORK"
 # The token reaches curl in a file, never on its command line, where anybody
 # on the machine could read it with ps.
 (umask 077 && printf 'Authorization: Bearer %s\n' "$SLIPDOCK_RUNNER_TOKEN" >"$WORK/auth")
+
+# A function the config defines answers `command -v` with its bare name;
+# anything else (nothing, or a program of that name on the PATH) does not.
+defined() { [ "$(command -v "$1" 2>/dev/null)" = "$1" ]; }
+
+# The kinds this runner takes, said on every claim (X-Runner-Kinds): every
+# job_<kind> function the config defines, and the built-in merge.
+KINDS=$({ grep -o 'job_[a-z0-9_]*' "$CONFIG" 2>/dev/null; echo job_merge; } | sort -u |
+  while read -r f; do defined "$f" && printf '%s\n' "${f#job_}"; done | paste -s -d , -)
+printf 'X-Runner-Kinds: %s\n' "$KINDS" >"$WORK/kinds"
 
 JOB_PID=
 JOB_ID=
@@ -91,11 +158,12 @@ trap 'shutdown 130' INT
 trap 'shutdown 143' TERM
 trap 'rm -rf "$WORK"' EXIT
 
-# post PATH BODY_FILE MAX_SECONDS — sets CODE to the HTTP status (000 when
-# nothing answered); the body lands in $WORK/resp and the headers in $WORK/hdr.
+# post PATH BODY_FILE MAX_SECONDS [HEADER_FILE] — sets CODE to the HTTP status
+# (000 when nothing answered); the body lands in $WORK/resp and the headers in
+# $WORK/hdr.
 post() {
   CODE=$(curl -sS -o "$WORK/resp" -D "$WORK/hdr" -w '%{http_code}' -X POST \
-    -H @"$WORK/auth" -H 'Content-Type: text/plain' --max-time "$3" \
+    -H @"$WORK/auth" -H @"${4:-/dev/null}" -H 'Content-Type: text/plain' --max-time "$3" \
     --data-binary @"$2" "$SLIPDOCK_URL$1" 2>>"$WORK/curl.err") || CODE=000
   [ -n "$CODE" ] || CODE=000
 }
@@ -144,10 +212,6 @@ stop_job() {
   wait "$JOB_PID" 2>/dev/null
   JOB_PID=
 }
-
-# A function the config defines answers `command -v` with its bare name;
-# anything else (nothing, or a program of that name on the PATH) does not.
-defined() { [ "$(command -v "$1" 2>/dev/null)" = "$1" ]; }
 
 # after_job EXIT STATUS — the config's after_job, if it has one, whatever
 # happened to the job. Its output goes in the job's log.
@@ -225,6 +289,8 @@ lane_close() {
 finish() {
   query="exit=$1"
   [ -n "$2" ] && query="$query&status=$2"
+  merged=$(head -n 1 "$WORK/merged" 2>/dev/null)
+  case "$merged" in '' | *[!0-9a-fA-F]*) ;; *) query="$query&merged=$merged" ;; esac
   tail -c "$LOG_TAIL" "$WORK/log" >"$WORK/tail" 2>/dev/null || : >"$WORK/tail"
   tries=0
   while :; do
@@ -253,7 +319,7 @@ run_job() {
   case "$card" in *[!0-9]*) card= ;; esac
 
   : >"$WORK/log"
-  rm -f "$WORK/rc" "$WORK/rc.tmp"
+  rm -f "$WORK/rc" "$WORK/rc.tmp" "$WORK/merged"
 
   fn=
   case "$kind" in
@@ -273,9 +339,14 @@ run_job() {
   SLIPDOCK_CARD=$card
   SLIPDOCK_CARD_URL=$(header x-card-url)
   SLIPDOCK_PROMPT=$(cat "$WORK/resp")
+  # A merge job's pull request and accepted commit (data, checked by job_merge).
+  SLIPDOCK_MERGE_PR=$(header x-merge-pr)
+  SLIPDOCK_MERGE_COMMIT=$(header x-merge-commit)
+  SLIPDOCK_MERGED_FILE=$WORK/merged
+  export SLIPDOCK_MERGE_PR SLIPDOCK_MERGE_COMMIT SLIPDOCK_MERGED_FILE
   # Standing instructions from this machine's config, after the card's own;
   # not for a verify job, whose agent checks the work rather than doing it.
-  if [ -n "${JOB_INSTRUCTIONS:-}" ] && [ "$kind" != verify ]; then
+  if [ -n "${JOB_INSTRUCTIONS:-}" ] && [ "$kind" != verify ] && [ "$kind" != merge ]; then
     SLIPDOCK_PROMPT="$SLIPDOCK_PROMPT
 
 $JOB_INSTRUCTIONS"
@@ -284,7 +355,10 @@ $JOB_INSTRUCTIONS"
 
   say "job #$JOB_ID: $kind for card #$card"
 
-  if ! lane_open "$card"; then
+  # A merge runs in the repository itself: its card's branch is the pull
+  # request's, and nothing is built.
+  LANE=
+  if [ "$kind" != merge ] && ! lane_open "$card"; then
     say "job #$JOB_ID: no worktree for it — job not run"
     run_after_job 1 failed
     finish 1 failed
@@ -381,7 +455,7 @@ query="wait=$WAIT"
 say "taking jobs from $SLIPDOCK_URL${POOL:+ (pool $POOL)}"
 
 while :; do
-  post "/api/runner/claim?$query" /dev/null $((WAIT + 15))
+  post "/api/runner/claim?$query" /dev/null $((WAIT + 15)) "$WORK/kinds"
 
   case "$CODE" in
     200)

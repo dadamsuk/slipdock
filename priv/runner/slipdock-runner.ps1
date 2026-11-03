@@ -26,6 +26,15 @@
 # (default: the directory the runner started in), $WorktreeDir where the
 # worktrees go (default: <repo>-lanes beside it). A clean worktree is removed
 # after the job; one with uncommitted changes is kept, and the job's log says so.
+#
+# Built in: the merge kind (#1656), for boards that ship by pull request.
+# Accepting a card there queues a merge job, and this runner merges the
+# card's pull request, needing git and a signed-in gh (GitHub CLI), run in
+# the directory the runner starts in. It merges only a pull request in that
+# repository's origin, still open, whose head is the commit that was
+# accepted, and reports the merge commit. $Merge = $false in the config turns
+# it off; a config's own Job-Merge replaces it. Every claim tells the server
+# which kinds this runner takes, so merge jobs only come to runners that can.
 param(
   [string]$Config = '',
   [switch]$Once,
@@ -45,6 +54,51 @@ if (-not $Config) {
 if (-not (Test-Path -LiteralPath $Config)) {
   [Console]::Error.WriteLine("slipdock-runner: no config at $Config")
   exit 2
+}
+
+# The built-in merge (see above), defined before the config so that a
+# config's own Job-Merge replaces it. The server sends only data: the pull
+# request's URL and the accepted commit, both checked here before use.
+function Job-Merge {
+  $pr = "$env:SLIPDOCK_MERGE_PR"
+  $want = "$env:SLIPDOCK_MERGE_COMMIT"
+  if (-not $pr) { Write-Output 'merge: the card names no pull request (its evidence has no PR URL)'; exit 2 }
+  if (-not $want) { Write-Output 'merge: the card names no accepted commit'; exit 2 }
+  if ($pr -notmatch '^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([0-9]+)/*$') {
+    Write-Output "merge: $pr is not a GitHub pull request URL"; exit 2
+  }
+  $prRepo = $Matches[1]
+  $num = $Matches[2]
+  if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Output 'merge: git is not installed'; exit 2 }
+  if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { Write-Output 'merge: gh (GitHub CLI) is not installed'; exit 2 }
+  $ErrorActionPreference = 'Continue'
+  $origin = ((& git remote get-url origin 2>$null) | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0 -or -not $origin) { Write-Output "merge: $((Get-Location).Path) has no origin remote"; exit 2 }
+  $repo = $origin -replace '\.git$', '' -replace '/+$', '' -replace '^git@github\.com:', '' `
+    -replace '^ssh://git@github\.com/', '' -replace '^https://([^@/]*@)?github\.com/', ''
+  if ($repo.ToLower() -ne $prRepo.ToLower()) {
+    Write-Output "merge: the pull request is in $prRepo, but this runner's repository is $origin; nothing merged"; exit 2
+  }
+  & gh auth status *> $null
+  if ($LASTEXITCODE -ne 0) { Write-Output 'merge: gh is not signed in (run gh auth login)'; exit 2 }
+  $info = ((& gh pr view $num --repo $prRepo --json state,headRefOid --jq '.state + " " + .headRefOid' 2>&1) | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0) { Write-Output "merge: could not read ${pr}: $info"; exit 2 }
+  $state, $head = $info -split ' ', 2
+  if ($state -ne 'OPEN') { Write-Output "merge: $pr is $state, not open; nothing merged"; exit 2 }
+  if ($want -notmatch '^[0-9a-fA-F]+$') { Write-Output "merge: the accepted commit $want is not a commit id"; exit 2 }
+  if (-not $head.ToLower().StartsWith($want.ToLower())) {
+    Write-Output "merge: $pr's head is $head, not the accepted commit $want (it moved after the card was accepted); nothing merged"; exit 2
+  }
+  & gh pr merge $num --repo $prRepo --merge --match-head-commit $head --subject "Merge pull request #${num}: card #$env:SLIPDOCK_CARD"
+  if ($LASTEXITCODE -ne 0) {
+    Write-Output "merge: gh pr merge refused $pr (a conflict, a failing required check or branch protection)"; exit 3
+  }
+  $sha = ((& gh pr view $num --repo $prRepo --json mergeCommit --jq '.mergeCommit.oid' 2>$null) | Out-String).Trim()
+  $shown = $sha
+  if (-not $shown) { $shown = 'an unknown commit' }
+  Write-Output "merge: merged $pr (head $head) as $shown"
+  if ($env:SLIPDOCK_MERGED_FILE) { [IO.File]::WriteAllText($env:SLIPDOCK_MERGED_FILE, $sha) }
+  exit 0
 }
 
 . $Config
@@ -69,6 +123,9 @@ if ($null -eq $Wait) { $Wait = 25 }
 if ($null -eq $Heartbeat) { $Heartbeat = 20 }
 if ($null -eq $JobTimeout) { $JobTimeout = 3600 }
 if ($null -eq $LogTail) { $LogTail = 8000 }
+if (($null -ne $Merge) -and (-not $Merge -or ("$Merge" -in @('0', 'no', 'false', 'off')))) {
+  Remove-Item Function:Job-Merge -ErrorAction SilentlyContinue
+}
 
 $Here = Split-Path -Parent $Config
 # Runner NAME's config is config-NAME.ps1, and its log runner-NAME.log.
@@ -88,11 +145,13 @@ function Say([string]$message) {
 # POST to the queue. Answers @{ Status; Body; Headers }: Status 0 when
 # nothing answered. Windows PowerShell throws on any 4xx/5xx, so the answer
 # is taken from the exception as well.
-function Send-Slipdock([string]$path, [string]$body, [int]$timeout) {
+function Send-Slipdock([string]$path, [string]$body, [int]$timeout, [hashtable]$extra = @{}) {
   $bytes = $Utf8.GetBytes($body)
+  $headers = @{ Authorization = "Bearer $RunnerToken" }
+  foreach ($k in $extra.Keys) { $headers[$k] = $extra[$k] }
   try {
     $r = Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($SlipdockUrl + $path) `
-      -Headers @{ Authorization = "Bearer $RunnerToken" } `
+      -Headers $headers `
       -ContentType 'text/plain; charset=utf-8' -Body $bytes -TimeoutSec $timeout
     $content = $r.Content
     if ($content -is [byte[]]) { $content = $Utf8.GetString($content) }
@@ -307,6 +366,11 @@ function Invoke-AfterJob([int]$exitCode, [string]$status) {
 function Complete-Job([int]$exitCode, [string]$status) {
   $query = "exit=$exitCode"
   if ($status) { $query += "&status=$status" }
+  $mergedFile = Join-Path $Work 'merged'
+  if (Test-Path -LiteralPath $mergedFile) {
+    $merged = ([IO.File]::ReadAllText($mergedFile)).Trim()
+    if ($merged -match '^[0-9a-fA-F]+$') { $query += "&merged=$merged" }
+  }
   for ($try = 1; $try -le 5; $try++) {
     $a = Send-Slipdock "/api/runner/jobs/$JobId/finish?$query" (Read-Log) 30
     if ($a.Status -eq 200 -or $a.Status -eq 404) { return }
@@ -323,7 +387,7 @@ function Invoke-Job($claim) {
   # These came from the server, so they are checked before anything uses them.
   if ($JobId -notmatch '^[0-9]+$') { Say 'the server sent a job with no usable id'; return }
   if ($card -notmatch '^[0-9]+$') { $card = '' }
-  foreach ($f in @('log', 'out', 'err')) { Remove-Item -LiteralPath (Join-Path $Work $f) -ErrorAction SilentlyContinue }
+  foreach ($f in @('log', 'out', 'err', 'merged')) { Remove-Item -LiteralPath (Join-Path $Work $f) -ErrorAction SilentlyContinue }
   [IO.File]::WriteAllText((Join-Path $Work 'log'), '', $Utf8)
 
   $fn = ''
@@ -337,7 +401,11 @@ function Invoke-Job($claim) {
 
   $prompt = $claim.Body
   # Not for a verify job, whose agent checks the work rather than doing it.
-  if ($JobInstructions -and $kind -ne 'verify') { $prompt = $prompt + "`n`n" + $JobInstructions }
+  if ($JobInstructions -and $kind -ne 'verify' -and $kind -ne 'merge') { $prompt = $prompt + "`n`n" + $JobInstructions }
+  # A merge job's pull request and accepted commit (data, checked by Job-Merge).
+  $env:SLIPDOCK_MERGE_PR = Get-Header $claim 'X-Merge-Pr'
+  $env:SLIPDOCK_MERGE_COMMIT = Get-Header $claim 'X-Merge-Commit'
+  $env:SLIPDOCK_MERGED_FILE = Join-Path $Work 'merged'
   $env:SLIPDOCK_JOB_ID = $JobId
   $env:SLIPDOCK_JOB_KIND = $kind
   $env:SLIPDOCK_CARD = $card
@@ -346,7 +414,10 @@ function Invoke-Job($claim) {
 
   Say "job #${JobId}: $kind for card #$card"
 
-  if (-not (Open-Lane $card)) {
+  # A merge runs in the repository itself: its card's branch is the pull
+  # request's, and nothing is built.
+  $script:Lane = ''
+  if ($kind -ne 'merge' -and -not (Open-Lane $card)) {
     Say "job #${JobId}: no worktree for it - job not run"
     Invoke-AfterJob 1 'failed'
     Complete-Job 1 'failed'
@@ -442,6 +513,13 @@ function Invoke-Job($claim) {
   }
 }
 
+# The kinds this runner takes, said on every claim (X-Runner-Kinds): each
+# Job-<Kind> function, "Job-TwoWords" as two-words, the built-in merge too.
+$Kinds = (@(Get-ChildItem Function:Job-* | ForEach-Object {
+      (($_.Name.Substring(4) -creplace '([a-z0-9])([A-Z])', '$1-$2')).ToLower()
+    }) | Sort-Object -Unique) -join ','
+$KindsHeader = @{ 'X-Runner-Kinds' = $Kinds }
+
 $query = "wait=$Wait"
 if ($Pool) { $query += "&pool=$Pool" }
 $poolNote = ''
@@ -456,7 +534,7 @@ try {
     # Nothing that goes wrong in a round stops the runner without a word in
     # its log: the task's window is hidden, so stderr reaches nobody (#1481).
     try {
-      $claim = Send-Slipdock "/api/runner/claim?$query" '' ($Wait + 15)
+      $claim = Send-Slipdock "/api/runner/claim?$query" '' ($Wait + 15) $KindsHeader
       if ($claim.Status -eq 200) {
         $backoff = 1
         $quiet = 0

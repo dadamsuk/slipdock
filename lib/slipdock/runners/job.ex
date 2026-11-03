@@ -56,6 +56,9 @@ defmodule Slipdock.Runners.Job do
     field :claimed_at, :utc_datetime
     field :started_at, :utc_datetime
     field :finished_at, :utc_datetime
+    # A merge job (#1656): the commit the pull request was merged as, as
+    # the runner reported it (`finish?merged=<sha>`).
+    field :merged_sha, :string
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :root_board, Slipdock.Boards.Board

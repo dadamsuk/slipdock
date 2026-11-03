@@ -706,6 +706,28 @@ A card's subcards take the board's choice, and an export carries it. The
 guide tells agents on such a board what to do (*Shipping by pull request*),
 and says so on the board's line.
 
+**Runners merge.** Both runner scripts (`slipdock-runner`,
+`slipdock-runner.ps1`) have a built-in `merge` job kind, so a runner
+needs no config edit to merge. It runs in the directory the runner starts
+in, with `git` and a signed-in `gh` (GitHub CLI). The server sends only data:
+the card's pull request and the commit that was accepted (the verifier's
+commit, else the builder's). The runner then checks, before merging anything:
+
+- the pull request is in the repository's own `origin`;
+- it is still open;
+- its head is the accepted commit (`gh pr merge --match-head-commit`), so
+  nothing pushed after the acceptance gets merged.
+
+It merges with a merge commit (`Merge pull request #N: card #ID`) and reports
+the merge commit back. Anything else (a moved head, a closed pull request, a
+conflict or a failing required check, another repository, no `gh` or `gh`
+not signed in) fails the job with the reason. `MERGE=0` (`$Merge = $false`
+on Windows) in the config turns it off, and a config's own `job_merge`
+(`Job-Merge`) replaces it. Every claim says which kinds the runner takes
+(`X-Runner-Kinds`), and a merge job goes only to a runner that takes
+`merge`, so older runners are never handed one. A merge job never gets a
+worktree, since its card's branch is the pull request's.
+
 ## Lanes
 
 Agents working side by side on one repository can tread on each other's

@@ -1296,6 +1296,8 @@ defmodule SlipdockWeb.API.JSON do
       board_id: r.board_id,
       current_job_id: r.current_job_id,
       last_seen_at: r.last_seen_at,
+      # The job kinds it said it takes on its last claim (#1656); nil if never.
+      kinds: r.kinds,
       session: Slipdock.Runners.Runner.session?(r),
       settings: r.settings || %{},
       created_at: r.inserted_at

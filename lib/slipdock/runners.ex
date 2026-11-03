@@ -934,6 +934,8 @@ defmodule Slipdock.Runners do
         where: not j.wait_while_doing or not exists(busy_cards()),
         where: j.board_id not in ^wip_full or exists(own_card_doing()),
         where: j.card_id not in ^lane_held,
+        # A merge job only goes to a runner that says it takes them (#1656).
+        where: j.kind != "merge" or ^takes_merge?(runner),
         order_by: [asc: j.id],
         limit: 1,
         lock: "FOR UPDATE SKIP LOCKED",
@@ -977,6 +979,66 @@ defmodule Slipdock.Runners do
       claimed |> changed() |> Repo.preload(:card)
     end
   end
+
+  ## Job kinds and merge jobs (#1656) -----------------------------------------
+
+  @max_kinds 30
+
+  @doc """
+  Keeps the job kinds `runner` says it takes (`X-Runner-Kinds: claude,verify,merge`,
+  sent on every claim), and returns the runner with them. A header that is
+  missing leaves what was kept alone; names that aren't kind names are
+  dropped.
+  """
+  def report_kinds(%Runner{} = runner, nil), do: runner
+
+  def report_kinds(%Runner{} = runner, header) when is_binary(header) do
+    kinds =
+      header
+      |> String.split([",", " "], trim: true)
+      |> Enum.map(&String.downcase/1)
+      |> Enum.filter(&Regex.match?(Runner.name_format(), &1))
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.take(@max_kinds)
+
+    if kinds == runner.kinds do
+      runner
+    else
+      Repo.update_all(from(r in Runner, where: r.id == ^runner.id), set: [kinds: kinds])
+      %{runner | kinds: kinds}
+    end
+  end
+
+  @doc "Whether `runner` takes merge jobs: it said so on its last claim."
+  def takes_merge?(%Runner{kinds: kinds}) when is_list(kinds), do: "merge" in kinds
+  def takes_merge?(_runner), do: false
+
+  @doc """
+  What a merge job's runner needs to know, read from its card (#1656): the
+  pull request (`evidence_pr`) and the commit that was accepted (the
+  verifier's `verify_commit`, else the builder's `evidence_commit`). Data,
+  never a command: the runner checks the pull request is in its own
+  repository and that its head is still that commit before merging.
+  """
+  def merge_target(%Job{kind: "merge", card_id: card_id}) when is_integer(card_id) do
+    case Repo.get(Card, card_id) do
+      %Card{} = card ->
+        %{pr: card.evidence_pr, commit: card.verify_commit || card.evidence_commit}
+
+      nil ->
+        %{pr: nil, commit: nil}
+    end
+  end
+
+  def merge_target(_job), do: nil
+
+  defp sha(value) when is_binary(value) do
+    value = String.trim(value)
+    if Regex.match?(~r/\A[0-9a-f]{7,64}\z/i, value), do: String.downcase(value)
+  end
+
+  defp sha(_), do: nil
 
   ## Reporting ----------------------------------------------------------------
 
@@ -1127,7 +1189,8 @@ defmodule Slipdock.Runners do
         output: if(attrs[:output] in [nil, ""], do: job.output, else: tail(attrs[:output])),
         finished_at: now(),
         lease_expires_at: nil,
-        error: if(exit_code == 127 and status == "failed", do: "the runner has no such job kind")
+        error: if(exit_code == 127 and status == "failed", do: "the runner has no such job kind"),
+        merged_sha: if(job.kind == "merge", do: sha(attrs[:merged]), else: job.merged_sha)
       })
       |> Repo.update()
 

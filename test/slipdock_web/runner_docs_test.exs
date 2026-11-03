@@ -109,4 +109,23 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert read("docs/manual.md") =~ "**Verify the\nscript**"
     assert read("docs/manual.md") =~ "**Advanced**"
   end
+
+  test "the built-in merge kind is described in the scripts and the docs (#1656)" do
+    sh = read("priv/runner/slipdock-runner")
+    ps = read("priv/runner/slipdock-runner.ps1")
+    assert sh =~ "Built in: the merge kind (#1656)"
+    assert sh =~ "MERGE=0 in the config turns it off"
+    assert ps =~ "Built in: the merge kind (#1656)"
+    assert ps =~ "$Merge = $false in the config turns"
+
+    manual = read("docs/manual.md")
+    assert manual =~ "**Runners merge.**"
+    assert manual =~ "`gh pr merge --match-head-commit`"
+    assert manual =~ "`X-Runner-Kinds`"
+    assert read("docs/agents.md") =~ "built-in `merge` kind"
+
+    guide = read("lib/slipdock_web/api_guide.ex")
+    assert guide =~ "`merge` jobs are built into the"
+    assert guide =~ "`X-Runner-Kinds`"
+  end
 end

@@ -2165,7 +2165,10 @@ defmodule SlipdockWeb.APIGuide do
     second agent accepts or rejects a card another one submitted: see
     *Verified work*, which appears when one of your boards has it on. With
     `verify_pool` set, each submitted card is queued for that pool as a job
-    of kind `verify`, so a runner needs a `job_verify` to take them.
+    of kind `verify`, so a runner needs a `job_verify` to take them. On a
+    board that ships by pull request, `merge` jobs are built into the
+    runner scripts, and go only to runners whose claims list `merge` in
+    `X-Runner-Kinds`.
     """
   end
 

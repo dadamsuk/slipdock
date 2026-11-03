@@ -20,6 +20,10 @@ defmodule Slipdock.Runners.Runner do
     field :settings, :map, default: %{}
     field :last_seen_at, :utc_datetime
     field :current_job_id, :integer
+    # The job kinds it said it takes on its last claim (`X-Runner-Kinds`,
+    # #1656); nil for one that never said (an older runner, a session).
+    # Only `merge` jobs are routed on it.
+    field :kinds, {:array, :string}
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :created_by, Slipdock.Accounts.User

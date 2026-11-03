@@ -1965,6 +1965,12 @@ defmodule SlipdockCLI.Render do
 
     IO.puts("seen:      " <> if(r["last_seen_at"], do: stamp(r["last_seen_at"]), else: "never"))
 
+    # The kinds it said it takes on its last claim (#1656).
+    case r["kinds"] do
+      [_ | _] = kinds -> IO.puts("takes:     " <> Enum.join(kinds, ", "))
+      _ -> IO.puts("takes:     " <> dim("not said (an older runner: no merge jobs)"))
+    end
+
     if t = r["api_token"] do
       IO.puts("api token: #{t["label"] || "##{t["id"]}"} (#{t["scope"]})")
     end
