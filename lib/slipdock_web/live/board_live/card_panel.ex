@@ -255,14 +255,9 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   defp verify_title(_), do: "Rejected"
 
   defp verify_who(%Card{verify_state: "pending", verify_submitter: by}),
-    do: "submitted by #{actor_name(by)}"
+    do: "submitted by #{Slipdock.Verified.who(by)}"
 
-  defp verify_who(%Card{verify_by: by}), do: "by #{actor_name(by)}"
-
-  defp actor_name(%{"agent" => agent}) when is_binary(agent), do: "agent “#{agent}”"
-  defp actor_name(%{"kind" => "agent"}), do: "an agent"
-  defp actor_name(%{"kind" => "human"}), do: "a person"
-  defp actor_name(_), do: "somebody"
+  defp verify_who(%Card{verify_by: by}), do: "by #{Slipdock.Verified.who(by)}"
 
   attr :card, Card, required: true
 

@@ -571,6 +571,25 @@ defmodule Slipdock.Verified do
     end)
   end
 
+  @doc """
+  Who an actor stored on a card (`verify_by`, `verify_submitter`) was, in
+  words: an agent by its token's label, a person by their name.
+  """
+  def who(nil), do: "somebody"
+
+  def who(actor) do
+    case actor_map(actor) do
+      %{"kind" => "agent"} ->
+        who(actor, nil)
+
+      %{"user_id" => id} when is_integer(id) ->
+        Slipdock.Accounts.User.display_name(Repo.get(Slipdock.Accounts.User, id))
+
+      _ ->
+        "somebody"
+    end
+  end
+
   defp who(actor, user) do
     a = actor_map(actor)
 

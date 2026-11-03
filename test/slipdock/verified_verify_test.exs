@@ -266,4 +266,32 @@ defmodule Slipdock.VerifiedVerifyTest do
       assert hd(doc.boards).root.verify_work
     end
   end
+
+  describe "who/1" do
+    test "an agent by its token's label, or as an agent without one", ctx do
+      assert Verified.who(ctx.builder) == "agent “builder”"
+      assert Verified.who(%{ctx.builder | agent: nil}) == "an agent"
+      assert Verified.who(%{"kind" => "agent", "agent" => "stored"}) == "agent “stored”"
+    end
+
+    test "a person by their name, else their email, as stored on a card", ctx do
+      person = Actor.web(ctx.owner)
+      assert Verified.who(person) == ctx.owner.email
+
+      ctx.owner |> Ecto.Changeset.change(name: "Ann Owner") |> Slipdock.Repo.update!()
+      assert Verified.who(person) == "Ann Owner"
+
+      on(ctx)
+      card = submit(ctx, %{})
+      {:ok, card} = Verified.decide(card, "accept", %{}, person, ctx.owner)
+      assert Verified.who(card.verify_by) == "Ann Owner"
+    end
+
+    test "a deleted account, and nobody at all", ctx do
+      gone = %{Actor.web(ctx.owner) | user_id: -1}
+      assert Verified.who(gone) == "a deleted account"
+      assert Verified.who(nil) == "somebody"
+      assert Verified.who(%{"kind" => "human"}) == "somebody"
+    end
+  end
 end

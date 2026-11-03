@@ -167,6 +167,13 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
     view |> element("#verify-accept") |> render_click()
     assert Repo.get!(Card, ctx.card.id).completed
+
+    # Named, not "a person".
+    ctx.user |> Ecto.Changeset.change(name: "Dana Checker") |> Repo.update!()
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    assert has_element?(view, "#card-verify", "Accepted")
+    assert has_element?(view, "#card-verify", "by Dana Checker")
+    refute has_element?(view, "#card-verify", "a person")
   end
 
   test "settings turn it on; off, a card shows no verification", ctx do
