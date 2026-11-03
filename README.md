@@ -80,7 +80,12 @@ Briefly, with the detail in [the manual](docs/manual.md):
   rejecting it with the reason (`slipdock verify 12 accept|reject`). Work
   can ship by pull request instead of a push to the default branch
   (`slipdock set-board --ship-via pull-request`; the agent names it with
-  `slipdock done 12 --pr URL`).
+  `slipdock done 12 --pr URL`): accepting it has a runner merge the pull
+  request with its built-in merge kind, and the merge completes the card
+  (`slipdock verify 12 merged` when you merged it yourself). On a board that
+  ships by push, a card awaiting verification frees its lane and its
+  dependents. Runners say which script they run, and new installs keep
+  themselves current between jobs, on a matching checksum.
 - **Lanes** — [parallel agents stay out of each other's files](docs/manual.md#lanes),
   all optional and off by default: a card's paths (`slipdock edit 12 --paths
   "lib/runners/**"`), a board switch that refuses an agent starting a card

@@ -29,6 +29,11 @@ defmodule SlipdockWeb.VerifiedDocsTest do
 
   test "README and agents.md name it" do
     assert read("README.md") =~ "**Verified work**"
+    # Ship by PR (#1653): the merge, the pending-lane release, self-update.
+    readme = "README.md" |> read() |> String.replace(~r/\s+/, " ")
+    assert readme =~ "`slipdock verify 12 merged`"
+    assert readme =~ "a card awaiting verification frees its lane and its dependents"
+    assert readme =~ "keep themselves current between jobs"
     assert read("README.md") =~ "`verify_card`"
     assert read("docs/agents.md") =~ "**Verified work.**"
     assert read("docs/agents.md") =~ "**ship by pull request**"
