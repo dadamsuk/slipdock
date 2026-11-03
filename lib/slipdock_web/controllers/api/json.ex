@@ -119,6 +119,8 @@ defmodule SlipdockWeb.API.JSON do
       automation_wip: b.automation_wip,
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
+      # Lanes (#1628), off by default.
+      lanes: b.lanes,
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
@@ -210,6 +212,8 @@ defmodule SlipdockWeb.API.JSON do
       automation_wip: b.automation_wip,
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
+      # Lanes (#1628), off by default.
+      lanes: b.lanes,
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
@@ -488,7 +492,9 @@ defmodule SlipdockWeb.API.JSON do
       verify_submitter: c.verify_submitter,
       verify_by: c.verify_by,
       verify_at: c.verify_at,
-      verify_rejections: if(c.verify_rejections > 0, do: c.verify_rejections)
+      verify_rejections: if(c.verify_rejections > 0, do: c.verify_rejections),
+      # The paths its work touches (#1628), when it declares any.
+      paths: if(c.paths not in [nil, []], do: c.paths)
     ]
     |> Enum.reject(fn {_, v} -> is_nil(v) end)
     |> Enum.into(map)

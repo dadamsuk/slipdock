@@ -962,6 +962,12 @@ defmodule SlipdockCLI.Render do
       IO.puts(indent(c["bar"]))
     end
 
+    if c["paths"] not in [nil, []] do
+      IO.puts("")
+      IO.puts(bold("Paths"))
+      IO.puts(indent(Enum.join(c["paths"], "\n")))
+    end
+
     if state = c["verify_state"] do
       IO.puts("")
       rejected = if n = c["verify_rejections"], do: dim("  · rejected #{n}×"), else: ""

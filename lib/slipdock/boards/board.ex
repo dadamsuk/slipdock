@@ -91,6 +91,9 @@ defmodule Slipdock.Boards.Board do
     # an agent writes a card's bar before work starts, and it locks then
     # (see `Slipdock.Verified`).
     field :bar_required, :boolean, default: false
+    # Lanes (#1628): an agent can't start a card whose `paths` overlap a
+    # card in progress on the tree (see `Slipdock.Lanes`). Off by default.
+    field :lanes, :boolean, default: false
     # `evidence_required` (#1632): an agent completing a card says what it
     # checked (and at which commit).
     field :evidence_required, :boolean, default: false
@@ -505,6 +508,7 @@ defmodule Slipdock.Boards.Board do
       :handoff_label,
       :handoff_prompt,
       :bar_required,
+      :lanes,
       :evidence_required,
       :verify_work,
       :verify_pool,

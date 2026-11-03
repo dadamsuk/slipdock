@@ -436,7 +436,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     params =
       params
       |> Map.take(
-        ~w(title description priority start_date due_date date_precision completed percent_complete column_id assignee_id add_assignee_id bar)
+        ~w(title description priority start_date due_date date_precision completed percent_complete column_id assignee_id add_assignee_id bar paths)
       )
       # The time form posts all three together, but spent and estimate are
       # typed in the unit on screen: re-sending them alongside a new unit would
@@ -1569,6 +1569,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
               <.bar_section
                 :if={@board.bar_required || @card.bar}
+                card={@card}
+                form={@form}
+                target={@target}
+              />
+
+              <.paths_section
+                :if={@card.paths != [] || Slipdock.Lanes.on?(@board)}
+                board={@board}
                 card={@card}
                 form={@form}
                 target={@target}

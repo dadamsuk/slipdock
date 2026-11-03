@@ -12,7 +12,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   alias SlipdockWeb.MCP.{Args, Tools}
 
   @fields ~w(name description color simple default_view handoff_label bar_required
-             evidence_required verify_work verify_pool)
+             evidence_required verify_work verify_pool lanes)
 
   @impl true
   def name, do: "update_board"
@@ -25,7 +25,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
     do:
       "Changes settings on a board you own: name, description, color, simple, default_view, " <>
         "handoff_label, and Verified work's bar_required, evidence_required, verify_work and " <>
-        "verify_pool. Only what you send changes."
+        "verify_pool, and lanes. Only what you send changes."
 
   @impl true
   def input_schema do
@@ -42,7 +42,11 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
         bar_required: %{type: "boolean", description: "Agents write a card's bar before work."},
         evidence_required: %{type: "boolean", description: "Agents give evidence to complete."},
         verify_work: %{type: "boolean", description: "A second agent accepts or rejects."},
-        verify_pool: %{type: "string", description: "Runner pool for verify jobs; \"\" none."}
+        verify_pool: %{type: "string", description: "Runner pool for verify jobs; \"\" none."},
+        lanes: %{
+          type: "boolean",
+          description: "Refuse agents starting cards whose paths overlap."
+        }
       },
       required: ["board"],
       additionalProperties: false

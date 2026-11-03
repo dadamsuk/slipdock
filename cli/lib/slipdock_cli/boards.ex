@@ -351,6 +351,8 @@ defmodule SlipdockCLI.Boards do
         "due_date" => if(o[:no_due], do: nil, else: o[:due]),
         "percent_complete" => if(o[:no_percent], do: nil, else: o[:percent]),
         "bar" => o[:bar],
+        # The files its work touches (#1628): globs, split by the server.
+        "paths" => o[:paths],
         "time_spent" => o[:spent],
         "time_estimate" => o[:estimate],
         "time_unit" => o[:unit],
@@ -1039,6 +1041,8 @@ defmodule SlipdockCLI.Boards do
         "verify_work" => o[:verify_work],
         # The runner pool pending cards go to as verify jobs (#1634); "" none.
         "verify_pool" => o[:verify_pool],
+        # Lanes (#1628): agents can't start cards whose paths overlap.
+        "lanes" => o[:lanes],
         # Deploys and DORA metrics (#1134).
         "delivery_metrics" => o[:delivery_metrics],
         "incident_tag" => o[:incident_tag],
@@ -1064,7 +1068,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work or --verify-pool"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool or --[no-]lanes"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

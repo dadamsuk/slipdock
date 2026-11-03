@@ -812,6 +812,7 @@ defmodule Slipdock.Boards do
                "handoff_prompt" => parent.handoff_prompt,
                # Verified work's switches (#1620) hold for the subcards too.
                "bar_required" => parent.bar_required,
+               "lanes" => parent.lanes,
                "evidence_required" => parent.evidence_required,
                "verify_work" => parent.verify_work,
                "verify_pool" => parent.verify_pool
@@ -1919,7 +1920,7 @@ defmodule Slipdock.Boards do
     # A verifier's decision (`Slipdock.Verified.decide/5`) brings its own.
     checked =
       case opts[:verify_changes] do
-        nil -> Slipdock.Verified.check_update(card, attrs, Slipdock.Actor.resolve(opts))
+        nil -> check_update(card, attrs, Slipdock.Actor.resolve(opts))
         changes -> {:ok, attrs, changes}
       end
 
@@ -1929,6 +1930,14 @@ defmodule Slipdock.Boards do
 
       {:error, field, message} ->
         {:error, card |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(field, message)}
+    end
+  end
+
+  # Lanes (#1628) first, then Verified work (#1620).
+  defp check_update(card, attrs, actor) do
+    case Slipdock.Lanes.check_update(card, attrs, actor) do
+      :ok -> Slipdock.Verified.check_update(card, attrs, actor)
+      refused -> refused
     end
   end
 
@@ -2435,9 +2444,12 @@ defmodule Slipdock.Boards do
         do_move_card(card, to_column, before_id, actor)
 
       true ->
-        # Verified work (#1620): what an agent may start or finish.
-        case Slipdock.Verified.check_move(card, to_column, actor) do
-          :ok -> do_move_card(card, to_column, before_id, actor)
+        # Verified work (#1620): what an agent may start or finish; lanes
+        # (#1628): whether its paths overlap a card in progress.
+        with :ok <- Slipdock.Verified.check_move(card, to_column, actor),
+             :ok <- Slipdock.Lanes.check_move(card, to_column, actor) do
+          do_move_card(card, to_column, before_id, actor)
+        else
           {:error, message} -> {:error, :unprocessable_entity, message}
         end
     end

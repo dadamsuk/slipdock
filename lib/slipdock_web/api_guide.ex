@@ -41,6 +41,7 @@ defmodule SlipdockWeb.APIGuide do
       wiki(),
       handbook(),
       verified_work(user, Keyword.get(opts, :token)),
+      lanes_section(user, Keyword.get(opts, :token)),
       portable(),
       vocabulary_section(),
       endpoints_section(),
@@ -3390,6 +3391,11 @@ defmodule SlipdockWeb.APIGuide do
           "\n  - verified work: #{Enum.map_join(on, ", ", &verified_name/1)} (see *Verified work*)"
       end
 
+    verified =
+      if full.lanes,
+        do: verified <> "\n  - lanes: on — write a card's paths before starting it (see *Lanes*)",
+        else: verified
+
     """
     - **##{board.id} #{board.name}** (`#{board.code}`) — #{length(board.cards)} top-level cards, #{Enum.count(board.cards, & &1.completed)} done#{if epics > 0, do: ", #{epics} of them epics with subcards"}#{shared_note(board, viewer)}
       - lists: #{lists}
@@ -3428,6 +3434,37 @@ defmodule SlipdockWeb.APIGuide do
 
       #{steps}
       """
+    end
+  end
+
+  # Lanes (#1628): described only when one of the reader's boards has it on.
+  defp lanes_section(nil, _token), do: ""
+
+  defp lanes_section(user, token) do
+    if user |> Access.list_boards(token: token) |> Enum.any?(& &1.lanes) do
+      """
+
+      ## Lanes
+
+      Some of your boards keep agents working side by side out of each
+      other's files (`lanes: on` on the board's line). Before moving a card
+      into an in-progress list, write the paths its work will touch on the
+      card's `paths`: globs relative to the repository, like
+      `lib/slipdock/runners/**` or `docs/{manual,agents}.md`
+      (`PATCH /api/cards/:id {"paths": ["…"]}`, `update_card` `paths`,
+      `slipdock edit ID --paths "a/**,b.md"`). Moving it in is refused
+      (`422`, naming the card in the way) while its paths overlap an open
+      card already in progress on the board's tree, the card's own subcards
+      and parents aside, and so is widening an in-progress card's paths onto
+      another's. Narrow the paths, take other work, or ask a person: a
+      person moving the card overrides it. A runner job for such a card is
+      held (`Lane: overlaps #N, in progress`) until the other card is done,
+      and a claimed job's prompt lists the card's paths. Stage only files
+      under them; with several sessions in one repository, work in a git
+      worktree of your own.
+      """
+    else
+      ""
     end
   end
 

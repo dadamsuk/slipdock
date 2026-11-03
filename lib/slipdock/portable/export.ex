@@ -256,6 +256,7 @@ defmodule Slipdock.Portable.Export do
       handoff_label: board.handoff_label,
       handoff_prompt: board.handoff_prompt,
       bar_required: board.bar_required,
+      lanes: board.lanes,
       evidence_required: board.evidence_required,
       verify_work: board.verify_work,
       verify_pool: board.verify_pool,
@@ -349,6 +350,7 @@ defmodule Slipdock.Portable.Export do
       evidence_branch: card.evidence_branch,
       evidence_tests: card.evidence_tests,
       evidence_suite: card.evidence_suite,
+      paths: card.paths,
       # Minutes, whatever the unit; a running timer's time isn't spent yet.
       time_spent: card.time_spent,
       time_estimate: card.time_estimate,

@@ -456,6 +456,8 @@ defmodule Slipdock.Runners do
     * `"WIP full: In Progress 3/3"` — its board holds automated work at the
       WIP limit (`automation_wip`) and its card isn't in progress already;
     * `"#123 is in progress"` — it waits while anything is (`wait_while_doing`);
+    * `"Lane: overlaps #12, in progress"` — lanes (#1628): its card's paths
+      overlap a card in progress;
     * `"No runner online for pool dev"` — no runner of its pool has been seen
       for three leases. Left out with `claimant: true`: the runner asking is
       online, whatever its last poll says.
@@ -473,6 +475,9 @@ defmodule Slipdock.Runners do
       card = waiting_on(job) ->
         "##{card.id} is in progress"
 
+      other = lane_held(job) ->
+        Slipdock.Lanes.held_line(other)
+
       !opts[:claimant] and not runner_online?(job.root_board_id, job.pool) ->
         "No runner online for pool #{job.pool}"
 
@@ -482,6 +487,9 @@ defmodule Slipdock.Runners do
   end
 
   def held_reason(_job, _opts), do: nil
+
+  # The card in progress whose paths a queued job's card overlaps (#1628).
+  defp lane_held(%Job{} = job), do: Slipdock.Lanes.held_cards(job.root_board_id)[job.card_id]
 
   @doc """
   `held_reason/1` for many jobs at once, as job id => line for each one
@@ -498,13 +506,16 @@ defmodule Slipdock.Runners do
     wip = Map.new(boards, &{&1, wip_full(&1)})
     doing = doing_cards(boards)
     in_doing = MapSet.new(for {_, cards} <- doing, c <- cards, do: c.id)
+    lanes = Map.new(trees, &{&1, Slipdock.Lanes.held_cards(&1)})
 
-    for job <- queued, line = batch_held(job, pauses, online, wip, doing, in_doing), into: %{} do
+    for job <- queued,
+        line = batch_held(job, pauses, online, wip, {doing, in_doing, lanes}),
+        into: %{} do
       {job.id, line}
     end
   end
 
-  defp batch_held(job, pauses, online, wip, doing, in_doing) do
+  defp batch_held(job, pauses, online, wip, {doing, in_doing, lanes}) do
     tree_pauses = pauses[job.root_board_id]
 
     pause =
@@ -525,6 +536,9 @@ defmodule Slipdock.Runners do
 
       in_way ->
         "##{in_way.id} is in progress"
+
+      other = lanes[job.root_board_id][job.card_id] ->
+        Slipdock.Lanes.held_line(other)
 
       job.pool not in online[job.root_board_id] ->
         "No runner online for pool #{job.pool}"
@@ -906,6 +920,8 @@ defmodule Slipdock.Runners do
   defp claim_next(runner) do
     now = now()
     wip_full = wip_full_boards(runner.board_id)
+    # Lanes (#1628): cards whose paths overlap a card in progress wait.
+    lane_held = runner.board_id |> Slipdock.Lanes.held_cards() |> Map.keys()
 
     candidate =
       from(j in Job,
@@ -917,6 +933,7 @@ defmodule Slipdock.Runners do
         where: is_nil(j.exclude_runner_id) or j.exclude_runner_id != ^runner.id,
         where: not j.wait_while_doing or not exists(busy_cards()),
         where: j.board_id not in ^wip_full or exists(own_card_doing()),
+        where: j.card_id not in ^lane_held,
         order_by: [asc: j.id],
         limit: 1,
         lock: "FOR UPDATE SKIP LOCKED",
@@ -1420,6 +1437,20 @@ defmodule Slipdock.Runners do
 
       _ ->
         job.prompt
+    end
+    |> with_paths(job)
+  end
+
+  # The card's lane (#1628): the paths it declared, to stay inside.
+  defp with_paths(prompt, %Job{card_id: card_id}) do
+    case Repo.one(from(c in Card, where: c.id == ^card_id, select: c.paths)) do
+      [_ | _] = paths ->
+        (prompt || "") <>
+          "\n\nThe card's paths (its lane): touch and stage only files under these, " <>
+          "or widen them on the card first:\n" <> Enum.join(paths, "\n")
+
+      _ ->
+        prompt
     end
   end
 

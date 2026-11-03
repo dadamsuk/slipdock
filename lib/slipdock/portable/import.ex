@@ -478,6 +478,7 @@ defmodule Slipdock.Portable.Import do
           handoff_label: text_upto(doc[:handoff_label], Board.handoff_limits().label),
           handoff_prompt: text_upto(doc[:handoff_prompt], Board.handoff_limits().prompt),
           bar_required: bool(doc[:bar_required], false),
+          lanes: bool(doc[:lanes], false),
           evidence_required: bool(doc[:evidence_required], false),
           verify_work: bool(doc[:verify_work], false),
           verify_pool: pool(doc[:verify_pool]),
@@ -649,7 +650,8 @@ defmodule Slipdock.Portable.Import do
           evidence_commit: commit_id(doc[:evidence_commit]),
           evidence_branch: text_upto(doc[:evidence_branch], 200),
           evidence_tests: if(is_list(doc[:evidence_tests]), do: doc[:evidence_tests]),
-          evidence_suite: suite(doc[:evidence_suite])
+          evidence_suite: suite(doc[:evidence_suite]),
+          paths: if(is_list(doc[:paths]), do: doc[:paths], else: [])
         },
         named("card", doc[:title])
       )

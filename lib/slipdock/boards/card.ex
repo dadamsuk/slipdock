@@ -59,6 +59,9 @@ defmodule Slipdock.Boards.Card do
     # before work starts; `bar_locked_at` is when work started and it locked.
     # Set only through `Slipdock.Verified`'s checks in `Boards.update_card/3`.
     field :bar, :string
+    # The paths this card's work will touch (#1628), as globs relative to
+    # the repository: `lib/slipdock/runners/**`. See `Slipdock.Lanes`.
+    field :paths, {:array, :string}, default: []
     field :bar_locked_at, :utc_datetime
     # What an agent checked when it completed the card, and the commit it
     # checked at (#1632). Cleared when the card is reopened on a board that
@@ -387,7 +390,7 @@ defmodule Slipdock.Boards.Card do
 
   def changeset(card, attrs) do
     card
-    |> cast(attrs, [
+    |> cast(Slipdock.Lanes.split_paths(attrs), [
       :title,
       :short_name,
       :description,
@@ -413,6 +416,7 @@ defmodule Slipdock.Boards.Card do
       :evidence_branch,
       :evidence_tests,
       :evidence_suite,
+      :paths,
       :board_id,
       # Not `:column_id`: a card changes list only through `Boards.move_card/4`
       # and `move_card_to_board/3`, which record who moved it.
@@ -422,6 +426,7 @@ defmodule Slipdock.Boards.Card do
     |> validate_length(:title, min: 1, max: 200)
     |> update_change(:bar, &tidy_short_name/1)
     |> validate_length(:bar, max: @bar_length)
+    |> Slipdock.Lanes.validate_paths()
     |> update_change(:evidence, &tidy_short_name/1)
     |> validate_length(:evidence, max: @bar_length)
     |> update_change(:evidence_commit, &tidy_short_name/1)

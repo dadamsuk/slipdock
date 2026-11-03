@@ -778,6 +778,24 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   </span>
                 </span>
               </label>
+              <input type="hidden" name={@form[:lanes].name} value="false" />
+              <label class="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="board-lanes"
+                  name={@form[:lanes].name}
+                  value="true"
+                  checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:lanes].value)}
+                  class="checkbox checkbox-sm mt-0.5"
+                />
+                <span>
+                  <span class="font-medium">Lanes</span>
+                  <span class="block text-xs text-base-content/50">
+                    An agent can't start a card whose paths overlap a card in progress, so agents
+                    side by side stay out of each other's files. Moving a card yourself overrides it.
+                  </span>
+                </span>
+              </label>
               <input type="hidden" name={@form[:evidence_required].name} value="false" />
               <label class="flex cursor-pointer items-start gap-2 text-sm">
                 <input

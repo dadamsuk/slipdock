@@ -348,6 +348,55 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   end
 
   attr :board, :any, required: true
+  attr :card, Card, required: true
+  attr :form, :any, required: true
+  attr :target, :any, required: true
+
+  @doc """
+  The paths the card's work touches (#1628), one glob per line. On a board
+  with lanes on it says which card in progress they overlap, if any: an
+  agent can't start this card then, but a person moving it is the override.
+  """
+  def paths_section(assigns) do
+    assigns =
+      assign(assigns,
+        overlap: Slipdock.Lanes.on?(assigns.board) && Slipdock.Lanes.conflict(assigns.card),
+        text: assigns.form[:paths].value |> List.wrap() |> Enum.join("\n")
+      )
+
+    ~H"""
+    <.form
+      phx-target={@target}
+      for={@form}
+      id="card-paths-form"
+      phx-change="card_change"
+      phx-submit="card_change"
+      class="space-y-1.5 px-1"
+    >
+      <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <span>Paths</span>
+      </p>
+      <textarea
+        name={@form[:paths].name}
+        id="card-paths"
+        rows="2"
+        phx-debounce="800"
+        phx-hook="AutoGrow"
+        placeholder="The files its work touches, one glob per line: lib/slipdock/runners/**"
+        class="textarea textarea-bordered textarea-sm w-full font-mono"
+      >{@text}</textarea>
+      <p :for={msg <- Enum.map(@form[:paths].errors, &elem(&1, 0))} class="text-sm text-error">
+        {msg}
+      </p>
+      <p :if={@overlap} id="card-paths-overlap" class="text-xs text-warning">
+        Overlaps #{@overlap.id} {@overlap.title}, in progress: an agent can't start this card
+        while it is. Moving it yourself overrides that.
+      </p>
+    </.form>
+    """
+  end
+
+  attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :card, Card, required: true
   attr :current_user, :any, default: nil

@@ -10,7 +10,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.{Args, Tools}
 
-  @fields ~w(title short_name description priority due_date start_date percent_complete bar color border_top
+  @fields ~w(title short_name description priority due_date start_date percent_complete bar paths color border_top
              border_right border_bottom border_left)
   @lists ~w(add_flags remove_flags add_tags remove_tags assignees add_assignees remove_assignees)
   @id_lists ~w(add_blocked_by remove_blocked_by check_items uncheck_items)
@@ -60,6 +60,13 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
         bar: %{
           type: "string",
           description: "What done means for it; locks when work starts, where the board asks."
+        },
+        paths: %{
+          type: "array",
+          items: %{type: "string"},
+          description:
+            "Globs of the files its work touches (lib/x/**); [] clears. On a lanes board an " <>
+              "agent can't start a card whose paths overlap one in progress."
         },
         color: %{
           border

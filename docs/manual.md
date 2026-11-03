@@ -670,6 +670,41 @@ same runner token.
   `verify` job, since its agent checks the work rather than doing it.
   Delete the function to take no verify jobs.
 
+## Lanes
+
+Agents working side by side on one repository can tread on each other's
+files: one sweeps another's half-done change into its commit, or two take
+the same migration number. Lanes keep them apart, in parts that are
+each optional and off by default. With none of it on, nothing changes.
+
+**Paths on a card.** A card can say which files its work will touch, as
+globs relative to the repository, one per line in the card's *Paths* field
+(`slipdock edit 12 --paths "lib/slipdock/runners/**,docs/manual.md"`,
+`update_card` `paths`, `PATCH /api/cards/:id {"paths": [...]}`; `""` or
+`[]` clears them). `*` and `?` stay within one folder, `**` is any number
+of folders, `{a,b}` is either, and a path covers everything under it
+(`lib/foo` covers `lib/foo/bar.ex`). Paths are at most 50, each at most 200
+characters, relative, and without `..`. They are shown on the card and in
+`slipdock card`, and a claimed runner job's prompt lists them.
+
+**The board switch.** With *Lanes* on in the board's settings (`slipdock
+set-board slipdock --lanes`, `update_board` `lanes`, `PATCH /api/boards/:id
+{"lanes": true}`; sub-boards made afterwards inherit it, and the root
+board's switch holds for its whole tree), an agent can't start a card whose
+paths overlap those of an open card already in progress anywhere on the
+tree: moving it into an in-progress list is refused with the other card
+named, and so is widening an in-progress card's paths onto another's. The
+card's own subcards and parents don't count against it, and a card with no
+paths overlaps nothing. A runner job for such a card waits, held as
+*Lane: overlaps #N, in progress*, and the next job is taken instead. People
+are never refused: moving the card yourself is the override, and the card's
+*Paths* field says what it overlaps. The server only compares globs: it
+never sees a working tree.
+
+**A worktree per runner job.** See *A worktree per job* under
+[Runners](#runners): each job in a git worktree of its own, on a branch
+named for its card.
+
 ## Waiting on a person (waits)
 
 A card that can't go on until somebody answers something — a decision, a

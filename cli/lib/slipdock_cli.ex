@@ -592,6 +592,9 @@ defmodule SlipdockCLI do
         --percent N | --no-percent   (% complete, 0-100)
         --bar TEXT                   what done means for the card; on a board with
                                      --bar-required it locks when work starts
+        --paths "G1,G2"              the files its work touches, as globs (lib/x/**), split
+                                     on commas or newlines; "" clears. On a --lanes board an
+                                     agent can't start it while they overlap a card in progress
         --spent T | --no-spent  --estimate T | --no-estimate   time spent and the estimate.
                                      A bare number is in the card's unit; or say 90m, 1.5h,
                                      2d, 1w, 1mo, "1h 30m" (a day is 8h, a week 5d, a month 4w)
@@ -701,7 +704,7 @@ defmodule SlipdockCLI do
         [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
         [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
         [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
-        [--verify-pool POOL]
+        [--verify-pool POOL] [--lanes | --no-lanes]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -738,7 +741,9 @@ defmodule SlipdockCLI do
                                         --verify-work: an agent's completion waits for a
                                         different agent or a person to accept it (verify);
                                         --verify-pool sends each such card to that runner
-                                        pool as a verify job ("" sends none)
+                                        pool as a verify job ("" sends none);
+                                        --lanes: an agent can't start a card whose --paths
+                                        overlap a card in progress (a person can)
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -999,6 +1004,8 @@ defmodule SlipdockCLI do
     automation_wip: :boolean,
     bar_required: :boolean,
     bar: :string,
+    lanes: :boolean,
+    paths: :string,
     evidence_required: :boolean,
     verify_work: :boolean,
     verify_pool: :string,
