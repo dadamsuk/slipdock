@@ -32,6 +32,7 @@ defmodule SlipdockWeb.DeliveryDocsTest do
           "SLIPDOCK_DEPLOY_TOKEN",
           "fetch-depth: 0",
           "slipdock deploy backfill --from-tags",
+          "slipdock deploy backfill --from-runs",
           "slipdock incident-of <card> <deploy>",
           "**idea to production**",
           "Shipped to production",

@@ -158,4 +158,34 @@ defmodule SlipdockWeb.ShippedLineTest do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
     assert has_element?(view, "#card-shipped", "Shipped to production")
   end
+
+  # #1669: deploys CI made while their record failed, backfilled from its
+  # runs as `slipdock deploy backfill --from-runs` sends them.
+  test "a backfilled deploy ships the cards its commits name, and twice is once", %{
+    board: board,
+    card: card
+  } do
+    at = ~U[2026-11-02 23:06:00.000000Z]
+    sha = "8847df1a" <> String.duplicate("0", 32)
+
+    attrs = %{
+      "environment" => "production",
+      "sha" => sha,
+      "previous_sha" => String.duplicate("d", 40),
+      "status" => "succeeded",
+      "started_at" => at,
+      "finished_at" => at,
+      "source" => "backfill",
+      "commits" => [%{"sha" => sha, "message" => "Merge PR 3: card ##{card.id}"}]
+    }
+
+    assert {:ok, d} = Deployments.start(board, attrs)
+    assert d.card_ids == [card.id]
+    assert [%{deployment_id: id, sha: ^sha}] = Deployments.shipped(card)
+    assert id == d.id
+
+    assert {:existing, %{id: ^id}} = Deployments.start(board, attrs)
+    assert [%{deployment_id: ^id}] = Deployments.shipped(card)
+    assert length(Deployments.list(board)) == 1
+  end
 end

@@ -849,7 +849,10 @@ defmodule SlipdockCLI do
                                                    succeeded/failed from its exit code and exits
                                                    with it. A rollback (HEAD behind the last deploy)
                                                    says so; a shallow clone is deepened or the fix is
-                                                   named. Needs $SLIPDOCK_DEPLOY_TOKEN (and
+                                                   named; a last deploy that left the history
+                                                   (rewritten) is warned about, and the commits
+                                                   since the newest one before it are sent. Needs
+                                                   $SLIPDOCK_DEPLOY_TOKEN (and
                                                    $SLIPDOCK_URL); env defaults to production
     deploy start [--env E] [--tag T] [--sha S] [--dry-run]
                                                    the same in two steps: prints the deploy's id…
@@ -862,6 +865,12 @@ defmodule SlipdockCLI do
                                                    a succeeded deploy at its date, with the commits
                                                    since the tag before. Running it again records
                                                    nothing twice
+    deploy backfill --from-runs FILE|- [--env E] [--dir D] [--dry-run]
+                                                   record the deploys CI made that the board missed:
+                                                   each successful run (gh run list --json
+                                                   headSha,createdAt,updatedAt,conclusion) since the
+                                                   last recorded deploy, with the commits since the
+                                                   one before. Running it again records nothing twice
     deploy setup <board> [--ci github|gitlab|shell] [--env production,staging]
                  [--card-ref-pattern RE] [--prompt]
                                                    track a board's deploys: turns its delivery
@@ -1012,6 +1021,7 @@ defmodule SlipdockCLI do
     sha: :string,
     revoke: :boolean,
     from_tags: :boolean,
+    from_runs: :string,
     ci: :string,
     prompt: :boolean,
     incident_tag: :string,

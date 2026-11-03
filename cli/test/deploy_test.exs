@@ -279,6 +279,16 @@ defmodule SlipdockCLI.DeployTest do
     assert args == ["deploy", "run", "./d.sh", "--force"]
   end
 
+  test "parses `deploy backfill --from-runs -` with stdin as the source" do
+    {opts, args, []} =
+      OptionParser.parse(["deploy", "backfill", "--from-runs", "-", "--env", "production"],
+        strict: SlipdockCLI.switches()
+      )
+
+    assert opts[:from_runs] == "-"
+    assert args == ["deploy", "backfill"]
+  end
+
   test "incident-of links a card to a deploy, and --clear unlinks" do
     System.put_env("SLIPDOCK_TOKEN", "api-token")
 
@@ -461,6 +471,255 @@ defmodule SlipdockCLI.DeployTest do
       assert capture_io(fn -> Deploy.run("deploy", ["backfill"], dir: repo, from_tags: true) end) =~
                ~s(no tags match "*": nothing to record)
 
+      refute_received {:request, _, _, _}
+    end
+  end
+
+  # #1669: history was rewritten, so the last recorded deploy's commit is no
+  # longer in CI's checkout and `prev..HEAD` was an invalid range.
+  describe "a last deploy whose commit left the history" do
+    defp last_at(sha, finished_at),
+      do:
+        {200,
+         JSON.encode!(%{
+           "sha" => sha,
+           "card_ref_pattern" => nil,
+           "deployment" => %{"sha" => sha, "finished_at" => finished_at}
+         })}
+
+    @gone String.duplicate("d", 40)
+
+    test "is recorded with the commits since the newest commit before it, and warns", %{
+      repo: repo
+    } do
+      dated_commit!(repo, "old (#40)", "2026-11-01T10:00:00Z")
+
+      twin =
+        dated_commit!(repo, "rewritten twin of the last deploy (#41)", "2026-11-02T12:31:18Z")
+
+      a = dated_commit!(repo, "feat: after (#42)", "2026-11-02T22:50:00Z")
+      b = dated_commit!(repo, "Merge PR 6: card #43", "2026-11-03T15:06:00Z")
+      serve([last_at(@gone, "2026-11-02T12:36:35.161090Z"), created()])
+
+      assert {:ok, %{"warning" => err}} = Deploy.record_start(dir: repo)
+
+      assert err =~ "the last deploy's commit ddddddd isn't in this checkout's history"
+      assert err =~ "the commits since #{String.slice(twin, 0, 7)}"
+      assert_received {:request, "POST", "/api/deployments", body}
+      body = JSON.decode!(body)
+      assert body["sha"] == b
+      assert body["previous_sha"] == @gone
+      refute body["rollback"]
+      assert Enum.map(body["commits"], & &1["sha"]) == [b, a]
+    end
+
+    test "start prints the deploy's id and the warning, and doesn't fail", %{repo: repo} do
+      dated_commit!(repo, "one", "2026-11-01T10:00:00Z")
+      dated_commit!(repo, "two (#44)", "2026-11-03T10:00:00Z")
+      serve([last_at(@gone, "2026-11-02T00:00:00Z"), created(9)])
+
+      err =
+        capture_io(:stderr, fn ->
+          assert capture_io(fn -> Deploy.run("deploy", ["start"], dir: repo) end) == "9\n"
+        end)
+
+      assert err =~ "warning:"
+      assert err =~ "range: "
+      assert err =~ "cards: #44"
+    end
+
+    test "with nothing committed before it, is recorded with no commits", %{repo: repo} do
+      head = dated_commit!(repo, "all new (#45)", "2026-11-03T10:00:00Z")
+      serve([last_at(@gone, "2026-11-02T00:00:00Z"), created()])
+
+      assert {:ok, %{"warning" => err}} = Deploy.record_start(dir: repo)
+      assert err =~ "recording this deploy with no commits"
+      assert_received {:request, "POST", "/api/deployments", body}
+      body = JSON.decode!(body)
+      assert body["sha"] == head
+      assert body["commits"] == []
+    end
+
+    test "with no deploy time to go by, is recorded with no commits", %{repo: repo} do
+      commit!(repo, "one")
+      serve([last(@gone), created()])
+
+      assert {:ok, %{"warning" => err}} = Deploy.record_start(dir: repo)
+      assert err =~ "recording this deploy with no commits"
+      assert_received {:request, "POST", "/api/deployments", body}
+      assert JSON.decode!(body)["commits"] == []
+    end
+
+    test "the normal range still says nothing", %{repo: repo} do
+      prev = commit!(repo, "base")
+      a = commit!(repo, "feat: a (#46)")
+      serve([last_at(prev, "2026-11-02T00:00:00Z"), created()])
+
+      assert {:ok, plan} = Deploy.record_start(dir: repo)
+      refute plan["warning"]
+      assert_received {:request, "POST", "/api/deployments", body}
+      assert Enum.map(JSON.decode!(body)["commits"], & &1["sha"]) == [a]
+    end
+
+    test "a --sha the checkout hasn't got is recorded with no commits", %{repo: repo} do
+      prev = commit!(repo, "base")
+      serve([last(prev), created()])
+
+      assert {:ok, %{"warning" => err}} =
+               Deploy.record_start(dir: repo, sha: String.duplicate("A", 40))
+
+      assert err =~ "aaaaaaa isn't in this checkout's history"
+      assert_received {:request, "POST", "/api/deployments", body}
+      body = JSON.decode!(body)
+      assert body["sha"] == String.duplicate("a", 40)
+      assert body["commits"] == []
+    end
+  end
+
+  describe "backfill --from-runs" do
+    defp runs_file!(root, runs) do
+      path = Path.join(root, "runs-#{System.unique_integer([:positive])}.json")
+      File.write!(path, JSON.encode!(runs))
+      path
+    end
+
+    defp gh_run(sha, created, updated, conclusion \\ "success"),
+      do: %{
+        "headSha" => sha,
+        "createdAt" => created,
+        "updatedAt" => updated,
+        "conclusion" => conclusion
+      }
+
+    defp existing, do: {200, JSON.encode!(%{"deployment" => %{"id" => 1}, "existing" => true})}
+
+    test "records each successful run since the last deploy, oldest first, with its commits", %{
+      root: root,
+      repo: repo
+    } do
+      dated_commit!(repo, "rewritten twin (#50)", "2026-11-02T12:31:00Z")
+      a = dated_commit!(repo, "one (#51)", "2026-11-02T22:50:00Z")
+      b = dated_commit!(repo, "two (#52)", "2026-11-02T23:00:00Z")
+      c = dated_commit!(repo, "three (#53)", "2026-11-02T23:10:00Z")
+      d = dated_commit!(repo, "four (#54)", "2026-11-02T23:20:00Z")
+
+      runs = [
+        # Newest first, as gh lists them.
+        gh_run(d, "2026-11-02T23:21:00Z", "2026-11-02T23:26:00Z"),
+        gh_run(c, "2026-11-02T23:11:00Z", "2026-11-02T23:16:00Z", "failure"),
+        gh_run(b, "2026-11-02T23:01:00Z", "2026-11-02T23:06:00Z"),
+        # A re-run of the same sha: one deploy.
+        gh_run(a, "2026-11-02T22:58:00Z", "2026-11-02T23:04:00Z"),
+        gh_run(a, "2026-11-02T22:51:00Z", "2026-11-02T22:56:00Z"),
+        # Recorded already, before the last deploy finished: not sent.
+        gh_run(@gone, "2026-11-02T12:31:00Z", "2026-11-02T12:36:00Z")
+      ]
+
+      serve([last_at(@gone, "2026-11-02T12:36:35.161090Z"), created(1), created(2), created(3)])
+
+      err =
+        capture_io(:stderr, fn ->
+          assert {:ok, %{recorded: 3, existing: 0}} =
+                   Deploy.backfill_runs(from_runs: runs_file!(root, runs), dir: repo)
+        end)
+
+      assert err =~ "warning: the last deploy's commit ddddddd"
+
+      [first, second, third] = posted()
+      assert {first["sha"], second["sha"], third["sha"]} == {a, b, d}
+      assert Enum.all?([first, second, third], &(&1["source"] == "backfill"))
+      assert Enum.all?([first, second, third], &(&1["status"] == "succeeded"))
+      assert first["started_at"] == "2026-11-02T22:51:00Z"
+      assert first["finished_at"] == "2026-11-02T22:56:00Z"
+      assert first["previous_sha"] == @gone
+      assert Enum.map(first["commits"], & &1["sha"]) == [a]
+      assert second["previous_sha"] == a
+      assert Enum.map(second["commits"], & &1["sha"]) == [b]
+      # The failed run's commit goes out with the next deploy.
+      assert third["previous_sha"] == b
+      assert Enum.map(third["commits"], & &1["sha"]) == [d, c]
+    end
+
+    test "a second run adds nothing: what the server has is counted, not recorded twice", %{
+      root: root,
+      repo: repo
+    } do
+      prev = commit!(repo, "base")
+      a = commit!(repo, "one (#55)")
+      b = commit!(repo, "two (#56)")
+
+      file =
+        runs_file!(root, [
+          gh_run(b, "2026-11-03T02:00:00Z", "2026-11-03T02:05:00Z"),
+          gh_run(a, "2026-11-03T01:00:00Z", "2026-11-03T01:05:00Z")
+        ])
+
+      serve([last_at(prev, "2026-11-03T00:00:00Z"), existing(), created()])
+
+      out =
+        capture_io(fn -> Deploy.run("deploy", ["backfill"], from_runs: file, dir: repo) end)
+
+      assert out =~ "recorded 1 deploys to production from CI runs (1 already there)"
+
+      # Once the server's last deploy is the newest run, nothing is sent at all.
+      serve([last_at(b, "2026-11-03T02:05:00Z")])
+
+      assert capture_io(fn -> Deploy.run("deploy", ["backfill"], from_runs: file, dir: repo) end) =~
+               "no successful runs since the last recorded deploy to production"
+
+      assert_received {:request, "GET", "/api/deployments/last" <> _, _}
+      assert length(posted()) == 2
+      refute_received {:request, "POST", _, _}
+    end
+
+    test "reads the runs from stdin with -, and a dry run records nothing", %{repo: repo} do
+      prev = commit!(repo, "base")
+      a = commit!(repo, "one (#57)")
+
+      json =
+        JSON.encode!([
+          %{"sha" => a, "finished_at" => "2026-11-03T01:05:00Z", "status" => "succeeded"}
+        ])
+
+      serve([last_at(prev, "2026-11-03T00:00:00Z")])
+
+      out =
+        capture_io(json, fn ->
+          Deploy.run("deploy", ["backfill"], from_runs: "-", dir: repo, dry_run: true)
+        end)
+
+      assert out =~ "#{String.slice(a, 0, 7)}  2026-11-03T01:05:00Z  1 commits"
+      assert out =~ "dry run: would record 1 deploys to production; recorded nothing"
+      refute_received {:request, "POST", _, _}
+    end
+
+    test "a run from before a rewrite, not in the checkout, is recorded with no commits", %{
+      root: root,
+      repo: repo
+    } do
+      prev = commit!(repo, "base")
+      serve([last_at(prev, "2026-11-03T00:00:00Z"), created()])
+      file = runs_file!(root, [gh_run(@gone, "2026-11-03T01:00:00Z", "2026-11-03T01:05:00Z")])
+
+      err =
+        capture_io(:stderr, fn ->
+          assert {:ok, %{recorded: 1}} = Deploy.backfill_runs(from_runs: file, dir: repo)
+        end)
+
+      assert err =~ "ddddddd isn't in this checkout's history"
+      assert [%{"sha" => @gone, "commits" => []}] = posted()
+    end
+
+    test "a file that isn't there, or isn't a list of runs, is an error", %{root: root} do
+      serve([])
+      missing = Path.join(root, "nope.json")
+      assert {:error, message} = Deploy.backfill_runs(from_runs: missing)
+      assert message =~ "couldn't read #{missing}"
+
+      bad = Path.join(root, "bad.json")
+      File.write!(bad, ~s({"not": "a list"}))
+      assert {:error, message} = Deploy.backfill_runs(from_runs: bad)
+      assert message =~ "expected a JSON list of runs"
       refute_received {:request, _, _, _}
     end
   end
