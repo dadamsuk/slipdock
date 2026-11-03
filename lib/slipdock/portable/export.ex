@@ -279,6 +279,7 @@ defmodule Slipdock.Portable.Export do
       position: column.position,
       wip_limit: column.wip_limit,
       show_age: column.show_age,
+      show_images: column.show_images,
       color: column.color,
       category: column.category,
       horizon_from: column.horizon_from,

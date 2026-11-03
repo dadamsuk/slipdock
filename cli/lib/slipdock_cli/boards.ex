@@ -1297,7 +1297,8 @@ defmodule SlipdockCLI.Boards do
         "wip_limit" => o[:wip],
         "color" => o[:color],
         "category" => o[:category],
-        "show_age" => o[:show_age]
+        "show_age" => o[:show_age],
+        "show_images" => o[:show_images]
       }
       |> Map.merge(list_order(o))
       |> compact()
@@ -1305,7 +1306,7 @@ defmodule SlipdockCLI.Boards do
     if body == %{},
       do:
         fail(
-          "nothing to change: pass --name, --wip, --color, --category, --sort, --group or --show-age"
+          "nothing to change: pass --name, --wip, --color, --category, --sort, --group, --show-age or --show-images"
         )
 
     HTTP.patch("/boards/#{enc(ref)}/columns/#{id}", body)

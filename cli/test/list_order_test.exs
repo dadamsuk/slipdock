@@ -65,6 +65,22 @@ defmodule SlipdockCLI.ListOrderTest do
     assert JSON.decode!(body) == %{"show_age" => true}
   end
 
+  test "--no-show-images and --show-images send show_images, false and true" do
+    serve([{200, @columns}, {200, @column}, {200, @columns}, {200, @column}])
+
+    capture_io(fn -> Boards.run("set-column", ["b", "To Do"], show_images: false) end)
+    assert_received {:request, "PATCH", "/api/boards/b/columns/9", body}
+    assert JSON.decode!(body) == %{"show_images" => false}
+
+    capture_io(fn -> Boards.run("set-column", ["b", "To Do"], show_images: true) end)
+    assert_received {:request, "PATCH", "/api/boards/b/columns/9", body}
+    assert JSON.decode!(body) == %{"show_images" => true}
+  end
+
+  test "the help names --no-show-images" do
+    assert capture_io(fn -> SlipdockCLI.main(["--help"]) end) =~ "set-column --no-show-images"
+  end
+
   test "the help names --no-show-age" do
     assert capture_io(fn -> SlipdockCLI.main(["--help"]) end) =~ "set-column --no-show-age"
   end

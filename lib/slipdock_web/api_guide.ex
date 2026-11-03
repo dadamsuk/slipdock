@@ -617,7 +617,8 @@ defmodule SlipdockWeb.APIGuide do
       `start_date`, `due_date`) — `slipdock set-column B "To Do" --sort due_date
       --group flag`. It only changes the drawing: a card's `position` is still
       where it was put, and *top of the list* still means lowest `position`.
-      `show_age: false` leaves the age chip off the list's cards (`--no-show-age`).
+      `show_age: false` leaves the age chip off the list's cards (`--no-show-age`),
+      and `show_images: false` their front image (`--no-show-images`).
     - **Card** — one unit of work: title, description, `priority`, `flags`,
       `tags`, `start_date`, `due_date`, `completed`, `percent_complete` (0–100,
       or null when nobody has said), `assignees` (everybody it is assigned to,

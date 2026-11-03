@@ -1074,10 +1074,17 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   # The keyboard cursor walks cards. A placed wiki page is drawn beside them
   # but is not in `col.cards`, so it is never the cursor — and must not light
   # up because it happens to share a card's number.
-  # The display's facets for one list's cards: without the age chip when
-  # the list's settings turn it off.
-  defp list_show(swim, %{show_age: false}), do: MapSet.delete(Config.shown(swim), "age")
-  defp list_show(swim, _column), do: Config.shown(swim)
+  # The display's facets for one list's cards: without the age chip or the
+  # front image when the list's settings turn them off.
+  defp list_show(swim, column) do
+    swim
+    |> Config.shown()
+    |> drop_unless(Map.get(column, :show_age) != false, "age")
+    |> drop_unless(Map.get(column, :show_images) != false, "images")
+  end
+
+  defp drop_unless(shown, true, _facet), do: shown
+  defp drop_unless(shown, false, facet), do: MapSet.delete(shown, facet)
 
   defp card_focus(_focus, %Slipdock.Wiki.Page{}), do: nil
 

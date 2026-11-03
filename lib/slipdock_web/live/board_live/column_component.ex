@@ -183,6 +183,11 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
             type="checkbox"
             label="Show how long each card has been in this list"
           />
+          <.input
+            field={@form[:show_images]}
+            type="checkbox"
+            label="Show images on the front of this list's cards"
+          />
           <div class="space-y-1.5 rounded-lg bg-base-200/60 p-3">
             <span class="text-sm font-medium">Order</span>
             <p class="text-xs text-base-content/50">

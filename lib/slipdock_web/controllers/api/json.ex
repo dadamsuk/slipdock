@@ -245,6 +245,7 @@ defmodule SlipdockWeb.API.JSON do
       position: c.position,
       wip_limit: c.wip_limit,
       show_age: c.show_age,
+      show_images: c.show_images,
       color: c.color,
       category: c.category,
       # How the web app draws the list's cards; `position` is still the
