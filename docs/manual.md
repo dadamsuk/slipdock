@@ -670,6 +670,28 @@ same runner token.
   `verify` job, since its agent checks the work rather than doing it.
   Delete the function to take no verify jobs.
 
+### Shipping by pull request
+
+With verification on, **Ship accepted work by** (`slipdock set-board B
+--ship-via pull-request`, `PATCH /api/boards/:board {"ship_via":
+"pull_request"}`, MCP `update_board` `ship_via`) chooses how an agent's
+work reaches the default branch, and so the deploy:
+
+- **Push** (the default): the agent pushes the default branch, as before.
+  Nothing else on this page changes.
+- **Pull request**: the agent never pushes the default branch. It pushes a
+  `card-<id>` branch, opens a pull request, and completes the card with the
+  pull request's URL (`slipdock done 12 --pr URL`, `complete_card` `pr`,
+  `evidence_pr` over the API). The card's **Evidence** links it. On a board
+  that also asks for evidence, an agent's completion without it is refused
+  (`422`).
+
+Pull request needs **A second agent verifies**: setting it without
+verification is refused, and turning verification off ships by push again.
+A card's subcards take the board's choice, and an export carries it. The
+guide tells agents on such a board what to do (*Shipping by pull request*),
+and says so on the board's line.
+
 ## Lanes
 
 Agents working side by side on one repository can tread on each other's
@@ -6235,7 +6257,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `create_tag` | A tag on a board (on its root, so the whole tree shares it), with an optional colour. A tag of that name already there comes back with `created: false` rather than a second one. |
 | `delete_list` | Deletes an empty list; one holding cards only with `with_cards: true`. |
 | `create_board` | A board of your own, with a template's lists (Backlog, To Do, In Progress, Done by default), or `lists` of its own that `save_template` can keep as a new template. |
-| `update_board` | Changes settings on a board you own, as `PATCH /api/boards/:board` does: `name`, `description`, `color`, `simple`, `default_view`, `handoff_label`, and [Verified work](#verified-work)'s `bar_required`, `evidence_required`, `verify_work` and `verify_pool`. Only what you send changes. |
+| `update_board` | Changes settings on a board you own, as `PATCH /api/boards/:board` does: `name`, `description`, `color`, `simple`, `default_view`, `handoff_label`, and [Verified work](#verified-work)'s `bar_required`, `evidence_required`, `verify_work`, `verify_pool` and `ship_via`, and `lanes`. Only what you send changes. |
 | `archive_board` | Archives a board you own, or with `restore: true` brings it back. |
 | `delete_board` | Deletes a board you own and everything on it. `confirm` must repeat the board's code. |
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |

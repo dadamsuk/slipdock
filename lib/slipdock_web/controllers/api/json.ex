@@ -124,6 +124,7 @@ defmodule SlipdockWeb.API.JSON do
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
+      ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -217,6 +218,7 @@ defmodule SlipdockWeb.API.JSON do
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
+      ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -485,6 +487,7 @@ defmodule SlipdockWeb.API.JSON do
       evidence_branch: c.evidence_branch,
       evidence_tests: c.evidence_tests,
       evidence_suite: c.evidence_suite,
+      evidence_pr: c.evidence_pr,
       # Where an agent's completion stands, on a board that verifies (#1633).
       verify_state: c.verify_state,
       verify_note: c.verify_note,

@@ -815,7 +815,8 @@ defmodule Slipdock.Boards do
                "lanes" => parent.lanes,
                "evidence_required" => parent.evidence_required,
                "verify_work" => parent.verify_work,
-               "verify_pool" => parent.verify_pool
+               "verify_pool" => parent.verify_pool,
+               "ship_via" => parent.ship_via
              },
              template: template,
              parent_card_id: card.id,

@@ -401,6 +401,11 @@ defmodule Slipdock.Portable.Import do
 
   defp pool(_value), do: nil
 
+  defp pr_url(value) when is_binary(value),
+    do: if(Regex.match?(~r{\Ahttps?://[^\s/]+/\S+\z}, value), do: String.slice(value, 0, 500))
+
+  defp pr_url(_value), do: nil
+
   # A suite result the card would refuse is dropped rather than the card (#1623).
   defp suite(%{} = suite) do
     suite = Map.new(suite, fn {k, v} -> {to_string(k), v} end)
@@ -482,6 +487,12 @@ defmodule Slipdock.Portable.Import do
           evidence_required: bool(doc[:evidence_required], false),
           verify_work: bool(doc[:verify_work], false),
           verify_pool: pool(doc[:verify_pool]),
+          # pull_request only with verification on, as the changeset asks.
+          ship_via:
+            if(doc[:ship_via] == "pull_request" and bool(doc[:verify_work], false),
+              do: "pull_request",
+              else: "push"
+            ),
           kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
         },
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")
@@ -651,6 +662,7 @@ defmodule Slipdock.Portable.Import do
           evidence_branch: text_upto(doc[:evidence_branch], 200),
           evidence_tests: if(is_list(doc[:evidence_tests]), do: doc[:evidence_tests]),
           evidence_suite: suite(doc[:evidence_suite]),
+          evidence_pr: pr_url(doc[:evidence_pr]),
           paths: if(is_list(doc[:paths]), do: doc[:paths], else: [])
         },
         named("card", doc[:title])

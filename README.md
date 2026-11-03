@@ -77,7 +77,10 @@ Briefly, with the detail in [the manual](docs/manual.md):
   (`slipdock set-board --bar-required`, `slipdock edit 12 --bar "…"`), and
   evidence when it completes (`slipdock done 12 --evidence "…"
   --evidence-commit abc1234`), and a second agent accepting it, or
-  rejecting it with the reason (`slipdock verify 12 accept|reject`).
+  rejecting it with the reason (`slipdock verify 12 accept|reject`). Work
+  can ship by pull request instead of a push to the default branch
+  (`slipdock set-board --ship-via pull-request`; the agent names it with
+  `slipdock done 12 --pr URL`).
 - **Lanes** — [parallel agents stay out of each other's files](docs/manual.md#lanes),
   all optional and off by default: a card's paths (`slipdock edit 12 --paths
   "lib/runners/**"`), a board switch that refuses an agent starting a card

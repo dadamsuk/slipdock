@@ -21,6 +21,9 @@ defmodule Slipdock.Verified do
       a reason, which is kept, commented and left as the handoff's next
       step, and the card goes back to the top of the ready list with its
       rejection counted. A person completing a pending card accepts it.
+    * **Shipping by pull request** (`Board.ship_via`, #1654): the builder
+      opens a pull request instead of pushing the default branch, and names
+      it in `evidence_pr`, which a board asking for evidence requires.
     * **Verify jobs** (`Board.verify_pool`, #1634): with a pool named, a
       card going pending is queued for that runner pool as a `verify` job,
       its prompt saying what to check and how to decide. A decision cancels
@@ -131,17 +134,32 @@ defmodule Slipdock.Verified do
 
   @evidence_message "is required: this board asks an agent completing a card for what it " <>
                       "checked — none of evidence (what you checked), evidence_commit (and " <>
-                      "evidence_branch), evidence_tests (the test files) or evidence_suite " <>
-                      "({result: passed|failed, passed, failed}) was given"
+                      "evidence_branch), evidence_tests (the test files), evidence_suite " <>
+                      "({result: passed|failed, passed, failed}) or evidence_pr (the pull " <>
+                      "request's URL) was given"
 
   # The fields evidence is made of (#1632, #1623): any one of them is some.
-  @evidence_fields ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite)a
+  @evidence_fields ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr)a
+
+  @pr_message "is required: this board ships by pull request, so an agent completing a " <>
+                "card names the pull request its work is in (evidence_pr, `slipdock done " <>
+                "--pr URL`); push the card's branch and open one, never the default branch"
 
   defp check_evidence(%Card{} = card, attrs, actor) do
-    if completes?(card, attrs) and gated?(actor) and not evidence?(card, attrs) and
-         board(card).evidence_required,
-       do: {:error, :evidence, @evidence_message},
-       else: :ok
+    cond do
+      not (completes?(card, attrs) and gated?(actor) and board(card).evidence_required) ->
+        :ok
+
+      not evidence?(card, attrs) ->
+        {:error, :evidence, @evidence_message}
+
+      Board.ships_by_pr?(board(card)) and
+          not present?(given(attrs, :evidence_pr, card.evidence_pr)) ->
+        {:error, :evidence_pr, @pr_message}
+
+      true ->
+        :ok
+    end
   end
 
   @doc "Whether `card` carries any evidence (or would, with `attrs`)."
@@ -217,6 +235,7 @@ defmodule Slipdock.Verified do
         "Commit: `#{card.evidence_commit}`" <>
           if(card.evidence_branch, do: " on `#{card.evidence_branch}`", else: ""),
       is_nil(card.evidence_commit) && card.evidence_branch && "Branch: `#{card.evidence_branch}`",
+      card.evidence_pr && "Pull request: #{card.evidence_pr}",
       suite && "Suite: #{suite_text(suite)}",
       card.evidence_tests not in [nil, []] &&
         "Tests:\n" <> Enum.map_join(card.evidence_tests, "\n", &"- `#{&1}`")

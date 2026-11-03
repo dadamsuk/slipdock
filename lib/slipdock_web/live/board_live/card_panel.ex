@@ -278,6 +278,17 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         </span>
       </p>
       <p :if={@card.evidence} class="whitespace-pre-wrap text-sm">{@card.evidence}</p>
+      <p :if={@card.evidence_pr} id="card-evidence-pr" class="text-sm">
+        Pull request
+        <a
+          href={@card.evidence_pr}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="link link-primary break-all"
+        >
+          {@card.evidence_pr}
+        </a>
+      </p>
       <p
         :if={@card.evidence_suite}
         id="card-evidence-suite"

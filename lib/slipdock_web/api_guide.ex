@@ -1517,7 +1517,7 @@ defmodule SlipdockWeb.APIGuide do
     defaults; the board's `GET` answers both). Agent-facing text keeps
     "Left off:".
     A board's *Verified work* switches (`bar_required`,
-    `evidence_required`, `verify_work`, `verify_pool`) are set the same
+    `evidence_required`, `verify_work`, `verify_pool`, `ship_via`) are set the same
     way; the *Verified work* section describes them when one of your boards
     has one on.
 
@@ -3392,6 +3392,13 @@ defmodule SlipdockWeb.APIGuide do
       end
 
     verified =
+      if Slipdock.Boards.Board.ships_by_pr?(full),
+        do:
+          verified <>
+            "\n  - ships by pull request: push `card-<id>` and open a PR, never the default branch (see *Verified work*)",
+        else: verified
+
+    verified =
       if full.lanes,
         do: verified <> "\n  - lanes: on — write a card's paths before starting it (see *Lanes*)",
         else: verified
@@ -3413,11 +3420,9 @@ defmodule SlipdockWeb.APIGuide do
   defp verified_work(nil, _token), do: ""
 
   defp verified_work(user, token) do
-    on =
-      user
-      |> Access.list_boards(token: token)
-      |> Enum.flat_map(&Slipdock.Verified.switches/1)
-      |> Enum.uniq()
+    boards = Access.list_boards(user, token: token)
+    on = boards |> Enum.flat_map(&Slipdock.Verified.switches/1) |> Enum.uniq()
+    on = if Enum.any?(boards, &Slipdock.Boards.Board.ships_by_pr?/1), do: on ++ [:ship], else: on
 
     if on == [] do
       ""
@@ -3466,6 +3471,20 @@ defmodule SlipdockWeb.APIGuide do
     else
       ""
     end
+  end
+
+  defp verified_step(:ship) do
+    """
+    **Shipping by pull request** (`ship_via: "pull_request"`, said on the
+    board's line). Never push the default branch: push a branch named
+    `card-<id>` and open a pull request from it (`gh pr create`, the card id
+    in its title), and complete the card with the pull request's URL in
+    `evidence_pr` (`slipdock done ID --pr URL`, `complete_card` `pr`): the
+    merge needs it, and a board asking for evidence refuses the completion
+    without it (`422`). The build to watch is the
+    pull request's. A rejected card's next attempt pushes the same branch,
+    so the same pull request updates.
+    """
   end
 
   defp verified_step(:bar) do

@@ -103,6 +103,11 @@ defmodule Slipdock.Boards.Board do
     # The runner pool a pending card is sent to as a `verify` job (#1634);
     # nil sends none, and the card waits for whoever decides it.
     field :verify_pool, :string
+    # How the board's verified work reaches the default branch (#1654):
+    # "push" (the builder pushes it) or "pull_request" (the builder opens a
+    # pull request, and accepting the card queues a merge job). pull_request
+    # needs `verify_work`; see `ship_via_values/0`.
+    field :ship_via, :string, default: "push"
 
     # The other addresses the board's card addresses take mail from (#1289),
     # besides each address owner's own: lower-cased, at most
@@ -512,6 +517,7 @@ defmodule Slipdock.Boards.Board do
       :evidence_required,
       :verify_work,
       :verify_pool,
+      :ship_via,
       :kind,
       :default_view
     ])
@@ -521,6 +527,7 @@ defmodule Slipdock.Boards.Board do
     |> validate_format(:verify_pool, Slipdock.Runners.Runner.name_format(),
       message: "must be a runner pool's name: lower case letters, digits, - or _"
     )
+    |> put_ship_via()
     |> update_change(:handoff_label, &trim_to_nil/1)
     |> update_change(:handoff_prompt, &trim_to_nil/1)
     |> validate_length(:handoff_label, max: @handoff_label_length)
@@ -554,6 +561,49 @@ defmodule Slipdock.Boards.Board do
       less_than_or_equal_to: 24 * 30
     )
     |> validate_change(:card_ref_pattern, &validate_card_ref_pattern/2)
+  end
+
+  @ship_via ~w(push pull_request)
+
+  @doc "How a board's verified work can ship (#1654): `push` or `pull_request`."
+  def ship_via_values, do: @ship_via
+
+  @doc "Whether `board` ships its verified work by pull request (#1654)."
+  def ships_by_pr?(%__MODULE__{ship_via: "pull_request", verify_work: true}), do: true
+  def ships_by_pr?(_board), do: false
+
+  # pull_request needs verification (the merge waits for the acceptance),
+  # and turning verification off ships by push again (#1654).
+  defp put_ship_via(changeset) do
+    changeset =
+      changeset
+      |> update_change(:ship_via, fn
+        value when is_binary(value) ->
+          value |> String.trim() |> String.downcase() |> String.replace("-", "_")
+
+        value ->
+          value
+      end)
+      |> validate_inclusion(:ship_via, @ship_via, message: "must be push or pull_request")
+
+    cond do
+      get_field(changeset, :ship_via) != "pull_request" ->
+        changeset
+
+      get_field(changeset, :verify_work) != true and get_change(changeset, :verify_work) == false ->
+        put_change(changeset, :ship_via, "push")
+
+      get_field(changeset, :verify_work) != true ->
+        add_error(
+          changeset,
+          :ship_via,
+          "can be pull_request only on a board that verifies work: turn on verify_work " <>
+            "(an agent's completion waits for acceptance, and the merge follows it)"
+        )
+
+      true ->
+        changeset
+    end
   end
 
   # A pattern must compile and capture the card id in its first group.

@@ -845,6 +845,22 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 <p class="-mt-1 text-xs text-base-content/50">
                   Each submitted card is queued for this pool as a job of kind <code>verify</code>. Blank queues nothing.
                 </p>
+                <%!-- How accepted work reaches the default branch (#1654). --%>
+                <.input
+                  field={@form[:ship_via]}
+                  id="board-ship-via"
+                  type="select"
+                  label="Ship accepted work by"
+                  options={[
+                    {"Push: the agent pushes the default branch", "push"},
+                    {"Pull request: accepting it merges the agent's pull request", "pull_request"}
+                  ]}
+                />
+                <p class="-mt-1 text-xs text-base-content/50">
+                  With pull request, an agent pushes a <code>card-&lt;id&gt;</code>
+                  branch and opens a pull request, never the default branch. Accepting the card
+                  sends a runner a merge job, and the merge deploys.
+                </p>
               </div>
             </div>
             <%!-- What a card's handoff is called on this board, and what the

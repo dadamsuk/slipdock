@@ -640,10 +640,12 @@ defmodule SlipdockCLI do
                                          where that board has the same one
     done <id>...  |  undone <id>...     mark complete / incomplete
         [--evidence TEXT] [--evidence-commit SHA] [--branch B] [--tests F,F]
-        [--suite passed|failed[:PASSED[:FAILED]]]
+        [--suite passed|failed[:PASSED[:FAILED]]] [--pr URL]
                                         what you checked, the commit and branch, the test
-                                        files added or changed, and the suite's result
-                                        (--suite passed:38:0), when completing; a
+                                        files added or changed, the suite's result
+                                        (--suite passed:38:0) and the pull request the
+                                        work is in (--pr, on a board shipping by pull
+                                        request), when completing; a
                                         board with --evidence-required asks agents for it. On
                                         a board with --verify-work an agent's done submits it
     verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]
@@ -705,7 +707,7 @@ defmodule SlipdockCLI do
         [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
         [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
         [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
-        [--verify-pool POOL] [--lanes | --no-lanes]
+        [--verify-pool POOL] [--ship-via push|pull-request] [--lanes | --no-lanes]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -743,6 +745,9 @@ defmodule SlipdockCLI do
                                         different agent or a person to accept it (verify);
                                         --verify-pool sends each such card to that runner
                                         pool as a verify job ("" sends none);
+                                        --ship-via pull-request: agents open a pull request,
+                                        never push the default branch, and accepting the
+                                        card has a runner merge it (needs --verify-work)
                                         --lanes: an agent can't start a card whose --paths
                                         overlap a card in progress (a person can)
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
@@ -1018,6 +1023,8 @@ defmodule SlipdockCLI do
     evidence_required: :boolean,
     verify_work: :boolean,
     verify_pool: :string,
+    ship_via: :string,
+    pr: :string,
     evidence: :string,
     evidence_commit: :string,
     branch: :string,

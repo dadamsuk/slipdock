@@ -260,6 +260,7 @@ defmodule Slipdock.Portable.Export do
       evidence_required: board.evidence_required,
       verify_work: board.verify_work,
       verify_pool: board.verify_pool,
+      ship_via: board.ship_via,
       kind: board.kind,
       archived: board.archived_at != nil,
       # A sub-board hangs off a card; a root board hangs off nothing.
@@ -350,6 +351,7 @@ defmodule Slipdock.Portable.Export do
       evidence_branch: card.evidence_branch,
       evidence_tests: card.evidence_tests,
       evidence_suite: card.evidence_suite,
+      evidence_pr: card.evidence_pr,
       paths: card.paths,
       # Minutes, whatever the unit; a running timer's time isn't spent yet.
       time_spent: card.time_spent,

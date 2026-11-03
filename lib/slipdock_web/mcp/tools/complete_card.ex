@@ -31,6 +31,10 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
         },
         commit: %{type: "string", description: "The commit the evidence is for."},
         branch: %{type: "string", description: "The commit's branch."},
+        pr: %{
+          type: "string",
+          description: "The pull request's URL, on a board that ships by pull request."
+        },
         tests: %{
           type: "array",
           items: %{type: "string"},
@@ -65,6 +69,7 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
          {:ok, evidence} <- Args.optional(args, "evidence"),
          {:ok, commit} <- Args.optional(args, "commit"),
          {:ok, branch} <- Args.optional(args, "branch"),
+         {:ok, pr} <- Args.optional(args, "pr"),
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          :ok <- comment(card, note, context.user),
@@ -78,6 +83,7 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
              "evidence" => evidence,
              "evidence_commit" => commit,
              "evidence_branch" => branch,
+             "evidence_pr" => pr,
              "evidence_tests" => args["tests"],
              "evidence_suite" => args["suite"]
            }

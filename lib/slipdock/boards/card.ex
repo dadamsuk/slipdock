@@ -74,6 +74,9 @@ defmodule Slipdock.Boards.Card do
     field :evidence_branch, :string
     field :evidence_tests, {:array, :string}
     field :evidence_suite, :map
+    # The pull request the work is in (#1654), on a board that ships by
+    # pull request: an http(s) URL. A merge job merges it once accepted.
+    field :evidence_pr, :string
     # Where an agent's completion stands on a board that verifies work
     # (#1633): nil, "pending", "accepted" or "rejected"; the reason given
     # (a rejection's is required), the commit the verifier checked at, who
@@ -416,6 +419,7 @@ defmodule Slipdock.Boards.Card do
       :evidence_branch,
       :evidence_tests,
       :evidence_suite,
+      :evidence_pr,
       :paths,
       :board_id,
       # Not `:column_id`: a card changes list only through `Boards.move_card/4`
@@ -435,6 +439,11 @@ defmodule Slipdock.Boards.Card do
     )
     |> update_change(:evidence_branch, &tidy_short_name/1)
     |> validate_length(:evidence_branch, max: 200)
+    |> update_change(:evidence_pr, &tidy_short_name/1)
+    |> validate_length(:evidence_pr, max: 500)
+    |> validate_format(:evidence_pr, ~r{\Ahttps?://[^\s/]+/\S+\z},
+      message: "must be the pull request's URL (https://…)"
+    )
     |> update_change(:evidence_tests, &tidy_tests/1)
     |> validate_length(:evidence_tests, max: 200, message: "lists at most 200 files")
     |> validate_change(:evidence_tests, fn _, tests ->

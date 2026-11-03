@@ -87,7 +87,8 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
           bar_required: board.bar_required,
           evidence_required: board.evidence_required,
           verify_work: board.verify_work,
-          verify_pool: board.verify_pool
+          verify_pool: board.verify_pool,
+          ship_via: board.ship_via
         })
     end
   end

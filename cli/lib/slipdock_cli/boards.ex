@@ -527,7 +527,9 @@ defmodule SlipdockCLI.Boards do
         "evidence_commit" => o[:evidence_commit],
         "evidence_branch" => o[:branch],
         "evidence_tests" => o[:tests] && split_list(o[:tests]),
-        "evidence_suite" => o[:suite] && suite(o[:suite])
+        "evidence_suite" => o[:suite] && suite(o[:suite]),
+        # The pull request the work is in (#1654).
+        "evidence_pr" => o[:pr]
       }
       |> compact()
 
@@ -1041,6 +1043,8 @@ defmodule SlipdockCLI.Boards do
         "verify_work" => o[:verify_work],
         # The runner pool pending cards go to as verify jobs (#1634); "" none.
         "verify_pool" => o[:verify_pool],
+        # How accepted work ships (#1654): push, or pull-request.
+        "ship_via" => o[:ship_via] && String.replace(o[:ship_via], "-", "_"),
         # Lanes (#1628): agents can't start cards whose paths overlap.
         "lanes" => o[:lanes],
         # Deploys and DORA metrics (#1134).
@@ -1068,7 +1072,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool or --[no-]lanes"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via or --[no-]lanes"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

@@ -976,7 +976,7 @@ defmodule SlipdockCLI.Render do
     end
 
     if Enum.any?(
-         ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite),
+         ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr),
          &c[&1]
        ) do
       IO.puts("")
@@ -984,6 +984,7 @@ defmodule SlipdockCLI.Render do
       on = if b = c["evidence_branch"], do: " on #{b}", else: ""
       IO.puts(bold("Evidence") <> dim(at <> on))
       if c["evidence"], do: IO.puts(indent(c["evidence"]))
+      if pr = c["evidence_pr"], do: IO.puts(indent("pull request: " <> pr))
       if s = c["evidence_suite"], do: IO.puts(indent("suite: " <> suite_text(s)))
       for t <- c["evidence_tests"] || [], do: IO.puts(indent("test: " <> t))
     end
