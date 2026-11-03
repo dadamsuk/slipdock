@@ -258,6 +258,108 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
     assert out =~ "FAIL: the job was never finished"
   end
 
+  describe "worktrees (lanes)" do
+    defp repo(ctx) do
+      repo = Path.join(ctx.dir, "repo")
+      File.mkdir_p!(repo)
+      git(repo, ["init", "-q", "-b", "main"])
+      File.write!(Path.join(repo, "README"), "hi\n")
+      git(repo, ["add", "README"])
+      git(repo, ["commit", "-q", "-m", "first"])
+      repo
+    end
+
+    defp git(dir, args) do
+      {out, 0} =
+        System.cmd("git", ["-c", "user.name=t", "-c", "user.email=t@example.com" | args],
+          cd: dir,
+          stderr_to_stdout: true
+        )
+
+      out
+    end
+
+    defp lanes(ctx, repo, extra \\ "") do
+      config(ctx, """
+      $Worktree = $true
+      $WorktreeRepo = '#{repo}'
+      function Job-Pwd { [IO.File]::WriteAllText('#{ctx.dir}/out', (Get-Location).Path); Write-Output "wt=$env:SLIPDOCK_WORKTREE" }
+      function Job-Dirty { [IO.File]::WriteAllText('#{ctx.dir}/out', (Get-Location).Path); Set-Content -Path scratch.txt -Value scratch }
+      function Before-Job { [IO.File]::WriteAllText('#{ctx.dir}/before', (Get-Location).Path) }
+      #{extra}
+      """)
+    end
+
+    defp lane_path(repo, card), do: "#{repo}-lanes/card-#{card.id}"
+    defp read(ctx, name), do: ctx.dir |> Path.join(name) |> File.read!() |> String.trim()
+
+    test "on: the job and Before-Job run in a worktree on the card's branch, removed after",
+         ctx do
+      repo = repo(ctx)
+      {:ok, queued} = queue(ctx.card, "pwd")
+      {_, 0} = run_once(ctx, lanes(ctx, repo))
+
+      path = lane_path(repo, ctx.card)
+      assert read(ctx, "out") == path
+      assert read(ctx, "before") == path
+
+      assert %{status: "done", output: output} = job(queued)
+      assert output =~ "worktree #{path} on branch card-#{ctx.card.id}"
+      assert output =~ "wt=#{path}"
+      assert output =~ "worktree #{path} removed"
+      refute File.exists?(path)
+      refute git(repo, ["branch", "--list", "card-#{ctx.card.id}"]) =~ "card-"
+    end
+
+    test "off: the job runs where the runner does, and no worktree is made", ctx do
+      repo = repo(ctx)
+      {:ok, queued} = queue(ctx.card, "pwd")
+      {_, 0} = run_once(ctx, lanes(ctx, repo, "$Worktree = $false"))
+
+      assert read(ctx, "out") == ctx.dir
+      refute job(queued).output =~ "worktree"
+      refute File.exists?("#{repo}-lanes")
+    end
+
+    test "a worktree with uncommitted changes is kept, and the next job reuses it", ctx do
+      repo = repo(ctx)
+      path = lane_path(repo, ctx.card)
+
+      {:ok, first} = queue(ctx.card, "dirty")
+      {_, 0} = run_once(ctx, lanes(ctx, repo))
+      assert job(first).output =~ "worktree #{path} has uncommitted changes, so it is kept"
+      assert File.exists?(Path.join(path, "scratch.txt"))
+
+      {:ok, second} = queue(ctx.card, "pwd")
+      {_, 0} = run_once(ctx, lanes(ctx, repo))
+      assert %{status: "done", output: output} = job(second)
+      assert output =~ "worktree #{path} (kept from before) on card-#{ctx.card.id}"
+    end
+
+    test "a directory that is not a git repository runs the job in place, saying so", ctx do
+      plain = Path.join(ctx.dir, "plain")
+      File.mkdir_p!(plain)
+      {:ok, queued} = queue(ctx.card, "pwd")
+      {_, 0} = run_once(ctx, lanes(ctx, plain))
+
+      assert %{status: "done", output: output} = job(queued)
+      assert output =~ "#{plain} is not a git repository, so no worktree"
+      assert read(ctx, "out") == ctx.dir
+    end
+
+    test "a non-worktree directory in the worktree's place means the job is not run", ctx do
+      repo = repo(ctx)
+      File.mkdir_p!(lane_path(repo, ctx.card))
+      {:ok, queued} = queue(ctx.card, "pwd")
+      {out, 0} = run_once(ctx, lanes(ctx, repo))
+
+      assert out =~ "no worktree for it"
+      refute File.exists?(Path.join(ctx.dir, "out"))
+      assert %{status: "failed", output: output} = job(queued)
+      assert output =~ "is not a worktree, so the job was not run"
+    end
+  end
+
   describe "through a deploy" do
     alias SlipdockWeb.RunnerStubQueue, as: Stub
 
@@ -354,6 +456,33 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
         System.cmd(@pwsh, ["-NoProfile", "-Command", ". '#{cfg}'; [Console]::Out.Write($#{var})"])
 
       out
+    end
+
+    test "-Worktree (#1627): off by default; on, the job goes to the runner's worktree", ctx do
+      work = Path.join(ctx.dir, "work")
+      lane = Path.join(ctx.dir, "lane")
+      File.mkdir_p!(work)
+      File.mkdir_p!(lane)
+      base = ["-Url", ctx.url, "-Token", "sdr_x", "-Cwd", work, "-Agent", "custom"]
+
+      {_, 0} = install(ctx, base ++ ["-Command", "(Get-Location).Path"])
+      assert installed(ctx, "Worktree") == ""
+
+      {_, 0} = install(ctx, base ++ ["-Command", "(Get-Location).Path", "-Worktree"])
+      assert installed(ctx, "Worktree") == "True"
+      assert installed(ctx, "WorktreeRepo") == work
+
+      cfg = Path.join([ctx.dir, "inst", "config.ps1"])
+
+      run = fn env ->
+        {out, 0} =
+          System.cmd(@pwsh, ["-NoProfile", "-Command", ". '#{cfg}'; Job-Custom"], env: env)
+
+        String.trim(out)
+      end
+
+      assert run.([{"SLIPDOCK_WORKTREE", nil}]) == work
+      assert run.([{"SLIPDOCK_WORKTREE", lane}]) == lane
     end
 
     test "writes the runner and a config that keeps every value exactly", ctx do

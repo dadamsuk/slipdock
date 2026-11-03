@@ -192,12 +192,53 @@ defmodule SlipdockWeb.RunnerInstallTest do
     end
   end
 
+  describe "--worktree (#1627)" do
+    defp job_pwd(ctx, env) do
+      config = Path.join(ctx.home, ".config/slipdock-runner/config")
+
+      {out, 0} =
+        System.cmd("sh", ["-c", ". \"$1\"; job_custom", "sh", config],
+          env: [{"HOME", ctx.home}, {"XDG_CONFIG_HOME", nil} | env]
+        )
+
+      String.trim(out)
+    end
+
+    test "off by default; on, the runner is told to use --cwd's repository", ctx do
+      work = Path.join(ctx.home, "work")
+      File.mkdir_p!(work)
+      {_, 0} = install(ctx, @base ++ ["--cwd", work])
+      assert sourced(ctx, "WORKTREE") == ""
+
+      {_, 0} = install(ctx, @base ++ ["--cwd", work, "--worktree"])
+      assert sourced(ctx, "WORKTREE") == "1"
+      assert sourced(ctx, "WORKTREE_REPO") == work
+    end
+
+    test "a job goes to the worktree the runner made, and to --cwd without one", ctx do
+      work = Path.join(ctx.home, "work")
+      lane = Path.join(ctx.home, "lane")
+      File.mkdir_p!(work)
+      File.mkdir_p!(lane)
+
+      {_, 0} =
+        install(
+          ctx,
+          @base ++ ["--cwd", work, "--worktree", "--agent", "custom", "--command", "pwd"]
+        )
+
+      assert job_pwd(ctx, []) == work
+      assert job_pwd(ctx, [{"SLIPDOCK_WORKTREE", lane}]) == lane
+    end
+  end
+
   test "--help shows every option", ctx do
     {out, 0} = install(ctx, ["--help"])
     assert out =~ "--mcp-servers A,B"
     assert out =~ "cancelled or timeout"
     assert out =~ "--no-start"
     assert out =~ "--name NAME"
+    assert out =~ "--worktree"
     assert out =~ "--replace"
   end
 
@@ -340,7 +381,8 @@ defmodule SlipdockWeb.RunnerInstallTest do
         "verbosity" => "quiet",
         "instructions" => ~S{Don't "push". $(nope) `nope` — café},
         "before_job" => "git pull --ff-only",
-        "after_job" => ~S{echo "$SLIPDOCK_STATUS" >>~/jobs.log}
+        "after_job" => ~S{echo "$SLIPDOCK_STATUS" >>~/jobs.log},
+        "worktree" => unquote(tools)
       }
 
       {:ok, a} = Slipdock.Runners.Setup.normalise(answers)

@@ -865,6 +865,13 @@ with the tail of the log — and a Cancel button.
   same `state`, `driver`, `age` and `stuck` come back from REST, MCP and
   `slipdock cards`, which filter on `stuck` and `driver` (`--stuck --driver
   agent`), as does the board's Filter menu.
+- **A worktree per job, if you want one.** Several runners on one
+  repository can tread on each other's files. Tick *A git worktree per job*
+  in **Connect a runner** (`--worktree`, `-Worktree`, or `WORKTREE=1` in the
+  runner's config) and each job runs in a git worktree of its own, on a
+  branch named for its card (`card-<id>`), beside the repository in
+  `<repo>-lanes/`; a clean one is removed after the job, one with
+  uncommitted changes kept for the next job on that card. Off by default.
 - **Each card has a timeline.** Near the bottom of the card, lanes on one
   time axis show each list it has sat in (coloured by the list's category,
   with who moved it), each wait on a person and each runner job, from its

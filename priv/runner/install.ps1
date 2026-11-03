@@ -39,6 +39,9 @@ param(
   # after each however it ended ($env:SLIPDOCK_STATUS, $env:SLIPDOCK_EXIT).
   [string]$BeforeJob = '',
   [string]$AfterJob = '',
+  # Run each job in a git worktree of -Cwd's repository, on a branch named
+  # for its card (card-<id>).
+  [switch]$Worktree,
   [string]$InstallDir = '',
   # This runner's name on this machine, so it runs beside the others
   # (default: none, the machine's one runner).
@@ -150,14 +153,14 @@ switch ($Agent) {
     $agentBin = Agent-Path 'claude'
     $allow = ''
     if ($allowedTools) { $allow = ' --allowedTools $AllowedTools' }
-    $job = "function $fn {`n  Set-Location -LiteralPath `$WorkDir`n  & `$AgentBin -p (Protect-Arg `$env:SLIPDOCK_PROMPT) --permission-mode `$PermissionMode$allow`n  exit `$LASTEXITCODE`n}"
+    $job = "function $fn {`n  `$where = `$WorkDir; if (`$env:SLIPDOCK_WORKTREE) { `$where = `$env:SLIPDOCK_WORKTREE }`n  Set-Location -LiteralPath `$where`n  & `$AgentBin -p (Protect-Arg `$env:SLIPDOCK_PROMPT) --permission-mode `$PermissionMode$allow`n  exit `$LASTEXITCODE`n}"
   }
   'codex' {
     $agentBin = Agent-Path 'codex'
-    $job = "function $fn {`n  Set-Location -LiteralPath `$WorkDir`n  & `$AgentBin exec (Protect-Arg `$env:SLIPDOCK_PROMPT)`n  exit `$LASTEXITCODE`n}"
+    $job = "function $fn {`n  `$where = `$WorkDir; if (`$env:SLIPDOCK_WORKTREE) { `$where = `$env:SLIPDOCK_WORKTREE }`n  Set-Location -LiteralPath `$where`n  & `$AgentBin exec (Protect-Arg `$env:SLIPDOCK_PROMPT)`n  exit `$LASTEXITCODE`n}"
   }
   'custom' {
-    $job = "function $fn {`n  Set-Location -LiteralPath `$WorkDir`n  Invoke-Expression `$CustomCommand`n}"
+    $job = "function $fn {`n  `$where = `$WorkDir; if (`$env:SLIPDOCK_WORKTREE) { `$where = `$env:SLIPDOCK_WORKTREE }`n  Set-Location -LiteralPath `$where`n  Invoke-Expression `$CustomCommand`n}"
   }
 }
 
@@ -172,6 +175,7 @@ $extra = ''
 if ($Instructions) { $extra += "`n# Added after every job's prompt.`n`$JobInstructions = " + (Literal $Instructions) + "`n" }
 if ($BeforeJob) { $extra += "`n# Runs before each job; the job runs only if this succeeds.`nfunction Before-Job {`n$BeforeJob`n}`n" }
 if ($AfterJob) { $extra += "`n# Runs after each job however it ended, with `$env:SLIPDOCK_EXIT and`n# `$env:SLIPDOCK_STATUS (done, failed, cancelled or timeout).`nfunction After-Job {`n$AfterJob`n}`n" }
+if ($Worktree) { $extra += "`n# Lanes: each job runs in a git worktree of `$WorkDir's repository, on a branch`n# named for its card (card-<id>), in its sibling directory <repo>-lanes.`n# A clean one is removed after the job; one with uncommitted changes is kept.`n`$Worktree = `$true`n`$WorktreeRepo = `$WorkDir`n" }
 
 $configText = @"
 # slipdock-runner config - written by install.ps1, yours to edit. It is

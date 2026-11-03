@@ -19,6 +19,13 @@
 # Before-Job (the job runs only if it succeeds) and After-Job (always, with
 # $env:SLIPDOCK_EXIT and $env:SLIPDOCK_STATUS: done, failed, cancelled or
 # timeout).
+#
+# Lanes, off unless the config sets $Worktree = $true: each job runs in a git
+# worktree of its own, on a branch named for its card (card-<id>), so jobs
+# side by side never share a working tree. $WorktreeRepo is the repository
+# (default: the directory the runner started in), $WorktreeDir where the
+# worktrees go (default: <repo>-lanes beside it). A clean worktree is removed
+# after the job; one with uncommitted changes is kept, and the job's log says so.
 param(
   [string]$Config = '',
   [switch]$Once,
@@ -175,10 +182,110 @@ function Add-Log([string]$text) {
   [IO.File]::AppendAllText((Join-Path $Work 'log'), $text + "`n", $Utf8)
 }
 
+# git, its output as one string and its exit code in $script:GitExit. Run
+# with errors not stopping anything: git writes its progress to stderr.
+function Invoke-Git {
+  $eap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $out = & git @args 2>&1 | ForEach-Object { "$_" }
+    $script:GitExit = $LASTEXITCODE
+  } catch {
+    $out = "$_"
+    $script:GitExit = 1
+  } finally {
+    $ErrorActionPreference = $eap
+  }
+  return (@($out) -join "`n").Trim()
+}
+
+# With $Worktree on, makes (or reuses) the card's worktree and sets
+# $script:Lane to it; the job and its hooks run there. Off, or with no card
+# or no repository, $Lane stays empty and the job runs in place, which the
+# log says. False only when the worktree can't be made: the job then doesn't
+# run, since running it in the shared tree is what the setting is for.
+function Open-Lane([string]$card) {
+  $script:Lane = ''
+  if (-not $Worktree -or ("$Worktree" -in @('0', 'no', 'false', 'off'))) { return $true }
+  $here = (Get-Location).Path
+  $repo = $WorktreeRepo
+  if (-not $repo) { $repo = $here }
+  if (-not $card) { Add-Log "slipdock-runner: the job has no card, so no worktree; it runs in $here"; return $true }
+  $top = ''
+  if (Get-Command git -ErrorAction SilentlyContinue) {
+    $top = Invoke-Git -C $repo rev-parse --show-toplevel
+    if ($script:GitExit -ne 0) { $top = '' }
+  }
+  if (-not $top) {
+    Add-Log "slipdock-runner: $repo is not a git repository, so no worktree; the job runs in $here"
+    return $true
+  }
+  $branch = "card-$card"
+  $base = $WorktreeDir
+  if (-not $base) { $base = "$top-lanes" }
+  $path = (Join-Path $base $branch) -replace '\\', '/'
+  if (Test-Path -LiteralPath $path) {
+    $null = Invoke-Git -C $path rev-parse --git-dir
+    if ($script:GitExit -ne 0) {
+      Add-Log "slipdock-runner: $path is there but is not a worktree, so the job was not run"
+      return $false
+    }
+    $on = Invoke-Git -C $path rev-parse --abbrev-ref HEAD
+    Add-Log "slipdock-runner: worktree $path (kept from before) on $on"
+  } else {
+    $null = Invoke-Git -C $top show-ref --verify --quiet "refs/heads/$branch"
+    if ($script:GitExit -eq 0) {
+      $out = Invoke-Git -C $top worktree add $path $branch
+    } else {
+      $out = Invoke-Git -C $top worktree add -b $branch $path HEAD
+    }
+    if ($out) { Add-Log $out }
+    if ($script:GitExit -ne 0) {
+      Add-Log "slipdock-runner: could not make worktree $path, so the job was not run"
+      return $false
+    }
+    Add-Log "slipdock-runner: worktree $path on branch $branch"
+  }
+  $script:Lane = $path
+  $script:LaneRepo = $top
+  $script:LaneBranch = $branch
+  $env:SLIPDOCK_WORKTREE = $path
+  return $true
+}
+
+# After the job: a clean worktree is removed, and its branch deleted if it is
+# merged (git branch -d); anything uncommitted keeps it.
+function Close-Lane {
+  if (-not $script:Lane) { return }
+  $lane = $script:Lane
+  $dirty = Invoke-Git -C $lane status --porcelain
+  if ($dirty) {
+    Add-Log "slipdock-runner: worktree $lane has uncommitted changes, so it is kept"
+  } else {
+    $out = Invoke-Git -C $script:LaneRepo worktree remove $lane
+    if ($script:GitExit -ne 0) {
+      if ($out) { Add-Log $out }
+      Add-Log "slipdock-runner: could not remove worktree $lane, so it is kept"
+    } else {
+      $null = Invoke-Git -C $script:LaneRepo branch -d $script:LaneBranch
+      if ($script:GitExit -eq 0) {
+        Add-Log "slipdock-runner: worktree $lane removed"
+      } else {
+        Add-Log "slipdock-runner: worktree $lane removed; branch $($script:LaneBranch) kept (not merged)"
+      }
+    }
+  }
+  $script:Lane = ''
+  Remove-Item Env:SLIPDOCK_WORKTREE -ErrorAction SilentlyContinue
+}
+
 # A hook from the config, its output in the job's log. False when it failed.
+# It runs in the job's worktree when it has one.
 function Invoke-Hook([string]$name) {
   if (-not (Test-Function $name)) { return $true }
   $global:LASTEXITCODE = 0
+  $moved = $false
+  if ($script:Lane) { Push-Location -LiteralPath $script:Lane; $moved = $true }
   try {
     $output = & $name 2>&1 | Out-String
     if ($output) { Add-Log $output.TrimEnd() }
@@ -186,6 +293,8 @@ function Invoke-Hook([string]$name) {
   } catch {
     Add-Log "$name failed: $_"
     return $false
+  } finally {
+    if ($moved) { Pop-Location }
   }
 }
 
@@ -237,10 +346,18 @@ function Invoke-Job($claim) {
 
   Say "job #${JobId}: $kind for card #$card"
 
+  if (-not (Open-Lane $card)) {
+    Say "job #${JobId}: no worktree for it - job not run"
+    Invoke-AfterJob 1 'failed'
+    Complete-Job 1 'failed'
+    return
+  }
+
   if (-not (Invoke-Hook 'Before-Job')) {
     Say "job #${JobId}: Before-Job failed - job not run"
     Add-Log 'slipdock-runner: Before-Job failed, so the job was not run'
     Invoke-AfterJob 1 'failed'
+    Close-Lane
     Complete-Job 1 'failed'
     return
   }
@@ -257,7 +374,9 @@ function Invoke-Job($claim) {
     $selfPath = $PSCommandPath
     $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', "`"$selfPath`"",
       '-Config', "`"$Config`"", '-RunJob', $fn)
-    $proc = Start-Process -FilePath $shell -ArgumentList $arguments -PassThru -NoNewWindow `
+    $where = $script:Lane
+    if (-not $where) { $where = (Get-Location).Path }
+    $proc = Start-Process -FilePath $shell -ArgumentList $arguments -PassThru -NoNewWindow -WorkingDirectory $where `
       -RedirectStandardOutput (Join-Path $Work 'out') -RedirectStandardError (Join-Path $Work 'err')
     $null = $proc.Handle
 
@@ -281,6 +400,7 @@ function Invoke-Job($claim) {
         Stop-JobTree $proc
         Add-Log "slipdock-runner: stopped after ${JobTimeout}s"
         Invoke-AfterJob 124 'timeout'
+        Close-Lane
         Complete-Job 124 'timeout'
       }
       'cancelled' {
@@ -288,12 +408,14 @@ function Invoke-Job($claim) {
         Stop-JobTree $proc
         Add-Log 'slipdock-runner: cancelled from the board'
         Invoke-AfterJob 130 'cancelled'
+        Close-Lane
         Complete-Job 130 'cancelled'
       }
       'lost' {
         Say "job #${JobId}: no longer this runner's - stopped"
         Stop-JobTree $proc
         Invoke-AfterJob 130 'cancelled'
+        Close-Lane
       }
       default {
         $proc.WaitForExit()
@@ -301,6 +423,7 @@ function Invoke-Job($claim) {
         if ($null -eq $rc) { $rc = 1 }
         Say "job #${JobId}: exit $rc"
         if ($rc -eq 0) { Invoke-AfterJob 0 'done' } else { Invoke-AfterJob $rc 'failed' }
+        Close-Lane
         Complete-Job $rc ''
       }
     }
@@ -311,6 +434,7 @@ function Invoke-Job($claim) {
       if ($proc -and -not $proc.HasExited) { Stop-JobTree $proc }
       Add-Log "slipdock-runner: failed while running the job: $($err.Exception.Message)"
       Invoke-AfterJob 1 'failed'
+      Close-Lane
       Complete-Job 1 'failed'
     } catch {
       Say "job #${JobId}: and could not finish it - $_"

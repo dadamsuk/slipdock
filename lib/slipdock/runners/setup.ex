@@ -77,6 +77,9 @@ defmodule Slipdock.Runners.Setup do
     "complete" => false,
     "percent_100" => false,
     "slipdock_tools" => true,
+    # Lanes (#1627): each job in a git worktree of its own, on a branch
+    # named for its card. Only for a runner on a machine (server, windows).
+    "worktree" => false,
     "mcp_servers" => "claude_ai_Slipdock, slipdock",
     # The runner's name on its machine, so several can run there side by
     # side (see `install_name/2`). Blank is the machine's one runner.
@@ -145,6 +148,7 @@ defmodule Slipdock.Runners.Setup do
       |> Map.update!("kind", &(&1 |> to_string() |> String.downcase()))
       |> Map.update!("install_name", &(&1 |> to_string() |> String.downcase()))
       |> Map.update!("slipdock_tools", &flag/1)
+      |> Map.update!("worktree", &flag/1)
       |> Map.merge(Map.new(@toggles, &{&1, flag(answers[&1])}))
       |> Map.update!("mcp_servers", &mcp_server_list/1)
 
@@ -212,6 +216,9 @@ defmodule Slipdock.Runners.Setup do
 
       answers["slipdock_tools"] not in [true, false] ->
         {:error, "slipdock_tools must be true or false"}
+
+      answers["worktree"] not in [true, false] ->
+        {:error, "worktree must be true or false"}
 
       answers["slipdock_tools"] and answers["mcp_servers"] == [] ->
         {:error, "name the Slipdock MCP server, or turn the Slipdock tools off"}
@@ -939,7 +946,8 @@ defmodule Slipdock.Runners.Setup do
         if(a["install_name"] != "", do: ["--name #{a["install_name"]}"], else: []) ++
         if(instructions(a) != "", do: ["--instructions #{sh_q(instructions(a))}"], else: []) ++
         if(a["before_job"] != "", do: ["--before-job #{sh_q(a["before_job"])}"], else: []) ++
-        if(a["after_job"] != "", do: ["--after-job #{sh_q(a["after_job"])}"], else: [])
+        if(a["after_job"] != "", do: ["--after-job #{sh_q(a["after_job"])}"], else: []) ++
+        if(a["worktree"] == true, do: ["--worktree"], else: [])
 
     "curl -fsSL #{ctx.base_url}/runner/install.sh | sh -s -- \\\n  " <>
       Enum.join(flags, " \\\n  ")
@@ -962,7 +970,8 @@ defmodule Slipdock.Runners.Setup do
         if(a["install_name"] != "", do: ["-Name #{a["install_name"]}"], else: []) ++
         if(instructions(a) != "", do: ["-Instructions #{ps_q(instructions(a))}"], else: []) ++
         if(a["before_job"] != "", do: ["-BeforeJob #{ps_q(a["before_job"])}"], else: []) ++
-        if(a["after_job"] != "", do: ["-AfterJob #{ps_q(a["after_job"])}"], else: [])
+        if(a["after_job"] != "", do: ["-AfterJob #{ps_q(a["after_job"])}"], else: []) ++
+        if(a["worktree"] == true, do: ["-Worktree"], else: [])
 
     "& ([scriptblock]::Create((irm #{ps_q(ctx.base_url <> "/runner/install.ps1")}))) `\n  " <>
       Enum.join(params, " `\n  ")
@@ -1018,7 +1027,7 @@ defmodule Slipdock.Runners.Setup do
     export PATH CUSTOM_COMMAND
 
     #{fn_name}() {
-      cd "$WORKDIR" || exit 1
+      cd "${SLIPDOCK_WORKTREE:-$WORKDIR}" || exit 1
     #{agent_line(a)}
     }
 
@@ -1047,6 +1056,16 @@ defmodule Slipdock.Runners.Setup do
     """
   end
 
+  # What install.sh --worktree adds (#1627).
+  @worktree_config """
+
+  # Lanes: each job runs in a git worktree of WORKDIR's repository, on a branch
+  # named for its card (card-<id>), in WORKDIR's sibling directory <repo>-lanes.
+  # A clean one is removed after the job; one with uncommitted changes is kept.
+  WORKTREE=1
+  WORKTREE_REPO=$WORKDIR
+  """
+
   # What install.sh adds for the instructions and hooks. The heredoc's
   # delimiter is drawn at random when it is written.
   defp config_extra(a) do
@@ -1062,7 +1081,8 @@ defmodule Slipdock.Runners.Setup do
           a["before_job"] <> "\n}\n",
       a["after_job"] != "" &&
         "\n# Runs after each job however it ended, with $SLIPDOCK_EXIT and $SLIPDOCK_STATUS\n" <>
-          "# (done, failed, cancelled or timeout).\nafter_job() {\n" <> a["after_job"] <> "\n}\n"
+          "# (done, failed, cancelled or timeout).\nafter_job() {\n" <> a["after_job"] <> "\n}\n",
+      a["worktree"] == true && @worktree_config
     ]
     |> Enum.filter(&is_binary/1)
     |> Enum.join()

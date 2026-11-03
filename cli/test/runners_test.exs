@@ -265,6 +265,24 @@ defmodule SlipdockCLI.RunnersTest do
              OptionParser.parse(["--install-name", "x"], strict: SlipdockCLI.switches())
   end
 
+  test "runner new and setup pass --worktree (#1627), and leave it out unset" do
+    serve([
+      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
+      {200, ~s({"setup":#{@setup},"diff":[]})}
+    ])
+
+    capture_io(fn -> Runners.run("runner", ["new", "b"], pool: "dev", worktree: true) end)
+    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
+    assert JSON.decode!(body)["worktree"] == true
+
+    capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], install_name: "x") end)
+    assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
+    refute Map.has_key?(JSON.decode!(body), "worktree")
+
+    assert {[worktree: false], [], []} =
+             OptionParser.parse(["--no-worktree"], strict: SlipdockCLI.switches())
+  end
+
   test "--no-slipdock-tools and --mcp-servers are options the CLI parses" do
     assert {[slipdock_tools: false, mcp_servers: "a,b"], [], []} =
              OptionParser.parse(["--no-slipdock-tools", "--mcp-servers", "a,b"],

@@ -1001,6 +1001,29 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             />
           </label>
         </div>
+        <div
+          :if={Setup.needs_token?(@p["scenario"])}
+          id="wizard-worktree"
+          class="col-span-2 space-y-1.5 rounded-lg p-3 ring-1 ring-base-content/10"
+        >
+          <label class="flex items-center gap-2">
+            <input type="hidden" name="wizard[worktree]" value="false" />
+            <input
+              type="checkbox"
+              name="wizard[worktree]"
+              value="true"
+              checked={@p["worktree"] in [true, "true"]}
+              class="checkbox checkbox-xs"
+            />
+            <span class="font-medium">A git worktree per job</span>
+          </label>
+          <p class="text-xs text-base-content/60">
+            For several agents on one repository: each job runs in a worktree of the working
+            directory's repository, on a branch named for its card (card-&lt;id&gt;), so two jobs
+            never share a working tree. A clean worktree is removed after the job; one with
+            uncommitted changes is kept for the next job on that card.
+          </p>
+        </div>
         <label :if={Setup.needs_token?(@p["scenario"])} class="space-y-1">
           <span class="text-xs text-base-content/70">Longest a job may run (seconds)</span>
           <input

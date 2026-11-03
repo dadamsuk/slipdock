@@ -2106,6 +2106,8 @@ defmodule SlipdockWeb.APIGuide do
     (default true) and `mcp_servers` (default `claude_ai_Slipdock, slipdock`)
     let it use those MCP servers' tools without asking — in `-p` nobody can
     approve one; `slipdock_tools: false` leaves it no access to the board.
+    `worktree: true` (server and windows) runs each job in a git worktree
+    of the working directory's repository, on branch `card-<id>`.
     Every job's prompt ends by telling the agent nobody will answer questions.
     `slipdock runner new` prints the same. What a job does to its card and
     repository is seven booleans, all false unless given, in every scenario:

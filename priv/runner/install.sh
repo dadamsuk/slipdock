@@ -40,6 +40,8 @@
 #   --after-job CMD        shell run after each job, however it ended, with
 #                          $SLIPDOCK_EXIT and $SLIPDOCK_STATUS (done, failed,
 #                          cancelled or timeout)
+#   --worktree             run each job in a git worktree of --cwd's repository,
+#                          on a branch named for its card (default: off)
 #   --name NAME            this runner's name on this machine, so it runs beside
 #                          the others (default: none, the machine's one runner)
 #   --replace              replace the config even if it is another runner's
@@ -64,6 +66,7 @@ START=1
 INSTRUCTIONS=
 BEFORE_JOB=
 AFTER_JOB=
+WORKTREE=
 NAME=
 REPLACE=
 
@@ -93,7 +96,8 @@ while [ $# -gt 0 ]; do
     --instructions) need "$@"; INSTRUCTIONS=$2; shift 2 ;;
     --before-job) need "$@"; BEFORE_JOB=$2; shift 2 ;;
     --after-job) need "$@"; AFTER_JOB=$2; shift 2 ;;
-    -h | --help) sed -n '2,50p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
+    --worktree) WORKTREE=1; shift ;;
+    -h | --help) sed -n '2,52p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -206,7 +210,7 @@ case "$AGENT" in
     ALLOW=
     [ -z "$ALLOWED_TOOLS" ] || ALLOW=' --allowedTools "$ALLOWED_TOOLS"'
     JOB="$FN() {
-  cd \"\$WORKDIR\" || exit 1
+  cd \"\${SLIPDOCK_WORKTREE:-\$WORKDIR}\" || exit 1
   \"\$AGENT_BIN\" -p \"\$SLIPDOCK_PROMPT\" --permission-mode \"\$PERMISSION_MODE\"$ALLOW
 }"
     ;;
@@ -214,7 +218,7 @@ case "$AGENT" in
     ALLOWED_TOOLS=
     AGENT_BIN=$(agent_bin codex)
     JOB="$FN() {
-  cd \"\$WORKDIR\" || exit 1
+  cd \"\${SLIPDOCK_WORKTREE:-\$WORKDIR}\" || exit 1
   \"\$AGENT_BIN\" exec \"\$SLIPDOCK_PROMPT\"
 }"
     ;;
@@ -222,7 +226,7 @@ case "$AGENT" in
     ALLOWED_TOOLS=
     AGENT_BIN=
     JOB="$FN() {
-  cd \"\$WORKDIR\" || exit 1
+  cd \"\${SLIPDOCK_WORKTREE:-\$WORKDIR}\" || exit 1
   sh -c \"\$CUSTOM_COMMAND\"
 }"
     ;;
@@ -279,6 +283,15 @@ if [ -n "$AFTER_JOB" ]; then
 after_job() {
 $AFTER_JOB
 }
+"
+fi
+if [ -n "$WORKTREE" ]; then
+  EXTRA="$EXTRA
+# Lanes: each job runs in a git worktree of WORKDIR's repository, on a branch
+# named for its card (card-<id>), in WORKDIR's sibling directory <repo>-lanes.
+# A clean one is removed after the job; one with uncommitted changes is kept.
+WORKTREE=1
+WORKTREE_REPO=\$WORKDIR
 "
 fi
 

@@ -17,6 +17,13 @@
 # defines the job_<kind> functions — and, if it likes, before_job (a job runs
 # only if it succeeds) and after_job (always, with SLIPDOCK_EXIT and
 # SLIPDOCK_STATUS: done, failed, cancelled or timeout).
+#
+# Lanes, off unless the config sets WORKTREE=1: each job runs in a git
+# worktree of its own, on a branch named for its card (card-<id>), so jobs
+# side by side never share a working tree. WORKTREE_REPO is the repository
+# (default: the directory the runner started in), WORKTREE_DIR where the
+# worktrees go (default: <repo>-lanes beside it). A clean worktree is removed
+# after the job; one with uncommitted changes is kept, and the job's log says so.
 set -u
 
 CONFIG=${SLIPDOCK_RUNNER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/slipdock-runner/config}
@@ -26,7 +33,7 @@ for arg in "$@"; do
     --once) ONCE=1 ;;
     --config=*) CONFIG=${arg#--config=} ;;
     -h | --help)
-      sed -n '2,17p' "$0"
+      sed -n '2,26p' "$0"
       exit 0
       ;;
     *)
@@ -69,6 +76,9 @@ chmod 700 "$WORK"
 JOB_PID=
 JOB_ID=
 CODE=
+LANE=
+LANE_REPO=
+LANE_BRANCH=
 
 # A runner told to stop takes its job down with it and says nothing to the
 # server: the lease runs out and the job goes back in the queue for another.
@@ -146,7 +156,69 @@ run_after_job() {
   SLIPDOCK_EXIT=$1
   SLIPDOCK_STATUS=$2
   export SLIPDOCK_EXIT SLIPDOCK_STATUS
-  (after_job) >>"$WORK/log" 2>&1 </dev/null || say "job #$JOB_ID: after_job failed (exit $?)"
+  (cd "${LANE:-.}" && after_job) >>"$WORK/log" 2>&1 </dev/null || say "job #$JOB_ID: after_job failed (exit $?)"
+}
+
+# lane_open CARD — with WORKTREE on, makes (or reuses) the card's worktree and
+# sets LANE to it; the job, before_job and after_job run there. Off, or with
+# no card or no repository, LANE stays empty and the job runs in place, which
+# the log says. Fails only when the worktree can't be made: the job then
+# doesn't run, since running it in the shared tree is what the setting is for.
+lane_open() {
+  LANE=
+  case "${WORKTREE:-}" in '' | 0 | no | false | off) return 0 ;; esac
+  repo=${WORKTREE_REPO:-$PWD}
+  if [ -z "$1" ]; then
+    echo "slipdock-runner: the job has no card, so no worktree; it runs in $PWD" >>"$WORK/log"
+    return 0
+  fi
+  if ! command -v git >/dev/null 2>&1 || ! top=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null); then
+    echo "slipdock-runner: $repo is not a git repository, so no worktree; the job runs in $PWD" >>"$WORK/log"
+    return 0
+  fi
+  branch=card-$1
+  path=${WORKTREE_DIR:-$top-lanes}/$branch
+  if [ -d "$path" ]; then
+    git -C "$path" rev-parse --git-dir >/dev/null 2>&1 || {
+      echo "slipdock-runner: $path is there but is not a worktree, so the job was not run" >>"$WORK/log"
+      return 1
+    }
+    echo "slipdock-runner: worktree $path (kept from before) on $(git -C "$path" rev-parse --abbrev-ref HEAD 2>/dev/null)" >>"$WORK/log"
+  else
+    if git -C "$top" show-ref --verify --quiet "refs/heads/$branch"; then
+      git -C "$top" worktree add "$path" "$branch" >>"$WORK/log" 2>&1
+    else
+      git -C "$top" worktree add -b "$branch" "$path" HEAD >>"$WORK/log" 2>&1
+    fi || {
+      echo "slipdock-runner: could not make worktree $path, so the job was not run" >>"$WORK/log"
+      return 1
+    }
+    echo "slipdock-runner: worktree $path on branch $branch" >>"$WORK/log"
+  fi
+  LANE=$path
+  LANE_REPO=$top
+  LANE_BRANCH=$branch
+  SLIPDOCK_WORKTREE=$path
+  export SLIPDOCK_WORKTREE
+}
+
+# lane_close — after the job: a clean worktree is removed, and its branch
+# deleted if it is merged (git branch -d); anything uncommitted keeps it.
+lane_close() {
+  [ -n "$LANE" ] || return 0
+  if [ -n "$(git -C "$LANE" status --porcelain 2>/dev/null)" ]; then
+    echo "slipdock-runner: worktree $LANE has uncommitted changes, so it is kept" >>"$WORK/log"
+  elif git -C "$LANE_REPO" worktree remove "$LANE" >>"$WORK/log" 2>&1; then
+    if git -C "$LANE_REPO" branch -d "$LANE_BRANCH" >/dev/null 2>&1; then
+      echo "slipdock-runner: worktree $LANE removed" >>"$WORK/log"
+    else
+      echo "slipdock-runner: worktree $LANE removed; branch $LANE_BRANCH kept (not merged)" >>"$WORK/log"
+    fi
+  else
+    echo "slipdock-runner: could not remove worktree $LANE, so it is kept" >>"$WORK/log"
+  fi
+  LANE=
+  unset SLIPDOCK_WORKTREE
 }
 
 # finish EXIT STATUS — reports the job ended, with the tail of its log.
@@ -212,13 +284,22 @@ $JOB_INSTRUCTIONS"
 
   say "job #$JOB_ID: $kind for card #$card"
 
+  if ! lane_open "$card"; then
+    say "job #$JOB_ID: no worktree for it — job not run"
+    run_after_job 1 failed
+    finish 1 failed
+    JOB_ID=
+    return
+  fi
+
   if defined before_job; then
-    (before_job) >>"$WORK/log" 2>&1 </dev/null
+    (cd "${LANE:-.}" && before_job) >>"$WORK/log" 2>&1 </dev/null
     rc=$?
     if [ "$rc" -ne 0 ]; then
       say "job #$JOB_ID: before_job failed (exit $rc) — job not run"
       echo "slipdock-runner: before_job failed (exit $rc), so the job was not run" >>"$WORK/log"
       run_after_job "$rc" failed
+      lane_close
       finish "$rc" failed
       JOB_ID=
       return
@@ -228,7 +309,7 @@ $JOB_INSTRUCTIONS"
   # The inner subshell keeps an `exit` in the job from skipping the line
   # that records how it ended.
   (
-    ("$fn") >>"$WORK/log" 2>&1 </dev/null
+    (cd "${LANE:-.}" && "$fn") >>"$WORK/log" 2>&1 </dev/null
     echo $? >"$WORK/rc.tmp" && mv "$WORK/rc.tmp" "$WORK/rc"
   ) &
   JOB_PID=$!
@@ -261,6 +342,7 @@ $JOB_INSTRUCTIONS"
       stop_job
       echo "slipdock-runner: stopped after ${JOB_TIMEOUT}s" >>"$WORK/log"
       run_after_job 124 timeout
+      lane_close
       finish 124 timeout
       ;;
     cancelled)
@@ -268,12 +350,14 @@ $JOB_INSTRUCTIONS"
       stop_job
       echo "slipdock-runner: cancelled from the board" >>"$WORK/log"
       run_after_job 130 cancelled
+      lane_close
       finish 130 cancelled
       ;;
     lost)
       say "job #$JOB_ID: no longer this runner's — stopped"
       stop_job
       run_after_job 130 cancelled
+      lane_close
       ;;
     *)
       wait "$JOB_PID" 2>/dev/null
@@ -282,6 +366,7 @@ $JOB_INSTRUCTIONS"
       case "$rc" in '' | *[!0-9]*) rc=1 ;; esac
       say "job #$JOB_ID: exit $rc"
       if [ "$rc" -eq 0 ]; then run_after_job 0 done; else run_after_job "$rc" failed; fi
+      lane_close
       finish "$rc" ""
       ;;
   esac

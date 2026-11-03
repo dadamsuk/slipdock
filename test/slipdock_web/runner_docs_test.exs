@@ -24,6 +24,21 @@ defmodule SlipdockWeb.RunnerDocsTest do
     end
   end
 
+  test "a worktree per job (#1627) is described, with the settings the runners read" do
+    runner = read("priv/runner/slipdock-runner")
+    ps = read("priv/runner/slipdock-runner.ps1")
+
+    for setting <- ["WORKTREE=1", "WORKTREE_REPO", "WORKTREE_DIR", "$SLIPDOCK_WORKTREE"] do
+      assert read("docs/manual.md") =~ setting
+    end
+
+    for {setting, script} <- [{"WORKTREE_REPO", runner}, {"$WorktreeRepo", ps}],
+        do: assert(script =~ setting)
+
+    assert read("README.md") =~ "A git worktree per job"
+    assert read("README.md") =~ "`card-<id>`"
+  end
+
   test "the installers named are the ones served" do
     for path <- ["/runner/install.sh", "/runner/install.ps1", "/runner/SHA256SUMS"] do
       assert read("docs/manual.md") =~ path

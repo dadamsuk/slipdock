@@ -55,6 +55,7 @@ defmodule SlipdockCLI.Runners do
         "complete" => o[:complete],
         "percent_100" => o[:percent_100],
         "slipdock_tools" => o[:slipdock_tools],
+        "worktree" => o[:worktree],
         "mcp_servers" => o[:mcp_servers],
         "install_name" => o[:install_name],
         "name" => nonblank(Enum.join(name, " ")),
@@ -279,6 +280,7 @@ defmodule SlipdockCLI.Runners do
       "complete" => o[:complete],
       "percent_100" => o[:percent_100],
       "slipdock_tools" => o[:slipdock_tools],
+      "worktree" => o[:worktree],
       "mcp_servers" => o[:mcp_servers],
       "install_name" => o[:install_name]
     })

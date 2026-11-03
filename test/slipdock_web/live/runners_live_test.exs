@@ -458,6 +458,24 @@ defmodule SlipdockWeb.RunnersLiveTest do
     assert runner.settings["slipdock_tools"] == true
   end
 
+  test "a worktree per job is offered for a runner on a machine, off until ticked", %{
+    conn: conn,
+    board: board
+  } do
+    view = open(conn, board)
+    assert has_element?(view, "#wizard-worktree", "A git worktree per job")
+    refute has_element?(view, "#wizard-worktree input[type=checkbox][checked]")
+
+    choose(view, %{"worktree" => "true"})
+    assert has_element?(view, "#wizard-worktree input[type=checkbox][checked]")
+    submit(view, %{"pool" => "dev", "cwd" => "/srv/app"})
+    assert has_element?(view, "#runner-command", "--worktree")
+    view |> element("#reveal-config") |> render_click()
+    assert has_element?(view, "#runner-config", "WORKTREE_REPO=$WORKDIR")
+    assert [runner] = Runners.list_runners(board)
+    assert runner.settings["worktree"] == true
+  end
+
   test "a bad server name is said, and nothing is made", %{conn: conn, board: board} do
     view = open(conn, board)
     choose(view, %{"mcp_servers" => "not a name!"})

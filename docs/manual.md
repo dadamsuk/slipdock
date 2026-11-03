@@ -3021,6 +3021,22 @@ the same, on OpenAI's. **Change the
 answers** on a runner shows a diff of what changes, and re-running the
 one-liner on the machine puts it in place, keeping the token it has.
 
+**A worktree per job.** Runners side by side on one repository share its
+working tree, so one can sweep another's files into its commit. With *A git
+worktree per job* ticked (`--worktree` to `install.sh`, `-Worktree` to
+`install.ps1`, `slipdock runner new … --worktree`, or by hand `WORKTREE=1` and
+`WORKTREE_REPO=<repo>` in the shell config, `$Worktree = $true` and
+`$WorktreeRepo` in the Windows one), the runner makes a worktree before each
+job — `git worktree add <repo>-lanes/card-<id>` on branch `card-<id>`
+(`WORKTREE_DIR` / `$WorktreeDir` to put them elsewhere) — and runs the job,
+its `before_job` and its `after_job` there, with `$SLIPDOCK_WORKTREE` set
+to it. Afterwards a clean worktree is removed (and its branch deleted if it
+is merged; kept otherwise), and one with uncommitted changes is kept, which
+the job's log says; the next job on that card reuses it. A job with no card,
+or a directory that isn't a git repository, runs in place, saying so; if the
+worktree can't be made the job fails without running. Off by default: with
+the setting off nothing changes.
+
 **Having Claude write the hooks.** What a hook should do — which notifier
 to call, what to keep from each pass — differs from one machine to the
 next, so rather than ship one, **Connect a runner** (Advanced → Hooks →

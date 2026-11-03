@@ -1075,6 +1075,39 @@ defmodule Slipdock.Runners.SetupTest do
     end
   end
 
+  describe "a worktree per job (#1627)" do
+    test "off by default: no flag, no WORKTREE in the config", %{board: board} do
+      assert answers()["worktree"] == false
+      [line, _sums, config] = board |> gen(%{"cwd" => "/srv/w"}) |> codes()
+      refute line =~ "--worktree"
+      refute config =~ "WORKTREE="
+      # The job goes to its worktree only when the runner made one.
+      assert config =~ ~S(cd "${SLIPDOCK_WORKTREE:-$WORKDIR}" || exit 1)
+
+      [ps | _] = board |> gen(%{"scenario" => "windows", "cwd" => "C:\\w"}) |> codes()
+      refute ps =~ "-Worktree"
+    end
+
+    test "on: --worktree / -Worktree, and the config sets it on WORKDIR's repository",
+         %{board: board} do
+      for on <- [true, "true", "on"], do: assert(answers(%{"worktree" => on})["worktree"])
+
+      [line, _sums, config] = board |> gen(%{"cwd" => "/srv/w", "worktree" => "true"}) |> codes()
+      assert line =~ "--worktree"
+      assert config =~ "\nWORKTREE=1\nWORKTREE_REPO=$WORKDIR\n"
+
+      [ps | _] =
+        board |> gen(%{"scenario" => "windows", "cwd" => "C:\\w", "worktree" => true}) |> codes()
+
+      assert ps =~ "-Worktree"
+    end
+
+    test "anything but a yes or no is refused" do
+      assert {:error, "worktree must be true or false"} =
+               Setup.normalise(%{"worktree" => "maybe"})
+    end
+  end
+
   describe "a blank working directory" do
     @warning "No working directory: jobs start in your home directory"
 

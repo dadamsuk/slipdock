@@ -374,6 +374,138 @@ defmodule SlipdockWeb.RunnerScriptTest do
     end
   end
 
+  describe "worktrees (lanes)" do
+    # A repository with one commit, the runner pointed at it with WORKTREE on.
+    defp repo(ctx) do
+      repo = Path.join(ctx.dir, "repo")
+      File.mkdir_p!(repo)
+      git(repo, ["init", "-q", "-b", "main"])
+      File.write!(Path.join(repo, "README"), "hi\n")
+      git(repo, ["add", "README"])
+      git(repo, ["commit", "-q", "-m", "first"])
+      repo
+    end
+
+    defp git(dir, args) do
+      {out, 0} =
+        System.cmd("git", ["-c", "user.name=t", "-c", "user.email=t@example.com" | args],
+          cd: dir,
+          stderr_to_stdout: true
+        )
+
+      out
+    end
+
+    defp lanes(ctx, repo, extra \\ "") do
+      config(ctx, """
+      WORKTREE=1
+      WORKTREE_REPO='#{repo}'
+      job_pwd() { pwd >"$OUT"; echo "wt=${SLIPDOCK_WORKTREE:-}"; }
+      job_dirty() { pwd >"$OUT"; echo scratch >scratch.txt; }
+      job_commit() { echo more >>README && git -c user.name=t -c user.email=t@example.com commit -qam more; }
+      #{extra}
+      """)
+    end
+
+    defp lane_path(repo, card), do: "#{repo}-lanes/card-#{card.id}"
+
+    test "on: the job runs in a worktree on the card's branch, removed after", ctx do
+      repo = repo(ctx)
+      {:ok, queued} = queue(ctx.card, "pwd")
+      {_, 0} = run_once(ctx, lanes(ctx, repo))
+
+      path = lane_path(repo, ctx.card)
+      assert ctx.dir |> Path.join("out") |> File.read!() |> String.trim() == path
+
+      assert %{status: "done", output: output} = job(queued)
+      assert output =~ "worktree #{path} on branch card-#{ctx.card.id}"
+      assert output =~ "wt=#{path}"
+      assert output =~ "worktree #{path} removed"
+
+      refute File.exists?(path)
+      refute git(repo, ["branch", "--list", "card-#{ctx.card.id}"]) =~ "card-"
+      refute git(repo, ["worktree", "list"]) =~ "-lanes"
+    end
+
+    test "on: before_job and after_job run inside the worktree too", ctx do
+      repo = repo(ctx)
+      {:ok, _} = queue(ctx.card, "pwd")
+
+      hooks = """
+      before_job() { pwd >'#{ctx.dir}/before'; }
+      after_job() { pwd >'#{ctx.dir}/after'; }
+      """
+
+      {_, 0} = run_once(ctx, lanes(ctx, repo, hooks))
+      path = lane_path(repo, ctx.card)
+      assert ctx.dir |> Path.join("before") |> File.read!() |> String.trim() == path
+      assert ctx.dir |> Path.join("after") |> File.read!() |> String.trim() == path
+    end
+
+    test "off: the job runs where the runner does, and no worktree is made", ctx do
+      repo = repo(ctx)
+      {:ok, queued} = queue(ctx.card, "pwd")
+      {_, 0} = run_once(ctx, lanes(ctx, repo, "WORKTREE=0"))
+
+      assert ctx.dir |> Path.join("out") |> File.read!() |> String.trim() == ctx.dir
+      refute job(queued).output =~ "worktree"
+      refute File.exists?("#{repo}-lanes")
+    end
+
+    test "a worktree with uncommitted changes is kept, and the next job on the card reuses it",
+         ctx do
+      repo = repo(ctx)
+      path = lane_path(repo, ctx.card)
+
+      {:ok, first} = queue(ctx.card, "dirty")
+      {_, 0} = run_once(ctx, lanes(ctx, repo))
+      assert job(first).output =~ "worktree #{path} has uncommitted changes, so it is kept"
+      assert File.read!(Path.join(path, "scratch.txt")) == "scratch\n"
+
+      {:ok, second} = queue(ctx.card, "pwd")
+      {_, 0} = run_once(ctx, lanes(ctx, repo))
+      assert %{status: "done", output: output} = job(second)
+      assert output =~ "worktree #{path} (kept from before) on card-#{ctx.card.id}"
+      # Still dirty from the first job, so still kept.
+      assert output =~ "so it is kept"
+      assert File.exists?(Path.join(path, "scratch.txt"))
+    end
+
+    test "a clean worktree with a commit is removed but its unmerged branch kept", ctx do
+      repo = repo(ctx)
+      {:ok, queued} = queue(ctx.card, "commit")
+      {_, 0} = run_once(ctx, lanes(ctx, repo))
+
+      path = lane_path(repo, ctx.card)
+      assert job(queued).output =~ "worktree #{path} removed; branch card-#{ctx.card.id} kept"
+      refute File.exists?(path)
+      assert git(repo, ["log", "--oneline", "card-#{ctx.card.id}"]) =~ "more"
+    end
+
+    test "a directory that is not a git repository runs the job in place, saying so", ctx do
+      plain = Path.join(ctx.dir, "plain")
+      File.mkdir_p!(plain)
+      {:ok, queued} = queue(ctx.card, "pwd")
+      {_, 0} = run_once(ctx, lanes(ctx, plain))
+
+      assert %{status: "done", output: output} = job(queued)
+      assert output =~ "#{plain} is not a git repository, so no worktree"
+      assert ctx.dir |> Path.join("out") |> File.read!() |> String.trim() == ctx.dir
+    end
+
+    test "a non-worktree directory in the worktree's place means the job is not run", ctx do
+      repo = repo(ctx)
+      File.mkdir_p!(lane_path(repo, ctx.card))
+      {:ok, queued} = queue(ctx.card, "pwd")
+      {out, 0} = run_once(ctx, lanes(ctx, repo))
+
+      assert out =~ "no worktree for it"
+      refute File.exists?(Path.join(ctx.dir, "out"))
+      assert %{status: "failed", output: output} = job(queued)
+      assert output =~ "is not a worktree, so the job was not run"
+    end
+  end
+
   describe "through a deploy" do
     alias SlipdockWeb.RunnerStubQueue, as: Stub
 
