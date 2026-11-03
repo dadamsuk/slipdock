@@ -137,7 +137,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
                 type="text"
                 name="title"
                 placeholder="Add a subcard…"
-                class="input input-xs w-full"
+                class="input field w-full"
                 autocomplete="off"
                 required
               />
@@ -300,7 +300,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
               phx-target={@target}
               type="button"
               class={[
-                "btn btn-xs join-item",
+                "btn btn-sm join-item",
                 if(@dep_direction == value, do: "btn-neutral", else: "btn-ghost")
               ]}
               phx-click="dep_direction"
@@ -318,7 +318,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
                 do: "Find the card this one waits for…",
                 else: "Find the card this one holds up…"
             }
-            class="input input-sm flex-1"
+            class="input field flex-1"
             phx-debounce="200"
             autocomplete="off"
           />
@@ -455,7 +455,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
       >
         <.icon
           name="hero-magnifying-glass"
-          class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-base-content/40"
+          class="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-base-content/60"
         />
         <input
           type="search"
@@ -467,7 +467,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
           phx-target={@target}
           phx-debounce="200"
           autocomplete="off"
-          class="input input-xs w-full rounded-full pl-7"
+          class="input field field-icon w-full"
         />
       </form>
       <ul :if={@doc_results != []} class="space-y-0.5">
@@ -715,7 +715,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
         class="space-y-1.5"
       >
         <div class="flex gap-1">
-          <select name="kind" class="select select-xs w-36" title="Kind of link">
+          <select name="kind" class="select field w-36" title="Kind of link">
             <option
               :for={{key, label, _} <- CardLink.kinds()}
               value={key}
@@ -729,7 +729,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
             name="q"
             value={@link_query}
             placeholder="Search cards on any board…"
-            class="input input-xs min-w-0 flex-1"
+            class="input field min-w-0 flex-1"
             autocomplete="off"
             phx-debounce="250"
           />

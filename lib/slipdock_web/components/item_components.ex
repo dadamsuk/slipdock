@@ -103,7 +103,7 @@ defmodule SlipdockWeb.ItemComponents do
           type="text"
           name="text"
           placeholder="Add an item…"
-          class="input input-sm flex-1"
+          class="input field flex-1"
           autocomplete="off"
           required
         />
@@ -187,17 +187,17 @@ defmodule SlipdockWeb.ItemComponents do
           type="text"
           name="url"
           placeholder="https://… , file://… or an address"
-          class="input input-xs min-w-0 flex-1"
+          class="input field min-w-0 flex-1"
           autocomplete="off"
         />
         <input
           type="text"
           name="title"
           placeholder="Label (optional)"
-          class="input input-xs w-32 shrink-0"
+          class="input field w-32 shrink-0"
           autocomplete="off"
         />
-        <button type="submit" class="btn btn-xs shrink-0">Add</button>
+        <button type="submit" class="btn btn-sm shrink-0">Add</button>
       </form>
     </section>
     """
@@ -289,7 +289,7 @@ defmodule SlipdockWeb.ItemComponents do
                       do: "Write a comment… (paste an image to attach it)",
                       else: "Write a comment…"
                   }
-                  class="textarea w-full text-sm"
+                  class="textarea field w-full"
                   required
                 ></textarea>
               </div>
@@ -380,7 +380,7 @@ defmodule SlipdockWeb.ItemComponents do
         <textarea
           name="body"
           rows="2"
-          class="textarea textarea-sm w-full text-xs"
+          class="textarea field w-full"
           placeholder="What's happening? (optional)"
         ></textarea>
         <button type="submit" class="btn btn-primary btn-xs">Post update</button>
@@ -492,24 +492,24 @@ defmodule SlipdockWeb.ItemComponents do
                     min={field.config["min"]}
                     max={field.config["max"]}
                     placeholder={field.config["unit"]}
-                    class="input input-sm w-full"
+                    class="input field w-full"
                     phx-debounce="600"
                   />
                 <% "select" -> %>
-                  <select name="value" class="select select-sm w-full">
+                  <select name="value" class="select field w-full">
                     <option value="">—</option>
                     <option :for={o <- field.options} value={o["key"]} selected={o["key"] == value}>
                       {o["label"]}
                     </option>
                   </select>
                 <% "date" -> %>
-                  <input type="date" name="value" value={value} class="input input-sm w-full" />
+                  <input type="date" name="value" value={value} class="input field w-full" />
                 <% _ -> %>
                   <input
                     type="text"
                     name="value"
                     value={value}
-                    class="input input-sm w-full"
+                    class="input field w-full"
                     phx-debounce="600"
                   />
               <% end %>

@@ -172,6 +172,70 @@ body {
   outline-offset: 0;
 }
 
+/* Fields (#1672): one look for every box a person types into or picks
+   from, whatever it is: daisyUI's `input`, `select` or `textarea` for the
+   native behaviour (the select's arrow, the date picker), plus `field` for
+   the look. No size modifiers (`input-xs`, `select-sm`…) and no text-size
+   utilities beside it: the card back once drew its boxes at 11, 12, 14 and
+   16px with three borders and two shadows, which is what this replaces.
+   The Markdown editor's frame (`.md-editor`, below) draws the same box.
+
+   - `field`: 1px hairline at base-content/20, `--radius-field`, the
+     base-100 surface, no shadow, 14px Inter on a 20px line. One line is
+     28px tall, the height of `btn-sm`, so a button beside a field is
+     `btn-sm`; a textarea starts at one line and grows (AutoGrow).
+   - `field-mono`: code values (paths, globs) in the mono stack at 13px,
+     which sits at the same optical size as 14px Inter.
+   - `field-icon`: room on the left for an icon drawn over the box.
+   - `field-bare`: text edited in place (the card title, its short name,
+     the list on the meta line): no box until hovered or focused, keeps the
+     size of the words around it.
+   Focused, every one of them takes the same primary border and soft ring.
+
+   Unlayered, so it beats daisyUI's sizes (they live in the utilities
+   layer). It sets no display or width, so `hidden`, `w-full` and `flex-1`
+   still work beside it. */
+.field {
+  --input-color: color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  border: 1px solid var(--input-color);
+  border-radius: var(--radius-field);
+  background-color: var(--color-base-100);
+  box-shadow: none;
+  color: var(--color-base-content);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+input.field, select.field { height: 1.75rem; padding-block: 0; padding-left: 0.75rem; }
+input.field { padding-right: 0.75rem; }
+select.field { padding-right: 2rem; }
+textarea.field { min-height: 1.75rem; padding: 0.25rem 0.75rem; resize: none; }
+.field::placeholder { color: color-mix(in oklab, var(--color-base-content) 45%, transparent); }
+.field-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; }
+input.field-icon { padding-left: 2rem; }
+.field:disabled {
+  background-color: var(--color-base-200);
+  color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+  cursor: not-allowed;
+}
+.field:is(.input-error, .select-error, .textarea-error) { --input-color: var(--color-error); }
+.field-bare {
+  border: 1px solid transparent;
+  border-radius: var(--radius-field);
+  background-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; font-size: inherit; }
+.field-bare:hover { background-color: color-mix(in oklab, var(--color-base-200) 60%, transparent); }
+.field:focus, .field:focus-within, .field-bare:focus, .md-editor:focus-within {
+  --input-color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-color: var(--color-base-100);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 20%, transparent);
+}
+
 /* Primary buttons and badges are soft tints, not solid fills. So never add
    daisyUI's `badge-soft` to `badge-primary`: soft paints the words in
    --badge-color, which here is the dark tint, and in the dark theme the
@@ -838,21 +902,23 @@ div.meld-open .meld-lock { display: block; margin: 0.75rem 0 0; }
   --atomic-editor-selection-bg: color-mix(in oklab, var(--color-primary) 25%, transparent);
   --atomic-editor-search-bg: color-mix(in oklab, var(--color-warning) 30%, transparent);
   --atomic-editor-search-bg-active: color-mix(in oklab, var(--color-warning) 60%, transparent);
-  --atomic-editor-font: inherit;
+  /* Not `inherit`: the editor's own theme falls back to system-ui under
+     it, so the description and comments were in another face (#1672). */
+  --atomic-editor-font: var(--font-sans);
   --atomic-editor-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --atomic-editor-measure: none;
   --atomic-editor-radius: 0.375rem;
-  border: 1px solid var(--color-base-300);
+  /* The same box as `.field` (#1672). */
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
   border-radius: var(--radius-field, 0.5rem);
   background: var(--color-base-100);
   height: auto;
 }
-.md-editor:focus-within { border-color: var(--color-primary); }
 /* The theme leaves 40vh under the text, for a page you scroll in; a field
    in a form ends where its text does. */
-.md-editor .cm-editor .cm-content { padding: 0.5rem 0.75rem; }
+.md-editor .cm-editor .cm-content { padding: 0.25rem 0.75rem; }
 .md-editor .cm-editor .cm-placeholder { color: color-mix(in oklab, var(--color-base-content) 45%, transparent); }
-.md-editor-field { --atomic-editor-body-size: 0.875rem; --atomic-editor-body-leading: 1.6; }
+.md-editor-field { --atomic-editor-body-size: 0.875rem; --atomic-editor-body-leading: 1.25rem; }
 .md-editor-field .cm-editor .cm-content { min-height: 4.5rem; }
 .md-editor-page { --atomic-editor-body-size: 1rem; border-radius: 0.75rem; }
 .md-editor-page .cm-editor .cm-content { min-height: 36rem; padding: 0.75rem 1rem 6rem; }

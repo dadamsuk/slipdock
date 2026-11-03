@@ -75,7 +75,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           phx-hook="AutoGrow"
           data-single-line
           class={[
-            "w-full resize-none rounded-lg bg-transparent px-1 text-xl font-bold leading-tight outline-none ring-primary/40 focus:bg-base-200/60 focus:ring-2 sm:text-2xl",
+            "field-bare w-full resize-none px-1 text-xl font-bold leading-tight sm:text-2xl",
             @card.completed && "opacity-60"
           ]}
           placeholder="Card title"
@@ -95,7 +95,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           maxlength={ShortNames.max_length()}
           phx-debounce="500"
           placeholder="Made for you"
-          class="min-w-0 flex-1 rounded bg-transparent px-1 outline-none ring-primary/40 focus:bg-base-200/60 focus:ring-2"
+          class="field-bare min-w-0 flex-1 px-1"
         />
       </div>
       <p :if={@form[:short_name].errors != []} class="text-sm text-error">
@@ -124,7 +124,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <select
           :if={@can_write}
           name="card[column_id]"
-          class="select select-ghost select-sm w-auto max-w-[12rem] pl-1 font-medium text-base-content/80"
+          class="select field-bare w-auto max-w-[12rem] font-medium text-base-content/80"
           title="Move this card to another list"
           aria-label="List"
         >
@@ -254,7 +254,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             required
             aria-label={"A note to " <> Slipdock.Accounts.User.display_name(@person)}
             title="Posted as a comment; the @mention emails them"
-            class="textarea textarea-bordered textarea-sm min-w-0 flex-1"
+            class="textarea field min-w-0 flex-1"
           >{"@" <> Slipdock.Wiki.Links.handle(@person) <> " "}</textarea>
           <button type="submit" class="btn btn-ghost btn-sm">
             <.icon name="hero-envelope" class="size-4" /> Note to {first_word(@person)}
@@ -321,7 +321,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             rows="1"
             required
             placeholder="What falls short of the bar"
-            class="textarea textarea-bordered textarea-sm min-w-0 flex-1"
+            class="textarea field min-w-0 flex-1"
           ></textarea>
           <button type="submit" class="btn btn-ghost btn-sm">Reject</button>
         </form>
@@ -447,7 +447,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         phx-hook="AutoGrow"
         maxlength={Card.bar_length()}
         placeholder="What done means for this card, written before work starts"
-        class="textarea textarea-bordered textarea-sm w-full"
+        class="textarea field w-full"
       >{@form[:bar].value}</textarea>
       <p :for={msg <- Enum.map(@form[:bar].errors, &elem(&1, 0))} class="text-sm text-error">
         {msg}
@@ -492,7 +492,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         phx-debounce="800"
         phx-hook="AutoGrow"
         placeholder="The files its work touches, one glob per line: lib/slipdock/runners/**"
-        class="textarea textarea-bordered textarea-sm w-full font-mono"
+        class="textarea field field-mono w-full"
       >{@text}</textarea>
       <p :for={msg <- Enum.map(@form[:paths].errors, &elem(&1, 0))} class="text-sm text-error">
         {msg}
@@ -623,7 +623,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
                   autofocus
                   rows="3"
                   placeholder="Add more detail…"
-                  class="textarea w-full resize-none text-sm leading-relaxed"
+                  class="textarea field w-full"
                 >{@form[:description].value}</textarea>
               </div>
             </div>
@@ -1055,7 +1055,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         >
           <label class="block space-y-1">
             <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">List</span>
-            <select name="card[column_id]" class="select select-sm w-full">
+            <select name="card[column_id]" class="select field w-full">
               <option
                 :for={{name, id} <- column_options(@board)}
                 value={id}
@@ -1092,12 +1092,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
                empty after each pick instead of re-sending the last one. --%>
             <select
               name="card[add_assignee_id]"
-              class="select select-sm w-full"
+              class="select field w-full"
               id={"card-assignee-add-" <> Enum.map_join(Card.assignees(@card), "-", & &1.id)}
             >
               <option value="" selected>
                 {if Card.assignees(@card) == [],
-                  do: "Unassigned — add someone…",
+                  do: "Unassigned — add…",
                   else: "Add someone…"}
               </option>
               <option
@@ -1111,7 +1111,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </div>
           <label class="block space-y-1">
             <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Priority</span>
-            <select name="card[priority]" class="select select-sm w-full">
+            <select name="card[priority]" class="select field w-full">
               <option
                 :for={{label, value} <- priority_options()}
                 value={value}
@@ -1137,7 +1137,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
                 step="5"
                 placeholder="—"
                 phx-debounce="400"
-                class="input input-sm w-20"
+                class="input field w-20"
               />
               <progress
                 :if={@card.percent_complete}
@@ -1163,7 +1163,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
               name="card[start_date]"
               value={@card.start_date}
               max={@card.due_date}
-              class="input input-sm w-full"
+              class="input field w-full"
             />
           </label>
           <label class="block space-y-1">
@@ -1173,7 +1173,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
               name="card[due_date]"
               value={@card.due_date}
               min={@card.start_date}
-              class="input input-sm w-full"
+              class="input field w-full"
             />
             <.due_badge date={@card.due_date} completed={@card.completed} />
             <p :if={@form[:start_date].errors != []} class="text-xs text-error">
@@ -1184,7 +1184,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Precision</span>
             <select
               name="card[date_precision]"
-              class="select select-sm w-full"
+              class="select field w-full"
               id="card-precision"
             >
               <option

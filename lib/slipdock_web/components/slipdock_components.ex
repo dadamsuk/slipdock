@@ -776,7 +776,7 @@ defmodule SlipdockWeb.SlipdockComponents do
             placeholder="0"
             phx-debounce="blur"
             disabled={!@can_write}
-            class="input input-sm w-full"
+            class="input field w-full"
           />
         </label>
         <label class="block space-y-1">
@@ -790,7 +790,7 @@ defmodule SlipdockWeb.SlipdockComponents do
             placeholder="—"
             phx-debounce="blur"
             disabled={!@can_write}
-            class="input input-sm w-full"
+            class="input field w-full"
           />
         </label>
         <label class="block space-y-1">
@@ -798,7 +798,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           <select
             name="card[time_unit]"
             id="card-time-unit"
-            class="select select-sm"
+            class="select field"
             disabled={!@can_write}
           >
             <option
@@ -841,7 +841,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           type="text"
           name="amount"
           placeholder={"Log time — e.g. 30m, 1.5#{TimeTracking.suffix(@unit)}"}
-          class="input input-sm min-w-0 flex-1"
+          class="input field min-w-0 flex-1"
           autocomplete="off"
         />
         <button type="submit" class="btn btn-sm btn-ghost">Log</button>
