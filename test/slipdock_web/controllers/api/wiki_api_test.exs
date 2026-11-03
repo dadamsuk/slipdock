@@ -44,10 +44,13 @@ defmodule SlipdockWeb.API.WikiApiTest do
   end
 
   test "PATCH /api/wiki sets its keys and answers as a wiki", %{conn: conn, vault: vault} do
-    assert %{"wiki" => %{"shortcut" => "zq"}} =
-             conn |> patch("/api/wiki", %{"shortcut" => "zq"}) |> json_response(200)
+    # A fixed key can be another running test's board's (#1637).
+    key = unique_shortcut()
 
-    assert Vaults.root(vault.user_id).shortcut == "zq"
+    assert %{"wiki" => %{"shortcut" => ^key}} =
+             conn |> patch("/api/wiki", %{"shortcut" => key}) |> json_response(200)
+
+    assert Vaults.root(vault.user_id).shortcut == key
   end
 
   test "its sync listing and feed are the vault's, by either address", ctx do

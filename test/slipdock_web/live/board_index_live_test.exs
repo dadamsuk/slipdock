@@ -218,7 +218,9 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
 
   describe "a board's card" do
     test "shows its shortcut when it has one, in both layouts", %{conn: conn, a: a, b: b} do
-      {:ok, _} = Boards.update_board(a, %{"shortcut" => "qz"})
+      # A fixed key can be another running test's board's (#1637).
+      key = unique_shortcut()
+      {:ok, _} = Boards.update_board(a, %{"shortcut" => key})
       # Boards are handed a shortcut when made; take b's away.
       Slipdock.Repo.update_all(where(Slipdock.Boards.Board, id: ^b.id),
         set: [shortcut: nil]
@@ -226,11 +228,11 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
 
       {:ok, view, _} = live(conn, ~p"/")
 
-      assert has_element?(view, "#board-#{a.id} kbd", "qz")
+      assert has_element?(view, "#board-#{a.id} kbd", key)
       refute has_element?(view, "#board-#{b.id} kbd")
 
       view |> element("button[phx-value-layout=compact]") |> render_click()
-      assert has_element?(view, "#board-#{a.id} kbd", "qz")
+      assert has_element?(view, "#board-#{a.id} kbd", key)
     end
 
     test "shows the reader's own Ctrl+Shift digit, and nobody else's", ctx do

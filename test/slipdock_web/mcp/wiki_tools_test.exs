@@ -67,9 +67,13 @@ defmodule SlipdockWeb.MCP.WikiToolsTest do
     conn: conn,
     user: user
   } do
-    set = ok!(call(conn, "manage_wiki", %{action: "set", shortcut: "wq"}))
-    assert set["wiki"]["shortcut"] == "wq"
-    assert Vaults.root(user).shortcut == "wq"
+    # Shortcuts are unique across every board and vault, and async tests'
+    # boards are handed two-letter ones in turn: a fixed key can be another
+    # running test's (#1637). unique_shortcut/0 holds one for this test.
+    key = unique_shortcut()
+    set = ok!(call(conn, "manage_wiki", %{action: "set", shortcut: key}))
+    assert set["wiki"]["shortcut"] == key
+    assert Vaults.root(user).shortcut == key
 
     assert error!(call(conn, "manage_wiki", %{action: "rename"})) =~ "action must be one of"
     assert error!(call(conn, "manage_wiki", %{action: "set", name: "Brain"})) =~ "no argument"

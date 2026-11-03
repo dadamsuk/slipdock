@@ -89,10 +89,12 @@ defmodule SlipdockWeb.API.VaultsTest do
 
   test "sets its shortcut and hotkey; a digit that isn't one changes nothing", ctx do
     %{conn: conn, user: user, vault: vault} = ctx
+    # A fixed key can be another running test's board's (#1637).
+    key = unique_shortcut()
 
-    assert %{"vault" => %{"shortcut" => "qv", "hotkey" => 4}} =
+    assert %{"vault" => %{"shortcut" => ^key, "hotkey" => 4}} =
              conn
-             |> patch("/api/vaults/Notes", %{"shortcut" => "qv", "hotkey" => 4})
+             |> patch("/api/vaults/Notes", %{"shortcut" => key, "hotkey" => 4})
              |> json_response(200)
 
     assert conn
