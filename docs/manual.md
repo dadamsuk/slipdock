@@ -1018,10 +1018,29 @@ commits since then (so the job needs the whole history: `fetch-depth: 0`),
 records the deploy started, runs the command, and records it succeeded or
 failed from its exit code, which it exits with. A board that can't be reached
 never stops a deploy. Deploying a commit older than the last deploy is
-recorded as a **rollback**. Where the deploy is more than one command,
+recorded as a **rollback**. If the last deploy's commit has left the history
+(it was rewritten), the deploy is still recorded, with a warning, and with the
+commits since the newest commit made before that deploy finished (none if there
+isn't one). Where the deploy is more than one command,
 `slipdock deploy start` prints an id and `slipdock deploy finish --id N
 --status succeeded|failed` ends it. `slipdock deploy backfill --from-tags
 [--pattern 'v*']` records past releases from git tags, once.
+
+**Deploys the record missed.** Recording is allowed to fail, so a deploy can go
+out unrecorded. `slipdock deploy backfill --from-runs FILE` (`-` reads stdin)
+records them from CI's runs. It takes a JSON list as `gh run list --json
+headSha,createdAt,updatedAt,conclusion` prints it, or `sha`, `started_at`,
+`finished_at` and `status`. Each successful run that finished after the last
+recorded deploy is recorded oldest first, with the commits since the one
+before, and the cards those commits name get their Shipped line. A commit the
+board already has is never recorded twice, so it is safe to run before every
+deploy:
+
+```sh
+gh run list --workflow release.yml --branch main --status success --limit 100 \
+  --json headSha,createdAt,updatedAt,conclusion |
+  slipdock deploy backfill --from-runs - --env production
+```
 
 **Incidents** are ordinary cards tagged `incident` (the tag is a board setting).
 `slipdock incident-of <card> <deploy>` says which deploy caused one. A deploy

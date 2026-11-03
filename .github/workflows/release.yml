@@ -201,6 +201,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      # gh run list, for the deploys the record missed (below).
+      actions: read
     # One deploy at a time. A newer one waits rather than cancelling one that
     # may be mid-restart; GitHub keeps only the newest waiting, so a burst of
     # merges deploys the first and the last.
@@ -235,6 +237,22 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
         env:
           SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+
+      # Deploys that went out unrecorded (the record is allowed to fail; #1669:
+      # it failed for a day after a history rewrite) are filled in from this
+      # workflow's successful runs on main since the last recorded deploy,
+      # before this one is recorded after them. A sha the board already has
+      # is never recorded twice, so this is a no-op when nothing was missed.
+      - name: Record deploys the record missed
+        continue-on-error: true
+        run: |
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch main \
+            --status success --limit 100 --json headSha,createdAt,updatedAt,conclusion |
+            slipdock deploy backfill --from-runs - --env production
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+          SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
 
       # Two steps rather than `slipdock deploy run`: this deploy restarts the
       # server it is recorded on, so it is finished once that server is

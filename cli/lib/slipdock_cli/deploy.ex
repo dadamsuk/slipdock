@@ -79,31 +79,11 @@ defmodule SlipdockCLI.Deploy do
     end
   end
 
-  # Day-one history: each release tag recorded as a succeeded deploy at the
-  # tag's date. Running it twice records nothing twice.
+  # Deploys the record missed (#1669): each successful CI run since the last
+  # recorded deploy, from `gh run list --json` or the like. Running it twice
+  # records nothing twice.
   def run("deploy", ["backfill"], o) do
-    if !o[:from_tags], do: fail("pass --from-tags: each tag is recorded as a deploy at its date")
-
-    case backfill(o) do
-      {:ok, %{tags: []}} ->
-        IO.puts("no tags match #{inspect(pattern(o))}: nothing to record")
-
-      {:ok, %{dry_run: true, tags: tags}} ->
-        Enum.each(
-          tags,
-          &IO.puts("#{&1.name}  #{short(&1.sha)}  #{&1.date}  #{&1.commits} commits")
-        )
-
-        IO.puts("dry run: would record #{length(tags)} deploys to #{env(o)}; recorded nothing")
-
-      {:ok, %{recorded: n, existing: m}} ->
-        IO.puts(
-          "recorded #{n} deploys to #{env(o)} from tags#{if m > 0, do: " (#{m} already there)", else: ""}"
-        )
-
-      {:error, message} ->
-        fail(message)
-    end
+    if is_binary(o[:from_runs]), do: backfill_runs_out(o), else: backfill_tags_out(o)
   end
 
   def run("deploy", ["last"], o) do
@@ -175,6 +155,62 @@ defmodule SlipdockCLI.Deploy do
   end
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
+
+  defp backfill_runs_out(o) do
+    case backfill_runs(o) do
+      {:ok, %{runs: []}} ->
+        IO.puts(
+          "no successful runs since the last recorded deploy to #{env(o)}: nothing to record"
+        )
+
+      {:ok, %{dry_run: true, runs: runs}} ->
+        Enum.each(runs, fn r ->
+          IO.puts("#{short(r.sha)}  #{r.finished_at}  #{length(r.plan["commits"])} commits")
+        end)
+
+        IO.puts("dry run: would record #{length(runs)} deploys to #{env(o)}; recorded nothing")
+
+      {:ok, %{recorded: n, existing: m}} ->
+        IO.puts(
+          "recorded #{n} deploys to #{env(o)} from CI runs#{if m > 0, do: " (#{m} already there)", else: ""}"
+        )
+
+      {:error, message} ->
+        fail(message)
+    end
+  end
+
+  # Day-one history: each release tag recorded as a succeeded deploy at the
+  # tag's date. Running it twice records nothing twice.
+  defp backfill_tags_out(o) do
+    if !o[:from_tags],
+      do:
+        fail(
+          "pass --from-tags (each tag is recorded as a deploy at its date) " <>
+            "or --from-runs FILE (each successful CI run since the last recorded deploy)"
+        )
+
+    case backfill(o) do
+      {:ok, %{tags: []}} ->
+        IO.puts("no tags match #{inspect(pattern(o))}: nothing to record")
+
+      {:ok, %{dry_run: true, tags: tags}} ->
+        Enum.each(
+          tags,
+          &IO.puts("#{&1.name}  #{short(&1.sha)}  #{&1.date}  #{&1.commits} commits")
+        )
+
+        IO.puts("dry run: would record #{length(tags)} deploys to #{env(o)}; recorded nothing")
+
+      {:ok, %{recorded: n, existing: m}} ->
+        IO.puts(
+          "recorded #{n} deploys to #{env(o)} from tags#{if m > 0, do: " (#{m} already there)", else: ""}"
+        )
+
+      {:error, message} ->
+        fail(message)
+    end
+  end
 
   @doc false
   def render_dora(%{"enabled" => false, "message" => message}), do: IO.puts(message)
@@ -503,12 +539,152 @@ defmodule SlipdockCLI.Deploy do
 
   defp pattern(o), do: o[:pattern] || "*"
 
+  @doc """
+  `deploy backfill --from-runs FILE` (#1669): the deploys a CI pipeline made
+  that the board never heard of. FILE (`-` for stdin) is a JSON list of
+  runs, each `{headSha, createdAt, updatedAt, conclusion}` as `gh run list
+  --json` prints them, or `{sha, started_at, finished_at, status}`. The
+  successful ones that finished after the environment's last recorded
+  deploy are recorded oldest first, each with the commits since the one
+  before (the first since that last deploy), as succeeded deploys with
+  `source: backfill`; the server answers a sha it already has as existing.
+  `{:ok, %{runs, recorded, existing, dry_run}}` or `{:error, message}`.
+  """
+  def backfill_runs(o) do
+    with {:ok, token} <- deploy_token(),
+         {:ok, runs} <- read_runs(o[:from_runs]),
+         {:ok, last} <- server_last(token, env(o)),
+         {:ok, planned} <- plan_runs(o, since_last(runs, last), last) do
+      Enum.each(planned, &warn(&1.plan))
+
+      if o[:dry_run] || planned == [] do
+        {:ok, %{runs: planned, recorded: 0, existing: 0, dry_run: !!o[:dry_run]}}
+      else
+        record_runs(token, o, planned)
+      end
+    end
+  end
+
+  defp read_runs(source) do
+    with {:ok, text} <- read_source(source),
+         {:ok, list} when is_list(list) <- JSON.decode(text) do
+      {:ok, list |> Enum.flat_map(&run_entry/1) |> Enum.sort_by(& &1.at, DateTime)}
+    else
+      {:error, "couldn't read" <> _ = message} ->
+        {:error, message}
+
+      _ ->
+        {:error,
+         "#{source}: expected a JSON list of runs " <>
+           "(gh run list --json headSha,createdAt,updatedAt,conclusion)"}
+    end
+  end
+
+  defp read_source("-") do
+    case IO.read(:stdio, :eof) do
+      text when is_binary(text) -> {:ok, text}
+      _ -> {:ok, ""}
+    end
+  end
+
+  defp read_source(path) do
+    case File.read(path) do
+      {:ok, text} -> {:ok, text}
+      {:error, reason} -> {:error, "couldn't read #{path}: #{:file.format_error(reason)}"}
+    end
+  end
+
+  defp run_entry(%{} = r) do
+    sha = r["headSha"] || r["sha"]
+    finished = r["updatedAt"] || r["finished_at"]
+    status = r["conclusion"] || r["status"]
+
+    with true <- is_binary(sha) and sha != "",
+         true <- status in ["success", "succeeded"],
+         {:ok, at, _} <- DateTime.from_iso8601(to_string(finished)) do
+      [
+        %{
+          sha: String.downcase(sha),
+          started_at: r["createdAt"] || r["started_at"] || finished,
+          finished_at: finished,
+          at: at
+        }
+      ]
+    else
+      _ -> []
+    end
+  end
+
+  defp run_entry(_), do: []
+
+  # Only runs that finished after the last recorded deploy, one per sha.
+  defp since_last(runs, last) do
+    after_last =
+      case DateTime.from_iso8601(to_string(get_in(last, ["deployment", "finished_at"]))) do
+        {:ok, t, _} -> Enum.filter(runs, &(DateTime.compare(&1.at, t) == :gt))
+        _ -> runs
+      end
+
+    Enum.uniq_by(after_last, & &1.sha)
+  end
+
+  defp plan_runs(o, runs, last) do
+    runs
+    |> Enum.reduce_while({:ok, [], last}, fn r, {:ok, acc, prev} ->
+      case plan(o, r.sha, prev) do
+        {:ok, p} ->
+          next = %{
+            "sha" => r.sha,
+            "card_ref_pattern" => last["card_ref_pattern"],
+            "deployment" => %{"finished_at" => r.finished_at}
+          }
+
+          {:cont, {:ok, [Map.put(r, :plan, p) | acc], next}}
+
+        {:error, m} ->
+          {:halt, {:error, "#{short(r.sha)}: #{m}"}}
+      end
+    end)
+    |> case do
+      {:ok, acc, _} -> {:ok, Enum.reverse(acc)}
+      error -> error
+    end
+  end
+
+  defp record_runs(token, o, planned) do
+    Enum.reduce_while(
+      planned,
+      {:ok, %{runs: planned, recorded: 0, existing: 0, dry_run: false}},
+      fn r, {:ok, acc} ->
+        body = %{
+          "environment" => env(o),
+          "sha" => r.sha,
+          "previous_sha" => r.plan["previous_sha"],
+          "commits" => r.plan["commits"],
+          "rollback" => r.plan["rollback"],
+          "status" => "succeeded",
+          "started_at" => r.started_at,
+          "finished_at" => r.finished_at,
+          "source" => "backfill"
+        }
+
+        case HTTP.with_token(token, fn -> HTTP.post("/deployments", compact(body)) end) do
+          {:ok, %{"existing" => true}} -> {:cont, {:ok, %{acc | existing: acc.existing + 1}}}
+          {:ok, _} -> {:cont, {:ok, %{acc | recorded: acc.recorded + 1}}}
+          error -> {:halt, {:error, "#{short(r.sha)}: #{error_text(error)}"}}
+        end
+      end
+    )
+  end
+
   # -- Git ----------------------------------------------------------------------
 
   @doc """
   What this deploy covers, from the checkout: `%{"previous_sha", "commits",
   "rollback", "range"}`. The first deploy sends HEAD alone. A previous sha
-  that HEAD is an ancestor of is a rollback, with no commits of its own.
+  that HEAD is an ancestor of is a rollback, with no commits of its own. A
+  previous sha (or HEAD) the checkout hasn't got is no error: the plan
+  carries a `"warning"` and the commits it could still find (#1669).
   """
   def plan(o, head, last) do
     prev = last["sha"]
@@ -520,6 +696,18 @@ defmodule SlipdockCLI.Deploy do
     }
 
     cond do
+      # A sha this checkout hasn't got (`--sha`, a backfilled run from before
+      # a rewrite): recorded, with nothing to say what it carried.
+      not has_commit?(o, head) ->
+        {:ok,
+         Map.merge(base, %{
+           "commits" => [],
+           "rollback" => false,
+           "range" => "#{short(head)} (not in this checkout)",
+           "warning" =>
+             "#{short(head)} isn't in this checkout's history: recording it with no commits"
+         })}
+
       is_nil(prev) ->
         with {:ok, commits} <- log(o, [head, "-1"]),
              do:
@@ -536,24 +724,72 @@ defmodule SlipdockCLI.Deploy do
 
       true ->
         with :ok <- ensure_history(o, prev) do
-          if ancestor?(o, head, prev) do
-            {:ok,
-             Map.merge(base, %{
-               "commits" => [],
-               "rollback" => true,
-               "range" => "#{short(prev)} → #{short(head)} (rollback)"
-             })}
-          else
-            with {:ok, commits} <- log(o, ["#{prev}..#{head}"]) do
+          cond do
+            not has_commit?(o, prev) ->
+              since_newest_before(o, head, last, base)
+
+            ancestor?(o, head, prev) ->
               {:ok,
                Map.merge(base, %{
-                 "commits" => commits,
-                 "rollback" => false,
-                 "range" => "#{short(prev)}..#{short(head)}"
+                 "commits" => [],
+                 "rollback" => true,
+                 "range" => "#{short(prev)} → #{short(head)} (rollback)"
                })}
-            end
+
+            true ->
+              with {:ok, commits} <- log(o, ["#{prev}..#{head}"]) do
+                {:ok,
+                 Map.merge(base, %{
+                   "commits" => commits,
+                   "rollback" => false,
+                   "range" => "#{short(prev)}..#{short(head)}"
+                 })}
+              end
           end
         end
+    end
+  end
+
+  # The last deploy's commit has left the history (#1669: rewritten, so
+  # `prev..HEAD` is an invalid range). Its stand-in is the newest commit on
+  # HEAD's first-parent line committed by the time that deploy finished:
+  # after a rewrite that keeps dates, its own rewritten twin. Without one,
+  # the deploy is recorded with no commits. Either way it says so.
+  defp since_newest_before(o, head, last, base) do
+    prev = base["previous_sha"]
+    d = last["deployment"] || %{}
+    at = d["finished_at"] || d["started_at"]
+    why = "the last deploy's commit #{short(prev)} isn't in this checkout's history (rewritten?)"
+
+    case at && newest_before(o, head, at) do
+      anchor when is_binary(anchor) ->
+        with {:ok, commits} <- log(o, ["#{anchor}..#{head}"]) do
+          {:ok,
+           Map.merge(base, %{
+             "commits" => commits,
+             "rollback" => false,
+             "range" => "#{short(anchor)}..#{short(head)}",
+             "warning" =>
+               why <>
+                 ": recording the commits since #{short(anchor)}, the newest commit before it was deployed"
+           })}
+        end
+
+      _ ->
+        {:ok,
+         Map.merge(base, %{
+           "commits" => [],
+           "rollback" => false,
+           "range" => "#{short(head)} (last deploy not in history)",
+           "warning" => why <> ": recording this deploy with no commits"
+         })}
+    end
+  end
+
+  defp newest_before(o, head, at) do
+    case git(o, ["rev-list", "-1", "--first-parent", "--before=#{at}", head]) do
+      {sha, 0} when sha != "" -> sha
+      _ -> nil
     end
   end
 
@@ -688,6 +924,7 @@ defmodule SlipdockCLI.Deploy do
 
   # The range and the cards it names, the way the board will read them.
   defp describe(plan, device) do
+    warn(plan)
     commits = plan["commits"] || []
     regex = card_regex(plan["card_ref_pattern"])
     cards = commits |> Enum.flat_map(&card_refs(regex, &1["message"])) |> Enum.uniq()
@@ -712,6 +949,9 @@ defmodule SlipdockCLI.Deploy do
       )
     )
   end
+
+  defp warn(%{"warning" => w}) when is_binary(w), do: IO.puts(:stderr, "warning: " <> w)
+  defp warn(_plan), do: :ok
 
   @doc false
   def card_regex(pattern) when is_binary(pattern) and pattern != "" do
