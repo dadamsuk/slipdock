@@ -1589,6 +1589,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 card={@card}
                 can_write={@can_write}
                 target={@target}
+                form_key={@form_key}
               />
 
               <.attachments_section

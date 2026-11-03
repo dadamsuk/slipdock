@@ -191,6 +191,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :card, Card, required: true
   attr :can_write, :boolean, required: true
   attr :target, :any, required: true
+  attr :form_key, :integer, default: 0
 
   @doc """
   Where an agent's completion stands on a board that verifies work (#1633):
@@ -199,14 +200,26 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   request (#1657), with Merged it myself.
   """
   def verify_section(assigns) do
-    assigns = assign(assigns, :merge_status, Slipdock.Verified.merge_status(assigns.card))
+    assigns =
+      assigns
+      |> assign(:merge_status, Slipdock.Verified.merge_status(assigns.card))
+      |> assign(:person, Slipdock.Verified.person(verify_actor(assigns.card)))
 
     ~H"""
     <div id="card-verify" class="space-y-2 rounded-lg border border-base-300 px-3 py-2">
       <p class="flex items-center gap-2 text-sm">
         <.icon name={verify_icon(@card.verify_state)} class="size-4 shrink-0" />
         <span class="font-medium">{verify_title(@card.verify_state)}</span>
-        <span class="text-base-content/60">{verify_who(@card)}</span>
+        <span :if={!@person} class="text-base-content/60">{verify_who(@card)}</span>
+        <span :if={@person} id="card-verify-person" class="text-base-content/60">
+          {verify_lead(@card)}
+          <span :if={named?(@person)} class="font-medium text-base-content">{@person.name}</span>
+          <a
+            id="card-verify-email"
+            href={"mailto:" <> @person.email}
+            class="link link-primary break-all"
+          >{@person.email}</a>
+        </span>
         <span
           :if={@card.verify_rejections > 0}
           id="card-verify-rejections"
@@ -217,6 +230,37 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         </span>
       </p>
       <p :if={@card.verify_note} class="whitespace-pre-wrap text-sm">{@card.verify_note}</p>
+      <div :if={@person && @can_write} id="card-verify-reach" class="flex flex-wrap items-start gap-2">
+        <form
+          :if={not Card.assigned_to?(@card, @person.id)}
+          id="verify-assign"
+          phx-submit="card_change"
+          phx-target={@target}
+        >
+          <input type="hidden" name="card[add_assignee_id]" value={@person.id} />
+          <button type="submit" class="btn btn-ghost btn-sm">
+            <.icon name="hero-user-plus" class="size-4" /> Assign to {first_word(@person)}
+          </button>
+        </form>
+        <form
+          id={"verify-note-#{@form_key}"}
+          phx-submit="add_comment"
+          phx-target={@target}
+          class="flex min-w-0 flex-1 items-start gap-2"
+        >
+          <textarea
+            name="body"
+            rows="1"
+            required
+            aria-label={"A note to " <> Slipdock.Accounts.User.display_name(@person)}
+            title="Posted as a comment; the @mention emails them"
+            class="textarea textarea-bordered textarea-sm min-w-0 flex-1"
+          >{"@" <> Slipdock.Wiki.Links.handle(@person) <> " "}</textarea>
+          <button type="submit" class="btn btn-ghost btn-sm">
+            <.icon name="hero-envelope" class="size-4" /> Note to {first_word(@person)}
+          </button>
+        </form>
+      </div>
       <p :if={@card.merge_sha} id="card-merge-sha" class="text-sm">
         Merged as <code class="font-mono">{String.slice(@card.merge_sha, 0, 12)}</code>
       </p>
@@ -295,6 +339,23 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   defp verify_title("merging"), do: "Accepted, merging"
   defp verify_title("accepted"), do: "Accepted"
   defp verify_title(_), do: "Rejected"
+
+  # Who the verification line is about: the submitter while it waits, then
+  # whoever decided.
+  defp verify_actor(%Card{verify_state: "pending", verify_submitter: by}), do: by
+  defp verify_actor(%Card{verify_by: by}), do: by
+
+  defp verify_lead(%Card{verify_state: "pending"}), do: "submitted by"
+  defp verify_lead(_), do: "by"
+
+  defp named?(%{name: name}), do: is_binary(name) and String.trim(name) != ""
+
+  # A button's short label: the first word of their name, else their handle.
+  defp first_word(person) do
+    if named?(person),
+      do: person.name |> String.split() |> hd(),
+      else: Slipdock.Wiki.Links.handle(person)
+  end
 
   defp verify_who(%Card{verify_state: "pending", verify_submitter: by}),
     do: "submitted by #{Slipdock.Verified.who(by)}"

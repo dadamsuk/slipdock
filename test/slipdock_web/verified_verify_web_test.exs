@@ -176,6 +176,84 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
     refute has_element?(view, "#card-verify", "a person")
   end
 
+  test "a person who decided shows by full name and a mailto link, with a note and assign one step away (#1652)",
+       ctx do
+    import Swoosh.TestAssertions
+
+    {:ok, _} = on(ctx)
+    domain = "verify-#{System.unique_integer([:positive])}.example.com"
+    {:ok, dana} = Accounts.get_or_create_user_by_email("dana@#{domain}")
+    dana = dana |> Ecto.Changeset.change(name: "Dana Q Checker") |> Repo.update!()
+    share_fixture(ctx.board, [dana])
+
+    mcp(ctx.builder, "complete_card", %{card: ctx.card.id})
+
+    {:ok, _} =
+      Slipdock.Verified.decide(
+        Repo.get!(Card, ctx.card.id),
+        "reject",
+        %{"reason" => "Needs more"},
+        Slipdock.Actor.web(dana),
+        dana
+      )
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    assert has_element?(view, "#card-verify-person", "Dana Q Checker")
+
+    assert has_element?(
+             view,
+             ~s|#card-verify-email[href="mailto:dana@#{domain}"]|,
+             "dana@#{domain}"
+           )
+
+    # Assign: one click, and the button goes once they're on the card.
+    view |> element("#verify-assign") |> render_submit()
+    assert Card.assigned_to?(Boards.get_card!(ctx.card.id), dana.id)
+    refute has_element?(view, "#verify-assign")
+
+    # Note: the box starts with their @handle; sending posts a comment that mentions them.
+    assert render(view) =~ "@dana "
+
+    view
+    |> element("#card-verify-reach form[phx-submit=add_comment]")
+    |> render_submit(%{"body" => "@dana see the bar"})
+
+    assert Enum.any?(
+             Repo.preload(Boards.get_card!(ctx.card.id), :comments).comments,
+             &(&1.body == "@dana see the bar")
+           )
+
+    assert_email_sent(to: [{"", "dana@#{domain}"}], subject: ~r/mentioned you/)
+  end
+
+  test "an agent, or a reader, gets no note or assign; a person without a name shows as their email",
+       ctx do
+    {:ok, _} = on(ctx)
+    mcp(ctx.builder, "complete_card", %{card: ctx.card.id})
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    assert has_element?(view, "#card-verify", "agent “builder”")
+    refute has_element?(view, "#card-verify-reach")
+    refute has_element?(view, "#card-verify-email")
+
+    view |> element("#verify-accept") |> render_click()
+    me = Repo.get!(Accounts.User, ctx.user.id)
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    assert has_element?(view, ~s|#card-verify-email[href="mailto:#{me.email}"]|)
+    assert has_element?(view, "#verify-assign", "Assign to #{Slipdock.Wiki.Links.handle(me)}")
+
+    # The account is gone: said so, and nothing to email or assign.
+    card = Repo.get!(Card, ctx.card.id)
+
+    card
+    |> Ecto.Changeset.change(verify_by: Map.put(card.verify_by, "user_id", -1))
+    |> Repo.update!()
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    assert has_element?(view, "#card-verify", "a deleted account")
+    refute has_element?(view, "#card-verify-reach")
+  end
+
   test "settings turn it on; off, a card shows no verification", ctx do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
     refute has_element?(view, "#card-verify")

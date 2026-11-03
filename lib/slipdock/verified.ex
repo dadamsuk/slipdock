@@ -1021,6 +1021,21 @@ defmodule Slipdock.Verified do
     end
   end
 
+  @doc """
+  The person behind an actor stored on a card, when it was a person whose
+  account still exists: nil for an agent, a deleted account or nobody. The
+  card panel uses it to show their email and offer a note or an assignment.
+  """
+  def person(nil), do: nil
+
+  def person(actor) do
+    case actor_map(actor) do
+      %{"kind" => "agent"} -> nil
+      %{"user_id" => id} when is_integer(id) -> Repo.get(Slipdock.Accounts.User, id)
+      _ -> nil
+    end
+  end
+
   defp who(actor, user) do
     a = actor_map(actor)
 

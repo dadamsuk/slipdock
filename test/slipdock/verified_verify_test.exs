@@ -296,4 +296,19 @@ defmodule Slipdock.VerifiedVerifyTest do
       assert Verified.who(%{"kind" => "human"}) == "somebody"
     end
   end
+
+  describe "person/1" do
+    test "the user behind a person, nothing for an agent, a deleted account or nobody", ctx do
+      assert Verified.person(Actor.web(ctx.owner)).id == ctx.owner.id
+      assert Verified.person(%{"kind" => "human", "user_id" => ctx.owner.id}).id == ctx.owner.id
+      assert Verified.person(ctx.builder) == nil
+
+      assert Verified.person(%{"kind" => "agent", "agent" => "x", "user_id" => ctx.owner.id}) ==
+               nil
+
+      assert Verified.person(%{Actor.web(ctx.owner) | user_id: -1}) == nil
+      assert Verified.person(nil) == nil
+      assert Verified.person(%{"kind" => "human"}) == nil
+    end
+  end
 end
