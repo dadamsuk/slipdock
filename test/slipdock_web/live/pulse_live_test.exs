@@ -61,4 +61,37 @@ defmodule SlipdockWeb.PulseLiveTest do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     refute has_element?(view, "#board-pulse")
   end
+
+  describe "clicking the pulse (#1650)" do
+    setup %{board: board} do
+      {:ok, board} = Boards.update_board(board, %{"show_pulse" => true})
+      %{board: board}
+    end
+
+    test "takes the owner to the visualise view", %{conn: conn, board: board} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      assert has_element?(view, ~s(a#board-pulse[href="/boards/#{board.id}/visualise"]))
+
+      {:ok, visualise, _} =
+        view |> element("#board-pulse") |> render_click() |> follow_redirect(conn)
+
+      assert visualise.module == SlipdockWeb.BoardLive.Visualise
+      assert page_title(visualise) =~ "Visualise"
+    end
+
+    test "is plain text for a view-only share, who can't open visualise", %{
+      board: board,
+      user: user
+    } do
+      viewer = user_fixture("viewer#{System.unique_integer([:positive])}@example.com")
+      {:ok, saved} = Boards.create_saved_view(board, %{"name" => "Everything"})
+      {:ok, _} = Slipdock.Access.grant(saved, viewer, "read", user)
+      assert Slipdock.Access.board_permission(viewer, board) == :view
+      conn = log_in_user(build_conn(), viewer)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}?view=#{saved.id}")
+      assert has_element?(view, "p#board-pulse", "2 in progress")
+      refute has_element?(view, "a#board-pulse")
+    end
+  end
 end

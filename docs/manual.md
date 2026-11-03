@@ -804,7 +804,7 @@ list's in and out over 7 days with its usual stay. `slipdock pulse <board>`,
 `GET /api/boards/:id/pulse` and MCP `get_board` with `pulse: true` answer it
 on every board; **Show the board's pulse** in the board's settings
 (`slipdock set-board <board> --show-pulse`) puts it in plain words over the
-lists. Off by default.
+lists; click the line to open the board's Visualise view. Off by default.
 
 **A card's state.** A card with a job or a wait on it shows one line on its
 front — *Running · runner-2 · 7m*, *Queued · dev · 3m*, *Held · paused by

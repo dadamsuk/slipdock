@@ -429,9 +429,21 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       </.board_toolbar>
       <.pause_banner pauses={@pauses} can_manage={@can_manage} />
       <%!-- The board's pulse in plain words (#1113): only when the owner
-            turned it on in settings (`show_pulse`). --%>
+            turned it on in settings (`show_pulse`). It opens the visualise
+            view (#1650), which a view-only share can't open, so for them it
+            stays plain text. --%>
+      <.link
+        :if={@pulse && !@view_only}
+        id="board-pulse"
+        navigate={~p"/boards/#{@board}/visualise"}
+        title="Open the visualise view"
+        class="flex items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-1.5 text-xs text-base-content/70 hover:bg-base-200 hover:text-base-content"
+      >
+        <.icon name="hero-chart-bar" class="size-3.5 shrink-0" />
+        <span>{Slipdock.Pulse.sentence(@pulse)}</span>
+      </.link>
       <p
-        :if={@pulse}
+        :if={@pulse && @view_only}
         id="board-pulse"
         class="flex items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-1.5 text-xs text-base-content/70"
       >
