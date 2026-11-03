@@ -24,6 +24,10 @@ defmodule Slipdock.Runners.Runner do
     # #1656); nil for one that never said (an older runner, a session).
     # Only `merge` jobs are routed on it.
     field :kinds, {:array, :string}
+    # The runner script it said it is running on its last claim
+    # (`X-Runner-Version`, #1658): "sh <sha256>" or "ps1 <sha256>", the
+    # script file's own SHA-256; nil for one that never said.
+    field :version, :string
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :created_by, Slipdock.Accounts.User

@@ -42,6 +42,9 @@
 #                          cancelled or timeout)
 #   --worktree             run each job in a git worktree of --cwd's repository,
 #                          on a branch named for its card (default: off)
+#   --no-self-update       don't let the runner replace itself with the server's
+#                          newer script between jobs (default: it does, only when
+#                          the download matches the published SHA-256)
 #   --name NAME            this runner's name on this machine, so it runs beside
 #                          the others (default: none, the machine's one runner)
 #   --replace              replace the config even if it is another runner's
@@ -67,6 +70,7 @@ INSTRUCTIONS=
 BEFORE_JOB=
 AFTER_JOB=
 WORKTREE=
+SELF_UPDATE_ON=1
 NAME=
 REPLACE=
 
@@ -97,7 +101,8 @@ while [ $# -gt 0 ]; do
     --before-job) need "$@"; BEFORE_JOB=$2; shift 2 ;;
     --after-job) need "$@"; AFTER_JOB=$2; shift 2 ;;
     --worktree) WORKTREE=1; shift ;;
-    -h | --help) sed -n '2,52p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
+    --no-self-update) SELF_UPDATE_ON=; shift ;;
+    -h | --help) sed -n '2,55p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -292,6 +297,13 @@ if [ -n "$WORKTREE" ]; then
 # A clean one is removed after the job; one with uncommitted changes is kept.
 WORKTREE=1
 WORKTREE_REPO=\$WORKDIR
+"
+fi
+if [ -n "$SELF_UPDATE_ON" ]; then
+  EXTRA="$EXTRA
+# Keeping current: between jobs, the runner replaces itself with the server's
+# newer script, only when it matches the published SHA-256. 0 turns it off.
+SELF_UPDATE=1
 "
 fi
 

@@ -14,7 +14,9 @@ defmodule SlipdockWeb.API.RunnerController do
   A claim may say which job kinds the runner takes (`X-Runner-Kinds:
   claude,merge`, #1656): kept on the runner, and a `merge` job goes only to
   a runner that lists it. A merge job comes with `X-Merge-PR` and
-  `X-Merge-Commit`, and its finish may say `merged=<sha>`.
+  `X-Merge-Commit`, and its finish may say `merged=<sha>`. A claim may say
+  the runner script's own SHA-256 (`X-Runner-Version: sh <sha>`, #1658);
+  the answer then says the one this server hands out (`X-Runner-Latest`).
 
   A job that asked a person something (a wait opened with its id) finishes
   `ok parked`, whatever its exit code. A job sent again after its question
@@ -46,10 +48,11 @@ defmodule SlipdockWeb.API.RunnerController do
 
   def claim(conn, params) do
     runner =
-      Runners.report_kinds(
-        conn.assigns.runner,
-        conn |> get_req_header("x-runner-kinds") |> List.first()
-      )
+      conn.assigns.runner
+      |> Runners.report_kinds(conn |> get_req_header("x-runner-kinds") |> List.first())
+      |> Runners.report_version(conn |> get_req_header("x-runner-version") |> List.first())
+
+    conn = latest_header(conn, runner)
 
     if params["pool"] not in [nil, "", runner.pool] do
       text_reply(conn, 403, "this runner token is for pool #{runner.pool}, not #{params["pool"]}")
@@ -110,6 +113,19 @@ defmodule SlipdockWeb.API.RunnerController do
       &if(handoff, do: put_resp_header(&1, "x-handoff-id", to_string(handoff.id)), else: &1)
     )
   end
+
+  # The script this server hands out for the runner's flavour (#1658), so a
+  # runner set to update itself knows when to.
+  defp latest_header(conn, %{version: version}) when is_binary(version) do
+    flavor = version |> String.split(" ") |> hd()
+
+    case SlipdockWeb.RunnerInstallController.latest()[flavor] do
+      nil -> conn
+      sha -> put_resp_header(conn, "x-runner-latest", sha)
+    end
+  end
+
+  defp latest_header(conn, _runner), do: conn
 
   # A merge job (#1656): the pull request and the accepted commit, for the
   # runner's built-in merge to check before it merges anything.

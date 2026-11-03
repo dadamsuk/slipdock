@@ -128,4 +128,21 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert guide =~ "`merge` jobs (merging an accepted card's pull request)"
     assert guide =~ "`X-Runner-Kinds`"
   end
+
+  test "keeping runners current is described in the scripts, installers and docs (#1658)" do
+    flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
+
+    assert flat.("priv/runner/slipdock-runner") =~
+             "Keeping current (#1658), off unless the config sets SELF_UPDATE=1"
+
+    assert flat.("priv/runner/slipdock-runner.ps1") =~
+             "Keeping current (#1658), off unless the config sets $SelfUpdate = $true"
+
+    assert flat.("priv/runner/install.sh") =~ "--no-self-update"
+    assert flat.("priv/runner/install.ps1") =~ "[switch]$NoSelfUpdate"
+    assert flat.("docs/manual.md") =~ "**Keeping runners current.**"
+    assert flat.("docs/manual.md") =~ "The config is never touched"
+    assert flat.("docs/agents.md") =~ "replace themselves with the server's newer script"
+    assert flat.("lib/slipdock_web/api_guide.ex") =~ "(`X-Runner-Version`)"
+  end
 end

@@ -2168,7 +2168,9 @@ defmodule SlipdockWeb.APIGuide do
     of kind `verify`, so a runner needs a `job_verify` to take them.
     `merge` jobs (merging an accepted card's pull request) are built into
     the runner scripts, and go only to runners whose claims list `merge`
-    in `X-Runner-Kinds`.
+    in `X-Runner-Kinds`. Claims also say the script's own SHA-256
+    (`X-Runner-Version`); the runners list's `script` says whether it is
+    current, and `missing_kinds` what the board needs that it lacks.
     """
   end
 

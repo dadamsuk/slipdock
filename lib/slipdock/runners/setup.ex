@@ -80,6 +80,9 @@ defmodule Slipdock.Runners.Setup do
     # Lanes (#1627): each job in a git worktree of its own, on a branch
     # named for its card. Only for a runner on a machine (server, windows).
     "worktree" => false,
+    # Keeping current (#1658): the runner replaces itself with the server's
+    # newer script between jobs, on a matching checksum. On for new installs.
+    "self_update" => true,
     "mcp_servers" => "claude_ai_Slipdock, slipdock",
     # The runner's name on its machine, so several can run there side by
     # side (see `install_name/2`). Blank is the machine's one runner.
@@ -149,6 +152,7 @@ defmodule Slipdock.Runners.Setup do
       |> Map.update!("install_name", &(&1 |> to_string() |> String.downcase()))
       |> Map.update!("slipdock_tools", &flag/1)
       |> Map.update!("worktree", &flag/1)
+      |> Map.update!("self_update", &flag/1)
       |> Map.merge(Map.new(@toggles, &{&1, flag(answers[&1])}))
       |> Map.update!("mcp_servers", &mcp_server_list/1)
 
@@ -219,6 +223,9 @@ defmodule Slipdock.Runners.Setup do
 
       answers["worktree"] not in [true, false] ->
         {:error, "worktree must be true or false"}
+
+      answers["self_update"] not in [true, false] ->
+        {:error, "self_update must be true or false"}
 
       answers["slipdock_tools"] and answers["mcp_servers"] == [] ->
         {:error, "name the Slipdock MCP server, or turn the Slipdock tools off"}
@@ -947,7 +954,8 @@ defmodule Slipdock.Runners.Setup do
         if(instructions(a) != "", do: ["--instructions #{sh_q(instructions(a))}"], else: []) ++
         if(a["before_job"] != "", do: ["--before-job #{sh_q(a["before_job"])}"], else: []) ++
         if(a["after_job"] != "", do: ["--after-job #{sh_q(a["after_job"])}"], else: []) ++
-        if(a["worktree"] == true, do: ["--worktree"], else: [])
+        if(a["worktree"] == true, do: ["--worktree"], else: []) ++
+        if(a["self_update"] == false, do: ["--no-self-update"], else: [])
 
     "curl -fsSL #{ctx.base_url}/runner/install.sh | sh -s -- \\\n  " <>
       Enum.join(flags, " \\\n  ")
@@ -971,7 +979,8 @@ defmodule Slipdock.Runners.Setup do
         if(instructions(a) != "", do: ["-Instructions #{ps_q(instructions(a))}"], else: []) ++
         if(a["before_job"] != "", do: ["-BeforeJob #{ps_q(a["before_job"])}"], else: []) ++
         if(a["after_job"] != "", do: ["-AfterJob #{ps_q(a["after_job"])}"], else: []) ++
-        if(a["worktree"] == true, do: ["-Worktree"], else: [])
+        if(a["worktree"] == true, do: ["-Worktree"], else: []) ++
+        if(a["self_update"] == false, do: ["-NoSelfUpdate"], else: [])
 
     "& ([scriptblock]::Create((irm #{ps_q(ctx.base_url <> "/runner/install.ps1")}))) `\n  " <>
       Enum.join(params, " `\n  ")
@@ -1066,6 +1075,14 @@ defmodule Slipdock.Runners.Setup do
   WORKTREE_REPO=$WORKDIR
   """
 
+  # What install.sh adds unless --no-self-update (#1658).
+  @self_update_config """
+
+  # Keeping current: between jobs, the runner replaces itself with the server's
+  # newer script, only when it matches the published SHA-256. 0 turns it off.
+  SELF_UPDATE=1
+  """
+
   # What install.sh adds for the instructions and hooks. The heredoc's
   # delimiter is drawn at random when it is written.
   defp config_extra(a) do
@@ -1082,7 +1099,8 @@ defmodule Slipdock.Runners.Setup do
       a["after_job"] != "" &&
         "\n# Runs after each job however it ended, with $SLIPDOCK_EXIT and $SLIPDOCK_STATUS\n" <>
           "# (done, failed, cancelled or timeout).\nafter_job() {\n" <> a["after_job"] <> "\n}\n",
-      a["worktree"] == true && @worktree_config
+      a["worktree"] == true && @worktree_config,
+      a["self_update"] != false && @self_update_config
     ]
     |> Enum.filter(&is_binary/1)
     |> Enum.join()

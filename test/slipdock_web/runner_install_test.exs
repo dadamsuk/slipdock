@@ -584,4 +584,12 @@ defmodule SlipdockWeb.RunnerInstallTest do
       refute File.exists?(Path.join(dir(ctx), "config"))
     end
   end
+
+  test "new installs keep themselves current unless --no-self-update (#1658)", ctx do
+    {_, 0} = install(ctx, @base)
+    assert sourced(ctx, "SELF_UPDATE") == "1"
+
+    {_, 0} = install(ctx, @base ++ ["--no-self-update"])
+    assert sourced(ctx, "SELF_UPDATE") == ""
+  end
 end

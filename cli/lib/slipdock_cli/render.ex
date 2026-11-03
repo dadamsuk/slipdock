@@ -1947,11 +1947,28 @@ defmodule SlipdockCLI.Render do
           r["name"],
           r["pool"],
           if(r["last_seen_at"], do: stamp(r["last_seen_at"]), else: dim("never")),
-          if(r["current_job_id"], do: "job ##{r["current_job_id"]}", else: dim("idle"))
+          if(r["current_job_id"], do: "job ##{r["current_job_id"]}", else: dim("idle")),
+          script_cell(r)
         ]
       end)
 
-    table(["ID", "NAME", "POOL", "LAST SEEN", "NOW"], rows)
+    table(["ID", "NAME", "POOL", "LAST SEEN", "NOW", "SCRIPT"], rows)
+  end
+
+  # Whether a runner's script is current, and the kinds its board needs that
+  # it lacks (#1658).
+  defp script_cell(r) do
+    state =
+      case r["script"] do
+        "current" -> "current"
+        "out_of_date" -> "out of date"
+        _ -> if r["session"], do: dim("-"), else: "old (can't say)"
+      end
+
+    case r["missing_kinds"] do
+      [_ | _] = kinds -> state <> ", lacks " <> Enum.join(kinds, ", ")
+      _ -> state
+    end
   end
 
   # One runner in full: what it is, who made it, what it is doing now, how
@@ -1972,6 +1989,8 @@ defmodule SlipdockCLI.Render do
       [_ | _] = kinds -> IO.puts("takes:     " <> Enum.join(kinds, ", "))
       _ -> IO.puts("takes:     " <> dim("not said (an older runner: no merge jobs)"))
     end
+
+    unless r["session"], do: IO.puts("script:    " <> script_cell(r))
 
     if t = r["api_token"] do
       IO.puts("api token: #{t["label"] || "##{t["id"]}"} (#{t["scope"]})")

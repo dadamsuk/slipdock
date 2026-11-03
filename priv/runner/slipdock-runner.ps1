@@ -35,6 +35,15 @@
 # accepted, and reports the merge commit. $Merge = $false in the config turns
 # it off; a config's own Job-Merge replaces it. Every claim tells the server
 # which kinds this runner takes, so merge jobs only come to runners that can.
+#
+# Keeping current (#1658), off unless the config sets $SelfUpdate = $true
+# (new installs do): every claim says which script this is (its own
+# SHA-256, line endings as served), and the server answers with the one it
+# hands out. When they differ and a claim came back empty, so no job is
+# running, the runner fetches the script and SHA256SUMS from the server (or
+# $SelfUpdateUrl), and replaces itself only if the download's SHA-256
+# matches both; then it starts again. A mismatch keeps this script, says so
+# in the log, and isn't tried again. The config is never touched.
 param(
   [string]$Config = '',
   [switch]$Once,
@@ -520,6 +529,68 @@ $Kinds = (@(Get-ChildItem Function:Job-* | ForEach-Object {
     }) | Sort-Object -Unique) -join ','
 $KindsHeader = @{ 'X-Runner-Kinds' = $Kinds }
 
+# The SHA-256 of some bytes, in lower-case hex.
+function Get-Sha256([byte[]]$bytes) {
+  $hasher = [Security.Cryptography.SHA256]::Create()
+  try { return (($hasher.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join '') } finally { $hasher.Dispose() }
+}
+
+# This script's SHA-256 as the server hands it out: LF line endings and one
+# final newline, whatever an installer or Windows did to them (#1658).
+function Get-ScriptSha([string]$path) {
+  $text = [IO.File]::ReadAllText($path) -replace "`r`n", "`n"
+  return Get-Sha256 ($Utf8.GetBytes($text.TrimEnd("`n") + "`n"))
+}
+
+$MySha = ''
+try { $MySha = Get-ScriptSha $PSCommandPath } catch { }
+if ($MySha) { $KindsHeader['X-Runner-Version'] = "ps1 $MySha" }
+$SkipSha = ''
+
+# Bytes from the server, or from a file:// URL.
+function Get-Remote([string]$url) {
+  if ($url -like 'file://*') { return [IO.File]::ReadAllBytes(([Uri]$url).LocalPath) }
+  $r = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 60
+  if ($r.RawContentStream) { return $r.RawContentStream.ToArray() }
+  return $Utf8.GetBytes([string]$r.Content)
+}
+
+# Between jobs: fetch the script and its checksums, and put the script in
+# place of this one only if its SHA-256 matches both the published sum and
+# $latest. True when it was replaced.
+function Update-Self([string]$latest) {
+  $base = $SelfUpdateUrl
+  if (-not $base) { $base = "$SlipdockUrl/runner" }
+  $base = $base.TrimEnd('/')
+  try {
+    $new = Get-Remote "$base/slipdock-runner.ps1"
+    $sums = $Utf8.GetString((Get-Remote "$base/SHA256SUMS"))
+  } catch {
+    Say "self-update: could not fetch the new script from ${base}: $($_.Exception.Message); keeping this one"
+    return $false
+  }
+  $got = Get-Sha256 $new
+  $published = ''
+  foreach ($line in ($sums -split "`n")) {
+    $f = $line.Trim() -split '\s+'
+    if ($f.Count -ge 2 -and $f[1] -eq 'slipdock-runner.ps1') { $published = $f[0] }
+  }
+  if ($got -ne $published -or $got -ne $latest) {
+    Say "self-update: checksum mismatch (got $got, published $published, expected $latest); keeping this script"
+    return $false
+  }
+  try {
+    $tmp = "$PSCommandPath.new"
+    [IO.File]::WriteAllBytes($tmp, $new)
+    Move-Item -LiteralPath $tmp -Destination $PSCommandPath -Force
+  } catch {
+    Say "self-update: could not replace ${PSCommandPath}: $($_.Exception.Message); keeping this script"
+    return $false
+  }
+  Say "self-update: replaced $PSCommandPath ($MySha -> $got)"
+  return $true
+}
+
 $query = "wait=$Wait"
 if ($Pool) { $query += "&pool=$Pool" }
 $poolNote = ''
@@ -542,6 +613,20 @@ try {
       } elseif ($claim.Status -eq 204) {
         $backoff = 1
         $quiet = 0
+        # Between jobs: keep current, if the config asks (#1658).
+        $latest = Get-Header $claim 'X-Runner-Latest'
+        if ($SelfUpdate -and ("$SelfUpdate" -notin @('0', 'no', 'false', 'off')) -and $latest -match '^[0-9a-f]{64}$' -and
+          $latest -ne $MySha -and $latest -ne $SkipSha) {
+          if (Update-Self $latest) {
+            if ($Once) { exit 0 }
+            # Start again as the new script, with the same arguments.
+            $shell = (Get-Process -Id $PID).Path
+            $again = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-Config', "`"$Config`"")
+            Start-Process -FilePath $shell -ArgumentList $again -NoNewWindow | Out-Null
+            exit 0
+          }
+          $SkipSha = $latest
+        }
         # A server stopping for a deploy says how long to wait before asking
         # again, by when its replacement is there to answer.
         $pause = 0

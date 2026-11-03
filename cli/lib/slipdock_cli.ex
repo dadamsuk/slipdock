@@ -884,6 +884,7 @@ defmodule SlipdockCLI do
                [--[no-]in-progress] [--[no-]assign] [--[no-]commit] [--[no-]push]
                [--[no-]move-done] [--[no-]complete] [--[no-]percent-100]
                [--no-slipdock-tools] [--mcp-servers A,B] [--install-name NAME] [--worktree]
+               [--no-self-update]
                                                    connect a runner: prints exactly what to paste
                                                    (and, for server/windows, its token, once);
                                                    --column adds a rule sending that list's cards
@@ -906,7 +907,9 @@ defmodule SlipdockCLI do
                                                    name of their own (default <board>-<pool>),
                                                    so one machine runs several: --install-name;
                                                    --worktree runs each job in a git worktree
-                                                   of --cwd's repo, on branch card-<id>
+                                                   of --cwd's repo, on branch card-<id>;
+                                                   --no-self-update: the runner doesn't replace
+                                                   itself with this server's newer script
     runner show <board> <runner>                   one runner in full: who made it, its job now,
                                                    how its jobs ended, its latest jobs, its rules
     runner setup <board> <runner> [answers...]     a runner's steps again (token left out); with
@@ -1232,6 +1235,7 @@ defmodule SlipdockCLI do
     percent_100: :boolean,
     slipdock_tools: :boolean,
     worktree: :boolean,
+    self_update: :boolean,
     wait_while_doing: :boolean,
     requeue_stuck: :integer,
     hook_prompt: :boolean,

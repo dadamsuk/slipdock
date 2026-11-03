@@ -33,6 +33,15 @@
 # accepted, and reports the merge commit. MERGE=0 in the config turns it off;
 # a config's own job_merge replaces it. Every claim tells the server which
 # kinds this runner takes, so merge jobs only come to runners that can.
+#
+# Keeping current (#1658), off unless the config sets SELF_UPDATE=1 (new
+# installs do): every claim says which script this is (its own SHA-256), and
+# the server answers with the one it hands out. When they differ and a claim
+# came back empty, so no job is running, the runner fetches the script and
+# SHA256SUMS from the server (or SELF_UPDATE_URL), and replaces itself only
+# if the download's SHA-256 matches both; then it starts again in place. A
+# mismatch keeps this script, says so in the log, and isn't tried again. The
+# config is never touched.
 set -u
 
 # The built-in merge (see above). The server sends only data: the pull
@@ -89,7 +98,7 @@ for arg in "$@"; do
     --once) ONCE=1 ;;
     --config=*) CONFIG=${arg#--config=} ;;
     -h | --help)
-      sed -n '2,35p' "$0"
+      sed -n '2,45p' "$0"
       exit 0
       ;;
     *)
@@ -138,7 +147,51 @@ defined() { [ "$(command -v "$1" 2>/dev/null)" = "$1" ]; }
 # job_<kind> function the config defines, and the built-in merge.
 KINDS=$({ grep -o 'job_[a-z0-9_]*' "$CONFIG" 2>/dev/null; echo job_merge; } | sort -u |
   while read -r f; do defined "$f" && printf '%s\n' "${f#job_}"; done | paste -s -d , -)
-printf 'X-Runner-Kinds: %s\n' "$KINDS" >"$WORK/kinds"
+# sha256 FILE — the file's SHA-256 in hex, with whichever tool is here.
+sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 "$1" | awk '{print $NF}'
+  fi
+}
+
+# Which script this is, said on every claim (#1658).
+SELF=$0
+MY_SHA=$(sha256 "$SELF" 2>/dev/null)
+{
+  printf 'X-Runner-Kinds: %s\n' "$KINDS"
+  case "$MY_SHA" in ?*) printf 'X-Runner-Version: sh %s\n' "$MY_SHA" ;; esac
+} >"$WORK/kinds"
+SKIP_SHA=
+
+# self_update LATEST — between jobs: fetch the script and its checksums, and
+# put the script in place of this one only if its SHA-256 matches both the
+# published sum and LATEST. 0 when it was replaced.
+self_update() {
+  base=${SELF_UPDATE_URL:-$SLIPDOCK_URL/runner}
+  base=${base%/}
+  if ! curl -fsS --max-time 60 -o "$WORK/new" "$base/slipdock-runner" 2>>"$WORK/curl.err" ||
+    ! curl -fsS --max-time 60 -o "$WORK/sums" "$base/SHA256SUMS" 2>>"$WORK/curl.err"; then
+    say "self-update: could not fetch the new script from $base; keeping this one"
+    return 1
+  fi
+  got=$(sha256 "$WORK/new")
+  published=$(awk '$2 == "slipdock-runner" {print $1}' "$WORK/sums")
+  if [ -z "$got" ] || [ "$got" != "$published" ] || [ "$got" != "$1" ]; then
+    say "self-update: checksum mismatch (got ${got:-none}, published ${published:-none}, expected $1); keeping this script"
+    return 1
+  fi
+  cp "$WORK/new" "$SELF.new" && chmod 755 "$SELF.new" && mv "$SELF.new" "$SELF" || {
+    say "self-update: could not replace $SELF; keeping this script"
+    rm -f "$SELF.new"
+    return 1
+  }
+  say "self-update: replaced $SELF (${MY_SHA:-?} -> $got)"
+  return 0
+}
 
 JOB_PID=
 JOB_ID=
@@ -466,6 +519,23 @@ while :; do
     204)
       backoff=1
       quiet=0
+      # Between jobs: keep current, if the config asks (#1658).
+      latest=$(header x-runner-latest)
+      case "${SELF_UPDATE:-}" in
+        1 | yes | true | on)
+          case "$latest" in
+            '' | *[!0-9a-f]* | "$MY_SHA" | "$SKIP_SHA") ;;
+            *)
+              if self_update "$latest"; then
+                [ -n "$ONCE" ] && exit 0
+                rm -rf "$WORK"
+                exec sh "$SELF" "$@"
+              fi
+              SKIP_SHA=$latest
+              ;;
+          esac
+          ;;
+      esac
       # A server stopping for a deploy says how long to wait before asking
       # again, by when its replacement is there to answer.
       pause=$(header retry-after)

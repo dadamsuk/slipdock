@@ -42,6 +42,10 @@ param(
   # Run each job in a git worktree of -Cwd's repository, on a branch named
   # for its card (card-<id>).
   [switch]$Worktree,
+  # Don't let the runner replace itself with the server's newer script
+  # between jobs (by default it does, only when the download matches the
+  # published SHA-256).
+  [switch]$NoSelfUpdate,
   [string]$InstallDir = '',
   # This runner's name on this machine, so it runs beside the others
   # (default: none, the machine's one runner).
@@ -176,6 +180,7 @@ if ($Instructions) { $extra += "`n# Added after every job's prompt.`n`$JobInstru
 if ($BeforeJob) { $extra += "`n# Runs before each job; the job runs only if this succeeds.`nfunction Before-Job {`n$BeforeJob`n}`n" }
 if ($AfterJob) { $extra += "`n# Runs after each job however it ended, with `$env:SLIPDOCK_EXIT and`n# `$env:SLIPDOCK_STATUS (done, failed, cancelled or timeout).`nfunction After-Job {`n$AfterJob`n}`n" }
 if ($Worktree) { $extra += "`n# Lanes: each job runs in a git worktree of `$WorkDir's repository, on a branch`n# named for its card (card-<id>), in its sibling directory <repo>-lanes.`n# A clean one is removed after the job; one with uncommitted changes is kept.`n`$Worktree = `$true`n`$WorktreeRepo = `$WorkDir`n" }
+if (-not $NoSelfUpdate) { $extra += "`n# Keeping current: between jobs, the runner replaces itself with the server's`n# newer script, only when it matches the published SHA-256. `$false turns it off.`n`$SelfUpdate = `$true`n" }
 
 $configText = @"
 # slipdock-runner config - written by install.ps1, yours to edit. It is

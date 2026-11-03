@@ -3175,6 +3175,25 @@ or a directory that isn't a git repository, runs in place, saying so; if the
 worktree can't be made the job fails without running. Off by default: with
 the setting off nothing changes.
 
+**Keeping runners current.** Every claim says which script the runner is
+running (the SHA-256 of its own file, as `/runner/SHA256SUMS` lists it), and
+the Runners panel marks one that isn't this server's as *out of date* (or
+*old script* when it is too old to say). It also marks *no merge* on a board
+that ships by pull request when a runner doesn't take merge jobs.
+`slipdock runners` shows the same in its SCRIPT column, and `slipdock runner`
+on its *script* line. With *Keep the runner current* ticked (the default for
+new installs; `--no-self-update` to `install.sh`, `-NoSelfUpdate` to
+`install.ps1`, `slipdock runner new … --no-self-update`; by hand
+`SELF_UPDATE=1` or `$SelfUpdate = $true` in the config), a runner whose
+claim comes back empty, so no job is running, fetches the new script and
+`SHA256SUMS`. It replaces itself only if the download's SHA-256 matches
+both the published sum and the version the server announced, then starts
+again in place. A mismatch keeps the running script, says so in the log,
+and that version isn't tried again until the runner restarts. The config is
+never touched, so a runner installed before this has no such line and stays
+as it is until it is installed again. `SELF_UPDATE_URL` (`$SelfUpdateUrl`)
+fetches from somewhere else than the server.
+
 **Having Claude write the hooks.** What a hook should do — which notifier
 to call, what to keep from each pass — differs from one machine to the
 next, so rather than ship one, **Connect a runner** (Advanced → Hooks →

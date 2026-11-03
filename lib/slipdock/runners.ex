@@ -1010,6 +1010,64 @@ defmodule Slipdock.Runners do
     end
   end
 
+  @doc """
+  Keeps the runner script version `runner` says it is running
+  (`X-Runner-Version: sh <sha256>`, #1658), and returns the runner with it.
+  A missing or malformed header leaves what was kept alone.
+  """
+  def report_version(%Runner{} = runner, header) when is_binary(header) do
+    case Regex.run(~r/\A\s*(sh|ps1)\s+([0-9a-f]{64})\s*\z/i, header) do
+      [_, flavor, sha] ->
+        version = String.downcase(flavor) <> " " <> String.downcase(sha)
+
+        if version == runner.version do
+          runner
+        else
+          Repo.update_all(from(r in Runner, where: r.id == ^runner.id), set: [version: version])
+          %{runner | version: version}
+        end
+
+      _ ->
+        runner
+    end
+  end
+
+  def report_version(%Runner{} = runner, _header), do: runner
+
+  @doc """
+  Whether `runner`'s script is the one this server hands out (#1658), given
+  the current SHA-256 of each flavour (`%{"sh" => sha, "ps1" => sha}`):
+  `:current`, `:out_of_date`, or `:unknown` for a runner that never said
+  (a script from before versions were reported, or a Claude session).
+  """
+  def script_state(%Runner{version: nil}, _latest), do: :unknown
+
+  def script_state(%Runner{version: version}, latest) do
+    case String.split(version, " ", parts: 2) do
+      [flavor, sha] -> if latest[flavor] == sha, do: :current, else: :out_of_date
+      _ -> :unknown
+    end
+  end
+
+  @doc """
+  The job kinds `runner`'s board tree needs that it hasn't said it takes
+  (#1658): `merge` when a board on the tree ships by pull request.
+  """
+  def missing_kinds(%Runner{} = runner) do
+    needs_merge? =
+      Repo.exists?(
+        from(b in Board,
+          where:
+            (b.id == ^runner.board_id or b.root_id == ^runner.board_id) and
+              b.ship_via == "pull_request" and b.verify_work
+        )
+      )
+
+    if needs_merge? and not takes_merge?(runner) and not Runner.session?(runner),
+      do: ["merge"],
+      else: []
+  end
+
   @doc "Whether `runner` takes merge jobs: it said so on its last claim."
   def takes_merge?(%Runner{kinds: kinds}) when is_list(kinds), do: "merge" in kinds
   def takes_merge?(_runner), do: false

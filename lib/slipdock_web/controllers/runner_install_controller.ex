@@ -58,6 +58,17 @@ defmodule SlipdockWeb.RunnerInstallController do
   @doc false
   def examples, do: @examples
 
+  @latest %{
+    "sh" => Base.encode16(:crypto.hash(:sha256, @runner), case: :lower),
+    "ps1" => Base.encode16(:crypto.hash(:sha256, @ps_runner <> "\n"), case: :lower)
+  }
+
+  @doc """
+  The SHA-256 of each runner script this release hands out (#1658), as a
+  runner reports its own: `%{"sh" => sha, "ps1" => sha}`.
+  """
+  def latest, do: @latest
+
   @doc false
   def files,
     do: %{

@@ -535,6 +535,22 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               {runner.name}
               <span class="text-xs text-base-content/50">· pool {runner.pool}</span>
             </button>
+            <span
+              :if={not Runner.session?(runner) and script_state(runner) != :current}
+              id={"runner-#{runner.id}-script"}
+              class="badge badge-warning badge-xs shrink-0"
+              title="Its script isn't the one this server hands out: install it again, or turn on Keep the runner current"
+            >
+              {if script_state(runner) == :out_of_date, do: "out of date", else: "old script"}
+            </span>
+            <span
+              :for={kind <- Slipdock.Runners.missing_kinds(runner)}
+              id={"runner-#{runner.id}-lacks-#{kind}"}
+              class="badge badge-error badge-xs shrink-0"
+              title={"This board needs #{kind} jobs, and this runner doesn't take them: update its script"}
+            >
+              no {kind}
+            </span>
             <span class="shrink-0 text-xs text-base-content/50">
               <%= cond do %>
                 <% runner.current_job_id -> %>
@@ -1022,6 +1038,28 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             directory's repository, on a branch named for its card (card-&lt;id&gt;), so two jobs
             never share a working tree. A clean worktree is removed after the job; one with
             uncommitted changes is kept for the next job on that card.
+          </p>
+        </div>
+        <div
+          :if={Setup.needs_token?(@p["scenario"])}
+          id="wizard-self-update"
+          class="col-span-2 space-y-1.5 rounded-lg p-3 ring-1 ring-base-content/10"
+        >
+          <label class="flex items-center gap-2">
+            <input type="hidden" name="wizard[self_update]" value="false" />
+            <input
+              type="checkbox"
+              name="wizard[self_update]"
+              value="true"
+              checked={@p["self_update"] not in [false, "false"]}
+              class="checkbox checkbox-xs"
+            />
+            <span class="font-medium">Keep the runner current</span>
+          </label>
+          <p class="text-xs text-base-content/60">
+            Between jobs, the runner replaces itself with this server's newer script, so new job
+            kinds reach it without reinstalling. It only does so when the download matches the
+            published SHA-256, never during a job, and never touches its config.
           </p>
         </div>
         <label :if={Setup.needs_token?(@p["scenario"])} class="space-y-1">
@@ -1551,4 +1589,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     do: not Setup.commits?(p) or (key == "push" and not ticked?(p["commit"]))
 
   defp off_here?(_key, _p), do: false
+
+  # Whether a runner's script is the one this server hands out (#1658).
+  defp script_state(runner),
+    do: Slipdock.Runners.script_state(runner, SlipdockWeb.RunnerInstallController.latest())
 end

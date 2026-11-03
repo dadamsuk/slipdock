@@ -1255,4 +1255,37 @@ defmodule Slipdock.Runners.SetupTest do
       assert runner.settings["instructions"] == "Be brief."
     end
   end
+
+  describe "keeping the runner current (#1658)" do
+    test "on by default: no flag, and the config sets SELF_UPDATE=1", %{board: board} do
+      assert answers()["self_update"] == true
+      [line, _sums, config] = board |> gen(%{"cwd" => "/srv/w"}) |> codes()
+      refute line =~ "--no-self-update"
+      assert config =~ "\nSELF_UPDATE=1\n"
+
+      [ps | _] = board |> gen(%{"scenario" => "windows", "cwd" => "C:\\w"}) |> codes()
+      refute ps =~ "-NoSelfUpdate"
+    end
+
+    test "unticked: --no-self-update / -NoSelfUpdate, and no line in the config",
+         %{board: board} do
+      [line, _sums, config] =
+        board |> gen(%{"cwd" => "/srv/w", "self_update" => "false"}) |> codes()
+
+      assert line =~ "--no-self-update"
+      refute config =~ "SELF_UPDATE"
+
+      [ps | _] =
+        board
+        |> gen(%{"scenario" => "windows", "cwd" => "C:\\w", "self_update" => false})
+        |> codes()
+
+      assert ps =~ "-NoSelfUpdate"
+    end
+
+    test "anything but a yes or no is refused" do
+      assert {:error, "self_update must be true or false"} =
+               Setup.normalise(%{"self_update" => "maybe"})
+    end
+  end
 end
