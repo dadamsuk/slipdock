@@ -29,13 +29,20 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
       type: "object",
       properties: %{
         card: %{type: "integer"},
-        decision: %{type: "string", enum: ["accept", "reject"]},
+        decision: %{
+          type: "string",
+          enum: ["accept", "reject", "merged"],
+          description: "merged: a person merged a merging card's pull request by hand."
+        },
         reason: %{
           type: "string",
           description:
             "Why: required to reject (what falls short of the bar), optional to accept."
         },
-        commit: %{type: "string", description: "The commit you checked the work at."}
+        commit: %{
+          type: "string",
+          description: "The commit you checked the work at (for merged: the merge commit)."
+        }
       },
       required: ["card", "decision"],
       additionalProperties: false

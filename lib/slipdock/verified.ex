@@ -408,8 +408,11 @@ defmodule Slipdock.Verified do
     commit = params |> Map.get("commit") |> trim()
 
     cond do
+      decision == "merged" ->
+        merged_by_hand(card, commit, actor, user)
+
       decision not in ~w(accept reject) ->
-        {:error, :unprocessable_entity, "decision must be accept or reject"}
+        {:error, :unprocessable_entity, "decision must be accept, reject or merged"}
 
       card.verify_state != "pending" ->
         {:error, :conflict, "card ##{card.id} isn't waiting for verification"}
@@ -436,6 +439,37 @@ defmodule Slipdock.Verified do
   end
 
   defp apply_decision(card, "accept", %{reason: note, commit: commit}, actor, user) do
+    if Board.ships_by_pr?(board(card)),
+      do: accept_to_merge(card, note, commit, actor, user),
+      else: accept_and_complete(card, note, commit, actor, user)
+  end
+
+  defp apply_decision(card, "reject", %{reason: reason, commit: commit}, actor, user) do
+    changes = [
+      verify_state: "rejected",
+      verify_by: actor_map(actor),
+      verify_note: reason,
+      verify_commit: blank_to_nil(commit),
+      verify_at: now(),
+      verify_rejections: (card.verify_rejections || 0) + 1
+    ]
+
+    with {:ok, card} <-
+           Slipdock.Boards.update_card(
+             card,
+             Map.put(no_evidence(), "flags", card.flags -- ["review"]),
+             actor: actor,
+             by: user,
+             verify_changes: changes
+           ) do
+      by = who(actor, user)
+      comment(card, "**Rejected** by #{by}.", reason, user)
+      send_back(card, "Rework: rejected by #{by}, reason under Verification", actor, user)
+    end
+    |> api_error()
+  end
+
+  defp accept_and_complete(card, note, commit, actor, user) do
     changes = [
       verify_state: "accepted",
       verify_by: actor_map(actor),
@@ -463,56 +497,300 @@ defmodule Slipdock.Verified do
     |> api_error()
   end
 
-  defp apply_decision(card, "reject", %{reason: reason, commit: commit}, actor, user) do
+  # Back to the top of the ready list for rework (#1659), after a rejection
+  # or a failed merge (#1657): the handoff points at the reason, the
+  # builder's own assignment comes off and the board's feed runs.
+  defp send_back(card, next_step, actor, user) do
+    # The reason is on the comment and the verification block (and in a
+    # claimed job's prompt and get_card): the handoff only points there.
+    Slipdock.Boards.leave_handoff(card, user, %{next_step: next_step, via: handoff_via(actor)})
+
+    # The builder's own assignment comes off (a person's stays), so a rule
+    # that sends only unassigned cards sends it again.
+    card = unassign_agents(Repo.get!(Card, card.id), actor, user)
+
+    # Back to the top of the ready list, to be taken up again.
+    columns = card |> board() |> Repo.preload(:columns) |> Map.get(:columns)
+
+    case Slipdock.Flow.ready_list(columns) do
+      %Column{id: id} = ready when id != card.column_id ->
+        Slipdock.Boards.move_card_to_index(card, ready, :top, actor: actor)
+
+      _ ->
+        :ok
+    end
+
+    # A rejection is new information: the card isn't cooling, so the
+    # board's feed can send it next.
+    Slipdock.Automations.feed_board(card.board_id)
+
+    {:ok, Repo.get!(Card, card.id)}
+  end
+
+  ## Merging (#1657) ------------------------------------------------------------
+
+  @merge_kind "merge"
+
+  @doc "The job kind that merges an accepted card's pull request (#1656, #1657)."
+  def merge_kind, do: @merge_kind
+
+  # Accepted on a board that ships by pull request: the card waits, merging,
+  # while a runner merges its pull request; the merge finishing completes it.
+  defp accept_to_merge(card, note, commit, actor, user) do
+    changes = [
+      verify_state: "merging",
+      verify_by: actor_map(actor),
+      verify_note: blank_to_nil(note),
+      verify_commit: blank_to_nil(commit),
+      verify_at: now()
+    ]
+
+    with {:ok, card} <-
+           Slipdock.Boards.update_card(card, %{"flags" => card.flags -- ["review"]},
+             actor: actor,
+             by: user,
+             verify_changes: changes
+           ) do
+      comment(
+        card,
+        "**Accepted** by #{who(actor, user)}; merging #{card.evidence_pr || "its pull request"}.",
+        note,
+        user
+      )
+
+      queue_merge(card, user)
+      {:ok, Repo.get!(Card, card.id)}
+    end
+    |> api_error()
+  end
+
+  @doc """
+  Queues the merge job for a card being merged (#1657), with no setting: to
+  the pool of the runner that built it when a runner there takes merge
+  jobs, else to any pool on the tree with such a runner. With none, nothing
+  is queued and the card says what to do. `{:ok, job}` or `:none`.
+  """
+  def queue_merge(%Card{} = card, user \\ nil) do
+    case merge_pool(card) do
+      nil ->
+        Slipdock.Boards.add_comment(card, no_merger_text(card), by: user)
+        :none
+
+      pool ->
+        case Slipdock.Runners.queue(card, %{
+               pool: pool,
+               kind: @merge_kind,
+               prompt: merge_prompt(card)
+             }) do
+          {:ok, job} ->
+            {:ok, job}
+
+          {:error, reason} ->
+            Slipdock.Boards.add_comment(
+              card,
+              "**Merge job not queued** for pool `#{pool}`: #{reason}. " <>
+                merge_by_hand_text(card),
+              by: user
+            )
+
+            :none
+        end
+    end
+  end
+
+  @doc "The pool a card's merge job goes to (see `queue_merge/2`), or nil."
+  def merge_pool(%Card{} = card) do
+    import Ecto.Query
+    alias Slipdock.Runners.Runner
+
+    root = Board.root_id(board(card))
+
+    capable =
+      from(r in Runner,
+        where: r.board_id == ^root and fragment("'merge' = ANY(?)", r.kinds),
+        order_by: [desc_nulls_last: r.last_seen_at, asc: r.id],
+        select: r.pool
+      )
+
+    builder_pool =
+      case builder_runner_id(card) do
+        id when is_integer(id) -> Repo.one(from(r in Runner, where: r.id == ^id, select: r.pool))
+        _ -> nil
+      end
+
+    pools = Repo.all(capable)
+
+    cond do
+      builder_pool && builder_pool in pools -> builder_pool
+      true -> List.first(pools)
+    end
+  end
+
+  @doc """
+  Where a card being merged stands (#1657): `:queued` or `:running` while a
+  merge job is open on it, `:none` when nothing will merge it (no runner
+  can), nil when it isn't merging.
+  """
+  def merge_status(%Card{verify_state: "merging", id: id}) do
+    import Ecto.Query
+
+    case Repo.one(
+           from(j in Slipdock.Runners.Job,
+             where:
+               j.card_id == ^id and j.kind == @merge_kind and
+                 j.status in ^Slipdock.Runners.Job.open_statuses(),
+             order_by: [desc: j.id],
+             limit: 1,
+             select: j.status
+           )
+         ) do
+      nil -> :none
+      "queued" -> :queued
+      _ -> :running
+    end
+  end
+
+  def merge_status(_card), do: nil
+
+  defp merge_prompt(card) do
+    "Merge the pull request of card ##{card.id}: #{card.evidence_pr} at the accepted commit " <>
+      "#{card.verify_commit || card.evidence_commit}. The runner's built-in merge kind does this."
+  end
+
+  defp no_merger_text(card) do
+    "**No runner can merge this.** None of this board's runners takes merge jobs: a runner " <>
+      "says it does on each claim once its script is current (reinstall or update " <>
+      "`slipdock-runner` / `slipdock-runner.ps1`; `MERGE=0` turns it off). " <>
+      merge_by_hand_text(card)
+  end
+
+  defp merge_by_hand_text(card) do
+    "Or merge #{card.evidence_pr || "the pull request"} yourself and press **Merged it myself** " <>
+      "on the card (`slipdock verify #{card.id} merged`)."
+  end
+
+  @doc """
+  A merge job has ended (#1657), called by `Slipdock.Runners` for kind
+  merge. Done: the card completes, with the merge commit as `merge_sha`,
+  and moves to the done list. Anything else: it goes back to the top of the
+  ready list as rejected, the merge's reason as the rejection's, so the
+  builder rebases and submits it again. A card no longer merging is left
+  alone.
+  """
+  def merge_finished(%Slipdock.Runners.Job{kind: @merge_kind} = job, runner_name) do
+    case Repo.get(Card, job.card_id) do
+      %Card{verify_state: "merging", completed: false} = card ->
+        actor = Slipdock.Actor.runner(nil, job.id, runner_name)
+
+        if job.status == "done",
+          do:
+            complete_merged(
+              card,
+              job.merged_sha,
+              actor,
+              nil,
+              "**Merged** by runner #{runner_name}"
+            ),
+          else: merge_failed(card, job, actor)
+
+      _ ->
+        :ok
+    end
+  end
+
+  def merge_finished(_job, _runner_name), do: :ok
+
+  defp merge_failed(card, job, actor) do
+    reason = "Merge failed (job ##{job.id}, #{job.status}): " <> merge_reason(job)
+
     changes = [
       verify_state: "rejected",
-      verify_by: actor_map(actor),
       verify_note: reason,
-      verify_commit: blank_to_nil(commit),
       verify_at: now(),
       verify_rejections: (card.verify_rejections || 0) + 1
     ]
 
     with {:ok, card} <-
-           Slipdock.Boards.update_card(
-             card,
-             Map.put(no_evidence(), "flags", card.flags -- ["review"]),
+           Slipdock.Boards.update_card(card, no_evidence(),
              actor: actor,
-             by: user,
              verify_changes: changes
            ) do
-      by = who(actor, user)
-      comment(card, "**Rejected** by #{by}.", reason, user)
+      comment(
+        card,
+        "**Merge failed.** Rebase `#{pr_branch(card)}` and submit it again.",
+        reason,
+        nil
+      )
 
-      # The reason is on the comment and the verification block (and in a
-      # claimed job's prompt and get_card): the handoff only points there.
-      Slipdock.Boards.leave_handoff(card, user, %{
-        next_step: "Rework: rejected by #{by}, reason under Verification",
-        via: handoff_via(actor)
-      })
+      send_back(card, "Rework: the merge failed, reason under Verification", actor, nil)
+    end
+  end
 
-      # The builder's own assignment comes off (a person's stays), so a rule
-      # that sends only unassigned cards sends it again.
-      card = unassign_agents(Repo.get!(Card, card.id), actor, user)
+  # The runner's own words: its last `merge:` line, else the output's last line.
+  defp merge_reason(job) do
+    lines = (job.output || job.log_tail || "") |> String.split(~r/\R/, trim: true)
 
-      # Back to the top of the ready list, to be taken up again.
-      columns = card |> board() |> Repo.preload(:columns) |> Map.get(:columns)
+    (Enum.find(Enum.reverse(lines), &String.starts_with?(&1, "merge:")) || List.last(lines) ||
+       "the merge job ended #{job.status}")
+    |> String.slice(0, 1000)
+  end
 
-      case Slipdock.Flow.ready_list(columns) do
-        %Column{id: id} = ready when id != card.column_id ->
-          Slipdock.Boards.move_card_to_index(card, ready, :top, actor: actor)
+  # A person saying they merged it themselves (#1657): only on a card being
+  # merged, and only a person.
+  defp merged_by_hand(card, commit, actor, user) do
+    cond do
+      card.verify_state != "merging" ->
+        {:error, :conflict, "card ##{card.id} isn't waiting for its merge"}
 
-        _ ->
-          :ok
-      end
+      gated?(actor) ->
+        {:error, :forbidden, "only a person marks a card merged by hand"}
 
-      # A rejection is new information: the card isn't cooling, so the
-      # board's feed can send it next.
-      Slipdock.Automations.feed_board(card.board_id)
+      commit != "" and not Regex.match?(~r/\A[0-9a-fA-F]{7,64}\z/, commit) ->
+        {:error, :unprocessable_entity, "the merge commit must be a commit id"}
+
+      true ->
+        cancel_merge_jobs(card)
+
+        complete_merged(
+          card,
+          blank_to_nil(commit),
+          actor,
+          user,
+          "**Merged by hand** by #{who(actor, user)}"
+        )
+    end
+  end
+
+  defp complete_merged(card, sha, actor, user, line) do
+    sha = sha && String.downcase(sha)
+
+    with {:ok, card} <-
+           Slipdock.Boards.update_card(card, %{"completed" => true},
+             actor: actor,
+             by: user,
+             verify_changes: [verify_state: "accepted", merge_sha: sha]
+           ) do
+      comment(card, line <> if(sha, do: " as `#{sha}`.", else: "."), nil, user)
+      done = card |> board() |> Repo.preload(:columns) |> Map.get(:columns) |> done_list()
+
+      if done && done.id != card.column_id,
+        do: Slipdock.Boards.move_card(card.id, done.id, nil, actor: actor)
 
       {:ok, Repo.get!(Card, card.id)}
     end
     |> api_error()
+  end
+
+  defp cancel_merge_jobs(%Card{id: card_id}) do
+    import Ecto.Query
+
+    from(j in Slipdock.Runners.Job,
+      where:
+        j.card_id == ^card_id and j.kind == @merge_kind and
+          j.status in ^Slipdock.Runners.Job.open_statuses()
+    )
+    |> Repo.all()
+    |> Enum.each(&Slipdock.Runners.cancel_job/1)
   end
 
   defp unassign_agents(%Card{agent_assignee_ids: [_ | _] = ids} = card, actor, user) do

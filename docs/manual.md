@@ -706,6 +706,22 @@ A card's subcards take the board's choice, and an export carries it. The
 guide tells agents on such a board what to do (*Shipping by pull request*),
 and says so on the board's line.
 
+**Accepting merges.** On a board that ships by pull request, accepting a
+card (the card's **Accept**, `slipdock verify 12 accept`, MCP
+`verify_card`, a verifier agent) doesn't complete it. The card shows
+**Accepted, merging**, stays in progress, and a `merge` job is queued for a
+runner, with nothing to set up: it goes to the pool of the runner that
+built the card when a runner there can merge, else to any pool on the board
+with one. When the merge succeeds the card completes, moves to Done and
+shows the merge commit (`merge_sha`), and a deploy's commits name it as
+usual. When it fails (a conflict, a head that moved, a closed pull
+request) the card goes back to the top of the ready list as rejected, the
+merge's reason as the rejection: the builder rebases `card-<id>` and
+submits it again. If no runner can merge, nothing is queued and the card
+says so: update a runner's script, or merge the pull request yourself and
+press **Merged it myself** (`slipdock verify 12 merged [--evidence-commit
+SHA]`, `verify_card` `merged`; a person only).
+
 **Runners merge.** Both runner scripts (`slipdock-runner`,
 `slipdock-runner.ps1`) have a built-in `merge` job kind, so a runner
 needs no config edit to merge. It runs in the directory the runner starts

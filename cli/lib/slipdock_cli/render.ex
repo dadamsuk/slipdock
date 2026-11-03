@@ -445,6 +445,7 @@ defmodule SlipdockCLI.Render do
         ),
         # Waiting for a second agent (#1624).
         if(c["verify_state"] == "pending", do: "⏳awaiting verification"),
+        if(c["verify_state"] == "merging", do: "⇄merging"),
         stand_in_text(c["stand_in_for"]),
         if((c["blocks"] || []) != [],
           do: "blocks:" <> Enum.map_join(c["blocks"], ",", &"##{&1["id"]}")
@@ -973,6 +974,7 @@ defmodule SlipdockCLI.Render do
       rejected = if n = c["verify_rejections"], do: dim("  · rejected #{n}×"), else: ""
       IO.puts(bold("Verification") <> "  " <> verify_line(state, c) <> rejected)
       if note = c["verify_note"], do: IO.puts(indent(note))
+      if sha = c["merge_sha"], do: IO.puts(indent("merged as " <> sha))
     end
 
     if Enum.any?(
@@ -2483,6 +2485,11 @@ defmodule SlipdockCLI.Render do
   defp verify_line("pending", c),
     do:
       "pending — submitted by #{actor_name(c["verify_submitter"])}; another agent or a person decides"
+
+  defp verify_line("merging", c),
+    do:
+      "merging — accepted by #{actor_name(c["verify_by"])}; a runner merges the pull request " <>
+        "(or a person: slipdock verify #{c["id"]} merged)"
 
   defp verify_line(state, c), do: "#{state} by #{actor_name(c["verify_by"])}"
 

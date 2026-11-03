@@ -1210,7 +1210,12 @@ defmodule Slipdock.Runners do
       "#{runner.name} finished job ##{job.id}: #{status}#{exit_text(job.exit_code)}"
     )
 
-    leave_handoff(job, runner, status)
+    # A merge job (#1657) completes its card, or sends it back with the
+    # reason; it leaves no handoff of its own.
+    if job.kind == Slipdock.Verified.merge_kind(),
+      do: Slipdock.Verified.merge_finished(job, runner.name),
+      else: leave_handoff(job, runner, status)
+
     job = changed(job)
     refill(job)
     job

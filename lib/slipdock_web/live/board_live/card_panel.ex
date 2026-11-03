@@ -195,9 +195,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   @doc """
   Where an agent's completion stands on a board that verifies work (#1633):
   pending, with Accept and a Reject that takes the reason; or accepted or
-  rejected, by whom, with the note.
+  rejected, by whom, with the note; or accepted and merging its pull
+  request (#1657), with Merged it myself.
   """
   def verify_section(assigns) do
+    assigns = assign(assigns, :merge_status, Slipdock.Verified.merge_status(assigns.card))
+
     ~H"""
     <div id="card-verify" class="space-y-2 rounded-lg border border-base-300 px-3 py-2">
       <p class="flex items-center gap-2 text-sm">
@@ -214,6 +217,43 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         </span>
       </p>
       <p :if={@card.verify_note} class="whitespace-pre-wrap text-sm">{@card.verify_note}</p>
+      <p :if={@card.merge_sha} id="card-merge-sha" class="text-sm">
+        Merged as <code class="font-mono">{String.slice(@card.merge_sha, 0, 12)}</code>
+      </p>
+      <div :if={@card.verify_state == "merging"} id="card-merging" class="space-y-2">
+        <p class="text-sm">
+          <span :if={@merge_status in [:queued, :running]}>
+            A runner is merging
+            <a
+              :if={@card.evidence_pr}
+              href={@card.evidence_pr}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="link link-primary break-all"
+            >{@card.evidence_pr}</a><span :if={!@card.evidence_pr}>its pull request</span>{if @merge_status ==
+                                                                                                :queued,
+                                                                                              do:
+                                                                                                " (queued)",
+                                                                                              else: ""}.
+          </span>
+          <span :if={@merge_status == :none} id="card-no-merger" class="text-warning">
+            No runner can merge it: none of this board's runners takes merge jobs. Update a
+            runner's script, or merge the pull request yourself and press Merged it myself.
+          </span>
+        </p>
+        <button
+          :if={@can_write}
+          type="button"
+          id="verify-merged"
+          phx-click="verify_work"
+          phx-value-decision="merged"
+          phx-target={@target}
+          data-confirm="Mark this card merged? Only if its pull request is merged."
+          class="btn btn-ghost btn-sm"
+        >
+          Merged it myself
+        </button>
+      </div>
       <div :if={@card.verify_state == "pending" && @can_write} class="space-y-2">
         <button
           type="button"
@@ -247,10 +287,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   end
 
   defp verify_icon("pending"), do: "hero-clock"
+  defp verify_icon("merging"), do: "hero-arrow-path"
   defp verify_icon("accepted"), do: "hero-check-badge"
   defp verify_icon(_), do: "hero-x-circle"
 
   defp verify_title("pending"), do: "Awaiting verification"
+  defp verify_title("merging"), do: "Accepted, merging"
   defp verify_title("accepted"), do: "Accepted"
   defp verify_title(_), do: "Rejected"
 

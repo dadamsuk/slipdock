@@ -492,6 +492,7 @@ defmodule SlipdockWeb.API.JSON do
       verify_state: c.verify_state,
       verify_note: c.verify_note,
       verify_commit: c.verify_commit,
+      merge_sha: c.merge_sha,
       verify_submitter: c.verify_submitter,
       verify_by: c.verify_by,
       verify_at: c.verify_at,

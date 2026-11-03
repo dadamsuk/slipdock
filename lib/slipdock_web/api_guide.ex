@@ -3493,6 +3493,11 @@ defmodule SlipdockWeb.APIGuide do
     pull request's. A rejected card's next attempt pushes the same branch,
     so the same pull request updates. A claimed job's prompt and the
     card's `shipping` (in `get_card`) say all this for the card in hand.
+    Don't merge it: accepting the card sets `verify_state: "merging"` and
+    queues a `merge` job for a runner, and the merge completes the card
+    (its `merge_sha`). A failed merge sends it back rejected, the merge's
+    reason as the rejection: rebase the branch and complete it again. A
+    person can say they merged it by hand (`verify_card` `merged`).
     """
   end
 

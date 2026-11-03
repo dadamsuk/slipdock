@@ -306,7 +306,9 @@ slipdock done <id> --evidence-commit <sha> --branch B --tests a.exs,b.exs --suit
                                        # verifies, done submits the card (pending, flagged review)
 slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]   # or: slipdock accept|reject <id>
                                        # decide a card someone else submitted: accept completes it
-                                       # and moves it to Done; reject needs the reason
+                                       # and moves it to Done (on a pull request board it queues
+                                       # the merge: merging until a runner merges); reject needs the reason
+slipdock verify <id> merged [--evidence-commit SHA]   # a person only: a merging card's PR was merged by hand
 slipdock edit <id> --bar "what done means"   # the card's bar; locks when work starts on a board
                                        # that asks for one
 slipdock edit <id> --paths "lib/foo/**,docs/x.md"   # the files its work touches (globs; "" clears);

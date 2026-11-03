@@ -71,4 +71,20 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert cli =~ "--ship-via pull-request"
     assert cli =~ "--pr https://"
   end
+
+  test "accepting on a pull request board merges, said everywhere (#1657)" do
+    flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
+
+    assert flat.("docs/manual.md") =~ "**Accepting merges.**"
+    assert flat.("docs/manual.md") =~ "press **Merged it myself** (`slipdock verify 12 merged"
+    assert flat.("docs/agents.md") =~ "accepting a card there queues the merge"
+    assert flat.("lib/slipdock_web/api_guide.ex") =~ ~s(sets `verify_state: "merging"`)
+    assert flat.("priv/skills/slipdock-loop/SKILL.md") =~ "the card shows *merging* until then"
+
+    assert flat.("priv/skills/slipdock-work/SKILL.md") =~
+             "A failed merge sends the card back rejected"
+
+    assert flat.("priv/skills/slipdock/SKILL.md") =~ "slipdock verify <id> merged"
+    assert flat.("cli/lib/slipdock_cli.ex") =~ "verify <id> accept|reject|merged"
+  end
 end

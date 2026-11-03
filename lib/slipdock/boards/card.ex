@@ -85,6 +85,9 @@ defmodule Slipdock.Boards.Card do
     field :verify_state, :string
     field :verify_note, :string
     field :verify_commit, :string
+    # The commit its pull request was merged as (#1657), on a board that
+    # ships by pull request: from the merge job, or a person's say.
+    field :merge_sha, :string
     field :verify_submitter, :map
     field :verify_by, :map
     field :verify_at, :utc_datetime

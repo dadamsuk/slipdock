@@ -538,7 +538,7 @@ defmodule SlipdockCLI.Boards do
 
   # A card waiting for verification (#1633): accept it, or reject it with
   # the reason.
-  def run("verify", [id, decision], o) when decision in ~w(accept reject) do
+  def run("verify", [id, decision], o) when decision in ~w(accept reject merged) do
     if decision == "reject" and o[:reason] in [nil, ""],
       do: fail("a rejection needs its reason: --reason TEXT")
 
@@ -547,7 +547,7 @@ defmodule SlipdockCLI.Boards do
       |> compact()
 
     HTTP.post("/cards/#{enc(id)}/verify", body)
-    |> out(o, &card_ok(if(decision == "accept", do: "accepted", else: "rejected"), &1))
+    |> out(o, &card_ok(verified_word(decision), &1))
   end
 
   # The same, by their own names (#1624).
@@ -555,7 +555,10 @@ defmodule SlipdockCLI.Boards do
   def run("reject", [id], o), do: run("verify", [id, "reject"], o)
 
   def run("verify", _, _),
-    do: fail("usage: slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]")
+    do:
+      fail(
+        "usage: slipdock verify <id> accept|reject|merged [--reason TEXT] [--evidence-commit SHA]"
+      )
 
   def run("undone", ids, o) when ids != [],
     do: each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", %{"completed" => false}), "reopened")
@@ -1843,4 +1846,8 @@ defmodule SlipdockCLI.Boards do
         fail("--suite is passed or failed, then the counts: passed:38:0")
     end
   end
+
+  defp verified_word("accept"), do: "accepted"
+  defp verified_word("reject"), do: "rejected"
+  defp verified_word("merged"), do: "marked merged"
 end

@@ -222,9 +222,14 @@ defmodule Slipdock.PendingReleaseTest do
       assert Rollup.build(ctx.board).stats[d.id].blocked
       refute d.id in Enum.map(Boards.list_cards(ctx.board, %{"deps" => "ready"}), & &1.id)
 
-      # Accepted (here by a person): done, and the dependent goes.
-      {:ok, _} =
-        Verified.decide(Repo.get!(Card, a.id), "accept", %{}, Actor.web(ctx.owner), ctx.owner)
+      # Accepted: merging (#1657), its PR still unmerged, so still blocking.
+      person = Actor.web(ctx.owner)
+      {:ok, a} = Verified.decide(Repo.get!(Card, a.id), "accept", %{}, person, ctx.owner)
+      assert a.verify_state == "merging"
+      assert Card.blocked?(Boards.get_card!(d.id))
+
+      # Merged (here by hand): done, and the dependent goes.
+      {:ok, _} = Verified.decide(a, "merged", %{}, person, ctx.owner)
 
       d = Boards.get_card!(d.id)
       refute Card.blocked?(d)

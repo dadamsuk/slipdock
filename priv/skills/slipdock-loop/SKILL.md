@@ -633,7 +633,10 @@ With one on, the pass changes like this:
   view card-<id>` shows one open. The build to watch (step 7.3, 7.4) is
   the pull request's: `gh pr checks card-<id> --watch`. Complete with
   `slipdock done <id> --pr <url>` beside the other evidence. Don't merge
-  it: accepting the card has a runner merge it.
+  it: accepting the card has a runner merge it (the card shows *merging*
+  until then, and the merge completes it). A merge that fails sends the
+  card back rejected, the merge's reason as the rejection: rebase
+  `card-<id>` on the default branch, push, and complete it again.
 - **A verify job** (a job of kind `verify`, or a card you are asked to
   verify) is checking, not doing. Claim nothing, move nothing and change no
   code. Never verify a card you built. Read the bar and the evidence, then

@@ -472,7 +472,9 @@ pull request, never the default branch, and complete with its URL
 (`slipdock done --pr`). The claimed job's prompt and the card itself
 (`get_card`'s `shipping`) say so, so a runner needs no setup for it, and
 both runner scripts have a built-in `merge` kind that merges the accepted
-commit's pull request in their own repository (`MERGE=0` turns it off). The skills
+commit's pull request in their own repository (`MERGE=0` turns it off):
+accepting a card there queues the merge, and the merge completes it (a
+failed merge sends it back rejected with the reason). The skills
 (`slipdock-loop`, `slipdock-work`) say what changes in a pass; see
 [the manual](manual.md#verified-work).
 

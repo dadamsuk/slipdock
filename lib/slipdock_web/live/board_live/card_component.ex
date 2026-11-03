@@ -669,7 +669,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
            Slipdock.Verified.decide(
              card,
              decision,
-             Map.take(params, ["reason"]),
+             Map.take(params, ["reason", "commit"]),
              Slipdock.Actor.web(user),
              user
            ) do

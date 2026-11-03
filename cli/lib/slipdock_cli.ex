@@ -648,10 +648,12 @@ defmodule SlipdockCLI do
                                         request), when completing; a
                                         board with --evidence-required asks agents for it. On
                                         a board with --verify-work an agent's done submits it
-    verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]
+    verify <id> accept|reject|merged [--reason TEXT] [--evidence-commit SHA]
                                         decide a card waiting for verification: accept
-                                        completes it, reject needs the reason; not a card
-                                        you submitted (--evidence-commit: what you checked at)
+                                        completes it (on a pull request board, queues the
+                                        merge), reject needs the reason; not a card you
+                                        submitted (--evidence-commit: what you checked at).
+                                        merged: a person merged a merging card's PR by hand
     accept <id> [--reason TEXT]  |  reject <id> --reason TEXT
                                         the same as verify <id> accept / reject
     flag <id> <flag>... [--off]         add (or remove) flags

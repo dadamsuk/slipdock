@@ -101,7 +101,8 @@ whole card before touching it.
   request once (`gh pr create --head card-<id> --title "<title> (#<id>)"
   --fill`; a rejected card's next attempt pushes the same branch), watch
   its checks, and complete with `slipdock done <id> --pr <url>`. Accepting
-  the card merges it; don't merge it yourself.
+  the card merges it; don't merge it yourself. A failed merge sends the
+  card back rejected with the reason: rebase the branch and submit again.
 - **Lanes, where they are on** (the board's line in the guide says `lanes:
   on`). Before starting a card, write the paths its work will touch:
   `slipdock edit <id> --paths "lib/foo/**,docs/manual.md"`, as narrow as the
