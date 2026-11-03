@@ -318,8 +318,9 @@ defmodule Slipdock.Runners do
   ## Queueing -----------------------------------------------------------------
 
   @doc """
-  Queues `card` for `pool`. `attrs` carries `:kind`, `:prompt`, `:rule` and
-  `:wait_while_doing` (optional). Returns `{:ok, job}`, `{:ok, :already_open, job}` when the rule
+  Queues `card` for `pool`. `attrs` carries `:kind`, `:prompt`, `:rule`,
+  `:wait_while_doing` and `:exclude_runner_id` (a runner that may not take
+  it) (optional). Returns `{:ok, job}`, `{:ok, :already_open, job}` when the rule
   already has an open job for the card, or `{:error, message}`.
   """
   def queue(%Card{} = card, attrs) do
@@ -344,6 +345,7 @@ defmodule Slipdock.Runners do
         kind: kind,
         prompt: prompt,
         wait_while_doing: attrs[:wait_while_doing] == true,
+        exclude_runner_id: attrs[:exclude_runner_id],
         status: "queued"
       }
       |> Ecto.Changeset.change()
@@ -911,6 +913,8 @@ defmodule Slipdock.Runners do
         where:
           j.root_board_id == ^runner.board_id and j.pool == ^runner.pool and
             j.status == "queued",
+        # A verify job never goes to the runner that built its card (#1625).
+        where: is_nil(j.exclude_runner_id) or j.exclude_runner_id != ^runner.id,
         where: not j.wait_while_doing or not exists(busy_cards()),
         where: j.board_id not in ^wip_full or exists(own_card_doing()),
         order_by: [asc: j.id],

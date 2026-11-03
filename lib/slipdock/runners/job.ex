@@ -31,6 +31,9 @@ defmodule Slipdock.Runners.Job do
 
   schema "runner_jobs" do
     field :pool, :string
+    # A runner that may not take this job (#1625): for a verify job, the one
+    # that built the card.
+    field :exclude_runner_id, :integer
     field :kind, :string
     field :prompt, :string
     field :status, :string, default: "queued"

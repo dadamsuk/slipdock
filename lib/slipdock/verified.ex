@@ -409,13 +409,16 @@ defmodule Slipdock.Verified do
     board = board(card)
 
     if board.verify_work and board.verify_pool do
+      builder = builder_runner_id(card)
+
       case Slipdock.Runners.queue(card, %{
              pool: board.verify_pool,
              kind: @verify_kind,
-             prompt: verify_prompt(card, board)
+             prompt: verify_prompt(card, board),
+             exclude_runner_id: builder
            }) do
-        {:ok, _job} ->
-          :ok
+        {:ok, job} ->
+          say_if_no_one_can_take(card, job, board, builder, user)
 
         {:error, reason} ->
           Slipdock.Boards.add_comment(
@@ -426,6 +429,68 @@ defmodule Slipdock.Verified do
           )
       end
     end
+  end
+
+  # The runner that built the card (#1625): the one running the job the
+  # submission came from, else the last one to take a job on the card.
+  defp builder_runner_id(%Card{} = card) do
+    import Ecto.Query
+    alias Slipdock.Runners.Job
+
+    from_job =
+      case (card.verify_submitter || %{})["job_id"] do
+        id when is_integer(id) ->
+          Repo.one(from(j in Job, where: j.id == ^id, select: j.runner_id))
+
+        _ ->
+          nil
+      end
+
+    from_job ||
+      Repo.one(
+        from(j in Job,
+          where: j.card_id == ^card.id and j.kind != @verify_kind and not is_nil(j.runner_id),
+          order_by: [desc: j.id],
+          limit: 1,
+          select: j.runner_id
+        )
+      )
+  end
+
+  # A verify job no runner in its pool may take waits; the card says why.
+  defp say_if_no_one_can_take(card, job, board, builder, user) do
+    import Ecto.Query
+
+    runners =
+      Repo.all(
+        from(r in Slipdock.Runners.Runner,
+          where: r.board_id == ^Board.root_id(board) and r.pool == ^board.verify_pool,
+          select: r.id
+        )
+      )
+
+    why =
+      cond do
+        runners == [] ->
+          "no runner is in pool `#{board.verify_pool}` yet"
+
+        builder && runners == [builder] ->
+          "the only runner in pool `#{board.verify_pool}` built this card, and a card's " <>
+            "builder doesn't verify it"
+
+        true ->
+          nil
+      end
+
+    if why do
+      Slipdock.Boards.add_comment(
+        card,
+        "**Verify job ##{job.id} waits:** #{why}. Add a runner to the pool, or verify it by hand.",
+        by: user
+      )
+    end
+
+    :ok
   end
 
   @doc """

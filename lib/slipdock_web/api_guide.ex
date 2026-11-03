@@ -3475,8 +3475,9 @@ defmodule SlipdockWeb.APIGuide do
     decide its own card (`403`): a different agent is a different token,
     or a different runner job. A board with a `verify_pool` also queues
     each submitted card for that runner pool as a job of kind `verify`,
-    whose prompt carries the bar, the evidence and how to decide; whoever
-    decides first decides, and the other verify jobs on the card stop.
+    whose prompt carries the bar, the evidence and how to decide. The
+    runner that built the card never takes it. Whoever decides first
+    decides, and the other verify jobs on the card stop.
     """
   end
 

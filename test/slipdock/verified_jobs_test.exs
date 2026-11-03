@@ -160,6 +160,69 @@ defmodule Slipdock.VerifiedJobsTest do
       assert body =~ "queue is full"
     end
 
+    test "the runner that built the card never takes its verify job (#1625)", ctx do
+      {:ok, builder, _} =
+        Slipdock.Runners.create_runner(ctx.board, %{"name" => "a", "pool" => "checkers"})
+
+      {:ok, other, _} =
+        Slipdock.Runners.create_runner(ctx.board, %{"name" => "b", "pool" => "checkers"})
+
+      # The builder runs the card's work job, and submits from it.
+      {:ok, work} =
+        Slipdock.Runners.queue(ctx.card, %{pool: "checkers", kind: "claude", prompt: "Do"})
+
+      assert %{id: id} = Slipdock.Runners.claim(builder)
+      assert id == work.id
+
+      card = submit(%{ctx | builder: %{ctx.builder | job_id: work.id}})
+      [verify] = Enum.filter(jobs(card), &(&1.kind == "verify"))
+      assert verify.exclude_runner_id == builder.id
+
+      assert Slipdock.Runners.claim(builder) == nil
+      assert %{id: claimed} = Slipdock.Runners.claim(other)
+      assert claimed == verify.id
+
+      # Two runners in the pool: nothing to say on the card.
+      refute Enum.any?(Boards.get_card!(card.id).comments, &(&1.body =~ "waits"))
+    end
+
+    test "with no job id, the builder is the last runner to take a job on the card", ctx do
+      {:ok, builder, _} =
+        Slipdock.Runners.create_runner(ctx.board, %{"name" => "a", "pool" => "checkers"})
+
+      {:ok, _work} =
+        Slipdock.Runners.queue(ctx.card, %{pool: "checkers", kind: "claude", prompt: "Do"})
+
+      Slipdock.Runners.claim(builder)
+
+      card = submit(%{ctx | builder: %{ctx.builder | job_id: nil}})
+      [verify] = Enum.filter(jobs(card), &(&1.kind == "verify"))
+      assert verify.exclude_runner_id == builder.id
+
+      # The builder is the pool's only runner, so the job waits, and the card says so.
+      [body] =
+        Boards.get_card!(card.id).comments
+        |> Enum.map(& &1.body)
+        |> Enum.filter(&(&1 =~ "waits"))
+
+      assert body =~
+               "**Verify job ##{verify.id} waits:** the only runner in pool `checkers` built this card"
+
+      assert Slipdock.Runners.claim(builder) == nil
+      assert Repo.get!(Job, verify.id).status == "queued"
+    end
+
+    test "with no runner in the pool at all, the card says the job waits for one", ctx do
+      card = submit(ctx)
+      [verify] = jobs(card)
+      assert verify.exclude_runner_id == nil
+
+      assert Enum.any?(
+               Boards.get_card!(card.id).comments,
+               &(&1.body =~ "waits:** no runner is in pool `checkers` yet")
+             )
+    end
+
     test "the pool is inherited by subcards and carried by an export", ctx do
       {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)

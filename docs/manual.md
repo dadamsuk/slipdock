@@ -653,6 +653,11 @@ commands to decide with. The agent that runs it is in a different runner job
 from the one that did the work, so it counts as a second agent even on the
 same runner token.
 
+- **The runner that built the card never takes its verify job**: the
+  runner of the job the submission came from, or else the last runner to
+  take a job on the card. When it is the only runner in the pool, or the
+  pool has none yet, the job waits and the card says why in a comment. Add
+  a runner to the pool, or verify it by hand.
 - Whoever decides first decides: the other verify jobs still open on the
   card are cancelled, and a person completing the card cancels them too.
 - Each new submission (after a rejection, say) queues a fresh job.
