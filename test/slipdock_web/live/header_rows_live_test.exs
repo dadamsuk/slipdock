@@ -23,6 +23,83 @@ defmodule SlipdockWeb.HeaderRowsLiveTest do
     assert has_element?(view, "header #alerts-bar")
   end
 
+  # Perched on the bell's shoulder, the count stood above the row and the
+  # bell under it looked to hang low (#1675). It sits beside the bell now,
+  # in the row, as the waiting count sits beside the hand.
+  describe "the bell's count (#1675)" do
+    test "sits beside the bell, in the row, not perched above it", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, _} =
+        Slipdock.Automations.raise_alert(%{"board_id" => board.id, "title" => "Overdue"})
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+
+      count = classes(view, "header #alerts-count")
+      refute "absolute" in count
+      assert "leading-5" in count
+
+      button = classes(view, "header #alerts-bar > button")
+      refute "btn-square" in button
+      assert "gap-1" in button
+    end
+
+    test "with nothing to read, the bell is a square icon button like its neighbours", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+
+      refute has_element?(view, "header #alerts-count")
+      assert "btn-square" in classes(view, "header #alerts-bar > button")
+      assert "btn-square" in classes(view, "header #favourites-link")
+    end
+  end
+
+  describe "the bell's wrapper (#1675)" do
+    test "is a flex box at sm and up, centring the bell with its neighbours", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+
+      wrapper = classes(view, "header #alerts-bar")
+      assert "sm:flex" in wrapper
+      assert "sm:items-center" in wrapper
+      # A block wrapper set the bell on a text baseline, below the row.
+      refute "sm:block" in wrapper
+      # On a phone it still dissolves into the bottom bar.
+      assert "contents" in wrapper
+    end
+
+    test "stays a flex box while the bell wears a count and the panel is open", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, _} =
+        Slipdock.Automations.raise_alert(%{"board_id" => board.id, "title" => "Overdue"})
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+      view |> element("header #alerts-bar > button") |> render_click()
+
+      assert has_element?(view, "header #alerts-panel")
+      wrapper = classes(view, "header #alerts-bar")
+      assert "sm:flex" in wrapper
+      assert "sm:items-center" in wrapper
+    end
+  end
+
+  defp classes(view, selector) do
+    view
+    |> element(selector)
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.attribute("class")
+    |> hd()
+    |> String.split()
+  end
+
   describe "the board's own buttons (#1133)" do
     test "sit in its toolbar, right of Views, and nowhere in the header", %{
       conn: conn,

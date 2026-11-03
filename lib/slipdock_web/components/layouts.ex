@@ -1248,14 +1248,19 @@ defmodule SlipdockWeb.Layouts do
       )
 
     ~H"""
-    <div class="relative contents sm:block" id="alerts-bar">
+    <%!-- A flex box at sm and up, centring the bell on the row's middle
+          line: as a block, the button sat on a text baseline and dropped a
+          few pixels below the icons beside it (#1675). On a phone it is
+          display: contents, so the button lives in the bottom bar. --%>
+    <div class="relative contents sm:flex sm:items-center" id="alerts-bar">
       <button
         type="button"
         phx-click="toggle_alerts"
         aria-expanded={to_string(@open)}
         aria-controls="alerts-panel"
         class={[
-          "btn btn-ghost btn-sm btn-square relative hidden transition-colors sm:inline-flex",
+          "btn btn-ghost btn-sm relative hidden transition-colors sm:inline-flex",
+          if(@count > 0, do: "gap-1 px-2", else: "btn-square"),
           @open && "bg-base-200",
           @worst == "urgent" && "text-error",
           @worst == "warning" && "text-warning"
@@ -1269,14 +1274,17 @@ defmodule SlipdockWeb.Layouts do
         }
       >
         <.icon name="hero-bell" class="size-4" />
-        <%!-- The count rides on the bell rather than beside it, and only
-              when there is something to read: a nought was one more mark in
-              a row of icons, saying nothing. --%>
+        <%!-- The count shows only when there is something to read: a nought
+              was one more mark in a row of icons, saying nothing. It sits
+              beside the bell, as the waiting count sits beside the hand,
+              not up on its shoulder: perched there it stood above the row,
+              and the bell under it looked to hang below the icons beside
+              it (#1675). --%>
         <span
           :if={@count > 0}
           id="alerts-count"
           class={[
-            "absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-[0.625rem] font-semibold leading-4 tabular-nums",
+            "min-w-5 rounded-full px-1.5 text-xs font-semibold leading-5 tabular-nums",
             @worst == "urgent" && "bg-error text-error-content motion-safe:animate-pulse",
             @worst == "warning" && "bg-warning text-warning-content",
             is_nil(@worst) && "bg-info text-info-content"

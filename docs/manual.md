@@ -1990,7 +1990,7 @@ slipdock order-boards qvm-v1-rem errands 3     # your own order
 The right-hand end of the header is in the same order on every page, and is
 about the app as a whole: **quick add** (`+`), **Search everything**, **Ask**,
 **Favourites** (the heart), the **alerts** bell, and your avatar. The bell
-carries a count only when an alert is waiting. A page's own buttons, where it
+shows a count beside it only when an alert is waiting. A page's own buttons, where it
 has any, come first, ruled off from the app's.
 
 What belongs to the board you are on is on the board's own toolbar, the row
