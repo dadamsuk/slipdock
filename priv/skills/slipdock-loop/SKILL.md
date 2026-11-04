@@ -631,7 +631,10 @@ With one on, the pass changes like this:
   push -u origin card-<id>`, and open the pull request once: `gh pr create
   --head card-<id> --title "<card title> (#<id>)" --fill`, unless `gh pr
   view card-<id>` shows one open. The build to watch (step 7.3, 7.4) is
-  the pull request's: `gh pr checks card-<id> --watch`. Complete with
+  the pull request's: `gh pr checks card-<id> --watch`. It is the full
+  test run: before pushing, run only the tests you added or changed and
+  the quick checks (step 7.1), never the whole suite as well, and complete
+  the card once the checks pass. Complete with
   `slipdock done <id> --pr <url>` beside the other evidence. Don't merge
   it: accepting the card has a runner merge it (the card shows *merging*
   until then, and the merge completes it). A merge that fails sends the
@@ -643,10 +646,14 @@ With one on, the pass changes like this:
   check out the evidence's commit in a clean tree (`git worktree add
   /tmp/verify-<id> <sha>`, so nothing uncommitted counts). Run the suite
   and what the bar names there, judge each part of the bar, then decide
-  once. Say where you are at each step with `slipdock job-progress --step
+  once. On a board that ships by pull request, don't run the suite: its
+  CI ran it at that commit. Read the change and the tests the bar names,
+  check that the pull request's head is the evidence's commit and that
+  every check passed (wait for any still running; a failed one is a
+  rejection naming it), and run the suite only if it has no checks. Say where you are at each step with `slipdock job-progress --step
   "…"` (the job in `$SLIPDOCK_JOB_ID`; MCP `job_progress` `step`), never a
-  note: checked out the commit, tests running, their counts, judging, the
-  decision. The card stays quiet until you decide: `slipdock verify <id> accept
+  note: checked out the commit, tests running and their counts (or the
+  CI result), judging, the decision. The card stays quiet until you decide: `slipdock verify <id> accept
   --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
   <id> reject --reason "<what falls short, specifically>"`. You can't decide
   a card you submitted yourself (`403`).

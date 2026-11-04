@@ -72,6 +72,64 @@ defmodule SlipdockWeb.VerifyProgressTest do
     end
   end
 
+  describe "the verify prompt on a board that ships by pull request (#1808)" do
+    @pr "https://github.com/acme/app/pull/9"
+
+    setup %{board: board, card: card} do
+      {:ok, board} =
+        Boards.update_board(board, %{"verify_work" => true, "ship_via" => "pull_request"})
+
+      {:ok, card} =
+        Boards.update_card(card, %{"evidence_commit" => "abc1234", "evidence_pr" => @pr})
+
+      %{board: board, card: card}
+    end
+
+    test "reads the change and checks the PR's CI, without running the suite", ctx do
+      prompt = Verified.verify_prompt(ctx.card, ctx.board)
+
+      assert prompt =~ "Check out abc1234 in a clean tree"
+      assert prompt =~ "Don't run the suite: the pull request's CI runs it at this commit."
+
+      assert prompt =~
+               "`gh pr view #{@pr} --json headRefOid,statusCheckRollup`: the head must be abc1234"
+
+      assert prompt =~ "reject it to be submitted again at its head"
+      assert prompt =~ "While any is still running, wait (`gh pr checks #{@pr} --watch`)"
+      assert prompt =~ "A failed check is a rejection: name it."
+
+      assert prompt =~
+               "If the pull request has no checks at all, run the suite in the clean tree instead."
+
+      assert prompt =~ "`CI: <n> checks passed at abc1234`"
+      assert prompt =~ "`judging against the bar`"
+      refute prompt =~ "run the suite there"
+      refute prompt =~ "`tests running: <which>`"
+
+      # Still three steps, in order, the decision last.
+      assert prompt =~ ~r/^1\. Read the card.*\n2\. Check out abc1234/m
+      assert prompt =~ ~r/`judging against the bar`\n3\. Decide once/
+    end
+
+    test "with no pull request on the card, the suite is run as before", ctx do
+      {:ok, card} = Boards.update_card(ctx.card, %{"evidence_pr" => nil})
+      prompt = Verified.verify_prompt(card, ctx.board)
+
+      assert prompt =~ "run the suite there"
+      assert prompt =~ "`tests running: <which>`"
+      refute prompt =~ "statusCheckRollup"
+    end
+
+    test "a board that ships by push runs the suite, pull request or not", ctx do
+      {:ok, board} = Boards.update_board(ctx.board, %{"ship_via" => "push"})
+      prompt = Verified.verify_prompt(ctx.card, board)
+
+      assert prompt =~ "run the suite there"
+      assert prompt =~ "`tests passed: <n>, failed: <n>`"
+      refute prompt =~ "Don't run the suite"
+    end
+  end
+
   describe "a step from the job's own agent" do
     test "is kept on the job, renews the lease and adds no comment", ctx do
       before = comments(ctx.card)

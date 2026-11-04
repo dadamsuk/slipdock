@@ -55,6 +55,19 @@ defmodule Slipdock.ShipPrBuilderTest do
     assert prompt =~ "don't merge it yourself"
   end
 
+  test "the builder runs its own tests and leaves the full suite to the PR's CI (#1808)", ctx do
+    ship_by_pr(ctx)
+    text = Verified.ship_instructions(Repo.get!(Card, ctx.card.id))
+
+    assert text =~
+             "Before pushing, run the tests you added or changed and the project's quick checks"
+
+    assert text =~ "not the whole suite: the pull request's CI runs it."
+    assert text =~ "Fix what it finds in this pass."
+    assert text =~ "If the pull request has no checks, run the whole suite yourself."
+    assert text =~ "CI's result as the suite (`--suite passed`"
+  end
+
   test "it comes after the bar and the paths", ctx do
     ship_by_pr(ctx)
     {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Tests pass", "paths" => ["lib/**"]})

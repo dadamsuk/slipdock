@@ -3507,7 +3507,12 @@ defmodule SlipdockWeb.APIGuide do
     `evidence_pr` (`slipdock done ID --pr URL`, `complete_card` `pr`): the
     merge needs it, and a board asking for evidence refuses the completion
     without it (`422`). The build to watch is the
-    pull request's. A rejected card's next attempt pushes the same branch,
+    pull request's, and it is the full test run: before pushing, run the
+    tests you added or changed and the quick checks, not the whole suite,
+    and complete the card once its checks pass (with no checks on it, run
+    the suite yourself). A verifier doesn't run the suite again either: it
+    reads the change and checks that the pull request's head is the
+    submitted commit and its checks passed. A rejected card's next attempt pushes the same branch,
     so the same pull request updates. A claimed job's prompt and the
     card's `shipping` (in `get_card`) say all this for the card in hand.
     Don't merge it: accepting the card sets `verify_state: "merging"` and
