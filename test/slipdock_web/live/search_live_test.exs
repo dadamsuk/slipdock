@@ -58,13 +58,32 @@ defmodule SlipdockWeb.SearchLiveTest do
     Slipdock.Search.clear()
     conn = conn_as(user_fixture("fresh@example.com"))
 
-    {:ok, _view, html} = live(conn, ~p"/search")
-    assert html =~ "Nothing is indexed yet"
-    assert html =~ "every search comes back empty"
-    assert html =~ "mix slipdock.reindex"
+    {:ok, view, _html} = live(conn, ~p"/search")
 
-    {:ok, _view, html} = live(conn, ~p"/ask")
-    assert html =~ "the assistant has nothing to search"
+    # One callout (#1697), and its text one sentence with the command inline,
+    # not three flex columns.
+    assert notice_text(view) ==
+             "Nothing is indexed yet, so every search comes back empty. " <>
+               "Run mix slipdock.reindex on the server to build it."
+
+    assert has_element?(
+             view,
+             "#search-not-indexed[data-callout=warning] code",
+             "mix slipdock.reindex"
+           )
+
+    {:ok, view, _html} = live(conn, ~p"/ask")
+
+    assert notice_text(view) ==
+             "Nothing is indexed yet, so the assistant has nothing to search. " <>
+               "Run mix slipdock.reindex on the server to build it."
+  end
+
+  defp notice_text(view) do
+    doc = view |> element("#search-not-indexed") |> render() |> LazyHTML.from_fragment()
+    # The row is the icon and one block of text.
+    assert doc |> LazyHTML.query("#search-not-indexed > *") |> Enum.count() == 2
+    doc |> LazyHTML.text() |> String.split() |> Enum.join(" ")
   end
 
   test "searching shows the card, where it lives and why it matched", ctx do

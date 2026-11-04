@@ -632,6 +632,11 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
           only for your own requests.
         </p>
 
+        <.callout id="ai-model-cost-warning" kind={:warning} class="mt-4">
+          Choose cheaper models where possible: the model you pick sets what each
+          request costs.
+        </.callout>
+
         <dl class="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[8rem_1fr]">
           <dt class="text-base-content/50">Endpoint</dt>
           <dd class="font-mono text-xs">
@@ -767,9 +772,6 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
               options={model_options(chat_models(@ai_models), @ai.model)}
               class="w-full select font-mono text-xs"
             />
-            <p id="ai-model-cost-warning" class="-mt-1 text-xs font-semibold text-warning">
-              WARNING: Choose cheaper models where possible
-            </p>
           </div>
           <div :if={embedding_models(@ai_models) != []}>
             <.input

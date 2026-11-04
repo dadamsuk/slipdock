@@ -351,12 +351,17 @@ defmodule SlipdockWeb.ConfigLiveTest do
   end
 
   describe "AI models (#1670)" do
-    test "each model field carries the cost warning", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/config/ai")
+    test "the cost warning is one callout at the top, not one per field (#1697)", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/config/ai")
+
+      assert view |> element("#ai-models #ai-cost-warning[data-callout=warning]") |> render() =~
+               "Choose cheaper models where possible"
+
+      assert length(Regex.scan(~r/Choose cheaper models/, html)) == 1
+      refute html =~ "WARNING:"
 
       for key <- ~w(model quick_model organise_model fallback_models) do
-        assert view |> element("#ai-cost-warning-#{key}") |> render() =~
-                 "WARNING: Choose cheaper models where possible"
+        refute has_element?(view, "#ai-cost-warning-#{key}")
       end
     end
 

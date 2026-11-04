@@ -26,6 +26,9 @@ defmodule SlipdockWeb.AIKeyLiveTest do
       {:ok, view, html} = live(conn, ~p"/account/settings")
       assert html =~ "AI model"
       assert html =~ "AI features are off for you"
+      # The cost warning shows before any model list is fetched, once.
+      assert has_element?(view, "#ai-model-cost-warning[data-callout=warning]")
+      assert length(Regex.scan(~r/Choose cheaper models/, html)) == 1
 
       view
       |> form("form[phx-submit=save_ai_provider]", %{"api_key" => "sk-or-v1-0123456789abcdef"})
@@ -95,8 +98,8 @@ defmodule SlipdockWeb.AIKeyLiveTest do
       :ok = Keys.put_settings(user, %{base_url: "http://box.local:1234/v1"})
 
       {:ok, view, html} = live(conn, ~p"/account/settings")
-      # The warning sits under the selector, which only appears once listed.
-      refute html =~ "Choose cheaper models"
+      # The warning is at the top of the section (#1697), before any list.
+      refute html =~ "3 model(s)"
 
       view |> element("button[phx-click=list_ai_models]") |> render_click()
       # The list arrives from an async task.
@@ -104,8 +107,12 @@ defmodule SlipdockWeb.AIKeyLiveTest do
       assert html =~ "local/small"
       assert html =~ "3 model(s)"
 
-      assert view |> element("#ai-model-cost-warning") |> render() =~
-               "WARNING: Choose cheaper models where possible"
+      # Once, as a callout, whether or not the list is open (#1697).
+      assert view |> element("#ai-model-cost-warning[data-callout=warning]") |> render() =~
+               "Choose cheaper models where possible"
+
+      assert length(Regex.scan(~r/Choose cheaper models/, render(view))) == 1
+      refute render(view) =~ "WARNING:"
 
       view
       |> form("form[phx-submit=save_ai_model]", %{
