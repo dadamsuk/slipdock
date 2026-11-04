@@ -97,14 +97,14 @@ try {
     if (boxed.length < 15) fail(`${theme}: only ${boxed.length} boxed fields found`)
 
     for (const key of ['border', 'radius', 'family', 'bg', 'shadow']) {
-      const seen = new Set(boxed.filter((r) => r.family !== 'ui-monospace' || key !== 'family').map((r) => r[key]))
+      const seen = new Set(boxed.filter((r) => r.family !== 'JetBrainsMonoVariable' || key !== 'family').map((r) => r[key]))
       if (seen.size !== 1) {
         console.table(boxed.map((r) => ({ what: r.what, [key]: r[key] })))
         fail(`${theme}: fields disagree on ${key}: ${[...seen].join(' | ')}`)
       }
     }
     // 14px Inter; code values (field-mono) 13px mono, the same optical size.
-    const wrong = boxed.filter((r) => r.size !== (r.family === 'ui-monospace' ? '13px' : '14px'))
+    const wrong = boxed.filter((r) => r.size !== (r.family === 'JetBrainsMonoVariable' ? '13px' : '14px'))
     if (wrong.length) fail(`${theme}: off-scale text: ` + wrong.map((r) => `${r.what} ${r.size}`).join(', '))
     const short = boxed.filter((r) => r.tag !== 'textarea' && r.tag !== 'div' && r.height !== 28)
     if (short.length) fail(`${theme}: single-line fields not 28px: ` + short.map((r) => `${r.what} ${r.height}`).join(', '))

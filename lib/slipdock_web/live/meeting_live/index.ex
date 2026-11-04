@@ -109,7 +109,7 @@ defmodule SlipdockWeb.MeetingLive.Index do
               class="rounded-2xl bg-base-100 p-8 text-center shadow-sm ring-1 ring-base-content/10"
             >
               <.icon name="hero-microphone" class="size-8 text-base-content/30" />
-              <h2 class="mt-3 text-lg font-semibold">No meetings captured here yet</h2>
+              <h2 class="mt-3 section-title">No meetings captured here yet</h2>
               <p class="mx-auto mt-2 max-w-md text-sm text-base-content/60">
                 Send a meeting's recording or transcript, and Slipdock reads it alongside this
                 board's cards and wiki. It proposes decisions, actions and card changes, each

@@ -51,7 +51,7 @@ defmodule SlipdockWeb.ErrorHTML do
       <body class="min-h-screen bg-base-200 text-base-content">
         <main class="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 px-6 text-center">
           <p class="font-mono text-sm text-base-content/50">{@status}</p>
-          <h1 class="text-2xl font-semibold">{@title}</h1>
+          <h1 class="page-title">{@title}</h1>
           <p class="text-base-content/70">{@message}</p>
           <a href={~p"/"} class="btn btn-primary btn-sm mt-2">Back to your boards</a>
         </main>

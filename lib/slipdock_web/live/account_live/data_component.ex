@@ -118,7 +118,7 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
     ~H"""
     <div class="space-y-8">
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">Your data</h2>
+        <h2 class="section-title">Your data</h2>
         <p class="mt-1 text-sm text-base-content/60">
           Everything you have here, as a zip: the boards you own with their cards, your wiki
           pages as Markdown, and anything you wrote on other people's boards.
@@ -134,7 +134,7 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">Move boards between servers</h2>
+        <h2 class="section-title">Move boards between servers</h2>
         <p class="mt-1 text-sm text-base-content/60">
           A board as one file that another Slipdock can read back: its lists, cards and
           subcards, tags, checklists, comments, custom fields, what waits on what, and the

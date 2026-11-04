@@ -392,7 +392,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
             if(analysing?(@capture), do: "max-w-3xl", else: "max-w-6xl")
           ]}>
             <header>
-              <h1 class="text-xl font-semibold">{@capture.title}</h1>
+              <h1 class="page-title">{@capture.title}</h1>
               <p class="mt-1 text-sm text-base-content/60">
                 Sent by {(@capture.owner && (@capture.owner.name || @capture.owner.email)) ||
                   "somebody"}

@@ -65,7 +65,7 @@ defmodule SlipdockWeb.ToolLive.Review do
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-4xl space-y-8 px-4 py-6 sm:px-6 sm:py-10">
           <div>
-            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Tool listings</h1>
+            <h1 class="page-title">Tool listings</h1>
             <p class="mt-1 max-w-xl text-sm text-base-content/60">
               A listed Tool can be seen and installed by everyone on this server, and its skills
               run in their assistants with their access. Read each version in full — its page shows

@@ -77,7 +77,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
     >
       <div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <div class="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <h2 id={"#{@id}-title"} class="text-base font-semibold">{@title}</h2>
+          <h2 id={"#{@id}-title"} class="section-title">{@title}</h2>
           <span :if={@note} class="text-xs text-base-content/60">{@note}</span>
         </div>
         {render_slot(@aside)}

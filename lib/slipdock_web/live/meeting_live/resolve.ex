@@ -264,7 +264,7 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
       <div class="kanban-scroll h-full overflow-y-auto" phx-window-keydown={@can_write && "key"}>
         <div class="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
           <header class="flex flex-wrap items-center gap-3">
-            <h1 class="flex-1 text-xl font-semibold">Resolve</h1>
+            <h1 class="flex-1 page-title">Resolve</h1>
             <span :if={@question} class="text-sm text-base-content/60">
               {length(Enum.filter(@pending, &(&1.status == "open")))} left
             </span>

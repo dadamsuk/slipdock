@@ -592,7 +592,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
       id="ai-models"
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 class="text-lg font-semibold">AI models</h2>
+      <h2 class="section-title">AI models</h2>
       <p class="mt-1 text-sm text-base-content/60">
         What the server's AI asks when a person hasn't picked a model of their own under
         Account → AI model (theirs always wins). Leave a field empty to use the environment
@@ -659,7 +659,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
       id="meetings-settings"
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 class="text-lg font-semibold">Meeting mode</h2>
+      <h2 class="section-title">Meeting mode</h2>
       <p class="mt-1 text-sm text-base-content/60">
         People send a meeting's recording or transcript, and Slipdock proposes the decisions,
         actions and card changes in it, each tied to the words it came from. Nothing reaches a
@@ -1006,7 +1006,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
       id="meetings-usage"
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 class="text-lg font-semibold">This month</h2>
+      <h2 class="section-title">This month</h2>
       <p class="mt-1 text-sm text-base-content/60">
         What meeting capture has cost the server since {Calendar.strftime(
           @meetings_usage.month,
@@ -1046,7 +1046,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   defp server_tab(assigns) do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h2 class="text-lg font-semibold">Who can register</h2>
+      <h2 class="section-title">Who can register</h2>
       <p class="mt-1 text-sm text-base-content/60">
         Changing this does not remove anybody. People who already have an account keep it,
         whichever way you set this.
@@ -1370,7 +1370,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
       id="transcription-settings"
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 class="text-lg font-semibold">Transcription server</h2>
+      <h2 class="section-title">Transcription server</h2>
       <p class="mt-1 text-sm text-base-content/60">
         Where a recording attached to a card goes when somebody presses Transcribe: a server of
         your own that speaks the transcription API in the manual. The text comes back onto the card, under the
@@ -1457,7 +1457,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   defp mail_tab(assigns) do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h2 class="text-lg font-semibold">Email</h2>
+      <h2 class="section-title">Email</h2>
       <p class="mt-1 text-sm text-base-content/60">
         Sign-in codes, invitations and whatever your automation rules send.
       </p>

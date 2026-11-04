@@ -499,7 +499,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     ~H"""
     <.modal id="settings-modal" on_close={JS.patch(@close_path)} size="page">
       <div class="space-y-5 p-6">
-        <h2 class="text-lg font-semibold">Board settings</h2>
+        <h2 class="section-title">Board settings</h2>
         <nav
           id="settings-tabs"
           role="tablist"

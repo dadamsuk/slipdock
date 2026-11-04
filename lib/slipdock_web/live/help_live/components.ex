@@ -12,7 +12,7 @@ defmodule SlipdockWeb.HelpLive.Components do
       id={@id}
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 class="text-lg font-semibold">{@title}</h2>
+      <h2 class="section-title">{@title}</h2>
       <div class="help-prose mt-2 space-y-3 text-sm text-base-content/70">
         {render_slot(@inner_block)}
       </div>

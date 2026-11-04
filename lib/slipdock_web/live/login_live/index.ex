@@ -267,7 +267,7 @@ defmodule SlipdockWeb.LoginLive.Index do
           <div class="mb-6 flex items-center gap-3">
             <Layouts.brand_mark class="size-12" variant={:detailed} />
             <div>
-              <h1 class="text-xl font-bold">Sign in</h1>
+              <h1 class="page-title">Sign in</h1>
               <p class="text-sm text-base-content/60">{strapline(@stance, @fallback?)}</p>
             </div>
           </div>

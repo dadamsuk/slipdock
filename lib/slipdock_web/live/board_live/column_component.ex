@@ -135,7 +135,7 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
     ~H"""
     <.modal id="column-modal" on_close={JS.push("close_column", target: @target)} size="sm">
       <div class="space-y-5 p-6">
-        <h2 class="text-lg font-semibold">List settings</h2>
+        <h2 class="section-title">List settings</h2>
         <.form
           phx-target={@target}
           for={@form}

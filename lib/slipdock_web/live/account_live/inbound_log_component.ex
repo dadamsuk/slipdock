@@ -51,7 +51,7 @@ defmodule SlipdockWeb.AccountLive.InboundLogComponent do
     >
       <div class="flex items-start justify-between gap-3">
         <div>
-          <h2 class="text-lg font-semibold">Inbound email</h2>
+          <h2 class="section-title">Inbound email</h2>
           <p class="text-sm text-base-content/60">
             Your last 50 messages to Slipdock's addresses at {Inbound.domain()}, and what came of each.
           </p>

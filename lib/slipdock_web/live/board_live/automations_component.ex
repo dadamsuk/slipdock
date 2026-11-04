@@ -480,7 +480,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     <.modal id="automations-modal" on_close={JS.patch(@close_path)} size="lg">
       <div class="space-y-5 p-6">
         <div>
-          <h2 class="flex items-center gap-2 text-lg font-semibold">
+          <h2 class="flex items-center gap-2 section-title">
             <.icon name="hero-cpu-chip" class="size-5 text-primary" /> Automations
           </h2>
           <p class="mt-1 text-sm text-base-content/60">

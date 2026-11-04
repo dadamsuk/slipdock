@@ -60,7 +60,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
     ~H"""
     <div class="space-y-8">
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">Set up an agent</h2>
+        <h2 class="section-title">Set up an agent</h2>
         <p class="mt-1 text-sm text-base-content/60">
           Claude, ChatGPT or anything else that can run a shell command can read and
           write these boards. The agent runs wherever you already use it — your laptop,
@@ -76,7 +76,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">1 · Tell it where the board is</h2>
+        <h2 class="section-title">1 · Tell it where the board is</h2>
         <p class="mt-1 text-sm text-base-content/60">
           Paste this at the start of a session. The address is this server's own, and
           <.link href={~p"/api/guide"} class="link">the guide</.link>
@@ -88,7 +88,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">2 · Approve it, once</h2>
+        <h2 class="section-title">2 · Approve it, once</h2>
         <p class="mt-1 text-sm text-base-content/60">
           Not optional, and not only about writing: the guide is the one thing an agent
           can read without a token. Your boards need one — listing them, opening a card,
@@ -110,7 +110,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">
+        <h2 class="section-title">
           Optional · install the skills
           <span class="ml-1 align-middle text-xs font-normal text-base-content/50">
             for Claude Code and anything that reads <code>~/.claude/skills</code>
@@ -151,7 +151,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         id="agent-chatgpt-skills"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">
+        <h2 class="section-title">
           Optional · the skills in ChatGPT
           <span class="ml-1 align-middle text-xs font-normal text-base-content/50">
             one zip per skill, for ChatGPT's skill upload
@@ -182,7 +182,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         id="agent-mcp-section"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">
+        <h2 class="section-title">
           Optional · connect over MCP
           <span class="ml-1 align-middle text-xs font-normal text-base-content/50">
             for claude.ai, the Claude apps, Claude Code and anything else that speaks MCP
@@ -227,7 +227,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         id="agent-cli-section"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">
+        <h2 class="section-title">
           Optional · the <code>slipdock</code>
           CLI
           <span class="ml-1 align-middle text-xs font-normal text-base-content/50">
@@ -260,7 +260,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         id="agent-chat-capture"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">Hand it a conversation</h2>
+        <h2 class="section-title">Hand it a conversation</h2>
         <p class="mt-1 text-sm text-base-content/60">
           Chat capture is on here. Ask Claude or ChatGPT to <em>capture this conversation</em>
           and it sends the chat to a board with <code>capture_chat</code>
@@ -275,7 +275,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         id="agent-meetings"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">Hand it a meeting</h2>
+        <h2 class="section-title">Hand it a meeting</h2>
         <p class="mt-1 text-sm text-base-content/60">
           Meeting mode is on here. An agent can send a meeting's transcript to a board — <code>slipdock capture new &lt;board&gt; --transcript meeting.vtt</code>, or
           <code>capture_meeting</code>
@@ -291,7 +291,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         id="agent-runners"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">Or let a board send it work</h2>
+        <h2 class="section-title">Or let a board send it work</h2>
         <p class="mt-1 text-sm text-base-content/60">
           A <strong class="font-medium">runner</strong>
           is an agent on a machine of yours that the board sends cards to — when one arrives in a

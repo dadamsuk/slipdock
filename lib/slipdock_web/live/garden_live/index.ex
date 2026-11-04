@@ -288,7 +288,7 @@ defmodule SlipdockWeb.GardenLive.Index do
       <div id="garden-shell" class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
           <header id="garden-title" class="space-y-1">
-            <h1 class="text-2xl font-semibold">Tidy up</h1>
+            <h1 class="page-title">Tidy up</h1>
             <p class="text-sm text-base-content/60">
               Suggestions for keeping this board and its sub-boards tidy. Nothing changes until you apply one.
             </p>
@@ -312,7 +312,7 @@ defmodule SlipdockWeb.GardenLive.Index do
             <span class="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <.icon name="hero-sparkles" class="size-6" />
             </span>
-            <h2 class="mt-3 text-lg font-semibold">Nothing to tidy</h2>
+            <h2 class="mt-3 section-title">Nothing to tidy</h2>
             <p class="mx-auto mt-2 max-w-md text-sm text-base-content/60">
               {if @last_run,
                 do: "Every suggestion has been dealt with.",
@@ -337,7 +337,7 @@ defmodule SlipdockWeb.GardenLive.Index do
             class="space-y-2"
           >
             <div class="flex items-center justify-between gap-2">
-              <h2 class="text-base font-semibold">
+              <h2 class="section-title">
                 {label(first.check)} <span class="badge badge-ghost badge-sm">{length(group)}</span>
               </h2>
               <button

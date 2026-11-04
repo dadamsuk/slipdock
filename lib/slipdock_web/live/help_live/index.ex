@@ -86,7 +86,7 @@ defmodule SlipdockWeb.HelpLive.Index do
 
           <article :if={@section} id={"help-section-#{@section.slug}"} class="space-y-6">
             <header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-              <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight">
+              <h1 class="flex items-center gap-2 page-title">
                 <.icon name={@section.icon} class="size-6 text-primary" /> {@section.title}
               </h1>
               <p class="mt-2 text-sm text-base-content/70">{@section.intro}</p>
@@ -124,7 +124,7 @@ defmodule SlipdockWeb.HelpLive.Index do
   defp hub(assigns) do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h1 class="text-2xl font-bold tracking-tight">Help</h1>
+      <h1 class="page-title">Help</h1>
       <p class="mt-2 text-sm text-base-content/70">
         Slipdock is a kanban board with a wiki beside it. You can share it with people,
         automate it with rules, ask it questions, and let AI agents work on it alongside you.

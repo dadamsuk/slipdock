@@ -152,7 +152,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseCharts do
     ~H"""
     <section id="trends" aria-labelledby="trends-title" class="space-y-3">
       <div class="flex flex-wrap items-baseline gap-x-2 px-1">
-        <h2 id="trends-title" class="text-base font-semibold">Trends</h2>
+        <h2 id="trends-title" class="section-title">Trends</h2>
         <span class="text-xs text-base-content/60">
           Last {@history.days} days, {Calendar.strftime(@history.since, "%-d %b")} to {Calendar.strftime(
             @history.until,

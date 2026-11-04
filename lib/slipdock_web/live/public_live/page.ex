@@ -49,7 +49,7 @@ defmodule SlipdockWeb.PublicLive.Page do
       </header>
 
       <main class="mx-auto max-w-3xl px-4 py-8 sm:px-8 sm:py-12">
-        <h1 class="text-3xl font-bold tracking-tight">{@page.title}</h1>
+        <h1 class="page-title">{@page.title}</h1>
         <p :if={@page.summary} class="mt-2 text-base-content/60">{@page.summary}</p>
         <div class="wiki-prose mt-8">{Phoenix.HTML.raw(@html)}</div>
 

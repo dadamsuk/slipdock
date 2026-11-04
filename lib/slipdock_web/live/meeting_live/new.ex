@@ -210,7 +210,7 @@ defmodule SlipdockWeb.MeetingLive.New do
             class="mx-auto max-w-3xl space-y-6 p-4 sm:p-6"
           >
             <header>
-              <h1 class="text-xl font-semibold">Capture a meeting</h1>
+              <h1 class="page-title">Capture a meeting</h1>
               <p class="mt-1 text-sm text-base-content/60">
                 Send a recording, a transcript, or both. Slipdock reads it alongside this board and
                 proposes what it found. Nothing is written until somebody reviews and commits it.

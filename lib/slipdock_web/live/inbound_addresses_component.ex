@@ -103,7 +103,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
       id={@id}
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 class="text-lg font-semibold">Email a card in</h2>
+      <h2 class="section-title">Email a card in</h2>
       <p class="text-sm text-base-content/60">
         Mail from your own address to this one becomes a card. Quick Add reads the subject,
         so it can name the board, list, priority and due date (<code>Fix the gate #high due: friday</code>);
@@ -137,7 +137,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
         on_close={JS.push("close", target: @myself)}
       >
         <div :if={@folder} class="p-6">
-          <h2 class="text-lg font-semibold">Email to the folder {@path}</h2>
+          <h2 class="section-title">Email to the folder {@path}</h2>
           <p class="mt-1 text-sm text-base-content/60">
             This address is yours alone: it only takes mail from your own address.
             Mail to it becomes a wiki page in <strong>{@path}</strong>
@@ -149,7 +149,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
           <.addresses id={@id} addresses={@addresses} rotated={@rotated} myself={@myself} />
         </div>
         <div :if={!@folder} class="p-6">
-          <h2 class="text-lg font-semibold">Email to {@board.name}</h2>
+          <h2 class="section-title">Email to {@board.name}</h2>
           <p class="mt-1 text-sm text-base-content/60">
             These addresses are yours alone: they only take mail from your own address.
             The subject becomes the title, the body the description or the page, and attachments come too.

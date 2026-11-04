@@ -286,7 +286,7 @@ defmodule SlipdockWeb.ToolLive.Show do
         <div class="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6 sm:py-10">
           <header id="tool-header" class="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">{@tool.name}</h1>
+              <h1 class="page-title">{@tool.name}</h1>
               <p class="mt-1 max-w-xl text-base-content/70">{@tool.summary}</p>
               <p class="mt-2 text-xs text-base-content/50">
                 <code>{@tool.slug}</code>
@@ -376,7 +376,7 @@ defmodule SlipdockWeb.ToolLive.Show do
             id="tool-steps"
             class="rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10"
           >
-            <h2 class="text-lg font-semibold">How to install it</h2>
+            <h2 class="section-title">How to install it</h2>
             <p class="mt-1 text-sm text-base-content/60">
               Pick the assistant you use. Each way ends the same: you ask it to set the Tool up.
             </p>
@@ -488,7 +488,7 @@ defmodule SlipdockWeb.ToolLive.Show do
             id="tool-contents"
             class="rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10"
           >
-            <h2 class="text-lg font-semibold">What installing it does</h2>
+            <h2 class="section-title">What installing it does</h2>
             <p class="mt-1 text-sm text-base-content/60">
               Everything is here to read before you install. A Tool's skills are instructions
               your assistant follows with your access, so read them as you would anything you
@@ -566,7 +566,7 @@ defmodule SlipdockWeb.ToolLive.Show do
             id="tool-sharing"
             class="rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10"
           >
-            <h2 class="text-lg font-semibold">Who can see it</h2>
+            <h2 class="section-title">Who can see it</h2>
             <p class="mt-1 text-sm text-base-content/60">
               You, the people you share it with here, and — once an admin approves a version for
               listing — everybody on this server. They can read it and install it.
@@ -623,7 +623,7 @@ defmodule SlipdockWeb.ToolLive.Show do
             id="tool-publish"
             class="rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10"
           >
-            <h2 class="text-lg font-semibold">Publish a new version</h2>
+            <h2 class="section-title">Publish a new version</h2>
             <p class="mt-1 text-sm text-base-content/60">
               Upload the package with a higher <code>version</code>
               in its <code>tool.json</code>

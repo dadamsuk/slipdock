@@ -234,7 +234,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
     <.modal id="move-board-modal" on_close={JS.push("close_move_board", target: @target)} size="sm">
       <div class="space-y-4 p-6">
         <div>
-          <h2 class="pr-8 text-lg font-bold">Move to another board</h2>
+          <h2 class="pr-8 section-title">Move to another board</h2>
           <p class="mt-0.5 truncate text-sm text-base-content/60">{@move.card.title}</p>
         </div>
 

@@ -61,7 +61,7 @@ defmodule SlipdockWeb.OverviewLive.Index do
           </section>
 
           <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="text-lg font-semibold">People</h2>
+            <h2 class="section-title">People</h2>
             <p class="mt-1 text-sm text-base-content/60">
               What each person owns, sub-boards included, counted the way their limits count it.
               Last active is the later of their last sign-in and the last use of one of their API

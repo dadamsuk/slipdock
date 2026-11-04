@@ -366,7 +366,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
   def overview(assigns) do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h1 class="text-2xl font-bold tracking-tight">Working with an AI agent</h1>
+      <h1 class="page-title">Working with an AI agent</h1>
       <p class="mt-2 text-sm text-base-content/70">
         Claude, ChatGPT, Codex, Cursor, or a script you wrote can all read and work
         these boards. The agent runs wherever you already use it (your laptop, a cloud
@@ -390,7 +390,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
     </section>
 
     <section id="help-ways" aria-labelledby="help-ways-title">
-      <h2 id="help-ways-title" class="mb-3 text-lg font-semibold">The ways in</h2>
+      <h2 id="help-ways-title" class="mb-3 section-title">The ways in</h2>
       <div class="grid gap-4 sm:grid-cols-2">
         <article
           :for={t <- @topics}
@@ -417,7 +417,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
       aria-labelledby="help-compare-title"
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 id="help-compare-title" class="text-lg font-semibold">Side by side</h2>
+      <h2 id="help-compare-title" class="section-title">Side by side</h2>
       <p class="mt-1 text-sm text-base-content/60">
         Skills and runners aren't separate connections. Skills teach an agent that uses
         the CLI or MCP, and a runner's agent reads and writes through one of them too. They
@@ -454,7 +454,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
       id="help-choose"
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 class="text-lg font-semibold">If you're not sure</h2>
+      <h2 class="section-title">If you're not sure</h2>
       <ul class="mt-3 space-y-2 text-sm text-base-content/70">
         <li>
           <span class="font-medium text-base-content">Using claude.ai, ChatGPT or a phone?</span>
@@ -516,7 +516,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
 
     <article id={"help-topic-#{@topic.slug}"} class="space-y-6">
       <header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight">
+        <h1 class="flex items-center gap-2 page-title">
           <.icon name={@topic.icon} class="size-6 text-primary" /> {@topic.title}
         </h1>
         <p class="mt-2 text-sm text-base-content/70">{@topic.intro}</p>
