@@ -523,7 +523,14 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           data-handle=".column-handle"
           data-event="move_column"
           data-disabled={to_string(!@can_write)}
-          class={["flex h-full items-start", if(@narrow?, do: "gap-0", else: "gap-4 p-4")]}
+          class={
+            [
+              "flex h-full items-start",
+              # w-max: a flex row narrower than its lists loses its right
+              # padding in the scroller, leaving the last one on the edge.
+              if(@narrow?, do: "gap-0", else: "w-max min-w-full gap-4 p-4")
+            ]
+          }
         >
           <%!-- On a phone one list fills the screen, so it is the page: no
                 margin round it, no well behind it, and the cards sit straight
@@ -606,8 +613,9 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                     counted against its limit. --%>
               <% count = Enum.count(column.cards, &(not Card.stand_in?(&1))) %>
               <span
+                data-role="list-count"
                 class={[
-                  "badge badge-sm font-mono",
+                  "badge badge-sm tabular-nums",
                   cond do
                     column.wip_limit && count > column.wip_limit -> "badge-error"
                     column.wip_limit && count == column.wip_limit -> "badge-warning"
@@ -624,7 +632,14 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   do: "#{count}/#{column.wip_limit}",
                   else: count}
               </span>
+              <%!-- The heart only on a list that is a favourite: on every
+                    header it was one more mark to read past. Favouriting
+                    is in the ⋯ menu, which a reader gets too, since a
+                    favourite needs only the right to see the list. --%>
+              <% favourite? =
+                Slipdock.Favourites.favourite?(@favourites || MapSet.new(), :column, column.id) %>
               <.favourite_toggle
+                :if={favourite?}
                 kind="column"
                 id={column.id}
                 name={column.name}
@@ -632,7 +647,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                 class="p-0.5"
                 size="size-3.5"
               />
-              <div :if={@can_write} class="dropdown dropdown-end">
+              <div class="dropdown dropdown-end">
                 <div
                   tabindex="0"
                   role="button"
@@ -645,12 +660,28 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   tabindex="0"
                   class="menu dropdown-content z-30 w-48 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
                 >
-                  <li>
+                  <li :if={@can_write}>
                     <button phx-click="start_add_card" phx-value-id={column.id}>
                       <.icon name="hero-plus" class="size-4" /> Add card
                     </button>
                   </li>
                   <li>
+                    <button
+                      id={"favourite-list-#{column.id}"}
+                      data-role="favourite-list"
+                      phx-click="toggle_favourite"
+                      phx-value-kind="column"
+                      phx-value-id={column.id}
+                      aria-pressed={to_string(favourite?)}
+                    >
+                      <.icon
+                        name={if favourite?, do: "hero-heart-solid", else: "hero-heart"}
+                        class={["size-4", favourite? && "text-rose-500"]}
+                      />
+                      {if favourite?, do: "Remove from favourites", else: "Favourite this list"}
+                    </button>
+                  </li>
+                  <li :if={@can_write}>
                     <button
                       phx-click="edit_column"
                       phx-target="#board-column"
@@ -659,7 +690,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                       <.icon name="hero-cog-6-tooth" class="size-4" /> List settings
                     </button>
                   </li>
-                  <li>
+                  <li :if={@can_write}>
                     <button
                       class="text-error"
                       phx-click="delete_column"
@@ -791,22 +822,27 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                 </div>
               </form>
               <%!-- The three are shortcuts to the same thing: something new
-                    at the foot of this list. One row of icons rather than
-                    three rows of words — a list is narrow, and what is in
+                    at the foot of this list. "Add card" says what it adds;
+                    the page and file icons, being the rarer two, stay
+                    icons with a tooltip — a list is narrow, and what is in
                     it matters more than how to add to it. Each can be
                     turned off in the board's settings. --%>
-              <div :if={@adding_to != column.id} class="flex items-center gap-0.5">
+              <div
+                :if={@adding_to != column.id}
+                data-role="list-footer"
+                class="flex items-center gap-0.5"
+              >
                 <button
                   :if={@board.add_card}
                   type="button"
                   class="btn btn-ghost btn-sm gap-1.5 px-2 text-base-content/50 hover:text-base-content"
                   phx-click="start_add_card"
                   phx-value-id={column.id}
-                  title="Add a card"
+                  title="Add a card to this list"
                   aria-label={"Add a card to #{column.name}"}
                 >
                   <.icon name="hero-plus" class="size-4" />
-                  <span class="text-xs font-normal">Add</span>
+                  <span class="text-xs font-normal">Add card</span>
                 </button>
                 <%!-- Straight into the wiki's own editor, carrying the
                       list: a page is written as Markdown, not filled into a
@@ -815,7 +851,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   :if={@board.add_page}
                   navigate={~p"/boards/#{@board}/wiki/new?#{[column: column.id]}"}
                   class="btn btn-ghost btn-sm btn-square text-base-content/50 hover:text-base-content"
-                  title="Add a page — a wiki document, written here and placed in this list"
+                  title="Add page: a wiki page, written here and placed in this list"
                   aria-label={"Add a page to #{column.name}"}
                 >
                   <.icon name="hero-document-text" class="size-4" />
@@ -830,7 +866,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   :if={@board.add_document}
                   type="button"
                   class="btn btn-ghost btn-sm btn-square text-base-content/50 hover:text-base-content"
-                  title="Add a document — a file, on a card of its own"
+                  title="Attach file: a file, on a card of its own in this list"
                   aria-label={"Add a document to #{column.name}"}
                   phx-click={
                     JS.push("aim_document", value: %{id: column.id})
@@ -890,10 +926,14 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                 </button>
               </div>
             </form>
+            <%!-- A ghost list: the width of a list and as quiet as its
+                  footer, so it reads as "one more of these", not a button
+                  shouting beside them. --%>
             <button
               :if={!@adding_column}
               type="button"
-              class="btn btn-ghost w-full justify-start rounded-2xl bg-base-100/40 hover:bg-base-100/80"
+              data-role="add-list"
+              class="flex w-full items-center gap-1.5 rounded-2xl border border-dashed border-base-content/15 bg-base-300/30 px-3 py-3 text-sm text-base-content/60 transition hover:border-base-content/30 hover:bg-base-300/60 hover:text-base-content"
               phx-click="start_add_column"
             >
               <.icon name="hero-plus" class="size-4" /> Add another list
