@@ -80,7 +80,7 @@ defmodule SlipdockWeb.SprintPlanComponents do
             name={"#{@name}[#{board.id}][on]"}
             value="true"
             checked={Map.has_key?(@chosen, board.id)}
-            class="checkbox checkbox-sm"
+            class="checkbox"
           />
           <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(board.color)]}></span>
           <span class="min-w-0 flex-1 truncate font-medium">{board.name}</span>
@@ -95,7 +95,7 @@ defmodule SlipdockWeb.SprintPlanComponents do
               name={"#{@name}[#{board.id}][lists][]"}
               value={column.id}
               checked={column.id in Map.get(@chosen, board.id, [])}
-              class="checkbox checkbox-xs"
+              class="checkbox"
             />
             {column.name}
           </label>
@@ -235,7 +235,7 @@ defmodule SlipdockWeb.SprintPlanComponents do
             phx-target={@target}
             type="checkbox"
             id={"sprint-pick-#{card.id}"}
-            class="checkbox checkbox-sm"
+            class="checkbox"
             checked={Map.has_key?(@selected, card.id)}
             phx-click="sprint_toggle"
             phx-value-id={card.id}

@@ -72,7 +72,7 @@ defmodule SlipdockWeb.ItemComponents do
           <input
             phx-target={@target}
             type="checkbox"
-            class="checkbox checkbox-sm checkbox-success"
+            class="checkbox"
             checked={item.done}
             disabled={not @can_write}
             phx-click="toggle_check"

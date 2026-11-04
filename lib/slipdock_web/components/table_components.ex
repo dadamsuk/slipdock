@@ -435,7 +435,7 @@ defmodule SlipdockWeb.TableComponents do
     ~H"""
     <input
       type="checkbox"
-      class="checkbox checkbox-sm checkbox-success"
+      class="checkbox"
       checked={@card.completed}
       phx-click="toggle_complete"
       phx-value-id={@card.id}

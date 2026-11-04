@@ -119,7 +119,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
             name="ack"
             value="true"
             checked={@ack}
-            class="checkbox checkbox-sm"
+            class="checkbox"
           /> Email me back a link to each card my mail makes
         </label>
       </form>

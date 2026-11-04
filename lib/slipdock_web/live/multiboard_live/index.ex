@@ -386,7 +386,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
                     name="lists[]"
                     value={col.id}
                     id={"multiboard-pick-#{col.id}"}
-                    class="checkbox checkbox-xs"
+                    class="checkbox"
                     checked={col.id in @view.lists}
                   />
                   <span class="truncate">{col.name}</span>

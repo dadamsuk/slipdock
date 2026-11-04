@@ -922,7 +922,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               name="wizard[scenario]"
               value={scenario}
               checked={@p["scenario"] == scenario}
-              class="radio radio-xs"
+              class="radio"
             />
             {Setup.label(scenario)}
           </label>
@@ -1011,7 +1011,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               name="wizard[slipdock_tools]"
               value="true"
               checked={@p["slipdock_tools"] in [true, "true"]}
-              class="checkbox checkbox-xs"
+              class="checkbox"
             />
             <span class="font-medium">Let it use the Slipdock tools</span>
           </label>
@@ -1045,7 +1045,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               name="wizard[worktree]"
               value="true"
               checked={@p["worktree"] in [true, "true"]}
-              class="checkbox checkbox-xs"
+              class="checkbox"
             />
             <span class="font-medium">A git worktree per job</span>
           </label>
@@ -1068,7 +1068,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               name="wizard[self_update]"
               value="true"
               checked={@p["self_update"] not in [false, "false"]}
-              class="checkbox checkbox-xs"
+              class="checkbox"
             />
             <span class="font-medium">Keep the runner current</span>
           </label>
@@ -1157,7 +1157,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
                   value="true"
                   checked={ticked?(@p[key])}
                   disabled={off_here?(key, @p)}
-                  class="checkbox checkbox-xs"
+                  class="checkbox"
                 />
                 <span>{label}</span>
               </label>
@@ -1313,7 +1313,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             name="wizard[wait]"
             value="yes"
             checked={@p["wait"] != "no"}
-            class="checkbox checkbox-xs"
+            class="checkbox"
           /> Wait while anything is in progress on the board, so it never starts a card
           beside one being worked
         </label>
@@ -1340,7 +1340,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             name="wizard[alert]"
             value="yes"
             checked={@p["alert"] == "yes"}
-            class="checkbox checkbox-xs"
+            class="checkbox"
           /> Tell me when a job times out, or a card it left in progress is put back or given up on
         </label>
       </div>

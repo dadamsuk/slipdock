@@ -603,7 +603,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
                 <input
                   phx-target={@target}
                   type="checkbox"
-                  class="toggle toggle-sm mt-0.5 shrink-0"
+                  class="toggle mt-0.5 shrink-0"
                   checked={rule.enabled}
                   phx-click="toggle_rule"
                   phx-value-id={rule.id}

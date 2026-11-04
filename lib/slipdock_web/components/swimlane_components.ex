@@ -747,7 +747,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 name={if @compact?, do: "fields_compact[]", else: "fields[]"}
                 value={key}
                 checked={key in @table_fields}
-                class="checkbox checkbox-xs"
+                class="checkbox"
               />
               {label}
             </label>
@@ -772,7 +772,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 name="tell[]"
                 value={key}
                 checked={key in @config.tell}
-                class="checkbox checkbox-xs"
+                class="checkbox"
               />
               {label}
             </label>
@@ -788,7 +788,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 name="tell[]"
                 value={key}
                 checked={key in @config.tell}
-                class="checkbox checkbox-xs"
+                class="checkbox"
               />
               {label}
             </label>
@@ -807,7 +807,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 name={if @compact?, do: "show_compact[]", else: "show[]"}
                 value={key}
                 checked={MapSet.member?(@shown, key)}
-                class="checkbox checkbox-xs"
+                class="checkbox"
               />
               {label}
             </label>
@@ -826,7 +826,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             name="empty"
             value="show"
             checked={@config.empty == "show"}
-            class="toggle toggle-sm"
+            class="toggle"
           />
           <span>
             Show empty groups
@@ -844,7 +844,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             name="snoozed"
             value="show"
             checked={@config.snoozed == "show"}
-            class="toggle toggle-sm"
+            class="toggle"
           />
           <span>
             Show snoozed
