@@ -292,12 +292,23 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   priorities, flags, lists, due (overdue / today / next 7 days / next 30 days /
   has a date / no date), status (all / hide completed / only completed), cover
   colour.
-- **Display** — comfortable or compact cards; show empty groups (which also
+- **Display** — what a card shows, comfortable or compact cards; show empty groups (which also
   fills gaps between date buckets); **List width** — narrow, normal, wide or
   extra wide. The board view's Display menu has the same *List width*, which
   sets how wide every list is drawn (on a phone a list still fills the
   screen). Like the rest of the Display menu it is kept in the URL and in a
   saved view.
+
+  Until you choose otherwise, a card shows only what you need at a glance:
+  its tags, title, assignee, due date, priority (high, critical and low;
+  medium is the unremarkable middle and stays off the front), flags,
+  subcard and checklist progress, and what blocks it, plus its cover and
+  image. Tick the rest in **Display** (start date, % complete, time
+  tracked, a description mark, comments, attachments, time in list). A card
+  showing both dates draws them as one range, *31 Oct → 5 Nov*. Plain facts
+  are plain text; only what needs attention is tinted: overdue, due soon,
+  blocked, flagged, waiting on someone. A saved view keeps the facets it
+  was saved with.
 - **Drag and drop** between cells changes the card to match the target cell:
   its list, priority, status, colour or due date (set to the start of the
   bucket), or swaps the source tag/flag for the target one. Created / updated
@@ -924,10 +935,12 @@ whether an agent or a person holds it.
 amber, with how far over, once that is past the list's usual stay (the time
 85 in 100 cards spent there). Never on a done or dropped list, a card with an
 open wait (the person is the hold-up), or where there is too little history.
-To leave it off, untick **Time in list** in the board's **Display** menu (every
-list), or *Show how long each card has been in this list* in a list's
-settings (that list only; `slipdock set-column <board> <list> --no-show-age`,
-or `show_age: false` on the list over the API).
+It is off until you ask for it: tick **Time in list** in the board's
+**Display** menu (every list), and untick **Time in list** to leave it off
+again. A list can keep it off its own cards whatever the menu says: untick
+*Show how long each card has been in this list* in its settings (that list
+only; `slipdock set-column <board> <list> --no-show-age`, or
+`show_age: false` on the list over the API).
 
 The board's **Filter** menu has *Time in list* (only cards past their list's
 usual stay) and, on runner boards, *Driver*: All, Agent or Human. The API, MCP and CLI carry the same

@@ -22,13 +22,22 @@ defmodule SlipdockWeb.AgeChipOptionTest do
   defp chip(card), do: "#card-#{card.id} [data-role=age-chip]"
 
   describe "the Display menu's Time in list" do
-    test "is offered, and on by default, comfortable and compact", ctx do
+    test "is offered, off by default, and on once ticked, comfortable and compact", ctx do
       assert {"age", "Time in list"} in Config.facets()
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
       assert has_element?(view, "#display-menu", "Time in list")
-      assert has_element?(view, chip(ctx.a))
+      # Off until someone asks for it (#1708).
+      refute has_element?(view, chip(ctx.a))
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[density: "compact"]}")
+      refute has_element?(view, chip(ctx.a))
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[show: "age"]}")
+      assert has_element?(view, chip(ctx.a))
+
+      {:ok, view, _} =
+        live(ctx.conn, ~p"/boards/#{ctx.board}?#{[density: "compact", show_compact: "age"]}")
+
       assert has_element?(view, chip(ctx.a))
     end
 
@@ -69,14 +78,14 @@ defmodule SlipdockWeb.AgeChipOptionTest do
       view |> form("#column-form", column: %{show_age: "false"}) |> render_submit()
 
       refute Repo.get!(Column, ctx.todo.id).show_age
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[show: "age"]}")
       refute has_element?(view, chip(ctx.a))
       assert has_element?(view, chip(ctx.b))
 
       view = open_settings(ctx.conn, ctx.board, ctx.todo)
       view |> form("#column-form", column: %{show_age: "true"}) |> render_submit()
       assert Repo.get!(Column, ctx.todo.id).show_age
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[show: "age"]}")
       assert has_element?(view, chip(ctx.a))
     end
 

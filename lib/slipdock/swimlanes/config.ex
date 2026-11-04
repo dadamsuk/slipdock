@@ -116,7 +116,14 @@ defmodule Slipdock.Swimlanes.Config do
     {"age", "Time in list"}
   ]
   @facet_keys Enum.map(@facets, &elem(&1, 0))
-  @default_show_compact ~w(cover status priority flags assignee due_date age)
+  # What a card shows until someone picks otherwise (#1708): the essentials
+  # only, the same at both densities. The cover, an image and the complete
+  # toggle (`status`) are the card itself rather than metadata, so they stay;
+  # the description mark, time in list, attachments, comments, start date,
+  # % complete and time tracked are a Display choice away. A saved view keeps
+  # whatever it stored. Compact cards leave the front image out, as before.
+  @default_show ~w(cover images status tags priority flags assignee due_date dependencies subcards checklist)
+  @default_show_compact @default_show -- ["images"]
   # Views that render less than a full card only offer the facets they can show.
   @mode_facets %{
     "outline" => ~w(cover status tags priority flags assignee),
@@ -199,7 +206,7 @@ defmodule Slipdock.Swimlanes.Config do
             colors: [],
             fields: ~w(title column priority tags due_date completed),
             fields_compact: ~w(title column priority tags due_date completed),
-            show: @facet_keys,
+            show: @default_show,
             show_compact: @default_show_compact,
             tell: @default_tell,
             # Facets the board itself puts out of sight (a simple board's
@@ -264,6 +271,11 @@ defmodule Slipdock.Swimlanes.Config do
   end
 
   def facet_keys, do: @facet_keys
+
+  @doc "The facets a card shows until a view or the Display menu says otherwise."
+  def default_show, do: @default_show
+  def default_show("compact"), do: @default_show_compact
+  def default_show(_density), do: @default_show
 
   @doc "What a narrative can tell, as `{key, label}`: the event kinds, then the page sections."
   def tell_events, do: @tell_events

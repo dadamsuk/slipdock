@@ -468,6 +468,14 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
   .chip-tint { background: color-mix(in oklab, currentColor 12%, transparent); }
   .chip-line { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-base-content) 12%, transparent); }
 
+  /* A card's meta row (#1708): neutral metadata is plain icon and text, so
+     an outlined chip there loses its outline and its side padding. Tinted
+     chips (overdue, due soon, blocked, flagged, waiting) keep their fill:
+     they are the states that need attention. Here in the components layer,
+     a `ring` utility (a rolled-up date's dashed ring) still wins. */
+  .card-meta .chip-line { box-shadow: none; }
+  .card-meta .chip-line:not(.chip-icon) { padding-inline: 0; }
+
   /* An action on a line of text (the card's meta line, #1230): a thin
      border and a faint fill, so it reads as something to press and not as
      more of the words beside it, whether it is an <a> or a <button>. */
