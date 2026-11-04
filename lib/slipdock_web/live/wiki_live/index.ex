@@ -4238,7 +4238,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       quick_add={@quick_add}
       shortcuts={@shortcuts}
       viewport={@viewport}
-      nav_active={:boards}
+      nav_active={if @vault_view, do: :wiki, else: :boards}
       page_jumps={@page_jumps}
     >
       <:subnav>

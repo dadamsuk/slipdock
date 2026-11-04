@@ -80,8 +80,8 @@ defmodule SlipdockWeb.Layouts do
           <.link
             navigate={~p"/"}
             class="order-1 flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-semibold tracking-tight hover:bg-base-200"
-            title="Boards"
-            aria-label="Boards"
+            title="All boards (h)"
+            aria-label="All boards (h)"
           >
             <.brand_mark />
             <%!-- Signed in, the mark is enough: the wordmark took the room the
@@ -92,6 +92,11 @@ defmodule SlipdockWeb.Layouts do
               class="hidden h-4 sm:inline-flex"
             />
           </.link>
+          <%!-- From lg up the app's places are links you can see (#1713),
+                not entries in the avatar menu: Boards, My work and Wiki, the
+                current one marked. Below lg the row has no room, and the
+                avatar menu and the phone's Menu keep them. --%>
+          <.primary_nav :if={@current_user} active={@nav_active} />
           <%!-- With nothing of its own and a board below, this is only the
                 spacer that pushes the tablet's first row apart; on one row
                 the board's name is the spacer. --%>
@@ -113,103 +118,109 @@ defmodule SlipdockWeb.Layouts do
               {render_slot(@actions)}
             </div>
             <.header_links :if={@quick_add} links={@quick_add.links} />
-            <.quick_add_bar :if={@quick_add} quick_add={@quick_add} />
-            <button
-              :if={@quick_add}
-              type="button"
-              id="quick-note-open"
-              phx-click={JS.push("toggle", target: "#quick-note")}
-              class="btn btn-ghost btn-sm btn-square hidden sm:inline-flex"
-              aria-label="Quick note"
-              title="Quick note (Shift-Alt-N)"
+            <%!-- From lg up, search is a field you can see (#1713): it opens
+                Search everything, where Ask is the other half of the toggle.
+                Below lg the magnifying glass and the sparkles stay. --%>
+            <.link
+              :if={@current_user}
+              id="search-field"
+              navigate={~p"/search"}
+              aria-current={@nav_active in [:search, :ask] && "page"}
+              class="hidden h-8 w-56 items-center gap-2 rounded-field border border-base-300 bg-base-200/40 px-2.5 text-sm text-base-content/50 transition-colors hover:border-base-content/30 hover:text-base-content/80 lg:flex xl:w-64"
+              title="Search everything (Shift-Alt-S)"
+              aria-label="Search everything (Shift-Alt-S)"
             >
-              <.icon name="hero-pencil-square" class="size-5" />
-            </button>
+              <.icon name="hero-magnifying-glass" class="size-4 shrink-0" />
+              <span class="min-w-0 flex-1 truncate">Search or ask…</span>
+              <kbd class="shrink-0 rounded border border-base-content/20 bg-base-100 px-1 font-mono text-2xs">
+                ⇧⌥S
+              </kbd>
+            </.link>
+            <.quick_add_bar :if={@quick_add} quick_add={@quick_add} />
+            <%!-- From lg up, Quick note is inside quick add's panel. --%>
+            <.icon_button
+              :if={@quick_add}
+              id="quick-note-open"
+              label="Quick note"
+              key="Shift-Alt-N"
+              icon="hero-pencil-square"
+              phx-click={JS.push("toggle", target: "#quick-note")}
+              class="hidden sm:inline-flex lg:hidden"
+            />
             <%!-- Ctrl-O and Ctrl-P on a desktop; on a phone there is no Ctrl, and
                 the card finder is the fastest way to a card on a screen that
                 shows one list at a time. Same two panels, same two events. --%>
-            <button
+            <.icon_button
               :if={@shortcuts}
-              type="button"
+              id="finder-open"
+              label="Find a card"
+              key="Ctrl-O"
+              icon="hero-magnifying-glass"
               phx-click="shortcut_panel"
               phx-value-panel="find"
-              class="btn btn-ghost btn-sm btn-square sm:hidden"
-              aria-label="Find a card"
-              title="Find a card"
-            >
-              <.icon name="hero-magnifying-glass" class="size-5" />
-            </button>
-            <button
+              class="sm:hidden"
+            />
+            <.icon_button
               :if={@shortcuts}
-              type="button"
+              id="commands-open"
+              label="Commands"
+              key="Ctrl-P"
+              icon="hero-command-line"
               phx-click="shortcut_panel"
               phx-value-panel="command"
-              class="btn btn-ghost btn-sm btn-square sm:hidden"
-              aria-label="Commands"
-              title="Commands"
-            >
-              <.icon name="hero-command-line" class="size-5" />
-            </button>
+              class="sm:hidden"
+            />
             <%!-- Deep search and Ask are two halves of the same thing — find it
                 yourself, or have the assistant find it and answer — so they sit
-                together, left of the heart. The magnifying glass beside them on
-                a phone is the card finder, which is a different job: that one
-                jumps to a card you can already name. --%>
-            <.link
+                together, left of the heart, on a tablet. From lg up the search
+                field stands for both. The magnifying glass on a phone is the
+                card finder, which is a different job: that one jumps to a card
+                you can already name. --%>
+            <.icon_link
               :if={@current_user}
               id="search-link"
               navigate={~p"/search"}
-              aria-current={@nav_active == :search && "page"}
-              class={[
-                "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
-                @nav_active == :search && "bg-base-200 text-primary"
-              ]}
-              aria-label="Search everything"
-              title="Search everything"
-            >
-              <.icon name="hero-magnifying-glass-circle" class="size-4" />
-            </.link>
-            <.link
+              on={@nav_active == :search}
+              label="Search everything"
+              key="Shift-Alt-S"
+              icon="hero-magnifying-glass"
+              class="hidden sm:inline-flex lg:hidden"
+            />
+            <.icon_link
               :if={@current_user}
               id="ask-link"
               navigate={~p"/ask"}
-              aria-current={@nav_active == :ask && "page"}
-              class={[
-                "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
-                @nav_active == :ask && "bg-base-200 text-primary"
-              ]}
-              aria-label="Ask about everything"
-              title="Ask about everything"
-            >
-              <.icon name="hero-sparkles" class="size-4" />
-            </.link>
-            <%!-- The phone keeps Favourites in its floating navigation; on a desktop the
-                heart sits here, so the handful of things you go back to all day
-                are one click rather than a hunt through the avatar menu, which
-                leaves it out, as it does Search and Ask. --%>
-            <.link
+              on={@nav_active == :ask}
+              label="Ask about everything"
+              key="Shift-Alt-A"
+              icon="hero-sparkles"
+              class="hidden sm:inline-flex lg:hidden"
+            />
+            <%!-- The phone keeps Favourites in its floating navigation; from a
+                tablet up the heart sits here, right of quick add, so the
+                handful of things you go back to all day are one click rather
+                than a hunt through the avatar menu, which leaves it out. --%>
+            <.icon_link
               :if={@current_user}
               id="favourites-link"
               navigate={~p"/favourites"}
-              aria-current={@nav_active == :favourites && "page"}
-              class={[
-                "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
-                @nav_active == :favourites && "bg-base-200 text-primary"
-              ]}
-              aria-label="Favourites"
-              title="Favourites"
-            >
-              <.icon name="hero-heart" class="size-4" />
-            </.link>
+              on={@nav_active == :favourites}
+              label="Favourites"
+              key="Shift-Alt-F"
+              icon="hero-heart"
+              class="hidden sm:inline-flex"
+            />
             <%!-- What is waiting on you (#1118): only there when something is,
-                so a person with nothing to answer sees the header as it was. --%>
+                so a person with nothing to answer sees the header as it was.
+                From lg up its count is folded into the bell's badge, and the
+                alerts panel leads with it. --%>
             <.link
               :if={@current_user && @waiting_count > 0}
               id="waiting-link"
               navigate={~p"/work"}
-              class="btn btn-ghost btn-sm hidden gap-1 px-2 sm:inline-flex"
-              aria-label={"#{@waiting_count} waiting on you"}
-              title={"#{@waiting_count} waiting on you"}
+              class="btn btn-ghost btn-sm hidden gap-1 px-2 sm:inline-flex lg:hidden"
+              aria-label={"#{@waiting_count} waiting on you (My work)"}
+              title={"#{@waiting_count} waiting on you (My work)"}
             >
               <.icon name="hero-hand-raised" class="size-4" />
               <span
@@ -219,7 +230,12 @@ defmodule SlipdockWeb.Layouts do
                 {@waiting_count}
               </span>
             </.link>
-            <.alerts_bar :if={@alerts} alerts={@alerts} open={@alerts_open} />
+            <.alerts_bar
+              :if={@alerts}
+              alerts={@alerts}
+              open={@alerts_open}
+              waiting_count={if @current_user, do: @waiting_count, else: 0}
+            />
             <.theme_toggle :if={!@current_user} />
             <div
               :if={@current_user}
@@ -230,7 +246,8 @@ defmodule SlipdockWeb.Layouts do
                 tabindex="0"
                 role="button"
                 class="flex cursor-pointer rounded-full"
-                title={Slipdock.Accounts.User.display_name(@current_user)}
+                title={"#{Slipdock.Accounts.User.display_name(@current_user)}: account menu"}
+                aria-label={"#{Slipdock.Accounts.User.display_name(@current_user)}: account menu"}
               >
                 <SlipdockWeb.SlipdockComponents.avatar user={@current_user} size="md" />
               </div>
@@ -309,6 +326,115 @@ defmodule SlipdockWeb.Layouts do
 
       <.flash_group flash={@flash} />
     </div>
+    """
+  end
+
+  @doc """
+  What a header button's tooltip and `aria-label` say: its name, and its key
+  when it has one (#1713). One wording everywhere, so the key is always found
+  in the same place.
+  """
+  def header_tip(label, nil), do: label
+  def header_tip(label, key), do: "#{label} (#{key})"
+
+  attr :active, :atom, default: nil, doc: "the page's place in the navigation"
+
+  @doc """
+  The app's three places as text links, from lg up (#1713): Boards, My work
+  and Wiki, the one you are in marked with `aria-current`. Below lg they are
+  in the avatar menu and the phone's Menu instead.
+  """
+  def primary_nav(assigns) do
+    ~H"""
+    <nav
+      id="primary-nav"
+      aria-label="Primary"
+      class="order-1 hidden shrink-0 items-center gap-0.5 lg:flex"
+    >
+      <.primary_link
+        :for={{place, path, label} <- primary_places()}
+        on={@active == place}
+        navigate={path}
+        id={"primary-nav-#{place}"}
+      >
+        {label}
+      </.primary_link>
+    </nav>
+    """
+  end
+
+  defp primary_places do
+    [{:boards, ~p"/", "Boards"}, {:work, ~p"/work", "My work"}, {:wiki, ~p"/wiki", "Wiki"}]
+  end
+
+  attr :id, :string, required: true
+  attr :navigate, :string, required: true
+  attr :on, :boolean, default: false
+  slot :inner_block, required: true
+
+  defp primary_link(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      navigate={@navigate}
+      aria-current={@on && "page"}
+      class={[
+        "rounded-field px-2.5 py-1.5 text-sm font-medium transition-colors",
+        if(@on,
+          do: "bg-primary/10 text-primary",
+          else: "text-base-content/70 hover:bg-base-200 hover:text-base-content"
+        )
+      ]}
+    >
+      {render_slot(@inner_block)}
+    </.link>
+    """
+  end
+
+  attr :id, :string, default: nil
+  attr :label, :string, required: true, doc: "what it does, said by its tooltip and aria-label"
+  attr :key, :string, default: nil, doc: "its keyboard shortcut, if it has one"
+  attr :icon, :string, required: true
+  attr :class, :any, default: nil
+  attr :rest, :global, include: ~w(phx-click phx-value-panel)
+
+  # An icon-only header button: its tooltip and aria-label name it and its key.
+  defp icon_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      id={@id}
+      class={["btn btn-ghost btn-sm btn-square", @class]}
+      aria-label={header_tip(@label, @key)}
+      title={header_tip(@label, @key)}
+      {@rest}
+    >
+      <.icon name={@icon} class="size-5" />
+    </button>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :navigate, :string, required: true
+  attr :on, :boolean, default: false
+  attr :label, :string, required: true
+  attr :key, :string, default: nil
+  attr :icon, :string, required: true
+  attr :class, :any, default: nil
+
+  # The same, for a header icon that goes somewhere, marked when you are there.
+  defp icon_link(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      navigate={@navigate}
+      aria-current={@on && "page"}
+      class={["btn btn-ghost btn-sm btn-square", @on && "bg-base-200 text-primary", @class]}
+      aria-label={header_tip(@label, @key)}
+      title={header_tip(@label, @key)}
+    >
+      <.icon name={@icon} class="size-4" />
+    </.link>
     """
   end
 
@@ -688,6 +814,18 @@ defmodule SlipdockWeb.Layouts do
       <span class="text-[0.625rem] font-medium leading-none">{@label}</span>
     </.link>
     """
+  end
+
+  defp alerts_tip(count, waiting) do
+    alerts =
+      case count do
+        0 -> "No alerts"
+        1 -> "1 alert"
+        n -> "#{n} alerts"
+      end
+
+    label = if waiting > 0, do: "#{alerts}, #{waiting} waiting on you", else: alerts
+    header_tip(label, "l")
   end
 
   # The badge takes the colour of the worst alert waiting.
@@ -1116,8 +1254,8 @@ defmodule SlipdockWeb.Layouts do
         phx-click="toggle_quick_add"
         aria-expanded={to_string(@quick_add.open?)}
         aria-controls="quick-add-panel"
-        title="Quick add a card (press q)"
-        aria-label="Quick add a card"
+        title={header_tip("Quick add a card", "q")}
+        aria-label={header_tip("Quick add a card", "q")}
         class={[
           "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
           @quick_add.open? && "bg-base-200 text-primary"
@@ -1179,6 +1317,23 @@ defmodule SlipdockWeb.Layouts do
           You have no board to add to yet — make one first.
         </p>
 
+        <%!-- Quick note lives here from lg up (#1713), where the header has
+              no button of its own for it: the other quick way to put
+              something down. --%>
+        <div class="flex items-center border-t border-base-300/70 px-1.5 py-1">
+          <button
+            type="button"
+            id="quick-add-note"
+            phx-click={JS.push("toggle_quick_add") |> JS.push("toggle", target: "#quick-note")}
+            class="btn btn-ghost btn-xs gap-1.5 font-normal"
+          >
+            <.icon name="hero-pencil-square" class="size-3.5" /> Quick note instead
+            <kbd class="rounded border border-base-content/20 px-1 font-mono text-2xs text-base-content/60">
+              ⇧⌥N
+            </kbd>
+          </button>
+        </div>
+
         <div :if={@quick_add.error} class="border-t border-base-300/70 px-3 py-2 text-xs text-error">
           {@quick_add.error}
         </div>
@@ -1231,15 +1386,26 @@ defmodule SlipdockWeb.Layouts do
   attr :alerts, :list, required: true
   attr :open, :boolean, default: false
 
+  attr :waiting_count, :integer,
+    default: 0,
+    doc: "what waits on the person: folded into the badge from lg up, and the panel's first row"
+
   @doc """
   The alerts section of the header bar: always there, collapsed to a count,
   expanding into the list of alerts automation rules have raised. Each one
   is dismissed by the person reading it; other people keep theirs.
+
+  From lg up the header has no separate "waiting on you" button (#1713), so
+  the badge counts what waits on you as well, and the panel opens with a row
+  that goes to My work.
   """
   def alerts_bar(assigns) do
+    count = length(assigns.alerts)
+
     assigns =
       assign(assigns,
-        count: length(assigns.alerts),
+        count: count,
+        tip: alerts_tip(count, assigns.waiting_count),
         worst:
           Enum.find_value(
             ~w(urgent warning),
@@ -1260,18 +1426,17 @@ defmodule SlipdockWeb.Layouts do
         aria-controls="alerts-panel"
         class={[
           "btn btn-ghost btn-sm relative hidden transition-colors sm:inline-flex",
-          if(@count > 0, do: "gap-1 px-2", else: "btn-square"),
+          cond do
+            @count > 0 -> "gap-1 px-2"
+            @waiting_count > 0 -> "btn-square lg:w-auto lg:gap-1 lg:px-2"
+            true -> "btn-square"
+          end,
           @open && "bg-base-200",
           @worst == "urgent" && "text-error",
           @worst == "warning" && "text-warning"
         ]}
-        title={
-          case @count do
-            0 -> "No alerts"
-            1 -> "1 alert"
-            n -> "#{n} alerts"
-          end
-        }
+        title={@tip}
+        aria-label={@tip}
       >
         <.icon name="hero-bell" class="size-4" />
         <%!-- The count shows only when there is something to read: a nought
@@ -1287,10 +1452,24 @@ defmodule SlipdockWeb.Layouts do
             "min-w-5 rounded-full px-1.5 text-xs font-semibold leading-5 tabular-nums",
             @worst == "urgent" && "bg-error text-error-content motion-safe:animate-pulse",
             @worst == "warning" && "bg-warning text-warning-content",
-            is_nil(@worst) && "bg-info text-info-content"
+            is_nil(@worst) && "bg-info text-info-content",
+            @waiting_count > 0 && "lg:hidden"
           ]}
         >
           {@count}
+        </span>
+        <span
+          :if={@waiting_count > 0}
+          id="alerts-total"
+          class={[
+            "hidden min-w-5 rounded-full px-1.5 text-xs font-semibold leading-5 tabular-nums lg:inline-block",
+            if(@worst == "urgent",
+              do: "bg-error text-error-content",
+              else: "bg-warning text-warning-content"
+            )
+          ]}
+        >
+          {@count + @waiting_count}
         </span>
       </button>
 
@@ -1317,7 +1496,20 @@ defmodule SlipdockWeb.Layouts do
             Dismiss all
           </button>
         </div>
-        <p :if={@alerts == []} class="px-3 py-6 text-center text-sm text-base-content/50">
+        <.link
+          :if={@waiting_count > 0}
+          id="alerts-waiting"
+          navigate={~p"/work"}
+          class="flex items-center gap-2.5 border-b border-base-300/70 px-3 py-2.5 text-sm hover:bg-base-200/50"
+        >
+          <.icon name="hero-hand-raised" class="size-4 shrink-0 text-warning" />
+          <span class="min-w-0 flex-1 font-medium">{@waiting_count} waiting on you</span>
+          <span class="text-2xs text-primary">My work →</span>
+        </.link>
+        <p
+          :if={@alerts == [] && @waiting_count == 0}
+          class="px-3 py-6 text-center text-sm text-base-content/50"
+        >
           Nothing needs your attention.
         </p>
         <ul class="max-h-[60vh] divide-y divide-base-300/60 overflow-y-auto kanban-scroll">

@@ -19,6 +19,8 @@ defmodule SlipdockWeb.Shortcuts do
        {"Ctrl-Shift-1…9, 0", "Open the board or vault given that digit in its settings"},
        {"Shift-Alt-S", "Search everything"},
        {"Shift-Alt-N", "Write a quick note"},
+       {"Shift-Alt-F", "Favourites"},
+       {"Shift-Alt-A", "Ask about everything"},
        {"h", "All boards"},
        {"b", "Switch board or vault — then its own key"},
        {"q", "Quick add a card"},

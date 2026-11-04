@@ -26,10 +26,11 @@ try {
   const confirm = page.locator('form[method=post] button[type=submit]').first()
   if (await confirm.count()) await Promise.all([page.waitForNavigation(), confirm.click()])
 
-  // The button, from home.
+  // The button, from home: from lg up it is inside quick add's panel (#1713).
   await page.goto(`${base}/`, { waitUntil: 'networkidle' })
   await connected()
-  await page.click('#quick-note-open')
+  await page.click('#quick-add-open')
+  await page.click('#quick-add-note')
   await page.waitForSelector(box)
   await page.keyboard.press('Escape')
   await page.waitForSelector(panel, { state: 'detached' })

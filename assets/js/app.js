@@ -29,7 +29,7 @@ import Sortable from "../vendor/sortable"
 import {installConfirm} from "./confirm"
 import {columnDrop, dropZones, pointOf, zoneAt} from "./card_drop"
 import {ModalDialog} from "./modal_dialog"
-import {boardHotkey, noteHotkey, searchHotkey} from "./board_hotkey"
+import {boardHotkey, noteHotkey, placeHotkey, searchHotkey} from "./board_hotkey"
 import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
@@ -1034,6 +1034,10 @@ Hooks.Keys = {
 
     // Shift-Alt-S is search everything, from anywhere too.
     if (searchHotkey(e)) return this.send(e, "search_everything", {})
+
+    // Shift-Alt-F is Favourites and Shift-Alt-A is Ask, from anywhere too.
+    const place = placeHotkey(e)
+    if (place) return this.send(e, "go_place", {place})
 
     // Shift-Alt-N is a quick note, answered by the overlay's own component.
     if (noteHotkey(e)) {

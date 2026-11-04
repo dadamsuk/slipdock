@@ -1,7 +1,7 @@
 // node --test assets/js
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {boardHotkey, noteHotkey, searchHotkey} from "./board_hotkey.js"
+import {boardHotkey, noteHotkey, placeHotkey, searchHotkey} from "./board_hotkey.js"
 
 const key = (code, mods = {}) => ({code, ctrlKey: true, shiftKey: true, ...mods})
 
@@ -70,4 +70,18 @@ test("Shift-Alt-N stands down with Ctrl or Cmd held, or AltGr", () => {
   assert.equal(noteHotkey({...mods, ctrlKey: true}), false)
   assert.equal(noteHotkey({...mods, metaKey: true}), false)
   assert.equal(noteHotkey({...mods, shiftKey: false}), false)
+})
+
+test("Shift-Alt-F is Favourites and Shift-Alt-A is Ask, by letter or by key on a Mac", () => {
+  assert.equal(placeHotkey({key: "F", code: "KeyF", shiftKey: true, altKey: true}), "favourites")
+  assert.equal(placeHotkey({key: "a", code: "KeyA", shiftKey: true, altKey: true}), "ask")
+  assert.equal(placeHotkey({key: "Ï", code: "KeyF", shiftKey: true, altKey: true}), "favourites")
+  assert.equal(placeHotkey({key: "Å", code: "KeyA", shiftKey: true, altKey: true}), "ask")
+})
+
+test("anything short of Shift-Alt with F or A is not a place key", () => {
+  assert.equal(placeHotkey({key: "F", code: "KeyF", shiftKey: true}), null)
+  assert.equal(placeHotkey({key: "f", code: "KeyF", altKey: true}), null)
+  assert.equal(placeHotkey({key: "F", code: "KeyF", shiftKey: true, altKey: true, ctrlKey: true}), null)
+  assert.equal(placeHotkey({key: "S", code: "KeyS", shiftKey: true, altKey: true}), null)
 })

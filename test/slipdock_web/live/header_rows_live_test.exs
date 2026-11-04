@@ -168,7 +168,7 @@ defmodule SlipdockWeb.HeaderRowsLiveTest do
   } do
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
 
-    assert has_element?(view, "#topbar a[href='/'][title='Boards']")
+    assert has_element?(view, "#topbar a[href='/'][title='All boards (h)']")
     assert has_element?(view, "#subheader nav a.lg\\:hidden[href='/']", "Boards")
   end
 

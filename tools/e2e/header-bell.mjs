@@ -27,12 +27,12 @@ const bell = await middle('#alerts-bar > button')
 const glyph = async (sel) => middle(`${sel} span[class*=hero-]`)
 const bellGlyph = await glyph('#alerts-bar > button')
 const others = {}
-for (const sel of ['#search-link', '#ask-link', '#favourites-link', '#account-menu > [role=button]']) others[sel] = await middle(sel)
+for (const sel of ['#quick-add-open', '#favourites-link', '#account-menu > [role=button]']) others[sel] = await middle(sel)
 if (process.env.SHOTS) await page.locator('header').screenshot({ path: `${process.env.SHOTS}/header-bell.png` })
 for (const [sel, y] of Object.entries(others)) {
   if (Math.abs(y - bell) > 0.5) fail(`bell's middle at ${bell}, ${sel}'s at ${y}`)
 }
-for (const sel of ['#search-link', '#favourites-link']) {
+for (const sel of ['#quick-add-open', '#favourites-link']) {
   const y = await glyph(sel)
   if (Math.abs(y - bellGlyph) > 0.5) fail(`bell's glyph middle at ${bellGlyph}, ${sel}'s at ${y}`)
 }

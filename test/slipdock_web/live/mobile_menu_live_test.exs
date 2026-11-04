@@ -37,7 +37,7 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
       # On one row the order classes are what put the name between the mark
       # and the app's buttons, so they apply at every width.
       assert has_element?(view, "#subheader > div.order-3", board.name)
-      assert has_element?(view, "#topbar > a.order-1[title='Boards']")
+      assert has_element?(view, "#topbar > a.order-1[title='All boards (h)']")
       assert has_element?(view, "#topbar > div.order-5 button[phx-value-panel=find]")
       assert has_element?(view, "#topbar > div.order-5 button[phx-value-panel=command]")
 

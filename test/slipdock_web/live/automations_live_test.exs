@@ -294,7 +294,7 @@ defmodule SlipdockWeb.AutomationsLiveTest do
 
       view |> element("#alerts-panel button[phx-click=dismiss_all_alerts]") |> render_click()
       assert Automations.list_alerts(user_fixture()) == []
-      assert has_element?(view, "#alerts-bar button[title='No alerts']")
+      assert has_element?(view, "#alerts-bar button[title='No alerts (l)']")
       refute has_element?(view, "#alerts-count")
     end
 
