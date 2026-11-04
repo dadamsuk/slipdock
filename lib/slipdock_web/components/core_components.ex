@@ -466,6 +466,139 @@ defmodule SlipdockWeb.CoreComponents do
   end
 
   @doc """
+  Frames a page's content at one of three widths (#1714):
+
+    * `narrow` (42rem): forms and settings
+    * `standard` (64rem): lists and indexes
+    * `full`: boards, tables and dashboards
+
+  It centres the content and gives every page the same padding. Tests read
+  `data-page-width`. Put it inside the page's scroller, around the
+  `page_header/1` and the content.
+
+  ## Examples
+
+      <.page width="narrow" class="space-y-6">
+        <.page_header title="Groups" subtitle="People you share boards with." />
+        ...
+      </.page>
+  """
+  attr :id, :string, default: nil
+  attr :width, :string, values: ~w(narrow standard full), default: "standard"
+
+  attr :padded, :boolean,
+    default: true,
+    doc: "false inside a container that already pads it (a pane beside a tree)"
+
+  attr :class, :any, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def page(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      data-page-width={@width}
+      class={[
+        "mx-auto w-full",
+        @padded && "px-4 py-6 sm:px-6 sm:py-10",
+        page_width_class(@width),
+        @class
+      ]}
+      {@rest}
+    >
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc """
+  The max-width class for a page width: `narrow`, `standard` or `full`.
+  Anything else raises, so a typo can't quietly give a page no width.
+  """
+  def page_width_class("narrow"), do: "max-w-2xl"
+  def page_width_class("standard"), do: "max-w-5xl"
+  def page_width_class("full"), do: "max-w-none"
+
+  def page_width_class(other) do
+    raise ArgumentError,
+          "unknown page width #{inspect(other)}: use \"narrow\", \"standard\" or \"full\""
+  end
+
+  @doc """
+  A page's one title (#1714): the page's only `h1`, a one-line subtitle under
+  it, and the page's own buttons on the right, on the title's baseline. The
+  layout's header row doesn't repeat the title (W-1946 §Layout).
+
+  `subtitle` is plain text; for a subtitle with links or counts in it use the
+  `:meta` slot instead. `:leading` goes inside the `h1` before the title: an
+  icon or a colour dot.
+
+  ## Examples
+
+      <.page_header title="Templates" subtitle="Start a board from one.">
+        <:actions><.button variant="primary">New template</.button></:actions>
+      </.page_header>
+  """
+  attr :id, :string, default: "page-header"
+  attr :title, :string, required: true
+  attr :title_id, :string, default: nil, doc: "the h1's own id"
+  attr :subtitle, :string, default: nil
+
+  attr :class, :any,
+    default: "mb-6",
+    doc: "replaces the default bottom margin: pass your own, or \"\" inside a card"
+
+  slot :leading, doc: "drawn in the h1 before the title: an icon or a dot"
+  slot :meta, doc: "a subtitle with markup in it (links, counts), instead of `subtitle`"
+  slot :actions, doc: "the page's own buttons, right-aligned on the title's baseline"
+
+  def page_header(assigns) do
+    ~H"""
+    <header
+      id={@id}
+      data-role="page-header"
+      class={[
+        "flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3",
+        @class
+      ]}
+    >
+      <div class="min-w-0">
+        <%!-- Not a flex box: the h1's baseline stays the title's text, so the
+             actions line up with it even with an icon in front. --%>
+        <h1 id={@title_id} class="page-title">
+          <span :if={@leading != []} class="mr-2 inline-flex align-middle">
+            {render_slot(@leading)}
+          </span>{@title}
+        </h1>
+        <p
+          :if={@subtitle || @meta != []}
+          data-role="page-subtitle"
+          class="mt-1 max-w-2xl text-sm text-base-content/60"
+        >
+          {@subtitle}{render_slot(@meta)}
+        </p>
+      </div>
+      <%!-- A button that starts with an icon has the icon's bottom edge as
+           its baseline, not its label's. So the row centres its buttons and
+           takes its baseline from the first piece: an empty line of label
+           text, centred like the labels are, which the header then sets on
+           the title's baseline (tools/e2e/page-header.sh measures it). --%>
+      <div
+        :if={@actions != []}
+        data-role="page-actions"
+        class="flex flex-wrap items-center gap-2"
+      >
+        <span aria-hidden="true" data-role="page-actions-baseline" class="-mr-2 w-0 text-sm leading-5">
+          &#8203;
+        </span>
+        {render_slot(@actions)}
+      </div>
+    </header>
+    """
+  end
+
+  @doc """
   Renders a header with title.
   """
   slot :inner_block, required: true

@@ -540,12 +540,11 @@ defmodule SlipdockWeb.SharedLive do
 
   defp index(assigns) do
     ~H"""
-    <div class="mx-auto max-w-2xl space-y-4">
-      <h1 class="page-title">Shared with me</h1>
-      <p class="text-base-content/60">
-        Pages and folders other people have shared with you. You see what they shared and nothing
-        else of where it is kept.
-      </p>
+    <.page width="standard" padded={false} class="space-y-4">
+      <.page_header
+        title="Shared with me"
+        subtitle="Pages and folders other people have shared with you. You see what they shared and nothing else of where it is kept."
+      />
       <section
         :if={@unsaved != []}
         id="unsaved-pages"
@@ -580,7 +579,7 @@ defmodule SlipdockWeb.SharedLive do
       <div class="md:hidden">
         <SharedComponents.shared_tree groups={@tree} id="shared-tree-mobile" />
       </div>
-    </div>
+    </.page>
     """
   end
 

@@ -98,9 +98,14 @@ defmodule SlipdockWeb.AccountLive.Index do
       viewport={@viewport}
       nav_active={if @live_action == :agent, do: :agent, else: :account}
     >
-      <:nav><span class="font-semibold">{tab_title(@live_action)}</span></:nav>
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:py-10 sm:px-6">
+        <.page width="narrow" class="space-y-8">
+          <%!-- One title for every tab: the tabs say which part you're in, so
+               the first is Profile rather than a second "Account" (#1714). --%>
+          <.page_header
+            title="Account"
+            subtitle="Your profile, settings, tokens and data."
+          />
           <nav
             id="account-tabs"
             aria-label="Account"
@@ -110,7 +115,7 @@ defmodule SlipdockWeb.AccountLive.Index do
               to={~p"/account"}
               active={@live_action == :index}
               icon="hero-user-circle"
-              label="Account"
+              label="Profile"
             />
             <.account_tab
               to={~p"/account/settings"}
@@ -157,7 +162,7 @@ defmodule SlipdockWeb.AccountLive.Index do
             id={"account-#{@live_action}"}
             current_user={@current_user}
           />
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

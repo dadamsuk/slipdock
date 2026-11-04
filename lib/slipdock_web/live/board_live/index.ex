@@ -458,7 +458,7 @@ defmodule SlipdockWeb.BoardLive.Index do
       wordmark
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div id="boards-home" class="w-full px-4 py-6 sm:py-10 sm:px-6">
+        <.page id="boards-home" width="full">
           <%!-- Above your own boards because it is for now, not for keeps:
                 the support sessions you hold, and what each lets you read. --%>
           <section
@@ -491,37 +491,32 @@ defmodule SlipdockWeb.BoardLive.Index do
             </div>
           </section>
 
-          <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <%!-- The name as its artwork, not set in the UI font: the alt
-                   text keeps "Slipdock" as the heading a screen reader reads. --%>
-              <h1>
-                <Layouts.brand_wordmark class="h-7 sm:h-9" />
-              </h1>
-              <p class="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-base-content/60">
-                <%!-- The other way to read every board: not their cards, but
-                     everything written on them: the one wiki (W-2201). It sits
-                     with the count, on the left (#1662). --%>
-                <.link
-                  id="open-wiki"
-                  navigate={~p"/wiki"}
-                  class="inline-flex items-center gap-1 font-medium text-base-content/80 hover:text-primary"
-                >
-                  <.icon name="hero-book-open" class="size-4" /> Wiki
-                </.link>
-                <span aria-hidden="true">·</span>
-                <span id="board-count">
-                  {length(@boards)} {if length(@boards) == 1, do: "board", else: "boards"}
-                </span>
-                <span :if={@multiboards != %{}} aria-hidden="true">·</span>
-                <span :if={@multiboards != %{}} id="multiboard-count">
-                  {map_size(@multiboards)} {if map_size(@multiboards) == 1,
-                    do: "multiboard",
-                    else: "multiboards"}
-                </span>
-              </p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
+          <%!-- The wordmark is already in the header beside the logo, so the
+               page's title says what the page is (#1714). --%>
+          <.page_header title="Boards">
+            <:meta>
+              <%!-- The other way to read every board: not their cards, but
+                   everything written on them: the one wiki (W-2201). It sits
+                   with the count, on the left (#1662). --%>
+              <.link
+                id="open-wiki"
+                navigate={~p"/wiki"}
+                class="font-medium text-base-content/80 hover:text-primary"
+              >
+                <.icon name="hero-book-open" class="size-4 align-text-bottom" /> Wiki
+              </.link>
+              <span aria-hidden="true">·</span>
+              <span id="board-count">
+                {length(@boards)} {if length(@boards) == 1, do: "board", else: "boards"}
+              </span>
+              <span :if={@multiboards != %{}} aria-hidden="true">·</span>
+              <span :if={@multiboards != %{}} id="multiboard-count">
+                {map_size(@multiboards)} {if map_size(@multiboards) == 1,
+                  do: "multiboard",
+                  else: "multiboards"}
+              </span>
+            </:meta>
+            <:actions>
               <button
                 :if={length(@tiles) > 1}
                 id="reorder-boards"
@@ -584,8 +579,8 @@ defmodule SlipdockWeb.BoardLive.Index do
               <button :if={!@creating} class="btn btn-primary btn-sm" phx-click="start_create">
                 <.icon name="hero-plus" class="size-4" /> New board
               </button>
-            </div>
-          </div>
+            </:actions>
+          </.page_header>
 
           <div
             :if={@creating}
@@ -843,7 +838,7 @@ defmodule SlipdockWeb.BoardLive.Index do
               </li>
             </ul>
           </section>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

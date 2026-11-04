@@ -196,25 +196,21 @@ defmodule SlipdockWeb.TemplateLive.Index do
       viewport={@viewport}
       nav_active={:templates}
     >
-      <:nav>
-        <span class="font-semibold">Templates</span>
-      </:nav>
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-4xl px-4 py-6 sm:py-10 sm:px-6">
-          <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 class="page-title">Board templates</h1>
-              <p class="mt-1 max-w-xl text-sm text-base-content/60">
-                A template is a set of lists. Use one when creating a board, or when turning a card
-                into a board of subcards. Any board can save its lists as a template from its settings.
-                The built-in templates are the same for everyone and can't be changed; yours are
-                yours alone.
-              </p>
-            </div>
-            <button :if={!@editing} class="btn btn-primary" phx-click="new">
-              <.icon name="hero-plus" class="size-4" /> New template
-            </button>
-          </div>
+        <.page width="standard">
+          <.page_header title="Templates">
+            <:meta>
+              A template is a set of lists. Use one when creating a board, or when turning a card
+              into a board of subcards. Any board can save its lists as a template from its settings.
+              The built-in templates are the same for everyone and can't be changed; yours are
+              yours alone.
+            </:meta>
+            <:actions :if={!@editing}>
+              <button id="new-template" class="btn btn-primary" phx-click="new">
+                <.icon name="hero-plus" class="size-4" /> New template
+              </button>
+            </:actions>
+          </.page_header>
 
           <form
             :if={@editing}
@@ -389,7 +385,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
               </ol>
             </div>
           </div>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

@@ -318,10 +318,12 @@ defmodule SlipdockWeb.UsersLive.Index do
       viewport={@viewport}
       nav_active={:users}
     >
-      <:nav><span class="font-semibold">Users</span></:nav>
-
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="w-full space-y-6 p-6">
+        <.page width="full" class="space-y-6">
+          <.page_header
+            title="Users"
+            subtitle="Everyone with an account here: add people, and disable or close an account."
+          />
           <div :if={@settings.signup_mode == :approval} role="tablist" class="tabs tabs-box">
             <.link patch={~p"/users"} role="tab" class={["tab", @tab == :index && "tab-active"]}>
               People
@@ -340,7 +342,7 @@ defmodule SlipdockWeb.UsersLive.Index do
 
           <.people_tab :if={@tab == :index} {assigns} />
           <.signups_tab :if={@tab == :signups} {assigns} />
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

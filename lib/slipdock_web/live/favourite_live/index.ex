@@ -117,8 +117,11 @@ defmodule SlipdockWeb.FavouriteLive.Index do
       nav_active={:favourites}
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
-          <h1 class="mb-6 page-title">Favourites</h1>
+        <.page width="standard">
+          <.page_header
+            title="Favourites"
+            subtitle="The views, lists and cards you have put a heart on."
+          />
 
           <.empty_state
             :if={@sections == []}
@@ -162,7 +165,7 @@ defmodule SlipdockWeb.FavouriteLive.Index do
               </li>
             </ul>
           </section>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

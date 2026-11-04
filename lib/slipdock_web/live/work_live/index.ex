@@ -131,26 +131,25 @@ defmodule SlipdockWeb.WorkLive.Index do
         can_write={true}
       />
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-5xl px-4 py-6 sm:py-10 sm:px-6">
-          <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 class="page-title">My work</h1>
-              <p class="mt-1 text-sm text-base-content/60">
-                {@open_count} open {if @open_count == 1, do: "card", else: "cards"} assigned to you, across every board and level.
-              </p>
-            </div>
-            <label class="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                class="toggle"
-                checked={@show_done}
-                phx-click="toggle_done"
-              /> Show completed
-              <span :if={@done_count > 0} class="badge badge-ghost badge-sm font-mono">
-                {@done_count}
-              </span>
-            </label>
-          </div>
+        <.page width="standard">
+          <.page_header title="My work">
+            <:meta>
+              {@open_count} open {if @open_count == 1, do: "card", else: "cards"} assigned to you, across every board and level.
+            </:meta>
+            <:actions>
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  class="toggle"
+                  checked={@show_done}
+                  phx-click="toggle_done"
+                /> Show completed
+                <span :if={@done_count > 0} class="badge badge-ghost badge-sm font-mono">
+                  {@done_count}
+                </span>
+              </label>
+            </:actions>
+          </.page_header>
 
           <section :if={@waiting != []} id="work-waiting" class="mb-8">
             <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-warning">
@@ -292,7 +291,7 @@ defmodule SlipdockWeb.WorkLive.Index do
               </li>
             </ul>
           </section>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

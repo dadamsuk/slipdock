@@ -181,7 +181,8 @@ defmodule SlipdockWeb.FontsTest do
             lib/slipdock_web/live/board_live/visualise.ex
             lib/slipdock_web/live/help_live/index.ex
           ) do
-        assert File.read!(path) =~ ~r/<h1[^>]*class="[^"]*\bpage-title\b/,
+        # Since #1714 a page's h1 comes from <.page_header>, which draws h1.page-title.
+        assert File.read!(path) =~ ~r/<h1[^>]*class="[^"]*\bpage-title\b|<\.page_header\b/,
                "#{path} has no h1.page-title"
       end
     end

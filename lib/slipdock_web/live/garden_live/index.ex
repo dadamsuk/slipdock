@@ -267,8 +267,6 @@ defmodule SlipdockWeb.GardenLive.Index do
             <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(@board.color)]}></span>
             <span class="truncate font-semibold">{@board.name}</span>
           </.link>
-          <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
-          <span class="px-2 py-1 font-semibold">Tidy up</span>
         </nav>
       </:subnav>
       <:subactions>
@@ -286,23 +284,22 @@ defmodule SlipdockWeb.GardenLive.Index do
       </:subactions>
 
       <div id="garden-shell" class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
-          <header id="garden-title" class="space-y-1">
-            <h1 class="page-title">Tidy up</h1>
-            <p class="text-sm text-base-content/60">
+        <.page width="standard" class="space-y-6">
+          <.page_header id="garden-title" title="Tidy up">
+            <:meta>
               Suggestions for keeping this board and its sub-boards tidy. Nothing changes until you apply one.
-            </p>
-            <p class="text-xs text-base-content/60">
-              Last looked over: <span id="garden-last-run">{when_text(@last_run && @last_run.finished_at)}</span>.
-              <.link
-                :if={@can_manage}
-                navigate={~p"/boards/#{@board}/settings?tab=gardening"}
-                class="link"
-              >
-                Choose the checks
-              </.link>
-            </p>
-          </header>
+              <span class="mt-1 block text-xs">
+                Last looked over: <span id="garden-last-run">{when_text(@last_run && @last_run.finished_at)}</span>.
+                <.link
+                  :if={@can_manage}
+                  navigate={~p"/boards/#{@board}/settings?tab=gardening"}
+                  class="link"
+                >
+                  Choose the checks
+                </.link>
+              </span>
+            </:meta>
+          </.page_header>
 
           <.empty_state
             :if={@groups == []}
@@ -465,7 +462,7 @@ defmodule SlipdockWeb.GardenLive.Index do
               </li>
             </ul>
           </section>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

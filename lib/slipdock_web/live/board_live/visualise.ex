@@ -289,14 +289,10 @@ defmodule SlipdockWeb.BoardLive.Visualise do
         </div>
 
         <div class="kanban-scroll min-h-0 flex-1 overflow-y-auto">
-          <div id="visualise" class="mx-auto max-w-[1360px] space-y-4 p-3 sm:p-6">
-            <div class="flex flex-wrap items-end justify-between gap-3">
-              <div class="min-w-0">
-                <h1 class="page-title">Visualise</h1>
-                <p class="truncate text-xs text-base-content/60">{@board.name}</p>
-              </div>
-              <.window_switch days={@days} />
-            </div>
+          <.page id="visualise" width="full" class="space-y-4">
+            <.page_header title="Visualise" subtitle={@board.name}>
+              <:actions><.window_switch days={@days} /></:actions>
+            </.page_header>
 
             <.pulse_section
               pulse={@pulse}
@@ -317,7 +313,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
             <.runners_section board={@board} stats={@runners} />
 
             <.dora_section board={@board} dora={@dora} cycle_p50={@pulse.time_to_done.p50} />
-          </div>
+          </.page>
         </div>
       </div>
     </Layouts.app>
