@@ -644,8 +644,16 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
     ~H"""
     <div id="display-menu" class="dropdown" phx-hook="DropdownAlign">
-      <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-1" title="Display options">
-        <.icon name="hero-adjustments-horizontal" class="size-4" /> Display
+      <%!-- Only the icon on a phone (#1717), so the toolbar fits one row. --%>
+      <div
+        tabindex="0"
+        role="button"
+        class="btn btn-ghost btn-sm gap-1 max-sm:btn-square"
+        title="Display options"
+        aria-label="Display options"
+      >
+        <.icon name="hero-adjustments-horizontal" class="size-4" />
+        <span class="hidden sm:inline">Display</span>
       </div>
       <div
         tabindex="0"

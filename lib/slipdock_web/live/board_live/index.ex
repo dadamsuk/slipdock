@@ -1035,9 +1035,12 @@ defmodule SlipdockWeb.BoardLive.Index do
             <th>Board</th>
             <th class="hidden md:table-cell">Description</th>
             <th class="hidden lg:table-cell">Code</th>
-            <th class="w-16 text-right">Lists</th>
-            <th class="w-16 text-right">Cards</th>
-            <th class="w-32">Done</th>
+            <%!-- On a phone (#1717) these three fold into a line under the
+                  name, so the table is a stacked list and never wider than
+                  the screen. --%>
+            <th class="hidden w-16 text-right sm:table-cell">Lists</th>
+            <th class="hidden w-16 text-right sm:table-cell">Cards</th>
+            <th class="hidden w-32 sm:table-cell">Done</th>
             <th class="hidden w-24 sm:table-cell">Active</th>
             <th class="w-10"></th>
           </tr>
@@ -1092,6 +1095,15 @@ defmodule SlipdockWeb.BoardLive.Index do
                   </span>
                   <span :if={@archived} class="badge badge-warning badge-xs shrink-0">archived</span>
                 </.link>
+                <p
+                  data-role="board-row-meta"
+                  class="mt-0.5 pl-4.5 text-xs tabular-nums text-base-content/50 sm:hidden"
+                >
+                  {count_label(length(board.columns), "list")} · {count_label(
+                    length(board.cards),
+                    "card"
+                  )}<span :if={percent_done(board)}> · {percent_done(board)}% done</span>
+                </p>
               </td>
               <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">
                 {board.description}
@@ -1105,9 +1117,13 @@ defmodule SlipdockWeb.BoardLive.Index do
                   <.board_keys board={board} hotkey={@hotkeys[board.id]} />
                 </span>
               </td>
-              <td class="text-right tabular-nums text-base-content/60">{length(board.columns)}</td>
-              <td class="text-right tabular-nums text-base-content/60">{length(board.cards)}</td>
-              <td>
+              <td class="hidden text-right tabular-nums text-base-content/60 sm:table-cell">
+                {length(board.columns)}
+              </td>
+              <td class="hidden text-right tabular-nums text-base-content/60 sm:table-cell">
+                {length(board.cards)}
+              </td>
+              <td class="hidden sm:table-cell">
                 <div :if={percent_done(board)} class="flex items-center gap-2">
                   <progress
                     class="progress progress-success h-1.5 w-16"
@@ -1319,6 +1335,10 @@ defmodule SlipdockWeb.BoardLive.Index do
     """
   end
 
+  # "1 list", "3 lists": the phone's line under a row's name (#1717).
+  defp count_label(1, word), do: "1 #{word}"
+  defp count_label(n, word), do: "#{n} #{word}s"
+
   attr :entry, :map, required: true
   attr :sort, :string, required: true
   attr :tiles, :list, required: true
@@ -1345,13 +1365,23 @@ defmodule SlipdockWeb.BoardLive.Index do
           <span class="max-w-56 truncate font-medium">{@mb.name}</span>
           <span class="chip chip-line shrink-0 text-2xs font-normal">multiboard</span>
         </.link>
+        <p
+          data-role="board-row-meta"
+          class="mt-0.5 pl-4.5 text-xs tabular-nums text-base-content/50 sm:hidden"
+        >
+          {count_label(@entry.lists, "list")}
+        </p>
       </td>
       <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">
         {Enum.map_join(@entry.boards, " · ", & &1.name)}
       </td>
-      <td class="text-right tabular-nums text-base-content/60">{@entry.lists}</td>
-      <td class="text-right text-base-content/40">—</td>
-      <td><span class="text-xs text-base-content/40">—</span></td>
+      <%!-- The Code column's cell: a multiboard has no code of its own. --%>
+      <td class="hidden lg:table-cell"></td>
+      <td class="hidden text-right tabular-nums text-base-content/60 sm:table-cell">
+        {@entry.lists}
+      </td>
+      <td class="hidden text-right text-base-content/40 sm:table-cell">—</td>
+      <td class="hidden sm:table-cell"><span class="text-xs text-base-content/40">—</span></td>
       <td class="hidden sm:table-cell"></td>
       <td>
         <.multiboard_menu
