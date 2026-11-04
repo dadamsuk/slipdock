@@ -23,6 +23,14 @@ export function noteHotkey(e) {
   return shiftAlt(e, "n")
 }
 
+// Shift-Alt-F and Shift-Alt-A (#1713): Favourites and Ask, the two header
+// buttons that had no key. The page to go to, or null.
+export function placeHotkey(e) {
+  if (shiftAlt(e, "f")) return "favourites"
+  if (shiftAlt(e, "a")) return "ask"
+  return null
+}
+
 function shiftAlt(e, letter) {
   if (!e.shiftKey || !e.altKey || e.ctrlKey || e.metaKey) return false
   const key = (e.key || "").toLowerCase()

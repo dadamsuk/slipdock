@@ -142,6 +142,15 @@ defmodule SlipdockWeb.ShortcutsHook do
     end
   end
 
+  # Shift+Alt+F and Shift+Alt+A (#1713): the header's Favourites and Ask.
+  # Only these two places: anything else is ignored, not followed.
+  defp handle_event("go_place", %{"place" => place}, socket)
+       when place in ["favourites", "ask"] do
+    {:halt, socket |> assign(shortcuts: @closed) |> push_navigate(to: "/" <> place)}
+  end
+
+  defp handle_event("go_place", _params, socket), do: {:halt, socket}
+
   defp handle_event(_event, _params, socket), do: {:cont, socket}
 
   # Following a row closes the palette it came from. A row that navigates does

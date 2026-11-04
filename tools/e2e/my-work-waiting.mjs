@@ -14,7 +14,7 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
   args: ['--no-sandbox'],
 })
-const page = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage()
+const page = await (await browser.newContext({ viewport: { width: 1000, height: 900 } })).newPage()
 const shot = async (name) => { if (shots) await page.screenshot({ path: `${shots}/${name}.png` }) }
 const count = (sel) => page.locator(sel).count()
 const header = async () => (await count('#waiting-count')) ? (await page.locator('#waiting-count').innerText()).trim() : null
@@ -32,6 +32,8 @@ async function visit(path) {
   await page.waitForSelector('.phx-connected')
 }
 
+// A tablet's width: from lg up the count is folded into the bell (#1713,
+// tools/e2e/header-nav.mjs), and this checks the hand that shows it below.
 try {
   await page.goto(loginUrl, { waitUntil: 'networkidle' })
   const confirm = page.locator('form[method=post] button[type=submit]').first()

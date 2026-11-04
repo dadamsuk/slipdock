@@ -62,7 +62,7 @@ defmodule SlipdockWeb.AccountMenuLiveTest do
       user: user
     } do
       {:ok, view, _} = live(conn, ~p"/")
-      assert has_element?(view, "#alerts-bar button[title='No alerts']")
+      assert has_element?(view, "#alerts-bar button[title='No alerts (l)']")
       refute has_element?(view, "#alerts-count")
 
       board = board_fixture(%{"name" => "Alerting"}, owner: user)
