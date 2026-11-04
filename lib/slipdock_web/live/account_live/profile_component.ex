@@ -112,7 +112,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
     ~H"""
     <div class="space-y-8">
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">Profile</h2>
+        <h2 class="section-title">Profile</h2>
         <p class="text-sm text-base-content/60">Signed in as {@current_user.email}</p>
         <.form
           for={@profile_form}
@@ -147,7 +147,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
           )
         ]}
       >
-        <h2 class="text-lg font-semibold">
+        <h2 class="section-title">
           {if @limits.trial.expired?, do: "Your free trial has ended", else: "Free trial"}
         </h2>
         <p class="mt-1 text-sm text-base-content/60">
@@ -167,7 +167,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
         :if={Enum.any?([@limits.items, @limits.boards, @limits.storage], &worth_showing?/1)}
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">What you are using</h2>
+        <h2 class="section-title">What you are using</h2>
         <p class="mt-1 text-sm text-base-content/60">
           Counted across the boards you own. Things on boards other people have shared
           with you cost you nothing; archiving a card or a page frees it up again, and
@@ -205,7 +205,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
         :if={@support_sessions != []}
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">Support access to your boards</h2>
+        <h2 class="section-title">Support access to your boards</h2>
         <p class="mt-1 text-sm text-base-content/60">
           Every time an admin of this server has been given access to your boards, and why.
           Current ones are marked; the rest are over.
@@ -244,7 +244,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
       />
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">Session</h2>
+        <h2 class="section-title">Session</h2>
         <p class="text-sm text-base-content/60">
           Signing in, by link or passkey, keeps you signed in for 30 days on this browser.
         </p>
@@ -254,7 +254,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">About</h2>
+        <h2 class="section-title">About</h2>
         <p class="text-sm text-base-content/60">
           Slipdock is free software under the <a
             href="https://www.gnu.org/licenses/agpl-3.0.html"

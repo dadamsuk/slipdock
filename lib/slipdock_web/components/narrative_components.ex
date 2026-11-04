@@ -31,7 +31,7 @@ defmodule SlipdockWeb.NarrativeComponents do
           <p class="text-xs font-semibold uppercase tracking-wide text-base-content/50">
             {@board.name}<span :if={@view_name}> · {@view_name}</span>
           </p>
-          <h1 class="text-2xl font-semibold tracking-tight">What happened, {@range}</h1>
+          <h1 class="page-title">What happened, {@range}</h1>
           <p class="text-sm leading-relaxed text-base-content/80">
             <%= if @s.cards == 0 do %>
               No cards match this view.
@@ -103,7 +103,7 @@ defmodule SlipdockWeb.NarrativeComponents do
           <% collapsed = MapSet.member?(@collapsed, group.key) %>
           <h2
             :if={@narrative.grouped}
-            class="flex cursor-pointer items-center gap-2 border-b border-base-300 pb-1 text-lg font-semibold"
+            class="flex cursor-pointer items-center gap-2 border-b border-base-300 pb-1 section-title"
             phx-click="swim_toggle_row"
             phx-value-key={group.key}
             role="button"
@@ -148,7 +148,7 @@ defmodule SlipdockWeb.NarrativeComponents do
         </section>
 
         <section :if={@narrative.board_events != []} class="space-y-2">
-          <h2 class="border-b border-base-300 pb-1 text-lg font-semibold">Board changes</h2>
+          <h2 class="border-b border-base-300 pb-1 section-title">Board changes</h2>
           <ul class="space-y-1 text-sm">
             <li :for={e <- @narrative.board_events} class="flex gap-3">
               <span class="w-28 shrink-0 text-xs text-base-content/50">{fmt_at(e.at)}</span>

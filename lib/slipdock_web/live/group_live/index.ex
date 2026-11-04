@@ -90,7 +90,7 @@ defmodule SlipdockWeb.GroupLive.Index do
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:py-10 sm:px-6">
           <div>
-            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Groups</h1>
+            <h1 class="page-title">Groups</h1>
             <p class="mt-1 text-sm text-base-content/60">
               Share boards, cards and views with a group instead of one person at a time. People you add by email get an account when they first sign in.
             </p>

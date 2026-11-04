@@ -52,7 +52,7 @@ defmodule SlipdockWeb.AccountLive.TokensComponent do
     ~H"""
     <div class="space-y-8">
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">API tokens</h2>
+        <h2 class="section-title">API tokens</h2>
         <p class="text-sm text-base-content/60">
           For the <code>slipdock</code>
           CLI and scripts. Run <code>slipdock auth &lt;token&gt;</code>

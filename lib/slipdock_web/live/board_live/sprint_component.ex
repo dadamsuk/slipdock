@@ -503,7 +503,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
     <.modal id="new-sprint-modal" on_close={JS.push("close_new_sprint", target: @target)} size="sm">
       <div class="space-y-4 p-6">
         <div>
-          <h2 class="pr-8 text-lg font-bold">New sprint</h2>
+          <h2 class="pr-8 section-title">New sprint</h2>
           <p class="mt-0.5 text-sm text-base-content/60">
             A card on {@board.name} with its own board for the work. You pick the cards next.
           </p>
@@ -557,7 +557,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
       size="md"
     >
       <div class="space-y-6 p-6">
-        <h2 class="pr-8 text-lg font-bold">Sprint charts</h2>
+        <h2 class="pr-8 section-title">Sprint charts</h2>
         <.velocity_chart :if={@charts.velocity} velocity={@charts.velocity} />
         <form
           :if={@charts.velocity && @charts.velocity.sprints != []}
@@ -610,7 +610,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
       <div class="flex max-h-[85vh] flex-col gap-4 p-6">
         <div class="flex flex-wrap items-start gap-2 pr-8">
           <div class="min-w-0 flex-1">
-            <h2 class="text-lg font-bold">
+            <h2 class="section-title">
               {if @mode == "plan",
                 do: "Plan #{@picker.sprint.title}",
                 else: "Add cards to #{@picker.sprint.title}"}

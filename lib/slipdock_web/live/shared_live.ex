@@ -541,7 +541,7 @@ defmodule SlipdockWeb.SharedLive do
   defp index(assigns) do
     ~H"""
     <div class="mx-auto max-w-2xl space-y-4">
-      <h1 class="text-2xl font-bold tracking-tight">Shared with me</h1>
+      <h1 class="page-title">Shared with me</h1>
       <p class="text-base-content/60">
         Pages and folders other people have shared with you. You see what they shared and nothing
         else of where it is kept.
@@ -593,7 +593,7 @@ defmodule SlipdockWeb.SharedLive do
     ~H"""
     <article id="shared-page" class="mx-auto max-w-3xl">
       <div class="flex items-start justify-between gap-3">
-        <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">{@page.title}</h1>
+        <h1 class="page-title">{@page.title}</h1>
         <div class="flex shrink-0 items-center gap-1">
           <.link
             :if={Slipdock.Wiki.Excalidraw.page?(@page)}
@@ -755,7 +755,7 @@ defmodule SlipdockWeb.SharedLive do
     ~H"""
     <div id="shared-folder" class="mx-auto max-w-3xl space-y-4">
       <div class="flex items-center justify-between gap-3">
-        <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight">
+        <h1 class="flex items-center gap-2 page-title">
           <.icon name="hero-folder" class="size-6" /> {@node.folder.name}
         </h1>
         <button

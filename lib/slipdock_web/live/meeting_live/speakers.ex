@@ -135,7 +135,7 @@ defmodule SlipdockWeb.MeetingLive.Speakers do
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-4xl space-y-5 p-4 sm:p-6">
           <header class="flex flex-wrap items-center gap-3">
-            <h1 class="flex-1 text-xl font-semibold">Who said what</h1>
+            <h1 class="flex-1 page-title">Who said what</h1>
             <.link
               navigate={~p"/boards/#{@board}/meetings/#{@capture.id}"}
               class="btn btn-ghost btn-sm"

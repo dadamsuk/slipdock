@@ -27,9 +27,16 @@ primary, Sora page titles, JetBrains Mono*). The side-by-side comparison is
 
 ## Type
 
-- **Sora 600**, −0.02em tracking, for page titles only.
+- **Sora 600**, −0.02em tracking, for page titles only: the `page-title`
+  class, 24px (28px from `sm`), on every page's `h1` and in `<.header>`.
 - **Inter** for everything else, with `cv11` (the single-storey *a*) off.
-- **JetBrains Mono** for code, vendored rather than `ui-monospace`.
+  Headings inside a page or a modal are `section-title`, 18px semibold.
+- **JetBrains Mono** for code (`font-mono`, `field-mono`, `code`): the
+  `--font-mono` token. No other mono family is written anywhere.
+- All three are vendored under `priv/static/fonts` (latin subsets of the
+  weight axis from `@fontsource-variable` 5.3.0), each with its OFL licence
+  beside it. Checked by `test/slipdock_web/fonts_test.exs` and, in
+  Chromium, `tools/e2e/fonts.sh` (#1705).
 
 ## Where it is applied
 

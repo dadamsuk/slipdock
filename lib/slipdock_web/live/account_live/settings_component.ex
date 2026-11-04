@@ -371,7 +371,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
         id="tree-names-settings"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">Names in trees and lists</h2>
+        <h2 class="section-title">Names in trees and lists</h2>
         <p class="text-sm text-base-content/60">
           How the wiki's tree, card folders and breadcrumbs name a card's folder.
           A card with no short name always shows its title, and a name too long for its
@@ -400,7 +400,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
         id="display-settings"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">Display</h2>
+        <h2 class="section-title">Display</h2>
         <p class="text-sm text-base-content/60">What you see. Nobody else is affected.</p>
         <form
           id="display-form"
@@ -434,7 +434,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
         id="header-links-settings"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">Header links</h2>
+        <h2 class="section-title">Header links</h2>
         <p class="text-sm text-base-content/60">
           Boards, and your wiki, that you go to often, pinned to the top right of every page,
           left of quick add, as the icon you choose. Up to {HeaderLinks.max()}.
@@ -540,7 +540,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
         id="quick-note-settings"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
-        <h2 class="text-lg font-semibold">Quick notes</h2>
+        <h2 class="section-title">Quick notes</h2>
         <p class="text-sm text-base-content/60">
           Where a note written with Shift-Alt-N goes when AI can't choose a better folder in
           your wiki.
@@ -569,7 +569,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">Quick add</h2>
+        <h2 class="section-title">Quick add</h2>
         <p class="text-sm text-base-content/60">
           Where the header's quick add box puts a card when the line doesn't name a board
           or list of its own.
@@ -617,7 +617,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="text-lg font-semibold">AI model</h2>
+        <h2 class="section-title">AI model</h2>
         <p class="text-sm text-base-content/60">
           The AI features — chat and edits, the narrative, deep search, written
           automations, quick add — need a model to talk to. Either your own <a
@@ -814,7 +814,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
       id="google-drive"
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 class="text-lg font-semibold">Google Drive</h2>
+      <h2 class="section-title">Google Drive</h2>
       <p class="text-sm text-base-content/60">
         Meeting recordings stay on your Google Drive. Connect it, read-only, and a
         vault of yours can play them beside their transcripts. Nothing is copied

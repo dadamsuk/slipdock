@@ -203,7 +203,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
         <div class="mx-auto max-w-4xl px-4 py-6 sm:py-10 sm:px-6">
           <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Board templates</h1>
+              <h1 class="page-title">Board templates</h1>
               <p class="mt-1 max-w-xl text-sm text-base-content/60">
                 A template is a set of lists. Use one when creating a board, or when turning a card
                 into a board of subcards. Any board can save its lists as a template from its settings.
@@ -223,7 +223,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
             phx-submit="save"
             class="kanban-pop mb-8 space-y-4 rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10"
           >
-            <h2 class="text-lg font-semibold">
+            <h2 class="section-title">
               {if @editing.template.id, do: "Edit template", else: "New template"}
             </h2>
             <ul

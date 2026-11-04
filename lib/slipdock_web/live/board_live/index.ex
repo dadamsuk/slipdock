@@ -710,7 +710,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <.icon name="hero-view-columns" class="size-7" />
             </div>
-            <h2 class="text-lg font-semibold">No boards yet</h2>
+            <h2 class="section-title">No boards yet</h2>
             <p class="mt-1 text-sm text-base-content/60">
               Create your first board to get started.
             </p>
@@ -805,7 +805,7 @@ defmodule SlipdockWeb.BoardLive.Index do
           </section>
 
           <section :if={@shared_cards != []} class="mt-10">
-            <h2 class="text-lg font-semibold">Cards shared with you</h2>
+            <h2 class="section-title">Cards shared with you</h2>
             <p class="text-sm text-base-content/60">Single cards other people gave you access to.</p>
             <ul class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               <li :for={card <- @shared_cards} id={"shared-card-#{card.id}"}>
@@ -933,7 +933,7 @@ defmodule SlipdockWeb.BoardLive.Index do
       <.link navigate={SlipdockWeb.SwimlaneComponents.board_home_path(@board)} class="block">
         <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(@board.color)]}></div>
         <div class="p-3.5 sm:p-4">
-          <h2 class="flex items-center gap-2 truncate text-base font-semibold">
+          <h2 class="flex items-center gap-2 truncate section-title">
             <span class="truncate">{@board.name}</span>
             <span
               :if={@board.code}
@@ -1231,7 +1231,7 @@ defmodule SlipdockWeb.BoardLive.Index do
       <.link id={"multiboard-tile-#{@mb.id}"} navigate={~p"/multiboard/#{@mb.id}"} class="block">
         <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(@mb.color)]}></div>
         <div class="p-3.5 sm:p-4">
-          <h2 class="flex items-center gap-2 truncate text-base font-semibold">
+          <h2 class="flex items-center gap-2 truncate section-title">
             <.icon name="hero-squares-2x2" class="size-4 shrink-0 text-base-content/50" />
             <span class="truncate">{@mb.name}</span>
             <span class="chip chip-line shrink-0 text-2xs font-normal">multiboard</span>

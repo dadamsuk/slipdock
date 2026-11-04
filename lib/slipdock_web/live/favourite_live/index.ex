@@ -118,7 +118,7 @@ defmodule SlipdockWeb.FavouriteLive.Index do
     >
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
-          <h1 class="mb-6 text-2xl font-bold tracking-tight sm:text-3xl">Favourites</h1>
+          <h1 class="mb-6 page-title">Favourites</h1>
 
           <div
             :if={@sections == []}
@@ -127,7 +127,7 @@ defmodule SlipdockWeb.FavouriteLive.Index do
             <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500">
               <.icon name="hero-heart" class="size-7" />
             </div>
-            <h2 class="text-lg font-semibold">Nothing favourited yet</h2>
+            <h2 class="section-title">Nothing favourited yet</h2>
             <p class="mt-1 text-sm text-base-content/60">
               Press the heart on a view, a list or a card.
             </p>

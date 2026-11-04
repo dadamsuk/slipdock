@@ -47,7 +47,7 @@ defmodule SlipdockWeb.BoardLive.ActivityComponent do
     ~H"""
     <.modal id="activity-modal" on_close={JS.patch(@close_path)} size="md">
       <div class="space-y-4 p-6">
-        <h2 class="flex items-center gap-2 text-lg font-semibold">
+        <h2 class="flex items-center gap-2 section-title">
           <.icon name="hero-bolt" class="size-5 text-warning" /> Activity
         </h2>
         <p :if={@activities == []} class="text-sm text-base-content/60">Nothing has happened yet.</p>

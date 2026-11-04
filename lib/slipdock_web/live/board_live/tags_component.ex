@@ -109,7 +109,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
     ~H"""
     <.modal id="tags-modal" on_close={JS.patch(@close_path)} size="sm">
       <div class="space-y-5 p-6">
-        <h2 class="text-lg font-semibold">Tags</h2>
+        <h2 class="section-title">Tags</h2>
         <p :if={@board.tags == []} class="text-sm text-base-content/60">
           No tags yet. Create one below.
         </p>

@@ -4902,7 +4902,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="share-modal" on_close={JS.push("close_share")} size="md">
       <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Share “{share_title(@modal.item)}”</h2>
+        <h2 class="section-title">Share “{share_title(@modal.item)}”</h2>
         <p class="text-sm text-base-content/60">
           {share_help(@modal.kind)}
         </p>
@@ -4942,7 +4942,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="folder-modal" on_close={JS.push("close_folder_modal")} size="sm">
       <div class="space-y-5 p-6">
-        <h2 class="text-lg font-semibold">
+        <h2 class="section-title">
           {if @modal.folder, do: "Edit folder", else: "New folder"}
         </h2>
         <form id="folder-form" phx-submit="save_folder" class="space-y-4">
@@ -5070,7 +5070,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <form id="tree-rename-form" phx-submit="save_page_title" class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Rename page</h2>
+        <h2 class="section-title">Rename page</h2>
         <input
           type="text"
           name="title"
@@ -5107,7 +5107,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <div class="space-y-3 p-6">
-        <h2 class="text-lg font-semibold">{@heading}</h2>
+        <h2 class="section-title">{@heading}</h2>
         <form id="tree-target-filter" phx-change="tree_dialog_filter" phx-submit="tree_dialog_filter">
           <input
             type="text"
@@ -5155,7 +5155,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">
+        <h2 class="section-title">
           <%= case {@prompt.pages, Map.get(@prompt, :folders, [])} do %>
             <% {[page], []} -> %>
               Move “{page.title}” to {@prompt.board.name}?
@@ -5242,7 +5242,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="lg">
       <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Organise “{@prompt.folder.name}”</h2>
+        <h2 class="section-title">Organise “{@prompt.folder.name}”</h2>
         <form
           id="organise-form"
           phx-change="organise_draft"
@@ -5413,7 +5413,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Archive {count(length(@prompt.items), "page")}?</h2>
+        <h2 class="section-title">Archive {count(length(@prompt.items), "page")}?</h2>
         <ul class="max-h-48 list-inside list-disc overflow-y-auto text-sm text-base-content/70">
           <li :for={page <- @prompt.items}>{page.title}</li>
         </ul>
@@ -5442,7 +5442,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Tag {count(length(@prompt.items), "page")}</h2>
+        <h2 class="section-title">Tag {count(length(@prompt.items), "page")}</h2>
         <div :if={@prompt.tags == []} class="text-sm text-base-content/60">
           This board has no tags yet; make one in the board's settings.
         </div>
@@ -5471,7 +5471,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Archive {@prompt.file.name}?</h2>
+        <h2 class="section-title">Archive {@prompt.file.name}?</h2>
         <p class="text-sm text-base-content/60">
           It leaves the tree. Its bytes are kept, and still count towards the board owner's
           storage; deleting it gives that back.
@@ -5499,7 +5499,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Delete {@prompt.file.name}?</h2>
+        <h2 class="section-title">Delete {@prompt.file.name}?</h2>
         <p class="text-sm text-base-content/60">
           It is deleted for good, and its storage given back. This cannot be undone, and a
           synced copy of your wiki takes its copy away too.
@@ -5531,7 +5531,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Delete “{@prompt.page.title}”?</h2>
+        <h2 class="section-title">Delete “{@prompt.page.title}”?</h2>
         <p id="tree-delete-page-warning" class="text-sm text-base-content/60">
           {delete_warning(@prompt.page, @prompt.children)}
         </p>
@@ -5561,7 +5561,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <div class="space-y-4 p-6">
-        <h2 class="text-lg font-semibold">Archive “{@prompt.page.title}”?</h2>
+        <h2 class="section-title">Archive “{@prompt.page.title}”?</h2>
         <p class="text-sm text-base-content/60">
           It leaves the tree, with the pages under it. Archived pages can be shown again from
           Display, and restored.
@@ -5597,7 +5597,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     <.modal id="folder-delete-modal" on_close={JS.push("close_folder_delete")} size="sm">
       <div class="space-y-5 p-6">
         <div class="space-y-1">
-          <h2 class="text-lg font-semibold">Delete “{@folder.folder.name}”?</h2>
+          <h2 class="section-title">Delete “{@folder.folder.name}”?</h2>
           <p class="text-sm text-base-content/60">
             {@folder.path} holds {count(@folder.counts.pages, "page")}<span :if={
               @folder.counts.folders > 0
@@ -5884,7 +5884,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
-        <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
+        <h1 class="flex items-center gap-2 page-title">
           <.wiki_icon
             kind={:folder}
             icon={@folder.icon}
@@ -6061,7 +6061,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   # under the board or folder here.
   defp index_body(%{vault: %{}} = assigns) do
     ~H"""
-    <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
+    <h1 class="page-title">
       {if @vault_dir in ["", nil],
         do: "Wiki",
         else: @vault_dir |> String.trim("/") |> Path.basename()}
@@ -6077,7 +6077,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp index_body(assigns) do
     ~H"""
-    <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">{@board.name} wiki</h1>
+    <h1 class="page-title">{@board.name} wiki</h1>
     <p class="mt-2 text-sm text-base-content/60">
       What the board can't say: how it works, what was decided and why.
     </p>
@@ -6655,7 +6655,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       </nav>
 
       <div class="min-w-0">
-        <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
+        <h1 class="flex items-center gap-2 page-title">
           <.wiki_icon
             :if={dressed?(Map.from_struct(@page))}
             kind={:page}
@@ -6983,7 +6983,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     <.form for={@form} id="page-form" phx-change="validate" phx-submit="save" class="space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="min-w-0">
-          <h1 class="text-xl font-bold tracking-tight">
+          <h1 class="page-title">
             {if @page, do: "Editing #{@page.title}", else: "New page"}
           </h1>
           <%!-- Started from the foot of a list: say so, since the page will
@@ -7256,7 +7256,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     ~H"""
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h1 class="text-xl font-bold tracking-tight">History of {@page.title}</h1>
+      <h1 class="page-title">History of {@page.title}</h1>
       <.link patch={page_path(@board, @page)} class="btn btn-ghost btn-sm">Back to the page</.link>
     </div>
 
@@ -7337,7 +7337,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     <div :if={@revision}>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 class="text-xl font-bold tracking-tight">{@revision.title}</h1>
+          <h1 class="page-title">{@revision.title}</h1>
           <p class="mt-1 text-sm text-base-content/60">
             {stamp(@revision.inserted_at)} · {author_label(@revision)} {via_label(@revision.via)}
             <span :if={@revision.summary}>— {@revision.summary}</span>

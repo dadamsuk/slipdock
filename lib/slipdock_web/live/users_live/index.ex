@@ -686,7 +686,7 @@ defmodule SlipdockWeb.UsersLive.Index do
   defp signups_tab(assigns) do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h2 class="text-lg font-semibold">Waiting for you</h2>
+      <h2 class="section-title">Waiting for you</h2>
       <p :if={@requests == []} class="mt-2 text-sm text-base-content/60">
         Nobody is waiting.
       </p>

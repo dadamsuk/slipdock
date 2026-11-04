@@ -128,7 +128,7 @@ defmodule SlipdockWeb.BoardLive.Shared do
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-2xl space-y-6 px-4 py-6 sm:px-6 sm:py-10">
           <div>
-            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Shared with you</h1>
+            <h1 class="page-title">Shared with you</h1>
             <p class="mt-1 text-sm text-base-content/60">
               <span class="font-medium">{@board.name}</span>
               belongs to {User.display_name(@board.owner)}. It is on your boards because it was shared with you.

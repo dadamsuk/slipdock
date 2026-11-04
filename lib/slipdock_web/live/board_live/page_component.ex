@@ -251,7 +251,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
         <div class="flex items-start gap-3">
           <.icon name="hero-document-text" class="mt-1 size-5 shrink-0 text-primary/70" />
           <div class="min-w-0 flex-1">
-            <h2 class="text-lg font-semibold leading-snug">{@page.title}</h2>
+            <h2 class="section-title">{@page.title}</h2>
             <p class="mt-0.5 text-xs text-base-content/50">
               <span class="font-mono">{@page.code}</span>
               <span :if={@page.summary}> · {@page.summary}</span>

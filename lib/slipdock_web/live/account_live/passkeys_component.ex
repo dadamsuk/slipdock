@@ -57,7 +57,7 @@ defmodule SlipdockWeb.AccountLive.PasskeysComponent do
       phx-target={@myself}
       class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
     >
-      <h2 class="text-lg font-semibold">Passkeys</h2>
+      <h2 class="section-title">Passkeys</h2>
       <p class="text-sm text-base-content/60">
         Sign in with your fingerprint, face or device PIN instead of an emailed link.
         The email link keeps working too.

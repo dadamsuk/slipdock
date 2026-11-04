@@ -292,7 +292,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
           <div id="visualise" class="mx-auto max-w-[1360px] space-y-4 p-3 sm:p-6">
             <div class="flex flex-wrap items-end justify-between gap-3">
               <div class="min-w-0">
-                <h1 class="text-2xl font-bold">Visualise</h1>
+                <h1 class="page-title">Visualise</h1>
                 <p class="truncate text-xs text-base-content/60">{@board.name}</p>
               </div>
               <.window_switch days={@days} />

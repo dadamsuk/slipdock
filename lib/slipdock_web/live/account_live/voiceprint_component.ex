@@ -109,7 +109,7 @@ defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
         class="space-y-4 rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
         <div>
-          <h2 class="text-lg font-semibold">Voiceprint</h2>
+          <h2 class="section-title">Voiceprint</h2>
           <p class="text-sm text-base-content/60">
             Optional, and only yours to decide. A voiceprint helps meeting capture suggest when it was
             you speaking; the suggestion is shown as evidence and can be corrected. Only numbers made

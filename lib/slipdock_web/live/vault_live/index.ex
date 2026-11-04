@@ -135,7 +135,7 @@ defmodule SlipdockWeb.VaultLive.Index do
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:py-10 sm:px-6">
           <div>
-            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Wiki settings</h1>
+            <h1 class="page-title">Wiki settings</h1>
             <p id="vaults-what" class="mt-1 text-sm text-base-content/60">
               Your wiki is one tree of notes: your Knowledge Base first, then a folder
               for every board you have, a sub-board in its epic's folder. Archived boards

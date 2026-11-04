@@ -134,7 +134,7 @@ defmodule SlipdockWeb.WorkLive.Index do
         <div class="mx-auto max-w-5xl px-4 py-6 sm:py-10 sm:px-6">
           <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">My work</h1>
+              <h1 class="page-title">My work</h1>
               <p class="mt-1 text-sm text-base-content/60">
                 {@open_count} open {if @open_count == 1, do: "card", else: "cards"} assigned to you, across every board and level.
               </p>
@@ -223,7 +223,7 @@ defmodule SlipdockWeb.WorkLive.Index do
             <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <.icon name="hero-check-badge" class="size-7" />
             </div>
-            <h2 class="text-lg font-semibold">Nothing assigned to you</h2>
+            <h2 class="section-title">Nothing assigned to you</h2>
             <p class="mt-1 text-sm text-base-content/60">
               Cards you are assigned to, on any board, show up here.
             </p>

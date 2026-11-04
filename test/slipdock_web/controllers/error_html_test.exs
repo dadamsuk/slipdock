@@ -19,7 +19,7 @@ defmodule SlipdockWeb.ErrorHTMLTest do
   test "renders 500.html saying it was logged and nothing was lost" do
     html = render_to_string(SlipdockWeb.ErrorHTML, "500", "html", [])
 
-    assert html =~ "<h1 class=\"text-2xl font-semibold\">Internal Server Error</h1>"
+    assert html =~ "<h1 class=\"page-title\">Internal Server Error</h1>"
     assert html =~ "It has been logged"
     assert html =~ "Back to your boards"
   end

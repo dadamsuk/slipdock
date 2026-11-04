@@ -221,7 +221,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
             <div>
               <h1
                 id="multiboard-title"
-                class="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl"
+                class="flex items-center gap-2 page-title"
               >
                 <span
                   :if={@saved}
@@ -399,7 +399,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
             :if={@list_count == 0 and not @picking}
             class="rounded-2xl border-2 border-dashed border-base-content/15 p-16 text-center"
           >
-            <h2 class="text-lg font-semibold">No lists chosen</h2>
+            <h2 class="section-title">No lists chosen</h2>
             <p class="mt-1 text-sm text-base-content/60">
               Press <b>Lists</b> to pick them from any of your boards.
             </p>

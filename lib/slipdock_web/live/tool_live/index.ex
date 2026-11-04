@@ -77,7 +77,7 @@ defmodule SlipdockWeb.ToolLive.Index do
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-4xl space-y-8 px-4 py-6 sm:px-6 sm:py-10">
           <div>
-            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Tools</h1>
+            <h1 class="page-title">Tools</h1>
             <p class="mt-1 max-w-xl text-sm text-base-content/60">
               A Tool is a ready-made way of working: a board Slipdock builds for you, and the
               skills that teach your assistant to use it. Open one to read everything it does
@@ -116,7 +116,7 @@ defmodule SlipdockWeb.ToolLive.Index do
             id="tools-publish"
             class="rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10"
           >
-            <h2 class="text-lg font-semibold">Publish a Tool</h2>
+            <h2 class="section-title">Publish a Tool</h2>
             <p class="mt-1 text-sm text-base-content/60">
               Upload a package: a <code>.tar.gz</code>
               of the Tool's folder (<code>tool.json</code>, <code>README.md</code>, and its <code>skills/</code>), such as

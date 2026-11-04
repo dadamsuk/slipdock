@@ -271,7 +271,7 @@ defmodule SlipdockWeb.SetupLive.Index do
           <div class="mb-6 flex items-center gap-3">
             <Layouts.brand_mark class="size-12" variant={:detailed} />
             <div>
-              <h1 class="text-xl font-bold">Set up Slipdock</h1>
+              <h1 class="page-title">Set up Slipdock</h1>
               <p class="text-sm text-base-content/60">
                 Nobody has claimed this server yet. Three questions and it is yours.
               </p>

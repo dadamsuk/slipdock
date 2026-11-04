@@ -113,7 +113,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
     ~H"""
     <.modal id="archive-modal" on_close={JS.patch(@close_path)} size="md">
       <div class="space-y-4 p-6">
-        <h2 class="flex items-center gap-2 text-lg font-semibold">
+        <h2 class="flex items-center gap-2 section-title">
           <.icon name="hero-archive-box" class="size-5" /> Archived cards
         </h2>
         <form

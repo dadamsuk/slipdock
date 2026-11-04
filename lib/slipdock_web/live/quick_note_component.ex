@@ -96,7 +96,7 @@ defmodule SlipdockWeb.QuickNoteComponent do
           phx-target={@myself}
           class="space-y-3 p-5"
         >
-          <h2 class="text-lg font-semibold">Quick note</h2>
+          <h2 class="section-title">Quick note</h2>
           <textarea
             id={"quick-note-text-#{@key}"}
             name="text"
