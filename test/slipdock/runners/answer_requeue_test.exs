@@ -3,8 +3,9 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
   Re-queue on answer (#1115, KTD7): answering a wait a runner job asked
   sends the card to that job's rule again, with the question, the answer,
   who answered and the handoff on top of its prompt — at once, in place of
-  a still-queued job's prompt, or once the rule's open job has closed — and
-  says on the card why when it can't.
+  a still-queued job's prompt, in the slot of another card's job nobody has
+  taken yet (#1750), or once the rule's job a runner has closed — and says
+  on the card why when it can't.
   """
   use Slipdock.DataCase, async: true
 
@@ -202,6 +203,15 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       wait = answer(ctx, ctx.a)
       assert wait.requeue_state == "pending"
       assert Enum.map(open_jobs(rule), & &1.card_id) == [b.id]
+      # Handed out, it isn't withdrawn: the answer waits for it.
+      assert Repo.reload!(b_job).status == "claimed"
+
+      assert Enum.any?(
+               comments(ctx.a),
+               &(&1 =~
+                   "once job ##{b_job.id} (claimed on ##{b.id}) has closed: " <>
+                     "it is already with a runner.")
+             )
 
       {:ok, _} = Runners.finish(ctx.runner, b_job.id, %{exit: "0"})
 
@@ -228,6 +238,178 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
       assert [fresh] = open_jobs(rule)
       assert fresh.prompt =~ "Question on card ##{ctx.a.id}"
+    end
+  end
+
+  describe "an answer while another card's job is still queued (#1750)" do
+    # The rule sent the next card after the parked one, and nobody has taken
+    # its job yet.
+    defp queued_behind(ctx, title, paths \\ []) do
+      next = card_fixture(ctx.todo, %{"title" => title})
+      {:ok, next} = Boards.update_card(next, %{"paths" => paths})
+      park(ctx)
+      job = Repo.one!(from(j in Job, where: j.card_id == ^next.id and j.status == "queued"))
+      {next, job}
+    end
+
+    test "the answered epic's own subcard lane-holds it: the answer takes its slot", ctx do
+      {:ok, board} = Boards.update_board(ctx.board, %{"lanes" => true})
+      {:ok, a} = Boards.update_card(ctx.a, %{"paths" => ["docs/design/**"]})
+      rule = rule_fixture(board, spec())
+
+      # The epic's subcard sits in progress, holding docs/design/**.
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(a, t)
+      sub = Boards.get_board!(sub.id)
+
+      sub_doing =
+        sub.columns
+        |> Enum.find(&(&1.name == "Doing"))
+        |> Ecto.Changeset.change(category: "doing")
+        |> Repo.update!()
+
+      child = card_fixture(sub_doing, %{"title" => "child"})
+      {:ok, child} = Boards.update_card(child, %{"paths" => ["docs/design/**"]})
+
+      {next, held} = queued_behind(ctx, "next", ["docs/**"])
+
+      assert Runners.held_reason(Repo.reload!(held), claimant: true) ==
+               "Lane: overlaps ##{child.id}, in progress"
+
+      wait = answer(ctx, a)
+
+      # Sent at once, not held behind a job that can't go until it does.
+      assert wait.requeue_state == "queued"
+      assert [fresh] = open_jobs(rule)
+      assert fresh.card_id == a.id
+      assert fresh.prompt =~ "Question on card ##{a.id}: Which region?"
+      assert wait.requeue_job_id == fresh.id
+      assert wait.requeue_note =~ "job ##{held.id} on ##{next.id} gave way"
+
+      # The withdrawn job: cancelled, marked, and its card told it goes next.
+      held = Repo.reload!(held)
+      assert held.status == "cancelled"
+      assert held.recovery == "withdrawn"
+      assert held.error =~ "gave way to the answer on ##{a.id}"
+
+      assert Enum.any?(
+               comments(next),
+               &(&1 =~ "Job ##{held.id} gave way to the answer on ##{a.id}" and
+                   &1 =~ "goes next")
+             )
+
+      # Its card keeps its place.
+      assert Repo.reload!(next).column_id == ctx.todo.id
+      refute Enum.any?(comments(a), &(&1 =~ "once job"))
+
+      # A runner can take the answer, the epic's own lane not counting against it.
+      assert %Job{id: id} = Runners.claim(ctx.runner)
+      assert id == fresh.id
+    end
+
+    test "the withdrawn card is the next one the feed sends", ctx do
+      rule = rule_fixture(ctx.board, spec())
+      {next, held} = queued_behind(ctx, "next")
+      # Below "next" in the list, so only the feed's order picks between them.
+      later = card_fixture(ctx.todo, %{"title" => "later"})
+
+      answer(ctx, ctx.a)
+      assert [%Job{card_id: a_id} = fresh] = open_jobs(rule)
+      assert a_id == ctx.a.id
+
+      claimed = Runners.claim(ctx.runner)
+      assert claimed.id == fresh.id
+      {:ok, _} = Runners.finish(ctx.runner, fresh.id, %{exit: "0"})
+
+      # The withdrawn job's own ending doesn't cool its card down.
+      assert [again] = open_jobs(rule)
+      assert again.card_id == next.id
+      assert again.id != held.id
+      refute Enum.any?(jobs(rule), &(&1.card_id == later.id))
+    end
+
+    test "a second answer racing it pends behind the first: one job per card", ctx do
+      b = card_fixture(ctx.todo, %{"title" => "b"})
+      c = card_fixture(ctx.todo, %{"title" => "c"})
+      rule = rule_fixture(ctx.board, spec())
+      # a parks, then b is sent and parks too; then c is sent and stays queued.
+      a_job = park(ctx)
+      b_job = take(ctx)
+      assert b_job.card_id == b.id
+      ask(ctx, b_job)
+      {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, b_job.id, %{exit: "0"})
+      assert [%Job{status: "queued"} = c_job] = open_jobs(rule)
+      assert c_job.card_id == c.id
+
+      wait_a = answer(ctx, ctx.a)
+      wait_b = answer(ctx, b)
+
+      # The first takes c's slot; the second doesn't take the first's.
+      assert wait_a.requeue_state == "queued"
+      assert wait_b.requeue_state == "pending"
+
+      assert Enum.any?(
+               comments(b),
+               &(&1 =~ "it carries another answer, which goes first.")
+             )
+
+      assert [a_fresh] = open_jobs(rule)
+      assert a_fresh.card_id == ctx.a.id
+      assert a_fresh.id != a_job.id
+      assert Repo.reload!(c_job).status == "cancelled"
+
+      # The first answer acted on again (two effects racing): still one job.
+      assert Requeue.after_answer(Repo.get!(Wait, wait_a.id)) == :queued
+
+      assert Repo.aggregate(
+               from(j in Job, where: j.card_id == ^ctx.a.id and j.status == "queued"),
+               :count
+             ) == 1
+
+      # a done: b's answer goes, then c.
+      Runners.claim(ctx.runner)
+      {:ok, _} = Runners.finish(ctx.runner, a_fresh.id, %{exit: "0"})
+      assert [b_fresh] = open_jobs(rule)
+      assert b_fresh.card_id == b.id
+      assert b_fresh.prompt =~ "Question on card ##{b.id}"
+      assert Repo.get!(Wait, wait_b.id).requeue_state == "queued"
+
+      Runners.claim(ctx.runner)
+      {:ok, _} = Runners.finish(ctx.runner, b_fresh.id, %{exit: "0"})
+      assert [c_again] = open_jobs(rule)
+      assert c_again.card_id == c.id
+    end
+
+    test "running, not queued: the job keeps its slot and holds the answer", ctx do
+      rule = rule_fixture(ctx.board, spec())
+      {_next, held} = queued_behind(ctx, "next")
+      Repo.update_all(from(j in Job, where: j.id == ^held.id), set: [status: "running"])
+
+      wait = answer(ctx, ctx.a)
+
+      assert wait.requeue_state == "pending"
+      assert [%Job{status: "running"} = still] = open_jobs(rule)
+      assert still.id == held.id
+      assert is_nil(still.recovery)
+    end
+
+    test "an answer held behind a job that went back to the queue goes on the next feed",
+         ctx do
+      rule = rule_fixture(ctx.board, spec())
+      {_next, held} = queued_behind(ctx, "next")
+      # Handed out when the answer came, so the answer was held...
+      Repo.update_all(from(j in Job, where: j.id == ^held.id), set: [status: "claimed"])
+      wait = answer(ctx, ctx.a)
+      assert wait.requeue_state == "pending"
+      # ...then back in the queue (its lease lapsed, say) without closing.
+      Repo.update_all(from(j in Job, where: j.id == ^held.id), set: [status: "queued"])
+
+      assert {:ok, card} = Automations.feed(Repo.get!(Automations.Rule, rule.id))
+      assert card.id == ctx.a.id
+      assert [fresh] = open_jobs(rule)
+      assert fresh.card_id == ctx.a.id
+      assert Repo.reload!(held).recovery == "withdrawn"
+      assert Repo.get!(Wait, wait.id).requeue_state == "queued"
     end
   end
 

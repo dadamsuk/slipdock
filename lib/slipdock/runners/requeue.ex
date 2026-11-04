@@ -15,9 +15,16 @@ defmodule Slipdock.Runners.Requeue do
 
     * `queued` — a fresh job is queued (`requeue_job_id`), or the rule's job
       for the card was still queued and had its prompt rewritten in place.
-    * `pending` — the rule still has a job open (a list_top rule keeps one at
-      most, for this card or another): the answer goes once it closes, ahead
-      of the next card (`drain/1`, from the rule's feed or the job ending).
+    * `queued`, too, when a list_top rule's open job is another card's and
+      still queued (#1750): nobody has taken it, so it is withdrawn
+      (`Slipdock.Runners.withdraw_job/2`) and the answer takes its slot. Its
+      card keeps its place, is told so, and is the next one the feed sends.
+      Waiting for it instead could be forever: whatever holds it (a lane,
+      a pause, the WIP limit) may be the answered card itself.
+    * `pending` — the rule's open job has been handed out (claimed or
+      running), for this card or another, or is another answer's: the answer
+      goes once it closes, ahead of the next card (`drain/1`, from the
+      rule's feed or the job ending).
     * `skipped` — the rule is off or deleted, the card is closed or has
       moved to another board tree: nothing is sent, and the card says why.
     * `failed` — the queue refused (full, or too many this minute): the card
@@ -84,9 +91,17 @@ defmodule Slipdock.Runners.Requeue do
         other = open || (Spec.feed?(rule.spec) && any_open_job(rule))
 
         cond do
-          match?(%Job{status: "queued"}, open) -> rewrite(wait, rule, card, open)
-          other -> pend(wait, card, other)
-          true -> queue(wait, rule, card)
+          match?(%Job{status: "queued"}, open) ->
+            rewrite(wait, rule, card, open)
+
+          match?(%Job{status: "queued"}, other) and not answer?(other) ->
+            give_way(wait, rule, card, other)
+
+          other ->
+            pend(wait, card, other)
+
+          true ->
+            queue(wait, rule, card)
         end
     end
   end
@@ -142,13 +157,50 @@ defmodule Slipdock.Runners.Requeue do
     )
   end
 
+  # The job carries an answer already: a second answer waits for it.
+  defp answer?(%Job{id: id}) do
+    Repo.exists?(from(w in Wait, where: w.requeue_job_id == ^id and w.requeue_state == "queued"))
+  end
+
   ## Acting -------------------------------------------------------------------
 
-  defp queue(wait, rule, card) do
+  # Another card's job from the list_top rule is still queued: the answer
+  # takes its slot, under the feed's lock so the feed can't send a card in
+  # between. Handed out meanwhile, it holds the answer after all.
+  defp give_way(wait, rule, card, job) do
+    {:ok, result} =
+      Repo.transaction(fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock($1, $2)", [7_400, rule.id])
+
+        case Runners.withdraw_job(job, "gave way to the answer on ##{card.id}") do
+          {:ok, job} ->
+            result = queue(wait, rule, card, " (job ##{job.id} on ##{job.card_id} gave way)")
+            tell_withdrawn(job, card)
+            result
+
+          :error ->
+            after_answer(wait)
+        end
+      end)
+
+    result
+  end
+
+  defp tell_withdrawn(job, card) do
+    with %Card{} = withdrawn <- Repo.get(Card, job.card_id) do
+      Boards.add_comment(
+        withdrawn,
+        "Job ##{job.id} gave way to the answer on ##{card.id}, which went to the runners " <>
+          "first. This card keeps its place in the list and goes next."
+      )
+    end
+  end
+
+  defp queue(wait, rule, card, note \\ "") do
     with {:ok, attrs} <- Slipdock.Automations.Runner.runner_job(rule, card),
          attrs = Map.put(attrs, :prompt, prompt(wait, card, attrs.prompt)),
          {:ok, %Job{} = job} <- Runners.queue(card, attrs) do
-      record(wait, "queued", "job ##{job.id}", job.id)
+      record(wait, "queued", "job ##{job.id}" <> note, job.id)
 
       Boards.log_activity(
         card.board_id,
@@ -195,9 +247,15 @@ defmodule Slipdock.Runners.Requeue do
     where = if job.card_id == card.id, do: "on this card", else: "on ##{job.card_id}"
     record(wait, "pending", "after job ##{job.id} (#{job.status} #{where})", nil)
 
+    why =
+      if job.status == "queued",
+        do: "it carries another answer, which goes first",
+        else: "it is already with a runner"
+
     Boards.add_comment(
       card,
-      "The answer goes to the runners once job ##{job.id} (#{job.status} #{where}) has closed."
+      "The answer goes to the runners once job ##{job.id} (#{job.status} #{where}) " <>
+        "has closed: #{why}."
     )
 
     :pending

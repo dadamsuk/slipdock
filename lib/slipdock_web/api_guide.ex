@@ -2056,8 +2056,11 @@ defmodule SlipdockWeb.APIGuide do
     step, both or neither. A list_top rule puts the parked card back on top
     of its list, flagged waiting, without spending a `requeue_stuck` retry, so
     the next card goes. Answering sends the card to the same rule again — at
-    once, or once the rule's open job has closed — with the question, the
-    answer, who answered and the handoff on top of the prompt; the claim
+    once, or once the rule's job that a runner has taken has closed — with
+    the question, the answer, who answered and the handoff on top of the
+    prompt. A job the rule queued for another card that nobody has taken yet
+    gives way: it is withdrawn (`cancelled`, `recovery: "withdrawn"`, with a
+    comment on its card), and its card keeps its place and goes next. The claim
     answer carries them as `wait` and `handoff` too (a runner's: `X-Wait-Id`,
     `X-Handoff-Id`). The wait's `requeue_state` says what happened:
     `queued`, `pending`, `skipped` (the rule is off or gone, the card closed

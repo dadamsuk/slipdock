@@ -556,8 +556,13 @@ defmodule Slipdock.Automations do
         Repo.query!("SELECT pg_advisory_xact_lock($1, $2)", [7_400, rule.id])
 
         cond do
+          # An answer held while the rule's job was handed out takes its
+          # place if that job has gone back to the queue since (#1750).
           feed_job_open?(rule) ->
-            {:idle, :job_open}
+            case feed_job_queued?(rule) && Slipdock.Runners.Requeue.drain(rule) do
+              %Slipdock.Runners.Job{} = job -> {:ok, Repo.get(Card, job.card_id)}
+              _ -> {:idle, :job_open}
+            end
 
           # An answered question goes before the next card (#1115, KTD7).
           job = Slipdock.Runners.Requeue.drain(rule) ->
@@ -605,6 +610,12 @@ defmodule Slipdock.Automations do
       from(j in Slipdock.Runners.Job,
         where: j.rule_id == ^rule.id and j.status in ^Slipdock.Runners.Job.open_statuses()
       )
+    )
+  end
+
+  defp feed_job_queued?(rule) do
+    Repo.exists?(
+      from(j in Slipdock.Runners.Job, where: j.rule_id == ^rule.id and j.status == "queued")
     )
   end
 
@@ -660,6 +671,7 @@ defmodule Slipdock.Automations do
 
     # A card the rule put back after its job left it in progress is not
     # cooling: the retry is meant to go next, and requeue_stuck bounds it.
+    # Nor is one whose queued job gave way to an answer (#1750): it goes next.
     # Nor is one rejected since its job ended (#1659): the rejection is new
     # information, and the rework goes next.
     from(j in Slipdock.Runners.Job,
@@ -667,7 +679,7 @@ defmodule Slipdock.Automations do
       on: c.id == j.card_id,
       where:
         j.rule_id == ^rule.id and j.finished_at > ^since and
-          (is_nil(j.recovery) or j.recovery != "requeued") and
+          (is_nil(j.recovery) or j.recovery not in ["requeued", "withdrawn"]) and
           not (c.verify_state == "rejected" and not is_nil(c.verify_at) and
                  c.verify_at >= j.finished_at),
       select: j.card_id
