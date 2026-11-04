@@ -165,7 +165,7 @@ defmodule SlipdockWeb.Layouts do
               id="commands-open"
               label="Commands"
               key="Ctrl-P"
-              icon="hero-command-line"
+              icon="hero-bolt"
               phx-click="shortcut_panel"
               phx-value-panel="command"
               class="sm:hidden"
@@ -285,7 +285,14 @@ defmodule SlipdockWeb.Layouts do
         </div>
       </header>
 
-      <main class="min-h-0 flex-1">
+      <%!-- On a phone the floating dock sits over the bottom-left corner, so
+            the page stops short of it (#1717): the padding is the button's
+            height, its distance from the edge and a gap. Whatever scrolls
+            inside the page then ends above the dock, never under it. --%>
+      <main class={[
+        "min-h-0 flex-1",
+        @current_user && "max-sm:pb-[calc(5.25rem+env(safe-area-inset-bottom))]"
+      ]}>
         {render_slot(@inner_block)}
       </main>
 

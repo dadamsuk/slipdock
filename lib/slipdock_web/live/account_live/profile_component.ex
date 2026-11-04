@@ -119,7 +119,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
           id="profile-form"
           phx-submit="save_profile"
           phx-target={@myself}
-          class="mt-4 field-row gap-3"
+          class="mt-4 field-row field-row-stack gap-3"
         >
           <div class="flex-1">
             <.input field={@profile_form[:name]} label="Display name" placeholder="Your name" />

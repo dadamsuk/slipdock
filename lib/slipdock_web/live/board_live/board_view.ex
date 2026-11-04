@@ -1336,7 +1336,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     assigns = assign(assigns, shown: shown, hidden: hidden)
 
     ~H"""
-    <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm">
+    <%!-- One row on a phone too (#1717): below sm it doesn't wrap, the gaps
+          close up and Display is its icon, so the Select tick and the Views
+          bookmark stay on the row rather than alone on a second one. --%>
+    <div
+      id="board-toolbar"
+      class="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm max-sm:flex-nowrap max-sm:gap-x-1"
+    >
       <.view_tabs
         :if={!@view_only}
         board={@board}
@@ -1370,7 +1376,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <.display_menu mode={:board} config={@config} board={@board} />
       </form>
 
-      <div class="ml-auto flex items-center gap-2">
+      <div class="ml-auto flex shrink-0 items-center gap-2 max-sm:gap-1">
         <span class="hidden text-xs text-base-content/50 lg:inline" title="Cards shown">
           {@shown} {if @shown == 1, do: "card", else: "cards"}<span :if={@hidden > 0}> · {@hidden} hidden</span>
         </span>
@@ -1382,6 +1388,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           class={["btn btn-sm gap-1", if(@select_mode, do: "btn-primary", else: "btn-ghost")]}
           aria-pressed={to_string(@select_mode)}
           title="Select several cards and change them all at once"
+          aria-label="Select several cards"
         >
           <.icon name="hero-check-circle" class="size-4" />
           <span class="hidden sm:inline">{if @select_mode, do: "Selecting", else: "Select"}</span>

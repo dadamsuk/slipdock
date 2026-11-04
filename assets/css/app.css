@@ -380,6 +380,17 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
   margin-bottom: 0;
   padding-bottom: 0;
 }
+/* A row of fields that stacks below sm (#1717): on a phone three fields in
+   a row leave each a few letters wide. The button keeps its own width. */
+@media (width < 40rem) {
+  .field-row-stack {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .field-row-stack > .btn {
+    align-self: flex-start;
+  }
+}
 
 /* Badges stay soft tints. So never add daisyUI's `badge-soft` to
    `badge-primary`: soft paints the words in --badge-color, which here is the
