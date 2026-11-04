@@ -8,6 +8,7 @@ defmodule Slipdock.Automations.FeedTest do
 
   alias Slipdock.{Automations, Boards, Repo, Runners}
   alias Slipdock.Automations.{Presets, Spec}
+  alias Slipdock.Boards.Card
   alias Slipdock.Runners.{Job, Setup}
 
   setup do
@@ -237,6 +238,26 @@ defmodule Slipdock.Automations.FeedTest do
 
       for card <- [blocked, waiting, dep, complete, archived, mine],
           do: refute(card.id in queued_cards(rule))
+    end
+
+    test "skips a card pending verification or merging, and sends a rejected one", ctx do
+      pending = card_fixture(ctx.todo, %{"title" => "submitted"})
+      merging = card_fixture(ctx.todo, %{"title" => "accepted, merging"})
+      rejected = card_fixture(ctx.todo, %{"title" => "sent back"})
+
+      # Only Slipdock.Verified sets these; the feed only reads them (#1807).
+      for {card, state} <- [{pending, "pending"}, {merging, "merging"}, {rejected, "rejected"}],
+          do:
+            Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [verify_state: state])
+
+      rule = feed_rule(ctx.board)
+      assert queued_cards(rule) == [rejected.id]
+
+      Repo.update_all(from(c in Card, where: c.id == ^rejected.id),
+        set: [verify_state: "pending"]
+      )
+
+      assert Automations.next_card(rule, force: true) == nil
     end
 
     test "an assigned card is sent when the rule doesn't ask for unassigned ones", ctx do

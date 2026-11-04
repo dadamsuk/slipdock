@@ -72,4 +72,14 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert guide =~
              "ships by push, a card awaiting verification has\n      shipped: it frees its lane"
   end
+
+  test "lanes and the WIP limit hold work jobs only, said everywhere (#1807)" do
+    manual = read("docs/manual.md")
+    assert manual =~ "Only\nwork waits: a job that verifies or merges a card edits nobody's files"
+    assert manual =~ "Jobs that verify or merge a card don't: they finish work"
+    assert read("docs/agents.md") =~ "Lanes hold work jobs only, never a verify or merge\njob."
+
+    assert File.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex")) =~
+             "Verify and merge\n      jobs are never held, by lanes or the WIP limit"
+  end
 end

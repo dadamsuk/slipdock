@@ -497,7 +497,8 @@ write the paths before starting, stage only them, and use a worktree when
 another session shares the repository. On a board that verifies work and
 ships by push, a card awaiting verification frees its lane and stops
 blocking its dependents until a rejection; on a pull request board it keeps
-both until the merge. See [the manual](manual.md#lanes).
+both until the merge. Lanes hold work jobs only, never a verify or merge
+job. See [the manual](manual.md#lanes).
 
 ## If you self-host
 
