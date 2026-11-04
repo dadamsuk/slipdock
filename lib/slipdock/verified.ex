@@ -578,20 +578,19 @@ defmodule Slipdock.Verified do
         user
       )
 
-      queue_merge(card, user)
+      queue_merge(card, user, decider: decider_runner(actor))
       {:ok, Repo.get!(Card, card.id)}
     end
     |> api_error()
   end
 
   @doc """
-  Queues the merge job for a card being merged (#1657), with no setting: to
-  the pool of the runner that built it when a runner there takes merge
-  jobs, else to any pool on the tree with such a runner. With none, nothing
-  is queued and the card says what to do. `{:ok, job}` or `:none`.
+  Queues the merge job for a card being merged (#1657), with no setting, to
+  the pool `merge_pool/2` picks (`opts` go to it). With none, nothing is
+  queued and the card says what to do. `{:ok, job}` or `:none`.
   """
-  def queue_merge(%Card{} = card, user \\ nil) do
-    case merge_pool(card) do
+  def queue_merge(%Card{} = card, user \\ nil, opts \\ []) do
+    case merge_pool(card, opts) do
       nil ->
         Slipdock.Boards.add_comment(card, no_merger_text(card), by: user)
         :none
@@ -600,7 +599,8 @@ defmodule Slipdock.Verified do
         case Slipdock.Runners.queue(card, %{
                pool: pool,
                kind: @merge_kind,
-               prompt: merge_prompt(card)
+               prompt: merge_prompt(card),
+               exclude_runner_id: opts[:exclude]
              }) do
           {:ok, job} ->
             {:ok, job}
@@ -618,8 +618,20 @@ defmodule Slipdock.Verified do
     end
   end
 
-  @doc "The pool a card's merge job goes to (see `queue_merge/2`), or nil."
-  def merge_pool(%Card{} = card) do
+  @doc """
+  The pool a card's merge job goes to (see `queue_merge/3`), or nil. Of the
+  runners on the tree that take merge jobs, the first that applies (#1754):
+
+    * one idle now (`Slipdock.Runners.idle?/1`), the builder's pool first:
+      the merge goes at once, rather than waiting for a pass to end;
+    * the runner that decided the card (`decider:`), about to finish its
+      verify job;
+    * the pool of the runner that built the card, else the most recently
+      seen pool.
+
+  `exclude:` leaves out a runner that couldn't merge here.
+  """
+  def merge_pool(%Card{} = card, opts \\ []) do
     import Ecto.Query
     alias Slipdock.Runners.Runner
 
@@ -628,9 +640,10 @@ defmodule Slipdock.Verified do
     capable =
       from(r in Runner,
         where: r.board_id == ^root and fragment("'merge' = ANY(?)", r.kinds),
-        order_by: [desc_nulls_last: r.last_seen_at, asc: r.id],
-        select: r.pool
+        order_by: [desc_nulls_last: r.last_seen_at, asc: r.id]
       )
+      |> Repo.all()
+      |> Enum.reject(&(&1.id == opts[:exclude]))
 
     builder_pool =
       case builder_runner_id(card) do
@@ -638,11 +651,30 @@ defmodule Slipdock.Verified do
         _ -> nil
       end
 
-    pools = Repo.all(capable)
+    pools = Enum.map(capable, & &1.pool)
+    idle = for r <- capable, Slipdock.Runners.idle?(r), do: r.pool
+    decider = Enum.find(capable, &(&1.id == opts[:decider]))
 
     cond do
+      builder_pool && builder_pool in idle -> builder_pool
+      idle != [] -> hd(idle)
+      decider -> decider.pool
       builder_pool && builder_pool in pools -> builder_pool
       true -> List.first(pools)
+    end
+  end
+
+  # The runner whose job made a decision, if one did (#1666): it is about
+  # to finish that job, so it can take the merge next (#1754).
+  defp decider_runner(actor) do
+    import Ecto.Query
+
+    case actor_map(actor) do
+      %{"job_id" => id} when is_integer(id) ->
+        Repo.one(from(j in Slipdock.Runners.Job, where: j.id == ^id, select: j.runner_id))
+
+      _ ->
+        nil
     end
   end
 
@@ -692,26 +724,34 @@ defmodule Slipdock.Verified do
   @doc """
   A merge job has ended (#1657), called by `Slipdock.Runners` for kind
   merge. Done: the card completes, with the merge commit as `merge_sha`,
-  and moves to the done list. Anything else: it goes back to the top of the
-  ready list as rejected, the merge's reason as the rejection's, so the
-  builder rebases and submits it again. A card no longer merging is left
-  alone.
+  and moves to the done list. A runner that couldn't merge here (not the
+  pull request's repository, no git or gh, gh signed out) hands it on to
+  another runner (#1754): the card's work isn't at fault. Anything else: it
+  goes back to the top of the ready list as rejected, the merge's reason as
+  the rejection's, so the builder rebases and submits it again. A card no
+  longer merging is left alone.
   """
   def merge_finished(%Slipdock.Runners.Job{kind: @merge_kind} = job, runner_name) do
     case Repo.get(Card, job.card_id) do
       %Card{verify_state: "merging", completed: false} = card ->
         actor = Slipdock.Actor.runner(nil, job.id, runner_name)
 
-        if job.status == "done",
-          do:
+        cond do
+          job.status == "done" ->
             complete_merged(
               card,
               job.merged_sha,
               actor,
               nil,
               "**Merged** by runner #{runner_name}"
-            ),
-          else: merge_failed(card, job, actor)
+            )
+
+          runner_refused?(job) ->
+            hand_on(card, job, runner_name)
+
+          true ->
+            merge_failed(card, job, actor)
+        end
 
       _ ->
         :ok
@@ -719,6 +759,69 @@ defmodule Slipdock.Verified do
   end
 
   def merge_finished(_job, _runner_name), do: :ok
+
+  # What a runner script says, before touching anything, when the runner
+  # itself can't merge (`job_merge` / `Job-Merge`, exit 2): the card isn't
+  # at fault, so another runner may merge it.
+  @runner_refusals [
+    "but this runner's repository is",
+    "has no origin remote",
+    "git is not installed",
+    "gh (GitHub CLI) is not installed",
+    "gh is not signed in"
+  ]
+
+  # How many runners an acceptance's merge is handed to before the card
+  # waits for a person.
+  @merge_hand_ons 2
+
+  defp runner_refused?(%{status: "failed"} = job) do
+    said = merge_reason(job)
+
+    String.starts_with?(said, "merge: ") and
+      Enum.any?(@runner_refusals, &String.contains?(said, &1))
+  end
+
+  defp runner_refused?(_job), do: false
+
+  # A runner that can't merge here hands the merge on, leaving that runner
+  # out (#1754). Past @merge_hand_ons, or with no other runner, the card
+  # stays merging with nothing queued and says why.
+  defp hand_on(card, job, runner_name) do
+    import Ecto.Query
+
+    said = merge_reason(job)
+
+    refused =
+      from(j in Slipdock.Runners.Job,
+        where:
+          j.card_id == ^card.id and j.kind == @merge_kind and j.status == "failed" and
+            j.inserted_at >= ^card.verify_at
+      )
+      |> Repo.all()
+      |> Enum.count(&runner_refused?/1)
+
+    pool = refused <= @merge_hand_ons && merge_pool(card, exclude: job.runner_id)
+    queued = pool && queue_merge(card, nil, exclude: job.runner_id)
+
+    case queued do
+      {:ok, _job} ->
+        Slipdock.Boards.add_comment(
+          card,
+          "**Merge handed on.** Runner #{runner_name} can't merge here, so pool `#{pool}` " <>
+            "has it now.\n\n#{said}"
+        )
+
+      _ ->
+        Slipdock.Boards.add_comment(
+          card,
+          "**Merge waiting.** Runner #{runner_name} can't merge here, and no other runner " <>
+            "has taken it on. Fix the runner, or: " <> merge_by_hand_text(card) <> "\n\n#{said}"
+        )
+    end
+
+    :ok
+  end
 
   defp merge_failed(card, job, actor) do
     said = merge_reason(job)
