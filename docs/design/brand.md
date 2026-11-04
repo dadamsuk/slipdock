@@ -40,9 +40,13 @@ primary, Sora page titles, JetBrains Mono*). The side-by-side comparison is
 
 ## Where it is applied
 
-| Part | Card |
-|---|---|
-| Theme tokens in `assets/css/app.css` | #1702 |
-| Button hierarchy | #1703 |
-| Checkboxes, toggles, radios | #1704 |
-| Fonts and title sizes | #1705 |
+| Part | Card | Pull request | Checked by |
+|---|---|---|---|
+| The decision | #1701 | #18 | wiki W-2307 |
+| Theme tokens in `assets/css/app.css` | #1702 | #19 | `design_tokens_test.exs`, `tools/e2e/brand-tokens.sh` |
+| Button hierarchy | #1703 | #21 | `buttons_test.exs`, `tools/e2e/buttons.sh` |
+| Checkboxes, toggles, radios | #1704 | #17 | `controls_test.exs`, `tools/e2e/controls.sh` |
+| Fonts and title sizes | #1705 | #23 | `fonts_test.exs`, `tools/e2e/fonts.sh` |
+
+All five are on `main`. The handbook's account of the system is W-1946
+(UX & UI) §Styling and §Design system, and W-1947 (Components) §Core.
