@@ -787,7 +787,9 @@ tree: moving it into an in-progress list is refused with the other card
 named, and so is widening an in-progress card's paths onto another's. The
 card's own subcards and parents don't count against it, and a card with no
 paths overlaps nothing. A runner job for such a card waits, held as
-*Lane: overlaps #N, in progress*, and the next job is taken instead. People
+*Lane: overlaps #N, in progress*, and the next job is taken instead. Only
+work waits: a job that verifies or merges a card edits nobody's files, so
+neither lanes nor the board's WIP limit hold one. People
 are never refused: moving the card yourself is the override, and the card's
 *Paths* field says what it overlaps. The server only compares globs: it
 never sees a working tree.
@@ -3141,7 +3143,8 @@ outside an agent).
 on **WIP limits hold automated work** in the board's settings (`slipdock
 set-board <board> --automation-wip`) and, while the first in-progress list
 is at its limit, runner jobs and list sends for cards not already in
-progress wait. People can still drag cards in.
+progress wait. Jobs that verify or merge a card don't: they finish work
+rather than adding to it. People can still drag cards in.
 
 **Held work says why.** A queued job that isn't being handed out says one
 reason, the same in the card's jobs, `slipdock jobs`, an empty claim and the

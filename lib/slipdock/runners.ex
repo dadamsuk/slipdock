@@ -483,6 +483,9 @@ defmodule Slipdock.Runners do
     * `"No runner online for pool dev"` — no runner of its pool has been seen
       for three leases. Left out with `claimant: true`: the runner asking is
       online, whatever its last poll says.
+
+  The WIP limit and lanes hold work jobs only: a verify or merge job
+  finishes a card's work rather than adding to it (#1807).
   """
   def held_reason(job, opts \\ [])
 
@@ -511,7 +514,13 @@ defmodule Slipdock.Runners do
   def held_reason(_job, _opts), do: nil
 
   # The card in progress whose paths a queued job's card overlaps (#1628).
-  defp lane_held(%Job{} = job), do: Slipdock.Lanes.held_cards(job.root_board_id)[job.card_id]
+  # A verify or merge job finishes work rather than adding to it, so lanes
+  # don't hold one (#1807).
+  defp lane_held(%Job{} = job) do
+    if not finishing?(job), do: Slipdock.Lanes.held_cards(job.root_board_id)[job.card_id]
+  end
+
+  defp finishing?(%Job{kind: kind}), do: kind in Slipdock.Verified.finishing_kinds()
 
   @doc """
   `held_reason/1` for many jobs at once, as job id => line for each one
@@ -552,14 +561,15 @@ defmodule Slipdock.Runners do
       pause ->
         Pause.line(pause)
 
-      (full = wip[job.board_id]) && not MapSet.member?(in_doing, job.card_id) ->
+      (full = wip[job.board_id]) && not MapSet.member?(in_doing, job.card_id) &&
+          not finishing?(job) ->
         {column, count} = full
         wip_line(column, count)
 
       in_way ->
         "##{in_way.id} is in progress"
 
-      other = lanes[job.root_board_id][job.card_id] ->
+      (other = lanes[job.root_board_id][job.card_id]) && not finishing?(job) ->
         Slipdock.Lanes.held_line(other)
 
       job.pool not in online[job.root_board_id] ->
@@ -598,9 +608,11 @@ defmodule Slipdock.Runners do
   end
 
   # The WIP line for a job whose board holds automated work at its limit,
-  # unless its card is in progress already (it is the work, not more of it).
+  # unless its card is in progress already (it is the work, not more of it)
+  # or the job verifies or merges it (#1807).
   defp wip_held(%Job{} = job) do
-    with {column, count} <- wip_full(job.board_id),
+    with false <- finishing?(job),
+         {column, count} <- wip_full(job.board_id),
          false <- in_doing?(job.card_id) do
       wip_line(column, count)
     else
@@ -954,8 +966,10 @@ defmodule Slipdock.Runners do
         # A verify job never goes to the runner that built its card (#1625).
         where: is_nil(j.exclude_runner_id) or j.exclude_runner_id != ^runner.id,
         where: not j.wait_while_doing or not exists(busy_cards()),
-        where: j.board_id not in ^wip_full or exists(own_card_doing()),
-        where: j.card_id not in ^lane_held,
+        where:
+          j.board_id not in ^wip_full or exists(own_card_doing()) or
+            j.kind in ^Slipdock.Verified.finishing_kinds(),
+        where: j.card_id not in ^lane_held or j.kind in ^Slipdock.Verified.finishing_kinds(),
         # A merge job only goes to a runner that says it takes them (#1656).
         where: j.kind != "merge" or ^takes_merge?(runner),
         order_by: [asc: j.id],

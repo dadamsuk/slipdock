@@ -878,6 +878,13 @@ defmodule Slipdock.Verified do
   @doc "The job kind a pending card is queued as (#1634)."
   def verify_kind, do: @verify_kind
 
+  @doc """
+  The job kinds that finish a card's work rather than add to it: verifying
+  and merging. Lanes and the WIP limit hold work jobs only (#1807): these
+  edit nobody's files and put no more work in progress.
+  """
+  def finishing_kinds, do: [@verify_kind, @merge_kind]
+
   defp queue_verify_job(%Card{} = card, user) do
     board = board(card)
 

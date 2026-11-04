@@ -13,6 +13,8 @@ defmodule Slipdock.Lanes do
     * changing an in-progress card's paths to overlap one is refused;
     * a queued runner job for it is held (and skipped by claims) while the
       other card is in progress, unless its own card is in progress already.
+      Only work jobs are held: a verify or merge job edits nobody's files
+      (#1807, `Slipdock.Verified.finishing_kinds/0`).
 
   The card's own subcards and parents never count against it: they are the
   same piece of work. Nor does a card awaiting verification on a board that
@@ -314,9 +316,10 @@ defmodule Slipdock.Lanes do
   end
 
   @doc """
-  The queued jobs' cards on the tree under `root_id` that lanes hold back,
-  as card id => the card in progress in the way. A card in progress itself
-  is never held: it is the work, not more of it.
+  The cards of queued work jobs on the tree under `root_id` that lanes hold
+  back, as card id => the card in progress in the way. A card in progress
+  itself is never held: it is the work, not more of it. Nor are verify and
+  merge jobs (#1807): they finish the work, and touch nobody's files.
   """
   def held_cards(root_id) do
     if lanes_on?(root_id) do
@@ -326,7 +329,7 @@ defmodule Slipdock.Lanes do
         join: col in assoc(c, :column),
         where:
           j.root_board_id == ^root_id and j.status == "queued" and c.paths != ^[] and
-            col.category != "doing",
+            col.category != "doing" and j.kind not in ^Slipdock.Verified.finishing_kinds(),
         distinct: true
       )
       |> Repo.all()

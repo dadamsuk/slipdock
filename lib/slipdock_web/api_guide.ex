@@ -3483,7 +3483,8 @@ defmodule SlipdockWeb.APIGuide do
       another's. Narrow the paths, take other work, or ask a person: a
       person moving the card overrides it. A runner job for such a card is
       held (`Lane: overlaps #N, in progress`) until the other card is done,
-      and a claimed job's prompt lists the card's paths. On a board that
+      and a claimed job's prompt lists the card's paths. Verify and merge
+      jobs are never held, by lanes or the WIP limit: they finish work. On a board that
       verifies work and ships by push, a card awaiting verification has
       shipped: it frees its lane and no longer blocks the cards that depend
       on it (a dependency stub says `released: true`), until a rejection

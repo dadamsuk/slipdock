@@ -622,7 +622,8 @@ defmodule Slipdock.Automations do
   @doc """
   The card a `list_top` rule would send next: the first, in list order, of
   the open cards in its list that are not archived, completed, a stand-in,
-  waiting on an unfinished card, or flagged blocked or waiting — and, with
+  waiting on an unfinished card, flagged blocked or waiting, or submitted
+  and not yet rejected (pending verification or merging, #1807) — and, with
   `unassigned: true`, nobody's — that pass the rule's conditions. A card
   whose last job from this rule ended under `feed_cooldown_seconds` ago is
   passed over, so one the runner left where it was doesn't go straight back
@@ -639,7 +640,8 @@ defmodule Slipdock.Automations do
       from(c in Card,
         where:
           c.column_id == ^column.id and is_nil(c.archived_at) and c.completed == false and
-            is_nil(c.stand_in_for_id),
+            is_nil(c.stand_in_for_id) and
+            coalesce(c.verify_state, "") not in ["pending", "merging"],
         order_by: [asc: c.position, asc: c.id]
       )
       |> Slipdock.Snooze.not_snoozed(now)
