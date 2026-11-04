@@ -7345,7 +7345,19 @@ defmodule SlipdockWeb.WikiLive.Index do
         <button type="submit" class="btn btn-sm">Compare selected versions</button>
       </div>
 
-      <ul class="divide-y divide-base-300 rounded-xl border border-base-300 bg-base-100">
+      <.empty_state
+        :if={@revisions == []}
+        id="history-empty"
+        icon="hero-clock"
+        title="No versions yet"
+      >
+        Each time the page is saved, the version is kept here to compare or put back.
+      </.empty_state>
+
+      <ul
+        :if={@revisions != []}
+        class="divide-y divide-base-300 rounded-xl border border-base-300 bg-base-100"
+      >
         <li
           :for={{revision, i} <- Enum.with_index(@revisions)}
           class="flex items-center hover:bg-base-200"

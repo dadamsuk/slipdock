@@ -99,6 +99,7 @@ defmodule SlipdockWeb.GroupLive.Index do
           <form id={"new-group-#{@form_key}"} phx-submit="create" class="flex gap-2">
             <input
               type="text"
+              id="new-group-name"
               name="name"
               placeholder="New group name"
               class="input flex-1"
@@ -109,9 +110,20 @@ defmodule SlipdockWeb.GroupLive.Index do
             Create group</button>
           </form>
 
-          <p :if={@groups == []} class="text-sm text-base-content/50">
-            You're not in any groups yet.
-          </p>
+          <.empty_state
+            :if={@groups == []}
+            id="groups-empty"
+            icon="hero-user-group"
+            title="No groups yet"
+          >
+            Make one to share with a team in one go. A group someone adds you to shows here too.
+            <:action>
+              <%!-- Puts the cursor in the new group's name, above. --%>
+              <label for="new-group-name" class="btn btn-primary btn-sm gap-1.5">
+                <.icon name="hero-plus" class="size-4" /> Create group
+              </label>
+            </:action>
+          </.empty_state>
 
           <div
             :for={group <- @groups}

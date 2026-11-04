@@ -77,7 +77,16 @@ defmodule SlipdockWeb.ToolLive.Review do
             <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
               Waiting
             </h2>
-            <p :if={@queue == []} class="mt-2 text-sm text-base-content/50">Nothing waiting.</p>
+            <.empty_state
+              :if={@queue == []}
+              id="listing-queue-empty"
+              icon="hero-inbox"
+              title="Nothing waiting"
+              class="mt-2"
+              compact
+            >
+              A Tool someone asks to list shows here for you to read and approve.
+            </.empty_state>
             <ul class="mt-2 space-y-3">
               <li
                 :for={v <- @queue}
@@ -117,7 +126,16 @@ defmodule SlipdockWeb.ToolLive.Review do
             <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
               Listed now
             </h2>
-            <p :if={@listed == []} class="mt-2 text-sm text-base-content/50">None.</p>
+            <.empty_state
+              :if={@listed == []}
+              id="listing-listed-empty"
+              icon="hero-building-library"
+              title="Nothing listed"
+              class="mt-2"
+              compact
+            >
+              A Tool you approve is listed here for everyone on this server.
+            </.empty_state>
             <ul class="mt-2 space-y-2 text-sm">
               <li :for={t <- @listed} id={"listed-#{t.id}"} class="flex items-center gap-2">
                 <.link navigate={~p"/tools/#{t.slug}"} class="link">{t.name}</.link>

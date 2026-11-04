@@ -50,7 +50,15 @@ defmodule SlipdockWeb.BoardLive.ActivityComponent do
         <h2 class="flex items-center gap-2 section-title">
           <.icon name="hero-bolt" class="size-5 text-warning" /> Activity
         </h2>
-        <p :if={@activities == []} class="text-sm text-base-content/60">Nothing has happened yet.</p>
+        <.empty_state
+          :if={@activities == []}
+          id="activity-empty"
+          icon="hero-bolt"
+          title="Nothing has happened yet"
+          compact
+        >
+          Cards added, moved and finished on this board are logged here.
+        </.empty_state>
         <ol class="max-h-[60vh] space-y-1 overflow-y-auto kanban-scroll pr-1">
           <li
             :for={a <- @activities}

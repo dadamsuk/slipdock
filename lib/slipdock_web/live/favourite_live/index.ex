@@ -120,18 +120,15 @@ defmodule SlipdockWeb.FavouriteLive.Index do
         <div class="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
           <h1 class="mb-6 page-title">Favourites</h1>
 
-          <div
+          <.empty_state
             :if={@sections == []}
-            class="rounded-2xl border-2 border-dashed border-base-content/15 p-12 text-center sm:p-16"
+            id="favourites-empty"
+            icon="hero-heart"
+            tone="rose"
+            title="Nothing favourited yet"
           >
-            <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500">
-              <.icon name="hero-heart" class="size-7" />
-            </div>
-            <h2 class="section-title">Nothing favourited yet</h2>
-            <p class="mt-1 text-sm text-base-content/60">
-              Press the heart on a view, a list or a card.
-            </p>
-          </div>
+            Press the heart on a view, a list or a card.
+          </.empty_state>
 
           <section :for={section <- @sections} id={"favourites-#{section.kind}"} class="mb-8">
             <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-base-content/60">

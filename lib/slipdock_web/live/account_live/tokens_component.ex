@@ -162,7 +162,22 @@ defmodule SlipdockWeb.AccountLive.TokensComponent do
             >Revoke</button>
           </li>
         </ul>
-        <p :if={@tokens == []} class="mt-3 text-sm text-base-content/50">No tokens yet.</p>
+        <.empty_state
+          :if={@tokens == []}
+          id="tokens-empty"
+          icon="hero-key"
+          title="No tokens yet"
+          class="mt-3"
+          compact
+        >
+          Create one for the CLI or a script, then run <code>slipdock auth &lt;token&gt;</code>.
+          <:action>
+            <%!-- Submits the form above, with whatever it has chosen. --%>
+            <button type="submit" form={"token-form-#{@form_key}"} class="btn btn-primary btn-sm">
+              Create token
+            </button>
+          </:action>
+        </.empty_state>
       </section>
     </div>
     """

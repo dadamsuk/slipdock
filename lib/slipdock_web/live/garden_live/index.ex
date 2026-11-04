@@ -304,32 +304,28 @@ defmodule SlipdockWeb.GardenLive.Index do
             </p>
           </header>
 
-          <div
+          <.empty_state
             :if={@groups == []}
             id="garden-empty"
-            class="rounded-2xl bg-base-100 p-8 text-center shadow-sm ring-1 ring-base-content/10"
+            icon="hero-sparkles"
+            title="Nothing to tidy"
           >
-            <span class="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <.icon name="hero-sparkles" class="size-6" />
-            </span>
-            <h2 class="mt-3 section-title">Nothing to tidy</h2>
-            <p class="mx-auto mt-2 max-w-md text-sm text-base-content/60">
-              {if @last_run,
-                do: "Every suggestion has been dealt with.",
-                else:
-                  "Look the board over for finished epics left open, stuck cards, duplicates and pages nothing links to."}
-            </p>
-            <button
-              :if={@can_write}
-              id="garden-empty-run"
-              type="button"
-              phx-click="run"
-              phx-disable-with="Looking…"
-              class="btn btn-primary btn-sm mt-4 gap-1.5"
-            >
-              <.icon name="hero-sparkles" class="size-4" /> Look the board over
-            </button>
-          </div>
+            {if @last_run,
+              do: "Every suggestion has been dealt with.",
+              else:
+                "Look the board over for finished epics left open, stuck cards, duplicates and pages nothing links to."}
+            <:action :if={@can_write}>
+              <button
+                id="garden-empty-run"
+                type="button"
+                phx-click="run"
+                phx-disable-with="Looking…"
+                class="btn btn-primary btn-sm gap-1.5"
+              >
+                <.icon name="hero-sparkles" class="size-4" /> Look the board over
+              </button>
+            </:action>
+          </.empty_state>
 
           <section
             :for={[first | _] = group <- @groups}
