@@ -22,7 +22,7 @@ defmodule SlipdockWeb.DisplayLiveTest do
   end
 
   test "each density keeps its own set of facets" do
-    assert Config.shown(%Config{}) == MapSet.new(Config.facet_keys())
+    assert Config.shown(%Config{}) == MapSet.new(Config.default_show())
     compact = Config.shown(%Config{density: "compact"})
     assert MapSet.member?(compact, "priority")
     refute MapSet.member?(compact, "comments")
@@ -55,7 +55,8 @@ defmodule SlipdockWeb.DisplayLiveTest do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     assert has_element?(view, "#card-#{card.id} [title^='Priority']")
     assert has_element?(view, "#card-#{card.id} [title^='Due']")
-    assert has_element?(view, "#card-#{card.id} [title^='Starts']")
+    # The start date is off by default (#1708).
+    refute has_element?(view, "#card-#{card.id} [title^='Starts']")
 
     view |> form("#swim-config", %{"show" => ["priority"]}) |> render_change()
     assert_patch(view, ~p"/boards/#{board}?show=priority")

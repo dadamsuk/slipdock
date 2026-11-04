@@ -47,7 +47,8 @@ defmodule SlipdockWeb.PercentCompleteTest do
 
   test "the card sidebar sets it and the card face shows it",
        %{conn: conn, board: board, card: card} do
-    {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+    # % complete is off the card face by default (#1708).
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}?show=percent_complete")
     view |> form("#card-meta-form", card: %{percent_complete: "30"}) |> render_change()
     assert Boards.get_card!(card.id).percent_complete == 30
     assert render(view) =~ "30% complete"

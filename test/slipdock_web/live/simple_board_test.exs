@@ -71,12 +71,13 @@ defmodule SlipdockWeb.SimpleBoardTest do
     board: board,
     card: card
   } do
-    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    # % complete is off by default (#1708), so the Display menu turns it on.
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}?show=percent_complete")
     assert has_element?(view, ~s|#card-#{card.id} [title="40% complete"]|)
     assert has_element?(view, ~s|#view-menu a[href="/boards/#{board.id}/timeline"]|)
 
     simple!(board)
-    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}?show=percent_complete")
     refute has_element?(view, ~s|#card-#{card.id} [title="40% complete"]|)
     refute has_element?(view, ~s|#view-menu a[href="/boards/#{board.id}/timeline"]|)
     refute has_element?(view, ~s|#view-menu a[href="/boards/#{board.id}/prioritise"]|)
@@ -87,7 +88,11 @@ defmodule SlipdockWeb.SimpleBoardTest do
   end
 
   test "the board's hidden facets never reach a saved view" do
-    config = Config.hide(Config.defaults("board"), Board.technical_facets())
+    config =
+      Config.hide(
+        %{Config.defaults("board") | show: Config.facet_keys()},
+        Board.technical_facets()
+      )
 
     refute MapSet.member?(Config.shown(config), "percent_complete")
     assert "percent_complete" in Map.fetch!(Config.to_map(config), "show")

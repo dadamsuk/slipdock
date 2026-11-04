@@ -329,6 +329,10 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :card, :map, required: true
 
+  attr :due, :boolean,
+    default: true,
+    doc: "false when the due date is already drawn, in a `date_range_badge/1`"
+
   @doc """
   The card's schedule at a glance: its due date, or the one rolled up from
   its subcards when it has none, plus a warning when the subcards run past
@@ -341,11 +345,12 @@ defmodule SlipdockWeb.SlipdockComponents do
       assign(assigns,
         due: Slipdock.Boards.Card.effective_due(card),
         derived: Slipdock.Boards.Card.due_derived?(card),
+        show_due: assigns.due,
         card: card
       )
 
     ~H"""
-    <.due_badge date={@due} completed={@card.completed} derived={@derived} />
+    <.due_badge :if={@show_due} date={@due} completed={@card.completed} derived={@derived} />
     <.slip_chips card={@card} />
     """
   end
@@ -877,6 +882,61 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :card, :map, required: true
 
+  @doc """
+  A card's start and due dates as one range, "31 Oct → 5 Nov" (#1708), for
+  a card front that shows both. Tinted as `due_badge/1` tints the due date:
+  overdue and due soon need attention, anything later is plain. Draws
+  nothing unless both dates are set.
+  """
+  def date_range_badge(assigns) do
+    card = assigns.card
+    start = Slipdock.Boards.Card.effective_start(card)
+    due = Slipdock.Boards.Card.effective_due(card)
+
+    assigns =
+      assign(assigns,
+        start: start,
+        due: due,
+        state: due && due_state(due, card.completed),
+        derived:
+          Slipdock.Boards.Card.start_derived?(card) or Slipdock.Boards.Card.due_derived?(card)
+      )
+
+    ~H"""
+    <span
+      :if={@start && @due}
+      data-role="date-range"
+      data-state={@state}
+      class={[
+        "chip",
+        @state == :done && "bg-success/15 text-success",
+        @state == :overdue && "bg-error/15 text-error",
+        @state == :soon && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+        @state == :later && "chip-line text-base-content/70"
+      ]}
+      title={
+        "Starts #{Calendar.strftime(@start, "%A, %B %-d %Y")}, due " <>
+          Calendar.strftime(@due, "%A, %B %-d %Y") <>
+          if(@derived, do: " (rolled up from subcards)", else: "")
+      }
+    >
+      <.icon name="hero-calendar" class="size-3" />
+      {format_range(@start, @due)}
+    </span>
+    """
+  end
+
+  @doc "A start-to-due range, as in \"31 Oct → 5 Nov\", with the year on a date outside this one."
+  def format_range(start, due), do: range_day(start) <> " → " <> range_day(due)
+
+  defp range_day(date) do
+    if date.year == Date.utc_today().year,
+      do: Calendar.strftime(date, "%-d %b"),
+      else: Calendar.strftime(date, "%-d %b %Y")
+  end
+
+  attr :card, :map, required: true
+
   @doc "When the card starts: its own start date, or the one rolled up from its subcards."
   def start_badge(assigns) do
     card = assigns.card
@@ -1040,7 +1100,9 @@ defmodule SlipdockWeb.SlipdockComponents do
       status: on.("status"),
       tags: on.("tags") and card.tags != [],
       flags: on.("flags") and card.flags != [],
-      priority: on.("priority") and card.priority != "none",
+      # Medium is the unremarkable middle, so a card's front leaves it out
+      # (#1708): high, critical and low are the ones worth a glance.
+      priority: on.("priority") and card.priority not in ~w(none medium),
       assignee: on.("assignee") and Slipdock.Boards.Card.assignees(card) != [],
       start_date: on.("start_date") and not is_nil(Slipdock.Boards.Card.effective_start(card)),
       due_date: on.("due_date") and not is_nil(Slipdock.Boards.Card.effective_due(card)),
@@ -1069,6 +1131,10 @@ defmodule SlipdockWeb.SlipdockComponents do
       driver: match?(%Slipdock.CardState{driver: d} when is_binary(d), state),
       age: on.("age") and match?(%Slipdock.CardState{age: age} when is_integer(age), state)
     }
+
+    # Start and due, both shown and both set, draw as one range (#1708).
+    facets =
+      Map.put(facets, :range, facets.start_date and facets.due_date)
 
     meta? =
       facets
@@ -1203,8 +1269,9 @@ defmodule SlipdockWeb.SlipdockComponents do
         />
         <.assignee_chips :if={@f.assignee} users={Slipdock.Boards.Card.assignees(@card)} size="xs" />
         <.priority_badge :if={@f.priority} priority={@card.priority} />
-        <.start_badge :if={@f.start_date} card={@card} />
-        <.schedule_badges :if={@f.due_date} card={@card} />
+        <.date_range_badge :if={@f.range} card={@card} />
+        <.start_badge :if={@f.start_date and not @f.range} card={@card} />
+        <.schedule_badges :if={@f.due_date} card={@card} due={not @f.range} />
         <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
         <.time_badge :if={@f.time} card={@card} />
         <.handoff_mark :if={@f.handoff} handoff={@handoff} label={@handoff_label} class="size-3" />
@@ -1260,7 +1327,14 @@ defmodule SlipdockWeb.SlipdockComponents do
           <span :if={@actions != []} class="-mr-1 -mt-0.5 shrink-0">{render_slot(@actions)}</span>
         </div>
 
-        <div :if={@meta?} class="flex flex-wrap items-center gap-1 text-base-content/60">
+        <%!-- `card-meta` (#1708): neutral chips in here are plain icon and
+             text (app.css drops their outline); only the tinted ones, the
+             states that need attention, keep a box. --%>
+        <div
+          :if={@meta?}
+          class="card-meta flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/60"
+          data-role="card-meta"
+        >
           <.flag_icon :for={flag <- @card.flags} :if={@f.flags} flag={flag} class="size-3.5" />
           <.dependency_badge :if={@f.dependencies} card={@card} />
           <.subcards_badge :if={@f.subcards} card={@card} open={not @page?} />
@@ -1271,8 +1345,9 @@ defmodule SlipdockWeb.SlipdockComponents do
           />
           <.assignee_chips :if={@f.assignee} users={Slipdock.Boards.Card.assignees(@card)} size="xs" />
           <.priority_badge :if={@f.priority} priority={@card.priority} />
-          <.start_badge :if={@f.start_date} card={@card} />
-          <.schedule_badges :if={@f.due_date} card={@card} />
+          <.date_range_badge :if={@f.range} card={@card} />
+          <.start_badge :if={@f.start_date and not @f.range} card={@card} />
+          <.schedule_badges :if={@f.due_date} card={@card} due={not @f.range} />
           <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
           <.time_badge :if={@f.time} card={@card} />
           <span
@@ -1477,7 +1552,7 @@ defmodule SlipdockWeb.SlipdockComponents do
   defp wait_mark(assigns) do
     ~H"""
     <span
-      class="chip chip-line max-w-full gap-1 text-warning"
+      class="chip chip-tint max-w-full gap-1 text-warning"
       data-role="wait-mark"
       title={"Waiting on " <> Slipdock.Boards.Wait.on_name(@wait) <> ": " <> @wait.needs}
     >
