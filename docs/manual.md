@@ -680,6 +680,16 @@ and the card gets no comment until the decision. The agent that runs it is in a 
 from the one that did the work, so it counts as a second agent even on the
 same runner token.
 
+On a board that [ships by pull request](#shipping-by-pull-request), the
+prompt doesn't ask for the suite again: the pull request's CI has run it at
+that commit. The agent reads the change and the tests the card names,
+checks that the pull request's head is the submitted commit and that every
+check passed (waiting for any still running, rejecting on a failed one, by
+name), and reports *CI: 41 checks passed at abc1234* in place of the test
+steps. A pull request with no checks has the suite run as before. A
+verifier on such a board needs git, `gh`, its agent and the CLI, but not
+the project's toolchain.
+
 - **The runner that built the card never takes its verify job**: the
   runner of the job the submission came from, or else the last runner to
   take a job on the card. When it is the only runner in the pool, or the
@@ -720,6 +730,13 @@ once, watch the pull request's checks, `done --pr`), and so does the card:
 (`get_card`, `GET /api/cards/:id`) has `shipping` (`via`, `branch`,
 `instructions`). A rejected card's next attempt pushes the same branch, so
 the same pull request updates rather than a second one opening.
+
+The pull request's CI is the one full test run. Before pushing, the builder
+runs the tests it added or changed and the quick checks (formatting, a
+compile that fails on warnings), not the whole suite, and it completes the
+card once the checks pass, giving CI's result as the suite. The verifier
+doesn't run the suite again either (see [Verify jobs](#verify-jobs)). With
+no checks on the pull request, both run it themselves.
 
 Pull request needs **A second agent verifies**: setting it without
 verification is refused, and turning verification off ships by push again.

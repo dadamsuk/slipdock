@@ -341,8 +341,9 @@ defmodule Slipdock.Verified do
       - Work on the branch `#{branch}`: `git fetch origin && git switch #{branch}` if it is on origin (a rejected card's earlier attempt), else `git switch -c #{branch}`. Rebase it on the default branch before pushing.
       - Commit with the card id (##{card.id}) in the message, then `git push -u origin #{branch}`.
       - Open the pull request once: `gh pr view #{branch}` shows one already open, which the push has updated; otherwise `gh pr create --head #{branch} --title "#{pr_title(card)}" --fill`.
-      - The build to watch is the pull request's (`gh pr checks #{branch} --watch`).
-      - Complete the card with its URL: `slipdock done #{card.id} --pr <url>` (complete_card `pr`), with the rest of your evidence. Accepting the card merges it; don't merge it yourself.
+      - Before pushing, run the tests you added or changed and the project's quick checks (formatting, a compile that fails on warnings), not the whole suite: the pull request's CI runs it.
+      - The build to watch is the pull request's (`gh pr checks #{branch} --watch`). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
+      - Complete the card with its URL: `slipdock done #{card.id} --pr <url>` (complete_card `pr`), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
       """
       |> String.trim_trailing()
     end
@@ -997,16 +998,48 @@ defmodule Slipdock.Verified do
     Say where you are at each step, so the job shows it while you work: `slipdock job-progress --step "…"` (the job is the one in $SLIPDOCK_JOB_ID; or MCP `job_progress` with `step`). Give a step, never a note or `--message`: a note becomes a comment on the card, and the card stays quiet until you decide.
 
     1. Read the card and its comments: `slipdock card #{card.id}`.
-    2. #{if commit, do: "Check out #{commit} in a clean tree (`git worktree add /tmp/verify-#{card.id} #{commit}`), so nothing uncommitted counts", else: "Find the work in the project's repository, in a clean tree"}, run the suite there, and check each part of the bar against it: the tests it names, the change itself. Steps to report:
-       - `checked out #{commit || "<commit>"}`
-       - `tests running: <which>`
-       - `tests passed: <n>, failed: <n>` (or `tests failed: …`)
-       - `judging against the bar`
+    #{check_step(card, board)}
     3. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked"`
        - `slipdock verify #{card.id} reject#{at} --reason "what falls short of the bar, specifically"`
     A rejection goes back to whoever takes the card next, so say exactly what to fix.
     """
+  end
+
+  # Step 2 of the verify prompt. On a pull request board the PR's CI has run
+  # the suite at the submitted commit, so the verifier reads the change and
+  # checks CI rather than running the suite again (#1808).
+  defp check_step(%Card{evidence_commit: commit} = card, board) do
+    tree =
+      if commit,
+        do:
+          "Check out #{commit} in a clean tree (`git worktree add /tmp/verify-#{card.id} #{commit}`), so nothing uncommitted counts",
+        else: "Find the work in the project's repository, in a clean tree"
+
+    pr = card.evidence_pr
+
+    if Board.ships_by_pr?(board) and not blank?(pr) do
+      head = commit || "the commit you check"
+
+      """
+      2. #{tree}, and check each part of the bar against the change itself (its diff from the default branch) and the tests it names: read them. Don't run the suite: the pull request's CI runs it at this commit.
+         - `gh pr view #{pr} --json headRefOid,statusCheckRollup`: the head must be #{head}. If the pull request has moved on since it was submitted, reject it to be submitted again at its head.
+         - Every check must have passed. While any is still running, wait (`gh pr checks #{pr} --watch`). A failed check is a rejection: name it.
+         - If the pull request has no checks at all, run the suite in the clean tree instead.
+         Steps to report:
+         - `checked out #{commit || "<commit>"}`
+         - `CI: <n> checks passed at #{commit || "<commit>"}` (or `waiting for CI`, `CI failed: <check>`)
+         - `judging against the bar`\
+      """
+    else
+      """
+      2. #{tree}, run the suite there, and check each part of the bar against it: the tests it names, the change itself. Steps to report:
+         - `checked out #{commit || "<commit>"}`
+         - `tests running: <which>`
+         - `tests passed: <n>, failed: <n>` (or `tests failed: …`)
+         - `judging against the bar`\
+      """
+    end
   end
 
   # Whoever decides first decides: the other verify jobs on the card stop.

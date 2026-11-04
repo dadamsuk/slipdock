@@ -468,6 +468,10 @@ check off until it is turned on in the board's settings: a **bar** written
 before work starts, which then locks; **evidence** when a card completes;
 and a **second agent** who accepts the work or rejects it with the reason.
 With a verify pool set, each submitted card is queued as a `verify` job.
+On a board that ships by pull request, its CI is the one full test run: the
+builder runs only its own tests before pushing, and the verifier checks the
+pull request's checks at the submitted commit rather than running the suite
+again.
 The installer's config gives every runner a `job_verify` that runs the same
 agent on the server's prompt, without the standing instructions, so a runner
 can check another runner's work. Deciding is `verify_card` or `slipdock

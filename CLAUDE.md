@@ -36,7 +36,7 @@ mix format --check-formatted
 Commit with the card's id in the message (`#123`). Then ship the way the card's board does:
 
 - **By push** (the default): push to `main`. A push to `main` deploys.
-- **By pull request** (`ship_via: pull_request`; the claimed job's prompt and `slipdock card` say so): push the card's branch (`card-<id>`), open a PR, and give its URL on completion (`slipdock done --pr`). Never push to `main`: the PR is merged when the card is accepted.
+- **By pull request** (`ship_via: pull_request`; the claimed job's prompt and `slipdock card` say so): push the card's branch (`card-<id>`), open a PR, and give its URL on completion (`slipdock done --pr`). Never push to `main`: the PR is merged when the card is accepted. The PR's CI is the full suite: before pushing, run the tests you added or changed and the two checks above, not the whole suite, and complete the card once the PR's checks pass. That green CI run is the green suite.
 
 ## This repository is public
 

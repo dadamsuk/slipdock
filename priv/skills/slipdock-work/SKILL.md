@@ -93,14 +93,16 @@ whole card before touching it.
   its reason in the comment, the job's prompt and `get_card`'s `rejection`
   (the handoff says `Rework: …`): read that reason first, since it is the
   next brief. Verifying someone else's card (never your own) means checking
-  out the evidence's commit in a clean tree, running the suite, judging it
+  out the evidence's commit in a clean tree, running the suite (on a pull
+  request board, checking its CI passed at that commit instead), judging it
   against the bar, then `slipdock accept <id>` or `slipdock reject <id>
   --reason "…"`. On a board that **ships by pull request** (the board's
   line says so, as do the claimed job's prompt and `slipdock card`), never
   push the default branch: commit on `card-<id>`, push it, open the pull
   request once (`gh pr create --head card-<id> --title "<title> (#<id>)"
   --fill`; a rejected card's next attempt pushes the same branch), watch
-  its checks, and complete with `slipdock done <id> --pr <url>`. Accepting
+  its checks (the full test run: before pushing, run only the tests you
+  added or changed), and complete with `slipdock done <id> --pr <url>`. Accepting
   the card merges it; don't merge it yourself. A failed merge sends the
   card back rejected with the reason: rebase the branch and submit again.
 - **Lanes, where they are on** (the board's line in the guide says `lanes:
