@@ -165,7 +165,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
             <button
               phx-target={@target}
               type="button"
-              class="btn btn-ghost btn-sm btn-square text-error"
+              class="btn btn-ghost btn-error btn-sm btn-square"
               phx-click="delete_archived"
               phx-value-id={card.id}
               data-confirm="Delete this card permanently?"

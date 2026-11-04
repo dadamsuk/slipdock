@@ -284,7 +284,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
                 :if={@saved}
                 id="multiboard-delete"
                 type="button"
-                class="btn btn-ghost btn-sm text-error"
+                class="btn btn-ghost btn-error btn-sm"
                 phx-click="delete_saved"
                 data-confirm={"Delete the multiboard “#{@saved.name}”? The boards and their cards stay as they are."}
               >

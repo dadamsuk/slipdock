@@ -131,7 +131,7 @@ defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
           <button
             id="voiceprint-delete"
             type="button"
-            class="btn btn-error btn-outline btn-sm"
+            class="btn btn-ghost btn-error btn-sm"
             phx-click="delete"
             phx-target={@myself}
             data-confirm="Delete your voiceprint? Meetings stop using it straight away."

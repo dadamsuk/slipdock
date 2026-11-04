@@ -147,7 +147,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
         <button
           phx-target={@target}
           type="button"
-          class="btn btn-ghost btn-xs text-error"
+          class="btn btn-ghost btn-error btn-xs"
           phx-click="delete_sub_board"
           data-confirm="Remove all subcards of this card? This deletes them permanently."
         >

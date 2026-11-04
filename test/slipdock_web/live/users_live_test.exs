@@ -162,15 +162,19 @@ defmodule SlipdockWeb.UsersLiveTest do
 
       assert has_element?(
                view,
-               "button.btn-outline[phx-click=disable][phx-value-id='#{ordinary.id}']"
+               "button.btn-ghost.btn-error[data-confirm][phx-click=disable][phx-value-id='#{ordinary.id}']"
              )
 
       assert has_element?(
                view,
-               "button.btn-outline[phx-click=confirm-delete][phx-value-user_id='#{ordinary.id}']"
+               "button.btn-ghost.btn-error[phx-click=confirm-delete][phx-value-user_id='#{ordinary.id}']"
              )
 
-      assert has_element?(view, "form[phx-submit=support] button.btn-outline", "Support")
+      assert has_element?(
+               view,
+               "form[phx-submit=support] button.btn:not(.btn-outline)",
+               "Support"
+             )
 
       view
       |> element("button[phx-click=disable][phx-value-id='#{ordinary.id}']")
@@ -178,7 +182,7 @@ defmodule SlipdockWeb.UsersLiveTest do
 
       assert has_element?(
                view,
-               "button.btn-outline[phx-click=enable][phx-value-id='#{ordinary.id}']"
+               "button.btn:not(.btn-outline)[phx-click=enable][phx-value-id='#{ordinary.id}']"
              )
     end
   end

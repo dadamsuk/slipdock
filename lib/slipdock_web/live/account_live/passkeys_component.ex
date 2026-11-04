@@ -107,7 +107,7 @@ defmodule SlipdockWeb.AccountLive.PasskeysComponent do
           </span>
           <button
             type="button"
-            class="btn btn-ghost btn-xs text-error"
+            class="btn btn-ghost btn-error btn-xs"
             phx-click="delete_passkey"
             phx-target={@myself}
             phx-value-id={p.id}

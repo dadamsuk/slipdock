@@ -475,7 +475,7 @@ defmodule SlipdockWeb.MeetingLive.New do
         <p class="mt-1 text-xs text-base-content/60">{@hint}</p>
         <%!-- The input stays put once a file is chosen: LiveView sends the file
               through it, so it must outlive the button that opened it. --%>
-        <label class={["btn btn-outline btn-xs mt-3", @upload.entries != [] && "hidden"]}>
+        <label class={["btn btn-xs mt-3", @upload.entries != [] && "hidden"]}>
           Choose file <.live_file_input upload={@upload} class="hidden" />
         </label>
         <div :for={entry <- @upload.entries} class="mt-3 flex items-center gap-2 text-xs">

@@ -171,7 +171,7 @@ defmodule SlipdockWeb.BoardLive.Shared do
             </p>
             <button
               type="button"
-              class="btn btn-error btn-sm mt-4"
+              class="btn btn-ghost btn-error btn-sm mt-4"
               phx-click="discard"
               disabled={not @mine?}
               data-confirm={"Discard “#{@board.name}”? You will stop seeing it. The board itself is untouched."}

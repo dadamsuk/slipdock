@@ -255,16 +255,78 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 20%, transparent);
 }
 
-/* Primary buttons and badges are soft tints, not solid fills. So never add
-   daisyUI's `badge-soft` to `badge-primary`: soft paints the words in
-   --badge-color, which here is the dark tint, and in the dark theme the
-   words all but vanish (#1286). */
-.btn-primary {
-  --btn-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-base-100));
-  --btn-fg: var(--color-primary);
+/* Buttons (#1703): four weights, and a button says which it is by its class
+   alone. The primary used to be a 16% tint that read as disabled (Save
+   beside Cancel looked greyed out), and `btn-outline` drew a 1.5px
+   near-black border; both are gone.
+
+   - `btn-primary`: the solid Slip teal, the primary-content label. The one
+     action a form or view is for: at most one per form.
+   - `btn-secondary`: the soft teal tint, teal words. A second action that
+     moves forward (Preview, Send a test). Redefined: daisyUI's own is a
+     solid slate.
+   - `btn` alone: a neutral base-100 surface with a hairline, for Cancel,
+     Back and the like. It is what `btn-outline` was for, and that class is
+     not used (test/slipdock_web/buttons_test.exs fails on one).
+   - `btn-ghost`: tertiary, no surface until hovered. With `btn-primary` or
+     `btn-error` the words take that colour and the hover a tint of it,
+     never the solid fill.
+   - Destructive: `btn-ghost btn-error`, behind `data-confirm`. The solid
+     `btn-error` is the confirm dialog's own button (assets/js/confirm.js).
+   A button beside a field is `btn-sm`, the field's 28px.
+
+   Unlayered, so these beat daisyUI's layered rules; the neutral surface is
+   scoped with :not() so it never lands on a coloured or ghost button. */
+.btn {
   --btn-shadow: none;
   --btn-noise: none;
+  border-width: 1px;
+  text-shadow: none;
+  box-shadow: none;
 }
+.btn:not(.btn-ghost, .btn-link, .btn-primary, .btn-secondary, .btn-accent, .btn-neutral,
+  .btn-info, .btn-success, .btn-warning, .btn-error, .btn-soft, .btn-active,
+  :disabled, [disabled], .btn-disabled) {
+  --btn-color: var(--color-base-100);
+  --btn-border: color-mix(in oklab, var(--color-base-content) 20%, transparent);
+}
+.btn:not(.btn-ghost, .btn-link, .btn-primary, .btn-secondary, .btn-accent, .btn-neutral,
+  .btn-info, .btn-success, .btn-warning, .btn-error, .btn-soft):hover {
+  --btn-bg: var(--color-base-200);
+}
+.btn-secondary {
+  --btn-color: color-mix(in oklab, var(--color-primary) 10%, var(--color-base-100));
+  --btn-fg: var(--color-primary);
+}
+/* daisyUI's hover takes 7% black, which drops the teal words under 4.5:1
+   in light; 3% still shows the hover and keeps them readable. */
+.btn-secondary:hover {
+  --btn-bg: color-mix(in oklab, var(--btn-color), #000 3%);
+}
+.btn-ghost:is(.btn-primary, .btn-error, .btn-warning):hover {
+  --btn-bg: color-mix(in oklab, var(--btn-color) 12%, transparent);
+  --btn-fg: var(--btn-color);
+}
+
+/* A row of fields ending in a button (#1703): Account's Save, Config's Send
+   test. The button is `btn-sm`, the field's 28px, and the row lines the
+   bottoms up: `<.input>` wraps its box in a fieldset with padding and a
+   margin under it, which left the button about 6px below the box. Inside a
+   row that wrapper has neither, so the box and the button share a bottom
+   edge, labelled or not. An error message under a field does push the box
+   up; the row takes that rather than guessing at its height. */
+.field-row {
+  display: flex;
+  align-items: flex-end;
+}
+.field-row .fieldset {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* Badges stay soft tints. So never add daisyUI's `badge-soft` to
+   `badge-primary`: soft paints the words in --badge-color, which here is the
+   tint, and in the dark theme the words all but vanish (#1286). */
 .badge-primary {
   --badge-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-base-100));
   --badge-fg: var(--color-primary);

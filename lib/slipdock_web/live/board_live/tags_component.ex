@@ -131,7 +131,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
               <button
                 phx-target={@target}
                 type="button"
-                class="btn btn-ghost btn-xs btn-square text-error"
+                class="btn btn-ghost btn-error btn-xs btn-square"
                 phx-click="delete_tag"
                 phx-value-id={tag.id}
                 data-confirm={"Delete tag “#{tag.name}”? It will be removed from all cards."}

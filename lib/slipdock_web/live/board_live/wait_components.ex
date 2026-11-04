@@ -50,7 +50,7 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
           :for={{text, n} <- Enum.with_index(@wait.choices, 1)}
           id={"wait-choice-#{n}"}
           type="button"
-          class="btn btn-outline btn-xs"
+          class="btn btn-xs"
           phx-click="answer_wait"
           phx-value-choice={n}
           phx-target={@target}
@@ -126,7 +126,7 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
           <button
             id="wait-skip"
             type="button"
-            class="btn btn-outline btn-xs"
+            class="btn btn-xs"
             phx-click="skip_wait"
             phx-target={@target}
             data-confirm="Skip the questions? The card moves on without the answers."

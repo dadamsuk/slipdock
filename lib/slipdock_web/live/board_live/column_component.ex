@@ -275,7 +275,7 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
             <button
               phx-target={@target}
               type="button"
-              class="btn btn-ghost btn-sm text-error"
+              class="btn btn-ghost btn-error btn-sm"
               phx-click="delete_column"
               phx-value-id={@column.id}
               data-confirm={"Delete “#{@column.name}” and all of its cards?"}

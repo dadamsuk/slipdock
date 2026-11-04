@@ -119,7 +119,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
           id="profile-form"
           phx-submit="save_profile"
           phx-target={@myself}
-          class="mt-4 flex items-end gap-3"
+          class="mt-4 field-row gap-3"
         >
           <div class="flex-1">
             <.input field={@profile_form[:name]} label="Display name" placeholder="Your name" />
@@ -133,7 +133,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
               value={Slipdock.Timezones.of(@current_user)}
             />
           </div>
-          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </.form>
       </section>
 
@@ -248,7 +248,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
         <p class="text-sm text-base-content/60">
           Signing in, by link or passkey, keeps you signed in for 30 days on this browser.
         </p>
-        <.link href={~p"/logout"} method="delete" class="btn btn-outline btn-sm mt-4">
+        <.link href={~p"/logout"} method="delete" class="btn btn-sm mt-4">
           <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Sign out
         </.link>
       </section>
