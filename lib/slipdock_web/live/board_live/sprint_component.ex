@@ -801,7 +801,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
                     phx-target={@target}
                     type="checkbox"
                     id={"sprint-pick-#{card.id}"}
-                    class="checkbox checkbox-sm"
+                    class="checkbox"
                     checked={Map.has_key?(@picker.selected, card.id)}
                     phx-click="sprint_toggle"
                     phx-value-id={card.id}

@@ -331,7 +331,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
               name="page[completed]"
               value="true"
               checked={@page.completed}
-              class="checkbox checkbox-sm"
+              class="checkbox"
             /> Written
           </label>
         </.form>

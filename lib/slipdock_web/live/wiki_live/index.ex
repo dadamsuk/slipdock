@@ -4396,7 +4396,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               <label :if={@can_write} class="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  class="toggle toggle-sm"
+                  class="toggle"
                   checked={@show.drafts}
                   phx-click="toggle_show"
                   phx-value-what="drafts"
@@ -4405,7 +4405,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               <label class="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  class="toggle toggle-sm"
+                  class="toggle"
                   checked={@show.templates}
                   phx-click="toggle_show"
                   phx-value-what="templates"
@@ -4414,7 +4414,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               <label :if={@can_write} class="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  class="toggle toggle-sm"
+                  class="toggle"
                   checked={@show.archived}
                   phx-click="toggle_show"
                   phx-value-what="archived"
@@ -4426,7 +4426,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 <input
                   id="toggle-tree-icons"
                   type="checkbox"
-                  class="toggle toggle-sm"
+                  class="toggle"
                   checked={@board.wiki_tree_icons}
                   phx-click="toggle_tree_icons"
                 /> Icons and colours
@@ -4628,7 +4628,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               <label class="mt-1 flex cursor-pointer items-center gap-1.5">
                 <input
                   type="checkbox"
-                  class="checkbox checkbox-xs"
+                  class="checkbox"
                   checked={@tree_contents}
                   phx-click="toggle_tree_contents"
                 /> Match the words inside pages here too
@@ -5272,7 +5272,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 name="mode"
                 value={mode}
                 checked={@prompt.mode == mode}
-                class="radio radio-sm radio-primary mt-0.5"
+                class="radio mt-0.5"
               />
               <span>
                 <span class="block font-medium">{title}</span>
@@ -5374,7 +5374,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 name="include[]"
                 value={entry.key}
                 checked={not MapSet.member?(@prompt.excluded, entry.key)}
-                class="checkbox checkbox-xs"
+                class="checkbox"
                 aria-label={"Move #{entry.title}"}
               />
               <.icon
@@ -7279,7 +7279,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               name="from"
               value={revision.id}
               checked={i == 1}
-              class="radio radio-xs"
+              class="radio"
               aria-label={"Compare from #{stamp(revision.inserted_at)}"}
             />
             <input
@@ -7287,7 +7287,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               name="to"
               value={revision.id}
               checked={i == 0}
-              class="radio radio-xs"
+              class="radio"
               aria-label={"Compare to #{stamp(revision.inserted_at)}"}
             />
           </span>

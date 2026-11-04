@@ -1651,8 +1651,7 @@ defmodule SlipdockWeb.Layouts do
             />
           </label>
           <label class="mt-3 flex items-center gap-2 text-sm">
-            <input type="checkbox" data-meld-remember class="checkbox checkbox-sm" />
-            Remember for this session
+            <input type="checkbox" data-meld-remember class="checkbox" /> Remember for this session
           </label>
         </div>
         <p data-meld-error class="mt-3 text-sm text-error" hidden></p>

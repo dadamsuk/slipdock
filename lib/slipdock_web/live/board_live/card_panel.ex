@@ -758,7 +758,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
               <input
                 type="checkbox"
                 id={"hide-on-card-#{a.id}"}
-                class="checkbox checkbox-xs"
+                class="checkbox"
                 checked={a.hide_on_card}
                 disabled={!@can_write}
                 phx-target={@target}
@@ -1252,7 +1252,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
               type="checkbox"
               name="card[completed]"
               value="true"
-              class="toggle toggle-success toggle-sm"
+              class="toggle"
               checked={@card.completed}
             />
           </label>

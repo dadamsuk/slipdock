@@ -325,7 +325,7 @@ defmodule SlipdockWeb.MeetingLive.Preview do
                 name="keep_transcript"
                 value="true"
                 checked={@capture.keep_transcript}
-                class="checkbox checkbox-sm"
+                class="checkbox"
               />
               <span>
                 Keep the {if @capture.kind == "chat", do: "conversation", else: "transcript"} after

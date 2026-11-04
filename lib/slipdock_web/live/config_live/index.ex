@@ -395,7 +395,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
           name={"settings[#{@switch}]"}
           value="true"
           checked={Map.get(@settings, @switch)}
-          class="checkbox checkbox-sm"
+          class="checkbox"
         />
         <span class="font-medium">{@label}</span>
         <input
@@ -675,7 +675,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             name="settings[meetings_enabled]"
             value="true"
             checked={@settings.meetings_enabled}
-            class="toggle toggle-sm mt-0.5"
+            class="toggle mt-0.5"
           />
           <span>
             <span class="block font-medium">Meeting mode is on</span>
@@ -694,7 +694,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             name="settings[chat_capture_enabled]"
             value="true"
             checked={@settings.chat_capture_enabled}
-            class="toggle toggle-sm mt-0.5"
+            class="toggle mt-0.5"
           />
           <span>
             <span class="block font-medium">Chat capture is on</span>
@@ -723,7 +723,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               name="settings[meetings_visibility]"
               value={value}
               checked={@settings.meetings_visibility == value}
-              class="radio radio-sm mt-0.5"
+              class="radio mt-0.5"
             />
             <span class="text-sm">
               <span class="block font-medium">{title}</span>
@@ -739,7 +739,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             name="settings[meetings_hideable]"
             value="true"
             checked={@settings.meetings_hideable}
-            class="checkbox checkbox-sm mt-0.5"
+            class="checkbox mt-0.5"
           />
           <span>
             <span class="block font-medium">Let people hide it</span>
@@ -771,7 +771,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               name={"settings[#{field}]"}
               value="true"
               checked={Map.get(@settings, field)}
-              class="checkbox checkbox-sm mt-0.5"
+              class="checkbox mt-0.5"
             />
             <span>
               <span class="block font-medium">{title}</span>
@@ -889,7 +889,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               name="settings[meetings_dialogue_inference]"
               value="true"
               checked={@settings.meetings_dialogue_inference}
-              class="checkbox checkbox-sm mt-0.5"
+              class="checkbox mt-0.5"
             />
             <span>
               <span class="block font-medium">Work out who is speaking from the dialogue</span>
@@ -906,7 +906,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               name="settings[meetings_voiceprints]"
               value="true"
               checked={@settings.meetings_voiceprints}
-              class="checkbox checkbox-sm mt-0.5"
+              class="checkbox mt-0.5"
             />
             <span>
               <span class="block font-medium">Offer voiceprints</span>
@@ -957,7 +957,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
                 name={"settings[#{switch}]"}
                 value="true"
                 checked={Map.get(@settings, switch)}
-                class="checkbox checkbox-sm"
+                class="checkbox"
               /> {label}
             </label>
             <input
@@ -1060,7 +1060,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             name="settings[signup_mode]"
             value={mode}
             checked={@settings.signup_mode == mode}
-            class="radio radio-sm mt-0.5 radio-primary"
+            class="radio mt-0.5"
           />
           <span class="min-w-0">
             <span class="block text-sm font-medium">{mode_label(mode)}</span>
@@ -1144,7 +1144,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               name="settings[user_directory]"
               value="instance"
               checked={@settings.user_directory == :instance}
-              class="radio radio-sm mt-0.5"
+              class="radio mt-0.5"
             />
             <span>
               <span class="block font-medium">Everyone on this server</span>
@@ -1159,7 +1159,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               name="settings[user_directory]"
               value="shared_only"
               checked={@settings.user_directory == :shared_only}
-              class="radio radio-sm mt-0.5"
+              class="radio mt-0.5"
             />
             <span>
               <span class="block font-medium">Only people they share something with</span>
@@ -1178,7 +1178,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             name="settings[invites_create_accounts]"
             value="true"
             checked={@settings.invites_create_accounts}
-            class="checkbox checkbox-sm mt-0.5"
+            class="checkbox mt-0.5"
           />
           <span>
             <span class="block font-medium">Sharing with a stranger gives them an account</span>
@@ -1272,7 +1272,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               name="settings[posthog_respect_dnt]"
               value="true"
               checked={@settings.posthog_respect_dnt}
-              class="checkbox checkbox-sm mt-0.5"
+              class="checkbox mt-0.5"
             />
             <span>
               <span class="block font-medium">Respect Do-Not-Track</span>
@@ -1406,7 +1406,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             type="checkbox"
             name="transcription[forget_token]"
             value="true"
-            class="checkbox checkbox-sm"
+            class="checkbox"
           /> Forget the stored token
         </label>
         <input type="hidden" name="transcription[voiceprints]" value="false" />
@@ -1417,7 +1417,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             name="transcription[voiceprints]"
             value="true"
             checked={@settings.transcription_voiceprints}
-            class="checkbox checkbox-sm mt-0.5"
+            class="checkbox mt-0.5"
           />
           <span>
             Teach it voices

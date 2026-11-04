@@ -94,7 +94,7 @@ defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
   defp consent_box(assigns) do
     ~H"""
     <label class="flex cursor-pointer items-start gap-3 text-sm">
-      <input type="checkbox" id={@id} name="consent" value="true" class="checkbox checkbox-sm mt-0.5" />
+      <input type="checkbox" id={@id} name="consent" value="true" class="checkbox mt-0.5" />
       <span>{Voiceprints.wording()}</span>
     </label>
     """

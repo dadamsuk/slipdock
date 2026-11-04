@@ -611,7 +611,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   name={@form[:kind].name}
                   value="sprints"
                   checked={@form[:kind].value == "sprints"}
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">Sprint board</span>
@@ -633,7 +633,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   name={@form[:simple].name}
                   value="true"
                   checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:simple].value)}
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">Simple board</span>
@@ -671,7 +671,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   name={@form[:show_pulse].name}
                   value="true"
                   checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:show_pulse].value)}
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">Show the board's pulse</span>
@@ -695,7 +695,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   checked={
                     Phoenix.HTML.Form.normalize_value("checkbox", @form[:delivery_metrics].value)
                   }
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">Delivery metrics</span>
@@ -741,7 +741,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   checked={
                     Phoenix.HTML.Form.normalize_value("checkbox", @form[:automation_wip].value)
                   }
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">WIP limits hold automated work</span>
@@ -768,7 +768,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   name={@form[:bar_required].name}
                   value="true"
                   checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:bar_required].value)}
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">A bar before work starts</span>
@@ -786,7 +786,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   name={@form[:lanes].name}
                   value="true"
                   checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:lanes].value)}
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">Lanes</span>
@@ -806,7 +806,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   checked={
                     Phoenix.HTML.Form.normalize_value("checkbox", @form[:evidence_required].value)
                   }
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">Evidence on completion</span>
@@ -824,7 +824,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   name={@form[:verify_work].name}
                   value="true"
                   checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:verify_work].value)}
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">A second agent verifies</span>
@@ -923,7 +923,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   checked={
                     Phoenix.HTML.Form.normalize_value("checkbox", @form[:page_card_features].value)
                   }
-                  class="checkbox checkbox-sm mt-0.5"
+                  class="checkbox mt-0.5"
                 />
                 <span>
                   <span class="font-medium">Card features on wiki pages</span>
@@ -1088,7 +1088,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   <input
                     phx-target={@target}
                     type="checkbox"
-                    class="checkbox checkbox-xs"
+                    class="checkbox"
                     phx-click="toggle_field_sum"
                     phx-value-id={f.id}
                     checked={f.sum}
@@ -1156,8 +1156,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               />
               <div class="flex items-center justify-between">
                 <label class="flex cursor-pointer items-center gap-1 text-xs">
-                  <input type="checkbox" name="sum" value="true" class="checkbox checkbox-xs" />
-                  Roll up totals
+                  <input type="checkbox" name="sum" value="true" class="checkbox" /> Roll up totals
                 </label>
                 <button type="submit" class="btn btn-primary btn-sm">Add field</button>
               </div>
@@ -1233,7 +1232,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               <input type="hidden" name={"gardening[#{c.key}][enabled]"} value="false" />
               <input
                 type="checkbox"
-                class="checkbox checkbox-xs"
+                class="checkbox"
                 id={"gardening-#{c.key}-enabled"}
                 name={"gardening[#{c.key}][enabled]"}
                 value="true"

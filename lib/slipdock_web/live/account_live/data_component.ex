@@ -184,7 +184,7 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
             checked={@with_archived}
             phx-click="toggle_archived"
             phx-target={@myself}
-            class="checkbox checkbox-sm mt-0.5"
+            class="checkbox mt-0.5"
           />
           <span>
             <span class="block">Include what is archived</span>

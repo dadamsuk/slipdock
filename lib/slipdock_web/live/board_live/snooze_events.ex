@@ -282,7 +282,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
               name="snooze[notify]"
               value="true"
               checked={@snoozing.form[:notify].value == "true"}
-              class="checkbox checkbox-xs"
+              class="checkbox"
             /> Tell me when it wakes
           </label>
           <label
@@ -296,7 +296,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
               name="snooze[back]"
               value="true"
               checked={@snoozing.form[:back].value != "false"}
-              class="checkbox checkbox-xs mt-0.5"
+              class="checkbox mt-0.5"
             />
             <span>
               {if @snoozing.in_progress == 1, do: "It's", else: "#{@snoozing.in_progress} are"} in progress.

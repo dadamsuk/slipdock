@@ -362,7 +362,7 @@ defmodule SlipdockWeb.SetupLive.Index do
             name="settings[signup_mode]"
             value={mode}
             checked={selected_mode(@form) == mode}
-            class="radio radio-sm mt-0.5 radio-primary"
+            class="radio mt-0.5"
           />
           <span class="min-w-0">
             <span class="block text-sm font-medium">{elem(Instance.describe(mode), 0)}</span>

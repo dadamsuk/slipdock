@@ -2270,7 +2270,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <label class="flex cursor-pointer items-center gap-2 text-sm">
           <input
             type="checkbox"
-            class="toggle toggle-sm"
+            class="toggle"
             checked={@filters.hide_completed}
             phx-click="toggle_hide_completed"
           /> {@label}

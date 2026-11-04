@@ -341,10 +341,10 @@ defmodule SlipdockWeb.MeetingLive.New do
               <h2 class="text-sm font-medium">Read alongside</h2>
               <div class="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
                 <label class="flex items-center gap-2">
-                  <input type="checkbox" checked disabled class="checkbox checkbox-sm" /> This board
+                  <input type="checkbox" checked disabled class="checkbox" /> This board
                 </label>
                 <label class="flex items-center gap-2">
-                  <input type="checkbox" checked disabled class="checkbox checkbox-sm" /> Its wiki
+                  <input type="checkbox" checked disabled class="checkbox" /> Its wiki
                 </label>
                 <label :if={@parent?} class="flex items-center gap-2">
                   <input type="hidden" name="capture[parent]" value="false" />
@@ -353,7 +353,7 @@ defmodule SlipdockWeb.MeetingLive.New do
                     name="capture[parent]"
                     value="true"
                     checked={@form.params["parent"] == "true"}
-                    class="checkbox checkbox-sm"
+                    class="checkbox"
                   /> Its parent board
                 </label>
               </div>

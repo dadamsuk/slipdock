@@ -142,7 +142,7 @@ defmodule SlipdockWeb.WorkLive.Index do
             <label class="flex cursor-pointer items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                class="toggle toggle-sm"
+                class="toggle"
                 checked={@show_done}
                 phx-click="toggle_done"
               /> Show completed

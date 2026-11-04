@@ -552,7 +552,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     <input
                       type="checkbox"
                       id={"admin-#{user.id}"}
-                      class="checkbox checkbox-xs"
+                      class="checkbox"
                       checked={user.admin}
                       phx-click={if user.admin, do: "demote", else: "promote"}
                       phx-value-id={user.id}
@@ -579,7 +579,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     <input
                       :if={user.admin}
                       type="checkbox"
-                      class="checkbox checkbox-xs"
+                      class="checkbox"
                       checked
                       disabled
                     />
@@ -587,7 +587,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                       :if={!user.admin}
                       type="checkbox"
                       id={"unlimited-#{user.id}"}
-                      class="checkbox checkbox-xs"
+                      class="checkbox"
                       checked={user.unlimited}
                       phx-click="toggle-unlimited"
                       phx-value-id={user.id}
@@ -614,7 +614,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     <input
                       :if={user.admin}
                       type="checkbox"
-                      class="checkbox checkbox-xs"
+                      class="checkbox"
                       checked
                       disabled
                     />
@@ -622,7 +622,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                       :if={!user.admin}
                       type="checkbox"
                       id={"meetings-#{user.id}"}
-                      class="checkbox checkbox-xs"
+                      class="checkbox"
                       checked={user.meetings_access}
                       phx-click="toggle-meetings"
                       phx-value-id={user.id}

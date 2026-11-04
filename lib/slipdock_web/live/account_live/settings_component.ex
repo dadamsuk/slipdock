@@ -416,7 +416,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
               name="display[hide_meetings]"
               value="true"
               checked={@current_user.hide_meetings}
-              class="checkbox checkbox-sm mt-0.5"
+              class="checkbox mt-0.5"
             />
             <span>
               <span class="block font-medium">Hide meetings</span>
