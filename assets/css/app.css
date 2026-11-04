@@ -187,6 +187,8 @@ body {
    - `field-mono`: code values (paths, globs) in the mono stack at 13px,
      which sits at the same optical size as 14px Inter.
    - `field-icon`: room on the left for an icon drawn over the box.
+   - `field-trail` / `field-trail-2`: room on the right for one or two
+     small buttons drawn over the box (a search's clear X, its star).
    - `field-bare`: text edited in place (the card title, its short name,
      the list on the meta line): no box until hovered or focused, keeps the
      size of the words around it.
@@ -213,6 +215,8 @@ textarea.field { min-height: 1.75rem; padding: 0.25rem 0.75rem; resize: none; }
 .field::placeholder { color: color-mix(in oklab, var(--color-base-content) 45%, transparent); }
 .field-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; }
 input.field-icon { padding-left: 2rem; }
+input.field-trail { padding-right: 2rem; }
+input.field-trail-2 { padding-right: 3.75rem; }
 .field:disabled {
   background-color: var(--color-base-200);
   color: color-mix(in oklab, var(--color-base-content) 60%, transparent);

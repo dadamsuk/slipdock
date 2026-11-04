@@ -467,17 +467,12 @@ defmodule SlipdockWeb.SwimlaneComponents do
             clear={JS.push("swim_set", value: %{key: "q", value: ""})}
             class="relative min-w-0 flex-1 sm:flex-none"
           >
-            <.icon
-              name="hero-magnifying-glass"
-              class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
-            />
-            <input
-              type="search"
-              name="q"
+            <.search_input
               value={@config.q}
               placeholder="Search…"
               phx-debounce="300"
-              class="input input-sm w-full rounded-full pl-8 pr-8 transition-[width] sm:w-36 sm:focus:w-56"
+              trail={1}
+              class="w-full transition-[width] sm:w-36 sm:focus:w-56"
               autocomplete="off"
             />
           </.search_box>
