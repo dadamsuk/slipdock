@@ -170,8 +170,12 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
         <.tile
           id="tile-cycle"
           label="Cycle time P50"
-          value={duration(@t.p50)}
-          detail={"P85 #{duration(@t.p85)} · #{@t.cards} #{plural(@t.cards, "card")} (90 days)"}
+          value={if @t.cards == 0, do: "—", else: duration(@t.p50)}
+          detail={
+            if @t.cards == 0,
+              do: "not enough data yet: no card finished in 90 days",
+              else: "P85 #{duration(@t.p85)} · #{@t.cards} #{plural(@t.cards, "card")} (90 days)"
+          }
         />
         <.tile
           :if={@idea}

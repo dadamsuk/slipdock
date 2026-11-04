@@ -455,6 +455,26 @@ defmodule Slipdock.Wiki.Tree do
   end
 
   @doc """
+  How many pages a vault's tree shows: `count/2` for every board of
+  `boards` (as `vault_children/4` takes them) that sits in the vault, each
+  under its own options. With `root` (a vault path), only the boards at or
+  below it, as a board's own tree in the vault shows its sub-boards.
+  """
+  def vault_count(%Vault{} = vault, boards, root \\ "") do
+    vault
+    |> vault_layout(boards)
+    |> Map.fetch!(:mappings)
+    |> Enum.filter(&under?(&1.path, root || ""))
+    |> Enum.map(& &1.board_id)
+    |> Enum.uniq()
+    |> Enum.map(fn id ->
+      {board, opts} = boards[id]
+      count(board, opts)
+    end)
+    |> Enum.sum()
+  end
+
+  @doc """
   The keys to open in a vault's tree to show a page or folder, outermost
   first: the way down to its board, then the board's folders and parent
   pages below that.

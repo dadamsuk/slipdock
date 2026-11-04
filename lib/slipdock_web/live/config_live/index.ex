@@ -680,7 +680,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             class="toggle mt-0.5"
           />
           <span>
-            <span class="block font-medium">Meeting mode is on</span>
+            <span class="block font-medium">Meeting mode</span>
             <span class="block text-xs text-base-content/60">
               Captures are read with each person's AI settings, so their key or endpoint is
               what a meeting is sent to.
@@ -699,7 +699,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             class="toggle mt-0.5"
           />
           <span>
-            <span class="block font-medium">Chat capture is on</span>
+            <span class="block font-medium">Chat capture</span>
             <span class="block text-xs text-base-content/60">
               A conversation with Claude or ChatGPT is read the same way: its decisions and
               to-dos proposed, each quoted, committed only when the person says so. It has no
