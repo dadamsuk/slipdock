@@ -37,10 +37,12 @@ defmodule SlipdockWeb.OverviewLive.Index do
       viewport={@viewport}
       nav_active={:overview}
     >
-      <:nav><span class="font-semibold">Overview</span></:nav>
-
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-5xl space-y-6 p-6">
+        <.page width="full" class="space-y-6">
+          <.page_header
+            title="Overview"
+            subtitle="How much this server holds, and who owns it."
+          />
           <section id="overview-totals" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <.tile label="Accounts" value={@totals.users}>
               {@totals.admins} admin · {@totals.disabled} disabled
@@ -115,7 +117,7 @@ defmodule SlipdockWeb.OverviewLive.Index do
               </table>
             </div>
           </section>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

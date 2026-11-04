@@ -86,15 +86,12 @@ defmodule SlipdockWeb.GroupLive.Index do
       viewport={@viewport}
       nav_active={:groups}
     >
-      <:nav><span class="font-semibold">Groups</span></:nav>
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:py-10 sm:px-6">
-          <div>
-            <h1 class="page-title">Groups</h1>
-            <p class="mt-1 text-sm text-base-content/60">
-              Share boards, cards and views with a group instead of one person at a time. People you add by email get an account when they first sign in.
-            </p>
-          </div>
+        <.page width="standard" class="space-y-6">
+          <.page_header
+            title="Groups"
+            subtitle="Share boards, cards and views with a group instead of one person at a time. People you add by email get an account when they first sign in."
+          />
 
           <form id={"new-group-#{@form_key}"} phx-submit="create" class="flex gap-2">
             <input
@@ -207,7 +204,7 @@ defmodule SlipdockWeb.GroupLive.Index do
               <button type="submit" class="btn btn-sm">Add</button>
             </form>
           </div>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

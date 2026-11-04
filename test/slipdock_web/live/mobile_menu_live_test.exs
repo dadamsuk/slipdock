@@ -46,10 +46,13 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
       assert has_element?(view, "#topbar > div.order-2.hidden.sm\\:flex.lg\\:hidden")
     end
 
-    test "a page with a title of its own keeps it on a phone", %{conn: conn} do
+    # #1714: the header row never repeats a page's title; on a phone too the
+    # title is the page's own h1.
+    test "a page's title is its h1, not a second copy in the phone header", %{conn: conn} do
       {:ok, view, _} = live(phone(conn), ~p"/groups")
 
-      assert has_element?(view, "#topbar > div.order-2.flex", "Groups")
+      assert has_element?(view, "[data-page-width] h1", "Groups")
+      refute has_element?(view, "#topbar > div.order-2", "Groups")
       refute has_element?(view, "#topbar > div.order-2.hidden")
     end
 

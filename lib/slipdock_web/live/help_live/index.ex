@@ -67,14 +67,13 @@ defmodule SlipdockWeb.HelpLive.Index do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
-      <:nav><span class="font-semibold">Help</span></:nav>
       <:actions>
         <.link :if={!@current_user} navigate={~p"/login"} class="btn btn-primary btn-sm">
           Sign in
         </.link>
       </:actions>
       <div id="help" class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-4xl space-y-8 px-4 py-6 sm:px-6 sm:py-10">
+        <.page width="standard" class="space-y-8">
           <.hub :if={@live_action == :index} sections={@sections} current_user={@current_user} />
 
           <.section_nav
@@ -86,10 +85,9 @@ defmodule SlipdockWeb.HelpLive.Index do
 
           <article :if={@section} id={"help-section-#{@section.slug}"} class="space-y-6">
             <header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-              <h1 class="flex items-center gap-2 page-title">
-                <.icon name={@section.icon} class="size-6 text-primary" /> {@section.title}
-              </h1>
-              <p class="mt-2 text-sm text-base-content/70">{@section.intro}</p>
+              <.page_header title={@section.title} subtitle={@section.intro} class="">
+                <:leading><.icon name={@section.icon} class="size-6 text-primary" /></:leading>
+              </.page_header>
               <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                 <li :for={{id, title} <- @section.parts}>
                   <a href={"##{id}"} class="link">{title}</a>
@@ -112,7 +110,7 @@ defmodule SlipdockWeb.HelpLive.Index do
             base_url={@base_url}
             current_user={@current_user}
           />
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """
@@ -123,17 +121,14 @@ defmodule SlipdockWeb.HelpLive.Index do
 
   defp hub(assigns) do
     ~H"""
-    <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h1 class="page-title">Help</h1>
-      <p class="mt-2 text-sm text-base-content/70">
-        Slipdock is a kanban board with a wiki beside it. You can share it with people,
-        automate it with rules, ask it questions, and let AI agents work on it alongside you.
-        Choose a section below, or go straight to one of its parts.
-      </p>
-      <p :if={!@current_user} class="mt-3 text-sm">
-        <.link navigate={~p"/login"} class="link font-medium">Sign in →</.link>
-      </p>
-    </section>
+    <.page_header
+      title="Help"
+      subtitle="Slipdock is a kanban board with a wiki beside it. You can share it with people, automate it with rules, ask it questions, and let AI agents work on it alongside you. Choose a section below, or go straight to one of its parts."
+    >
+      <:actions :if={!@current_user}>
+        <.link navigate={~p"/login"} class="link text-sm font-medium">Sign in →</.link>
+      </:actions>
+    </.page_header>
 
     <div id="help-sections" class="grid gap-4 sm:grid-cols-2">
       <article

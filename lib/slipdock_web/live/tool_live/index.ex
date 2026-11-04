@@ -71,19 +71,15 @@ defmodule SlipdockWeb.ToolLive.Index do
       viewport={@viewport}
       nav_active={:tools}
     >
-      <:nav>
-        <span class="font-semibold">Tools</span>
-      </:nav>
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-4xl space-y-8 px-4 py-6 sm:px-6 sm:py-10">
-          <div>
-            <h1 class="page-title">Tools</h1>
-            <p class="mt-1 max-w-xl text-sm text-base-content/60">
+        <.page width="standard" class="space-y-8">
+          <.page_header title="Tools">
+            <:meta>
               A Tool is a ready-made way of working: a board Slipdock builds for you, and the
               skills that teach your assistant to use it. Open one to read everything it does
               before you install it.
-            </p>
-          </div>
+            </:meta>
+          </.page_header>
 
           <section :for={{key, title, tools} <- @sections} id={"tools-#{key}"}>
             <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
@@ -161,7 +157,7 @@ defmodule SlipdockWeb.ToolLive.Index do
               label="Publish"
             />
           </section>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

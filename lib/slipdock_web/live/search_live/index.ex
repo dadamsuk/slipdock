@@ -423,38 +423,41 @@ defmodule SlipdockWeb.SearchLive.Index do
       nav_active={@mode}
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
-          <div class="mb-4">
-            <div
-              class="inline-flex rounded-xl bg-base-200 p-0.5 text-sm"
-              role="tablist"
-              aria-label="How to look"
-            >
-              <.link
-                :for={
-                  {key, label, icon} <- [
-                    {:search, "Search", "hero-magnifying-glass"},
-                    {:ask, "Ask", "hero-sparkles"}
-                  ]
-                }
-                patch={mode_path(key, @query)}
-                role="tab"
-                aria-selected={to_string(@mode == key)}
-                class={[
-                  "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-medium transition",
-                  if(@mode == key,
-                    do: "bg-base-100 shadow-sm",
-                    else: "text-base-content/60 hover:text-base-content"
-                  )
-                ]}
+        <.page width="standard">
+          <.page_header
+            title={if @mode == :ask, do: "Ask", else: "Search"}
+            subtitle="Search finds cards; Ask gives answers to questions."
+            class="mb-4"
+          >
+            <:actions>
+              <div
+                class="inline-flex rounded-xl bg-base-200 p-0.5 text-sm"
+                role="tablist"
+                aria-label="How to look"
               >
-                <.icon name={icon} class="size-4" /> {label}
-              </.link>
-            </div>
-            <p class="mt-2 text-xs text-base-content/50">
-              Search finds cards; Ask gives answers to questions.
-            </p>
-          </div>
+                <.link
+                  :for={
+                    {key, label, icon} <- [
+                      {:search, "Search", "hero-magnifying-glass"},
+                      {:ask, "Ask", "hero-sparkles"}
+                    ]
+                  }
+                  patch={mode_path(key, @query)}
+                  role="tab"
+                  aria-selected={to_string(@mode == key)}
+                  class={[
+                    "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-medium transition",
+                    if(@mode == key,
+                      do: "bg-base-100 shadow-sm",
+                      else: "text-base-content/60 hover:text-base-content"
+                    )
+                  ]}
+                >
+                  <.icon name={icon} class="size-4" /> {label}
+                </.link>
+              </div>
+            </:actions>
+          </.page_header>
 
           <form
             id="deep-search"
@@ -590,7 +593,7 @@ defmodule SlipdockWeb.SearchLive.Index do
             offer={@offer}
             mode={@mode}
           />
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

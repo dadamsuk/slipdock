@@ -131,17 +131,17 @@ defmodule SlipdockWeb.VaultLive.Index do
       viewport={@viewport}
       nav_active={:wiki}
     >
-      <:nav><span class="font-semibold">Wiki settings</span></:nav>
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:py-10 sm:px-6">
-          <div>
-            <h1 class="page-title">Wiki settings</h1>
-            <p id="vaults-what" class="mt-1 text-sm text-base-content/60">
-              Your wiki is one tree of notes: your Knowledge Base first, then a folder
-              for every board you have, a sub-board in its epic's folder. Archived boards
-              are left out; restore one to have its wiki back.
-            </p>
-          </div>
+        <.page width="narrow" class="space-y-6">
+          <.page_header title="Wiki settings">
+            <:meta>
+              <span id="vaults-what">
+                Your wiki is one tree of notes: your Knowledge Base first, then a folder
+                for every board you have, a sub-board in its epic's folder. Archived boards
+                are left out; restore one to have its wiki back.
+              </span>
+            </:meta>
+          </.page_header>
 
           <div
             id={"vault-#{@vault.id}"}
@@ -189,7 +189,7 @@ defmodule SlipdockWeb.VaultLive.Index do
               Not synced to a folder yet: <code>slipdock sync init ~/Notes</code>
             </p>
           </div>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

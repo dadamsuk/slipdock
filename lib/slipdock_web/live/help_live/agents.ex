@@ -366,14 +366,11 @@ defmodule SlipdockWeb.HelpLive.Agents do
   def overview(assigns) do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h1 class="page-title">Working with an AI agent</h1>
-      <p class="mt-2 text-sm text-base-content/70">
-        Claude, ChatGPT, Codex, Cursor, or a script you wrote can all read and work
-        these boards. The agent runs wherever you already use it (your laptop, a cloud
-        session, a phone app) and talks to this server over the web, as your browser does.
-        It never runs on the server, and you don't need access to the machine the server
-        runs on.
-      </p>
+      <.page_header
+        title="Working with an AI agent"
+        subtitle="Claude, ChatGPT, Codex, Cursor, or a script you wrote can all read and work these boards. The agent runs wherever you already use it (your laptop, a cloud session, a phone app) and talks to this server over the web, as your browser does. It never runs on the server, and you don't need access to the machine the server runs on."
+        class=""
+      />
       <p class="mt-2 text-sm text-base-content/70">
         There are several ways to connect, depending on where the agent runs and who starts
         the work. Most people need only one or two. Each one is introduced briefly below,
@@ -516,10 +513,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
 
     <article id={"help-topic-#{@topic.slug}"} class="space-y-6">
       <header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h1 class="flex items-center gap-2 page-title">
-          <.icon name={@topic.icon} class="size-6 text-primary" /> {@topic.title}
-        </h1>
-        <p class="mt-2 text-sm text-base-content/70">{@topic.intro}</p>
+        <.page_header title={@topic.title} subtitle={@topic.intro} class="">
+          <:leading><.icon name={@topic.icon} class="size-6 text-primary" /></:leading>
+        </.page_header>
         <p class="mt-2 text-sm">
           <span class="font-medium">Use it when</span>
           <span class="text-base-content/70">{lowercase_first(@topic.when)}</span>

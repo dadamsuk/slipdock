@@ -216,20 +216,16 @@ defmodule SlipdockWeb.MultiboardLive.Index do
       viewport={@viewport}
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
-          <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1
-                id="multiboard-title"
-                class="flex items-center gap-2 page-title"
-              >
-                <span
-                  :if={@saved}
-                  class={["size-3 shrink-0 rounded-full", Slipdock.Palette.dot(@saved.color)]}
-                ></span>
-                {if @saved, do: @saved.name, else: "Multiboard"}
-              </h1>
-              <p id="multiboard-summary" class="mt-1 text-sm text-base-content/60">
+        <.page width="full">
+          <.page_header
+            title={if @saved, do: @saved.name, else: "Multiboard"}
+            title_id="multiboard-title"
+          >
+            <:leading :if={@saved}>
+              <span class={["size-3 shrink-0 rounded-full", Slipdock.Palette.dot(@saved.color)]}></span>
+            </:leading>
+            <:meta>
+              <span id="multiboard-summary">
                 <%= if @list_count == 0 do %>
                   Pick lists from any of your boards to see their top cards here.
                 <% else %>
@@ -239,9 +235,9 @@ defmodule SlipdockWeb.MultiboardLive.Index do
                     do: "board",
                     else: "boards"}.
                 <% end %>
-              </p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
+              </span>
+            </:meta>
+            <:actions>
               <div class="join" role="group" aria-label="Layout">
                 <button
                   :for={{key, icon, label} <- layouts()}
@@ -290,8 +286,8 @@ defmodule SlipdockWeb.MultiboardLive.Index do
               >
                 <.icon name="hero-trash" class="size-4" />
               </button>
-            </div>
-          </div>
+            </:actions>
+          </.page_header>
 
           <form
             :if={@saving}
@@ -474,7 +470,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
               </ul>
             </section>
           <% end %>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

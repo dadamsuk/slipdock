@@ -22,24 +22,20 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
     Regex.scan(~r/id="board-(\d+)"/, html) |> Enum.map(fn [_, id] -> String.to_integer(id) end)
   end
 
-  test "the heading is the Slipdock wordmark, not the words Your boards", %{conn: conn} do
+  # #1714: the wordmark is in the header beside the logo; the page's own
+  # title says what the page is.
+  test "the heading is Boards, not the wordmark or the words Your boards", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/")
 
-    assert has_element?(view, ~s(h1 img[src^="/images/brand/wordmark.svg"][alt="Slipdock"]))
-
-    assert has_element?(
-             view,
-             ~s(h1 img[src^="/images/brand/wordmark-reversed.svg"][alt="Slipdock"])
-           )
-
+    assert has_element?(view, "h1", "Boards")
+    refute has_element?(view, "h1 img")
     refute html =~ "Your boards"
   end
 
   test "the page spans the window rather than a fixed-width column", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/")
 
-    assert has_element?(view, "#boards-home.w-full")
-    refute has_element?(view, ~s(#boards-home[class*="max-w-"]))
+    assert has_element?(view, ~s(#boards-home.w-full[data-page-width="full"].max-w-none))
     assert has_element?(view, ~s(#boards-home [class*="xl:grid-cols-4"]))
   end
 
