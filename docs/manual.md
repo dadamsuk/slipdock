@@ -935,7 +935,8 @@ cards you own or are assigned; your cards flagged `review` or `waiting`;
 cards the runner gave up on, or whose newest job failed, on boards you own;
 and, for a board's owner, cards in an in-progress list for over an hour with
 nobody on them. A wait's choices and answer box are right there. The header
-shows how many on every page (refreshed within a minute), `slipdock whoami`
+shows how many on every page (refreshed within a minute; on a laptop the count
+is in the alerts bell's, and its panel's first row comes here), `slipdock whoami`
 and `GET /api/me` carry it as `waiting_on_you`, and `slipdock work`, `GET
 /api/work` and the `plan-my-day` prompt list them.
 
@@ -1992,9 +1993,11 @@ remembered between visits. Your wiki isn't a card here: **Wiki** opens it
 (see [Your wiki](#your-wiki)), and your Knowledge Base, being a wiki and not
 a board to work on, isn't listed.
 
-**Layout.** The cards are the default — a colour band, the code, the
-switcher key when the board has one and your Ctrl+Shift digit when you have
-given it one, the lists and cards on it and how much is done. The compact layout is the same boards as a
+**Layout.** The cards are the default — a colour strip, the name, the lists
+and cards on it and how much is done. The board's code, its switcher key when
+it has one and your Ctrl+Shift digit when you have given it one show when you
+point at a tile or move to it with the keyboard, and in the name's tooltip;
+**Copy board code** is in the tile's menu. The compact layout is the same boards as a
 table, a row each, with the board's colour, code, switcher key, description,
 lists, cards, how far along it is and when anything last happened anywhere in
 its tree. Worth switching to once there are more boards than fit on a screen.
@@ -2033,11 +2036,25 @@ slipdock order-boards qvm-v1-rem errands 3     # your own order
 
 ## The header and the avatar menu
 
-The right-hand end of the header is in the same order on every page, and is
-about the app as a whole: **quick add** (`+`), **Search everything**, **Ask**,
-**Favourites** (the heart), the **alerts** bell, and your avatar. The bell
-shows a count beside it only when an alert is waiting. A page's own buttons, where it
-has any, come first, ruled off from the app's.
+On a laptop or wider, the left of the header is the mark, then **Boards**,
+**My work** and **Wiki** as links, with the one you are in marked, then where
+you are (a board's name, say). The right-hand end is in the same order on
+every page, and is about the app as a whole:
+
+- a **search field** ("Search or ask…", `Shift-Alt-S`), which opens
+  [Search everything](#deep-search-and-ask), where **Ask** is the other half
+  of the toggle;
+- **quick add** (`+`, `q`), whose box also has **Quick note instead**;
+- **Favourites**, the heart (`Shift-Alt-F`);
+- the **alerts** bell (`l`). Its count adds what is waiting on you to the
+  alerts, and its panel opens with a row that goes to My work;
+- your avatar.
+
+On a tablet there is no room for the links, and the right-hand end is icons
+instead: quick add, quick note, Search everything, Ask, Favourites, a hand
+with the count of what is waiting on you, the bell, and your avatar. Each
+icon's tooltip says what it is and its key. Either way, a page's own buttons,
+where it has any, come first, ruled off from the app's.
 
 What belongs to the board you are on is on the board's own toolbar, the row
 below: its sprint buttons, the AI chat about the board and the board's `…`
@@ -2045,8 +2062,9 @@ menu sit at the right-hand end, after **Views**, in every view of the board.
 
 The **avatar menu** is in sections, and marks the page you are on:
 
-- **Places**: Boards, My work, Wiki. Search, Ask and Favourites are
-  not repeated here: they are buttons beside it.
+- **Places**: Boards, My work, Wiki (also links in the header on a laptop).
+  Search, Ask and Favourites are not repeated here: they are in the header
+  beside it.
 - **Set up**: Templates, Groups, Tools, Set up an agent.
 - **You**: **Account & settings** (one entry: Settings, API tokens, Import &
   export and the rest are tabs on the Account page), Help, and the theme as a
@@ -2058,9 +2076,11 @@ The **avatar menu** is in sections, and marks the page you are on:
 - **Sign out**.
 
 A board's **`…` menu** is in three groups: what you do with the board (Share
-this board, Capture a meeting when meeting mode is on, Tidy up…), how it is
-set up (Tags, Automations, Board settings), and what it has done (Activity,
-Archived cards).
+this board, Copy board code, Capture a meeting when meeting mode is on, Tidy
+up…), how it is set up (Tags, Automations, Board settings), and what it has
+done (Activity, Archived cards). **Share** is also a button of its own on the
+board's toolbar: it opens Board settings on the Sharing tab. The board's name
+in the header carries its code and switcher key in its tooltip.
 
 **Board settings** is in tabs: **General** (name, code, shortcut key, hotkey,
 description, default view, votes, sprint and simple board, colour),
@@ -2167,7 +2187,8 @@ and allows for the home indicator's safe area.
 
 ## Quick notes
 
-The pencil at the top right, `Shift-Alt-N`, or **Quick note** in the phone's menu opens a box
+**Quick note instead** in the quick add box (on a laptop), the pencil at the top
+right (on a tablet), `Shift-Alt-N`, or **Quick note** in the phone's menu opens a box
 to write in, on any page. **Save** (or `Ctrl-Enter`) files it in your wiki and shows
 where it went, with a link to the page; the box empties, ready for the next one.
 
@@ -2241,6 +2262,8 @@ dialogs leave the page's keys alone.
   the question with it
 - `Shift-Alt-N` — **a quick note** (`Shift-Option-N` on a Mac), from anywhere, even
   mid-sentence; the same key shuts it. See [Quick notes](#quick-notes)
+- `Shift-Alt-F` — **Favourites** (`Shift-Option-F` on a Mac), from anywhere
+- `Shift-Alt-A` — **Ask about everything** (`Shift-Option-A` on a Mac), from anywhere
 - `h` — all boards (the board takes this one while the keyboard is on it)
 - `b` — **switch board**: every board you can open, then your wiki, with
   its own key; press that key to go there

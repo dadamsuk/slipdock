@@ -261,7 +261,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   [OpenRouter fallbacks for when one is rate-limited](docs/manual.md#the-servers-models-and-fallbacks)
   under Configuration → AI.
 - **Built for the keyboard and the phone** — [a command palette, a key for
-  every board and your wiki, Ctrl-Shift-digit hotkeys, Shift-Alt-S to search everything, Shift-Alt-N for a [quick note](docs/manual.md#quick-notes), card labels you can jump to](docs/manual.md#keyboard),
+  every board and your wiki, Ctrl-Shift-digit hotkeys, Shift-Alt-S to search everything, Shift-Alt-N for a [quick note](docs/manual.md#quick-notes), Shift-Alt-F for Favourites and Shift-Alt-A to ask, card labels you can jump to](docs/manual.md#keyboard),
   [boards and your wiki pinned to the header as icons](docs/manual.md#header-links), and
   [a layout below 640px that is a pager rather than a sideways
   scroll](docs/manual.md#on-a-phone).
