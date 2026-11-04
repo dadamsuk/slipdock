@@ -894,6 +894,7 @@ defmodule SlipdockWeb.Router do
     delete "/cards/:id/subboard", CardController, :delete_sub_board
     delete "/cards/:id/dependencies/:other_id", CardController, :remove_dependency
     post "/checklist/:item_id/toggle", CardController, :toggle_checklist_item
+    post "/checklist/:item_id/move", CardController, :move_checklist_item
     delete "/checklist/:item_id", CardController, :delete_checklist_item
     delete "/comments/:comment_id", CardController, :delete_comment
   end

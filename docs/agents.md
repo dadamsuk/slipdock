@@ -313,7 +313,9 @@ stays the same size however many boards someone has; `all` lists every one.
 `update_card` also colours a card's cover (`color`) and each edge of its
 front (`border_top`, `border_right`, `border_bottom`, `border_left`: a
 palette name, `""` for none), sets what blocks a card and works its checklist (add
-items, tick and untick them by the ids `get_card` shows); `move_card` takes
+items, tick and untick them by the ids `get_card` shows; a new order is over
+HTTP, `POST /api/checklist/<item_id>/move {"before": <item_id>}`, or `slipdock
+move-check <item-id> --before <item-id>`); `move_card` takes
 `board` to send a card, subcards and all, to another board; `list_cards`
 takes `archived` (`exclude`, the default, `include` or `only`) and `full:
 true` for every card as `get_card` gives it; and

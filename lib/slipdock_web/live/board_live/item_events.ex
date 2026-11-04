@@ -19,7 +19,7 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
   alias Slipdock.Boards.{Card, Owned}
   alias SlipdockWeb.Params
 
-  @events ~w(add_check toggle_check delete_check add_comment delete_comment add_status_update
+  @events ~w(add_check toggle_check delete_check move_check add_comment delete_comment add_status_update
     delete_status_update add_card_url remove_card_url set_field vote)
 
   @doc "The events handled here."
@@ -44,6 +44,15 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
   def handle("delete_check", %{"id" => id}, socket, reload) do
     if item = Boards.get_checklist_item(socket.assigns.item, id),
       do: Boards.delete_checklist_item(item)
+
+    {:noreply, reload.(socket)}
+  end
+
+  # Dropped into a new place by the drag handle (#1752): before the item
+  # that now follows it, or last when nothing does.
+  def handle("move_check", %{"id" => id} = params, socket, reload) do
+    if item = Boards.get_checklist_item(socket.assigns.item, id),
+      do: Boards.move_checklist_item(item, params["before"])
 
     {:noreply, reload.(socket)}
   end

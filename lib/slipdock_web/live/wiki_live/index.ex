@@ -2665,6 +2665,13 @@ defmodule SlipdockWeb.WikiLive.Index do
         if item = Boards.get_checklist_item(page, id), do: Boards.delete_checklist_item(item)
       end)
 
+  def handle_event("move_check", %{"id" => id} = params, socket),
+    do:
+      contents_event(socket, fn page ->
+        if item = Boards.get_checklist_item(page, id),
+          do: Boards.move_checklist_item(item, params["before"])
+      end)
+
   def handle_event("add_comment", %{"body" => body}, socket) do
     if String.trim(body) == "",
       do: {:noreply, socket},

@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone verify accept reject flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe read-text attachment-text card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone verify accept reject flag tag check timer log tick move-check comment link unlink weblink unweblink attach attachments download detach card-front transcribe read-text attachment-text card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   defp card_ref?(ref), do: String.match?(ref, ~r/\A#?\d+\z/)
 
@@ -606,6 +606,22 @@ defmodule SlipdockCLI.Boards do
       )
     end)
   end
+
+  # A new place in its checklist (#1752): before another item, or last.
+  def run("move-check", [item_id], o) do
+    body = if o[:before], do: %{"before" => o[:before]}, else: %{}
+
+    HTTP.post("/checklist/#{enc(item_id)}/move", body)
+    |> out(o, fn r ->
+      IO.puts("moved item ##{item_id}; the checklist now reads:")
+
+      for i <- r["items"],
+          do: IO.puts("  [#{if i["done"], do: "x", else: " "}] ##{i["id"]} #{i["text"]}")
+    end)
+  end
+
+  def run("move-check", _, _),
+    do: fail("usage: slipdock move-check <item-id> [--before <item-id>]   (no --before: last)")
 
   # The text as words, or (for Markdown with line breaks) --body/--file, - for stdin.
   def run("comment", [id | words], o) when words != [] or o != [] do

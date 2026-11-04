@@ -53,7 +53,8 @@ included. They are taken from a demo workspace anybody can rebuild —
 Briefly, with the detail in [the manual](docs/manual.md):
 
 - **Boards, lists and cards** — drag and drop, priorities, five flags, due
-  dates, tags, checklists, comments with `@mentions` that email the person
+  dates, tags, checklists (dragged into a new order by their handle, or
+  `slipdock move-check`), comments with `@mentions` that email the person
   named, attachments (uploaded in the browser, or over the API and CLI —
   `slipdock attach 12 shot.png`, and back with `slipdock download 5`), image thumbnails on card fronts, recordings that
   play in place and transcribe on a transcription server of your own

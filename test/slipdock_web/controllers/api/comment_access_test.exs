@@ -77,6 +77,7 @@ defmodule SlipdockWeb.API.CommentAccessTest do
         {:post, "/api/cards/#{id}/timer", %{action: "start"}},
         {:post, "/api/cards/#{id}/checklist", %{text: "More"}},
         {:post, "/api/checklist/#{item.id}/toggle", %{}},
+        {:post, "/api/checklist/#{item.id}/move", %{}},
         {:delete, "/api/checklist/#{item.id}", %{}},
         {:post, "/api/cards/#{id}/urls", %{url: "https://example.com/x"}},
         {:delete, "/api/cards/#{id}/urls/#{url.id}", %{}},
