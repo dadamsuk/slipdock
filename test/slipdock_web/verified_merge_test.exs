@@ -242,7 +242,9 @@ defmodule SlipdockWeb.VerifiedMergeTest do
     # #1666: the reason is the job's own words, and a rebase is suggested
     # only for a conflict or a head that moved.
     test "a failure a rebase won't fix says the job's reason and no rebase", ctx do
-      said = "merge: gh is not signed in (run gh auth login)"
+      # A runner that can't merge here hands the merge on instead (#1754):
+      # this failure is the card's.
+      said = "merge: #{@pr} is CLOSED, not open; nothing merged"
       {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "2", output: "x\n#{said}\n"})
 
       card = Repo.get!(Card, ctx.merging.id)

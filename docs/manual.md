@@ -748,15 +748,23 @@ and says so on the board's line.
 card (the card's **Accept**, `slipdock verify 12 accept`, MCP
 `verify_card`, a verifier agent) doesn't complete it. The card shows
 **Accepted, merging**, stays in progress, and a `merge` job is queued for a
-runner, with nothing to set up: it goes to the pool of the runner that
-built the card when a runner there can merge, else to any pool on the board
-with one. When the merge succeeds the card completes, moves to Done and
+runner, with nothing to set up. It goes to a runner that can merge and is
+idle now (seen lately, holding no job), the pool of the runner that built
+the card first, so it doesn't wait for a pass to end. With none idle it
+goes to the runner that accepted the card, which is about to finish its
+verify job, else to the builder's pool, else to any pool on the board with
+a runner that merges. When the merge succeeds the card completes, moves to Done and
 shows the merge commit (`merge_sha`), and a deploy's commits name it as
 usual. When it fails the card goes back to the top of the ready list as
 rejected, the merge job's own reason as the rejection. Only a conflict or a
 head that moved suggests rebasing `card-<id>` and submitting it again; any
-other reason (`gh` signed out, another repository, a closed pull request, a
-failing check) says to fix what it says, since a rebase wouldn't help. If no runner can merge, nothing is queued and the card
+other reason (a closed pull request, a failing check) says to fix what it
+says, since a rebase wouldn't help. A runner that can't merge here at all
+(its repository isn't the pull request's, it has no `git` or `gh`, or `gh`
+is signed out) isn't the card's fault: the merge is handed on to another
+runner that merges, never to that one again, and the card says so
+(**Merge handed on**). After two hand-ons, or with no other runner, the card
+stays merging with nothing queued and says why (**Merge waiting**). If no runner can merge, nothing is queued and the card
 says so: update a runner's script, or merge the pull request yourself and
 press **Merged it myself** (`slipdock verify 12 merged [--evidence-commit
 SHA]`, `verify_card` `merged`; a person only).

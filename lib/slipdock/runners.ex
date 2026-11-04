@@ -66,6 +66,15 @@ defmodule Slipdock.Runners do
 
   def max_attempts, do: config()[:max_attempts] || 3
 
+  @doc """
+  Whether `runner` is idle: seen within three of its leases, and holding no
+  job now. A merge goes to an idle runner first (#1754).
+  """
+  def idle?(%Runner{current_job_id: nil, last_seen_at: %DateTime{} = seen} = runner),
+    do: DateTime.diff(DateTime.utc_now(), seen) <= 3 * lease_for(runner)
+
+  def idle?(%Runner{}), do: false
+
   ## PubSub -------------------------------------------------------------------
 
   @doc "Subscribes to `{:jobs_changed, card_id}` for every card on `board_id`."

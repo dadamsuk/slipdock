@@ -485,7 +485,10 @@ commit's pull request in their own repository (`MERGE=0` turns it off;
 runners installed now replace themselves with the server's newer script
 between jobs, on a matching checksum, so new kinds reach them):
 accepting a card there queues the merge, and the merge completes it (a
-failed merge sends it back rejected with the reason). The skills
+failed merge sends it back rejected with the reason). The merge goes to a
+runner that is idle now, else to the one that accepted the card, so it
+doesn't wait for a pass to end; a runner that can't merge in that
+repository hands it on rather than failing the card. The skills
 (`slipdock-loop`, `slipdock-work`) say what changes in a pass; see
 [the manual](manual.md#verified-work).
 
