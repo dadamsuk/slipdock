@@ -54,36 +54,32 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         </.link>
         <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
       </span>
+      <%!-- The board's code and switcher key are for the CLI and the
+            keyboard: they live in the name's tooltip and the ⋯ menu's Copy
+            board code, not as chips beside it (#1716). --%>
       <.link
         :if={@can_manage}
+        id="board-name"
         patch={@paths.settings}
         class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 hover:bg-base-200"
-        title={@board.description || "Board settings"}
+        title={board_handles_title(@board, @board.description || "Board settings")}
       >
         <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(@board.color)]}></span>
         <span class="truncate font-semibold">{@board.name}</span>
-        <span
-          :if={@board.code && is_nil(@board.parent_card_id)}
-          class="chip chip-line hidden shrink-0 font-mono text-2xs sm:inline-flex"
-          title="Board code"
-        >
-          {@board.code}
-        </span>
       </.link>
       <div
         :if={!@can_manage}
+        id="board-name"
         class="flex min-w-0 items-center gap-2 px-2 py-1"
-        title={"Shared with you (#{if @can_write, do: "can edit", else: "read only"})"}
+        title={
+          board_handles_title(
+            @board,
+            "Shared with you (#{if @can_write, do: "can edit", else: "read only"})"
+          )
+        }
       >
         <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(@board.color)]}></span>
         <span class="truncate font-semibold">{@board.name}</span>
-        <span
-          :if={@board.code && is_nil(@board.parent_card_id)}
-          class="chip chip-line hidden shrink-0 font-mono text-2xs sm:inline-flex"
-          title="Board code"
-        >
-          {@board.code}
-        </span>
         <span class="badge badge-ghost badge-xs">{if @can_write, do: "shared", else: "read only"}</span>
       </div>
       <span
@@ -178,6 +174,18 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <.icon name="hero-queue-list" class="size-4" />
         <span class="hidden sm:inline">Add cards…</span>
       </button>
+      <%!-- Sharing in view (#1716): the settings panel on its Sharing tab,
+            for whoever the ⋯ menu's Share this board is there for. A phone
+            has it in the navigation Menu. --%>
+      <.link
+        :if={@can_manage and !@view_only and !@card_only}
+        id="board-share-button"
+        patch={share_path(@paths.settings)}
+        class="btn btn-ghost btn-sm hidden gap-1.5 sm:inline-flex"
+        title="Share this board"
+      >
+        <.icon name="hero-user-plus" class="size-4" /> Share
+      </.link>
       <button
         :if={@ai? and !@card_only}
         type="button"
@@ -194,6 +202,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
             (board_menu/1), leaving the toolbar the room for the view's own. --%>
       <.board_more_menu
         :if={!@view_only and !@card_only}
+        code={@board.code}
         paths={@paths}
         can_manage={@can_manage}
         rules={@rules}
@@ -209,6 +218,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :rules, :list, required: true
   attr :meetings_path, :string, default: nil
   attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
+  attr :code, :string, default: nil, doc: "the board's code, for the menu's Copy board code"
 
   attr :navigate, :boolean,
     default: false,
@@ -227,6 +237,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       >
         <.board_menu_items
           share_id="board-share"
+          code={@code}
           paths={@paths}
           can_manage={@can_manage}
           rules={@rules}
@@ -247,6 +258,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :rules, :list, required: true
   attr :meetings_path, :string, default: nil
   attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
+  attr :code, :string, default: nil, doc: "the board's code, for the menu's Copy board code"
 
   attr :navigate, :boolean,
     default: false,
@@ -267,6 +279,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     <.board_menu_items
       :if={!@view_only and !@card_only}
       share_id="board-share-menu"
+      code={@code}
       paths={@paths}
       can_manage={@can_manage}
       rules={@rules}
@@ -278,6 +291,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   end
 
   attr :share_id, :string, required: true
+  attr :code, :string, default: nil
   attr :paths, :map, required: true
   attr :can_manage, :boolean, required: true
   attr :rules, :list, required: true
@@ -297,6 +311,20 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       <.menu_link id={@share_id} to={@paths.settings} navigate={@navigate}>
         <.icon name="hero-user-plus" class="size-4" /> Share this board
       </.menu_link>
+    </li>
+    <%!-- The code the CLI and `[[links]]` take, copied by the CopyText
+          hook from the span beside the label (#1716). --%>
+    <li :if={@code}>
+      <button
+        type="button"
+        id={@share_id <> "-copy-code"}
+        phx-hook="CopyText"
+        data-target={@share_id <> "-code"}
+      >
+        <.icon name="hero-clipboard" class="size-4" />
+        <span data-label>Copy board code</span>
+        <span id={@share_id <> "-code"} class="ml-auto font-mono text-2xs text-base-content/60">{@code}</span>
+      </button>
     </li>
     <%!-- Meeting mode on, but this board has had no capture yet: one way in,
           rather than a tab with nothing behind it (see `Slipdock.Meetings`). --%>
@@ -348,6 +376,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       </.menu_link>
     </li>
     """
+  end
+
+  # The settings panel's URL, opening on its Sharing tab.
+  defp share_path(settings) do
+    uri = URI.parse(settings)
+    query = (uri.query || "") |> URI.decode_query() |> Map.put("tab", "sharing")
+    URI.to_string(%{uri | query: URI.encode_query(query)})
   end
 
   attr :to, :string, required: true

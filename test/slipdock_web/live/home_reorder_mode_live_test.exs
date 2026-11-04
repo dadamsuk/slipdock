@@ -34,7 +34,6 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
     assert has_element?(view, "#reorder-boards[aria-pressed=false]", "Reorder")
     assert has_element?(view, "#boards[data-handle='.board-handle']")
     refute has_element?(view, "#reorder-hint")
-    assert has_element?(view, "#new-board-tile")
 
     view |> element("#reorder-boards") |> render_click()
 
@@ -45,7 +44,6 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
     assert has_element?(view, "#boards[data-reordering=true][data-disabled=false]")
     # The tiles' links and menus can't be pressed while the mode is on.
     assert has_element?(view, "#boards[class*='pointer-events-none']")
-    refute has_element?(view, "#new-board-tile")
 
     for id <- [ctx.alpha.id, ctx.zulu.id, "multiboard-#{ctx.mb.id}"] do
       assert to_string(id) in tiles(view)
@@ -58,7 +56,6 @@ defmodule SlipdockWeb.HomeReorderModeLiveTest do
     assert has_element?(view, "#boards[data-handle='.board-handle']")
     refute has_element?(view, "#boards[data-reordering]")
     refute has_element?(view, "#boards[class*='pointer-events-none']")
-    assert has_element?(view, "#new-board-tile")
   end
 
   test "the header button toggles it off too, and Escape leaves it", %{conn: conn} do

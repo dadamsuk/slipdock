@@ -2414,4 +2414,23 @@ defmodule SlipdockWeb.SlipdockComponents do
       {h, m} -> "#{h}h #{m}m"
     end
   end
+
+  @doc """
+  A board's handles as a tooltip (#1716): its code (for the CLI and
+  `[[links]]`), its switcher key (b, then it) and the reader's own
+  Ctrl+Shift digit, after an optional first line (the description, say).
+  The board name carries this as its `title` rather than drawing the
+  handles as chips beside it. One line each: "Code: kbe2e",
+  "Switcher: b then k".
+  """
+  def board_handles_title(board, lead \\ nil, hotkey \\ nil) do
+    [
+      lead,
+      Map.get(board, :code) && "Code: #{board.code}",
+      Map.get(board, :shortcut) && "Switcher: b then #{board.shortcut}",
+      hotkey && "Ctrl+Shift+#{hotkey} opens it from any page"
+    ]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join("\n")
+  end
 end

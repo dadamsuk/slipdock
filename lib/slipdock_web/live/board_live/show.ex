@@ -1172,6 +1172,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       </:subnav>
       <:menu :if={!@card_only and (@ai? or !@view_only)}>
         <.board_menu
+          code={@board.code}
           paths={@paths}
           can_manage={@can_manage}
           card_only={@card_only}

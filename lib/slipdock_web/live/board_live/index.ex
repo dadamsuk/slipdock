@@ -715,18 +715,32 @@ defmodule SlipdockWeb.BoardLive.Index do
               Create your first board to get started.
             </p>
             <div class="mt-6 flex justify-center gap-2">
-              <button class="btn btn-primary" phx-click="start_create">
-                <.icon name="hero-plus" class="size-4" /> New board
+              <button
+                id="new-board-tile"
+                type="button"
+                class="btn btn-primary"
+                phx-click="start_create"
+              >
+                <.icon name="hero-plus" class="size-4" /> Add a new board
               </button>
             </div>
           </div>
 
-          <p
+          <div
             :if={@tiles == [] and @archived != []}
             class="rounded-2xl border-2 border-dashed border-base-content/15 p-10 text-center text-sm text-base-content/60"
           >
-            Every board you can see is archived. Open Archived below to bring one back.
-          </p>
+            <p>Every board you can see is archived. Open Archived below to bring one back.</p>
+            <button
+              :if={!@creating}
+              id="new-board-tile"
+              type="button"
+              class="btn btn-primary btn-sm mt-4"
+              phx-click="start_create"
+            >
+              <.icon name="hero-plus" class="size-4" /> Add a new board
+            </button>
+          </div>
 
           <div
             :if={@reordering and @tiles != []}
@@ -753,7 +767,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             current_user={@current_user}
             sort={@sort}
             reordering={@reordering}
-            add_tile={!@creating and !@reordering}
+            add_tile={!@creating and !@reordering and not Enum.any?(@tiles, &match?(%Board{}, &1))}
           />
           <.board_table
             :if={@board_layout == "compact" and @tiles != []}
@@ -850,7 +864,8 @@ defmodule SlipdockWeb.BoardLive.Index do
   # opens or clicks.
   attr :reordering, :boolean, default: false
   # A board-sized "+ Add a new board" tile after the last one, which opens the
-  # same form as the New board button.
+  # same form as the New board button: only while there are no boards (just
+  # multiboards), as it would otherwise repeat that button (#1716).
   attr :add_tile, :boolean, default: false
 
   defp board_grid(assigns) do
@@ -931,24 +946,33 @@ defmodule SlipdockWeb.BoardLive.Index do
       ]}
     >
       <.link navigate={SlipdockWeb.SwimlaneComponents.board_home_path(@board)} class="block">
-        <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(@board.color)]}></div>
+        <div
+          data-role="tile-band"
+          class={["h-1.5 bg-gradient-to-br", Palette.gradient(@board.color)]}
+        >
+        </div>
         <div class="p-3.5 sm:p-4">
-          <h2 class="flex items-center gap-2 truncate section-title">
-            <span class="truncate">{@board.name}</span>
-            <span
-              :if={@board.code}
-              class="chip chip-line shrink-0 font-mono text-2xs font-normal"
-              title="Board code"
-            >
-              {@board.code}
+          <h2 class="flex items-center gap-2 truncate pr-20 section-title">
+            <span class="truncate" title={board_handles_title(@board, @board.name, @hotkey)}>
+              {@board.name}
             </span>
-            <.board_keys board={@board} hotkey={@hotkey} />
             <span
               :if={@board.owner_id != @current_user.id}
               class="badge badge-ghost badge-xs max-w-40 shrink-0"
               title={"Owned by #{owner_name(@board)}"}
             >
               <span class="truncate">shared by {owner_name(@board)}</span>
+            </span>
+            <%!-- The code and keys are for the CLI and the keyboard: shown on
+                  hover or focus, not drawn as chips on every tile (#1716). --%>
+            <span
+              data-role="tile-handles"
+              class="hidden shrink-0 items-center gap-1 font-normal group-focus-within:inline-flex group-hover:inline-flex"
+            >
+              <span :if={@board.code} class="font-mono text-2xs text-base-content/60">
+                {@board.code}
+              </span>
+              <.board_keys board={@board} hotkey={@hotkey} />
             </span>
           </h2>
           <p class="mt-0.5 line-clamp-2 text-sm text-base-content/60 sm:min-h-[1.25rem]">
@@ -974,7 +998,7 @@ defmodule SlipdockWeb.BoardLive.Index do
           ></progress>
         </div>
       </.link>
-      <div class="absolute left-2 top-2 flex items-center gap-1">
+      <div class="absolute right-11 top-3 flex items-center gap-1 sm:top-3.5">
         <span
           :if={!@archived and @sort == "manual"}
           class="board-handle btn btn-circle btn-ghost btn-sm cursor-grab bg-base-100/70 opacity-0 backdrop-blur transition group-hover:opacity-100 no-hover:opacity-100"
@@ -990,7 +1014,7 @@ defmodule SlipdockWeb.BoardLive.Index do
         sort={@sort}
         boards={@boards}
         archived={@archived}
-        class="dropdown dropdown-end absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
+        class="dropdown dropdown-end absolute right-2 top-3 opacity-0 sm:top-3.5 transition group-hover:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
         button_class="btn btn-circle btn-ghost btn-sm bg-base-100/70 backdrop-blur"
       />
     </div>
@@ -1015,6 +1039,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             <th :if={!@archived and @sort == "manual"} class="w-8"></th>
             <th>Board</th>
             <th class="hidden md:table-cell">Description</th>
+            <th class="hidden lg:table-cell">Code</th>
             <th class="w-16 text-right">Lists</th>
             <th class="w-16 text-right">Cards</th>
             <th class="w-32">Done</th>
@@ -1057,16 +1082,11 @@ defmodule SlipdockWeb.BoardLive.Index do
                   class="flex items-center gap-2"
                 >
                   <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(board.color)]}></span>
-                  <span class="max-w-56 truncate font-medium">{board.name}</span>
                   <span
-                    :if={board.code}
-                    class="chip chip-line shrink-0 font-mono text-2xs font-normal"
-                    title="Board code"
+                    class="max-w-56 truncate font-medium"
+                    title={board_handles_title(board, board.name, @hotkeys[board.id])}
                   >
-                    {board.code}
-                  </span>
-                  <span class="hidden shrink-0 items-center gap-1 lg:inline-flex">
-                    <.board_keys board={board} hotkey={@hotkeys[board.id]} />
+                    {board.name}
                   </span>
                   <span
                     :if={board.owner_id != @current_user.id}
@@ -1080,6 +1100,15 @@ defmodule SlipdockWeb.BoardLive.Index do
               </td>
               <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">
                 {board.description}
+              </td>
+              <%!-- The list layout's own column for the handles (#1716). --%>
+              <td data-role="board-handles" class="hidden whitespace-nowrap lg:table-cell">
+                <span class="inline-flex items-center gap-1">
+                  <span :if={board.code} class="font-mono text-xs text-base-content/60">
+                    {board.code}
+                  </span>
+                  <.board_keys board={board} hotkey={@hotkeys[board.id]} />
+                </span>
               </td>
               <td class="text-right tabular-nums text-base-content/60">{length(board.columns)}</td>
               <td class="text-right tabular-nums text-base-content/60">{length(board.cards)}</td>
@@ -1165,7 +1194,10 @@ defmodule SlipdockWeb.BoardLive.Index do
       )
 
     ~H"""
-    <div :if={@owner? or @shared? or (@sort == "manual" and not @archived)} class={@class}>
+    <div
+      :if={@owner? or @shared? or not is_nil(@board.code) or (@sort == "manual" and not @archived)}
+      class={@class}
+    >
       <div tabindex="0" role="button" class={@button_class} title="More">
         <.icon name="hero-ellipsis-horizontal" class="size-4" />
       </div>
@@ -1181,6 +1213,23 @@ defmodule SlipdockWeb.BoardLive.Index do
         <li :if={@sort == "manual" and not @archived and not @last?}>
           <button phx-click="nudge" phx-value-id={@board.id} phx-value-dir="down">
             <.icon name="hero-arrow-down" class="size-4" /> Move down
+          </button>
+        </li>
+        <li :if={@board.code}>
+          <button
+            type="button"
+            id={"copy-code-#{@board.id}"}
+            phx-hook="CopyText"
+            data-target={"board-code-#{@board.id}"}
+          >
+            <.icon name="hero-clipboard" class="size-4" />
+            <span data-label>Copy board code</span>
+            <span
+              id={"board-code-#{@board.id}"}
+              class="ml-auto font-mono text-2xs text-base-content/60"
+            >
+              {@board.code}
+            </span>
           </button>
         </li>
         <li :if={@shared?}>
@@ -1229,9 +1278,10 @@ defmodule SlipdockWeb.BoardLive.Index do
     ~H"""
     <div id={"multiboard-#{@mb.id}"} data-id={tile_key(@mb)} class={@tile_class}>
       <.link id={"multiboard-tile-#{@mb.id}"} navigate={~p"/multiboard/#{@mb.id}"} class="block">
-        <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(@mb.color)]}></div>
+        <div data-role="tile-band" class={["h-1.5 bg-gradient-to-br", Palette.gradient(@mb.color)]}>
+        </div>
         <div class="p-3.5 sm:p-4">
-          <h2 class="flex items-center gap-2 truncate section-title">
+          <h2 class="flex items-center gap-2 truncate pr-20 section-title">
             <.icon name="hero-squares-2x2" class="size-4 shrink-0 text-base-content/50" />
             <span class="truncate">{@mb.name}</span>
             <span class="chip chip-line shrink-0 text-2xs font-normal">multiboard</span>
@@ -1254,7 +1304,7 @@ defmodule SlipdockWeb.BoardLive.Index do
           </div>
         </div>
       </.link>
-      <div class="absolute left-2 top-2 flex items-center gap-1">
+      <div class="absolute right-11 top-3 flex items-center gap-1 sm:top-3.5">
         <span
           :if={@sort == "manual"}
           class="board-handle btn btn-circle btn-ghost btn-sm cursor-grab bg-base-100/70 opacity-0 backdrop-blur transition group-hover:opacity-100 no-hover:opacity-100"
@@ -1267,7 +1317,7 @@ defmodule SlipdockWeb.BoardLive.Index do
         multiboard={@mb}
         sort={@sort}
         tiles={@tiles}
-        class="dropdown dropdown-end absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
+        class="dropdown dropdown-end absolute right-2 top-3 opacity-0 sm:top-3.5 transition group-hover:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
         button_class="btn btn-circle btn-ghost btn-sm bg-base-100/70 backdrop-blur"
       />
     </div>
