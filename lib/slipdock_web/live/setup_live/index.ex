@@ -442,11 +442,11 @@ defmodule SlipdockWeb.SetupLive.Index do
           These settings cannot be saved until one arrives. A mail server that does not
           work is how you lock yourself out of your own server for good.
         </p>
-        <div class="mt-3 flex items-end gap-2">
+        <div class="mt-3 field-row gap-2">
           <div class="flex-1">
             <.input field={@form[:test_to]} type="email" label="To" placeholder="you@example.com" />
           </div>
-          <button type="submit" name="step_action" value="test" class="btn btn-outline mb-1">
+          <button type="submit" name="step_action" value="test" class="btn btn-secondary btn-sm">
             Send test
           </button>
         </div>

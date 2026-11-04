@@ -632,7 +632,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             type="button"
             id="list-models"
             phx-click="list-models"
-            class="btn btn-outline btn-sm"
+            class="btn btn-sm"
             disabled={@listing_models?}
           >
             {if @model_list, do: "Refresh model list", else: "List models"}
@@ -1189,7 +1189,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
           </span>
         </label>
 
-        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
       </.form>
 
       <div class="mt-6 border-t border-base-content/10 pt-6">
@@ -1228,7 +1228,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             Writing the terms themselves is your job, not Slipdock's. One thing they should
             say: card and page text is sent to OpenRouter when anybody uses the AI features.
           </p>
-          <button type="submit" class="btn btn-outline btn-sm">Save</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </.form>
       </div>
 
@@ -1282,7 +1282,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               </span>
             </span>
           </label>
-          <button type="submit" class="btn btn-outline btn-sm">Save</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </.form>
       </div>
 
@@ -1319,7 +1319,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             Only admins are offered: anyone else could point their account at a server of their
             own and receive every card. Searches and indexing are billed to that person's key.
           </p>
-          <button type="submit" class="btn btn-outline btn-sm">Save</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </.form>
       </div>
 
@@ -1359,7 +1359,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               placeholder="you@example.com or example.com"
             />
           </div>
-          <button type="submit" class="btn btn-outline">Add</button>
+          <button type="submit" class="btn btn-primary btn-sm">Add</button>
         </.form>
       </div>
     </section>
@@ -1443,7 +1443,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
           <button type="submit" name="step_action" value="save" class="btn btn-primary btn-sm">
             Save
           </button>
-          <button type="submit" name="step_action" value="test" class="btn btn-outline btn-sm">
+          <button type="submit" name="step_action" value="test" class="btn btn-secondary btn-sm">
             Test connection
           </button>
         </div>
@@ -1521,7 +1521,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
             Changes cannot be saved until one arrives. A mail server that does not work is how
             everybody gets locked out of this server for good.
           </p>
-          <div class="mt-3 flex items-end gap-2">
+          <div class="mt-3 field-row gap-2">
             <div class="flex-1">
               <.input
                 field={@mail_form[:test_to]}
@@ -1529,7 +1529,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
                 label="To"
               />
             </div>
-            <button type="submit" name="step_action" value="test" class="btn btn-outline mb-1">
+            <button type="submit" name="step_action" value="test" class="btn btn-secondary btn-sm">
               Send test
             </button>
           </div>
@@ -1542,7 +1542,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
           </p>
         </div>
 
-        <button type="submit" name="step_action" value="save" class="btn btn-primary">Save</button>
+        <button type="submit" name="step_action" value="save" class="btn btn-primary btn-sm">Save</button>
       </.form>
 
       <div class="mt-6 border-t border-base-content/10 pt-6">
@@ -1578,19 +1578,19 @@ defmodule SlipdockWeb.ConfigLive.Index do
           for={@form}
           id="admin-email-form"
           phx-submit="change-admin-email"
-          class="mt-3 flex gap-2"
+          class="mt-3 field-row gap-2"
         >
           <div class="flex-1">
             <.input field={@form[:admin_email]} type="email" placeholder="new@example.com" />
           </div>
-          <button type="submit" class="btn btn-outline">Send a code</button>
+          <button type="submit" class="btn btn-secondary btn-sm">Send a code</button>
         </.form>
 
         <.form
           for={to_form(%{}, as: :confirm)}
           id="admin-email-confirm"
           phx-submit="confirm-admin-email"
-          class="mt-2 flex gap-2"
+          class="mt-2 field-row gap-2"
         >
           <div class="flex-1">
             <.input
@@ -1599,7 +1599,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               placeholder="Code from the new address"
             />
           </div>
-          <button type="submit" class="btn btn-ghost">Confirm</button>
+          <button type="submit" class="btn btn-primary btn-sm">Confirm</button>
         </.form>
       </div>
     </section>

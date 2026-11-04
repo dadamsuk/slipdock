@@ -981,7 +981,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
               </a>
               <button
                 type="button"
-                class="btn btn-ghost btn-xs text-error"
+                class="btn btn-ghost btn-error btn-xs"
                 phx-click="swim_unpublish_view"
                 data-confirm="Withdraw the public link? Anyone using it will lose access."
               >
@@ -1020,7 +1020,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             </button>
             <button
               type="button"
-              class="btn btn-ghost btn-xs text-error"
+              class="btn btn-ghost btn-error btn-xs"
               phx-click="swim_delete_view"
               data-confirm={"Delete view “#{@view.name}”?"}
             >

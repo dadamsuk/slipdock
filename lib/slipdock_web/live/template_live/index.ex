@@ -318,7 +318,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
                 </select>
                 <button
                   type="button"
-                  class="btn btn-ghost btn-xs btn-square text-error"
+                  class="btn btn-ghost btn-error btn-xs btn-square"
                   phx-click="remove_column"
                   phx-value-index={i}
                   title="Remove list"
@@ -334,7 +334,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
               <button
                 :if={@editing.template.id}
                 type="button"
-                class="btn btn-ghost btn-sm text-error"
+                class="btn btn-ghost btn-error btn-sm"
                 phx-click="delete"
                 phx-value-id={@editing.template.id}
                 data-confirm="Delete this template? Boards already created from it are not affected."

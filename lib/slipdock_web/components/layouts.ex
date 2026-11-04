@@ -1659,7 +1659,7 @@ defmodule SlipdockWeb.Layouts do
           <button
             type="submit"
             value="remove"
-            class="btn btn-ghost btn-sm mr-auto text-error"
+            class="btn btn-ghost btn-error btn-sm mr-auto"
             data-meld-remove
             hidden
           >

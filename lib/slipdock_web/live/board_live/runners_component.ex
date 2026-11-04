@@ -587,7 +587,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             <button
               phx-target={@myself}
               type="button"
-              class="btn btn-ghost btn-xs btn-square text-error"
+              class="btn btn-ghost btn-error btn-xs btn-square"
               phx-click="revoke_runner"
               phx-value-id={runner.id}
               data-confirm={"Revoke “#{runner.name}”? Its token stops working at once."}

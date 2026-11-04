@@ -357,7 +357,7 @@ defmodule SlipdockWeb.UsersLive.Index do
         take with it before it does anything.
       </p>
 
-      <form id="add-user" phx-submit="add-user" class="mt-4 flex items-end gap-2">
+      <form id="add-user" phx-submit="add-user" class="mt-4 field-row gap-2">
         <div class="max-w-sm flex-1">
           <.input
             name="email"
@@ -368,7 +368,7 @@ defmodule SlipdockWeb.UsersLive.Index do
             autocomplete="off"
           />
         </div>
-        <button type="submit" class="btn btn-primary btn-sm mb-1">Add</button>
+        <button type="submit" class="btn btn-primary btn-sm">Add</button>
       </form>
 
       <div :if={@support != []} class="mt-4 rounded-xl bg-warning/10 p-4">
@@ -426,7 +426,7 @@ defmodule SlipdockWeb.UsersLive.Index do
           </li>
         </ul>
 
-        <form phx-submit="delete" class="mt-3 flex items-end gap-2">
+        <form phx-submit="delete" class="mt-3 field-row gap-2">
           <input type="hidden" name="user_id" value={@deleting.id} />
           <div class="flex-1">
             <.input
@@ -437,8 +437,8 @@ defmodule SlipdockWeb.UsersLive.Index do
               autocomplete="off"
             />
           </div>
-          <button type="submit" class="btn btn-error mb-1">Close the account</button>
-          <button type="button" phx-click="cancel-delete" class="btn btn-ghost mb-1">Cancel</button>
+          <button type="submit" class="btn btn-error btn-sm">Close the account</button>
+          <button type="button" phx-click="cancel-delete" class="btn btn-ghost btn-sm">Cancel</button>
         </form>
       </div>
 
@@ -636,7 +636,8 @@ defmodule SlipdockWeb.UsersLive.Index do
                     :if={!user.disabled_at}
                     phx-click="disable"
                     phx-value-id={user.id}
-                    class="btn btn-outline btn-error btn-xs"
+                    class="btn btn-ghost btn-error btn-xs"
+                    data-confirm={"Disable #{user.email}? They can't sign in until you enable them again."}
                   >
                     Disable
                   </button>
@@ -644,7 +645,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     :if={user.disabled_at}
                     phx-click="enable"
                     phx-value-id={user.id}
-                    class="btn btn-outline btn-xs"
+                    class="btn btn-xs"
                   >
                     Enable
                   </button>
@@ -652,7 +653,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     :if={user.id != @current_user.id}
                     phx-click="confirm-delete"
                     phx-value-user_id={user.id}
-                    class="btn btn-outline btn-error btn-xs"
+                    class="btn btn-ghost btn-error btn-xs"
                     title="Remove them and their data. Prefer Disable."
                   >
                     Close
@@ -671,7 +672,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     class="input input-xs w-36"
                     title="Read their boards for a few hours. They are told, with this reason."
                   />
-                  <button type="submit" class="btn btn-outline btn-xs">Support</button>
+                  <button type="submit" class="btn btn-xs">Support</button>
                 </form>
               </td>
             </tr>

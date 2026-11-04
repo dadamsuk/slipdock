@@ -154,7 +154,7 @@ defmodule SlipdockWeb.AccountLive.TokensComponent do
             </span>
             <button
               type="button"
-              class="btn btn-ghost btn-xs text-error"
+              class="btn btn-ghost btn-error btn-xs"
               phx-click="delete_token"
               phx-target={@myself}
               phx-value-id={t.id}

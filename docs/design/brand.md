@@ -11,14 +11,18 @@ primary, Sora page titles, JetBrains Mono*). The side-by-side comparison is
 |---|---|---|
 | base-100 (cards, panels) | `#FFFFFF` | `#16304A` |
 | base-200 (page ground) | Page `#F3F6F7` | Harbor ink `#10263A` |
-| base-300 (wells, borders) | `#E2EAED` | a step lighter than base-100 |
+| base-300 (wells, borders) | `#E2EAED` | `#0A1B2A`, a step below the ground |
 | base-content (text) | Harbor ink `#10263A` | Mist `#EAF1F3` |
 | primary | `#1A6E7C` (Slip teal, a step darker) | `#5FB3C1` (Slip teal light) |
-| primary-content | white | Harbor ink |
+| primary-content | white | ink `#0B1D2C` |
 | accent | Buoy orange `#F26A3A`: the one moving card only | the same |
 
 - Muted text is base-content at `/65` in light; `/60` on white is 4.21:1.
-- Primary buttons are solid: primary fill, primary-content label.
+- Buttons (#1703): `btn-primary` is solid (primary fill, primary-content
+  label), one per form; `btn-secondary` the soft teal tint; plain `btn` a
+  hairline on base-100 for Cancel and Back; `btn-ghost` tertiary;
+  `btn-ghost btn-error` destructive, behind `data-confirm`. `btn-outline` is
+  not used.
 - Orange is never a button fill with white text (3.2:1).
 
 ## Type

@@ -261,11 +261,11 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
               </button>
             </li>
           </ul>
-          <div class="flex items-end gap-2">
+          <div class="field-row gap-2">
             <div class="flex-1">
               <.input field={@snoozing.form[:date]} type="date" label="Or until" />
             </div>
-            <button type="submit" id="snooze-save" class="btn btn-primary btn-sm mb-0.5">
+            <button type="submit" id="snooze-save" class="btn btn-primary btn-sm">
               Snooze
             </button>
           </div>

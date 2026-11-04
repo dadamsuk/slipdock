@@ -155,7 +155,7 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
             type="button"
             phx-click="pick_all_boards"
             phx-target={@myself}
-            class={["btn btn-xs", (@picked_boards == [] && "btn-primary") || "btn-outline"]}
+            class={["btn btn-xs", @picked_boards == [] && "btn-secondary"]}
           >
             All of them
           </button>
@@ -167,7 +167,7 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
             phx-value-id={board.id}
             class={[
               "btn btn-xs",
-              (board.id in @picked_boards && "btn-primary") || "btn-outline"
+              board.id in @picked_boards && "btn-secondary"
             ]}
           >
             {board.name}

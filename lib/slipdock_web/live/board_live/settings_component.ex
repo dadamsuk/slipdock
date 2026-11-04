@@ -1097,7 +1097,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 <button
                   phx-target={@target}
                   type="button"
-                  class="btn btn-ghost btn-xs btn-square text-error"
+                  class="btn btn-ghost btn-error btn-xs btn-square"
                   phx-click="delete_field"
                   phx-value-id={f.id}
                   data-confirm={"Delete the field “#{f.name}” and every value of it?"}
@@ -1179,7 +1179,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 <button
                   phx-target={@target}
                   type="button"
-                  class="btn btn-ghost btn-xs btn-square text-error"
+                  class="btn btn-ghost btn-error btn-xs btn-square"
                   phx-click="delete_milestone"
                   phx-value-id={m.id}
                   data-confirm={"Remove milestone “#{m.name}”?"}
@@ -1307,7 +1307,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
             <button
               phx-target={@target}
               type="button"
-              class="btn btn-ghost btn-sm text-error"
+              class="btn btn-ghost btn-error btn-sm"
               phx-click="delete_board"
               data-confirm={"Delete “#{@board.name}” and everything on it? This cannot be undone."}
             >

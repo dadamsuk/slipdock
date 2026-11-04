@@ -330,7 +330,7 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
                 <button
                   type="button"
                   data-replay="1"
-                  class="btn btn-outline btn-xs"
+                  class="btn btn-xs"
                   id="replay-normal"
                 >
                   <.icon name="hero-play" class="size-3.5" /> Replay
@@ -338,7 +338,7 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
                 <button
                   type="button"
                   data-replay="0.75"
-                  class="btn btn-outline btn-xs"
+                  class="btn btn-xs"
                   id="replay-slow"
                 >
                   At 0.75×
@@ -443,7 +443,7 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
                 phx-click="answer"
                 phx-value-value={o["value"]}
                 value={o["value"]}
-                class="btn btn-outline btn-block justify-start text-left normal-case"
+                class="btn btn-block justify-start text-left normal-case"
               >
                 <kbd :if={i <= 4} class="mr-2 font-mono text-2xs opacity-60">{i}</kbd>
                 <span class="flex-1">{o["label"]}</span>

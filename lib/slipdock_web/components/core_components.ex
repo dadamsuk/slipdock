@@ -98,19 +98,32 @@ defmodule SlipdockWeb.CoreComponents do
   @doc """
   Renders a button with navigation support.
 
+  `variant` picks its weight in the button hierarchy (#1703): `primary`
+  (solid, one per form), `secondary` (the soft tint), `ghost` (tertiary) or
+  `danger` (error-coloured ghost, behind `data-confirm`). With none it is
+  the neutral surface with a hairline, for Cancel and Back.
+
   ## Examples
 
-      <.button>Send!</.button>
+      <.button>Cancel</.button>
       <.button phx-click="go" variant="primary">Send!</.button>
+      <.button phx-click="delete" variant="danger" data-confirm="Delete it?">Delete</.button>
       <.button navigate={~p"/"}>Home</.button>
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
   attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :variant, :string, values: ~w(primary secondary ghost danger)
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    # The hierarchy in app.css's Buttons block (#1703).
+    variants = %{
+      "primary" => "btn-primary",
+      "secondary" => "btn-secondary",
+      "ghost" => "btn-ghost",
+      "danger" => "btn-ghost btn-error",
+      nil => nil
+    }
 
     assigns =
       assign_new(assigns, :class, fn ->

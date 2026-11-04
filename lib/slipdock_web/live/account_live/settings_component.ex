@@ -483,9 +483,10 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
             </button>
             <button
               type="button"
-              class="btn btn-ghost btn-xs text-error"
+              class="btn btn-ghost btn-error btn-xs"
               phx-click="remove_header_link"
               phx-value-id={link.id}
+              data-confirm={"Take #{link.name} off the header?"}
               phx-target={@myself}
             >
               Remove
@@ -649,7 +650,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
             <button
               :if={@ai_key}
               type="button"
-              class="btn btn-ghost btn-xs text-error"
+              class="btn btn-ghost btn-error btn-xs"
               phx-click="remove_ai_key"
               phx-target={@myself}
               data-confirm="Remove your stored API key?"

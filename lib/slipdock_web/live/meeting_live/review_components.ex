@@ -247,7 +247,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
           type="button"
           phx-click="undo"
           data-confirm="Undo everything this capture wrote?"
-          class="btn btn-outline btn-sm"
+          class="btn btn-sm"
         >
           <.icon name="hero-arrow-uturn-left" class="size-4" /> Undo all
         </button>
@@ -460,7 +460,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
           phx-click="include"
           phx-value-id={@finding.id}
           phx-value-included="true"
-          class="btn btn-outline btn-xs"
+          class="btn btn-xs"
         >
           Include
         </button>
@@ -558,7 +558,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
           phx-value-question={@question.id}
           phx-value-value={option["value"]}
           value={option["value"]}
-          class="btn btn-outline btn-xs"
+          class="btn btn-xs"
           title={option["effect"]}
         >
           <kbd :if={i <= 4} class="mr-1 font-mono text-2xs opacity-60">{i}</kbd>{option["label"]}

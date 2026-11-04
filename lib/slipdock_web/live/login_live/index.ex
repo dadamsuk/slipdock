@@ -254,7 +254,7 @@ defmodule SlipdockWeb.LoginLive.Index do
           label="Who are you? (optional)"
           placeholder="Design, starting Monday"
         />
-        <button type="submit" class="btn btn-outline w-full">Ask for an account</button>
+        <button type="submit" class="btn w-full">Ask for an account</button>
       </.form>
     </div>
     """
@@ -302,7 +302,7 @@ defmodule SlipdockWeb.LoginLive.Index do
               <button type="submit" class="btn btn-primary w-full">Sign in with the code</button>
             </.form>
 
-            <a :if={@dev_mailbox} href="/dev/mailbox" class="btn btn-outline btn-sm w-full">
+            <a :if={@dev_mailbox} href="/dev/mailbox" class="btn btn-sm w-full">
               <.icon name="hero-envelope-open" class="size-4" /> Open the local mailbox
             </a>
             <button type="button" class="btn btn-ghost btn-sm w-full" phx-click="again">Use a different email</button>
@@ -348,7 +348,7 @@ defmodule SlipdockWeb.LoginLive.Index do
               name="login[mode]"
               value="agentic"
               id="agentic-login"
-              class="btn btn-outline btn-sm w-full"
+              class="btn btn-sm w-full"
               title="Write the sign-in link to a file on the server instead of emailing it"
             >
               <.icon name="hero-cpu-chip" class="size-4" /> Agentic Login
@@ -366,7 +366,7 @@ defmodule SlipdockWeb.LoginLive.Index do
                 type="button"
                 id="passkey-login-button"
                 data-passkey-start
-                class="btn btn-outline w-full"
+                class="btn w-full"
               >
                 <.icon name="hero-finger-print" class="size-4" /> Sign in with a passkey
               </button>

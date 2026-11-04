@@ -94,6 +94,32 @@ defmodule SlipdockWeb.DesignTokensTest do
       end
     end
 
+    test "the secondary button's teal words read on its tint (#1703)" do
+      [_, pct] =
+        Regex.run(
+          ~r/\.btn-secondary \{\s*--btn-color: color-mix\(in oklab, var\(--color-primary\) (\d+)%/,
+          @css
+        ) ||
+          flunk("no btn-secondary tint in app.css")
+
+      share = String.to_integer(pct) / 100
+
+      [_, darken] =
+        Regex.run(
+          ~r/\.btn-secondary:hover \{\s*--btn-bg: color-mix\(in oklab, var\(--btn-color\), #000 (\d+)%\)/,
+          @css
+        ) || flunk("no btn-secondary hover in app.css")
+
+      hover = String.to_integer(darken) / 100
+
+      for {name, tokens} <- [{"light", theme("light")}, {"dark", theme("dark")}] do
+        tint = mix(tokens["primary"], tokens["base-100"], share)
+        assert_reads(tokens["primary"], tint, "#{name} secondary label")
+        # Hovered, the fill darkens a little (app.css's .btn-secondary:hover).
+        assert_reads(tokens["primary"], mix("#000000", tint, hover), "#{name} secondary, hovered")
+      end
+    end
+
     test "muted text reads on the phone's dark ramp too" do
       dark = theme("dark")
 

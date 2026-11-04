@@ -188,7 +188,7 @@ defmodule SlipdockWeb.WorkLive.Index do
                   <button
                     :for={{choice, n} <- Enum.with_index(item.wait.choices, 1)}
                     type="button"
-                    class="btn btn-outline btn-xs"
+                    class="btn btn-xs"
                     phx-click="answer_wait"
                     phx-value-card={item.card.id}
                     phx-value-choice={n}

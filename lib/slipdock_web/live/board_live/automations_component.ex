@@ -678,7 +678,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
                   <button
                     phx-target={@target}
                     type="button"
-                    class="btn btn-ghost btn-xs btn-square text-error"
+                    class="btn btn-ghost btn-error btn-xs btn-square"
                     phx-click="delete_rule"
                     phx-value-id={rule.id}
                     data-confirm={"Delete the rule “#{rule.name}”?"}

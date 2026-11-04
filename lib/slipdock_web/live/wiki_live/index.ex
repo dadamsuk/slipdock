@@ -6680,7 +6680,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           type="button"
           phx-click="delete_page"
           data-confirm={delete_warning(@page, @children)}
-          class="btn btn-ghost btn-xs text-error"
+          class="btn btn-ghost btn-error btn-xs"
         >
           Delete for good
         </button>

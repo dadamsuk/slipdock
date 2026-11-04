@@ -142,7 +142,7 @@ defmodule SlipdockWeb.GroupLive.Index do
               <button
                 :if={mine}
                 type="button"
-                class="btn btn-ghost btn-sm text-error"
+                class="btn btn-ghost btn-error btn-sm"
                 phx-click="delete"
                 phx-value-id={group.id}
                 data-confirm={"Delete group “#{group.name}”? Anything shared with it will no longer be shared."}

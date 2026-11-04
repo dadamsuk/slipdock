@@ -459,7 +459,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
                   id="retry-capture"
                   type="button"
                   phx-click="retry"
-                  class="btn btn-sm btn-outline"
+                  class="btn btn-sm"
                 >
                   <.icon name="hero-arrow-path" class="size-4" /> Retry
                 </button>

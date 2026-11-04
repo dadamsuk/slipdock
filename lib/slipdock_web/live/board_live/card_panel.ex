@@ -1360,7 +1360,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           <button
             phx-target={@target}
             type="button"
-            class="btn btn-ghost btn-sm w-full justify-start text-error"
+            class="btn btn-ghost btn-error btn-sm w-full justify-start"
             phx-click="delete_card"
             data-confirm="Delete this card permanently?"
           >
@@ -1484,7 +1484,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           <button
             id="repeat-stop"
             type="button"
-            class="btn btn-ghost btn-xs text-error"
+            class="btn btn-ghost btn-error btn-xs"
             phx-click="stop_repeat"
             phx-target={@target}
             data-confirm="Stop this card repeating? The ones made so far stay."
