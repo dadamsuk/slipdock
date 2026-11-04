@@ -508,7 +508,15 @@ defmodule SlipdockWeb.UsersLive.Index do
                 {if user.invited_at, do: "invited", else: "signed up"}
               </td>
               <td class="text-xs text-base-content/60">
-                {user.last_signed_in_at || "never"}
+                <time
+                  :if={user.last_signed_in_at}
+                  id={"last-seen-#{user.id}"}
+                  datetime={DateTime.to_iso8601(user.last_signed_in_at)}
+                  title={Calendar.strftime(user.last_signed_in_at, "%-d %b %Y, %H:%M UTC")}
+                >
+                  {last_seen(user.last_signed_in_at)}
+                </time>
+                <span :if={!user.last_signed_in_at}>never</span>
               </td>
               <td class="text-xs">
                 <form phx-submit="set-limit" class="flex items-center gap-1">
@@ -712,5 +720,16 @@ defmodule SlipdockWeb.UsersLive.Index do
       </ul>
     </section>
     """
+  end
+
+  # When they last signed in, as a person reads it (#1698): "5m ago" for the
+  # past week, then the date, with the year once it is not this one.
+  @doc false
+  def last_seen(%DateTime{} = at, now \\ DateTime.utc_now()) do
+    cond do
+      DateTime.diff(now, at) < 7 * 86_400 -> SlipdockWeb.SlipdockComponents.relative_time(at)
+      at.year == now.year -> Calendar.strftime(at, "%-d %b")
+      true -> Calendar.strftime(at, "%-d %b %Y")
+    end
   end
 end

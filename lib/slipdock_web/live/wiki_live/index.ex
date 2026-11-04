@@ -26,7 +26,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.Palette
   alias Slipdock.Vaults.Names
   alias Slipdock.Wiki.{Autosave, AutosaveFile, Autosaves, CardFolders}
-  alias Slipdock.Wiki.{AutoOrganise, Folder, Icons, Page, Tree, TreeStates, WikiFile}
+  alias Slipdock.Wiki.{AutoOrganise, Folder, Icons, LineChanges, Page, Tree, TreeStates, WikiFile}
   alias SlipdockWeb.WikiLive.PageToolsComponent
   alias SlipdockWeb.BoardLive.{BoardView, Helpers}
   alias SlipdockWeb.Params
@@ -42,6 +42,9 @@ defmodule SlipdockWeb.WikiLive.Index do
   # What the middle column lists of a folder, and of each on the index.
   @folder_listing 200
   @index_pages 8
+
+  # How many versions a page's history lists.
+  @history_limit 100
   # How many of a vault folder's notes it lists, newest first (#1211).
   @vault_recent 50
 
@@ -75,7 +78,8 @@ defmodule SlipdockWeb.WikiLive.Index do
          vault_addresses: Slipdock.Vaults.addresses(vault),
          tree_scope: "vault",
          tree_root: "vault"
-       )}
+       )
+       |> assign_counts()}
     else
       {:error, :empty, vault} ->
         {:ok,
@@ -250,6 +254,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       comparing: false,
       latest_revision: nil,
       revisions: [],
+      revision_changes: %{},
       page_jumps: [],
       fields_board: nil,
       # Bumped to clear a form after it submits, as the card panel does.
@@ -359,8 +364,6 @@ defmodule SlipdockWeb.WikiLive.Index do
             [folders: folders, contents: socket.assigns.tree_contents] ++ opts
           )
 
-    shown = if filter, do: filter.shown, else: total
-
     socket
     |> assign(
       all_folders: folders,
@@ -369,13 +372,56 @@ defmodule SlipdockWeb.WikiLive.Index do
       folder_outline: Slipdock.Wiki.Folders.outline(folders),
       tree_filter: filter,
       tree_empty: total == 0 and folders == [],
-      shown: shown,
-      hidden: total - shown,
       filtering: filtering
     )
+    |> assign_counts(total)
     |> assign_tree_recent()
     |> update(:tree_version, &(&1 + 1))
   end
+
+  # The toolbar's "N pages": what the tree beside it shows (#1698). In a
+  # vault that is every board under the tree's top (the whole vault on the
+  # wiki home, a board and its sub-boards on a board's own wiki), not just
+  # the board the view is mounted on, which on the wiki home is the
+  # Knowledge Base and may hold nothing at all.
+  defp assign_counts(socket, board_total \\ nil) do
+    filter = socket.assigns.tree_filter
+
+    {total, shown} =
+      case count_root(socket) do
+        nil ->
+          total =
+            board_total || Tree.count(socket.assigns.board, tree_opts(socket.assigns))
+
+          {total, if(filter, do: filter.shown, else: total)}
+
+        root ->
+          boards = vault_boards(socket)
+          total = Tree.vault_count(socket.assigns.vault, boards, root)
+
+          shown =
+            if filter,
+              do:
+                Tree.vault_filter(socket.assigns.vault, boards, socket.assigns.filters,
+                  contents: socket.assigns.tree_contents,
+                  root: root
+                ).shown,
+              else: total
+
+          {total, shown}
+      end
+
+    assign(socket, shown: shown, hidden: total - shown)
+  end
+
+  # Where in the vault the tree starts, for counting: as `recent_root/1`,
+  # but keeping a context opened from another board (`?in=`).
+  defp count_root(%{assigns: %{vault: nil}}), do: nil
+
+  defp count_root(%{assigns: %{tree_scope: "vault"} = assigns}),
+    do: assigns.tree_context_root || ""
+
+  defp count_root(socket), do: board_vault_root(socket)
 
   # How many pages the tree's Recent view lists (#738).
   @tree_recent 100
@@ -558,6 +604,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         tree_scope: "vault",
         tree_root: "vault"
       )
+      |> assign_counts()
       |> show_vault_target(params)
     else
       {:error, %Phoenix.LiveView.Socket{} = socket} ->
@@ -871,8 +918,21 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  defp apply_page_action(socket, :history, _params),
-    do: assign(socket, revision: nil, revisions: Wiki.list_revisions(socket.assigns.page))
+  defp apply_page_action(socket, :history, _params) do
+    revisions = Wiki.list_revisions(socket.assigns.page, @history_limit)
+
+    # The oldest listed is compared with the one before it, unless it is
+    # the page's first, whose lines are all added.
+    before =
+      if length(revisions) == @history_limit,
+        do: Wiki.previous_revision(List.last(revisions))
+
+    assign(socket,
+      revision: nil,
+      revisions: revisions,
+      revision_changes: LineChanges.for_revisions(revisions, before)
+    )
+  end
 
   defp apply_page_action(socket, _action, _params) do
     page = socket.assigns.page
@@ -4441,7 +4501,11 @@ defmodule SlipdockWeb.WikiLive.Index do
             </div>
           </div>
 
-          <span class="ml-auto hidden text-xs text-base-content/50 lg:inline" title="Pages shown">
+          <span
+            id="tree-page-count"
+            class="ml-auto hidden text-xs text-base-content/50 lg:inline"
+            title="Pages shown"
+          >
             {@shown} {if @shown == 1, do: "page", else: "pages"}<span :if={@hidden > 0}> · {@hidden} hidden</span>
           </span>
           <%!-- The board's own `…` menu, as on its other views. --%>
@@ -4827,7 +4891,12 @@ defmodule SlipdockWeb.WikiLive.Index do
                     page_tools={page_tools_button(assigns)}
                   />
                 <% :history -> %>
-                  <.history_body board={@board} page={@page} revisions={@revisions} />
+                  <.history_body
+                    board={@board}
+                    page={@page}
+                    revisions={@revisions}
+                    changes={@revision_changes}
+                  />
                 <% :revision -> %>
                   <.revision_body
                     board={@board}
@@ -7255,6 +7324,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :board, :any, required: true
   attr :page, :any, required: true
   attr :revisions, :list, required: true
+  attr :changes, :map, default: %{}, doc: "each revision's `Slipdock.Wiki.LineChanges`, by id"
 
   # Each version links to what it changed; the two columns of radios pick any
   # pair to compare instead, older on the left whichever way they are ticked.
@@ -7310,7 +7380,13 @@ defmodule SlipdockWeb.WikiLive.Index do
             <span :if={revision.summary} class="min-w-0 flex-1 truncate text-sm text-base-content/60">
               {revision.summary}
             </span>
-            <span class="shrink-0 text-xs text-base-content/40">{revision.byte_size} bytes</span>
+            <span
+              :if={@changes[revision.id]}
+              id={"revision-changes-#{revision.id}"}
+              class="shrink-0 text-xs text-base-content/50"
+            >
+              {LineChanges.label(@changes[revision.id])}
+            </span>
           </.link>
         </li>
       </ul>

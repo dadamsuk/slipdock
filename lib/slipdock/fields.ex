@@ -212,11 +212,16 @@ defmodule Slipdock.Fields do
         do: Integer.to_string(trunc(n)),
         else: :erlang.float_to_binary(n * 1.0, decimals: 2)
 
-    unit = config["unit"]
-    if unit in [nil, ""], do: text, else: "#{text} #{unit}"
+    with_unit(text, config["unit"])
   end
 
   def format(_, other), do: to_string(other)
+
+  # A unit is written after the number with a space ("12 people"), apart
+  # from the signs that sit against it: "80%", not "80 %" (#1698).
+  defp with_unit(text, unit) when unit in [nil, ""], do: text
+  defp with_unit(text, unit) when unit in ~w(% ‰ ° ′ ″), do: text <> unit
+  defp with_unit(text, unit), do: "#{text} #{unit}"
 
   @doc """
   Stores `raw` (from a form or the API) as the card's — or the page's — value
