@@ -89,13 +89,42 @@ defmodule SlipdockWeb.ToolLive.Index do
             <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
               {title}
             </h2>
-            <p :if={tools == []} class="mt-2 text-sm text-base-content/50">
-              <%= if key == "yours" do %>
-                None yet. Publish one below, or with <code>slipdock tools publish &lt;folder&gt;</code>.
-              <% else %>
-                None.
-              <% end %>
-            </p>
+            <.empty_state
+              :if={tools == [] and key == "yours"}
+              id="tools-yours-empty"
+              icon="hero-wrench-screwdriver"
+              title="No Tools of yours yet"
+              class="mt-2"
+              compact
+            >
+              Publish one from a package, or with <code>slipdock tools publish &lt;folder&gt;</code>.
+              <:action>
+                <%!-- Opens the publish form's own file picker. --%>
+                <label for={@uploads.package.ref} class="btn btn-primary btn-sm gap-1.5">
+                  <.icon name="hero-arrow-up-tray" class="size-4" /> Publish a Tool
+                </label>
+              </:action>
+            </.empty_state>
+            <.empty_state
+              :if={tools == [] and key == "shared"}
+              id="tools-shared-empty"
+              icon="hero-share"
+              title="Nothing shared with you"
+              class="mt-2"
+              compact
+            >
+              A Tool someone shares with you shows here.
+            </.empty_state>
+            <.empty_state
+              :if={tools == [] and key == "listed"}
+              id="tools-listed-empty"
+              icon="hero-building-library"
+              title="None listed on this server"
+              class="mt-2"
+              compact
+            >
+              A Tool an admin lists for everyone shows here.
+            </.empty_state>
             <ul class="mt-2 grid gap-3 sm:grid-cols-2">
               <li :for={tool <- tools} id={"tool-card-#{tool.slug}"}>
                 <.link

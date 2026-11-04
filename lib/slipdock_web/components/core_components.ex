@@ -151,6 +151,82 @@ defmodule SlipdockWeb.CoreComponents do
   defp callout_icon_tone(:error), do: "text-error"
 
   @doc """
+  What a page or a section shows when it has nothing in it yet (#1715): an
+  icon in a soft tinted square, a heading, one line of copy (the inner block)
+  and, when there is an obvious next step, one action. The full variant is
+  a surface of its own for an empty page; `compact` is a dashed, smaller one
+  for a section that already sits inside a card. `data-empty-state` carries
+  the variant, for tests and the e2e checks.
+
+  ## Examples
+
+      <.empty_state id="garden-empty" icon="hero-sparkles" title="Nothing to tidy">
+        Every suggestion has been dealt with.
+        <:action><.button variant="primary" phx-click="run">Look it over</.button></:action>
+      </.empty_state>
+
+      <.empty_state icon="hero-key" title="No tokens yet" compact>
+        Create one for the CLI or a script.
+      </.empty_state>
+  """
+  attr :id, :string, default: nil
+  attr :icon, :string, required: true, doc: "a Heroicon name, `hero-…`"
+  attr :title, :string, required: true
+  attr :compact, :boolean, default: false, doc: "the smaller variant, for a section in a card"
+  attr :tone, :string, values: ~w(primary rose), default: "primary", doc: "the icon's tint"
+  attr :class, :any, default: nil
+  attr :rest, :global
+  slot :inner_block, doc: "the one line of copy under the heading"
+  slot :action, doc: "the next step: one button or link"
+
+  def empty_state(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      data-empty-state={if @compact, do: "compact", else: "full"}
+      class={[
+        "text-center",
+        if(@compact,
+          do: "rounded-xl border border-dashed border-base-content/15 px-4 py-6",
+          else: "rounded-2xl bg-base-100 p-8 shadow-sm ring-1 ring-base-content/10 sm:p-12"
+        ),
+        @class
+      ]}
+      {@rest}
+    >
+      <span class={[
+        "mx-auto flex items-center justify-center",
+        if(@compact, do: "size-9 rounded-lg", else: "size-12 rounded-xl"),
+        empty_state_tone(@tone)
+      ]}>
+        <.icon name={@icon} class={if @compact, do: "size-5", else: "size-6"} />
+      </span>
+      <h2 :if={!@compact} class="mt-3 section-title">{@title}</h2>
+      <h3 :if={@compact} class="mt-2 text-sm font-semibold">{@title}</h3>
+      <p
+        :if={@inner_block != []}
+        class={[
+          "mx-auto max-w-md text-sm text-base-content/60 [&_code]:font-mono [&_code]:text-xs",
+          if(@compact, do: "mt-1", else: "mt-2")
+        ]}
+      >
+        {render_slot(@inner_block)}
+      </p>
+      <div
+        :if={@action != []}
+        data-role="empty-state-action"
+        class={["flex justify-center", if(@compact, do: "mt-3", else: "mt-4")]}
+      >
+        {render_slot(@action)}
+      </div>
+    </div>
+    """
+  end
+
+  defp empty_state_tone("primary"), do: "bg-primary/10 text-primary"
+  defp empty_state_tone("rose"), do: "bg-rose-500/10 text-rose-500"
+
+  @doc """
   Renders a button with navigation support.
 
   `variant` picks its weight in the button hierarchy (#1703): `primary`

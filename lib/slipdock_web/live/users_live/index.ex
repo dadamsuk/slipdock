@@ -695,9 +695,16 @@ defmodule SlipdockWeb.UsersLive.Index do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
       <h2 class="section-title">Waiting for you</h2>
-      <p :if={@requests == []} class="mt-2 text-sm text-base-content/60">
-        Nobody is waiting.
-      </p>
+      <.empty_state
+        :if={@requests == []}
+        id="signups-empty"
+        icon="hero-user-plus"
+        title="Nobody is waiting"
+        class="mt-3"
+        compact
+      >
+        Someone who asks to join shows here for you to approve or turn down.
+      </.empty_state>
 
       <ul class="mt-4 divide-y divide-base-content/5">
         <li :for={request <- @requests} class="flex items-start justify-between gap-4 py-3">

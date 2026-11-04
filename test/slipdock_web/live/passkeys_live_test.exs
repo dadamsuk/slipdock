@@ -86,7 +86,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
 
     test "says so when there are none", %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/account")
-      assert has_element?(view, "#passkeys-empty", "No passkeys yet.")
+      assert has_element?(view, "#passkeys-empty[data-empty-state=compact] h3", "No passkeys yet")
     end
 
     test "the add form appears only where the browser can make passkeys", %{conn: conn} do

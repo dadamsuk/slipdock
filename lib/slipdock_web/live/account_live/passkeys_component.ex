@@ -115,9 +115,22 @@ defmodule SlipdockWeb.AccountLive.PasskeysComponent do
           >Remove</button>
         </li>
       </ul>
-      <p :if={@passkeys == []} id="passkeys-empty" class="mt-3 text-sm text-base-content/50">
-        No passkeys yet.
-      </p>
+      <.empty_state
+        :if={@passkeys == []}
+        id="passkeys-empty"
+        icon="hero-finger-print"
+        title="No passkeys yet"
+        class="mt-3"
+        compact
+      >
+        Add one to sign in on this device without waiting for an email.
+        <:action :if={@supported?}>
+          <%!-- Submits the add form above, which the PasskeyRegister hook runs. --%>
+          <button type="submit" form="passkey-add-form" class="btn btn-primary btn-sm gap-1.5">
+            <.icon name="hero-finger-print" class="size-4" /> Add a passkey
+          </button>
+        </:action>
+      </.empty_state>
     </section>
     """
   end
