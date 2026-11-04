@@ -1506,7 +1506,7 @@ defmodule SlipdockWeb.SlipdockComponents do
   defp recurrence_mark(assigns) do
     ~H"""
     <span
-      class="chip chip-icon chip-line text-accent"
+      class="chip chip-icon chip-line text-primary"
       data-role="recurrence-mark"
       title={recurrence_title(@recurrence)}
     >

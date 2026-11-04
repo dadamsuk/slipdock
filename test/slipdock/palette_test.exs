@@ -1,7 +1,7 @@
 defmodule Slipdock.PaletteTest do
   @moduledoc """
   A person's colour (#1696): stable for a user id, never slate for a real
-  person, and readable. The contrast is worked out from the palette's own
+  person, and readable on the brand surfaces (#1702). The contrast is worked out from the palette's own
   oklch values, the way a browser paints them: the light theme's 700 text on
   a 100 fill, the dark theme's 200 text on 400 at 20% over every surface an
   avatar sits on.
@@ -10,17 +10,28 @@ defmodule Slipdock.PaletteTest do
 
   alias Slipdock.Palette
 
-  # The themes' surfaces, from assets/css/app.css: daisyUI's base-100/200/300
-  # and the phone's stretched dark ramp.
-  @light_surfaces [{99, 0.003, 85}, {96.5, 0.005, 85}, {93, 0.007, 85}]
-  @dark_surfaces [
-    {29, 0.012, 265},
-    {24.5, 0.011, 265},
-    {20, 0.01, 265},
-    {31.5, 0.012, 265},
-    {23, 0.011, 265},
-    {18, 0.01, 265}
-  ]
+  # The themes' surfaces, read from assets/css/app.css (#1702): daisyUI's
+  # base-100/200/300 in each theme, and the phone's stretched dark ramp.
+  @css File.read!("assets/css/app.css")
+  @themes String.split(@css, ~s(@plugin "daisyui/packages/bundle/daisyui-theme" {))
+  @surface ~r/--color-base-(?:100|200|300):\s*(#[0-9A-Fa-f]{6});/
+  @light_surfaces for t <- @themes,
+                      t =~ ~s(name: "light";),
+                      [_, hex] <- Regex.scan(@surface, hd(String.split(t, "\n}"))),
+                      do: hex
+  @phone_ramp Regex.run(~r/@media \(width < 40rem\) \{\s*\[data-theme="dark"\] \{(.*?)\}/s, @css)
+  @dark_surfaces for(
+                   t <- @themes,
+                   t =~ ~s(name: "dark";),
+                   [_, hex] <- Regex.scan(@surface, hd(String.split(t, "\n}"))),
+                   do: hex
+                 ) ++
+                   for([_, hex] <- Regex.scan(@surface, List.last(@phone_ramp)), do: hex)
+
+  test "reads three light surfaces and six dark ones from app.css" do
+    assert length(@light_surfaces) == 3
+    assert length(@dark_surfaces) == 6
+  end
 
   describe "person_colour/1" do
     test "is the same for the same id, every time" do
@@ -91,6 +102,14 @@ defmodule Slipdock.PaletteTest do
       fill = over(rgb({65, 0.2, 300}), 0.2, rgb(hd(@light_surfaces)))
       assert contrast(text, fill) < 1.5
     end
+  end
+
+  # A theme's hex surface → linear sRGB.
+  defp rgb("#" <> hex) do
+    hex
+    |> Base.decode16!(case: :mixed)
+    |> :binary.bin_to_list()
+    |> Enum.map(&decode(&1 / 255))
   end
 
   # oklch → linear sRGB, clamped to the gamut the way a browser clips it.
