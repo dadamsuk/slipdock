@@ -1166,7 +1166,9 @@ defmodule SlipdockWeb.SlipdockComponents do
             if(@card.completed, do: "text-success", else: "text-base-content/25 hover:text-success")
           ]}
           phx-click={JS.push("toggle_complete", value: %{id: @card.id})}
+          data-role="complete-toggle"
           title={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
+          aria-label={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
         >
           <.icon
             name={if @card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
@@ -1175,9 +1177,10 @@ defmodule SlipdockWeb.SlipdockComponents do
         </button>
         <p
           class={[
-            "min-w-20 flex-1 truncate text-2xs font-medium leading-snug",
+            "min-w-20 flex-1 truncate text-xs font-medium leading-snug",
             @card.completed && "text-base-content/50"
           ]}
+          data-role="card-title"
           title={@card.title}
         >
           {@card.title}
@@ -1218,34 +1221,42 @@ defmodule SlipdockWeb.SlipdockComponents do
           <.tag_chip :for={tag <- @card.tags} tag={tag} size="xs" />
         </div>
 
+        <%!-- The title starts where the tags and the meta row do (#1707): the
+             complete toggle sits after it, so hiding it never indents the
+             title, and showing it on a phone never shifts it. --%>
         <div class="flex items-start gap-2">
           <.doc_link :if={@page?} path={@page_path} class="mt-0.5 size-4" />
+          <p
+            data-role="card-title"
+            class={[
+              "min-w-0 flex-1 text-sm font-medium leading-snug",
+              @card.completed && "text-base-content/70"
+            ]}
+          >
+            {@card.title}
+          </p>
+          <.favourite_mark :if={@favourite?} class="mt-1 size-3.5" />
           <button
             :if={@f.status and not @page?}
             type="button"
+            data-role="complete-toggle"
             class={[
               "mt-0.5 shrink-0 rounded-full transition",
               if(@card.completed,
                 do: "text-success",
                 else:
-                  "text-base-content/25 opacity-0 hover:text-success group-hover:opacity-100 no-hover:opacity-100"
+                  "text-base-content/25 opacity-0 hover:text-success focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 no-hover:opacity-100"
               )
             ]}
             phx-click={JS.push("toggle_complete", value: %{id: @card.id})}
             title={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
+            aria-label={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
           >
             <.icon
               name={if @card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
               class="size-4"
             />
           </button>
-          <p class={[
-            "min-w-0 flex-1 text-xs font-medium leading-snug",
-            @card.completed && "text-base-content/70"
-          ]}>
-            {@card.title}
-          </p>
-          <.favourite_mark :if={@favourite?} class="mt-0.5 size-3.5" />
           <span :if={@actions != []} class="-mr-1 -mt-0.5 shrink-0">{render_slot(@actions)}</span>
         </div>
 
