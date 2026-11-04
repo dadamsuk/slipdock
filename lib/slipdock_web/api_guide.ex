@@ -3480,7 +3480,9 @@ defmodule SlipdockWeb.APIGuide do
       (`422`, naming the card in the way) while its paths overlap an open
       card already in progress on the board's tree, the card's own subcards
       and parents aside, and so is widening an in-progress card's paths onto
-      another's. Narrow the paths, take other work, or ask a person: a
+      another's. An epic's lane is its subcards': in progress it holds none
+      of its own, and it waits only when none of the subcards it could take
+      could start. Narrow the paths, take other work, or ask a person: a
       person moving the card overrides it. A runner job for such a card is
       held (`Lane: overlaps #N, in progress`) until the other card is done,
       and a claimed job's prompt lists the card's paths. Verify and merge

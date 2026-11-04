@@ -822,7 +822,12 @@ paths overlap those of an open card already in progress anywhere on the
 tree: moving it into an in-progress list is refused with the other card
 named, and so is widening an in-progress card's paths onto another's. The
 card's own subcards and parents don't count against it, and a card with no
-paths overlaps nothing. A runner job for such a card waits, held as
+paths overlaps nothing. **An epic's lane is its subcards'**: an epic (a card
+whose sub-board has cards) in progress holds no lane of its own, since the
+subcards being built in it hold theirs, and an epic waits only when none of
+the subcards its pass could take (open, not submitted, not blocked or
+flagged) could start, each checked on its own paths. An epic with none left
+to take is checked on its own paths. A runner job for such a card waits, held as
 *Lane: overlaps #N, in progress*, and the next job is taken instead. Only
 work waits: a job that verifies or merges a card edits nobody's files, so
 neither lanes nor the board's WIP limit hold one. People
