@@ -461,6 +461,58 @@ defmodule SlipdockWeb.CoreComponents do
     """
   end
 
+  attr :name, :string, default: "q"
+  attr :value, :any, default: nil
+  attr :type, :string, default: "search"
+  attr :class, :any, default: nil, doc: "the input's own classes: its width, mostly"
+
+  attr :trail, :integer,
+    default: 0,
+    values: [0, 1, 2],
+    doc: "how many small buttons sit over the box's right edge (a clear X, a star)"
+
+  attr :rest, :global,
+    include:
+      ~w(id placeholder autocomplete autofocus disabled title phx-debounce phx-focus phx-target)
+
+  @doc """
+  A search box: the `field` look with a magnifying glass drawn inside it.
+
+  Renders the glass and the input side by side, so the parent (a form or a
+  `search_box/1`) has to be positioned (`relative`). The glass is stacked
+  above the input (`z-10`): daisyUI's `.input` is itself positioned, and an
+  icon before it without a z-index is painted over (#1695). Both sit in a
+  `contents` label, so a click on the glass still puts the cursor in the box.
+
+  ## Examples
+
+      <form id="wiki-search" phx-change="search" class="relative">
+        <.search_input value={@q} placeholder="Titles, folders, #tags…" class="w-56" />
+      </form>
+  """
+  def search_input(assigns) do
+    ~H"""
+    <label class="contents">
+      <.icon
+        name="hero-magnifying-glass"
+        class="search-input-icon absolute left-2.5 top-1/2 z-10 size-4 -translate-y-1/2 cursor-text text-base-content/60"
+      />
+      <input
+        type={@type}
+        name={@name}
+        value={@value}
+        class={[
+          "input field field-icon",
+          @trail == 1 && "field-trail",
+          @trail == 2 && "field-trail-2",
+          @class
+        ]}
+        {@rest}
+      />
+    </label>
+    """
+  end
+
   attr :chips, :list, required: true, doc: "{kind, text} pairs, as Slipdock.QuickAdd returns them"
 
   attr :unknown, :list,

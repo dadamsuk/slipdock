@@ -462,15 +462,11 @@ defmodule SlipdockWeb.SearchLive.Index do
             phx-submit="submit"
             class="relative"
           >
-            <.icon
-              name="hero-magnifying-glass"
-              class="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-base-content/40"
-            />
-            <input
+            <.search_input
               id={"deep-search-input-#{@form_key}"}
               type="text"
-              name="q"
               value={@query}
+              trail={2}
               autocomplete="off"
               autofocus
               phx-debounce="600"
@@ -480,11 +476,11 @@ defmodule SlipdockWeb.SearchLive.Index do
                   do: "Ask a question about anything on your boards…",
                   else: "What was that thing we decided about refunds?"
               }
-              class="input input-lg w-full rounded-2xl bg-base-100 pl-12 pr-11 text-base shadow-sm ring-1 ring-base-content/10 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              class="w-full"
             />
             <div
               :if={@query != ""}
-              class="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center"
+              class="absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center"
             >
               <button
                 type="button"

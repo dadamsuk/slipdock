@@ -4363,17 +4363,11 @@ defmodule SlipdockWeb.WikiLive.Index do
           <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
 
           <form id="wiki-search" phx-change="search" phx-submit="search" class="relative">
-            <.icon
-              name="hero-magnifying-glass"
-              class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
-            />
-            <input
-              type="search"
-              name="q"
+            <.search_input
               value={@filters.q}
               placeholder="Titles, folders, #tags…"
               phx-debounce="200"
-              class="input input-sm w-56 rounded-full pl-8 transition-[width] focus:w-72"
+              class="w-56 transition-[width] focus:w-72"
               autocomplete="off"
             />
           </form>
@@ -6802,18 +6796,12 @@ defmodule SlipdockWeb.WikiLive.Index do
           phx-submit="card_search"
           class="relative mt-3 max-w-sm"
         >
-          <.icon
-            name="hero-magnifying-glass"
-            class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
-          />
-          <input
-            type="search"
-            name="q"
+          <.search_input
             value={@card_query}
             placeholder="Attach a card…"
             phx-debounce="200"
             autocomplete="off"
-            class="input input-sm w-full rounded-full pl-8"
+            class="w-full"
           />
         </form>
         <ul :if={@card_results != []} class="mt-1 max-w-sm space-y-0.5">
