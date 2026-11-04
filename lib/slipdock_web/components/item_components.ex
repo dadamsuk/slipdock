@@ -303,12 +303,11 @@ defmodule SlipdockWeb.ItemComponents do
       </form>
       <ul class="space-y-3">
         <li :for={comment <- @item.comments} id={"comment-#{comment.id}"} class="group flex gap-3">
-          <div
+          <SlipdockWeb.SlipdockComponents.avatar
+            user={comment_user(comment)}
+            size="md"
             title={comment_author(comment)}
-            class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white"
-          >
-            {comment_initials(comment)}
-          </div>
+          />
           <div class="min-w-0 flex-1 rounded-xl bg-base-200/70 px-3 py-2">
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs text-base-content/50">
@@ -606,8 +605,6 @@ defmodule SlipdockWeb.ItemComponents do
 
   defp comment_author(_), do: nil
 
-  defp comment_initials(%{user: %Slipdock.Accounts.User{} = u}),
-    do: Slipdock.Accounts.User.initials(u)
-
-  defp comment_initials(_), do: "?"
+  defp comment_user(%{user: %Slipdock.Accounts.User{} = u}), do: u
+  defp comment_user(_), do: nil
 end

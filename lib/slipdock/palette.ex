@@ -73,6 +73,88 @@ defmodule Slipdock.Palette do
     "rose" => "text-rose-500 dark:text-rose-300"
   }
 
+  # Tailwind 4's own values (oklch: lightness %, chroma, hue) for the steps
+  # `chip/1` paints with: 100 fill and 700 text in the light theme, 400 at
+  # 20% fill and 200 text in the dark. Kept so a test can work out the
+  # contrast of an avatar's initials from the colours themselves (#1696).
+  @tones %{
+    "slate" => %{
+      100 => {96.8, 0.007, 247.896},
+      200 => {92.9, 0.013, 255.508},
+      400 => {70.4, 0.04, 256.788},
+      700 => {37.2, 0.044, 257.287}
+    },
+    "red" => %{
+      100 => {93.6, 0.032, 17.717},
+      200 => {88.5, 0.062, 18.334},
+      400 => {70.4, 0.191, 22.216},
+      700 => {50.5, 0.213, 27.518}
+    },
+    "orange" => %{
+      100 => {95.4, 0.038, 75.164},
+      200 => {90.1, 0.076, 70.697},
+      400 => {75, 0.183, 55.934},
+      700 => {55.3, 0.195, 38.402}
+    },
+    "amber" => %{
+      100 => {96.2, 0.059, 95.617},
+      200 => {92.4, 0.12, 95.746},
+      400 => {82.8, 0.189, 84.429},
+      700 => {55.5, 0.163, 48.998}
+    },
+    "lime" => %{
+      100 => {96.7, 0.067, 122.328},
+      200 => {93.8, 0.127, 124.321},
+      400 => {84.1, 0.238, 128.85},
+      700 => {53.2, 0.157, 131.589}
+    },
+    "emerald" => %{
+      100 => {95, 0.052, 163.051},
+      200 => {90.5, 0.093, 164.15},
+      400 => {76.5, 0.177, 163.223},
+      700 => {50.8, 0.118, 165.612}
+    },
+    "teal" => %{
+      100 => {95.3, 0.051, 180.801},
+      200 => {91, 0.096, 180.426},
+      400 => {77.7, 0.152, 181.912},
+      700 => {51.1, 0.096, 186.391}
+    },
+    "sky" => %{
+      100 => {95.1, 0.026, 236.824},
+      200 => {90.1, 0.058, 230.902},
+      400 => {74.6, 0.16, 232.661},
+      700 => {50, 0.134, 242.749}
+    },
+    "indigo" => %{
+      100 => {93, 0.034, 272.788},
+      200 => {87, 0.065, 274.039},
+      400 => {67.3, 0.182, 276.935},
+      700 => {45.7, 0.24, 277.023}
+    },
+    "violet" => %{
+      100 => {94.3, 0.029, 294.588},
+      200 => {89.4, 0.057, 293.283},
+      400 => {70.2, 0.183, 293.541},
+      700 => {49.1, 0.27, 292.581}
+    },
+    "fuchsia" => %{
+      100 => {95.2, 0.037, 318.852},
+      200 => {90.3, 0.076, 319.62},
+      400 => {74, 0.238, 322.16},
+      700 => {51.8, 0.253, 323.949}
+    },
+    "rose" => %{
+      100 => {94.1, 0.03, 12.58},
+      200 => {89.2, 0.058, 10.001},
+      400 => {71.2, 0.194, 13.428},
+      700 => {51.4, 0.222, 16.935}
+    }
+  }
+
+  # People get a colour of their own, but never slate: grey reads as nobody.
+  @people Enum.map(@colors, &elem(&1, 0)) -- ["slate"]
+
   def names, do: Enum.map(@colors, &elem(&1, 0))
 
   def all, do: Enum.map(@colors, fn {n, l, _, _, _, _} -> {n, l} end)
@@ -84,6 +166,20 @@ defmodule Slipdock.Palette do
   def gradient(name), do: find(name) |> elem(5)
 
   def text(name), do: Map.get(@text, name, @text["slate"])
+
+  @doc "The oklch `{lightness %, chroma, hue}` of a colour at a Tailwind step (100, 200, 400, 700)."
+  def tone(name, step), do: @tones |> Map.get(name, @tones["slate"]) |> Map.fetch!(step)
+
+  @doc """
+  A person's colour, the same everywhere they appear: picked by hashing
+  their user id, so it never depends on the page or the order people are
+  listed in. No id (someone not saved, a deleted author) is slate.
+  """
+  def person_colour(nil), do: "slate"
+  def person_colour(id), do: Enum.at(@people, :erlang.phash2(id, length(@people)))
+
+  @doc "The classes for a person's avatar: their colour as a chip tint, initials in its text colour."
+  def person(id), do: id |> person_colour() |> chip()
 
   defp find(name) do
     Enum.find(@colors, hd(@colors), &(elem(&1, 0) == name))
