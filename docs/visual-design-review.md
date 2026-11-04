@@ -17,6 +17,8 @@ Everything below is in service of those four.
 
 ## Palette direction (added later the same day)
 
+> **Superseded (November 2026).** The pastel periwinkle palette below was replaced by the brand kit's: Slip teal primary on cool surfaces, Harbor ink text, Buoy orange kept for the moving card. The decision is the wiki page W-2307, the token values are in handbook W-1946 §Design system (Colour), and `docs/design/brand.md` has a summary. This section is kept as the history of how the app got here.
+
 The first pass kept a saturated indigo accent and the vivid 500-level Tailwind hues for tags, covers and priorities. On review the whole scheme felt too loud, so it moved to pastels:
 
 - Theme tokens in `app.css` dropped their chroma by roughly half. Light `primary` is a dusty periwinkle (`oklch(56% 0.11 277)`), `success`, `warning`, `error` and `info` are muted mint, butter, coral and sky, and the light base surfaces carry a faint warm tint. Dark mode uses lighter, softer versions of the same hues with dark text on them.

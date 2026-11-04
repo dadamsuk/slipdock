@@ -24,6 +24,7 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/slipdock"
 import topbar from "../vendor/topbar"
+import {topbarOptions} from "./theme_color"
 import Sortable from "../vendor/sortable"
 import {installConfirm} from "./confirm"
 import {columnDrop, dropZones, pointOf, zoneAt} from "./card_drop"
@@ -1590,9 +1591,12 @@ const liveSocket = new LiveSocket("/live", Socket, {
   hooks: {...colocatedHooks, ...Hooks},
 })
 
-// Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
+// Show progress bar on live navigation and form submits, in the theme's
+// primary: read at each start, so a theme switch is followed.
+window.addEventListener("phx:page-loading-start", _info => {
+  topbar.config(topbarOptions())
+  topbar.show(300)
+})
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // A favourited list, opened from /favourites: the board arrives scrolled to

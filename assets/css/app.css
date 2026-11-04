@@ -22,34 +22,37 @@
   themes: false;
 }
 
-/* daisyUI theme plugin.
-  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
-  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
+/* daisyUI themes: the brand palette (#1700, decision W-2307, kit in
+  brand/BRAND.md). Slip teal is the primary, on the kit's cool surfaces:
+  white cards on Page in light, Harbor ink and a lifted ink in dark. Buoy
+  orange is the accent and is kept for the one moving card. Every colour is a
+  hex value so test/slipdock_web/design_tokens_test.exs can read them and check
+  the contrast; change a value there and the test says whether it still reads. */
 @plugin "daisyui/packages/bundle/daisyui-theme" {
   name: "dark";
   default: false;
   prefersdark: true;
   color-scheme: "dark";
-  --color-base-100: oklch(29% 0.012 265);
-  --color-base-200: oklch(24.5% 0.011 265);
-  --color-base-300: oklch(20% 0.01 265);
-  --color-base-content: oklch(94% 0.012 265);
-  --color-primary: oklch(74% 0.09 277);
-  --color-primary-content: oklch(24% 0.05 277);
-  --color-secondary: oklch(74% 0.025 257);
-  --color-secondary-content: oklch(22% 0.02 257);
-  --color-accent: oklch(74% 0.09 277);
-  --color-accent-content: oklch(24% 0.05 277);
-  --color-neutral: oklch(38% 0.03 260);
-  --color-neutral-content: oklch(96% 0.005 260);
-  --color-info: oklch(76% 0.08 240);
-  --color-info-content: oklch(24% 0.04 240);
-  --color-success: oklch(76% 0.09 165);
-  --color-success-content: oklch(24% 0.05 165);
-  --color-warning: oklch(82% 0.10 85);
-  --color-warning-content: oklch(28% 0.06 85);
-  --color-error: oklch(74% 0.11 20);
-  --color-error-content: oklch(24% 0.06 20);
+  --color-base-100: #16304A;
+  --color-base-200: #10263A;
+  --color-base-300: #0A1B2A;
+  --color-base-content: #EAF1F3;
+  --color-primary: #5FB3C1;
+  --color-primary-content: #0B1D2C;
+  --color-secondary: #A9BCC8;
+  --color-secondary-content: #10263A;
+  --color-accent: #F26A3A;
+  --color-accent-content: #10263A;
+  --color-neutral: #2A4560;
+  --color-neutral-content: #EAF1F3;
+  --color-info: #7DB4EA;
+  --color-info-content: #10263A;
+  --color-success: #6DC593;
+  --color-success-content: #10263A;
+  --color-warning: #F2C063;
+  --color-warning-content: #10263A;
+  --color-error: #F0877A;
+  --color-error-content: #10263A;
   --radius-selector: 0.375rem;
   --radius-field: 0.5rem;
   --radius-box: 0.75rem;
@@ -65,26 +68,26 @@
   default: true;
   prefersdark: false;
   color-scheme: "light";
-  --color-base-100: oklch(99% 0.003 85);
-  --color-base-200: oklch(96.5% 0.005 85);
-  --color-base-300: oklch(93% 0.007 85);
-  --color-base-content: oklch(30% 0.02 270);
-  --color-primary: oklch(56% 0.11 277);
-  --color-primary-content: oklch(98% 0.01 272);
-  --color-secondary: oklch(58% 0.02 264);
-  --color-secondary-content: oklch(98% 0.002 248);
-  --color-accent: oklch(56% 0.11 277);
-  --color-accent-content: oklch(98% 0.01 272);
-  --color-neutral: oklch(48% 0.015 280);
-  --color-neutral-content: oklch(98% 0 0);
-  --color-info: oklch(58% 0.10 240);
-  --color-info-content: oklch(98% 0.01 240);
-  --color-success: oklch(58% 0.09 165);
-  --color-success-content: oklch(98% 0.01 165);
-  --color-warning: oklch(80% 0.10 85);
-  --color-warning-content: oklch(35% 0.07 85);
-  --color-error: oklch(60% 0.13 20);
-  --color-error-content: oklch(98% 0.01 20);
+  --color-base-100: #FFFFFF;
+  --color-base-200: #F3F6F7;
+  --color-base-300: #E2EAED;
+  --color-base-content: #10263A;
+  --color-primary: #1A6E7C;
+  --color-primary-content: #FFFFFF;
+  --color-secondary: #4D6272;
+  --color-secondary-content: #FFFFFF;
+  --color-accent: #F26A3A;
+  --color-accent-content: #10263A;
+  --color-neutral: #10263A;
+  --color-neutral-content: #EAF1F3;
+  --color-info: #2563A6;
+  --color-info-content: #FFFFFF;
+  --color-success: #2E7D4F;
+  --color-success-content: #FFFFFF;
+  --color-warning: #F2B33D;
+  --color-warning-content: #10263A;
+  --color-error: #C0392B;
+  --color-error-content: #FFFFFF;
   --radius-selector: 0.375rem;
   --radius-field: 0.5rem;
   --radius-box: 0.75rem;
@@ -108,9 +111,9 @@
    in `@layer base`, which these override. */
 @media (width < 40rem) {
   [data-theme="dark"] {
-    --color-base-100: oklch(31.5% 0.012 265);
-    --color-base-200: oklch(23% 0.011 265);
-    --color-base-300: oklch(18% 0.01 265);
+    --color-base-100: #1A3754;
+    --color-base-200: #0C2032;
+    --color-base-300: #071522;
   }
 }
 
@@ -119,6 +122,18 @@
    /65, the floor the design system sets for small muted text there. */
 [data-theme="dark"] #visualise .text-base-content\/60 {
   color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+}
+
+/* Muted text (#1702): `text-base-content/60` is the app's muted colour, in
+   over 500 places, and at 60% Harbor ink on white is 4.21:1, under the 4.5:1
+   small text needs. It is drawn at 65% instead (about 5.0:1), in both themes.
+   In the utilities layer and after Tailwind's own rule, with the same
+   specificity, so it beats the plain `/60` and a `hover:`, `group-hover:` or
+   `aria-*:` colour on the same element still beats it. */
+@layer utilities {
+  .text-base-content\/60 {
+    color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+  }
 }
 
 /* Add variants based on LiveView classes */
