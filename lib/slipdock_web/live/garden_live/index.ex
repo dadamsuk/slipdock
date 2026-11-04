@@ -287,33 +287,48 @@ defmodule SlipdockWeb.GardenLive.Index do
 
       <div id="garden-shell" class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
-          <p class="text-sm text-base-content/60">
-            The gardener looks this board, and every board beneath it, over for rot: epics done
-            but still open, cards stuck in progress, likely duplicates, pages nothing links to,
-            mistyped links. Nothing changes until you apply a suggestion, and one you dismiss
-            stays dismissed until what it is about changes.
-            Last looked over: <span id="garden-last-run">{when_text(@last_run && @last_run.finished_at)}</span>.
-            <.link
-              :if={@can_manage}
-              navigate={~p"/boards/#{@board}/settings?tab=gardening"}
-              class="link"
-            >
-              Choose the checks
-            </.link>
-          </p>
+          <header id="garden-title" class="space-y-1">
+            <h1 class="text-2xl font-semibold">Tidy up</h1>
+            <p class="text-sm text-base-content/60">
+              Suggestions for keeping this board and its sub-boards tidy. Nothing changes until you apply one.
+            </p>
+            <p class="text-xs text-base-content/60">
+              Last looked over: <span id="garden-last-run">{when_text(@last_run && @last_run.finished_at)}</span>.
+              <.link
+                :if={@can_manage}
+                navigate={~p"/boards/#{@board}/settings?tab=gardening"}
+                class="link"
+              >
+                Choose the checks
+              </.link>
+            </p>
+          </header>
 
           <div
             :if={@groups == []}
             id="garden-empty"
             class="rounded-2xl bg-base-100 p-8 text-center shadow-sm ring-1 ring-base-content/10"
           >
-            <.icon name="hero-sparkles" class="size-8 text-base-content/30" />
+            <span class="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <.icon name="hero-sparkles" class="size-6" />
+            </span>
             <h2 class="mt-3 text-lg font-semibold">Nothing to tidy</h2>
             <p class="mx-auto mt-2 max-w-md text-sm text-base-content/60">
               {if @last_run,
                 do: "Every suggestion has been dealt with.",
-                else: "This board hasn't been looked over yet."}
+                else:
+                  "Look the board over for finished epics left open, stuck cards, duplicates and pages nothing links to."}
             </p>
+            <button
+              :if={@can_write}
+              id="garden-empty-run"
+              type="button"
+              phx-click="run"
+              phx-disable-with="Looking…"
+              class="btn btn-primary btn-sm mt-4 gap-1.5"
+            >
+              <.icon name="hero-sparkles" class="size-4" /> Look the board over
+            </button>
           </div>
 
           <section

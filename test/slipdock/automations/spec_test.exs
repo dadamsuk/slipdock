@@ -322,20 +322,20 @@ defmodule Slipdock.Automations.SpecTest do
 
     test "each condition reads as a clause" do
       cases = [
-        {"priority", "is", "high", "priority is high"},
-        {"tag", "is_not", ["a", "b"], "tag is not a, b"},
-        {"title", "contains", "bug", "title contains “bug”"},
-        {"title", "not_contains", "wip", "title does not contain “wip”"},
-        {"priority", "any_of", ["high", "critical"], "priority is one of high, critical"},
-        {"flag", "none_of", ["blocked"], "flag is none of blocked"},
-        {"due_date", "is_set", nil, "due date is set"},
-        {"has_assignee", "is_not_set", nil, "has assignee is not set"},
-        {"due_date", "before", "2030-01-01", "due date is before 2030-01-01"},
-        {"start_date", "after", "today", "start date is after today"},
-        {"due_date", "within_days", 3, "due date is within 3 days"},
-        {"age_days", "older_than_days", 30, "age days is more than 30 days old"},
-        {"percent_complete", "gt", 50, "percent complete is more than 50"},
-        {"percent_complete", "lt", 10, "percent complete is less than 10"}
+        {"priority", "is", "high", "its priority is high"},
+        {"tag", "is_not", ["a", "b"], "it isn't tagged a or b"},
+        {"title", "contains", "bug", "its title contains “bug”"},
+        {"title", "not_contains", "wip", "its title doesn't contain “wip”"},
+        {"priority", "any_of", ["high", "critical"], "its priority is high or critical"},
+        {"flag", "none_of", ["blocked"], "it isn't flagged blocked"},
+        {"due_date", "is_set", nil, "its due date is set"},
+        {"has_assignee", "is_not_set", nil, "nobody is assigned to it"},
+        {"due_date", "before", "2030-01-01", "its due date is before 2030-01-01"},
+        {"start_date", "after", "today", "its start date is after today"},
+        {"due_date", "within_days", 3, "its due date is within 3 days"},
+        {"age_days", "older_than_days", 30, "it is more than 30 days old"},
+        {"percent_complete", "gt", 50, "it is more than 50% done"},
+        {"percent_complete", "lt", 10, "it is less than 10% done"}
       ]
 
       for {field, op, value, clause} <- cases do
@@ -359,8 +359,8 @@ defmodule Slipdock.Automations.SpecTest do
         {%{"type" => "set_priority", "priority" => "low"}, "set its priority to low"},
         {%{"type" => "add_tags", "tags" => ["a", "b"]}, "tag it a, b"},
         {%{"type" => "remove_tags", "tags" => ["a"]}, "untag a"},
-        {%{"type" => "add_flags", "flags" => ["review"]}, "flag it review"},
-        {%{"type" => "remove_flags", "flags" => ["review"]}, "clear the review flag"},
+        {%{"type" => "add_flags", "flags" => ["review"]}, "flag it as review"},
+        {%{"type" => "remove_flags", "flags" => ["review"]}, "clear its review flag"},
         {%{"type" => "assign", "assignee" => "Sam"}, "assign it to Sam"},
         {%{"type" => "unassign"}, "unassign it"},
         {%{"type" => "comment", "body" => "hi"}, "comment on it"},
@@ -396,7 +396,7 @@ defmodule Slipdock.Automations.SpecTest do
                "trigger" => %{"type" => "card_created"},
                "conditions" => [%{"field" => "tag", "op" => "rhymes_with", "value" => ["x"]}],
                "actions" => [%{"type" => "teleport"}]
-             }) == "When a card is added and tag rhymes_with x, teleport."
+             }) == "When a card is added and its tag rhymes with x, teleport."
     end
   end
 
@@ -502,21 +502,21 @@ defmodule Slipdock.Automations.SpecTest do
       flag = [%{"type" => "add_flags", "flags" => ["review"]}]
 
       assert Spec.summary(spec(%{"type" => "card_emailed"}, flag)) ==
-               "When a card arrives by email, flag it review."
+               "When a card arrives by email, flag it as review."
 
       assert Spec.summary(spec(%{"type" => "card_emailed", "column" => "Inbox"}, flag)) ==
-               "When a card arrives by email in Inbox, flag it review."
+               "When a card arrives by email in Inbox, flag it as review."
 
       assert Spec.summary(spec(%{"type" => "page_emailed"}, flag)) ==
-               "When a page arrives by email, flag it review."
+               "When a page arrives by email, flag it as review."
 
       assert Spec.summary(
                spec(%{"type" => "page_emailed", "how" => "new", "folder" => "Notes"}, flag)
              ) ==
-               "When mail makes a page in Notes, flag it review."
+               "When mail makes a page in Notes, flag it as review."
 
       assert Spec.summary(spec(%{"type" => "page_emailed", "how" => "added"}, flag)) ==
-               "When mail adds to a page, flag it review."
+               "When mail adds to a page, flag it as review."
     end
 
     test "are in the vocabulary, with their placeholders" do

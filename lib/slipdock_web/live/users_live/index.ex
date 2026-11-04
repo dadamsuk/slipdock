@@ -351,10 +351,10 @@ defmodule SlipdockWeb.UsersLive.Index do
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
       <p class="text-sm text-base-content/60">
         {length(@users)} {if length(@users) == 1, do: "account", else: "accounts"}.
-        Disabling is reversible and ends their sessions and tokens at once — reach for it
-        first. Closing an account removes them and their work for good, and is there because
-        somebody paying for a service is entitled to ask for it; it says exactly what it will
-        take with it before it does anything.
+        <span class="font-medium">Disable</span>
+        signs someone out everywhere and stops them
+        signing in; Enable undoes it. <span class="font-medium">Close</span>
+        deletes the account and everything they own, after showing you what will go.
       </p>
 
       <form id="add-user" phx-submit="add-user" class="mt-4 field-row gap-2">

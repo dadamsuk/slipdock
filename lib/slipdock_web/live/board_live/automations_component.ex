@@ -621,7 +621,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
                     “{rule.source}”
                   </p>
                   <div class="flex flex-wrap items-center gap-1.5 pt-0.5 text-2xs text-base-content/50">
-                    <span class="chip chip-line">{Rule.trigger_type(rule)}</span>
+                    <%!-- The rule's kind (`card_stale`) is in "What this does, exactly". --%>
                     <span
                       :if={Rule.scheduled?(rule)}
                       class="chip chip-line"

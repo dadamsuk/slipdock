@@ -28,7 +28,7 @@ defmodule SlipdockWeb.GardenLiveTest do
     stray(ctx, "Finished thing")
     {:ok, view, _html} = tidy(ctx.conn, ctx)
 
-    assert has_element?(view, "#garden-empty", "looked over yet")
+    assert has_element?(view, "#garden-empty", "Look the board over for finished epics")
     view |> element("#garden-run") |> render_click()
 
     assert has_element?(view, "#garden-completed_not_done", "Complete but not in Done")

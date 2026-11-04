@@ -203,19 +203,17 @@ defmodule SlipdockWeb.LoginLive.Index do
   defp strapline(:unclaimed, _fallback?),
     do: "Nobody has set this server up yet. Sign in to claim it."
 
-  defp strapline(:open, true),
-    do: "No password. We'll send you a code — or write it where you can read it."
+  defp strapline(:approval, false),
+    do: "If you have an account, we'll email you a sign-in link."
 
-  defp strapline(:open, false), do: "No password. We'll email you a link and a code."
+  # No mail: say so in words the person running the server will recognise,
+  # since they are the one who has to read the code out.
+  defp strapline(_stance, true),
+    do:
+      "Mail isn't set up on this server yet, so the sign-in code goes to the server's log. " <>
+        "Ask whoever runs it."
 
-  defp strapline(:approval, _fallback?),
-    do: "No password. If you have an account we'll email you a way in."
-
-  defp strapline(_closed_or_allowlist, true),
-    do: "No password. Codes are written to the server when there is no mail."
-
-  defp strapline(_closed_or_allowlist, false),
-    do: "No password. We'll email you a link and a code."
+  defp strapline(_open_closed_or_allowlist, false), do: "We'll email you a sign-in link."
 
   # On a server where an admin approves each account, somebody with no account
   # has to be told what to do rather than left typing an address into a form

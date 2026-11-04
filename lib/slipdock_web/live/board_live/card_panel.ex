@@ -1258,18 +1258,25 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </label>
           <div :if={not @board.simple} class="space-y-1.5" id="card-status">
             <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Health</span>
-            <div class="flex flex-wrap items-center gap-1.5">
+            <div
+              class="flex flex-wrap items-center gap-1.5"
+              aria-describedby="card-health-about"
+            >
               <.health_pill health={Card.health(@card)} />
               <.stated_pill
                 :if={Card.stated_health(@card)}
                 health={Card.stated_health(@card)}
-                title="Reported by the card's owner"
+                title="Last reported on the card"
               />
+              <span
+                id="card-health-about"
+                class="inline-flex text-base-content/50"
+                title={health_about(Card.stated_health(@card))}
+              >
+                <.icon name="hero-information-circle" class="size-4" />
+                <span class="sr-only">{health_about(Card.stated_health(@card))}</span>
+              </span>
             </div>
-            <p class="text-xs text-base-content/50">
-              The first pill is computed from dates, blockers and subcards; the second is
-              what was last reported.
-            </p>
           </div>
         </.form>
         <.time_section
@@ -1609,4 +1616,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         ""
     end
   end
+
+  # The Health pills' tooltip (#1699): what each one means, kept off the page.
+  defp health_about(nil), do: "Worked out from the card's dates, blockers and subcards."
+
+  defp health_about(_stated),
+    do:
+      "The first is worked out from the card's dates, blockers and subcards. " <>
+        "The second is what was last reported."
 end

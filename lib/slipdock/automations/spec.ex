@@ -584,7 +584,7 @@ defmodule Slipdock.Automations.Spec do
         "a card is tagged" <> where(t["tag"], "")
 
       "flag_added" ->
-        "a card is flagged" <> where(t["flag"], "as")
+        "a card is flagged" <> if(t["flag"] in [nil, "flagged"], do: "", else: " as #{t["flag"]}")
 
       "card_emailed" ->
         "a card arrives by email" <> where(t["column"], "in")
@@ -670,26 +670,109 @@ defmodule Slipdock.Automations.Spec do
   defp condition_summary(conditions),
     do: " and " <> Enum.map_join(conditions, " and ", &one_condition/1)
 
-  defp one_condition(%{"field" => field, "op" => op, "value" => value}) do
-    field = String.replace(field, "_", " ")
+  # Each condition as words a person would use (#1699): "it is still open",
+  # "it is tagged bug", "its priority is high" — never the field and value
+  # side by side ("completed is false").
+  @yes_no %{
+    "completed" => {"it is completed", "it is still open"},
+    "archived" => {"it is archived", "it isn't archived"},
+    "blocked" => {"it is blocked", "it isn't blocked"},
+    "has_due_date" => {"it has a due date", "it has no due date"},
+    "has_assignee" => {"it is assigned to someone", "nobody is assigned to it"},
+    "has_doc" => {"it has a wiki page", "it has no wiki page"}
+  }
+
+  defp one_condition(%{"field" => field, "op" => op, "value" => value})
+       when is_map_key(@yes_no, field) and op in ["is", "is_not"] do
+    {yes, no} = @yes_no[field]
+    if truthy?(value) == (op == "is"), do: yes, else: no
+  end
+
+  defp one_condition(%{"field" => field, "op" => op})
+       when is_map_key(@yes_no, field) and op in ["is_set", "is_not_set"] do
+    {yes, no} = @yes_no[field]
+    if op == "is_set", do: yes, else: no
+  end
+
+  defp one_condition(%{"field" => field, "op" => op, "value" => value})
+       when field in ["column", "tag", "flag", "assignee", "card"] do
+    {verb, show} =
+      case field do
+        "column" -> {"in", &list_or/1}
+        "tag" -> {"tagged", &list_or/1}
+        "flag" -> {"flagged", &list_or/1}
+        "assignee" -> {"assigned to", &list_or/1}
+        "card" -> {"card", &card_refs/1}
+      end
 
     case op do
-      "is" -> "#{field} is #{list(value)}"
-      "is_not" -> "#{field} is not #{list(value)}"
-      "contains" -> "#{field} contains “#{value}”"
-      "not_contains" -> "#{field} does not contain “#{value}”"
-      "any_of" -> "#{field} is one of #{list(value)}"
-      "none_of" -> "#{field} is none of #{list(value)}"
-      "is_set" -> "#{field} is set"
-      "is_not_set" -> "#{field} is not set"
-      "before" -> "#{field} is before #{value}"
-      "after" -> "#{field} is after #{value}"
-      "within_days" -> "#{field} is within #{value} days"
-      "older_than_days" -> "#{field} is more than #{value} days old"
-      "gt" -> "#{field} is more than #{value}"
-      "lt" -> "#{field} is less than #{value}"
-      other -> "#{field} #{other} #{list(value)}"
+      op when op in ["is", "any_of"] -> "it is #{verb} #{show.(value)}"
+      op when op in ["is_not", "none_of"] -> "it isn't #{verb} #{show.(value)}"
+      "is_set" -> set_phrase(field, true)
+      "is_not_set" -> set_phrase(field, false)
+      other -> "its #{noun(field)} #{op_phrase(other, value)}"
     end
+  end
+
+  defp one_condition(%{"field" => "percent_complete", "op" => op, "value" => value})
+       when op in ["gt", "lt"] do
+    "it is #{if op == "gt", do: "more", else: "less"} than #{value}% done"
+  end
+
+  defp one_condition(%{"field" => "age_days", "op" => op, "value" => value})
+       when op in ["gt", "lt", "older_than_days"] do
+    "it is #{if op == "lt", do: "less", else: "more"} than #{value} days old"
+  end
+
+  defp one_condition(%{"field" => field, "op" => op, "value" => value}) do
+    "its #{noun(field)} #{op_phrase(op, value)}"
+  end
+
+  defp op_phrase(op, value) do
+    case op do
+      "is" -> "is #{list(value)}"
+      "is_not" -> "isn't #{list(value)}"
+      "contains" -> "contains “#{value}”"
+      "not_contains" -> "doesn't contain “#{value}”"
+      "any_of" -> "is #{list_or(value)}"
+      "none_of" -> "isn't #{list_or(value)}"
+      "is_set" -> "is set"
+      "is_not_set" -> "isn't set"
+      "before" -> "is before #{value}"
+      "after" -> "is after #{value}"
+      "within_days" -> "is within #{value} days"
+      "older_than_days" -> "is more than #{value} days ago"
+      "gt" -> "is more than #{value}"
+      "lt" -> "is less than #{value}"
+      other -> "#{String.replace(other, "_", " ")} #{list(value)}"
+    end
+  end
+
+  defp set_phrase("column", _), do: "it is in a list"
+  defp set_phrase("tag", true), do: "it has a tag"
+  defp set_phrase("tag", false), do: "it has no tags"
+  defp set_phrase("flag", true), do: "it has a flag"
+  defp set_phrase("flag", false), do: "it has no flags"
+  defp set_phrase("assignee", true), do: "it is assigned to someone"
+  defp set_phrase("assignee", false), do: "nobody is assigned to it"
+  defp set_phrase("card", _), do: "it is any card"
+
+  defp noun("due_date"), do: "due date"
+  defp noun("start_date"), do: "start date"
+  defp noun("percent_complete"), do: "progress"
+  defp noun("age_days"), do: "age in days"
+  defp noun(field), do: String.replace(field, "_", " ")
+
+  defp truthy?(value), do: value in [true, "true", "yes", 1, "1"]
+
+  defp card_refs(value), do: value |> List.wrap() |> Enum.map(&"##{&1}") |> or_join()
+  defp list_or(value), do: value |> List.wrap() |> Enum.map(&to_string/1) |> or_join()
+
+  defp or_join([one]), do: one
+
+  defp or_join(items) do
+    {rest, [last]} = Enum.split(items, -1)
+    Enum.join(rest, ", ") <> " or " <> last
   end
 
   defp action_summary(actions), do: Enum.map_join(actions, ", then ", &one_action/1)
@@ -721,10 +804,10 @@ defmodule Slipdock.Automations.Spec do
         "untag #{list(a["tags"])}"
 
       "add_flags" ->
-        "flag it #{list(a["flags"])}"
+        flag_phrase(a["flags"])
 
       "remove_flags" ->
-        "clear the #{list(a["flags"])} flag"
+        unflag_phrase(a["flags"])
 
       "assign" ->
         "assign it to #{a["assignee"]}"
@@ -777,6 +860,30 @@ defmodule Slipdock.Automations.Spec do
       other ->
         other
     end
+  end
+
+  # "flagged" is the plain flag: on its own it is "flag it", not "flag it
+  # flagged". Beside named flags it reads as one more of them.
+  defp flag_phrase(flags) do
+    case List.wrap(flags) do
+      ["flagged"] -> "flag it"
+      flags -> "flag it as #{and_join(flags)}"
+    end
+  end
+
+  defp unflag_phrase(flags) do
+    case List.wrap(flags) do
+      ["flagged"] -> "clear its flag"
+      [one] -> "clear its #{one} flag"
+      flags -> "clear its #{and_join(flags)} flags"
+    end
+  end
+
+  defp and_join([one]), do: one
+
+  defp and_join(items) do
+    {rest, [last]} = Enum.split(items, -1)
+    Enum.join(rest, ", ") <> " and " <> last
   end
 
   defp colours_summary(a) do
