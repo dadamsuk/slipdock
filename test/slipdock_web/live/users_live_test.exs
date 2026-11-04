@@ -289,9 +289,9 @@ defmodule SlipdockWeb.UsersLiveTest do
     } do
       {:ok, view, html} = live(conn, ~p"/users")
 
-      # Disable is the one to reach for; closing is there because somebody
-      # paying for a service may ask to be removed.
-      assert html =~ "Disabling is reversible"
+      # The intro says what each action does (#1699).
+      assert html =~ "signs someone out everywhere and stops them"
+      assert html =~ "deletes the account and everything they own, after showing you what will go"
 
       html =
         view

@@ -43,7 +43,12 @@ defmodule SlipdockWeb.LoginWordingTest do
       set_up(%{"signup_mode" => :open})
 
       {:ok, _view, html} = live(conn, ~p"/login")
-      assert html =~ "write it where you can read it"
+      # In words an admin will recognise, and without "No password".
+      assert html =~
+               "Mail isn&#39;t set up on this server yet, so the sign-in code goes to the server&#39;s log"
+
+      refute html =~ "No password"
+      refute html =~ "written to the server"
     end
 
     @tag :anonymous
@@ -51,7 +56,9 @@ defmodule SlipdockWeb.LoginWordingTest do
       set_up(Map.put(mail(), "signup_mode", :open))
 
       {:ok, _view, html} = live(conn, ~p"/login")
-      assert html =~ "email you a link and a code"
+      assert html =~ "We&#39;ll email you a sign-in link."
+      refute html =~ "No password"
+      refute html =~ "server&#39;s log"
     end
   end
 
