@@ -17,7 +17,8 @@ way in: what it is, the pictures, and how to get it running.
   goes to the bottom of that list), description, priority
   (low → critical), five flags (flagged, blocked, needs review, waiting, starred),
   due dates with overdue/soon states, completion toggle, cover colours, tags,
-  checklists, comments, archive/restore and delete — one at a time, or several
+  checklists (drag an item by its handle to put it in a new order; a placed
+  wiki page's checklist too), comments, archive/restore and delete — one at a time, or several
   at once from the board's select mode (see [Changing several cards at once](#changing-several-cards-at-once)).
   The board's **Archived cards** panel has a search box: a piece of a title,
   or a card's id (`#123`) or link, finds the archived card to restore. An
@@ -5823,6 +5824,8 @@ POST   /api/cards/:id/move   {board, column}   to another board, with its subcar
 POST   /api/cards/:id/archive              POST   /api/cards/:id/restore
 POST   /api/cards/:id/timer {action: start|stop}   stopping adds the minutes it ran to time spent
 POST   /api/cards/:id/checklist {text}     POST   /api/checklist/:item_id/toggle   DELETE /api/checklist/:item_id
+POST   /api/checklist/:item_id/move {before}   before another item of the same card or page, or last
+                                               without one; answers {items} in the new order
 POST   /api/cards/:id/comments {body}      DELETE /api/comments/:comment_id
 GET    /api/cards/:id/handoff              POST   /api/cards/:id/handoff {next_step, body} | {clear: true}
 DELETE /api/cards/:id/handoff              the current one, outright: {deleted, handoff} (the one now current)
@@ -6112,6 +6115,7 @@ slipdock page edit W-31 --percent 40 --color amber --done   # the card facets, o
 slipdock page edit W-31 --tag ops --tag urgent   # the board's tags (--tag T --off, --set-tag T replaces, --no-tags clears)
 slipdock comment W-31 "needs a worked example"  # comment, check, status, vote, weblink and
 slipdock check W-31 "worked example"           # unweblink all take a page code as readily
+slipdock move-check 13 --before 11              # checklist item 13 before item 11 (no --before: last)
 slipdock status W-31 at_risk "stalled on SRE"  # as a card number
 slipdock handoff 12 --next "Write the test" --body "State: …"   # where a card was left
 slipdock comment 12 --body - < note.md        # a Markdown comment over several lines (or --file F)

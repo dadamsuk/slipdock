@@ -410,6 +410,25 @@ defmodule SlipdockWeb.API.CardController do
     Ecto.NoResultsError -> {:error, :not_found, "checklist item"}
   end
 
+  @doc """
+  Puts a checklist item directly before `before` (another item of the same
+  card or page), or last when `before` is left out or null (#1752). Answers
+  the whole checklist in its new order; a `before` from anywhere else is a
+  404 and moves nothing.
+  """
+  def move_checklist_item(conn, %{"item_id" => item_id} = params) do
+    with :ok <- authorize_item(conn, Slipdock.Boards.ChecklistItem, item_id),
+         item = Slipdock.Repo.get!(Slipdock.Boards.ChecklistItem, String.to_integer(item_id)),
+         {:ok, items} <- move_result(Boards.move_checklist_item(item, params["before"])) do
+      json(conn, %{items: Enum.map(items, &V.checklist_item/1)})
+    end
+  end
+
+  defp move_result({:error, :not_found}),
+    do: {:error, :not_found, "checklist item to put it before (on the same card or page)"}
+
+  defp move_result(ok), do: ok
+
   def delete_checklist_item(conn, %{"item_id" => item_id}) do
     with :ok <- authorize_item(conn, Slipdock.Boards.ChecklistItem, item_id),
          do: do_delete_checklist_item(conn, item_id)

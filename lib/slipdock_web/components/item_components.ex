@@ -63,12 +63,32 @@ defmodule SlipdockWeb.ItemComponents do
         value={@done}
         max={@total}
       ></progress>
-      <ul class="space-y-1">
+      <%!-- Dragged by the handle into a new order (#1752); the group is the
+           item's own, so an item never lands on another checklist. --%>
+      <ul
+        id={dom_id("checklist-items", @item)}
+        class="space-y-1"
+        phx-hook="Sortable"
+        data-group={dom_id("checklist", @item)}
+        data-event="move_check"
+        data-push-to="self"
+        data-handle=".check-handle"
+        data-disabled={to_string(not @can_write)}
+      >
         <li
           :for={item <- @item.checklist_items}
           id={"check-#{item.id}"}
+          data-id={item.id}
           class="group flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-base-200/60"
         >
+          <span
+            :if={@can_write}
+            class="check-handle cursor-grab text-base-content/30 hover:text-base-content/70 active:cursor-grabbing"
+            title="Drag to reorder"
+            aria-hidden="true"
+          >
+            <.icon name="hero-bars-2" class="size-3.5" />
+          </span>
           <input
             phx-target={@target}
             type="checkbox"

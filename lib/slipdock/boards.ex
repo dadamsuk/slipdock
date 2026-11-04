@@ -4476,6 +4476,66 @@ defmodule Slipdock.Boards do
     do: delete_checklist_item(Repo.get!(ChecklistItem, id), opts)
 
   @doc """
+  Moves a tick box so that it sits directly before `before_id`, another tick
+  box on the same card or page, or last when `before_id` is nil (or `""`) (#1752).
+  Every item of that checklist is renumbered `0..n-1`.
+
+  `{:ok, items}` gives the checklist in its new order; `{:error, :not_found}`
+  when `before_id` is not one of the same card's (or page's) items. Moving
+  an item before itself leaves the order as it was. A new order is not a
+  line in the activity log: nothing was added, ticked or removed.
+  """
+  def move_checklist_item(%ChecklistItem{} = item, before_id) do
+    owner = owner_of(item)
+
+    ids =
+      Repo.all(
+        from(i in ChecklistItem,
+          where: ^owned_clause(owner),
+          order_by: [asc: i.position, asc: i.id],
+          select: i.id
+        )
+      )
+
+    last? = before_id in [nil, ""]
+    before = if last?, do: nil, else: to_id(before_id)
+
+    cond do
+      not last? and before not in ids ->
+        {:error, :not_found}
+
+      before == item.id ->
+        {:ok, checklist_of(owner)}
+
+      true ->
+        ids
+        |> List.delete(item.id)
+        |> insert_before(item.id, before)
+        |> Enum.with_index()
+        |> then(fn order ->
+          Repo.transaction(fn ->
+            for {id, i} <- order do
+              from(c in ChecklistItem, where: c.id == ^id and c.position != ^i)
+              |> Repo.update_all(set: [position: i])
+            end
+          end)
+        end)
+
+        notify_owned(owner)
+        {:ok, checklist_of(owner)}
+    end
+  end
+
+  defp checklist_of(owner),
+    do:
+      Repo.all(
+        from(i in ChecklistItem,
+          where: ^owned_clause(owner),
+          order_by: [asc: i.position, asc: i.id]
+        )
+      )
+
+  @doc """
   One activity line for what was done to `owner`'s checklist: `changes` counts
   any of `added`, `ticked`, `unticked` and `removed`. Nothing is logged when
   every count is zero.

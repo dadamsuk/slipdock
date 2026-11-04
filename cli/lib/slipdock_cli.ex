@@ -660,6 +660,9 @@ defmodule SlipdockCLI do
     tag <id> <tag>... [--off]           add (or remove) tags
     check <id> <text>                   add a checklist item
     tick <item-id>                      toggle a checklist item done/undone
+    move-check <item-id> [--before <item-id>]
+                                        reorder a checklist: put the item before another
+                                        of the same card or page, or last without --before
     comment <id> <text>                 add a comment (Markdown). For more than a line,
                                         --body - with a heredoc keeps the line breaks
                                         (or --body TEXT, --file F)

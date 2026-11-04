@@ -1303,6 +1303,11 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/comments \\
          -d '{"body": "Parser handles quoted phrases; see lib/slipdock/search.ex"}'
     curl -s -X POST -H "$H" B/api/checklist/11/toggle
+    # reorder its checklist: item 13 before item 11 ({} or "before": null puts it
+    # last); answers the checklist in its new order. A before from another card
+    # or page is a 404 (CLI: slipdock move-check 13 --before 11)
+    curl -s -H "$H" -H 'content-type: application/json' B/api/checklist/13/move \\
+         -d '{"before": 11}'
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' B/api/cards/57 \\
          -d '{"completed": true, "remove_flags": ["blocked"]}'
 
@@ -2931,7 +2936,8 @@ defmodule SlipdockWeb.APIGuide do
     its wiki, so link people to its pages rather than its lists.
 
     Checklist items and comments are removed through the routes they share
-    with cards — `POST /api/checklist/:id/toggle`, `DELETE /api/checklist/:id`,
+    with cards — `POST /api/checklist/:id/toggle`, `POST /api/checklist/:id/move`,
+    `DELETE /api/checklist/:id`,
     `DELETE /api/comments/:id` — which authorise against whichever the row
     hangs off. Votes come out of the board tree's one budget, so a page
     competes with the cards for it.

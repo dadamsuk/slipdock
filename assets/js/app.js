@@ -216,12 +216,17 @@ Hooks.Sortable = {
           to = override.to
           before = null
         }
-        hook.pushEvent(hook.el.dataset.event || "move_card", {
+        const payload = {
           id: item.dataset.id,
           from: from.dataset.id,
           to: to.dataset.id,
           before: before,
-        })
+        }
+        const event = hook.el.dataset.event || "move_card"
+        // data-push-to="self" sends it to the LiveComponent the list is drawn
+        // in (a card's checklist, #1752), or the LiveView when it is in none.
+        if (hook.el.dataset.pushTo === "self") hook.pushEventTo(hook.el, event, payload)
+        else hook.pushEvent(event, payload)
       },
     }
     // Only pass these when set: Sortable treats a present-but-undefined key
