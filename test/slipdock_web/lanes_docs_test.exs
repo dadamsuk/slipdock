@@ -73,6 +73,21 @@ defmodule SlipdockWeb.LanesDocsTest do
              "ships by push, a card awaiting verification has\n      shipped: it frees its lane"
   end
 
+  test "an epic's lane is its subcards', said everywhere (#1811)" do
+    manual = read("docs/manual.md")
+
+    assert manual =~
+             "**An epic's lane is its subcards'**: an epic (a card\nwhose sub-board has cards)"
+
+    assert manual =~ "An epic with none left\nto take is checked on its own paths."
+
+    assert read("docs/agents.md") =~
+             "An epic's lane is its subcards': in progress it holds\nnone of its own"
+
+    assert File.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex")) =~
+             "An epic's lane is its subcards': in progress it holds none\n      of its own"
+  end
+
   test "lanes and the WIP limit hold work jobs only, said everywhere (#1807)" do
     manual = read("docs/manual.md")
     assert manual =~ "Only\nwork waits: a job that verifies or merges a card edits nobody's files"

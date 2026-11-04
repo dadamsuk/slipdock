@@ -17,7 +17,10 @@ defmodule Slipdock.Lanes do
       (#1807, `Slipdock.Verified.finishing_kinds/0`).
 
   The card's own subcards and parents never count against it: they are the
-  same piece of work. Nor does a card awaiting verification on a board that
+  same piece of work. An epic's lane is its subcards' (#1811): a card whose
+  sub-board has cards holds no lane of its own while in progress (the
+  subcards in progress hold theirs), and it waits only when none of the
+  subcards its pass could take could start. Nor does a card awaiting verification on a board that
   ships by push (#1661, `Slipdock.Verified.released?/2`): its work is on the
   default branch and nobody is editing its files. A rejection sends it back
   to the ready list, and moving it into a doing list again takes the lane
@@ -227,30 +230,91 @@ defmodule Slipdock.Lanes do
   The first open card in progress on `card`'s tree whose paths overlap
   `paths` (by default the card's own), when the card's board has lanes on;
   else nil. The card itself, its subcards and its parents don't count, nor
-  does a card `Slipdock.Verified.released?/2`.
+  does a card `Slipdock.Verified.released?/2`, nor an epic (a card whose
+  sub-board has cards): its subcards in progress hold its lane (#1811).
+
+  With no `paths` given, an epic is checked through its subcards: nil when
+  any subcard its pass could take is in progress already or free, else the
+  first one's conflict. An epic with none to take is checked on its own
+  paths.
   """
   def conflict(%Card{} = card, paths \\ nil) do
-    paths = tidy(paths || card.paths)
     board = Repo.get(Board, card.board_id)
 
-    if board && paths != [] && on?(board) do
-      root = Board.root_id(board)
-      exclude = [card.id | ancestor_ids(board)]
-      below = Slipdock.Boards.subtree_board_ids(card.id)
+    if board && on?(board) do
+      case is_nil(paths) && workable_subcards(card) do
+        [_ | _] = subcards -> epic_conflict(subcards)
+        _ -> paths_conflict(card, board, tidy(paths || card.paths))
+      end
+    end
+  end
 
-      from(c in Card,
-        join: col in assoc(c, :column),
-        join: b in assoc(c, :board),
-        where:
-          (b.id == ^root or b.root_id == ^root) and col.category == "doing" and
-            is_nil(c.archived_at) and c.completed == false and c.paths != ^[] and
-            c.id not in ^exclude and c.board_id not in ^below and
-            (coalesce(c.verify_state, "") != "pending" or
-               (b.ship_via == "pull_request" and b.verify_work)),
-        order_by: [asc: c.board_id, asc: col.position, asc: c.position, asc: c.id]
-      )
-      |> Repo.all()
-      |> Enum.find(&overlap?(paths, &1.paths))
+  defp paths_conflict(_card, _board, []), do: nil
+
+  defp paths_conflict(card, board, paths) do
+    root = Board.root_id(board)
+    exclude = [card.id | ancestor_ids(board)]
+    below = Slipdock.Boards.subtree_board_ids(card.id)
+
+    from(c in Card,
+      as: :card,
+      join: col in assoc(c, :column),
+      join: b in assoc(c, :board),
+      where:
+        (b.id == ^root or b.root_id == ^root) and col.category == "doing" and
+          is_nil(c.archived_at) and c.completed == false and c.paths != ^[] and
+          c.id not in ^exclude and c.board_id not in ^below and
+          (coalesce(c.verify_state, "") != "pending" or
+             (b.ship_via == "pull_request" and b.verify_work)) and
+          not exists(epic_subcards()),
+      order_by: [asc: c.board_id, asc: col.position, asc: c.position, asc: c.id]
+    )
+    |> Repo.all()
+    |> Enum.find(&overlap?(paths, &1.paths))
+  end
+
+  # The cards on the sub-board of the card in progress being looked at: it
+  # is an epic when there are any.
+  defp epic_subcards do
+    from(sc in Card,
+      join: sb in Board,
+      on: sc.board_id == sb.id,
+      where: sb.parent_card_id == parent_as(:card).id and is_nil(sc.archived_at),
+      select: 1
+    )
+  end
+
+  # The subcards a pass on `card` could take: open, not submitted, not
+  # waiting on anything, in a list that isn't done. [] for a card with none.
+  defp workable_subcards(%Card{id: id}) do
+    from(c in Card,
+      join: col in assoc(c, :column),
+      join: b in assoc(c, :board),
+      where:
+        b.parent_card_id == ^id and is_nil(c.archived_at) and c.completed == false and
+          coalesce(col.category, "") != "done" and
+          coalesce(c.verify_state, "") not in ["pending", "merging"],
+      order_by: [asc: col.position, asc: c.position, asc: c.id],
+      preload: [column: col, blocked_by: ^Slipdock.Boards.dependency_query()]
+    )
+    |> Repo.all()
+    |> Enum.reject(
+      &(Card.blocked?(&1) or Enum.any?(&1.flags, fn f -> f in ["blocked", "waiting"] end))
+    )
+  end
+
+  # An epic waits only when every subcard its pass could take is held: one
+  # in progress already is the pass's work, and one that is free can start.
+  defp epic_conflict(subcards) do
+    Enum.reduce_while(subcards, nil, fn subcard, first ->
+      case subcard.column.category != "doing" && conflict(subcard) do
+        %Card{} = other -> {:cont, first || other}
+        _ -> {:halt, :free}
+      end
+    end)
+    |> case do
+      :free -> nil
+      other -> other
     end
   end
 
@@ -328,8 +392,8 @@ defmodule Slipdock.Lanes do
         on: j.card_id == c.id,
         join: col in assoc(c, :column),
         where:
-          j.root_board_id == ^root_id and j.status == "queued" and c.paths != ^[] and
-            col.category != "doing" and j.kind not in ^Slipdock.Verified.finishing_kinds(),
+          j.root_board_id == ^root_id and j.status == "queued" and col.category != "doing" and
+            j.kind not in ^Slipdock.Verified.finishing_kinds(),
         distinct: true
       )
       |> Repo.all()

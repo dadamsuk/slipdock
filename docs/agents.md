@@ -504,7 +504,8 @@ write the paths before starting, stage only them, and use a worktree when
 another session shares the repository. On a board that verifies work and
 ships by push, a card awaiting verification frees its lane and stops
 blocking its dependents until a rejection; on a pull request board it keeps
-both until the merge. Lanes hold work jobs only, never a verify or merge
+both until the merge. An epic's lane is its subcards': in progress it holds
+none of its own, and it waits only when none of its subcards could start. Lanes hold work jobs only, never a verify or merge
 job. See [the manual](manual.md#lanes).
 
 ## If you self-host
