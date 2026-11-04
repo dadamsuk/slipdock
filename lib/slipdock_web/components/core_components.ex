@@ -96,6 +96,61 @@ defmodule SlipdockWeb.CoreComponents do
   end
 
   @doc """
+  A notice set into the page (#1697): an icon and one flowing block of text,
+  so inline `<code>` and links stay in the sentence rather than becoming
+  flex columns. The text is base-content on a tinted surface with a tinted
+  left rule, which keeps it AA in both themes; the kind only colours the
+  surface, the rule and the icon.
+
+  ## Examples
+
+      <.callout kind={:warning}>Run <code>mix slipdock.reindex</code> on the server.</.callout>
+      <.callout kind={:error} title="Couldn't save">The board is archived.</.callout>
+  """
+  attr :id, :string, default: nil
+  attr :kind, :atom, values: [:info, :warning, :error], default: :info
+  attr :title, :string, default: nil
+  attr :class, :any, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def callout(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      role={if @kind == :info, do: "note", else: "alert"}
+      data-callout={@kind}
+      class={[
+        "flex items-start gap-3 rounded-r-box border-l-4 px-4 py-3 text-sm text-base-content",
+        callout_tone(@kind),
+        @class
+      ]}
+      {@rest}
+    >
+      <.icon name={callout_icon(@kind)} class={["mt-0.5 size-4 shrink-0", callout_icon_tone(@kind)]} />
+      <div class="min-w-0 flex-1">
+        <p :if={@title} class="font-semibold">{@title}</p>
+        <div class="[&_code]:font-mono [&_code]:text-xs">{render_slot(@inner_block)}</div>
+      </div>
+    </div>
+    """
+  end
+
+  defp callout_tone(:info), do: "border-info bg-info/10"
+  defp callout_tone(:warning), do: "border-warning bg-warning/10"
+  defp callout_tone(:error), do: "border-error bg-error/10"
+
+  defp callout_icon(:info), do: "hero-information-circle"
+  defp callout_icon(:warning), do: "hero-exclamation-triangle"
+  defp callout_icon(:error), do: "hero-exclamation-circle"
+
+  # The icon carries the kind's colour; the text never does (it would fail
+  # contrast on its own tint).
+  defp callout_icon_tone(:info), do: "text-info"
+  defp callout_icon_tone(:warning), do: "text-warning"
+  defp callout_icon_tone(:error), do: "text-error"
+
+  @doc """
   Renders a button with navigation support.
 
   `variant` picks its weight in the button hierarchy (#1703): `primary`

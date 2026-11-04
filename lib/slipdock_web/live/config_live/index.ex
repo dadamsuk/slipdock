@@ -600,6 +600,11 @@ defmodule SlipdockWeb.ConfigLive.Index do
         built-in default.
       </p>
 
+      <.callout id="ai-cost-warning" kind={:warning} class="mt-4">
+        Choose cheaper models where possible: every AI feature on the server sends its
+        requests to these, and the model sets what each one costs.
+      </.callout>
+
       <.form for={@form} id="ai-models-form" phx-submit="save-settings" class="mt-4 space-y-5">
         <div :for={key <- AI.model_settings()} id={"ai-setting-#{key}"}>
           <.input
@@ -609,9 +614,6 @@ defmodule SlipdockWeb.ConfigLive.Index do
             placeholder={"Empty: #{AI.model_env(key)}, then the built-in default"}
             value={Map.get(@settings, AI.model_field(key))}
           />
-          <p id={"ai-cost-warning-#{key}"} class="text-xs font-semibold text-warning">
-            WARNING: Choose cheaper models where possible
-          </p>
           <p class="text-xs text-base-content/60">{model_help(key)}</p>
           <p id={"ai-in-force-#{key}"} class="mt-1 text-xs">
             <span class="text-base-content/60">In force:</span>

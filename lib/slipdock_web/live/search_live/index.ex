@@ -606,11 +606,7 @@ defmodule SlipdockWeb.SearchLive.Index do
 
   defp notices(assigns) do
     ~H"""
-    <p
-      :if={not @configured}
-      class="mt-6 flex items-start gap-2 rounded-xl bg-warning/10 px-4 py-3 text-sm text-warning"
-    >
-      <.icon name="hero-exclamation-triangle" class="mt-0.5 size-4 shrink-0" />
+    <.callout :if={not @configured} id="search-not-configured" kind={:warning} class="mt-6">
       <span :if={not @embeddings}>
         Search isn't set up on this server: it needs an admin's AI key. An admin chooses
         whose under Configuration → AI for search and automations.
@@ -618,19 +614,14 @@ defmodule SlipdockWeb.SearchLive.Index do
       <span :if={@embeddings and not @model}>
         Ask needs a language model: add a key or an endpoint under Account → AI model.
       </span>
-    </p>
+    </.callout>
 
-    <p
-      :if={@configured and not @indexed}
-      class="mt-6 flex items-start gap-2 rounded-xl bg-warning/10 px-4 py-3 text-sm text-warning"
-    >
-      <.icon name="hero-exclamation-triangle" class="mt-0.5 size-4 shrink-0" />
+    <.callout :if={@configured and not @indexed} id="search-not-indexed" kind={:warning} class="mt-6">
       Nothing is indexed yet, so {if @mode == :ask,
         do: "the assistant has nothing to search",
-        else: "every search comes back empty"}. Run
-      <code class="font-mono">mix slipdock.reindex</code>
+        else: "every search comes back empty"}. Run <code>mix slipdock.reindex</code>
       on the server to build it.
-    </p>
+    </.callout>
     """
   end
 
