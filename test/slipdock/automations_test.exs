@@ -102,7 +102,7 @@ defmodule Slipdock.AutomationsTest do
         })
 
       assert Spec.summary(spec) ==
-               "When a card is added to Doing and priority is high, " <>
+               "When a card is added to Doing and its priority is high, " <>
                  "email #{default_email()}, then set its priority to critical."
     end
 
