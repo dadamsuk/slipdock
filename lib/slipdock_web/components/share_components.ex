@@ -28,10 +28,13 @@ defmodule SlipdockWeb.ShareComponents do
           id={"grant-#{@resource}-#{g.id}"}
           class="flex items-center gap-2 rounded-lg px-1 py-1 text-sm hover:bg-base-200/60"
         >
-          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-base-200 text-2xs font-bold">
-            <.icon :if={Grant.subject_type(g) == :group} name="hero-user-group" class="size-3.5" />
-            <span :if={Grant.subject_type(g) == :user}>{User.initials(g.user)}</span>
+          <span
+            :if={Grant.subject_type(g) == :group}
+            class="flex size-6 shrink-0 items-center justify-center rounded-full bg-base-200"
+          >
+            <.icon name="hero-user-group" class="size-3.5" />
           </span>
+          <SlipdockWeb.SlipdockComponents.avatar :if={Grant.subject_type(g) == :user} user={g.user} />
           <span class="min-w-0 flex-1 truncate">
             {if Grant.subject_type(g) == :group, do: g.group.name, else: User.display_name(g.user)}
             <span :if={Grant.subject_type(g) == :user and g.user.name} class="text-base-content/50">· {g.user.email}</span>

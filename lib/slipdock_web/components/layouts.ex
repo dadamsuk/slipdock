@@ -229,10 +229,10 @@ defmodule SlipdockWeb.Layouts do
               <div
                 tabindex="0"
                 role="button"
-                class="flex size-8 cursor-pointer items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary"
+                class="flex cursor-pointer rounded-full"
                 title={Slipdock.Accounts.User.display_name(@current_user)}
               >
-                {Slipdock.Accounts.User.initials(@current_user)}
+                <SlipdockWeb.SlipdockComponents.avatar user={@current_user} size="md" />
               </div>
               <ul
                 tabindex="0"

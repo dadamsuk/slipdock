@@ -182,29 +182,57 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   ## Assignees --------------------------------------------------------------
 
+  attr :user, :any, required: true, doc: "a `User`, or nil for someone unknown (drawn as ?)"
+  attr :size, :string, default: "sm", values: ~w(xs sm md)
+  attr :class, :any, default: nil
+  attr :rest, :global
+
+  @doc """
+  A person's initials in a circle of their own colour (#1696):
+  `Slipdock.Palette.person/1`, a chip tint picked by their user id, so they
+  are the same colour on a card, in the header, the share list and the
+  comments. At `xs` (16px) there is room for one initial only.
+  """
+  def avatar(assigns) do
+    user = assigns.user
+    initials = if user, do: Slipdock.Accounts.User.initials(user), else: "?"
+    initials = if assigns.size == "xs", do: String.first(initials) || "?", else: initials
+
+    assigns =
+      assign(assigns,
+        initials: if(initials == "", do: "?", else: initials),
+        colour: Palette.person(user && user.id)
+      )
+
+    ~H"""
+    <span
+      class={[
+        "avatar-initials inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold uppercase leading-none",
+        @colour,
+        @size == "xs" && "size-4 text-2xs",
+        @size == "sm" && "size-6 text-2xs",
+        @size == "md" && "size-8 text-xs",
+        @class
+      ]}
+      data-colour={Palette.person_colour(@user && @user.id)}
+      {@rest}
+    >
+      {@initials}
+    </span>
+    """
+  end
+
   attr :user, :map, required: true
   attr :size, :string, default: "sm"
   attr :with_name, :boolean, default: false
 
   @doc "An initials avatar for the card's assignee."
   def assignee_chip(assigns) do
-    user = assigns.user
-
-    assigns =
-      assign(assigns,
-        initials: Slipdock.Accounts.User.initials(user),
-        name: Slipdock.Accounts.User.display_name(user)
-      )
+    assigns = assign(assigns, :name, Slipdock.Accounts.User.display_name(assigns.user))
 
     ~H"""
     <span class="inline-flex items-center gap-1" title={"Assigned to #{@name}"}>
-      <span class={[
-        "inline-flex shrink-0 items-center justify-center rounded-full bg-secondary/20 font-semibold uppercase text-secondary-content dark:text-secondary",
-        @size == "xs" && "size-4 text-[9px]",
-        @size == "sm" && "size-6 text-2xs"
-      ]}>
-        {@initials}
-      </span>
+      <.avatar user={@user} size={@size} />
       <span :if={@with_name} class="truncate text-sm">{@name}</span>
     </span>
     """
@@ -241,21 +269,12 @@ defmodule SlipdockWeb.SlipdockComponents do
     ~H"""
     <span :if={@users != []} class="inline-flex items-center gap-1" title={"Assigned to #{@names}"}>
       <span class="inline-flex -space-x-1">
-        <span
-          :for={user <- @shown}
-          class={[
-            "inline-flex shrink-0 items-center justify-center rounded-full bg-secondary/20 font-semibold uppercase text-secondary-content ring-1 ring-base-100 dark:text-secondary",
-            @size == "xs" && "size-4 text-[9px]",
-            @size == "sm" && "size-6 text-2xs"
-          ]}
-        >
-          {Slipdock.Accounts.User.initials(user)}
-        </span>
+        <.avatar :for={user <- @shown} user={user} size={@size} class="ring-1 ring-base-100" />
         <span
           :if={@more > 0}
           class={[
             "inline-flex shrink-0 items-center justify-center rounded-full bg-base-300 font-semibold text-base-content/70 ring-1 ring-base-100",
-            @size == "xs" && "size-4 text-[9px]",
+            @size == "xs" && "size-4 text-2xs",
             @size == "sm" && "size-6 text-2xs"
           ]}
         >
