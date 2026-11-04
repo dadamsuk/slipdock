@@ -1416,6 +1416,29 @@ defmodule Slipdock.Runners do
     end
   end
 
+  @doc """
+  Withdraws a job nobody has taken yet, so that an answered card's job can
+  have its rule's slot (#1750; `Slipdock.Runners.Requeue`). It ends
+  `cancelled` with `recovery: "withdrawn"` and `reason` as its error, which
+  keeps its card out of the feed's cool-down so it goes next. Unlike
+  `cancel_job/1` it doesn't refill the rule: the answer's job is about to
+  take the slot. `{:ok, job}`, or `:error` once it has been handed out.
+  """
+  def withdraw_job(%Job{id: id}, reason) do
+    {count, _} =
+      Repo.update_all(from(j in Job, where: j.id == ^id and j.status == "queued"),
+        set: [
+          status: "cancelled",
+          recovery: "withdrawn",
+          error: reason,
+          finished_at: now(),
+          updated_at: now()
+        ]
+      )
+
+    if count == 1, do: {:ok, changed(Repo.get!(Job, id))}, else: :error
+  end
+
   defp tap_changed({:ok, job}), do: {:ok, changed(job)}
   defp tap_changed(other), do: other
 
