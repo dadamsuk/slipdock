@@ -99,6 +99,43 @@ jobs:
         if: matrix.partition == 1
         run: node --test 'assets/js/**/*.test.js' 'cloudflare/**/*.test.js'
 
+  # Static checks: the mechanical part of a security review, on every pull
+  # request. Each started at zero findings (fixed, or skipped with a reason
+  # in its config), so anything new fails the build. None of them needs the
+  # database or a compiled app, so they run beside the suite, not in it.
+  static:
+    name: static checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: "1.20"
+          otp-version: "27"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - run: mix deps.get
+
+      # Retired packages and Hex's own advisories for the locked versions.
+      - name: Retired or vulnerable packages (hex.audit)
+        run: mix hex.audit
+
+      # The Elixir security advisory database (mix_audit), which also covers
+      # git dependencies Hex knows nothing about.
+      - name: Dependency advisories (deps.audit)
+        run: mix deps.audit
+
   # The PowerShell runner on Windows PowerShell 5.1, which the suite's pwsh
   # on Linux can't stand in for: 5.1's Start-Process locks the job's output
   # files differently, and that stopped the runner on its first heartbeat
@@ -143,6 +180,12 @@ jobs:
             ${{ runner.os }}-cli-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - run: mix deps.get
+
+      # The CLI has no dependencies today, so there is nothing for deps.audit
+      # to read; hex.audit still fails the day one is added retired or with
+      # an advisory.
+      - name: Retired or vulnerable packages (hex.audit)
+        run: mix hex.audit
 
       - name: Check formatting
         run: mix format --check-formatted
