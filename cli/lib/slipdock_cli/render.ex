@@ -769,9 +769,8 @@ defmodule SlipdockCLI.Render do
     end
   end
 
-  # A card's suggested handbook reading (#1265): what a pass reads before it
-  # builds, and the gate it closes through.
-  # A security card's PR is to be neutral (#1794).
+  # How the work ships, on a board that ships by pull request (#1655); a
+  # security card's PR is to be neutral (#1794).
   defp shipping_block(sh) do
     neutral = if sh["neutral"], do: " · security: a neutral PR", else: ""
     IO.puts("")
@@ -779,6 +778,8 @@ defmodule SlipdockCLI.Render do
     IO.puts(indent(sh["instructions"]))
   end
 
+  # A card's suggested handbook reading (#1265): what a pass reads before it
+  # builds, and the gate it closes through.
   defp handbook_block(h) do
     IO.puts("")
     IO.puts(bold("Handbook") <> dim("  read before building; close with a Handbook: line"))
