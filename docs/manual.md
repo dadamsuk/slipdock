@@ -1469,6 +1469,7 @@ Settings belong to the tree's root board, whichever board in it you name.
 | `hung_job` | A running job still renewing its lease that has shown no progress step and no note on its card for 45 minutes (`minutes`). | None by default (an agent may be thinking). With `cancel=true`, a job silent for `cancel_minutes` (120) is asked to stop. |
 | `idle_feed` | A *list top* rule that has sent nothing for 15 minutes (`minutes`) while its list has a card it would send and a runner of its pool is online and idle. Not when the list is empty, the pool paused or the WIP limit full. | Runs the feed. Still idle, it is flagged on the next run with the reason the feed gave. |
 | `long_pause` | A pool or a whole tree paused for over 12 hours (`hours`). | None: a board alert. |
+| `deadlock` | A cycle in what waits on what: a queued job held by a lane, a WIP limit or the cards in progress; a held answer waiting for its rule's job; a card waiting for an answer or a blocker; a card waiting for its verify or merge job; a merge job waiting for a busy runner; the pass on an epic waiting for its subcards to merge. The incident names each edge. | Withdraws a work job in the cycle that was never handed out (its card keeps its place and goes next), then sends held answers and runs the feeds. Never touches a claimed or running job, a card's place or a dependency: a cycle of dependencies alone, or through a claimed job, is flagged on every card in it. |
 
 ## Dependencies
 
