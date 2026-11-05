@@ -4611,6 +4611,8 @@ defmodule Slipdock.Boards do
       if match?(%Card{}, owner) do
         Slipdock.Snooze.activity(owner, opts[:by], :comment)
         Slipdock.Mentions.comment_added(owner, comment.body, opts[:by])
+        # A closing comment's `Findings:` block is kept (W-2310 §Findings).
+        Slipdock.Findings.from_comment(comment, by: author)
         automate(%{type: "comment_added", card: owner, comment: comment.body})
       end
     end)
@@ -4620,6 +4622,8 @@ defmodule Slipdock.Boards do
   def get_comment(owner, id), do: get_owned(Comment, owner, id)
 
   def delete_comment(%Comment{} = comment) do
+    Slipdock.Findings.comment_deleted(comment)
+
     Repo.delete(comment)
     |> tap_ok(fn _ -> notify_owned(owner_of(comment)) end)
   end

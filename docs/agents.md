@@ -502,6 +502,17 @@ for a person; an agent says on it what it knows and leaves the flag alone.
 `GET /api/boards/:board/health` show the incidents; see
 [the manual](manual.md#the-health-monitor).
 
+**Findings.** What a pass learned that the code doesn't show goes on the
+board, not in one machine's agent memory: a `Findings:` block in the closing
+comment, beside the `Handbook:` line, one `- kind: text` item each (`gotcha`,
+`rule`, `handbook-wrong`, `tooling`, `process`), or `Findings: none`. The test
+for one: would the next pass, on a different card, have done better knowing
+this? Settled knowledge goes straight into the handbook. The server records
+its own (rejections, timeouts, requeues, lane refusals, failed merges), and a
+person triages them: `slipdock findings <board>`, `slipdock finding <id>
+promote|dismiss|merge --into <id>`, `GET /api/boards/:board/findings`; see
+[the manual](manual.md#findings).
+
 **Verified work.** A board can check what its agents finish, with each
 check off until it is turned on in the board's settings: a **bar** written
 before work starts, which then locks (best written by whoever files the

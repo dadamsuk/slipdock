@@ -63,6 +63,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> Map.put(:rejection, Slipdock.Verified.rejection(card))
        |> V.put_delivery(card)
        |> V.put_shipping(card)
+       |> V.put_findings(card)
        |> V.put_handbook(card, context.user, context[:token])
        |> put_timeline(card, args["timeline"] == true)
        |> put_waits(card, args["waits"] == true)}

@@ -1,0 +1,29 @@
+defmodule SlipdockWeb.API.FindingJSON do
+  @moduledoc "How a finding reads over HTTP (see `Slipdock.Findings.Finding`)."
+
+  alias Slipdock.Findings.Finding
+
+  def finding(%Finding{} = f) do
+    %{
+      id: f.id,
+      board_id: f.board_id,
+      card: card(f.card),
+      comment_id: f.comment_id,
+      job_id: f.job_id,
+      kind: f.kind,
+      source: f.source,
+      status: f.status,
+      text: f.text,
+      cause: f.cause,
+      count: f.count,
+      by: f.by,
+      note: f.note,
+      merged_into_id: f.merged_into_id,
+      created_at: f.inserted_at,
+      updated_at: f.updated_at
+    }
+  end
+
+  defp card(%Slipdock.Boards.Card{} = c), do: %{id: c.id, title: c.title, board_id: c.board_id}
+  defp card(_), do: nil
+end

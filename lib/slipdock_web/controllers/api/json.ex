@@ -1142,6 +1142,10 @@ defmodule SlipdockWeb.API.JSON do
   def backlink(%Link{source_card: %Card{} = c} = l),
     do: %{card: card_stub(c), count: l.count, pinned: l.pinned, raw: l.raw}
 
+  @doc "How many open findings the card has (W-2310 §Findings)."
+  def put_findings(map, %Card{} = card),
+    do: Map.put(map, :findings, Slipdock.Findings.open_count(card))
+
   @doc """
   How the card's work ships, on a board that ships by pull request (#1655):
   the branch and what the builder does. Nothing on a push board.

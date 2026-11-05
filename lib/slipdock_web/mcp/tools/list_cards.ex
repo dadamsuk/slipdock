@@ -124,6 +124,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
     ids = Enum.map(cards, & &1.id)
     waits = Boards.current_waits(ids)
     last_waits = Boards.last_waits(ids)
+    findings = Slipdock.Findings.open_counts(ids)
 
     board
     |> Boards.with_details(cards)
@@ -135,6 +136,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
       |> Map.put(:last_wait, V.wait(last_waits[card.id]))
       |> Map.put(:url, GetCard.url(card, context.base_url))
       |> Map.put(:rejection, Slipdock.Verified.rejection(card))
+      |> Map.put(:findings, Map.get(findings, card.id, 0))
     end)
   end
 
