@@ -8,6 +8,9 @@ defmodule SlipdockWeb.TableComponents do
   alias Slipdock.Swimlanes.Config
   alias Slipdock.Table
 
+  # How many tag chips a row shows before "+N".
+  @tags_shown 2
+
   attr :board, :any, required: true
   attr :config, Config, required: true
   attr :rows, :map, required: true, doc: "from Slipdock.Table.rows/2"
@@ -393,7 +396,9 @@ defmodule SlipdockWeb.TableComponents do
 
   defp cell(%{field: "assignee"} = assigns) do
     ~H"""
-    <.assignee_chips users={Slipdock.Boards.Card.assignees(@card)} size="xs" with_name />
+    <div class="flex min-w-0 max-w-48 flex-nowrap">
+      <.assignee_chips users={Slipdock.Boards.Card.assignees(@card)} size="xs" with_name />
+    </div>
     """
   end
 
@@ -417,13 +422,45 @@ defmodule SlipdockWeb.TableComponents do
     """
   end
 
+  # One due value per row (#1731): the card's own date in a `date_field`,
+  # coloured by its state, or, when it has none, the date rolled up from its
+  # subcards as the field's muted placeholder. A slip past the card's own
+  # date is an icon with the sentence on hover, so the cell stays one line.
   defp cell(%{field: "due_date"} = assigns) do
+    card = assigns.card
+    due = Slipdock.Boards.Card.effective_due(card)
+    derived = is_nil(card.due_date) and Slipdock.Boards.Card.due_derived?(card)
+    rollup = Map.get(card, :rollup)
+
+    slips =
+      if card.completed,
+        do: [],
+        else:
+          for(
+            {which, days, on} <- [
+              {:start, Slipdock.Boards.Card.start_slip(card), rollup && rollup.derived_start},
+              {:due, Slipdock.Boards.Card.due_slip(card), rollup && rollup.derived_due}
+            ],
+            days > 0,
+            do: past_date_detail(which, days, on)
+          )
+
+    assigns =
+      assign(assigns,
+        state: due_state(due, card.completed),
+        derived: derived,
+        placeholder: if(derived, do: Dates.short(due), else: "Add date"),
+        slips: slips
+      )
+
     ~H"""
     <form
       phx-change="table_update"
       phx-submit="table_update"
       id={"due-#{SlipdockWeb.SlipdockComponents.item_id(@card)}"}
       class="flex items-center gap-1"
+      data-due={@state}
+      data-derived={@derived}
     >
       <input type="hidden" name="card_id" value={SlipdockWeb.SlipdockComponents.item_id(@card)} />
       <input type="hidden" name="field" value="due_date" />
@@ -431,12 +468,18 @@ defmodule SlipdockWeb.TableComponents do
         id={"due-date-#{SlipdockWeb.SlipdockComponents.item_id(@card)}"}
         name="value"
         value={@card.due_date}
+        placeholder={@placeholder}
         bare
+        class="table-due"
         aria-label="Due date"
       />
-      <%!-- The date is the field: no due chip beside it (#1721), only the
-            subcards' overrun, which the date alone doesn't say. --%>
-      <.schedule_badges card={@card} due={false} />
+      <span
+        :for={slip <- @slips}
+        class="table-slip shrink-0 text-amber-600 dark:text-amber-300"
+        title={slip}
+      >
+        <.icon name="hero-arrow-trending-up" class="size-3.5" />
+      </span>
     </form>
     """
   end
@@ -498,9 +541,27 @@ defmodule SlipdockWeb.TableComponents do
     """
   end
 
+  # Tags keep to one line (#1731): the first few, then "+N", and every name
+  # in the tooltip, so a long list doesn't make its row taller.
   defp cell(%{field: "tags"} = assigns) do
+    tags = assigns.card.tags
+
+    assigns =
+      assign(assigns,
+        shown: Enum.take(tags, @tags_shown),
+        more: max(length(tags) - @tags_shown, 0),
+        names: Enum.map_join(tags, ", ", & &1.name)
+      )
+
     ~H"""
-    <span class="flex flex-wrap gap-1"><.tag_chip :for={tag <- @card.tags} tag={tag} size="xs" /></span>
+    <span :if={@shown != []} class="table-tags flex flex-nowrap items-center gap-1" title={@names}><span
+      :for={tag <- @shown}
+      class="table-tag"
+    ><.tag_chip tag={tag} size="xs" /></span><span
+      :if={@more > 0}
+      data-role="more-tags"
+      class="inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-2xs font-medium leading-none text-base-content/70 ring-1 ring-inset ring-base-content/20"
+    >+{@more}</span></span>
     """
   end
 

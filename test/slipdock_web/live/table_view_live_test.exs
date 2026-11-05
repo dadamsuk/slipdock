@@ -457,4 +457,246 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert has_element?(view, "#table-scroll button[phx-click=swim_clear_filters]")
     end
   end
+
+  describe "cells read as text (#1731)" do
+    setup do
+      board = board_fixture(%{"name" => "Restful"})
+      [backlog | _] = board.columns
+      today = Date.utc_today()
+      tags = for n <- ~w(alpha bravo charlie delta echo), do: tag_fixture(board, "t-" <> n)
+
+      many =
+        card_fixture(backlog, %{
+          "title" => "Many tags",
+          "due_date" => Date.to_iso8601(Date.add(today, -2))
+        })
+
+      for tag <- tags, do: Boards.toggle_card_tag(many, tag)
+
+      two = card_fixture(backlog, %{"title" => "Two tags", "due_date" => Date.add(today, 1)})
+      for tag <- Enum.take(tags, 2), do: Boards.toggle_card_tag(two, tag)
+
+      later = card_fixture(backlog, %{"title" => "Later", "due_date" => Date.add(today, 30)})
+
+      done =
+        card_fixture(backlog, %{
+          "title" => "Finished",
+          "completed" => true,
+          "due_date" => Date.add(today, -9)
+        })
+
+      plain = card_fixture(backlog, %{"title" => "Plain"})
+
+      %{board: board, many: many, two: two, later: later, done: done, plain: plain}
+    end
+
+    defp due_cell(card), do: "#row-all-#{card.id} form#due-#{card.id}"
+
+    test "Assignee is a default column, and the chooser hides it", %{conn: conn, board: board} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+      thead = render(element(view, "#card-table thead"))
+      label = ~r/<th[^>]*>.*?<span[^>]*>\s*([^<\s][^<]*?)\s*</s
+
+      headers =
+        Regex.scan(label, thead, capture: :all_but_first)
+        |> List.flatten()
+
+      assert headers == ~w(Title List Priority Assignee Tags Due Done)
+
+      assert has_element?(view, "#swim-config input[name='fields[]'][value=assignee][checked]")
+
+      view
+      |> form("#swim-config", %{"fields" => ~w(title column priority tags due_date completed)})
+      |> render_change()
+
+      assert_patch(
+        view,
+        ~p"/boards/#{board}/table?fields=title%2Ccolumn%2Cpriority%2Ctags%2Cdue_date%2Ccompleted"
+      )
+
+      refute has_element?(view, "#card-table thead th", "Assignee")
+      assert has_element?(view, "#card-table thead th", "Tags")
+    end
+
+    test "an assignee shows in the default table, one line",
+         %{conn: conn, board: board, user: user, plain: plain} do
+      {:ok, _} = Boards.update_card(plain, %{"assignee_id" => user.id})
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+      assert has_element?(
+               view,
+               "#row-all-#{plain.id} .flex-nowrap",
+               Slipdock.Accounts.User.display_name(user)
+             )
+    end
+
+    test "tags keep to one line: two chips, +N, every name in the tooltip",
+         %{conn: conn, board: board, many: many, two: two, plain: plain} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+      row = "#row-all-#{many.id} .table-tags"
+
+      assert has_element?(
+               view,
+               "#{row}.flex-nowrap[title='t-alpha, t-bravo, t-charlie, t-delta, t-echo']"
+             )
+
+      assert view
+             |> element(row)
+             |> render()
+             |> then(&Regex.scan(~r/class="table-tag"/, &1))
+             |> length() == 2
+
+      assert has_element?(view, "#{row} [data-role=more-tags]", "+3")
+      refute has_element?(view, "#{row} .table-tag", "t-charlie")
+
+      # Exactly two: both drawn, nothing more to count.
+      assert has_element?(view, "#row-all-#{two.id} .table-tags[title='t-alpha, t-bravo']")
+      refute has_element?(view, "#row-all-#{two.id} [data-role=more-tags]")
+
+      # None: an empty cell, not an empty tooltip.
+      refute has_element?(view, "#row-all-#{plain.id} .table-tags")
+    end
+
+    test "each row has one due value, marked with its state", %{conn: conn, board: board} = ctx do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+      for {card, state} <- [
+            {ctx.many, "overdue"},
+            {ctx.two, "soon"},
+            {ctx.later, "later"},
+            {ctx.done, "done"}
+          ] do
+        assert has_element?(view, "#{due_cell(card)}[data-due=#{state}]")
+
+        assert view
+               |> element(due_cell(card))
+               |> render()
+               |> then(&Regex.scan(~r/data-date-field/, &1))
+               |> length() == 1
+
+        refute has_element?(view, "#{due_cell(card)} .hero-clock")
+        refute has_element?(view, "#{due_cell(card)} .chip")
+      end
+
+      # No date: no state, no rolled-up date, and the field says "Add date"
+      # (which the stylesheet hides until the row is hovered or focused).
+      refute has_element?(view, "#{due_cell(ctx.plain)}[data-due]")
+      refute has_element?(view, "#{due_cell(ctx.plain)}[data-derived]")
+
+      assert has_element?(
+               view,
+               "#{due_cell(ctx.plain)} .table-due[data-empty] .date-field-placeholder",
+               "Add date"
+             )
+    end
+
+    test "the controls stay in the tab order: title, list, priority, due, done",
+         %{conn: conn, board: board, many: many} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+      row = view |> element("#row-all-#{many.id}") |> render()
+
+      stops =
+        for pattern <- [
+              ~r/role="link"/,
+              ~r/id="col-#{many.id}"/,
+              ~r/id="prio-#{many.id}"/,
+              ~r/data-role="date-display"/,
+              ~r/type="checkbox"/
+            ] do
+          [{at, _}] = Regex.run(pattern, row, return: :index)
+          at
+        end
+
+      assert stops == Enum.sort(stops)
+      refute has_element?(view, "#row-all-#{many.id} select[tabindex]")
+      refute has_element?(view, "#row-all-#{many.id} [data-role=date-display][tabindex]")
+      refute has_element?(view, "#row-all-#{many.id} input[type=checkbox][tabindex]")
+    end
+
+    test "list, priority and due still save from the text cells",
+         %{conn: conn, board: board, plain: plain} do
+      [_, todo | _] = reload(board).columns
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+      view |> form("#prio-#{plain.id}", %{"value" => "high"}) |> render_change()
+      view |> form("#due-#{plain.id}", %{"value" => "2031-04-05"}) |> render_change()
+      view |> form("#col-#{plain.id}", %{"value" => to_string(todo.id)}) |> render_change()
+
+      card = Boards.get_card!(plain.id)
+      assert {card.priority, card.due_date, card.column_id} == {"high", ~D[2031-04-05], todo.id}
+      assert has_element?(view, "#due-#{plain.id}[data-due=later]")
+
+      assert has_element?(
+               view,
+               "#due-#{plain.id} [data-role=date-text]",
+               SlipdockWeb.Dates.short(~D[2031-04-05])
+             )
+
+      # A date that isn't one leaves the card as it was.
+      view |> form("#due-#{plain.id}", %{"value" => "not a date"}) |> render_change()
+      assert Boards.get_card!(plain.id).due_date == ~D[2031-04-05]
+    end
+
+    test "an epic shows its subcards' due date muted, and a slip as an icon",
+         %{conn: conn, board: board} do
+      [backlog | _] = board.columns
+      {:ok, simple} = Boards.find_template(nil, "Simple")
+
+      rolled = card_fixture(backlog, %{"title" => "Rolled"})
+      {:ok, sub} = sub_board(rolled, simple)
+
+      card_fixture(hd(Boards.get_board!(sub.id).columns), %{
+        "title" => "r1",
+        "due_date" => "2030-03-01"
+      })
+
+      slipping = card_fixture(backlog, %{"title" => "Slipping", "due_date" => "2030-01-15"})
+      {:ok, sub} = sub_board(slipping, simple)
+
+      card_fixture(hd(Boards.get_board!(sub.id).columns), %{
+        "title" => "s1",
+        "due_date" => "2030-02-01"
+      })
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+      # No date of its own: the rolled-up one is the placeholder, not a value.
+      assert has_element?(view, "#due-#{rolled.id}[data-derived]")
+
+      assert has_element?(
+               view,
+               "#due-#{rolled.id} .date-field-placeholder",
+               SlipdockWeb.Dates.short(~D[2030-03-01])
+             )
+
+      assert has_element?(view, "#due-#{rolled.id} input[type=date]:not([value])")
+      refute has_element?(view, "#due-#{rolled.id} .table-slip")
+
+      # Its own date, and the subcards past it: one date, one icon saying so.
+      refute has_element?(view, "#due-#{slipping.id}[data-derived]")
+      assert has_element?(view, "#due-#{slipping.id} input[type=date][value='2030-01-15']")
+      assert has_element?(view, "#due-#{slipping.id} .table-slip[title*='17 days past due date']")
+      refute has_element?(view, "#due-#{slipping.id} .chip")
+    end
+
+    test "a finished epic shows no slip", %{conn: conn, board: board} do
+      [backlog | _] = board.columns
+      {:ok, simple} = Boards.find_template(nil, "Simple")
+      epic = card_fixture(backlog, %{"title" => "Closed epic", "due_date" => "2030-01-15"})
+      {:ok, sub} = sub_board(epic, simple)
+
+      card_fixture(hd(Boards.get_board!(sub.id).columns), %{
+        "title" => "x",
+        "due_date" => "2030-02-01"
+      })
+
+      {:ok, _} = Boards.update_card(Boards.get_card!(epic.id), %{"completed" => true})
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+      assert has_element?(view, "#due-#{epic.id}[data-due=done]")
+      refute has_element?(view, "#due-#{epic.id} .table-slip")
+    end
+  end
 end

@@ -33,12 +33,18 @@ defmodule Slipdock.Table do
     {"id", "ID", nil}
   ]
 
-  @default_fields ~w(title column priority tags due_date completed)
+  @default_fields ~w(title column priority assignee tags due_date completed)
 
   @doc "All built-in fields as `{key, label, sort_key_or_nil}`, in display order."
   def fields, do: @fields
   # Votes count as a built-in key: the chooser offers them, so a config must keep them.
   def field_keys, do: Enum.map(@fields, &elem(&1, 0)) ++ ["votes"]
+
+  @doc """
+  The columns a table shows until someone picks their own; the defaults of
+  `Slipdock.Swimlanes.Config` (`fields`, `fields_compact`) are the same list,
+  and so are a wiki query table's when it names no fields.
+  """
   def default_fields, do: @default_fields
 
   @doc "Built-in fields, then votes, then the board's custom fields as `f:<id>` columns."
