@@ -33,7 +33,7 @@ import {boardHotkey, noteHotkey, placeHotkey, searchHotkey} from "./board_hotkey
 import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
-import {WikiFileOpen, WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthToggle} from "./wiki_pane"
+import {EditorPrefs, WikiFileOpen, WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthToggle} from "./wiki_pane"
 import {TimelineLabelResize, linkPath} from "./timeline_labels"
 import {installMeld} from "./meld_view"
 import {MeldEditor} from "./meld_editor"
@@ -1445,20 +1445,7 @@ Hooks.ScrollTopOnPage = {
 // The wiki editor's preview, on or off, kept by the browser so every page
 // opens the way the writer last left it. Only "off" is stored: on is the
 // default.
-Hooks.EditorPrefs = {
-  mounted() {
-    const key = "slipdock:wiki-preview"
-    try {
-      if (localStorage.getItem(key) === "off") this.pushEvent("restore_preview", {on: false})
-    } catch (_e) {}
-    this.handleEvent("wiki-editor:preview", ({on}) => {
-      try {
-        if (on) localStorage.removeItem(key)
-        else localStorage.setItem(key, "off")
-      } catch (_e) {}
-    })
-  }
-}
+Hooks.EditorPrefs = EditorPrefs
 Hooks.WikiTree = WikiTree
 Hooks.WikiTreeCollapse = WikiTreeCollapse
 Hooks.WikiTreeResize = WikiTreeResize

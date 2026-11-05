@@ -53,6 +53,8 @@ defmodule SlipdockWeb.WikiAutosaveLiveTest do
     test "takes an image before it has been saved, and keeps it on Save", ctx do
       %{conn: conn, board: board, user: user} = ctx
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/new")
+      # The Preview pane is off by default (#1744): turn it on to see it.
+      view |> element("#toggle-preview") |> render_click()
 
       paste(view)
       markdown = pasted_markdown(view)
@@ -115,6 +117,7 @@ defmodule SlipdockWeb.WikiAutosaveLiveTest do
     test "a body typed before any title doesn't bring the editor down", ctx do
       %{conn: conn, board: board} = ctx
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/new")
+      view |> element("#toggle-preview") |> render_click()
 
       assert type(view, %{title: "", body: "Words first"}) =~ "Words first"
       tick(view)

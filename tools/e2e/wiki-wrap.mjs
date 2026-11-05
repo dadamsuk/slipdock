@@ -48,6 +48,11 @@ try {
     ]) {
       await page.goto(base + path, { waitUntil: 'networkidle' })
       await page.waitForSelector('.phx-connected')
+      // The editor's Preview pane is off by default (#1744): turn it on to
+      // measure it (by script: below lg the button, like the pane, is hidden).
+      if (mode === 'edit preview' && (await page.getAttribute('#toggle-preview', 'aria-pressed')) === 'false') {
+        await page.evaluate(() => document.getElementById('toggle-preview').click())
+      }
       await page.waitForSelector(selector, { state: 'attached' })
       await page.waitForTimeout(500)
       const m = await measure(selector)(page)

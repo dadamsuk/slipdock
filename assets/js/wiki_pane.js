@@ -252,3 +252,28 @@ export const WikiFileOpen = {
     this.el.removeEventListener("click", this.onClick)
   },
 }
+
+// The editor's Preview pane (#1744). The editor renders as you type, so it
+// opens alone at the whole width; a writer who turns the Preview pane on has
+// it on every page in this browser. Only "on" is kept: a browser that once
+// stored "off" (when the pane was the default) reads as off, as it was.
+export const PREVIEW_KEY = "slipdock:wiki-preview"
+
+export function savedPreview(storage) {
+  return read(storage, PREVIEW_KEY) === "on"
+}
+
+export function savePreview(storage, on) {
+  write(storage, PREVIEW_KEY, on ? "on" : null)
+  return on
+}
+
+// On the Preview button: tells the server what this browser last chose, and
+// keeps each new choice the server reports back.
+export const EditorPrefs = {
+  mounted() {
+    const storage = this.storage || localStorage
+    if (savedPreview(storage)) this.pushEvent("restore_preview", {on: true})
+    this.handleEvent("wiki-editor:preview", ({on}) => savePreview(storage, on))
+  },
+}

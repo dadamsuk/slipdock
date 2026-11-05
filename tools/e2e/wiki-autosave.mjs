@@ -26,6 +26,9 @@ await page.waitForLoadState("networkidle")
 
 await page.goto(`${base}/boards/${board}/wiki/new`)
 await connected()
+// The Preview pane is off by default (#1744); the held image is checked there.
+await page.click("#toggle-preview")
+await page.waitForSelector("#page-preview")
 
 // Paste before a title exists: the old editor refused, or fell over.
 await page.evaluate(b64 => {
