@@ -419,7 +419,7 @@ defmodule Slipdock.Automations do
     Process.put(:automation_depth, depth + 1)
 
     try do
-      results = Runner.run(rule, event)
+      results = Slipdock.Actor.as_rule(rule.name, fn -> Runner.run(rule, event) end)
       record_run(rule, results)
       if Enum.any?(results, &match?({:ok, _}, &1)), do: broadcast_alerts()
       results

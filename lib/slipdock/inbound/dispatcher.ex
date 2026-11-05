@@ -189,11 +189,18 @@ defmodule Slipdock.Inbound.Dispatcher do
   defp unresolved(:forbidden), do: "You can no longer add to this board."
   defp unresolved(_), do: "No such address here."
 
-  @doc "`Slipdock.Inbound.Trust.check/3`, as the dispatcher answers."
+  @doc """
+  `Slipdock.Inbound.Trust.check/3`, as the dispatcher answers. A trusted
+  sender is who the mail's changes are by, in the activity log (#1735).
+  """
   def trust(message, user, target) do
     case Trust.check(message, user, target) do
-      :ok -> :ok
-      {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
+      :ok ->
+        Slipdock.Actor.put(Slipdock.Actor.email(user), Slipdock.Accounts.User.display_name(user))
+        :ok
+
+      {:reject, reason} ->
+        {:reject, reason, %{user_id: user.id}}
     end
   end
 end

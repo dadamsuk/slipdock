@@ -48,6 +48,7 @@ defmodule SlipdockWeb.UserAuth do
     token = get_session(conn, :user_token)
     user = token && Accounts.get_user_by_session_token(token)
     SlipdockWeb.Dates.put_zone(user && Slipdock.Timezones.of(user))
+    put_actor(user && Slipdock.Actor.web(user), user)
     assign(conn, :current_user, user)
   end
 
@@ -62,13 +63,23 @@ defmodule SlipdockWeb.UserAuth do
            Accounts.get_api_token(String.trim(token), ip: SlipdockWeb.ClientIP.from_conn(conn)) do
       conn |> assign(:current_user, user) |> assign(:api_token, api_token) |> assign_actor()
     else
-      _ -> conn |> assign(:current_user, nil) |> assign(:api_token, nil)
+      _ ->
+        Slipdock.Actor.put(nil)
+        conn |> assign(:current_user, nil) |> assign(:api_token, nil)
     end
   end
 
   # Who a request's writes are recorded as (see `Slipdock.Actor`), worked out
   # once from the token and the client's headers.
-  defp assign_actor(conn), do: assign(conn, :actor, Slipdock.Actor.from_conn(conn))
+  # The process keeps it too, for the activity log (#1735).
+  defp assign_actor(conn) do
+    actor = Slipdock.Actor.from_conn(conn)
+    put_actor(actor, conn.assigns[:current_user])
+    assign(conn, :actor, actor)
+  end
+
+  defp put_actor(actor, user),
+    do: Slipdock.Actor.put(actor, user && Accounts.User.display_name(user))
 
   @doc "Plug: loads the current user from an `Authorization: Bearer` API token, else 401."
   def fetch_api_user(conn, _opts) do
@@ -243,7 +254,8 @@ defmodule SlipdockWeb.UserAuth do
   end
 
   # Also sets the timezone `SlipdockWeb.Dates` writes times in for this
-  # LiveView's process: the reader's own (#1719).
+  # LiveView's process: the reader's own (#1719); and who its writes are by,
+  # for the activity log (#1735).
   defp mount_current_user(socket, session) do
     socket =
       Phoenix.Component.assign_new(socket, :current_user, fn ->
@@ -252,6 +264,7 @@ defmodule SlipdockWeb.UserAuth do
 
     user = socket.assigns.current_user
     SlipdockWeb.Dates.put_zone(user && Slipdock.Timezones.of(user))
+    put_actor(user && Slipdock.Actor.web(user), user)
     socket
   end
 

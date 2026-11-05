@@ -98,6 +98,8 @@ defmodule SlipdockWeb.MCP.Plug do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          {%Accounts.User{} = user, api_token} <-
            Accounts.get_api_token(String.trim(token), ip: SlipdockWeb.ClientIP.from_conn(conn)) do
+      # An agent's writes, for the activity log (#1735).
+      Slipdock.Actor.put(Slipdock.Actor.mcp(%{user: user, token: api_token}))
       {:ok, conn |> assign(:current_user, user) |> assign(:api_token, api_token)}
     else
       _ ->
