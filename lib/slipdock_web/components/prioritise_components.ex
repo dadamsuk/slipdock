@@ -130,7 +130,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
             id={"prio-#{item_id(entry.card)}"}
             class={["hover:bg-base-200/40", entry.card.completed && "opacity-60"]}
           >
-            <td class="text-right font-mono text-base-content/50">
+            <td class="text-right text-base-content/50">
               <span class={
                 entry.rank <= 3 and not is_nil(entry.score) and "font-semibold text-primary"
               }>
@@ -188,7 +188,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
             <td :for={f <- @p.inputs} class="whitespace-nowrap">
               <.field_editor field={f} card={entry.card} can_write={@can_write} />
             </td>
-            <td :for={f <- @p.formulas} class="text-right font-mono font-semibold">
+            <td :for={f <- @p.formulas} class="text-right font-semibold">
               {Fields.format(f, Fields.value(entry.card, f)) || "—"}
             </td>
           </tr>
@@ -217,7 +217,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
       >
         <div class="flex items-start gap-2">
           <span class={[
-            "w-6 shrink-0 pt-0.5 text-right font-mono text-sm text-base-content/50",
+            "w-6 shrink-0 pt-0.5 text-right text-sm text-base-content/50",
             entry.rank <= 3 and not is_nil(entry.score) and "font-semibold text-primary"
           ]}>
             {entry.rank}
@@ -243,7 +243,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-8">
           <span
             :for={f <- @p.formulas}
-            class="chip chip-tint font-mono text-primary"
+            class="chip chip-tint text-primary"
             title={f.name}
           >
             {f.name} {Fields.format(f, Fields.value(entry.card, f)) || "—"}
@@ -318,7 +318,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
 
     ~H"""
     <div class="flex items-center gap-1.5">
-      <span class="w-6 text-right font-mono" title="Votes from everyone">{@total}</span>
+      <span class="w-6 text-right" title="Votes from everyone">{@total}</span>
       <span class="join">
         <button
           type="button"
@@ -447,27 +447,56 @@ defmodule SlipdockWeb.PrioritiseComponents do
       phx-change="prio_field"
       phx-submit="prio_field"
       id={"prio-field-#{item_id(@card)}-#{@field.id}"}
-      class="flex items-center gap-1"
+      class="flex items-center"
     >
       <input type="hidden" name="card_id" value={item_id(@card)} />
       <input type="hidden" name="field_id" value={@field.id} />
+      <label :if={@input_type == "number"} class="prio-number field-bare">
+        <input
+          type="number"
+          name="value"
+          value={input_value(@input_type, @value)}
+          step="any"
+          min={@config["min"]}
+          max={@config["max"]}
+          phx-debounce="blur"
+          style={"--prio-chars: #{chars(input_value(@input_type, @value))}"}
+          aria-label={@field.name}
+          placeholder="—"
+        />
+        <span
+          :if={unit(@config) != ""}
+          data-unit
+          class={["prio-unit", tight_unit?(unit(@config)) && "prio-unit-tight"]}
+        >
+          {unit(@config)}
+        </span>
+      </label>
       <input
+        :if={@input_type != "number"}
         type={@input_type}
         name="value"
         value={input_value(@input_type, @value)}
-        step={@input_type == "number" && "any"}
-        min={@config["min"]}
-        max={@config["max"]}
         phx-debounce="blur"
-        class={["input field-bare", if(@input_type == "text", do: "w-36", else: "w-24")]}
+        aria-label={@field.name}
+        class={["input field-bare prio-input", if(@input_type == "text", do: "w-36", else: "w-32")]}
         placeholder="—"
       />
-      <span :if={@config["unit"] && @input_type == "number"} class="text-xs text-base-content/50">
-        {@config["unit"]}
-      </span>
     </form>
     """
   end
+
+  # A number field's unit, if it has one.
+  defp unit(config), do: to_string(config["unit"] || "") |> String.trim()
+
+  # The signs that sit against their number ("80%", not "80 %"), as in
+  # `Slipdock.Fields.format/2`.
+  defp tight_unit?(unit), do: unit in ~w(% ‰ ° ′ ″)
+
+  # How wide a number box starts, in characters, where the browser can't
+  # size it to what is typed (`field-sizing`): the value, or the placeholder.
+  defp chars(nil), do: 1
+  defp chars(v), do: v |> to_string() |> String.length() |> max(1)
 
   defp input_value("date", %Date{} = d), do: Date.to_iso8601(d)
   defp input_value(_, n) when is_float(n), do: if(n == trunc(n), do: trunc(n), else: n)

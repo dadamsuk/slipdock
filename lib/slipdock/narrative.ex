@@ -253,8 +253,116 @@ defmodule Slipdock.Narrative do
       kind: classify(activity),
       message: activity.message,
       card_id: activity.card_id,
-      own?: activity.card_id == top_id
+      own?: activity.card_id == top_id,
+      actor: actor(activity)
     }
+  end
+
+  # Who made the change, as far as the activity says. The log has no actor
+  # yet (#1735 adds one), so read whatever it carries and fall back to
+  # unknown (nil): changes with the same unknown actor fold together.
+  defp actor(activity) do
+    case {Map.get(activity, :user_id), Map.get(activity, :actor_kind),
+          Map.get(activity, :actor_name)} do
+      {nil, nil, nil} -> nil
+      who -> who
+    end
+  end
+
+  @doc """
+  The lines a card's story tells, ready to show under a heading naming
+  `title`: each event's message without the card's own title in it
+  ("set due date to 3 Mar 2030", "completed it"), and a run of field
+  changes on the same card, by the same actor on the same day, folded into
+  one ("set Reach 4000 people, Impact 3, Confidence 80%").
+
+  Subcard events keep their subcard's name. `build/3` and its other callers
+  (the AI narrator) are unchanged: this is for the view. A folded line
+  carries the first event's time and `:folded`, the events it stands for.
+  """
+  def lines(events, title) when is_list(events) do
+    events
+    |> Enum.map(&untitled(&1, title))
+    |> Enum.chunk_while([], &fold_step/2, &fold_done/1)
+    |> Enum.map(&fold_line/1)
+  end
+
+  # "set X on “T” to V" → "set X to V"; "completed “T”" → "completed it".
+  # Only the card's own events: a subcard's line names the subcard.
+  defp untitled(%{own?: true, message: message} = event, title)
+       when is_binary(title) and title != "" do
+    quoted = "“#{title}”"
+
+    message =
+      message
+      |> String.replace(" on " <> quoted, "")
+      |> String.replace(quoted, "it")
+
+    %{event | message: message}
+  end
+
+  defp untitled(event, _title), do: event
+
+  # A field change, split into what was set, on which card if the line
+  # names one, and to what: "set Reach to 4000 people" is
+  # {"Reach", nil, "4000 people"}, a subcard's "set Reach on “Sub” to 4"
+  # is {"Reach", "Sub", "4"}. Comments, moves and the rest are not.
+  defp field_change(%{kind: kind, message: "set " <> rest})
+       when kind in [:edited, :due, :start] do
+    case String.split(rest, " on “", parts: 2) do
+      [name, tail] ->
+        case String.split(tail, "” to ", parts: 2) do
+          [subject, value] -> change(name, subject, value)
+          _ -> nil
+        end
+
+      [_] ->
+        case String.split(rest, " to ", parts: 2) do
+          [name, value] -> change(name, nil, value)
+          _ -> nil
+        end
+    end
+  end
+
+  defp field_change(_), do: nil
+
+  defp change(name, subject, value) when name != "" and value != "", do: {name, subject, value}
+  defp change(_, _, _), do: nil
+
+  # Chunks: a run of field changes that fold together, or one other event.
+  defp fold_step(event, []), do: {:cont, [event]}
+
+  defp fold_step(event, [last | _] = run) do
+    if folds?(last, event), do: {:cont, [event | run]}, else: {:cont, Enum.reverse(run), [event]}
+  end
+
+  defp fold_done([]), do: {:cont, []}
+  defp fold_done(run), do: {:cont, Enum.reverse(run), []}
+
+  defp folds?(a, b) do
+    case {field_change(a), field_change(b)} do
+      {{_, subject, _}, {_, subject, _}} ->
+        a.date == b.date and a.card_id == b.card_id and a.own? == b.own? and
+          Map.get(a, :actor) == Map.get(b, :actor)
+
+      _ ->
+        false
+    end
+  end
+
+  defp fold_line([event]), do: event
+
+  defp fold_line([first | _] = run) do
+    changes = Enum.map(run, &field_change/1)
+    {_, subject, _} = hd(changes)
+    where = if subject, do: " on “#{subject}”:", else: ""
+
+    Map.merge(first, %{
+      kind: :edited,
+      message:
+        "set" <> where <> " " <> Enum.map_join(changes, ", ", fn {n, _, v} -> "#{n} #{v}" end),
+      folded: run
+    })
   end
 
   # What an activity line means, from its kind and how the message starts.

@@ -8,6 +8,7 @@ defmodule SlipdockWeb.NarrativeComponents do
 
   import SlipdockWeb.SlipdockComponents
   alias Slipdock.Boards.Card
+  alias Slipdock.Narrative
   alias SlipdockWeb.RichText
   alias Slipdock.Palette
   alias Slipdock.Swimlanes.Config
@@ -213,7 +214,11 @@ defmodule SlipdockWeb.NarrativeComponents do
       </div>
       <.card_summary :if={@summary?} card={@card} column={@column} />
       <ul class="space-y-0.5 text-sm">
-        <li :for={e <- @entry.events} class="flex gap-3">
+        <li
+          :for={e <- Narrative.lines(@entry.events, @card.title)}
+          class="flex gap-3"
+          data-folded={e[:folded] && length(e.folded)}
+        >
           <span
             class="w-28 shrink-0 text-xs leading-5 text-base-content/50"
             title={DateTime.to_iso8601(e.at)}

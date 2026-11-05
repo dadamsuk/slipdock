@@ -1,1 +1,42 @@
 /* Prioritise view -------------------------------------------------------- */
+
+/* Numbers in the base font with tabular digits (#1734), so ranks, votes
+   and scores line up in their columns without the mono face. */
+#prioritise-table { font-variant-numeric: tabular-nums; }
+#prioritise-table td { vertical-align: middle; }
+
+/* A number field: the value and its unit in one box, the unit a suffix
+   straight after the digits ("4000 people", "80%"), not a column away.
+   The box is the label, so hovering or focusing it frames both. */
+.prio-number {
+  display: inline-flex; align-items: center;
+  height: 1.75rem; padding-inline: 0.25rem;
+  cursor: text; white-space: nowrap;
+}
+.prio-number:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 20%, transparent);
+}
+.prio-number input {
+  /* Sized to what it holds: by the browser where it can, else from the
+     character count the component sets. */
+  width: calc(var(--prio-chars, 1) * 1ch + 0.25rem);
+  min-width: 1.5ch;
+  padding: 0; border: 0; outline: none; background: transparent;
+  font: inherit; font-variant-numeric: tabular-nums; line-height: 1.25rem;
+  text-align: right;
+  appearance: textfield; -moz-appearance: textfield;
+}
+@supports (field-sizing: content) {
+  .prio-number input { field-sizing: content; width: auto; }
+}
+.prio-number input::-webkit-inner-spin-button,
+.prio-number input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.prio-unit {
+  margin-left: 0.25em;
+  color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+}
+.prio-unit-tight { margin-left: 0; }
+
+/* Text and date fields: the row's size, not daisyUI's larger input. */
+.prio-input { height: 1.75rem; padding-inline: 0.25rem; font-size: inherit; }

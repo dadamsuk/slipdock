@@ -149,4 +149,184 @@ defmodule Slipdock.NarrativeTest do
     # A form without the chooser leaves it alone.
     assert Config.from_form(%{"rows" => "column"}, config).tell == ~w(created summary)
   end
+
+  describe "lines/2" do
+    @title "Dark mode for the dashboard"
+    @at ~U[2030-03-04 09:00:00Z]
+
+    # An event as build/3 makes it: on the card itself unless `card_id` says
+    # a subcard, today unless `at` says otherwise, by nobody known.
+    defp ev(kind, message, opts \\ []) do
+      at = Keyword.get(opts, :at, @at)
+      card_id = Keyword.get(opts, :card_id, 1)
+
+      %{
+        id: System.unique_integer([:positive]),
+        at: at,
+        date: DateTime.to_date(at),
+        kind: kind,
+        message: message,
+        card_id: card_id,
+        own?: card_id == 1,
+        actor: Keyword.get(opts, :actor)
+      }
+    end
+
+    defp messages(lines), do: Enum.map(lines, & &1.message)
+
+    test "a single line drops the card's title" do
+      assert messages(
+               Narrative.lines([ev(:edited, "set Confidence on “#{@title}” to 80%")], @title)
+             ) ==
+               ["set Confidence to 80%"]
+
+      assert messages(
+               Narrative.lines(
+                 [
+                   ev(:created, "added “#{@title}” to Backlog"),
+                   ev(:moved, "moved “#{@title}” from Backlog to Doing"),
+                   ev(:comment, "commented on “#{@title}”"),
+                   ev(:completed, "completed “#{@title}”")
+                 ],
+                 @title
+               )
+             ) == [
+               "added it to Backlog",
+               "moved it from Backlog to Doing",
+               "commented",
+               "completed it"
+             ]
+    end
+
+    test "a lone field change stays as it was, unfolded" do
+      [line] = Narrative.lines([ev(:due, "set due date on “#{@title}” to 2030-03-09")], @title)
+      assert line.message == "set due date to 2030-03-09"
+      assert line.kind == :due
+      refute Map.has_key?(line, :folded)
+    end
+
+    test "consecutive field changes by one actor on one day are one line" do
+      events = [
+        ev(:edited, "set Reach on “#{@title}” to 4000 people"),
+        ev(:edited, "set Impact on “#{@title}” to 3", at: ~U[2030-03-04 09:01:00Z]),
+        ev(:edited, "set Confidence on “#{@title}” to 80%", at: ~U[2030-03-04 15:00:00Z]),
+        ev(:edited, "set Effort on “#{@title}” to 3 weeks", at: ~U[2030-03-04 23:59:00Z])
+      ]
+
+      assert [line] = Narrative.lines(events, @title)
+      assert line.message == "set Reach 4000 people, Impact 3, Confidence 80%, Effort 3 weeks"
+      assert line.kind == :edited
+      # It carries the first change's time and the changes it stands for.
+      assert line.at == @at
+      assert length(line.folded) == 4
+    end
+
+    test "mixed sequences fold only the runs between other events" do
+      events = [
+        ev(:created, "added “#{@title}” to Backlog"),
+        ev(:edited, "set Reach on “#{@title}” to 4000 people"),
+        ev(:edited, "set Impact on “#{@title}” to 3"),
+        ev(:comment, "commented on “#{@title}”"),
+        ev(:edited, "set Effort on “#{@title}” to 3 weeks"),
+        # A cleared field isn't a "set": it stands alone and breaks the run.
+        ev(:edited, "cleared Confidence on “#{@title}”"),
+        ev(:due, "set due date on “#{@title}” to 2030-03-09"),
+        ev(:start, "set start date on “#{@title}” to 2030-03-05")
+      ]
+
+      assert messages(Narrative.lines(events, @title)) == [
+               "added it to Backlog",
+               "set Reach 4000 people, Impact 3",
+               "commented",
+               "set Effort to 3 weeks",
+               "cleared Confidence",
+               "set due date 2030-03-09, start date 2030-03-05"
+             ]
+    end
+
+    test "changes on different days or by different actors stay apart" do
+      events = [
+        ev(:edited, "set Reach on “#{@title}” to 10"),
+        ev(:edited, "set Impact on “#{@title}” to 3", at: ~U[2030-03-05 00:00:00Z]),
+        ev(:edited, "set Effort on “#{@title}” to 1 weeks",
+          at: ~U[2030-03-05 01:00:00Z],
+          actor: {7, "human", nil}
+        ),
+        ev(:edited, "set Confidence on “#{@title}” to 50%",
+          at: ~U[2030-03-05 02:00:00Z],
+          actor: {7, "human", nil}
+        )
+      ]
+
+      assert messages(Narrative.lines(events, @title)) == [
+               "set Reach to 10",
+               "set Impact to 3",
+               "set Effort 1 weeks, Confidence 50%"
+             ]
+    end
+
+    test "a subcard's lines keep its name, and fold only with the same subcard" do
+      events = [
+        ev(:edited, "set Reach on “#{@title}” to 1"),
+        ev(:edited, "set Reach on “Wire it up” to 2", card_id: 2),
+        ev(:edited, "set Impact on “Wire it up” to 3", card_id: 2),
+        ev(:edited, "set Impact on “Move to cloud” to 1", card_id: 3)
+      ]
+
+      assert [own, sub, other] = Narrative.lines(events, @title)
+      assert own.message == "set Reach to 1"
+      assert sub.message == "set on “Wire it up”: Reach 2, Impact 3"
+      refute sub.own?
+      # A title with " to " in it still parses.
+      assert other.message == "set Impact on “Move to cloud” to 1"
+    end
+
+    test "nothing to tell, no title, or a message that only looks like a change" do
+      assert Narrative.lines([], @title) == []
+
+      # Without a title the messages are left alone.
+      assert messages(Narrative.lines([ev(:completed, "completed “X”")], nil)) == [
+               "completed “X”"
+             ]
+
+      assert messages(Narrative.lines([ev(:completed, "completed “X”")], "")) == ["completed “X”"]
+
+      # "set" with no " to " or no value, and "set" on a kind that isn't a
+      # field (a status update), don't fold.
+      events = [
+        ev(:edited, "set flags"),
+        ev(:edited, "set Reach to "),
+        ev(:status, "set status to at risk"),
+        ev(:status, "set status to on track")
+      ]
+
+      assert length(Narrative.lines(events, @title)) == 4
+    end
+  end
+
+  test "build/3 events carry an actor (unknown until the log records one) and fold in lines/2" do
+    board = board_fixture(%{"name" => "Folding"})
+    [backlog | _] = board.columns
+    card = card_fixture(backlog, %{"title" => "Dark mode"})
+    {:ok, _} = Slipdock.Fields.install_preset(board, "rice")
+    board = reload(board)
+
+    for {f, v} <- Enum.zip(Enum.take(board.fields, 3), ["4000", "3", "80"]) do
+      {:ok, _} = Slipdock.Fields.set_value(Boards.get_card!(card.id), f, v)
+    end
+
+    narrative = Narrative.build(reload(board), Config.defaults("narrative"), Date.utc_today())
+    [%{cards: cards}] = narrative.groups
+    story = Enum.find(cards, &(&1.card.id == card.id))
+
+    assert Enum.all?(story.events, &Map.has_key?(&1, :actor))
+    assert Enum.all?(story.events, &is_nil(&1.actor))
+    # build/3 still tells each change with the title, for its other callers.
+    assert Enum.any?(story.events, &(&1.message == "set Reach on “Dark mode” to 4000 people"))
+
+    assert messages(Narrative.lines(story.events, "Dark mode")) == [
+             "added it to Backlog",
+             "set Reach 4000 people, Impact 3, Confidence 80%"
+           ]
+  end
 end

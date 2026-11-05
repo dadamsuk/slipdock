@@ -148,4 +148,90 @@ defmodule SlipdockWeb.PrioritiseLiveTest do
 
     assert Votes.mine(Boards.get_card!(a.id), stranger) == 1
   end
+
+  describe "numbers read as values (#1734)" do
+    setup %{board: board, b: b} do
+      {:ok, _} = Fields.install_preset(board, "rice")
+      {:ok, plain} = Fields.create_field(board, %{"name" => "Size", "kind" => "number"})
+      board = reload(board)
+      [reach, _impact, confidence, effort, _rice | _] = board.fields
+
+      for {f, v} <- [{reach, "4000"}, {confidence, "80"}, {effort, "0.5"}, {plain, "12"}] do
+        {:ok, _} = Fields.set_value(Boards.get_card!(b.id), f, v)
+      end
+
+      %{board: board, reach: reach, confidence: confidence, effort: effort, plain: plain}
+    end
+
+    test "each unit is a suffix in the value's own box, sized to the value", ctx do
+      {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/prioritise")
+      field = fn f -> "#prio-field-#{ctx.b.id}-#{f.id}" end
+
+      # Value and unit share one label, the unit straight after the input.
+      assert has_element?(
+               view,
+               "#{field.(ctx.reach)} label.prio-number input[value='4000'] + span[data-unit]",
+               "people"
+             )
+
+      assert has_element?(view, ~s(#{field.(ctx.reach)} input[style="--prio-chars: 4"]))
+      assert has_element?(view, ~s(#{field.(ctx.effort)} input[style="--prio-chars: 3"]))
+      assert has_element?(view, "#{field.(ctx.effort)} span[data-unit]", "weeks")
+      refute has_element?(view, "#{field.(ctx.reach)} .prio-unit-tight")
+
+      # "%" sits against its number; a field with no unit has no suffix.
+      assert has_element?(view, "#{field.(ctx.confidence)} span.prio-unit-tight", "%")
+      refute has_element?(view, "#{field.(ctx.plain)} span[data-unit]")
+      assert has_element?(view, "#{field.(ctx.plain)} input[aria-label=Size][value='12']")
+
+      # An empty value starts one character wide, with its unit still beside it.
+      assert has_element?(
+               view,
+               ~s(#prio-field-#{ctx.a.id}-#{ctx.reach.id} input[style="--prio-chars: 1"])
+             )
+
+      assert has_element?(
+               view,
+               "#prio-field-#{ctx.a.id}-#{ctx.reach.id} span[data-unit]",
+               "people"
+             )
+
+      # Editing still saves through the same form.
+      view |> form(field.(ctx.reach), %{"value" => "4500"}) |> render_change()
+      assert Fields.value(Boards.get_card!(ctx.b.id), ctx.reach) == 4500.0
+
+      assert has_element?(
+               view,
+               ~s(#{field.(ctx.reach)} input[style="--prio-chars: 4"][value='4500'])
+             )
+    end
+
+    test "ranks, votes and scores use the base font, not mono", ctx do
+      {:ok, _} = Votes.set(ctx.b, user_fixture(), 2)
+      {:ok, view, _html} = live(ctx.conn, ~p"/boards/#{ctx.board}/prioritise")
+      row = view |> element("#prio-#{ctx.b.id}") |> render()
+
+      refute row =~ "font-mono"
+      assert has_element?(view, ~s(#prio-#{ctx.b.id} [title="Votes from everyone"]), "2")
+    end
+
+    test "on a phone the stacked rows use the base font too", ctx do
+      {:ok, view, _html} = live(phone(ctx.conn), ~p"/boards/#{ctx.board}/prioritise")
+      assert has_element?(view, "ul#prioritise-table li#prio-#{ctx.b.id}")
+      refute view |> element("#prio-#{ctx.b.id}") |> render() =~ "font-mono"
+      assert has_element?(view, "#prio-#{ctx.b.id} label.prio-number span[data-unit]", "people")
+    end
+
+    test "read-only viewers see each value with its unit, as text", ctx do
+      stranger = user_fixture("reader1734@example.com")
+      {:ok, _} = Slipdock.Access.grant(ctx.board, stranger, "read", user_fixture())
+
+      {:ok, view, _html} =
+        live(log_in_user(ctx.conn, stranger), ~p"/boards/#{ctx.board}/prioritise")
+
+      refute has_element?(view, "#prio-#{ctx.b.id} input[type=number]")
+      assert has_element?(view, "#prio-#{ctx.b.id} td span", "4000 people")
+      assert has_element?(view, "#prio-#{ctx.b.id} td span", "80%")
+    end
+  end
 end
