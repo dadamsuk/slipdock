@@ -9,6 +9,7 @@ defmodule SlipdockCLI do
     Automations,
     Boards,
     Deploy,
+    Findings,
     Garden,
     Health,
     Inbound,
@@ -641,6 +642,13 @@ defmodule SlipdockCLI do
     health settings <board> [<detector> key=value...]
                                         show the detectors, or change one (enabled=false,
                                         max_attempts=3, or a threshold)
+    findings <board> [--status S] [--kind K] [--source S] [--card ID] [--days N]
+                                        what cards taught (Findings: blocks) and what the system
+                                        saw go wrong, on the tree's root board; open by default
+                                        (S: open|promoted|dismissed|merged|all)
+    finding <id> dismiss|promote|reopen [--note TEXT]
+                                        triage one (promote: say what it became, W-1950 §Tests)
+    finding <id> merge --into ID        fold a repeat into another finding, adding its count
     copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
                                         a copy of the card as it is now: checklist unticked,
                                         subcards reopened; no comments, dates or attachments.
@@ -1235,6 +1243,8 @@ defmodule SlipdockCLI do
     hotkey: :string,
     append: :string,
     card: :string,
+    into: :integer,
+    source: :string,
     page: :string,
     dir: :string,
     # `slipdock tools show|install|install-board`: a version other than the latest.
@@ -1350,6 +1360,7 @@ defmodule SlipdockCLI do
     Boards,
     Garden,
     Health,
+    Findings,
     Inbound,
     Automations,
     Runners,

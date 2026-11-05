@@ -1016,6 +1016,7 @@ defmodule SlipdockCLI.Render do
       )
     end
 
+    findings_field(c)
     if c["archived_at"], do: field("Archived", c["archived_at"])
     field("Created", c["inserted_at"])
     field("Updated", c["updated_at"])
@@ -2637,4 +2638,10 @@ defmodule SlipdockCLI.Render do
 
     if counts == "", do: s["result"], else: "#{s["result"]} (#{counts})"
   end
+
+  # A card's open findings (W-2310 §Findings), and how to list them.
+  defp findings_field(%{"findings" => n} = c) when is_integer(n) and n > 0,
+    do: field("Findings", "#{n} open · slipdock findings #{c["board_id"]} --card #{c["id"]}")
+
+  defp findings_field(_card), do: :ok
 end

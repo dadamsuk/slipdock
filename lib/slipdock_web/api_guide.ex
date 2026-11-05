@@ -41,6 +41,7 @@ defmodule SlipdockWeb.APIGuide do
       chat_capture(),
       wiki(),
       handbook(),
+      findings_section(),
       verified_work(user, Keyword.get(opts, :token)),
       lanes_section(user, Keyword.get(opts, :token)),
       portable(),
@@ -198,6 +199,7 @@ defmodule SlipdockWeb.APIGuide do
     "Chat capture" => "chats",
     "The wiki: writing things down" => "wiki",
     "The handbook" => "handbook",
+    "Findings" => "findings",
     "Verified work" => "verified",
     "Skills" => "skills",
     "Moving boards between servers" => "moving",
@@ -1060,7 +1062,7 @@ defmodule SlipdockWeb.APIGuide do
           POST  /api/cards/57/comments    {"body": "Parser done, codegen next; …"}
 
       A card sitting in `doing` for hours with nothing newer than the move on
-      it looks abandoned, and someone will come and ask.
+      it looks abandoned.
     - **A step done → tick it.** `POST /api/checklist/<item_id>/toggle`
       (item ids come from `GET /api/cards/<id>`). Add items as you discover
       them: `POST /api/cards/57/checklist {"text": "…"}`.
@@ -3216,6 +3218,45 @@ defmodule SlipdockWeb.APIGuide do
     `Handbook: no change (<why>)`. A card that names a page ("Document in:
     Architecture") must update it. The gardener flags done cards without
     the line.
+    """
+  end
+
+  defp findings_section do
+    """
+
+    ## Findings
+
+    What a pass learned that the code and tests don't show, kept on the board
+    for every later pass (W-2310). Settled knowledge goes straight into the
+    handbook; a **finding** is for the rest: what is uncertain, cuts across
+    cards, or shows the handbook was wrong. Write them as a block in the
+    closing comment, beside the `Handbook:` line:
+
+    ```
+    - Handbook: no change (a test-only fix)
+    - Findings:
+      - gotcha: `mix format` can need two passes
+      - rule: every new tool gets a docs test
+      - handbook-wrong: W-1950 §Tests says …, but …
+      - tooling: …
+      - process: …
+    ```
+
+    The test for one: would the next pass, on a different card, have done
+    better knowing this? `Findings: none` is a normal answer; filler isn't.
+    A line with no known kind is kept whole as a `gotcha`. The server also
+    records its own (source `rejection`, `requeue`, `timeout`, `lane`,
+    `merge`, `audit`, `health`), counting repeats on a card.
+
+    Findings are kept on the tree's root board, `open` until a person
+    triages them: `promoted` (into the handbook, said in `note`),
+    `dismissed`, or `merged` into another finding (which takes its count).
+    `slipdock findings <board> [--status S] [--kind K] [--days N]` (REST
+    `GET /api/boards/:board/findings?status=&kind=&source=&card=&since=`)
+    lists them; `slipdock finding <id> dismiss|promote|reopen [--note …]`
+    or `merge --into <id>` (`PATCH /api/findings/:id {action, note, into}`,
+    write access) triages one. A card's `findings` (in `get_card` and
+    `GET /api/cards/:id`) counts its open ones.
     """
   end
 

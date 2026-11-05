@@ -48,6 +48,9 @@ way in: what it is, the pictures, and how to get it running.
   only a person would otherwise notice (jobs nobody takes, deadlocks, merges
   that stall, cards nobody is moving), tries a safe fix, and flags what it
   can't fix — [The health monitor](#the-health-monitor)
+- Findings: what each card taught that the code doesn't show, written by the
+  pass in its closing comment or recorded by the server when work goes wrong,
+  kept on the board to triage into the handbook — [Findings](#findings)
 - Time tracking: a start/stop timer on each card, time spent and an estimate
   shown in a unit of its own, and a colour-coded bar between them — see
   [Time tracking](#time-tracking)
@@ -1474,6 +1477,62 @@ lists them (`run: true` looks the board over first) and `garden_decide`
 applies, dismisses or undoes one with `confirm: true` — an agent shows you the
 suggestions and applies only what you approve.
 
+
+## Findings
+
+Passes learn things the code and tests don't show: a formatter that needs two
+runs, a fixture that is always the same user, a size cap a few bytes from
+breaking. A **finding** keeps one on the board, where every later pass, the
+verifier and other machines can read it, rather than in one agent's memory.
+Settled knowledge goes straight into the [handbook](#the-handbook); findings
+are for what is uncertain, cuts across cards, or shows the handbook was wrong,
+and they get a second look before they become rules.
+
+**Written by the pass.** A closing comment carries a `Findings:` block beside
+its `Handbook:` line, one item per line, each with its kind:
+
+```
+- Handbook: no change (a test-only fix)
+- Findings:
+  - gotcha: `mix format` can need two passes
+  - rule: every new MCP tool gets a docs test        (a rule candidate)
+  - handbook-wrong: W-1950 §Tests says async is safe, but the fixture is one user
+  - tooling: the installed CLI ignores --paths
+  - process: merges wait for an idle runner
+```
+
+`Findings: none` is a normal answer. A line with no known kind is kept whole
+as a `gotcha`, so nothing written is lost to a typo. The block is read when
+the comment is posted (the evidence of a completion too); the same item twice
+on one card is kept once, and deleting the comment drops the findings it made
+that nobody has triaged yet.
+
+**Recorded by the server.** The system notes its own signals without asking:
+a verifier's rejection, a job that times out or fails, a card requeued or
+given up on, a lane refusing a move, a merge that fails, an audit that
+disagrees, a health-monitor incident. Each has its source, card and job, and
+a repeat on the same card for the same cause adds to its count rather than
+making another.
+
+**Triage.** Findings are kept on the tree's root board, `open` until someone
+with write access decides: **promote** it (it became a handbook rule or
+section; say which in the note), **dismiss** it, or **merge** it into another
+finding of the same tree, which takes its count. *Reopen* undoes any of them.
+Anyone who can read the board can list them, and a card shows how many open
+ones it has.
+
+```sh
+slipdock findings slipdock                       # open ones, newest first
+slipdock findings slipdock --kind rule --days 7  # also --status all, --source timeout, --card 12
+slipdock finding 41 promote --note "W-1950 §Tests TEST-9"
+slipdock finding 42 merge --into 41
+slipdock finding 43 dismiss
+```
+
+```
+GET   /api/boards/:board/findings?status=&kind=&source=&card=&since=   (since: a date, a time or days)
+PATCH /api/findings/:id {action: dismiss|promote|merge|reopen, note?, into?}
+```
 
 ## The health monitor
 

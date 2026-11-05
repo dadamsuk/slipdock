@@ -190,6 +190,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   jobs nobody takes, deadlocks, verification and merges that stall, cards and
   questions nobody is moving. What it can't fix gets the `stuck` flag (or a board
   alert) and a trigger you can attach an email to; `/healthz` reports its pulse.
+- **Findings** — [what each card taught, kept on the board](docs/manual.md#findings):
+  a pass writes a `Findings:` block (gotcha, rule, handbook-wrong, tooling,
+  process) in its closing comment, the server records rejections, timeouts,
+  requeues, lane refusals and failed merges by itself, and someone triages them
+  into the handbook. `slipdock findings <board>`, `GET /api/boards/:board/findings`.
 - **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the
   estimate and red past it.

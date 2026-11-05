@@ -853,6 +853,8 @@ defmodule SlipdockWeb.Router do
     get "/boards/:board/health", HealthController, :index
     post "/boards/:board/health", HealthController, :create
     patch "/boards/:board/health/settings", HealthController, :settings
+    get "/boards/:board/findings", FindingController, :index
+    patch "/findings/:id", FindingController, :update
     post "/cards/:id/snooze", SnoozeController, :create
     delete "/cards/:id/snooze", SnoozeController, :delete
     post "/cards/:id/checklist", CardController, :add_checklist_item
