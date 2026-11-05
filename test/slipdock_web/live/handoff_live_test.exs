@@ -41,7 +41,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       assert has_element?(view, "#handoff-history", "Write the migration")
       assert has_element?(view, "#card-handoff #handoff-edit", "Update")
       # No link on the meta line once there is one: Update is on the note.
-      refute has_element?(view, "#card-title-form #handoff-edit")
+      refute has_element?(view, "#card-toolbar #handoff-edit")
     end
 
     test "sits just beneath the title and its meta line, before flags and description", ctx do
@@ -65,13 +65,17 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       refute has_element?(view, "#card-handoff")
       refute has_element?(view, "#handoff-history")
-      assert has_element?(view, "#card-title-form a#handoff-edit", "Add “Left off”")
 
-      view |> element("#handoff-edit", "Add “Left off”") |> render_click()
+      assert has_element?(
+               view,
+               ~s(#card-toolbar button#handoff-edit[aria-label="Add “Left off”"])
+             )
+
+      view |> element("#card-toolbar #handoff-edit") |> render_click()
       # The form opens beneath the title, with the note's shape as a placeholder,
       # and the link goes while it is open.
       assert has_element?(view, "#card-handoff #handoff-form textarea[placeholder*='Gotchas:']")
-      refute has_element?(view, "#card-title-form #handoff-edit")
+      refute has_element?(view, "#card-toolbar #handoff-edit")
     end
 
     test "the form writes a new handoff, as from the UI", ctx do
@@ -114,7 +118,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       view |> element("#handoff-edit") |> render_click()
       view |> element("#handoff-form button", "Cancel") |> render_click()
       refute has_element?(view, "#card-handoff")
-      assert has_element?(view, "#card-title-form #handoff-edit", "Add “Left off”")
+      assert has_element?(view, ~s(#card-toolbar #handoff-edit[aria-label="Add “Left off”"]))
       assert Boards.handoff_history(ctx.card) == []
     end
 
@@ -129,7 +133,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       refute has_element?(view, "#card-handoff")
 
       # Back to the link; writing a new one shows the history, clear and all.
-      view |> element("#card-title-form #handoff-edit") |> render_click()
+      view |> element("#card-toolbar #handoff-edit") |> render_click()
       assert has_element?(view, "#handoff-form")
       assert has_element?(view, "#handoff-history", "cleared")
       assert has_element?(view, "#handoff-history", "Going away")
@@ -154,7 +158,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       # The last one: no panel, only the meta line's link.
       view |> element("#handoff-delete") |> render_click()
       refute has_element?(view, "#card-handoff")
-      assert has_element?(view, "#card-title-form #handoff-edit")
+      assert has_element?(view, "#card-toolbar #handoff-edit")
       assert Boards.handoff_history(ctx.card) == []
     end
 
@@ -238,7 +242,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       {:ok, clear} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
       {:ok, view, _} = open(ctx.conn, ctx)
 
-      view |> element("#card-title-form #handoff-edit") |> render_click()
+      view |> element("#card-toolbar #handoff-edit") |> render_click()
       refute has_element?(view, "#handoff-#{clear.id} button", "Restore")
       [_, old] = Boards.handoff_history(ctx.card)
       view |> element("#handoff-#{old.id} button", "Restore") |> render_click()
@@ -381,32 +385,77 @@ defmodule SlipdockWeb.HandoffLiveTest do
     assert has_element?(view, "#handoff-current", "· runner · job ##{job.id}")
   end
 
-  describe "the meta line's actions look like buttons (#1230)" do
-    test "for a writer, each action is a meta-action and the plain text is not", ctx do
+  describe "the meta line and the toolbar (#1725)" do
+    test "the meta line is words: board › list · #id · created, no buttons", ctx do
       {:ok, view, _} = open(ctx.conn, ctx)
 
-      line = "#card-title-form div.flex-wrap"
-      assert has_element?(view, "#{line} button#card-move-board.meta-action", "Move to board…")
-      assert has_element?(view, "#{line} a#handoff-edit.meta-action", "Add “Left off”")
-      assert has_element?(view, "#{line} a#wait-ask.meta-action", "Ask questions")
-
-      # Exactly those three; the words around them stay words, without the
-      # dots that used to set the links apart.
-      html = view |> element(line) |> render()
-      assert length(Regex.scan(~r/class="meta-action"/, html)) == 3
+      line = "#card-title-form #card-meta"
+      assert has_element?(view, "#{line} #card-meta-board", ctx.board.name)
+      assert has_element?(view, "#{line} select[name='card[column_id]']")
+      assert has_element?(view, "#{line} a#card-copy-link", "##{ctx.card.id}")
       assert has_element?(view, "#{line} > span", "created")
-      refute has_element?(view, "#{line} span.meta-action")
-      refute html =~ ~r/<span>·<\/span>/
+      refute has_element?(view, "#{line} button")
+      refute has_element?(view, "#{line} .meta-action")
+      refute has_element?(view, "#{line} #card-open-board")
     end
 
-    test "a reader, with nothing to press, sees none", ctx do
-      reader = user_fixture("live.handoff.meta.reader@example.com")
+    test "for a writer, the toolbar holds Move, the handoff, Ask and ⋯", ctx do
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      bar = "#card-modal #card-toolbar"
+      assert has_element?(view, "#{bar} button#card-move-board", "Move")
+      assert has_element?(view, "#{bar} button#handoff-edit", "Left off")
+      assert has_element?(view, "#{bar} button#wait-ask", "Ask")
+      assert has_element?(view, "#{bar} button#card-more[popovertarget=card-more-menu]")
+      assert has_element?(view, "#card-more-menu button#duplicate-card", "Duplicate")
+      assert has_element?(view, "#card-more-menu button#archive-card", "Archive")
+
+      assert has_element?(
+               view,
+               ~s(#card-more-menu button#delete-card[data-confirm="Delete this card permanently?"]),
+               "Delete"
+             )
+
+      # The toolbar is the only place for them: none left on the meta line or
+      # in the sidebar.
+      refute has_element?(view, "#card-title-form #card-move-board")
+      refute has_element?(view, "#card-title-form #handoff-edit")
+      refute has_element?(view, "aside button[phx-click=archive_card]")
+      refute has_element?(view, "aside button[phx-click=delete_card]")
+      refute has_element?(view, "aside #duplicate-card")
+    end
+
+    test "Archive and Delete in ⋯ do what they say", ctx do
+      {:ok, view, _} = open(ctx.conn, ctx)
+      view |> element("#archive-card") |> render_click()
+      assert Boards.get_card!(ctx.card.id).archived_at
+
+      other = card_fixture(hd(ctx.board.columns), %{"title" => "Doomed"})
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{other.id}")
+      view |> element("#delete-card") |> render_click()
+      assert_raise Ecto.NoResultsError, fn -> Boards.get_card!(other.id) end
+    end
+
+    test "a commenter gets the handoff only, a reader nothing", ctx do
+      commenter = user_fixture("live.handoff.bar.commenter@example.com")
+      {:ok, _} = Access.grant(ctx.board, commenter, "read", ctx.owner)
+      {:ok, _} = Access.grant(ctx.card, commenter, "comment", ctx.owner)
+
+      {:ok, view, _} = open(conn_as(commenter), ctx)
+      assert has_element?(view, "#card-toolbar #handoff-edit")
+      refute has_element?(view, "#card-toolbar #card-move-board")
+      refute has_element?(view, "#card-toolbar #wait-ask")
+      refute has_element?(view, "#card-toolbar #card-more")
+      refute has_element?(view, "#card-more-menu")
+
+      reader = user_fixture("live.handoff.bar.reader@example.com")
       {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
 
       {:ok, view, _} = open(conn_as(reader), ctx)
-
-      assert has_element?(view, "#card-title-form", "created")
-      refute has_element?(view, "#card-title-form .meta-action")
+      assert has_element?(view, "#card-meta", "created")
+      assert has_element?(view, "#card-meta a#card-copy-link")
+      refute has_element?(view, "#card-toolbar button")
+      refute has_element?(view, "#card-meta select")
     end
   end
 
@@ -418,9 +467,10 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       {:ok, view, _} = open(conn_as(commenter), ctx)
 
-      # The link sits in the title's fieldset, disabled for a commenter, so it
-      # is a link, not a button; the form it opens is in a fieldset of its own.
-      assert has_element?(view, "#card-modal fieldset[disabled] #card-title-form a#handoff-edit")
+      # The button is in the toolbar, outside the card's fieldsets (disabled
+      # for a commenter); the form it opens is in a fieldset of its own.
+      refute has_element?(view, "#card-modal fieldset #card-toolbar")
+      assert has_element?(view, "#card-toolbar button#handoff-edit")
       view |> element("#handoff-edit") |> render_click()
       assert has_element?(view, "#card-modal fieldset:not([disabled]) #handoff-form")
       view |> form("#handoff-form", handoff: %{next_step: "From a commenter"}) |> render_submit()

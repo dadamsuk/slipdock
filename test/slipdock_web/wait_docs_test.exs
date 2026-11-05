@@ -188,7 +188,7 @@ defmodule SlipdockWeb.WaitDocsTest do
 
       manual = read("docs/manual.md")
       assert manual =~ "A wait can ask **several questions** at once."
-      assert manual =~ "press **Ask questions**"
+      assert manual =~ "press **Ask** in the toolbar"
       assert manual =~ "**Questions asked before**"
       assert manual =~ "slipdock answer 12 --skip"
 

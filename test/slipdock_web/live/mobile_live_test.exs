@@ -259,7 +259,7 @@ defmodule SlipdockWeb.MobileLiveTest do
       # `truncate`d dependency title — whose min-content is the whole line —
       # makes the card wider than the screen and scrolls it sideways.
       assert html =~ "grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]"
-      assert html =~ ~s(class="min-w-0 space-y-7 p-6")
+      assert html =~ ~s(class="min-w-0 space-y-7 px-6 pb-6 pt-1")
     end
   end
 

@@ -94,7 +94,7 @@ defmodule SlipdockWeb.HandoffSettingsLiveTest do
     # With none, the meta line's link says it too.
     {:ok, _} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
-    assert has_element?(view, "#card-title-form #handoff-edit", "Add “Parked”")
+    assert has_element?(view, ~s(#card-toolbar #handoff-edit[aria-label="Add “Parked”"]))
 
     # And the Display menu, on the board and in swimlanes.
     for path <- [~p"/boards/#{ctx.board}", ~p"/boards/#{ctx.board}/swimlanes"] do

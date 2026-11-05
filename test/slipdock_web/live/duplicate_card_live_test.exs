@@ -40,9 +40,10 @@ defmodule SlipdockWeb.DuplicateCardLiveTest do
     conn = log_in_user(build_conn(), reader)
     {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
 
-    # The Actions are in a disabled fieldset for a reader; a click sent
-    # anyway is refused on the server.
-    view |> element("#duplicate-card") |> render_click()
+    # A reader's toolbar has no ⋯ (#1725); the event sent anyway is
+    # refused on the server.
+    refute has_element?(view, "#duplicate-card")
+    view |> with_target("#board-card") |> render_click("duplicate_card", %{})
     assert view |> element("#flash-error") |> render() =~ "read-only"
 
     assert length(Boards.active_items(ctx.column.id)) == 2

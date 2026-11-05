@@ -112,7 +112,12 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     card_fixture(todo, %{"title" => "Sub one"})
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
-    assert has_element?(view, "#card-open-board", "0 of 1 done")
+    assert has_element?(view, "#card-meta #card-open-board", "0 of 1 done")
+
+    # One "Open board" on the card (#1725): the meta line's, not the
+    # Subcards section's as well.
+    html = view |> element("#card-modal") |> render()
+    assert length(Regex.scan(~r/Open board/, html)) == 1
 
     {:ok, _, html} =
       view
