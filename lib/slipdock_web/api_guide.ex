@@ -3245,8 +3245,9 @@ defmodule SlipdockWeb.APIGuide do
     The test for one: would the next pass, on a different card, have done
     better knowing this? `Findings: none` is a normal answer; filler isn't.
     A line with no known kind is kept whole as a `gotcha`. The server also
-    records its own (source `rejection`, `requeue`, `timeout`, `lane`,
-    `merge`, `audit`, `health`), counting repeats on a card.
+    records its own (source `rejection`, `requeue`, `timeout`, `failed`,
+    `lane`, `merge`, `audit`, `health`), counting repeats on a card, on any
+    board, handbook or not.
 
     Findings are kept on the tree's root board, `open` until a person
     triages them: `promoted` (into the handbook, said in `note`),

@@ -1498,6 +1498,8 @@ defmodule Slipdock.Runners do
   # other rule here.
   defp refill(%Job{rule_id: rule_id} = job) do
     Recovery.recover(job)
+    # A job that timed out or failed is a finding on its card (W-2310).
+    Slipdock.Findings.Signals.job_ended(job)
     announce(job)
 
     case rule_id && Repo.get(Slipdock.Automations.Rule, rule_id) do

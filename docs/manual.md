@@ -1510,9 +1510,15 @@ that nobody has triaged yet.
 **Recorded by the server.** The system notes its own signals without asking:
 a verifier's rejection, a job that times out or fails, a card requeued or
 given up on, a lane refusing a move, a merge that fails, an audit that
-disagrees, a health-monitor incident. Each has its source, card and job, and
-a repeat on the same card for the same cause adds to its count rather than
-making another.
+disagrees, a health-monitor incident (sources `rejection`, `timeout`,
+`failed`, `requeue`, `lane`, `merge`, `audit`, `health`). Each has its source,
+card and job, and a repeat on the same card for the same cause adds to its
+count rather than making another: a card that times out three times is one
+finding counted three times. A rejection's kind comes from the part that
+failed: a broken rule is a `rule`, a disputed Handbook line `handbook-wrong`,
+anything else `process`. Boards without a handbook keep them too, on the
+root board: they are about the work, and a handbook installed later starts
+from them.
 
 **Triage.** Findings are kept on the tree's root board, `open` until someone
 with write access decides: **promote** it (it became a handbook rule or
