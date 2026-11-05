@@ -395,6 +395,8 @@ defmodule Slipdock.CiWorkflowTest do
     test "the checked-in weights split within 10% of each other" do
       weights = weights()
       loads = files() |> TestPartitions.split(weights, 4) |> TestPartitions.loads(weights)
+      [first | rest] = loads
+      loads = [first + TestPartitions.first_partition_extra_ms() | rest]
       assert Enum.max(loads) <= Enum.min(loads) * 1.1, inspect(loads)
     end
 
@@ -410,20 +412,41 @@ defmodule Slipdock.CiWorkflowTest do
       assert TestPartitions.cost({true, 800}) == 800
       assert TestPartitions.cost({false, 800}) == 100
 
-      # One sync file of 800 ms is worth eight async ones of 800 ms.
+      # One sync file is worth eight async ones as long. Partition 1's
+      # head start puts the sync file in partition 2.
       weights =
-        Map.new(1..8, &{"a#{&1}", {false, 800}}) |> Map.put("s1", {true, 800})
+        Map.new(1..8, &{"a#{&1}", {false, 800_000}}) |> Map.put("s1", {true, 800_000})
 
-      partitions = TestPartitions.split(Map.keys(weights), weights, 2)
-      assert ["s1"] in partitions
-      assert TestPartitions.loads(partitions, weights) == [800, 800.0]
+      [first, second] = TestPartitions.split(Map.keys(weights), weights, 2)
+      assert second == ["s1"]
+      assert length(first) == 8
+      assert TestPartitions.loads([first, second], weights) == [800_000.0, 800_000]
+    end
+
+    test "partition 1 gets less of the suite, for the checks only it runs" do
+      test_job = job("test")
+      assert Enum.count(test_job, &(&1 == "if: matrix.partition == 1")) >= 3
+
+      extra = TestPartitions.first_partition_extra_ms()
+      assert extra > 0
+      weights = Map.new(1..3, &{"s#{&1}", {true, extra}})
+
+      # Three equal files over two partitions: without the head start
+      # partition 1 would take two; one file behind, it takes one.
+      [first, second] = TestPartitions.split(Map.keys(weights), weights, 2)
+      assert {length(first), length(second)} == {1, 2}
     end
 
     test "the costliest files are spread out first" do
-      weights = %{"big" => {true, 300}, "a1" => {false, 1600}, "a2" => {false, 800}}
+      weights = %{
+        "big" => {true, 300_000},
+        "a1" => {false, 1_600_000},
+        "a2" => {false, 800_000}
+      }
+
       partitions = TestPartitions.split(Map.keys(weights), weights, 2)
-      assert ["big"] in partitions
-      assert Enum.sort(TestPartitions.loads(partitions, weights)) == [300, 300.0]
+      assert partitions == [["a1", "a2"], ["big"]]
+      assert TestPartitions.loads(partitions, weights) == [300_000.0, 300_000]
     end
 
     test "a new file goes where its path's hash says, and moves no other file" do

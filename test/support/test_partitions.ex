@@ -84,6 +84,14 @@ defmodule Slipdock.TestPartitions do
   # How many async modules a CI partition runs at once (see the moduledoc).
   @async_parallelism 8
 
+  # Partition 1 also checks formatting, runs the browser scripts' tests and
+  # saves the build cache (.github/workflows/ci.yml): 16 to 20 s in CI. It
+  # starts that much behind, so it gets that much less of the suite.
+  @first_partition_extra_ms 15_000
+
+  @doc "The milliseconds of other work partition 1 starts with."
+  def first_partition_extra_ms, do: @first_partition_extra_ms
+
   @doc """
   Splits `files` into `count` partitions, a list of `count` sorted lists.
   Every file lands in exactly one.
@@ -94,7 +102,7 @@ defmodule Slipdock.TestPartitions do
 
     bins =
       known
-      |> pack(weights, count)
+      |> pack(weights, [@first_partition_extra_ms | List.duplicate(0, count - 1)])
       |> Enum.with_index()
       |> Map.new(fn {{_, files}, index} -> {index, files} end)
 
@@ -121,8 +129,8 @@ defmodule Slipdock.TestPartitions do
   # Costliest first into the cheapest bin: within a few percent of the best
   # split for files this many and this small. Ties go by path, so the same
   # weights always give the same split.
-  defp pack(files, weights, count) do
-    empty = for _ <- 1..count, do: {0, []}
+  defp pack(files, weights, head_starts) do
+    empty = for start <- head_starts, do: {start, []}
 
     files
     |> Enum.sort_by(fn file -> {-cost(weights[file]), file} end)
