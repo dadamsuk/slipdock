@@ -81,6 +81,27 @@ defmodule SlipdockCLI.Health do
     end
 
     IO.puts("\n" <> last_run(r["last_run"]))
+    if pulse = r["pulse"], do: IO.puts(pulse_line(pulse))
+  end
+
+  @doc false
+  # "Pulse: scheduler 40s ago, monitor 3m ago" — STALE where it is.
+  def pulse_line(pulse) do
+    parts =
+      for {name, label} <- [{"scheduler", "scheduler"}, {"monitor", "monitor"}],
+          c = pulse[name],
+          is_map(c) do
+        age =
+          case c["age_seconds"] do
+            nil -> "never"
+            s when s < 120 -> "#{s}s ago"
+            s -> "#{div(s, 60)}m ago"
+          end
+
+        "#{label} #{age}" <> if(c["stale"], do: " (STALE)", else: "")
+      end
+
+    "Pulse: " <> Enum.join(parts, ", ")
   end
 
   defp last_run(nil), do: "The monitor hasn't run yet."

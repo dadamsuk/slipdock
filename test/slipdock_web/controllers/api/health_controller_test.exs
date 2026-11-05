@@ -73,6 +73,12 @@ defmodule SlipdockWeb.API.HealthControllerTest do
     assert r["detector"] == "idle_feed" and r["status"] == "fixed"
     assert last =~ "2026-11-05T09:00:00"
     assert is_list(detectors)
+
+    assert %{"scheduler" => %{"stale" => false}, "monitor" => %{"age_seconds" => _}} =
+             as(ctx.reader)
+             |> get("/api/boards/#{ctx.board.code}/health")
+             |> json_response(200)
+             |> Map.fetch!("pulse")
   end
 
   test "POST runs the monitor for a writer, and answers the listing", ctx do
