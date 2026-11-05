@@ -92,6 +92,14 @@ defmodule Slipdock.Automations.RunnerActionTest do
       assert Runner.unattended() =~ "nobody will answer questions"
       assert Runner.unattended() =~ "open a wait (`slipdock wait <card> …` or update_card `wait`)"
       refute Runner.unattended() =~ "flag the card waiting and stop"
+      # It shows it is alive as job steps, an epic's subcards included (#1853).
+      assert Runner.unattended() =~ ~s(`slipdock job-progress --step "…"`, or job_progress `step`)
+
+      assert Runner.unattended() =~
+               "on an epic, each subcard as it starts, is submitted and merges"
+
+      # Right for a session that claimed the job too: it says nothing of who finishes it.
+      refute Runner.unattended() =~ ~r/finish(_job| the job|-job)/
     end
 
     test "fills placeholders in a prompt the rule writes", ctx do

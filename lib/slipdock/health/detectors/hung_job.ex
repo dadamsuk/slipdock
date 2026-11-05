@@ -1,8 +1,9 @@
 defmodule Slipdock.Health.Detectors.HungJob do
   @moduledoc """
   A claimed or running job whose lease keeps renewing but which has shown no
-  sign of work — no progress step, no note on its card — for `minutes`
-  (default 45). Verify jobs are left to `verify_slow`. An agent may be thinking, so by default there is no fix: it
+  sign of work — no progress step, no note on its card or beneath it, no job
+  on its subcards moving (see `Slipdock.Health.Runs.last_sign/1`) — for
+  `minutes` (default 45). Verify jobs are left to `verify_slow`. An agent may be thinking, so by default there is no fix: it
   is flagged. With `cancel` on (`cancel=true`), a job silent for
   `cancel_minutes` (default 120) is asked to stop instead, as Cancel would.
   """

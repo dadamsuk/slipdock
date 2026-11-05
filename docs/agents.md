@@ -462,7 +462,10 @@ has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
 `slipdock claim-job` — so a `/loop` and a shell runner never work the same
 card. `job_progress` with `step` (`slipdock job-progress --step`) says what a
 job is doing now on the job alone, not the card: a verify job reports each
-step that way. The details, and the HTTP protocol a runner speaks, are in
+step that way, and every runner job's prompt asks for its milestones too (on
+an epic, each subcard as it starts, is submitted and merges). The agent a
+runner started may report on the runner's job (the CLI sends
+`$SLIPDOCK_JOB_ID`), though only the runner claims and finishes it. The details, and the HTTP protocol a runner speaks, are in
 [the manual](manual.md#runners) and the guide's *Runners* section.
 
 **The health monitor.** Every few minutes the server looks for work stuck
