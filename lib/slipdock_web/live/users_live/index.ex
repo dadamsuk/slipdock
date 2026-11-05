@@ -3,10 +3,19 @@ defmodule SlipdockWeb.UsersLive.Index do
   The people who use this server, and whoever is waiting to be let in. The
   settings they live under are on their own page, at `/config`.
 
+  The people table is read-only (#1739). A row, or its Manage link, opens
+  that person's panel (`person_panel/1`, a `<.modal>`) at `/users?user=<id>`,
+  and every control lives there: their address, permissions (Admin,
+  Unlimited, Meetings), their own item limit and paid-up date, support
+  access, and a danger zone where Disable and Close each ask first
+  (`data-confirm`), Close then showing what it takes and asking for the
+  address typed out. Your own panel has no Support or danger zone.
+
   The part that matters is what it **refuses**: the last admin cannot be
-  demoted, disabled or deleted, closing an account says exactly what it will
-  take with it first, and support access always tells the person being looked
-  at, with the reason the admin gave.
+  demoted, disabled or deleted, nobody can disable or close their own
+  account, closing an account says exactly what it will take with it first,
+  and support access always tells the person being looked at, with the
+  reason the admin gave.
   """
   use SlipdockWeb, :live_view
   alias SlipdockWeb.Dates
@@ -20,9 +29,33 @@ defmodule SlipdockWeb.UsersLive.Index do
   end
 
   @impl true
-  def handle_params(_params, _uri, socket), do: {:noreply, assign(socket, tab: tab(socket))}
+  def handle_params(params, _uri, socket) do
+    tab = socket.assigns.live_action
+    wanted = if tab == :index, do: params["user"]
+    selected = wanted && Params.id(wanted)
 
-  defp tab(%{assigns: %{live_action: action}}), do: action
+    socket =
+      assign(socket,
+        tab: tab,
+        selected: selected,
+        notice: nil,
+        deleting: nil,
+        deleting_preview: nil,
+        editing_email: nil
+      )
+
+    # A link to somebody since closed, or not an id at all: say so, and drop
+    # it from the address rather than leave a panel that never opens.
+    if wanted && !Enum.any?(socket.assigns.users, &(&1.id == selected)) do
+      {:noreply,
+       socket
+       |> assign(selected: nil)
+       |> put_flash(:error, "That isn't there any more.")
+       |> push_patch(to: ~p"/users")}
+    else
+      {:noreply, socket}
+    end
+  end
 
   defp load(socket) do
     users = Accounts.list_users()
@@ -41,6 +74,8 @@ defmodule SlipdockWeb.UsersLive.Index do
       deleting: nil,
       deleting_preview: nil,
       editing_email: nil,
+      selected: socket.assigns[:selected],
+      notice: nil,
       requests: Accounts.list_signup_requests()
     )
   end
@@ -53,8 +88,11 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   def handle_event("demote", %{"id" => id}, socket), do: {:noreply, standing(socket, id, :demote)}
 
-  def handle_event("disable", %{"id" => id}, socket),
-    do: {:noreply, standing(socket, id, :disable)}
+  def handle_event("disable", %{"id" => id}, socket) do
+    if yourself?(socket, id),
+      do: {:noreply, say(socket, :error, "You can't disable your own account.")},
+      else: {:noreply, standing(socket, id, :disable)}
+  end
 
   def handle_event("enable", %{"id" => id}, socket), do: {:noreply, standing(socket, id, :enable)}
 
@@ -63,8 +101,8 @@ defmodule SlipdockWeb.UsersLive.Index do
       value = if String.trim(limit) == "", do: nil, else: limit
 
       case Accounts.update_standing(user, %{"card_limit_override" => value}) do
-        {:ok, _} -> {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
-        {:error, _} -> {:noreply, put_flash(socket, :error, "That isn't a number of cards.")}
+        {:ok, _} -> {:noreply, socket |> load() |> say(:info, "Saved.")}
+        {:error, _} -> {:noreply, say(socket, :error, "That isn't a number of cards.")}
       end
     end)
   end
@@ -76,8 +114,8 @@ defmodule SlipdockWeb.UsersLive.Index do
       value = if String.trim(until) == "", do: nil, else: until
 
       case Accounts.update_standing(user, %{"paid_until" => value}) do
-        {:ok, _} -> {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
-        {:error, _} -> {:noreply, put_flash(socket, :error, "That isn't a date.")}
+        {:ok, _} -> {:noreply, socket |> load() |> say(:info, "Saved.")}
+        {:error, _} -> {:noreply, say(socket, :error, "That isn't a date.")}
       end
     end)
   end
@@ -87,7 +125,7 @@ defmodule SlipdockWeb.UsersLive.Index do
   def handle_event("toggle-unlimited", %{"id" => id}, socket) do
     with_user(socket, id, fn user ->
       {:ok, _} = Accounts.update_standing(user, %{"unlimited" => !user.unlimited})
-      {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
+      {:noreply, socket |> load() |> say(:info, "Saved.")}
     end)
   end
 
@@ -96,7 +134,7 @@ defmodule SlipdockWeb.UsersLive.Index do
   def handle_event("toggle-meetings", %{"id" => id}, socket) do
     with_user(socket, id, fn user ->
       {:ok, _} = Accounts.update_standing(user, %{"meetings_access" => !user.meetings_access})
-      {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
+      {:noreply, socket |> load() |> say(:info, "Saved.")}
     end)
   end
 
@@ -128,11 +166,11 @@ defmodule SlipdockWeb.UsersLive.Index do
         {:ok, updated} ->
           {:noreply,
            socket
-           |> put_flash(:info, "#{updated.email} signs in with that address now.")
-           |> load()}
+           |> load()
+           |> say(:info, "#{updated.email} signs in with that address now.")}
 
         {:error, changeset} ->
-          {:noreply, put_flash(socket, :error, email_error(changeset))}
+          {:noreply, say(socket, :error, email_error(changeset))}
       end
     end)
   end
@@ -140,17 +178,18 @@ defmodule SlipdockWeb.UsersLive.Index do
   ## Closing an account
 
   def handle_event("confirm-delete", %{"user_id" => id}, socket) do
-    with_user(socket, id, fn user ->
-      {:noreply,
-       assign(socket, deleting: user, deleting_preview: Accounts.deletion_preview(user))}
-    end)
+    if yourself?(socket, id),
+      do: {:noreply, say(socket, :error, "You can't close your own account.")},
+      else: preview_delete(socket, id)
   end
 
   def handle_event("cancel-delete", _params, socket),
     do: {:noreply, assign(socket, deleting: nil, deleting_preview: nil)}
 
   def handle_event("delete", %{"user_id" => id, "email" => typed}, socket) do
-    with_user(socket, id, &delete_user(socket, &1, typed))
+    if yourself?(socket, id),
+      do: {:noreply, say(socket, :error, "You can't close your own account.")},
+      else: with_user(socket, id, &delete_user(socket, &1, typed))
   end
 
   ## Support access
@@ -196,6 +235,18 @@ defmodule SlipdockWeb.UsersLive.Index do
 
   ## Internals
 
+  # The page's own admin. The panel offers them no Disable or Close, and
+  # these refuse whatever the page sends: an admin who locks themself out by
+  # accident needs somebody else to let them back in.
+  defp yourself?(socket, id), do: Params.id(id) == socket.assigns.current_user.id
+
+  defp preview_delete(socket, id) do
+    with_user(socket, id, fn user ->
+      {:noreply,
+       assign(socket, deleting: user, deleting_preview: Accounts.deletion_preview(user))}
+    end)
+  end
+
   # The id comes from the page, which may be stale or hand-made: somebody
   # already deleted, or not an id at all, is a flash rather than a crash.
   defp with_user(socket, id, fun) do
@@ -224,21 +275,33 @@ defmodule SlipdockWeb.UsersLive.Index do
       else: "That doesn't look like an email address."
   end
 
+  # What an action in the person panel says goes at the top of the panel, not
+  # in a toast: the info toast dismisses itself with a click, which the
+  # modal takes as a click outside it and closes (#1739). With no panel open
+  # (or the person in it gone) it is a flash as before.
+  defp say(socket, kind, message) do
+    selected = socket.assigns[:selected]
+
+    if selected && Enum.any?(socket.assigns.users, &(&1.id == selected)),
+      do: assign(socket, notice: {kind, message}),
+      else: put_flash(socket, kind, message)
+  end
+
   defp gone(socket),
-    do: {:noreply, socket |> put_flash(:error, "That isn't there any more.") |> load()}
+    do: {:noreply, socket |> load() |> say(:error, "That isn't there any more.")}
 
   defp delete_user(socket, user, typed) do
     cond do
       String.trim(typed) != user.email ->
         {:noreply,
-         put_flash(socket, :error, "Type the address exactly to confirm — this cannot be undone.")}
+         say(socket, :error, "Type the address exactly to confirm — this cannot be undone.")}
 
       true ->
         case Accounts.delete_user(user) do
           {:ok, %{email: email, handed_over: handed}} ->
             {:noreply,
              socket
-             |> assign(deleting: nil, deleting_preview: nil)
+             |> assign(deleting: nil, deleting_preview: nil, selected: nil)
              |> put_flash(
                :info,
                "#{email} is gone." <>
@@ -247,10 +310,11 @@ defmodule SlipdockWeb.UsersLive.Index do
                    else: " #{length(handed)} shared board(s) were handed on."
                  )
              )
-             |> load()}
+             |> load()
+             |> push_patch(to: ~p"/users")}
 
           {:error, :last_admin} ->
-            {:noreply, put_flash(socket, :error, "That is the only admin.")}
+            {:noreply, say(socket, :error, "That is the only admin.")}
         end
     end
   end
@@ -260,26 +324,26 @@ defmodule SlipdockWeb.UsersLive.Index do
       {:ok, session} ->
         {:noreply,
          socket
-         |> put_flash(
+         |> load()
+         |> say(
            :info,
            "You can read #{subject.email}'s boards for the next " <>
              "#{SlipdockWeb.SlipdockComponents.support_time_left(session.expires_at)}: they " <>
              "are listed under Support access in force, and on your Boards page. They have " <>
              "been told, with the reason you gave."
-         )
-         |> load()}
+         )}
 
       {:error, :self} ->
-        {:noreply, put_flash(socket, :error, "You can already see your own boards.")}
+        {:noreply, say(socket, :error, "You can already see your own boards.")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Say what the access is for, in a few words.")}
+        {:noreply, say(socket, :error, "Say what the access is for, in a few words.")}
     end
   end
 
   defp standing(socket, id, action) do
     case Accounts.get_user(Params.id(id)) do
-      nil -> put_flash(socket, :error, "That isn't there any more.") |> load()
+      nil -> socket |> load() |> say(:error, "That isn't there any more.")
       user -> standing_change(socket, user, action)
     end
   end
@@ -298,10 +362,10 @@ defmodule SlipdockWeb.UsersLive.Index do
         load(socket)
 
       {:error, :last_admin} ->
-        put_flash(socket, :error, Slipdock.Accounts.last_admin_message(user))
+        say(socket, :error, Slipdock.Accounts.last_admin_message(user))
 
       {:error, _} ->
-        put_flash(socket, :error, "Couldn't do that.")
+        say(socket, :error, "Couldn't do that.")
     end
   end
 
@@ -350,14 +414,17 @@ defmodule SlipdockWeb.UsersLive.Index do
   end
 
   defp people_tab(assigns) do
+    assigns =
+      assign(assigns,
+        panel_user: assigns.selected && Enum.find(assigns.users, &(&1.id == assigns.selected))
+      )
+
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
       <p class="text-sm text-base-content/60">
         {length(@users)} {if length(@users) == 1, do: "account", else: "accounts"}.
-        <span class="font-medium">Disable</span>
-        signs someone out everywhere and stops them
-        signing in; Enable undoes it. <span class="font-medium">Close</span>
-        deletes the account and everything they own, after showing you what will go.
+        Open somebody to change their plan or permissions, give them support, or disable or close
+        their account.
       </p>
 
       <form id="add-user" phx-submit="add-user" class="mt-4 field-row gap-2">
@@ -400,101 +467,54 @@ defmodule SlipdockWeb.UsersLive.Index do
         </ul>
       </div>
 
-      <div :if={@deleting} class="mt-4 rounded-xl bg-error/10 p-4">
-        <h3 class="text-sm font-medium">Close {@deleting.email}&#39;s account?</h3>
-        <p class="mt-1 text-sm text-base-content/70">
-          This cannot be undone. Use <span class="font-medium">Disable</span>
-          instead unless they have actually asked to be removed — a disabled account keeps
-          everything and can be turned back on.
-        </p>
-
-        <ul class="mt-3 space-y-1 text-sm">
-          <li>
-            <span class="font-medium">{@deleting_preview.cards_deleted}</span> cards on boards only
-            they can see will be deleted.
-          </li>
-          <li :if={@deleting_preview.boards_deleted != []}>
-            Deleted with them: {Enum.join(@deleting_preview.boards_deleted, ", ")}
-          </li>
-          <li :if={@deleting_preview.boards_handed_over != []}>
-            Handed to whoever else works on them: {Enum.map_join(
-              @deleting_preview.boards_handed_over,
-              ", ",
-              &"#{&1.name} → #{&1.to}"
-            )}
-          </li>
-          <li class="text-base-content/60">
-            Status updates and page history they wrote on other people's boards stay, with no
-            author.
-          </li>
-        </ul>
-
-        <form phx-submit="delete" class="mt-3 field-row gap-2">
-          <input type="hidden" name="user_id" value={@deleting.id} />
-          <div class="flex-1">
-            <.input
-              name="email"
-              value=""
-              type="text"
-              label={"Type #{@deleting.email} to confirm"}
-              autocomplete="off"
-            />
-          </div>
-          <button type="submit" class="btn btn-error btn-sm">Close the account</button>
-          <button type="button" phx-click="cancel-delete" class="btn btn-ghost btn-sm">Cancel</button>
-        </form>
-      </div>
-
       <div class="mt-4 overflow-x-auto">
-        <table class="table table-sm">
+        <table id="people" class="table table-sm">
           <thead>
             <tr>
               <th>Who</th>
               <th>Came from</th>
               <th>Last seen</th>
-              <th>Using</th>
-              <th>Paid up to</th>
-              <th>Permissions</th>
-              <th></th>
+              <th>Usage</th>
+              <th>Plan</th>
+              <th>Role</th>
+              <th><span class="sr-only">Manage</span></th>
             </tr>
           </thead>
           <tbody>
-            <tr :for={user <- @users} class={user.disabled_at && "opacity-50"}>
+            <tr
+              :for={user <- @users}
+              id={"person-#{user.id}"}
+              phx-click={JS.patch(~p"/users?user=#{user.id}")}
+              class={[
+                "cursor-pointer hover:bg-base-200/60",
+                user.disabled_at && "opacity-50",
+                @selected == user.id && "bg-base-200/60"
+              ]}
+            >
               <td>
                 <div class="font-medium">{Accounts.User.display_name(user)}</div>
-                <form
-                  :if={@editing_email == user.id}
-                  id={"email-#{user.id}"}
-                  phx-submit="set-email"
-                  class="mt-1 flex items-center gap-1"
-                >
-                  <input type="hidden" name="user_id" value={user.id} />
-                  <input
-                    type="email"
-                    name="email"
-                    value={user.email}
-                    class="input field w-56"
-                    autocomplete="off"
-                    phx-mounted={JS.focus()}
-                  />
-                  <button type="submit" class="btn btn-primary btn-xs">Save</button>
-                  <button type="button" phx-click="cancel-email" class="btn btn-ghost btn-xs">
-                    Cancel
-                  </button>
-                </form>
-                <div :if={@editing_email != user.id} class="flex items-center gap-1">
-                  <span class="text-xs text-base-content/50">{user.email}</span>
-                  <button
-                    phx-click="edit-email"
-                    phx-value-user_id={user.id}
-                    class="btn btn-ghost btn-xs px-1"
-                    title="Change the address they sign in with"
-                    aria-label={"Change #{user.email}"}
-                  >
-                    <.icon name="hero-pencil-square" class="size-3.5" />
-                  </button>
+                <div class="text-xs text-base-content/60">{user.email}</div>
+              </td>
+              <td class="text-xs text-base-content/60">
+                {if user.invited_at, do: "invited", else: "signed up"}
+              </td>
+              <td class="text-xs text-base-content/60">
+                <SlipdockWeb.SlipdockComponents.timestamp
+                  :if={user.last_signed_in_at}
+                  id={"last-seen-#{user.id}"}
+                  at={user.last_signed_in_at}
+                />
+                <span :if={!user.last_signed_in_at}>never</span>
+              </td>
+              <td class="text-xs tabular-nums" data-role="usage">
+                <div>{@usage[user.id].items} / {Quota.limit(user) || "∞"} items</div>
+                <div class="text-base-content/60">
+                  {@usage[user.id].boards} boards · {Quota.humanise_bytes(@usage[user.id].storage)}
                 </div>
-                <div class="mt-1 flex gap-1">
+              </td>
+              <td class="text-xs" data-role="plan">{plan_label(user)}</td>
+              <td>
+                <div class="flex flex-wrap gap-1" data-role="roles">
                   <span :if={user.admin} class="badge badge-xs badge-primary">admin</span>
                   <span :if={user.disabled_at} class="badge badge-xs">disabled</span>
                   <span :if={user.unlimited} class="badge badge-xs badge-success">unlimited</span>
@@ -507,193 +527,409 @@ defmodule SlipdockWeb.UsersLive.Index do
                   </span>
                 </div>
               </td>
-              <td class="text-xs text-base-content/60">
-                {if user.invited_at, do: "invited", else: "signed up"}
-              </td>
-              <td class="text-xs text-base-content/60">
-                <time
-                  :if={user.last_signed_in_at}
-                  id={"last-seen-#{user.id}"}
-                  datetime={DateTime.to_iso8601(user.last_signed_in_at)}
-                  title={Dates.exact(user.last_signed_in_at)}
-                >
-                  {last_seen(user.last_signed_in_at)}
-                </time>
-                <span :if={!user.last_signed_in_at}>never</span>
-              </td>
-              <td class="text-xs">
-                <form phx-submit="set-limit" class="flex items-center gap-1">
-                  <input type="hidden" name="user_id" value={user.id} />
-                  <span class="text-base-content/60">{@usage[user.id].items} /</span>
-                  <input
-                    type="number"
-                    name="limit"
-                    value={user.card_limit_override}
-                    placeholder={if user.unlimited, do: "∞", else: Settings.free_card_limit() || "∞"}
-                    class="input field w-16"
-                  />
-                </form>
-                <div class="mt-1 text-base-content/50">
-                  {@usage[user.id].boards} boards · {Quota.humanise_bytes(@usage[user.id].storage)}
-                </div>
-              </td>
-              <td class="text-xs">
-                <form
-                  id={"paid-until-#{user.id}"}
-                  phx-change="set-paid-until"
-                  phx-submit="set-paid-until"
-                  class="flex items-center gap-1"
-                >
-                  <input type="hidden" name="user_id" value={user.id} />
-                  <.date_field
-                    id={"paid-until-date-#{user.id}"}
-                    name="paid_until"
-                    value={user.paid_until && DateTime.to_date(user.paid_until)}
-                    placeholder="Not paid"
-                    aria-label="Paid up to"
-                  />
-                </form>
-                <div :if={Quota.trial(user).applies?} class="mt-1 text-base-content/50">
-                  {if Quota.trial_expired?(user),
-                    do: "trial over",
-                    else: "trial: #{Quota.trial(user).days_left}d left"}
-                </div>
-              </td>
-              <td class="text-xs">
-                <div class="flex flex-col gap-1">
-                  <label class="flex cursor-pointer items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id={"admin-#{user.id}"}
-                      class="checkbox"
-                      checked={user.admin}
-                      phx-click={if user.admin, do: "demote", else: "promote"}
-                      phx-value-id={user.id}
-                    /> Admin
-                  </label>
-                  <label
-                    class={[
-                      "flex items-center gap-2",
-                      if(user.admin, do: "text-base-content/50", else: "cursor-pointer")
-                    ]}
-                    title={
-                      cond do
-                        user.admin ->
-                          "Admins are exempt from the free tier's allowance and trial already."
-
-                        user.unlimited ->
-                          "Put them back on the free tier's allowance and trial."
-
-                        true ->
-                          "Take them off the free tier's allowance and trial. The server-wide limits still apply."
-                      end
-                    }
-                  >
-                    <input
-                      :if={user.admin}
-                      type="checkbox"
-                      class="checkbox"
-                      checked
-                      disabled
-                    />
-                    <input
-                      :if={!user.admin}
-                      type="checkbox"
-                      id={"unlimited-#{user.id}"}
-                      class="checkbox"
-                      checked={user.unlimited}
-                      phx-click="toggle-unlimited"
-                      phx-value-id={user.id}
-                    /> Unlimited
-                  </label>
-                  <label
-                    class={[
-                      "flex items-center gap-2",
-                      if(user.admin, do: "text-base-content/50", else: "cursor-pointer")
-                    ]}
-                    title={
-                      cond do
-                        user.admin ->
-                          "Admins always have meetings, recording transcription and voiceprints."
-
-                        user.meetings_access ->
-                          "Take away meetings, recording transcription and voiceprints."
-
-                        true ->
-                          "Let them use meetings, recording transcription and voiceprints, where the server has them on."
-                      end
-                    }
-                  >
-                    <input
-                      :if={user.admin}
-                      type="checkbox"
-                      class="checkbox"
-                      checked
-                      disabled
-                    />
-                    <input
-                      :if={!user.admin}
-                      type="checkbox"
-                      id={"meetings-#{user.id}"}
-                      class="checkbox"
-                      checked={user.meetings_access}
-                      phx-click="toggle-meetings"
-                      phx-value-id={user.id}
-                    /> Meetings
-                  </label>
-                </div>
-              </td>
               <td class="text-right">
-                <div class="flex justify-end gap-1">
-                  <button
-                    :if={!user.disabled_at}
-                    phx-click="disable"
-                    phx-value-id={user.id}
-                    class="btn btn-ghost btn-error btn-xs"
-                    data-confirm={"Disable #{user.email}? They can't sign in until you enable them again."}
-                  >
-                    Disable
-                  </button>
-                  <button
-                    :if={user.disabled_at}
-                    phx-click="enable"
-                    phx-value-id={user.id}
-                    class="btn btn-xs"
-                  >
-                    Enable
-                  </button>
-                  <button
-                    :if={user.id != @current_user.id}
-                    phx-click="confirm-delete"
-                    phx-value-user_id={user.id}
-                    class="btn btn-ghost btn-error btn-xs"
-                    title="Remove them and their data. Prefer Disable."
-                  >
-                    Close
-                  </button>
-                </div>
-                <form
-                  :if={user.id != @current_user.id}
-                  phx-submit="support"
-                  class="mt-2 flex justify-end gap-1"
+                <.link
+                  id={"manage-#{user.id}"}
+                  patch={~p"/users?user=#{user.id}"}
+                  class="btn btn-ghost btn-xs"
+                  aria-label={"Manage #{user.email}"}
                 >
-                  <input type="hidden" name="user_id" value={user.id} />
-                  <input
-                    type="text"
-                    name="reason"
-                    placeholder="Help them with…"
-                    class="input field w-36"
-                    title="Read their boards for a few hours. They are told, with this reason."
-                  />
-                  <button type="submit" class="btn btn-xs">Support</button>
-                </form>
+                  Manage
+                </.link>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <.person_panel
+        :if={@panel_user}
+        user={@panel_user}
+        usage={@usage[@panel_user.id]}
+        current_user={@current_user}
+        editing_email={@editing_email}
+        deleting={@deleting}
+        deleting_preview={@deleting_preview}
+        notice={@notice}
+        on_close={JS.patch(~p"/users")}
+      />
     </section>
     """
+  end
+
+  ## The person panel (#1739)
+
+  attr :user, :map, required: true
+  attr :usage, :map, required: true
+  attr :current_user, :map, required: true
+  attr :editing_email, :any, default: nil
+  attr :deleting, :any, default: nil
+  attr :deleting_preview, :any, default: nil
+  attr :notice, :any, default: nil, doc: "`{kind, message}`: what the last action here said"
+  attr :on_close, JS, required: true
+
+  defp person_panel(assigns) do
+    assigns = assign(assigns, self?: assigns.user.id == assigns.current_user.id)
+
+    ~H"""
+    <SlipdockWeb.SlipdockComponents.modal id="person-panel" size="md" on_close={@on_close}>
+      <div class="space-y-6 p-6" data-user-id={@user.id}>
+        <.who {assigns} />
+        <.callout
+          :if={@notice}
+          id="panel-notice"
+          kind={elem(@notice, 0)}
+        >
+          {elem(@notice, 1)}
+        </.callout>
+        <.permissions user={@user} />
+        <.plan user={@user} usage={@usage} />
+        <.support :if={!@self?} user={@user} />
+        <.danger_zone {assigns} />
+      </div>
+    </SlipdockWeb.SlipdockComponents.modal>
+    """
+  end
+
+  defp who(assigns) do
+    ~H"""
+    <header class="pr-10">
+      <h2 id="person-panel-title" class="section-title">{Accounts.User.display_name(@user)}</h2>
+      <form
+        :if={@editing_email == @user.id}
+        id={"email-#{@user.id}"}
+        phx-submit="set-email"
+        class="mt-2 field-row gap-2"
+      >
+        <input type="hidden" name="user_id" value={@user.id} />
+        <div class="flex-1">
+          <.input
+            id={"email-input-#{@user.id}"}
+            name="email"
+            value={@user.email}
+            type="email"
+            label="Signs in with"
+            autocomplete="off"
+            phx-mounted={JS.focus()}
+          />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" phx-click="cancel-email" class="btn btn-ghost btn-sm">Cancel</button>
+      </form>
+      <div :if={@editing_email != @user.id} class="flex items-center gap-1">
+        <span class="text-sm text-base-content/60">{@user.email}</span>
+        <button
+          id={"edit-email-#{@user.id}"}
+          phx-click="edit-email"
+          phx-value-user_id={@user.id}
+          class="btn btn-ghost btn-xs px-1"
+          title="Change the address they sign in with"
+          aria-label={"Change #{@user.email}"}
+        >
+          <.icon name="hero-pencil-square" class="size-3.5" />
+        </button>
+      </div>
+      <p class="mt-1 text-xs text-base-content/60">
+        {if @user.invited_at, do: "Invited", else: "Signed up"} · last seen
+        <SlipdockWeb.SlipdockComponents.timestamp
+          :if={@user.last_signed_in_at}
+          id={"panel-last-seen-#{@user.id}"}
+          at={@user.last_signed_in_at}
+        />
+        <span :if={!@user.last_signed_in_at}>never</span>
+      </p>
+    </header>
+    """
+  end
+
+  defp permissions(assigns) do
+    ~H"""
+    <section id="panel-permissions" aria-labelledby="panel-permissions-title">
+      <h3 id="panel-permissions-title" class="text-sm font-medium">Permissions</h3>
+      <div class="mt-2 flex flex-col gap-2 text-sm">
+        <label class="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            id={"admin-#{@user.id}"}
+            class="checkbox"
+            checked={@user.admin}
+            phx-click={if @user.admin, do: "demote", else: "promote"}
+            phx-value-id={@user.id}
+          /> Admin
+        </label>
+        <.exempt_box
+          :if={@user.admin}
+          label="Unlimited"
+          why="Admins are exempt from the free tier's allowance and trial already."
+        />
+        <label
+          :if={!@user.admin}
+          class="flex cursor-pointer items-center gap-2"
+          title={
+            if @user.unlimited,
+              do: "Put them back on the free tier's allowance and trial.",
+              else:
+                "Take them off the free tier's allowance and trial. The server-wide limits still apply."
+          }
+        >
+          <input
+            type="checkbox"
+            id={"unlimited-#{@user.id}"}
+            class="checkbox"
+            checked={@user.unlimited}
+            phx-click="toggle-unlimited"
+            phx-value-id={@user.id}
+          /> Unlimited
+        </label>
+        <.exempt_box
+          :if={@user.admin}
+          label="Meetings"
+          why="Admins always have meetings, recording transcription and voiceprints."
+        />
+        <label
+          :if={!@user.admin}
+          class="flex cursor-pointer items-center gap-2"
+          title={
+            if @user.meetings_access,
+              do: "Take away meetings, recording transcription and voiceprints.",
+              else:
+                "Let them use meetings, recording transcription and voiceprints, where the server has them on."
+          }
+        >
+          <input
+            type="checkbox"
+            id={"meetings-#{@user.id}"}
+            class="checkbox"
+            checked={@user.meetings_access}
+            phx-click="toggle-meetings"
+            phx-value-id={@user.id}
+          /> Meetings
+        </label>
+      </div>
+    </section>
+    """
+  end
+
+  attr :label, :string, required: true
+  attr :why, :string, required: true
+
+  defp exempt_box(assigns) do
+    ~H"""
+    <label class="flex items-center gap-2 text-base-content/50" title={@why}>
+      <input type="checkbox" class="checkbox" checked disabled /> {@label}
+    </label>
+    """
+  end
+
+  defp plan(assigns) do
+    trial = Quota.trial(assigns.user)
+    assigns = assign(assigns, trial: trial, limit: Quota.limit(assigns.user))
+
+    ~H"""
+    <section id="panel-plan" aria-labelledby="panel-plan-title">
+      <h3 id="panel-plan-title" class="text-sm font-medium">Plan and usage</h3>
+      <p class="mt-1 text-sm text-base-content/70">
+        {@usage.items} of {@limit || "∞"} items · {@usage.boards} boards · {Quota.humanise_bytes(
+          @usage.storage
+        )}
+        <span :if={@trial.applies?}>
+          · {if @trial.expired?, do: "trial over", else: "trial: #{@trial.days_left}d left"}
+        </span>
+      </p>
+      <form
+        id={"limit-#{@user.id}"}
+        phx-submit="set-limit"
+        class="mt-3 field-row gap-2"
+      >
+        <input type="hidden" name="user_id" value={@user.id} />
+        <div class="max-w-48 flex-1">
+          <.input
+            id={"limit-input-#{@user.id}"}
+            name="limit"
+            type="number"
+            min="1"
+            value={@user.card_limit_override}
+            label="Their own item limit"
+            placeholder={if @user.unlimited, do: "∞", else: Settings.free_card_limit() || "∞"}
+          />
+        </div>
+        <button type="submit" class="btn btn-sm">Save</button>
+      </form>
+      <form
+        id={"paid-until-#{@user.id}"}
+        phx-change="set-paid-until"
+        phx-submit="set-paid-until"
+        class="mt-2 max-w-48"
+      >
+        <input type="hidden" name="user_id" value={@user.id} />
+        <.date_field
+          id={"paid-until-date-#{@user.id}"}
+          name="paid_until"
+          value={@user.paid_until && DateTime.to_date(@user.paid_until)}
+          label="Paid up to"
+          placeholder="Not paid"
+        />
+      </form>
+    </section>
+    """
+  end
+
+  defp support(assigns) do
+    ~H"""
+    <section id="panel-support" aria-labelledby="panel-support-title">
+      <h3 id="panel-support-title" class="text-sm font-medium">Support</h3>
+      <p class="mt-1 text-sm text-base-content/70">
+        Read their boards for a few hours. They are told, with the reason you give.
+      </p>
+      <form id={"support-form-#{@user.id}"} phx-submit="support" class="mt-2 field-row gap-2">
+        <input type="hidden" name="user_id" value={@user.id} />
+        <div class="flex-1">
+          <.input
+            id={"support-reason-#{@user.id}"}
+            name="reason"
+            value=""
+            label="What it is for"
+            placeholder="Help them with…"
+            autocomplete="off"
+          />
+        </div>
+        <button type="submit" class="btn btn-sm">Support</button>
+      </form>
+    </section>
+    """
+  end
+
+  defp danger_zone(assigns) do
+    ~H"""
+    <section
+      id="danger-zone"
+      aria-labelledby="danger-zone-title"
+      class="rounded-xl p-4 ring-1 ring-error/30"
+    >
+      <h3 id="danger-zone-title" class="text-sm font-medium text-error">Danger zone</h3>
+      <p :if={@self?} class="mt-1 text-sm text-base-content/70">
+        You can't disable or close your own account. Another admin can.
+      </p>
+      <div :if={!@self?}>
+        <p class="mt-1 text-sm text-base-content/70">
+          <span class="font-medium">Disable</span>
+          signs someone out everywhere and stops them signing in; Enable undoes it.
+          <span class="font-medium">Close</span>
+          deletes the account and everything they own, after showing you what will go.
+        </p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            :if={!@user.disabled_at}
+            id={"disable-#{@user.id}"}
+            phx-click="disable"
+            phx-value-id={@user.id}
+            class="btn btn-ghost btn-error btn-sm"
+            data-confirm={"Disable #{@user.email}? They can't sign in until you enable them again."}
+          >
+            Disable
+          </button>
+          <button
+            :if={@user.disabled_at}
+            id={"enable-#{@user.id}"}
+            phx-click="enable"
+            phx-value-id={@user.id}
+            class="btn btn-sm"
+          >
+            Enable
+          </button>
+          <button
+            :if={!@deleting}
+            id={"close-#{@user.id}"}
+            phx-click="confirm-delete"
+            phx-value-user_id={@user.id}
+            class="btn btn-ghost btn-error btn-sm"
+            data-confirm={"Close #{@user.email}'s account? Next you'll see what it takes with it."}
+            data-confirm-label="Continue"
+          >
+            Close account
+          </button>
+        </div>
+        <.closing :if={@deleting} deleting={@deleting} preview={@deleting_preview} />
+      </div>
+    </section>
+    """
+  end
+
+  defp closing(assigns) do
+    ~H"""
+    <div id="closing" class="mt-4 rounded-lg bg-error/10 p-4">
+      <h4 class="text-sm font-medium">Close {@deleting.email}&#39;s account?</h4>
+      <p class="mt-1 text-sm text-base-content/70">
+        This cannot be undone. Use <span class="font-medium">Disable</span>
+        instead unless they have actually asked to be removed — a disabled account keeps
+        everything and can be turned back on.
+      </p>
+
+      <ul class="mt-3 space-y-1 text-sm">
+        <li>
+          <span class="font-medium">{@preview.cards_deleted}</span> cards on boards only
+          they can see will be deleted.
+        </li>
+        <li :if={@preview.boards_deleted != []}>
+          Deleted with them: {Enum.join(@preview.boards_deleted, ", ")}
+        </li>
+        <li :if={@preview.boards_handed_over != []}>
+          Handed to whoever else works on them: {Enum.map_join(
+            @preview.boards_handed_over,
+            ", ",
+            &"#{&1.name} → #{&1.to}"
+          )}
+        </li>
+        <li class="text-base-content/60">
+          Status updates and page history they wrote on other people's boards stay, with no
+          author.
+        </li>
+      </ul>
+
+      <form id="close-account" phx-submit="delete" class="mt-3 field-row gap-2">
+        <input type="hidden" name="user_id" value={@deleting.id} />
+        <div class="flex-1">
+          <.input
+            id="close-account-email"
+            name="email"
+            value=""
+            type="text"
+            label={"Type #{@deleting.email} to confirm"}
+            autocomplete="off"
+          />
+        </div>
+        <button type="submit" class="btn btn-error btn-sm">Close the account</button>
+        <button type="button" phx-click="cancel-delete" class="btn btn-ghost btn-sm">Cancel</button>
+      </form>
+    </div>
+    """
+  end
+
+  @doc """
+  What somebody is on, in a few words for the table: exempt as an admin,
+  unlimited, paid up to a date (or lapsed since it), or free with what is
+  left of their trial.
+  """
+  @spec plan_label(Accounts.User.t()) :: String.t()
+  def plan_label(%{admin: true}), do: "Admin, no allowance"
+  def plan_label(%{unlimited: true}), do: "Unlimited"
+
+  def plan_label(%{paid_until: %DateTime{} = until} = user) do
+    date = Dates.long(DateTime.to_date(until))
+
+    if Quota.free?(user),
+      do: "Free, lapsed #{date}#{trial_note(user)}",
+      else: "Paid up to #{date}"
+  end
+
+  def plan_label(user), do: "Free#{trial_note(user)}"
+
+  defp trial_note(user) do
+    case Quota.trial(user) do
+      %{applies?: true, expired?: true} -> " · trial over"
+      %{applies?: true, days_left: days} -> " · trial: #{days}d left"
+      _ -> ""
+    end
   end
 
   defp signups_tab(assigns) do

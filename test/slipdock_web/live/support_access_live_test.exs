@@ -27,13 +27,13 @@ defmodule SlipdockWeb.SupportAccessLiveTest do
   end
 
   describe "the Users page" do
-    test "Support says where to look, and the row lists their boards as links", %{
+    test "Support, from the person panel, says where to look and lists their boards as links", %{
       conn: conn,
       admin: admin,
       customer: customer,
       board: board
     } do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{customer.id}")
 
       html =
         view
