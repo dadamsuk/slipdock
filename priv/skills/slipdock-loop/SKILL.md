@@ -379,6 +379,11 @@ its section pages, and a choice between alternatives is a new page in
 title becomes a folder and shows in tight lists, and a sequence of cards that
 share their first 40 characters can't be told apart there.
 
+**Its bar and paths go on in the same write**, on a board that verifies work
+or keeps lanes: `slipdock add <board> "<title>" --bar "…" --paths "a/**,b.md"`
+(`create_card` `bar` and `paths` over MCP). A bar written by whoever files the
+card is better than one the builder writes for itself at the claim.
+
 ### How a comment reads
 
 Comments are Markdown, rendered on the card, and a person skims them. Write
