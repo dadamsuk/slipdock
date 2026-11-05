@@ -69,4 +69,61 @@ defmodule Slipdock.Wiki.LineChangesTest do
       assert LineChanges.label(%{added: 0, removed: 0, title?: false}) == "no changes"
     end
   end
+
+  describe "preview/3 (#1745)" do
+    test "an added paragraph is its added lines" do
+      old = "First paragraph.\n\nSecond paragraph.\n"
+      new = "First paragraph.\n\nA new one, in between.\n\nSecond paragraph.\n"
+
+      assert LineChanges.preview(old, new) == %{
+               lines: [{:ins, "A new one, in between."}],
+               more: 0,
+               too_big?: false
+             }
+    end
+
+    test "a removed paragraph is its removed lines" do
+      old = "Keep.\n\nGone soon.\n\nKeep too.\n"
+      new = "Keep.\n\nKeep too.\n"
+
+      assert %{lines: [{:del, "Gone soon."}], more: 0} = LineChanges.preview(old, new)
+    end
+
+    test "a changed paragraph is the old line removed, then the new added" do
+      old = "Intro.\n\nThe plan is to ship on Friday.\n"
+      new = "Intro.\n\nThe plan is to ship on Monday.\n"
+
+      assert %{
+               lines: [
+                 {:del, "The plan is to ship on Friday."},
+                 {:ins, "The plan is to ship on Monday."}
+               ]
+             } =
+               LineChanges.preview(old, new)
+    end
+
+    test "a first version is all added; blank lines are left out" do
+      assert %{lines: [{:ins, "# Title"}, {:ins, "Body."}], more: 0} =
+               LineChanges.preview(nil, "# Title\n\n   \nBody.\n")
+    end
+
+    test "nothing changed, or only blank lines, shows no lines" do
+      assert %{lines: [], more: 0, too_big?: false} = LineChanges.preview("a\nb", "a\nb")
+      assert %{lines: [], more: 0} = LineChanges.preview("a\nb", "a\n\n\nb")
+      assert %{lines: [], more: 0} = LineChanges.preview(nil, nil)
+    end
+
+    test "past the limit, the rest is counted, not shown" do
+      new = Enum.map_join(1..20, "\n", &"line #{&1}")
+      assert %{lines: lines, more: 15} = LineChanges.preview("", new, 5)
+      assert lines == Enum.map(1..5, &{:ins, "line #{&1}"})
+      assert %{lines: twelve, more: 8} = LineChanges.preview("", new)
+      assert length(twelve) == 12
+    end
+
+    test "bodies too long to diff here say so rather than guess" do
+      huge = Enum.map_join(1..4_001, "\n", &"l#{&1}")
+      assert LineChanges.preview("", huge) == %{lines: [], more: 0, too_big?: true}
+    end
+  end
 end
