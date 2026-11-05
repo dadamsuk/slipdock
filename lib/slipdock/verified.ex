@@ -1216,18 +1216,29 @@ defmodule Slipdock.Verified do
   end
 
   @doc """
-  What a verify job's agent is told (#1634): the card, its bar and evidence,
-  and how to decide. Rendered when the job is queued.
+  What a verify job's agent is told (#1634): the card, what it asks, its bar
+  and evidence, and how to decide. Rendered when the job is queued.
+
+  The verifier judges, in order (#1777): the ask (does the bar cover what
+  the card asks for?), the bar, and on a board with a handbook the rules for
+  the diff's paths and the closing `Handbook:` line. A rejection cites the
+  check it fails: a bar item, the ask, a rule id or the Handbook line.
   """
   def verify_prompt(%Card{} = card, %Board{} = board) do
     url = "#{Slipdock.Automations.Runner.base_url()}/boards/#{board.id}/cards/#{card.id}"
     commit = card.evidence_commit
     at = if commit, do: " --evidence-commit #{commit}", else: ""
+    handbook = Slipdock.Handbook.find(board)
+    judging = judge_steps(card, board, handbook)
+    decide = length(judging) + 3
 
     """
     Verify card ##{card.id} “#{card.title}” on #{board.name} before it counts as done: #{url}
 
     Another agent did the work and submitted it. You are the second agent: check the work, don't redo it, and don't change the code or the card beyond your decision.
+
+    What the card asks (its description):
+    #{if blank?(card.description), do: "(no description: the title is the ask)", else: ask_text(card.description)}
 
     The bar (what done means):
     #{if blank?(card.bar), do: "(none written: check it against the card's description)", else: card.bar}
@@ -1240,11 +1251,60 @@ defmodule Slipdock.Verified do
 
     1. Read the card and its comments: `slipdock card #{card.id}`.
     #{check_step(card, board)}
-    3. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
-       - `slipdock verify #{card.id} accept#{at} --reason "what you checked"`
-       - `slipdock verify #{card.id} reject#{at} --reason "what falls short of the bar, specifically"`
-    A rejection goes back to whoever takes the card next, so say exactly what to fix.
+    #{judging |> Enum.with_index(3) |> Enum.map_join("\n", fn {text, n} -> "#{n}. #{text}" end)}
+    #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
+       - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn"`
+       - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically"`
+    A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
     """
+  end
+
+  # The checks after the checkout, in order: the ask and the bar always; the
+  # rules and the Handbook line only on a board with a handbook.
+  defp judge_steps(card, board, handbook) do
+    base = [
+      "The ask. Does the bar cover everything the description (and any request in the comments) asks for? A bar that leaves part of the ask out is a rejection (`the ask: the bar misses …`), even when the work meets the bar. Step: `judging the ask`",
+      "The bar. Each item, against the change and the tests it names. A part not met is a rejection naming the item (`bar 2: …`). Step: `judging against the bar`"
+    ]
+
+    if handbook, do: base ++ handbook_steps(card, board, handbook), else: base
+  end
+
+  defp handbook_steps(card, board, handbook) do
+    code = handbook.board.code || to_string(handbook.board.id)
+    sha = card.evidence_commit || "<commit>"
+
+    base =
+      if Board.ships_by_pr?(board) and not blank?(card.evidence_pr),
+        do: "origin/$(gh pr view #{card.evidence_pr} --json baseRefName -q .baseRefName)",
+        else: "origin/<default branch>"
+
+    [
+      """
+      The rules. In the clean tree, list the rules for the paths the change touches:
+         `git diff --name-only $(git merge-base #{base} #{sha}) #{sha} | slipdock handbook #{code} --paths-from -`
+         Judge every `must` rule it lists: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. A broken `must` is a rejection citing its id (`ARCH-3: …`). List any `should` rule missed in the accept reason. Step: `judging the rules`\
+      """,
+      """
+      The Handbook line. Find the `Handbook:` line, in the evidence or the builder's closing comment, and hold it against the diff with the docs gate: user-visible behaviour updates the Specification; structure or boundaries, Architecture or the Data model; a choice between alternatives, a new page in `Handbook/Decisions`; something reusable, Shared modules or Components; a UI pattern, UX & UI; how to test, build or deploy, Testing & tooling or Operations. No line, a line saying `no change` on a diff that needed one, or a line naming pages the work didn't edit (`slipdock page history <page>`), is a rejection (`Handbook line: …`). Step: `judging the Handbook line`\
+      """
+    ]
+  end
+
+  defp cite_list(nil), do: "the bar item (`bar 2: …`) or the ask (`the ask: …`)"
+
+  defp cite_list(_handbook),
+    do:
+      "a bar item (`bar 2: …`), the ask (`the ask: …`), a rule id (`ARCH-3: …`) or the Handbook line (`Handbook line: …`)"
+
+  # The ask as the prompt shows it: the description, cut short if long.
+  @ask_cap 4000
+  defp ask_text(text) do
+    text = String.trim(text)
+
+    if String.length(text) > @ask_cap,
+      do: String.slice(text, 0, @ask_cap) <> "\n… (cut short: read the rest on the card)",
+      else: text
   end
 
   # Step 2 of the verify prompt. On a pull request board the PR's CI has run
@@ -1263,22 +1323,20 @@ defmodule Slipdock.Verified do
       head = commit || "the commit you check"
 
       """
-      2. #{tree}, and check each part of the bar against the change itself (its diff from the default branch) and the tests it names: read them. Don't run the suite: the pull request's CI runs it at this commit.
+      2. #{tree}, and read the change itself (its diff from the default branch) and the tests it names. Don't run the suite: the pull request's CI runs it at this commit.
          - `gh pr view #{pr} --json headRefOid,statusCheckRollup`: the head must be #{head}. If the pull request has moved on since it was submitted, reject it to be submitted again at its head.
          - Every check must have passed. While any is still running, wait (`gh pr checks #{pr} --watch`). A failed check is a rejection: name it.
          - If the pull request has no checks at all, run the suite in the clean tree instead.
          Steps to report:
          - `checked out #{commit || "<commit>"}`
-         - `CI: <n> checks passed at #{commit || "<commit>"}` (or `waiting for CI`, `CI failed: <check>`)
-         - `judging against the bar`\
+         - `CI: <n> checks passed at #{commit || "<commit>"}` (or `waiting for CI`, `CI failed: <check>`)\
       """
     else
       """
-      2. #{tree}, run the suite there, and check each part of the bar against it: the tests it names, the change itself. Steps to report:
+      2. #{tree}, run the suite there, and read the change itself and the tests it names. Steps to report:
          - `checked out #{commit || "<commit>"}`
          - `tests running: <which>`
-         - `tests passed: <n>, failed: <n>` (or `tests failed: …`)
-         - `judging against the bar`\
+         - `tests passed: <n>, failed: <n>` (or `tests failed: …`)\
       """
     end
   end

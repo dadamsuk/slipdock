@@ -3630,12 +3630,15 @@ defmodule SlipdockWeb.APIGuide do
     open in its list with `verify_state: "pending"` and the `review` flag,
     and isn't done until someone else decides. Moving it into a done list
     yourself is refused. Don't take a pending card as your next work unless
-    you are the verifier. To verify one you did not submit: read its bar and
-    evidence, check the work at the evidence's commit (run the tests), then
-    `verify_card` (`slipdock verify ID accept|reject --reason TEXT
+    you are the verifier. To verify one you did not submit: check out the
+    evidence's commit and judge, in order, the ask (does the bar cover what
+    the card asks for?), the bar, and on a board with a handbook the rules
+    for the diff's paths (`slipdock handbook B --paths-from -`) and the
+    closing `Handbook:` line against the docs gate; then `verify_card` (`slipdock verify ID accept|reject --reason TEXT
     --evidence-commit SHA`, `POST /api/cards/:id/verify {"decision":
     "accept"|"reject", "reason": "…", "commit": "…"}`). Accepting completes
-    it and moves it to the done list. Rejecting needs the reason: it goes
+    it and moves it to the done list. Rejecting needs the reason, citing the check it fails (`bar 2: …`,
+    `the ask: …`, a rule id such as `ARCH-3: …`, or `Handbook line: …`): it goes
     on the card as a comment and in `get_card`'s `rejection` (a claimed
     job's prompt carries it too; the handoff only points there), the
     evidence is cleared, the builder's own assignment comes off, its
@@ -3645,7 +3648,8 @@ defmodule SlipdockWeb.APIGuide do
     decide its own card (`403`): a different agent is a different token,
     or a different runner job. A board with a `verify_pool` also queues
     each submitted card for that runner pool as a job of kind `verify`,
-    whose prompt carries the bar, the evidence and how to decide, and asks
+    whose prompt carries the card's ask, the bar, the evidence and those
+    checks, and asks
     its agent to report each step with `job-progress --step` (no note, so
     the card stays quiet until the decision). The
     runner that built the card never takes it. Whoever decides first

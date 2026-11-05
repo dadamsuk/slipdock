@@ -513,6 +513,15 @@ On a board that ships by pull request, its CI is the one full test run: the
 builder runs only its own tests before pushing, and the verifier checks the
 pull request's checks at the submitted commit rather than running the suite
 again.
+The verifier judges four things, in order: **the ask** (does the bar cover
+what the card asks for? a bar that leaves part out is a rejection), **the
+bar**, and on a board with a handbook **the rules** for the diff's paths
+(`git diff --name-only` from the merge base piped to `slipdock handbook
+<board> --paths-from -`; a broken `must` is a rejection) and **the
+`Handbook:` line**, held against the docs gate (`no change` on a diff that
+needed an update is a rejection). A rejection cites the check it fails: a bar
+item, the ask, a rule id or the Handbook line. The builder runs the same
+checks before submitting.
 The installer's config gives every runner a `job_verify` that runs the same
 agent on the server's prompt, without the standing instructions, so a runner
 can check another runner's work. Deciding is `verify_card` or `slipdock
