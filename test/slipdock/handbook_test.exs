@@ -107,7 +107,12 @@ defmodule Slipdock.HandbookTest do
     test "install makes both, the reconcile nightly and waiting on the seed",
          %{user: user, board: board} do
       {:ok, result} = Handbook.install(user, board)
-      assert result.report.added["cards"] == ["Seed the handbook", "Reconcile the handbook"]
+
+      assert result.report.added["cards"] == [
+               "Seed the handbook",
+               "Reconcile the handbook",
+               "Triage findings"
+             ]
 
       seed = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Seed the handbook")
 
@@ -325,6 +330,92 @@ defmodule Slipdock.HandbookTest do
       reading = Handbook.for_board(board, user)
       assert length(reading.index) == 8
       assert Enum.map(reading.decisions, & &1.title) == ["Decision: soft gate"]
+    end
+  end
+
+  describe "the Triage findings card (#1789)" do
+    defp card_titled(board, title),
+      do: Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: title)
+
+    test "install makes it nightly, with the procedure, waiting on the seed", %{
+      user: user,
+      board: board
+    } do
+      {:ok, _} = Handbook.install(user, board)
+      triage = card_titled(board, "Triage findings")
+      seed = card_titled(board, "Seed the handbook")
+
+      assert Slipdock.Recurrence.for_card(triage).rule == "FREQ=DAILY"
+      assert triage.description =~ "slipdock findings <board> --status open"
+      assert triage.description =~ "Handbook: no change (no open findings)"
+      assert triage.description =~ "merge --into"
+      assert triage.description =~ "dismiss --note"
+      assert triage.description =~ "slipdock garden propose <board> <file.json>"
+      assert triage.description =~ "a card for the test instead"
+      assert triage.description =~ "## Triage"
+      assert Enum.map(Boards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
+
+      index = Handbook.find(board).index
+      assert {:ok, log} = Wiki.Section.read(index.body, "Handbook/Triage")
+      assert log =~ "proposals filed"
+    end
+
+    # As 1.2.0 left a handbook: no triage card, no Triage log, a seed done.
+    defp as_1_2_0(user, board) do
+      {:ok, _} = Handbook.install(user, board)
+
+      {:ok, _} =
+        Boards.update_card(card_titled(board, "Seed the handbook"), %{"completed" => true})
+
+      Repo.delete!(card_titled(board, "Triage findings"))
+      index = Handbook.find(board).index
+      [before, _triage] = String.split(index.body, "## Triage")
+      {:ok, _} = Wiki.update_page(index, %{"body" => String.trim_trailing(before) <> "\n"})
+      Handbook.find(board).index.body
+    end
+
+    test "installing over 1.2.0 adds the card and the log, and touches nothing else", %{
+      user: user,
+      board: board
+    } do
+      index_before = as_1_2_0(user, board)
+      reconcile = card_titled(board, "Reconcile the handbook")
+      pages_before = Map.new(handbook_pages(board), &{&1.id, &1.body})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["cards"] == ["Triage findings"]
+      assert "Index (Triage log added)" in again.report.added["pages"]
+
+      triage = card_titled(board, "Triage findings")
+      assert Slipdock.Recurrence.for_card(triage).rule == "FREQ=DAILY"
+      # The seed is done: nothing to wait for.
+      assert Boards.get_card!(triage.id).blocked_by == []
+
+      index = Handbook.find(board).index
+      assert String.starts_with?(index.body, String.trim_trailing(index_before))
+      assert index.body =~ ~r/## Triage\n\n_The triage card records/
+
+      for page <- handbook_pages(board),
+          page.id != index.id,
+          do: assert(page.body == pages_before[page.id], page.title)
+
+      assert Repo.reload!(reconcile).updated_at == reconcile.updated_at
+
+      # Again: nothing more.
+      {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["cards"] == []
+      refute "Index (Triage log added)" in third.report.added["pages"]
+      assert length(Regex.scan(~r/^## Triage$/m, Handbook.find(board).index.body)) == 1
+    end
+
+    test "a seed still open makes the added triage wait for it", %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      Repo.delete!(card_titled(board, "Triage findings"))
+
+      {:ok, _} = Handbook.install(user, board)
+      triage = card_titled(board, "Triage findings")
+      seed = card_titled(board, "Seed the handbook")
+      assert Enum.map(Boards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
     end
   end
 
