@@ -656,6 +656,11 @@ With one on, the pass changes like this:
   "…"`, one line per part. Moving it without one is refused. The bar locks
   once work starts: never try to change it after that (only a person can).
   Work to it as written and say in the wrap-up how each part was met.
+- **The verifier's checks, first.** Before submitting, run the four
+  checks a verifier will (see **A verify job** below) on your own work: the
+  bar covers the ask, each part of the bar is met, no `must` rule for the
+  diff is broken, and the `Handbook:` line is honest. Put the `Handbook:`
+  line in `--evidence` too, so it is on the card when the verifier starts.
 - **Evidence on completion.** At step 7.5 `slipdock done <id>` carries what
   you checked and where: `--evidence-commit <sha> --branch <branch> --tests
   <the test files you added or changed, comma-separated> --suite
@@ -695,8 +700,20 @@ With one on, the pass changes like this:
   code. Never verify a card you built. Read the bar and the evidence, then
   check out the evidence's commit in a clean tree (`git worktree add
   /tmp/verify-<id> <sha>`, so nothing uncommitted counts). Run the suite
-  and what the bar names there, judge each part of the bar, then decide
-  once. On a board that ships by pull request, don't run the suite: its
+  and what the bar names there, then judge four things in order, and
+  decide once:
+  1. **The ask:** does the bar cover what the card asks for (its
+     description, and any request in the comments)? A bar that leaves part
+     out is a rejection, even when the work meets the bar.
+  2. **The bar,** each part of it.
+  3. **The rules** (a board with a handbook): `git diff --name-only
+     $(git merge-base origin/<default> <sha>) <sha> | slipdock handbook
+     <board> --paths-from -` lists the rules for the diff. A broken `must`
+     is a rejection citing its id; `should` misses go in the accept reason.
+  4. **The `Handbook:` line** (a board with a handbook), in the evidence or
+     the closing comment, against the docs gate (step 7.1): no line, `no
+     change` on a diff that needed an update, or pages named that weren't
+     edited, is a rejection. On a board that ships by pull request, don't run the suite: its
   CI ran it at that commit. Read the change and the tests the bar names,
   check that the pull request's head is the evidence's commit and that
   every check passed (wait for any still running; a failed one is a
@@ -705,8 +722,10 @@ With one on, the pass changes like this:
   note: checked out the commit, tests running and their counts (or the
   CI result), judging, the decision. The card stays quiet until you decide: `slipdock verify <id> accept
   --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
-  <id> reject --reason "<what falls short, specifically>"`. You can't decide
-  a card you submitted yourself (`403`).
+  <id> reject --reason "<the check>: <what falls short, specifically>"`.
+  A rejection cites the check it fails: a bar item (`bar 2: …`), the ask
+  (`the ask: …`), a rule id (`UX-4: …`) or the Handbook line. You can't
+  decide a card you submitted yourself (`403`).
 
 ## Lanes
 
