@@ -70,6 +70,8 @@ defmodule Slipdock.Fields.Expression do
   defp tokenize("", acc), do: {:ok, Enum.reverse(acc)}
   defp tokenize(<<c, rest::binary>>, acc) when c in ~c" \t\n\r", do: tokenize(rest, acc)
 
+  # Not a hole: Only the one-character operators + - * / ( ) become atoms.
+  # sobelow_skip ["DOS.StringToAtom"]
   defp tokenize(<<c, rest::binary>>, acc) when c in ~c"+-*/()",
     do: tokenize(rest, [String.to_atom(<<c>>) | acc])
 

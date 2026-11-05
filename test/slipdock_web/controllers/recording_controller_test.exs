@@ -23,6 +23,14 @@ defmodule SlipdockWeb.RecordingControllerTest do
       "parents" => ["fold"],
       content: :binary.copy("0123456789", 100)
     },
+    %{
+      "id" => "mixed",
+      "name" => "z.m4a",
+      "mimeType" => "audio/x, text/html",
+      "size" => "10",
+      "parents" => ["fold"],
+      content: "<script>x"
+    },
     %{"id" => "doc", "name" => "n.pdf", "mimeType" => "application/pdf", "parents" => ["fold"]},
     %{"id" => "out", "name" => "x.m4a", "mimeType" => "audio/mp4", "parents" => ["root"]}
   ]
@@ -54,6 +62,16 @@ defmodule SlipdockWeb.RecordingControllerTest do
     assert get_resp_header(conn, "accept-ranges") == ["bytes"]
     assert get_resp_header(conn, "cache-control") == ["private, no-store"]
     assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
+  end
+
+  test "a type that isn't only a recording's is relayed as bytes", %{conn: conn, board: board} do
+    page = meeting(board, "recording: gdrive:Rec/z.m4a")
+    conn = get(conn, ~p"/wiki-pages/#{page.id}/recording")
+
+    assert conn.status == 200
+    assert [type] = get_resp_header(conn, "content-type")
+    assert type =~ "application/octet-stream"
+    refute type =~ "html"
   end
 
   test "passes a range on and relays the 206", %{conn: conn, board: board} do

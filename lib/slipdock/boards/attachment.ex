@@ -71,7 +71,9 @@ defmodule Slipdock.Boards.Attachment do
   Whether the file is a recording: the card plays it in place, and offers to
   transcribe it. Audio can't run script, so it is as safe inline as an image.
   """
-  def audio?(%__MODULE__{content_type: "audio/" <> _}), do: true
+  def audio?(%__MODULE__{content_type: "audio/" <> rest}),
+    do: Regex.match?(~r{\A[a-z0-9][a-z0-9.+-]*\z}, rest)
+
   def audio?(%__MODULE__{}), do: false
 
   @doc "Whether the file is served inline rather than as a download."

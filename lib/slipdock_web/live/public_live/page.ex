@@ -37,6 +37,8 @@ defmodule SlipdockWeb.PublicLive.Page do
   end
 
   @impl true
+  # Not a hole: @html is MDEx output, sanitised (ammonia), with the CSP behind it.
+  # sobelow_skip ["XSS.Raw"]
   def render(assigns) do
     ~H"""
     <div class="min-h-dvh bg-base-200">

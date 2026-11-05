@@ -136,6 +136,13 @@ jobs:
       - name: Dependency advisories (deps.audit)
         run: mix deps.audit
 
+      # The Phoenix security scanner, failing on any finding at any
+      # confidence. Settings, and the types ignored with their reasons, are
+      # in .sobelow-conf; a single finding is skipped in the code, with a
+      # `# Not a hole:` reason above its `# sobelow_skip`.
+      - name: Phoenix security scan (sobelow)
+        run: mix sobelow --config
+
   # The PowerShell runner on Windows PowerShell 5.1, which the suite's pwsh
   # on Linux can't stand in for: 5.1's Start-Process locks the job's output
   # files differently, and that stopped the runner on its first heartbeat

@@ -37,6 +37,8 @@ defmodule SlipdockWeb.CLIInstallController do
     |> send_resp(200, script)
   end
 
+  # Not a hole: The escript's path is the release's own, not request input.
+  # sobelow_skip ["Traversal.SendFile"]
   def escript(conn, _params) do
     case File.stat(escript_path()) do
       {:ok, %{type: :regular}} ->

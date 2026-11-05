@@ -36,7 +36,7 @@ defmodule SlipdockWeb.AttachmentControllerTest do
 
     conn = get(build_conn() |> log_in_user(user_fixture()), Boards.attachment_url(page))
     assert conn.status == 200
-    assert get_resp_header(conn, "content-type") == ["text/html"]
+    assert get_resp_header(conn, "content-type") == ["application/octet-stream"]
     assert [disp] = get_resp_header(conn, "content-disposition")
     assert disp =~ "attachment"
     assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
@@ -102,6 +102,33 @@ defmodule SlipdockWeb.AttachmentControllerTest do
   test "a missing file on disk is a 404", %{conn: conn, image: image} do
     File.rm!(Boards.attachment_path(image))
     assert get(conn, Boards.attachment_url(image)).status == 404
+  end
+
+  # The type is the uploader's word: a browser reads `audio/x, text/html` as
+  # its last type, so only a bare recording type is played in place.
+  for type <- ["audio/x, text/html", "audio/mpeg text/html", "audio/"] do
+    test "an attachment typed #{inspect(type)} is a download, never a page", %{
+      conn: conn,
+      card: card
+    } do
+      src = Path.join(System.tmp_dir!(), "kanban-mixed-#{System.unique_integer([:positive])}")
+      File.write!(src, "<script>alert(1)</script>")
+      on_exit(fn -> File.rm(src) end)
+
+      {:ok, file} =
+        Boards.add_attachment(card, %{filename: "x.mp3", content_type: unquote(type)}, src)
+
+      refute Slipdock.Boards.Attachment.audio?(file)
+
+      for conn <- [conn, put_req_header(conn, "range", "bytes=0-7")] do
+        res = get(conn, Boards.attachment_url(file))
+        assert res.status in [200, 206]
+        assert [type] = get_resp_header(res, "content-type")
+        refute type =~ "html"
+        assert [disposition] = get_resp_header(res, "content-disposition")
+        assert disposition =~ "attachment"
+      end
+    end
   end
 
   describe "a recording" do

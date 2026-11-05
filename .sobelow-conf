@@ -1,0 +1,45 @@
+# Sobelow, the Phoenix security scanner: `mix sobelow` in CI (job `static`),
+# failing on any finding at any confidence.
+#
+# A finding is fixed (with a test), or skipped where it is: a
+# `# sobelow_skip ["Type"]` comment above the function, with a
+# `# Not a hole: <why>` line above it. Skips go in the code rather than in
+# .sobelow-skips because that file's fingerprints include the line number,
+# so any edit above a skipped finding would bring it back.
+# `mix sobelow --details <Type>` says what a type means.
+#
+# Whole types ignored, each for a reason that holds for the type, not for
+# one finding:
+#   Config.CSP        The policy is set by SlipdockWeb.Plugs.ContentSecurityPolicy
+#                     in the :browser pipeline; Sobelow only recognises one
+#                     passed to put_secure_browser_headers.
+#   Config.CSRFRoute  Only /api routes share an action between GET and POST,
+#                     and /api authenticates by bearer token alone (no session
+#                     cookie), so there is nothing to forge. Config.CSRF (a
+#                     browser pipeline without protect_from_forgery) stays on.
+#   Config.CSWH       Sobelow reads config/*.exs only; check_origin is set in
+#                     config/runtime.exs to SlipdockWeb.Origin.allowed?/1 (the
+#                     server's own host plus SLIPDOCK_CHECK_ORIGIN).
+#   Config.HTTPS      prod.exs turns force_ssl (with HSTS) on unless the build
+#                     sets SLIPDOCK_FORCE_SSL=false, as the Docker image does
+#                     because TLS ends at the proxy in front of it.
+#   Traversal.FileModule
+#                     Every file path is built on the server from a stored key
+#                     (a UUID and a checked extension), a temp dir or config;
+#                     upload ids are checked UUIDs and names are cleaned
+#                     before use. All 85 were read one by one when this was
+#                     turned on (#1768). Traversal.SendFile and SendDownload,
+#                     what reaches a response, stay on.
+[
+  verbose: false,
+  private: false,
+  skip: true,
+  router: "lib/slipdock_web/router.ex",
+  exit: "low",
+  format: "txt",
+  out: "",
+  threshold: "low",
+  ignore: ["Config.CSP", "Config.CSRFRoute", "Config.CSWH", "Config.HTTPS", "Traversal.FileModule"],
+  ignore_files: [],
+  version: false
+]

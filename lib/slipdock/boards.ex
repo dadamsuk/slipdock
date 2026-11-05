@@ -1491,6 +1491,8 @@ defmodule Slipdock.Boards do
   end
 
   # Match the key style the rest of the attrs use, so a map isn't left mixed.
+  # Not a hole: field is one of the schema's own fields, never request input.
+  # sobelow_skip ["DOS.StringToAtom"]
   defp attr_key(attrs, field) do
     if Enum.any?(attrs, fn {k, _} -> is_atom(k) end), do: String.to_atom(field), else: field
   end

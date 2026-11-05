@@ -114,6 +114,8 @@ defmodule SlipdockWeb.RecordingStream do
     |> send_chunked(response.status)
   end
 
+  # Not a hole: Drive's type passes through relayed/2 (a bare audio or video type, else bytes).
+  # sobelow_skip ["XSS.SendResp"]
   defp start(conn, response, body) do
     conn
     |> relay_headers(response)
@@ -124,7 +126,7 @@ defmodule SlipdockWeb.RecordingStream do
     conn =
       Enum.reduce(@relayed, conn, fn name, conn ->
         case Req.Response.get_header(response, name) do
-          [value | _] -> put_resp_header(conn, name, value)
+          [value | _] -> put_resp_header(conn, name, relayed(name, value))
           [] -> conn
         end
       end)
@@ -133,6 +135,16 @@ defmodule SlipdockWeb.RecordingStream do
     |> put_resp_header("cache-control", "private, no-store")
     |> put_resp_header("x-content-type-options", "nosniff")
   end
+
+  # Drive's word for the type, played only if it is a recording's.
+  defp relayed("content-type", value) do
+    case SlipdockWeb.ByteRange.inline_type(value) do
+      "image/" <> _ -> "application/octet-stream"
+      type -> type
+    end
+  end
+
+  defp relayed(_name, value), do: value
 
   defp status(reason) when reason in [:not_connected, :revoked, :no_folder, :no_vault], do: 409
   defp status(reason) when reason in [:outside_folder, :not_audio, :invalid], do: 403

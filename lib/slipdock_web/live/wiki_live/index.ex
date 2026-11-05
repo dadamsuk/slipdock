@@ -6375,6 +6375,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :marks, :any, default: nil, doc: "the reader's favourites, for the page's heart"
   attr :page_tools, :any, default: nil, doc: "the AI tools button: its pressed state, or nil"
 
+  # Not a hole: @html is MDEx output, sanitised (ammonia), with the CSP behind it.
+  # sobelow_skip ["XSS.Raw"]
   defp page_body(assigns) do
     ~H"""
     <div :if={is_nil(@page)} class="py-16 text-center">
@@ -7134,6 +7136,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :restored_from, :any, default: nil, doc: "when the restored auto-save was written"
   attr :page_tools, :any, default: nil, doc: "the AI tools button: its pressed state, or nil"
 
+  # Not a hole: @preview is MDEx output, sanitised (ammonia), with the CSP behind it.
+  # sobelow_skip ["XSS.Raw"]
   defp editor(assigns) do
     assigns =
       assign(assigns, :encrypted?, Slipdock.Wiki.Meld.encrypted?(assigns.form[:body].value))
