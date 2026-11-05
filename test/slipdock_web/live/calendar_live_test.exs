@@ -197,4 +197,140 @@ defmodule SlipdockWeb.CalendarLiveTest do
              "This week"
            )
   end
+
+  describe "chips (#1733)" do
+    setup %{board: board} do
+      [_, todo | _] = board.columns
+      title = "Reconcile quarterly invoices with the ledger export"
+
+      long =
+        card_fixture(todo, %{
+          "title" => title,
+          "priority" => "critical",
+          "flags" => ["flagged", "blocked"],
+          "start_date" => "2030-01-14",
+          "due_date" => "2030-01-16"
+        })
+
+      for name <- ~w(finance ops audit extra) do
+        Boards.toggle_card_tag(long, tag_fixture(board, name, "rose"))
+      end
+
+      %{long: long, title: title}
+    end
+
+    test "put the title first and every decoration after it, with no arrow", %{
+      conn: conn,
+      board: board,
+      long: long,
+      title: title
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/calendar?date=2030-01-15")
+      chip = "#cal-2030-01-16-#{long.id}"
+
+      assert has_element?(view, "#{chip} > .cal-chip-title:first-child", title)
+      # Flags and priority come in first, tags and the done toggle once wider.
+      assert has_element?(view, "#{chip} > .cal-deco-1 [title='Flagged']")
+      assert has_element?(view, "#{chip} > .cal-deco-1 [title='Blocked']")
+      assert has_element?(view, "#{chip} > .cal-deco-1 [title='Priority: Critical']")
+      assert has_element?(view, "#{chip} > .cal-deco-2 button[aria-label='Mark complete']")
+      # Three tag dots at most.
+      html = view |> element("#{chip} > .cal-deco-2") |> render()
+      assert length(Regex.scan(~r/size-1\.5 rounded-full/, html)) == 3
+      # The start → due arrow did nothing, so it is gone.
+      refute render(view) =~ "hero-arrow-long-right"
+    end
+
+    test "carry the full title and the metadata in the tooltip", %{
+      conn: conn,
+      board: board,
+      long: long,
+      title: title,
+      due: due
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/calendar?date=2030-01-15")
+
+      tip = view |> element("#cal-2030-01-16-#{long.id}") |> render() |> tooltip()
+      [first | rest] = String.split(tip, "\n")
+      assert first == title
+      assert "Priority: Critical" in rest
+      assert "Flags: Flagged, Blocked" in rest
+      assert "Tags: audit, extra, finance, ops" in rest
+      assert Enum.any?(rest, &(&1 =~ "→"))
+      refute "Done" in rest
+
+      # A bare card: its title and date, no empty metadata lines, no decorations.
+      assert view |> element("#cal-2030-01-15-#{due.id}") |> render() |> tooltip() =~
+               ~r/\ADue only\nDue [^\n]+\z/
+
+      refute has_element?(view, "#cal-2030-01-15-#{due.id} .cal-deco-1")
+      assert has_element?(view, "#cal-2030-01-15-#{due.id} .cal-deco-2 button")
+    end
+
+    test "say a finished card is done, and offer to reopen it", %{conn: conn, board: board} do
+      [_, todo | _] = board.columns
+
+      done =
+        card_fixture(todo, %{"title" => "Closed", "due_date" => "2030-01-15", "completed" => true})
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/calendar?date=2030-01-15")
+      chip = "#cal-2030-01-15-#{done.id}"
+
+      assert view
+             |> element(chip)
+             |> render()
+             |> tooltip()
+             |> String.split("\n")
+             |> Enum.member?("Done")
+
+      assert has_element?(view, "#{chip} button[aria-label='Mark incomplete']")
+    end
+
+    test "leave out decorations the display turns off, and thin them when compact", %{
+      conn: conn,
+      board: board,
+      long: long,
+      title: title
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/calendar?date=2030-01-15&show=status")
+      chip = "#cal-2030-01-16-#{long.id}"
+      refute has_element?(view, "#{chip} .cal-deco-1")
+      assert has_element?(view, "#{chip} .cal-deco-2 button")
+      refute has_element?(view, "#{chip} .cal-deco-2 .rounded-full.size-1\\.5")
+      # The tooltip keeps the metadata the chip no longer shows.
+      assert view |> element(chip) |> render() |> tooltip() =~ "Priority: Critical"
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/calendar?date=2030-01-15&density=compact")
+      assert has_element?(view, "#{chip} > .cal-chip-title:first-child", title)
+      assert has_element?(view, "#{chip} .cal-deco-1 [title='Flagged']")
+      refute has_element?(view, "#{chip} .cal-deco-1 [title='Blocked']")
+      refute has_element?(view, "#{chip} .cal-deco-2")
+    end
+  end
+
+  test "chip_title copes with a card whose tags and flags are not loaded" do
+    card = %{
+      title: "Bare",
+      start_date: ~D[2030-01-02],
+      due_date: nil,
+      completed: false,
+      priority: nil,
+      flags: nil,
+      tags: %Ecto.Association.NotLoaded{}
+    }
+
+    assert SlipdockWeb.CalendarComponents.chip_title(card) =~ ~r/\ABare\nStarts [^\n]+\z/
+    assert SlipdockWeb.CalendarComponents.chip_title(%{card | start_date: nil}) == "Bare\nNo date"
+  end
+
+  # The chip's own title attribute (the first in its HTML), unescaped.
+  defp tooltip(html) do
+    [_, tip] = Regex.run(~r/title="([^"]*)"/, html)
+
+    tip
+    |> String.replace("&#10;", "\n")
+    |> String.replace("&amp;", "&")
+    |> String.replace("&quot;", "\"")
+    |> String.replace("&#39;", "'")
+  end
 end

@@ -350,16 +350,29 @@ defmodule SlipdockWeb.CalendarComponents do
 
   defp chip(assigns) do
     show = show_set(assigns.show)
+    on = &MapSet.member?(show, &1)
     page? = SlipdockWeb.SlipdockComponents.page?(assigns.card)
 
     # A card placed by its start date is not overdue just because that day has passed.
     assigns =
       assign(assigns,
         overdue?: not assigns.start and assigns.day.past? and not assigns.card.completed,
-        on: &MapSet.member?(show, &1),
+        on: on,
         page?: page?,
         item_id: if(page?, do: "page-#{assigns.card.id}", else: to_string(assigns.card.id)),
-        page_path: page? && "/boards/#{assigns.card.board_id}/wiki/#{assigns.card.slug}"
+        page_path: page? && "/boards/#{assigns.card.board_id}/wiki/#{assigns.card.slug}",
+        flags:
+          if(on.("flags"),
+            do: Enum.take(assigns.card.flags || [], if(assigns.compact, do: 1, else: 2)),
+            else: []
+          ),
+        priority?: on.("priority") and assigns.card.priority != "none",
+        tags:
+          if(!assigns.compact and on.("tags"),
+            do: Enum.take(loaded(assigns.card.tags), 3),
+            else: []
+          ),
+        status?: !assigns.compact and on.("status") and not page?
       )
 
     ~H"""
@@ -378,55 +391,40 @@ defmodule SlipdockWeb.CalendarComponents do
       phx-value-id={@card.id}
       title={chip_title(@card)}
     >
-      <SlipdockWeb.SlipdockComponents.doc_link :if={@page?} path={@page_path} class="size-3.5" />
-      <button
-        :if={!@compact and @on.("status") and not @page?}
-        type="button"
-        class={[
-          "shrink-0 rounded-full",
-          if(@card.completed, do: "text-success", else: "text-base-content/25 hover:text-success")
-        ]}
-        phx-click={JS.push("toggle_complete", value: %{id: @card.id})}
-        title={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
-      >
-        <.icon
-          name={if @card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
-          class="size-3.5"
-        />
-      </button>
-      <span class={["min-w-0 flex-1 truncate font-medium", @card.completed && "text-base-content/50"]}>
+      <span class={[
+        "cal-chip-title min-w-0 flex-1 truncate font-medium",
+        @card.completed && "text-base-content/50"
+      ]}>
         {@card.title}
       </span>
-      <span
-        :if={
-          @card.start_date && @card.due_date && @card.start_date != @card.due_date &&
-            (@on.("start_date") or @on.("due_date"))
-        }
-        class="shrink-0 text-base-content/40"
-        title={
-          if @start,
-            do: "Due #{Dates.short(@card.due_date)}",
-            else: "Started #{Dates.short(@card.start_date)}"
-        }
-      >
-        <.icon name="hero-arrow-long-right" class="size-3" />
+      <%!-- Decorations only when the day is wide enough to keep the title
+      readable: calendar.css shows each group from a container width up. --%>
+      <span :if={@page? or @flags != [] or @priority?} class="cal-chip-deco cal-deco-1">
+        <.flag_icon :for={flag <- @flags} flag={flag} class="size-3" />
+        <.priority_badge :if={@priority?} priority={@card.priority} />
+        <SlipdockWeb.SlipdockComponents.doc_link :if={@page?} path={@page_path} class="size-3.5" />
       </span>
-      <.flag_icon
-        :for={flag <- Enum.take(@card.flags, if(@compact, do: 1, else: 2))}
-        :if={@on.("flags")}
-        flag={flag}
-        class="size-3"
-      />
-      <span
-        :if={@card.tags != [] and !@compact and @on.("tags")}
-        class="flex shrink-0 items-center gap-0.5"
-      >
-        <span
-          :for={tag <- Enum.take(@card.tags, 3)}
-          class={["size-1.5 rounded-full", Palette.dot(tag.color)]}
-        ></span>
+      <span :if={@tags != [] or @status?} class="cal-chip-deco cal-deco-2">
+        <span :if={@tags != []} class="flex items-center gap-0.5">
+          <span :for={tag <- @tags} class={["size-1.5 rounded-full", Palette.dot(tag.color)]}></span>
+        </span>
+        <button
+          :if={@status?}
+          type="button"
+          class={[
+            "shrink-0 rounded-full",
+            if(@card.completed, do: "text-success", else: "text-base-content/25 hover:text-success")
+          ]}
+          phx-click={JS.push("toggle_complete", value: %{id: @card.id})}
+          title={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
+          aria-label={if @card.completed, do: "Mark incomplete", else: "Mark complete"}
+        >
+          <.icon
+            name={if @card.completed, do: "hero-check-circle-solid", else: "hero-check-circle"}
+            class="size-3.5"
+          />
+        </button>
       </span>
-      <.priority_badge :if={@on.("priority")} priority={@card.priority} />
     </div>
     """
   end
@@ -434,7 +432,10 @@ defmodule SlipdockWeb.CalendarComponents do
   defp chip_border(%{color: nil}), do: "border-base-content/20"
   defp chip_border(%{color: color}), do: Palette.border(color)
 
-  defp chip_title(card) do
+  @doc false
+  # The chip's tooltip: the whole title, then everything the chip may have
+  # had to leave out for want of room, one line each.
+  def chip_title(card) do
     dates =
       case {card.start_date, card.due_date} do
         {%Date{} = s, %Date{} = d} -> "#{fmt(s)} → #{fmt(d)}"
@@ -443,8 +444,22 @@ defmodule SlipdockWeb.CalendarComponents do
         _ -> "No date"
       end
 
-    "#{card.title}\n#{dates}"
+    [
+      card.title,
+      dates,
+      card.completed && "Done",
+      card.priority not in [nil, "none"] &&
+        "Priority: #{SlipdockWeb.SlipdockComponents.priority_label(card.priority)}",
+      (card.flags || []) != [] &&
+        "Flags: " <> Enum.map_join(card.flags, ", ", &SlipdockWeb.SlipdockComponents.flag_label/1),
+      loaded(card.tags) != [] && "Tags: " <> Enum.map_join(loaded(card.tags), ", ", & &1.name)
+    ]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.join("\n")
   end
+
+  defp loaded(list) when is_list(list), do: list
+  defp loaded(_), do: []
 
   defp fmt(d), do: Slipdock.Dates.long(d)
 end
