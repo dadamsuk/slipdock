@@ -18,11 +18,12 @@ defmodule SlipdockWeb.CardFieldsTest do
 
   # Every field in the card modal, with its classes: inputs a person types
   # into (not hidden, checkbox, radio or file inputs), textareas and selects.
+  # A date field (#1720) is its box: the native input inside it is hidden.
   defp fields(html) do
     html
     |> LazyHTML.from_document()
     |> LazyHTML.query(
-      "#card-modal :is(input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]), textarea, select)"
+      "#card-modal :is(input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not(.date-field-input), textarea, select, [data-date-field])"
     )
     |> Enum.map(fn node ->
       [id] = LazyHTML.attribute(node, "id") |> then(&if &1 == [], do: [nil], else: &1)
