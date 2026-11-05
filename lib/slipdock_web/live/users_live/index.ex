@@ -540,15 +540,17 @@ defmodule SlipdockWeb.UsersLive.Index do
               <td class="text-xs">
                 <form
                   id={"paid-until-#{user.id}"}
+                  phx-change="set-paid-until"
                   phx-submit="set-paid-until"
                   class="flex items-center gap-1"
                 >
                   <input type="hidden" name="user_id" value={user.id} />
-                  <input
-                    type="date"
+                  <.date_field
+                    id={"paid-until-date-#{user.id}"}
                     name="paid_until"
-                    value={user.paid_until && Date.to_iso8601(DateTime.to_date(user.paid_until))}
-                    class="input input-xs w-32"
+                    value={user.paid_until && DateTime.to_date(user.paid_until)}
+                    placeholder="Not paid"
+                    aria-label="Paid up to"
                   />
                 </form>
                 <div :if={Quota.trial(user).applies?} class="mt-1 text-base-content/50">

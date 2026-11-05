@@ -615,11 +615,11 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
             {l.name}
           </option>
         </select>
-        <input
-          type="date"
+        <.date_field
+          id={"finding-due-#{@finding.id}"}
           name="finding[due_date]"
           value={@finding.effect["due_date"]}
-          class="input input-sm"
+          class="w-full"
           aria-label="Due"
         />
       </div>
@@ -677,7 +677,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
           <option value="">Nobody yet</option>
           <option :for={m <- @members} value={m.id}>{m.name || m.email}</option>
         </select>
-        <input type="date" name="added[due_date]" class="input input-sm" aria-label="Due" />
+        <.date_field id="added-due-date" name="added[due_date]" class="w-full" aria-label="Due" />
       </div>
       <input
         type="text"

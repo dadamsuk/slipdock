@@ -20,7 +20,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
   import Ecto.Query, only: [from: 2]
   import Phoenix.LiveView, only: [put_flash: 3]
   import SlipdockWeb.BoardLive.State, only: [reload_board: 1]
-  import SlipdockWeb.CoreComponents, only: [icon: 1, input: 1]
+  import SlipdockWeb.CoreComponents, only: [icon: 1, input: 1, date_field: 1]
 
   alias Phoenix.LiveView.JS
   alias Slipdock.{Boards, Repo, Snooze, Timezones}
@@ -264,7 +264,12 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
           </ul>
           <div class="field-row gap-2">
             <div class="flex-1">
-              <.input field={@snoozing.form[:date]} type="date" label="Or until" />
+              <.date_field
+                field={@snoozing.form[:date]}
+                label="Or until"
+                placeholder="Pick a day"
+                class="w-full"
+              />
             </div>
             <button type="submit" id="snooze-save" class="btn btn-primary btn-sm">
               Snooze

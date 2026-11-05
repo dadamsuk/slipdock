@@ -517,7 +517,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
         >
           <.input field={@new_sprint.form[:name]} label="Name" required />
           <div class="grid grid-cols-2 gap-2">
-            <.input field={@new_sprint.form[:start]} type="date" label="Starts" />
+            <.date_field field={@new_sprint.form[:start]} label="Starts" class="w-full" />
             <.input field={@new_sprint.form[:days]} type="number" min="1" max="365" label="Days" />
           </div>
           <.input

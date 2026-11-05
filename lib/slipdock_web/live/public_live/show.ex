@@ -167,8 +167,14 @@ defmodule SlipdockWeb.PublicLive.Show do
             phx-change="narrative_range"
             phx-submit="narrative_range"
           >
-            from <input type="date" name="from" value={@config.from} class="input input-xs w-32" /> to
-            <input type="date" name="to" value={@config.to} class="input input-xs w-32" />
+            from
+            <.date_field
+              id="public-narrative-from"
+              name="from"
+              value={@config.from}
+              placeholder="The start"
+            /> to
+            <.date_field id="public-narrative-to" name="to" value={@config.to} placeholder="Today" />
           </form>
           <div :if={@nav} class="ml-auto flex items-center gap-1">
             <.link

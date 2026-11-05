@@ -1203,7 +1203,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 required
                 autocomplete="off"
               />
-              <input type="date" name="date" class="input input-sm w-36" required />
+              <.date_field id="milestone-date" name="date" required aria-label="Milestone date" />
               <select name="color" class="select select-sm w-28" title="Colour">
                 <option value="">Colour</option>
                 <option :for={{n, l} <- Palette.all()} value={n}>{l}</option>
