@@ -171,6 +171,13 @@ defmodule SlipdockWeb.MCP.DocsTest do
       assert docs =~ "would the next pass, on a different card, have done better knowing this?"
     end
 
+    test "the slipdock skill names the findings commands (#1781)" do
+      skill = read("priv/skills/slipdock/SKILL.md")
+      assert skill =~ "slipdock findings <board> [--status S] [--kind K] [--days N] [--card ID]"
+      assert skill =~ "slipdock finding <id> promote|dismiss|reopen"
+      assert skill =~ "slipdock finding <id> merge --into ID"
+    end
+
     test "the guide and docs/agents.md describe the block and its bar" do
       guide = read("lib/slipdock_web/api_guide.ex")
       assert guide =~ "## Findings"

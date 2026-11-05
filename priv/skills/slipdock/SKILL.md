@@ -347,6 +347,10 @@ slipdock garden settings <board> [<check> key=value...]   # checks on/off, thres
 slipdock health <board> [--run]           # work the health monitor found stuck: fixed, or flagged stuck
                                        # for a person; ends with the scheduler's and monitor's pulse
 slipdock health settings <board> [<detector> key=value...]   # detectors on/off, thresholds
+slipdock findings <board> [--status S] [--kind K] [--days N] [--card ID]   # what cards taught and the
+                                       # system saw go wrong (Findings: blocks, rejections, timeouts…), open first
+slipdock finding <id> promote|dismiss|reopen [--note "W-12 §Tests"]   # triage one; promote once it is in the handbook
+slipdock finding <id> merge --into ID    # fold a repeat into another, adding its count
 slipdock flag <id> <flag>... [--off]     # flags: flagged blocked review waiting starred stuck
                                        # (stuck is the health monitor's: leave it for a person)
 slipdock wait <id> "what you need" [--on EMAIL] [--choice X]...   # wait on a person: flags it waiting,
