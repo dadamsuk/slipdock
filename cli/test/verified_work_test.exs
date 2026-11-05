@@ -52,6 +52,24 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     assert JSON.decode!(body) == %{"bar_required" => false}
   end
 
+  test "set-board --verify-rejection-limit sends the number, 0 too (#1779)" do
+    serve([{200, @board}, {200, @board}])
+
+    capture_io(fn ->
+      Boards.run("set-board", ["docs"], parse(["--verify-rejection-limit", "3"]))
+    end)
+
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"verify_rejection_limit" => 3}
+
+    capture_io(fn ->
+      Boards.run("set-board", ["docs"], parse(["--verify-rejection-limit", "0"]))
+    end)
+
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"verify_rejection_limit" => 0}
+  end
+
   test "set-board --verify-work --verify-pool sends both" do
     serve([{200, @board}])
 

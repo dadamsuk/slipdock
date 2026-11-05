@@ -529,7 +529,11 @@ Handbook line), given as `checks` to `verify_card` or `POST
 an acceptance with a broken `must` rule (or any other failing part) is
 refused. The card panel and `slipdock card` list the parts under
 Verification; a later decision replaces them, and each decision's comment
-keeps its own.
+keeps its own. A board's `verify_rejection_limit` (2 by default, 0 never;
+`slipdock set-board --verify-rejection-limit`) sends the rejection after that
+many to a person: a wait on the board's owner, *Rework as rejected* or
+*Accept as is*, with the card flagged `waiting` so runners pass it over. An
+agent never answers it.
 The installer's config gives every runner a `job_verify` that runs the same
 agent on the server's prompt, without the standing instructions, so a runner
 can check another runner's work. Deciding is `verify_card` or `slipdock

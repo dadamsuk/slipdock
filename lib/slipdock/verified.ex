@@ -679,19 +679,145 @@ defmodule Slipdock.Verified do
       verify_rejections: (card.verify_rejections || 0) + 1
     ]
 
+    count = (card.verify_rejections || 0) + 1
+    limit = rejection_limit(card)
+    # Over the limit (#1779), a person decides: the evidence stays for an
+    # acceptance as is, and a wait holds the card out of the feed.
+    over = limit > 0 and count > limit
+    attrs = if over, do: %{}, else: no_evidence()
+
     with {:ok, card} <-
            Slipdock.Boards.update_card(
              card,
-             Map.put(no_evidence(), "flags", card.flags -- ["review"]),
+             Map.put(attrs, "flags", card.flags -- ["review"]),
              actor: actor,
              by: user,
              verify_changes: changes
            ) do
       by = who(actor, user)
       comment(card, "**Rejected** by #{by}.", with_parts(reason, checks), user)
+      if over, do: ask_a_person(card, count, limit, actor, user)
       send_back(card, "Rework: rejected by #{by}, reason under Verification", actor, user)
     end
     |> api_error()
+  end
+
+  ## Repeated rejections (#1779) ----------------------------------------------
+
+  @limit_purpose "verify_limit"
+  @rework_choice "Rework as rejected"
+  @accept_choice "Accept as is"
+
+  @doc """
+  How many rejections a card on `card`'s tree may have before the next goes
+  to a person (#1779): its root board's `verify_rejection_limit`. 0 is no
+  limit.
+  """
+  def rejection_limit(%Card{} = card) do
+    board = board(card)
+    root = if board.root_id, do: Repo.get(Board, board.root_id) || board, else: board
+    root.verify_rejection_limit || 0
+  end
+
+  # The rejection over the limit: the reasons so far as a comment, then a
+  # wait on the board's owner to rework the card as rejected or accept it.
+  defp ask_a_person(card, count, limit, actor, user) do
+    reasons =
+      card
+      |> rejection_reasons()
+      |> Enum.with_index(1)
+      |> Enum.map_join("\n", fn {r, n} -> "#{n}. #{r}" end)
+
+    comment(
+      card,
+      "**Rejected #{count} times**, past the board's limit of #{limit}: a person decides now.",
+      "The reasons so far:\n\n" <> reasons,
+      user
+    )
+
+    owner = card |> board() |> Slipdock.Handbook.root() |> Map.get(:owner_id)
+
+    case Slipdock.Boards.open_wait(card, actor, %{
+           needs:
+             "Card ##{card.id} was rejected #{count} times (the board allows #{limit}). " <>
+               "Rework it as rejected, or accept it as is? The reasons are in the comments; " <>
+               "you can edit the bar before you answer.",
+           choices: [@rework_choice, @accept_choice],
+           on_user_id: owner,
+           purpose: @limit_purpose
+         }) do
+      {:ok, _} ->
+        :ok
+
+      {:error, why} ->
+        comment(
+          card,
+          "**No wait opened** for a person to decide: #{inspect_error(why)}",
+          nil,
+          user
+        )
+    end
+  end
+
+  defp inspect_error(why) when is_binary(why), do: why
+  defp inspect_error(why), do: inspect(why)
+
+  # Each rejection's reason, oldest first, from the cards' own comments.
+  defp rejection_reasons(%Card{id: id}) do
+    from(c in Slipdock.Boards.Comment,
+      where: c.card_id == ^id and like(c.body, "**Rejected** by%"),
+      order_by: [asc: c.id],
+      select: c.body
+    )
+    |> Repo.all()
+    |> Enum.map(fn body ->
+      body
+      |> String.split("\n\n", parts: 2)
+      |> Enum.at(1, "(no reason given)")
+      |> String.split("\n\nChecks:", parts: 2)
+      |> hd()
+      |> String.replace(~r/\s+/, " ")
+      |> String.slice(0, 400)
+    end)
+  end
+
+  @doc """
+  A wait closing (`Slipdock.Boards.answer_wait/3`): a rejection-limit wait
+  (#1779) answered *Accept as is* accepts the card for whoever answered (on
+  a pull request board, queueing the merge); any other answer, or a skip,
+  sends it back for rework as rejected, its evidence cleared. Other waits
+  are left alone.
+  """
+  def wait_closed(%Slipdock.Boards.Wait{purpose: @limit_purpose} = wait, actor) do
+    card = Repo.get!(Card, wait.card_id)
+    user = wait.closed_by_id && Repo.get(Slipdock.Accounts.User, wait.closed_by_id)
+
+    if card.verify_state == "rejected" do
+      if wait.choice == 2,
+        do: accept_as_is(card, actor, user),
+        else: rework_as_rejected(card, actor, user)
+    end
+
+    :ok
+  end
+
+  def wait_closed(_wait, _actor), do: :ok
+
+  defp accept_as_is(card, actor, user) do
+    note = "Accepted as is by #{who(actor, user)} after #{card.verify_rejections} rejections."
+
+    apply_decision(
+      card,
+      "accept",
+      %{reason: note, commit: card.evidence_commit || "", checks: nil},
+      actor,
+      user
+    )
+  end
+
+  defp rework_as_rejected(card, actor, user) do
+    {:ok, _} = Slipdock.Boards.update_card(card, no_evidence(), actor: actor, by: user)
+    Slipdock.Automations.feed_board(card.board_id)
   end
 
   defp accept_and_complete(card, note, commit, checks, actor, user) do

@@ -694,6 +694,30 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   top of the ready list. The feed's cool-down doesn't hold it, so a runner
   rule sends it next, and completing it submits it again. The card counts
   its rejections (*rejected 2×*, `verify_rejections`).
+- **The verdict in parts.** A verifier gives what it found for each check
+  as well as the reason: `slipdock verify 12 reject --reason "bar 2: no
+  footer" --check ask=ok --check bar:1=ok --check bar:2=fail:"no footer"`
+  (repeat `--check`, or `--checks-file F`, one per line), MCP
+  `verify_card` `checks`, or `"checks": [...]` on the REST call. The parts
+  are `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`,
+  `rule:<id>=ok|broken|n/a` and `handbook_line=ok|disputed`, each with
+  `:<why>` if it needs one. A rejection has to name a failing part (an
+  agent's reason that starts `bar 2:`, `the ask:`, a rule id or `Handbook
+  line:` counts). An acceptance with any failing part is refused, except a
+  missed `should` rule. The parts are kept on the card (`verify_checks`),
+  listed under its verification block and in `slipdock card`, and written
+  into the decision's comment. A later decision replaces them.
+- **Too many rejections go to a person.** **Rejections before a person
+  decides** (`slipdock set-board B --verify-rejection-limit 2`, `PATCH
+  /api/boards/:board {"verify_rejection_limit": 2}`; 2 by default, 0 never)
+  is how often a card may be rejected. The rejection after that still goes
+  back to the top of the ready list, but its evidence is kept, a comment
+  lists every rejection's reason, and a wait opens on the board's owner
+  with two choices. The card is flagged `waiting`, so no runner rule sends
+  it. You can edit its bar before you answer. *Rework as rejected* (or any
+  other answer, or skipping) clears the evidence and lets the runners take
+  it again. *Accept as is* accepts it in your name, and on a pull request
+  board merges it.
 - A decision made in a runner job on the card (the CLI sends
   `$SLIPDOCK_JOB_ID` as `x-slipdock-job`; MCP the job it claimed) is
   credited to the runner: *Accepted by runner verifier*, not the token's
@@ -716,8 +740,15 @@ With verification on, **Runner pool for verify jobs** (`slipdock set-board
 B --verify-pool checkers`, `PATCH /api/boards/:board {"verify_pool":
 "checkers"}`; blank for none) sends each submitted card to that
 [runner](#runners) pool as a job of kind `verify`. Its prompt carries the
-card's link, its bar, the evidence and commit, and the two `slipdock verify`
-commands to decide with. It also asks the agent to say where it is at each
+card's link, what it asks (its description), its bar, the evidence and
+commit, and the two `slipdock verify` commands to decide with. The verifier
+judges four things in order: whether the bar covers what the card asks for
+(a bar that leaves part out is a rejection), the bar itself, and on a board
+with a handbook (its `Handbook/` wiki pages) the rules for the paths the change touches
+(`git diff --name-only` from the merge base, piped to `slipdock handbook B
+--paths-from -`: a broken `must` rule is a rejection) and the closing
+`Handbook:` line against the docs gate. A rejection cites what it fails: a
+bar item, the ask, a rule id or the Handbook line. It also asks the agent to say where it is at each
 step with `slipdock job-progress --step "…"` (checked out the commit, tests
 running, tests passed or failed with counts, judging against the bar, the
 decision), and never with a note: the steps show against the job on the

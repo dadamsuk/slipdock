@@ -103,6 +103,9 @@ defmodule Slipdock.Boards.Board do
     # The runner pool a pending card is sent to as a `verify` job (#1634);
     # nil sends none, and the card waits for whoever decides it.
     field :verify_pool, :string
+    # How many rejections a card may have before the next goes to a person
+    # (#1779): it opens a wait on the board's owner. 0 is no limit.
+    field :verify_rejection_limit, :integer, default: 2
     # How the board's verified work reaches the default branch (#1654):
     # "push" (the builder pushes it) or "pull_request" (the builder opens a
     # pull request, and accepting the card queues a merge job). pull_request
@@ -517,6 +520,7 @@ defmodule Slipdock.Boards.Board do
       :evidence_required,
       :verify_work,
       :verify_pool,
+      :verify_rejection_limit,
       :ship_via,
       :kind,
       :default_view
@@ -526,6 +530,11 @@ defmodule Slipdock.Boards.Board do
     |> update_change(:verify_pool, &pool_name/1)
     |> validate_format(:verify_pool, Slipdock.Runners.Runner.name_format(),
       message: "must be a runner pool's name: lower case letters, digits, - or _"
+    )
+    |> validate_number(:verify_rejection_limit,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 50,
+      message: "must be 0 (no limit) to 50"
     )
     |> put_ship_via()
     |> update_change(:handoff_label, &trim_to_nil/1)

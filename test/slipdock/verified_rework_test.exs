@@ -312,4 +312,213 @@ defmodule Slipdock.VerifiedReworkTest do
       refute Runners.claimed_prompt(job) =~ "rejected"
     end
   end
+
+  describe "repeated rejections go to a person (#1779)" do
+    defp submit_with_evidence(card, actor) do
+      {:ok, card} =
+        Boards.update_card(
+          Repo.get!(Card, card.id),
+          %{"completed" => true, "evidence" => "ran it", "evidence_commit" => "abc1234"},
+          actor: actor
+        )
+
+      assert card.verify_state == "pending"
+      card
+    end
+
+    defp round(card, ctx, n),
+      do: card |> submit_with_evidence(ctx.builder) |> reject(ctx, "bar #{n}: try #{n}")
+
+    defp wait_of(card), do: Repo.get_by(Boards.Wait, card_id: card.id)
+
+    defp bodies(card),
+      do:
+        Repo.all(
+          from(c in Boards.Comment,
+            where: c.card_id == ^card.id,
+            order_by: [asc: c.id],
+            select: c.body
+          )
+        )
+
+    test "the default limit is 2: the third rejection opens a wait on the owner", ctx do
+      card = card_fixture(ctx.doing, %{"title" => "Bounce"})
+      assert Verified.rejection_limit(card) == 2
+
+      card = round(card, ctx, 1)
+      card = round(card, ctx, 2)
+      assert wait_of(card) == nil
+      refute "waiting" in card.flags
+      assert card.evidence == nil
+
+      card = round(card, ctx, 3)
+      card = Repo.get!(Card, card.id)
+      wait = wait_of(card)
+
+      assert wait.purpose == "verify_limit"
+      assert wait.on_user_id == ctx.owner.id
+      assert wait.choices == ["Rework as rejected", "Accept as is"]
+      assert wait.needs =~ "was rejected 3 times (the board allows 2)"
+      assert wait.needs =~ "you can edit the bar before you answer"
+      assert String.length(wait.needs) <= 1000
+      assert "waiting" in card.flags
+      assert card.verify_rejections == 3
+      # Kept, for an acceptance as is.
+      assert card.evidence == "ran it"
+
+      reasons = Enum.find(bodies(card), &(&1 =~ "**Rejected 3 times**"))
+      assert reasons =~ "past the board's limit of 2"
+      assert reasons =~ "1. bar 1: try 1\n2. bar 2: try 2\n3. bar 3: try 3"
+    end
+
+    test "at 0 no rejection opens a wait; at 1 the second does", ctx do
+      {:ok, _} = Boards.update_board(ctx.board, %{"verify_rejection_limit" => 0})
+      card = card_fixture(ctx.doing, %{"title" => "Free"})
+      card = Enum.reduce(1..4, card, &round(&2, ctx, &1))
+      assert wait_of(card) == nil
+      refute "waiting" in Repo.get!(Card, card.id).flags
+
+      {:ok, _} = Boards.update_board(ctx.board, %{"verify_rejection_limit" => 1})
+      other = card_fixture(ctx.doing, %{"title" => "Tight"})
+      other = round(other, ctx, 1)
+      assert wait_of(other) == nil
+      other = round(other, ctx, 2)
+      assert wait_of(other).needs =~ "rejected 2 times (the board allows 1)"
+    end
+
+    test "a sub-board's card takes its root board's limit", ctx do
+      {:ok, _} = Boards.update_board(ctx.board, %{"verify_rejection_limit" => 0})
+      epic = card_fixture(ctx.doing, %{"title" => "Epic"})
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(epic, t)
+      [column | _] = Boards.get_board!(sub.id).columns
+      child = card_fixture(column, %{"title" => "Child"})
+      assert Verified.rejection_limit(child) == 0
+    end
+
+    test "Accept as is accepts it for the person who answered", ctx do
+      card = card_fixture(ctx.doing, %{"title" => "Judgement call"})
+      card = Enum.reduce(1..3, card, &round(&2, ctx, &1))
+
+      {:ok, _} = Boards.answer_wait(Repo.get!(Card, card.id), ctx.person, %{"choice" => 2})
+
+      card = Repo.get!(Card, card.id)
+      assert card.completed
+      assert card.verify_state == "accepted"
+      assert card.verify_by["kind"] != "agent"
+      refute "waiting" in card.flags
+      assert Enum.any?(bodies(card), &(&1 =~ "Accepted as is by" and &1 =~ "after 3 rejections"))
+      done = Enum.find(ctx.board.columns, &(&1.category == "done"))
+      assert card.column_id == done.id
+    end
+
+    test "on a pull request board, Accept as is queues the merge of the kept pull request",
+         ctx do
+      {:ok, _} = Boards.update_board(ctx.board, %{"ship_via" => "pull_request"})
+      card = card_fixture(ctx.doing, %{"title" => "PR bounce"})
+
+      card =
+        Enum.reduce(1..3, card, fn n, c ->
+          {:ok, c} =
+            Boards.update_card(
+              Repo.get!(Card, c.id),
+              %{
+                "completed" => true,
+                "evidence_pr" => "https://github.com/acme/app/pull/7",
+                "evidence_commit" => "abc1234"
+              },
+              actor: ctx.builder
+            )
+
+          reject(c, ctx, "bar #{n}: no")
+        end)
+
+      assert Repo.get!(Card, card.id).evidence_pr == "https://github.com/acme/app/pull/7"
+      {:ok, _} = Boards.answer_wait(Repo.get!(Card, card.id), ctx.person, %{"choice" => 2})
+
+      card = Repo.get!(Card, card.id)
+      assert card.verify_state == "merging"
+      refute card.completed
+    end
+
+    test "Rework as rejected, a free answer or a skip clears the evidence and sends it back",
+         ctx do
+      for answer <- [%{"choice" => 1}, %{"answer" => "Do the footer too"}, %{"skip" => true}] do
+        card = card_fixture(ctx.doing, %{"title" => "Again #{inspect(answer)}"})
+        card = Enum.reduce(1..3, card, &round(&2, ctx, &1))
+        assert Repo.get!(Card, card.id).evidence == "ran it"
+
+        {:ok, _} = Boards.answer_wait(Repo.get!(Card, card.id), ctx.person, answer)
+
+        card = Repo.get!(Card, card.id)
+        assert card.verify_state == "rejected"
+        refute card.completed
+        assert card.evidence == nil
+        assert card.evidence_commit == nil
+        refute "waiting" in card.flags
+        assert card.column_id == ctx.todo.id
+      end
+    end
+
+    test "a wait not opened for the limit is left alone when answered", ctx do
+      card = card_fixture(ctx.doing, %{"title" => "Plain"})
+      card = round(card, ctx, 1)
+      {:ok, _} = Boards.open_wait(Repo.get!(Card, card.id), ctx.person, %{needs: "Which?"})
+      {:ok, _} = Boards.answer_wait(Repo.get!(Card, card.id), ctx.checker, %{"answer" => "This"})
+
+      card = Repo.get!(Card, card.id)
+      assert card.verify_state == "rejected"
+      refute card.completed
+      assert :ok = Verified.wait_closed(%Boards.Wait{purpose: nil}, ctx.person)
+    end
+  end
+
+  describe "repeated rejections and the feed (#1779)" do
+    setup ctx do
+      {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "box", "pool" => "loop"})
+
+      spec = %{
+        "trigger" => %{"type" => "list_top", "column" => "To Do", "unassigned" => true},
+        "actions" => [%{"type" => "runner", "pool" => "loop", "requeue_stuck" => 2}]
+      }
+
+      {:ok, _} = Boards.update_board(ctx.board, %{"verify_rejection_limit" => 1})
+      %{runner: runner, rule: rule_fixture(ctx.board, spec)}
+    end
+
+    defp queued(rule),
+      do:
+        Repo.all(
+          from(j in Job,
+            where: j.rule_id == ^rule.id and j.status in ^Job.open_statuses(),
+            select: j.card_id
+          )
+        )
+
+    defp build_and_reject(ctx, n) do
+      job = Runners.claim(ctx.runner)
+      card = Repo.get!(Card, job.card_id)
+      builder = %{ctx.builder | via: "runner", job_id: job.id}
+      :ok = Boards.move_card_to_index(card, ctx.doing, :top, actor: builder)
+      submit(card, builder)
+      {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: "done"})
+      reject(card, ctx, "bar 1: round #{n}")
+    end
+
+    test "the waiting card isn't sent; Rework sends it again", ctx do
+      a = card_fixture(ctx.todo, %{"title" => "a"})
+
+      build_and_reject(ctx, 1)
+      assert queued(ctx.rule) == [a.id]
+
+      build_and_reject(ctx, 2)
+      card = Repo.get!(Card, a.id)
+      assert "waiting" in card.flags
+      assert card.column_id == ctx.todo.id
+      assert queued(ctx.rule) == []
+
+      {:ok, _} = Boards.answer_wait(card, ctx.person, %{"choice" => 1})
+      assert queued(ctx.rule) == [a.id]
+    end
+  end
 end

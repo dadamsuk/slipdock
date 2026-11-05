@@ -728,7 +728,8 @@ defmodule SlipdockCLI do
         [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
         [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
         [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
-        [--verify-pool POOL] [--ship-via push|pull-request] [--lanes | --no-lanes]
+        [--verify-pool POOL] [--verify-rejection-limit N] [--ship-via push|pull-request]
+        [--lanes | --no-lanes]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -766,6 +767,9 @@ defmodule SlipdockCLI do
                                         different agent or a person to accept it (verify);
                                         --verify-pool sends each such card to that runner
                                         pool as a verify job ("" sends none);
+                                        --verify-rejection-limit N: the rejection after N
+                                        opens a wait on the board's owner to rework the
+                                        card or accept it as is (default 2; 0 never);
                                         --ship-via pull-request: agents open a pull request,
                                         never push the default branch, and accepting the
                                         card has a runner merge it (needs --verify-work)
@@ -1064,6 +1068,7 @@ defmodule SlipdockCLI do
     evidence_required: :boolean,
     verify_work: :boolean,
     verify_pool: :string,
+    verify_rejection_limit: :integer,
     ship_via: :string,
     pr: :string,
     evidence: :string,
