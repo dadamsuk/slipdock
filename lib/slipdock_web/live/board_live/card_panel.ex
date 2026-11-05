@@ -480,7 +480,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   def evidence_section(assigns) do
     ~H"""
     <div id="card-evidence" class="space-y-1.5 px-1">
-      <p class="flex items-center gap-2 section-label">
+      <p class="flex items-center gap-1.5 section-label">
+        <.icon name="hero-check-badge" class="size-3.5" />
         <span>Evidence</span>
         <code :if={@card.evidence_commit} class="font-mono normal-case">
           {String.slice(@card.evidence_commit, 0, 12)}
@@ -537,7 +538,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       phx-submit="card_change"
       class="space-y-1.5 px-1"
     >
-      <p class="flex items-center gap-2 section-label">
+      <p class="flex items-center gap-1.5 section-label">
+        <.icon name="hero-trophy" class="size-3.5" />
         <span>Bar</span>
         <span
           :if={@card.bar_locked_at}
@@ -591,7 +593,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       phx-submit="card_change"
       class="space-y-1.5 px-1"
     >
-      <p class="flex items-center gap-2 section-label">
+      <p class="flex items-center gap-1.5 section-label">
+        <.icon name="hero-folder" class="size-3.5" />
         <span>Paths</span>
       </p>
       <textarea
@@ -638,7 +641,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         data-section-key="f"
         data-section-popover="card-flags-menu"
       >
-        <p class="section-label w-12 shrink-0">
+        <p class="flex w-16 shrink-0 items-center gap-1.5 section-label">
+          <.icon name="hero-flag" class="size-3.5" />
           <.keyed_label key="f" label="Flags" />
         </p>
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
@@ -701,7 +705,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         data-section-key="t"
         data-section-popover="card-tags-menu"
       >
-        <p class="section-label w-12 shrink-0">
+        <p class="flex w-16 shrink-0 items-center gap-1.5 section-label">
+          <.icon name="hero-tag" class="size-3.5" />
           <.keyed_label key="t" label="Tags" />
         </p>
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
@@ -1197,12 +1202,18 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           <.icon name="hero-x-mark" class="size-3.5" />
         </button>
       </div>
-      <p
+      <%!-- With nothing attached, one line (#1728): a drop zone that is
+            also the file picker's label. --%>
+      <label
         :if={@card.attachments == [] and @uploads.attachment.entries == [] and @can_write}
-        class="text-xs text-base-content/40"
+        for={@uploads.attachment.ref}
+        data-role="drop-zone"
+        class="flex cursor-pointer items-center gap-2 truncate rounded-lg border border-dashed border-base-content/15 px-3 py-1.5 text-xs text-base-content/50 transition-colors hover:border-primary/40 hover:text-base-content/70"
+        title="You can also paste images straight into the description or a comment"
       >
-        Drop files here, or paste images straight into the description or a comment.
-      </p>
+        <.icon name="hero-arrow-up-tray" class="size-3.5 shrink-0" />
+        <span class="truncate">Drop files here or click to attach</span>
+      </label>
     </section>
     """
   end

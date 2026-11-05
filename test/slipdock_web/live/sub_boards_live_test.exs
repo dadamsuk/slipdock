@@ -32,7 +32,11 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
 
     # Quick-add a subcard from the modal and tick it off.
     [todo | _] = Boards.get_board!(card.sub_board.id).columns
-    view |> form("#add-subcard-#{todo.id}-0", %{"title" => "Sub one"}) |> render_submit()
+
+    view
+    |> form("#add-subcard-0", %{"title" => "Sub one", "column_id" => todo.id})
+    |> render_submit()
+
     [sub] = Boards.get_board!(card.sub_board.id).columns |> hd() |> Map.get(:cards)
     assert sub.title == "Sub one"
     view |> element("#subcard-#{sub.id} button[phx-click=toggle_subcard]") |> render_click()
@@ -93,7 +97,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     refute has_element?(board_view, "#card-parent")
 
     # Removing the subcards deletes the sub-board.
-    view |> element("button[phx-click=delete_sub_board]") |> render_click()
+    view |> element("#subcards-more-menu #delete-sub-board") |> render_click()
     assert is_nil(Boards.get_card!(card.id).sub_board)
   end
 
