@@ -496,6 +496,14 @@ repository hands it on rather than failing the card. The skills
 (`slipdock-loop`, `slipdock-work`) say what changes in a pass; see
 [the manual](manual.md#verified-work).
 
+**Epics close over finished subcards.** On every board, with no switch, an
+agent can't complete (or submit) a card while its sub-board has open cards
+(not done, not archived; one awaiting verification counts as finished), by
+`complete_card`, `slipdock done`, `PATCH /api/cards/:id` or a move into the
+done list. The 422 or tool error names them (`#12 Foo, #13 Bar are still
+open`), so a pass that missed subcards added while it worked finds them
+there. A person can always close it.
+
 **Lanes.** Agents side by side in one repository stay out of each other's
 files, each part optional and off by default: a card's `paths` (globs, set
 with `update_card` `paths` or `slipdock edit --paths`, or when the card is

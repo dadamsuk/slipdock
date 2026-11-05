@@ -1115,11 +1115,11 @@ defmodule SlipdockWeb.APIGuide do
     subcard closes — one line on what that subcard delivered and what is next —
     so the outcome has a readable history without anyone reading every subcard.
 
-    Only when its subcards really are all done. Re-read it and check the
-    rollup — `rollup.done == rollup.total` and `rollup.blocked == false` — then
-    comment what the epic delivered, mark it `completed` and move it to `done`.
-    If some subcards remain, leave the epic in `doing` and move on to the next
-    subcard: an epic closed over open children hides work.
+    Only when its subcards really are all done (`rollup.done == rollup.total`,
+    `rollup.blocked == false`): comment what the epic delivered, mark it
+    `completed` and move it to `done`. Else leave it in `doing` and take the
+    next subcard. An agent closing it over open (not done, not archived)
+    subcards is refused, 422, naming them.
 
     ### Ending a session mid-card
 
