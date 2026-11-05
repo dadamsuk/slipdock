@@ -150,6 +150,30 @@ defmodule SlipdockWeb.TimelineLiveTest do
     assert_patch(view, ~p"/boards/#{board}/timeline?rows=column&unit=month")
   end
 
+  test "short bars keep their titles beside them, and the title column can be resized",
+       %{conn: conn, board: board, span: span, due: due, loose: loose} do
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/timeline?date=2030-01-15")
+
+    # Week zoom: "Span" is 11 days (154px), room for its title inside; the
+    # due-only pill has its title beside it.
+    refute has_element?(view, "#tl-bar-all-#{span.id}.tl-label-out")
+    assert has_element?(view, "#tl-bar-all-#{due.id}.tl-label-out.tl-label-right")
+    assert has_element?(view, "#tl-resize[phx-hook=TimelineLabelResize]")
+    assert has_element?(view, "#timeline-scroll.shrink + div #dateless-#{loose.id}")
+
+    # A day zoom on a one-day card (44px): too short for this title, so it goes beside it.
+    {:ok, short} =
+      Boards.update_card(span, %{
+        "title" => "Span over one day",
+        "start_date" => "2030-01-15",
+        "due_date" => "2030-01-15"
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/timeline?date=2030-01-15&unit=day")
+    assert has_element?(view, "#timeline[data-px='44']")
+    assert has_element?(view, "#tl-bar-all-#{short.id}.tl-label-out.tl-label-right")
+  end
+
   test "saved views remember the timeline but not the page", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/timeline?rows=tag&date=2030-01-15")
     view |> form("form[phx-submit=swim_save_view]", %{"name" => "Plan"}) |> render_submit()
