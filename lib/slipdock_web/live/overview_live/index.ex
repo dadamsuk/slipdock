@@ -12,9 +12,11 @@ defmodule SlipdockWeb.OverviewLive.Index do
 
   alias Slipdock.{Overview, Quota}
   alias Slipdock.Accounts.User
+  alias SlipdockWeb.AdminNav
 
   @impl true
-  def mount(_params, _session, socket), do: {:ok, assign(socket, page_title: "Overview")}
+  def mount(_params, _session, socket),
+    do: {:ok, assign(socket, page_title: AdminNav.label(:overview))}
 
   @impl true
   def handle_params(params, _uri, socket) do
@@ -39,92 +41,91 @@ defmodule SlipdockWeb.OverviewLive.Index do
       nav_active={:overview}
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <.page width="full" class="space-y-6">
-          <.page_header
-            title="Overview"
-            subtitle="How much this server holds, and who owns it."
-          />
-          <section id="overview-totals" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <.tile label="Accounts" value={@totals.users}>
-              {@totals.admins} admin · {@totals.disabled} disabled
-            </.tile>
-            <.tile label="Active, 7 days" value={@totals.active_7d}>
-              {@totals.active_30d} in 30 days · {@totals.never_seen} never
-            </.tile>
-            <.tile label="Joined, 7 days" value={@totals.joined_7d}>
-              {@totals.joined_30d} in 30 days
-            </.tile>
-            <.tile label="Storage" value={Quota.humanise_bytes(@totals.storage)}>
-              {@totals.files} files
-            </.tile>
-            <.tile label="Boards" value={@totals.boards} />
-            <.tile label="Lists" value={@totals.lists} />
-            <.tile label="Cards" value={@totals.cards} />
-            <.tile label="Wiki pages" value={@totals.pages} />
-          </section>
+        <AdminNav.frame current={:overview}>
+          <div class="space-y-6">
+            <p class="text-sm text-base-content/60">How much this server holds, and who owns it.</p>
+            <section id="overview-totals" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <.tile label="Accounts" value={@totals.users}>
+                {@totals.admins} admin · {@totals.disabled} disabled
+              </.tile>
+              <.tile label="Active, 7 days" value={@totals.active_7d}>
+                {@totals.active_30d} in 30 days · {@totals.never_seen} never
+              </.tile>
+              <.tile label="Joined, 7 days" value={@totals.joined_7d}>
+                {@totals.joined_30d} in 30 days
+              </.tile>
+              <.tile label="Storage" value={Quota.humanise_bytes(@totals.storage)}>
+                {@totals.files} files
+              </.tile>
+              <.tile label="Boards" value={@totals.boards} />
+              <.tile label="Lists" value={@totals.lists} />
+              <.tile label="Cards" value={@totals.cards} />
+              <.tile label="Wiki pages" value={@totals.pages} />
+            </section>
 
-          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="section-title">People</h2>
-            <p class="mt-1 text-sm text-base-content/60">
-              What each person owns, sub-boards included, counted the way their limits count it.
-              Last active is the later of their last sign-in and the last use of one of their API
-              tokens. To change anybody's standing, go to <.link navigate={~p"/users"} class="link">Users</.link>.
-            </p>
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h3 class="font-medium">People</h3>
+              <p class="mt-1 text-sm text-base-content/60">
+                What each person owns, sub-boards included, counted the way their limits count it.
+                Last active is the later of their last sign-in and the last use of one of their API
+                tokens. To change anybody's standing, go to <.link navigate={~p"/users"} class="link">People</.link>.
+              </p>
 
-            <div class="mt-4 overflow-x-auto">
-              <table id="overview-people" class="table table-sm">
-                <thead>
-                  <tr>
-                    <.sort_th sort={@sort} key={:email}>Who</.sort_th>
-                    <.sort_th sort={@sort} key={:signed_up}>Signed up</.sort_th>
-                    <.sort_th sort={@sort} key={:last_active}>Last active</.sort_th>
-                    <.sort_th sort={@sort} key={:boards} numeric>Boards</.sort_th>
-                    <.sort_th sort={@sort} key={:lists} numeric>Lists</.sort_th>
-                    <.sort_th sort={@sort} key={:cards} numeric>Cards</.sort_th>
-                    <.sort_th sort={@sort} key={:pages} numeric>Pages</.sort_th>
-                    <.sort_th sort={@sort} key={:files} numeric>Files</.sort_th>
-                    <.sort_th sort={@sort} key={:storage} numeric>Storage</.sort_th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    :for={person <- @people}
-                    id={"overview-user-#{person.user.id}"}
-                    class={person.user.disabled_at && "opacity-50"}
-                  >
-                    <td>
-                      <div class="font-medium">{User.display_name(person.user)}</div>
-                      <div class="text-xs text-base-content/50">{person.user.email}</div>
-                      <div class="mt-1 flex gap-1">
-                        <span :if={person.user.admin} class="badge badge-xs badge-primary">admin</span>
-                        <span :if={person.user.disabled_at} class="badge badge-xs">disabled</span>
-                      </div>
-                    </td>
-                    <td class="text-xs text-base-content/60">
-                      <.timestamp at={person.signed_up_at} format={:short} />
-                    </td>
-                    <td class="text-xs text-base-content/60">
-                      <div>
-                        <.timestamp at={person.last_active_at} format={:short} /><span :if={
-                          !person.last_active_at
-                        }>never</span>
-                      </div>
-                      <div :if={person.last_api_at} class="text-base-content/40">
-                        API <.timestamp at={person.last_api_at} format={:short} />
-                      </div>
-                    </td>
-                    <td class="text-right tabular-nums">{person.boards}</td>
-                    <td class="text-right tabular-nums">{person.lists}</td>
-                    <td class="text-right tabular-nums">{person.cards}</td>
-                    <td class="text-right tabular-nums">{person.pages}</td>
-                    <td class="text-right tabular-nums">{person.files}</td>
-                    <td class="text-right tabular-nums">{Quota.humanise_bytes(person.storage)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </.page>
+              <div class="mt-4 overflow-x-auto">
+                <table id="overview-people" class="table table-sm">
+                  <thead>
+                    <tr>
+                      <.sort_th sort={@sort} key={:email}>Who</.sort_th>
+                      <.sort_th sort={@sort} key={:signed_up}>Signed up</.sort_th>
+                      <.sort_th sort={@sort} key={:last_active}>Last active</.sort_th>
+                      <.sort_th sort={@sort} key={:boards} numeric>Boards</.sort_th>
+                      <.sort_th sort={@sort} key={:lists} numeric>Lists</.sort_th>
+                      <.sort_th sort={@sort} key={:cards} numeric>Cards</.sort_th>
+                      <.sort_th sort={@sort} key={:pages} numeric>Pages</.sort_th>
+                      <.sort_th sort={@sort} key={:files} numeric>Files</.sort_th>
+                      <.sort_th sort={@sort} key={:storage} numeric>Storage</.sort_th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      :for={person <- @people}
+                      id={"overview-user-#{person.user.id}"}
+                      class={person.user.disabled_at && "opacity-50"}
+                    >
+                      <td>
+                        <div class="font-medium">{User.display_name(person.user)}</div>
+                        <div class="text-xs text-base-content/50">{person.user.email}</div>
+                        <div class="mt-1 flex gap-1">
+                          <span :if={person.user.admin} class="badge badge-xs badge-primary">admin</span>
+                          <span :if={person.user.disabled_at} class="badge badge-xs">disabled</span>
+                        </div>
+                      </td>
+                      <td class="text-xs text-base-content/60">
+                        <.timestamp at={person.signed_up_at} format={:short} />
+                      </td>
+                      <td class="text-xs text-base-content/60">
+                        <div>
+                          <.timestamp at={person.last_active_at} format={:short} /><span :if={
+                            !person.last_active_at
+                          }>never</span>
+                        </div>
+                        <div :if={person.last_api_at} class="text-base-content/40">
+                          API <.timestamp at={person.last_api_at} format={:short} />
+                        </div>
+                      </td>
+                      <td class="text-right tabular-nums">{person.boards}</td>
+                      <td class="text-right tabular-nums">{person.lists}</td>
+                      <td class="text-right tabular-nums">{person.cards}</td>
+                      <td class="text-right tabular-nums">{person.pages}</td>
+                      <td class="text-right tabular-nums">{person.files}</td>
+                      <td class="text-right tabular-nums">{Quota.humanise_bytes(person.storage)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </AdminNav.frame>
       </div>
     </Layouts.app>
     """

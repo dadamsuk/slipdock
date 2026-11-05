@@ -12,21 +12,21 @@ defmodule SlipdockWeb.ConfigLive.Index do
   not save without a test message that arrived, and changing the admin address
   needs the new one to confirm before it takes effect.
 
-  At the top: which build is actually running. The first question worth asking
-  about a server behaving unexpectedly is whether it is the server you think.
+  Its four parts (Server, Email, Meetings and AI) are entries in the Admin
+  nav (`SlipdockWeb.AdminNav`), whose footer says which build is running.
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Accounts, AI, Build, Mailer, Settings}
+  alias Slipdock.{Accounts, AI, Mailer, Settings}
   alias Slipdock.AI.Keys
   alias Slipdock.Settings.Instance
+  alias SlipdockWeb.AdminNav
 
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(
-       page_title: "Configuration",
        model_list: nil,
        model_list_error: nil,
        listing_models?: false,
@@ -39,9 +39,17 @@ defmodule SlipdockWeb.ConfigLive.Index do
   end
 
   @impl true
-  def handle_params(_params, _uri, socket), do: {:noreply, assign(socket, tab: tab(socket))}
+  def handle_params(_params, _uri, socket) do
+    tab = socket.assigns.live_action
+    {:noreply, assign(socket, tab: tab, page_title: AdminNav.label(section(tab)))}
+  end
 
-  defp tab(%{assigns: %{live_action: action}}), do: action
+  # The Admin nav's key for each live action (#1738): the four parts of
+  # Configuration are entries in the nav, not tabs of their own.
+  defp section(:index), do: :server
+  defp section(:mail), do: :mail
+  defp section(:meetings), do: :meetings
+  defp section(:ai), do: :ai
 
   defp transcription_form(settings, errors \\ []) do
     to_form(%{"url" => settings.transcription_server_url || "", "token" => ""},
@@ -513,73 +521,16 @@ defmodule SlipdockWeb.ConfigLive.Index do
       nav_active={:config}
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <.page width="narrow" class="space-y-6">
-          <.page_header title="Configuration" subtitle="How this server runs, for everyone on it." />
-          <.build_banner />
-
-          <div role="tablist" class="tabs tabs-box">
-            <.link patch={~p"/config"} role="tab" class={["tab", @tab == :index && "tab-active"]}>
-              Server
-            </.link>
-            <.link patch={~p"/config/mail"} role="tab" class={["tab", @tab == :mail && "tab-active"]}>
-              Email
-            </.link>
-            <.link
-              patch={~p"/config/meetings"}
-              role="tab"
-              class={["tab", @tab == :meetings && "tab-active"]}
-            >
-              Meetings
-            </.link>
-            <.link patch={~p"/config/ai"} role="tab" class={["tab", @tab == :ai && "tab-active"]}>
-              AI
-            </.link>
+        <AdminNav.frame current={section(@tab)}>
+          <div class="space-y-6">
+            <.server_tab :if={@tab == :index} {assigns} />
+            <.mail_tab :if={@tab == :mail} {assigns} />
+            <.meetings_tab :if={@tab == :meetings} {assigns} />
+            <.ai_tab :if={@tab == :ai} {assigns} />
           </div>
-
-          <.server_tab :if={@tab == :index} {assigns} />
-          <.mail_tab :if={@tab == :mail} {assigns} />
-          <.meetings_tab :if={@tab == :meetings} {assigns} />
-          <.ai_tab :if={@tab == :ai} {assigns} />
-        </.page>
+        </AdminNav.frame>
       </div>
     </Layouts.app>
-    """
-  end
-
-  # Which build is running. Frozen at compile time on purpose — see
-  # `Slipdock.Build`.
-  defp build_banner(assigns) do
-    assigns = assign(assigns, build: Build.info())
-
-    ~H"""
-    <div
-      id="build-info"
-      class="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-2xl bg-base-200 px-4 py-3 text-xs"
-    >
-      <span class="flex items-center gap-2">
-        <.icon name="hero-cube" class="size-4 text-base-content/50" />
-        <span class="text-base-content/60">Running build</span>
-      </span>
-      <span>
-        <span class="text-base-content/60">Built</span>
-        <span class="font-mono font-medium">{Build.built_at_string()} UTC</span>
-      </span>
-      <span>
-        <span class="text-base-content/60">Commit</span>
-        <span class="font-mono font-medium" title={@build.git_sha}>{@build.git_short_sha}</span>
-        <span
-          :if={@build.git_dirty}
-          class="badge badge-xs badge-warning ml-1"
-          title="There were uncommitted changes when this was compiled."
-        >
-          modified
-        </span>
-      </span>
-      <span>
-        <span class="text-base-content/60">Version</span>
-        <span class="font-mono font-medium">{@build.version}</span>
-      </span>
-    </div>
     """
   end
 
@@ -1453,7 +1404,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   defp mail_tab(assigns) do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h2 class="section-title">Email</h2>
+      <h2 class="section-title">Outgoing mail</h2>
       <p class="mt-1 text-sm text-base-content/60">
         Sign-in codes, invitations and whatever your automation rules send.
       </p>

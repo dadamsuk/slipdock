@@ -184,4 +184,28 @@ defmodule SlipdockWeb.SettingsLayoutTest do
                ["People", "Server"]
     end
   end
+
+  describe "badges (#1738)" do
+    test "show a count above 0 beside the label, in the nav and the picker, and nothing at 0 or unset" do
+      assigns = %{}
+
+      html =
+        rendered_to_string(~H"""
+        <SettingsLayout.frame id="admin" label="Admin" current={:people}>
+          <:section key={:people} to="/users" icon="hero-users" label="People" />
+          <:section key={:signups} to="/users/signups" icon="hero-user-plus" label="Sign-ups" badge={3} />
+          <:section key={:tools} to="/admin/tools" icon="hero-wrench" label="Tools" badge={0} />
+          <:section key={:ai} to="/config/ai" icon="hero-sparkles" label="AI" badge={nil} /> body
+        </SettingsLayout.frame>
+        """)
+
+      for list <- ["#admin-nav", "#admin-picker"] do
+        assert Enum.count(q(html, "#{list} [data-role=settings-badge]")) == 1
+        assert text(q(html, "#{list} a[href='/users/signups'] [data-role=settings-badge]")) == "3"
+      end
+
+      # The badge doesn't change the label the heading uses.
+      assert text(q(html, "#admin-nav a[href='/users/signups']")) == "Sign-ups 3"
+    end
+  end
 end

@@ -44,7 +44,8 @@ const pages = [
   ['/wiki/.settings', 'Wiki settings', 'narrow'],
   [`/boards/${kb}/visualise`, 'Visualise', 'full'],
   [`/boards/${kb}/tidy`, 'Tidy up', 'standard'],
-  ['/users', 'Users', 'full'],
+  // The Admin area (#1738): one title over every admin page.
+  ['/users', 'Admin', 'full'],
 ]
 const expected = { narrow: 672, standard: 1024 }
 
