@@ -27,9 +27,26 @@ $probe.Stop()
 $dir = Join-Path ([IO.Path]::GetTempPath()) ("slipdock-smoke-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $dir | Out-Null
 $config = Join-Path $dir 'config.ps1'
+# An installed skill and CLI to report (#1795): the skill with CRLF endings,
+# which must hash as the LF text does.
+$skills = Join-Path $dir 'skills'
+New-Item -ItemType Directory -Path (Join-Path $skills 'slipdock-loop') | Out-Null
+[IO.File]::WriteAllText((Join-Path (Join-Path $skills 'slipdock-loop') 'SKILL.md'), "# Loop`r`nsteps`r`n", $Utf8)
+$cli = Join-Path $dir 'slipdock.escript'
+[IO.File]::WriteAllText($cli, "the cli`n", $Utf8)
+function Get-Hex([string]$text) {
+  $h = [Security.Cryptography.SHA256]::Create()
+  try { return (($h.ComputeHash($Utf8.GetBytes($text)) | ForEach-Object { $_.ToString('x2') }) -join '') } finally { $h.Dispose() }
+}
+$wantSkills = 'slipdock-loop=' + (Get-Hex "# Loop`nsteps`n")
+$wantCli = Get-Hex "the cli`n"
+$sentSkills = $null
+$sentCli = $null
 [IO.File]::WriteAllText($config, @"
 `$SlipdockUrl = 'http://localhost:$port'
 `$RunnerToken = 'smoke'
+`$SkillsDir = '$skills'
+`$SlipdockCli = '$cli'
 `$Wait = 0
 `$Heartbeat = 1
 `$JobTimeout = 60
@@ -68,6 +85,8 @@ try {
     $res = $ctx.Response
     $answer = ''
     if ($path -eq '/api/runner/claim') {
+      $sentSkills = $ctx.Request.Headers['X-Runner-Skills']
+      $sentCli = $ctx.Request.Headers['X-Runner-CLI']
       if ($claimed) {
         $res.StatusCode = 204
       } else {
@@ -105,6 +124,8 @@ if (-not $finish) {
   if ($finish.Query -notmatch 'exit=0') { $problems += "finished with $($finish.Query)" }
   if ($finish.Body -notmatch 'line 6' -or $finish.Body -notmatch 'err 6') { $problems += "the finish lacked the job's last output: $($finish.Body)" }
 }
+if ($sentSkills -ne $wantSkills) { $problems += "X-Runner-Skills was '$sentSkills', not '$wantSkills'" }
+if ($sentCli -ne $wantCli) { $problems += "X-Runner-CLI was '$sentCli', not '$wantCli'" }
 if ($proc.HasExited -and $proc.ExitCode -ne 0) { $problems += "the runner exited $($proc.ExitCode)" }
 
 if ($problems) {

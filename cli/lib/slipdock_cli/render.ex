@@ -2046,11 +2046,35 @@ defmodule SlipdockCLI.Render do
           r["pool"],
           if(r["last_seen_at"], do: stamp(r["last_seen_at"]), else: dim("never")),
           if(r["current_job_id"], do: "job ##{r["current_job_id"]}", else: dim("idle")),
-          script_cell(r)
+          script_cell(r),
+          drift_cell(r)
         ]
       end)
 
-    table(["ID", "NAME", "POOL", "LAST SEEN", "NOW", "SCRIPT"], rows)
+    table(["ID", "NAME", "POOL", "LAST SEEN", "NOW", "SCRIPT", "SKILLS · CLI"], rows)
+  end
+
+  # Its installed skills and CLI against what the server serves (#1795):
+  # `current`, `drifted (slipdock-loop)`, `old`, `unknown` (never said).
+  @doc false
+  def drift_cell(%{"session" => true}), do: dim("-")
+
+  def drift_cell(r) do
+    d = r["drift"] || %{}
+    "skills " <> skills_state(d) <> " · cli " <> (d["cli"] || "unknown")
+  end
+
+  defp skills_state(%{"skills" => "drifted", "drifted_skills" => names}),
+    do: "drifted (#{Enum.join(names, ", ")})"
+
+  defp skills_state(d), do: d["skills"] || "unknown"
+
+  # Its script, skills and CLI against the server's (#1658, #1795).
+  defp installed_lines(r) do
+    d = r["drift"] || %{}
+    IO.puts("script:    " <> script_cell(r))
+    IO.puts("skills:    " <> skills_state(d))
+    IO.puts("cli:       " <> (d["cli"] || "unknown"))
   end
 
   # Whether a runner's script is current, and the kinds its board needs that
@@ -2088,7 +2112,7 @@ defmodule SlipdockCLI.Render do
       _ -> IO.puts("takes:     " <> dim("not said (an older runner: no merge jobs)"))
     end
 
-    unless r["session"], do: IO.puts("script:    " <> script_cell(r))
+    unless r["session"], do: installed_lines(r)
 
     if t = r["api_token"] do
       IO.puts("api token: #{t["label"] || "##{t["id"]}"} (#{t["scope"]})")

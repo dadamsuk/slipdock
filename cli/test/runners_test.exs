@@ -568,4 +568,64 @@ defmodule SlipdockCLI.RunnersTest do
     refute out =~ "curl …\n+"
     assert out =~ "1. On the machine, run:"
   end
+
+  describe "skill and CLI drift (#1795)" do
+    defp drifting(drift) do
+      %{
+        "id" => 4,
+        "name" => "laptop",
+        "pool" => "dev",
+        "session" => false,
+        "settings" => %{},
+        "created_at" => "2026-11-03T10:00:00Z",
+        "last_seen_at" => nil,
+        "kinds" => ["claude"],
+        "script" => "current",
+        "missing_kinds" => [],
+        "drift" => drift,
+        "current_job" => nil,
+        "stats" => %{},
+        "jobs" => [],
+        "rules" => []
+      }
+    end
+
+    test "the list shows current, drifted with the names, old and unknown" do
+      out =
+        capture_io(fn ->
+          SlipdockCLI.Render.runners([
+            drifting(%{"skills" => "current", "drifted_skills" => [], "cli" => "current"}),
+            Map.put(
+              drifting(%{
+                "skills" => "drifted",
+                "drifted_skills" => ["slipdock-loop"],
+                "cli" => "old"
+              }),
+              "id",
+              5
+            ),
+            Map.put(drifting(nil), "id", 6)
+          ])
+        end)
+
+      assert out =~ "SKILLS · CLI"
+      assert out =~ "skills current · cli current"
+      assert out =~ "skills drifted (slipdock-loop) · cli old"
+      assert out =~ "skills unknown · cli unknown"
+    end
+
+    test "one runner says each on its own line; a session shows none" do
+      out =
+        capture_io(fn ->
+          SlipdockCLI.Render.runner(
+            drifting(%{"skills" => "drifted", "drifted_skills" => ["slipdock"], "cli" => "none"})
+          )
+        end)
+
+      assert out =~ "skills:    drifted (slipdock)"
+      assert out =~ "cli:       none"
+
+      assert SlipdockCLI.Render.drift_cell(%{"session" => true}) =~ "-"
+    end
+  end
 end

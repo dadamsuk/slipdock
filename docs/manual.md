@@ -3619,7 +3619,25 @@ the Runners panel marks one that isn't this server's as *out of date* (or
 *old script* when it is too old to say). It also marks *no merge* on a board
 that ships by pull request when a runner doesn't take merge jobs.
 `slipdock runners` shows the same in its SCRIPT column, and `slipdock runner`
-on its *script* line. With *Keep the runner current* ticked (the default for
+on its *script* line.
+
+**Skill and CLI drift.** Installed copies of the slipdock skills get edited by
+hand, and a machine's `slipdock` CLI can be older than the server, so a pass
+can follow stale instructions. Every claim also says what the machine has:
+the SHA-256 of each `slipdock*/SKILL.md` under `~/.claude/skills`
+(`SKILLS_DIR` / `$SkillsDir` in the config for another place; line endings
+count as LF) and of the CLI (`SLIPDOCK_CLI` / `$SlipdockCli`, else the
+`slipdock` on the PATH; on Windows the escript beside `slipdock.cmd`). The
+server compares them with the skills it packages and the escript
+`/cli/SHA256SUMS` publishes. The Runners panel marks a runner *skills
+drifted* or *old CLI*, its details say *Skills* current, drifted (with the
+names) or unknown and *CLI* current, old, none or unknown, `slipdock runners`
+shows a SKILLS · CLI column and `slipdock runner` a *skills* and a *cli* line,
+and the API's runner has `drift` (`skills`, `drifted_skills`, `cli`). A
+runner that drifts raises one alert on its board, which clears itself once
+the runner reports everything current. A skill the server doesn't package,
+or one not installed, isn't drift. The server never changes anything on the
+machine: bring the copies up to date by hand. With *Keep the runner current* ticked (the default for
 new installs; `--no-self-update` to `install.sh`, `-NoSelfUpdate` to
 `install.ps1`, `slipdock runner new … --no-self-update`; by hand
 `SELF_UPDATE=1` or `$SelfUpdate = $true` in the config), a runner whose

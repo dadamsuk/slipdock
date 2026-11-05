@@ -45,6 +45,12 @@
 # $SelfUpdateUrl), and replaces itself only if the download's SHA-256
 # matches both; then it starts again. A mismatch keeps this script, says so
 # in the log, and isn't tried again. The config is never touched.
+#
+# Drift (#1795): every claim also says the SHA-256 of each slipdock skill
+# installed under $SkillsDir (default ~\.claude\skills) and of the slipdock
+# CLI ($SlipdockCli, else the escript beside the slipdock on the PATH), and
+# the runners list shows any that differ from the server's. Nothing is
+# changed on this machine.
 param(
   [string]$Config = '',
   [switch]$Once,
@@ -561,6 +567,45 @@ try { $MySha = Get-ScriptSha $PSCommandPath } catch { }
 if ($MySha) { $KindsHeader['X-Runner-Version'] = "ps1 $MySha" }
 $SkipSha = ''
 
+# What this machine has installed (#1795): each slipdock skill's SKILL.md
+# (line endings as LF, as the server's copy is) and the CLI, by SHA-256.
+if (-not $SkillsDir) { $SkillsDir = Join-Path (Join-Path $HOME '.claude') 'skills' }
+function Get-InstalledSkills {
+  $pairs = @()
+  if (Test-Path -LiteralPath $SkillsDir) {
+    foreach ($dir in (Get-ChildItem -LiteralPath $SkillsDir -Directory -Filter 'slipdock*' | Sort-Object Name)) {
+      $file = Join-Path $dir.FullName 'SKILL.md'
+      if (-not (Test-Path -LiteralPath $file)) { continue }
+      try {
+        $text = [IO.File]::ReadAllText($file) -replace "`r`n", "`n"
+        $pairs += ($dir.Name + '=' + (Get-Sha256 ($Utf8.GetBytes($text))))
+      } catch { }
+    }
+  }
+  if ($pairs.Count -eq 0) { return 'none' }
+  return ($pairs -join ',')
+}
+function Get-InstalledCli {
+  $path = $SlipdockCli
+  if (-not $path) {
+    $cmd = Get-Command 'slipdock' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd -and $cmd.Source) {
+      $path = $cmd.Source
+      # The Windows install runs slipdock.escript through slipdock.cmd.
+      $beside = Join-Path (Split-Path -Parent $path) 'slipdock.escript'
+      if ($path -like '*.cmd' -and (Test-Path -LiteralPath $beside)) { $path = $beside }
+    }
+  }
+  if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return 'none' }
+  try { return Get-Sha256 ([IO.File]::ReadAllBytes($path)) } catch { return '' }
+}
+# Said again on every claim, so an edit while it waits shows on the next one.
+function Update-ClaimHeaders {
+  $KindsHeader['X-Runner-Skills'] = Get-InstalledSkills
+  $cli = Get-InstalledCli
+  if ($cli) { $KindsHeader['X-Runner-CLI'] = $cli } else { $KindsHeader.Remove('X-Runner-CLI') }
+}
+
 # Bytes from the server, or from a file:// URL.
 function Get-Remote([string]$url) {
   if ($url -like 'file://*') { return [IO.File]::ReadAllBytes(([Uri]$url).LocalPath) }
@@ -619,6 +664,7 @@ try {
     # Nothing that goes wrong in a round stops the runner without a word in
     # its log: the task's window is hidden, so stderr reaches nobody (#1481).
     try {
+      Update-ClaimHeaders
       $claim = Send-Slipdock "/api/runner/claim?$query" '' ($Wait + 15) $KindsHeader
       if ($claim.Status -eq 200) {
         $backoff = 1

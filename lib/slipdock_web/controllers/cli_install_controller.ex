@@ -68,9 +68,7 @@ defmodule SlipdockWeb.CLIInstallController do
     end
   end
 
-  # Configurable so the tests can stand a file in for the real build.
-  defp escript_path do
-    Application.get_env(:slipdock, :cli_escript) ||
-      Application.app_dir(:slipdock, "priv/cli/slipdock.escript")
-  end
+  # Configurable so the tests can stand a file in for the real build; the
+  # runners' drift check (#1795) compares with the same file.
+  defp escript_path, do: Slipdock.Runners.Drift.escript_path()
 end
