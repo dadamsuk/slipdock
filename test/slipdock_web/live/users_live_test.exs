@@ -128,7 +128,9 @@ defmodule SlipdockWeb.UsersLiveTest do
     } do
       {:ok, view, html} = live(conn, ~p"/users?user=#{ordinary.id}")
 
-      refute html =~ ~r/<h2[^>]*>\s*People/
+      # The one "People" heading is the Admin frame's section title.
+      assert [_] = Regex.scan(~r/<h2[^>]*>\s*People/, html)
+      assert has_element?(view, "#admin-content [data-role=settings-section-title]", "People")
       assert has_element?(view, "input[type=checkbox]#admin-#{ordinary.id}")
       refute has_element?(view, "#admin-#{ordinary.id}[checked]")
       assert has_element?(view, "input[type=checkbox]#unlimited-#{ordinary.id}")
@@ -488,10 +490,31 @@ defmodule SlipdockWeb.UsersLiveTest do
       assert Accounts.list_signup_requests() == []
     end
 
-    test "the tab is hidden when it is not the mode", %{conn: conn} do
+    test "Sign-ups is in the Admin nav, with the count waiting", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      assert has_element?(
+               view,
+               "#admin-nav a[href='/users/signups'] [data-role=settings-badge]",
+               "1"
+             )
+
+      refute has_element?(view, "[role=tablist]")
+    end
+
+    test "the entry is hidden when it is not the mode", %{conn: conn} do
       {:ok, _} = Settings.update(%{"signup_mode" => :closed})
-      {:ok, _view, html} = live(conn, ~p"/users")
+      {:ok, view, html} = live(conn, ~p"/users")
+      refute has_element?(view, "#admin-nav a[href='/users/signups']")
       refute html =~ "Requests"
+    end
+
+    test "but its own page keeps it in the nav, whatever the mode", %{conn: conn} do
+      {:ok, _} = Settings.update(%{"signup_mode" => :closed})
+      {:ok, view, _} = live(conn, ~p"/users/signups")
+
+      assert has_element?(view, "#admin-nav a[href='/users/signups'][aria-current=page]")
+      refute has_element?(view, "#admin-nav a[href='/users/signups'] [data-role=settings-badge]")
     end
   end
 

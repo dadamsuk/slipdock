@@ -40,15 +40,17 @@ defmodule SlipdockWeb.PageFrameLiveTest do
     {"/account/data", "Account", "standard"}
   ]
 
+  # The Admin area (#1738): one title over every section, full width, with
+  # the settings layout's nav beside it.
   @admin_pages [
-    {"/users", "Users", "full"},
-    {"/overview", "Overview", "full"},
-    # The rest of the app's own pages (#1712): Configuration and its tabs,
-    # and the queue of tool listings.
-    {"/config", "Configuration", "narrow"},
-    {"/config/mail", "Configuration", "narrow"},
-    {"/config/ai", "Configuration", "narrow"},
-    {"/admin/tools", "Tool listings", "standard"}
+    {"/users", "Admin", "full"},
+    {"/users/signups", "Admin", "full"},
+    {"/overview", "Admin", "full"},
+    {"/config", "Admin", "full"},
+    {"/config/mail", "Admin", "full"},
+    {"/config/meetings", "Admin", "full"},
+    {"/config/ai", "Admin", "full"},
+    {"/admin/tools", "Admin", "full"}
   ]
 
   defp check(view, html, path, title, width) do

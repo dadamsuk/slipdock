@@ -21,12 +21,16 @@ defmodule SlipdockWeb.UsersLive.Index do
   alias SlipdockWeb.Dates
 
   alias Slipdock.{Accounts, Quota, Settings}
-  alias SlipdockWeb.Params
+  alias SlipdockWeb.{AdminNav, Params}
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, socket |> assign(page_title: "Users") |> load()}
+    {:ok, load(socket)}
   end
+
+  # The Admin nav's key for each live action: People and Sign-ups.
+  defp section(:index), do: :people
+  defp section(:signups), do: :signups
 
   @impl true
   def handle_params(params, _uri, socket) do
@@ -37,6 +41,7 @@ defmodule SlipdockWeb.UsersLive.Index do
     socket =
       assign(socket,
         tab: tab,
+        page_title: AdminNav.label(section(tab)),
         selected: selected,
         notice: nil,
         deleting: nil,
@@ -384,30 +389,10 @@ defmodule SlipdockWeb.UsersLive.Index do
       nav_active={:users}
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <.page width="full" class="space-y-6">
-          <.page_header
-            title="Users"
-            subtitle="Everyone with an account here: add people, and disable or close an account."
-          />
-          <div :if={@settings.signup_mode == :approval} role="tablist" class="tabs tabs-box">
-            <.link patch={~p"/users"} role="tab" class={["tab", @tab == :index && "tab-active"]}>
-              People
-            </.link>
-            <.link
-              patch={~p"/users/signups"}
-              role="tab"
-              class={["tab", @tab == :signups && "tab-active"]}
-            >
-              Requests
-              <span :if={@requests != []} class="badge badge-sm badge-warning ml-1">
-                {length(@requests)}
-              </span>
-            </.link>
-          </div>
-
+        <AdminNav.frame current={section(@tab)}>
           <.people_tab :if={@tab == :index} {assigns} />
           <.signups_tab :if={@tab == :signups} {assigns} />
-        </.page>
+        </AdminNav.frame>
       </div>
     </Layouts.app>
     """
@@ -935,7 +920,7 @@ defmodule SlipdockWeb.UsersLive.Index do
   defp signups_tab(assigns) do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h2 class="section-title">Waiting for you</h2>
+      <h3 class="font-medium">Waiting for you</h3>
       <.empty_state
         :if={@requests == []}
         id="signups-empty"

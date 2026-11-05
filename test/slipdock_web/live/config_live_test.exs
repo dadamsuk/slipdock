@@ -274,15 +274,16 @@ defmodule SlipdockWeb.ConfigLiveTest do
   end
 
   describe "which build is running" do
-    test "the commit and the build time are at the top of the page", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/config")
+    test "the commit and the build time are in the Admin nav's footer", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/config")
 
+      assert has_element?(view, "#admin-nav [data-role=build-info]", "Running build")
       assert html =~ "Running build"
       assert html =~ Slipdock.Build.short_sha()
       assert html =~ Slipdock.Build.built_at_string()
     end
 
-    test "it is there on the mail tab too, since it is the whole page", %{conn: conn} do
+    test "it is there on the mail section too, as on every admin page", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/config/mail")
       assert html =~ Slipdock.Build.short_sha()
     end

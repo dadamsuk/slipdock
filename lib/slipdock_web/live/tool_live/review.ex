@@ -8,10 +8,11 @@ defmodule SlipdockWeb.ToolLive.Review do
   use SlipdockWeb, :live_view
 
   alias Slipdock.{Repo, Tools}
+  alias SlipdockWeb.AdminNav
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, socket |> assign(page_title: "Tool listings") |> load()}
+    {:ok, socket |> assign(page_title: AdminNav.label(:tools)) |> load()}
   end
 
   defp load(socket),
@@ -60,85 +61,85 @@ defmodule SlipdockWeb.ToolLive.Review do
       nav_active={:tool_listings}
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <.page width="standard" class="space-y-8">
-          <.page_header
-            title="Tool listings"
-            subtitle="A listed Tool can be seen and installed by everyone on this server, and its skills run in their assistants with their access. Read each version in full — its page shows every skill file — before approving it. Approval covers that version only."
-            class=""
-          />
+        <AdminNav.frame current={:tools}>
+          <div class="space-y-8">
+            <p class="max-w-3xl text-sm text-base-content/60">
+              A listed Tool can be seen and installed by everyone on this server, and its skills run in their assistants with their access. Read each version in full — its page shows every skill file — before approving it. Approval covers that version only.
+            </p>
 
-          <section id="listing-queue">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
-              Waiting
-            </h2>
-            <.empty_state
-              :if={@queue == []}
-              id="listing-queue-empty"
-              icon="hero-inbox"
-              title="Nothing waiting"
-              class="mt-2"
-              compact
-            >
-              A Tool someone asks to list shows here for you to read and approve.
-            </.empty_state>
-            <ul class="mt-2 space-y-3">
-              <li
-                :for={v <- @queue}
-                id={"listing-#{v.id}"}
-                class="rounded-2xl bg-base-100 p-4 shadow-sm ring-1 ring-base-content/10"
+            <section id="listing-queue">
+              <h3 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
+                Waiting
+              </h3>
+              <.empty_state
+                :if={@queue == []}
+                id="listing-queue-empty"
+                icon="hero-inbox"
+                title="Nothing waiting"
+                class="mt-2"
+                compact
               >
-                <p class="font-semibold">
-                  <.link navigate={~p"/tools/#{v.tool.slug}?version=#{v.version}"} class="link">
-                    {v.tool.name} {v.version}
-                  </.link>
-                </p>
-                <p class="text-sm text-base-content/70">{v.tool.summary}</p>
-                <p class="mt-1 text-xs text-base-content/50">
-                  by {v.tool.owner.name || v.tool.owner.email} · sha
-                  <code>{String.slice(v.sha, 0, 12)}</code>
-                </p>
-                <div class="mt-3 flex flex-wrap items-center gap-2">
-                  <button class="btn btn-primary btn-sm" phx-click="approve" phx-value-id={v.id}>
-                    Approve {v.version}
-                  </button>
-                  <form id={"decline-#{v.id}"} phx-submit="decline" class="flex gap-2">
-                    <input type="hidden" name="version_id" value={v.id} />
-                    <input
-                      type="text"
-                      name="reason"
-                      placeholder="Why (the owner sees this)"
-                      class="input field w-64"
-                    />
-                    <button class="btn btn-ghost btn-sm">Decline</button>
-                  </form>
-                </div>
-              </li>
-            </ul>
-          </section>
+                A Tool someone asks to list shows here for you to read and approve.
+              </.empty_state>
+              <ul class="mt-2 space-y-3">
+                <li
+                  :for={v <- @queue}
+                  id={"listing-#{v.id}"}
+                  class="rounded-2xl bg-base-100 p-4 shadow-sm ring-1 ring-base-content/10"
+                >
+                  <p class="font-semibold">
+                    <.link navigate={~p"/tools/#{v.tool.slug}?version=#{v.version}"} class="link">
+                      {v.tool.name} {v.version}
+                    </.link>
+                  </p>
+                  <p class="text-sm text-base-content/70">{v.tool.summary}</p>
+                  <p class="mt-1 text-xs text-base-content/50">
+                    by {v.tool.owner.name || v.tool.owner.email} · sha
+                    <code>{String.slice(v.sha, 0, 12)}</code>
+                  </p>
+                  <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button class="btn btn-primary btn-sm" phx-click="approve" phx-value-id={v.id}>
+                      Approve {v.version}
+                    </button>
+                    <form id={"decline-#{v.id}"} phx-submit="decline" class="flex gap-2">
+                      <input type="hidden" name="version_id" value={v.id} />
+                      <input
+                        type="text"
+                        name="reason"
+                        placeholder="Why (the owner sees this)"
+                        class="input field w-64"
+                      />
+                      <button class="btn btn-ghost btn-sm">Decline</button>
+                    </form>
+                  </div>
+                </li>
+              </ul>
+            </section>
 
-          <section id="listing-listed">
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
-              Listed now
-            </h2>
-            <.empty_state
-              :if={@listed == []}
-              id="listing-listed-empty"
-              icon="hero-building-library"
-              title="Nothing listed"
-              class="mt-2"
-              compact
-            >
-              A Tool you approve is listed here for everyone on this server.
-            </.empty_state>
-            <ul class="mt-2 space-y-2 text-sm">
-              <li :for={t <- @listed} id={"listed-#{t.id}"} class="flex items-center gap-2">
-                <.link navigate={~p"/tools/#{t.slug}"} class="link">{t.name}</.link>
-                <span class="text-base-content/50">{Tools.listed_version(t).version}</span>
-                <button class="btn btn-ghost btn-xs" phx-click="unlist" phx-value-id={t.id}>Unlist</button>
-              </li>
-            </ul>
-          </section>
-        </.page>
+            <section id="listing-listed">
+              <h3 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
+                Listed now
+              </h3>
+              <.empty_state
+                :if={@listed == []}
+                id="listing-listed-empty"
+                icon="hero-building-library"
+                title="Nothing listed"
+                class="mt-2"
+                compact
+              >
+                A Tool you approve is listed here for everyone on this server.
+              </.empty_state>
+              <ul class="mt-2 space-y-2 text-sm">
+                <li :for={t <- @listed} id={"listed-#{t.id}"} class="flex items-center gap-2">
+                  <.link navigate={~p"/tools/#{t.slug}"} class="link">{t.name}</.link>
+                  <span class="text-base-content/50">{Tools.listed_version(t).version}</span>
+                  <button class="btn btn-ghost btn-xs" phx-click="unlist" phx-value-id={t.id}>Unlist</button>
+                </li>
+              </ul>
+            </section>
+          </div>
+        </AdminNav.frame>
       </div>
     </Layouts.app>
     """

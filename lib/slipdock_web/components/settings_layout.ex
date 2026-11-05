@@ -51,6 +51,7 @@ defmodule SlipdockWeb.SettingsLayout do
     attr :icon, :string, required: true
     attr :label, :string, required: true
     attr :group, :string, doc: "a heading drawn above the first section of each group"
+    attr :badge, :integer, doc: "a count waiting in that section, drawn when above 0"
   end
 
   slot :footer, doc: "drawn under the nav from md up, and under the picker's list on a phone"
@@ -153,6 +154,13 @@ defmodule SlipdockWeb.SettingsLayout do
           >
             <.icon name={section.icon} class="size-4 shrink-0" />
             <span class="min-w-0">{section.label}</span>
+            <span
+              :if={(section[:badge] || 0) > 0}
+              data-role="settings-badge"
+              class="badge badge-sm badge-warning ml-auto"
+            >
+              {section.badge}
+            </span>
           </.link>
         </li>
       <% end %>
