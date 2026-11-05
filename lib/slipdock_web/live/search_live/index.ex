@@ -431,32 +431,22 @@ defmodule SlipdockWeb.SearchLive.Index do
             class="mb-4"
           >
             <:actions>
-              <div
-                class="inline-flex rounded-xl bg-base-200 p-0.5 text-sm"
-                role="tablist"
-                aria-label="How to look"
-              >
-                <.link
+              <.tabs id="look-tabs" label="How to look">
+                <:tab
                   :for={
                     {key, label, icon} <- [
                       {:search, "Search", "hero-magnifying-glass"},
                       {:ask, "Ask", "hero-sparkles"}
                     ]
                   }
+                  id={"look-tab-#{key}"}
+                  active={@mode == key}
+                  icon={icon}
                   patch={mode_path(key, @query)}
-                  role="tab"
-                  aria-selected={to_string(@mode == key)}
-                  class={[
-                    "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-medium transition",
-                    if(@mode == key,
-                      do: "bg-base-100 shadow-sm",
-                      else: "text-base-content/60 hover:text-base-content"
-                    )
-                  ]}
                 >
-                  <.icon name={icon} class="size-4" /> {label}
-                </.link>
-              </div>
+                  {label}
+                </:tab>
+              </.tabs>
             </:actions>
           </.page_header>
 

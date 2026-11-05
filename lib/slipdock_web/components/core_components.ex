@@ -948,6 +948,134 @@ defmodule SlipdockWeb.CoreComponents do
   end
 
   @doc """
+  A row of tabs (#1740): every tab bar in the app, one look. A
+  `role="tablist"` of `role="tab"` items, the active one `aria-selected` and
+  the only one in the Tab order (a roving `tabindex`; with none active, the
+  first). The `Tabs` hook (`assets/js/tabs.js`) moves along them with the
+  arrow keys, Home and End, and activates the one it lands on.
+
+  A tab is one of two kinds:
+
+    * **A button that switches a panel in place**: give it `phx-click` (and
+      `phx-value-*`, `phx-target`) and `controls`, the id of its
+      `role="tabpanel"`. Keep every panel rendered and the others `hidden`,
+      so a form spanning tabs keeps what was typed (W-1946 §Patterns).
+    * **A link that patches** (or navigates): give it `patch` (or
+      `navigate`). The page's URL says which tab shows.
+
+  Any other attribute on a `:tab` (an `id`, `phx-*`, `data-*`) goes onto the
+  tab itself, except `class`: there is one look, so a tab's own class is
+  ignored. Lay the bar out with the tablist's `class` and `stretch`.
+
+  ## Examples
+
+      <.tabs id="settings-tabs" label="Board settings" stretch>
+        <:tab
+          :for={{key, label, icon} <- tabs()}
+          id={"settings-tab-\#{key}"}
+          active={@tab == key}
+          icon={icon}
+          controls={"settings-panel-\#{key}"}
+          phx-click="settings_tab"
+          phx-value-tab={key}
+        >
+          {label}
+        </:tab>
+      </.tabs>
+
+      <.tabs id="look-tabs" label="How to look">
+        <:tab active={@mode == :search} patch={~p"/search"}>Search</:tab>
+        <:tab active={@mode == :ask} patch={~p"/ask"}>Ask</:tab>
+      </.tabs>
+  """
+  attr :id, :string, required: true, doc: "the tablist's id; the hook needs it"
+  attr :label, :string, required: true, doc: "the tablist's `aria-label`"
+  attr :stretch, :boolean, default: false, doc: "share the full width between the tabs"
+  attr :class, :any, default: nil, doc: "added to the tablist (margins, width)"
+  attr :rest, :global
+
+  # Not validated: a tab takes whatever attributes its kind needs
+  # (`phx-click`, `phx-value-*`, `phx-target`, `id`, `data-*`).
+  slot :tab,
+    required: true,
+    validate_attrs: false,
+    doc: """
+    one tab: `active` (boolean), `icon` (a Heroicon), `controls` (its panel's
+    id), `patch` or `navigate` to make it a link, and any attribute for the
+    tab itself
+    """
+
+  def tabs(assigns) do
+    assigns =
+      assign(assigns, :focusable, Enum.find_index(assigns.tab, &tab_active?/1) || 0)
+
+    ~H"""
+    <div
+      id={@id}
+      role="tablist"
+      aria-label={@label}
+      aria-orientation="horizontal"
+      phx-hook="Tabs"
+      data-tabs
+      class={[
+        "flex gap-1 overflow-x-auto rounded-xl bg-base-200/60 p-1 text-sm",
+        !@stretch && "w-fit max-w-full",
+        @class
+      ]}
+      {@rest}
+    >
+      <%= for {tab, i} <- Enum.with_index(@tab) do %>
+        <.link
+          :if={tab_link?(tab)}
+          navigate={tab[:navigate]}
+          patch={tab[:patch]}
+          role="tab"
+          aria-selected={to_string(tab_active?(tab))}
+          aria-controls={tab[:controls]}
+          tabindex={if i == @focusable, do: "0", else: "-1"}
+          class={tab_class(tab, @stretch)}
+          {tab_attributes(tab)}
+        >
+          <.icon :if={tab[:icon]} name={tab[:icon]} class="size-4" />
+          <span>{render_slot(tab)}</span>
+        </.link>
+        <button
+          :if={!tab_link?(tab)}
+          type="button"
+          role="tab"
+          aria-selected={to_string(tab_active?(tab))}
+          aria-controls={tab[:controls]}
+          tabindex={if i == @focusable, do: "0", else: "-1"}
+          class={tab_class(tab, @stretch)}
+          {tab_attributes(tab)}
+        >
+          <.icon :if={tab[:icon]} name={tab[:icon]} class="size-4" />
+          <span>{render_slot(tab)}</span>
+        </button>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp tab_active?(tab), do: tab[:active] == true
+  defp tab_link?(tab), do: is_binary(tab[:patch]) or is_binary(tab[:navigate])
+
+  @tab_own ~w(__slot__ inner_block active icon controls patch navigate class)a
+  defp tab_attributes(tab), do: tab |> Map.drop(@tab_own) |> Map.to_list()
+
+  defp tab_class(tab, stretch) do
+    [
+      "flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5",
+      "font-medium transition focus-visible:outline-2 focus-visible:outline-primary",
+      stretch && "flex-1",
+      if(tab_active?(tab),
+        do: "bg-base-100 text-primary shadow-sm",
+        else: "text-base-content/60 hover:bg-base-100/60 hover:text-base-content"
+      )
+    ]
+  end
+
+  @doc """
   Renders a header with title.
   """
   slot :inner_block, required: true

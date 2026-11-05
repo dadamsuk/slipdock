@@ -91,7 +91,50 @@ defmodule SlipdockWeb.ToolLiveTest do
     view |> element("#tool-client-chatgpt") |> render_click()
     assert has_element?(view, "#tool-steps-chatgpt a[href*='/download/#{name}/chatgpt.zip']")
     assert has_element?(view, "#tool-steps-chatgpt", "Set up Demo Tool for me.")
-    refute has_element?(view, "#tool-steps-claude-ai")
+    assert has_element?(view, "#tool-steps-claude-ai.hidden")
+  end
+
+  # #1740: the client picker is `<.tabs>`: every client's steps stay drawn,
+  # the others hidden, and the picked tab is the one selected and in the
+  # Tab order.
+  test "the client picker is a tab bar over panels that stay drawn", %{conn: conn, name: name} do
+    {:ok, view, _html} = live(conn, ~p"/tools/#{name}")
+
+    assert has_element?(view, ~s|#tool-clients[role=tablist][phx-hook=Tabs]|)
+
+    for {key, panel} <- [
+          {"claude_ai", "claude-ai"},
+          {"claude_code", "claude-code"},
+          {"chatgpt", "chatgpt"}
+        ] do
+      view |> element("#tool-client-#{key}") |> render_click()
+
+      assert has_element?(
+               view,
+               ~s|#tool-client-#{key}[aria-selected="true"][tabindex="0"][aria-controls="tool-steps-#{panel}"]|
+             )
+
+      assert has_element?(view, "#tool-steps-#{panel}[role=tabpanel]:not(.hidden)")
+
+      for {other, other_panel} <- [
+            {"claude_ai", "claude-ai"},
+            {"claude_code", "claude-code"},
+            {"chatgpt", "chatgpt"}
+          ],
+          other != key do
+        assert has_element?(view, ~s|#tool-client-#{other}[aria-selected="false"][tabindex="-1"]|)
+        assert has_element?(view, "#tool-steps-#{other_panel}.hidden")
+      end
+    end
+  end
+
+  test "an unknown client leaves the picked tab alone", %{conn: conn, name: name} do
+    {:ok, view, _html} = live(conn, ~p"/tools/#{name}")
+    view |> element("#tool-client-chatgpt") |> render_click()
+
+    view |> element("#tool-client-chatgpt") |> render_click(%{"client" => "nonsense"})
+    assert has_element?(view, ~s|#tool-client-chatgpt[aria-selected="true"]|)
+    assert has_element?(view, "#tool-steps-chatgpt:not(.hidden)")
   end
 
   test "Make the board installs it, and the page then says where it is", %{

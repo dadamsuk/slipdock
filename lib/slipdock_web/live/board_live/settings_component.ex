@@ -500,32 +500,20 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     <.modal id="settings-modal" on_close={JS.patch(@close_path)} size="page">
       <div class="space-y-5 p-6">
         <h2 class="section-title">Board settings</h2>
-        <nav
-          id="settings-tabs"
-          role="tablist"
-          aria-label="Board settings"
-          class="flex gap-1 overflow-x-auto rounded-xl bg-base-200/60 p-1 text-sm"
-        >
-          <button
+        <.tabs id="settings-tabs" label="Board settings" stretch>
+          <:tab
             :for={{key, label, icon} <- tabs()}
-            type="button"
-            role="tab"
             id={"settings-tab-#{key}"}
-            aria-selected={to_string(@tab == key)}
-            aria-controls={"settings-panel-#{key}"}
+            active={@tab == key}
+            icon={icon}
+            controls={"settings-panel-#{key}"}
             phx-target={@target}
             phx-click="settings_tab"
             phx-value-tab={key}
-            class={[
-              "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 font-medium",
-              (@tab == key && "bg-base-100 text-primary shadow-sm") ||
-                "text-base-content/60 hover:bg-base-100/60 hover:text-base-content"
-            ]}
           >
-            <.icon name={icon} class="size-4" />
-            <span>{label}</span>
-          </button>
-        </nav>
+            {label}
+          </:tab>
+        </.tabs>
         <%!-- One form across General and Features. Every panel stays in the
               page and the others are only hidden, so what is typed on one
               tab is still there, and saved, from the other. --%>

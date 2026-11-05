@@ -47,11 +47,13 @@ import {AutoDismiss} from "./auto_dismiss"
 import {DateField} from "./date_field"
 import {FilePicker} from "./file_picker"
 import {TagFilter} from "./tag_filter"
+import {Tabs} from "./tabs"
 import {installKeyHints} from "./key_hints"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
 Hooks.TagFilter = TagFilter
+Hooks.Tabs = Tabs
 Hooks.Replay = Replay
 Hooks.ExcalidrawEditor = ExcalidrawEditor
 Hooks.MarkdownEditor = MarkdownEditor
