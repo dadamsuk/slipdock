@@ -254,7 +254,7 @@ defmodule SlipdockWeb.Components.CardChipsTest do
       assert Enum.count(range) == 1
       assert LazyHTML.text(range) =~ "10 Jan 2030 → 20 Jan 2030"
       assert [title] = LazyHTML.attribute(range, "title")
-      assert title =~ "Starts Thursday, January 10 2030, due Sunday, January 20 2030"
+      assert title =~ "Starts Thursday 10 January 2030, due Sunday 20 January 2030"
       assert "chip-line" in classes(node, "[data-role=date-range]")
       # No separate start or due chip beside it.
       assert count(node, "[title^='Due']") == 0

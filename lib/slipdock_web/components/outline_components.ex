@@ -5,6 +5,7 @@ defmodule SlipdockWeb.OutlineComponents do
   level.
   """
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.SlipdockComponents
   alias Slipdock.Boards.Card
@@ -320,6 +321,6 @@ defmodule SlipdockWeb.OutlineComponents do
     """
   end
 
-  defp fmt(%Date{} = d), do: Calendar.strftime(d, "%-d %b")
+  defp fmt(%Date{} = d), do: Dates.short(d)
   defp fmt(_), do: ""
 end

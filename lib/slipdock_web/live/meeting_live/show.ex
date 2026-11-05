@@ -11,6 +11,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
   open question.
   """
   use SlipdockWeb, :live_view
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.MeetingLive.Components
 
@@ -397,7 +398,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
                 Sent by {(@capture.owner && (@capture.owner.name || @capture.owner.email)) ||
                   "somebody"}
                 <span :if={@capture.started_at}>
-                  · met {Calendar.strftime(@capture.started_at, "%d %b %Y, %H:%M")}
+                  · met {Dates.datetime(@capture.started_at)}
                 </span>
                 <span :if={@capture.transcript_dropped_at} id="transcript-dropped">
                   · transcript dropped after commit, as asked: only the quoted words are kept
@@ -406,7 +407,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
                   · recording kept {retention_words(@capture.retention)}
                 </span>
                 <span :if={@capture.audio_purged_at} id="recording-gone">
-                  · recording deleted {Calendar.strftime(@capture.audio_purged_at, "%d %b %Y")}: replay is no longer possible
+                  · recording deleted {Dates.long(@capture.audio_purged_at)}: replay is no longer possible
                 </span>
                 <span :if={@capture.attendees != []}>
                   · {Enum.map_join(@capture.attendees, ", ", &(&1["name"] || &1["email"]))}
@@ -545,7 +546,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
               <h2 class="mb-1 font-medium text-base-content/70">Record</h2>
               <ol class="space-y-0.5">
                 <li :for={e <- @capture.events}>
-                  {Calendar.strftime(e.inserted_at, "%d %b %H:%M")} · {e.message}
+                  {Dates.datetime(e.inserted_at)} · {e.message}
                   <span :if={e.user}>— {e.user.name || e.user.email}</span>
                 </li>
               </ol>

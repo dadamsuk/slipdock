@@ -60,7 +60,7 @@ defmodule SlipdockWeb.SnoozeLiveTest do
       refute has_element?(view, "#snooze-picker")
       assert render(view) =~ "Snoozed 1 card until"
       # The open card says so, and offers to wake it.
-      assert has_element?(view, "#snooze-current", Calendar.strftime(tomorrow, "%a %-d %b %Y"))
+      assert has_element?(view, "#snooze-current", SlipdockWeb.Dates.weekday(tomorrow))
       assert has_element?(view, "#snooze-wake")
     end
 

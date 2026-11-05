@@ -70,7 +70,7 @@ defmodule SlipdockWeb.BoardLive.ActivityComponent do
             </span>
             <div class="min-w-0 flex-1">
               <p class="text-sm">{a.message}</p>
-              <p class="text-xs text-base-content/50">{relative_time(a.inserted_at)}</p>
+              <p class="text-xs text-base-content/50"><.timestamp at={a.inserted_at} /></p>
             </div>
           </li>
         </ol>

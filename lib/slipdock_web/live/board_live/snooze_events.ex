@@ -15,6 +15,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
   every card named is looked up on this board before it is touched.
   """
   use Phoenix.Component
+  alias SlipdockWeb.Dates
 
   import Ecto.Query, only: [from: 2]
   import Phoenix.LiveView, only: [put_flash: 3]
@@ -134,7 +135,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
 
         message =
           "Snoozed #{n} #{if n == 1, do: "card", else: "cards"} until " <>
-            Calendar.strftime(date, "%a %-d %b") <>
+            Dates.weekday(date) <>
             if(failed == [], do: "", else: " (#{length(failed)} couldn't be)")
 
         {:noreply,
@@ -257,7 +258,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
                 >
                   past due
                 </span>
-                <span class="text-xs text-base-content/60">{Calendar.strftime(date, "%a %-d %b")}</span>
+                <span class="text-xs text-base-content/60">{Dates.weekday(date)}</span>
               </button>
             </li>
           </ul>
@@ -304,7 +305,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
             </span>
           </label>
           <p :if={@snoozing.due} id="snooze-due" class="text-xs text-base-content/60">
-            Due {Calendar.strftime(@snoozing.due, "%a %-d %b")}: a later day snoozes it past its due date.
+            Due {Dates.weekday(@snoozing.due)}: a later day snoozes it past its due date.
           </p>
           <p :if={@snoozing.error} id="snooze-error" class="text-xs text-error">{@snoozing.error}</p>
         </.form>

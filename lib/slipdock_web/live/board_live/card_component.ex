@@ -17,6 +17,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   description or a comment), so they go when it does.
   """
   use SlipdockWeb, :live_component
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.ItemComponents
@@ -863,7 +864,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           %{
             "preset" => if(s.rule in preset_rules, do: s.rule, else: "custom"),
             "custom" => if(s.rule in preset_rules, do: "", else: s.rule),
-            "at" => Calendar.strftime(s.create_at, "%H:%M"),
+            "at" => Dates.time(s.create_at),
             "lead_days" => to_string(s.lead_days),
             "on_missed" => s.on_missed,
             "ends" => s.ends,

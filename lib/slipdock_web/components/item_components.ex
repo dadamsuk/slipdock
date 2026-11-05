@@ -23,6 +23,7 @@ defmodule SlipdockWeb.ItemComponents do
   that.
   """
   use Phoenix.Component
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.CoreComponents
   import SlipdockWeb.SlipdockComponents, only: [keyed_label: 1, relative_time: 1, stated_pill: 1]
@@ -176,9 +177,9 @@ defmodule SlipdockWeb.ItemComponents do
           </a>
           <span
             class="shrink-0 text-2xs text-base-content/50"
-            title={"Added #{Calendar.strftime(url.inserted_at, "%a %-d %b %Y, %H:%M")}"}
+            title={"Added #{Dates.exact(url.inserted_at)}"}
           >
-            {Calendar.strftime(url.inserted_at, "%-d %b %Y")}
+            {Dates.long(url.inserted_at)}
           </span>
           <button
             :if={@can_write}

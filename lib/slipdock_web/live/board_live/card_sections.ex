@@ -5,6 +5,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   their events to it (`target`). Part one is `BoardLive.CardPanel`.
   """
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.BoardLive.Helpers
@@ -569,7 +570,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
 
   defp job_time(job) do
     at = job.finished_at || job.started_at || job.claimed_at || job.inserted_at
-    Calendar.strftime(at, "%d %b %H:%M")
+    Dates.datetime(at)
   end
 
   # The last few lines are what say how it went.
@@ -607,9 +608,8 @@ defmodule SlipdockWeb.BoardLive.CardSections do
         class="rounded-lg bg-base-200/60 px-3 py-2 text-sm"
       >
         <p class="text-xs text-base-content/60">
-          {if p.kind == "created", do: "Made", else: "Changed"} from “{p.meeting}”<span :if={p.met_at}>, {Calendar.strftime(
-            p.met_at,
-            "%-d %b %Y"
+          {if p.kind == "created", do: "Made", else: "Changed"} from “{p.meeting}”<span :if={p.met_at}>, {Dates.long(
+            p.met_at
           )}</span><span :if={p.at_ms}> at {provenance_clock(p.at_ms)}</span>
         </p>
         <blockquote :if={p.quote} class="mt-1 border-l-2 border-base-content/20 pl-2 italic">
@@ -908,7 +908,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   defp job_class(_), do: "bg-base-content/15"
 
   defp timeline_stamp(at, zone),
-    do: at |> Slipdock.Timezones.to_local(zone) |> Calendar.strftime("%-d %b %H:%M")
+    do: Dates.datetime(at, zone: zone)
 
   attr :card, :map, required: true
 

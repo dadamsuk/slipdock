@@ -133,7 +133,7 @@ defmodule SlipdockWeb.TimelineComponents do
                 :for={m <- @timeline.milestones}
                 class="tl-ms-label"
                 style={"grid-column: #{m.idx + 1} / span 1"}
-                title={"#{m.name} · #{Calendar.strftime(m.date, "%a %-d %b %Y")}"}
+                title={"#{m.name} · #{SlipdockWeb.Dates.weekday(m.date)}"}
               >
                 <span class={["tl-ms-diamond", Palette.dot(m.color || "indigo")]}></span>
                 <span class="tl-ms-name">{m.name}</span>
@@ -448,7 +448,7 @@ defmodule SlipdockWeb.TimelineComponents do
     end
   end
 
-  defp short(%Date{} = d), do: Calendar.strftime(d, "%-d %b")
+  defp short(%Date{} = d), do: SlipdockWeb.Dates.short(d)
   defp short(_), do: "—"
 
   attr :bars, :list, required: true

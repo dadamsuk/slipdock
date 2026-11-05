@@ -47,6 +47,7 @@ defmodule SlipdockWeb.UserAuth do
   def fetch_current_user(conn, _opts) do
     token = get_session(conn, :user_token)
     user = token && Accounts.get_user_by_session_token(token)
+    SlipdockWeb.Dates.put_zone(user && Slipdock.Timezones.of(user))
     assign(conn, :current_user, user)
   end
 
@@ -241,10 +242,17 @@ defmodule SlipdockWeb.UserAuth do
     end
   end
 
+  # Also sets the timezone `SlipdockWeb.Dates` writes times in for this
+  # LiveView's process: the reader's own (#1719).
   defp mount_current_user(socket, session) do
-    Phoenix.Component.assign_new(socket, :current_user, fn ->
-      if token = session["user_token"], do: Accounts.get_user_by_session_token(token)
-    end)
+    socket =
+      Phoenix.Component.assign_new(socket, :current_user, fn ->
+        if token = session["user_token"], do: Accounts.get_user_by_session_token(token)
+      end)
+
+    user = socket.assigns.current_user
+    SlipdockWeb.Dates.put_zone(user && Slipdock.Timezones.of(user))
+    socket
   end
 
   # The first connected page somebody signs in to tells us their timezone
@@ -253,7 +261,9 @@ defmodule SlipdockWeb.UserAuth do
   defp adopt_browser_timezone(%{assigns: %{current_user: %{timezone: nil} = user}} = socket) do
     with true <- Phoenix.LiveView.connected?(socket),
          %{"timezone" => tz} when is_binary(tz) <- Phoenix.LiveView.get_connect_params(socket) do
-      Phoenix.Component.assign(socket, :current_user, Accounts.adopt_browser_timezone(user, tz))
+      user = Accounts.adopt_browser_timezone(user, tz)
+      SlipdockWeb.Dates.put_zone(Slipdock.Timezones.of(user))
+      Phoenix.Component.assign(socket, :current_user, user)
     else
       _ -> socket
     end

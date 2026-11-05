@@ -1,6 +1,7 @@
 defmodule SlipdockWeb.TableComponents do
   @moduledoc "The table view of a board: one row per card, grouped, sortable, with inline edits."
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.SlipdockComponents
   alias Slipdock.Palette
@@ -542,7 +543,7 @@ defmodule SlipdockWeb.TableComponents do
     ~H"""
     <span
       class="text-xs text-base-content/60"
-      title={Calendar.strftime(@card.inserted_at, "%Y-%m-%d %H:%M")}
+      title={Dates.exact(@card.inserted_at)}
     >{relative_time(@card.inserted_at)}</span>
     """
   end
@@ -551,7 +552,7 @@ defmodule SlipdockWeb.TableComponents do
     ~H"""
     <span
       class="text-xs text-base-content/60"
-      title={Calendar.strftime(@card.updated_at, "%Y-%m-%d %H:%M")}
+      title={Dates.exact(@card.updated_at)}
     >{relative_time(@card.updated_at)}</span>
     """
   end

@@ -89,12 +89,23 @@ defmodule SlipdockWeb.RepeatLiveTest do
 
     refute has_element?(view, "#repeat-form")
     assert has_element?(view, "#repeat-current", "↻ Every week on Tue, 08:00 Europe/London")
-    assert has_element?(view, "#repeat-state", "Next due Tue 19 Jan, made Mon 18 Jan 08:00.")
+
+    assert has_element?(
+             view,
+             "#repeat-state",
+             "Next due #{SlipdockWeb.Dates.weekday(~D[2027-01-19])}, made #{SlipdockWeb.Dates.datetime(~U[2027-01-18 08:00:00Z])}."
+           )
+
     assert has_element?(view, "#repeat-edit", "Change…")
 
     view |> element("#repeat-skip") |> render_click()
     assert Recurrence.for_card(ctx.card).next_on == ~D[2027-01-26]
-    assert has_element?(view, "#repeat-state", "Next due Tue 26 Jan")
+
+    assert has_element?(
+             view,
+             "#repeat-state",
+             "Next due #{SlipdockWeb.Dates.weekday(~D[2027-01-26])}"
+           )
 
     view |> element("#repeat-pause") |> render_click()
     assert Recurrence.for_card(ctx.card).paused

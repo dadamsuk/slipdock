@@ -8,6 +8,7 @@ defmodule SlipdockWeb.OverviewLive.Index do
   the table be sorted by any of its columns (`?sort=`).
   """
   use SlipdockWeb, :live_view
+  import SlipdockWeb.SlipdockComponents, only: [timestamp: 1]
 
   alias Slipdock.{Overview, Quota}
   alias Slipdock.Accounts.User
@@ -99,11 +100,17 @@ defmodule SlipdockWeb.OverviewLive.Index do
                         <span :if={person.user.disabled_at} class="badge badge-xs">disabled</span>
                       </div>
                     </td>
-                    <td class="text-xs text-base-content/60">{date(person.signed_up_at)}</td>
                     <td class="text-xs text-base-content/60">
-                      <div>{date(person.last_active_at) || "never"}</div>
+                      <.timestamp at={person.signed_up_at} format={:short} />
+                    </td>
+                    <td class="text-xs text-base-content/60">
+                      <div>
+                        <.timestamp at={person.last_active_at} format={:short} /><span :if={
+                          !person.last_active_at
+                        }>never</span>
+                      </div>
                       <div :if={person.last_api_at} class="text-base-content/40">
-                        API {date(person.last_api_at)}
+                        API <.timestamp at={person.last_api_at} format={:short} />
                       </div>
                     </td>
                     <td class="text-right tabular-nums">{person.boards}</td>
@@ -159,7 +166,4 @@ defmodule SlipdockWeb.OverviewLive.Index do
     </th>
     """
   end
-
-  defp date(nil), do: nil
-  defp date(%DateTime{} = at), do: Calendar.strftime(at, "%Y-%m-%d")
 end

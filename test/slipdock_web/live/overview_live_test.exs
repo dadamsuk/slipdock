@@ -41,7 +41,8 @@ defmodule SlipdockWeb.OverviewLiveTest do
              ~r/>\s*1\s*<.*>\s*#{length(board.columns)}\s*<.*>\s*2\s*<.*>\s*1\s*<.*>\s*0\s*<.*0 bytes/s
 
     assert row =~ "never"
-    assert row =~ Calendar.strftime(ordinary.inserted_at, "%Y-%m-%d")
+    assert row =~ SlipdockWeb.Dates.short(ordinary.inserted_at)
+    refute row =~ ~r/>\s*\d{4}-\d\d-\d\d\s*</
   end
 
   test "a column heading sorts by it", %{conn: conn, admin: admin, ordinary: ordinary} do

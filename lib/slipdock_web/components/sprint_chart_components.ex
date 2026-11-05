@@ -4,6 +4,7 @@ defmodule SlipdockWeb.SprintChartComponents do
   from `Slipdock.Sprints.burndown/2` and `Slipdock.Sprints.velocity/2`.
   """
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   # The drawing area, in SVG units; the SVG scales to its container.
   @w 560
@@ -75,10 +76,10 @@ defmodule SlipdockWeb.SprintChartComponents do
           0
         </text>
         <text x={@left} y={@h - 8} class="fill-base-content/60 text-[10px]">
-          {Calendar.strftime(@first.date, "%-d %b")}
+          {Dates.short(@first.date)}
         </text>
         <text x={@w - @right} y={@h - 8} text-anchor="end" class="fill-base-content/60 text-[10px]">
-          {Calendar.strftime(@last.date, "%-d %b")}
+          {Dates.short(@last.date)}
         </text>
         <polyline
           points={@ideal}
@@ -95,7 +96,7 @@ defmodule SlipdockWeb.SprintChartComponents do
           stroke-width="2"
         />
         <circle :for={{px, py, d} <- @actual} cx={px} cy={py} r="3" class="fill-primary">
-          <title>{Calendar.strftime(d.date, "%a %-d %b")}: {d.remaining} left</title>
+          <title>{Dates.weekday(d.date)}: {d.remaining} left</title>
         </circle>
       </svg>
       <p :if={@chart.total > 0} class="flex gap-4 text-xs text-base-content/60">

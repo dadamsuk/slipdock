@@ -131,7 +131,7 @@ defmodule SlipdockWeb.BrokenLabelsLiveTest do
 
       {:ok, view, html} = live(conn, ~p"/users")
 
-      assert has_element?(view, "#last-seen-#{recent.id}", "5m ago")
+      assert has_element?(view, "#last-seen-#{recent.id}", "5 min ago")
       assert has_element?(view, "#last-seen-#{recent.id}[datetime='#{DateTime.to_iso8601(at)}']")
       refute has_element?(view, "#last-seen-#{never.id}")
       refute html =~ ~r/>\s*\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\s*</
@@ -146,7 +146,7 @@ defmodule SlipdockWeb.BrokenLabelsLiveTest do
 
     test "within the week it is relative" do
       at = DateTime.add(DateTime.utc_now(), -3 * 86_400)
-      assert UsersIndex.last_seen(at) == "3d ago"
+      assert UsersIndex.last_seen(at) == "3 days ago"
       assert UsersIndex.last_seen(DateTime.utc_now()) == "just now"
     end
   end

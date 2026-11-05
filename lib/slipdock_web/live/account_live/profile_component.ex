@@ -4,6 +4,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
   the way out.
   """
   use SlipdockWeb, :live_component
+  alias SlipdockWeb.Dates
 
   alias Slipdock.Accounts
 
@@ -157,9 +158,9 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
         </p>
         <p class="mt-3 text-sm font-medium">
           {if @limits.trial.expired?,
-            do: "Ended #{Calendar.strftime(@limits.trial.ends_at, "%-d %B %Y")}.",
+            do: "Ended #{Dates.long(@limits.trial.ends_at)}.",
             else:
-              "#{@limits.trial.days_left} day(s) left — until #{Calendar.strftime(@limits.trial.ends_at, "%-d %B %Y")}."}
+              "#{@limits.trial.days_left} day(s) left — until #{Dates.long(@limits.trial.ends_at)}."}
         </p>
       </section>
 

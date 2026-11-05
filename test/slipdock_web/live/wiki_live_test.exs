@@ -606,13 +606,19 @@ defmodule SlipdockWeb.WikiLiveTest do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
 
       stamps = "#page-details-#{page.id} #page-stamps"
-      assert has_element?(view, stamps, "Created 02 Jan 2026, 03:04")
+
+      assert has_element?(
+               view,
+               stamps,
+               "Created #{SlipdockWeb.Dates.datetime(~U[2026-01-02 03:04:05Z])}"
+             )
+
       assert has_element?(view, "#{stamps} time[datetime='2026-01-02T03:04:05Z']")
 
       assert has_element?(
                view,
                stamps,
-               "Updated " <> Calendar.strftime(updated, "%d %b %Y, %H:%M")
+               "Updated " <> SlipdockWeb.Dates.datetime(updated)
              )
 
       assert has_element?(view, "#{stamps} time[datetime='#{DateTime.to_iso8601(updated)}']")
