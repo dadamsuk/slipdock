@@ -330,10 +330,18 @@ The grid and saved views are also available over the API and CLI (`slipdock swim
 
 The **Table** button shows one row per card. Click a header to sort by it
 (again to flip the direction), choose which columns to show under
-**Display** (list, priority, flags, tags, due, done, checklist, comments,
-dependencies, subcards, cover, created, updated, id), and pick **Group by**
+**Display** (list, priority, assignee, flags, tags, due, done, checklist,
+comments, dependencies, subcards, cover, created, updated, id; title, list,
+priority, assignee, tags, due and done to start with), and pick **Group by**
 to split the rows into collapsible groups by any attribute, including date
-buckets. List, priority, due date and done are edited in place; the title
+buckets. List, priority, due date and done are edited in place: at rest a
+cell reads as plain text, and its control (the select's caret, the date's
+calendar and clear) appears when you point at the row or Tab to the cell.
+Tab moves through the editable cells row by row. Due is one date coloured
+by its state (overdue, due soon, done); a card with no due date of its own
+shows its subcards' latest in muted italics. Tags stay on one line, the
+first two and *+N*, with every tag in the tooltip, so rows are all one
+height. On a phone the stacked rows keep their controls showing. The title
 opens the card. The filter menu, search, density and saved views are shared
 with the swimlane view, and a saved view remembers which of the two it was
 made in. `slipdock table <board>` prints the same thing in the terminal.
@@ -346,9 +354,14 @@ date (a card with only one of the two is a one-day marker). Pick the
 arrows; *Today* jumps back. Drag a bar to move the card, or drag its edge to
 change one date; the change snaps to whole days. **Group by** splits the
 rows by any attribute, and cards without dates wait in an *Unscheduled* tray
-below with a date picker each. Filters, search, sort, density and saved views
-are shared with the other views; the page you are looking at is not part of a
-saved view.
+directly under the last row, with a date picker each. A bar too short for its
+title shows the whole title beside it, on the right, or on the left when the
+bar runs to the right edge; dependency lines are drawn under bars and titles,
+so they never cross one. Drag the edge of the title column's header to widen
+or narrow it (or focus it and use the arrow keys, Home and End; double-click
+or Enter resets it); the width is remembered in this browser. Filters,
+search, sort, density and saved views are shared with the other views; the
+page you are looking at is not part of a saved view.
 
 A card without dates of its own is placed by the dates rolled up from its
 subcards; such bars are outlined and can't be dragged. When the board has
@@ -363,7 +376,11 @@ views of the same board.
 The **Calendar** button shows a month (or, from the span menu, a week) with
 each card on its due date — or its start date when it has no due date. Drag a
 card to another day to reschedule it (a card with both dates keeps its length);
-drag it into the *No date* tray to clear its dates. The *+* on a day adds a
+drag it into the *No date* tray to clear its dates. Each chip starts with
+the card's title; its flags and priority show once a day is wide enough
+(about 15rem), and its tag dots and done tick on wider days still, so a
+month at an ordinary window width shows titles only. Point at a chip for the
+full title, its dates, priority, flags and tags. The *+* on a day adds a
 card due that day, and *+N more* expands a busy day. Filters, search, sort and
 saved views work as in the other views.
 
@@ -1962,8 +1979,11 @@ The **Narrative** tab tells what happened to the cards the current view
 selects — filters, grouping and sort all apply — over a date range: the
 last 7, 14, 30 or 90 days, or explicit dates. Under each card come the
 events from the activity log in that range: added, moved, completed,
-rescheduled, assigned, commented, status reported, voted; events on
-subcards anywhere beneath the card are told under it, marked ↳. A summary
+rescheduled, assigned, commented, status reported, voted. Lines under a
+card don't repeat its title ("moved it to Done"), and consecutive field
+changes to it on one day by the same person are one line ("set Reach 4000
+people, Impact 3, Confidence 80%"). Events on subcards anywhere beneath the
+card are told under it, marked ↳, and name the subcard. A summary
 opens the page (how many cards changed and how, what is overdue, blocked or
 at risk now), milestones passed and coming up follow, unchanged cards are
 listed in a line, and changes to the board itself close it. The *Display*
@@ -1983,11 +2003,26 @@ The **Prioritise** tab (`/boards/:id/prioritise`) is where a board gets
 ranked: one row per card with everything that feeds a ranking editable in
 place — the priority, votes (everyone's total, and −/+ for yours within
 the board's budget) and every scoring field (RICE, ICE, value ÷ effort or
-your own), with each formula's score at the end. Rows are ranked by the
+your own), with each formula's score at the end. A scoring field shows
+its unit straight after the value in the same box ("4000 people", "80%"),
+and numbers use tabular digits so a column of them lines up. Rows are ranked by the
 first formula's score, highest first, or by votes when the board has no
 scoring model yet (the owner can install a preset from the header);
 click a column header to rank by that instead. Completed cards are hidden
 by default; the usual filters, search and saved views apply.
+
+## Activity
+
+A board's **Activity** panel is its log: cards added, moved, edited and
+finished, lists and automations changed, pages written. Every entry says who
+did it: a person, with the avatar their cards show; an agent, by its
+token's name; *Automation: <rule>* for a rule's work; *Email from <name>*
+for a card sent in by email; and *System* for the server's own jobs.
+Entries from before actors were recorded say *Someone*, and a deleted
+person's entries keep the name they had. Entries are grouped by day in
+your own timezone (*Today*, *Yesterday*, then the date), each kind of
+change has its own icon, and older entries load as you scroll to the
+bottom.
 
 ## Your boards
 
