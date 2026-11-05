@@ -309,7 +309,13 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   subcard and checklist progress, and what blocks it, plus its cover and
   image. Tick the rest in **Display** (start date, % complete, time
   tracked, a description mark, comments, attachments, time in list). A card
-  showing both dates draws them as one range, *31 Oct → 5 Nov*. Plain facts
+  showing both dates draws them as one range, *31 Oct → 5 Nov*.
+  Priority is drawn as signal bars everywhere it appears (the card, the
+  outline, the table, the calendar and the filter menu): one bar lit for
+  low, two for medium, three for high, all four for critical; point at
+  them for the name. Point at a start date and it says when in words,
+  *Starts in 11 days* or *Started 11 days late* (when the subcards began
+  after it), and the card's panel says the same under *Start*. Plain facts
   are plain text; only what needs attention is tinted: overdue, due soon,
   blocked, flagged, waiting on someone. A saved view keeps the facets it
   was saved with.
@@ -381,10 +387,10 @@ The **Calendar** button shows a month (or, from the span menu, a week) with
 each card on its due date — or its start date when it has no due date. Drag a
 card to another day to reschedule it (a card with both dates keeps its length);
 drag it into the *No date* tray to clear its dates. Each chip starts with
-the card's title; its flags and priority show once a day is wide enough
+the card's title; its flags and priority (bar medium) show once a day is wide enough
 (about 15rem), and its tag dots and done tick on wider days still, so a
 month at an ordinary window width shows titles only. Point at a chip for the
-full title, its dates, priority, flags and tags. The *+* on a day adds a
+full title, its dates, priority (bar medium), flags and tags. The *+* on a day adds a
 card due that day, and *+N more* expands a busy day. Filters, search, sort and
 saved views work as in the other views.
 
@@ -4564,7 +4570,7 @@ that page's backlinks, naming the page it was written on — exactly as a
 comment on a card does.
 
 So a placed page is drawn as a card, and behaves as one everywhere. It has a
-cover strip, its priority chevron, its assignee's avatar, its due chip; it
+cover strip, its priority bars, its assignee's avatar, its due chip; it
 appears in **every** view — board, swimlanes, table, timeline, calendar — and
 is grouped, filtered and sorted beside the work. Drag it into the "Critical"
 row and its priority changes, exactly as a card's would. The one difference

@@ -13,37 +13,95 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   ## Priority --------------------------------------------------------------
 
+  # Priority draws as one family, signal bars (#1709): one bar lit for low,
+  # two for medium, three for high, all four for critical. The same mark is
+  # used on the card face, the outline, the table, the calendar and the
+  # filter menu, so a priority looks the same wherever it is read.
   @priorities %{
-    "none" => {"None", nil, nil},
-    "low" => {"Low", "hero-arrow-down", "text-sky-600 dark:text-sky-300"},
-    "medium" => {"Medium", "hero-minus", "text-amber-600 dark:text-amber-300"},
-    "high" => {"High", "hero-chevron-up", "text-orange-600 dark:text-orange-300"},
-    "critical" => {"Critical", "hero-chevron-double-up", "text-rose-600 dark:text-rose-300"}
+    "none" => {"None", 0, nil},
+    "low" => {"Low", 1, "text-sky-600 dark:text-sky-300"},
+    "medium" => {"Medium", 2, "text-amber-600 dark:text-amber-300"},
+    "high" => {"High", 3, "text-orange-600 dark:text-orange-300"},
+    "critical" => {"Critical", 4, "text-rose-600 dark:text-rose-300"}
   }
 
   def priority_options, do: Enum.map(~w(none low medium high critical), &{priority_label(&1), &1})
   def priority_label(p), do: @priorities |> Map.fetch!(p) |> elem(0)
 
+  @doc "How many of the four signal bars a priority lights: 0 for none (or an unknown value), 4 for critical."
+  def priority_level(p) do
+    case Map.fetch(@priorities, p) do
+      {:ok, {_, level, _}} -> level
+      :error -> 0
+    end
+  end
+
+  @doc """
+  Whether a priority is drawn where a card is shown on its own (the card
+  face, the outline, the calendar). Medium is the default most cards carry,
+  so it says nothing there; it is drawn only where every priority is listed,
+  such as the table and the filter menu (#1708, #1709).
+  """
+  def priority_on_face?(p), do: priority_level(p) > 0 and p != "medium"
+
+  attr :level, :integer, required: true, doc: "bars lit, 0 to 4"
+  attr :class, :string, default: "size-3.5"
+
+  @doc "Four signal bars, rising left to right, with `level` of them lit."
+  def priority_bars(assigns) do
+    ~H"""
+    <svg
+      viewBox="0 0 16 16"
+      class={["shrink-0", @class]}
+      fill="currentColor"
+      aria-hidden="true"
+      data-role="priority-bars"
+      data-level={@level}
+    >
+      <rect
+        :for={i <- 1..4}
+        x={1 + (i - 1) * 3.75}
+        y={14 - i * 3}
+        width="2.5"
+        height={i * 3}
+        rx="0.6"
+        data-lit={to_string(i <= @level)}
+        opacity={if i <= @level, do: "1", else: "0.25"}
+      />
+    </svg>
+    """
+  end
+
   attr :priority, :string, required: true
   attr :with_label, :boolean, default: false
 
-  def priority_badge(%{priority: "none"} = assigns) do
+  @doc """
+  A priority as signal bars, with a tooltip naming it ("Priority: High").
+  No priority, nil or a value it doesn't know draws nothing, bar the "No
+  priority" label when `with_label` asks for one.
+  """
+  def priority_badge(%{priority: p} = assigns)
+      when not is_map_key(@priorities, p) or p == "none" do
     ~H"""
     <span :if={@with_label} class="text-xs opacity-50">No priority</span>
     """
   end
 
   def priority_badge(assigns) do
-    {label, icon, color} = Map.fetch!(@priorities, assigns.priority)
-    assigns = assign(assigns, label: label, icon_name: icon, color: color)
+    {label, level, color} = Map.fetch!(@priorities, assigns.priority)
+    assigns = assign(assigns, label: label, level: level, color: color)
 
     ~H"""
     <span
       class={["chip chip-tint", !@with_label && "chip-icon", @color]}
       title={"Priority: #{@label}"}
+      role="img"
+      aria-label={"Priority: #{@label}"}
+      data-role="priority"
+      data-priority={@priority}
     >
-      <.icon name={@icon_name} class="size-3.5" />
-      <span :if={@with_label}>{@label}</span>
+      <.priority_bars level={@level} />
+      <span :if={@with_label} aria-hidden="true">{@label}</span>
     </span>
     """
   end
@@ -320,7 +378,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           cond do
             @state == :done -> "hero-check-circle"
             @derived -> "hero-arrow-up-on-square-stack"
-            true -> "hero-clock"
+            true -> due_icon()
           end
         }
         class="size-3"
@@ -409,7 +467,8 @@ defmodule SlipdockWeb.SlipdockComponents do
     <span
       :if={@start_slip > 0 and not @card.completed}
       class={@class}
-      title={past_date_detail(:start, @start_slip, @derived_start)}
+      data-role="start-slip"
+      title={"#{start_words(@card)}. " <> past_date_detail(:start, @start_slip, @derived_start)}
     >
       <.icon name="hero-arrow-trending-up" class="size-3" /> start +{@start_slip}d
     </span>
@@ -939,7 +998,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           if(@derived, do: " (rolled up from subcards)", else: "")
       }
     >
-      <.icon name="hero-calendar" class="size-3" />
+      <.icon name="hero-calendar-date-range" class="size-3" />
       {format_range(@start, @due)}
     </span>
     """
@@ -954,31 +1013,83 @@ defmodule SlipdockWeb.SlipdockComponents do
       else: Dates.long(date)
   end
 
+  # The date icons, one pair everywhere a start or a due date is drawn: the
+  # card face, the filter menu and the card back (#1709). An arrow into a
+  # circle for "begins", a calendar for "due". The clock is the Waiting
+  # flag's, and the play triangle read as media controls.
+  @start_icon "hero-arrow-right-circle"
+  @due_icon "hero-calendar"
+
+  @doc "The icon drawn beside a start date."
+  def start_icon, do: @start_icon
+  @doc "The icon drawn beside a due date."
+  def due_icon, do: @due_icon
+
+  @doc """
+  When a card starts, said in words and counted from `today` (#1709):
+  "Starts in 11 days", "Starts tomorrow", "Starts today", "Started
+  yesterday", "Started 3 days ago". When its subcards begin after the
+  card's own start date it says how late instead: "Started 11 days late",
+  or "Starts 11 days late" while they are still to begin. A completed card
+  is never late. `nil` when the card has no start date at all.
+  """
+  def start_words(card, today \\ Date.utc_today()) do
+    slip = Slipdock.Boards.Card.start_slip(card)
+
+    case Slipdock.Boards.Card.effective_start(card) do
+      nil ->
+        nil
+
+      %Date{} = start ->
+        if slip > 0 and not Map.get(card, :completed, false),
+          do: late_words(slip, card.rollup.derived_start || start, today),
+          else: start_in_words(Date.diff(start, today))
+    end
+  end
+
+  defp late_words(slip, begins, today) do
+    verb = if Date.compare(begins, today) == :gt, do: "Starts", else: "Started"
+    "#{verb} #{slip} #{plural_days(slip)} late"
+  end
+
+  defp start_in_words(0), do: "Starts today"
+  defp start_in_words(1), do: "Starts tomorrow"
+  defp start_in_words(-1), do: "Started yesterday"
+  defp start_in_words(n) when n > 1, do: "Starts in #{n} days"
+  defp start_in_words(n), do: "Started #{-n} days ago"
+
   attr :card, :map, required: true
 
-  @doc "When the card starts: its own start date, or the one rolled up from its subcards."
+  @doc """
+  When the card starts: its own start date, or the one rolled up from its
+  subcards. The tooltip says it in words first ("Starts in 11 days",
+  "Started 11 days late"), then the full date.
+  """
   def start_badge(assigns) do
     card = assigns.card
 
     assigns =
       assign(assigns,
         date: Slipdock.Boards.Card.effective_start(card),
-        derived: Slipdock.Boards.Card.start_derived?(card)
+        derived: Slipdock.Boards.Card.start_derived?(card),
+        words: start_words(card),
+        icon_name: @start_icon
       )
 
     ~H"""
     <span
       :if={@date}
+      data-role="start"
       class={[
         "chip chip-line text-base-content/70",
         @derived && "ring-1 ring-inset ring-dashed ring-current/40"
       ]}
       title={
-        "Starts #{Dates.full(@date)}" <>
+        "#{@words}: #{Dates.full(@date)}" <>
           if(@derived, do: " (rolled up from subcards)", else: "")
       }
     >
-      <.icon name="hero-play" class="size-3" /> {format_day(@date)}
+      <.icon name={@icon_name} class="size-3" /> {format_day(@date)}
     </span>
     """
   end
@@ -1121,7 +1232,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       flags: on.("flags") and card.flags != [],
       # Medium is the unremarkable middle, so a card's front leaves it out
       # (#1708): high, critical and low are the ones worth a glance.
-      priority: on.("priority") and card.priority not in ~w(none medium),
+      priority: on.("priority") and priority_on_face?(card.priority),
       assignee: on.("assignee") and Slipdock.Boards.Card.assignees(card) != [],
       start_date: on.("start_date") and not is_nil(Slipdock.Boards.Card.effective_start(card)),
       due_date: on.("due_date") and not is_nil(Slipdock.Boards.Card.effective_due(card)),
@@ -2293,7 +2404,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           <p class="mb-1.5 section-label">
             Priority
           </p>
-          <div class="flex flex-wrap gap-1">
+          <div class="flex flex-wrap gap-1" data-role="filter-priority">
             <button
               :for={p <- ~w(low medium high critical)}
               type="button"
@@ -2320,8 +2431,8 @@ defmodule SlipdockWeb.SlipdockComponents do
           </div>
         </div>
         <div>
-          <p class="mb-1.5 section-label">
-            Due
+          <p class="mb-1.5 flex items-center gap-1 section-label" data-role="filter-due">
+            <.icon name={due_icon()} class="size-3.5" /> Due
           </p>
           <div class="flex flex-wrap gap-1">
             <button

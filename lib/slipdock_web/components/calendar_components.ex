@@ -366,7 +366,7 @@ defmodule SlipdockWeb.CalendarComponents do
             do: Enum.take(assigns.card.flags || [], if(assigns.compact, do: 1, else: 2)),
             else: []
           ),
-        priority?: on.("priority") and assigns.card.priority != "none",
+        priority?: on.("priority") and priority_on_face?(assigns.card.priority),
         tags:
           if(!assigns.compact and on.("tags"),
             do: Enum.take(loaded(assigns.card.tags), 3),
@@ -448,7 +448,7 @@ defmodule SlipdockWeb.CalendarComponents do
       card.title,
       dates,
       card.completed && "Done",
-      card.priority not in [nil, "none"] &&
+      SlipdockWeb.SlipdockComponents.priority_on_face?(card.priority) &&
         "Priority: #{SlipdockWeb.SlipdockComponents.priority_label(card.priority)}",
       (card.flags || []) != [] &&
         "Flags: " <> Enum.map_join(card.flags, ", ", &SlipdockWeb.SlipdockComponents.flag_label/1),

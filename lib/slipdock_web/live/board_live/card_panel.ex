@@ -1368,6 +1368,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :name, :string, required: true, doc: "`data-prop`, for tests and the e2e script"
   attr :label, :string, required: true
   attr :for, :string, default: nil, doc: "the id of the value's own input, if it has one"
+  attr :icon, :string, default: nil, doc: "a heroicon drawn before the label"
   attr :rest, :global
   slot :inner_block, required: true
 
@@ -1384,12 +1385,18 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         :if={@for}
         for={@for}
         data-role="prop-label"
-        class="truncate text-xs text-base-content/60"
+        class="flex min-w-0 items-center gap-1 text-xs text-base-content/60"
       >
-        {@label}
+        <.icon :if={@icon} name={@icon} class="size-3.5 shrink-0" />
+        <span class="truncate">{@label}</span>
       </label>
-      <span :if={!@for} data-role="prop-label" class="truncate text-xs text-base-content/60">
-        {@label}
+      <span
+        :if={!@for}
+        data-role="prop-label"
+        class="flex min-w-0 items-center gap-1 text-xs text-base-content/60"
+      >
+        <.icon :if={@icon} name={@icon} class="size-3.5 shrink-0" />
+        <span class="truncate">{@label}</span>
       </span>
       <div data-role="prop-value" class="min-w-0 text-sm">{render_slot(@inner_block)}</div>
     </div>
@@ -1532,7 +1539,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       <p :if={@form[:percent_complete].errors != []} class="text-xs text-error">
         Use a whole number from 0 to 100.
       </p>
-      <.prop_row :if={not @board.simple} name="start" label="Start">
+      <.prop_row :if={not @board.simple} name="start" label="Start" icon={start_icon()}>
         <.date_field
           id={"card-start-date-#{@card.id}"}
           name="card[start_date]"
@@ -1543,7 +1550,16 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           aria-label="Start date"
         />
       </.prop_row>
-      <.prop_row name="due" label="Due">
+      <%!-- The start in words (#1709): "Starts in 11 days", "Started 11
+            days late". --%>
+      <p
+        :if={(not @board.simple and @card.start_date) && start_words(@card)}
+        class="pl-24 text-xs text-base-content/60"
+        data-role="start-words"
+      >
+        {start_words(@card)}
+      </p>
+      <.prop_row name="due" label="Due" icon={due_icon()}>
         <div class="flex min-w-0 flex-wrap items-center gap-1">
           <.date_field
             id={"card-due-date-#{@card.id}"}
