@@ -533,7 +533,15 @@ keeps its own. A board's `verify_rejection_limit` (2 by default, 0 never;
 `slipdock set-board --verify-rejection-limit`) sends the rejection after that
 many to a person: a wait on the board's owner, *Rework as rejected* or
 *Accept as is*, with the card flagged `waiting` so runners pass it over. An
-agent never answers it.
+agent never answers it. A board's `verify_audit` (1 in N; 0, the default,
+none; `slipdock set-board --verify-audit N`) checks the checker: about one card
+in N that an agent accepted is queued to the verify pool again as an audit, a
+`verify` job marked `audit`, never to the runner that built it or the one that
+verified it (on a pull request board, once it has merged). Its prompt shows
+the original verdict and has every rule judged, `should` ones too. The audit
+changes nothing: `slipdock verify <id> agree|disagree --reason …` (or
+`verify_card`) is a comment, and a disagreement raises an alert for the board's
+owner. The acceptance stands.
 The installer's config gives every runner a `job_verify` that runs the same
 agent on the server's prompt, without the standing instructions, so a runner
 can check another runner's work. Deciding is `verify_card` or `slipdock

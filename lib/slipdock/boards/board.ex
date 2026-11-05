@@ -106,6 +106,9 @@ defmodule Slipdock.Boards.Board do
     # How many rejections a card may have before the next goes to a person
     # (#1779): it opens a wait on the board's owner. 0 is no limit.
     field :verify_rejection_limit, :integer, default: 2
+    # Spot-checks (#1780): about 1 in N cards an agent accepted is queued
+    # again for the verify pool as an audit. 0 audits none.
+    field :verify_audit, :integer, default: 0
     # How the board's verified work reaches the default branch (#1654):
     # "push" (the builder pushes it) or "pull_request" (the builder opens a
     # pull request, and accepting the card queues a merge job). pull_request
@@ -521,6 +524,7 @@ defmodule Slipdock.Boards.Board do
       :verify_work,
       :verify_pool,
       :verify_rejection_limit,
+      :verify_audit,
       :ship_via,
       :kind,
       :default_view
@@ -535,6 +539,11 @@ defmodule Slipdock.Boards.Board do
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 50,
       message: "must be 0 (no limit) to 50"
+    )
+    |> validate_number(:verify_audit,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 1000,
+      message: "must be 0 (no audits) or N, to audit 1 in N accepted cards (at most 1000)"
     )
     |> put_ship_via()
     |> update_change(:handoff_label, &trim_to_nil/1)
