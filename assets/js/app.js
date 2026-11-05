@@ -45,6 +45,7 @@ import {DockDrag} from "./dock_drag"
 import {DateField} from "./date_field"
 import {FilePicker} from "./file_picker"
 import {TagFilter} from "./tag_filter"
+import {installKeyHints} from "./key_hints"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -948,10 +949,15 @@ Hooks.CardKeys = {
   mounted() {
     this.aim = null
     document.addEventListener("keydown", (this.onKey = e => this.key(e)), true)
+    // The letters are underlined only while Alt is held (#1728). The switch
+    // goes on <html>, which no patch rewrites, not on the panel, which every
+    // patch does.
+    this.stopHints = installKeyHints(document.documentElement)
   },
 
   destroyed() {
     document.removeEventListener("keydown", this.onKey, true)
+    this.stopHints()
   },
 
   key(e) {

@@ -1843,11 +1843,13 @@ defmodule SlipdockWeb.SlipdockComponents do
   defp open_item(false, id), do: JS.push("open_card", value: %{id: id})
 
   @doc """
-  A label with one letter underlined: the key that jumps to it.
+  A label with one letter marked: the key that jumps to it.
 
   The card dialog's sections are reached by key — `SlipdockWeb.Shortcuts` writes
-  them down and the `CardKeys` hook acts on them — and the underline is how a
-  heading says which key is its own. The letter is the first match in the
+  them down and the `CardKeys` hook acts on them — and an underline is how a
+  heading says which key is its own. Only while Alt (Option) is held, as menu
+  accelerators do (#1728): at rest an underline on every heading reads as a
+  rendering fault. `.keyed-key` in app.css draws it under `[data-show-keys]`. The letter is the first match in the
   label, case-insensitively; a key the label does not contain is rendered
   plainly rather than guessed at.
   """
@@ -1859,7 +1861,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     assigns = assign(assigns, before: before, letter: letter, rest: rest)
 
     ~H"""
-    <span phx-no-format>{@before}<u :if={@letter != ""} class="underline decoration-1 underline-offset-2">{@letter}</u>{@rest}</span>
+    <span phx-no-format>{@before}<u :if={@letter != ""} class="keyed-key">{@letter}</u>{@rest}</span>
     """
   end
 

@@ -43,6 +43,41 @@ defmodule SlipdockWeb.BoardLive.CardSections do
           >
             <.icon name="hero-queue-list" class="size-3.5" /> Add cards…
           </button>
+          <%!-- The rarely wanted, destructive action, out of the way (#1728). --%>
+          <button
+            :if={@can_write and @card.sub_board}
+            type="button"
+            id="subcards-more"
+            popovertarget="subcards-more-menu"
+            class="btn btn-ghost btn-xs btn-square"
+            title="More for the subcards"
+            aria-label="More for the subcards"
+          >
+            <.icon name="hero-ellipsis-horizontal" class="size-4" />
+          </button>
+          <div
+            :if={@can_write and @card.sub_board}
+            id="subcards-more-menu"
+            popover
+            phx-hook="AnchoredPopover"
+            data-anchor="subcards-more"
+            class="pop-menu"
+          >
+            <ul class="menu w-48 rounded-xl bg-base-100 p-1 text-sm shadow-xl ring-1 ring-base-content/10">
+              <li>
+                <button
+                  id="delete-sub-board"
+                  phx-target={@target}
+                  type="button"
+                  class="text-error"
+                  phx-click="delete_sub_board"
+                  data-confirm="Remove all subcards of this card? This deletes them permanently."
+                >
+                  <.icon name="hero-trash" class="size-4" /> Remove subcards
+                </button>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -120,33 +155,36 @@ defmodule SlipdockWeb.BoardLive.CardSections do
                 </.link>
               </li>
             </ul>
-            <form
-              phx-target={@target}
-              id={"add-subcard-#{col.id}-#{@form_key}"}
-              phx-submit="quick_add_subcard"
-              class="mt-1"
-            >
-              <input type="hidden" name="column_id" value={col.id} />
-              <input
-                type="text"
-                name="title"
-                placeholder="Add a subcard…"
-                class="input field w-full"
-                autocomplete="off"
-                required
-              />
-            </form>
           </div>
         </div>
-        <button
+        <%!-- One add row (#1728): the title, the list it goes in (the first
+              unless picked), and Add. --%>
+        <form
+          :if={@can_write}
           phx-target={@target}
-          type="button"
-          class="btn btn-ghost btn-error btn-xs"
-          phx-click="delete_sub_board"
-          data-confirm="Remove all subcards of this card? This deletes them permanently."
+          id={"add-subcard-#{@form_key}"}
+          phx-submit="quick_add_subcard"
+          class="flex flex-wrap items-center gap-2 sm:flex-nowrap"
         >
-          <.icon name="hero-trash" class="size-3.5" /> Remove subcards
-        </button>
+          <input
+            type="text"
+            name="title"
+            placeholder="Add a subcard…"
+            aria-label="New subcard's title"
+            class="input field min-w-0 flex-1"
+            autocomplete="off"
+            required
+          />
+          <select
+            name="column_id"
+            class="select field w-auto max-w-[10rem]"
+            aria-label="The list it goes in"
+            title="The list it goes in"
+          >
+            <option :for={col <- @card.sub_board.columns} value={col.id}>{col.name}</option>
+          </select>
+          <button type="submit" class="btn btn-sm">Add</button>
+        </form>
       <% else %>
         <p class="text-xs text-base-content/50">
           Turn this card into a board of its own. Pick a template for its lists.

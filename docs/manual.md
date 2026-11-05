@@ -1417,7 +1417,8 @@ template. The card gets a **sub-board**: a real board with the template's
 lists, named after the card and sharing the parent's colour. Everything a
 board can do works inside it — drag and drop, swimlanes, saved views, the
 API and the CLI — and sub-boards nest to any depth. The card modal shows the
-subcards grouped by list with a progress bar, lets you add and tick them off,
+subcards grouped by list with a progress bar, lets you tick them off and add
+them from one row (the title, then the list it goes in),
 and its line under the title (*Board › List · #id · created*) has the one
 **Open board** link, with how many are done; the card itself carries a `done/total`
 badge. The sub-board's header shows a breadcrumb back through every parent.
@@ -2304,7 +2305,8 @@ card).
 - `↑` `↓` or `j` `k` scroll it, `PgUp` `PgDn` a screenful at a time,
   `Home` `End` the top or the bottom
 - `h` `l` step to the section before or after, for when the letter escapes you
-- a section's own letter jumps to it — the letter underlined in its heading:
+- a section's own letter jumps to it — hold **Alt** (**Option** on a Mac) to
+  see each heading's letter underlined:
   `f` Flags, `t` Tags, `d` Description, `a` Attachments, `e` Ch**e**cklist,
   `s` Subcards, `p` De**p**endencies, `n` Li**n**ks, `w` Web links,
   `c` Comments. `f` and `t` also open the section's picker: the card shows
@@ -2315,7 +2317,7 @@ card).
 Four sections do not get their first letter: Comments and Description were
 there first, so Checklist and Dependencies gave way, and `h` `j` `k` `l` belong
 to moving about, so Checklist and Links gave way again. The underline in the
-heading is always the authority.
+heading (with Alt held) is always the authority.
 
 Once the keyboard is on the board, a strip along the bottom says what it is on
 and what the keys will do. Carrying a card (after `J`):

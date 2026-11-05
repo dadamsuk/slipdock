@@ -81,16 +81,16 @@ defmodule SlipdockWeb.KeyboardLiveTest do
       end
     end
 
-    test "each heading underlines the letter that reaches it", %{view: view} do
+    test "each heading marks the letter that reaches it", %{view: view} do
       html = render(view)
 
       # Not always the first letter: Comments has C, and hjkl move about, so
       # Checklist is down to its E and Links to its N.
-      assert html =~ ~s{<u class="underline decoration-1 underline-offset-2">D</u>escription}
-      assert html =~ ~s{Ch<u class="underline decoration-1 underline-offset-2">e</u>cklist}
-      assert html =~ ~s{De<u class="underline decoration-1 underline-offset-2">p</u>endencies}
-      assert html =~ ~s{Li<u class="underline decoration-1 underline-offset-2">n</u>ks}
-      assert html =~ ~s{<u class="underline decoration-1 underline-offset-2">C</u>omments}
+      assert html =~ ~s{<u class="keyed-key">D</u>escription}
+      assert html =~ ~s{Ch<u class="keyed-key">e</u>cklist}
+      assert html =~ ~s{De<u class="keyed-key">p</u>endencies}
+      assert html =~ ~s{Li<u class="keyed-key">n</u>ks}
+      assert html =~ ~s{<u class="keyed-key">C</u>omments}
     end
 
     test "no two sections share a key", %{view: view} do

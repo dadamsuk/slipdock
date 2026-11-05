@@ -574,6 +574,16 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
   .card-meta .chip-line:not(.chip-icon) { padding-inline: 0; }
 }
 
+/* A section's key letter (#1728): underlined only while Alt is held
+   (`CardKeys` sets data-show-keys on the card panel), as menu accelerators
+   are; plain the rest of the time. */
+.keyed-key { text-decoration: none; }
+[data-show-keys] .keyed-key {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
 /* Motion ------------------------------------------------------------- */
 @keyframes kanban-modal-in {
   from { transform: translateY(6px) scale(0.98); opacity: 0; }
