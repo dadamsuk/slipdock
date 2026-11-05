@@ -173,4 +173,27 @@ defmodule Slipdock.CiWorkflowTest do
       assert runs?(job("test"), "mix test --partitions 4")
     end
   end
+
+  # The epic's bar (#1766): every static check in one place, so losing any
+  # one of them fails here as well as in its own describe block above.
+  test "all five static checks run on a pull request, for the app and the CLI where they apply" do
+    static = job("static")
+
+    for command <- [
+          "mix hex.audit",
+          "mix deps.audit",
+          "mix sobelow --config",
+          ~s(mix credo diff --from-git-merge-base origin/main --config-file "$PWD/.credo.exs")
+        ] do
+      assert runs?(static, command), "static checks no longer run `#{command}`"
+    end
+
+    assert Enum.any?(job("secrets"), &String.starts_with?(&1, "run: /tmp/gitleaks git "))
+    assert File.exists?(Path.join(@root, "test/slipdock/boundaries_test.exs"))
+
+    # The CLI: no dependencies to read for deps.audit; credo covers it from
+    # the root; gitleaks scans the whole repository; sobelow is Phoenix-only.
+    assert runs?(job("cli"), "mix hex.audit")
+    assert File.read!(Path.join(@root, ".credo.exs")) =~ ~s("cli/lib/")
+  end
 end
