@@ -1087,7 +1087,8 @@ defmodule SlipdockCLI.Render do
     # How the work ships, on a board that ships by pull request (#1655).
     if sh = c["shipping"] do
       IO.puts("")
-      IO.puts(bold("Ships by pull request") <> dim("  branch #{sh["branch"]}"))
+      neutral = if sh["neutral"], do: " · security: a neutral PR", else: ""
+      IO.puts(bold("Ships by pull request") <> dim("  branch #{sh["branch"]}#{neutral}"))
       IO.puts(indent(sh["instructions"]))
     end
 

@@ -825,6 +825,18 @@ once, watch the pull request's checks, `done --pr`), and so does the card:
 `instructions`). A rejected card's next attempt pushes the same branch, so
 the same pull request updates rather than a second one opening.
 
+**Security fixes don't announce themselves.** A public repository's pull
+requests can be read before the fix deploys, so a card tagged `security`
+is told to open a neutral one: the title `Maintenance (#<id>)` instead of
+the card's title, `--body "Card #<id>."` instead of `--fill` (which copies
+the commit messages), and commit messages, title and body that say what
+changed in general terms ("Tighten access checks in board events"), with no
+exploit and no list of affected endpoints. The detail stays on the card, on
+a private board, until the fix is deployed; the closing comment may link it
+after that. `shipping` has `neutral: true` and `slipdock card` shows
+*security: a neutral PR*. Merges are already neutral (`Merge PR <n>: card
+#<id>`).
+
 The pull request's CI is the one full test run. Before pushing, the builder
 runs the tests it added or changed and the quick checks (formatting, a
 compile that fails on warnings), not the whole suite, and it completes the

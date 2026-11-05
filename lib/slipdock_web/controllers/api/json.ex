@@ -1159,6 +1159,8 @@ defmodule SlipdockWeb.API.JSON do
         Map.put(map, :shipping, %{
           via: "pull_request",
           branch: Slipdock.Verified.pr_branch(card),
+          # A security card's PR describes the change neutrally (#1794).
+          neutral: Slipdock.Verified.neutral?(card),
           instructions: text
         })
     end

@@ -447,23 +447,60 @@ defmodule Slipdock.Verified do
   push `card-<id>` and open (or update) the pull request, and name it when
   completing. Said in a claimed job's prompt and in the card's JSON, so a
   runner or an older skill needs nothing else to know.
+
+  A card tagged `security` (see `neutral?/1`, #1794) gets a neutral pull
+  request instead: the repository may be public, and a PR describes the
+  hole for anyone to read before the fix deploys. Its title is
+  `neutral_pr_title/1`, never the card's; its body is only the card id,
+  never `--fill` from the commits; and the builder is told to keep the
+  commits, title and body to a neutral description of the change.
   """
   def ship_instructions(%Card{} = card) do
     if Board.ships_by_pr?(board(card)) do
       branch = pr_branch(card)
+      neutral = neutral?(card)
+
+      create =
+        if neutral,
+          do:
+            ~s(gh pr create --head #{branch} --title "#{neutral_pr_title(card)}" --body "Card ##{card.id}.")
+            |> then(&"`#{&1}` (a neutral title, not the card's)"),
+          else: "`gh pr create --head #{branch} --title \"#{pr_title(card)}\" --fill`"
 
       """
       This board ships by pull request: never push the default branch.
       - Work on the branch `#{branch}`: `git fetch origin && git switch #{branch}` if it is on origin (a rejected card's earlier attempt), else `git switch -c #{branch}`. Rebase it on the default branch before pushing.
       - Commit with the card id (##{card.id}) in the message, then `git push -u origin #{branch}`.
-      - Open the pull request once: `gh pr view #{branch}` shows one already open, which the push has updated; otherwise `gh pr create --head #{branch} --title "#{pr_title(card)}" --fill`.
-      - Before pushing, run the tests you added or changed and the project's quick checks (formatting, a compile that fails on warnings), not the whole suite: the pull request's CI runs it.
+      - Open the pull request once: `gh pr view #{branch}` shows one already open, which the push has updated; otherwise #{create}.
+      #{if neutral, do: neutral_note() <> "\n", else: ""}- Before pushing, run the tests you added or changed and the project's quick checks (formatting, a compile that fails on warnings), not the whole suite: the pull request's CI runs it.
       - The build to watch is the pull request's (`gh pr checks #{branch} --watch`). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
       - Complete the card with its URL: `slipdock done #{card.id} --pr <url>` (complete_card `pr`), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
       """
       |> String.trim_trailing()
     end
   end
+
+  defp neutral_note do
+    "- This is a security fix, and the pull request, its commits and the branch are public before it deploys. " <>
+      "Describe the change neutrally everywhere they show (commit messages, the PR's title and body, code comments): " <>
+      "what it does in general terms (\"Tighten access checks in board events\"), never the hole, how to exploit it " <>
+      "or a list of the affected endpoints. The detail stays on this card until the fix is deployed; " <>
+      "after that, the closing comment may link to it."
+  end
+
+  @doc """
+  Whether `card`'s pull request is to be neutral (#1794): it is tagged
+  `security`. Its tags are loaded if they aren't.
+  """
+  def neutral?(%Card{} = card) do
+    card
+    |> Repo.preload(:tags)
+    |> Map.fetch!(:tags)
+    |> Enum.any?(&(String.downcase(&1.name) == "security"))
+  end
+
+  @doc "The pull request title a security card gets (#1794): its id and nothing else."
+  def neutral_pr_title(%Card{id: id}), do: "Maintenance (##{id})"
 
   defp pr_title(%Card{} = card) do
     title = card.title |> String.replace(~s("), "'") |> String.slice(0, 80)
