@@ -178,6 +178,64 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
       # Asked to stop, it is no longer hung: the incident clears.
       assert {:ok, %{"cleared" => 1}} = Health.run(ctx.board, detectors: [HungJob])
     end
+
+    # #1853: an epic's pass writes on the subcard it is working, and each
+    # subcard it submits sets off a verify job and a merge.
+    defp subcard(card, title) do
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = Boards.create_sub_board(card, t)
+      [column | _] = Boards.get_board!(sub.id).columns
+      card_fixture(column, %{"title" => title})
+    end
+
+    defp age_comments(card, minutes),
+      do:
+        Repo.update_all(from(c in Boards.Comment, where: c.card_id == ^card.id),
+          set: [inserted_at: ago(minutes)]
+        )
+
+    test "a note on a subcard of the job's card, however deep, is a sign of work", ctx do
+      running(ctx, 60)
+      one = subcard(ctx.card, "One")
+      deeper = subcard(one, "Deeper")
+
+      {:ok, _} = Boards.add_comment(one, "Submitted #1, PR green", by: ctx.owner)
+      assert detect(HungJob, ctx.board) == []
+
+      age_comments(one, 50)
+      assert [_] = detect(HungJob, ctx.board)
+
+      {:ok, _} = Boards.add_comment(deeper, "Started", by: ctx.owner)
+      assert detect(HungJob, ctx.board) == []
+    end
+
+    test "a job on a subcard being claimed, reporting or ending is a sign of work", ctx do
+      job = running(ctx, 60)
+      one = subcard(ctx.card, "One")
+
+      for at <- [:claimed_at, :step_at, :finished_at] do
+        verify = job(one, [{:kind, "verify"}, {:pool, "verify"}, {:status, "done"}, {at, ago(5)}])
+        assert detect(HungJob, ctx.board) == [], "#{at} on the subcard's job"
+        Repo.delete!(verify)
+      end
+
+      # One that moved before this job was claimed is no sign of this one.
+      job(one, kind: "verify", pool: "verify", status: "done", finished_at: ago(90))
+      assert [%{subject: %{"job" => id}}] = detect(HungJob, ctx.board)
+      assert id == job.id
+    end
+
+    test "the server's notes on a subcard, and work on another card, are not", ctx do
+      running(ctx, 60)
+      one = subcard(ctx.card, "One")
+      {:ok, _} = Boards.add_comment(one, "Health monitor: stuck")
+
+      other = card_fixture(ctx.todo, %{"title" => "Elsewhere"})
+      {:ok, _} = Boards.add_comment(other, "Busy here", by: ctx.owner)
+      job(other, status: "done", finished_at: ago(1))
+
+      assert [_] = detect(HungJob, ctx.board)
+    end
   end
 
   describe "idle_feed" do

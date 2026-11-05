@@ -6,7 +6,7 @@ defmodule Slipdock.Health.Runs do
 
   import Ecto.Query
 
-  alias Slipdock.Boards.Comment
+  alias Slipdock.Boards.{Card, Comment}
   alias Slipdock.Repo
   alias Slipdock.Runners
   alias Slipdock.Runners.{Job, Runner}
@@ -37,10 +37,17 @@ defmodule Slipdock.Health.Runs do
 
   @doc """
   When `job` last showed a sign of work: its latest progress step, a comment
-  on its card since it was claimed (an agent's note), or else when it started.
+  since it was claimed on its card or on any card beneath it (an agent's
+  note), another job on one of those subcards being claimed, reporting or
+  ending, or else when it started.
+
+  An epic's pass works on its subcards, so its notes land there, and each
+  subcard it submits sets off a verify job and a merge (#1853): all of that
+  is the epic's job at work.
   """
   def last_sign(%Job{} = job) do
     since = job.claimed_at || job.started_at || job.inserted_at
+    subcards = if job.card_id, do: subcard_ids(job.card_id), else: []
 
     comment =
       job.card_id &&
@@ -48,15 +55,37 @@ defmodule Slipdock.Health.Runs do
           from(c in Comment,
             # The server's own comments (the monitor's, a put-back) are no sign of work.
             where:
-              c.card_id == ^job.card_id and c.inserted_at >= ^since and not is_nil(c.user_id),
+              c.card_id in ^[job.card_id | subcards] and c.inserted_at >= ^since and
+                not is_nil(c.user_id),
             select: max(c.inserted_at)
           )
         )
 
-    [job.step_at, job.started_at, job.claimed_at, comment]
+    [job.step_at, job.started_at, job.claimed_at, comment, subcard_job(job, subcards)]
     |> Enum.reject(&is_nil/1)
     |> Enum.map(&to_utc/1)
     |> Enum.max(DateTime, fn -> to_utc(since) end)
+  end
+
+  # Every card beneath `card_id`, however deep.
+  defp subcard_ids(card_id) do
+    case Slipdock.Boards.subtree_board_ids(card_id) do
+      [] -> []
+      board_ids -> Repo.all(from(c in Card, where: c.board_id in ^board_ids, select: c.id))
+    end
+  end
+
+  # The latest a job on one of `subcards` was claimed, reported a step or
+  # ended. One from before this job is older than its claim, so never wins.
+  defp subcard_job(_job, []), do: nil
+
+  defp subcard_job(job, subcards) do
+    Repo.one(
+      from(j in Job,
+        where: j.card_id in ^subcards and j.id != ^job.id,
+        select: max(fragment("GREATEST(?, ?, ?)", j.claimed_at, j.step_at, j.finished_at))
+      )
+    )
   end
 
   defp to_utc(%DateTime{} = at), do: DateTime.truncate(at, :second)

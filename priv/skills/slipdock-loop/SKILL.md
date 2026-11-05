@@ -171,8 +171,8 @@ board knows about it. First look for an open card that already mentions it:
 across `slipdock cards <board> --open --json`. An open card that already mentions
 the run, or an open card whose commit it is, means the failure is already being
 handled. Leave it. If the commit is a closed subcard's and its epic is still
-open (a pass died partway through the epic), take that subcard back as in
-section 5 instead: the epic's own pass fixes it. Otherwise:
+open (a pass died partway through the epic), file the fix under that epic as
+in section 5 instead: the epic's own pass fixes it. Otherwise:
 
 ```sh
 slipdock add <board> "CI failing on <branch>: <workflow> run <run-id>" \
@@ -328,10 +328,20 @@ gh run list --branch <branch> --limit 1 --json databaseId,status,conclusion,head
 ```
 
 Still running, or passed: carry on. Failed: the subcard whose commit it is
-broke it, and it comes first. Take it back — `slipdock undone <id>`, move it
-to In Progress, comment `Build failed: …` as in step 7.4 — fix it, commit with
-its id, push, and close it again the same way. The two-attempts rule and
-**Blocked** apply as they do in step 7.4.
+broke it, and the fix comes first. That subcard is done, and the board
+refuses an agent reopening a done card, so the fix is a new subcard under the
+same epic, on top of its ready list:
+
+```sh
+slipdock add <sub-board> "Build failed: #<id> <title>" --column "To Do" \
+  --desc "<run, failing job and step, the few telling lines, the url>"
+slipdock move <new-id> "To Do" --top
+slipdock link <new-id> relates <id>
+slipdock comment <id> "Build failed: <workflow> #<run-id> — fixed on #<new-id>"
+```
+
+Claim it, fix it, commit with its id, push, and close it the same way. The
+two-attempts rule and **Blocked** apply as they do in step 7.4.
 
 Subcards can be built side by side by subagents, one each. **Wait for every
 subagent you started before your turn ends.** In print mode (`claude -p`, as
@@ -356,7 +366,16 @@ The card is the running log, not the final report:
 
 - a comment at every decision, surprise, dead end or changed plan;
 - `slipdock edit <id> --percent N` moved along with it;
-- `slipdock tick <item-id>` as checklist steps actually land.
+- `slipdock tick <item-id>` as checklist steps actually land;
+- on an epic, a one-line comment on the epic itself as each subcard closes:
+  what it delivered and what is next;
+- in a runner's job (`$SLIPDOCK_JOB_ID` is set), each milestone as the job's
+  step: `slipdock job-progress --step "…"` (no id: it takes the job from
+  `$SLIPDOCK_JOB_ID`) for the plan made, each subcard as it starts, is
+  submitted and merges, CI running, and the wrap-up. The runner holds that
+  job, so don't claim or finish it. Steps show on the job and the Runners
+  panel, where comments on subcards don't, and a job that shows nothing for
+  45 minutes is flagged `stuck` by the board's health monitor.
 
 A card sitting in progress with nothing newer on it than the move reads as
 abandoned — and to the *next pass*, which has none of your context, it is
@@ -540,7 +559,7 @@ anybody reads later:
    - **Failed:** `Build failed: <workflow> #<run-id> — job <job>, step <step>`,
      followed by the few lines of `gh run view <run-id> --log-failed` that show
      the cause, and the url. The card is not done. Fix it as part of this card
-     (on an epic, as part of the subcard whose commit broke it, taken back as in
+     (on an epic whose subcard broke it, as a `Build failed` subcard filed as in
      section 5): reproduce locally if you can, commit with the card id again, push, and go
      back to step 3, so the card gets a new `Build started` comment and a new
      result. After **two** failed fix attempts, or a failure that is clearly
