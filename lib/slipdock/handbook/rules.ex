@@ -145,31 +145,38 @@ defmodule Slipdock.Handbook.Rules do
     |> String.split("\n")
     |> Enum.with_index()
     |> Enum.slice(from..(stop - 1)//1)
-    |> Enum.reduce({[], path, nil, false}, fn {line, index}, {items, section, open, fenced} ->
+    |> Enum.reduce({[], path, false, false}, fn {line, index}, {items, section, open, fenced} ->
       heading = Enum.find(inner, &(&1.line == index))
       section = if heading, do: heading.path, else: section
-
-      cond do
-        String.starts_with?(String.trim_leading(line), ["```", "~~~"]) ->
-          {items, section, nil, not fenced}
-
-        fenced or heading ->
-          {items, section, nil, fenced}
-
-        match = Regex.run(@item, line) ->
-          [_, text] = match
-          {[{index + 1, String.trim(text), section} | items], section, true, false}
-
-        open && String.trim(line) != "" && Regex.match?(~r/^[ \t]+\S/, line) ->
-          [{at, text, sec} | rest] = items
-          {[{at, text <> " " <> String.trim(line), sec} | rest], section, true, false}
-
-        true ->
-          {items, section, nil, false}
-      end
+      {items, open, fenced} = step(line, index, section, {items, open, fenced or heading != nil})
+      {items, section, open, fenced and is_nil(heading)}
     end)
     |> elem(0)
     |> Enum.reverse()
+  end
+
+  # One line of a Rules section: `{items, open, fenced}` after it, where
+  # `open` says an item is waiting for continuation lines. A heading line
+  # arrives as fenced, so it is skipped like fenced code.
+  defp step(line, index, section, {items, open, fenced}) do
+    cond do
+      String.starts_with?(String.trim_leading(line), ["```", "~~~"]) ->
+        {items, false, not fenced}
+
+      fenced ->
+        {items, false, fenced}
+
+      match = Regex.run(@item, line) ->
+        [_, text] = match
+        {[{index + 1, String.trim(text), section} | items], true, false}
+
+      open and Regex.match?(~r/^[ \t]+\S/, line) ->
+        [{at, text, sec} | rest] = items
+        {[{at, text <> " " <> String.trim(line), sec} | rest], true, false}
+
+      true ->
+        {items, false, false}
+    end
   end
 
   defp read_item({line, text, section}, page) do
@@ -180,7 +187,7 @@ defmodule Slipdock.Handbook.Rules do
     with {:id, [_, pre, num, rest]} <- {:id, Regex.run(@id, text)},
          [severity | parts] = String.split(rest, @sep),
          severity = String.downcase(String.trim(severity)),
-         {:severity, true} <- {:severity, severity in @severities},
+         {:severity, true} <- {:severity, Enum.member?(@severities, severity)},
          {scope, parts} = scope(parts, page),
          {:check, [check | words]} <- {:check, parts},
          {:check, check} when check != nil <- {:check, check(check)},
@@ -243,7 +250,7 @@ defmodule Slipdock.Handbook.Rules do
     part = part |> String.trim() |> String.trim("`")
 
     cond do
-      String.downcase(part) in ["judgement", "judgment"] ->
+      Enum.member?(["judgement", "judgment"], String.downcase(part)) ->
         "judgement"
 
       (paths = split_list(part)) != [] and
