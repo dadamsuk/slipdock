@@ -109,13 +109,15 @@ defmodule SlipdockWeb.API.InboundControllerTest do
     end
 
     test "a timestamp over five minutes old, or in the future, is 401", %{conn: conn} do
-      old = Integer.to_string(System.system_time(:second) - 301)
-      ahead = Integer.to_string(System.system_time(:second) + 301)
+      old = Integer.to_string(System.system_time(:second) - 600)
+      ahead = Integer.to_string(System.system_time(:second) + 600)
 
       assert %{"error" => "stale timestamp"} =
                conn |> post_mail(raw(), timestamp: old) |> json_response(401)
 
-      assert build_conn() |> post_mail(raw(), timestamp: ahead) |> json_response(401)
+      # Well past @max_skew, so a second ticking over mid-request can't bring it back inside.
+      assert %{"error" => "stale timestamp"} =
+               build_conn() |> post_mail(raw(), timestamp: ahead) |> json_response(401)
     end
 
     test "a missing or malformed timestamp is 401", %{conn: conn} do
