@@ -60,7 +60,9 @@ defmodule SlipdockWeb.SlipdockComponents do
     {"waiting", "Waiting", "hero-clock", "text-amber-600 dark:text-amber-300",
      "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-400/20 dark:text-amber-200 dark:ring-amber-400/30"},
     {"starred", "Starred", "hero-star-solid", "text-yellow-600 dark:text-yellow-300",
-     "bg-yellow-100 text-yellow-700 ring-yellow-200 dark:bg-yellow-400/20 dark:text-yellow-200 dark:ring-yellow-400/30"}
+     "bg-yellow-100 text-yellow-700 ring-yellow-200 dark:bg-yellow-400/20 dark:text-yellow-200 dark:ring-yellow-400/30"},
+    {"stuck", "Stuck", "hero-lifebuoy", "text-orange-600 dark:text-orange-300",
+     "bg-orange-100 text-orange-700 ring-orange-200 dark:bg-orange-400/20 dark:text-orange-200 dark:ring-orange-400/30"}
   ]
 
   def flags, do: @flags

@@ -15,7 +15,7 @@ way in: what it is, the pictures, and how to get it running.
 - Cards with drag-and-drop between and within lists (let go anywhere in a
   list's column — its header, its footer, the board below it — and the card
   goes to the bottom of that list), description, priority
-  (low → critical), five flags (flagged, blocked, needs review, waiting, starred),
+  (low → critical), six flags (flagged, blocked, needs review, waiting, starred, stuck),
   due dates with overdue/soon states, completion toggle, cover colours, tags,
   checklists (drag an item by its handle to put it in a new order; a placed
   wiki page's checklist too), comments, archive/restore and delete — one at a time, or several
@@ -44,6 +44,10 @@ way in: what it is, the pictures, and how to get it running.
 - Tidy up: the board looks itself over for rot — epics done but open, cards
   stuck in progress, duplicates, orphaned pages, mistyped links — and
   proposes each fix for you to apply or dismiss — [Tidying up](#tidying-up)
+- A health monitor: every few minutes the server looks for work stuck in ways
+  only a person would otherwise notice (jobs nobody takes, deadlocks, merges
+  that stall, cards nobody is moving), tries a safe fix, and flags what it
+  can't fix — [The health monitor](#the-health-monitor)
 - Time tracking: a start/stop timer on each card, time spent and an estimate
   shown in a unit of its own, and a colour-coded bar between them — see
   [Time tracking](#time-tracking)
@@ -1400,6 +1404,67 @@ A suggestion carries `check`, `label`, `explanation`, `cards` and `pages`
 lists them (`run: true` looks the board over first) and `garden_decide`
 applies, dismisses or undoes one with `confirm: true` — an agent shows you the
 suggestions and applies only what you approve.
+
+
+## The health monitor
+
+Work on a board with runners gets stuck in ways only a person notices, and
+usually late: a job queued for a pool with no runner online, an answer held
+behind a queued job that is itself held by the card waiting for the answer, a
+merge that never ran. The health monitor is server code on the scheduler's
+clock, not an agent: every few minutes (`config :slipdock, :health,
+interval_minutes: 5`) it looks every board tree with runners or automation
+rules over, one run at a time across the servers.
+
+Each kind of stuck is a **detector**. What one finds is an **incident**, with a
+fingerprint of what it is about and the state that made it stuck, like a
+tidy-up suggestion: the same state never has two incidents, a changed state is
+a new one, and an incident **clears** by itself when a later run no longer finds
+it.
+
+1. **Fix.** Where a detector has a safe fix, it is tried, up to its
+   `max_attempts` (2 unless the board says otherwise). Each attempt is a comment
+   on the card and a line in the incident's log. Fixes touch only orchestration
+   state — jobs, the queue, flags, comments — and never delete, merge or close
+   anything by force.
+2. **Flag.** With no fix, or once the fixes run out, it is flagged for a person:
+   the card gets the **stuck** flag (a lifebuoy) and a comment saying what was
+   found and what was tried; with no card involved, the board gets an alert.
+3. **Tell someone.** Rules with the trigger *the health monitor flags something
+   stuck* (`health_flagged`, optionally for one `detector`) hear about it. The
+   preset **The health monitor needs a person** (Automations → gallery, under
+   Connect) is that rule with an alert or an email; its email says what was
+   found and links the Health page. The **A card is flagged** preset takes
+   *stuck* too.
+
+**Dealing with it.** Take the `stuck` flag off once the card is dealt with: the
+incident is marked **handled**, and the same state isn't flagged again — only a
+changed one. A flag the monitor put on comes off by itself when the incident
+clears.
+
+**Where to look.** The board's **Health** page (`/boards/:id/health`, the
+*Health* button in Automations → Runners) lists what is stuck now — *open*
+while fixes are tried, *flagged* once it needs a person — and what was lately
+fixed, cleared or handled, each with its log, and when the monitor last ran.
+Anyone who can read the board can look; *Look it over now* needs write access.
+
+```sh
+slipdock health ops                      # stuck now, lately, the last run
+slipdock health ops --run                # look the tree over first
+slipdock health settings ops             # every detector, on or off, with its thresholds
+slipdock health settings ops no_runner minutes=30 max_attempts=3
+```
+
+```
+GET   /api/boards/:board/health                    incidents, recent, last_run, detectors
+POST  /api/boards/:board/health                    run it now (write access)
+PATCH /api/boards/:board/health/settings {detector, enabled?, max_attempts?, …}
+```
+
+Settings belong to the tree's root board, whichever board in it you name.
+
+| Detector | Finds | Fix |
+|---|---|---|
 
 ## Dependencies
 

@@ -3,7 +3,9 @@ defmodule Slipdock.Boards.Card do
   import Ecto.Changeset
 
   @priorities ~w(none low medium high critical)
-  @flags ~w(flagged blocked review waiting starred)
+  # `stuck` is the health monitor's (see `Slipdock.Health`): work it found
+  # stuck and couldn't fix. Taking it off marks the incident handled.
+  @flags ~w(flagged blocked review waiting starred stuck)
   @borders ~w(border_top border_right border_bottom border_left)a
 
   # The readers below match on *shape* rather than on `%Card{}`, because a

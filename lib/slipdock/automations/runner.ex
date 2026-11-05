@@ -79,6 +79,9 @@ defmodule Slipdock.Automations.Runner do
       "page_emailed" ->
         named?(trigger["how"], event[:how]) and same_folder?(trigger["folder"], event[:folder])
 
+      "health_flagged" ->
+        named?(trigger["detector"], event[:incident] && event[:incident].detector)
+
       "job_finished" ->
         named?(trigger["pool"], event[:job] && event[:job].pool) and
           (is_nil(trigger["outcome"]) or
@@ -639,6 +642,15 @@ defmodule Slipdock.Automations.Runner do
       end
 
     payload =
+      case ctx.event[:incident] do
+        %Slipdock.Health.Incident{} = incident ->
+          Map.put(payload, :incident, Map.take(incident, [:id, :detector, :summary, :status]))
+
+        _ ->
+          payload
+      end
+
+    payload =
       payload
       |> then(&if(ctx[:page], do: Map.put(&1, :page, page_payload(ctx.page, ctx)), else: &1))
       |> then(&if(ctx.event[:email], do: Map.put(&1, :email, ctx.event[:email]), else: &1))
@@ -962,6 +974,7 @@ defmodule Slipdock.Automations.Runner do
     |> Map.merge(job_variables(event[:job]))
     |> Map.merge(page_variables(event[:page], board))
     |> Map.merge(email_variables(event[:email]))
+    |> Map.merge(incident_variables(event[:incident]))
     |> Enum.reject(fn {_, v} -> is_nil(v) end)
     |> Map.new()
   end
@@ -973,6 +986,18 @@ defmodule Slipdock.Automations.Runner do
   end
 
   defp job_variables(_), do: %{}
+
+  # What the health monitor flagged (`health_flagged`, see `Slipdock.Health`).
+  defp incident_variables(%Slipdock.Health.Incident{} = incident) do
+    %{
+      "incident.id" => incident.id,
+      "incident.detector" => incident.detector,
+      "incident.summary" => incident.summary,
+      "incident.url" => "#{base_url()}/boards/#{incident.board_id}/health"
+    }
+  end
+
+  defp incident_variables(_), do: %{}
 
   defp page_variables(%Page{} = page, board) do
     %{

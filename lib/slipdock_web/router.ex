@@ -351,6 +351,8 @@ defmodule SlipdockWeb.Router do
       # A board's meetings (see `Slipdock.Meetings`): only while an admin has
       # meeting mode on, which each page checks for itself as it mounts.
       live "/boards/:id/tidy", GardenLive.Index, :index
+      # What the health monitor found stuck (W-2310).
+      live "/boards/:id/health", HealthLive.Index, :index
       # A board's flow, velocity, runners and delivery on one page (#1185).
       live "/boards/:id/visualise", BoardLive.Visualise, :index
       live "/boards/:id/meetings", MeetingLive.Index, :index
@@ -848,6 +850,9 @@ defmodule SlipdockWeb.Router do
     post "/garden/suggestions/:id/apply", GardenController, :apply
     post "/garden/suggestions/:id/dismiss", GardenController, :dismiss
     post "/garden/suggestions/:id/undo", GardenController, :undo
+    get "/boards/:board/health", HealthController, :index
+    post "/boards/:board/health", HealthController, :create
+    patch "/boards/:board/health/settings", HealthController, :settings
     post "/cards/:id/snooze", SnoozeController, :create
     delete "/cards/:id/snooze", SnoozeController, :delete
     post "/cards/:id/checklist", CardController, :add_checklist_item

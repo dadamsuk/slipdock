@@ -165,3 +165,6 @@ config :phoenix,
 # Lets a test change a config key for itself alone (`Slipdock.TestConfig`)
 # rather than for every test running alongside it. See `Slipdock.Config`.
 config :slipdock, :config_overrides, true
+
+# The health monitor runs only when a test asks (see `Slipdock.Health`).
+config :slipdock, :health, interval: :manual

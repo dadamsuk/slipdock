@@ -36,7 +36,7 @@ defmodule Slipdock.Automations.Spec do
     {"comment_added", [], [], "someone comments on a card"},
     {"tag_added", [], ["tag"], "a tag is put on a card"},
     {"flag_added", [], ["flag"],
-     "a flag is put on a card (flagged, blocked, review, waiting, starred)"},
+     "a flag is put on a card (flagged, blocked, review, waiting, starred, stuck)"},
     {"card_activity", [], [],
      "anything happens to a card — added, moved, changed, commented on, tagged or archived; once per change"},
     {"card_emailed", [], ["column"],
@@ -57,7 +57,12 @@ defmodule Slipdock.Automations.Spec do
        "person — and requeued or gave_up — a list_top rule with requeue_stuck put its " <>
        "card back, or gave up on it; default any; pool: only " <>
        "that pool's jobs). Placeholders {{job.id}}, {{job.status}}, {{job.outcome}}, " <>
-       "{{job.pool}}, {{job.runner}}, {{job.exit_code}}, {{job.error}}"}
+       "{{job.pool}}, {{job.runner}}, {{job.exit_code}}, {{job.error}}"},
+    {"health_flagged", [], ["detector"],
+     "the health monitor flagged something stuck it could not fix (W-2310): a card it " <>
+       "flagged stuck, or a board alert when no card is involved (detector: only that " <>
+       "detector's, e.g. no_runner, deadlock). Placeholders {{incident.id}}, " <>
+       "{{incident.detector}}, {{incident.summary}}, {{incident.url}}"}
   ]
 
   @job_outcomes ~w(done failed cancelled timeout parked requeued gave_up)
@@ -115,7 +120,8 @@ defmodule Slipdock.Automations.Spec do
        "border sets all four edges, border_top/right/bottom/left one each (and win over border)"},
     {"add_tags", ["tags"], [], "put existing tags on the card"},
     {"remove_tags", ["tags"], [], "take tags off the card"},
-    {"add_flags", ["flags"], [], "raise flags (flagged, blocked, review, waiting, starred)"},
+    {"add_flags", ["flags"], [],
+     "raise flags (flagged, blocked, review, waiting, starred, stuck)"},
     {"remove_flags", ["flags"], [], "lower flags"},
     {"assign", ["assignee"], [],
      "assign the card to a person (name or email), in place of whoever had it"},
@@ -599,6 +605,10 @@ defmodule Slipdock.Automations.Spec do
       "job_finished" ->
         "a#{if t["pool"], do: " #{t["pool"]}", else: ""} runner job ends" <>
           job_outcome_summary(t["outcome"])
+
+      "health_flagged" ->
+        "the health monitor flags something stuck" <>
+          if(t["detector"], do: " (#{t["detector"]})", else: "")
 
       "card_stale" ->
         "a card goes #{t["days"]} days untouched" <> where(t["column"], "in")
