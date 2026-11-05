@@ -32,8 +32,10 @@ defmodule SlipdockWeb.NarrativeLiveTest do
   } do
     {:ok, view, html} = live(conn, ~p"/boards/#{board}/narrative")
     assert html =~ "What happened"
-    assert html =~ "moved “Shipped thing” to Done"
-    assert html =~ "completed “Shipped thing”"
+    # Under the card's own heading its lines don't name it again (#1734).
+    assert html =~ "moved it to Done"
+    assert html =~ "completed it"
+    refute html =~ "moved “Shipped thing”"
 
     html = view |> form("#swim-config", %{"rows" => "column", "span" => "7"}) |> render_change()
     assert html =~ "Done"
@@ -60,7 +62,7 @@ defmodule SlipdockWeb.NarrativeLiveTest do
     assert has_element?(view, "#display-tell input[name='tell[]'][value=comment_text][checked]")
     refute has_element?(view, "#display-tell input[name='tell[]'][value=summary][checked]")
     assert html =~ "Shipped it, hooray"
-    assert html =~ "moved “Shipped thing” to Done"
+    assert html =~ "moved it to Done"
     refute has_element?(view, "#story-#{card.id} dl")
 
     # Comments without their text, no moves, plus the summary.
@@ -70,10 +72,10 @@ defmodule SlipdockWeb.NarrativeLiveTest do
       |> render_change()
 
     assert_patch(view)
-    assert html =~ "commented on “Shipped thing”"
+    assert has_element?(view, "#story-#{card.id} li", "commented")
     refute html =~ "Shipped it, hooray"
-    refute html =~ "moved “Shipped thing”"
-    assert html =~ "completed “Shipped thing”"
+    refute html =~ "moved it"
+    assert html =~ "completed it"
     assert has_element?(view, "#story-#{card.id} dl dt", "Priority")
     assert has_element?(view, "#story-#{card.id} dl dt", "Due")
     assert has_element?(view, "#story-#{card.id} dl dd", "Done")
@@ -116,8 +118,45 @@ defmodule SlipdockWeb.NarrativeLiveTest do
     refute html =~ "Quiet thing"
     assert html =~ "1 of 1"
     # The published page tells what the saved view chose: no moves, with a summary.
-    refute html =~ "moved “Shipped thing”"
-    assert html =~ "added “Shipped thing”"
+    refute html =~ "moved it"
+    assert html =~ "added it to"
     assert html =~ "Progress" or html =~ "List"
+  end
+
+  test "a card's field changes by one actor on one day read as one line, without its title",
+       %{conn: conn, board: board} do
+    [backlog | _] = board.columns
+    card = card_fixture(backlog, %{"title" => "Dark mode for the dashboard"})
+    {:ok, _} = Slipdock.Fields.install_preset(board, "rice")
+    [reach, impact, confidence, effort, _rice] = reload(board).fields
+
+    for {f, v} <- [{reach, "4000"}, {impact, "3"}, {confidence, "80"}, {effort, "3"}] do
+      {:ok, _} = Slipdock.Fields.set_value(Boards.get_card!(card.id), f, v)
+    end
+
+    {:ok, _} = Boards.add_comment(Boards.get_card!(card.id), "Looks right")
+    {:ok, _} = Slipdock.Fields.set_value(Boards.get_card!(card.id), reach, "5000")
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/narrative")
+    lines = view |> element("#story-#{card.id} ul") |> render()
+
+    # The heading names the card; its lines don't.
+    assert has_element?(view, "#story-#{card.id} h3", "Dark mode for the dashboard")
+    refute lines =~ "Dark mode for the dashboard"
+
+    assert has_element?(
+             view,
+             ~s(#story-#{card.id} li[data-folded="4"]),
+             "set Reach 4000 people, Impact 3, Confidence 80%, Effort 3 weeks"
+           )
+
+    # The comment breaks the run: the change after it is a line of its own.
+    assert has_element?(view, "#story-#{card.id} li", "commented")
+
+    assert has_element?(
+             view,
+             "#story-#{card.id} li:not([data-folded])",
+             "set Reach to 5000 people"
+           )
   end
 end
