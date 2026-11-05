@@ -97,4 +97,39 @@ defmodule Slipdock.CiWorkflowTest do
       refute File.exists?(Path.join(@root, ".sobelow-skips"))
     end
   end
+
+  describe "gitleaks" do
+    test "scans the commits each pull request adds, failing on a hit" do
+      secrets = job("secrets")
+
+      assert has?(secrets, "if: github.event_name == 'pull_request'")
+      assert has?(secrets, "fetch-depth: 0")
+      assert has?(secrets, "BASE: ${{ github.event.pull_request.base.sha }}")
+      assert has?(secrets, "HEAD: ${{ github.event.pull_request.head.sha }}")
+
+      assert runs?(
+               secrets,
+               ~s(/tmp/gitleaks git --redact --no-banner --verbose --log-opts="$BASE..$HEAD" .)
+             )
+    end
+
+    test "the binary is checked against its published checksum" do
+      assert Enum.any?(
+               job("secrets"),
+               &(&1 =~ ~r/^echo "[0-9a-f]{64}  \/tmp\/gitleaks.tgz" \| sha256sum -c -$/)
+             )
+    end
+
+    test "every allowlist in .gitleaks.toml says why, and extends gitleaks' own rules" do
+      toml = File.read!(Path.join(@root, ".gitleaks.toml"))
+      assert toml =~ ~r/^\[extend\]\nuseDefault = true$/m
+
+      blocks = toml |> String.split("[[allowlists]]") |> tl()
+      assert blocks != []
+
+      for block <- blocks do
+        assert block =~ ~r/^description = "[^"]{20,}"$/m
+      end
+    end
+  end
 end
