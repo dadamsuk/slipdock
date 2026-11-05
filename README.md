@@ -183,6 +183,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   changes, and an applied one can be undone. A *Weekly tidy-up* rule raises an
   alert with the count and applies nothing. `slipdock garden <board> --run`,
   `POST /api/boards/:board/garden` or MCP `garden` / `garden_decide`.
+- **Health monitor** — [work stuck in ways only a person would notice is found,
+  fixed where a safe fix exists, or flagged](docs/manual.md#the-health-monitor):
+  jobs nobody takes, deadlocks, verification and merges that stall, cards and
+  questions nobody is moving. What it can't fix gets the `stuck` flag (or a board
+  alert) and a trigger you can attach an email to; `/healthz` reports its pulse.
 - **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the
   estimate and red past it.

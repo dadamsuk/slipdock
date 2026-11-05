@@ -335,7 +335,11 @@ slipdock garden <board> [--run] [--check K]   # tidy-up suggestions, grouped, wi
 slipdock garden apply <id>... [--keep CARD] [--choice NAME]   # apply only what the user approved
 slipdock garden dismiss|undo <id>...     # a dismissal is remembered until its subject changes
 slipdock garden settings <board> [<check> key=value...]   # checks on/off, thresholds (days=30)
-slipdock flag <id> <flag>... [--off]     # flags: flagged blocked review waiting starred
+slipdock health <board> [--run]           # work the health monitor found stuck: fixed, or flagged stuck
+                                       # for a person; ends with the scheduler's and monitor's pulse
+slipdock health settings <board> [<detector> key=value...]   # detectors on/off, thresholds
+slipdock flag <id> <flag>... [--off]     # flags: flagged blocked review waiting starred stuck
+                                       # (stuck is the health monitor's: leave it for a person)
 slipdock wait <id> "what you need" [--on EMAIL] [--choice X]...   # wait on a person: flags it waiting,
                                        # asks on the card; in a runner job it parks the job
 slipdock wait <id> --withdraw            # withdraw the open wait (or take the waiting flag off)
