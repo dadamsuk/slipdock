@@ -286,39 +286,33 @@ defmodule Slipdock.Handbook do
   # Nothing else on the card or the series changes, and a card already
   # current is left alone. Reported as "<title> (updated: nightly)".
   defp upgrade_reconcile(root, user, report) do
-    if @reconcile_title in report.added["cards"] do
-      {report, false}
+    with false <- Enum.member?(report.added["cards"], @reconcile_title),
+         {card, series} <- reconcile_card(root),
+         true <- upgrade(card, series, user) do
+      {note_card(report, "#{@reconcile_title} (updated: nightly)"), true}
     else
-      case reconcile_card(root) do
-        nil ->
-          {report, false}
-
-        {card, series} ->
-          described = card.description == @reconcile_description
-          {:ok, daily} = Slipdock.Recurrence.Rule.parse_phrase(@reconcile_repeat)
-          daily = Slipdock.Recurrence.Rule.to_string(daily)
-          nightly = is_nil(series) or series.rule == daily
-
-          # Neither write stops the install: what fails is just not reported.
-          described_now =
-            not described and
-              match?(
-                {:ok, _},
-                Boards.update_card(card, %{"description" => @reconcile_description}, by: user)
-              )
-
-          nightly_now =
-            not nightly and
-              match?(
-                {:ok, _},
-                Slipdock.Recurrence.set(card, %{"rule" => @reconcile_repeat}, user)
-              )
-
-          if described_now or nightly_now,
-            do: {note_card(report, "#{@reconcile_title} (updated: nightly)"), true},
-            else: {report, false}
-      end
+      _ -> {report, false}
     end
+  end
+
+  # Whether anything changed. Neither write stops the install: what fails
+  # is just not reported.
+  defp upgrade(card, series, user) do
+    {:ok, daily} = Slipdock.Recurrence.Rule.parse_phrase(@reconcile_repeat)
+    nightly = is_nil(series) or series.rule == Slipdock.Recurrence.Rule.to_string(daily)
+
+    described_now =
+      card.description != @reconcile_description and
+        match?(
+          {:ok, _},
+          Boards.update_card(card, %{"description" => @reconcile_description}, by: user)
+        )
+
+    nightly_now =
+      not nightly and
+        match?({:ok, _}, Slipdock.Recurrence.set(card, %{"rule" => @reconcile_repeat}, user))
+
+    described_now or nightly_now
   end
 
   defp note_card(report, name), do: update_in(report, [:added, "cards"], &(&1 ++ [name]))
@@ -544,20 +538,18 @@ defmodule Slipdock.Handbook do
     handbook.pages
     |> Enum.reject(&(&1.id == handbook.index.id))
     |> Enum.with_index()
-    |> Enum.flat_map(fn {page, order} ->
-      case List.wrap(field(page, "covers")) |> Enum.filter(&is_binary/1) do
-        [] ->
-          []
+    |> Enum.map(fn {page, order} -> {order, page, covered_count(page, paths)} end)
+    |> Enum.filter(fn {_order, _page, n} -> n > 0 end)
+    |> Enum.sort_by(fn {order, _page, n} -> {-n, order} end)
+    |> Enum.map(fn {_order, page, n} -> %{code: page.code, title: page.title, paths: n} end)
+  end
 
-        globs ->
-          case Enum.count(paths, &Slipdock.Lanes.overlap?(globs, [&1])) do
-            0 -> []
-            n -> [{order, %{code: page.code, title: page.title, paths: n}}]
-          end
-      end
-    end)
-    |> Enum.sort_by(fn {order, page} -> {-page.paths, order} end)
-    |> Enum.map(&elem(&1, 1))
+  # How many of `paths` the page's `covers:` take in; none without covers.
+  defp covered_count(page, paths) do
+    case page |> field("covers") |> List.wrap() |> Enum.filter(&is_binary/1) do
+      [] -> 0
+      globs -> Enum.count(paths, &Slipdock.Lanes.overlap?(globs, [&1]))
+    end
   end
 
   defp clean_paths(paths) do
