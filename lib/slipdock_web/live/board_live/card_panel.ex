@@ -1556,11 +1556,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           label="Ends"
           options={[{"Never", "never"}, {"On a date", "on"}, {"After a number of times", "after"}]}
         />
-        <.input
+        <.date_field
           :if={@repeat.form[:ends].value == "on"}
           field={@repeat.form[:ends_on]}
-          type="date"
           label="On"
+          class="w-full"
         />
         <.input
           :if={@repeat.form[:ends].value == "after"}

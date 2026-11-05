@@ -523,7 +523,12 @@ defmodule SlipdockWeb.ItemComponents do
                     </option>
                   </select>
                 <% "date" -> %>
-                  <input type="date" name="value" value={value} class="input field w-full" />
+                  <.date_field
+                    id={dom_id("field-date-#{field.id}", @item)}
+                    name="value"
+                    value={value}
+                    class="w-full"
+                  />
                 <% _ -> %>
                   <input
                     type="text"

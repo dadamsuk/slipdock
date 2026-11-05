@@ -296,8 +296,8 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
                   )
               ]}
             />
-            <.input field={@form[:start_date]} type="date" label="Start" />
-            <.input field={@form[:due_date]} type="date" label="Due" />
+            <.date_field field={@form[:start_date]} label="Start" class="w-full" />
+            <.date_field field={@form[:due_date]} label="Due" class="w-full" />
             <.input
               field={@form[:date_precision]}
               type="select"

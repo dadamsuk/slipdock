@@ -750,7 +750,12 @@ defmodule SlipdockWeb.TimelineComponents do
               value={SlipdockWeb.SlipdockComponents.item_id(card)}
             />
             <input type="hidden" name="field" value="due_date" />
-            <input type="date" name="value" class="input input-xs w-32" aria-label="Due date" />
+            <.date_field
+              id={"schedule-date-#{SlipdockWeb.SlipdockComponents.item_id(card)}"}
+              name="value"
+              placeholder="Set due date"
+              aria-label="Due date"
+            />
           </form>
         </div>
       </div>

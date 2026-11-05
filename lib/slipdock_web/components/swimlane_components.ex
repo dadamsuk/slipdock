@@ -354,13 +354,18 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 title="Start of the range (leave empty for the span)"
               >
                 from
-                <input type="date" name="from" value={@config.from} class="input input-sm w-36" />
+                <.date_field
+                  id="narrative-from"
+                  name="from"
+                  value={@config.from}
+                  placeholder="The start"
+                />
               </label>
               <label
                 class="flex items-center gap-1 text-xs text-base-content/60"
                 title="End of the range (leave empty for today)"
               >
-                to <input type="date" name="to" value={@config.to} class="input input-sm w-36" />
+                to <.date_field id="narrative-to" name="to" value={@config.to} placeholder="Today" />
               </label>
             <% true -> %>
               <.axis_select

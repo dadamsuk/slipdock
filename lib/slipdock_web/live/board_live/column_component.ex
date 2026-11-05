@@ -168,8 +168,8 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
               inside the range is scheduled to its end.
             </p>
             <div class="grid grid-cols-2 gap-2">
-              <.input field={@form[:horizon_from]} type="date" label="From" />
-              <.input field={@form[:horizon_to]} type="date" label="To" />
+              <.date_field field={@form[:horizon_from]} label="From" class="w-full" />
+              <.date_field field={@form[:horizon_to]} label="To" class="w-full" />
             </div>
             <.input
               field={@form[:horizon_unit]}

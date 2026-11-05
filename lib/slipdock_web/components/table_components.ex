@@ -406,11 +406,12 @@ defmodule SlipdockWeb.TableComponents do
     >
       <input type="hidden" name="card_id" value={SlipdockWeb.SlipdockComponents.item_id(@card)} />
       <input type="hidden" name="field" value="start_date" />
-      <input
-        type="date"
+      <.date_field
+        id={"start-date-#{SlipdockWeb.SlipdockComponents.item_id(@card)}"}
         name="value"
         value={@card.start_date}
-        class="input input-ghost input-xs w-36"
+        bare
+        aria-label="Start date"
       />
     </form>
     """
@@ -426,8 +427,16 @@ defmodule SlipdockWeb.TableComponents do
     >
       <input type="hidden" name="card_id" value={SlipdockWeb.SlipdockComponents.item_id(@card)} />
       <input type="hidden" name="field" value="due_date" />
-      <input type="date" name="value" value={@card.due_date} class="input input-ghost input-xs w-36" />
-      <.schedule_badges card={@card} />
+      <.date_field
+        id={"due-date-#{SlipdockWeb.SlipdockComponents.item_id(@card)}"}
+        name="value"
+        value={@card.due_date}
+        bare
+        aria-label="Due date"
+      />
+      <%!-- The date is the field: no due chip beside it (#1721), only the
+            subcards' overrun, which the date alone doesn't say. --%>
+      <.schedule_badges card={@card} due={false} />
     </form>
     """
   end
