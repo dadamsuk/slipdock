@@ -171,6 +171,18 @@ defmodule SlipdockCLI.GardenTest do
     assert out =~ "already filed: #50"
   end
 
+  test "a page comment step, and a section edit, read as words (#1790)" do
+    assert Garden.steps([%{"op" => "comment", "page" => 12, "body" => "Split it"}]) ==
+             ~s(comment on page 12: "Split it")
+
+    assert Garden.steps([%{"op" => "comment", "card" => 7, "body" => "Hi"}]) ==
+             ~s(comment on #7: "Hi")
+
+    assert Garden.steps([
+             %{"op" => "edit_section", "page" => 3, "section" => "UX & UI/Rules", "body" => ""}
+           ]) == "edit §UX & UI/Rules of page 3"
+  end
+
   test "a proposal body must be a JSON object" do
     assert {:ok, %{"steps" => []}} = Garden.proposal_body(~s({"steps": []}))
     assert {:error, "that proposal isn't JSON"} = Garden.proposal_body("steps: []")

@@ -203,6 +203,9 @@ defmodule SlipdockCLI.Garden do
   defp step_text(%{"op" => "archive", "page" => page}) when not is_nil(page),
     do: "archive page #{page}"
 
+  defp step_text(%{"op" => "comment", "page" => page} = step) when not is_nil(page),
+    do: "comment on page #{page}: #{inspect(step["body"])}"
+
   defp step_text(%{"op" => "rewrite_link"} = step),
     do: "rewrite [[#{step["from"]}]] to [[#{step["to"]}]] on page #{step["page"]}"
 

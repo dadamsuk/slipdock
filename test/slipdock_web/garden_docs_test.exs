@@ -39,6 +39,28 @@ defmodule SlipdockWeb.GardenDocsTest do
     assert manual =~ "A dismissal stays dismissed"
   end
 
+  test "the guide, the manual and docs/agents.md name the handbook hygiene checks (#1790)" do
+    guide = SlipdockWeb.APIGuide.markdown()
+
+    for key <- ~w(long_section broad_covers rule_without_check stale_decision) do
+      assert guide =~ "(`#{key}`)", "the guide's gardener paragraph lacks #{key}"
+      refute SlipdockWeb.APIGuide.short() =~ key
+    end
+
+    manual = read("docs/manual.md")
+
+    assert manual =~
+             ~r/The last four keep a \[handbook\]\(#tools\) in order, and are off on a board\s+without one/
+
+    assert manual =~ "comment on the handbook's Index page"
+    assert manual =~ "the days a `must`\nrule may stay `judgement`"
+
+    agents = read("docs/agents.md")
+
+    assert agents =~
+             ~r/on a handbook board long\s+sections, broad `covers:`, `must` rules left to `judgement`/
+  end
+
   test "the guide and docs/agents.md describe proposals (#1788)" do
     guide = SlipdockWeb.APIGuide.markdown()
     assert guide =~ "**Proposing a handbook edit.**"

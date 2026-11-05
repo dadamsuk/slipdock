@@ -278,8 +278,10 @@ for has one, snooze it rather than flag it `waiting`: `update_card` with
 [the manual](manual.md#snoozing-cards).
 
 The board gardener finds rot — epics done but open, cards stuck in progress,
-duplicates, orphaned pages, mistyped links — and proposes fixes that a person
-approves. `garden` lists a board's open suggestions (`run: true` looks it over
+duplicates, orphaned pages, mistyped links, and on a handbook board long
+sections, broad `covers:`, `must` rules left to `judgement`, duplicate rule ids
+and decisions that don't link back to the one they supersede — and proposes
+fixes that a person approves. `garden` lists a board's open suggestions (`run: true` looks it over
 first), and `garden_decide` applies, dismisses or undoes one with
 `confirm: true`. Show the person the suggestions and apply only what they
 approve; never dismiss one on your own judgment, since a dismissal is

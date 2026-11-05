@@ -1405,6 +1405,17 @@ checks:
 | Pages nothing links to | a wiki page more than 30 days old with no backlink, no pin and no folder (templates, drafts, pages on a list, pages with pages beneath and folder indexes are never orphans; nor is a page that links to a card — it shows in that card's Docs) | archive it, or file it into a folder |
 | Links that nearly match a page | a `[[link]]` to a page that doesn't exist whose title matches one page's title or alias ignoring case, or is within two edits of exactly one (two candidates suggests nothing) | rewrite the link to that page, on every page that has it |
 | Closed without a Handbook line | on a board whose tree keeps a [handbook](#tools), a card completed since it was installed with no `Handbook:` line in any comment (`Handbook: no change (…)` counts; off on boards without a handbook) | comment on the card asking for the docs gate and the line, or reopen it |
+| Long handbook sections | a `##` section of a handbook page or decision over 1,500 characters, beyond which search splits it in parts (`## Rules` and the Index's `## Log` are left alone) | split it at its first `###` heading into two `##` sections, losing nothing; with no `###` to split at, a comment on the handbook's Index |
+| Handbook pages that cover everything | a handbook page whose `covers:` has a glob that matches nearly any path (`**`, `lib/**`: `**` with fewer than two folders before it), so it is suggested for every card | a comment on the Index saying which page to narrow |
+| Rules without a test | a `must` rule whose check has been `judgement` for more than 30 days (by the page's history), or a rule id used twice | a comment on the Index naming the rule, the page and the line; rules are never edited by a suggestion |
+| Decisions out of order | a decision that supersedes another without linking back to it, or a page in `Handbook/Decisions` without `Decision:` in its title | a comment on the Index saying what to change |
+
+The last four keep a [handbook](#tools) in order, and are off on a board
+without one. They are deterministic, read only the handbook's pages and their
+history, and leave contradictions between pages to the triage pass. Where the
+fix isn't mechanical they comment on the handbook's Index page, saying what to
+change and where; a split edits a page's section, so only a person can apply
+it, as with a proposed handbook edit.
 
 Snoozed, archived and stand-in cards are left out: a snoozed card is somebody
 having already decided when to look again. No model is called — duplicates use
@@ -1439,7 +1450,8 @@ either card is edited later.
 **Choosing the checks.** Board settings → the **Gardening** tab has each check on or
 off, and its thresholds: days for the stale, overdue, backlog and orphan
 checks, the similarity and card cap for duplicates, the number of edits for
-links. Everything but *Abandoned in the backlog* is on to begin with.
+links, the characters a handbook section may run to, and the days a `must`
+rule may stay `judgement`. Everything but *Abandoned in the backlog* is on to begin with.
 
 **Every week, by itself.** The automation preset **Weekly tidy-up** (Tidy
 group) looks the board over on a weekday at a time (Monday 09:00 by default)

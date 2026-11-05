@@ -114,6 +114,36 @@ defmodule Slipdock.Gardener.StepsTest do
     assert card(c).comments == []
   end
 
+  test "comment on a page as the person, and take it away (#1790)", %{board: board, owner: u} do
+    page = page_fixture(board, %{}, user: u)
+    comments = fn -> Repo.all(from(c in Boards.Comment, where: c.page_id == ^page.id)) end
+
+    {:ok, inverse} =
+      Steps.apply_all([%{"op" => "comment", "page" => page.id, "body" => "Split §Deploy"}], u)
+
+    assert [comment] = comments.()
+    assert comment.body == "Split §Deploy"
+    assert comment.user_id == u.id
+    assert is_nil(comment.card_id)
+    assert :ok = Steps.undo_all(inverse, u)
+    assert comments.() == []
+
+    # Undoing again when the comment is already gone refuses nothing.
+    assert :ok = Steps.undo_all(inverse, u)
+  end
+
+  test "a page comment on a deleted page fails, and a reader may not take it",
+       %{board: board, owner: u} do
+    page = page_fixture(board, %{}, user: u)
+    step = [%{"op" => "comment", "page" => page.id, "body" => "x"}]
+    reader = user_fixture("steps-page-reader-#{System.unique_integer([:positive])}@example.com")
+    share_fixture(board, reader, "read")
+    assert {:error, :forbidden} = Steps.authorize(step, reader)
+
+    assert {:error, "page #0 has been deleted"} =
+             Steps.apply_all([%{"op" => "comment", "page" => 0, "body" => "x"}], u)
+  end
+
   test "snooze and wake", %{card: c, owner: u} do
     until = Date.utc_today() |> Date.add(7) |> Date.to_iso8601()
     {:ok, inverse} = Steps.apply_all([%{"op" => "snooze", "card" => c.id, "until" => until}], u)

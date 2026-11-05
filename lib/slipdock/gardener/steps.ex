@@ -11,7 +11,9 @@ defmodule Slipdock.Gardener.Steps do
     * `archive` `%{"card"}` or `%{"page"}` – put it away
     * `link_duplicate` `%{"card", "other"}` – link `card` as a duplicate of `other`
     * `flag` `%{"card", "flag"}` – set a flag
-    * `comment` `%{"card", "body"}` – comment, as the person applying it
+    * `comment` `%{"card", "body"}` or `%{"page", "body"}` – comment on the
+      card or the page, as the person applying it (a page comment is how the
+      handbook hygiene checks ask on the handbook's Index, #1790)
     * `snooze` `%{"card", "until"}` – snooze it (a date, or a phrase quick add reads)
     * `redate` `%{"card", "due"}` – give it a new due date (ISO 8601, or nil)
     * `rewrite_link` `%{"page", "from", "to"}` – point `[[from]]` at `[[to]]`
@@ -264,6 +266,13 @@ defmodule Slipdock.Gardener.Steps do
          {:ok, _} <-
            Boards.update_card(card, %{"flags" => List.delete(card.flags, flag)}, by: user),
          do: {:ok, []}
+  end
+
+  defp apply_step(%{"op" => "comment", "page" => id, "body" => body}, user)
+       when not is_nil(id) do
+    with {:ok, page} <- page(id),
+         {:ok, comment} <- Boards.add_comment(page, body, by: user),
+         do: {:ok, [%{"op" => "uncomment", "comment" => comment.id}]}
   end
 
   defp apply_step(%{"op" => "comment", "card" => id, "body" => body}, user) do
