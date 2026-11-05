@@ -227,6 +227,107 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     refute capture_io(fn -> Render.card(card(%{})) end) =~ "Verification"
   end
 
+  test "verify sends each --check, and --checks-file's lines or JSON map (#1778)" do
+    serve([{200, @card}, {200, @card}, {200, @card}])
+
+    capture_io(fn ->
+      Boards.run(
+        "verify",
+        ["12", "reject"],
+        parse([
+          "--reason",
+          "Two things",
+          "--check",
+          "bar:1=ok",
+          "--check",
+          ~s(rule:UX-4=broken:"hex in card.ex")
+        ])
+      )
+    end)
+
+    assert_received {:request, "POST", "/api/cards/12/verify", body}
+
+    assert JSON.decode!(body) == %{
+             "decision" => "reject",
+             "reason" => "Two things",
+             "checks" => ["bar:1=ok", ~s(rule:UX-4=broken:"hex in card.ex")]
+           }
+
+    dir = System.get_env("HOME")
+    lines = Path.join(dir, "checks.txt")
+    File.write!(lines, "ask=ok\n\nbar:1=ok\nsuite=12:0\n")
+
+    capture_io(fn ->
+      Boards.run(
+        "verify",
+        ["12", "accept"],
+        parse(["--check", "handbook_line=ok", "--checks-file", lines])
+      )
+    end)
+
+    assert_received {:request, "POST", "/api/cards/12/verify", body}
+
+    assert JSON.decode!(body)["checks"] == [
+             "handbook_line=ok",
+             "ask=ok",
+             "bar:1=ok",
+             "suite=12:0"
+           ]
+
+    map = Path.join(dir, "checks.json")
+    File.write!(map, ~s({"ask": "ok", "bar": [{"item": "1", "result": "ok"}]}))
+
+    capture_io(fn ->
+      Boards.run("verify", ["12", "accept"], parse(["--checks-file", map]))
+    end)
+
+    assert_received {:request, "POST", "/api/cards/12/verify", body}
+
+    assert JSON.decode!(body)["checks"] == %{
+             "ask" => "ok",
+             "bar" => [%{"item" => "1", "result" => "ok"}]
+           }
+  end
+
+  test "card lists the verdict's parts under Verification, not while pending (#1778)" do
+    checks = %{
+      "ask" => "misses",
+      "bar" => [
+        %{"item" => "1", "result" => "ok"},
+        %{"item" => "2", "result" => "fail", "note" => "no footer"}
+      ],
+      "suite" => %{"passed" => 40, "failed" => 0},
+      "rules" => [%{"id" => "UX-4", "result" => "broken", "severity" => "must", "note" => "hex"}],
+      "handbook_line" => "ok",
+      "notes" => %{"ask" => "the footer"}
+    }
+
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "verify_state" => "rejected",
+            "verify_by" => %{"kind" => "agent", "agent" => "checker"},
+            "verify_checks" => checks
+          })
+        )
+      end)
+
+    assert out =~ "✗ the ask misses: the footer"
+    assert out =~ "✓ bar 1"
+    assert out =~ "✗ bar 2: no footer"
+    assert out =~ "✓ suite 40 passed, 0 failed"
+    assert out =~ "✗ UX-4 must broken: hex"
+    assert out =~ "✓ Handbook line"
+
+    out =
+      capture_io(fn ->
+        Render.card(card(%{"verify_state" => "pending", "verify_checks" => checks}))
+      end)
+
+    refute out =~ "bar 2"
+  end
+
   defp card(extra) do
     Map.merge(
       %{

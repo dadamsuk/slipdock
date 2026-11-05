@@ -313,6 +313,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       assigns
       |> assign(:merge_status, Slipdock.Verified.merge_status(assigns.card))
       |> assign(:person, Slipdock.Verified.person(verify_actor(assigns.card)))
+      |> assign(:checks, Slipdock.Verified.Checks.lines(assigns.card.verify_checks))
 
     ~H"""
     <div id="card-verify" class="space-y-2 rounded-lg border border-base-300 px-3 py-2">
@@ -339,6 +340,30 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         </span>
       </p>
       <p :if={@card.verify_note} class="whitespace-pre-wrap text-sm">{@card.verify_note}</p>
+      <ul
+        :if={@card.verify_state != "pending" && @checks != []}
+        id="card-verify-checks"
+        class="space-y-0.5 text-sm"
+      >
+        <li
+          :for={{{label, result, note}, i} <- Enum.with_index(@checks)}
+          id={"card-verify-check-#{i}"}
+          class="flex items-start gap-1.5"
+        >
+          <.icon
+            name={if failing_check?(result), do: "hero-x-mark", else: "hero-check"}
+            class={[
+              "mt-0.5 size-4 shrink-0",
+              if(failing_check?(result), do: "text-error", else: "text-success")
+            ]}
+          />
+          <span>
+            <span class="font-medium">{label}</span>
+            <span class="text-base-content/60">{result}</span>
+            <span :if={note}>— {note}</span>
+          </span>
+        </li>
+      </ul>
       <div :if={@person && @can_write} id="card-verify-reach" class="flex flex-wrap items-start gap-2">
         <form
           :if={not Card.assigned_to?(@card, @person.id)}
@@ -438,6 +463,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     </div>
     """
   end
+
+  defp failing_check?(result), do: Slipdock.Verified.Checks.failing_result?(result)
 
   defp verify_icon("pending"), do: "hero-clock"
   defp verify_icon("merging"), do: "hero-arrow-path"

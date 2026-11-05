@@ -557,7 +557,12 @@ defmodule SlipdockCLI.Boards do
       do: fail("a rejection needs its reason: --reason TEXT")
 
     body =
-      %{"decision" => decision, "reason" => o[:reason], "commit" => o[:evidence_commit]}
+      %{
+        "decision" => decision,
+        "reason" => o[:reason],
+        "commit" => o[:evidence_commit],
+        "checks" => verify_checks(o)
+      }
       |> compact()
 
     HTTP.post("/cards/#{enc(id)}/verify", body)
@@ -1934,5 +1939,43 @@ defmodule SlipdockCLI.Boards do
       |> Enum.sort_by(&if(&1["severity"] == "must", do: 0, else: 1))
 
     %{acc | "handbook" => %{a | "rules" => rules, "paths" => a["paths"] ++ b["paths"]}}
+  end
+
+  # The verdict in parts (#1778): each `--check`, then `--checks-file`'s
+  # lines, or its JSON map of parts as it is. nil when none are given.
+  defp verify_checks(o) do
+    given = Keyword.get_values(o, :check)
+
+    from_file =
+      case o[:checks_file] do
+        nil -> []
+        "-" -> checks_text(IO.read(:stdio, :eof))
+        file -> checks_text(File.read!(file))
+      end
+
+    case {given, from_file} do
+      {[], []} -> nil
+      {[], %{} = map} -> map
+      {_, %{}} -> fail("--checks-file with a JSON map can't be mixed with --check")
+      {given, lines} -> given ++ lines
+    end
+  end
+
+  defp checks_text(text) do
+    text = String.trim(text || "")
+
+    if String.starts_with?(text, "{") do
+      case :json.decode(text) do
+        %{} = map -> map
+        _ -> fail("--checks-file: a JSON file holds a map of parts")
+      end
+    else
+      text
+      |> String.split("\n")
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&Enum.member?(["", "#"], &1))
+    end
+  rescue
+    ErlangError -> fail("--checks-file: not valid JSON")
   end
 end

@@ -310,6 +310,11 @@ slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]   # o
                                        # decide a card someone else submitted: accept completes it
                                        # and moves it to Done (on a pull request board it queues
                                        # the merge: merging until a runner merges); reject needs the reason
+slipdock verify <id> reject --reason "bar 2: …" --check bar:1=ok --check bar:2=fail:"why"
+                                       # the verdict in parts (repeat --check, or --checks-file F):
+                                       # ask=ok|misses, bar:<n>=ok|fail, suite=<passed>:<failed>,
+                                       # rule:<id>=ok|broken|n/a, handbook_line=ok|disputed; a reject
+                                       # names a failing part, an accept carries no broken must rule
 slipdock verify <id> merged [--evidence-commit SHA]   # a person only: a merging card's PR was merged by hand
 slipdock edit <id> --bar "what done means"   # the card's bar; locks when work starts on a board
                                        # that asks for one

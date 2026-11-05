@@ -724,8 +724,13 @@ With one on, the pass changes like this:
   --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
   <id> reject --reason "<the check>: <what falls short, specifically>"`.
   A rejection cites the check it fails: a bar item (`bar 2: …`), the ask
-  (`the ask: …`), a rule id (`UX-4: …`) or the Handbook line. You can't
-  decide a card you submitted yourself (`403`).
+  (`the ask: …`), a rule id (`UX-4: …`) or the Handbook line. Give the
+  verdict in parts too, one `--check` each (MCP `verify_card` `checks`):
+  `ask=ok|misses`, `bar:2=ok|fail`, `suite=412:0`, `rule:UX-4=ok|broken|n/a`,
+  `handbook_line=ok|disputed`, each with `:"why"` if it needs one. A
+  rejection names at least one failing part; an acceptance can't carry one
+  (a missed `should` rule aside). You can't decide a card you submitted
+  yourself (`403`).
 
 ## Lanes
 

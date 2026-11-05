@@ -19,9 +19,9 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
   @impl true
   def description,
     do:
-      "Accepts or rejects a card waiting for verification, after checking its work against " <>
-        "its bar at the evidence's commit. accept completes it; reject needs the reason. " <>
-        "Not on a card you submitted."
+      "Accepts or rejects a card waiting for verification, after checking it at the evidence's " <>
+        "commit. accept completes it; reject needs the reason and a failing check. " <>
+        "checks: the verdict in parts. Not on a card you submitted."
 
   @impl true
   def input_schema do
@@ -42,6 +42,13 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
         commit: %{
           type: "string",
           description: "The commit you checked the work at (for merged: the merge commit)."
+        },
+        checks: %{
+          type: "array",
+          items: %{type: "string"},
+          description:
+            "The verdict in parts, one each: ask=ok|misses, bar:2=ok|fail[:why], " <>
+              "suite=412:0, rule:UX-4=ok|broken|n/a[:why], handbook_line=ok|disputed."
         }
       },
       required: ["card", "decision"],
@@ -60,13 +67,15 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
          {:ok, decision} <- Args.required(args, "decision"),
          {:ok, reason} <- Args.optional(args, "reason"),
          {:ok, commit} <- Args.optional(args, "commit"),
+         checks = args["checks"],
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          {:ok, card} <-
            Args.refusal(
              CardWrites.verify(auth, card, %{
                "decision" => decision,
                "reason" => reason,
-               "commit" => commit
+               "commit" => commit,
+               "checks" => checks
              })
            ) do
       {:ok, card |> Map.get(:id) |> Boards.get_card!() |> Tools.card_written(context.base_url)}

@@ -521,7 +521,15 @@ bar**, and on a board with a handbook **the rules** for the diff's paths
 `Handbook:` line**, held against the docs gate (`no change` on a diff that
 needed an update is a rejection). A rejection cites the check it fails: a bar
 item, the ask, a rule id or the Handbook line. The builder runs the same
-checks before submitting.
+checks before submitting. The verdict is kept in parts on the card
+(`verify_checks`: the ask, each bar item, the suite, each rule and the
+Handbook line), given as `checks` to `verify_card` or `POST
+/api/cards/:id/verify`, or `slipdock verify … --check bar:2=fail:why`
+(repeated, or `--checks-file`). A rejection names at least one failing part;
+an acceptance with a broken `must` rule (or any other failing part) is
+refused. The card panel and `slipdock card` list the parts under
+Verification; a later decision replaces them, and each decision's comment
+keeps its own.
 The installer's config gives every runner a `job_verify` that runs the same
 agent on the server's prompt, without the standing instructions, so a runner
 can check another runner's work. Deciding is `verify_card` or `slipdock
