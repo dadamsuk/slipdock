@@ -2207,8 +2207,14 @@ icon's tooltip says what it is and its key. Either way, a page's own buttons,
 where it has any, come first, ruled off from the app's.
 
 What belongs to the board you are on is on the board's own toolbar, the row
-below: its sprint buttons, the AI chat about the board and the board's `…`
-menu sit at the right-hand end, after **Views**, in every view of the board.
+below. Every view of the board lays it out in the same order: the view
+switcher, search, **Filter**, the view's own controls (a dated view's
+previous/today/next, its span, group and sort), **Display**; then, at the
+right-hand end, the card count, **Select**, **Views**, and the board's own
+buttons (its sprint buttons, the AI chat about the board and the board's `…`
+menu). It stays one row: when the window is too narrow for the view's own
+controls they fold into a **View options** button, whose popover holds them
+and changes them as before, rather than wrapping onto a second line.
 
 The **avatar menu** is in sections, and marks the page you are on:
 
@@ -2254,15 +2260,18 @@ of nine, the list you actually move cards through is one of six on it, and the
 card you report against every day is one of hundreds — three or four taps
 every time, and the last one a hunt.
 
-Press the heart on a **saved view** (in the Views menu), a **list header**, or
-an open **card** (beside the close button), or a **wiki page** (beside its
-code, at the top of the page) and it lands on `/favourites` — the
+Press the heart on a **saved view** (in the Views menu), **Favourite this
+list** in a list's `⋯` menu, or the heart on an open **card** (beside the close
+button) or a **wiki page** (beside its code, at the top of the page) and it
+lands on `/favourites` — the
 heart in the header bar on a desktop, the fifth tab on a phone. So anything you go back to often is two taps from
 anywhere: the heart, then the thing.
 
 - A favourited **list** opens its board scrolled to that list, which on a
   phone — where the board shows one list at a time — is the difference between
-  arriving and swiping to find it.
+  arriving and swiping to find it. Only a favourite list shows a heart on its
+  header; the rest keep their headers quiet, and the `⋯` menu is where you
+  favourite one, or stop.
 - A favourited **view** opens in the mode it was saved in, as the view
   switcher's favourites always have.
 - A favourited **wiki page** opens the page; a draft only stays on the list
@@ -2332,8 +2341,9 @@ views that cannot survive being narrowed render something else instead.
   title, then its fields as labelled lines. They are the same editable cells,
   so the inline edits still work, and the vote buttons that used to sit past
   the right-hand edge are now the first thing under each card.
-- **Every toolbar** keeps the view switcher, the date navigator, Filter and
-  saved views on one row and folds the rest behind an **Options** button.
+- **Every toolbar** keeps the view switcher, search, the date navigator,
+  Filter and saved views on one row and folds the rest behind an **Options**
+  button.
 - **Controls that appear on hover elsewhere are simply there**: a touch
   screen has no hover, so the card's tick, a day's **+**, a cell's **Add**
   and the delete buttons on checklist items, comments, attachments and
