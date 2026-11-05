@@ -395,7 +395,7 @@ defmodule SlipdockWeb.CoreComponents do
     ~H"""
     <div class="fieldset mb-2">
       <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <span :if={@label} class="field-label">{@label}</span>
         <select
           id={@id}
           name={@name}
@@ -416,7 +416,7 @@ defmodule SlipdockWeb.CoreComponents do
     ~H"""
     <div class="fieldset mb-2">
       <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <span :if={@label} class="field-label">{@label}</span>
         <textarea
           id={@id}
           name={@name}
@@ -437,7 +437,7 @@ defmodule SlipdockWeb.CoreComponents do
     ~H"""
     <div class="fieldset mb-2">
       <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <span :if={@label} class="field-label">{@label}</span>
         <input
           type={@type}
           name={@name}
@@ -523,7 +523,7 @@ defmodule SlipdockWeb.CoreComponents do
 
     ~H"""
     <div :if={@label} class="fieldset mb-2">
-      <label for={"#{@id}-display"} class="label mb-1">{@label}</label>
+      <label for={"#{@id}-display"} class="field-label">{@label}</label>
       <.date_box {assigns} />
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>

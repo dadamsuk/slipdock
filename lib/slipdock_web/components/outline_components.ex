@@ -50,7 +50,7 @@ defmodule SlipdockWeb.OutlineComponents do
         id="outline"
         class={["min-w-0 sm:min-w-[60rem]", if(@compact?, do: "text-2xs", else: "text-xs")]}
       >
-        <div class="ol-row ol-head sticky top-0 z-10 border-b border-base-300 bg-base-100 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <div class="ol-row ol-head sticky top-0 z-10 border-b border-base-300 bg-base-100 section-label">
           <div class="flex items-center gap-2 px-3 py-2">
             Card
             <span class="badge badge-ghost badge-sm font-mono normal-case tracking-normal">

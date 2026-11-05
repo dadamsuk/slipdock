@@ -371,7 +371,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   def evidence_section(assigns) do
     ~H"""
     <div id="card-evidence" class="space-y-1.5 px-1">
-      <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <p class="flex items-center gap-2 section-label">
         <span>Evidence</span>
         <code :if={@card.evidence_commit} class="font-mono normal-case">
           {String.slice(@card.evidence_commit, 0, 12)}
@@ -428,7 +428,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       phx-submit="card_change"
       class="space-y-1.5 px-1"
     >
-      <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <p class="flex items-center gap-2 section-label">
         <span>Bar</span>
         <span
           :if={@card.bar_locked_at}
@@ -482,7 +482,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       phx-submit="card_change"
       class="space-y-1.5 px-1"
     >
-      <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <p class="flex items-center gap-2 section-label">
         <span>Paths</span>
       </p>
       <textarea
@@ -528,7 +528,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       class="space-y-3"
     >
       <div class="space-y-1.5 px-1 pt-2" data-section-key="f">
-        <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <p class="section-label">
           <.keyed_label key="f" label="Flags" />
         </p>
         <div class="flex flex-wrap gap-1.5">
@@ -544,7 +544,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       </div>
 
       <div class="space-y-1.5 px-1" data-section-key="t">
-        <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <p class="section-label">
           <.keyed_label key="t" label="Tags" />
         </p>
         <div class="flex flex-wrap items-center gap-1.5">
@@ -566,7 +566,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <div class="flex items-center justify-between">
           <label
             for="card-description"
-            class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60"
+            class="flex items-center gap-1.5 section-label"
           >
             <.icon name="hero-bars-3-bottom-left" class="size-3.5" />
             <.keyed_label key="d" label="Description" />
@@ -688,7 +688,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       data-section-key="a"
     >
       <div class="flex items-center justify-between">
-        <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <h3 class="flex items-center gap-1.5 section-label">
           <.icon name="hero-paper-clip" class="size-3.5" />
           <.keyed_label key="a" label="Attachments" />
           <span :if={@card.attachments != []} class="font-normal">({length(@card.attachments)})</span>
@@ -988,7 +988,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
 
     ~H"""
     <details id="card-borders" class="group space-y-1.5" open={@any?}>
-      <summary class="cursor-pointer list-none text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <summary class="cursor-pointer list-none section-label">
         Borders <.icon name="hero-chevron-down" class="size-3 transition group-open:rotate-180" />
       </summary>
       <div :for={{edge, label, field} <- @edges} class="flex items-center gap-2 pt-1.5">
@@ -1054,7 +1054,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           class="space-y-4"
         >
           <label class="block space-y-1">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">List</span>
+            <span class="section-label">List</span>
             <select name="card[column_id]" class="select field w-full">
               <option
                 :for={{name, id} <- column_options(@board)}
@@ -1066,7 +1066,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             </select>
           </label>
           <div class="space-y-1" id="card-assignees">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            <span class="section-label">
               Assignees
             </span>
             <ul :if={Card.assignees(@card) != []} class="flex flex-wrap gap-1">
@@ -1110,7 +1110,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             </select>
           </div>
           <label class="block space-y-1">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Priority</span>
+            <span class="section-label">Priority</span>
             <select name="card[priority]" class="select field w-full">
               <option
                 :for={{label, value} <- priority_options()}
@@ -1125,7 +1125,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
               bar the due date and Completed, is project tracking, and
               stays out of its way (`Board.simple?/1`). --%>
           <label :if={not @board.simple} class="block space-y-1">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">% complete</span>
+            <span class="section-label">% complete</span>
             <div class="flex items-center gap-2">
               <input
                 type="number"
@@ -1157,7 +1157,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             </p>
           </label>
           <label :if={not @board.simple} class="block space-y-1">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Start date</span>
+            <span class="section-label">Start date</span>
             <.date_field
               id={"card-start-date-#{@card.id}"}
               name="card[start_date]"
@@ -1168,7 +1168,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             />
           </label>
           <label class="block space-y-1">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Due date</span>
+            <span class="section-label">Due date</span>
             <.date_field
               id={"card-due-date-#{@card.id}"}
               name="card[due_date]"
@@ -1183,7 +1183,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             </p>
           </label>
           <label :if={not @board.simple} class="block space-y-1">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Precision</span>
+            <span class="section-label">Precision</span>
             <select
               name="card[date_precision]"
               class="select field w-full"
@@ -1248,7 +1248,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             This card is {past_date_label(:due, Card.days_past_due(@card))}
           </p>
           <label class="flex cursor-pointer items-center justify-between">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Completed</span>
+            <span class="section-label">Completed</span>
             <input type="hidden" name="card[completed]" value="false" />
             <input
               type="checkbox"
@@ -1259,7 +1259,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             />
           </label>
           <div :if={not @board.simple} class="space-y-1.5" id="card-status">
-            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Health</span>
+            <span class="section-label">Health</span>
             <div
               class="flex flex-wrap items-center gap-1.5"
               aria-describedby="card-health-about"
@@ -1314,7 +1314,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       </fieldset>
       <fieldset disabled={!@can_write} class="min-w-0 space-y-5">
         <div class="space-y-1.5">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Cover</span>
+          <span class="section-label">Cover</span>
           <div class="flex flex-wrap gap-1.5">
             <button
               phx-target={@target}
@@ -1347,7 +1347,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <.snooze_section card={@card} can_write={@can_write} current_user={@current_user} />
 
         <div class="space-y-1.5 border-t border-base-content/10 pt-4">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Actions</span>
+          <span class="section-label">Actions</span>
           <button
             id="duplicate-card"
             phx-target={@target}
@@ -1402,7 +1402,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       class="space-y-2 border-t border-base-content/10 pt-4"
     >
       <div class="flex items-center gap-2">
-        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Snooze</span>
+        <span class="section-label">Snooze</span>
         <button
           :if={@can_write and !@card.completed}
           id="snooze-open"
@@ -1451,7 +1451,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     ~H"""
     <div id="card-repeat" class="space-y-2 border-t border-base-content/10 pt-4">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Repeat</span>
+        <span class="section-label">Repeat</span>
         <button
           :if={!@repeat}
           id="repeat-edit"

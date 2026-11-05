@@ -28,10 +28,12 @@ const shot = async (name) => {
 const survey = () =>
   page.evaluate(() => {
     const sel = [
-      'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range])',
+      // A date field (#1720) is its box; the native input in it is hidden.
+      'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not(.date-field-input)',
       'textarea',
       'select',
       '.md-editor',
+      '[data-date-field]',
     ].join(',')
     return [...document.querySelectorAll('#card-modal ' + sel.split(',').join(', #card-modal '))]
       .filter((el) => el.offsetParent !== null)

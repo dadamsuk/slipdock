@@ -768,7 +768,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     ~H"""
     <section class="space-y-2" id="card-time">
       <div class="flex items-center justify-between">
-        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Time</span>
+        <span class="section-label">Time</span>
         <button
           :if={@can_write}
           type="button"
@@ -807,7 +807,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         class="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
       >
         <label class="block space-y-1">
-          <span class="text-2xs text-base-content/60">Spent</span>
+          <span class="field-label">Spent</span>
           <input
             type="text"
             inputmode="decimal"
@@ -821,7 +821,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           />
         </label>
         <label class="block space-y-1">
-          <span class="text-2xs text-base-content/60">Estimate</span>
+          <span class="field-label">Estimate</span>
           <input
             type="text"
             inputmode="decimal"
@@ -835,7 +835,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           />
         </label>
         <label class="block space-y-1">
-          <span class="text-2xs text-base-content/60">Unit</span>
+          <span class="field-label">Unit</span>
           <select
             name="card[time_unit]"
             id="card-time-unit"
@@ -2029,7 +2029,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         phx-debounce="150"
         placeholder={@placeholder}
         title={@help}
-        class="input input-sm input-ghost min-w-56 max-w-xl flex-1 px-1"
+        class="input field-bare min-w-56 max-w-xl flex-1 px-1"
         autocomplete="off"
       />
       <.quick_chips :if={@preview} chips={@preview.chips} unknown={@preview.unknown} />
@@ -2244,7 +2244,7 @@ defmodule SlipdockWeb.SlipdockComponents do
               whole content is the file on it) and a wiki page placed in the
               list. See `Slipdock.Kinds`. --%>
         <div :if={@kinds}>
-          <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          <p class="mb-1.5 section-label">
             Kind
           </p>
           <div class="flex flex-wrap gap-1">
@@ -2264,7 +2264,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           </div>
         </div>
         <div :if={@board.tags != []}>
-          <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          <p class="mb-1.5 section-label">
             Tags
           </p>
           <div class="flex flex-wrap gap-1.5">
@@ -2286,7 +2286,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           </div>
         </div>
         <div>
-          <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          <p class="mb-1.5 section-label">
             Priority
           </p>
           <div class="flex flex-wrap gap-1">
@@ -2302,7 +2302,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           </div>
         </div>
         <div>
-          <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          <p class="mb-1.5 section-label">
             Flags
           </p>
           <div class="flex flex-wrap gap-1">
@@ -2316,7 +2316,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           </div>
         </div>
         <div>
-          <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          <p class="mb-1.5 section-label">
             Due
           </p>
           <div class="flex flex-wrap gap-1">
@@ -2338,7 +2338,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           </div>
         </div>
         <div :if={@states}>
-          <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          <p class="mb-1.5 section-label">
             Time in list
           </p>
           <button
@@ -2351,7 +2351,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           </button>
         </div>
         <div :if={@states and @board.runner_tree}>
-          <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          <p class="mb-1.5 section-label">
             Driver
           </p>
           <div class="flex flex-wrap gap-1">

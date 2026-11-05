@@ -616,7 +616,7 @@ defmodule SlipdockWeb.ToolLive.Show do
                 name="email"
                 value={@share_email}
                 placeholder="their email address"
-                class="input input-sm w-64"
+                class="input field w-64"
                 required
               />
               <button class="btn btn-sm">Share</button>

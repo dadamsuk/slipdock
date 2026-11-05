@@ -700,7 +700,7 @@ defmodule SlipdockWeb.SharedLive do
             id="page_body"
             name="page[body]"
             rows="20"
-            class="textarea w-full font-mono"
+            class="textarea field field-mono w-full"
             phx-debounce="200"
           ><%= Phoenix.HTML.Form.normalize_value("textarea", @form[:body].value) %></textarea>
         </div>
@@ -737,7 +737,7 @@ defmodule SlipdockWeb.SharedLive do
       <span :if={@targets == []} class="text-base-content/60">
         You have no folders of your own to file it in yet.
       </span>
-      <select :if={@targets != []} name="folder" class="select select-sm">
+      <select :if={@targets != []} name="folder" class="select field">
         <option :for={{label, id} <- @targets} value={id}>{label}</option>
       </select>
       <button :if={@targets != []} type="submit" class="btn btn-sm btn-primary">File it there</button>
@@ -795,11 +795,11 @@ defmodule SlipdockWeb.SharedLive do
       </p>
       <div :if={@can_write} class="flex flex-wrap items-end gap-3 border-t border-base-300 pt-4">
         <form id="shared-new-page" phx-submit="new_page" class="flex items-center gap-1.5">
-          <input name="title" required placeholder="New page title" class="input input-sm" />
+          <input name="title" required placeholder="New page title" class="input field" />
           <button type="submit" class="btn btn-sm">New page</button>
         </form>
         <form id="shared-new-folder" phx-submit="new_folder" class="flex items-center gap-1.5">
-          <input name="name" required placeholder="New folder name" class="input input-sm" />
+          <input name="name" required placeholder="New folder name" class="input field" />
           <button type="submit" class="btn btn-sm">New folder</button>
         </form>
         <button id="shared-new-drawing" type="button" phx-click="new_drawing" class="btn btn-sm">

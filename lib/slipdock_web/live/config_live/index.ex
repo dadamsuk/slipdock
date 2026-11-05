@@ -397,13 +397,13 @@ defmodule SlipdockWeb.ConfigLive.Index do
           checked={Map.get(@settings, @switch)}
           class="checkbox"
         />
-        <span class="font-medium">{@label}</span>
+        <span class="field-label mb-0">{@label}</span>
         <input
           type="number"
           min="1"
           name={"settings[#{@number}]"}
           value={Map.get(@settings, @number)}
-          class="input input-sm input-bordered w-28"
+          class="input field w-28"
         />
         <span class="text-xs text-base-content/60">{@unit}</span>
       </label>
@@ -966,7 +966,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
               min="0"
               name={"settings[#{number}]"}
               value={Map.get(@settings, number)}
-              class="input input-sm w-28"
+              class="input field w-28"
               aria-label={label}
             />
           </div>

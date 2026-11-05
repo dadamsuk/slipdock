@@ -107,7 +107,7 @@ defmodule SlipdockWeb.ToolLive.Review do
                       type="text"
                       name="reason"
                       placeholder="Why (the owner sees this)"
-                      class="input input-sm w-64"
+                      class="input field w-64"
                     />
                     <button class="btn btn-ghost btn-sm">Decline</button>
                   </form>

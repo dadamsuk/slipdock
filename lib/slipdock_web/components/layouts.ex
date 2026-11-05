@@ -976,7 +976,7 @@ defmodule SlipdockWeb.Layouts do
               autocomplete="off"
               phx-debounce={if @shortcuts.panel in [:find, :notes], do: "100"}
               placeholder={palette_placeholder(@shortcuts.panel)}
-              class="input input-sm w-full"
+              class="input field w-full"
             />
           </form>
 
@@ -1305,7 +1305,7 @@ defmodule SlipdockWeb.Layouts do
             phx-mounted={JS.focus()}
             readonly={@quick_add.busy?}
             placeholder={quick_add_placeholder(@quick_add)}
-            class="input input-sm input-ghost min-w-0 flex-1 px-1"
+            class="input field-bare min-w-0 flex-1 px-1"
             autocomplete="off"
           />
           <button type="submit" class="btn btn-primary btn-xs" disabled={@quick_add.busy?}>
@@ -1816,7 +1816,7 @@ defmodule SlipdockWeb.Layouts do
           <textarea
             data-meld-text
             rows="8"
-            class="textarea textarea-bordered mt-1 w-full font-mono text-sm"
+            class="textarea field mt-1 w-full field-mono"
             autocomplete="off"
             spellcheck="false"
           ></textarea>
@@ -1827,7 +1827,7 @@ defmodule SlipdockWeb.Layouts do
             <input
               type="password"
               data-meld-passphrase
-              class="input input-bordered input-sm mt-1 w-full"
+              class="input field mt-1 w-full"
               autocomplete="off"
             />
           </label>
@@ -1836,7 +1836,7 @@ defmodule SlipdockWeb.Layouts do
             <input
               type="password"
               data-meld-confirm
-              class="input input-bordered input-sm mt-1 w-full"
+              class="input field mt-1 w-full"
               autocomplete="off"
             />
           </label>
@@ -1845,7 +1845,7 @@ defmodule SlipdockWeb.Layouts do
             <input
               type="text"
               data-meld-new-hint
-              class="input input-bordered input-sm mt-1 w-full"
+              class="input field mt-1 w-full"
               autocomplete="off"
             />
           </label>

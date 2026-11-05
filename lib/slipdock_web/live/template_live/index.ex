@@ -230,7 +230,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
             </ul>
             <div class="flex flex-col gap-4 sm:flex-row">
               <label class="flex-1">
-                <span class="mb-1 block text-sm font-medium">Name</span>
+                <span class="field-label">Name</span>
                 <input
                   type="text"
                   name="name"
@@ -244,7 +244,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
                 />
               </label>
               <label class="flex-1">
-                <span class="mb-1 block text-sm font-medium">Description (optional)</span>
+                <span class="field-label">Description (optional)</span>
                 <input
                   type="text"
                   name="description"
@@ -290,7 +290,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
                   name={"columns[#{i}][name]"}
                   value={col["name"]}
                   placeholder="List name"
-                  class="input input-sm flex-1"
+                  class="input field flex-1"
                   autocomplete="off"
                 />
                 <input
@@ -299,10 +299,10 @@ defmodule SlipdockWeb.TemplateLive.Index do
                   value={col["wip_limit"]}
                   min="1"
                   placeholder="WIP"
-                  class="input input-sm w-20"
+                  class="input field w-20"
                   title="WIP limit (optional)"
                 />
-                <select name={"columns[#{i}][color]"} class="select select-sm w-32" title="Colour">
+                <select name={"columns[#{i}][color]"} class="select field w-32" title="Colour">
                   <option value="" selected={col["color"] in ["", nil]}>No colour</option>
                   <option
                     :for={{name, label} <- Palette.all()}

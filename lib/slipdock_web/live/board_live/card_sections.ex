@@ -26,7 +26,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
     ~H"""
     <section class="space-y-2 px-1" data-section-key="s">
       <div class="flex items-center justify-between">
-        <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <h3 class="flex items-center gap-1.5 section-label">
           <.icon name="hero-squares-2x2" class="size-3.5" />
           <.keyed_label key="s" label="Subcards" />
         </h3>
@@ -220,7 +220,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   def dependencies_section(assigns) do
     ~H"""
     <section :if={not @board.simple} class="space-y-2 px-1" data-section-key="p">
-      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <h3 class="flex items-center gap-1.5 section-label">
         <.icon name="hero-link" class="size-3.5" />
         <.keyed_label key="p" label="Dependencies" />
       </h3>
@@ -373,7 +373,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
           judgement rather than something the prose says — so it leads,
           and it survives whoever next edits the page. --%>
     <section class="space-y-2 px-1" id="card-docs" data-section-key="o">
-      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <h3 class="flex items-center gap-1.5 section-label">
         <.icon name="hero-document-text" class="size-3.5" />
         <.keyed_label key="o" label="Docs" />
       </h3>
@@ -506,7 +506,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   def jobs_section(assigns) do
     ~H"""
     <section class="space-y-2 px-1" id="card-jobs">
-      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <h3 class="flex items-center gap-1.5 section-label">
         <.icon name="hero-cpu-chip" class="size-3.5" /> Runner jobs
       </h3>
       <ul class="space-y-1.5">
@@ -660,7 +660,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   def links_section(assigns) do
     ~H"""
     <section class="space-y-2 px-1" id="card-links" data-section-key="n">
-      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <h3 class="flex items-center gap-1.5 section-label">
         <.icon name="hero-arrows-right-left" class="size-3.5" />
         <.keyed_label key="n" label="Links" />
       </h3>
@@ -789,7 +789,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
 
     ~H"""
     <section class="space-y-2" id="card-timeline">
-      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <h3 class="flex items-center gap-1.5 section-label">
         <.icon name="hero-clock" class="size-3.5" /> Timeline
         <span class="font-normal normal-case tracking-normal text-base-content/50">
           {Slipdock.Pulse.duration(@total)} since {timeline_stamp(@timeline.from, @zone)}

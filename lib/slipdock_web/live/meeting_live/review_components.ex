@@ -604,13 +604,13 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         type="text"
         name="finding[title]"
         value={@finding.title}
-        class="input input-sm w-full"
+        class="input field w-full"
         aria-label="Title"
         maxlength="255"
       />
-      <textarea name="finding[body]" class="textarea textarea-sm w-full" rows="2" aria-label="Detail">{@finding.body}</textarea>
+      <textarea name="finding[body]" class="textarea field w-full" rows="2" aria-label="Detail">{@finding.body}</textarea>
       <div :if={@finding.effect["type"] == "new_card"} class="grid gap-2 sm:grid-cols-2">
-        <select name="finding[list]" class="select select-sm" aria-label="List">
+        <select name="finding[list]" class="select field" aria-label="List">
           <option :for={l <- @lists} value={l.name} selected={l.name == @finding.effect["list"]}>
             {l.name}
           </option>
@@ -628,7 +628,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         type="text"
         name="finding[topic]"
         value={@finding.effect["topic"]}
-        class="input input-sm w-full"
+        class="input field w-full"
         aria-label="Topic"
         placeholder="Topic: its heading on the meeting's decisions page"
       />
@@ -651,7 +651,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
       class="space-y-2 rounded-xl bg-base-100 p-4 ring-1 ring-base-content/10"
     >
       <p class="text-sm font-medium">Something the transcript missed</p>
-      <select name="added[kind]" class="select select-sm" aria-label="Kind">
+      <select name="added[kind]" class="select field" aria-label="Kind">
         <option value="action">Action (a new card)</option>
         <option value="decision">Decision</option>
       </select>
@@ -659,21 +659,21 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         type="text"
         name="added[title]"
         required
-        class="input input-sm w-full"
+        class="input field w-full"
         placeholder="What it is"
         maxlength="255"
       />
       <textarea
         name="added[body]"
-        class="textarea textarea-sm w-full"
+        class="textarea field w-full"
         rows="2"
         placeholder="Detail (optional)"
       ></textarea>
       <div class="grid gap-2 sm:grid-cols-3">
-        <select name="added[list]" class="select select-sm" aria-label="List">
+        <select name="added[list]" class="select field" aria-label="List">
           <option :for={l <- @lists} value={l.name}>{l.name}</option>
         </select>
-        <select name="added[assignee_id]" class="select select-sm" aria-label="Who">
+        <select name="added[assignee_id]" class="select field" aria-label="Who">
           <option value="">Nobody yet</option>
           <option :for={m <- @members} value={m.id}>{m.name || m.email}</option>
         </select>
@@ -682,7 +682,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
       <input
         type="text"
         name="added[topic]"
-        class="input input-sm w-full"
+        class="input field w-full"
         aria-label="Topic"
         placeholder="Topic, for a decision: its heading on the meeting's decisions page (e.g. Pricing)"
       />

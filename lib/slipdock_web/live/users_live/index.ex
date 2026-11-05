@@ -473,7 +473,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     type="email"
                     name="email"
                     value={user.email}
-                    class="input input-xs w-56"
+                    class="input field w-56"
                     autocomplete="off"
                     phx-mounted={JS.focus()}
                   />
@@ -530,7 +530,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     name="limit"
                     value={user.card_limit_override}
                     placeholder={if user.unlimited, do: "∞", else: Settings.free_card_limit() || "∞"}
-                    class="input input-xs w-16"
+                    class="input field w-16"
                   />
                 </form>
                 <div class="mt-1 text-base-content/50">
@@ -682,7 +682,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     type="text"
                     name="reason"
                     placeholder="Help them with…"
-                    class="input input-xs w-36"
+                    class="input field w-36"
                     title="Read their boards for a few hours. They are told, with this reason."
                   />
                   <button type="submit" class="btn btn-xs">Support</button>

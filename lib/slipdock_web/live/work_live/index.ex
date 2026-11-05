@@ -204,7 +204,7 @@ defmodule SlipdockWeb.WorkLive.Index do
                       type="text"
                       name="wait[answer]"
                       placeholder="Answer…"
-                      class="input input-bordered input-xs min-w-0 flex-1"
+                      class="input field min-w-0 flex-1"
                       maxlength="4000"
                       required
                     />

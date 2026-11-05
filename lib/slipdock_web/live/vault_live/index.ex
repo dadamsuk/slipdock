@@ -226,10 +226,10 @@ defmodule SlipdockWeb.VaultLive.Index do
         name="shortcut"
         value={@vault.shortcut}
         maxlength={Slipdock.Boards.Board.shortcut_length()}
-        class="input input-sm w-16 font-mono"
+        class="input field w-16 field-mono"
       />
       <label for={"vault-hotkey-#{@vault.id}"} class="text-base-content/60">Hotkey</label>
-      <select id={"vault-hotkey-#{@vault.id}"} name="hotkey" class="select select-sm w-auto">
+      <select id={"vault-hotkey-#{@vault.id}"} name="hotkey" class="select field w-auto">
         <option
           :for={{label, value} <- Slipdock.Hotkeys.choices(@hotkeys, @vault)}
           value={value}
@@ -274,7 +274,7 @@ defmodule SlipdockWeb.VaultLive.Index do
         value={@vault.recordings_folder}
         placeholder="e.g. Meeting Recordings"
         disabled={not match?({:connected, _}, @google)}
-        class="input input-sm flex-1 font-mono text-xs"
+        class="input field flex-1 field-mono"
       />
       <button type="submit" class="btn btn-sm" disabled={not match?({:connected, _}, @google)}>
         Save

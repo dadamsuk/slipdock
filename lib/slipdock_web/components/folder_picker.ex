@@ -111,7 +111,7 @@ defmodule SlipdockWeb.FolderPicker do
                 data-filter
                 placeholder="Type to filter folders…"
                 autocomplete="off"
-                class="w-full rounded-lg border border-base-300 bg-base-100 py-1.5 pl-8 pr-2 text-sm focus:border-primary focus:outline-none"
+                class="input field field-icon w-full"
               />
             </div>
           </div>

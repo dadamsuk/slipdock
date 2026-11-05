@@ -601,7 +601,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   type="text"
                   name="name"
                   value={column.name}
-                  class="input input-sm w-full font-semibold"
+                  class="input field w-full font-semibold"
                   phx-hook="Focus"
                   data-select
                   phx-blur="cancel_rename_column"
@@ -837,7 +837,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   type="text"
                   name="title"
                   placeholder="Card title; a comment, then Enter"
-                  class="input input-sm w-full"
+                  class="input field w-full"
                   phx-hook="Focus"
                   id={"quick-add-input-#{column.id}-#{@form_key}"}
                   phx-window-keydown="cancel_add_card"
@@ -942,7 +942,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                 type="text"
                 name="name"
                 placeholder="List name"
-                class="input input-sm w-full"
+                class="input field w-full"
                 phx-hook="Focus"
                 id="add-column-input"
                 phx-window-keydown="cancel_add_column"
@@ -1080,7 +1080,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           <.icon name={icon} class="size-3.5" /> {label}
         </button>
         <form id="bulk-set" phx-change="bulk_apply" class="contents">
-          <select name="action" class="select select-xs w-36" aria-label="Set on the selected cards">
+          <select name="action" class="select field w-36" aria-label="Set on the selected cards">
             <option value="">Set…</option>
             <optgroup :if={@tags != []} label="Add tag">
               <option :for={t <- @tags} value={"tag:#{t.id}"}>{t.name}</option>
@@ -1102,7 +1102,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           </select>
         </form>
         <form id="bulk-move" phx-change="bulk_apply" class="contents">
-          <select name="action" class="select select-xs w-40" aria-label="Move the selected cards">
+          <select name="action" class="select field w-40" aria-label="Move the selected cards">
             <option value="">Move to…</option>
             <optgroup :for={{board, columns} <- @destinations} label={board.name}>
               <option :for={c <- columns} value={"move:#{c.id}"}>{c.name}</option>

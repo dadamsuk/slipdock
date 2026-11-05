@@ -123,7 +123,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
                   type="text"
                   name="name"
                   value={tag.name}
-                  class="input input-xs flex-1"
+                  class="input field flex-1"
                   aria-label="Tag name"
                 />
                 <button type="submit" class="btn btn-xs">Rename</button>

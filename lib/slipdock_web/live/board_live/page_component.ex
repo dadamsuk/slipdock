@@ -337,7 +337,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
         </.form>
 
         <div class="space-y-1.5">
-          <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Flags</p>
+          <p class="section-label">Flags</p>
           <div class="flex flex-wrap gap-1">
             <button
               :for={flag <- Card.flags()}
@@ -357,7 +357,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
         </div>
 
         <div :if={@board.tags != []} class="space-y-1.5">
-          <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Tags</p>
+          <p class="section-label">Tags</p>
           <div class="flex flex-wrap gap-1">
             <button
               :for={tag <- @board.tags}

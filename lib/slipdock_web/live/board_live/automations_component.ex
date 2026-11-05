@@ -527,7 +527,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
             disabled={!@ai? or @busy}
             phx-debounce="300"
             placeholder="When a card lands in Done, email ops@example.com…"
-            class="w-full resize-y rounded-xl border-0 bg-base-200/70 px-3 py-2 text-sm ring-1 ring-base-content/10 placeholder:text-base-content/40 focus:ring-2 focus:ring-primary"
+            class="textarea field w-full"
           >{@text}</textarea>
           <div class="flex flex-wrap items-center gap-2">
             <button type="submit" class="btn btn-primary btn-sm gap-1.5" disabled={!@ai? or @busy}>

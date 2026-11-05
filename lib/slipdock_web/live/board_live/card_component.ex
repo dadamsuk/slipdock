@@ -1704,7 +1704,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         />
       </div>
       <div :if={@can_share} class="border-t border-base-content/10 px-6 py-4">
-        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <p class="mb-2 section-label">
           Sharing this card
         </p>
         <.share_panel
