@@ -1158,22 +1158,24 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </label>
           <label :if={not @board.simple} class="block space-y-1">
             <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Start date</span>
-            <input
-              type="date"
+            <.date_field
+              id={"card-start-date-#{@card.id}"}
               name="card[start_date]"
               value={@card.start_date}
               max={@card.due_date}
-              class="input field w-full"
+              class="w-full"
+              aria-label="Start date"
             />
           </label>
           <label class="block space-y-1">
             <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Due date</span>
-            <input
-              type="date"
+            <.date_field
+              id={"card-due-date-#{@card.id}"}
               name="card[due_date]"
               value={@card.due_date}
               min={@card.start_date}
-              class="input field w-full"
+              class="w-full"
+              aria-label="Due date"
             />
             <.due_badge date={@card.due_date} completed={@card.completed} />
             <p :if={@form[:start_date].errors != []} class="text-xs text-error">

@@ -455,6 +455,152 @@ defmodule SlipdockWeb.CoreComponents do
     """
   end
 
+  @doc """
+  A date, written the app's way, that opens the browser's own picker (#1720).
+
+  Use it for every date a person sets, never a raw `<input type="date">`
+  (W-1947 §Core). It shows the date as `SlipdockWeb.Dates.short/2` writes
+  it ("18 Nov"), or `placeholder` ("Add date") when there is none, in the
+  `field` box (`bare` for in-place editing: `field-bare`). A hidden native
+  `<input type="date">` carries the value, so the form posts and
+  `phx-change` sees exactly what the raw input sent: `name=YYYY-MM-DD`, or
+  `name=` once cleared.
+
+  Clicking the date, or Enter or Space on it, opens the native picker
+  (`input.showPicker()`, the `DateField` hook in `assets/js/date_field.js`);
+  a digit hands the keys to the native input for typing. Where the browser
+  has no `showPicker`, the native input is shown instead. `×` clears it,
+  unless `required`.
+
+  ```heex
+  <.date_field field={@form[:due_date]} label="Due date" min={@card.start_date} />
+  <.date_field id="due-12" name="value" value={@card.due_date} bare aria-label="Due date" />
+  ```
+  """
+  attr :id, :string, default: nil, doc: "the wrapper's id; the input's is `<id>-input`"
+  attr :name, :string, default: nil
+  attr :value, :any, default: nil, doc: "a Date, an ISO string, or nil/\"\""
+  attr :field, Phoenix.HTML.FormField, default: nil
+  attr :label, :string, default: nil
+  attr :placeholder, :string, default: "Add date"
+  attr :required, :boolean, default: false
+  attr :disabled, :boolean, default: false
+  attr :bare, :boolean, default: false, doc: "edit in place (`field-bare`), as on the card back"
+  attr :min, :any, default: nil
+  attr :max, :any, default: nil
+  attr :class, :any, default: nil, doc: "added to the wrapper (width, margins); never a size"
+  attr :errors, :list, default: []
+
+  attr :rest, :global,
+    include: ~w(form aria-label aria-describedby phx-debounce),
+    doc: "goes on the native input"
+
+  def date_field(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+    errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
+
+    assigns
+    |> assign(field: nil)
+    |> assign(:id, assigns.id || field.id)
+    |> assign(:name, assigns.name || field.name)
+    |> assign(:value, assigns.value || field.value)
+    |> assign(:errors, Enum.map(errors, &translate_error/1))
+    |> date_field()
+  end
+
+  def date_field(assigns) do
+    date = date_value(assigns.value)
+    id = assigns.id || "date-#{System.unique_integer([:positive])}"
+
+    assigns =
+      assign(assigns,
+        id: id,
+        date: date,
+        iso: date && Date.to_iso8601(date),
+        text: if(date, do: SlipdockWeb.Dates.short(date), else: assigns.placeholder),
+        min: iso_or_nil(assigns.min),
+        max: iso_or_nil(assigns.max)
+      )
+
+    ~H"""
+    <div :if={@label} class="fieldset mb-2">
+      <label for={"#{@id}-display"} class="label mb-1">{@label}</label>
+      <.date_box {assigns} />
+      <.error :for={msg <- @errors}>{msg}</.error>
+    </div>
+    <.date_box :if={!@label} {assigns} />
+    <.error :for={msg <- if(@label, do: [], else: @errors)}>{msg}</.error>
+    """
+  end
+
+  defp date_box(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      phx-hook="DateField"
+      data-date-field
+      data-placeholder={@placeholder}
+      data-empty={is_nil(@date)}
+      class={[
+        "date-field",
+        if(@bare, do: "field-bare", else: "field"),
+        @errors != [] && "input-error",
+        @class
+      ]}
+    >
+      <button
+        type="button"
+        id={"#{@id}-display"}
+        data-role="date-display"
+        class="date-field-display"
+        disabled={@disabled}
+        aria-label={@rest[:"aria-label"] && "#{@rest[:"aria-label"]}: #{@text}"}
+      >
+        <.icon name="hero-calendar" class="size-4 shrink-0 opacity-60" />
+        <span data-role="date-text" class={is_nil(@date) && "date-field-placeholder"}>{@text}</span>
+      </button>
+      <input
+        type="date"
+        id={"#{@id}-input"}
+        name={@name}
+        value={@iso}
+        min={@min}
+        max={@max}
+        required={@required}
+        disabled={@disabled}
+        class="date-field-input"
+        tabindex="-1"
+        {@rest}
+      />
+      <button
+        :if={not @required}
+        type="button"
+        data-role="date-clear"
+        class="date-field-clear"
+        hidden={is_nil(@date)}
+        disabled={@disabled}
+        aria-label="Clear the date"
+        title="Clear"
+      >
+        <.icon name="hero-x-mark" class="size-3.5" />
+      </button>
+    </div>
+    """
+  end
+
+  defp date_value(%Date{} = d), do: d
+  defp date_value(%DateTime{} = dt), do: DateTime.to_date(dt)
+
+  defp date_value(s) when is_binary(s) do
+    case Date.from_iso8601(String.trim(s)) do
+      {:ok, d} -> d
+      _ -> nil
+    end
+  end
+
+  defp date_value(_), do: nil
+
+  defp iso_or_nil(value), do: (d = date_value(value)) && Date.to_iso8601(d)
+
   # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""
