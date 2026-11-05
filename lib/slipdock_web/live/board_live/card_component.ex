@@ -74,6 +74,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        card: nil,
        given: nil,
        card_form: nil,
+       narrow?: false,
        form_key: 0,
        share_key: 0,
        card_pages: [],
@@ -147,6 +148,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         favourites: assigns.favourites,
         ai?: assigns.ai?,
         at: assigns[:at],
+        narrow?: assigns[:narrow?] || false,
         parent: assigns.parent,
         close_navigate: assigns.close_navigate
       )
@@ -1221,6 +1223,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         card={@card}
         at={@at}
         ai?={@ai?}
+        narrow?={@narrow?}
         current_user={@current_user}
         users={@users}
         form={@card_form}
@@ -1414,6 +1417,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :parent, :any, default: nil
   attr :ai?, :boolean, default: false, doc: "offer the AI assistant on the card"
   attr :at, :string, default: nil, doc: "where in the card a search result points"
+  attr :narrow?, :boolean, default: false, doc: "a phone: the properties come first (#1729)"
 
   attr :current_user, :any, default: nil
 
@@ -1579,6 +1583,18 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               <.ask_form asking={@asking} users={@users} target={@target} />
             </fieldset>
             <.wait_history :if={@wait_history != []} waits={@wait_history} />
+            <%!-- On a phone (#1729) the properties come first: a summary
+                  under the title that opens onto their rows, which the
+                  sidebar, far below, then leaves out. --%>
+            <fieldset :if={@narrow?} disabled={!@can_write} class="min-w-0">
+              <.phone_properties
+                board={@board}
+                card={@card}
+                form={@form}
+                target={@target}
+                users={@users}
+              />
+            </fieldset>
             <fieldset disabled={!@can_write} class="min-w-0 space-y-7">
               <.card_header_form
                 board={@board}
@@ -1707,6 +1723,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         </div>
 
         <.card_sidebar
+          narrow?={@narrow?}
           repeat={@repeat}
           board={@board}
           can_write={@can_write}
