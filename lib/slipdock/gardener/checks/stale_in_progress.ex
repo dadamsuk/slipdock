@@ -2,6 +2,10 @@ defmodule Slipdock.Gardener.Checks.StaleInProgress do
   @moduledoc """
   A card in a doing list nobody has touched for `days` (default 14): move
   it back to the ready list, or snooze it, or ask on it (W-1807).
+
+  Only the cards people drive: one an agent put in progress is the health
+  monitor's (`Slipdock.Health.Detectors.OrphanInProgress`), which puts it
+  back by itself.
   """
   @behaviour Slipdock.Gardener.Check
 
@@ -19,6 +23,9 @@ defmodule Slipdock.Gardener.Checks.StaleInProgress do
   def find(ctx, %{"days" => days}) do
     candidates =
       Enum.filter(Cards.cards(ctx), &(not &1.completed and Context.category(ctx, &1) == "doing"))
+
+    agents = Slipdock.Health.Cards.agent_driven(Enum.map(candidates, & &1.id))
+    candidates = Enum.reject(candidates, &MapSet.member?(agents, &1.id))
 
     last = Cards.last_activity(candidates)
 
