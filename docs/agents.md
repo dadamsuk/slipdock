@@ -520,7 +520,12 @@ has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
 card. `job_progress` with `step` (`slipdock job-progress --step`) says what a
 job is doing now on the job alone, not the card: a verify job reports each
 step that way, and every runner job's prompt asks for its milestones too (on
-an epic, each subcard as it starts, is submitted and merges). The agent a
+an epic, each subcard as it starts, is submitted and merges). The epic's
+comments are the server's to keep: it posts a line on the epic as each
+subcard starts, is submitted, rejected, accepted, merged, fails a build,
+waits on a person or ships, with the done count, and keeps the epic's %
+complete following its subcards. An agent comments there only what the
+server can't know: decisions, surprises, dead ends and changes of plan. The agent a
 runner started may report on the runner's job (the CLI sends
 `$SLIPDOCK_JOB_ID`), though only the runner claims and finishes it. The details, and the HTTP protocol a runner speaks, are in
 [the manual](manual.md#runners) and the guide's *Runners* section.

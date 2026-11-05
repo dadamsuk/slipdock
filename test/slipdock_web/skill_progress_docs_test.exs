@@ -2,9 +2,11 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
   @moduledoc """
   Epic passes show their progress (#1853), said where agents and people
   look: the slipdock-loop skill has a runner's pass report milestones as job
-  steps and comment on the epic as each subcard closes, and fixes a build a
-  closed subcard broke on a new subcard instead of reopening it (#1850); the
-  manual says what the health monitor counts as a sign of work.
+  steps, and fixes a build a closed subcard broke on a new subcard instead of
+  reopening it (#1850); the manual says what the health monitor counts as a
+  sign of work. The epic's progress lines are the server's (#1881): the skill,
+  in both copies, leaves them to it and asks for what only the agent knows,
+  and the manual describes them.
   """
   use ExUnit.Case, async: true
 
@@ -21,7 +23,33 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
 
     assert loop =~ ~s(`slipdock job-progress --step "…"`)
     assert loop =~ "The runner holds that job, so don't claim or finish it."
-    assert loop =~ "a one-line comment on the epic itself as each subcard closes"
+  end
+
+  test "the loop leaves an epic's progress lines to the server, in both copies (#1881)" do
+    installed = Path.expand("~/.claude/skills/slipdock-loop/SKILL.md")
+
+    copies =
+      [@root |> Path.join("priv/skills/slipdock-loop/SKILL.md")] ++
+        if File.exists?(installed), do: [installed], else: []
+
+    for path <- copies do
+      loop = path |> File.read!() |> String.replace(~r/\s+/, " ")
+      refute loop =~ "a one-line comment on the epic itself as each subcard closes", path
+      assert loop =~ "the server posts each subcard's progress on the epic itself", path
+      assert loop =~ "Don't repeat those.", path
+
+      assert loop =~
+               "Comment on the epic only what the server can't know: a decision, a surprise, " <>
+                 "a dead end, a change of plan",
+             path
+    end
+  end
+
+  test "the manual describes an epic's comments (#1881)" do
+    manual = flat("docs/manual.md")
+    assert manual =~ "the server posts a line on the epic"
+    assert manual =~ "consecutive lines within 10 seconds share one comment"
+    assert manual =~ "follows its subcards (done ÷ all, rounded down)"
   end
 
   test "a build a closed subcard broke is fixed on a new subcard, not by reopening it" do

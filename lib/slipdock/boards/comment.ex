@@ -10,6 +10,9 @@ defmodule Slipdock.Boards.Comment do
 
   schema "comments" do
     field :body, :string
+    # What wrote it, when the server did and it matters: "epic_log" for the
+    # progress lines on an epic (`Slipdock.EpicLog`). Never from a request.
+    field :kind, :string
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :page, Slipdock.Wiki.Page
     belongs_to :user, Slipdock.Accounts.User

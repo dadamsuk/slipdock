@@ -78,7 +78,14 @@ defmodule Slipdock.Deployments do
     |> Deployment.start_changeset(attrs)
     |> Repo.insert()
     |> tap(&broadcast(board, &1))
+    |> tap(&if(attrs["source"] != "backfill", do: post_shipped(&1)))
   end
+
+  # A deploy that succeeded is a line on each epic it ships cards of (#1881).
+  defp post_shipped({:ok, %Deployment{status: "succeeded"} = deployment}),
+    do: Slipdock.EpicLog.shipped(deployment)
+
+  defp post_shipped(_result), do: :ok
 
   @doc """
   Finishes deploy `id` on `board` as `succeeded` or `failed`. A deploy that
@@ -97,6 +104,7 @@ defmodule Slipdock.Deployments do
         |> Deployment.finish_changeset(to_string(status), at)
         |> Repo.update()
         |> tap(&broadcast(board, &1))
+        |> tap(&post_shipped/1)
 
       true ->
         {:error, :not_found}

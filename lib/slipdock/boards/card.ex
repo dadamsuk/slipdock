@@ -35,6 +35,10 @@ defmodule Slipdock.Boards.Card do
     # How far through the work is, 0–100, as stated by whoever is doing it;
     # nil when nobody has said. Independent of `completed`.
     field :percent_complete, :integer
+    # Set when a person states it (#1881): an epic's % complete then stays
+    # as they said rather than following its subcards. Clearing it lets it
+    # follow them again (`Slipdock.EpicLog`).
+    field :percent_by_hand, :boolean, default: false
     # Time tracking (see Slipdock.TimeTracking): spent and estimate in whole
     # minutes, shown in `time_unit`; a running timer is when it started.
     field :time_spent, :integer

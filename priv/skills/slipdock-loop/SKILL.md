@@ -386,10 +386,14 @@ needs more, add a card for that and link it.
 The card is the running log, not the final report:
 
 - a comment at every decision, surprise, dead end or changed plan;
-- `slipdock edit <id> --percent N` moved along with it;
+- `slipdock edit <id> --percent N` moved along with it (an epic's follows
+  its subcards by itself);
 - `slipdock tick <item-id>` as checklist steps actually land;
-- on an epic, a one-line comment on the epic itself as each subcard closes:
-  what it delivered and what is next;
+- on an epic, the server posts each subcard's progress on the epic itself:
+  started, submitted, rejected, accepted and merged, build failed, a wait
+  opened and answered, shipped, each with the done count. Don't repeat
+  those. Comment on the epic only what the server can't know: a decision,
+  a surprise, a dead end, a change of plan;
 - in a runner's job (`$SLIPDOCK_JOB_ID` is set), each milestone as the job's
   step: `slipdock job-progress --step "…"` (no id: it takes the job from
   `$SLIPDOCK_JOB_ID`) for the plan made, each subcard as it starts, is

@@ -83,6 +83,13 @@ defmodule Slipdock.Flow do
   end
 
   @doc """
+  Whether `column` is a doing list: by its category, else by its name (the
+  guide's reading; the Simple template's "Doing" has no category).
+  """
+  def doing_list?(%Column{} = column),
+    do: SlipdockWeb.APIGuide.role([column], column) == "doing"
+
+  @doc """
   The history of `board` over `opts[:days]` (#{inspect(@windows)}, held to
   them by `clamp_days/1`). `:now` fixes the clock and `:timezone` the day
   boundaries, for tests.
