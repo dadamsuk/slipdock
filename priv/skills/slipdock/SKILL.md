@@ -495,6 +495,7 @@ slipdock tools install-board <name> [--name N] [--version V]
                                               # the server builds the board; again = the same board,
                                               # a newer version adds only what is missing
 slipdock tools install-board handbook --board B   # the built-in handbook, on B's root board
+slipdock tools install-board sweep --board B      # the code sweep: Sweeps page, Triage list, daily card
 slipdock handbook <board>                     # its index and decisions
 slipdock handbook <card>                      # the sections that card should read (also in `card`)
 slipdock tools install <name> [--dir D]       # its skills (and local files) into ~/.claude/skills

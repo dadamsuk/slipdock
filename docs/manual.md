@@ -173,7 +173,7 @@ way in: what it is, the pictures, and how to get it running.
 - Calendar view (`/boards/:id/calendar`): a month or week with cards on their
   due dates, drag between days, quick add on a day
 - Roadmapping: lists can carry a **category** (to do / in progress / done /
-  dropped) and a **horizon** (a date range such as Q1 2027) that schedules
+  dropped, or triage for work nothing feeds to the loop) and a **horizon** (a date range such as Q1 2027) that schedules
   cards dropped into them; cards can be scheduled by day, week, month,
   quarter, half-year or year; **milestones** are drawn on the timeline and
   calendar; the timeline draws **dependency lines**, red where the dates
@@ -6612,6 +6612,41 @@ to every day, and changes nothing else on it. Installing 1.3.0 over an
 older handbook adds the Triage findings card and appends `## Triage` to the
 Index.
 
+**The code sweep** is the other built-in Tool that goes onto a board that
+exists (#1793): `install_tool` with `tool: "sweep"` and `board`, `POST
+/api/tools/sweep/install` with `board`, or `slipdock tools install-board sweep
+--board B`. It goes on the board's root and needs write access there. It
+adds:
+
+- a **Sweeps** page (front matter `sweep: rotation`): the lenses, a
+  **Rotation** table of areas against lenses, and a **Log**. The lenses are
+  authorization (every event handler, API route and MCP tool), duplication,
+  dead code, test gaps, old code vs rules (code older than a rule that
+  breaks it) and secrets & personal details. The areas are the handbook's
+  pages whose `covers:` name paths, with those paths; on a board without a
+  handbook the first run adds them from the top-level contexts. Each cell is
+  the commit and date that area was last swept through that lens, `—` for
+  never;
+- a **Triage** list, in the `triage` category;
+- a **Sweep the code** card, every day. Its procedure: take the stalest
+  cell, check out the default branch's head in a clean worktree, read that
+  area through that lens without changing code, file each issue as a card in
+  Triage (where, why it matters, the fix), record each as a finding in the
+  closing comment, then update the cell and the Log. One area and one lens a
+  run; a security issue gets the `security` tag and stays vague in commit
+  messages, pull requests and the log.
+
+Installing again adds only what is missing (the list, the page or the card,
+if deleted) and never touches the page once it is there.
+
+**A Triage list is never fed.** A list whose category is `triage` holds work
+for a person to look at, not for the loop: the agent guide never reads it as
+the ready list or the backlog (it shows it as `triage: for a person, never
+take work from it`), a *Work a list with a runner* rule (`list_top`) sends
+nothing from it, and a rule's runner action skips a card that arrives in it.
+A person moves what is worth doing from Triage into the ready list. Any list
+can be given the category from its menu.
+
 **Rules** live in each section page's `## Rules`, one list item each, the
 parts separated by ` · `: `- **UX-4** must · test/app_web/design_tokens_test.exs ·
 No colour literals in templates.` The id is the page's prefix (`SPEC`,
@@ -6877,7 +6912,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `status_update` | Posts a status update on a card, as `POST /api/cards/:id/status` does: its `health` (`on_track`, `at_risk`, `off_track`) and an optional `body`. The latest is the card's stated health. |
 | `archive_card` | Puts a card away, or with `restore: true` brings it back. |
 | `delete_card` | Deletes a card with its subcards, comments and files. Needs `confirm: true`. |
-| `create_list` | A list at the end of a board, with its category (`todo`, `doing`, `done`) and an optional WIP limit. |
+| `create_list` | A list at the end of a board, with its category (`todo`, `doing`, `done`, `dropped`, or `triage` for a list nothing feeds from) and an optional WIP limit. |
 | `create_tag` | A tag on a board (on its root, so the whole tree shares it), with an optional colour. A tag of that name already there comes back with `created: false` rather than a second one. |
 | `delete_list` | Deletes an empty list; one holding cards only with `with_cards: true`. |
 | `create_board` | A board of your own, with a template's lists (Backlog, To Do, In Progress, Done by default), or `lists` of its own that `save_template` can keep as a new template. |
@@ -6893,7 +6928,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
 | `manage_wiki` | Changes your [wiki](#your-wiki), by `action`: `set` (`shortcut`, `recordings_folder`), and `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board. |
 | `manage_automation` | Changes a board's [automation rules](#automations-and-alerts), by `action`, as the API does and for its owner only: `create` from a `spec` (exact, no model), a `preset` with its `params`, or `text` (a sentence the server's model turns into a spec, on the AI key), with optional `name` and `scope` (`board`, or `tree` for its sub-boards too); `update` a `rule` (id or name) with any of `name`, `scope`, `enabled` and `spec`, or `text` to have the model rewrite it; `delete` a `rule` with `confirm: true` — `enabled: false` turns it off without losing it. A spec that doesn't validate is refused with the reason. |
-| `install_tool` | Builds the board a [Tool](#tools) comes with, for the caller: the lists, folders, tags, page skeletons and rules from its `board.json`, and its board files in a `Tool` folder, by `tool` (its name), with optional `version` and `board_name`. Answers with the board's code and url and what was added. Installing again answers with the board already made, and makes nothing. `tool: "handbook"` with `board` puts the built-in handbook on that board's root instead. |
+| `install_tool` | Builds the board a [Tool](#tools) comes with, for the caller: the lists, folders, tags, page skeletons and rules from its `board.json`, and its board files in a `Tool` folder, by `tool` (its name), with optional `version` and `board_name`. Answers with the board's code and url and what was added. Installing again answers with the board already made, and makes nothing. `tool: "handbook"` with `board` puts the built-in handbook on that board's root instead; `tool: "sweep"` with `board` puts the code sweep there (its Sweeps page, a Triage list and the daily card). |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
 | `job_progress` | Renews a claimed job's lease; `step`, if given, is kept on the job as what it is doing now (not on the card); `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |

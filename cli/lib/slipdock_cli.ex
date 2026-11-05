@@ -533,6 +533,10 @@ defmodule SlipdockCLI do
     tools install-board handbook --board B
                                         put the built-in handbook (Handbook/ pages that
                                         loop passes read and update) on B's root board
+    tools install-board sweep --board B
+                                        put the built-in code sweep (a Sweeps rotation
+                                        page, a Triage list nothing feeds from, and a
+                                        daily Sweep the code card) on B's root board
     tools file <name> <path> [--version V] [--out F]
                                         one file of the package by its path
                                         (skills/<skill>/SKILL.md, files/build.py) to
