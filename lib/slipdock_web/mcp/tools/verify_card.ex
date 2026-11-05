@@ -31,8 +31,10 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
         card: %{type: "integer"},
         decision: %{
           type: "string",
-          enum: ["accept", "reject", "merged"],
-          description: "merged: a person merged a merging card's pull request by hand."
+          enum: ["accept", "reject", "merged", "agree", "disagree"],
+          description:
+            "merged: a person merged a merging card's pull request by hand. agree/disagree: " <>
+              "an audit job's say on an accepted card (a comment; disagree alerts the owner)."
         },
         reason: %{
           type: "string",

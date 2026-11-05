@@ -3651,7 +3651,13 @@ defmodule SlipdockWeb.APIGuide do
     what the reason says and completes it again. Past the board's
     `verify_rejection_limit` (2 by default, 0 never) the rejection opens a
     wait on the board's owner instead (*Rework as rejected* or *Accept as
-    is*): the card is flagged `waiting`, and only a person answers. The submitter can't
+    is*): the card is flagged `waiting`, and only a person answers. A
+    board's `verify_audit` (1 in N, 0 none) queues about one card in N an
+    agent accepted to the verify pool again as an audit (kind `verify`,
+    `audit: true`; never to its builder's or verifier's runner): judge it
+    afresh, `should` rules too, and answer `slipdock verify ID agree|disagree
+    --reason …` (`verify_card`). That only comments; disagree alerts the
+    owner, and the acceptance stands. The submitter can't
     decide its own card (`403`): a different agent is a different token,
     or a different runner job. A board with a `verify_pool` also queues
     each submitted card for that runner pool as a job of kind `verify`,

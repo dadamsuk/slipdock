@@ -520,6 +520,12 @@ defmodule Slipdock.Verified do
 
   `{:ok, card}`, or `{:error, status, message}` in the API's shapes.
   """
+  def decide(%Card{} = card, decision, params, actor, user)
+      when decision in ["agree", "disagree"] do
+    reason = params |> Map.get("reason") |> trim()
+    audit_decision(card, decision, params, reason, in_runner_job(actor, card), user)
+  end
+
   def decide(%Card{} = card, decision, params, actor, user) do
     actor = in_runner_job(actor, card)
     reason = params |> Map.get("reason") |> trim()
@@ -530,7 +536,8 @@ defmodule Slipdock.Verified do
         merged_by_hand(card, commit, actor, user)
 
       decision not in ~w(accept reject) ->
-        {:error, :unprocessable_entity, "decision must be accept, reject or merged"}
+        {:error, :unprocessable_entity,
+         "decision must be accept, reject or merged (agree or disagree for an audit)"}
 
       card.verify_state != "pending" ->
         {:error, :conflict, "card ##{card.id} isn't waiting for verification"}
@@ -844,7 +851,9 @@ defmodule Slipdock.Verified do
       if done && done.id != card.column_id,
         do: Slipdock.Boards.move_card(card.id, done.id, nil, actor: actor)
 
-      {:ok, Repo.get!(Card, card.id)}
+      card = Repo.get!(Card, card.id)
+      maybe_audit(card)
+      {:ok, card}
     end
     |> api_error()
   end
@@ -1255,7 +1264,10 @@ defmodule Slipdock.Verified do
       if done && done.id != card.column_id,
         do: Slipdock.Boards.move_card(card.id, done.id, nil, actor: actor)
 
-      {:ok, Repo.get!(Card, card.id)}
+      # Merged: an audit now can't hold anything up (#1780).
+      card = Repo.get!(Card, card.id)
+      maybe_audit(card)
+      {:ok, card}
     end
     |> api_error()
   end
@@ -1307,6 +1319,178 @@ defmodule Slipdock.Verified do
   end
 
   def rejection(_card), do: nil
+
+  ## Audits (#1780) -------------------------------------------------------------
+
+  @doc """
+  How often `card`'s tree audits accepted work: its root board's
+  `verify_audit`, 1 in N (0: never).
+  """
+  def audit_every(%Card{} = card) do
+    board = board(card)
+    root = if board.root_id, do: Repo.get(Board, board.root_id) || board, else: board
+    root.verify_audit || 0
+  end
+
+  @doc """
+  Whether card `card_id` is in the sample for 1 in `n`: a hash of its id,
+  so about one card in `n` is, and the same card always answers the same.
+  """
+  def audit_sampled?(card_id, n) when is_integer(n) and n > 0,
+    do: :erlang.phash2({:verify_audit, card_id}, n) == 0
+
+  def audit_sampled?(_card_id, _n), do: false
+
+  # A card an agent accepted (not a person), on a board with audits and a
+  # verify pool, in the sample: queued for the verify pool as an audit,
+  # never to the runner that built it or the one that verified it.
+  defp maybe_audit(%Card{} = card) do
+    board = board(card)
+    n = audit_every(card)
+
+    if board.verify_work and present?(board.verify_pool) and agent_decided?(card) and
+         audit_sampled?(card.id, n) do
+      builder = builder_runner_id(card)
+      verifier = decider_runner(card.verify_by)
+
+      Slipdock.Runners.queue(card, %{
+        pool: board.verify_pool,
+        kind: verify_kind(),
+        audit: true,
+        prompt: audit_prompt(card, board),
+        exclude_runner_id: builder,
+        exclude_runner_ids: Enum.uniq(Enum.reject([builder, verifier], &is_nil/1))
+      })
+    end
+
+    :ok
+  end
+
+  defp agent_decided?(%Card{verify_by: %{"kind" => "agent", "via" => via}})
+       when via != "assistant",
+       do: true
+
+  defp agent_decided?(_card), do: false
+
+  @doc """
+  What an audit job's agent is told (#1780): the verify prompt's checks, with
+  every rule judged (`should` too), the original verdict shown, and a
+  decision that only says whether it agrees.
+  """
+  def audit_prompt(%Card{} = card, %Board{} = board) do
+    url = "#{Slipdock.Automations.Runner.base_url()}/boards/#{board.id}/cards/#{card.id}"
+    handbook = Slipdock.Handbook.find(board)
+    judging = judge_steps(card, board, handbook, audit: true)
+    decide = length(judging) + 3
+
+    """
+    Audit card ##{card.id} “#{card.title}” on #{board.name}: #{url}
+
+    Another agent did the work, and a verifier accepted it. You are checking the checker: judge the work afresh, as the verifier should have, then say whether you agree with its verdict. You change nothing: not the code, not the card. Your decision is a comment, and a disagreement raises an alert for the board's owner; the acceptance stands either way.
+
+    The verdict you are auditing: accepted by #{who(card.verify_by)}#{if card.verify_at, do: " at #{card.verify_at}", else: ""}.
+    #{original_verdict(card)}
+
+    #{card_block(card, board, judging)}
+    #{decide}. Say once whether you agree, and report it as a step first (`deciding: agree` or `deciding: disagree`):
+       - `slipdock verify #{card.id} agree --reason "what you checked" --check ask=ok --check bar:1=ok …`
+       - `slipdock verify #{card.id} disagree --reason "where the verdict is wrong, specifically" --check bar:2=fail:"why" …`
+    Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a`, `handbook_line=ok|disputed`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
+    """
+  end
+
+  defp original_verdict(%Card{} = card) do
+    note = if blank?(card.verify_note), do: "(no reason given)", else: card.verify_note
+
+    parts =
+      card.verify_checks
+      |> Slipdock.Verified.Checks.lines()
+      |> Enum.map_join("\n", fn
+        {label, result, nil} -> "- #{label}: #{result}"
+        {label, result, why} -> "- #{label}: #{result} — #{why}"
+      end)
+
+    if parts == "",
+      do: "Its reason: #{note}\n(It gave no parts.)",
+      else: "Its reason: #{note}\nIts parts:\n#{parts}"
+  end
+
+  # An audit's say (#1780): a comment, and for a disagreement an alert for
+  # the board's owner. Nothing on the card changes. It comes from an audit
+  # job on the card, or a person; never from whoever accepted it.
+  defp audit_decision(card, decision, params, reason, actor, user) do
+    with :ok <- may_audit(card, actor),
+         {:ok, checks} <- checks_param(params) do
+      checks =
+        checks |> Slipdock.Verified.Checks.with_severity(handbook_rules(card)) |> empty_nil()
+
+      if decision == "disagree" and reason == "",
+        do: {:error, :unprocessable_entity, "a disagreement needs its reason"},
+        else: record_audit(card, decision, reason, checks, actor, user)
+    end
+  end
+
+  defp empty_nil(checks) when checks == %{}, do: nil
+  defp empty_nil(checks), do: checks
+
+  defp may_audit(card, actor) do
+    cond do
+      card.verify_state != "accepted" ->
+        {:error, :conflict,
+         "card ##{card.id} hasn't been accepted: only accepted work is audited"}
+
+      same_actor?(card.verify_by, actor) ->
+        {:error, :forbidden, "you accepted card ##{card.id}: a different agent audits it"}
+
+      gated?(actor) and not in_audit_job?(card, actor) ->
+        {:error, :forbidden,
+         "an agent audits card ##{card.id} only from its audit job (a person may at any time)"}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp in_audit_job?(%Card{id: card_id}, actor) do
+    case actor_map(actor) do
+      %{"job_id" => id} when is_integer(id) ->
+        match?(
+          %Slipdock.Runners.Job{card_id: ^card_id, audit: true},
+          Repo.get(Slipdock.Runners.Job, id)
+        )
+
+      _ ->
+        false
+    end
+  end
+
+  defp record_audit(card, decision, reason, checks, actor, user) do
+    by = who(actor, user)
+    agrees = decision == "agree"
+
+    line =
+      if agrees,
+        do: "**Audit: agrees** with the acceptance, by #{by}.",
+        else: "**Audit: disagrees** with the acceptance, by #{by}."
+
+    comment(card, line, with_parts(blank_to_nil(reason), checks), user)
+
+    unless agrees do
+      root = card |> board() |> Slipdock.Handbook.root()
+
+      Slipdock.Automations.raise_alert(%{
+        "board_id" => root.id,
+        "card_id" => card.id,
+        "severity" => "warning",
+        "title" => "An audit disagrees with the acceptance of ##{card.id}",
+        "body" =>
+          "#{by} audited “#{card.title}”, accepted by #{who(card.verify_by)}: " <>
+            String.slice(reason, 0, 500)
+      })
+    end
+
+    {:ok, Repo.get!(Card, card.id)}
+  end
 
   ## Verify jobs ---------------------------------------------------------------
 
@@ -1454,6 +1638,21 @@ defmodule Slipdock.Verified do
 
     Another agent did the work and submitted it. You are the second agent: check the work, don't redo it, and don't change the code or the card beyond your decision.
 
+    #{card_block(card, board, judging)}
+    #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
+       - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
+       - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically" --check bar:2=fail:"why" …`
+    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a`, `handbook_line=ok|disputed`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
+    A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
+    """
+  end
+
+  # What the card asks, its bar and evidence, and the steps to its checks:
+  # the same for a verify job and an audit.
+  defp card_block(card, board, judging) do
+    commit = card.evidence_commit
+
+    """
     What the card asks (its description):
     #{if blank?(card.description), do: "(no description: the title is the ask)", else: ask_text(card.description)}
 
@@ -1468,27 +1667,22 @@ defmodule Slipdock.Verified do
 
     1. Read the card and its comments: `slipdock card #{card.id}`.
     #{check_step(card, board)}
-    #{judging |> Enum.with_index(3) |> Enum.map_join("\n", fn {text, n} -> "#{n}. #{text}" end)}
-    #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
-       - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
-       - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically" --check bar:2=fail:"why" …`
-    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a`, `handbook_line=ok|disputed`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
-    A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
+    #{judging |> Enum.with_index(3) |> Enum.map_join("\n", fn {text, n} -> "#{n}. #{text}" end)}\
     """
   end
 
   # The checks after the checkout, in order: the ask and the bar always; the
   # rules and the Handbook line only on a board with a handbook.
-  defp judge_steps(card, board, handbook) do
+  defp judge_steps(card, board, handbook, opts \\ []) do
     base = [
       "The ask. Does the bar cover everything the description (and any request in the comments) asks for? A bar that leaves part of the ask out is a rejection (`the ask: the bar misses …`), even when the work meets the bar. Step: `judging the ask`",
       "The bar. Each item, against the change and the tests it names. A part not met is a rejection naming the item (`bar 2: …`). Step: `judging against the bar`"
     ]
 
-    if handbook, do: base ++ handbook_steps(card, board, handbook), else: base
+    if handbook, do: base ++ handbook_steps(card, board, handbook, opts), else: base
   end
 
-  defp handbook_steps(card, board, handbook) do
+  defp handbook_steps(card, board, handbook, opts) do
     code = handbook.board.code || to_string(handbook.board.id)
     sha = card.evidence_commit || "<commit>"
 
@@ -1501,13 +1695,21 @@ defmodule Slipdock.Verified do
       """
       The rules. In the clean tree, list the rules for the paths the change touches:
          `git diff --name-only $(git merge-base #{base} #{sha}) #{sha} | slipdock handbook #{code} --paths-from -`
-         Judge every `must` rule it lists: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. A broken `must` is a rejection citing its id (`ARCH-3: …`). List any `should` rule missed in the accept reason. Step: `judging the rules`\
+         #{rules_judging(opts[:audit])} Step: `judging the rules`\
       """,
       """
       The Handbook line. Find the `Handbook:` line, in the evidence or the builder's closing comment, and hold it against the diff with the docs gate: user-visible behaviour updates the Specification; structure or boundaries, Architecture or the Data model; a choice between alternatives, a new page in `Handbook/Decisions`; something reusable, Shared modules or Components; a UI pattern, UX & UI; how to test, build or deploy, Testing & tooling or Operations. No line, a line saying `no change` on a diff that needed one, or a line naming pages the work didn't edit (`slipdock page history <page>`), is a rejection (`Handbook line: …`). Step: `judging the Handbook line`\
       """
     ]
   end
+
+  defp rules_judging(true),
+    do:
+      "Judge every rule it lists, `should` rules as well as `must`: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. Name each one you find broken by its id (`ARCH-3: …`)."
+
+  defp rules_judging(_),
+    do:
+      "Judge every `must` rule it lists: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. A broken `must` is a rejection citing its id (`ARCH-3: …`). List any `should` rule missed in the accept reason."
 
   defp cite_list(nil), do: "the bar item (`bar 2: …`) or the ask (`the ask: …`)"
 
@@ -1559,14 +1761,15 @@ defmodule Slipdock.Verified do
     end
   end
 
-  # Whoever decides first decides: the other verify jobs on the card stop.
+  # Whoever decides first decides: the other verify jobs on the card stop
+  # (an audit, queued by an acceptance, isn't one of them: #1780).
   defp cancel_verify_jobs(%Card{id: card_id}, actor) do
     import Ecto.Query
     mine = actor_map(actor)["job_id"]
 
     from(j in Slipdock.Runners.Job,
       where:
-        j.card_id == ^card_id and j.kind == @verify_kind and
+        j.card_id == ^card_id and j.kind == @verify_kind and not j.audit and
           j.status in ^Slipdock.Runners.Job.open_statuses()
     )
     |> Repo.all()

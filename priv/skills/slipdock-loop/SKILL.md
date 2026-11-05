@@ -731,6 +731,12 @@ With one on, the pass changes like this:
   rejection names at least one failing part; an acceptance can't carry one
   (a missed `should` rule aside). You can't decide a card you submitted
   yourself (`403`).
+- **An audit** (a verify job with `audit: true`, on a card already
+  accepted) checks the checker. Judge the work as a verify job does,
+  `should` rules too, against the original verdict its prompt shows, then
+  `slipdock verify <id> agree --reason "…"` or `disagree --reason "<where
+  the verdict is wrong>"` with your own `--check` parts. It changes
+  nothing: a disagreement is a comment and an alert for the board's owner.
 
 ## Lanes
 

@@ -315,6 +315,8 @@ slipdock verify <id> reject --reason "bar 2: …" --check bar:1=ok --check bar:2
                                        # ask=ok|misses, bar:<n>=ok|fail, suite=<passed>:<failed>,
                                        # rule:<id>=ok|broken|n/a, handbook_line=ok|disputed; a reject
                                        # names a failing part, an accept carries no broken must rule
+slipdock verify <id> agree|disagree --reason TEXT [--check …]   # an audit job's say on an
+                                       # accepted card: a comment; disagree alerts the board's owner
 slipdock verify <id> merged [--evidence-commit SHA]   # a person only: a merging card's PR was merged by hand
 slipdock edit <id> --bar "what done means"   # the card's bar; locks when work starts on a board
                                        # that asks for one

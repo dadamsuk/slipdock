@@ -125,6 +125,7 @@ defmodule SlipdockWeb.API.JSON do
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
       verify_rejection_limit: b.verify_rejection_limit,
+      verify_audit: b.verify_audit,
       ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
@@ -220,6 +221,7 @@ defmodule SlipdockWeb.API.JSON do
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
       verify_rejection_limit: b.verify_rejection_limit,
+      verify_audit: b.verify_audit,
       ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
@@ -1362,6 +1364,8 @@ defmodule SlipdockWeb.API.JSON do
       runner: j.runner_name,
       attempts: j.attempts,
       wait_while_doing: j.wait_while_doing,
+      # A verify job re-checking an accepted card (#1780).
+      audit: j.audit,
       recovery: j.recovery,
       # Why a queued job isn't being taken (#1116): paused, WIP full,
       # waiting on a card in progress, or no runner online for its pool.

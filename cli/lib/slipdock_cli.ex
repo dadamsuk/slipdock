@@ -664,7 +664,9 @@ defmodule SlipdockCLI do
                                         completes it (on a pull request board, queues the
                                         merge), reject needs the reason; not a card you
                                         submitted (--evidence-commit: what you checked at).
-                                        merged: a person merged a merging card's PR by hand
+                                        merged: a person merged a merging card's PR by hand;
+                                        agree / disagree: an audit job's say on an accepted
+                                        card (a comment; disagree alerts the board's owner)
         --check PART=RESULT[:note]      the verdict in parts, repeated: ask=ok|misses,
                                         bar:2=ok|fail, suite=412:0, rule:UX-4=ok|broken|n/a,
                                         handbook_line=ok|disputed. A reject names a failing
@@ -728,7 +730,8 @@ defmodule SlipdockCLI do
         [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
         [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
         [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
-        [--verify-pool POOL] [--verify-rejection-limit N] [--ship-via push|pull-request]
+        [--verify-pool POOL] [--verify-rejection-limit N] [--verify-audit N]
+        [--ship-via push|pull-request]
         [--lanes | --no-lanes]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
@@ -770,6 +773,9 @@ defmodule SlipdockCLI do
                                         --verify-rejection-limit N: the rejection after N
                                         opens a wait on the board's owner to rework the
                                         card or accept it as is (default 2; 0 never);
+                                        --verify-audit N: about 1 in N cards an agent
+                                        accepted is audited by another runner in the
+                                        verify pool (0, the default, none);
                                         --ship-via pull-request: agents open a pull request,
                                         never push the default branch, and accepting the
                                         card has a runner merge it (needs --verify-work)
@@ -1069,6 +1075,7 @@ defmodule SlipdockCLI do
     verify_work: :boolean,
     verify_pool: :string,
     verify_rejection_limit: :integer,
+    verify_audit: :integer,
     ship_via: :string,
     pr: :string,
     evidence: :string,

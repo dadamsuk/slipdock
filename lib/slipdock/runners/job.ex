@@ -34,6 +34,12 @@ defmodule Slipdock.Runners.Job do
     # A runner that may not take this job (#1625): for a verify job, the one
     # that built the card.
     field :exclude_runner_id, :integer
+    # More runners that may not take it (#1780): an audit excludes the
+    # card's builder and the runner that verified it.
+    field :exclude_runner_ids, {:array, :integer}, default: []
+    # A verify job that re-checks an accepted card (#1780): it comments and
+    # says whether it agrees, and never changes the card.
+    field :audit, :boolean, default: false
     field :kind, :string
     field :prompt, :string
     field :status, :string, default: "queued"

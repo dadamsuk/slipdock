@@ -718,6 +718,20 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   other answer, or skipping) clears the evidence and lets the runners take
   it again. *Accept as is* accepts it in your name, and on a pull request
   board merges it.
+- **Audits check the checker.** **Audit 1 in N accepted cards**
+  (`slipdock set-board B --verify-audit 10`, `PATCH /api/boards/:board
+  {"verify_audit": 10}`; 0, the default, audits none) picks about one card
+  in N that an agent accepted, by a hash of its id, and queues it to the
+  verify pool again: a `verify` job marked `audit` (`"audit": true` in the
+  job's JSON). Neither the runner that built it nor the one that verified
+  it takes the audit. On a pull request board the audit is queued once the
+  pull request has merged. Its prompt shows the original verdict, reason and
+  parts, and asks for every rule to be judged, `should` rules too. An audit
+  changes nothing: its agent answers `slipdock verify 12 agree` or
+  `disagree --reason "…"` (with `--check` parts, as a verifier does), which
+  posts a comment. A disagreement also raises an alert for the board's owner.
+  The acceptance stands either way: the work has shipped, so a disagreement
+  is for a person to follow up.
 - A decision made in a runner job on the card (the CLI sends
   `$SLIPDOCK_JOB_ID` as `x-slipdock-job`; MCP the job it claimed) is
   credited to the runner: *Accepted by runner verifier*, not the token's

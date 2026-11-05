@@ -176,7 +176,7 @@ switch ($Agent) {
 # server's prompt alone. A runner whose own kind is verify has it already.
 $verify = ''
 if ($fn -ne 'Job-Verify') {
-  $verify = "`n# Verify jobs: a board that verifies work sends each card an agent submits`n# here, for a second agent to check against its bar. The same agent runs it,`n# on the server's prompt alone. Delete this to take no verify jobs.`nfunction Job-Verify {`n  $fn`n}`n"
+  $verify = "`n# Verify jobs: a board that verifies work sends each card an agent submits`n# here, for a second agent to check against its bar, and a sample of accepted`n# cards as audits (never to the runner that built or verified one). The same`n# agent runs it, on the server's prompt alone. Delete this to take no verify jobs.`nfunction Job-Verify {`n  $fn`n}`n"
 }
 
 $extra = ''

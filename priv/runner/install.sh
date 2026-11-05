@@ -258,8 +258,9 @@ VERIFY=
 if [ "$FN" != job_verify ]; then
   VERIFY="
 # Verify jobs: a board that verifies work sends each card an agent submits
-# here, for a second agent to check against its bar. The same agent runs it,
-# on the server's prompt alone. Delete this to take no verify jobs.
+# here, for a second agent to check against its bar, and a sample of accepted
+# cards as audits (never to the runner that built or verified one). The same
+# agent runs it, on the server's prompt alone. Delete this to take no verify jobs.
 job_verify() {
   $FN
 }

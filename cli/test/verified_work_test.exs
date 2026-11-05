@@ -70,6 +70,38 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     assert JSON.decode!(body) == %{"verify_rejection_limit" => 0}
   end
 
+  test "set-board --verify-audit sends the 1 in N (#1780)" do
+    serve([{200, @board}])
+    capture_io(fn -> Boards.run("set-board", ["docs"], parse(["--verify-audit", "10"])) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"verify_audit" => 10}
+  end
+
+  test "verify agree and disagree post an audit's say (#1780)" do
+    serve([{200, @card}, {200, @card}])
+
+    out =
+      capture_io(fn ->
+        Boards.run("verify", ["12", "agree"], parse(["--reason", "Fine", "--check", "bar:1=ok"]))
+      end)
+
+    assert out =~ "audited: agrees"
+    assert_received {:request, "POST", "/api/cards/12/verify", body}
+
+    assert JSON.decode!(body) == %{
+             "decision" => "agree",
+             "reason" => "Fine",
+             "checks" => ["bar:1=ok"]
+           }
+
+    capture_io(fn ->
+      Boards.run("verify", ["12", "disagree"], parse(["--reason", "bar 1: no"]))
+    end)
+
+    assert_received {:request, "POST", "/api/cards/12/verify", body}
+    assert JSON.decode!(body) == %{"decision" => "disagree", "reason" => "bar 1: no"}
+  end
+
   test "set-board --verify-work --verify-pool sends both" do
     serve([{200, @board}])
 

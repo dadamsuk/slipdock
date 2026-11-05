@@ -552,9 +552,13 @@ defmodule SlipdockCLI.Boards do
 
   # A card waiting for verification (#1633): accept it, or reject it with
   # the reason.
-  def run("verify", [id, decision], o) when decision in ~w(accept reject merged) do
+  def run("verify", [id, decision], o)
+      when decision in ~w(accept reject merged agree disagree) do
     if decision == "reject" and o[:reason] in [nil, ""],
       do: fail("a rejection needs its reason: --reason TEXT")
+
+    if decision == "disagree" and Enum.member?([nil, ""], o[:reason]),
+      do: fail("an audit's disagreement needs its reason: --reason TEXT")
 
     body =
       %{
@@ -576,7 +580,8 @@ defmodule SlipdockCLI.Boards do
   def run("verify", _, _),
     do:
       fail(
-        "usage: slipdock verify <id> accept|reject|merged [--reason TEXT] [--evidence-commit SHA]"
+        "usage: slipdock verify <id> accept|reject|merged|agree|disagree [--reason TEXT] " <>
+          "[--evidence-commit SHA] [--check PART=RESULT]"
       )
 
   def run("undone", ids, o) when ids != [],
@@ -1083,6 +1088,8 @@ defmodule SlipdockCLI.Boards do
         "verify_pool" => o[:verify_pool],
         # Rejections before the next goes to a person (#1779); 0 never.
         "verify_rejection_limit" => o[:verify_rejection_limit],
+        # Audit 1 in N cards an agent accepted (#1780); 0 none.
+        "verify_audit" => o[:verify_audit],
         # How accepted work ships (#1654): push, or pull-request.
         "ship_via" => o[:ship_via] && String.replace(o[:ship_via], "-", "_"),
         # Lanes (#1628): agents can't start cards whose paths overlap.
@@ -1888,6 +1895,8 @@ defmodule SlipdockCLI.Boards do
   defp verified_word("accept"), do: "accepted"
   defp verified_word("reject"), do: "rejected"
   defp verified_word("merged"), do: "marked merged"
+  defp verified_word("agree"), do: "audited: agrees"
+  defp verified_word("disagree"), do: "audited: disagrees"
 
   # The rules for a set of paths (#1774), behind `handbook --paths`.
   @rule_paths 40

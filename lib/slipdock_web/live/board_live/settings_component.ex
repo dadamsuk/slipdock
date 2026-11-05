@@ -860,6 +860,19 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   The rejection after this many opens a wait on the board's owner: rework the
                   card as rejected, or accept it as is. 0 never asks.
                 </p>
+                <%!-- Spot-checks of accepted work (#1780). --%>
+                <.input
+                  field={@form[:verify_audit]}
+                  id="board-verify-audit"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  label="Audit 1 in N accepted cards"
+                />
+                <p class="-mt-1 text-xs text-base-content/50">
+                  About one card in N that an agent accepted is checked again by another runner
+                  in the pool. An audit only comments; one that disagrees alerts you. 0 audits none.
+                </p>
                 <%!-- How accepted work reaches the default branch (#1654). --%>
                 <.input
                   field={@form[:ship_via]}

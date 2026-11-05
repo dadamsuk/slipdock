@@ -362,8 +362,9 @@ defmodule Slipdock.Runners do
 
   @doc """
   Queues `card` for `pool`. `attrs` carries `:kind`, `:prompt`, `:rule`,
-  `:wait_while_doing` and `:exclude_runner_id` (a runner that may not take
-  it) (optional). Returns `{:ok, job}`, `{:ok, :already_open, job}` when the rule
+  `:wait_while_doing`, `:exclude_runner_id` (a runner that may not take
+  it), `:exclude_runner_ids` (more of them) and `:audit` (a verify job
+  re-checking an accepted card, #1780) (optional). Returns `{:ok, job}`, `{:ok, :already_open, job}` when the rule
   already has an open job for the card, or `{:error, message}`.
   """
   def queue(%Card{} = card, attrs) do
@@ -389,6 +390,8 @@ defmodule Slipdock.Runners do
         prompt: prompt,
         wait_while_doing: attrs[:wait_while_doing] == true,
         exclude_runner_id: attrs[:exclude_runner_id],
+        exclude_runner_ids: attrs |> Map.get(:exclude_runner_ids, []) |> Enum.reject(&is_nil/1),
+        audit: attrs[:audit] == true,
         status: "queued"
       }
       |> Ecto.Changeset.change()
@@ -986,6 +989,8 @@ defmodule Slipdock.Runners do
             j.status == "queued",
         # A verify job never goes to the runner that built its card (#1625).
         where: is_nil(j.exclude_runner_id) or j.exclude_runner_id != ^runner.id,
+        # Nor an audit to its card's builder or verifier (#1780).
+        where: not fragment("? = ANY(?)", ^runner.id, j.exclude_runner_ids),
         where: not j.wait_while_doing or not exists(busy_cards()),
         where:
           j.board_id not in ^wip_full or exists(own_card_doing()) or
