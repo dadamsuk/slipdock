@@ -1444,6 +1444,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         parent={List.last(@ancestry)}
         close_navigate={@card_only}
         at={@card_at}
+        narrow?={@narrow?}
       />
       <.live_component
         :if={@can_write}

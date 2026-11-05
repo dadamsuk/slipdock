@@ -2162,6 +2162,10 @@ views that cannot survive being narrowed render something else instead.
 - **The board** becomes a pager: one list fills the screen, swiping moves to
   the next, and a strip above names every list with its card count and slides
   to the one you tap.
+- **A card** puts its properties first: under the title, one line says who
+  it is assigned to, when it is due and how urgent it is (its list is on the
+  line above). Tap it for the rows to change them; the description, checklist
+  and the rest follow.
 - **The calendar** becomes an agenda. Seven columns across 390 points gives
   each day 50 — too narrow for a date, let alone a card — so days run down
   the page instead, the ones with something on them plus today, each card a
