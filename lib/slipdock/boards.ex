@@ -3853,7 +3853,10 @@ defmodule Slipdock.Boards do
              kind: actor[:kind],
              via: actor[:via],
              agent: actor[:agent],
-             set_flag: "waiting" not in card.flags
+             set_flag: "waiting" not in card.flags,
+             # The server's own waits say what they are for (#1779); never
+             # from a request.
+             purpose: attrs[:purpose]
            }
            |> Wait.changeset(attrs)
            |> Repo.insert()
@@ -4015,6 +4018,7 @@ defmodule Slipdock.Boards do
           card = Repo.get!(Card, wait.card_id)
           {:ok, _} = add_comment(card, answered_text(closed), by: actor_user(actor))
           Slipdock.Runners.Requeue.after_answer(closed)
+          Slipdock.Verified.wait_closed(closed, actor)
           {:ok, Wait |> Repo.get!(closed.id) |> Repo.preload(wait_preloads())}
         end
       end)
@@ -4038,6 +4042,7 @@ defmodule Slipdock.Boards do
             )
 
           Slipdock.Runners.Requeue.after_answer(closed)
+          Slipdock.Verified.wait_closed(closed, actor)
           {:ok, Wait |> Repo.get!(closed.id) |> Repo.preload(wait_preloads())}
         end
       end)

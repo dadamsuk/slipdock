@@ -847,6 +847,19 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 <p class="-mt-1 text-xs text-base-content/50">
                   Each submitted card is queued for this pool as a job of kind <code>verify</code>. Blank queues nothing.
                 </p>
+                <%!-- Repeated rejections go to a person (#1779). --%>
+                <.input
+                  field={@form[:verify_rejection_limit]}
+                  id="board-verify-rejection-limit"
+                  type="number"
+                  min="0"
+                  max="50"
+                  label="Rejections before a person decides"
+                />
+                <p class="-mt-1 text-xs text-base-content/50">
+                  The rejection after this many opens a wait on the board's owner: rework the
+                  card as rejected, or accept it as is. 0 never asks.
+                </p>
                 <%!-- How accepted work reaches the default branch (#1654). --%>
                 <.input
                   field={@form[:ship_via]}

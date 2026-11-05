@@ -1081,6 +1081,8 @@ defmodule SlipdockCLI.Boards do
         "verify_work" => o[:verify_work],
         # The runner pool pending cards go to as verify jobs (#1634); "" none.
         "verify_pool" => o[:verify_pool],
+        # Rejections before the next goes to a person (#1779); 0 never.
+        "verify_rejection_limit" => o[:verify_rejection_limit],
         # How accepted work ships (#1654): push, or pull-request.
         "ship_via" => o[:ship_via] && String.replace(o[:ship_via], "-", "_"),
         # Lanes (#1628): agents can't start cards whose paths overlap.

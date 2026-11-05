@@ -124,6 +124,7 @@ defmodule SlipdockWeb.API.JSON do
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
+      verify_rejection_limit: b.verify_rejection_limit,
       ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
@@ -218,6 +219,7 @@ defmodule SlipdockWeb.API.JSON do
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
+      verify_rejection_limit: b.verify_rejection_limit,
       ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).

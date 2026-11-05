@@ -47,6 +47,9 @@ defmodule Slipdock.Boards.Wait do
     field :choice, :integer
     field :requeue_state, :string, default: "none"
     field :requeue_note, :string
+    # What the wait is for, when the server opened it: "verify_limit" is a
+    # card rejected past its board's limit (#1779). Never cast.
+    field :purpose, :string
 
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :on_user, Slipdock.Accounts.User

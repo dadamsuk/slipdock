@@ -3648,7 +3648,10 @@ defmodule SlipdockWeb.APIGuide do
     evidence is cleared, the builder's own assignment comes off, its
     `verify_rejections` counts one more, and it goes back to the top of
     the ready list, next for the runners, so whoever takes it next fixes
-    what the reason says and completes it again. The submitter can't
+    what the reason says and completes it again. Past the board's
+    `verify_rejection_limit` (2 by default, 0 never) the rejection opens a
+    wait on the board's owner instead (*Rework as rejected* or *Accept as
+    is*): the card is flagged `waiting`, and only a person answers. The submitter can't
     decide its own card (`403`): a different agent is a different token,
     or a different runner job. A board with a `verify_pool` also queues
     each submitted card for that runner pool as a job of kind `verify`,
