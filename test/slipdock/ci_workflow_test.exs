@@ -408,19 +408,19 @@ defmodule Slipdock.CiWorkflowTest do
                "test/support/partition_weights.tsv (test/support/test_partitions.exs)"
     end
 
-    test "an async file costs an eighth of its time, a sync file all of it" do
-      assert TestPartitions.cost({true, 800}) == 800
-      assert TestPartitions.cost({false, 800}) == 100
+    test "an async file costs a seventh of its time, a sync file all of it" do
+      assert TestPartitions.cost({true, 700}) == 700
+      assert TestPartitions.cost({false, 700}) == 100
 
-      # One sync file is worth eight async ones as long. Partition 1's
+      # One sync file is worth seven async ones as long. Partition 1's
       # head start puts the sync file in partition 2.
       weights =
-        Map.new(1..8, &{"a#{&1}", {false, 800_000}}) |> Map.put("s1", {true, 800_000})
+        Map.new(1..7, &{"a#{&1}", {false, 700_000}}) |> Map.put("s1", {true, 700_000})
 
       [first, second] = TestPartitions.split(Map.keys(weights), weights, 2)
       assert second == ["s1"]
-      assert length(first) == 8
-      assert TestPartitions.loads([first, second], weights) == [800_000.0, 800_000]
+      assert length(first) == 7
+      assert TestPartitions.loads([first, second], weights) == [700_000.0, 700_000]
     end
 
     test "partition 1 gets less of the suite, for the checks only it runs" do
@@ -440,8 +440,8 @@ defmodule Slipdock.CiWorkflowTest do
     test "the costliest files are spread out first" do
       weights = %{
         "big" => {true, 300_000},
-        "a1" => {false, 1_600_000},
-        "a2" => {false, 800_000}
+        "a1" => {false, 1_400_000},
+        "a2" => {false, 700_000}
       }
 
       partitions = TestPartitions.split(Map.keys(weights), weights, 2)

@@ -8,11 +8,11 @@ defmodule Slipdock.TestPartitions do
   The runtimes are in `test/support/partition_weights.tsv`, one line per file
   (`path<TAB>async|sync<TAB>milliseconds`), written by `Slipdock.TestTimings`
   in CI and merged by `test/support/test_partitions.exs weights`. A file
-  costs a partition its milliseconds if it is sync, but an eighth of them if
+  costs a partition its milliseconds if it is sync, but a seventh of them if
   it is async: ExUnit runs the async modules side by side first (CI's
   4-core runners run 8 at once, `max_cases`), then the sync ones one at a
-  time. Measured in CI, a partition's async phase took its async total over
-  7.7 to 8.2 (#1858). A file the weights don't know yet goes where a stable
+  time. Fitted over twenty CI partition runs, a partition's Test step took
+  its sync total plus its async total over 7.2, within 8 seconds (#1858). A file the weights don't know yet goes where a stable
   hash of its path puts it, so it never moves the others.
 
   This file is also loaded on its own by `test/support/test_partitions.exs`
@@ -81,8 +81,8 @@ defmodule Slipdock.TestPartitions do
     IO.iodata_to_binary([header | body])
   end
 
-  # How many async modules a CI partition runs at once (see the moduledoc).
-  @async_parallelism 8
+  # How much async time costs one second of a CI partition (see the moduledoc).
+  @async_parallelism 7
 
   # Partition 1 also checks formatting, runs the browser scripts' tests and
   # saves the build cache (.github/workflows/ci.yml): 16 to 20 s in CI. It
