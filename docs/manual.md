@@ -1465,6 +1465,10 @@ Settings belong to the tree's root board, whichever board in it you name.
 
 | Detector | Finds | Fix |
 |---|---|---|
+| `no_runner` | A queued job whose pool has had no runner online (seen within three leases) for 15 minutes (`minutes`). Names another online pool that takes that kind of job, if there is one. A paused pool is left to `long_pause`. | None: flagged. |
+| `hung_job` | A running job still renewing its lease that has shown no progress step and no note on its card for 45 minutes (`minutes`). | None by default (an agent may be thinking). With `cancel=true`, a job silent for `cancel_minutes` (120) is asked to stop. |
+| `idle_feed` | A *list top* rule that has sent nothing for 15 minutes (`minutes`) while its list has a card it would send and a runner of its pool is online and idle. Not when the list is empty, the pool paused or the WIP limit full. | Runs the feed. Still idle, it is flagged on the next run with the reason the feed gave. |
+| `long_pause` | A pool or a whole tree paused for over 12 hours (`hours`). | None: a board alert. |
 
 ## Dependencies
 
