@@ -54,6 +54,42 @@ defmodule Slipdock.Wiki.LineChanges do
   def label(%{added: 0, removed: r}), do: "−#{r} #{lines_word(r)}"
   def label(%{added: a, removed: r}), do: "+#{a} −#{r} lines"
 
+  @preview_limit 12
+
+  # Past this many lines between the two bodies the preview leaves the
+  # ordered diff out, as `count/2` does, and says so.
+  @preview_exact_limit @exact_limit
+
+  @doc """
+  The lines a revision changed, for the history's preview of a row (#1745):
+  `old` and `new` are bodies (`nil` for none), and the diff is
+  `Slipdock.Wiki.diff/2`'s, the one the revision view's split view is
+  built from. Blank lines are left out, since they change with every new
+  paragraph and say nothing.
+
+  Returns `%{lines: [{:del | :ins, text}], more: n, too_big?: false}`, at
+  most `limit` lines with `more` counting the rest, or
+  `%{lines: [], more: 0, too_big?: true}` for bodies too long to diff here.
+  """
+  def preview(old, new, limit \\ @preview_limit) do
+    a = lines(old)
+    b = lines(new)
+
+    if length(a) + length(b) > @preview_exact_limit do
+      %{lines: [], more: 0, too_big?: true}
+    else
+      changed =
+        for {op, chunk} <- Slipdock.Wiki.diff(old, new),
+            op in [:del, :ins],
+            line <- chunk,
+            String.trim(line) != "",
+            do: {op, line}
+
+      {shown, rest} = Enum.split(changed, limit)
+      %{lines: shown, more: length(rest), too_big?: false}
+    end
+  end
+
   defp lines_word(1), do: "line"
   defp lines_word(_), do: "lines"
 

@@ -1014,11 +1014,27 @@ test("a new version of the tree forgets the previews it had", async () => {
   assert.equal(pushed.filter(p => p.event === "tree_preview").length, 2)
 })
 
-test("a page row has no browser tooltip; a folder row keeps one", () => {
+test("every row carries its full name in title, pages and folders alike (#1745)", () => {
   const {rowsEl} = previewHook([])
   const link = key => rowsEl.innerHTML.split(`data-key="${key}"`)[1].split("<a ")[1].split(">")[0]
-  assert.doesNotMatch(link("page:7"), /title=/)
+  assert.match(link("page:7"), /title="P7"/)
   assert.match(link("folder:1"), /title="F1"/)
+})
+
+test("a row's title is escaped, and a file's and a vault dir's have one too (#1745)", () => {
+  const model = new TreeModel("root")
+  model.set("root", [
+    page(1, {title: `"><img onerror=x>`, href: "/p"}),
+    {kind: "file", key: "file:2", id: 2, title: "Self-serve trial sign-up flow.pdf", count: 0, href: "/f"},
+    {kind: "dir", key: "dir:J", id: "dir:J", title: "Journal", count: 0},
+  ])
+  const flat = model.flatten()
+  const ctx = {model, rowH: ROW_HEIGHT, selected: new Set()}
+  const html = rowHtml(flat[0], 0, ctx)
+  assert.match(html, /title="&quot;&gt;&lt;img onerror=x&gt;"/)
+  assert.doesNotMatch(html, /<img onerror/)
+  assert.match(rowHtml(flat[1], 1, ctx), /title="Self-serve trial sign-up flow.pdf"/)
+  assert.match(rowHtml(flat[2], 2, ctx), /title="Journal"/)
 })
 
 test("a folder shown by its short name keeps the full name for the hover (#1594)", () => {

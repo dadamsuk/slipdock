@@ -3946,9 +3946,11 @@ the page as before.
 
 **Wider, narrower, or out of the way.** On a wide screen the « at the left of
 the wiki's bar folds the tree away, and » brings it back. Drag the tree's right
-edge to make it wider or narrower (180–640px); the edge can be focused with Tab
+edge to make it wider or narrower (180–640px, 320px to start with, so a
+name of about 28 characters shows whole a folder down); the edge can be focused with Tab
 and moved with the arrow keys, Home and End, and a double-click or Enter puts
-the width back. Both are remembered in this browser, not on the board.
+the width back. Both are remembered in this browser, not on the board. A name
+too long for the width ends in …, and pointing at the row shows it whole.
 
 **A column, or the full width.** A page is read in a column of comfortable
 width, about 68 characters, and everything in it keeps to that one measure: the
@@ -4509,7 +4511,10 @@ a **favourite**, alongside boards, lists, cards and views.
 **Every save keeps a revision** — a full snapshot, with the author, the edit's
 own message ("why", not "what"), and how it arrived (`web`, `api`, `cli`,
 `assistant`, `automation`, plus the API token's name). History lists them,
-any one can be diffed against the one before it or any two compared side by
+each with the lines it added and removed ("+4 −1 lines"); the arrow at the
+start of a row opens it onto those lines, removed and added, without leaving
+the list (a long change shows its first twelve and links the version for the
+rest). Any one can be diffed against the one before it or any two compared side by
 side (old on the left, new on the right, the changed words picked out, as
 GitHub's split view does: tick two in the history and press **Compare selected
 versions**, or **Compare with current** from an old one), and any one can be put back —

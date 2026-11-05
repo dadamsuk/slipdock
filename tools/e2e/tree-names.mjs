@@ -52,7 +52,7 @@ try {
   if (seen.text !== full) fail(`the server cut it: ${seen.text}`)
   if (!seen.clipped) fail('the long name was not clipped: it fits, or the row grew')
   if (seen.overflow !== 'hidden' || seen.ending !== 'ellipsis') fail(`drawn as ${seen.overflow}/${seen.ending}`)
-  if (seen.width > 256) fail(`the tree grew to ${seen.width}px to hold it`)
+  if (seen.width > 320) fail(`the tree grew to ${seen.width}px to hold it`) // its default (#1745)
   if ((await row.locator('a').first().getAttribute('title')) !== full) fail('no full name on hover')
   console.log('ok: a long title is shortened by CSS, whole in the DOM and on hover')
 

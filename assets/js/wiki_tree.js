@@ -312,11 +312,12 @@ export function rowHtml(item, index, ctx) {
     active ? "ring-1 ring-inset ring-primary/60" : "",
   ].join(" ")
 
-  // A page's name has no browser tooltip: its preview (#760) shows the whole
-  // of it, and a tooltip would land on top of the preview.
+  // Every row carries its full name in `title` (#1745): a long name is cut
+  // to the pane's width, and a page's preview (#760) only comes on a rest
+  // of the mouse, never on keyboard focus or a touch.
   return `<div id="wt-row-${index}" class="${classes}" style="top:${top}px;height:${ctx.rowH}px;padding-left:${pad}rem" role="treeitem" ${active ? `aria-selected="true"` : ""} aria-level="${depth + 1}" ${ctx.model.openable(row) ? `aria-expanded="${open}"` : ""} ${current ? `aria-current="page"` : ""} data-key="${key}" data-index="${index}" ${row.href ? "" : "data-dir"} ${movable ? "data-movable" : ""}>` +
     handle + chevron +
-    `<a href="${escapeHtml(row.href || "#")}" ${nav} ${movable ? `draggable="false"` : ""} class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5" ${row.kind === "page" ? "" : `title="${escapeHtml(row.full || row.title)}"`}>` +
+    `<a href="${escapeHtml(row.href || "#")}" ${nav} ${movable ? `draggable="false"` : ""} class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5" title="${escapeHtml(row.full || row.title)}">` +
     // A folder's or page's own icon and colour (#792), when the board shows
     // them in the tree; the server sends both as classes from a fixed set.
     `<span class="${escapeHtml(row.icon || ICONS[row.kind] || ICONS.page)} size-3.5 shrink-0 ${escapeHtml(row.tint || "text-base-content/50")}"></span>` +

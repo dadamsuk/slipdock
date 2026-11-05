@@ -806,7 +806,8 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
    or folded away (#737, assets/js/wiki_pane.js). Both are set on <html>, out
    of LiveView's reach. A phone's drawer is left as it is. */
 @media (min-width: 64rem) {
-  #wiki-tree { width: var(--wiki-tree-width, 16rem); }
+  /* 20rem shows a 28-character name a folder down (#1745); DEFAULT_WIDTH. */
+  #wiki-tree { width: var(--wiki-tree-width, 20rem); }
   html[data-wiki-tree="collapsed"] #wiki-tree,
   html[data-wiki-tree="collapsed"] #wiki-tree-resize { display: none; }
   /* The page read across the whole width rather than in a column (#748). */

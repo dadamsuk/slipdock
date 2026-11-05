@@ -13,7 +13,8 @@
 export const WIDTH_KEY = "slipdock:wiki-tree-width"
 export const COLLAPSED_KEY = "slipdock:wiki-tree-collapsed"
 export const FULL_WIDTH_KEY = "slipdock:wiki-full-width"
-export const DEFAULT_WIDTH = 256
+// Wide enough for a 28-character name a folder down (#1745).
+export const DEFAULT_WIDTH = 320
 export const MIN_WIDTH = 180
 export const MAX_WIDTH = 640
 // How far one arrow key press moves the handle.

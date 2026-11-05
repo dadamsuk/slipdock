@@ -258,6 +258,8 @@ defmodule SlipdockWeb.WikiLive.Index do
       latest_revision: nil,
       revisions: [],
       revision_changes: %{},
+      # The history rows opened to show their changed lines (#1745), by id.
+      history_previews: %{},
       page_jumps: [],
       fields_board: nil,
       # Bumped to clear a form after it submits, as the card panel does.
@@ -933,7 +935,8 @@ defmodule SlipdockWeb.WikiLive.Index do
     assign(socket,
       revision: nil,
       revisions: revisions,
-      revision_changes: LineChanges.for_revisions(revisions, before)
+      revision_changes: LineChanges.for_revisions(revisions, before),
+      history_previews: %{}
     )
   end
 
@@ -1470,6 +1473,26 @@ defmodule SlipdockWeb.WikiLive.Index do
     else
       false -> {:noreply, put_flash(socket, :error, "Only the board's owner can delete a page.")}
       _ -> {:noreply, put_flash(socket, :error, "That page couldn't be deleted.")}
+    end
+  end
+
+  # A history row opened to show the lines that version changed (#1745), or
+  # closed again. Worked out on demand from that version and the one before
+  # it, so the list itself stays one query. Only the listed versions open.
+  def handle_event("history_preview", %{"id" => id}, socket) do
+    previews = socket.assigns.history_previews
+
+    case Enum.find(socket.assigns.revisions, &(to_string(&1.id) == id)) do
+      nil ->
+        {:noreply, socket}
+
+      %{id: rid} when is_map_key(previews, rid) ->
+        {:noreply, assign(socket, history_previews: Map.delete(previews, rid))}
+
+      revision ->
+        prev = Wiki.previous_revision(revision)
+        preview = LineChanges.preview(prev && prev.body, revision.body)
+        {:noreply, assign(socket, history_previews: Map.put(previews, revision.id, preview))}
     end
   end
 
@@ -4900,6 +4923,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     page={@page}
                     revisions={@revisions}
                     changes={@revision_changes}
+                    previews={@history_previews}
                   />
                 <% :revision -> %>
                   <.revision_body
@@ -7385,6 +7409,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :page, :any, required: true
   attr :revisions, :list, required: true
   attr :changes, :map, default: %{}, doc: "each revision's `Slipdock.Wiki.LineChanges`, by id"
+  attr :previews, :map, default: %{}, doc: "the rows opened to show their lines, by id"
 
   # Each version links to what it changed; the two columns of radios pick any
   # pair to compare instead, older on the left whichever way they are ticked.
@@ -7420,52 +7445,128 @@ defmodule SlipdockWeb.WikiLive.Index do
       >
         <li
           :for={{revision, i} <- Enum.with_index(@revisions)}
-          class="flex items-center hover:bg-base-200"
+          id={"revision-row-#{revision.id}"}
         >
-          <span :if={@compare?} class="flex shrink-0 gap-2 pl-4">
-            <input
-              type="radio"
-              name="from"
-              value={revision.id}
-              checked={i == 1}
-              class="radio"
-              aria-label={"Compare from #{stamp(revision.inserted_at)}"}
-            />
-            <input
-              type="radio"
-              name="to"
-              value={revision.id}
-              checked={i == 0}
-              class="radio"
-              aria-label={"Compare to #{stamp(revision.inserted_at)}"}
-            />
-          </span>
-          <.link
-            patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history/#{revision.id}"}
-            class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3"
-          >
-            <span class="w-40 shrink-0 text-sm text-base-content/60"><.timestamp
-              at={revision.inserted_at}
-              format={:datetime}
-            /></span>
-            <span class="font-medium">{author_label(revision)}</span>
-            <span :if={revision.via && revision.via != "web"} class="chip chip-line text-2xs">
-              {via_label(revision.via)}{if revision.agent, do: " · #{revision.agent}"}
-            </span>
-            <span :if={revision.summary} class="min-w-0 flex-1 truncate text-sm text-base-content/60">
-              {revision.summary}
-            </span>
-            <span
-              :if={@changes[revision.id]}
-              id={"revision-changes-#{revision.id}"}
-              class="shrink-0 text-xs text-base-content/50"
+          <div class="flex items-center hover:bg-base-200">
+            <%!-- Opens the row onto the lines this version changed (#1745),
+                without leaving the list. --%>
+            <button
+              type="button"
+              id={"revision-preview-toggle-#{revision.id}"}
+              phx-click="history_preview"
+              phx-value-id={revision.id}
+              aria-expanded={to_string(Map.has_key?(@previews, revision.id))}
+              aria-controls={"revision-preview-#{revision.id}"}
+              title="Show the lines this version changed"
+              aria-label={"Show the lines changed at #{stamp(revision.inserted_at)}"}
+              class="group btn btn-ghost btn-xs btn-square ml-2 shrink-0"
             >
-              {LineChanges.label(@changes[revision.id])}
+              <.icon
+                name="hero-chevron-right"
+                class="size-4 transition-transform group-aria-expanded:rotate-90"
+              />
+            </button>
+            <span :if={@compare?} class="flex shrink-0 gap-2 pl-2">
+              <input
+                type="radio"
+                name="from"
+                value={revision.id}
+                checked={i == 1}
+                class="radio"
+                aria-label={"Compare from #{stamp(revision.inserted_at)}"}
+              />
+              <input
+                type="radio"
+                name="to"
+                value={revision.id}
+                checked={i == 0}
+                class="radio"
+                aria-label={"Compare to #{stamp(revision.inserted_at)}"}
+              />
             </span>
-          </.link>
+            <.link
+              patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history/#{revision.id}"}
+              class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3"
+            >
+              <span class="w-40 shrink-0 text-sm text-base-content/60"><.timestamp
+                at={revision.inserted_at}
+                format={:datetime}
+              /></span>
+              <span class="font-medium">{author_label(revision)}</span>
+              <span :if={revision.via && revision.via != "web"} class="chip chip-line text-2xs">
+                {via_label(revision.via)}{if revision.agent, do: " · #{revision.agent}"}
+              </span>
+              <span
+                :if={revision.summary}
+                class="min-w-0 flex-1 truncate text-sm text-base-content/60"
+              >
+                {revision.summary}
+              </span>
+              <span
+                :if={@changes[revision.id]}
+                id={"revision-changes-#{revision.id}"}
+                class="shrink-0 text-xs text-base-content/50"
+              >
+                {LineChanges.label(@changes[revision.id])}
+              </span>
+            </.link>
+          </div>
+          <.revision_preview
+            :if={@previews[revision.id]}
+            id={"revision-preview-#{revision.id}"}
+            preview={@previews[revision.id]}
+            href={~p"/boards/#{@board}/wiki/#{@page.slug}/history/#{revision.id}"}
+          />
         </li>
       </ul>
     </form>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :preview, :map, required: true, doc: "`Slipdock.Wiki.LineChanges.preview/3`"
+  attr :href, :string, required: true, doc: "the version's own page, for the rest"
+
+  # The changed lines under a history row: removed in red with a −, added in
+  # green with a +, as the revision view marks them.
+  defp revision_preview(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      data-role="revision-preview"
+      class="border-t border-base-300 bg-base-200/40 px-4 py-3"
+    >
+      <p :if={@preview.too_big?} class="text-sm text-base-content/60">
+        Too long to show here. <.link patch={@href} class="link">Open the version</.link>
+        to see what changed.
+      </p>
+      <p :if={!@preview.too_big? and @preview.lines == []} class="text-sm text-base-content/60">
+        No lines changed.
+      </p>
+      <ul
+        :if={@preview.lines != []}
+        class="space-y-0.5 overflow-hidden rounded-lg font-mono text-xs leading-5"
+      >
+        <li
+          :for={{op, line} <- @preview.lines}
+          data-op={op}
+          class={[
+            "flex gap-2 px-2 whitespace-pre-wrap break-words",
+            if(op == :ins, do: "bg-success/10", else: "bg-error/10")
+          ]}
+        >
+          <span aria-hidden="true" class="shrink-0 select-none text-base-content/50">
+            {if op == :ins, do: "+", else: "−"}
+          </span>
+          <span class="sr-only">{if op == :ins, do: "Added:", else: "Removed:"}</span>
+          <span class="min-w-0">{line}</span>
+        </li>
+      </ul>
+      <p :if={@preview.more > 0} class="mt-2 text-xs text-base-content/60">
+        and {@preview.more} more {if @preview.more == 1, do: "line", else: "lines"}:
+        <.link patch={@href} class="link">open the version</.link>
+      </p>
+    </div>
     """
   end
 
