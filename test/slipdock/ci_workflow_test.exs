@@ -132,4 +132,38 @@ defmodule Slipdock.CiWorkflowTest do
       end
     end
   end
+
+  describe "credo" do
+    test "lints only what a change adds, against where it left main" do
+      static = job("static")
+
+      assert runs?(
+               static,
+               ~s(mix credo diff --from-git-merge-base origin/main --config-file "$PWD/.credo.exs")
+             )
+
+      # The merge base needs the history.
+      assert has?(static, "fetch-depth: 0")
+    end
+
+    test ".credo.exs loads our own checks and gives a reason for each tuning" do
+      text = File.read!(Path.join(@root, ".credo.exs"))
+      {config, _} = Code.eval_string(text)
+      [default] = config.configs
+
+      assert default.requires == ["credo/checks/"]
+
+      assert {Slipdock.Credo.InOutsideGuard, _} =
+               List.keyfind(default.checks.enabled, Slipdock.Credo.InOutsideGuard, 0)
+
+      # Our own tunings of credo's defaults each have a comment above them.
+      for name <- ["Slipdock.Credo.InOutsideGuard", "Credo.Check.Readability.LargeNumbers"] do
+        assert text =~ ~r/#[^\n]*\n\s*\{#{Regex.escape(name)}, \[[^\]]/,
+               "#{name} is tuned without a reason"
+      end
+
+      # Nothing credo turns on by default is off, and the opt-ins left off say why.
+      assert text =~ "Nothing that credo turns on by default is off here."
+    end
+  end
 end

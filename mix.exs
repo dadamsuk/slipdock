@@ -89,7 +89,9 @@ defmodule Slipdock.MixProject do
       # Known advisories in the locked dependencies (`mix deps.audit`, in CI).
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       # The Phoenix security scanner (`mix sobelow`, in CI; settings in .sobelow-conf).
-      {:sobelow, "~> 0.18", only: [:dev, :test], runtime: false}
+      {:sobelow, "~> 0.18", only: [:dev, :test], runtime: false},
+      # The linter, on what a pull request adds (`mix credo diff`, in CI; .credo.exs).
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 

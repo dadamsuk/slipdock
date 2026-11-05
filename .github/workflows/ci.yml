@@ -108,7 +108,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Whole history, so credo can find where the branch left main.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: erlef/setup-beam@v1
         id: beam
@@ -142,6 +145,15 @@ jobs:
       # `# Not a hole:` reason above its `# sobelow_skip`.
       - name: Phoenix security scan (sobelow)
         run: mix sobelow --config
+
+      # Only the issues this change adds, against where it left main: the
+      # code that was here before is not rewritten wholesale. Settings, our
+      # own checks (credo/checks/) and the reasons for each tuning are in
+      # .credo.exs, which judges both sides, so a change to it isn't read
+      # as new issues everywhere. On a push to main the merge base is the
+      # commit itself.
+      - name: Lint what this change adds (credo diff)
+        run: mix credo diff --from-git-merge-base origin/main --config-file "$PWD/.credo.exs"
 
   # Secrets in the commits a pull request adds (gitleaks; allowlists in
   # .gitleaks.toml, each with its reason). Values are redacted in the log,
