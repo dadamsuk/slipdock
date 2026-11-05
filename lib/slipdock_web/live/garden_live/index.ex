@@ -239,6 +239,10 @@ defmodule SlipdockWeb.GardenLive.Index do
   defp step_words(%{"op" => "edit_section"} = step, _cards, pages),
     do: "Edit §#{step["section"]} of #{page_name(step["page"], pages)}"
 
+  defp step_words(%{"op" => "comment", "page" => page} = step, _cards, pages)
+       when not is_nil(page),
+       do: "Comment on #{page_name(page, pages)}: “#{step["body"]}”"
+
   defp step_words(%{"op" => "link_duplicate"} = step, cards, _pages),
     do:
       "Link #{card_name(step["card"], cards)} as a duplicate of #{card_name(step["other"], cards)}"

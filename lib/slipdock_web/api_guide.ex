@@ -1597,8 +1597,12 @@ defmodule SlipdockWeb.APIGuide do
     completed, completed cards outside Done, cards stuck in progress, epics
     with no next step, long-overdue and abandoned cards, likely duplicates,
     pages nothing links to, `[[links]]` that nearly match a page, cards
-    closed on a handbook board without a `Handbook:` line — and keeps
-    a suggestion for each. `POST /api/boards/:board/garden` (optionally
+    closed on a handbook board without a `Handbook:` line, and on a
+    handbook board long handbook sections (`long_section`), `covers:` that
+    match everything (`broad_covers`), `must` rules left to `judgement`
+    and rule ids used twice (`rule_without_check`), and decisions that
+    supersede one without linking back or aren't titled `Decision:`
+    (`stale_decision`) — and keeps a suggestion for each. `POST /api/boards/:board/garden` (optionally
     `check`) looks it over now; `GET` lists the open suggestions, the last
     run and every check's settings. A suggestion has `check`, `explanation`,
     `cards`, `pages`, `proposal` (its steps), `alternatives` and

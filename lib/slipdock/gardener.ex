@@ -45,7 +45,11 @@ defmodule Slipdock.Gardener do
     Slipdock.Gardener.Checks.DuplicateCards,
     Slipdock.Gardener.Checks.OrphanPages,
     Slipdock.Gardener.Checks.BrokenLinks,
-    Slipdock.Gardener.Checks.HandbookGap
+    Slipdock.Gardener.Checks.HandbookGap,
+    Slipdock.Gardener.Checks.LongSection,
+    Slipdock.Gardener.Checks.BroadCovers,
+    Slipdock.Gardener.Checks.RuleWithoutCheck,
+    Slipdock.Gardener.Checks.StaleDecision
   ]
 
   @doc "Every check, in the order the Tidy-up page shows them."
