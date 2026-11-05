@@ -41,6 +41,8 @@ defmodule SlipdockWeb.API.WikiFileController do
   end
 
   @doc "One file's bytes, by its path in the wiki: `Tool/build.py`, `notes.pdf`."
+  # Not a hole: Server-made disk path, sent as an octet-stream attachment.
+  # sobelow_skip ["Traversal.SendDownload"]
   def show(conn, %{"board" => ref, "path" => parts}) do
     path = Enum.join(parts, "/")
 

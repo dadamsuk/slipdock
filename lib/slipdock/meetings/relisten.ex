@@ -267,6 +267,8 @@ defmodule Slipdock.Meetings.Relisten do
 
   defp layout(_, _, _), do: {:error, "the recording's WAV header could not be read"}
 
+  # Not a hole: ffmpeg gets an argument list (no shell): a server-made path and numbers.
+  # sobelow_skip ["CI.System"]
   defp ffmpeg_clip(ffmpeg, path, from, to) do
     out = Path.join(System.tmp_dir!(), "slipdock-clip-#{System.unique_integer([:positive])}.wav")
 

@@ -67,6 +67,8 @@ defmodule SlipdockWeb.API.VaultSyncController do
   end
 
   @doc "A file's bytes, streamed from disk, with its hash in `x-slipdock-hash`."
+  # Not a hole: Server-made disk path, sent as octet-stream.
+  # sobelow_skip ["Traversal.SendDownload"]
   def show_file(conn, %{"id" => ref, "file" => id}) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
          {:ok, file, entry} <- Sync.read_file(vault, user(conn), id, opts(conn)) do

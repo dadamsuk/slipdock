@@ -95,6 +95,8 @@ defmodule SlipdockWeb.WikiFileController do
 
   defp inline(conn, file, _kind), do: send_file(conn, file)
 
+  # Not a hole: Server-made path; SVG and HTML go out with a sandbox CSP.
+  # sobelow_skip ["Traversal.SendDownload"]
   defp send_inline(conn, file, type) do
     conn
     |> put_resp_header("cache-control", "private, max-age=86400")
@@ -106,6 +108,8 @@ defmodule SlipdockWeb.WikiFileController do
     )
   end
 
+  # Not a hole: Server-made path; inline only for raster images, else octet-stream.
+  # sobelow_skip ["Traversal.SendDownload"]
   defp send_file(conn, file) do
     inline? = WikiFile.image?(file)
 

@@ -59,4 +59,42 @@ defmodule Slipdock.CiWorkflowTest do
       assert has?(lines(@ci), "MIX_ENV: test")
     end
   end
+
+  describe "sobelow" do
+    test "runs with its config, failing on any finding" do
+      assert runs?(job("static"), "mix sobelow --config")
+
+      {conf, _} = Code.eval_file(Path.join(@root, ".sobelow-conf"))
+      assert conf[:exit] == "low"
+      assert conf[:threshold] == "low"
+      assert conf[:skip] == true
+    end
+
+    test "every type ignored in .sobelow-conf has its reason there" do
+      {conf, _} = Code.eval_file(Path.join(@root, ".sobelow-conf"))
+      text = File.read!(Path.join(@root, ".sobelow-conf"))
+
+      for type <- conf[:ignore] do
+        assert text =~ ~r/^#\s+#{Regex.escape(type)}\s+\S/m, "no reason for #{type}"
+      end
+    end
+
+    test "every skip in the code has a reason on the line above" do
+      skips =
+        for file <- Path.wildcard(Path.join(@root, "lib/**/*.ex")),
+            [prev, line] <- file |> File.read!() |> String.split("\n") |> Enum.chunk_every(2, 1),
+            line =~ ~r/#\s*sobelow_skip\s*\[/,
+            do: {Path.relative_to(file, @root), String.trim(prev)}
+
+      assert skips != []
+
+      for {file, prev} <- skips do
+        assert String.starts_with?(prev, "# Not a hole: "), "#{file}: a skip with no reason"
+      end
+    end
+
+    test "no fingerprint skips, which would break on the next edit above them" do
+      refute File.exists?(Path.join(@root, ".sobelow-skips"))
+    end
+  end
 end

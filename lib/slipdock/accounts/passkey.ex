@@ -39,5 +39,7 @@ defmodule Slipdock.Accounts.Passkey do
   def name_max, do: @name_max
 
   @doc "The stored public key, as the COSE key map Wax checks signatures with."
+  # Not a hole: Our own stored COSE key, decoded with [:safe].
+  # sobelow_skip ["Misc.BinToTerm"]
   def cose_key(%__MODULE__{public_key: bin}), do: :erlang.binary_to_term(bin, [:safe])
 end

@@ -161,6 +161,8 @@ defmodule SlipdockWeb.API.ToolController do
   defp skill_or_404({:ok, bytes}, _skill), do: {:ok, bytes}
   defp skill_or_404(_, skill), do: {:error, :not_found, "skill #{inspect(skill)}"}
 
+  # Not a hole: Fixed types (gzip, zip, octet-stream), sent as attachments.
+  # sobelow_skip ["XSS.ContentType", "XSS.SendResp"]
   defp send_file_bytes(conn, type, filename, bytes) do
     conn
     |> put_resp_content_type(type, nil)

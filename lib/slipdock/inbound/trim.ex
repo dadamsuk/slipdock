@@ -33,6 +33,8 @@ defmodule Slipdock.Inbound.Trim do
   quote and signature (a reply to a notification that adds nothing, #1258).
   """
   @spec markdown(Message.t(), keyword()) :: String.t()
+  # Not a hole: Mail HTML is converted to Markdown here, not sent to a browser; rendering sanitises it.
+  # sobelow_skip ["XSS.HTML"]
   def markdown(%Message{text: text, html: html}, opts \\ []) do
     {strict, opts} = Keyword.pop(opts, :strict, false)
 

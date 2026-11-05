@@ -13,6 +13,8 @@ defmodule SlipdockWeb.WikiDrawingController do
 
   @policy "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
 
+  # Not a hole: SVG made on the server from the scene, sent with a sandbox CSP.
+  # sobelow_skip ["XSS.SendResp"]
   def show(conn, %{"kind" => kind, "id" => id} = params) do
     with {n, ""} <- Integer.parse(id),
          drawing when not is_nil(drawing) <- fetch(kind, n),

@@ -129,6 +129,8 @@ defmodule Slipdock.Meetings.Transcriber do
   @doc false
   # The recording in pieces a provider will take: `[%{path:, offset_ms:,
   # length_ms:, temp?:}]`. One piece when it fits.
+  # Not a hole: ffmpeg gets an argument list (no shell): a server-made path and numbers.
+  # sobelow_skip ["CI.System"]
   def stretches(path, filename, duration_ms, opts \\ []) do
     size = File.stat!(path).size
     max = opts[:max_bytes] || max_bytes()

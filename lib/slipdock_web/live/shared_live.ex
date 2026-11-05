@@ -588,6 +588,8 @@ defmodule SlipdockWeb.SharedLive do
   attr :can_write, :boolean, required: true
   attr :also_targets, :any, default: nil
 
+  # Not a hole: @html is MDEx output, sanitised (ammonia), with the CSP behind it.
+  # sobelow_skip ["XSS.Raw"]
   defp page_view(assigns) do
     ~H"""
     <article id="shared-page" class="mx-auto max-w-3xl">

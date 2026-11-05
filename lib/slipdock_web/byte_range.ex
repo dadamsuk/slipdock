@@ -15,8 +15,11 @@ defmodule SlipdockWeb.ByteRange do
   asked for, or a 416 when that range is outside the file. The caller sets
   any caching headers first.
   """
+  # Not a hole: Paths are server-made (uploads dir + key); the type goes through inline_type/1 first.
+  # sobelow_skip ["Traversal.SendDownload", "Traversal.SendFile", "XSS.ContentType"]
   def send(conn, path, filename, content_type, disposition) do
     conn = put_resp_header(conn, "accept-ranges", "bytes")
+    {content_type, disposition} = served_as(content_type, disposition)
 
     case byte_range(conn, File.stat!(path).size) do
       :all ->
@@ -39,6 +42,35 @@ defmodule SlipdockWeb.ByteRange do
         |> send_resp(416, "")
     end
   end
+
+  # The type is the uploader's word, so only a bare recording or raster
+  # image type is sent as itself. Anything else (a page's, a script's, or
+  # `audio/x, text/html`, which a browser reads as its last type) goes out as
+  # plain bytes to download, whatever the caller asked for.
+  defp served_as(type, disposition) do
+    case inline_type(type) do
+      "application/octet-stream" = bytes -> {bytes, :attachment}
+      type -> {type, disposition}
+    end
+  end
+
+  @doc """
+  `type` as it may be served inline, lowercased and without parameters: a
+  bare `audio/*` or `video/*` type, or a raster image the browser shows
+  safely (`Slipdock.Boards.Attachment.image_types/0`). Anything else is
+  `"application/octet-stream"`.
+  """
+  def inline_type(type) when is_binary(type) do
+    base = type |> String.split(";", parts: 2) |> hd() |> String.trim() |> String.downcase()
+
+    cond do
+      Enum.member?(Slipdock.Boards.Attachment.image_types(), base) -> base
+      Regex.match?(~r{\A(audio|video)/[a-z0-9][a-z0-9.+-]*\z}, base) -> base
+      true -> "application/octet-stream"
+    end
+  end
+
+  def inline_type(_), do: "application/octet-stream"
 
   # One range, the only kind a media player asks for: `bytes=a-b`, `bytes=a-`
   # or `bytes=-n` (the last n). Several ranges, or a header that doesn't

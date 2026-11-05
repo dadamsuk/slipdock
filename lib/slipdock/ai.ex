@@ -344,6 +344,8 @@ defmodule Slipdock.AI do
   def model_env(:fallback_models), do: "SLIPDOCK_AI_FALLBACK_MODELS"
 
   @doc "The settings-row field an admin's choice for a model setting is kept in."
+  # Not a hole: key is one of @model_settings (the guard), so the atoms are a fixed set.
+  # sobelow_skip ["DOS.BinToAtom"]
   def model_field(key) when key in @model_settings, do: :"ai_#{key}"
 
   @doc """

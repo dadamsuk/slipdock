@@ -15,6 +15,8 @@ defmodule SlipdockWeb.PublishedFileController do
   alias Slipdock.Wiki
   alias Slipdock.Wiki.{Embeds, Files, WikiFile}
 
+  # Not a hole: Server-made path; only raster images (WikiFile.image?/1) are published.
+  # sobelow_skip ["Traversal.SendDownload"]
   def show(conn, %{"token" => token, "id" => id}) do
     with {n, ""} <- Integer.parse(id),
          %Wiki.Page{} = page <- Wiki.get_published(token),

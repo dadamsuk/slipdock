@@ -48,6 +48,8 @@ defmodule SlipdockWeb.API.TransferController do
 
   # A Tool's piece is checked as the Tool page is: the version must still be
   # one this user sees (their own, shared with them, or the listed one).
+  # Not a hole: tool_piece/2 gives fixed types (gzip, zip, octet-stream), sent as attachments.
+  # sobelow_skip ["XSS.ContentType", "XSS.SendResp"]
   defp send_link(conn, %Link{tool_version: %Tools.Version{} = version} = link) do
     user = conn.assigns.current_user
 

@@ -87,7 +87,9 @@ defmodule Slipdock.MixProject do
       # cards, snooze). Compiled in; no downloads at runtime.
       {:tz, "~> 0.28.4"},
       # Known advisories in the locked dependencies (`mix deps.audit`, in CI).
-      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
+      # The Phoenix security scanner (`mix sobelow`, in CI; settings in .sobelow-conf).
+      {:sobelow, "~> 0.18", only: [:dev, :test], runtime: false}
     ]
   end
 
