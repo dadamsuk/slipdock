@@ -2111,7 +2111,12 @@ The **avatar menu** is in sections, and marks the page you are on:
 - **Admin**, for admins only: Overview, Users, Tool listings and
   Configuration, folded into one group that opens by itself on its own pages.
   While it is folded it carries the count of signups and tool listings
-  waiting.
+  waiting. Each opens the **Admin** area: one page with a side nav (People,
+  Sign-ups, Overview; Server, Email, Meetings, AI; Tools) and the running
+  build under it. On a phone the nav is a picker at the top. The people
+  table only reads: **Manage** on a row (or the row itself) opens that
+  person's panel, which holds their limit, paid-up date, permissions,
+  support access and, in a danger zone, Disable and Close.
 - **Sign out**.
 
 A board's **`…` menu** is in three groups: what you do with the board (Share

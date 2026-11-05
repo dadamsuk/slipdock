@@ -1,5 +1,5 @@
 // The browser half of tools/e2e/controls.sh (#1704): one look per control.
-// On Users (checkboxes), Configuration (radios) and the card back (the
+// On a person's panel in Users (checkboxes, #1739), Configuration (radios) and the card back (the
 // Completed toggle), in light and dark:
 //   - a checkbox is 16×16 with a 4px radius, and filled with the primary
 //     when checked;
@@ -52,12 +52,15 @@ const look = (sel, checked) => page.evaluate(([sel, checked]) => {
 
 const results = {}
 for (const scheme of ['light', 'dark']) {
+  // The table only reads (#1739): the checkboxes are in the person panel.
   await open('/users', scheme)
-  const box = await look('input.checkbox', false) ?? fail('no checkbox on Users')
+  await page.locator('[id^=manage-]').first().click()
+  await page.waitForSelector('#person-panel input.checkbox')
+  const box = await look('#person-panel input.checkbox', false) ?? fail('no checkbox in the person panel')
   if (box.w !== 16 || box.h !== 16) fail(`${scheme}: checkbox is ${box.w}×${box.h}, not 16×16`)
   if (box.radius !== 4) fail(`${scheme}: checkbox radius ${box.radius}px, not 4px`)
   if (box.bg === box.primary) fail(`${scheme}: an unchecked checkbox is filled with the primary`)
-  const ticked = await look('input.checkbox', true)
+  const ticked = await look('#person-panel input.checkbox', true)
   if (ticked.bg !== ticked.primary) fail(`${scheme}: a checked checkbox is ${ticked.bg}, not the primary ${ticked.primary}`)
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/controls-users-${scheme}.png` })
 

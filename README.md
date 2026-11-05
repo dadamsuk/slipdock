@@ -474,7 +474,7 @@ To make the app force HTTPS itself, build it with
 
 #### Which build is running
 
-**Configuration** shows, at the top of the page, when the running build was
+Every **Admin** page shows, under its side nav, when the running build was
 compiled and the commit it came from — the first thing worth checking when a
 server is not behaving the way the code in front of you says it should.
 `slipdock admin build` prints the same line from a terminal.
@@ -633,7 +633,8 @@ all under **Configuration → Server**, with the people themselves under
   person when they signed up, when they were last active (signing in or using
   an API token), and how many boards, lists, cards, wiki pages and files they
   own and the storage behind them. Sort the table by any column.
-- **Who has paid**, per person under **Users**: a paid-up date takes somebody
+- **Who has paid**, per person under **Users** (Manage on their row opens the
+  panel with their limit, paid-up date, permissions and support access): a paid-up date takes somebody
   off the free allowance and off the trial clock. There is no billing in
   Slipdock; whoever takes the money sets the date.
 - **Who people can see** — everyone on the server, or only the people they
