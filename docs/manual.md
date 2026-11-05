@@ -1470,6 +1470,10 @@ Settings belong to the tree's root board, whichever board in it you name.
 | `idle_feed` | A *list top* rule that has sent nothing for 15 minutes (`minutes`) while its list has a card it would send and a runner of its pool is online and idle. Not when the list is empty, the pool paused or the WIP limit full. | Runs the feed. Still idle, it is flagged on the next run with the reason the feed gave. |
 | `long_pause` | A pool or a whole tree paused for over 12 hours (`hours`). | None: a board alert. |
 | `deadlock` | A cycle in what waits on what: a queued job held by a lane, a WIP limit or the cards in progress; a held answer waiting for its rule's job; a card waiting for an answer or a blocker; a card waiting for its verify or merge job; a merge job waiting for a busy runner; the pass on an epic waiting for its subcards to merge. The incident names each edge. | Withdraws a work job in the cycle that was never handed out (its card keeps its place and goes next), then sends held answers and runs the feeds. Never touches a claimed or running job, a card's place or a dependency: a cycle of dependencies alone, or through a claimed job, is flagged on every card in it. |
+| `verify_missing` | A card pending verification, on a board with a verify pool, with no verify job open for 10 minutes (`minutes`): one was cancelled, failed or never queued. | Queues it again to the verify pool, never to the card's builder, up to twice for the same submission; then flagged. |
+| `merge_missing` | An accepted card on a board that ships by pull request, shown as *merging*, with no merge job open for 10 minutes (`minutes`). | Queues the merge again, to the pool a merge would go to, up to twice; then flagged (at once when no runner takes merge jobs). |
+| `merge_failing` | A card whose merge failed twice (`failures`), the latest merge among them. It is back as rejected each time; the flag says it is looping. | None: flagged, with the merges' reasons. |
+| `verify_slow` | A verify job claimed for over an hour (`minutes`, 60) with no progress step or note. `hung_job` leaves verify jobs to it. | None: flagged. |
 
 ## Dependencies
 

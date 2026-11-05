@@ -1058,6 +1058,28 @@ defmodule Slipdock.Verified do
   """
   def finishing_kinds, do: [@verify_kind, @merge_kind]
 
+  @doc """
+  Queues a verify job again for a card still pending verification that has
+  none open (the health monitor's `verify_missing`): to its board's verify
+  pool, never to the runner that built it. `{:ok, job}` or `{:error, reason}`.
+  """
+  def requeue_verify(%Card{verify_state: "pending"} = card) do
+    board = board(card)
+
+    if board.verify_work and board.verify_pool do
+      Slipdock.Runners.queue(card, %{
+        pool: board.verify_pool,
+        kind: @verify_kind,
+        prompt: verify_prompt(card, board),
+        exclude_runner_id: builder_runner_id(card)
+      })
+    else
+      {:error, "the board has no verify pool"}
+    end
+  end
+
+  def requeue_verify(%Card{}), do: {:error, "the card isn't pending verification"}
+
   defp queue_verify_job(%Card{} = card, user) do
     board = board(card)
 

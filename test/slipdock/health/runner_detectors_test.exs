@@ -137,7 +137,7 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
       assert f.subject == %{"job" => job.id}
       assert f.summary =~ "Job ##{job.id} (claude, box) is still holding its lease"
       assert f.summary =~ "no progress for 60 minutes"
-      assert f.data == %{"job" => job.id, "cancel" => false}
+      assert f.data == %{"job" => job.id, "cancel" => false, "kind" => "claude"}
     end
 
     test "near misses: a recent step, a recent note on the card, a lapsed lease", ctx do
