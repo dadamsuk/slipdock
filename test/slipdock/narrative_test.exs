@@ -304,7 +304,7 @@ defmodule Slipdock.NarrativeTest do
     end
   end
 
-  test "build/3 events carry an actor (unknown until the log records one) and fold in lines/2" do
+  test "build/3 events carry the log's actor and fold in lines/2" do
     board = board_fixture(%{"name" => "Folding"})
     [backlog | _] = board.columns
     card = card_fixture(backlog, %{"title" => "Dark mode"})
@@ -320,7 +320,9 @@ defmodule Slipdock.NarrativeTest do
     story = Enum.find(cards, &(&1.card.id == card.id))
 
     assert Enum.all?(story.events, &Map.has_key?(&1, :actor))
-    assert Enum.all?(story.events, &is_nil(&1.actor))
+    # Nobody set an actor in the test's process, so every entry is the
+    # system's (#1735): one actor, so the field changes fold.
+    assert story.events |> Enum.map(& &1.actor) |> Enum.uniq() == [{nil, "system", nil}]
     # build/3 still tells each change with the title, for its other callers.
     assert Enum.any?(story.events, &(&1.message == "set Reach on “Dark mode” to 4000 people"))
 
