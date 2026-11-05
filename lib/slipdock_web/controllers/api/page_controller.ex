@@ -346,9 +346,9 @@ defmodule SlipdockWeb.API.PageController do
   def replace_section(conn, %{"id" => id, "path" => path} = params) do
     with {:ok, page} <- fetch_page(conn, id, :write),
          {:ok, text} <- require_body(params),
-         {:ok, page} <-
-           Wiki.replace_section(page, section_path(path), text, write_opts(conn, params)) do
-      json(conn, %{page: V.page(with_users(page))})
+         {:ok, page, note} <-
+           Wiki.edit_section(page, :replace, section_path(path), text, write_opts(conn, params)) do
+      json(conn, %{page: V.page(with_users(page)), note: note})
     end
   end
 
@@ -359,9 +359,9 @@ defmodule SlipdockWeb.API.PageController do
   def append_section(conn, %{"id" => id, "path" => path} = params) do
     with {:ok, page} <- fetch_page(conn, id, :write),
          {:ok, text} <- require_body(params),
-         {:ok, page} <-
-           Wiki.append_section(page, section_path(path), text, write_opts(conn, params)) do
-      json(conn, %{page: V.page(with_users(page))})
+         {:ok, page, note} <-
+           Wiki.edit_section(page, :append, section_path(path), text, write_opts(conn, params)) do
+      json(conn, %{page: V.page(with_users(page)), note: note})
     end
   end
 

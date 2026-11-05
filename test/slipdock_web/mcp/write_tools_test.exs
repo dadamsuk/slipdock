@@ -855,6 +855,101 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert body =~ "Undo."
     end
 
+    test "section writes keep the heading, extend tables and say so (#1756)", ctx do
+      page =
+        page_fixture(ctx.board, %{
+          "title" => "Keys",
+          "body" => "# Keyboard\n\nOld.\n\n# Table\n\n| k | v |\n|---|---|\n| a | 1 |\n"
+        })
+
+      replaced =
+        ctx.conn
+        |> call("write_page", %{
+          mode: "replace_section",
+          page: page.code,
+          section: "Keyboard",
+          body: "New.",
+          base_hash: page.content_hash
+        })
+        |> ok!()
+
+      assert replaced["note"] == "heading kept"
+      assert Wiki.get_page!(page.id).body =~ "# Keyboard\n\nNew.\n\n# Table"
+
+      renamed =
+        ctx.conn
+        |> call("write_page", %{
+          mode: "replace_section",
+          page: page.code,
+          section: "Keyboard",
+          body: "# Keys\n\nNewer.",
+          base_hash: replaced["content_hash"]
+        })
+        |> ok!()
+
+      assert renamed["note"] == "heading replaced"
+      refute Wiki.get_page!(page.id).body =~ "Keyboard"
+
+      appended =
+        ctx.conn
+        |> call("write_page", %{
+          mode: "append_section",
+          page: page.code,
+          section: "Table",
+          body: "| b | 2 |"
+        })
+        |> ok!()
+
+      assert appended["note"] == "table extended"
+      assert Wiki.get_page!(page.id).body =~ "| a | 1 |\n| b | 2 |\n"
+
+      tools =
+        ctx.conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/mcp", Jason.encode!(%{jsonrpc: "2.0", id: 1, method: "tools/list"}))
+        |> json_response(200)
+        |> get_in(["result", "tools"])
+
+      description = Enum.find(tools, &(&1["name"] == "write_page"))["description"]
+      assert description =~ "keep the heading"
+      assert String.length(description) < 250
+
+      # The whole-page modes have nothing to report.
+      plain =
+        ctx.conn |> call("write_page", %{mode: "append", page: page.code, body: "x"}) |> ok!()
+
+      refute Map.has_key?(plain, "note")
+    end
+
+    test "REST section writes keep the heading, extend tables and say so (#1756)", ctx do
+      page =
+        page_fixture(ctx.board, %{
+          "title" => "Rest keys",
+          "body" => "# Keyboard\n\nOld.\n\n# Table\n\n| k | v |\n|---|---|\n| a | 1 |\n"
+        })
+
+      conn = put_req_header(ctx.conn, "accept", "application/json")
+
+      assert %{"note" => "heading kept", "page" => saved} =
+               conn
+               |> put("/api/pages/#{page.code}/section/Keyboard", %{body: "New."})
+               |> json_response(200)
+
+      assert saved["body"] =~ "# Keyboard\n\nNew.\n\n# Table"
+
+      assert %{"note" => "table extended", "page" => saved} =
+               conn
+               |> post("/api/pages/#{page.code}/section/Table", %{body: "| b | 2 |"})
+               |> json_response(200)
+
+      assert saved["body"] =~ "| a | 1 |\n| b | 2 |\n"
+
+      assert %{"note" => "appended"} =
+               conn
+               |> post("/api/pages/#{page.code}/section/Table", %{body: "Prose."})
+               |> json_response(200)
+    end
+
     test "a stale base_hash is a conflict, and nothing is overwritten", ctx do
       page = page_fixture(ctx.board, %{"title" => "Spec", "body" => "first"})
       stale = page.content_hash

@@ -323,6 +323,15 @@ to it. Two writers touching different sections do not conflict. This is the
 primary write path for agents (§5) — appending a dated note under
 `## Log` should never require sending the whole document back.
 
+A section write never damages the page around it (#1756). A replacement
+without a heading of the section's own level goes under the old heading,
+which is kept (an empty one empties the section); one that opens with such
+a heading replaces it, which is a rename. Rows appended to a section that
+ends in a table join the table rather than landing beneath it as text, and
+bullets join a list the same way. Each section write reports what it did,
+as `note` in the REST and MCP answers (`heading kept`, `heading replaced`,
+`table extended`, `list extended`, `appended`), and the CLI prints it.
+
 **History.** Every save writes a revision. The history view lists them with
 author, `via`, edit summary and size delta; any two can be diffed; any one
 can be reverted (which is itself a new revision, never a deletion). Agent

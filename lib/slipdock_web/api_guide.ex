@@ -2740,6 +2740,12 @@ defmodule SlipdockWeb.APIGuide do
          B/api/pages/W-31/append -d '{"body": "## Findings\\n\\n…"}'
     ```
 
+    A replace whose body has no heading of the section's level keeps the old
+    heading; one that has it renames the section. Rows appended to a section
+    ending in a table extend the table. The answer's `note` says which
+    (`heading kept`, `heading replaced`, `table extended`, `list extended`,
+    `appended`).
+
     Two writers touching different sections never collide, and an **append
     cannot clobber anything at all** — so it takes no `base_hash` and never
     refuses. An agent keeping a running record should append to `## Log` and
