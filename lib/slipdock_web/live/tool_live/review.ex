@@ -59,19 +59,13 @@ defmodule SlipdockWeb.ToolLive.Review do
       viewport={@viewport}
       nav_active={:tool_listings}
     >
-      <:nav>
-        <span class="font-semibold">Tool listings</span>
-      </:nav>
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-4xl space-y-8 px-4 py-6 sm:px-6 sm:py-10">
-          <div>
-            <h1 class="page-title">Tool listings</h1>
-            <p class="mt-1 max-w-xl text-sm text-base-content/60">
-              A listed Tool can be seen and installed by everyone on this server, and its skills
-              run in their assistants with their access. Read each version in full — its page shows
-              every skill file — before approving it. Approval covers that version only.
-            </p>
-          </div>
+        <.page width="standard" class="space-y-8">
+          <.page_header
+            title="Tool listings"
+            subtitle="A listed Tool can be seen and installed by everyone on this server, and its skills run in their assistants with their access. Read each version in full — its page shows every skill file — before approving it. Approval covers that version only."
+            class=""
+          />
 
           <section id="listing-queue">
             <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
@@ -144,7 +138,7 @@ defmodule SlipdockWeb.ToolLive.Review do
               </li>
             </ul>
           </section>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """

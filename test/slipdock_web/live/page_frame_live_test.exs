@@ -38,7 +38,13 @@ defmodule SlipdockWeb.PageFrameLiveTest do
 
   @admin_pages [
     {"/users", "Users", "full"},
-    {"/overview", "Overview", "full"}
+    {"/overview", "Overview", "full"},
+    # The rest of the app's own pages (#1712): Configuration and its tabs,
+    # and the queue of tool listings.
+    {"/config", "Configuration", "narrow"},
+    {"/config/mail", "Configuration", "narrow"},
+    {"/config/ai", "Configuration", "narrow"},
+    {"/admin/tools", "Tool listings", "standard"}
   ]
 
   defp check(view, html, path, title, width) do
@@ -133,6 +139,52 @@ defmodule SlipdockWeb.PageFrameLiveTest do
       for {path, _, _} <- @admin_pages do
         assert {:error, {:redirect, _}} = live(conn, path)
       end
+    end
+  end
+
+  describe "a tool's own page (#1712)" do
+    setup %{user: user} do
+      Slipdock.TestConfig.own_uploads_dir()
+      name = Slipdock.ToolPackages.unique_name()
+      {:ok, v1} = Slipdock.Tools.publish(user, Slipdock.ToolPackages.package(name))
+      %{tool: v1.tool, name: name}
+    end
+
+    test "has one h1, the tool's name, at the standard width", %{conn: conn, tool: tool} do
+      {:ok, view, html} = live(conn, ~p"/tools/#{tool.slug}")
+      doc = view |> render() |> LazyHTML.from_fragment()
+
+      # The page's own title is the one h1 outside the README, which is the
+      # tool's document and keeps its own headings.
+      outside = LazyHTML.query(doc, "h1:not(.prose h1)")
+      assert Enum.count(outside) == 1
+      assert LazyHTML.text(outside) |> String.trim() == tool.name
+      assert has_element?(view, ~s([data-page-width="standard"] #tool-page-header h1), tool.name)
+      assert doc |> LazyHTML.query("[data-page-width]") |> Enum.count() == 1
+
+      # The header row goes back to Tools; it doesn't repeat the name.
+      [above, _] = String.split(html, ~s(data-page-width=), parts: 2)
+      assert above =~ ~s(href="/tools")
+      refute above =~ ~r/>\s*#{Regex.escape(tool.name)}\s*</
+      refute has_element?(view, "#tool-versions")
+    end
+
+    test "with two versions, the picker is the header's action", %{
+      conn: conn,
+      user: user,
+      tool: tool,
+      name: name
+    } do
+      {:ok, _} = Slipdock.Tools.publish(user, Slipdock.ToolPackages.package(name, "1.1.0"))
+      {:ok, view, _} = live(conn, ~p"/tools/#{tool.slug}")
+
+      assert has_element?(
+               view,
+               "#tool-page-header [data-role=page-actions] #tool-versions",
+               "1.1.0"
+             )
+
+      assert has_element?(view, "#tool-header", "version 1.1.0")
     end
   end
 

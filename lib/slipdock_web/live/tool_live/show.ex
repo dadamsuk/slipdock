@@ -278,16 +278,33 @@ defmodule SlipdockWeb.ToolLive.Show do
       nav_active={:tools}
     >
       <:nav>
-        <.link navigate={~p"/tools"} class="text-base-content/60 hover:text-base-content">Tools</.link>
-        <span class="mx-1 text-base-content/40">/</span>
-        <span class="font-semibold">{@tool.name}</span>
+        <.link navigate={~p"/tools"} class="text-base-content/60 hover:text-base-content">
+          <.icon name="hero-arrow-left" class="size-3.5" /> Tools
+        </.link>
       </:nav>
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6 sm:py-10">
-          <header id="tool-header" class="flex flex-wrap items-start justify-between gap-4">
+        <.page width="standard" class="space-y-6">
+          <div id="tool-header">
+            <.page_header id="tool-page-header" title={@tool.name} subtitle={@tool.summary} class="">
+              <:actions :if={length(@versions) > 1}>
+                <div id="tool-versions" class="text-sm">
+                  <label class="text-xs text-base-content/60">Version</label>
+                  <div class="flex flex-wrap gap-1">
+                    <.link
+                      :for={v <- @versions}
+                      patch={~p"/tools/#{@tool.slug}?version=#{v.version}"}
+                      class={[
+                        "badge",
+                        if(v.id == @version.id, do: "badge-primary", else: "badge-ghost")
+                      ]}
+                    >
+                      {v.version}
+                    </.link>
+                  </div>
+                </div>
+              </:actions>
+            </.page_header>
             <div>
-              <h1 class="page-title">{@tool.name}</h1>
-              <p class="mt-1 max-w-xl text-base-content/70">{@tool.summary}</p>
               <p class="mt-2 text-xs text-base-content/50">
                 <code>{@tool.slug}</code>
                 · version {@version.version}
@@ -310,19 +327,7 @@ defmodule SlipdockWeb.ToolLive.Show do
                 >{@latest.version}</.link>.
               </p>
             </div>
-            <div :if={length(@versions) > 1} id="tool-versions" class="text-sm">
-              <label class="text-xs text-base-content/60">Version</label>
-              <div class="flex flex-wrap gap-1">
-                <.link
-                  :for={v <- @versions}
-                  patch={~p"/tools/#{@tool.slug}?version=#{v.version}"}
-                  class={["badge", if(v.id == @version.id, do: "badge-primary", else: "badge-ghost")]}
-                >
-                  {v.version}
-                </.link>
-              </div>
-            </div>
-          </header>
+          </div>
 
           <section
             id="tool-status"
@@ -639,7 +644,7 @@ defmodule SlipdockWeb.ToolLive.Show do
               label="Publish the new version"
             />
           </section>
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """
