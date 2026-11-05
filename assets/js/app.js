@@ -43,6 +43,7 @@ import {PageLink} from "./page_link"
 import {TranscriptPlayer} from "./transcript_player"
 import {PasskeyLogin, PasskeyRegister} from "./passkey"
 import {DockDrag} from "./dock_drag"
+import {AutoDismiss} from "./auto_dismiss"
 import {DateField} from "./date_field"
 import {FilePicker} from "./file_picker"
 import {TagFilter} from "./tag_filter"
@@ -524,11 +525,8 @@ Hooks.Focus = {
   },
 }
 
-// Dismisses a flash after a few seconds, exactly as a click on it would.
-Hooks.AutoDismiss = {
-  mounted() { this.timer = setTimeout(() => this.el.click(), 4500) },
-  destroyed() { clearTimeout(this.timer) },
-}
+// Dismisses a flash after a few seconds without a click (auto_dismiss.js).
+Hooks.AutoDismiss = AutoDismiss
 
 // A running card timer: counts up from `data-since` once a second, so the
 // server needn't push a tick. Keyed on the start time, so a restart remounts.
