@@ -46,6 +46,7 @@ defmodule Slipdock.Automations.Scheduler do
   # A rule that blows up must not take the scheduler with it. The same clock
   # takes back runner jobs whose lease has run out (see `Slipdock.Runners`).
   defp safe_tick do
+    beat()
     sweep_runner_jobs()
     prune_wiki_changes()
     prune_autosaves()
@@ -101,6 +102,14 @@ defmodule Slipdock.Automations.Scheduler do
     Slipdock.OCR.sweep()
   rescue
     exception -> Logger.error("Document reading sweep failed: #{Exception.message(exception)}")
+  end
+
+  # The scheduler's pulse, for `/healthz` (see `Slipdock.Health.pulse/1`):
+  # every tick, before anything that could fail.
+  defp beat do
+    Slipdock.Health.Pulse.beat("scheduler")
+  rescue
+    exception -> Logger.error("Scheduler pulse failed: #{Exception.message(exception)}")
   end
 
   # The health monitor runs every few minutes, not every tick (see

@@ -547,6 +547,84 @@ defmodule Slipdock.Health do
   @doc "When the monitor last ran, on any tree, or nil."
   def last_run, do: Pulse.last("monitor")
 
+  ## The pulse ------------------------------------------------------------------
+
+  # A fresh boot hasn't ticked yet, and the pulse in the database may be the
+  # old container's: stale clocks don't count for this long after start.
+  @boot_grace_seconds 600
+
+  @doc """
+  The two clocks the monitor depends on, for `/healthz` (#1765): when the
+  scheduler last ticked and the monitor last ran, each as
+  `%{"last" => iso8601 | nil, "age_seconds" => n | nil, "stale_after_seconds"
+  => n | nil, "stale" => bool}`. A clock is stale when it hasn't beaten for
+  a few of its intervals (the scheduler 5, the monitor 3), except within ten
+  minutes of boot; a clock set to `:manual` is never stale.
+
+  Options, for tests: `:now`, `:uptime_seconds`, `:last` (`%{name => at}`)
+  and `:intervals` (`%{name => seconds | :manual}`).
+  """
+  def pulse(opts \\ []) do
+    now = opts[:now] || DateTime.utc_now()
+    uptime = opts[:uptime_seconds] || div(elem(:erlang.statistics(:wall_clock), 0), 1000)
+    intervals = Map.merge(clock_intervals(), opts[:intervals] || %{})
+
+    Map.new([{"scheduler", 5}, {"monitor", 3}], fn {name, times} ->
+      last = Map.get(opts[:last] || %{}, name, :read)
+      last = if last == :read, do: Pulse.last(name), else: last
+      age = last && max(DateTime.diff(now, last), 0)
+
+      limit =
+        case intervals[name] do
+          seconds when is_integer(seconds) -> seconds * times
+          _ -> nil
+        end
+
+      stale = not is_nil(limit) and uptime > @boot_grace_seconds and (is_nil(age) or age > limit)
+
+      {name,
+       %{
+         "last" => last && DateTime.to_iso8601(last),
+         "age_seconds" => age,
+         "stale_after_seconds" => limit,
+         "stale" => stale
+       }}
+    end)
+  end
+
+  @doc "Why `pulse` is unhealthy, in words, or nil when it isn't."
+  def stale_reason(pulse) do
+    [{"scheduler", "the scheduler"}, {"monitor", "the health monitor"}]
+    |> Enum.filter(fn {name, _} -> pulse[name]["stale"] end)
+    |> Enum.map(fn {name, words} ->
+      case pulse[name]["age_seconds"] do
+        nil -> "#{words} has never run"
+        age -> "#{words} last ran #{div(age, 60)} minutes ago"
+      end
+    end)
+    |> case do
+      [] -> nil
+      reasons -> Enum.join(reasons, "; ")
+    end
+  end
+
+  defp clock_intervals do
+    scheduler =
+      case Slipdock.Config.get(:automations, [])[:interval] do
+        :manual -> :manual
+        nil -> 60
+        ms when is_integer(ms) -> div(ms, 1000)
+      end
+
+    monitor =
+      case interval() do
+        :manual -> :manual
+        minutes -> minutes * 60
+      end
+
+    %{"scheduler" => scheduler, "monitor" => monitor}
+  end
+
   @doc "Subscribes to `{:health_changed, root_id}` for the tree `board` is in."
   def subscribe(%Board{} = board),
     do: Phoenix.PubSub.subscribe(@pubsub, "health:#{Board.root_id(board)}")

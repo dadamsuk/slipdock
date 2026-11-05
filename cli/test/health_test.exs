@@ -50,7 +50,11 @@ defmodule SlipdockCLI.HealthTest do
     body = %{
       "incidents" => [@flagged],
       "recent" => [@fixed],
-      "last_run" => "2026-11-05T09:00:00Z"
+      "last_run" => "2026-11-05T09:00:00Z",
+      "pulse" => %{
+        "scheduler" => %{"age_seconds" => 40, "stale" => false},
+        "monitor" => %{"age_seconds" => 1_260, "stale" => true}
+      }
     }
 
     serve([{200, JSON.encode!(body)}])
@@ -62,6 +66,7 @@ defmodule SlipdockCLI.HealthTest do
     assert out =~ "Lately"
     assert out =~ "#6 [fixed] idle_feed: The feed was idle (1 tried)"
     assert out =~ "Monitor last ran 2026-11-05T09:00."
+    assert out =~ "Pulse: scheduler 40s ago, monitor 21m ago (STALE)"
   end
 
   test "--run posts a run; nothing stuck says so" do
@@ -90,6 +95,11 @@ defmodule SlipdockCLI.HealthTest do
     capture_io(fn -> Health.run("health", ["settings", "ops", "no_runner", "minutes=30"], []) end)
     assert_received {:request, "PATCH", "/api/boards/ops/health/settings", body}
     assert JSON.decode!(body) == %{"detector" => "no_runner", "minutes" => "30"}
+  end
+
+  test "a clock that never beat says so" do
+    assert Health.pulse_line(%{"scheduler" => %{"age_seconds" => nil, "stale" => false}}) ==
+             "Pulse: scheduler never"
   end
 
   test "the arguments" do

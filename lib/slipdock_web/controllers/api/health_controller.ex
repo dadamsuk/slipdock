@@ -5,7 +5,7 @@ defmodule SlipdockWeb.API.HealthController do
 
     * `GET /api/boards/:board/health` – the open and flagged incidents, the
       recent finished ones, when the monitor last ran and every detector's
-      settings. Read access.
+      settings, and the pulse (`/healthz`'s clocks). Read access.
     * `POST /api/boards/:board/health` – a run now; answers as GET. Write access.
     * `PATCH /api/boards/:board/health/settings {detector, enabled?, max_attempts?, …}`
       – one detector's switch and thresholds. Write access.
@@ -46,6 +46,7 @@ defmodule SlipdockWeb.API.HealthController do
     json(conn, %{
       board_id: Board.root_id(board),
       last_run: Health.last_run(),
+      pulse: Health.pulse(),
       incidents: Enum.map(Health.list_active(board), &H.incident/1),
       recent: Enum.map(Health.list_recent(board), &H.incident/1),
       detectors: H.detectors(Health.detector_settings(board))

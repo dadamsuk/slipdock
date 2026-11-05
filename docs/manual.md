@@ -1463,6 +1463,17 @@ PATCH /api/boards/:board/health/settings {detector, enabled?, max_attempts?, …
 
 Settings belong to the tree's root board, whichever board in it you name.
 
+**The monitor's own pulse.** The monitor can't report its own death, nor the
+scheduler's clock stopping, so `GET /healthz` reports both: when the scheduler
+last ticked and when the monitor last ran (`scheduler` and `monitor`, each with
+`last`, `age_seconds` and `stale_after_seconds`). It answers `503` with
+`"status": "stale"` and the reason once either is older than a few of its
+intervals (the scheduler 5 minutes, the monitor 15), except in the first ten
+minutes after a start, so a deploy's health wait passes before the first tick.
+Point an outside uptime check (any service that polls a URL and alerts on a
+non-200) at `https://<your server>/healthz`, and you hear when the clock
+stops. `slipdock health <board>` ends with the same pulse.
+
 | Detector | Finds | Fix |
 |---|---|---|
 | `no_runner` | A queued job whose pool has had no runner online (seen within three leases) for 15 minutes (`minutes`). Names another online pool that takes that kind of job, if there is one. A paused pool is left to `long_pause`. | None: flagged. |
