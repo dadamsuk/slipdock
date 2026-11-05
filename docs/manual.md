@@ -308,8 +308,10 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   medium is the unremarkable middle and stays off the front), flags,
   subcard and checklist progress, and what blocks it, plus its cover and
   image. Tick the rest in **Display** (start date, % complete, time
-  tracked, a description mark, comments, attachments, time in list). A card
-  showing both dates draws them as one range, *31 Oct → 5 Nov*.
+  tracked, a description mark, comments, attachments, time in list, ID). A card
+  showing both dates draws them as one range, *31 Oct → 5 Nov*. **ID** puts
+  the card's number (*#1856*) in the top-right corner of its front, in a
+  lighter font than the title.
   Priority is drawn as signal bars everywhere it appears (the card, the
   outline, the table, the calendar and the filter menu): one bar lit for
   low, two for medium, three for high, all four for critical; point at

@@ -113,7 +113,9 @@ defmodule Slipdock.Swimlanes.Config do
     {"comments", "Comments"},
     {"attachments", "Attachments"},
     # How long it has sat in its list, amber past the usual stay (#1117).
-    {"age", "Time in list"}
+    {"age", "Time in list"},
+    # The card's number, in the top-right corner of its front (#1856).
+    {"id", "ID"}
   ]
   @facet_keys Enum.map(@facets, &elem(&1, 0))
   # What a card shows until someone picks otherwise (#1708): the essentials
