@@ -226,7 +226,9 @@ question (`answers`). A person may also **skip** them (`skip: true`,
 `slipdock answer <id> --skip`): the card moves on unanswered and you use
 your own judgement. `slipdock waits <id>` (`get_card` `waits: true`) shows
 every question the card asked and the answers. An agent can't
-answer a wait it opened. `slipdock work` (`GET /api/work`) lists what is
+answer a wait it opened. A runner job may wait on its own card or any card
+beneath it: an epic's pass asks about a subcard on the subcard, the job
+parks, and the answer sends the epic again with the subcard named. `slipdock work` (`GET /api/work`) lists what is
 waiting on you, and `whoami` counts it (`waiting_on_you`). See
 [the manual](manual.md#waiting-on-a-person-waits).
 

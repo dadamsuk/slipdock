@@ -3827,7 +3827,8 @@ defmodule Slipdock.Boards do
   who asks (`Slipdock.Actor`). `attrs` takes `needs` (required), `choices`
   (a short list of answers to pick from), `on_user_id` (nil waits on anyone)
   and `job_id`, the runner job asking, which must be claimed or running on
-  this card.
+  this card or on a card above it (an epic's job asking about a subcard,
+  #1755).
 
   The card is flagged `waiting` through `update_card/3`, so rules on the
   flag fire, and the wait remembers whether it set the flag. A wait on a
@@ -3898,8 +3899,9 @@ defmodule Slipdock.Boards do
       "at #{stamp(wait.inserted_at)}). Answer or withdraw it first."
   end
 
-  # A job may be named only while it is working on this very card, so no
-  # caller can park somebody else's job, or one that has finished.
+  # A job may be named only while it is working on this card or on one above
+  # it (#1755: an epic's pass asks about a subcard from the epic's job), so
+  # no caller can park somebody else's job, or one that has finished.
   defp check_wait_job(_card, nil), do: :ok
   defp check_wait_job(_card, ""), do: :ok
 
@@ -3914,8 +3916,10 @@ defmodule Slipdock.Boards do
       is_nil(job) ->
         {:error, "no job ##{job_id}"}
 
-      job.card_id != card.id ->
-        {:error, "job ##{job.id} is working on another card, not ##{card.id}"}
+      job.card_id != card.id and job.card_id not in ancestor_card_ids(card) ->
+        {:error,
+         "job ##{job.id} is working on another card: ##{card.id} isn't " <>
+           "##{job.card_id} or beneath it"}
 
       job.status not in ~w(claimed running) ->
         {:error, "job ##{job.id} is #{job.status}: only a claimed or running job can wait"}
@@ -3923,6 +3927,15 @@ defmodule Slipdock.Boards do
       true ->
         :ok
     end
+  end
+
+  @doc "The ids of the cards above `card`, the one owning its board first."
+  def ancestor_card_ids(%Card{board_id: board_id}) do
+    Board
+    |> Repo.get!(board_id)
+    |> ancestry()
+    |> Enum.map(& &1.card.id)
+    |> Enum.reverse()
   end
 
   defp opened_text(wait) do

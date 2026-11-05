@@ -223,7 +223,8 @@ whole card before touching it.
   if it answers `cancel`, and end with `slipdock finish-job <job> --status
   done|failed --summary "…"` once the card is closed or handed back. Need a
   person? Open a wait (`slipdock wait <card> "…"`) and stop: the job is parked,
-  and the answer starts a fresh one.
+  and the answer starts a fresh one. The card may be a subcard of the job's
+  card: ask on the subcard itself.
 - "What is waiting on me?", "what needs me?" → `slipdock work`: waits on you,
   review and waiting flags on your cards, runner trouble, cards in progress
   with nobody on them, oldest first. Answer one with `slipdock answer <id>

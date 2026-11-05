@@ -726,7 +726,9 @@ next pass:
   the card `waiting` and starts the
   clock; then back to the bottom of the ready list, unassigned. In a runner
   job the wait parks the job, and the answer sends the card again with the
-  answer on top of the prompt. Over MCP it is `update_card` `wait`.
+  answer on top of the prompt. A question about a subcard goes on the
+  subcard, even in the epic's job: it parks that job, and the answer sends
+  the epic again, naming the subcard. Over MCP it is `update_card` `wait`.
 - **Bigger than a card.** Break it up where it stands: `slipdock check` for steps
   inside one sitting's work, subcards under it for anything larger (`slipdock
   subboard <id> --template T`, then `slipdock add N ...`). Then work the first one

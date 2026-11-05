@@ -558,4 +558,108 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
              )
     end
   end
+
+  describe "a wait on a subcard, asked from the epic's job (#1755)" do
+    setup ctx do
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, board} = sub_board(ctx.a, t)
+      sub = card_fixture(hd(Boards.get_board!(board.id).columns), %{"title" => "Pick region"})
+      {:ok, deeper} = sub_board(sub, t)
+      subsub = card_fixture(hd(Boards.get_board!(deeper.id).columns), %{"title" => "Size"})
+      %{sub: sub, subsub: subsub}
+    end
+
+    # The epic's job asks on `card`, beneath it, and parks.
+    defp park_on(ctx, card) do
+      job = take(ctx)
+      assert job.card_id == ctx.a.id
+
+      {:ok, wait} =
+        Boards.open_wait(Boards.get_card!(card.id), Actor.runner(ctx.owner, job.id), %{
+          "needs" => "Which region?",
+          "choices" => ["eu", "us"],
+          "job_id" => job.id
+        })
+
+      {:ok, %Job{status: "parked"} = job} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
+      {job, wait}
+    end
+
+    test "the answer re-queues the epic's job, its prompt naming the subcard and answer", ctx do
+      rule = rule_fixture(ctx.board, spec())
+      {parked, asked} = park_on(ctx, ctx.sub)
+      assert asked.card_id == ctx.sub.id
+
+      wait = answer(ctx, ctx.sub)
+
+      assert [fresh] = open_jobs(rule)
+      assert fresh.card_id == ctx.a.id
+      assert fresh.id != parked.id
+      assert {wait.requeue_state, wait.requeue_job_id} == {"queued", fresh.id}
+
+      assert String.starts_with?(
+               fresh.prompt,
+               "Question on subcard ##{ctx.sub.id} “Pick region” (beneath ##{ctx.a.id}): " <>
+                 "Which region?\nAnswer: eu — eu, and soon\nAnswered by: Dana"
+             )
+
+      assert fresh.prompt =~ "Work on Slipdock card ##{ctx.a.id}: a"
+      refute "waiting" in Boards.get_card!(ctx.sub.id).flags
+
+      claimed = Runners.claim(ctx.runner)
+      assert claimed.id == fresh.id
+      assert Runners.claim_context(claimed).wait.id == wait.id
+    end
+
+    test "a subcard's subcard re-queues the epic's job too", ctx do
+      rule = rule_fixture(ctx.board, spec())
+      park_on(ctx, ctx.subsub)
+
+      answer(ctx, ctx.subsub, %{"answer" => "large"})
+
+      assert [fresh] = open_jobs(rule)
+      assert fresh.card_id == ctx.a.id
+
+      assert fresh.prompt =~
+               "Question on subcard ##{ctx.subsub.id} “Size” (beneath ##{ctx.a.id}): " <>
+                 "Which region?\nAnswer: large\n"
+    end
+
+    test "answered while the epic's job still runs: held, and the subcard says so", ctx do
+      rule = rule_fixture(ctx.board, spec())
+      job = take(ctx)
+
+      {:ok, _} =
+        Boards.open_wait(Boards.get_card!(ctx.sub.id), Actor.runner(ctx.owner, job.id), %{
+          "needs" => "Which region?",
+          "job_id" => job.id
+        })
+
+      wait = answer(ctx, ctx.sub, %{"answer" => "eu"})
+
+      assert wait.requeue_state == "pending"
+      assert Enum.map(open_jobs(rule), & &1.id) == [job.id]
+
+      assert Enum.any?(
+               comments(ctx.sub),
+               &(&1 =~ "once job ##{job.id} (claimed on ##{ctx.a.id})")
+             )
+    end
+
+    test "the epic closed meanwhile: skipped, and the subcard says why", ctx do
+      rule = rule_fixture(ctx.board, spec())
+      park_on(ctx, ctx.sub)
+      Repo.update_all(from(c in Boards.Card, where: c.id == ^ctx.a.id), set: [completed: true])
+
+      wait = answer(ctx, ctx.sub)
+
+      assert wait.requeue_state == "skipped"
+      assert open_jobs(rule) == []
+
+      assert Enum.any?(
+               comments(ctx.sub),
+               &(&1 =~ "card ##{ctx.a.id}, whose job asked it, is closed; nothing was sent")
+             )
+    end
+  end
 end

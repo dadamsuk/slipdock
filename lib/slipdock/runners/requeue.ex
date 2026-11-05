@@ -31,6 +31,11 @@ defmodule Slipdock.Runners.Requeue do
       says so.
 
   A wait not asked from a job just closes (`none`).
+
+  A wait on a subcard asked from the epic's job (#1755) sends the job's own
+  card, the epic, again: the rule, the open job and the closed or moved
+  checks are the epic's, and the prompt names the subcard the question was
+  on. What the answer did is said on the subcard, where it was answered.
   """
 
   import Ecto.Query
@@ -63,11 +68,15 @@ defmodule Slipdock.Runners.Requeue do
 
   def after_answer(%Wait{} = wait) do
     job = Repo.get(Job, wait.job_id)
-    card = Repo.get(Card, wait.card_id)
+    asked = Repo.get(Card, wait.card_id)
+    # The card the job was working on: the wait's own, or the epic above it.
+    card =
+      if job && asked && job.card_id != asked.id, do: Repo.get(Card, job.card_id), else: asked
+
     rule = rule_of(job)
 
     cond do
-      is_nil(card) ->
+      is_nil(asked) or is_nil(card) ->
         :skipped
 
       is_nil(job) or is_nil(rule) ->
@@ -77,13 +86,14 @@ defmodule Slipdock.Runners.Requeue do
         skip(wait, card, "rule “#{rule_name(rule)}” is off")
 
       card.completed or not is_nil(card.archived_at) ->
-        skip(wait, card, "the card is closed")
+        skip(wait, card, "#{the_card(wait, card)} is closed")
 
       Boards.root_of_board(card.board_id) != job.root_board_id ->
         skip(
           wait,
           card,
-          "the card has moved to another board tree, out of rule “#{rule_name(rule)}”'s reach"
+          "#{the_card(wait, card)} has moved to another board tree, " <>
+            "out of rule “#{rule_name(rule)}”'s reach"
         )
 
       true ->
@@ -244,7 +254,7 @@ defmodule Slipdock.Runners.Requeue do
   defp pend(%Wait{requeue_state: "pending"}, _card, _job), do: :pending
 
   defp pend(wait, card, job) do
-    where = if job.card_id == card.id, do: "on this card", else: "on ##{job.card_id}"
+    where = if job.card_id == wait.card_id, do: "on this card", else: "on ##{job.card_id}"
     record(wait, "pending", "after job ##{job.id} (#{job.status} #{where})", nil)
 
     why =
@@ -253,7 +263,7 @@ defmodule Slipdock.Runners.Requeue do
         else: "it is already with a runner"
 
     Boards.add_comment(
-      card,
+      told(wait, card),
       "The answer goes to the runners once job ##{job.id} (#{job.status} #{where}) " <>
         "has closed: #{why}."
     )
@@ -263,7 +273,12 @@ defmodule Slipdock.Runners.Requeue do
 
   defp skip(wait, card, why) do
     record(wait, "skipped", why, nil)
-    Boards.add_comment(card, "#{done(wait)}, but #{why}; nothing was sent to the runners.")
+
+    Boards.add_comment(
+      told(wait, card),
+      "#{done(wait)}, but #{why}; nothing was sent to the runners."
+    )
+
     :skipped
   end
 
@@ -271,13 +286,20 @@ defmodule Slipdock.Runners.Requeue do
     record(wait, "failed", reason, nil)
 
     Boards.add_comment(
-      card,
-      "#{done(wait)}, but the card couldn't be sent to the runners again: #{reason}. " <>
+      told(wait, card),
+      "#{done(wait)}, but #{the_card(wait, card)} couldn't be sent to the runners again: #{reason}. " <>
         "Send it again by hand once that clears."
     )
 
     :failed
   end
+
+  # Said on the card the question was on: the subcard, for an epic's job.
+  defp told(%Wait{card_id: id}, %Card{id: id} = card), do: card
+  defp told(wait, card), do: Repo.get(Card, wait.card_id) || card
+
+  defp the_card(%Wait{card_id: id}, %Card{id: id}), do: "the card"
+  defp the_card(_wait, card), do: "card ##{card.id}, whose job asked it,"
 
   defp done(%Wait{close_reason: "skipped"}), do: "Skipped"
   defp done(_wait), do: "Answered"
@@ -295,7 +317,7 @@ defmodule Slipdock.Runners.Requeue do
   # rule's own prompt — the handoff cut first and then the answer, each
   # with a pointer to the card, to stay under the runners' prompt limit.
   def prompt(%Wait{} = wait, %Card{} = card, body) do
-    wait = Repo.preload(wait, [:closed_by], force: true)
+    wait = Repo.preload(wait, [:closed_by, :card], force: true)
     max = Runners.limits().max_prompt
 
     by =
@@ -331,24 +353,35 @@ defmodule Slipdock.Runners.Requeue do
     if byte_size(full) <= max do
       full
     else
-      cut = " … (cut short: the whole text is on card ##{card.id})"
-      spare = max - byte_size(build.(answer, "")) - byte_size(cut)
+      cut = &" … (cut short: the whole text is on card ##{&1})"
+      spare = max - byte_size(build.(answer, "")) - byte_size(cut.(card.id))
 
       if handoff && spare > 0 do
-        build.(answer, head(handoff, spare) <> cut)
+        build.(answer, head(handoff, spare) <> cut.(card.id))
       else
+        cut = cut.(wait.card_id)
         spare = max - byte_size(build.("", nil)) - byte_size(cut)
         build.(head(answer, max(spare, 0)) <> cut, nil) |> head(max)
       end
     end
   end
 
-  # A series' answer already numbers its questions (#1220).
+  # A series' answer already numbers its questions (#1220). A subcard's
+  # question is named with its title (#1755).
   defp question_lines(wait, card, answer) do
+    on = on_card(wait, card)
+
     if Wait.series?(wait) and wait.close_reason != "skipped",
-      do: "Questions on card ##{card.id}: #{wait.needs}\nAnswers:\n#{answer}",
-      else: "Question on card ##{card.id}: #{wait.needs}\nAnswer: #{answer}"
+      do: "Questions on #{on}: #{wait.needs}\nAnswers:\n#{answer}",
+      else: "Question on #{on}: #{wait.needs}\nAnswer: #{answer}"
   end
+
+  defp on_card(%Wait{card_id: id}, %Card{id: id}), do: "card ##{id}"
+
+  defp on_card(%Wait{card: %Card{} = sub}, card),
+    do: "subcard ##{sub.id} “#{sub.title}” (beneath ##{card.id})"
+
+  defp on_card(wait, _card), do: "card ##{wait.card_id}"
 
   # The first `max` bytes of `text`, ending on a whole character.
   defp head(text, max) when byte_size(text) <= max, do: text
