@@ -780,7 +780,56 @@ defmodule SlipdockCLI.Render do
       suggested -> Enum.each(suggested, &IO.puts("  " <> suggestion(&1)))
     end
 
+    card_rules(h)
     IO.puts("  " <> dim("index: slipdock handbook #{h["board"]} (#{h["index_page"]})"))
+  end
+
+  # The rules for the card's lane paths (#1774), when it has some.
+  defp card_rules(%{"rules" => rules} = h) when is_list(rules) do
+    IO.puts(bold("Rules") <> dim("  for the card's paths; keep to them, cite them by id"))
+
+    case rules do
+      [] -> IO.puts("  " <> dim("none cover these paths"))
+      rules -> Enum.each(rules, &rule_line/1)
+    end
+
+    if (h["rules_more"] || 0) > 0,
+      do:
+        IO.puts(
+          "  " <>
+            dim("… and #{h["rules_more"]} more: slipdock handbook #{h["board"]} --paths …")
+        )
+  end
+
+  defp card_rules(_), do: :ok
+
+  defp rule_line(r) do
+    sev = if r["severity"] == "must", do: bold("must"), else: "should"
+    IO.puts("  #{r["id"]} #{sev}  #{r["text"]}")
+
+    where = if r["section"], do: "#{r["page"]} §#{section_leaf(r["section"])}", else: r["page"]
+    IO.puts("      " <> dim("check: #{r["check"]} · #{where}"))
+  end
+
+  @doc "`slipdock handbook <board> --paths …`: the rules that apply to them."
+  def handbook_for_paths(%{"handbook" => nil, "board" => b}),
+    do:
+      IO.puts(
+        "#{b["code"]} keeps no handbook (`slipdock tools install-board handbook --board #{b["code"]}`)"
+      )
+
+  def handbook_for_paths(%{"handbook" => h}) do
+    paths = h["paths"] || []
+
+    IO.puts(
+      bold("Rules") <>
+        dim("  #{h["board"]} · #{length(paths)} path#{if length(paths) == 1, do: "", else: "s"}")
+    )
+
+    case h["rules"] || [] do
+      [] -> IO.puts("  " <> dim("none cover these paths"))
+      rules -> Enum.each(rules, &rule_line/1)
+    end
   end
 
   defp suggestion(s) do

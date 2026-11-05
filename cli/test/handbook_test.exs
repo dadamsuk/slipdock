@@ -162,6 +162,103 @@ defmodule SlipdockCLI.HandbookTest do
     refute capture_io(fn -> Boards.run("handbook", ["proj"], []) end) =~ "Rules"
   end
 
+  @rule %{
+    "id" => "DATA-2",
+    "severity" => "must",
+    "page" => "W-5",
+    "section" => "Data model/Rules",
+    "check" => "test/app/migrations_test.exs",
+    "text" => "Never edit a run migration.",
+    "scope" => ["priv/repo/**"]
+  }
+
+  @should %{@rule | "id" => "DATA-1", "severity" => "should", "text" => "Prefer a column."}
+
+  defp rules_body(paths, rules),
+    do:
+      JSON.encode!(%{
+        "board" => %{"code" => "proj"},
+        "handbook" => %{
+          "board" => "proj",
+          "index_page" => "W-1",
+          "paths" => paths,
+          "rules" => rules
+        }
+      })
+
+  test "slipdock card shows the rules for the card's paths, and how many more (#1774)" do
+    h = Map.merge(@handbook, %{"rules" => [@rule], "rules_more" => 3})
+    out = capture_io(fn -> Render.card(Map.put(@card, "handbook", h)) end)
+
+    assert out =~ "Rules  for the card's paths"
+    assert out =~ "DATA-2 must  Never edit a run migration."
+    assert out =~ "check: test/app/migrations_test.exs · W-5 §Rules"
+    assert out =~ "… and 3 more: slipdock handbook proj --paths …"
+  end
+
+  test "slipdock card with paths no rule covers says so; without paths, no Rules line" do
+    out =
+      capture_io(fn ->
+        Render.card(Map.put(@card, "handbook", Map.put(@handbook, "rules", [])))
+      end)
+
+    assert out =~ "none cover these paths"
+    refute capture_io(fn -> Render.card(Map.put(@card, "handbook", @handbook)) end) =~ "Rules"
+  end
+
+  test "slipdock handbook <board> --paths asks for those paths and prints the rules" do
+    serve(rules_body(["a.ex", "priv/repo/x.exs"], [@rule, @should]))
+    out = capture_io(fn -> Boards.run("handbook", ["proj"], paths: "a.ex, priv/repo/x.exs") end)
+
+    assert_received {:request, "GET", path, _}
+    assert URI.decode_www_form(path) == "/api/boards/proj/handbook?paths=a.ex,priv/repo/x.exs"
+    assert out =~ "Rules  proj · 2 paths"
+    assert out =~ "DATA-2 must  Never edit a run migration."
+    assert out =~ "DATA-1 should  Prefer a column."
+  end
+
+  test "--paths-from - reads a diff from stdin, in chunks, each rule once, must first" do
+    paths = for n <- 1..45, do: "priv/repo/m#{n}.exs"
+    first = Enum.take(paths, 40)
+    rest = Enum.drop(paths, 40)
+
+    System.put_env(
+      "SLIPDOCK_URL",
+      FakeServer.start([
+        {200, rules_body(first, [@should])},
+        {200, rules_body(rest, [@rule, @should])}
+      ])
+    )
+
+    stdin = Enum.join(paths ++ ["", "priv/repo/m1.exs"], "\n") <> "\n"
+    out = capture_io(stdin, fn -> Boards.run("handbook", ["proj"], paths_from: "-") end)
+
+    assert_received {:request, "GET", one, _}
+    assert_received {:request, "GET", two, _}
+    assert URI.decode_www_form(one) =~ "paths=priv/repo/m1.exs,"
+    assert URI.decode_www_form(one) =~ ",priv/repo/m40.exs"
+    assert URI.decode_www_form(two) =~ "paths=priv/repo/m41.exs,"
+
+    assert out =~ "proj · 45 paths"
+    [must_at] = Regex.run(~r/DATA-2 must/, out, return: :index) |> Enum.map(&elem(&1, 0))
+    [should_at] = Regex.run(~r/DATA-1 should/, out, return: :index) |> Enum.map(&elem(&1, 0))
+    assert must_at < should_at
+    assert length(Regex.scan(~r/DATA-1 should/, out)) == 1
+  end
+
+  test "--paths on a board without a handbook says so" do
+    serve(JSON.encode!(%{"board" => %{"code" => "proj"}, "handbook" => nil}))
+    out = capture_io(fn -> Boards.run("handbook", ["proj"], paths: "a.ex") end)
+    assert out =~ "proj keeps no handbook"
+  end
+
+  test "--paths with nothing matching says so" do
+    serve(rules_body(["README.md"], []))
+    out = capture_io(fn -> Boards.run("handbook", ["proj"], paths: "README.md") end)
+    assert out =~ "proj · 1 path"
+    assert out =~ "none cover these paths"
+  end
+
   test "slipdock handbook <board> without one says so" do
     serve(JSON.encode!(%{"board" => %{"code" => "proj"}, "handbook" => nil}))
     out = capture_io(fn -> Boards.run("handbook", ["proj"], []) end)

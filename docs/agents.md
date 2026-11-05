@@ -381,6 +381,18 @@ keeps to the rules that cover the files it touches, a reviewer cites them
 by id, and an agent tidying a page leaves them as they are.
 `slipdock handbook <board>` lists any item that doesn't read as a rule.
 
+To get the rules for a change, ask with its paths:
+
+```sh
+slipdock handbook <board> --paths lib/app_web/live/menu.ex,priv/repo/migrations/x.exs
+git diff --name-only main | slipdock handbook <board> --paths-from -
+```
+
+Over REST that is `GET /api/boards/:board/handbook?paths=a,b`. A card
+whose lane has `paths` carries the same rules in `get_card`'s `handbook`
+(`rules`, `must` first, cut to fit, with `rules_more`), and `slipdock card`
+prints them in its Handbook block.
+
 ## Let the board send it work (runners)
 
 Everything above is an agent you start, that then reads the board. A
