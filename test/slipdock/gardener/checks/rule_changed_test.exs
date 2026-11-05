@@ -134,7 +134,7 @@ defmodule Slipdock.Gardener.Checks.RuleChangedTest do
   end
 
   test "changes/3 reads severity, scope, check and text as the rule" do
-    page = %Page{title: "UX & UI", code: "W-1", body: ""}
+    page = %Page{title: "UX & UI", body: ""}
     before = "## Rules\n\n- **UX-1** must · judgement · A.\n- **UX-10** must · judgement · B.\n"
 
     assert RuleChanged.changes(page, before, before) == []
