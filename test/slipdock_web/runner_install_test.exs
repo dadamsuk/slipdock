@@ -592,4 +592,95 @@ defmodule SlipdockWeb.RunnerInstallTest do
     {_, 0} = install(ctx, @base ++ ["--no-self-update"])
     assert sourced(ctx, "SELF_UPDATE") == ""
   end
+
+  # Print mode stops a run's background tasks 10 minutes after its last turn,
+  # which stopped a pass's subagents mid-build (#1812): a claude runner's
+  # config waits for them; codex and custom are as they were.
+  describe "a pass's subagents finish their builds (#1812)" do
+    @why "# Claude Code in print mode (-p) stops background tasks, such as the subagents\n" <>
+           "# a pass hands its builds to, 10 minutes after the last turn. 0 waits for them.\n"
+
+    # What a job's own process sees, the config sourced the way the runner does.
+    defp job_sees(ctx, var) do
+      config = Path.join(ctx.home, ".config/slipdock-runner/config")
+
+      {out, 0} =
+        System.cmd("sh", ["-c", ". \"$1\"; sh -c 'printf %s \"$#{var}\"'", "sh", config],
+          # Unset first (the shell running the tests may have it), so only
+          # the config can set it.
+          env: [{"HOME", ctx.home}, {"XDG_CONFIG_HOME", nil}, {var, nil}]
+        )
+
+      out
+    end
+
+    test "install.sh: claude exports CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0, and says why",
+         ctx do
+      {_, 0} = install(ctx, @base)
+      config = File.read!(Path.join(ctx.home, ".config/slipdock-runner/config"))
+
+      assert config =~ @why <> "export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0\n"
+      assert job_sees(ctx, "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS") == "0"
+    end
+
+    test "install.sh: codex and custom don't", ctx do
+      for args <- [~w(--agent codex), ["--agent", "custom", "--command", "make it"]] do
+        {_, 0} = install(ctx, @base ++ args)
+        config = File.read!(Path.join(ctx.home, ".config/slipdock-runner/config"))
+
+        refute config =~ "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", inspect(args)
+        refute config =~ "print mode", inspect(args)
+        assert job_sees(ctx, "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS") == "", inspect(args)
+      end
+    end
+
+    # install.ps1 run for real under pwsh, when it is installed (CI has it;
+    # SLIPDOCK_PWSH names another one).
+    @pwsh System.get_env("SLIPDOCK_PWSH") || System.find_executable("pwsh")
+
+    defp ps_install(ctx, args) do
+      installer = Path.join(ctx.home, "install.ps1")
+      File.write!(installer, SlipdockWeb.RunnerInstallController.files()["install.ps1"])
+      inst = Path.join(ctx.home, "inst")
+
+      {_, 0} =
+        System.cmd(
+          @pwsh,
+          ["-NoProfile", "-File", installer, "-InstallDir", inst, "-NoStart"] ++
+            ["-Url", "https://slipdock.example", "-Token", "sdr_x" | args],
+          stderr_to_stdout: true
+        )
+
+      cfg = Path.join(inst, "config.ps1")
+      # Cleared first, so only the config can set it.
+      cmd =
+        "$env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = $null; . '#{cfg}'; " <>
+          "[Console]::Out.Write($env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS)"
+
+      {seen, 0} = System.cmd(@pwsh, ["-NoProfile", "-Command", cmd])
+      {cfg |> File.read!() |> String.replace("\r\n", "\n"), seen}
+    end
+
+    if is_nil(@pwsh), do: @tag(skip: "pwsh (PowerShell) is not installed here; CI runs these")
+
+    test "install.ps1: claude sets $env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS to 0, and says why",
+         ctx do
+      {config, seen} = ps_install(ctx, [])
+
+      assert config =~ @why <> "$env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '0'\n"
+
+      assert seen == "0"
+    end
+
+    if is_nil(@pwsh), do: @tag(skip: "pwsh (PowerShell) is not installed here; CI runs these")
+
+    test "install.ps1: codex and custom don't", ctx do
+      for args <- [~w(-Agent codex), ["-Agent", "custom", "-Command", "make it"]] do
+        {config, seen} = ps_install(ctx, args)
+        refute config =~ "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", inspect(args)
+        refute config =~ "print mode", inspect(args)
+        assert seen == "", inspect(args)
+      end
+    end
+  end
 end

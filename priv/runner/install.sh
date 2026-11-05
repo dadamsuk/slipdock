@@ -209,9 +209,17 @@ for server in $(printf '%s' "$MCP_SERVERS" | tr ',' ' '); do
   ALLOWED_TOOLS=${ALLOWED_TOOLS:+$ALLOWED_TOOLS,}mcp__$server
 done
 
+# Claude only (#1812): print mode stops a run's background tasks 10 minutes
+# after its last turn, which killed a pass's subagents mid-build.
+AGENT_ENV=
 case "$AGENT" in
   claude)
     AGENT_BIN=$(agent_bin claude)
+    AGENT_ENV="
+# Claude Code in print mode (-p) stops background tasks, such as the subagents
+# a pass hands its builds to, 10 minutes after the last turn. 0 waits for them.
+export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
+"
     ALLOW=
     [ -z "$ALLOWED_TOOLS" ] || ALLOW=' --allowedTools "$ALLOWED_TOOLS"'
     JOB="$FN() {
@@ -329,7 +337,7 @@ AGENT_BIN=$(q "$AGENT_BIN")
 CUSTOM_COMMAND=$(q "$COMMAND")
 PATH=$(q "$PATH")
 export PATH CUSTOM_COMMAND
-
+$AGENT_ENV
 $JOB
 
 # A kind to try the pipeline with: queue a job of kind echo and its output is

@@ -1288,4 +1288,35 @@ defmodule Slipdock.Runners.SetupTest do
                Setup.normalise(%{"self_update" => "maybe"})
     end
   end
+
+  describe "a pass's subagents finish their builds (#1812)" do
+    @wait_export "\nexport CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0\n"
+
+    test "a claude runner's config waits for background tasks, and says why",
+         %{board: board} do
+      [_line, _sums, config] = board |> gen(%{"cwd" => "/srv/w"}) |> codes()
+
+      assert config =~
+               "# Claude Code in print mode (-p) stops background tasks, such as the subagents\n" <>
+                 "# a pass hands its builds to, 10 minutes after the last turn. 0 waits for them." <>
+                 @wait_export
+
+      # Set before the job function, so the claude it runs inherits it.
+      {at, _} = :binary.match(config, @wait_export)
+      {job, _} = :binary.match(config, "job_claude() {")
+      assert at < job
+    end
+
+    test "codex and custom runners' configs are unchanged", %{board: board} do
+      for extra <- [
+            %{"agent" => "codex"},
+            %{"agent" => "custom", "command" => "make it"}
+          ] do
+        [_line, _sums, config] = board |> gen(Map.put(extra, "cwd", "/srv/w")) |> codes()
+        refute config =~ "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", inspect(extra)
+        refute config =~ "print mode", inspect(extra)
+        assert config =~ "export PATH CUSTOM_COMMAND\n\njob_", inspect(extra)
+      end
+    end
+  end
 end
