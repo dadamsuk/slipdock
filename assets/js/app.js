@@ -1610,6 +1610,13 @@ Hooks.CopyText = {
       const target = document.getElementById(this.el.dataset.target)
       if (!target || !navigator.clipboard) return
       navigator.clipboard.writeText(target.innerText).then(() => {
+        // A button that says what it copies in a tooltip (data-tip) says
+        // it has been copied there (the wiki's page code, #1743).
+        const tip = this.el.dataset.tip
+        if (tip !== undefined) {
+          this.el.dataset.tip = "Copied"
+          setTimeout(() => { this.el.dataset.tip = tip }, 1500)
+        }
         const label = this.el.querySelector("[data-label]")
         if (!label) return
         const old = label.textContent

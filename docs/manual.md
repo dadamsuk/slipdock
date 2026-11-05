@@ -3893,8 +3893,10 @@ to a folder — write a page here, make one inside, rename or move it, delete it
 — gathered in one place rather than only on a hover menu.
 
 **A page's actions come first.** Above its folder and title, one row holds
-everything you do with the page: the heart (a favourite), its code (`W-31`),
-**AI tools**, **Edit**, **History**, the `⋯` menu and **Page details**. Page
+everything you do with the page: the heart (a favourite), its code (the `#`
+button: point at it to see `W-31`, click it to copy the code), **AI tools**,
+**Edit**, **History**, the `⋯` menu and **Page details**. Edit is the one
+tinted button; on a drawing that is **Edit drawing**. Page
 details opens just beneath that row, above the folder: when the page was
 created and updated, who it is shared with, the folder it is filed in, the
 list it sits in on the board, its public link, tags and front matter. It
@@ -3949,7 +3951,9 @@ and moved with the arrow keys, Home and End, and a double-click or Enter puts
 the width back. Both are remembered in this browser, not on the board.
 
 **A column, or the full width.** A page is read in a column of comfortable
-width. The arrows button beside the « widens it to fill the whole space beside
+width, about 68 characters, and everything in it keeps to that one measure: the
+text, the headings and their rules, tables and the cards at the foot. A table
+with more columns than fit scrolls sideways inside the column. The arrows button beside the « widens it to fill the whole space beside
 the tree, and pressed again puts the column back. The choice holds on every
 page and is remembered in this browser. Editing always uses the full width.
 

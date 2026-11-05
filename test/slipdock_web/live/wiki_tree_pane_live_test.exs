@@ -90,7 +90,7 @@ defmodule SlipdockWeb.WikiTreePaneLiveTest do
       refute has_element?(view, "#wiki-width-toggle[phx-click]")
       # The column keeps its reading measure in the markup; the full width
       # comes from data-wiki-width on <html>, which the patches cannot undo.
-      assert has_element?(view, "#wiki-main #wiki-column.max-w-4xl")
+      assert has_element?(view, "#wiki-main #wiki-column.wiki-reading")
     end
 
     test "is there on the wiki's index and survives moving between pages", %{
@@ -103,7 +103,7 @@ defmodule SlipdockWeb.WikiTreePaneLiveTest do
 
       render_patch(view, ~p"/boards/#{board}/wiki/#{page.slug}")
       assert has_element?(view, "#wiki-width-toggle")
-      assert has_element?(view, "#wiki-column.max-w-4xl")
+      assert has_element?(view, "#wiki-column.wiki-reading")
     end
 
     test "is not offered while writing, which takes the whole width anyway", %{

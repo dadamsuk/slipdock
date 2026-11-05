@@ -537,7 +537,7 @@ defmodule SlipdockWeb.WikiLiveTest do
       # the page menu and the details button.
       row = "article #page-actions"
       assert has_element?(view, "#{row} button[phx-click='toggle_favourite']")
-      assert has_element?(view, "#{row} span[title='Page code']", page.code)
+      assert has_element?(view, "#{row} #page-code-copy[data-tip^='#{page.code} ']")
       assert has_element?(view, "#{row} a[href$='/wiki/#{page.slug}/edit']", "Edit")
       assert has_element?(view, "#{row} a[href$='/wiki/#{page.slug}/history']")
       assert has_element?(view, "#{row} [title='Page actions']")
@@ -1031,13 +1031,13 @@ defmodule SlipdockWeb.WikiLiveTest do
 
       {:ok, editor, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
       assert has_element?(editor, "#wiki-main > div.max-w-none")
-      refute has_element?(editor, "#wiki-main > div.max-w-4xl")
+      refute has_element?(editor, "#wiki-main > div.wiki-reading")
 
       {:ok, new, _} = live(conn, ~p"/boards/#{board}/wiki/new")
       assert has_element?(new, "#wiki-main > div.max-w-none")
 
       {:ok, reader, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
-      assert has_element?(reader, "#wiki-main > div.max-w-4xl")
+      assert has_element?(reader, "#wiki-main > div.wiki-reading")
       refute has_element?(reader, "#wiki-main > div.max-w-none")
     end
 

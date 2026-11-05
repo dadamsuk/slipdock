@@ -4839,15 +4839,16 @@ defmodule SlipdockWeb.WikiLive.Index do
               @file_shown && "hidden"
             ]}
           >
-            <%!-- Reading keeps a comfortable measure, unless the reader asked
-                  for the full width (#748, `#wiki-column` in app.css);
-                  writing takes the whole width, source and preview side by
-                  side. --%>
+            <%!-- Reading keeps one measure for the whole article, text,
+                  headings, rules and footer alike (#1743, `.wiki-reading` in
+                  app.css), unless the reader asked for the full width (#748);
+                  writing takes the whole width. --%>
             <div
               id="wiki-column"
+              data-measure={if(@live_action in [:new, :edit], do: "wide", else: "reading")}
               class={[
                 "mx-auto px-4 py-6 sm:px-8 sm:py-8",
-                if(@live_action in [:new, :edit], do: "max-w-none", else: "max-w-4xl")
+                if(@live_action in [:new, :edit], do: "max-w-none", else: "wiki-reading")
               ]}
             >
               <.unsaved_pages :if={@unsaved != []} board={@board} unsaved={@unsaved} />
@@ -6370,14 +6371,31 @@ defmodule SlipdockWeb.WikiLive.Index do
           marks={@marks}
           class="btn btn-ghost btn-sm btn-square"
         />
-        <span class="chip chip-line font-mono text-2xs" title="Page code">{@page.code}</span>
-        <%!-- A drawing opens in the Excalidraw editor (W-103 R5.2); its
-              Markdown is still there under Edit, for the rare fix by hand. --%>
+        <%!-- The page code is for the CLI and `[[links]]`, so it is a
+              ghost button, not a chip (#1743): its tooltip shows it, and a
+              click copies it (the CopyText hook reads the span inside). --%>
+        <button
+          id="page-code-copy"
+          type="button"
+          phx-hook="CopyText"
+          data-target={"page-code-#{@page.id}"}
+          data-tip={"#{@page.code} · click to copy"}
+          aria-label={"Copy the page code, #{@page.code}"}
+          class="btn btn-ghost btn-sm btn-square tooltip tooltip-bottom"
+        >
+          <.icon name="hero-hashtag" class="size-4" />
+          <span id={"page-code-#{@page.id}"} class="sr-only">{@page.code}</span>
+        </button>
+        <%!-- One button style in this row (#1743): every action is a ghost
+              button, and the one emphasised (secondary) action is Edit, or
+              on a drawing, editing the drawing. A drawing opens in the
+              Excalidraw editor (W-103 R5.2); its Markdown is still there
+              under Edit Markdown, for the rare fix by hand. --%>
         <.link
           :if={Slipdock.Wiki.Excalidraw.page?(@page)}
           id="open-drawing"
           navigate={~p"/drawings/page/#{@page.id}"}
-          class="btn btn-primary btn-sm gap-1.5"
+          class="btn btn-secondary btn-sm gap-1.5"
         >
           <.icon name="hero-paint-brush" class="size-4" />
           {if @can_write, do: "Edit drawing", else: "Open drawing"}
@@ -6385,8 +6403,12 @@ defmodule SlipdockWeb.WikiLive.Index do
         <.page_tools_toggle pressed={@page_tools} />
         <.link
           :if={@can_write}
+          id="edit-page"
           patch={~p"/boards/#{@board}/wiki/#{@page.slug}/edit"}
-          class="btn btn-sm gap-1.5"
+          class={[
+            "btn btn-sm gap-1.5",
+            if(Slipdock.Wiki.Excalidraw.page?(@page), do: "btn-ghost", else: "btn-secondary")
+          ]}
         >
           <.icon name="hero-pencil-square" class="size-4" />
           {if Slipdock.Wiki.Excalidraw.page?(@page), do: "Edit Markdown", else: "Edit"}
@@ -7033,7 +7055,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       phx-click="toggle_page_tools"
       aria-pressed={to_string(@pressed)}
       title="AI tools: summarise, extract actions and more"
-      class={["btn btn-sm gap-1.5", if(@pressed, do: "btn-soft", else: "btn-ghost")]}
+      class={["btn btn-ghost btn-sm gap-1.5", @pressed && "btn-active"]}
     >
       <.icon name="hero-sparkles" class="size-4" />
       <span class="hidden sm:inline">AI tools</span>
