@@ -85,7 +85,9 @@ defmodule Slipdock.MixProject do
       {:wax_, "~> 0.7.0"},
       # The IANA time zone database, for people's own timezones (recurring
       # cards, snooze). Compiled in; no downloads at runtime.
-      {:tz, "~> 0.28.4"}
+      {:tz, "~> 0.28.4"},
+      # Known advisories in the locked dependencies (`mix deps.audit`, in CI).
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
     ]
   end
 
