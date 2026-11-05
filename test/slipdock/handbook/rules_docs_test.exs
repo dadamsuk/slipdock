@@ -1,0 +1,88 @@
+defmodule Slipdock.Handbook.RulesDocsTest do
+  @moduledoc """
+  The rule format is written down where agents and people read it (#1773):
+  the guide's handbook section, `docs/agents.md`, the manual and the
+  slipdock-docs and slipdock-loop skills, in every copy. The examples they
+  give parse as rules, so the docs and the parser can't drift apart.
+  """
+  # The guide reads the settings, so this needs the database.
+  use Slipdock.DataCase, async: true
+
+  alias Slipdock.Handbook.Rules
+  alias Slipdock.Wiki.Page
+
+  @root Path.expand("../../..", __DIR__)
+  @installed Path.expand("~/.claude/skills")
+
+  defp copies(skill) do
+    priv = Path.join([@root, "priv/skills", skill, "SKILL.md"])
+    installed = Path.join([@installed, skill, "SKILL.md"])
+    [priv | if(File.exists?(installed), do: [installed], else: [])]
+  end
+
+  defp parses!(item, key) do
+    page = %Page{
+      code: "W-1",
+      title: "T",
+      body: "## Rules\n\n" <> item <> "\n",
+      front_matter: "---\nhandbook: #{key}\n---\n"
+    }
+
+    assert {[rule], []} = Rules.parse_page(page), "#{inspect(item)} doesn't parse"
+    rule
+  end
+
+  test "the guide's handbook section gives the format, and its examples parse" do
+    {:ok, guide} = SlipdockWeb.APIGuide.section("handbook", [])
+
+    assert guide =~ "**Rules.** Each section page keeps its rules in a `## Rules` section"
+    assert guide =~ "`SPEC ARCH UX COMP DATA MOD TEST OPS`"
+    assert guide =~ "`judgement`"
+    assert guide =~ "keep its rules as they are"
+
+    [ux, data] =
+      Regex.scan(~r/^- \*\*[A-Z]+-\d+\*\* .*$/m, guide) |> List.flatten()
+
+    assert %{id: "UX-4", severity: "must", check: "test/app_web/design_tokens_test.exs"} =
+             parses!(ux, "ux")
+
+    assert %{id: "DATA-2", severity: "should", scope: ["priv/repo/migrations/**"]} =
+             parses!(data, "data-model")
+  end
+
+  test "docs/agents.md and the manual describe rules" do
+    agents = File.read!(Path.join(@root, "docs/agents.md"))
+    assert agents =~ "## The handbook's rules"
+    assert agents =~ "a reviewer cites them\nby id"
+
+    manual = File.read!(Path.join(@root, "docs/manual.md"))
+    assert manual =~ "**Rules** live in each section page's `## Rules`"
+    assert manual =~ "gets an empty one appended, and nothing else on it changes"
+  end
+
+  test "slipdock-docs says where a rule goes, in every copy" do
+    for path <- copies("slipdock-docs") do
+      text = File.read!(path)
+      assert text =~ "A **rule** (something a change must or should keep to)", path
+      assert text =~ "leave its rules alone", path
+    end
+  end
+
+  test "slipdock-loop keeps to the rules that cover the card, in every copy" do
+    for path <- copies("slipdock-loop") do
+      text = File.read!(path)
+      assert text =~ "Each section page also lists its **rules** under `## Rules`", path
+      assert text =~ "cite one by its id", path
+    end
+  end
+
+  test "the skeleton's own example is a rule once it is a list item" do
+    for key <- ~w(specification ux data-model operations) do
+      [_, example] =
+        Regex.run(~r/`(- \*\*[A-Z]+-1\*\* [^`]+)`/, Slipdock.Handbook.rules_skeleton(key))
+
+      rule = parses!(example, key)
+      assert rule.id == Rules.prefix(key) <> "-1"
+    end
+  end
+end

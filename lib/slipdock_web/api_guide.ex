@@ -3175,6 +3175,23 @@ defmodule SlipdockWeb.APIGuide do
     building: `slipdock page section <page> "<section>"`, or the whole page
     when `section` is null. A subcard gets its root board's handbook.
 
+    **Rules.** Each section page keeps its rules in a `## Rules` section,
+    one list item each, parts separated by ` · `:
+
+    ```
+    - **UX-4** must · test/app_web/design_tokens_test.exs · No colour literals in templates.
+    - **DATA-2** should · scope priv/repo/migrations/** · judgement · Never edit a migration that has run.
+    ```
+
+    The id is the page's prefix (`SPEC ARCH UX COMP DATA MOD TEST OPS`)
+    and a number, never reused; `must` means a verifier rejects work that
+    breaks it, `should` that it is noted. The optional `scope` globs
+    narrow it (default: the page's `covers:`, or everywhere when that is
+    empty). The check is the test that enforces it, or `judgement`. Cite a
+    rule by its id; tidying a page, keep its rules as they are.
+    `slipdock handbook <board>` (its `rules`) counts them and lists any
+    item that doesn't parse, with its page and line.
+
     **Before closing, the docs gate.** Check the diff against the handbook:
 
     | The card… | Updates… |

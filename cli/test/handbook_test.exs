@@ -113,6 +113,55 @@ defmodule SlipdockCLI.HandbookTest do
     assert out =~ "W-9 Decision: soft gate"
   end
 
+  test "slipdock handbook <board> counts the rules and lists the items it couldn't read (#1773)" do
+    rules = %{
+      "count" => 4,
+      "must" => 3,
+      "problems" => [
+        %{
+          "page" => "W-5",
+          "line" => 7,
+          "item" => "**DATA-3** must · Never edited.",
+          "problem" => "no check: a test path, or `judgement`"
+        }
+      ]
+    }
+
+    serve(
+      JSON.encode!(%{
+        "board" => %{"code" => "proj"},
+        "handbook" => Map.put(@handbook, "rules", rules)
+      })
+    )
+
+    out = capture_io(fn -> Boards.run("handbook", ["proj"], []) end)
+
+    assert out =~ "Rules  4 (3 must) · 1 not read"
+    assert out =~ "W-5 line 7: no check: a test path, or `judgement`"
+    assert out =~ "**DATA-3** must · Never edited."
+  end
+
+  test "slipdock handbook <board> with every rule read lists no problems" do
+    rules = %{"count" => 2, "must" => 1, "problems" => []}
+
+    serve(
+      JSON.encode!(%{
+        "board" => %{"code" => "proj"},
+        "handbook" => Map.put(@handbook, "rules", rules)
+      })
+    )
+
+    out = capture_io(fn -> Boards.run("handbook", ["proj"], []) end)
+
+    assert out =~ "Rules  2 (1 must)"
+    refute out =~ "not read"
+  end
+
+  test "slipdock handbook <board> from an older server shows no Rules line" do
+    serve(JSON.encode!(%{"board" => %{"code" => "proj"}, "handbook" => @handbook}))
+    refute capture_io(fn -> Boards.run("handbook", ["proj"], []) end) =~ "Rules"
+  end
+
   test "slipdock handbook <board> without one says so" do
     serve(JSON.encode!(%{"board" => %{"code" => "proj"}, "handbook" => nil}))
     out = capture_io(fn -> Boards.run("handbook", ["proj"], []) end)
