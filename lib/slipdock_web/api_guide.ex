@@ -1618,6 +1618,34 @@ defmodule SlipdockWeb.APIGuide do
          B/api/garden/suggestions/41/apply -d '{"choice": "snooze"}'
     ```
 
+    **Proposing a handbook edit.** Describe freely, but don't rewrite a
+    rule or a decision on your own say: propose it, and a person applies,
+    dismisses or undoes it. `POST /api/boards/:board/garden/proposals`
+    (`slipdock garden propose <board> <file.json | ->`) takes
+    `explanation`, `steps` and the evidence as ids, `findings` and `cards`.
+    A step is `edit_section` (`page`, as an id or a code; `section`, its
+    heading path; `body`, the new text, as `slipdock page section` writes
+    it; `base`, filled in from the section as it is now when left out),
+    `comment` (`card`, `body`) or `file_page` (`page`, `folder`); any
+    other op is refused. It answers `201` with the suggestion (check
+    `proposal`, `person_only: true`, its `findings`), or `200` and
+    `created: false` with the one already filed: the same proposal again,
+    even one a person dismissed, makes nothing new. Applying it refuses a
+    section changed since `base`, and undoing it refuses a page edited
+    since. An agent can't apply, dismiss or undo a proposal, or any
+    suggestion with an `edit_section` step, over REST or the CLI: only a
+    person can, on the Tidy-up page (which shows the section's diff) or with
+    `slipdock garden apply <id>`.
+
+    ```sh
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \\
+         B/api/boards/ops/garden/proposals -d '{
+           "explanation": "UX-4 keeps breaking: name the tokens",
+           "steps": [{"op": "edit_section", "page": "W-12", "section": "UX & UI/Rules",
+                      "body": "- **UX-4** must · judgement · Design tokens only."}],
+           "findings": [31, 34]}'
+    ```
+
     **Search.** `GET /api/search` takes `q`, and optionally `board` (id,
     code or name), `kind` (`cards`, `pages` or `all`), `limit` (default 20,
     at most 50) and `archived=true`. A result is either a card or a page:

@@ -38,7 +38,7 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
         run: %{type: "boolean", description: "Look the board over now, before listing."},
         check: %{
           type: "string",
-          enum: Gardener.check_keys(),
+          enum: Gardener.suggestion_keys(),
           description: "Only this check's suggestions (and only this check, with run)."
         }
       },
@@ -86,10 +86,10 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
   defp check(nil), do: {:ok, nil}
 
   defp check(key) do
-    if Gardener.check(key),
+    if Enum.member?(Gardener.suggestion_keys(), key),
       do: {:ok, key},
       else:
         {:error,
-         "unknown check #{inspect(key)}: one of #{Enum.join(Gardener.check_keys(), ", ")}"}
+         "unknown check #{inspect(key)}: one of #{Enum.join(Gardener.suggestion_keys(), ", ")}"}
   end
 end

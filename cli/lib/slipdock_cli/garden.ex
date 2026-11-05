@@ -4,7 +4,8 @@ defmodule SlipdockCLI.Garden do
   # The board gardener (W-1807): tidy-up suggestions a person approves or
   # dismisses. `garden <board>` lists the open ones (`--run` looks the board
   # over first); `garden apply|dismiss|undo <id>...` decides them; `garden
-  # settings <board> [<check> key=value...]` shows or changes the checks.
+  # settings <board> [<check> key=value...]` shows or changes the checks;
+  # `garden propose <board> <file|->` files a proposal (#1788) from JSON.
 
   import SlipdockCLI.Util
 
@@ -29,6 +30,31 @@ defmodule SlipdockCLI.Garden do
       HTTP.post("/garden/suggestions/#{id}/#{verb}", body)
       |> out(o, fn r -> IO.puts("#{past(verb)} " <> line(r["suggestion"])) end)
     end)
+  end
+
+  def run("garden", ["propose", ref, file], o) do
+    body =
+      case proposal_body(if(file == "-", do: read_stdin(), else: read_file(file))) do
+        {:ok, body} -> body
+        {:error, message} -> fail(message)
+      end
+
+    HTTP.post("/boards/#{enc(ref)}/garden/proposals", body)
+    |> out(o, fn r ->
+      s = r["suggestion"]
+
+      if r["created"],
+        do: IO.puts("proposed " <> line(s) <> "\n      → " <> steps(s["proposal"])),
+        else: IO.puts("already filed: " <> line(s))
+    end)
+  end
+
+  def run("garden", ["propose" | _], _o) do
+    fail(
+      "usage: slipdock garden propose <board> <file.json | -> " <>
+        ~s|(JSON: {"explanation": "…", "steps": [{"op": "edit_section", "page": "W-12", | <>
+        ~s|"section": "Page/Rules", "body": "…"}], "findings": [3], "cards": [41]})|
+    )
   end
 
   def run("garden", ["settings", ref | rest], o) do
@@ -57,7 +83,8 @@ defmodule SlipdockCLI.Garden do
   def run("garden", _args, _o) do
     fail(
       "usage: slipdock garden <board> [--run] [--check K] | garden apply|dismiss|undo <id>... " <>
-        "[--keep CARD] [--choice NAME] | garden settings <board> [<check> key=value...]"
+        "[--keep CARD] [--choice NAME] | garden settings <board> [<check> key=value...] | " <>
+        "garden propose <board> <file.json | ->"
     )
   end
 
@@ -72,6 +99,30 @@ defmodule SlipdockCLI.Garden do
     if Enum.all?(ids, &String.match?(&1, ~r/^\d+$/)),
       do: {:ok, ids},
       else: {:error, "suggestion ids are numbers, like 12"}
+  end
+
+  @doc false
+  # A proposal's JSON, read as the body to send.
+  def proposal_body(text) do
+    case JSON.decode(text || "") do
+      {:ok, %{} = body} -> {:ok, body}
+      {:ok, _} -> {:error, "a proposal is a JSON object: {\"explanation\": …, \"steps\": […]}"}
+      {:error, _} -> {:error, "that proposal isn't JSON"}
+    end
+  end
+
+  defp read_stdin do
+    case IO.read(:stdio, :eof) do
+      text when is_binary(text) -> text
+      _ -> ""
+    end
+  end
+
+  defp read_file(file) do
+    case File.read(file) do
+      {:ok, text} -> text
+      {:error, reason} -> fail("can't read #{file}: #{:file.format_error(reason)}")
+    end
   end
 
   @doc false
@@ -112,6 +163,13 @@ defmodule SlipdockCLI.Garden do
         for {name, alt} <- s["alternatives"] || %{},
             do: IO.puts("      or --choice #{inspect(name)}: " <> steps(alt))
 
+        if (s["findings"] || []) != [],
+          do:
+            IO.puts("      evidence: findings " <> Enum.map_join(s["findings"], ", ", &"##{&1}"))
+
+        if s["person_only"],
+          do: IO.puts("      a person's to decide: an agent can't apply or dismiss it")
+
         if s["needs_keep"],
           do:
             IO.puts("      needs --keep: " <> Enum.map_join(s["cards"], " or ", &"##{&1["id"]}"))
@@ -140,46 +198,34 @@ defmodule SlipdockCLI.Garden do
 
   @doc false
   # The steps in words: "complete #12, move #12 to list 34".
-  def steps(steps) do
-    Enum.map_join(steps, ", ", fn step ->
-      card = step_card(step)
+  def steps(steps), do: Enum.map_join(steps, ", ", &step_text/1)
 
-      case step["op"] do
-        "complete" ->
-          "complete #{card}"
+  defp step_text(%{"op" => "archive", "page" => page}) when not is_nil(page),
+    do: "archive page #{page}"
 
-        "move" ->
-          "move #{card} to list #{step["column"]}"
+  defp step_text(%{"op" => "rewrite_link"} = step),
+    do: "rewrite [[#{step["from"]}]] to [[#{step["to"]}]] on page #{step["page"]}"
 
-        "archive" ->
-          if step["page"], do: "archive page #{step["page"]}", else: "archive #{card}"
+  defp step_text(%{"op" => "file_page"} = step),
+    do: "file page #{step["page"]} into folder #{step["folder"]}"
 
-        "link_duplicate" ->
-          "link #{card} as a duplicate of #{other(step)}"
+  defp step_text(%{"op" => "edit_section"} = step),
+    do: "edit §#{step["section"]} of page #{step["page"]}"
 
-        "flag" ->
-          "flag #{card} #{step["flag"]}"
+  defp step_text(%{"op" => op} = step), do: card_step(op, step_card(step), step)
 
-        "comment" ->
-          "comment on #{card}: #{inspect(step["body"])}"
+  defp card_step("complete", card, _step), do: "complete #{card}"
+  defp card_step("move", card, step), do: "move #{card} to list #{step["column"]}"
+  defp card_step("archive", card, _step), do: "archive #{card}"
 
-        "snooze" ->
-          "snooze #{card} until #{step["until"]}"
+  defp card_step("link_duplicate", card, step),
+    do: "link #{card} as a duplicate of #{other(step)}"
 
-        "redate" ->
-          "re-date #{card} to #{step["due"]}"
-
-        "rewrite_link" ->
-          "rewrite [[#{step["from"]}]] to [[#{step["to"]}]] on page #{step["page"]}"
-
-        "file_page" ->
-          "file page #{step["page"]} into folder #{step["folder"]}"
-
-        op ->
-          op
-      end
-    end)
-  end
+  defp card_step("flag", card, step), do: "flag #{card} #{step["flag"]}"
+  defp card_step("comment", card, step), do: "comment on #{card}: #{inspect(step["body"])}"
+  defp card_step("snooze", card, step), do: "snooze #{card} until #{step["until"]}"
+  defp card_step("redate", card, step), do: "re-date #{card} to #{step["due"]}"
+  defp card_step(op, _card, _step), do: op
 
   defp step_card(%{"card" => "pick"}), do: "the one not kept"
   defp step_card(%{"card" => id}), do: "##{id}"

@@ -4,7 +4,8 @@ defmodule SlipdockWeb.GardenLive.Index do
   check, each with its evidence, the cards and pages it is about and the
   steps applying it would take. Apply, dismiss or apply a whole group; a
   duplicate is shown side by side, to keep one; what was applied can be
-  undone.
+  undone. A step that edits a page's section (a proposed handbook edit,
+  #1788) shows the change as a diff against the section as it is now.
 
   Anyone who can read the board can look. Looking the board over again and
   every decision need write access.
@@ -60,8 +61,67 @@ defmodule SlipdockWeb.GardenLive.Index do
       applied: applied,
       last_run: Gardener.last_run(board),
       cards: cards(Enum.flat_map(all, &Suggestion.card_ids/1)),
-      pages: pages(Enum.flat_map(all, &Suggestion.page_ids/1))
+      pages: pages(Enum.flat_map(all, &Suggestion.page_ids/1)),
+      diffs: Map.new(open, &{&1.id, section_diffs(&1.proposal)})
     )
+  end
+
+  # Each edit_section step against the section as the page has it now: its
+  # lines removed and added, or why it can't be shown.
+  defp section_diffs(steps) do
+    for %{"op" => "edit_section", "page" => id, "section" => path, "body" => body} <- steps do
+      section_diff(Repo.get(Page, id), id, path, body, step_base(steps, id, path))
+    end
+  end
+
+  defp section_diff(nil, id, path, _body, _base),
+    do: %{page: id, section: path, lines: [], note: "The page has been deleted."}
+
+  defp section_diff(page, id, path, body, base) do
+    case Slipdock.Wiki.Section.read(page.body, path) do
+      {:ok, now} ->
+        {:ok, after_body, _} = Slipdock.Wiki.Section.replace(page.body, path, body)
+        stale = not is_nil(base) and base != Steps.section_hash(now)
+
+        %{
+          page: id,
+          section: path,
+          lines: diff_lines(page.body, after_body),
+          note: if(stale, do: "The section has changed since this was proposed.")
+        }
+
+      {:error, :not_found} ->
+        %{page: id, section: path, lines: [], note: "The page has no such section now."}
+    end
+  end
+
+  defp step_base(steps, id, path) do
+    Enum.find_value(steps, fn
+      %{"op" => "edit_section", "page" => ^id, "section" => ^path} = step -> step["base"]
+      _ -> nil
+    end)
+  end
+
+  # The changed lines, with a couple of unchanged ones either side.
+  @diff_context 2
+
+  defp diff_lines(old, new) do
+    chunks = Slipdock.Wiki.diff(String.trim_trailing(old), String.trim_trailing(new))
+    last = length(chunks) - 1
+
+    chunks
+    |> Enum.with_index()
+    |> Enum.flat_map(fn
+      {{:eq, lines}, i} ->
+        before = if i > 0, do: Enum.take(lines, @diff_context), else: []
+        next = if i < last, do: Enum.take(lines, -@diff_context), else: []
+        kept = if length(lines) > 2 * @diff_context, do: before ++ next, else: lines
+        kept = if i == 0 or i == last, do: before ++ next, else: kept
+        Enum.map(kept, &{:eq, &1})
+
+      {{op, lines}, _i} ->
+        Enum.map(lines, &{op, &1})
+    end)
   end
 
   defp cards(ids) do
@@ -164,52 +224,40 @@ defmodule SlipdockWeb.GardenLive.Index do
 
   ## Words -------------------------------------------------------------------------
 
-  defp label(check_key) do
-    case Gardener.check(check_key) do
-      nil -> check_key
-      check -> check.label()
-    end
-  end
+  defp label(check_key), do: Gardener.label(check_key)
 
   # One step in words, naming the cards, pages and lists it touches.
-  defp step_words(step, cards, pages) do
-    card = card_name(step["card"], cards)
+  defp step_words(%{"op" => "archive", "page" => page}, _cards, pages) when not is_nil(page),
+    do: "Archive #{page_name(page, pages)}"
 
-    case step["op"] do
-      "complete" ->
-        "Complete #{card}"
+  defp step_words(%{"op" => "rewrite_link"} = step, _cards, pages),
+    do: "Rewrite [[#{step["from"]}]] as [[#{step["to"]}]] on #{page_name(step["page"], pages)}"
 
-      "move" ->
-        "Move #{card} to #{column_name(step["column"])}"
+  defp step_words(%{"op" => "file_page"} = step, _cards, pages),
+    do: "File #{page_name(step["page"], pages)} into a folder"
 
-      "archive" ->
-        if step["page"], do: "Archive #{page_name(step["page"], pages)}", else: "Archive #{card}"
+  defp step_words(%{"op" => "edit_section"} = step, _cards, pages),
+    do: "Edit §#{step["section"]} of #{page_name(step["page"], pages)}"
 
-      "link_duplicate" ->
-        "Link #{card} as a duplicate of #{card_name(step["other"], cards)}"
+  defp step_words(%{"op" => "link_duplicate"} = step, cards, _pages),
+    do:
+      "Link #{card_name(step["card"], cards)} as a duplicate of #{card_name(step["other"], cards)}"
 
-      "flag" ->
-        "Flag #{card} #{step["flag"]}"
+  defp step_words(%{"op" => op} = step, cards, _pages),
+    do: card_step_words(op, card_name(step["card"], cards), step)
 
-      "comment" ->
-        "Comment on #{card}: “#{step["body"]}”"
+  defp card_step_words("complete", card, _step), do: "Complete #{card}"
+  defp card_step_words("move", card, step), do: "Move #{card} to #{column_name(step["column"])}"
+  defp card_step_words("archive", card, _step), do: "Archive #{card}"
+  defp card_step_words("flag", card, step), do: "Flag #{card} #{step["flag"]}"
+  defp card_step_words("comment", card, step), do: "Comment on #{card}: “#{step["body"]}”"
+  defp card_step_words("snooze", card, step), do: "Snooze #{card} until #{step["until"]}"
+  defp card_step_words("redate", card, step), do: "Re-date #{card} to #{step["due"]}"
+  defp card_step_words(op, _card, _step), do: op
 
-      "snooze" ->
-        "Snooze #{card} until #{step["until"]}"
-
-      "redate" ->
-        "Re-date #{card} to #{step["due"]}"
-
-      "rewrite_link" ->
-        "Rewrite [[#{step["from"]}]] as [[#{step["to"]}]] on #{page_name(step["page"], pages)}"
-
-      "file_page" ->
-        "File #{page_name(step["page"], pages)} into a folder"
-
-      op ->
-        op
-    end
-  end
+  defp diff_mark(:del), do: "-"
+  defp diff_mark(:ins), do: "+"
+  defp diff_mark(:eq), do: " "
 
   defp card_name("pick", _cards), do: "the one not kept"
   defp card_name("keep", _cards), do: "the one kept"
@@ -335,7 +383,10 @@ defmodule SlipdockWeb.GardenLive.Index do
                 {label(first.check)} <span class="badge badge-ghost badge-sm">{length(group)}</span>
               </h2>
               <button
-                :if={@can_write and length(group) > 1 and not Steps.needs_pick?(first.proposal)}
+                :if={
+                  @can_write and length(group) > 1 and not Steps.needs_pick?(first.proposal) and
+                    not Gardener.person_only?(first)
+                }
                 id={"garden-apply-all-#{first.check}"}
                 type="button"
                 class="btn btn-ghost btn-xs"
@@ -404,6 +455,28 @@ defmodule SlipdockWeb.GardenLive.Index do
                 <p :if={not Steps.needs_pick?(s.proposal)} class="text-xs text-base-content/60">
                   → {steps_text(s.proposal, @cards, @pages)}
                 </p>
+
+                <%!-- A section edit: what it changes, against the page as it is now. --%>
+                <div
+                  :for={{d, i} <- Enum.with_index(@diffs[s.id] || [])}
+                  id={"suggestion-#{s.id}-diff-#{i}"}
+                  class="rounded-lg border border-base-300 text-xs"
+                >
+                  <p class="border-b border-base-300 px-2 py-1 font-medium text-base-content/70">
+                    {page_name(d.page, @pages)} §{d.section}
+                  </p>
+                  <.callout :if={d.note} kind={:warning}>{d.note}</.callout>
+                  <pre class="overflow-x-auto px-2 py-1 font-mono leading-5"><span
+                      :for={{op, line} <- d.lines}
+                      class={[
+                        "block whitespace-pre-wrap",
+                        op == :del && "bg-error/10 text-error",
+                        op == :ins && "bg-success/10 text-success",
+                        op == :eq && "text-base-content/50"
+                      ]}
+                      data-op={op}
+                    >{diff_mark(op)} {line}</span></pre>
+                </div>
 
                 <div :if={@can_write} class="flex flex-wrap items-center gap-1">
                   <button

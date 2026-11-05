@@ -114,6 +114,70 @@ defmodule SlipdockCLI.GardenTest do
     assert out =~ "undid #42"
   end
 
+  @proposal %{
+    "id" => 50,
+    "check" => "proposal",
+    "label" => "Proposed edits",
+    "state" => "open",
+    "explanation" => "UX-4 keeps breaking: say which tokens",
+    "cards" => [],
+    "pages" => [%{"id" => 9, "title" => "UX & UI", "code" => "W-3"}],
+    "proposal" => [
+      %{
+        "op" => "edit_section",
+        "page" => 9,
+        "section" => "UX & UI/Rules",
+        "body" => "- **UX-4** must · judgement · Only design tokens.",
+        "base" => "abc"
+      }
+    ],
+    "alternatives" => %{},
+    "findings" => [3, 5],
+    "person_only" => true,
+    "needs_keep" => false
+  }
+
+  test "garden <board> lists proposals: the section edit, the evidence, a person's call (#1788)" do
+    serve([{200, listing([@proposal])}])
+    out = capture_io(fn -> Garden.run("garden", ["ops"], []) end)
+
+    assert out =~ "Proposed edits (1)"
+    assert out =~ "#50 UX-4 keeps breaking"
+    assert out =~ "→ edit §UX & UI/Rules of page 9"
+    assert out =~ "evidence: findings #3, #5"
+    assert out =~ "a person's to decide"
+  end
+
+  test "garden propose <board> <file> posts the JSON and says what was filed" do
+    file = Path.join(System.get_env("HOME"), "proposal.json")
+    body = %{"explanation" => "UX-4 keeps breaking", "steps" => @proposal["proposal"]}
+    File.write!(file, JSON.encode!(body))
+
+    serve([
+      {201, JSON.encode!(%{"suggestion" => @proposal, "created" => true})},
+      {200, JSON.encode!(%{"suggestion" => @proposal, "created" => false})}
+    ])
+
+    out = capture_io(fn -> Garden.run("garden", ["propose", "ops", file], []) end)
+    assert_received {:request, "POST", "/api/boards/ops/garden/proposals", sent}
+    assert JSON.decode!(sent) == body
+    assert out =~ "proposed #50 UX-4 keeps breaking"
+    assert out =~ "→ edit §UX & UI/Rules of page 9"
+
+    out =
+      capture_io(JSON.encode!(body), fn -> Garden.run("garden", ["propose", "ops", "-"], []) end)
+
+    assert_received {:request, "POST", "/api/boards/ops/garden/proposals", ^sent}
+    assert out =~ "already filed: #50"
+  end
+
+  test "a proposal body must be a JSON object" do
+    assert {:ok, %{"steps" => []}} = Garden.proposal_body(~s({"steps": []}))
+    assert {:error, "that proposal isn't JSON"} = Garden.proposal_body("steps: []")
+    assert {:error, "a proposal is a JSON object" <> _} = Garden.proposal_body("[1]")
+    assert {:error, _} = Garden.proposal_body("")
+  end
+
   test "settings shows the checks, and key=value changes one" do
     checks = %{
       "checks" => [

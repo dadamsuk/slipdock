@@ -39,6 +39,19 @@ defmodule SlipdockWeb.GardenDocsTest do
     assert manual =~ "A dismissal stays dismissed"
   end
 
+  test "the guide and docs/agents.md describe proposals (#1788)" do
+    guide = SlipdockWeb.APIGuide.markdown()
+    assert guide =~ "**Proposing a handbook edit.**"
+    assert guide =~ "`POST /api/boards/:board/garden/proposals`"
+    assert guide =~ "slipdock garden propose <board> <file.json | ->"
+    assert guide =~ ~r/An agent can't apply, dismiss or undo a proposal/
+
+    agents = read("docs/agents.md")
+    assert agents =~ "`POST /api/boards/:board/garden/proposals`"
+    assert agents =~ ~r/`edit_section`, `comment` or\s+`file_page` only/
+    assert agents =~ ~r/is a person's to apply, dismiss or undo: the API refuses an agent/
+  end
+
   test "README and docs/agents.md link to it" do
     assert read("README.md") =~ "docs/manual.md#tidying-up"
     agents = read("docs/agents.md")

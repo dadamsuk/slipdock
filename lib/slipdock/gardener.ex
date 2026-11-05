@@ -16,6 +16,14 @@ defmodule Slipdock.Gardener do
   `apply/3` takes a suggestion's steps through the ordinary functions (see
   `Slipdock.Gardener.Steps`) and records how to undo them; `undo/2` does,
   unless something has moved on since; `dismiss/2` remembers the no.
+
+  **Proposals** (#1788). An agent can't change the handbook's rules on its
+  own say; it files a proposal instead (`propose/4`): an open suggestion of
+  the check `"proposal"`, made of the steps in `proposal_ops/0`, with an
+  explanation and its evidence (findings, cards). Runs never expire one.
+  A proposal, and any suggestion that edits a section, is a person's to
+  decide: `person_only?/1`, which `apply/3`, `dismiss/3` and `undo/3`
+  refuse to an agent (`actor:`, as `Slipdock.Verified.gated?/1` reads it).
   """
 
   import Ecto.Query
@@ -48,6 +56,28 @@ defmodule Slipdock.Gardener do
 
   @doc "The keys of every check."
   def check_keys, do: Enum.map(checks(), & &1.key())
+
+  @proposal "proposal"
+  @proposal_ops ~w(edit_section comment file_page)
+
+  @doc "The check key proposals are filed under."
+  def proposal_check, do: @proposal
+
+  @doc "The steps a proposal may take."
+  def proposal_ops, do: @proposal_ops
+
+  @doc "Every key a suggestion can carry: the checks', then `\"proposal\"`."
+  def suggestion_keys, do: check_keys() ++ [@proposal]
+
+  @doc "A suggestion key's human name."
+  def label(@proposal), do: "Proposed edits"
+
+  def label(key) do
+    case check(key) do
+      nil -> key
+      check -> check.label()
+    end
+  end
 
   @doc """
   Looks `board` over and keeps what it finds. Options:
@@ -202,11 +232,15 @@ defmodule Slipdock.Gardener do
   `alternatives` instead of the proposal; `:keep` is the card that stays,
   when a step asks the person to pick (a duplicate).
 
+  `actor:` is who is asking (a `Slipdock.Actor`): an agent's is refused a
+  suggestion that is `person_only?/1`.
+
   `{:ok, suggestion}`, or `{:error, reason}`: `:forbidden` without write
   access to the board and everything the steps touch, or a sentence.
   """
   def apply(%Suggestion{} = suggestion, user, opts \\ []) do
     with :ok <- open(suggestion),
+         :ok <- a_persons(suggestion, opts[:actor], "apply"),
          :ok <- can_write(user, suggestion),
          {:ok, steps} <- chosen_steps(suggestion, opts[:choice]),
          {:ok, steps} <- Steps.resolve_picks(steps, opts[:keep]),
@@ -226,9 +260,13 @@ defmodule Slipdock.Gardener do
     end
   end
 
-  @doc "Dismisses `suggestion` as `user`: it is not suggested again while its subject stays as it is."
-  def dismiss(%Suggestion{} = suggestion, user) do
+  @doc """
+  Dismisses `suggestion` as `user`: it is not suggested again while its
+  subject stays as it is. `actor:` as `apply/3`.
+  """
+  def dismiss(%Suggestion{} = suggestion, user, opts \\ []) do
     with :ok <- open(suggestion),
+         :ok <- a_persons(suggestion, opts[:actor], "dismiss"),
          :ok <- can_write(user, suggestion) do
       suggestion
       |> Ecto.Changeset.change(
@@ -246,10 +284,13 @@ defmodule Slipdock.Gardener do
   makes it open again. Refused, with nothing changed, when something it
   undoes has moved on since (`{:error, "card #12 … has been reopened since"}`).
   """
-  def undo(%Suggestion{state: "applied"} = suggestion, user) do
+  def undo(suggestion, user, opts \\ [])
+
+  def undo(%Suggestion{state: "applied"} = suggestion, user, opts) do
     inverse = (suggestion.undo || %{})["steps"] || []
 
-    with :ok <- can_write(user, suggestion),
+    with :ok <- a_persons(suggestion, opts[:actor], "undo"),
+         :ok <- can_write(user, suggestion),
          :ok <- Steps.authorize(inverse, user),
          :ok <- Steps.undo_all(inverse, user) do
       log(suggestion, "undone via gardener: #{suggestion.explanation}")
@@ -261,13 +302,227 @@ defmodule Slipdock.Gardener do
     end
   end
 
-  def undo(%Suggestion{}, _user), do: {:error, "only an applied suggestion can be undone"}
+  def undo(%Suggestion{}, _user, _opts),
+    do: {:error, "only an applied suggestion can be undone"}
 
   @doc "Applies or dismisses, by name: `decide(s, user, \"apply\" | \"dismiss\", opts)`."
   def decide(suggestion, user, decision, opts \\ [])
   def decide(s, user, "apply", opts), do: __MODULE__.apply(s, user, opts)
-  def decide(s, user, "dismiss", _opts), do: dismiss(s, user)
+  def decide(s, user, "dismiss", opts), do: dismiss(s, user, opts)
   def decide(_s, _user, _other, _opts), do: {:error, "decision must be apply or dismiss"}
+
+  @doc """
+  Whether only a person may decide `suggestion`: a proposal, or one with a
+  step that edits a page's section (the handbook's rules among them).
+  """
+  def person_only?(%Suggestion{check: @proposal}), do: true
+
+  def person_only?(%Suggestion{proposal: steps, alternatives: alts}) do
+    Enum.any?([steps | Map.values(alts || %{})], fn steps ->
+      Enum.any?(steps || [], &(&1["op"] == "edit_section"))
+    end)
+  end
+
+  defp a_persons(suggestion, actor, what) do
+    if person_only?(suggestion) and Slipdock.Verified.gated?(actor || %{}),
+      do:
+        {:error,
+         "only a person can #{what} a proposed handbook edit: ask them to, on the board's Tidy-up page " <>
+           "or with slipdock garden #{what} #{suggestion.id}"},
+      else: :ok
+  end
+
+  ## Proposals --------------------------------------------------------------------
+
+  @doc """
+  Files a proposal on `board` (its root's suggestions: where the handbook
+  is) as `user`, who needs write access to it and to everything its steps
+  touch. `attrs` (string keys):
+
+    * `"explanation"` – what it changes and why, required
+    * `"steps"` – one or more, of `proposal_ops/0`. An `edit_section`
+      names its page by id or code (`W-12`); its `base` (see
+      `Slipdock.Gardener.Steps`) is filled in from the section as it is now
+      when not given, and refused when given and already stale.
+    * `"findings"`, `"cards"` – ids of the evidence
+
+  `{:ok, suggestion, :new}`; `{:ok, suggestion, :exists}` when the same
+  proposal is open, applied or dismissed already (a dismissal is
+  remembered); or `{:error, :forbidden}` / `{:error, sentence}`.
+  """
+  def propose(%Board{} = board, user, attrs, _opts \\ []) do
+    board = Slipdock.Handbook.root(board)
+
+    attrs = Map.new(attrs || %{}, fn {k, v} -> {to_string(k), v} end)
+
+    with {:ok, explanation} <- explanation(attrs["explanation"]),
+         {:ok, steps} <- proposal_steps(attrs["steps"]),
+         :ok <- can_write(user, %Suggestion{board_id: board.id}),
+         :ok <- Steps.authorize(steps, user),
+         {:ok, findings} <- ids(attrs["findings"], "findings"),
+         {:ok, cards} <- ids(attrs["cards"], "cards") do
+      pages = steps |> Enum.map(& &1["page"]) |> Enum.filter(&is_integer/1) |> Enum.uniq()
+      step_cards = steps |> Steps.touched_card_ids() |> Enum.uniq()
+      subject = %{"cards" => Enum.uniq(step_cards ++ cards), "pages" => pages}
+      subject = if findings == [], do: subject, else: Map.put(subject, "findings", findings)
+      fp = fingerprint(@proposal, %{subject: subject, state: steps})
+
+      case filed(board.id, fp) do
+        %Suggestion{} = existing -> {:ok, existing, :exists}
+        nil -> insert_proposal(board, subject, fp, steps, explanation)
+      end
+    end
+  end
+
+  # The newest proposal with that fingerprint a person hasn't let lapse.
+  defp filed(board_id, fp) do
+    from(s in Suggestion,
+      where: s.board_id == ^board_id and s.fingerprint == ^fp,
+      where: s.state in ~w(open applied dismissed),
+      order_by: [desc: s.id],
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  defp insert_proposal(board, subject, fp, steps, explanation) do
+    %Suggestion{
+      board_id: board.id,
+      check: @proposal,
+      subject: subject,
+      fingerprint: fp,
+      proposal: steps,
+      alternatives: %{},
+      explanation: explanation,
+      state: "open"
+    }
+    |> Repo.insert()
+    |> tap_ok(&broadcast/1)
+    |> case do
+      {:ok, s} -> {:ok, s, :new}
+      error -> error
+    end
+  end
+
+  defp explanation(text) when is_binary(text) do
+    case String.trim(text) do
+      "" -> {:error, "explanation is required: what the proposal changes, and why"}
+      text -> {:ok, text}
+    end
+  end
+
+  defp explanation(_), do: {:error, "explanation is required: what the proposal changes, and why"}
+
+  defp ids(nil, _what), do: {:ok, []}
+
+  defp ids(list, what) when is_list(list) do
+    parsed =
+      Enum.map(list, fn
+        id when is_integer(id) and id > 0 -> id
+        id when is_binary(id) -> id |> String.trim_leading("#") |> Integer.parse() |> int()
+        _ -> nil
+      end)
+
+    if Enum.all?(parsed, &is_integer/1),
+      do: {:ok, Enum.uniq(parsed)},
+      else: {:error, "#{what} are ids, like [12, 14]"}
+  end
+
+  defp ids(_, what), do: {:error, "#{what} are ids, like [12, 14]"}
+
+  defp int({n, ""}) when n > 0, do: n
+  defp int(_), do: nil
+
+  defp proposal_steps(steps) when is_list(steps) and steps != [] do
+    steps
+    |> Enum.with_index(1)
+    |> Enum.reduce_while({:ok, []}, fn {step, i}, {:ok, acc} ->
+      case proposal_step(step) do
+        {:ok, step} -> {:cont, {:ok, [step | acc]}}
+        {:error, message} -> {:halt, {:error, "steps[#{i}]: #{message}"}}
+      end
+    end)
+    |> case do
+      {:ok, steps} -> {:ok, Enum.reverse(steps)}
+      error -> error
+    end
+  end
+
+  defp proposal_steps(_),
+    do: {:error, "steps is required: a list of #{Enum.join(@proposal_ops, ", ")} steps"}
+
+  defp proposal_step(%{"op" => op} = step) when op in @proposal_ops do
+    with {:ok, step} <- step_page(step, op) do
+      shape(op, step)
+    end
+  end
+
+  defp proposal_step(%{"op" => op}) when is_binary(op),
+    do: {:error, "a proposal can't take a “#{op}” step: only #{Enum.join(@proposal_ops, ", ")}"}
+
+  defp proposal_step(_), do: {:error, "a step is an object with an op"}
+
+  defp step_page(%{"page" => ref} = step, _op) when not is_nil(ref) do
+    case Slipdock.Wiki.find_page(if(is_integer(ref), do: ref, else: to_string(ref))) do
+      {:ok, page} -> {:ok, Map.put(step, "page", page.id)}
+      _ -> {:error, "no page #{inspect(ref)}"}
+    end
+  end
+
+  defp step_page(_step, op) when op in ~w(edit_section file_page),
+    do: {:error, "#{op} needs a page"}
+
+  defp step_page(step, _op), do: {:ok, step}
+
+  defp shape("edit_section", %{"section" => path, "body" => body} = step)
+       when is_binary(path) and is_binary(body) and path != "" do
+    page = Repo.get!(Slipdock.Wiki.Page, step["page"])
+
+    case Steps.current_section_hash(page, path) do
+      {:ok, hash} -> same_section(step, hash, page, path)
+      {:error, message} -> {:error, message}
+    end
+  end
+
+  defp shape("edit_section", _step),
+    do: {:error, "edit_section needs a page, a section (its heading path) and a body"}
+
+  defp shape("comment", %{"card" => card, "body" => body})
+       when is_integer(card) and is_binary(body) and body != "",
+       do: {:ok, %{"op" => "comment", "card" => card, "body" => body}}
+
+  defp shape("comment", _step), do: {:error, "comment needs a card (an id) and a body"}
+
+  defp shape("file_page", %{"page" => page} = step) do
+    case Map.fetch(step, "folder") do
+      {:ok, folder} when is_integer(folder) or is_nil(folder) ->
+        {:ok, %{"op" => "file_page", "page" => page, "folder" => folder}}
+
+      _ ->
+        {:error, "file_page needs a folder (an id, or null for none)"}
+    end
+  end
+
+  # A base given must be the section as it is now; none is filled in.
+  defp same_section(%{"base" => base} = step, hash, _page, _path)
+       when base in [nil, ""] or base == hash,
+       do: {:ok, base_step(step, hash)}
+
+  defp same_section(%{"base" => _stale}, _hash, page, path),
+    do:
+      {:error,
+       "“#{page.title}” §#{path} has changed since that base: read it again and propose afresh"}
+
+  defp same_section(step, hash, _page, _path), do: {:ok, base_step(step, hash)}
+
+  defp base_step(step, hash),
+    do: %{
+      "op" => "edit_section",
+      "page" => step["page"],
+      "section" => step["section"],
+      "body" => step["body"],
+      "base" => hash
+    }
 
   defp open(%Suggestion{state: "open"}), do: :ok
   defp open(%Suggestion{state: state}), do: {:error, "that suggestion is #{state}, not open"}

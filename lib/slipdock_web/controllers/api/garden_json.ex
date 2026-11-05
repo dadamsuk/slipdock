@@ -54,19 +54,19 @@ defmodule SlipdockWeb.API.GardenJSON do
   def suggestion(%Suggestion{} = s), do: hd(suggestions([s]))
 
   defp suggestion(%Suggestion{} = s, cards, pages) do
-    check = Gardener.check(s.check)
-
     %{
       id: s.id,
       board_id: s.board_id,
       run_id: s.run_id,
       check: s.check,
-      label: check && check.label(),
+      label: Gardener.label(s.check),
       state: s.state,
       explanation: s.explanation,
       cards: s |> Suggestion.card_ids() |> Enum.map(&(cards[&1] || %{id: &1, title: nil})),
       pages: s |> Suggestion.page_ids() |> Enum.map(&(pages[&1] || %{id: &1, title: nil})),
       proposal: s.proposal,
+      findings: Map.get(s.subject, "findings", []),
+      person_only: Gardener.person_only?(s),
       alternatives: s.alternatives,
       needs_keep: Steps.needs_pick?(s.proposal),
       decided_by_id: s.decided_by_id,

@@ -53,6 +53,105 @@ defmodule SlipdockWeb.GardenLiveTest do
     assert has_element?(view, "#suggestion-#{s.id}")
   end
 
+  describe "a proposed handbook edit (#1788)" do
+    setup ctx do
+      body =
+        "# UX & UI\n\n## Patterns\n\nLists stream.\n\n## Rules\n\n" <>
+          "- **UX-1** must · judgement · Tokens only.\n"
+
+      {:ok, page} = Slipdock.Wiki.create_page(ctx.board, %{"title" => "UX & UI", "body" => body})
+
+      {:ok, s, :new} =
+        Gardener.propose(ctx.board, ctx.owner, %{
+          "explanation" => "UX-1 keeps breaking: say which tokens",
+          "steps" => [
+            %{
+              "op" => "edit_section",
+              "page" => page.code,
+              "section" => "UX & UI/Rules",
+              "body" => "- **UX-1** must · judgement · Design tokens only."
+            }
+          ]
+        })
+
+      Map.merge(ctx, %{page: page, proposal: s})
+    end
+
+    test "shows the section's diff, and Apply then Undo edit the page", ctx do
+      s = ctx.proposal
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+
+      assert has_element?(view, "#garden-proposal", "Proposed edits")
+      assert has_element?(view, "#suggestion-#{s.id}", "Edit §UX & UI/Rules of “UX & UI”")
+      diff = "#suggestion-#{s.id}-diff-0"
+      assert has_element?(view, diff, "“UX & UI” §UX & UI/Rules")
+
+      assert has_element?(
+               view,
+               "#{diff} [data-op=del]",
+               "- - **UX-1** must · judgement · Tokens only."
+             )
+
+      assert has_element?(
+               view,
+               "#{diff} [data-op=ins]",
+               "+ - **UX-1** must · judgement · Design tokens only."
+             )
+
+      # Unchanged lines far from the change are left out.
+      refute has_element?(view, diff, "Lists stream.")
+
+      view |> element("#suggestion-#{s.id} button", "Apply") |> render_click()
+      assert Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body =~ "Design tokens only."
+      assert has_element?(view, "#applied-#{s.id}")
+
+      view |> element("#applied-#{s.id} button", "Undo") |> render_click()
+      assert Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body == ctx.page.body
+      assert has_element?(view, "#suggestion-#{s.id}")
+    end
+
+    test "a section edited since says so, and Apply is refused with the reason", ctx do
+      s = ctx.proposal
+
+      {:ok, _} =
+        Slipdock.Wiki.replace_section(
+          ctx.page,
+          "UX & UI/Rules",
+          "- **UX-1** must · judgement · Changed."
+        )
+
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+
+      assert has_element?(
+               view,
+               "#suggestion-#{s.id}-diff-0",
+               "The section has changed since this was proposed."
+             )
+
+      html = view |> element("#suggestion-#{s.id} button", "Apply") |> render_click()
+      assert html =~ "has changed since this was proposed"
+      assert Gardener.get_suggestion(s.id).state == "open"
+    end
+
+    test "proposals have no Apply all", ctx do
+      {:ok, _, :new} =
+        Gardener.propose(ctx.board, ctx.owner, %{
+          "explanation" => "Another",
+          "steps" => [
+            %{
+              "op" => "edit_section",
+              "page" => ctx.page.id,
+              "section" => "UX & UI/Patterns",
+              "body" => "Lists stream, always."
+            }
+          ]
+        })
+
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+      refute has_element?(view, "#garden-apply-all-proposal")
+    end
+  end
+
   test "Dismiss takes it away for good", ctx do
     stray(ctx, "Finished")
     {:ok, _} = Gardener.run(ctx.board)

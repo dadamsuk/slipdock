@@ -847,6 +847,7 @@ defmodule SlipdockWeb.Router do
     get "/boards/:board/garden", GardenController, :index
     post "/boards/:board/garden", GardenController, :create
     patch "/boards/:board/garden/settings", GardenController, :settings
+    post "/boards/:board/garden/proposals", GardenController, :propose
     post "/garden/suggestions/:id/apply", GardenController, :apply
     post "/garden/suggestions/:id/dismiss", GardenController, :dismiss
     post "/garden/suggestions/:id/undo", GardenController, :undo
