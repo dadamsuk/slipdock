@@ -143,6 +143,34 @@ jobs:
       - name: Phoenix security scan (sobelow)
         run: mix sobelow --config
 
+  # Secrets in the commits a pull request adds (gitleaks; allowlists in
+  # .gitleaks.toml, each with its reason). Values are redacted in the log,
+  # since this repository and its logs are public. A real secret found is
+  # rotated, not rewritten out of history. The whole history was scanned
+  # once by hand when this was added (#1769).
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tgz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
+          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  /tmp/gitleaks.tgz" | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+
+      - name: Secret scan of this pull request's commits (gitleaks)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: /tmp/gitleaks git --redact --no-banner --verbose --log-opts="$BASE..$HEAD" .
+
   # The PowerShell runner on Windows PowerShell 5.1, which the suite's pwsh
   # on Linux can't stand in for: 5.1's Start-Process locks the job's output
   # files differently, and that stopped the runner on its first heartbeat

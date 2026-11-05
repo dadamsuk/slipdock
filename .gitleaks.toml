@@ -1,0 +1,36 @@
+# gitleaks: the secret scan CI runs on each pull request's commits
+# (.github/workflows/ci.yml, job `secrets`). Gitleaks' own rules, plus the
+# allowlists below for what is in the repository on purpose. Each says why.
+#
+# Only generic patterns here: never a list of real values or personal terms,
+# because this repository is public and a deny-list publishes what it guards.
+# A real secret found is rotated, not allowlisted and not rewritten out of
+# history.
+
+title = "Slipdock"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Dev and test secret_key_base: fixed values for local servers and the suite. Production reads SECRET_KEY_BASE from the environment (config/runtime.exs)."
+condition = "AND"
+paths = ['''^config/(dev|test)\.exs$''']
+regexTarget = "line"
+regexes = ['''^\s*secret_key_base:\s''']
+
+[[allowlists]]
+description = "Fake API keys in tests: runs of counting digits or letters (0123456789, abcdefgh) or plain dashed words, never a real key's random characters."
+condition = "AND"
+paths = ['''^test/''']
+regexes = ['''0123456789''', '''abcdefgh''', '''^[a-z]+(-[a-z]+)+$''']
+
+[[allowlists]]
+description = "The e2e scripts' local servers: shared secrets made of plain dashed words, for a throwaway server on this machine."
+condition = "AND"
+paths = ['''^tools/e2e/[^/]+\.sh$''']
+regexes = ['''^[a-z0-9]+(-[a-z]+)+$''']
+
+[[allowlists]]
+description = "Vendored third-party bundles (Excalidraw): the public browser keys their authors ship, not ours."
+paths = ['''^priv/static/vendor/''']
