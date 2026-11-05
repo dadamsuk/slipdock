@@ -11,10 +11,13 @@ env:
 
 jobs:
   # The suite split four ways, each on its own runner with its own Postgres.
-  # `mix test --partitions` deals the test files out by a stable hash, so a
-  # file always lands in the same partition; MIX_TEST_PARTITION also suffixes
-  # the database name (config/test.exs). The checks that need doing only once
-  # (formatting, the browser scripts) ride along with partition 1.
+  # The files are split by how long each took (test/support/test_partitions.ex,
+  # weights in test/support/partition_weights.tsv), not by `mix test
+  # --partitions`, which deals the sorted list out round robin: the slow files
+  # land wherever the alphabet puts them, and one new file moves the rest.
+  # MIX_TEST_PARTITION also suffixes the database name (config/test.exs). The
+  # checks that need doing only once (formatting, the browser scripts) ride
+  # along with partition 1.
   test:
     name: test (${{ matrix.partition }}/4)
     runs-on: ubuntu-latest
@@ -60,18 +63,42 @@ jobs:
           elixir-version: "1.20"
           otp-version: "27"
 
-      # deps and the compiled tree, keyed on the lock file and the exact
-      # OTP/Elixir pair — a cache built on another version is not reusable.
-      # All four partitions restore the same one; whichever finishes first
-      # saves it.
-      - uses: actions/cache@v4
+      # deps and the compiled tree, keyed in layers (#1858): the exact
+      # OTP/Elixir pair (a build from another version is no use), the lock
+      # file, mix.exs and config, then the code. A run restores the newest
+      # build whose key shares the longest prefix with its own, so Mix only
+      # recompiles what changed since then, and partition 1 saves the build
+      # under this tree's key once it compiles clean.
+      - name: Cache keys
+        id: keys
+        run: |
+          deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
+          config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
+          echo "deps=$deps" >> "$GITHUB_OUTPUT"
+          echo "config=$config" >> "$GITHUB_OUTPUT"
+          echo "code=$config-${{ hashFiles('lib/**', 'test/support/**', 'priv/**', 'docs/**') }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@v4
+        id: mix-cache
         with:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          key: ${{ steps.keys.outputs.code }}
           restore-keys: |
+            ${{ steps.keys.outputs.config }}-
+            ${{ steps.keys.outputs.deps }}-
             ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      # The checkout gives every file a fresh mtime. Mix compares sources by
+      # digest, but mix.exs and the config files by mtime alone, so a fresh
+      # mtime recompiles everything that reads Mix.Project or the config (and
+      # what depends on that) though nothing changed. When the restored build
+      # was compiled from these same files (its key carries their hash),
+      # backdate them; otherwise leave them new so Mix does recompile.
+      - name: Backdate mix.exs and config to the cached build
+        if: startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
+        run: touch -d 2000-01-01 mix.exs config/*.exs
 
       - run: mix deps.get
 
@@ -79,13 +106,34 @@ jobs:
         if: matrix.partition == 1
         run: mix format --check-formatted
 
+      # An incremental compile still fails on a warning from an earlier one:
+      # Mix keeps each file's warnings in its manifest and reports them again.
       - name: Compile without warnings
         run: mix compile --warnings-as-errors
 
+      - uses: actions/cache/save@v4
+        if: matrix.partition == 1 && steps.mix-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ steps.keys.outputs.code }}
+
+      # TEST_TIMINGS_FILE has Slipdock.TestTimings record each file's runtime,
+      # uploaded below for refreshing the weights (test/support/test_partitions.exs).
       - name: Test
-        run: mix test --partitions 4
+        run: |
+          files=$(elixir test/support/test_partitions.exs split 4 "$MIX_TEST_PARTITION")
+          mix test $files
         env:
           MIX_TEST_PARTITION: ${{ matrix.partition }}
+          TEST_TIMINGS_FILE: test-timings/test-timings-${{ matrix.partition }}.tsv
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-timings-${{ matrix.partition }}
+          path: test-timings/
+          retention-days: 30
 
       # The few browser scripts with logic worth testing on their own (the
       # confirm dialog, assets/js/confirm.js), and the Cloudflare Email Worker
@@ -119,14 +167,17 @@ jobs:
           elixir-version: "1.20"
           otp-version: "27"
 
+      # A cache of its own: these checks don't compile the app, so a build
+      # saved from here under the test job's key would leave the test job
+      # compiling the whole app from cold (#1858).
       - uses: actions/cache@v4
         with:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-mix-static-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+            ${{ runner.os }}-mix-static-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - run: mix deps.get
 
