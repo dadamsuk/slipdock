@@ -703,6 +703,7 @@ defmodule Slipdock.Verified do
            ) do
       by = who(actor, user)
       comment(card, "**Rejected** by #{by}.", with_parts(reason, checks), user)
+      Slipdock.Findings.Signals.rejected(card, reason, checks, actor)
       if over, do: ask_a_person(card, count, limit, actor, user)
       send_back(card, "Rework: rejected by #{by}, reason under Verification", actor, user)
     end
@@ -1182,6 +1183,7 @@ defmodule Slipdock.Verified do
              verify_changes: changes
            ) do
       comment(card, merge_failed_line(card, said), reason, nil)
+      Slipdock.Findings.Signals.merge_failed(card, job, said)
 
       send_back(card, "Rework: the merge failed, reason under Verification", actor, nil)
     end
@@ -1476,6 +1478,7 @@ defmodule Slipdock.Verified do
     comment(card, line, with_parts(blank_to_nil(reason), checks), user)
 
     unless agrees do
+      Slipdock.Findings.Signals.audit_disagreed(card, reason, actor)
       root = card |> board() |> Slipdock.Handbook.root()
 
       Slipdock.Automations.raise_alert(%{

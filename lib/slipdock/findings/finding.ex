@@ -7,8 +7,8 @@ defmodule Slipdock.Findings.Finding do
     * `kind` – `gotcha`, `rule` (a rule candidate), `handbook-wrong`, `tooling`
       or `process`
     * `source` – who noticed: `agent` (a `Findings:` block in a comment), or the
-      system's own signals: `rejection`, `requeue`, `timeout`, `lane`, `merge`,
-      `audit`, `health`
+      system's own signals: `rejection`, `requeue`, `timeout`, `failed` (a
+      job), `lane`, `merge`, `audit`, `health` (see `Slipdock.Findings.Signals`)
     * `status` – `open` until triaged: `promoted` (it became a handbook rule or
       section, said in `note`), `dismissed`, or `merged` into another finding
       (`merged_into`, which takes its count)
@@ -20,7 +20,7 @@ defmodule Slipdock.Findings.Finding do
   import Ecto.Changeset
 
   @kinds ~w(gotcha rule handbook-wrong tooling process)
-  @sources ~w(agent rejection requeue timeout lane merge audit health)
+  @sources ~w(agent rejection requeue timeout failed lane merge audit health)
   @statuses ~w(open promoted dismissed merged)
   @max_text_len 2000
 

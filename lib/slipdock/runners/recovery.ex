@@ -238,6 +238,7 @@ defmodule Slipdock.Runners.Recovery do
         "put ##{card.id} back on #{column.name} after job ##{job.id} (retry #{n} of #{limit})"
       )
 
+      Slipdock.Findings.Signals.requeued(job, card, why(job))
       {:requeued, n}
     else
       _ -> :ok
@@ -264,6 +265,7 @@ defmodule Slipdock.Runners.Recovery do
         "gave up on ##{card.id} after job ##{job.id}: flagged blocked"
       )
 
+      Slipdock.Findings.Signals.gave_up(job, card)
       :gave_up
     else
       :ok

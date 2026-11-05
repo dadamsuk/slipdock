@@ -412,6 +412,9 @@ defmodule Slipdock.Health do
       incident: incident
     })
 
+    # Every flag is a finding too (W-2310 §Findings).
+    Slipdock.Findings.Signals.health_flagged(incident, detector.label(), cards)
+
     ["flagged"]
   end
 

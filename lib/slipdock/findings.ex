@@ -87,12 +87,19 @@ defmodule Slipdock.Findings do
   repeat (and takes the newer text) rather than making another.
   """
   def record(attrs) do
-    attrs = Map.new(attrs)
+    attrs = attrs |> Map.new() |> Map.put_new(:job_id, nil)
     cause = attrs[:cause] && String.slice(to_string(attrs[:cause]), 0, 255)
 
-    case repeat(attrs[:card], attrs[:source], cause) do
-      nil -> insert_signal(attrs, cause)
-      finding -> count_repeat(finding, attrs)
+    case repeat(attrs, cause) do
+      nil ->
+        insert_signal(attrs, cause)
+
+      # The same job seen again (a job's end can be heard twice) is no repeat.
+      %Finding{job_id: job} = finding when not is_nil(job) and job == attrs.job_id ->
+        {:ok, finding}
+
+      finding ->
+        count_repeat(finding, attrs)
     end
   end
 
@@ -124,15 +131,31 @@ defmodule Slipdock.Findings do
     |> Repo.update()
   end
 
-  defp repeat(nil, _source, _cause), do: nil
-  defp repeat(_card, _source, nil), do: nil
+  defp repeat(_attrs, nil), do: nil
 
-  defp repeat(card, source, cause) do
+  defp repeat(%{card: %Card{id: card_id}} = attrs, cause) do
+    open_repeat(from(f in Finding, where: f.card_id == ^card_id), attrs[:source], cause)
+  end
+
+  # A finding about a whole board (a health incident with no card) repeats
+  # on the root board.
+  defp repeat(%{board: %Board{} = board} = attrs, cause) do
+    root = Board.root_id(board)
+
+    open_repeat(
+      from(f in Finding, where: f.board_id == ^root and is_nil(f.card_id)),
+      attrs[:source],
+      cause
+    )
+  end
+
+  defp repeat(_attrs, _cause), do: nil
+
+  defp open_repeat(query, source, cause) do
     Repo.one(
-      from f in Finding,
-        where:
-          f.card_id == ^card.id and f.source == ^source and f.cause == ^cause and
-            f.status == "open",
+      from f in query,
+        where: f.source == ^source and f.cause == ^cause and f.status == "open",
+        order_by: [desc: f.id],
         limit: 1
     )
   end
