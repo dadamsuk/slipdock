@@ -99,7 +99,7 @@ defmodule SlipdockWeb.GroupLive.Index do
               id="new-group-name"
               name="name"
               placeholder="New group name"
-              class="input flex-1"
+              class="input field flex-1"
               autocomplete="off"
               required
             />
@@ -139,7 +139,7 @@ defmodule SlipdockWeb.GroupLive.Index do
                   type="text"
                   name="name"
                   value={group.name}
-                  class="input input-sm flex-1 font-semibold"
+                  class="input field flex-1 font-semibold"
                   aria-label="Group name"
                 />
                 <button type="submit" class="btn btn-sm">Rename</button>
@@ -197,7 +197,7 @@ defmodule SlipdockWeb.GroupLive.Index do
                 type="email"
                 name="email"
                 placeholder="Add member by email"
-                class="input input-sm flex-1"
+                class="input field flex-1"
                 autocomplete="off"
                 required
               />

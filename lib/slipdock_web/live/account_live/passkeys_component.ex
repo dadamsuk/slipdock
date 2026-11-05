@@ -86,7 +86,7 @@ defmodule SlipdockWeb.AccountLive.PasskeysComponent do
           name="name"
           placeholder="Name (e.g. work laptop)"
           maxlength={Passkey.name_max()}
-          class="input input-sm min-w-40 flex-1"
+          class="input field min-w-40 flex-1"
           autocomplete="off"
         />
         <button type="submit" class="btn btn-primary btn-sm">

@@ -567,7 +567,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
         >
           <label class="flex items-center gap-2 text-sm">
             <span class="text-base-content/60">Burndown for</span>
-            <select name="sprint" class="select select-sm select-bordered">
+            <select name="sprint" class="select field">
               <option
                 :for={s <- Enum.reverse(@charts.velocity.sprints)}
                 value={s.id}
@@ -638,7 +638,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
             >
               <select
                 name="sort"
-                class="select select-sm select-bordered w-auto"
+                class="select field w-auto"
                 title="Order each list by"
               >
                 <option

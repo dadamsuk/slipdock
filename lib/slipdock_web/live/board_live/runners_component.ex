@@ -687,7 +687,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         required
         maxlength="500"
         placeholder="Why? (shown to everyone, and to the agents)"
-        class="input input-sm w-full"
+        class="input field w-full"
         phx-debounce="100"
       />
       <div class="flex justify-end gap-2">
@@ -938,17 +938,17 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             name="wizard[name]"
             value={@p["name"]}
             placeholder={"#{@p["pool"]} runner"}
-            class="input input-sm w-full"
+            class="input field w-full"
           />
         </label>
         <input :if={@editing} type="hidden" name="wizard[scenario]" value={@p["scenario"]} />
         <label :if={is_nil(@editing)} class="space-y-1">
           <span class="text-xs text-base-content/70">Pool</span>
-          <input name="wizard[pool]" value={@p["pool"]} class="input input-sm w-full" />
+          <input name="wizard[pool]" value={@p["pool"]} class="input field w-full" />
         </label>
         <label :if={Setup.needs_token?(@p["scenario"])} class="space-y-1">
           <span class="text-xs text-base-content/70">Agent</span>
-          <select name="wizard[agent]" class="select select-sm w-full">
+          <select name="wizard[agent]" class="select field w-full">
             <option value="claude" selected={@p["agent"] == "claude"}>Claude Code</option>
             <option value="codex" selected={@p["agent"] == "codex"}>Codex</option>
             <option value="custom" selected={@p["agent"] == "custom"}>A command of my own</option>
@@ -964,7 +964,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           <input
             name="wizard[command]"
             value={@p["command"]}
-            class="input input-sm w-full font-mono"
+            class="input field w-full field-mono"
           />
         </label>
         <label
@@ -978,7 +978,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             name="wizard[cwd]"
             value={@p["cwd"]}
             placeholder="~/src/my-app"
-            class="input input-sm w-full font-mono"
+            class="input field w-full field-mono"
           />
         </label>
         <label
@@ -989,7 +989,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           class="space-y-1"
         >
           <span class="text-xs text-base-content/70">Permission mode</span>
-          <select name="wizard[permission_mode]" class="select select-sm w-full">
+          <select name="wizard[permission_mode]" class="select field w-full">
             <option
               :for={mode <- Setup.permission_modes()}
               value={mode}
@@ -1029,7 +1029,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             <input
               name="wizard[mcp_servers]"
               value={@p["mcp_servers"]}
-              class="input input-sm w-full font-mono"
+              class="input field w-full field-mono"
             />
           </label>
         </div>
@@ -1085,12 +1085,12 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             value={@p["timeout"]}
             type="number"
             min="60"
-            class="input input-sm w-full"
+            class="input field w-full"
           />
         </label>
         <label :if={@p["scenario"] == "server"} class="space-y-1">
           <span class="text-xs text-base-content/70">Keep it running with</span>
-          <select name="wizard[service]" class="select select-sm w-full">
+          <select name="wizard[service]" class="select field w-full">
             <option value="auto" selected={@p["service"] == "auto"}>systemd or launchd</option>
             <option value="systemd" selected={@p["service"] == "systemd"}>systemd (Linux)</option>
             <option value="launchd" selected={@p["service"] == "launchd"}>launchd (macOS)</option>
@@ -1099,7 +1099,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         </label>
         <label :if={@p["scenario"] == "cloud"} class="space-y-1">
           <span class="text-xs text-base-content/70">Runs</span>
-          <select name="wizard[where]" class="select select-sm w-full">
+          <select name="wizard[where]" class="select field w-full">
             <option value="desktop" selected={@p["where"] == "desktop"}>
               On this computer (Claude Desktop)
             </option>
@@ -1112,7 +1112,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             name="wizard[repo]"
             value={@p["repo"]}
             placeholder="owner/repo"
-            class="input input-sm w-full font-mono"
+            class="input field w-full field-mono"
           />
         </label>
         <fieldset class="col-span-2 space-y-2 rounded-lg p-3 ring-1 ring-base-content/10">
@@ -1121,7 +1121,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           </legend>
           <label class="block space-y-1">
             <span class="text-xs text-base-content/70">How much to write on the card</span>
-            <select name="wizard[verbosity]" class="select select-sm w-full">
+            <select name="wizard[verbosity]" class="select field w-full">
               <option value="nothing" selected={@p["verbosity"] == "nothing"}>
                 Nothing: no comments at all
               </option>
@@ -1170,7 +1170,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             <textarea
               name="wizard[instructions]"
               rows="2"
-              class="textarea textarea-sm w-full"
+              class="textarea field w-full"
               placeholder="Run mix test before committing. Never push to main."
             >{@p["instructions"]}</textarea>
           </label>
@@ -1212,7 +1212,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
                 name="wizard[before_job]"
                 value={@p["before_job"]}
                 placeholder="git pull --ff-only"
-                class="input input-sm w-full font-mono"
+                class="input field w-full field-mono"
               />
             </label>
             <label class="block space-y-1">
@@ -1223,12 +1223,12 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
                 name="wizard[after_job]"
                 value={@p["after_job"]}
                 placeholder="notify-send &quot;job $SLIPDOCK_JOB_ID: $SLIPDOCK_STATUS&quot;"
-                class="input input-sm w-full font-mono"
+                class="input field w-full field-mono"
               />
             </label>
             <label :if={@p["scenario"] == "loop"} class="block space-y-1">
               <span class="text-xs text-base-content/70">How Claude Code runs them</span>
-              <select name="wizard[hooks]" class="select select-sm w-full">
+              <select name="wizard[hooks]" class="select field w-full">
                 <option value="prompt" selected={@p["hooks"] == "prompt"}>
                   Asked to in its prompt (best effort)
                 </option>
@@ -1275,7 +1275,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
         <label :if={is_nil(@editing)} class="col-span-2 space-y-1">
           <span class="text-xs text-base-content/70">Which cards does it get?</span>
-          <select name="wizard[send]" class="select select-sm w-full">
+          <select name="wizard[send]" class="select field w-full">
             <option value="" selected={blank?(@p["send"])}>
               None yet — I'll add a rule myself
             </option>
@@ -1329,7 +1329,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             min="0"
             max={Slipdock.Runners.Recovery.max_requeues()}
             value={@p["requeue"] || 1}
-            class="input input-xs w-16"
+            class="input field w-16"
           /> times, then flag it blocked
         </label>
 

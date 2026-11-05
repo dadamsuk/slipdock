@@ -48,7 +48,7 @@ defmodule SlipdockWeb.ItemComponents do
     ~H"""
     <section class="space-y-2 px-1" data-section-key={@section_key}>
       <div class="flex items-center justify-between">
-        <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <h3 class="flex items-center gap-1.5 section-label">
           <.icon name="hero-clipboard-document-check" class="size-3.5" />
           <.keyed_label :if={@section_key} key={@section_key} label="Checklist" />
           <span :if={is_nil(@section_key)}>Checklist</span>
@@ -157,7 +157,7 @@ defmodule SlipdockWeb.ItemComponents do
   def urls_section(assigns) do
     ~H"""
     <section class="space-y-2 px-1" id={dom_id("card-urls", @item)} data-section-key={@section_key}>
-      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <h3 class="flex items-center gap-1.5 section-label">
         <.icon name="hero-globe-alt" class="size-3.5" />
         <.keyed_label :if={@section_key} key={@section_key} label="Web links" />
         <span :if={is_nil(@section_key)}>Web links</span>
@@ -266,7 +266,7 @@ defmodule SlipdockWeb.ItemComponents do
 
     ~H"""
     <section class="space-y-3 px-1" data-section-key={@section_key}>
-      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+      <h3 class="flex items-center gap-1.5 section-label">
         <.icon name="hero-chat-bubble-left" class="size-3.5" />
         <.keyed_label :if={@section_key} key={@section_key} label="Comments" />
         <span :if={is_nil(@section_key)}>Comments</span>
@@ -376,7 +376,7 @@ defmodule SlipdockWeb.ItemComponents do
 
     ~H"""
     <div class="space-y-1.5" id={dom_id("card-status-updates", @item)}>
-      <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Status updates</span>
+      <span class="section-label">Status updates</span>
       <form
         :if={@can_comment}
         phx-target={@target}
@@ -444,7 +444,7 @@ defmodule SlipdockWeb.ItemComponents do
   def fields_section(assigns) do
     ~H"""
     <div :if={@board.fields != []} class="space-y-2" id={dom_id("card-fields", @item)}>
-      <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Fields</span>
+      <span class="section-label">Fields</span>
       <div
         :for={field <- @board.fields}
         class="space-y-0.5"
@@ -576,7 +576,7 @@ defmodule SlipdockWeb.ItemComponents do
 
     ~H"""
     <div class="space-y-1.5" id={dom_id("card-votes", @item)}>
-      <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Votes</span>
+      <span class="section-label">Votes</span>
       <div class="flex flex-wrap items-center gap-2 text-xs">
         <span class="chip chip-line" title="Votes from everyone">
           <.icon name="hero-hand-thumb-up" class="size-3" /> {@total}

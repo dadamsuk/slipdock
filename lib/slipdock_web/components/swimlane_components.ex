@@ -316,7 +316,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
               <label class="flex items-center gap-1.5">
                 <.icon name="hero-calendar-days" class="size-4 text-base-content/50" />
                 <span class="sr-only">Span</span>
-                <select name="unit" class="select select-sm w-auto" title="Show a month or a week">
+                <select name="unit" class="select field w-auto" title="Show a month or a week">
                   <option
                     :for={{value, label} <- Slipdock.Calendar.units()}
                     value={value}
@@ -339,7 +339,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
               <label class="flex items-center gap-1.5">
                 <.icon name="hero-clock" class="size-4 text-base-content/50" />
                 <span class="sr-only">Span</span>
-                <select name="span" class="select select-sm w-auto" title="How far back to look">
+                <select name="span" class="select field w-auto" title="How far back to look">
                   <option
                     :for={{value, label} <- Slipdock.Narrative.spans()}
                     value={value}
@@ -385,7 +385,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             <span class="sr-only">Levels</span>
             <select
               name="depth"
-              class="select select-sm w-auto"
+              class="select field w-auto"
               title="How many levels of subcards to show"
             >
               <option
@@ -417,7 +417,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             <span class="sr-only">{if @mode == :timeline, do: "Zoom", else: "Group dates by"}</span>
             <select
               name="unit"
-              class="select select-sm w-auto"
+              class="select field w-auto"
               title={if @mode == :timeline, do: "Zoom: the size of one step", else: "Group dates by"}
             >
               <option
@@ -435,7 +435,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
           <label class="flex items-center gap-1.5">
             <.icon name="hero-arrows-up-down" class="size-4 text-base-content/50" />
             <span class="sr-only">Sort by</span>
-            <select name="sort" class="select select-sm w-auto" title="Sort cards within each cell">
+            <select name="sort" class="select field w-auto" title="Sort cards within each cell">
               <option
                 :for={{value, label} <- Config.sorts(@board)}
                 value={value}
@@ -732,7 +732,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
         </div>
         <div :if={@mode in [:timeline, :swimlanes]}>
           <p class={["mb-1.5", @section_title]}>Colour by</p>
-          <select name="color_by" class="select select-sm w-full" title="What colours each card">
+          <select name="color_by" class="select field w-full" title="What colours each card">
             <option
               :for={{key, label} <- Config.colorings()}
               value={key}
@@ -980,7 +980,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 type="text"
                 readonly
                 value={url(~p"/p/#{@view.public_token}")}
-                class="input input-xs min-w-0 flex-1 font-mono"
+                class="input field min-w-0 flex-1 field-mono"
                 onclick="this.select()"
                 aria-label="Public link"
               />
@@ -1016,7 +1016,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
               type="text"
               name="name"
               value={@view.name}
-              class="input input-xs flex-1"
+              class="input field flex-1"
               aria-label="View name"
               required
             />
@@ -1053,7 +1053,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
               type="text"
               name="name"
               placeholder="View name"
-              class="input input-xs flex-1"
+              class="input field flex-1"
               autocomplete="off"
               required
             />
@@ -1119,7 +1119,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
     <label class="flex items-center gap-1.5">
       <.icon name={@icon} class="size-4 text-base-content/50" />
       <span class="text-xs text-base-content/60">{@label}</span>
-      <select name={@name} class="select select-sm w-auto" title={"#{@label} axis"}>
+      <select name={@name} class="select field w-auto" title={"#{@label} axis"}>
         <option :for={{value, label} <- Config.axes(@board)} value={value} selected={value == @value}>
           {label}
         </option>
@@ -1267,7 +1267,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                   type="text"
                   name="title"
                   placeholder="Card title, then Enter"
-                  class="input input-sm w-full"
+                  class="input field w-full"
                   phx-hook="Focus"
                   id={"swim-add-input-#{ri}-#{ci}-#{@form_key}"}
                   phx-window-keydown="swim_cancel_add"
@@ -1427,7 +1427,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                     type="text"
                     name="title"
                     placeholder="Card title, then Enter"
-                    class="input input-sm w-full"
+                    class="input field w-full"
                     phx-hook="Focus"
                     id={"swim-add-input-#{ri}-#{ci}-#{@form_key}"}
                     phx-window-keydown="swim_cancel_add"

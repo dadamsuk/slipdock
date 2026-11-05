@@ -122,7 +122,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
           phx-submit="filter_archived"
           phx-target={@target}
         >
-          <label class="input input-sm w-full">
+          <label class="input field w-full">
             <.icon name="hero-magnifying-glass" class="size-4 opacity-50" />
             <input
               type="search"

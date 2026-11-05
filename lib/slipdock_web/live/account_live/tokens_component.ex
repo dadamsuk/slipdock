@@ -81,17 +81,17 @@ defmodule SlipdockWeb.AccountLive.TokensComponent do
             type="text"
             name="label"
             placeholder="Label (e.g. laptop)"
-            class="input input-sm min-w-40 flex-1"
+            class="input field min-w-40 flex-1"
             autocomplete="off"
           />
-          <select name="scope" class="select select-sm" aria-label="What this token may do">
+          <select name="scope" class="select field" aria-label="What this token may do">
             <option value="write">Read and write</option>
             <option value="read">Read only</option>
             <option :if={Accounts.admin?(@current_user)} value="admin">
               Administer this server
             </option>
           </select>
-          <select name="expires_in_days" class="select select-sm" aria-label="When it expires">
+          <select name="expires_in_days" class="select field" aria-label="When it expires">
             <option value="">Never expires</option>
             <option value="30">Expires in 30 days</option>
             <option value="90">Expires in 90 days</option>

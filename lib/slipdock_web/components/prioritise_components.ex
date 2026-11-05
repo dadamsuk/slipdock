@@ -170,7 +170,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
               >
                 <input type="hidden" name="card_id" value={item_id(entry.card)} />
                 <input type="hidden" name="field" value="priority" />
-                <select name="value" class="select select-ghost select-xs w-28">
+                <select name="value" class="select field-bare w-28">
                   <option
                     :for={{label, value} <- priority_options()}
                     value={value}
@@ -262,7 +262,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
             >
               <input type="hidden" name="card_id" value={item_id(entry.card)} />
               <input type="hidden" name="field" value="priority" />
-              <select name="value" class="select select-ghost select-xs w-28">
+              <select name="value" class="select field-bare w-28">
                 <option
                   :for={{label, value} <- priority_options()}
                   value={value}
@@ -416,7 +416,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
     >
       <input type="hidden" name="card_id" value={item_id(@card)} />
       <input type="hidden" name="field_id" value={@field.id} />
-      <select name="value" class="select select-ghost select-xs w-28">
+      <select name="value" class="select field-bare w-28">
         <option value="" selected={is_nil(@value)}>—</option>
         <option :for={o <- @field.options} value={o["key"]} selected={o["key"] == @value}>
           {o["label"]}
@@ -459,7 +459,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
         min={@config["min"]}
         max={@config["max"]}
         phx-debounce="blur"
-        class={["input input-ghost input-xs", if(@input_type == "text", do: "w-36", else: "w-24")]}
+        class={["input field-bare", if(@input_type == "text", do: "w-36", else: "w-24")]}
         placeholder="—"
       />
       <span :if={@config["unit"] && @input_type == "number"} class="text-xs text-base-content/50">

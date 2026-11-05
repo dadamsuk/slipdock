@@ -526,7 +526,7 @@ defmodule SlipdockWeb.SearchLive.Index do
             <select
               name="board"
               phx-change="set_board"
-              class="select select-sm rounded-lg bg-base-100 ring-1 ring-base-content/10"
+              class="select field rounded-lg bg-base-100 ring-1 ring-base-content/10"
             >
               <option value="" selected={is_nil(@board_id)}>All boards</option>
               <option :for={b <- @boards} value={b.id} selected={@board_id == b.id}>{b.name}</option>

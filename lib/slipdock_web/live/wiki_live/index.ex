@@ -4458,7 +4458,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               tabindex="0"
               class="dropdown-content z-30 mt-2 w-64 space-y-2 rounded-2xl bg-base-100 p-4 shadow-xl ring-1 ring-base-content/10"
             >
-              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+              <p class="section-label">
                 Show in the tree
               </p>
               <label :if={@can_write} class="flex cursor-pointer items-center gap-2 text-sm">
@@ -5033,7 +5033,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               required
               maxlength={Slipdock.Wiki.Folder.name_length()}
               placeholder="Design decisions"
-              class="input input-bordered w-full"
+              class="input field w-full"
             />
             <span :if={is_nil(@modal.folder)} class="block text-xs text-base-content/50">
               A name with slashes makes the whole path: “Design/Decisions” makes both.
@@ -5154,7 +5154,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           value={@prompt.page.title}
           autofocus
           required
-          class="input input-bordered w-full"
+          class="input field w-full"
         />
         <div class="flex justify-end gap-2">
           <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
@@ -5193,7 +5193,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             autofocus
             autocomplete="off"
             placeholder="Type part of a folder's name…"
-            class="input input-bordered input-sm w-full"
+            class="input field w-full"
           />
         </form>
         <ul id="tree-targets" class="max-h-80 space-y-0.5 overflow-y-auto">
@@ -5369,7 +5369,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 placeholder="The top of the wiki"
                 autocomplete="off"
                 phx-debounce="300"
-                class="input input-sm input-bordered mt-1 w-full"
+                class="input field mt-1 w-full"
               />
               <datalist id="organise-paths">
                 <option :for={path <- @prompt.paths} value={path}></option>
@@ -5377,7 +5377,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             </label>
             <label class="text-xs text-base-content/70">
               One folder per
-              <select name="granularity" class="select select-sm mt-1 w-full">
+              <select name="granularity" class="select field mt-1 w-full">
                 <option
                   :for={
                     {value, label} <- [
@@ -5396,7 +5396,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             </label>
             <label class="text-xs text-base-content/70 sm:col-span-2">
               Dated by
-              <select name="source" class="select select-sm mt-1 w-full">
+              <select name="source" class="select field mt-1 w-full">
                 <option value="auto" selected={@prompt.source == "auto"}>
                   Its created: or date: front matter, else when it was added
                 </option>
@@ -6700,7 +6700,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           phx-mounted={JS.ignore_attributes("open")}
           class="mt-4 rounded-xl border border-base-300 bg-base-200/40 px-4 py-2 text-sm"
         >
-          <summary class="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          <summary class="cursor-pointer select-none section-label">
             Properties
           </summary>
           <pre class="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-base-content/80">{Slipdock.Wiki.FrontMatter.yaml(@page.front_matter)}</pre>
@@ -7223,7 +7223,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 id="page_body"
                 name="page[body]"
                 rows="24"
-                class="w-full rounded-xl border border-base-300 bg-base-100 p-3 font-mono text-sm leading-relaxed focus:border-primary focus:outline-none"
+                class="textarea field field-mono w-full leading-relaxed"
                 phx-debounce="200"
               ><%= Phoenix.HTML.Form.normalize_value("textarea", @form[:body].value) %></textarea>
             </div>
@@ -7248,7 +7248,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             type="text"
             name="message"
             placeholder="Recorded in the page's history"
-            class="w-full rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+            class="input field w-full"
           />
         </div>
         <.input

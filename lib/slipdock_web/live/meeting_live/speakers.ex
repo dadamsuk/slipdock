@@ -240,7 +240,7 @@ defmodule SlipdockWeb.MeetingLive.Speakers do
                 class="mt-3 flex flex-wrap items-center gap-2"
               >
                 <input type="hidden" name="voice" value={v.id} />
-                <select name="who" class="select select-xs" aria-label="Who this is">
+                <select name="who" class="select field" aria-label="Who this is">
                   <option
                     :for={{value, label} <- @people}
                     value={value}
@@ -257,7 +257,7 @@ defmodule SlipdockWeb.MeetingLive.Speakers do
                   type="text"
                   name="other"
                   placeholder="Name"
-                  class="input input-xs w-28"
+                  class="input field w-28"
                   aria-label="Someone else's name"
                 />
                 <button type="submit" class="btn btn-primary btn-xs">

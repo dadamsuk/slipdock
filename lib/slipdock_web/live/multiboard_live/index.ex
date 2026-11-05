@@ -296,7 +296,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
             class="kanban-pop mb-8 space-y-4 rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10"
           >
             <label class="block">
-              <span class="mb-1 block text-sm font-medium">
+              <span class="field-label">
                 {if @saved, do: "Name", else: "Save this view as"}
               </span>
               <input
@@ -349,7 +349,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
                   value={@view.top}
                   min="1"
                   max={Multiboard.max_top()}
-                  class="input input-sm w-20"
+                  class="input field w-20"
                   phx-debounce="300"
                 />
               </label>

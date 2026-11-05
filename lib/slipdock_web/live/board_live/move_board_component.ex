@@ -260,7 +260,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
               autocomplete="off"
               phx-debounce="100"
               phx-mounted={JS.focus()}
-              class="input input-sm w-full"
+              class="input field w-full"
             />
           </form>
           <p :if={@matches == []} id="move-board-none" class="text-sm text-base-content/60">

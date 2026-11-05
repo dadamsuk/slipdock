@@ -50,7 +50,7 @@ defmodule SlipdockWeb.CalendarComponents do
         >
           <div
             :for={name <- @calendar.weekdays}
-            class="sticky top-0 z-20 border-b border-r border-base-300 bg-base-100 px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-base-content/60"
+            class="sticky top-0 z-20 border-b border-r border-base-300 bg-base-100 px-2 py-1.5 text-center section-label"
           >
             {name}
           </div>
@@ -139,7 +139,7 @@ defmodule SlipdockWeb.CalendarComponents do
                   type="text"
                   name="title"
                   placeholder="Card title, then Enter"
-                  class="input input-xs w-full"
+                  class="input field w-full"
                   phx-hook="Focus"
                   id={"cal-add-input-#{day.key}-#{@form_key}"}
                   phx-window-keydown="swim_cancel_add"
@@ -299,7 +299,7 @@ defmodule SlipdockWeb.CalendarComponents do
                 type="text"
                 name="title"
                 placeholder="Card title, then Enter"
-                class="input input-sm w-full"
+                class="input field w-full"
                 phx-hook="Focus"
                 id={"cal-add-input-#{day.key}-#{@form_key}"}
                 phx-window-keydown="swim_cancel_add"

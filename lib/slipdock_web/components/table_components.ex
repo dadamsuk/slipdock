@@ -360,7 +360,7 @@ defmodule SlipdockWeb.TableComponents do
     >
       <input type="hidden" name="card_id" value={SlipdockWeb.SlipdockComponents.item_id(@card)} />
       <input type="hidden" name="field" value="column_id" />
-      <select name="value" class="select select-ghost select-xs w-40">
+      <select name="value" class="select field-bare w-40">
         <option :for={col <- @board.columns} value={col.id} selected={col.id == @card.column_id}>
           {col.name}
         </option>
@@ -378,7 +378,7 @@ defmodule SlipdockWeb.TableComponents do
     >
       <input type="hidden" name="card_id" value={SlipdockWeb.SlipdockComponents.item_id(@card)} />
       <input type="hidden" name="field" value="priority" />
-      <select name="value" class="select select-ghost select-xs w-32">
+      <select name="value" class="select field-bare w-32">
         <option
           :for={{label, value} <- priority_options()}
           value={value}
@@ -472,7 +472,7 @@ defmodule SlipdockWeb.TableComponents do
         max="100"
         step="5"
         phx-debounce="400"
-        class="input input-ghost input-xs w-16"
+        class="input field-bare w-16"
       />
       <span class="text-xs text-base-content/50">%</span>
     </form>

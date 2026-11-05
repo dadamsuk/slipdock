@@ -544,7 +544,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 field={@form[:code]}
                 label="Code"
                 maxlength={Board.code_length()}
-                class="w-full input font-mono"
+                class="input field field-mono w-full"
               />
               <p class="-mt-1 text-xs text-base-content/50">
                 A short, unique handle for this board — up to {Board.code_length()} characters, used
@@ -556,7 +556,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 field={@form[:shortcut]}
                 label="Shortcut key"
                 maxlength={Board.shortcut_length()}
-                class="w-24 input font-mono"
+                class="input field field-mono w-24"
               />
               <p class="-mt-1 text-xs text-base-content/50">
                 What jumps to this board from the switcher: press <kbd class="kbd kbd-xs">b</kbd>
@@ -962,28 +962,28 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               class="grid grid-cols-1 gap-2 sm:grid-cols-3"
             >
               <label class="text-xs">
-                <span class="block text-base-content/60">CI</span>
-                <select name="deploy[ci]" class="select select-sm w-full">
+                <span class="field-label">CI</span>
+                <select name="deploy[ci]" class="select field w-full">
                   <option :for={ci <- Slipdock.Deployments.Setup.cis()} value={ci}>
                     {Slipdock.Deployments.Setup.label(ci)}
                   </option>
                 </select>
               </label>
               <label class="text-xs">
-                <span class="block text-base-content/60">Environments</span>
+                <span class="field-label">Environments</span>
                 <input
                   name="deploy[environments]"
                   value="production"
-                  class="input input-sm w-full"
+                  class="input field w-full"
                 />
               </label>
               <label class="text-xs">
-                <span class="block text-base-content/60">Card ids in commits</span>
+                <span class="field-label">Card ids in commits</span>
                 <input
                   name="deploy[card_ref_pattern]"
                   value={@board.card_ref_pattern}
                   placeholder="#(\d+)"
-                  class="input input-sm w-full font-mono"
+                  class="input field w-full field-mono"
                 />
               </label>
               <div class="flex flex-wrap gap-2 sm:col-span-3">
@@ -1132,11 +1132,11 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   type="text"
                   name="name"
                   placeholder="Field name"
-                  class="input input-sm min-w-0 flex-1"
+                  class="input field min-w-0 flex-1"
                   required
                   autocomplete="off"
                 />
-                <select name="kind" class="select select-sm w-28" title="Kind">
+                <select name="kind" class="select field w-28" title="Kind">
                   <option :for={{k, l} <- FieldDefinition.kinds()} value={k}>{l}</option>
                 </select>
               </div>
@@ -1144,14 +1144,14 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 type="text"
                 name="options"
                 placeholder="Choices, e.g. Small=1, Medium=2, Large=3"
-                class="input input-sm w-full"
+                class="input field w-full"
                 autocomplete="off"
               />
               <input
                 type="text"
                 name="expression"
                 placeholder="Formula, e.g. {value} / {effort}"
-                class="input input-sm w-full font-mono"
+                class="input field w-full field-mono"
                 autocomplete="off"
               />
               <div class="flex items-center justify-between">
@@ -1199,12 +1199,12 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 type="text"
                 name="name"
                 placeholder="Milestone, e.g. Launch"
-                class="input input-sm min-w-0 flex-1"
+                class="input field min-w-0 flex-1"
                 required
                 autocomplete="off"
               />
               <.date_field id="milestone-date" name="date" required aria-label="Milestone date" />
-              <select name="color" class="select select-sm w-28" title="Colour">
+              <select name="color" class="select field w-28" title="Colour">
                 <option value="">Colour</option>
                 <option :for={{n, l} <- Palette.all()} value={n}>{l}</option>
               </select>
@@ -1251,7 +1251,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   min={if is_float(v), do: "0.5", else: "1"}
                   max={if is_float(v), do: "1"}
                   step={if is_float(v), do: "0.01", else: "1"}
-                  class="input input-xs w-20"
+                  class="input field w-20"
                   phx-debounce="500"
                 />
               </label>

@@ -304,6 +304,25 @@ input.field-trail-2 { padding-right: 3.75rem; }
 }
 select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; font-size: inherit; }
 .field-bare:hover { background-color: color-mix(in oklab, var(--color-base-200) 60%, transparent); }
+/* Labels (#1723), two kinds, one style each (W-1946 §Design system):
+   - `field-label`: the words naming one field, above it (or beside a
+     checkbox): 14px, medium, full ink, 4px above the box.
+   - `section-label`: small caps over a group, or a property on the card
+     back: 12px, semibold, uppercase, base-content/60.
+   In the components layer, so a utility beside them (`inline`, `mb-0`)
+   still wins. */
+@layer components {
+  .field-label {
+    display: block; margin-bottom: 0.25rem;
+    font-size: 0.875rem; line-height: 1.25rem; font-weight: 500;
+    color: var(--color-base-content);
+  }
+  .section-label {
+    font-size: 0.75rem; line-height: 1rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.025em;
+    color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+  }
+}
 /* The date field (#1720, `date_field/1`): the date in words over a hidden
    native input, which only shows when the browser has no showPicker()
    (data-native) or someone is typing a date (data-typing). */

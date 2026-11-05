@@ -263,7 +263,7 @@ defmodule SlipdockWeb.MeetingLive.New do
                 type="textarea"
                 rows="6"
                 placeholder="Priya: Let's settle the pricing page.&#10;Sam: We go with the annual plan."
-                class="textarea mt-2 w-full font-mono text-xs"
+                class="textarea field field-mono mt-2 w-full"
               />
             </details>
 

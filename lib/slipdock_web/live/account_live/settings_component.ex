@@ -508,8 +508,8 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
           class="mt-4 space-y-3"
         >
           <label class="block text-sm">
-            <span class="mb-1 block font-medium">Board or wiki</span>
-            <select name="header_link[target]" class="select select-sm w-full sm:w-80">
+            <span class="field-label">Board or wiki</span>
+            <select name="header_link[target]" class="select field w-full sm:w-80">
               {Phoenix.HTML.Form.options_for_select(@header_link_targets, @header_link_target)}
             </select>
           </label>
@@ -704,7 +704,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
                 value={@ai.base_url}
                 label="Endpoint"
                 placeholder={@ai_default_endpoint}
-                class="w-full input font-mono text-xs"
+                class="input field field-mono w-full"
                 autocomplete="off"
               />
               <p class="-mt-1 text-xs text-base-content/50">
@@ -718,7 +718,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
                 value=""
                 label="API key"
                 placeholder={if @ai_key, do: "unchanged", else: "sk-or-v1-… (optional)"}
-                class="w-full input font-mono text-xs"
+                class="input field field-mono w-full"
                 autocomplete="off"
               />
               <p class="-mt-1 text-xs text-base-content/50">

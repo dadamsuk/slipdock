@@ -535,7 +535,7 @@ defmodule SlipdockWeb.BoardLive.Index do
               <form id="board-sort" phx-change="set_sort">
                 <select
                   name="sort"
-                  class="select select-sm w-40"
+                  class="select field w-40"
                   title="The order your boards are listed in — yours alone"
                 >
                   <option :for={{key, label} <- sorts()} value={key} selected={@sort == key}>
@@ -608,7 +608,7 @@ defmodule SlipdockWeb.BoardLive.Index do
                     label="Code"
                     placeholder="auto"
                     maxlength={Board.code_length()}
-                    class="w-full input font-mono"
+                    class="input field field-mono w-full"
                     title="A short handle for this board, used in links and on the command line"
                   />
                 </div>
@@ -621,7 +621,7 @@ defmodule SlipdockWeb.BoardLive.Index do
                 </div>
               </div>
               <label class="block">
-                <span class="mb-1 block text-sm font-medium">Lists</span>
+                <span class="field-label">Lists</span>
                 <select name="template" class="select w-full max-w-md">
                   <option value="" selected={@template_id in [nil, ""]}>
                     Default (Backlog · To Do · In Progress · Done)
