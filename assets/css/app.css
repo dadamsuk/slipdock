@@ -797,6 +797,11 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
 }
 @keyframes ai-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
+/* The wiki's reading column (#1743): one measure, about 68 characters of
+   the prose's own font, for the text, its headings and their rules, tables
+   and the footer alike, plus the column's own padding (sm:px-8). */
+#wiki-column.wiki-reading { max-width: calc(68ch + 4rem); }
+
 /* The wiki's tree pane on a wide screen: as wide as the reader dragged it,
    or folded away (#737, assets/js/wiki_pane.js). Both are set on <html>, out
    of LiveView's reach. A phone's drawer is left as it is. */
@@ -914,6 +919,10 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
 .wiki-prose hr { margin: 2rem 0; border-color: var(--color-base-300); }
 .wiki-prose table { margin: 1rem 0; width: 100%; border-collapse: collapse; font-size: 0.9375rem; display: block; overflow-x: auto; }
 .wiki-prose th, .wiki-prose td { border: 1px solid var(--color-base-300); padding: 0.4rem 0.7rem; text-align: left; vertical-align: top; }
+/* A cell is never narrower than a short word (#1743): a table with many
+   columns scrolls inside the measure rather than splitting "heading" into
+   "hea/ding". A long URL still breaks within a cell (#1169). */
+.wiki-prose :is(th, td) { min-width: 6rem; }
 .wiki-prose th { background: color-mix(in oklab, var(--color-base-content) 5%, transparent); font-weight: 600; }
 .wiki-prose img { max-width: 100%; border-radius: 0.5rem; }
 
