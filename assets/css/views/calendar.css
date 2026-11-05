@@ -1,0 +1,13 @@
+/* Calendar ----------------------------------------------------------- */
+.cal-cards.sortable-over { outline: 2px dashed color-mix(in oklch, var(--color-primary) 50%, transparent); outline-offset: 2px; border-radius: 6px; }
+
+/* A chip is its title first (#1733). The decorations after it (flags and
+   priority, then tag dots and the done toggle) come in only once the day is
+   wide enough that the title keeps 20-odd characters beside them; until
+   then they live in the chip's tooltip. Each day's card list is the
+   container, so the month grid, the week and the phone's agenda all follow
+   the same rule. */
+.cal-cards { container: cal-day / inline-size; }
+.cal-chip-deco { display: none; flex-shrink: 0; align-items: center; gap: 0.25rem; }
+@container cal-day (min-width: 15rem) { .cal-deco-1 { display: flex; } }
+@container cal-day (min-width: 19rem) { .cal-deco-2 { display: flex; } }

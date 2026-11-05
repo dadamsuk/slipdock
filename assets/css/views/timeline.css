@@ -1,0 +1,118 @@
+/* Timeline ----------------------------------------------------------- */
+.tl-row { display: grid; grid-template-columns: var(--tl-cols); }
+.tl-head > div { height: 1.75rem; display: flex; align-items: center; }
+.tl-head > .tl-units { justify-content: center; }
+.tl-track {
+  grid-column: 2 / -1;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--tl-track);
+  grid-auto-rows: minmax(2.25rem, auto);
+  align-items: center;
+}
+.tl-track > * { grid-row: 1; }
+.tl-card-row > :first-child { min-height: 2.25rem; }
+.tl-weekend { height: 100%; background: color-mix(in oklch, var(--color-base-content) 4%, transparent); pointer-events: none; }
+.tl-today {
+  height: 100%;
+  justify-self: start;
+  border-left: 2px solid color-mix(in oklch, var(--color-primary) 70%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+.tl-bar {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  height: 1.5rem;
+  margin: 0.375rem 1px;
+  padding: 0 0.4rem;
+  min-width: 6px;
+  border-radius: 6px;
+  color: var(--color-base-content);
+  font-size: 12px;
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+  transition: filter 120ms;
+}
+.tl-bar:hover { filter: brightness(1.08); }
+.tl-bar.tl-dragging { cursor: grabbing; filter: brightness(1.15); z-index: 5; }
+.tl-bar-default { background: color-mix(in oklab, var(--color-primary) 35%, var(--color-base-100)); }
+/* Bars whose dates come from subcards: outlined, not draggable. */
+.tl-bar-derived { opacity: 0.85; outline: 2px dashed color-mix(in oklab, var(--color-base-content) 45%, transparent); outline-offset: -3px; cursor: pointer; }
+.tl-bar-done { background: color-mix(in oklab, var(--color-success) 40%, var(--color-base-100)); }
+/* A bar scheduled by month/quarter/…: soft, dotted edges say "roughly then". */
+.tl-bar-fuzzy { border-left: 3px dotted color-mix(in oklab, var(--color-base-content) 45%, transparent); border-right: 3px dotted color-mix(in oklab, var(--color-base-content) 45%, transparent); opacity: 0.9; }
+/* Dependency connectors over the grid. */
+.tl-links { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: visible; }
+.tl-link { fill: none; stroke: color-mix(in oklch, var(--color-base-content) 45%, transparent); stroke-width: 1.5; }
+.tl-link-end { fill: color-mix(in oklch, var(--color-base-content) 55%, transparent); }
+.tl-link.tl-link-violated { stroke: var(--color-error); stroke-width: 2; stroke-dasharray: 4 3; }
+.tl-link-end.tl-link-violated { fill: var(--color-error); }
+/* Milestones: a dashed line down every row, a diamond and label on their own row. */
+.tl-ms-line { height: 100%; width: 0; justify-self: center; border-left: 2px dashed color-mix(in oklch, var(--color-base-content) 35%, transparent); pointer-events: none; z-index: 1; }
+.tl-milestones .tl-track { grid-auto-rows: minmax(1.75rem, auto); }
+.tl-milestones > :first-child { min-height: 1.75rem; }
+.tl-ms-label { position: relative; display: flex; align-items: center; gap: 0.25rem; height: 100%; overflow: visible; white-space: nowrap; justify-self: center; z-index: 2; }
+.tl-ms-diamond { width: 0.5rem; height: 0.5rem; transform: rotate(45deg); flex-shrink: 0; }
+.tl-ms-name { font-size: 0.6875rem; font-weight: 600; padding: 0 0.25rem; background: color-mix(in oklch, var(--color-base-100) 85%, transparent); border-radius: 4px; }
+.tl-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.tl-bar-due, .tl-bar-start { overflow: visible; padding: 0; justify-content: center; }
+.tl-bar-due { border-radius: 999px; }
+.tl-bar-start { border-radius: 6px 0 0 6px; border-right: 2px dashed color-mix(in oklab, var(--color-base-content) 45%, transparent); }
+.tl-bar-due .tl-bar-label, .tl-bar-start .tl-bar-label {
+  position: absolute;
+  left: 100%;
+  margin-left: 6px;
+  max-width: 14rem;
+  color: var(--color-base-content);
+  opacity: 0.75;
+}
+.tl-clip-start { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; }
+.tl-clip-end { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
+.tl-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  border-radius: inherit;
+}
+.tl-handle-start { left: 0; }
+.tl-handle-end { right: 0; }
+.tl-bar:hover .tl-handle { background: color-mix(in oklab, var(--color-base-content) 15%, transparent); }
+.tl-compact .tl-track { grid-auto-rows: minmax(1.75rem, auto); }
+.tl-compact .tl-card-row > :first-child { min-height: 1.75rem; font-size: 0.6875rem; }
+.tl-compact .tl-bar { height: 1.125rem; margin: 0.3125rem 1px; font-size: 11px; }
+/* Dragging an unscheduled card onto the grid: the target column and the floating chip. */
+.tl-drop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 25;
+  pointer-events: none;
+  background: color-mix(in oklch, var(--color-primary) 14%, transparent);
+  outline: 2px dashed color-mix(in oklch, var(--color-primary) 60%, transparent);
+  outline-offset: -2px;
+}
+#dateless-cards[phx-hook="TimelineTray"] .cal-chip { touch-action: none; user-select: none; -webkit-user-select: none; }
+.tl-chip-dragging { opacity: 0.4; }
+.tl-chip-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  pointer-events: none;
+  background: var(--color-base-100);
+  box-shadow: 0 20px 40px -10px rgb(0 0 0 / 0.35);
+  transform: rotate(2deg);
+}
+.tl-chip-ghost.tl-chip-over { outline: 2px solid var(--color-primary); }
+.tl-chip-date { font-size: 11px; font-weight: 600; color: var(--color-primary); white-space: nowrap; }
+.tl-chip-date:empty { display: none; }
+body.tl-tray-dragging { cursor: grabbing; }
