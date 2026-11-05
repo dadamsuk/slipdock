@@ -722,10 +722,14 @@ With one on, the pass changes like this:
   push -u origin card-<id>`, and open the pull request once: `gh pr create
   --head card-<id> --title "<card title> (#<id>)" --fill`, unless `gh pr
   view card-<id>` shows one open. The build to watch (step 7.3, 7.4) is
-  the pull request's: `gh pr checks card-<id> --watch`. It is the full
-  test run: before pushing, run only the tests you added or changed and
-  the quick checks (step 7.1), never the whole suite as well, and complete
-  the card once the checks pass. Complete with
+  the pull request's: `gh pr checks card-<id> --watch --fail-fast`, so a
+  failed check is seen when it fails, not when the slowest one ends. It is
+  the full test run: before pushing, run only the tests you added or
+  changed and the project's own pre-push checks (what its `CLAUDE.md`,
+  contributing guide or handbook lists, often one command that runs what
+  CI checks; with none listed, formatting and a compile that fails on
+  warnings), never the whole suite as well, and complete the card once
+  the checks pass. Complete with
   `slipdock done <id> --pr <url>` beside the other evidence. Don't merge
   it: accepting the card has a runner merge it (the card shows *merging*
   until then, and the merge completes it). A merge that fails sends the

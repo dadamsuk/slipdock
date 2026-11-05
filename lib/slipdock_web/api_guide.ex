@@ -3693,9 +3693,12 @@ defmodule SlipdockWeb.APIGuide do
     `evidence_pr` (`slipdock done ID --pr URL`, `complete_card` `pr`): the
     merge needs it, and a board asking for evidence refuses the completion
     without it (`422`). The build to watch is the
-    pull request's, and it is the full test run: before pushing, run the
-    tests you added or changed and the quick checks, not the whole suite,
-    and complete the card once its checks pass (with no checks on it, run
+    pull request's (`gh pr checks <branch> --watch --fail-fast`), and it is
+    the full test run: before pushing, run the tests you added or changed
+    and the project's own pre-push checks (what its `CLAUDE.md`,
+    contributing guide or handbook lists; else formatting and a compile
+    that fails on warnings), not the whole suite, and complete the card
+    once its checks pass (with no checks on it, run
     the suite yourself). A verifier doesn't run the suite again either: it
     reads the change and checks that the pull request's head is the
     submitted commit and its checks passed. A rejected card's next attempt pushes the same branch,

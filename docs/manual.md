@@ -838,9 +838,15 @@ after that. `shipping` has `neutral: true` and `slipdock card` shows
 #<id>`).
 
 The pull request's CI is the one full test run. Before pushing, the builder
-runs the tests it added or changed and the quick checks (formatting, a
-compile that fails on warnings), not the whole suite, and it completes the
-card once the checks pass, giving CI's result as the suite. The verifier
+runs the tests it added or changed and the project's own pre-push checks,
+not the whole suite, and it completes the card once the checks pass, giving
+CI's result as the suite. The pre-push checks are what the project's
+`CLAUDE.md`, contributing guide or handbook lists, ideally one command that
+runs what CI's static checks run (Slipdock's own is `mix pre_push`); a
+project that lists none gets formatting and a compile that fails on
+warnings. The builder watches the checks with `gh pr checks <branch> --watch
+--fail-fast`, so a failed check is seen when it fails rather than when the
+slowest one ends. The verifier
 doesn't run the suite again either (see [Verify jobs](#verify-jobs)). With
 no checks on the pull request, both run it themselves.
 

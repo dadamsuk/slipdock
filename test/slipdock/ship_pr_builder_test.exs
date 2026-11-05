@@ -60,12 +60,32 @@ defmodule Slipdock.ShipPrBuilderTest do
     text = Verified.ship_instructions(Repo.get!(Card, ctx.card.id))
 
     assert text =~
-             "Before pushing, run the tests you added or changed and the project's quick checks"
+             "Before pushing, run the tests you added or changed and the project's own pre-push checks"
 
     assert text =~ "not the whole suite: the pull request's CI runs it."
     assert text =~ "Fix what it finds in this pass."
     assert text =~ "If the pull request has no checks, run the whole suite yourself."
     assert text =~ "CI's result as the suite (`--suite passed`"
+  end
+
+  test "the pre-push checks are the project's own, falling back to format and compile (#1866)",
+       ctx do
+    ship_by_pr(ctx)
+    text = Verified.ship_instructions(Repo.get!(Card, ctx.card.id))
+
+    assert text =~
+             "Its pre-push checks are the ones its `CLAUDE.md`, contributing guide or handbook lists"
+
+    assert text =~
+             "if it lists none, formatting and a compile that fails on warnings."
+
+    refute text =~ "quick checks"
+  end
+
+  test "the builder watches the checks with --fail-fast (#1866)", ctx do
+    ship_by_pr(ctx)
+    text = Verified.ship_instructions(Repo.get!(Card, ctx.card.id))
+    assert text =~ "`gh pr checks card-#{ctx.card.id} --watch --fail-fast`"
   end
 
   test "it comes after the bar and the paths", ctx do

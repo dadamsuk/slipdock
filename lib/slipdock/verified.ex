@@ -472,8 +472,8 @@ defmodule Slipdock.Verified do
       - Work on the branch `#{branch}`: `git fetch origin && git switch #{branch}` if it is on origin (a rejected card's earlier attempt), else `git switch -c #{branch}`. Rebase it on the default branch before pushing.
       - Commit with the card id (##{card.id}) in the message, then `git push -u origin #{branch}`.
       - Open the pull request once: `gh pr view #{branch}` shows one already open, which the push has updated; otherwise #{create}.
-      #{if neutral, do: neutral_note() <> "\n", else: ""}- Before pushing, run the tests you added or changed and the project's quick checks (formatting, a compile that fails on warnings), not the whole suite: the pull request's CI runs it.
-      - The build to watch is the pull request's (`gh pr checks #{branch} --watch`). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
+      #{if neutral, do: neutral_note() <> "\n", else: ""}- Before pushing, run the tests you added or changed and the project's own pre-push checks, not the whole suite: the pull request's CI runs it. Its pre-push checks are the ones its `CLAUDE.md`, contributing guide or handbook lists, often one command that runs what CI checks; if it lists none, formatting and a compile that fails on warnings.
+      - The build to watch is the pull request's (`gh pr checks #{branch} --watch --fail-fast`, so a failed check stops the watch when it fails). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
       - Complete the card with its URL: `slipdock done #{card.id} --pr <url>` (complete_card `pr`), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
       """
       |> String.trim_trailing()

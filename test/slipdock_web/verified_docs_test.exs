@@ -77,6 +77,26 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert cli =~ "--pr https://"
   end
 
+  test "builders run the project's own pre-push checks and watch with --fail-fast (#1866)" do
+    flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
+
+    for path <- [
+          "priv/skills/slipdock-loop/SKILL.md",
+          "priv/skills/slipdock-work/SKILL.md",
+          "lib/slipdock_web/api_guide.ex",
+          "docs/manual.md"
+        ],
+        text = flat.(path) do
+      assert text =~ "the project's own pre-push checks", path
+      assert text =~ "contributing guide or handbook", path
+      assert text =~ "formatting and a compile that fails on warnings", path
+      assert text =~ "--watch --fail-fast", path
+      refute text =~ "the quick checks", path
+    end
+
+    assert flat.("docs/manual.md") =~ "Slipdock's own is `mix pre_push`"
+  end
+
   test "accepting on a pull request board merges, said everywhere (#1657)" do
     flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
 

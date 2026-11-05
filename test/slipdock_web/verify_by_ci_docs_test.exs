@@ -9,14 +9,18 @@ defmodule SlipdockWeb.VerifyByCiDocsTest do
 
   @root Path.expand("../..", __DIR__)
   defp read(path), do: File.read!(Path.join(@root, path))
+  # Line breaks folded, for prose that is rewrapped as it changes.
+  defp flat(path), do: path |> read() |> String.replace(~r/\s+/, " ")
 
   test "the loop skill: the builder's tests, and the verifier's CI check" do
     loop = read("priv/skills/slipdock-loop/SKILL.md")
 
-    assert loop =~
-             "It is the full\n  test run: before pushing, run only the tests you added or changed"
+    assert flat("priv/skills/slipdock-loop/SKILL.md") =~
+             "It is the full test run: before pushing, run only the tests you added or changed"
 
-    assert loop =~ "never the whole suite as well, and complete\n  the card once the checks pass."
+    assert flat("priv/skills/slipdock-loop/SKILL.md") =~
+             "never the whole suite as well, and complete the card once the checks pass."
+
     assert loop =~ "On a board that ships by pull request, don't run the suite: its\n  CI ran it"
     assert loop =~ "run the suite only if it has no checks."
   end
@@ -25,8 +29,8 @@ defmodule SlipdockWeb.VerifyByCiDocsTest do
     work = read("priv/skills/slipdock-work/SKILL.md")
     assert work =~ "(on a pull\n  request board, checking its CI passed at that commit instead)"
 
-    assert work =~
-             "(the full test run: before pushing, run only the tests you\n  added or changed)"
+    assert flat("priv/skills/slipdock-work/SKILL.md") =~
+             "(the full test run: before pushing, run only the tests you added or changed and"
 
     assert read("priv/skills/slipdock/SKILL.md") =~
              "# its CI is the full test run: run only your own tests before"
@@ -34,7 +38,7 @@ defmodule SlipdockWeb.VerifyByCiDocsTest do
 
   test "the API guide, the manual, the agents page and CLAUDE.md" do
     guide = read("lib/slipdock_web/api_guide.ex")
-    assert guide =~ "pull request's, and it is the full test run"
+    assert flat("lib/slipdock_web/api_guide.ex") =~ "and it is the full test run"
 
     assert guide =~
              "A verifier doesn't run the suite again either: it\n    reads the change and checks that the pull request's head"

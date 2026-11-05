@@ -24,21 +24,16 @@ What a card teaches about the project goes there too, never only into your own a
 
 ## Before you push
 
-CI treats warnings as errors and checks formatting, so run both first:
+Run `mix pre_push`. It runs what CI's static checks job and its build check, in CI's order with CI's arguments, and stops at the first that fails: `compile --force --warnings-as-errors`, `format --check-formatted`, `hex.audit`, `deps.audit`, `sobelow --config` and `credo diff` against where the branch left `origin/main`. It takes about 2 minutes (half the forced compile, 50 s credo), so start it alongside the tests you changed rather than after them: it builds in `_build/pre_push`, so it doesn't disturb a `mix test` running beside it (its first run there compiles the dependencies once; `cp -r _build/test _build/pre_push/` skips that). To check a commit that has already merged, give credo a base: `mix pre_push --from-git-ref <ref>`.
 
-```sh
-mix compile --force --warnings-as-errors
-mix format --check-formatted
-```
-
-`mix format` doesn't always settle in one pass, so run the check even after formatting.
+`mix format` doesn't always settle in one pass, so run the check even after formatting. A function already over credo's complexity limit takes a new branch through a helper, never inline (W-1950).
 
 ## Committing and shipping
 
 Commit with the card's id in the message (`#123`). Then ship the way the card's board does:
 
 - **By push** (the default): push to `main`. A push to `main` deploys.
-- **By pull request** (`ship_via: pull_request`; the claimed job's prompt and `slipdock card` say so): push the card's branch (`card-<id>`), open a PR, and give its URL on completion (`slipdock done --pr`). Never push to `main`: the PR is merged when the card is accepted. The PR's CI is the full suite: before pushing, run the tests you added or changed and the two checks above, not the whole suite, and complete the card once the PR's checks pass. That green CI run is the green suite.
+- **By pull request** (`ship_via: pull_request`; the claimed job's prompt and `slipdock card` say so): push the card's branch (`card-<id>`), open a PR, and give its URL on completion (`slipdock done --pr`). Never push to `main`: the PR is merged when the card is accepted. The PR's CI is the full suite: before pushing, run the tests you added or changed and `mix pre_push`, not the whole suite. Watch it with `gh pr checks card-<id> --watch --fail-fast`, and complete the card once the PR's checks pass. That green CI run is the green suite.
 
 ## This repository is public
 
