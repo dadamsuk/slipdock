@@ -145,4 +145,39 @@ defmodule SlipdockWeb.MCP.DocsTest do
     assert read("docs/agents.md") =~ "manual.md#the-resources"
     assert read("README.md") =~ "docs/manual.md#the-resources"
   end
+
+  describe "findings in the skills (#1784)" do
+    test "the loop skill's wrap-up has a Findings block after Handbook, with its bar" do
+      loop = read("priv/skills/slipdock-loop/SKILL.md")
+      [_, gate] = String.split(loop, "**Then the findings**", parts: 2)
+
+      for kind <- ~w(gotcha rule handbook-wrong tooling process),
+          do: assert(gate =~ "- #{kind}:")
+
+      assert gate =~
+               "would the\n   next pass, on a different card, have done better knowing this?"
+
+      assert gate =~ "`Findings: none` is a normal answer; filler isn't."
+      assert loop =~ ~r/- Handbook: updated W-3.*\n   - Findings:/
+      assert loop =~ "and the `Findings:` block with it."
+      assert loop =~ "each as a finding in a `Findings:` block there"
+    end
+
+    test "the docs skill says where each kind of knowledge goes" do
+      docs = read("priv/skills/slipdock-docs/SKILL.md")
+      assert docs =~ "### What you learned: the handbook, a finding, or your memory"
+      assert docs =~ "your own **agent memory**"
+      assert docs =~ "Project facts never live only in agent memory"
+      assert docs =~ "would the next pass, on a different card, have done better knowing this?"
+    end
+
+    test "the guide and docs/agents.md describe the block and its bar" do
+      guide = read("lib/slipdock_web/api_guide.ex")
+      assert guide =~ "## Findings"
+      assert guide =~ "would the next pass, on a different card, have done"
+
+      assert read("docs/agents.md") =~
+               "would the next pass, on a different card, have done better"
+    end
+  end
 end
