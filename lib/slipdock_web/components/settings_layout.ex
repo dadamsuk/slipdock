@@ -113,7 +113,7 @@ defmodule SlipdockWeb.SettingsLayout do
         <h2
           :if={@title && @active}
           data-role="settings-section-title"
-          class="mb-6 text-lg font-semibold"
+          class="section-title mb-6"
         >
           {@active.label}
         </h2>
