@@ -7,7 +7,7 @@ defmodule Slipdock.Runners.RecoveryTest do
   import Ecto.Query
   import Slipdock.Fixtures
 
-  alias Slipdock.{Automations, Boards, Repo, Runners}
+  alias Slipdock.{Actor, Automations, Boards, Repo, Runners, Verified}
   alias Slipdock.Automations.{Presets, Spec}
   alias Slipdock.Runners.{Job, Recovery, Setup}
 
@@ -327,6 +327,90 @@ defmodule Slipdock.Runners.RecoveryTest do
       {:ok, %{rule: rule}} = Setup.connect(ctx.board, params, ctx.owner, "https://slipdock.test")
       assert [%{"requeue_stuck" => 3}] = rule.spec["actions"]
       assert Recovery.requeue_limit(rule) == 3
+    end
+  end
+
+  # #1850: on a board that ships by pull request an accepted card stays in
+  # progress, merging, until its merge job finishes. A job ending then had
+  # its card put back, and a put-back landing after the merge undid Done.
+  describe "a card accepted on a board that ships by pull request" do
+    setup ctx do
+      {:ok, board} =
+        Boards.update_board(ctx.board, %{"verify_work" => true, "ship_via" => "pull_request"})
+
+      agent = fn name ->
+        %{Actor.unknown() | kind: "agent", via: "api", user_id: ctx.owner.id, agent: name}
+      end
+
+      %{board: board, builder: agent.("builder"), checker: agent.("checker")}
+    end
+
+    # The job's agent submits the card with its pull request, and a second
+    # agent accepts it: it is merging, still in progress.
+    defp accept(ctx, job) do
+      {:ok, card} =
+        Boards.update_card(
+          Repo.get!(Boards.Card, job.card_id),
+          %{
+            "completed" => true,
+            "evidence_pr" => "https://github.com/acme/app/pull/7",
+            "evidence_commit" => "abc1234"
+          },
+          actor: %{ctx.builder | job_id: job.id}
+        )
+
+      assert card.verify_state == "pending"
+      {:ok, card} = Verified.decide(card, "accept", %{}, ctx.checker, ctx.owner)
+      assert card.verify_state == "merging"
+      assert card.column_id == ctx.doing.id
+      card
+    end
+
+    defp merged(ctx, card) do
+      {:ok, card} =
+        Verified.decide(
+          Repo.get!(Boards.Card, card.id),
+          "merged",
+          %{},
+          Actor.web(ctx.owner),
+          ctx.owner
+        )
+
+      card
+    end
+
+    test "a job ending while its card merges leaves it to the merge", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      accept(ctx, job)
+
+      job = finish(ctx, job, "done")
+
+      assert job.recovery == nil
+      a = card(ctx.a)
+      assert a.column_id == ctx.doing.id
+      assert a.verify_state == "merging"
+      refute "blocked" in a.flags
+      refute Enum.any?(comments(a), &(&1 =~ "Runner job ##{job.id}"))
+
+      # The merge then closes it, as it would have.
+      a = merged(ctx, a)
+      assert a.completed
+      assert a.column_id == ctx.done.id
+    end
+
+    test "a merge that finished first keeps the card in Done", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      ctx |> accept(job) |> then(&merged(ctx, &1))
+
+      job = finish(ctx, job, "done")
+
+      assert job.recovery == nil
+      a = card(ctx.a)
+      assert a.completed
+      assert a.column_id == ctx.done.id
+      refute Enum.any?(comments(a), &(&1 =~ "Runner job ##{job.id}"))
     end
   end
 end

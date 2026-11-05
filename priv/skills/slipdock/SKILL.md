@@ -301,6 +301,8 @@ slipdock move <id> <column> --board B    # to another board, with the card's sub
                                        # by name, custom fields only where that board has them;
                                        # the command prints anything that was created or dropped
 slipdock done <id>... | slipdock undone <id>...
+                                       # an agent can't undo or move a done card out of Done (any
+                                       # board): a person reopens finished work; add a card instead
 slipdock done <id> --evidence-commit <sha> --branch B --tests a.exs,b.exs --suite passed:38:0 --evidence "…"
                                        # on a board that asks for evidence; where a second agent
                                        # verifies, done submits the card (pending, flagged review)

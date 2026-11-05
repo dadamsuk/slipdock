@@ -139,8 +139,8 @@ defmodule Slipdock.VerifiedEvidenceTest do
       assert body =~ "Suite: passed (38 passed, 0 failed)"
       assert body =~ "- `test/b_test.exs`"
 
-      # Reopened, every part is cleared.
-      {:ok, card} = Boards.update_card(card, %{"completed" => false}, actor: ctx.agent)
+      # Reopened (by a person: an agent can't, #1850), every part is cleared.
+      {:ok, card} = Boards.update_card(card, %{"completed" => false}, actor: Actor.web(ctx.owner))
 
       assert {card.evidence_commit, card.evidence_branch, card.evidence_tests,
               card.evidence_suite} ==
@@ -218,7 +218,9 @@ defmodule Slipdock.VerifiedEvidenceTest do
           actor: ctx.agent
         )
 
-      {:ok, card} = Boards.update_card(card, %{"completed" => false}, actor: ctx.agent)
+      {:ok, card} =
+        Boards.update_card(card, %{"completed" => false}, actor: Actor.web(ctx.owner))
+
       assert card.evidence == nil and card.evidence_commit == nil
 
       assert {:error, _} = Boards.update_card(card, %{"completed" => true}, actor: ctx.agent)

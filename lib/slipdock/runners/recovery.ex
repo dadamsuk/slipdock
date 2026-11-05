@@ -11,8 +11,11 @@ defmodule Slipdock.Runners.Recovery do
   after that it is flagged blocked and left where it is, with a comment, so
   the runner waits until somebody moves or closes it.
 
-  A card left awaiting verification (`verify_state: "pending"`, #1659) is
-  not stuck: the job finished it, and it waits for the verifier.
+  A card left awaiting verification (`verify_state: "pending"`, #1659), or
+  accepted and waiting for its pull request to merge (`"merging"`, #1850),
+  is not stuck: the job finished it, and it waits for the verifier or the
+  merge. The check is made with the card's row locked, so a merge finishing
+  meanwhile is never undone.
 
   Only the job's own card is touched, and only by a job that was handed out
   at least once (a job cancelled while it sat in the queue never had the
@@ -72,17 +75,7 @@ defmodule Slipdock.Runners.Recovery do
           if Spec.feed?(rule.spec), do: quietly(rule, fn -> park(job, rule) end), else: :ok
 
         (limit = requeue_limit(rule)) > 0 ->
-          case stuck_card(job) do
-            %Card{} = card ->
-              quietly(rule, fn ->
-                if requeued(job, card) < limit,
-                  do: requeue(job, rule, card, limit),
-                  else: give_up(job, card, limit)
-              end)
-
-            nil ->
-              :ok
-          end
+          quietly(rule, fn -> put_back(job, rule, limit) end)
 
         true ->
           :ok
@@ -148,9 +141,40 @@ defmodule Slipdock.Runners.Recovery do
     end
   end
 
+  # The check and the move are one transaction, with the card's row locked
+  # first (#1850): a merge finishing the card at the same moment either has
+  # completed it already, so it isn't stuck, or waits for the put-back and
+  # then completes it. Either way a card that reaches Done stays there.
+  defp put_back(job, rule, limit) do
+    {result, effects} =
+      Slipdock.Deferred.collect(fn ->
+        Repo.transaction(fn ->
+          Repo.one(from(c in Card, where: c.id == ^job.card_id, lock: "FOR UPDATE", select: c.id))
+
+          case stuck_card(job) do
+            %Card{} = card ->
+              if requeued(job, card) < limit,
+                do: requeue(job, rule, card, limit),
+                else: give_up(job, card, limit)
+
+            nil ->
+              :ok
+          end
+        end)
+      end)
+
+    Slipdock.Deferred.run(effects)
+
+    case result do
+      {:ok, outcome} -> outcome
+      _ -> :ok
+    end
+  end
+
   # The job's card, if it is still open in an in-progress list. A card
-  # awaiting verification (#1659) is finished as far as its job goes: it
-  # waits in progress for the verifier, not for a retry.
+  # awaiting verification (#1659), or accepted and waiting for its merge
+  # (#1850), is finished as far as its job goes: it waits in progress for
+  # the verifier or the merge, not for a retry.
   defp stuck_card(job) do
     Repo.one(
       from(c in Card,
@@ -158,7 +182,7 @@ defmodule Slipdock.Runners.Recovery do
         where:
           c.id == ^job.card_id and col.category == "doing" and is_nil(c.archived_at) and
             c.completed == false and
-            (is_nil(c.verify_state) or c.verify_state != "pending")
+            coalesce(c.verify_state, "") not in ["pending", "merging"]
       )
     )
   end

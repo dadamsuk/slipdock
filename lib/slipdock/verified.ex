@@ -29,11 +29,13 @@ defmodule Slipdock.Verified do
       its prompt saying what to check and how to decide. A decision cancels
       any other verify job still open on the card.
 
-  One check has no switch (#1758): an agent can't complete (or submit) a
-  card whose sub-board still has open cards, by a write or a move into a
-  done list; the refusal names them (`open_subcards/1`). It guards against
-  a contradiction, an epic done over unfinished work, rather than asking
-  more of an agent's work, so it holds on every board.
+  Two checks have no switch. An agent can't complete (or submit) a card
+  whose sub-board still has open cards, by a write or a move into a done
+  list; the refusal names them (`open_subcards/1`, #1758). And an agent
+  can't reopen a completed card, by unticking it or moving it out of a done
+  list (`reopen_message/2`, #1850). Each guards against a contradiction, an
+  epic done over unfinished work or finished work undone by a script,
+  rather than asking more of an agent's work, so they hold on every board.
 
   The checks apply to agents (`Slipdock.Actor` kind `"agent"`), not to the
   in-app assistant, which acts on a person's say in the web app, nor to
@@ -89,7 +91,8 @@ defmodule Slipdock.Verified do
   submission, and a person's completion of a pending card an acceptance.
   """
   def check_update(%Card{} = card, attrs, actor) do
-    with :ok <- check_bar_edit(card, attrs, actor),
+    with :ok <- check_reopen(card, attrs, actor),
+         :ok <- check_bar_edit(card, attrs, actor),
          :ok <- check_subcards(card, attrs, actor),
          :ok <- check_evidence(card, attrs, actor) do
       {attrs, changes} = card |> clear_evidence(attrs) |> verification(card, actor)
@@ -120,12 +123,16 @@ defmodule Slipdock.Verified do
 
   @doc """
   `:ok`, or `{:error, message}` when `actor` may not move `card` into `to`:
-  an agent starting work on a card with no bar on a board that asks for one,
+  an agent taking a completed card out of a done list (on any board),
+  starting work on a card with no bar on a board that asks for one,
   completing one by a move while its sub-board has open cards (on any
   board), or with no evidence on a board that asks for it.
   """
   def check_move(%Card{} = card, %Column{} = to, actor) do
     cond do
+      message = reopen_move_message(card, to, actor) ->
+        {:error, message}
+
       doing?(to) and blank?(card.bar) and gated?(actor) and board(card).bar_required ->
         {:error,
          "this board asks for each card's bar before work starts: write what done means " <>
@@ -162,6 +169,46 @@ defmodule Slipdock.Verified do
   end
 
   def moved(%Card{} = card, _to), do: {:ok, card}
+
+  ## Done stays done (#1850) --------------------------------------------------
+
+  @doc """
+  The message an agent gets reopening `card`, or nil when it may. On every
+  board, an agent can't untick a completed card or move it out of a done
+  list into one that isn't: nothing an agent does needs it (a rejection
+  comes before Done, a retry only puts back a card left in progress, and a
+  recurring card is copied), and a script that does it undoes finished work.
+  Reopening is a person's call.
+  """
+  def reopen_message(%Card{completed: true} = card, actor) do
+    if gated?(actor),
+      do:
+        "card ##{card.id} is done, and an agent can't reopen it (untick it or move it out of " <>
+          "the done list): a person reopens finished work. If it needs more, add a card for " <>
+          "that and link it"
+  end
+
+  def reopen_message(_card, _actor), do: nil
+
+  defp check_reopen(card, attrs, actor) do
+    with true <- fetch(attrs, :completed) in [false, "false"],
+         message when is_binary(message) <- reopen_message(card, actor) do
+      {:error, :completed, "is refused: " <> message}
+    else
+      _ -> :ok
+    end
+  end
+
+  @doc """
+  The message an agent gets moving a completed `card` out of a done list
+  into `to`, which isn't one, or nil when it may.
+  """
+  def reopen_move_message(%Card{completed: true} = card, %Column{} = to, actor) do
+    if gated?(actor) and not Column.done?(to) and Column.done?(Repo.get!(Column, card.column_id)),
+      do: reopen_message(card, actor)
+  end
+
+  def reopen_move_message(_card, _to, _actor), do: nil
 
   ## Open subcards (#1758) ----------------------------------------------------
 
