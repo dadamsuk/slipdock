@@ -42,6 +42,9 @@ defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
   @impl true
   def handle_event("validate", _params, socket), do: {:noreply, socket}
 
+  def handle_event("cancel-recording", %{"ref" => ref}, socket),
+    do: {:noreply, cancel_upload(socket, :recording, ref)}
+
   def handle_event("enrol-recording", params, socket) do
     user = socket.assigns.current_user
     consent = consent(params)
@@ -152,9 +155,12 @@ defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
             <p class="text-xs text-base-content/60">
               Half a minute of you talking is plenty.
             </p>
-            <.live_file_input
+            <.file_picker
+              id="voiceprint-recording-file"
               upload={@uploads.recording}
-              class="file-input file-input-sm w-full max-w-sm"
+              cancel="cancel-recording"
+              target={@myself}
+              class="max-w-md"
             />
             <.consent_box id="voiceprint-consent-recording" />
             <button type="submit" class="btn btn-primary btn-sm">Save my voiceprint</button>

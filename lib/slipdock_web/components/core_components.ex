@@ -601,6 +601,209 @@ defmodule SlipdockWeb.CoreComponents do
 
   defp iso_or_nil(value), do: (d = date_value(value)) && Date.to_iso8601(d)
 
+  @doc """
+  A file to send, picked or dropped, in place of the browser's own "Choose
+  file / No file chosen" (#1722, W-1947 §Core).
+
+  A dashed drop zone in the `field` look: a **Choose file** button, what it
+  takes in words ("A .json file, up to 8 MB"), and once a file is chosen its
+  name and size with a remove ×. The native input is in it but out of
+  sight, so the button opens it and a keyboard reaches it.
+
+  Two ways in:
+
+  - **LiveView uploads**: `upload={@uploads.x}`, and `cancel` naming the
+    event that takes an entry back (it gets `ref`). The entries, sizes and
+    errors come from the upload; drop a file anywhere on it.
+  - **A plain form post**: `name` (and `accept`) instead of `upload`. The
+    `FilePicker` hook (`assets/js/file_picker.js`) writes the chosen file's
+    name and size, and its × empties the input.
+
+  ```heex
+  <.file_picker id="import-file" upload={@uploads.board_document} cancel="cancel_board_document" target={@myself} />
+  <.file_picker id="logo" name="logo" accept=".png,.svg" hint="A PNG or SVG" />
+  ```
+  """
+  attr :id, :string, required: true
+  attr :upload, :any, default: nil, doc: "a LiveView upload config (`@uploads.name`)"
+  attr :cancel, :string, default: nil, doc: "the event a remove × sends, with `ref`"
+  attr :target, :any, default: nil, doc: "phx-target for `cancel`"
+  attr :name, :string, default: nil, doc: "for a plain form post"
+  attr :accept, :string, default: nil, doc: "for a plain form post: the input's accept"
+  attr :hint, :string, default: nil, doc: "what it takes, in words; worked out when nil"
+  attr :button, :string, default: "Choose file"
+  attr :errors, :list, default: [], doc: "more error lines to show under it"
+  attr :disabled, :boolean, default: false
+  attr :class, :any, default: nil
+
+  def file_picker(assigns) do
+    upload = assigns.upload
+
+    assigns =
+      assign(assigns,
+        entries: if(upload, do: upload.entries, else: []),
+        # live_file_input takes its id from the upload's ref.
+        input_id: if(upload, do: upload.ref, else: "#{assigns.id}-input"),
+        hint: assigns.hint || accepted_words(upload, assigns.accept),
+        error_lines:
+          if(upload,
+            do:
+              Enum.map(upload_errors(upload), &upload_error/1) ++
+                Enum.flat_map(upload.entries, fn e ->
+                  Enum.map(upload_errors(upload, e), &upload_error(&1, upload))
+                end),
+            else: []
+          ) ++ assigns.errors
+      )
+
+    ~H"""
+    <div
+      id={@id}
+      class={["file-picker", @error_lines != [] && "file-picker-error", @class]}
+      data-file-picker
+      data-empty={@entries == []}
+      phx-drop-target={@upload && @upload.ref}
+      phx-hook={!@upload && "FilePicker"}
+    >
+      <div class="file-picker-zone">
+        <.icon name="hero-arrow-up-tray" class="size-5 shrink-0 text-base-content/50" />
+        <div class="min-w-0 flex-1">
+          <p class="text-sm">
+            <label for={@input_id} class={["btn btn-sm", @disabled && "btn-disabled"]}>
+              {@button}
+            </label>
+            <span class="ml-2 text-base-content/60 max-sm:hidden">or drop it here</span>
+          </p>
+          <p :if={@hint} class="mt-1 text-xs text-base-content/60" data-role="file-hint">{@hint}</p>
+        </div>
+      </div>
+      <.live_file_input
+        :if={@upload}
+        upload={@upload}
+        class="file-picker-input"
+        disabled={@disabled}
+      />
+      <input
+        :if={!@upload}
+        type="file"
+        id={@input_id}
+        name={@name}
+        accept={@accept}
+        class="file-picker-input"
+        disabled={@disabled}
+      />
+      <ul class="file-picker-files" data-role="file-list">
+        <li :for={entry <- @entries} class="file-picker-file" data-role="file" data-ref={entry.ref}>
+          <.icon name="hero-document" class="size-4 shrink-0 text-base-content/50" />
+          <span class="min-w-0 flex-1 truncate font-medium" data-role="file-name">{entry.client_name}</span>
+          <span class="shrink-0 tabular-nums text-base-content/60" data-role="file-size">
+            {file_size(entry.client_size)}
+          </span>
+          <button
+            :if={@cancel}
+            type="button"
+            phx-click={@cancel}
+            phx-value-ref={entry.ref}
+            phx-target={@target}
+            class="file-picker-remove"
+            aria-label={"Remove #{entry.client_name}"}
+            title="Remove"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </li>
+        <%!-- For a plain form, the hook fills this one in. --%>
+        <li :if={!@upload} class="file-picker-file" data-role="file" hidden>
+          <.icon name="hero-document" class="size-4 shrink-0 text-base-content/50" />
+          <span class="min-w-0 flex-1 truncate font-medium" data-role="file-name"></span>
+          <span class="shrink-0 tabular-nums text-base-content/60" data-role="file-size"></span>
+          <button
+            type="button"
+            data-role="file-remove"
+            class="file-picker-remove"
+            aria-label="Remove the file"
+            title="Remove"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </li>
+      </ul>
+      <p :for={line <- @error_lines} class="mt-2 text-sm text-error" data-role="file-error">{line}</p>
+    </div>
+    """
+  end
+
+  @doc "A byte count as people read it: `512 B`, `12.5 KB`, `3.2 MB`."
+  def file_size(bytes) when is_integer(bytes) and bytes < 1024, do: "#{bytes} B"
+
+  def file_size(bytes) when is_integer(bytes) and bytes < 1024 * 1024,
+    do: "#{one_place(bytes / 1024)} KB"
+
+  def file_size(bytes) when is_integer(bytes), do: "#{one_place(bytes / (1024 * 1024))} MB"
+  def file_size(_), do: ""
+
+  # 12.5, and 10 rather than 10.0.
+  defp one_place(x) do
+    rounded = Float.round(x, 1)
+
+    if rounded == trunc(rounded),
+      do: Integer.to_string(trunc(rounded)),
+      else: Float.to_string(rounded)
+  end
+
+  @doc """
+  What a file picker takes, in words, from an upload's (or an input's)
+  accept list and size limit: "A .json file, up to 7.6 MB".
+  """
+  def accepted_words(upload, accept \\ nil)
+
+  def accepted_words(%{accept: accept, max_file_size: max}, _) do
+    sentence(extensions(accept), max)
+  end
+
+  def accepted_words(nil, accept) when is_binary(accept), do: sentence(extensions(accept), nil)
+  def accepted_words(_, _), do: nil
+
+  defp extensions(:any), do: []
+
+  defp extensions(accept) when is_binary(accept),
+    do: accept |> String.split(",", trim: true) |> extensions()
+
+  defp extensions(list) when is_list(list) do
+    list |> Enum.map(&String.trim/1) |> Enum.filter(&String.starts_with?(&1, ".")) |> Enum.uniq()
+  end
+
+  defp extensions(_), do: []
+
+  defp sentence([], nil), do: nil
+  defp sentence([], max), do: "Any file, up to #{file_size(max)}"
+
+  defp sentence(exts, max) do
+    kinds =
+      case exts do
+        [one] -> "A #{one} file"
+        many -> "A #{Enum.join(Enum.drop(many, -1), ", ")} or #{List.last(many)} file"
+      end
+
+    if max, do: "#{kinds}, up to #{file_size(max)}", else: kinds
+  end
+
+  defp upload_error(error, upload \\ nil)
+
+  defp upload_error(:too_large, upload),
+    do: "That file is too big#{upload && ": the limit is #{file_size(upload.max_file_size)}"}."
+
+  defp upload_error(:not_accepted, upload) do
+    case upload && accepted_words(upload) do
+      nil -> "That kind of file isn't accepted here."
+      words -> "That kind of file isn't accepted here. #{words}."
+    end
+  end
+
+  defp upload_error(:too_many_files, _), do: "One file at a time."
+  defp upload_error(:external_client_failure, _), do: "The file didn't arrive. Try again."
+  defp upload_error(other, _), do: "That file couldn't be read (#{inspect(other)})."
+
   # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""

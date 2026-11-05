@@ -43,6 +43,7 @@ import {TranscriptPlayer} from "./transcript_player"
 import {PasskeyLogin, PasskeyRegister} from "./passkey"
 import {DockDrag} from "./dock_drag"
 import {DateField} from "./date_field"
+import {FilePicker} from "./file_picker"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -54,6 +55,7 @@ Hooks.PasskeyLogin = PasskeyLogin
 Hooks.PasskeyRegister = PasskeyRegister
 Hooks.DockDrag = DockDrag
 Hooks.DateField = DateField
+Hooks.FilePicker = FilePicker
 
 // Keeps the server's idea of the window width up to date, so views that
 // render something different on a phone (the calendar's agenda, the board's
