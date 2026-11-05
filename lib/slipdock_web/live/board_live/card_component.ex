@@ -33,7 +33,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   alias SlipdockWeb.{PageLinkHook, Params}
   alias SlipdockWeb.BoardLive.{ItemEvents, Paths, Sharing}
 
-  @own_events ~w(card_change toggle_flag toggle_tag set_cover set_border duplicate_card archive_card delete_card
+  @own_events ~w(card_change toggle_flag toggle_tag create_tag set_cover set_border duplicate_card archive_card delete_card
     add_dependency remove_dependency create_sub_board remove_assignee delete_sub_board
     quick_add_subcard toggle_subcard edit_description stop_editing_description
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe read_text add_link remove_link write_up
@@ -591,6 +591,38 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       do: {:ok, _} = Boards.toggle_card_tag(socket.assigns.card, tag)
 
     {:noreply, socket}
+  end
+
+  # "New tag" from the card's tag picker (#1727): a tag of that name on the
+  # board tree, put on the card. A name the board already has (in any case)
+  # is that tag, put on the card if it isn't already, never a second one.
+  defp event("create_tag", %{"name" => name}, socket) do
+    %{board: board, card: card} = socket.assigns
+    name = String.trim(name)
+    on_card? = fn tag -> Enum.any?(card.tags, &(&1.id == tag.id)) end
+
+    cond do
+      name == "" ->
+        {:noreply, socket}
+
+      tag = Enum.find(board.tags, &(String.downcase(&1.name) == String.downcase(name))) ->
+        if not on_card?.(tag), do: {:ok, _} = Boards.toggle_card_tag(card, tag)
+        {:noreply, socket}
+
+      true ->
+        colours = Palette.names()
+        colour = Enum.at(colours, rem(length(board.tags), length(colours)))
+
+        case Boards.create_tag(board, %{"name" => name, "color" => colour}) do
+          {:ok, tag} ->
+            {:ok, _} = Boards.toggle_card_tag(card, tag)
+            {:noreply, socket}
+
+          {:error, changeset} ->
+            {field, {msg, _}} = hd(changeset.errors)
+            {:noreply, flash(socket, :error, "Tag not made: #{field} #{msg}.")}
+        end
+    end
   end
 
   defp event("set_cover", %{"color" => color}, socket) do

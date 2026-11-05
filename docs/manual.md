@@ -2307,7 +2307,10 @@ card).
 - a section's own letter jumps to it — the letter underlined in its heading:
   `f` Flags, `t` Tags, `d` Description, `a` Attachments, `e` Ch**e**cklist,
   `s` Subcards, `p` De**p**endencies, `n` Li**n**ks, `w` Web links,
-  `c` Comments
+  `c` Comments. `f` and `t` also open the section's picker: the card shows
+  only the flags and tags it has, as chips with an ×, and **+ Add** (or the
+  key) lists the rest to tick. In the tag picker, typing narrows the list,
+  and Enter makes a new tag of what is typed and puts it on the card.
 
 Four sections do not get their first letter: Comments and Description were
 there first, so Checklist and Dependencies gave way, and `h` `j` `k` `l` belong
