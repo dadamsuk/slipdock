@@ -49,7 +49,12 @@ defmodule SlipdockWeb.AutomationsLiveTest do
                "Automations"
 
       assert has_element?(view, "#automations-modal", "describe what should happen")
-      assert has_element?(view, "#automations-modal", "No rules yet.")
+
+      assert has_element?(
+               view,
+               "#automations-modal #rules-empty[data-empty-state=compact] h3",
+               "No rules yet"
+             )
     end
 
     test "writes a rule from a sentence and shows what it will do", %{

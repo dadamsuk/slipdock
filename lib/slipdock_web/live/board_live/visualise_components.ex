@@ -340,9 +340,15 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
   def aging_section(assigns) do
     ~H"""
     <.section id="aging" title="Aging work in progress" note="In doing and ready lists">
-      <p :if={@aging == []} id="aging-empty" class="text-sm text-base-content/60">
-        Nothing in progress.
-      </p>
+      <.empty_state
+        :if={@aging == []}
+        id="aging-empty"
+        icon="hero-clock"
+        title="Nothing in progress"
+        compact
+      >
+        Cards in the doing and ready lists show here, oldest first.
+      </.empty_state>
       <ul :if={@aging != []} class="divide-y divide-base-content/5">
         <li
           :for={a <- @aging}
@@ -436,9 +442,15 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
       title="Work mix"
       note={"Tags on done cards, archived ones from the last #{@days} days"}
     >
-      <p :if={@mix.tags == []} id="mix-empty" class="text-sm text-base-content/60">
+      <.empty_state
+        :if={@mix.tags == []}
+        id="mix-empty"
+        icon="hero-tag"
+        title="No tags yet"
+        compact
+      >
         This board has no tags yet.
-      </p>
+      </.empty_state>
       <ul :if={@mix.tags != []} class="space-y-2">
         <li
           :for={t <- @mix.tags}
@@ -478,17 +490,33 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
 
     ~H"""
     <.section id="runners" title="Agentic runners" note={"Last #{@stats.days} days"}>
-      <p :if={@stats.runners == []} id="runners-empty" class="text-sm text-base-content/60">
-        No runners take work from this board. <.link
-          navigate={~p"/boards/#{@board}/automations"}
-          class="link"
-        >Set one up in Automations</.link>.
-      </p>
+      <.empty_state
+        :if={@stats.runners == []}
+        id="runners-empty"
+        icon="hero-cpu-chip"
+        title="No runners"
+        compact
+      >
+        No runners take work from this board.
+        <:action>
+          <.link navigate={~p"/boards/#{@board}/automations"} class="btn btn-sm">
+            Set one up in Automations
+          </.link>
+        </:action>
+      </.empty_state>
       <div :if={@stats.runners != []} class="flex flex-wrap items-start gap-4">
         <.runner_card :for={r <- @stats.runners} runner={r} />
         <div class="min-w-0 flex-[2_1_28rem]">
           <h3 class="mb-2 text-sm font-semibold">Recent jobs</h3>
-          <p :if={@jobs == []} id="jobs-empty" class="text-sm text-base-content/60">No jobs yet.</p>
+          <.empty_state
+            :if={@jobs == []}
+            id="jobs-empty"
+            icon="hero-queue-list"
+            title="No jobs yet"
+            compact
+          >
+            A runner's jobs show here once it takes a card.
+          </.empty_state>
           <div :if={@jobs != []} class="overflow-x-auto">
             <table id="recent-jobs" class="w-full min-w-[32rem] text-sm">
               <thead class="text-left text-2xs uppercase tracking-wide text-base-content/60">

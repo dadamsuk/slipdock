@@ -2,11 +2,11 @@
 // empty, show `empty_state/1` in the variant it should, with its heading
 // and the action it offers, and the action does what it says.
 //
-//   node tools/e2e/empty-state.mjs <login-url> <base-url> <board-id> <page-slug>
+//   node tools/e2e/empty-state.mjs <login-url> <base-url> <board-id> <page-slug> <empty-board-id>
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const { chromium } = require(require.resolve('playwright-core', { paths: (process.env.NODE_PATH||'').split(':') }))
-const [loginUrl, base, board, slug] = process.argv.slice(2)
+const [loginUrl, base, board, slug, bare] = process.argv.slice(2)
 const shots = process.env.SHOTS
 const before = process.env.BEFORE === '1'
 const fail = (w) => { throw new Error(w) }
@@ -29,6 +29,13 @@ const pages = [
   ['activity', `/boards/${board}/activity`, '#activity-empty', 'compact', 'Nothing has happened yet', null, '#activity-modal'],
   ['history', `/boards/${board}/wiki/${slug}/history`, '#history-empty', 'full', 'No versions yet', null, 'main'],
   ['signups', '/users/signups', '#signups-empty', 'compact', 'Nobody is waiting', null, 'main'],
+  ['wiki', `/boards/${bare}/wiki`, '#wiki-empty', 'full', 'No pages yet', 'Write the first one', 'main'],
+  ['templates', '/templates', '#templates-empty', 'full', 'No templates yet', null, 'main'],
+  ['rules', `/boards/${bare}/automations`, '#rules-empty', 'compact', 'No rules yet', null, '#automations-modal'],
+  ['aging', `/boards/${bare}/visualise`, '#aging-empty', 'compact', 'Nothing in progress', null, '#aging'],
+  ['mix', `/boards/${bare}/visualise`, '#mix-empty', 'compact', 'No tags yet', null, '#mix'],
+  ['runners', `/boards/${bare}/visualise`, '#runners-empty', 'compact', 'No runners', 'Set one up in Automations', '#runners'],
+  ['jobs', `/boards/${board}/visualise`, '#jobs-empty', 'compact', 'No jobs yet', null, '#runners'],
 ]
 const results = []
 for (const [name, path, sel, variant, heading, action, shot] of pages) {
@@ -67,6 +74,11 @@ if (!before) {
   await page.locator('#tokens-empty [data-role=empty-state-action] button').click()
   await page.locator('#new-token').waitFor()
   if (await page.locator('#tokens-empty').count()) fail('the tokens empty state stayed after Create token')
+  // Write the first one opens a new page.
+  await page.goto(`${base}/boards/${bare}/wiki`, { waitUntil: 'load' })
+  await page.waitForSelector('.phx-connected')
+  await page.locator('#wiki-empty [data-role=empty-state-action] a').click()
+  await page.waitForURL(`**/boards/${bare}/wiki/new`)
   results.push('actions')
 }
 console.log(before ? 'ok: before shots taken' : `ok: ${results.join(', ')}`)

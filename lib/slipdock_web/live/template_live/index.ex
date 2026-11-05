@@ -344,7 +344,14 @@ defmodule SlipdockWeb.TemplateLive.Index do
             </div>
           </form>
 
-          <p :if={@templates == []} class="text-sm text-base-content/60">No templates yet.</p>
+          <.empty_state
+            :if={@templates == []}
+            id="templates-empty"
+            icon="hero-rectangle-stack"
+            title="No templates yet"
+          >
+            A template is a named set of lists for new boards and sub-boards.
+          </.empty_state>
           <div class="grid gap-4 sm:grid-cols-2">
             <div
               :for={t <- @templates}

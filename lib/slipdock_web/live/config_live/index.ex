@@ -512,10 +512,9 @@ defmodule SlipdockWeb.ConfigLive.Index do
       viewport={@viewport}
       nav_active={:config}
     >
-      <:nav><span class="font-semibold">Configuration</span></:nav>
-
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-3xl space-y-6 p-6">
+        <.page width="narrow" class="space-y-6">
+          <.page_header title="Configuration" subtitle="How this server runs, for everyone on it." />
           <.build_banner />
 
           <div role="tablist" class="tabs tabs-box">
@@ -541,7 +540,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
           <.mail_tab :if={@tab == :mail} {assigns} />
           <.meetings_tab :if={@tab == :meetings} {assigns} />
           <.ai_tab :if={@tab == :ai} {assigns} />
-        </div>
+        </.page>
       </div>
     </Layouts.app>
     """
