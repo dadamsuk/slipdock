@@ -17,9 +17,32 @@ defmodule SlipdockWeb.WikiBigVaultTest do
     %{board: board_fixture(%{"name" => "Vault", "code" => "vault"}, owner: user)}
   end
 
-  # How many queries of the pages table `pid` makes while `fun` runs and
-  # `settle` ms after: what one reload of the tree costs, counted.
-  defp page_queries(pid, settle, fun), do: queries(pid, settle, fun, fn _ -> true end)
+  # How many queries of the pages table `pid` makes while `fun` runs, until
+  # the reload it books has run and `settle` ms after: what one reload of the
+  # tree costs, counted. A fixed wait alone let a slow CI runner's reload read
+  # on past it, into the next count (#1837).
+  defp page_queries(pid, settle, fun) do
+    queries(
+      pid,
+      settle,
+      fn ->
+        fun.()
+        reloaded(pid)
+      end,
+      fn _ -> true end
+    )
+  end
+
+  # Returns once no reload is booked. `:sys.get_state/1` is answered between
+  # messages, so by then the reload has run and its queries are counted.
+  defp reloaded(pid) do
+    if :sys.get_state(pid).socket.assigns[:reload_booked] do
+      Process.sleep(10)
+      reloaded(pid)
+    else
+      :ok
+    end
+  end
 
   # Only the tree's own query: the listing is the one that cuts bodies short.
   defp tree_loads(pid, settle, fun),
