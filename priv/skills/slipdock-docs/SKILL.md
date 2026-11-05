@@ -60,6 +60,16 @@ Operations), by section, and each decision as its own page in
 `Handbook/Decisions`. A page somewhere else is for what the handbook has no
 place for: a meeting, an investigation, a one-off report.
 
+A **rule** (something a change must or should keep to) goes in its page's
+`## Rules` section, once, as one list item, and the prose can cite it by
+id: `- **UX-4** must · test/app_web/design_tokens_test.exs · No colour
+literals in templates.` The parts: the id (the page's prefix and the next
+unused number, never reused), `must` or `should`, an optional `scope
+<globs>`, the check (the test that enforces it, or `judgement`), the rule.
+Tidying a page, rewrite its description freely but leave its rules alone;
+changing a rule is a card of its own. `slipdock handbook <board>` lists any
+item that doesn't parse.
+
 Two different questions, and answering the wrong one is what makes a wiki hard
 to read later.
 

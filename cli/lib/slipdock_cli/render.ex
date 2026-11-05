@@ -837,7 +837,27 @@ defmodule SlipdockCLI.Render do
         IO.puts(bold("Decisions"))
         Enum.each(decisions, &IO.puts("  #{&1["code"]} #{&1["title"]}"))
     end
+
+    handbook_rules(h["rules"])
   end
+
+  # How many rules the handbook has, and the items that don't parse (#1773).
+  defp handbook_rules(%{"count" => count} = r) do
+    problems = r["problems"] || []
+
+    IO.puts(
+      bold("Rules") <>
+        dim("  #{count} (#{r["must"] || 0} must)") <>
+        if(problems == [], do: "", else: dim(" · #{length(problems)} not read"))
+    )
+
+    Enum.each(problems, fn p ->
+      IO.puts("  " <> red("#{p["page"]} line #{p["line"]}: #{p["problem"]}"))
+      IO.puts("      " <> dim(p["item"]))
+    end)
+  end
+
+  defp handbook_rules(_), do: :ok
 
   def card(c) do
     IO.puts(

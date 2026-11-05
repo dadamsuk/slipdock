@@ -6470,7 +6470,23 @@ Architecture, UX & UI, Components, Data model, Shared modules, Testing &
 tooling and Operations, each with `handbook:`, `read_when:` and `covers:`
 front matter; and two cards: **Seed the handbook** (the procedure for
 drafting every page from the codebase) and **Reconcile the handbook**
-(weekly, waiting on the seed). Installing again adds only what is missing.
+(weekly, waiting on the seed). Installing again adds only what is missing:
+a section page without a `## Rules` section (as 1.0.0 made most of them)
+gets an empty one appended, and nothing else on it changes.
+
+**Rules** live in each section page's `## Rules`, one list item each, the
+parts separated by ` · `: `- **UX-4** must · test/app_web/design_tokens_test.exs ·
+No colour literals in templates.` The id is the page's prefix (`SPEC`,
+`ARCH`, `UX`, `COMP`, `DATA`, `MOD`, `TEST`, `OPS`) and a number, never
+reused. The severity is `must` (work that breaks it is rejected) or `should`
+(it is noted). An optional `scope lib/app/**` part, after the severity,
+narrows it; without one the page's `covers:` is its scope, and a page that
+covers nothing makes it apply everywhere. The check is a test path (several,
+separated by commas) or `judgement`. Indented lines continue an item, and
+`###` headings inside the section group rules. `slipdock handbook <board>`
+counts the rules (`rules` in `GET /api/boards/:board/handbook`: `count`,
+`must` and `problems`) and lists each item it couldn't read, with its page,
+line and why.
 
 On a handbook board a card's JSON (`get_card`, `GET /api/cards/:id`) has a
 `handbook` key: `board`, `index_page`, `index` (each page's code, title,

@@ -72,9 +72,15 @@ defmodule Slipdock.HandbookTest do
 
       assert {:ok, again} = Handbook.install(user, board)
       refute again.created
-      assert again.report.added["pages"] == []
+      # The edited page keeps its text and gets back only the Rules it lost (#1773).
+      assert again.report.added["pages"] == ["Architecture (Rules section added)"]
       assert length(handbook_pages(board)) == 9
-      assert Repo.get!(Page, arch.id).body =~ "Ours now."
+      body = Repo.get!(Page, arch.id).body
+      assert body =~ "Ours now."
+      assert body =~ "## Rules"
+
+      assert {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["pages"] == []
     end
 
     test "a sub-board's install goes on the root board, and a subcard finds it",
@@ -314,6 +320,88 @@ defmodule Slipdock.HandbookTest do
       reading = Handbook.for_board(board, user)
       assert length(reading.index) == 8
       assert Enum.map(reading.decisions, & &1.title) == ["Decision: soft gate"]
+    end
+  end
+
+  describe "rules (#1773)" do
+    test "a new handbook's section pages each start with an empty ## Rules",
+         %{user: user, board: board} do
+      {:ok, result} = Handbook.install(user, board)
+      assert result.version.version == "1.1.0"
+      [_index | sections] = handbook_pages(board)
+
+      for page <- sections do
+        assert {:ok, rules} = Wiki.Section.read(page.body, "#{page.title}/Rules"), page.title
+        prefix = Handbook.Rules.prefix(Handbook.key(page))
+        assert rules =~ "**#{prefix}-1** must", page.title
+        assert Handbook.Rules.parse_page(page) == {[], []}, page.title
+      end
+
+      # UX & UI had a Rules section of its own in 1.0.0: only one now.
+      ux = Enum.find(sections, &(&1.title == "UX & UI"))
+      assert length(Regex.scan(~r/^## Rules$/m, ux.body)) == 1
+
+      seed = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Seed the handbook")
+      assert seed.description =~ "`## Rules` section"
+      assert seed.description =~ "`judgement`"
+      assert Handbook.find(board).index.body =~ "## Rules"
+    end
+
+    test "installing over a 1.0.0 handbook adds Rules only where it is missing",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      pages = handbook_pages(board)
+      by_title = Map.new(pages, &{&1.title, &1})
+
+      # As 1.0.0 left them: no Rules on most pages, UX & UI with its own.
+      for page <- pages, page.title not in ["Index", "UX & UI"] do
+        {:ok, _} =
+          Wiki.update_page(page, %{"body" => "# #{page.title}\n\nWritten by us.\n"})
+      end
+
+      ux_body =
+        "# UX & UI\n\n## Rules\n\n- **UX-1** must · test/a_test.exs · Tokens only.\n"
+
+      {:ok, _} = Wiki.update_page(by_title["UX & UI"], %{"body" => ux_body})
+      index_body = Repo.get!(Page, by_title["Index"].id).body
+
+      {:ok, again} = Handbook.install(user, board)
+
+      assert Enum.sort(again.report.added["pages"]) ==
+               Enum.sort(
+                 for t <- Map.keys(by_title),
+                     t not in ["Index", "UX & UI"],
+                     do: t <> " (Rules section added)"
+               )
+
+      ops = Repo.get!(Page, by_title["Operations"].id)
+      assert ops.body =~ ~r/\A# Operations\n\nWritten by us.\n\n## Rules\n/
+      assert ops.body =~ "**OPS-1** must"
+      assert Repo.get!(Page, by_title["UX & UI"].id).body == ux_body
+      assert Repo.get!(Page, by_title["Index"].id).body == index_body
+
+      assert [%{id: "UX-1"}] = Handbook.Rules.rules(Handbook.find(board))
+    end
+
+    test "for_board counts the rules and lists what didn't parse",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      assert Handbook.for_board(board, user).rules == %{count: 0, must: 0, problems: []}
+
+      data = Enum.find(handbook_pages(board), &(&1.title == "Data model"))
+
+      {:ok, _} =
+        Wiki.update_page(data, %{
+          "body" =>
+            "# Data model\n\n## Rules\n\n- **DATA-1** must · judgement · Never cast.\n" <>
+              "- **DATA-2** should · judgement · Prefer soft deletes.\n" <>
+              "- **DATA-3** must · Appended to, never edited.\n"
+        })
+
+      assert %{count: 2, must: 1, problems: [problem]} = Handbook.for_board(board, user).rules
+      assert problem.page == data.code
+      assert problem.line == 7
+      assert problem.problem =~ "no check"
     end
   end
 

@@ -369,6 +369,18 @@ claude.ai connects from Anthropic's servers, not from your browser, so a
 connector only works with a server reachable from the internet over
 https. If you self-host behind an allowlist, let in `160.79.104.0/21`.
 
+## The handbook's rules
+
+On a board that keeps a handbook (`slipdock handbook <board>`), each
+section page lists its rules in a `## Rules` section, one item each:
+`- **UX-4** must · test/app_web/design_tokens_test.exs · No colour literals
+in templates.` That is an id (the page's prefix and a number), `must` or
+`should`, an optional `scope <globs>` (otherwise the page's `covers:`), the
+check (a test path, or `judgement`) and the rule. An agent building a card
+keeps to the rules that cover the files it touches, a reviewer cites them
+by id, and an agent tidying a page leaves them as they are.
+`slipdock handbook <board>` lists any item that doesn't read as a rule.
+
 ## Let the board send it work (runners)
 
 Everything above is an agent you start, that then reads the board. A

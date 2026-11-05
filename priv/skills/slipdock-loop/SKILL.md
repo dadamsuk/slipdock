@@ -276,6 +276,12 @@ touches. `slipdock handbook <board>` is the whole index, when the
 suggestions miss something the card plainly needs. No block means no
 handbook: carry on as below.
 
+Each section page also lists its **rules** under `## Rules`, one item each
+(`- **UX-4** must · <test path or judgement> · <the rule>`): keep to the
+ones whose scope covers the files you touch (`must` is rejected, `should`
+noted), and cite one by its id when you say why. A rule the card adds goes
+there, with the page's prefix and the next unused number.
+
 ## 4. Claim it, and say so
 
 The claim is the lock — do it before any work, so a concurrent pass or a

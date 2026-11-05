@@ -15,7 +15,8 @@ defmodule Slipdock.Handbook do
   else has to record it: a `Handbook` folder holding the Index, the page
   whose front matter says `handbook: index`. Every page in the folder can
   carry `handbook:`, `read_when:` (for an agent choosing what to read) and
-  `covers:` (paths whose changes should touch it).
+  `covers:` (paths whose changes should touch it), and keeps its rules in a
+  `## Rules` section (`Slipdock.Handbook.Rules`, #1773).
   """
 
   import Ecto.Query
@@ -29,7 +30,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.0.0"
+  @version "1.1.0"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -54,7 +55,7 @@ defmodule Slipdock.Handbook do
      "## Contexts\n\n_The main modules and what each owns._\n\n## Processes\n\n_What runs, and who supervises it._\n\n## Data flow\n\n_How a request or a job moves through the system._\n"},
     {"UX & UI", "ux", "Patterns, layout and interaction rules for the interface.",
      "building or changing a screen, a form, a menu or any UI interaction",
-     "## Patterns\n\n_Layouts and interactions the app uses everywhere._\n\n## Rules\n\n_What a new screen must do to fit in._\n"},
+     "## Patterns\n\n_Layouts and interactions the app uses everywhere._\n"},
     {"Components", "components", "Reusable UI pieces, and when to use each.",
      "adding UI that may already exist as a component, or making a reusable one",
      "## Components\n\n_One section per component: what it is for and how it is called._\n"},
@@ -79,6 +80,10 @@ defmodule Slipdock.Handbook do
   card needs before building, and update them before closing it (a
   `Handbook:` line in the closing comment). Pages added to this folder join
   the list by themselves.
+
+  Each section page keeps its rules in a `## Rules` section, one item each
+  (`- **UX-1** must · <test path or judgement> · <the rule>`), so a change
+  can be checked against them and a review can cite one by its id.
 
   ```slipdock
   pages: Handbook
@@ -116,7 +121,8 @@ defmodule Slipdock.Handbook do
      - set the front matter: `read_when:` (the kinds of card that should read it, in a line) and `covers:` (the path globs whose changes should touch it, like `[lib/app/accounts/**, priv/repo/migrations/**]`);
      - keep the page's summary to one line;
      - keep `covers:` narrow: the files whose change would make this page wrong, not whole trees. A glob like `lib/**` matches nearly every card and pushes better suggestions out;
-     - keep each `##` section short (under about 1,500 characters): suggestions point at sections, and a longer one is split in parts for search.
+     - keep each `##` section short (under about 1,500 characters): suggestions point at sections, and a longer one is split in parts for search;
+     - put the page's rules in its `## Rules` section, one list item each and nowhere else: `- **UX-1** must · test/app_web/tokens_test.exs · No colour literals in templates.` (id with the page's prefix, `must` or `should`, an optional `scope <globs>` part, then the check: the test that enforces it, or `judgement`). A rule with an obvious mechanical check and no test yet is `judgement`: list it in the closing comment as a candidate test. Prose elsewhere can cite a rule by its id. `slipdock handbook <board>` counts the rules and lists any item that doesn't parse, with its page and line.
 
      Write the body with `slipdock page edit <page> --file F --summary S --message "#<this card> seed"`, and the front matter with `slipdock page props <page> --file F` (the YAML alone: `handbook:`, `read_when:`, `covers:`). Drafting pages in parallel and reviewing each before writing works well.
   4. Write one page per decision you find in the existing design records, specs and comments, filed in `Handbook/Decisions`: title `Decision: <what was chosen>`, then context, the choice, the alternatives and why not, and a link to where it was decided.
@@ -136,6 +142,20 @@ defmodule Slipdock.Handbook do
   4. Append the range covered to the Index's `## Log`: `- <date>: <from>..<to>, updated <codes> (or nothing drifted)`.
   5. Close the card with a `Handbook:` line. The next one comes by itself next week.
   """
+
+  @doc """
+  The empty `## Rules` section a page with `handbook: key` starts with (see
+  `Slipdock.Handbook.Rules` for the format its items take).
+  """
+  def rules_skeleton(key) do
+    prefix = Slipdock.Handbook.Rules.prefix(key)
+
+    """
+    ## Rules
+
+    _One list item per rule: `- **#{prefix}-1** must · test/path/to_test.exs · What it says.` Severity `must` or `should`; the check is a test path or `judgement`; add `· scope lib/app/** ·` after the severity to narrow it from this page's `covers:`. Ids are never reused._
+    """
+  end
 
   def seed_title, do: @seed_title
   def reconcile_title, do: @reconcile_title
@@ -160,7 +180,7 @@ defmodule Slipdock.Handbook do
           "folder" => @folder,
           "summary" => summary,
           "front_matter" => "handbook: #{key}\nread_when: #{read_when}\ncovers: []",
-          "body" => "# #{title}\n\n#{summary}\n\n#{body}"
+          "body" => "# #{title}\n\n#{summary}\n\n#{body}\n#{rules_skeleton(key)}"
         }
       end
 
@@ -201,6 +221,7 @@ defmodule Slipdock.Handbook do
            ) do
         {:ok, report} ->
           if @reconcile_title in report.added["cards"], do: reconcile_after_seed(root)
+          report = add_rules_sections(root, user, report)
 
           {:ok,
            %{
@@ -216,6 +237,41 @@ defmodule Slipdock.Handbook do
           {:error, message}
       end
     end
+  end
+
+  # A handbook installed before rules (1.0.0) gets an empty `## Rules` on
+  # each section page that has none, appended so nothing written is touched;
+  # a page that has one already is left alone. Reported as "<title> (Rules
+  # section added)" among the pages.
+  defp add_rules_sections(root, user, report) do
+    case find(root) do
+      nil ->
+        report
+
+      handbook ->
+        keys = for {_title, key, _, _, _} <- @sections, into: MapSet.new(), do: key
+
+        added =
+          for page <- handbook.pages,
+              MapSet.member?(keys, key(page)),
+              not rules_section?(page),
+              {:ok, _} <-
+                [
+                  Wiki.append(page, rules_skeleton(key(page)),
+                    user: user,
+                    message: "Rules section added by the Handbook Tool, #{@version}"
+                  )
+                ],
+              do: page.title <> " (Rules section added)"
+
+        update_in(report, [:added, "pages"], &(&1 ++ added))
+    end
+  end
+
+  defp rules_section?(page) do
+    page.body
+    |> Wiki.Section.headings()
+    |> Enum.any?(&(&1.level == 2 and String.downcase(String.trim(&1.title)) == "rules"))
   end
 
   # The first reconcile waits for the seed: there is nothing to reconcile
@@ -343,11 +399,24 @@ defmodule Slipdock.Handbook do
         index_page: handbook.index.code,
         index: index,
         more: more,
-        decisions: Enum.map(decisions(handbook), &%{code: &1.code, title: &1.title})
+        decisions: Enum.map(decisions(handbook), &%{code: &1.code, title: &1.title}),
+        rules: rules_summary(handbook)
       }
     else
       _ -> nil
     end
+  end
+
+  # How many rules the handbook has, and what didn't parse (#1773): the
+  # writer of a rule finds out here that it isn't one.
+  defp rules_summary(handbook) do
+    {rules, problems} = Slipdock.Handbook.Rules.parse(handbook)
+
+    %{
+      count: length(rules),
+      must: Enum.count(rules, &(&1.severity == "must")),
+      problems: problems
+    }
   end
 
   defp readable?(nil, _board, _token), do: false
