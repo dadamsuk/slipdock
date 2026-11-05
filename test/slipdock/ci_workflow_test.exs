@@ -406,29 +406,24 @@ defmodule Slipdock.CiWorkflowTest do
                "test/support/partition_weights.tsv (test/support/test_partitions.exs)"
     end
 
-    test "sync and async files are balanced separately" do
-      weights = %{
-        "s1" => {true, 100},
-        "s2" => {true, 100},
-        "a1" => {false, 100},
-        "a2" => {false, 100}
-      }
+    test "an async file costs an eighth of its time, a sync file all of it" do
+      assert TestPartitions.cost({true, 800}) == 800
+      assert TestPartitions.cost({false, 800}) == 100
 
-      # Lumped together, the two sync files could share a partition; split
-      # separately, each partition gets one sync and one async file.
+      # One sync file of 800 ms is worth eight async ones of 800 ms.
+      weights =
+        Map.new(1..8, &{"a#{&1}", {false, 800}}) |> Map.put("s1", {true, 800})
+
       partitions = TestPartitions.split(Map.keys(weights), weights, 2)
-
-      for files <- partitions do
-        assert Enum.count(files, &String.starts_with?(&1, "s")) == 1
-        assert Enum.count(files, &String.starts_with?(&1, "a")) == 1
-      end
+      assert ["s1"] in partitions
+      assert TestPartitions.loads(partitions, weights) == [800, 800.0]
     end
 
-    test "the heaviest sync partition takes the lightest async share" do
-      weights = %{"s1" => {true, 300}, "a1" => {false, 300}, "a2" => {false, 100}}
-      [p1, p2] = TestPartitions.split(Map.keys(weights), weights, 2)
-      loads = TestPartitions.loads([p1, p2], weights)
-      assert Enum.sort(loads) == [300, 400]
+    test "the costliest files are spread out first" do
+      weights = %{"big" => {true, 300}, "a1" => {false, 1600}, "a2" => {false, 800}}
+      partitions = TestPartitions.split(Map.keys(weights), weights, 2)
+      assert ["big"] in partitions
+      assert Enum.sort(TestPartitions.loads(partitions, weights)) == [300, 300.0]
     end
 
     test "a new file goes where its path's hash says, and moves no other file" do

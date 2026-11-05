@@ -7,11 +7,12 @@ defmodule Slipdock.TestPartitions do
 
   The runtimes are in `test/support/partition_weights.tsv`, one line per file
   (`path<TAB>async|sync<TAB>milliseconds`), written by `Slipdock.TestTimings`
-  in CI and merged by `test/support/test_partitions.exs weights`. Sync files
-  and async files are balanced separately: ExUnit runs the async modules side
-  by side first and the sync ones one at a time after, so a millisecond of
-  each costs a partition differently, and balancing both evens the total
-  whatever the ratio. A file the weights don't know yet goes where a stable
+  in CI and merged by `test/support/test_partitions.exs weights`. A file
+  costs a partition its milliseconds if it is sync, but an eighth of them if
+  it is async: ExUnit runs the async modules side by side first (CI's
+  4-core runners run 8 at once, `max_cases`), then the sync ones one at a
+  time. Measured in CI, a partition's async phase took its async total over
+  7.7 to 8.2 (#1858). A file the weights don't know yet goes where a stable
   hash of its path puts it, so it never moves the others.
 
   This file is also loaded on its own by `test/support/test_partitions.exs`
@@ -80,6 +81,9 @@ defmodule Slipdock.TestPartitions do
     IO.iodata_to_binary([header | body])
   end
 
+  # How many async modules a CI partition runs at once (see the moduledoc).
+  @async_parallelism 8
+
   @doc """
   Splits `files` into `count` partitions, a list of `count` sorted lists.
   Every file lands in exactly one.
@@ -87,16 +91,12 @@ defmodule Slipdock.TestPartitions do
   @spec split([String.t()], %{String.t() => weight}, pos_integer) :: [[String.t()]]
   def split(files, weights, count) when is_integer(count) and count > 0 do
     {known, unknown} = Enum.split_with(files, &Map.has_key?(weights, &1))
-    {sync, async} = Enum.split_with(known, fn file -> elem(weights[file], 0) end)
-
-    # The partition with the most sync time takes the least async time.
-    sync_bins = sync |> pack(weights, count) |> Enum.sort_by(&(-elem(&1, 0)))
-    async_bins = async |> pack(weights, count) |> Enum.sort_by(&elem(&1, 0))
 
     bins =
-      Enum.zip_with(sync_bins, async_bins, fn {_, a}, {_, b} -> a ++ b end)
+      known
+      |> pack(weights, count)
       |> Enum.with_index()
-      |> Map.new(fn {files, index} -> {index, files} end)
+      |> Map.new(fn {{_, files}, index} -> {index, files} end)
 
     unknown
     |> Enum.reduce(bins, fn file, bins ->
@@ -106,26 +106,31 @@ defmodule Slipdock.TestPartitions do
     |> Enum.map(fn {_, files} -> Enum.sort(files) end)
   end
 
-  @doc "The total milliseconds the weights give each partition of a split."
+  @doc "What a file costs a partition, in milliseconds of its wall time."
+  @spec cost(weight) :: number
+  def cost({true, ms}), do: ms
+  def cost({false, ms}), do: ms / @async_parallelism
+
+  @doc "The cost the weights give each partition of a split (unknown files 0)."
   def loads(partitions, weights) do
     for files <- partitions do
-      files |> Enum.map(&elem(Map.get(weights, &1, {false, 0}), 1)) |> Enum.sum()
+      files |> Enum.map(&cost(Map.get(weights, &1, {false, 0}))) |> Enum.sum()
     end
   end
 
-  # Longest first into the lightest bin: within a few percent of the best
+  # Costliest first into the cheapest bin: within a few percent of the best
   # split for files this many and this small. Ties go by path, so the same
   # weights always give the same split.
   defp pack(files, weights, count) do
     empty = for _ <- 1..count, do: {0, []}
 
     files
-    |> Enum.sort_by(fn file -> {-elem(weights[file], 1), file} end)
+    |> Enum.sort_by(fn file -> {-cost(weights[file]), file} end)
     |> Enum.reduce(empty, fn file, bins ->
       {{load, members}, index} =
         bins |> Enum.with_index() |> Enum.min_by(fn {{load, _}, i} -> {load, i} end)
 
-      List.replace_at(bins, index, {load + elem(weights[file], 1), [file | members]})
+      List.replace_at(bins, index, {load + cost(weights[file]), [file | members]})
     end)
   end
 end
