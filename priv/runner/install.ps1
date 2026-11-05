@@ -152,9 +152,13 @@ if ($Agent -eq 'claude') {
 }
 
 $agentBin = ''
+# Claude only (#1812): print mode stops a run's background tasks 10 minutes
+# after its last turn, which killed a pass's subagents mid-build.
+$agentEnv = ''
 switch ($Agent) {
   'claude' {
     $agentBin = Agent-Path 'claude'
+    $agentEnv = "`n# Claude Code in print mode (-p) stops background tasks, such as the subagents`n# a pass hands its builds to, 10 minutes after the last turn. 0 waits for them.`n`$env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '0'`n"
     $allow = ''
     if ($allowedTools) { $allow = ' --allowedTools $AllowedTools' }
     $job = "function $fn {`n  `$where = `$WorkDir; if (`$env:SLIPDOCK_WORKTREE) { `$where = `$env:SLIPDOCK_WORKTREE }`n  Set-Location -LiteralPath `$where`n  & `$AgentBin -p (Protect-Arg `$env:SLIPDOCK_PROMPT) --permission-mode `$PermissionMode$allow`n  exit `$LASTEXITCODE`n}"
@@ -200,7 +204,7 @@ $configText = @"
 `$AllowedTools = $(Quote $allowedTools)
 `$AgentBin = $(Quote $agentBin)
 `$CustomCommand = $(Quote $Command)
-
+$agentEnv
 # Windows PowerShell before 7.3 passes an argument with a " in it to a
 # program wrongly; this escapes it the way the program will read it back.
 function Protect-Arg([string]`$s) {

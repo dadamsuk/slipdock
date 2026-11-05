@@ -333,6 +333,13 @@ to In Progress, comment `Build failed: …` as in step 7.4 — fix it, commit wi
 its id, push, and close it again the same way. The two-attempts rule and
 **Blocked** apply as they do in step 7.4.
 
+Subcards can be built side by side by subagents, one each. **Wait for every
+subagent you started before your turn ends.** In print mode (`claude -p`, as
+a runner runs it) the run ends when the turn does, and its subagents are
+stopped with their builds half done. Don't end the turn to be told they have
+finished: wait for them in it. When they are done, each subcard is finished
+and closed, or handed back (below) with a handoff saying where its build got to.
+
 The parent closes last, when its rollup shows every child done and the build
 of the last push is green (step 7.4: it waits for that build), with a comment
 summarising the set rather than repeating each child's write-up.
@@ -752,6 +759,9 @@ failure mode.
 - **Never leave a card in the doing list without a comment newer than the move.**
 - **Never stop short on a card without leaving its handoff**, and never close
   one with a stale handoff on it: what is left for the person, or blank.
+- **Never end a pass with a subcard you moved in left in progress with nothing
+  working on it.** Wait for the subagents you started; then finish each subcard
+  or hand it back with a handoff.
 - **Re-read the card before the push, and its comments after it.** Work is
   checked against the brief as it is now, not as it was at the claim.
 - **The board is the only state.** No scratch lists, no "I'll remember".

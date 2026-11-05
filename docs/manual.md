@@ -3250,6 +3250,18 @@ Claude Code loads a project's own commands, skills and `.claude/settings.json`
 only from where it starts, and the wizard warns while it is blank or still the
 default.
 
+**Subagents finish their builds.** In print mode Claude Code stops a run's
+background tasks 10 minutes after its last turn, and the run ends when the
+turn does. A pass that hands subcards to subagents and ends its turn to wait
+for them loses them mid-build: the job ends done, the subcards stay in
+progress with their work uncommitted. So a Claude runner's config exports
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` (`$env:` on Windows), which waits for
+them however long they take; Codex and custom agents don't get it. And the
+`slipdock-loop` skill has a pass wait for every subagent it started before its
+turn ends, and never end with a subcard it moved in left in progress with
+nothing working on it: it finishes the subcard or hands it back with a
+handoff.
+
 **Instructions and hooks.** The wizard also takes standing instructions — how
 much to write on the card (quiet, normal or verbose) and anything else you
 would otherwise add by hand — which are put after every job's prompt, and two

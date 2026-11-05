@@ -1034,7 +1034,7 @@ defmodule Slipdock.Runners.Setup do
     CUSTOM_COMMAND=#{sh_q(if(a["agent"] == "custom", do: a["command"], else: ""))}
     PATH='(your PATH when you install)'
     export PATH CUSTOM_COMMAND
-
+    #{agent_env(a)}
     #{fn_name}() {
       cd "${SLIPDOCK_WORKTREE:-$WORKDIR}" || exit 1
     #{agent_line(a)}
@@ -1105,6 +1105,19 @@ defmodule Slipdock.Runners.Setup do
     |> Enum.filter(&is_binary/1)
     |> Enum.join()
   end
+
+  # What install.sh adds for claude alone (#1812): print mode stops a run's
+  # background tasks 10 minutes after its last turn, which killed a pass's
+  # subagents mid-build.
+  @claude_env """
+
+  # Claude Code in print mode (-p) stops background tasks, such as the subagents
+  # a pass hands its builds to, 10 minutes after the last turn. 0 waits for them.
+  export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
+  """
+
+  defp agent_env(%{"agent" => "claude"}), do: @claude_env
+  defp agent_env(_), do: ""
 
   defp agent_bin_note(%{"agent" => "custom"}), do: ""
   defp agent_bin_note(%{"agent" => agent}), do: "(where #{agent} is on your PATH)"
