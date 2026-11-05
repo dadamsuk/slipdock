@@ -23,7 +23,8 @@ defmodule SlipdockWeb.API.HealthControllerTest do
       Repo.insert!(%Incident{
         board_id: board.id,
         card_id: card.id,
-        detector: "no_runner",
+        # No detector of that name, so a real run leaves it alone.
+        detector: "probe",
         fingerprint: "a1",
         summary: "Nobody takes job #3",
         status: "flagged",
