@@ -2260,6 +2260,14 @@ defmodule SlipdockWeb.APIGuide do
     `cli` current, old, none or unknown. A drifted runner raises one
     alert, cleared once it is current. The server only reports: installed
     skills are edited by hand, never copied over.
+
+    **The server keeps an epic's record.** As each subcard starts, is
+    submitted, rejected, accepted, merged, fails a build, waits on a person
+    or ships, the server posts a line on the epic with its done count (lines
+    within seconds share a comment), and the epic's % complete follows its
+    subcards unless a person set it by hand. Don't repeat those: comment on
+    the epic what only you know, your decisions, surprises, dead ends and
+    changes of plan.
     """
   end
 

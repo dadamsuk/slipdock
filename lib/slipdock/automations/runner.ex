@@ -309,6 +309,8 @@ defmodule Slipdock.Automations.Runner do
   # A question goes in a wait (#1115): the job parks, and the answer starts a
   # fresh one. Steps (#1853) are what show the job alive: the health monitor
   # reads them, and an epic's pass otherwise writes only on its subcards.
+  # The epic's progress lines are the server's (#1881): the agent adds what
+  # only it knows.
   @unattended "You are running unattended: nobody will answer questions while you work. " <>
                 "Choose any inputs from the card, say what you chose in a comment, and carry " <>
                 "on. If you need something only a person can give, open a wait (`slipdock " <>
@@ -318,6 +320,9 @@ defmodule Slipdock.Automations.Runner do
                 "Report each milestone as the job's step (`slipdock job-progress --step " <>
                 "\"…\"`, or job_progress `step`): on an epic, each subcard as it starts, is " <>
                 "submitted and merges. A job that shows no progress for long is flagged stuck. " <>
+                "On an epic the server posts each subcard's progress on the epic for you; " <>
+                "comment there what only you know: decisions, surprises, dead ends and " <>
+                "changes of plan. " <>
                 "Whenever you stop with the card unfinished, leave a handoff first " <>
                 "(leave_handoff, or slipdock handoff <id> --next): the one next step and a " <>
                 "short note, so whoever picks the card up next reads that before anything else."

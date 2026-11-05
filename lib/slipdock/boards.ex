@@ -1963,7 +1963,13 @@ defmodule Slipdock.Boards do
     attrs = Slipdock.TimeTracking.normalize_attrs(card, attrs)
     # Who was on it, read only when this write changes that.
     before = if assignees, do: assignee_ids(card), else: []
-    changeset = card |> Card.changeset(attrs) |> Ecto.Changeset.change(verify_changes)
+
+    changeset =
+      card
+      |> Card.changeset(attrs)
+      |> Ecto.Changeset.change(verify_changes)
+      |> percent_by_hand(opts)
+
     titled? = Map.has_key?(changeset.changes, :title)
     named? = titled? or Map.has_key?(changeset.changes, :short_name)
     save = fn -> save_with_assignees(changeset, &Repo.update/1, assignees) end
@@ -2010,9 +2016,34 @@ defmodule Slipdock.Boards do
       if assignees && Enum.any?(assignees, &(&1 not in before)),
         do: Slipdock.Snooze.activity(updated, opts[:by], :assigned)
 
+      # The epic's comments and % complete (#1881).
+      Slipdock.EpicLog.saved(card, updated)
+
       automate_card_changes(card, updated, changeset, {before, assignees || before})
       wait_hooks(card, updated, changeset, opts)
     end)
+  end
+
+  # A % complete a person states is theirs (#1881): an epic's then stops
+  # following its subcards, until they clear it. An agent's or a rule's
+  # leaves it following them.
+  defp percent_by_hand(changeset, opts) do
+    actor =
+      case Slipdock.Actor.resolve(opts) do
+        %{kind: nil} -> Slipdock.Actor.current()
+        actor -> actor
+      end
+
+    case Ecto.Changeset.fetch_change(changeset, :percent_complete) do
+      {:ok, nil} ->
+        Ecto.Changeset.put_change(changeset, :percent_by_hand, false)
+
+      {:ok, _percent} when actor.kind == "human" ->
+        Ecto.Changeset.put_change(changeset, :percent_by_hand, true)
+
+      _ ->
+        changeset
+    end
   end
 
   @doc """
@@ -2491,6 +2522,7 @@ defmodule Slipdock.Boards do
       Slipdock.Verified.moved(Repo.get!(Card, card.id), to_column)
       follow_stand_ins(card, from_column, to_column)
       moved(card, from_column, to_column, actor)
+      Slipdock.EpicLog.moved(Repo.get!(Card, card.id), from_column, to_column, actor)
 
       automate(%{
         type: "card_moved",
@@ -2875,8 +2907,13 @@ defmodule Slipdock.Boards do
       job_id: known_job(actor[:job_id])
     })
 
+    recount_epic(kind, card)
     :ok
   end
+
+  # A subcard added, archived or restored changes its epic's count (#1881).
+  defp recount_epic("moved", _card), do: :ok
+  defp recount_epic(_kind, card), do: Slipdock.EpicLog.recount(card)
 
   # A job id can come from a request header, so it is only kept when it
   # names a job, rather than failing the move on the foreign key.
@@ -3874,6 +3911,7 @@ defmodule Slipdock.Boards do
 
       log(Repo, card.board_id, card.id, "wait", "waits on #{Wait.on_name(wait)}: #{wait.needs}")
       {:ok, _} = add_comment(card, opened_text(wait), by: user)
+      Slipdock.EpicLog.wait_opened(card, wait)
       Slipdock.Boards.WaitEmail.opened(wait, card)
       broadcast(card.board_id)
       {:ok, wait}
@@ -4017,6 +4055,7 @@ defmodule Slipdock.Boards do
                ) do
           card = Repo.get!(Card, wait.card_id)
           {:ok, _} = add_comment(card, answered_text(closed), by: actor_user(actor))
+          Slipdock.EpicLog.wait_closed(card, "answered", actor)
           Slipdock.Runners.Requeue.after_answer(closed)
           Slipdock.Verified.wait_closed(closed, actor)
           {:ok, Wait |> Repo.get!(closed.id) |> Repo.preload(wait_preloads())}
@@ -4041,6 +4080,7 @@ defmodule Slipdock.Boards do
               by: actor_user(actor)
             )
 
+          Slipdock.EpicLog.wait_closed(card, "skipped", actor)
           Slipdock.Runners.Requeue.after_answer(closed)
           Slipdock.Verified.wait_closed(closed, actor)
           {:ok, Wait |> Repo.get!(closed.id) |> Repo.preload(wait_preloads())}
@@ -4598,11 +4638,14 @@ defmodule Slipdock.Boards do
 
     %Comment{}
     |> struct!(owned_by(owner))
-    |> struct!(user_id: author && author.id, user: author)
+    |> struct!(user_id: author && author.id, user: author, kind: opts[:kind])
     |> Comment.changeset(%{"body" => body})
     |> Repo.insert()
     |> tap_ok(fn comment ->
-      log_owned(owner, "comment", "commented on “#{owner.title}”")
+      # The server's epic lines (#1881) restate events the log already has.
+      unless opts[:kind] == Slipdock.EpicLog.kind(),
+        do: log_owned(owner, "comment", "commented on “#{owner.title}”")
+
       # A comment is writing too: "see [[Retry policy]]" belongs in that
       # page's backlinks (see `Slipdock.Wiki.Links`).
       Slipdock.Wiki.Links.reconcile_comment(comment)
@@ -4614,6 +4657,8 @@ defmodule Slipdock.Boards do
         # A closing comment's `Findings:` block is kept (W-2310 §Findings).
         Slipdock.Findings.from_comment(comment, by: author)
         automate(%{type: "comment_added", card: owner, comment: comment.body})
+        # A red build reported on a subcard is a line on its epic (#1881).
+        Slipdock.EpicLog.commented(owner, comment.body, comment.kind)
       end
     end)
   end

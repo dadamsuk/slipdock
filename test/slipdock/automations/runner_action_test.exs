@@ -98,6 +98,11 @@ defmodule Slipdock.Automations.RunnerActionTest do
       assert Runner.unattended() =~
                "on an epic, each subcard as it starts, is submitted and merges"
 
+      # The epic's progress lines are the server's; the agent adds what only it knows (#1881).
+      assert Runner.unattended() =~ "the server posts each subcard's progress on the epic"
+      assert Runner.unattended() =~ "decisions, surprises, dead ends and changes of plan"
+      refute Runner.unattended() =~ ~r/comment on the epic as (each )?subcards? close/
+
       # Right for a session that claimed the job too: it says nothing of who finishes it.
       refute Runner.unattended() =~ ~r/finish(_job| the job|-job)/
     end
