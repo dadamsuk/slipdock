@@ -1137,6 +1137,62 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   defp edge_colour(_card, nil, same), do: if(same == :mixed, do: :mixed, else: same)
   defp edge_colour(card, field, _same), do: Map.get(card, field)
 
+  attr :name, :string, required: true, doc: "`data-prop`, for tests and the e2e script"
+  attr :label, :string, required: true
+  attr :for, :string, default: nil, doc: "the id of the value's own input, if it has one"
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  # One property on the card back (#1726): the label on the left, the value
+  # on the right.
+  defp prop_row(assigns) do
+    ~H"""
+    <div
+      data-prop={@name}
+      class="grid min-h-8 grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-x-2"
+      {@rest}
+    >
+      <label
+        :if={@for}
+        for={@for}
+        data-role="prop-label"
+        class="truncate text-xs text-base-content/60"
+      >
+        {@label}
+      </label>
+      <span :if={!@for} data-role="prop-label" class="truncate text-xs text-base-content/60">
+        {@label}
+      </span>
+      <div data-role="prop-value" class="min-w-0 text-sm">{render_slot(@inner_block)}</div>
+    </div>
+    """
+  end
+
+  attr :card, Card, required: true
+
+  defp precision_row(assigns) do
+    ~H"""
+    <.prop_row name="precision" label="Precision" for="card-precision">
+      <select name="card[date_precision]" class="select field-bare w-full" id="card-precision">
+        <option
+          :for={{key, label} <- Dates.precisions()}
+          value={key}
+          selected={key == (@card.date_precision || "day")}
+        >
+          {label}
+        </option>
+      </select>
+    </.prop_row>
+    <p :if={Card.fuzzy?(@card) and @card.due_date} class="pl-24 text-xs text-base-content/60">
+      Scheduled for {Dates.range_label(
+        @card.start_date || @card.due_date,
+        @card.due_date,
+        @card.date_precision
+      )}
+    </p>
+    """
+  end
+
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :can_comment, :boolean, default: false, doc: "may report a status and vote (#863)"
@@ -1148,7 +1204,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :users, :list, required: true
   attr :repeat, :map, default: nil, doc: "the Repeat… form while it is open (W-1802)"
 
-  @doc "The panel's sidebar: list, assignees, priority, dates, health, time, fields, votes, cover and the card's actions."
+  @doc "The panel's sidebar: the properties (assignees, priority, dates, health), time, fields, votes, cover, borders, repeat and snooze."
   def card_sidebar(assigns) do
     ~H"""
     <aside class="min-w-0 space-y-5 rounded-b-2xl bg-base-200/60 p-5 md:rounded-bl-none">
@@ -1162,158 +1218,186 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           phx-change="card_change"
           class="space-y-4"
         >
-          <label class="block space-y-1">
-            <span class="section-label">List</span>
-            <select name="card[column_id]" class="select field w-full">
-              <option
-                :for={{name, id} <- column_options(@board)}
-                value={id}
-                selected={id == @card.column_id}
-              >
-                {name}
-              </option>
-            </select>
-          </label>
-          <div class="space-y-1" id="card-assignees">
-            <span class="section-label">
-              Assignees
-            </span>
-            <ul :if={Card.assignees(@card) != []} class="flex flex-wrap gap-1">
-              <li
-                :for={u <- Card.assignees(@card)}
-                id={"card-assignee-#{u.id}"}
-                class="inline-flex items-center gap-1 rounded-full bg-base-200 py-0.5 pr-1 pl-0.5"
-              >
-                <.assignee_chip user={u} size="xs" with_name />
-                <button
-                  phx-target={@target}
-                  type="button"
-                  phx-click="remove_assignee"
-                  phx-value-id={u.id}
-                  class="rounded-full p-0.5 text-base-content/50 transition hover:bg-base-300 hover:text-base-content"
-                  title={"Unassign #{Slipdock.Accounts.User.display_name(u)}"}
+          <%!-- Properties (#1726): the label on the left, the value on the
+                right, bare until it is pointed at or focused. The list and
+                Completed are not here: the meta line and the title's check
+                are where those are changed. --%>
+          <div id="card-props" class="space-y-0.5">
+            <.prop_row name="assignees" label="Assignees" id="card-assignees">
+              <div class="flex min-w-0 flex-wrap items-center gap-1">
+                <span
+                  :for={u <- Card.assignees(@card)}
+                  id={"card-assignee-#{u.id}"}
+                  class="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-base-200 py-0.5 pr-1 pl-0.5 [&>span:first-child]:min-w-0"
                 >
-                  <.icon name="hero-x-mark" class="size-3" />
-                </button>
-              </li>
-            </ul>
-            <%!-- Keyed on who is already on the card, so the picker comes back
-               empty after each pick instead of re-sending the last one. --%>
-            <select
-              name="card[add_assignee_id]"
-              class="select field w-full"
-              id={"card-assignee-add-" <> Enum.map_join(Card.assignees(@card), "-", & &1.id)}
+                  <.assignee_chip user={u} size="xs" with_name />
+                  <button
+                    phx-target={@target}
+                    type="button"
+                    phx-click="remove_assignee"
+                    phx-value-id={u.id}
+                    class="rounded-full p-0.5 text-base-content/50 transition hover:bg-base-300 hover:text-base-content"
+                    title={"Unassign #{Slipdock.Accounts.User.display_name(u)}"}
+                  >
+                    <.icon name="hero-x-mark" class="size-3" />
+                  </button>
+                </span>
+                <%!-- Keyed on who is already on the card, so the picker comes
+                      back empty after each pick instead of re-sending the
+                      last one. --%>
+                <select
+                  name="card[add_assignee_id]"
+                  class="select field-bare w-full min-w-0 flex-1 text-base-content/70"
+                  aria-label="Add an assignee"
+                  id={"card-assignee-add-" <> Enum.map_join(Card.assignees(@card), "-", & &1.id)}
+                >
+                  <option value="" selected>
+                    {if Card.assignees(@card) == [], do: "Unassigned", else: "Add…"}
+                  </option>
+                  <option
+                    :for={u <- @users}
+                    :if={not Card.assigned_to?(@card, u.id)}
+                    value={u.id}
+                  >
+                    {Slipdock.Accounts.User.display_name(u)}
+                  </option>
+                </select>
+              </div>
+            </.prop_row>
+            <.prop_row name="priority" label="Priority" for="card-priority">
+              <select
+                name="card[priority]"
+                id="card-priority"
+                class="select field-bare w-full"
+              >
+                <option
+                  :for={{label, value} <- priority_options()}
+                  value={value}
+                  selected={value == @card.priority}
+                >
+                  {label}
+                </option>
+              </select>
+            </.prop_row>
+            <%!-- A simple board is a to-do list: % complete, Start, Precision
+                  and Health are project tracking, and stay out of its way
+                  (`Board.simple?/1`). --%>
+            <.prop_row
+              :if={not @board.simple}
+              name="percent"
+              label="% complete"
+              for="card-percent-complete"
             >
-              <option value="" selected>
-                {if Card.assignees(@card) == [],
-                  do: "Unassigned — add…",
-                  else: "Add someone…"}
-              </option>
-              <option
-                :for={u <- @users}
-                :if={not Card.assigned_to?(@card, u.id)}
-                value={u.id}
-              >
-                {Slipdock.Accounts.User.display_name(u)}
-              </option>
-            </select>
-          </div>
-          <label class="block space-y-1">
-            <span class="section-label">Priority</span>
-            <select name="card[priority]" class="select field w-full">
-              <option
-                :for={{label, value} <- priority_options()}
-                value={value}
-                selected={value == @card.priority}
-              >
-                {label}
-              </option>
-            </select>
-          </label>
-          <%!-- A simple board is a to-do list: what follows down to Health,
-              bar the due date and Completed, is project tracking, and
-              stays out of its way (`Board.simple?/1`). --%>
-          <label :if={not @board.simple} class="block space-y-1">
-            <span class="section-label">% complete</span>
-            <div class="flex items-center gap-2">
-              <input
-                type="number"
-                name="card[percent_complete]"
-                id="card-percent-complete"
-                value={@card.percent_complete}
-                min="0"
-                max="100"
-                step="5"
-                placeholder="—"
-                phx-debounce="400"
-                class="input field w-20"
-              />
-              <progress
-                :if={@card.percent_complete}
-                class={[
-                  "progress h-1.5 flex-1",
-                  if(@card.percent_complete == 100,
-                    do: "progress-success",
-                    else: "progress-primary"
-                  )
-                ]}
-                value={@card.percent_complete}
-                max="100"
-              ></progress>
-            </div>
+              <div class="flex items-center gap-2">
+                <input
+                  type="number"
+                  name="card[percent_complete]"
+                  id="card-percent-complete"
+                  value={@card.percent_complete}
+                  min="0"
+                  max="100"
+                  step="5"
+                  placeholder="—"
+                  phx-debounce="400"
+                  class="input field-bare w-16"
+                />
+                <progress
+                  :if={@card.percent_complete}
+                  class={[
+                    "progress h-1.5 min-w-0 flex-1",
+                    if(@card.percent_complete == 100,
+                      do: "progress-success",
+                      else: "progress-primary"
+                    )
+                  ]}
+                  value={@card.percent_complete}
+                  max="100"
+                ></progress>
+              </div>
+            </.prop_row>
             <p :if={@form[:percent_complete].errors != []} class="text-xs text-error">
               Use a whole number from 0 to 100.
             </p>
-          </label>
-          <label :if={not @board.simple} class="block space-y-1">
-            <span class="section-label">Start date</span>
-            <.date_field
-              id={"card-start-date-#{@card.id}"}
-              name="card[start_date]"
-              value={@card.start_date}
-              max={@card.due_date}
-              class="w-full"
-              aria-label="Start date"
-            />
-          </label>
-          <label class="block space-y-1">
-            <span class="section-label">Due date</span>
-            <.date_field
-              id={"card-due-date-#{@card.id}"}
-              name="card[due_date]"
-              value={@card.due_date}
-              min={@card.start_date}
-              class="w-full"
-              aria-label="Due date"
-            />
-            <.due_badge date={@card.due_date} completed={@card.completed} />
+            <.prop_row :if={not @board.simple} name="start" label="Start">
+              <.date_field
+                id={"card-start-date-#{@card.id}"}
+                name="card[start_date]"
+                value={@card.start_date}
+                max={@card.due_date}
+                bare
+                class="w-full"
+                aria-label="Start date"
+              />
+            </.prop_row>
+            <.prop_row name="due" label="Due">
+              <div class="flex min-w-0 flex-wrap items-center gap-1">
+                <.date_field
+                  id={"card-due-date-#{@card.id}"}
+                  name="card[due_date]"
+                  value={@card.due_date}
+                  min={@card.start_date}
+                  bare
+                  class="min-w-0 flex-1"
+                  aria-label="Due date"
+                />
+                <%!-- The date is in the field: the badge only when it says
+                      more (overdue, due soon, done). --%>
+                <.due_badge
+                  :if={due_state(@card.due_date, @card.completed) not in [nil, :later]}
+                  date={@card.due_date}
+                  completed={@card.completed}
+                />
+              </div>
+            </.prop_row>
             <p :if={@form[:start_date].errors != []} class="text-xs text-error">
               Start must be on or before the due date.
             </p>
-          </label>
-          <label :if={not @board.simple} class="block space-y-1">
-            <span class="section-label">Precision</span>
-            <select
-              name="card[date_precision]"
-              class="select field w-full"
-              id="card-precision"
-            >
-              <option
-                :for={{key, label} <- Dates.precisions()}
-                value={key}
-                selected={key == (@card.date_precision || "day")}
+            <%!-- Precision matters only once it isn't "day": until then it is
+                  under More (a toggle the client keeps across patches). --%>
+            <.precision_row
+              :if={not @board.simple and (@card.date_precision || "day") != "day"}
+              card={@card}
+            />
+            <.prop_row :if={not @board.simple} name="health" label="Health" id="card-status">
+              <div
+                class="flex flex-wrap items-center gap-1.5"
+                aria-describedby="card-health-about"
               >
-                {label}
-              </option>
-            </select>
-            <p :if={Card.fuzzy?(@card) and @card.due_date} class="text-xs text-base-content/60">
-              Scheduled for {Dates.range_label(
-                @card.start_date || @card.due_date,
-                @card.due_date,
-                @card.date_precision
-              )}
-            </p>
-          </label>
+                <.health_pill health={Card.health(@card)} />
+                <.stated_pill
+                  :if={Card.stated_health(@card)}
+                  health={Card.stated_health(@card)}
+                  title="Last reported on the card"
+                />
+                <span
+                  id="card-health-about"
+                  class="inline-flex text-base-content/50"
+                  title={health_about(Card.stated_health(@card))}
+                >
+                  <.icon name="hero-information-circle" class="size-4" />
+                  <span class="sr-only">{health_about(Card.stated_health(@card))}</span>
+                </span>
+              </div>
+            </.prop_row>
+            <div :if={not @board.simple and (@card.date_precision || "day") == "day"}>
+              <button
+                type="button"
+                id="card-props-more-toggle"
+                aria-expanded="false"
+                aria-controls="card-props-more"
+                phx-click={
+                  JS.toggle_attribute({"hidden", "hidden"}, to: "#card-props-more")
+                  |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+                }
+                class="btn btn-ghost btn-xs gap-1 px-1 font-normal text-base-content/60"
+              >
+                More <.icon name="hero-chevron-down" class="size-3" />
+              </button>
+              <div id="card-props-more" hidden>
+                <.precision_row card={@card} />
+              </div>
+            </div>
+          </div>
           <div
             :if={
               (not @board.simple and @card.rollup) && @card.rollup.children > 0 &&
@@ -1356,39 +1440,6 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             <.icon name="hero-exclamation-triangle" class="size-3.5" />
             This card is {past_date_label(:due, Card.days_past_due(@card))}
           </p>
-          <label class="flex cursor-pointer items-center justify-between">
-            <span class="section-label">Completed</span>
-            <input type="hidden" name="card[completed]" value="false" />
-            <input
-              type="checkbox"
-              name="card[completed]"
-              value="true"
-              class="toggle"
-              checked={@card.completed}
-            />
-          </label>
-          <div :if={not @board.simple} class="space-y-1.5" id="card-status">
-            <span class="section-label">Health</span>
-            <div
-              class="flex flex-wrap items-center gap-1.5"
-              aria-describedby="card-health-about"
-            >
-              <.health_pill health={Card.health(@card)} />
-              <.stated_pill
-                :if={Card.stated_health(@card)}
-                health={Card.stated_health(@card)}
-                title="Last reported on the card"
-              />
-              <span
-                id="card-health-about"
-                class="inline-flex text-base-content/50"
-                title={health_about(Card.stated_health(@card))}
-              >
-                <.icon name="hero-information-circle" class="size-4" />
-                <span class="sr-only">{health_about(Card.stated_health(@card))}</span>
-              </span>
-            </div>
-          </div>
         </.form>
         <.time_section
           :if={not @board.simple}
