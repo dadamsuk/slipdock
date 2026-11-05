@@ -709,6 +709,41 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
 }
 @media (min-width: 40rem) { .tools, .tools.tools-open { display: contents; } }
 
+/* The view's own controls in a board view's toolbar (`view_toolbar/1`,
+   #1711). Part of the row while the row has room; when it hasn't, the
+   ToolbarFold hook sets `data-folded` on the toolbar and they fold into the
+   View options popover rather than wrapping onto a second row. Like `.tools`
+   they are only drawn differently, never taken out: the form still posts
+   them. On a phone the Options drawer above takes care of them instead. */
+.view-options, .view-own { display: contents; }
+.view-options-toggle { display: none; }
+@media (min-width: 40rem) {
+  .view-toolbar[data-folded] .view-options { display: flex; position: relative; }
+  .view-toolbar[data-folded] .view-options-toggle { display: inline-flex; }
+  .view-toolbar[data-folded] .view-own { display: none; }
+  .view-toolbar[data-folded][data-options-open] .view-own {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    z-index: 30;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+    padding: 0.75rem;
+    border-radius: 1rem;
+    background: var(--color-base-100);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    outline: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+  }
+  /* Near the right edge it opens towards the left (the hook decides). */
+  .view-toolbar[data-folded][data-options-open][data-options-end] .view-own { left: auto; right: 0; }
+  /* The separators between groups mean nothing in a column. */
+  .view-toolbar[data-folded][data-options-open] .view-own > span:empty { display: none; }
+}
+
 /* A toolbar's search box (`search_box/1`). On a phone it is a magnifying
    glass until tapped, or until there is a query in it; from `sm` up it is
    always there and the glass is gone. */
