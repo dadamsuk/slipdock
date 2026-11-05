@@ -376,8 +376,9 @@ other routes now do the same job at any size:
 - The **→** button on a card (hover on a desktop, always there on a touch
   screen) opens a **Move to** menu of the board's lists. It is a native
   popover, drawn above the list's own scrollbox rather than clipped by it.
-- The card's own **in list** line, directly under its title in the card
-  modal, is a list picker. The sidebar keeps its copy of the same field.
+- The line directly under the card's title in the card modal
+  (*Board › List · #id*) has the list as a picker. It is the only one: the
+  sidebar holds the card's other properties.
 
 ### Moving a card to another board
 
@@ -1646,7 +1647,8 @@ date has drifted outside it.
 **Date precision.** A card's dates can be *day* (exact), *week*, *month*,
 *quarter*, *half-year* or *year*. At anything but day the dates snap to
 whole buckets (a quarter card runs 1 Jan – 31 Mar), the timeline draws a
-soft-edged bar, and dragging moves it by whole buckets.
+soft-edged bar, and dragging moves it by whole buckets. On the card it is under
+**More** in the sidebar while it is *day*, and its own row once it isn't.
 
 **Milestones** are named dates on the root board (board settings), drawn
 as a dashed line with a diamond on the timeline and as a chip on the
