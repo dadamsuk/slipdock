@@ -201,7 +201,7 @@ defmodule SlipdockWeb.OutlineComponents do
             class="size-3"
           />
           <.priority_badge
-            :if={MapSet.member?(@show, "priority")}
+            :if={MapSet.member?(@show, "priority") and priority_on_face?(node.card.priority)}
             priority={node.card.priority}
           />
           <.assignee_chips

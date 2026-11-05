@@ -381,15 +381,18 @@ defmodule SlipdockWeb.TableComponents do
     >
       <input type="hidden" name="card_id" value={SlipdockWeb.SlipdockComponents.item_id(@card)} />
       <input type="hidden" name="field" value="priority" />
-      <select name="value" class="select field-bare w-32">
-        <option
-          :for={{label, value} <- priority_options()}
-          value={value}
-          selected={value == @card.priority}
-        >
-          {label}
-        </option>
-      </select>
+      <div class="flex items-center gap-1">
+        <.priority_badge priority={@card.priority} />
+        <select name="value" class="select field-bare w-28" aria-label="Priority">
+          <option
+            :for={{label, value} <- priority_options()}
+            value={value}
+            selected={value == @card.priority}
+          >
+            {label}
+          </option>
+        </select>
+      </div>
     </form>
     """
   end
