@@ -38,12 +38,17 @@ defmodule SlipdockWeb.TimelineComponents do
         compact?: assigns.config.density == "compact",
         style:
           "--tl-day: #{window.px}px; --tl-track: repeat(#{window.days}, var(--tl-day)); " <>
-            "--tl-cols: 16rem var(--tl-track);"
+            "--tl-cols: var(--tl-label-width, 16rem) var(--tl-track);"
       )
 
     ~H"""
     <div class="flex h-full flex-col">
-      <div id="timeline-scroll" class="kanban-scroll min-h-0 flex-1 overflow-auto">
+      <%!-- Sized to its rows (up to the height there is), so the Unscheduled
+      tray follows the last row instead of sitting at the window's foot. --%>
+      <div
+        id="timeline-scroll"
+        class={["kanban-scroll min-h-0 overflow-auto", if(@grid?, do: "shrink", else: "flex-1")]}
+      >
         <div
           :if={!@grid?}
           class="flex h-full flex-col items-center justify-center gap-2 p-8 text-center text-base-content/60"
@@ -107,6 +112,19 @@ defmodule SlipdockWeb.TimelineComponents do
               <span :if={@timeline.earlier > 0}>◀ {@timeline.earlier} earlier</span>
               <span class="flex-1"></span>
               <span :if={@timeline.later > 0}>{@timeline.later} later ▶</span>
+              <%!-- The title column's width: a reader's preference for this
+              browser, kept on <html> by assets/js/timeline_labels.js. --%>
+              <div
+                id="tl-resize"
+                class="tl-resize"
+                phx-hook="TimelineLabelResize"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Title column width"
+                tabindex="0"
+                title="Drag to widen the titles · double-click to reset"
+              >
+              </div>
             </div>
             <div
               :for={cell <- @window.units}
@@ -477,11 +495,12 @@ defmodule SlipdockWeb.TimelineComponents do
           foreign -> JS.navigate(~p"/boards/#{bar.card.board_id}/timeline/cards/#{bar.card.id}")
           true -> JS.push("open_card", value: %{id: bar.card.id})
         end %>
+      <% place = label_place(bar, @window) %>
       <div
         id={"tl-#{@group_key}-#{SlipdockWeb.SlipdockComponents.item_id(bar.card)}"}
         class={[
           "tl-row tl-card-row group/row",
-          (bar.card.completed or Slipdock.Boards.Card.snoozed?(bar.card)) && "opacity-70"
+          (bar.card.completed or Slipdock.Boards.Card.snoozed?(bar.card)) && "tl-row-dim"
         ]}
         data-level={bar.level}
       >
@@ -570,6 +589,7 @@ defmodule SlipdockWeb.TimelineComponents do
               bar.clipped_end && "tl-clip-end",
               (bar.derived_start or bar.derived_end) && "tl-bar-derived",
               Card.fuzzy?(bar.card) && "tl-bar-fuzzy",
+              place.side != :inside && "tl-label-out tl-label-#{place.side}",
               bar_color(bar.card, @color_by, @board)
             ]}
             style={"grid-column: #{bar.from + 1} / #{bar.to + 1}"}
@@ -584,7 +604,7 @@ defmodule SlipdockWeb.TimelineComponents do
               class="tl-handle tl-handle-start"
               data-edge="start"
             ></span>
-            <span class="tl-bar-label">
+            <span class="tl-bar-label" style={place.max && "max-width: #{place.max}px"}>
               <.icon
                 :if={bar.derived_start or bar.derived_end}
                 name="hero-arrow-up-on-square-stack"
@@ -613,6 +633,45 @@ defmodule SlipdockWeb.TimelineComponents do
       />
     <% end %>
     """
+  end
+
+  # Where a bar's title goes. It is drawn inside the bar when it fits there,
+  # and beside the bar when it doesn't (a due-only or start-only bar has no
+  # inside to speak of): on the right, or on the left when the window ends
+  # too soon after the bar, as it does for a bar clipped at the right edge.
+  # When neither side has room for all of it, the roomier side gets as much
+  # as fits. Whether it fits is estimated here, from the title's length and
+  # the bar's width in pixels, so the page never jumps after it is drawn.
+  @label_char_px 6.5
+  @label_icon_px 16
+  @label_padding_px 14
+  @label_gap_px 6
+  @label_min_px 48
+
+  @doc """
+  Where `bar`'s title goes in `window`: `%{side: :inside | :right | :left,
+  max: nil | pixels}`, `max` set only when the title has to be cut short.
+  """
+  def label_place(bar, window) do
+    need = label_px(bar)
+    inside = (bar.to - bar.from) * window.px - 2 - @label_padding_px
+    right = (window.days - bar.to) * window.px - @label_gap_px
+    left = bar.from * window.px - @label_gap_px
+
+    cond do
+      bar.kind == :span and need <= inside -> %{side: :inside, max: nil}
+      need <= right and not bar.clipped_end -> %{side: :right, max: nil}
+      need <= left -> %{side: :left, max: nil}
+      bar.kind == :span and inside >= max(left, right) -> %{side: :inside, max: nil}
+      max(left, right) < @label_min_px and bar.kind == :span -> %{side: :inside, max: nil}
+      left > right -> %{side: :left, max: trunc(left)}
+      true -> %{side: :right, max: trunc(max(right, @label_min_px))}
+    end
+  end
+
+  defp label_px(bar) do
+    icon = if bar.derived_start or bar.derived_end, do: @label_icon_px, else: 0
+    String.length(bar.card.title) * @label_char_px + icon
   end
 
   attr :window, :map, required: true

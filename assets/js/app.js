@@ -34,6 +34,7 @@ import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
 import {WikiFileOpen, WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthToggle} from "./wiki_pane"
+import {TimelineLabelResize, linkPath} from "./timeline_labels"
 import {installMeld} from "./meld_view"
 import {MeldEditor} from "./meld_editor"
 import {ExcalidrawEditor} from "./excalidraw_editor"
@@ -322,7 +323,8 @@ Hooks.Sortable = {
 // its start or due date. Movement is snapped to whole days (data-px is the
 // width of a day); a drag of less than 4px is treated as a click.
 // Dependency connectors: a curve from the end of each blocker's bar to the
-// start of the bar it blocks, red when the blocked card starts first.
+// start of the bar it blocks (linkPath, in timeline_labels.js), red when the
+// blocked card starts first.
 function drawTimelineLinks(el) {
   const svg = el.querySelector("#tl-links")
   if (!svg) return
@@ -339,11 +341,8 @@ function drawTimelineLinks(el) {
   for (const link of links) {
     for (const from of bars[link.from] || []) {
       for (const to of bars[link.to] || []) {
-        const a = from.getBoundingClientRect(), b = to.getBoundingClientRect()
-        const x1 = a.right - box.left, y1 = a.top + a.height / 2 - box.top
-        const x2 = b.left - box.left, y2 = b.top + b.height / 2 - box.top
-        const dx = Math.max(16, Math.abs(x2 - x1) / 2)
-        const d = `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`
+        const {d, x2, y2} = linkPath(box, from.getBoundingClientRect(), to.getBoundingClientRect(),
+          from.classList.contains("tl-label-right"), to.classList.contains("tl-label-left"))
         paths.push(`<path d="${d}" class="${link.violated ? "tl-link tl-link-violated" : "tl-link"}"/>` +
           `<circle cx="${x2}" cy="${y2}" r="2.5" class="${link.violated ? "tl-link-end tl-link-violated" : "tl-link-end"}"/>`)
       }
@@ -1463,6 +1462,7 @@ Hooks.EditorPrefs = {
 Hooks.WikiTree = WikiTree
 Hooks.WikiTreeCollapse = WikiTreeCollapse
 Hooks.WikiTreeResize = WikiTreeResize
+Hooks.TimelineLabelResize = TimelineLabelResize
 Hooks.WikiTreeView = WikiTreeView
 Hooks.WikiWidthToggle = WikiWidthToggle
 Hooks.WikiFileOpen = WikiFileOpen

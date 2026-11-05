@@ -48,8 +48,9 @@
 .tl-bar-done { background: color-mix(in oklab, var(--color-success) 40%, var(--color-base-100)); }
 /* A bar scheduled by month/quarter/…: soft, dotted edges say "roughly then". */
 .tl-bar-fuzzy { border-left: 3px dotted color-mix(in oklab, var(--color-base-content) 45%, transparent); border-right: 3px dotted color-mix(in oklab, var(--color-base-content) 45%, transparent); opacity: 0.9; }
-/* Dependency connectors over the grid. */
-.tl-links { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: visible; }
+/* Dependency connectors: over the rows' ground, under the bars and their
+   labels (#1732), so a line never crosses a title. */
+.tl-links { position: absolute; inset: 0; pointer-events: none; z-index: 2; overflow: visible; }
 .tl-link { fill: none; stroke: color-mix(in oklch, var(--color-base-content) 45%, transparent); stroke-width: 1.5; }
 .tl-link-end { fill: color-mix(in oklch, var(--color-base-content) 55%, transparent); }
 .tl-link.tl-link-violated { stroke: var(--color-error); stroke-width: 2; stroke-dasharray: 4 3; }
@@ -65,13 +66,36 @@
 .tl-bar-due, .tl-bar-start { overflow: visible; padding: 0; justify-content: center; }
 .tl-bar-due { border-radius: 999px; }
 .tl-bar-start { border-radius: 6px 0 0 6px; border-right: 2px dashed color-mix(in oklab, var(--color-base-content) 45%, transparent); }
-.tl-bar-due .tl-bar-label, .tl-bar-start .tl-bar-label {
+/* A title too long for its bar (and every due-only or start-only bar's)
+   sits beside it, on the side the server chose (label_place/2). Its ground
+   is the page's, so a dependency line passing under it stays hidden. */
+.tl-label-out { overflow: visible; }
+.tl-label-out .tl-bar-label {
   position: absolute;
-  left: 100%;
-  margin-left: 6px;
-  max-width: 14rem;
-  color: var(--color-base-content);
-  opacity: 0.75;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-base-100);
+  color: color-mix(in oklch, var(--color-base-content) 80%, transparent);
+}
+.tl-label-right .tl-bar-label { left: 100%; margin-left: 2px; }
+.tl-label-left .tl-bar-label { right: 100%; margin-right: 2px; }
+/* Done and snoozed rows are dimmed piece by piece: an opacity on the row
+   would make it a stacking context and lift the connectors over its bars. */
+.tl-row-dim > :first-child > *, .tl-row-dim .tl-bar { opacity: 0.7; }
+/* The title column's edge: drag it wider or narrower. */
+.tl-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 8px;
+  z-index: 5;
+  cursor: col-resize;
+  touch-action: none;
+}
+.tl-resize:hover, .tl-resize:focus-visible, .tl-resize[data-dragging] {
+  background: color-mix(in oklch, var(--color-primary) 45%, transparent);
+  outline: none;
 }
 .tl-clip-start { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; }
 .tl-clip-end { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
