@@ -49,6 +49,7 @@ import {FilePicker} from "./file_picker"
 import {TagFilter} from "./tag_filter"
 import {Tabs} from "./tabs"
 import {installKeyHints} from "./key_hints"
+import {ToolbarFold} from "./toolbar_fold"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -63,6 +64,7 @@ Hooks.PasskeyRegister = PasskeyRegister
 Hooks.DockDrag = DockDrag
 Hooks.DateField = DateField
 Hooks.FilePicker = FilePicker
+Hooks.ToolbarFold = ToolbarFold
 
 // Keeps the server's idea of the window width up to date, so views that
 // render something different on a phone (the calendar's agenda, the board's

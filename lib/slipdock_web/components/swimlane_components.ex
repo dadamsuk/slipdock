@@ -15,6 +15,125 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
   ## Toolbar ---------------------------------------------------------------
 
+  @doc """
+  The parts of a board view's toolbar, in the one order every view keeps
+  (#1711): what `view_toolbar/1` marks each with as `data-tb`.
+  """
+  def toolbar_order,
+    do: ~w(switcher search filter nav view-options display count select views actions)
+
+  attr :id, :string, default: "view-toolbar"
+  attr :mode, :atom, required: true, doc: "the view the toolbar is for"
+  attr :shown, :integer, required: true, doc: "how many cards the view shows"
+  attr :hidden, :integer, default: 0, doc: "how many the filters hide"
+
+  attr :form, :string,
+    default: nil,
+    doc: "a `swim_config` form's id to hold search to Display; nil when each part posts its own"
+
+  slot :switcher, doc: "the view switcher, first"
+  slot :shared, doc: "for a view-only reader, the shared view's name in place of the switcher"
+  slot :search
+  slot :filter
+  slot :nav, doc: "a dated view's previous/today/next: the view's own, but never folded"
+  slot :own, doc: "the view's own controls, which fold into View options when they don't fit"
+  slot :display
+  slot :select, doc: "the board's Select, right of the count"
+  slot :views, doc: "the loaded view and the Views menu"
+  slot :actions, doc: "the board's own buttons, last"
+
+  @doc """
+  The toolbar every board view wears (#1711): the board's own and
+  `swim_toolbar/1` alike. One order, left to right: view switcher, search,
+  Filter, the view's own controls, Display; then on the right the count,
+  Select, Views and the board's buttons. Each part is marked `data-tb`
+  (`toolbar_order/0`), so tests can read the order back.
+
+  It stays one row. From `sm` up, when the view's own controls would wrap
+  the row, the `ToolbarFold` hook (`assets/js/toolbar_fold.js`) folds them
+  into a **View options** popover: they stay where they are in the form, so
+  they still post, and are only drawn differently. On a phone they are the
+  Options drawer instead (`.tools`, with Display).
+  """
+  def view_toolbar(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      data-mode={@mode}
+      phx-hook="ToolbarFold"
+      class={
+        [
+          "view-toolbar relative flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm max-sm:gap-x-1",
+          # On a phone (#1717) a toolbar with nothing to put in an Options
+          # drawer never wraps; one with a drawer wraps only to open it.
+          @own == [] && "max-sm:flex-nowrap"
+        ]
+      }
+    >
+      <div :if={@switcher != []} data-tb="switcher" class="contents">{render_slot(@switcher)}</div>
+      <span :if={@switcher != []} class="hidden h-5 w-px bg-base-300 sm:block"></span>
+      {render_slot(@shared)}
+      <.maybe_form id={@form}>
+        <div :if={@search != []} data-tb="search" class="contents">{render_slot(@search)}</div>
+        <div :if={@filter != []} data-tb="filter" class="contents">{render_slot(@filter)}</div>
+        <div :if={@nav != []} data-tb="nav" class="contents">{render_slot(@nav)}</div>
+        <div :if={@own != []} id="swim-tools" class="tools">
+          <div data-tb="view-options" class="view-options">
+            <button
+              id="view-options-toggle"
+              type="button"
+              class="view-options-toggle btn btn-ghost btn-sm gap-1"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-controls="view-options"
+              title="This view's own options: grouping, sorting and the like"
+            >
+              <.icon name="hero-adjustments-vertical" class="size-4" /> View options
+              <.icon name="hero-chevron-down" class="size-3" />
+            </button>
+            <div id="view-options" class="view-own" data-role="view-options-panel">
+              {render_slot(@own)}
+            </div>
+          </div>
+          <div :if={@display != []} data-tb="display" class="contents">{render_slot(@display)}</div>
+        </div>
+        <div :if={@own == [] and @display != []} data-tb="display" class="contents">
+          {render_slot(@display)}
+        </div>
+      </.maybe_form>
+      <.tools_toggle :if={@own != []} target="#swim-tools" />
+
+      <div class="ml-auto flex shrink-0 items-center gap-2 max-sm:gap-1">
+        <span
+          data-tb="count"
+          class="hidden whitespace-nowrap text-xs text-base-content/50 lg:inline"
+          title="Cards shown"
+        >
+          {@shown} {if @shown == 1, do: "card", else: "cards"}<span :if={@hidden > 0}> · {@hidden} hidden</span>
+        </span>
+        <div :if={@select != []} data-tb="select" class="contents">{render_slot(@select)}</div>
+        <div :if={@views != []} data-tb="views" class="contents">{render_slot(@views)}</div>
+        <div :if={@actions != []} data-tb="actions" class="contents">{render_slot(@actions)}</div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :id, :string, default: nil
+  slot :inner_block, required: true
+
+  # The `swim_config` form around a toolbar's middle when it posts as one, or
+  # nothing at all when its parts post their own (the board's).
+  defp maybe_form(%{id: nil} = assigns), do: ~H"{render_slot(@inner_block)}"
+
+  defp maybe_form(assigns) do
+    ~H"""
+    <form id={@id} phx-change="swim_config" phx-submit="swim_config" class="contents">
+      {render_slot(@inner_block)}
+    </form>
+    """
+  end
+
   attr :board, :any, required: true
   attr :config, Config, required: true
   attr :view, :any, default: nil, doc: "the saved view currently loaded, if any"
@@ -42,71 +161,49 @@ defmodule SlipdockWeb.SwimlaneComponents do
     assigns = assign(assigns, section_title: @section_title)
 
     ~H"""
-    <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm">
-      {render_slot(@leading)}
-      <span :if={@leading != []} class="hidden h-5 w-px bg-base-300 sm:block"></span>
-      <div :if={@view_only} class="flex items-center gap-2 text-sm">
-        <.icon name="hero-lock-closed" class="size-4 text-base-content/50" />
-        <span class="text-base-content/60">Shared view</span>
-        <span class="font-semibold">{@view && @view.name}</span>
-        <span :if={length(@allowed_views) > 1} class="dropdown">
-          <div tabindex="0" role="button" class="btn btn-ghost btn-xs">
-            Switch <.icon name="hero-chevron-down" class="size-3" />
-          </div>
-          <ul
-            tabindex="0"
-            class="menu dropdown-content z-30 mt-1 w-56 rounded-xl bg-base-100 p-1 shadow-lg ring-1 ring-base-content/10"
-          >
-            <li :for={v <- @allowed_views}><.link patch={view_path(@board, v)}>{v.name}</.link></li>
-          </ul>
-        </span>
-      </div>
-      <form
-        :if={!@view_only}
-        id="swim-config"
-        phx-change="swim_config"
-        phx-submit="swim_config"
-        class="contents"
-      >
-        <div :if={@nav} class="toolbar-nav flex items-center gap-1">
-          <div class="join">
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm btn-square join-item"
-              phx-click="swim_set"
-              phx-value-key="date"
-              phx-value-value={@nav.prev}
-              value={@nav.prev}
-              title="Earlier"
+    <.view_toolbar
+      mode={@mode}
+      shown={@grid.shown}
+      hidden={@grid.hidden}
+      form={if(!@view_only, do: "swim-config")}
+    >
+      <:switcher :if={@leading != []}>{render_slot(@leading)}</:switcher>
+      <:shared :if={@view_only}>
+        <div class="flex items-center gap-2 text-sm">
+          <.icon name="hero-lock-closed" class="size-4 text-base-content/50" />
+          <span class="text-base-content/60">Shared view</span>
+          <span class="font-semibold">{@view && @view.name}</span>
+          <span :if={length(@allowed_views) > 1} class="dropdown">
+            <div tabindex="0" role="button" class="btn btn-ghost btn-xs">
+              Switch <.icon name="hero-chevron-down" class="size-3" />
+            </div>
+            <ul
+              tabindex="0"
+              class="menu dropdown-content z-30 mt-1 w-56 rounded-xl bg-base-100 p-1 shadow-lg ring-1 ring-base-content/10"
             >
-              <.icon name="hero-chevron-left" class="size-4" />
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm join-item"
-              phx-click="swim_set"
-              phx-value-key="date"
-              phx-value-value=""
-              value=""
-              title="Back to today"
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm btn-square join-item"
-              phx-click="swim_set"
-              phx-value-key="date"
-              phx-value-value={@nav.next}
-              value={@nav.next}
-              title="Later"
-            >
-              <.icon name="hero-chevron-right" class="size-4" />
-            </button>
-          </div>
-          <span id="swim-nav-title" class="whitespace-nowrap text-sm font-semibold">{@nav.title}</span>
+              <li :for={v <- @allowed_views}><.link patch={view_path(@board, v)}>{v.name}</.link></li>
+            </ul>
+          </span>
         </div>
-
+      </:shared>
+      <:search :if={!@view_only}>
+        <.search_box
+          id="swim-search"
+          q={@config.q}
+          clear={JS.push("swim_set", value: %{key: "q", value: ""})}
+          class="relative min-w-0 flex-1 sm:flex-none"
+        >
+          <.search_input
+            value={@config.q}
+            placeholder="Search…"
+            phx-debounce="300"
+            trail={1}
+            class="w-full sm:w-44"
+            autocomplete="off"
+          />
+        </.search_box>
+      </:search>
+      <:filter :if={!@view_only}>
         <div class="dropdown">
           <div
             tabindex="0"
@@ -294,232 +391,245 @@ defmodule SlipdockWeb.SwimlaneComponents do
             </button>
           </div>
         </div>
-
-        <div id="swim-tools" class="tools">
-          <%= cond do %>
-            <% @mode == :swimlanes -> %>
-              <.axis_select
-                board={@board}
-                name="rows"
-                label="Rows"
-                value={@config.rows}
-                icon="hero-bars-3"
-              />
-              <.axis_select
-                board={@board}
-                name="cols"
-                label="Columns"
-                value={@config.cols}
-                icon="hero-view-columns"
-              />
-            <% @mode == :calendar -> %>
-              <label class="flex items-center gap-1.5">
-                <.icon name="hero-calendar-days" class="size-4 text-base-content/50" />
-                <span class="sr-only">Span</span>
-                <select name="unit" class="select field w-auto" title="Show a month or a week">
-                  <option
-                    :for={{value, label} <- Slipdock.Calendar.units()}
-                    value={value}
-                    selected={value == Slipdock.Calendar.unit(@config)}
-                  >
-                    {label}
-                  </option>
-                </select>
-              </label>
-            <% @mode in [:outline, :prioritise] -> %>
-              <span></span>
-            <% @mode == :narrative -> %>
-              <.axis_select
-                board={@board}
-                name="rows"
-                label="Group by"
-                value={@config.rows}
-                icon="hero-bars-3"
-              />
-              <label class="flex items-center gap-1.5">
-                <.icon name="hero-clock" class="size-4 text-base-content/50" />
-                <span class="sr-only">Span</span>
-                <select name="span" class="select field w-auto" title="How far back to look">
-                  <option
-                    :for={{value, label} <- Slipdock.Narrative.spans()}
-                    value={value}
-                    selected={value == @config.span}
-                  >
-                    {label}
-                  </option>
-                </select>
-              </label>
-              <label
-                class="flex items-center gap-1 text-xs text-base-content/60"
-                title="Start of the range (leave empty for the span)"
-              >
-                from
-                <.date_field
-                  id="narrative-from"
-                  name="from"
-                  value={@config.from}
-                  placeholder="The start"
-                />
-              </label>
-              <label
-                class="flex items-center gap-1 text-xs text-base-content/60"
-                title="End of the range (leave empty for today)"
-              >
-                to <.date_field id="narrative-to" name="to" value={@config.to} placeholder="Today" />
-              </label>
-            <% true -> %>
-              <.axis_select
-                board={@board}
-                name="rows"
-                label="Group by"
-                value={@config.rows}
-                icon="hero-bars-3"
-              />
-          <% end %>
-
-          <label
-            :if={@mode == :outline or (@mode == :timeline and (@grid[:levels] || 1) > 1)}
-            class="flex items-center gap-1.5"
-          >
-            <.icon name="hero-bars-arrow-down" class="size-4 text-base-content/50" />
-            <span class="sr-only">Levels</span>
-            <select
-              name="depth"
-              class="select field w-auto"
-              title="How many levels of subcards to show"
+      </:filter>
+      <:nav :if={!@view_only and @nav}>
+        <div :if={@nav} class="toolbar-nav flex items-center gap-1">
+          <div class="join">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm btn-square join-item"
+              phx-click="swim_set"
+              phx-value-key="date"
+              phx-value-value={@nav.prev}
+              value={@nav.prev}
+              title="Earlier"
             >
-              <option
-                :for={
-                  {value, label} <-
-                    Slipdock.Outline.depths(@grid[:levels] || 1, depth_int(@config.depth))
-                }
-                value={value}
-                selected={value == @config.depth}
-              >
-                {label}
-              </option>
-            </select>
-          </label>
-
-          <label
-            :if={
-              @mode == :timeline or
-                (Enum.member?([:swimlanes, :table], @mode) and Config.uses_dates?(@config))
-            }
-            class="flex items-center gap-1.5"
-          >
-            <.icon
-              name={
-                if @mode == :timeline, do: "hero-magnifying-glass-plus", else: "hero-calendar-days"
-              }
-              class="size-4 text-base-content/50"
-            />
-            <span class="sr-only">{if @mode == :timeline, do: "Zoom", else: "Group dates by"}</span>
-            <select
-              name="unit"
-              class="select field w-auto"
-              title={if @mode == :timeline, do: "Zoom: the size of one step", else: "Group dates by"}
+              <.icon name="hero-chevron-left" class="size-4" />
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm join-item"
+              phx-click="swim_set"
+              phx-value-key="date"
+              phx-value-value=""
+              value=""
+              title="Back to today"
             >
-              <option
-                :for={{value, label} <- Config.units()}
-                value={value}
-                selected={value == @config.unit}
-              >
-                {label}
-              </option>
-            </select>
-          </label>
-
-          <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
-
-          <label class="flex items-center gap-1.5">
-            <.icon name="hero-arrows-up-down" class="size-4 text-base-content/50" />
-            <span class="sr-only">Sort by</span>
-            <select name="sort" class="select field w-auto" title="Sort cards within each cell">
-              <option
-                :for={{value, label} <- Config.sorts(@board)}
-                value={value}
-                selected={value == @config.sort}
-              >
-                {label}
-              </option>
-            </select>
-          </label>
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm btn-square"
-            phx-click="swim_set"
-            phx-value-key="dir"
-            phx-value-value={if @config.dir == "asc", do: "desc", else: "asc"}
-            value={if @config.dir == "asc", do: "desc", else: "asc"}
-            title={
-              if @config.dir == "asc",
-                do: "Ascending — click for descending",
-                else: "Descending — click for ascending"
-            }
-          >
-            <.icon
-              name={if @config.dir == "asc", do: "hero-bars-arrow-up", else: "hero-bars-arrow-down"}
-              class="size-4"
-            />
-          </button>
-
-          <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
-
-          <.search_box
-            id="swim-search"
-            q={@config.q}
-            clear={JS.push("swim_set", value: %{key: "q", value: ""})}
-            class="relative min-w-0 flex-1 sm:flex-none"
-          >
-            <.search_input
-              value={@config.q}
-              placeholder="Search…"
-              phx-debounce="300"
-              trail={1}
-              class="w-full transition-[width] sm:w-36 sm:focus:w-56"
-              autocomplete="off"
-            />
-          </.search_box>
-
-          <.display_menu mode={@mode} config={@config} board={@board} />
-          <a
-            :if={@mode == :table}
-            href={
-              ~p"/boards/#{@board}/export.csv?#{if(@view, do: [view: @view.id], else: []) ++ Config.to_query(@config, Config.defaults("table"))}"
-            }
-            class="btn btn-ghost btn-sm gap-1"
-            title="Download these rows as CSV"
-            download
-          >
-            <.icon name="hero-arrow-down-tray" class="size-4" /> CSV
-          </a>
-          <div
-            :if={Enum.member?([:timeline, :swimlanes], @mode) and @config.color_by != "cover"}
-            id="color-legend"
-            class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-full bg-base-200/70 px-2.5 py-1 text-2xs text-base-content/70"
-            title={"Coloured by #{String.downcase(Config.coloring_label(@config.color_by))}"}
-          >
-            <span
-              :for={{color, label} <- Slipdock.Coloring.legend(@board, @config.color_by)}
-              class="flex items-center gap-1"
+              Today
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm btn-square join-item"
+              phx-click="swim_set"
+              phx-value-key="date"
+              phx-value-value={@nav.next}
+              value={@nav.next}
+              title="Later"
             >
-              <span class={["size-2.5 rounded-full", Slipdock.Palette.dot(color)]}></span>{label}
-            </span>
-            <span :if={Slipdock.Coloring.legend(@board, @config.color_by) == []} class="italic">
-              Nothing to colour yet
-            </span>
+              <.icon name="hero-chevron-right" class="size-4" />
+            </button>
           </div>
+          <span id="swim-nav-title" class="whitespace-nowrap text-sm font-semibold">{@nav.title}</span>
         </div>
-      </form>
+      </:nav>
+      <:own :if={!@view_only}>
+        <%= cond do %>
+          <% @mode == :swimlanes -> %>
+            <.axis_select
+              board={@board}
+              name="rows"
+              label="Rows"
+              value={@config.rows}
+              icon="hero-bars-3"
+            />
+            <.axis_select
+              board={@board}
+              name="cols"
+              label="Columns"
+              value={@config.cols}
+              icon="hero-view-columns"
+            />
+          <% @mode == :calendar -> %>
+            <label class="flex items-center gap-1.5">
+              <.icon name="hero-calendar-days" class="size-4 text-base-content/50" />
+              <span class="sr-only">Span</span>
+              <select name="unit" class="select field w-auto" title="Show a month or a week">
+                <option
+                  :for={{value, label} <- Slipdock.Calendar.units()}
+                  value={value}
+                  selected={value == Slipdock.Calendar.unit(@config)}
+                >
+                  {label}
+                </option>
+              </select>
+            </label>
+          <% @mode in [:outline, :prioritise] -> %>
+            <span></span>
+          <% @mode == :narrative -> %>
+            <.axis_select
+              board={@board}
+              name="rows"
+              label="Group by"
+              value={@config.rows}
+              icon="hero-bars-3"
+            />
+            <label class="flex items-center gap-1.5">
+              <.icon name="hero-clock" class="size-4 text-base-content/50" />
+              <span class="sr-only">Span</span>
+              <select name="span" class="select field w-auto" title="How far back to look">
+                <option
+                  :for={{value, label} <- Slipdock.Narrative.spans()}
+                  value={value}
+                  selected={value == @config.span}
+                >
+                  {label}
+                </option>
+              </select>
+            </label>
+            <label
+              class="flex items-center gap-1 text-xs text-base-content/60"
+              title="Start of the range (leave empty for the span)"
+            >
+              from
+              <.date_field
+                id="narrative-from"
+                name="from"
+                value={@config.from}
+                placeholder="The start"
+              />
+            </label>
+            <label
+              class="flex items-center gap-1 text-xs text-base-content/60"
+              title="End of the range (leave empty for today)"
+            >
+              to <.date_field id="narrative-to" name="to" value={@config.to} placeholder="Today" />
+            </label>
+          <% true -> %>
+            <.axis_select
+              board={@board}
+              name="rows"
+              label="Group by"
+              value={@config.rows}
+              icon="hero-bars-3"
+            />
+        <% end %>
 
-      <.tools_toggle target="#swim-tools" />
+        <label
+          :if={@mode == :outline or (@mode == :timeline and (@grid[:levels] || 1) > 1)}
+          class="flex items-center gap-1.5"
+        >
+          <.icon name="hero-bars-arrow-down" class="size-4 text-base-content/50" />
+          <span class="sr-only">Levels</span>
+          <select
+            name="depth"
+            class="select field w-auto"
+            title="How many levels of subcards to show"
+          >
+            <option
+              :for={
+                {value, label} <-
+                  Slipdock.Outline.depths(@grid[:levels] || 1, depth_int(@config.depth))
+              }
+              value={value}
+              selected={value == @config.depth}
+            >
+              {label}
+            </option>
+          </select>
+        </label>
 
-      <div class="ml-auto flex items-center gap-2">
-        <span class="hidden text-xs text-base-content/50 lg:inline" title="Cards shown">
-          {@grid.shown} {if @grid.shown == 1, do: "card", else: "cards"}<span :if={@grid.hidden > 0}> · {@grid.hidden} hidden</span>
-        </span>
+        <label
+          :if={
+            @mode == :timeline or
+              (Enum.member?([:swimlanes, :table], @mode) and Config.uses_dates?(@config))
+          }
+          class="flex items-center gap-1.5"
+        >
+          <.icon
+            name={if @mode == :timeline, do: "hero-magnifying-glass-plus", else: "hero-calendar-days"}
+            class="size-4 text-base-content/50"
+          />
+          <span class="sr-only">{if @mode == :timeline, do: "Zoom", else: "Group dates by"}</span>
+          <select
+            name="unit"
+            class="select field w-auto"
+            title={if @mode == :timeline, do: "Zoom: the size of one step", else: "Group dates by"}
+          >
+            <option
+              :for={{value, label} <- Config.units()}
+              value={value}
+              selected={value == @config.unit}
+            >
+              {label}
+            </option>
+          </select>
+        </label>
 
+        <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
+
+        <label class="flex items-center gap-1.5">
+          <.icon name="hero-arrows-up-down" class="size-4 text-base-content/50" />
+          <span class="sr-only">Sort by</span>
+          <select name="sort" class="select field w-auto" title="Sort cards within each cell">
+            <option
+              :for={{value, label} <- Config.sorts(@board)}
+              value={value}
+              selected={value == @config.sort}
+            >
+              {label}
+            </option>
+          </select>
+        </label>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm btn-square"
+          phx-click="swim_set"
+          phx-value-key="dir"
+          phx-value-value={if @config.dir == "asc", do: "desc", else: "asc"}
+          value={if @config.dir == "asc", do: "desc", else: "asc"}
+          title={
+            if @config.dir == "asc",
+              do: "Ascending — click for descending",
+              else: "Descending — click for ascending"
+          }
+        >
+          <.icon
+            name={if @config.dir == "asc", do: "hero-bars-arrow-up", else: "hero-bars-arrow-down"}
+            class="size-4"
+          />
+        </button>
+        <a
+          :if={@mode == :table}
+          href={
+            ~p"/boards/#{@board}/export.csv?#{if(@view, do: [view: @view.id], else: []) ++ Config.to_query(@config, Config.defaults("table"))}"
+          }
+          class="btn btn-ghost btn-sm gap-1"
+          title="Download these rows as CSV"
+          download
+        >
+          <.icon name="hero-arrow-down-tray" class="size-4" /> CSV
+        </a>
+        <div
+          :if={Enum.member?([:timeline, :swimlanes], @mode) and @config.color_by != "cover"}
+          id="color-legend"
+          class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-full bg-base-200/70 px-2.5 py-1 text-2xs text-base-content/70"
+          title={"Coloured by #{String.downcase(Config.coloring_label(@config.color_by))}"}
+        >
+          <span
+            :for={{color, label} <- Slipdock.Coloring.legend(@board, @config.color_by)}
+            class="flex items-center gap-1"
+          >
+            <span class={["size-2.5 rounded-full", Slipdock.Palette.dot(color)]}></span>{label}
+          </span>
+          <span :if={Slipdock.Coloring.legend(@board, @config.color_by) == []} class="italic">
+            Nothing to colour yet
+          </span>
+        </div>
+      </:own>
+      <:display :if={!@view_only}>
+        <.display_menu mode={@mode} config={@config} board={@board} />
+      </:display>
+      <:views>
         <.view_controls
           board={@board}
           mode={@mode}
@@ -534,9 +644,9 @@ defmodule SlipdockWeb.SwimlaneComponents do
           form_key={@form_key}
           favourites={@favourites}
         />
-        {render_slot(@trailing)}
-      </div>
-    </div>
+      </:views>
+      <:actions :if={@trailing != []}>{render_slot(@trailing)}</:actions>
+    </.view_toolbar>
     """
   end
 

@@ -1327,61 +1327,47 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :select_mode, :boolean, default: false
   slot :inner_block, doc: "the board's own buttons, last, right of Views"
 
-  # Board view's toolbar: the view switcher, search, filters, display options,
-  # saved views and the count, laid out like `swim_toolbar/1` so nothing
-  # moves when switching views.
+  # Board view's toolbar: the same `view_toolbar/1` as every other view
+  # (#1711), so nothing moves when switching views. The board has no
+  # controls of its own to fold; it has Select, right of the count.
   defp board_toolbar(assigns) do
     shown = Enum.sum(for %{cards: cards} <- assigns.columns, do: length(cards))
     hidden = Enum.sum(for %{hidden: hidden} <- assigns.columns, do: hidden)
     assigns = assign(assigns, shown: shown, hidden: hidden)
 
     ~H"""
-    <%!-- One row on a phone too (#1717): below sm it doesn't wrap, the gaps
-          close up and Display is its icon, so the Select tick and the Views
-          bookmark stay on the row rather than alone on a second one. --%>
-    <div
-      id="board-toolbar"
-      class="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm max-sm:flex-nowrap max-sm:gap-x-1"
-    >
-      <.view_tabs
-        :if={!@view_only}
-        board={@board}
-        meetings={@meetings}
-        mode={:board}
-        view={@view}
-        marks={@marks}
-      />
-      <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
-
-      <.search_box
-        id="board-search-box"
-        q={@filters.q}
-        clear={JS.push("search", value: %{q: ""})}
-      >
-        <form id="board-search" phx-change="search" phx-submit="search" class="relative">
-          <.search_input
-            value={@filters.q}
-            placeholder="Search cards…"
-            phx-debounce="200"
-            trail={1}
-            class="w-40 transition-[width] focus:w-64"
-            autocomplete="off"
-          />
+    <.view_toolbar id="board-toolbar" mode={:board} shown={@shown} hidden={@hidden}>
+      <:switcher :if={!@view_only}>
+        <.view_tabs board={@board} meetings={@meetings} mode={:board} view={@view} marks={@marks} />
+      </:switcher>
+      <:search>
+        <.search_box
+          id="board-search-box"
+          q={@filters.q}
+          clear={JS.push("search", value: %{q: ""})}
+        >
+          <form id="board-search" phx-change="search" phx-submit="search" class="relative">
+            <.search_input
+              value={@filters.q}
+              placeholder="Search cards…"
+              phx-debounce="200"
+              trail={1}
+              class="w-44"
+              autocomplete="off"
+            />
+          </form>
+        </.search_box>
+      </:search>
+      <:filter>
+        <.filter_menu board={@board} filters={@filters} filtering={@filtering} states />
+      </:filter>
+      <:display>
+        <form id="swim-config" phx-change="swim_config" phx-submit="swim_config" class="contents">
+          <.display_menu mode={:board} config={@config} board={@board} />
         </form>
-      </.search_box>
-
-      <.filter_menu board={@board} filters={@filters} filtering={@filtering} states />
-
-      <form id="swim-config" phx-change="swim_config" phx-submit="swim_config" class="contents">
-        <.display_menu mode={:board} config={@config} board={@board} />
-      </form>
-
-      <div class="ml-auto flex shrink-0 items-center gap-2 max-sm:gap-1">
-        <span class="hidden text-xs text-base-content/50 lg:inline" title="Cards shown">
-          {@shown} {if @shown == 1, do: "card", else: "cards"}<span :if={@hidden > 0}> · {@hidden} hidden</span>
-        </span>
+      </:display>
+      <:select :if={@can_write}>
         <button
-          :if={@can_write}
           id="select-mode-toggle"
           type="button"
           phx-click="toggle_select_mode"
@@ -1393,6 +1379,8 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           <.icon name="hero-check-circle" class="size-4" />
           <span class="hidden sm:inline">{if @select_mode, do: "Selecting", else: "Select"}</span>
         </button>
+      </:select>
+      <:views>
         <.view_controls
           board={@board}
           mode={:board}
@@ -1407,9 +1395,9 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           form_key={@form_key}
           favourites={@marks}
         />
-        {render_slot(@inner_block)}
-      </div>
-    </div>
+      </:views>
+      <:actions :if={@inner_block != []}>{render_slot(@inner_block)}</:actions>
+    </.view_toolbar>
     """
   end
 
