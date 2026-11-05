@@ -3,7 +3,9 @@ defmodule SlipdockWeb.EmptyStatesLiveTest do
   Every page and section that can be empty shows `empty_state/1` (#1715),
   in the variant that fits where it sits, with the next step as its action
   where there is one: Create group, Create token, Add a passkey, Publish a
-  Tool. And once there is something to show, the empty state goes.
+  Tool. And once there is something to show, the empty state goes. The
+  Templates page's are in `SlipdockWeb.EmptyTemplatesLiveTest`, which runs on
+  its own.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -302,23 +304,6 @@ defmodule SlipdockWeb.EmptyStatesLiveTest do
       page_fixture(board)
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
       refute has_element?(view, "#wiki-empty")
-    end
-  end
-
-  describe "Templates" do
-    # The built-ins are seeded by a migration, so only a server without them
-    # (and a user with none of their own) ever sees it.
-    test "none: the full empty state, with no action (the form is above it)", %{conn: conn} do
-      Repo.delete_all(from(t in Slipdock.Boards.Template, where: t.system))
-      {:ok, view, _} = live(conn, ~p"/templates")
-      assert empty(view, "templates-empty", "full", "No templates yet")
-      refute has_element?(view, action("templates-empty"))
-    end
-
-    test "a template replaces it", %{conn: conn, user: user} do
-      {:ok, _} = Boards.create_template(user, %{"name" => "Mine", "columns" => ["A"]})
-      {:ok, view, _} = live(conn, ~p"/templates")
-      refute has_element?(view, "#templates-empty")
     end
   end
 
