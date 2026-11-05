@@ -1362,12 +1362,14 @@ defmodule Slipdock.Wiki do
   ## Activity -----------------------------------------------------------------
 
   defp log(board_id, page, kind, message) do
-    Repo.insert(%Activity{
-      board_id: board_id,
-      page_id: page && page.id,
-      kind: kind,
-      message: message
-    })
+    Repo.insert(
+      Activity.stamp(%Activity{
+        board_id: board_id,
+        page_id: page && page.id,
+        kind: kind,
+        message: message
+      })
+    )
   end
 
   ## Helpers ------------------------------------------------------------------

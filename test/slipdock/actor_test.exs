@@ -274,4 +274,48 @@ defmodule Slipdock.ActorTest do
       assert card.column_id == ctx.doing.id
     end
   end
+
+  describe "the process's actor (#1735)" do
+    test "put/2 sets it with a name, nil clears it", %{owner: owner} do
+      assert Actor.current() == Actor.unknown()
+
+      Actor.put(Actor.web(owner), "Owner")
+      assert %{kind: "human", via: "web", user_id: id, name: "Owner"} = Actor.current()
+      assert id == owner.id
+
+      Actor.put(nil)
+      assert Actor.current() == Actor.unknown()
+    end
+
+    test "a firing rule outranks it, named while as_rule/2 runs", %{owner: owner} do
+      Actor.put(Actor.web(owner))
+      Process.put(:automation_depth, 1)
+
+      try do
+        assert %{kind: "automation", name: nil} = Actor.current()
+
+        assert Actor.as_rule("Outer", fn ->
+                 inner = Actor.as_rule("Inner", fn -> Actor.current().name end)
+                 {inner, Actor.current().name}
+               end) == {"Inner", "Outer"}
+
+        assert Actor.current().name == nil
+      after
+        Process.delete(:automation_depth)
+      end
+
+      assert Actor.current().kind == "human"
+    end
+
+    test "as_rule/2 puts the name back when the rule raises" do
+      Process.put(:automation_depth, 1)
+
+      try do
+        assert_raise RuntimeError, fn -> Actor.as_rule("Boom", fn -> raise "no" end) end
+        assert Actor.current().name == nil
+      after
+        Process.delete(:automation_depth)
+      end
+    end
+  end
 end

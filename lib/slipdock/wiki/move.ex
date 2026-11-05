@@ -320,11 +320,13 @@ defmodule Slipdock.Wiki.Move do
   defp log_move(page, source_id, target, _opts) do
     source = Repo.get(Board, source_id)
 
-    Repo.insert(%Slipdock.Boards.Activity{
-      board_id: target.id,
-      page_id: page.id,
-      kind: "page_moved",
-      message: "moved “#{page.title}” here from #{source && source.name}"
-    })
+    Repo.insert(
+      Slipdock.Boards.Activity.stamp(%Slipdock.Boards.Activity{
+        board_id: target.id,
+        page_id: page.id,
+        kind: "page_moved",
+        message: "moved “#{page.title}” here from #{source && source.name}"
+      })
+    )
   end
 end

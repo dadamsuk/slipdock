@@ -457,10 +457,12 @@ defmodule Slipdock.Wiki.FolderMove do
         do: "the contents of “#{plan.folder.name}”",
         else: "the folder “#{plan.folder.name}”"
 
-    Repo.insert(%Slipdock.Boards.Activity{
-      board_id: plan.target.id,
-      kind: "folder_moved",
-      message: "moved #{what} here from #{plan.source.name} (#{length(plan.moving)} pages)"
-    })
+    Repo.insert(
+      Slipdock.Boards.Activity.stamp(%Slipdock.Boards.Activity{
+        board_id: plan.target.id,
+        kind: "folder_moved",
+        message: "moved #{what} here from #{plan.source.name} (#{length(plan.moving)} pages)"
+      })
+    )
   end
 end

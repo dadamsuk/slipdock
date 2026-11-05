@@ -56,6 +56,52 @@ defmodule Slipdock.Actor do
   @doc "Nobody said who."
   def unknown, do: %{kind: nil, via: nil, user_id: nil, agent: nil, job_id: nil}
 
+  ## The process's actor (#1735) ---------------------------------------------
+  #
+  # Every write a process makes is someone's: the person behind a LiveView,
+  # the token behind a request, the sender of an email. The activity log
+  # reads it from here rather than from every function's opts, the way
+  # `SlipdockWeb.Dates` keeps the reader's timezone.
+
+  @current {__MODULE__, :current}
+  @rule {__MODULE__, :rule}
+
+  @doc """
+  Sets who this process's writes are by: an actor from the builders above,
+  with the name to show for it when it is a person (a snapshot, so a deleted
+  user's entries still name them). `nil` clears it.
+  """
+  def put(actor, name \\ nil)
+  def put(nil, _name), do: Process.delete(@current)
+  def put(%{kind: _} = actor, name), do: Process.put(@current, Map.put(actor, :name, name))
+
+  @doc """
+  Who this process's writes are by: the automation rule while one is firing
+  (`Slipdock.Automations`), else what `put/2` was given, else `unknown/0`.
+  """
+  def current do
+    if Process.get(:automation_depth, 0) > 0 do
+      Map.put(automation(), :name, Process.get(@rule))
+    else
+      Process.get(@current) || unknown()
+    end
+  end
+
+  @doc """
+  Runs `fun` as the automation rule `name`, so `current/0` names it. The
+  caller keeps `:automation_depth` itself (`Slipdock.Automations.fire/3`).
+  """
+  def as_rule(name, fun) do
+    previous = Process.get(@rule)
+    Process.put(@rule, name)
+
+    try do
+      fun.()
+    after
+      if previous, do: Process.put(@rule, previous), else: Process.delete(@rule)
+    end
+  end
+
   @doc """
   The actor for an HTTP request, or anything shaped like one (`assigns` with
   `current_user` and `api_token`, and optionally an `actor` already worked

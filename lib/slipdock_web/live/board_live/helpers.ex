@@ -125,15 +125,75 @@ defmodule SlipdockWeb.BoardLive.Helpers do
     end
   end
 
-  def activity_icon("card"), do: "hero-rectangle-stack"
+  # One icon set for the kinds of change in the activity log (#1735): the
+  # entry's kind when it says enough, else the verb its message opens with.
+  @activity_kind_icons %{
+    "comment" => "hero-chat-bubble-left",
+    "vote" => "hero-hand-thumb-up",
+    "checklist" => "hero-list-bullet",
+    "link" => "hero-link",
+    "wait" => "hero-clock",
+    "handoff" => "hero-arrow-path-rounded-square",
+    "milestone" => "hero-flag",
+    "view" => "hero-bookmark",
+    "automation" => "hero-bolt",
+    "column" => "hero-view-columns",
+    "page_created" => "hero-document-plus",
+    "page_updated" => "hero-pencil-square",
+    "page_moved" => "hero-arrows-right-left",
+    "folder_moved" => "hero-arrows-right-left",
+    "page_archived" => "hero-archive-box",
+    "page_restored" => "hero-arrow-uturn-left",
+    "page_deleted" => "hero-trash",
+    "page_published" => "hero-globe-alt",
+    "page_unpublished" => "hero-eye-slash",
+    "page_placed" => "hero-document-text",
+    "page_unplaced" => "hero-document-text"
+  }
 
-  def activity_icon("column"), do: "hero-view-columns"
+  @activity_verb_icons %{
+    "moved" => "hero-arrows-right-left",
+    "added" => "hero-plus",
+    "created" => "hero-plus",
+    "wrote" => "hero-document-plus",
+    "edited" => "hero-pencil-square",
+    "renamed" => "hero-pencil-square",
+    "changed" => "hero-pencil-square",
+    "set" => "hero-pencil-square",
+    "updated" => "hero-pencil-square",
+    "archived" => "hero-archive-box",
+    "restored" => "hero-arrow-uturn-left",
+    "deleted" => "hero-trash",
+    "removed" => "hero-trash",
+    "finished" => "hero-check-circle",
+    "completed" => "hero-check-circle",
+    "commented" => "hero-chat-bubble-left",
+    "voted" => "hero-hand-thumb-up",
+    "snoozed" => "hero-moon",
+    "started" => "hero-clock",
+    "logged" => "hero-clock"
+  }
 
-  def activity_icon("comment"), do: "hero-chat-bubble-left"
+  @activity_fallback_icons %{
+    "card" => "hero-rectangle-stack",
+    "board" => "hero-squares-2x2",
+    "page" => "hero-document-text"
+  }
 
-  def activity_icon("view"), do: "hero-bookmark"
+  @doc "The icon for an activity entry of `kind` whose message is `message`."
+  def activity_icon(kind, message \\ nil) do
+    @activity_kind_icons[kind] || verb_icon(message) || @activity_fallback_icons[kind] ||
+      "hero-sparkles"
+  end
 
-  def activity_icon(_), do: "hero-sparkles"
+  defp verb_icon(message) when is_binary(message) do
+    case String.split(message, " ", parts: 2) do
+      [verb | _] -> @activity_verb_icons[verb]
+      _ -> nil
+    end
+  end
+
+  defp verb_icon(_), do: nil
 
   def fmt_date(nil), do: "—"
 
