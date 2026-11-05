@@ -1260,8 +1260,9 @@ defmodule SlipdockWeb.SlipdockComponents do
       state_line: match?(%Slipdock.CardState{line: line} when is_binary(line), state),
       driver: match?(%Slipdock.CardState{driver: d} when is_binary(d), state),
       age: on.("age") and match?(%Slipdock.CardState{age: age} when is_integer(age), state),
-      # The card's number (#1856); a wiki page on the board has none.
-      id: on.("id") and not page?
+      # The card's number (#1856); a wiki page on the board has none, which
+      # the template checks.
+      id: on.("id")
     }
 
     # Start and due, both shown and both set, draw as one range (#1708).
@@ -1383,7 +1384,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         >
           {@card.title}
         </p>
-        <.card_id :if={@f.id} card={@card} />
+        <.card_id :if={@f.id and not @page?} card={@card} />
         <.favourite_mark :if={@favourite?} class="size-3" />
         <span
           :if={@f.tags}
@@ -1423,7 +1424,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           <div class="flex min-w-0 flex-1 flex-wrap gap-1">
             <.tag_chip :for={tag <- @card.tags} tag={tag} size="xs" />
           </div>
-          <.card_id :if={@f.id} card={@card} />
+          <.card_id :if={@f.id and not @page?} card={@card} />
         </div>
 
         <%!-- The title starts where the tags and the meta row do (#1707): the
@@ -1440,7 +1441,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           >
             {@card.title}
           </p>
-          <.card_id :if={@f.id and not @f.tags} card={@card} />
+          <.card_id :if={@f.id and not @page? and not @f.tags} card={@card} />
           <.favourite_mark :if={@favourite?} class="mt-1 size-3.5" />
           <button
             :if={@f.status and not @page?}
