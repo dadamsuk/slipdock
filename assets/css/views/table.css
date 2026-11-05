@@ -1,1 +1,32 @@
 /* Table view ------------------------------------------------------------ */
+
+/* Cells read as text at rest (#1731). A list or priority select and the due
+   date are `field-bare` controls; until their row is hovered or the cell
+   has focus they draw no caret (daisyUI paints it as a background image),
+   no calendar icon and no "Add date". Scoped to the desktop table: the
+   phone's stacked rows (a div#card-table) have no hover, so keep theirs. */
+table#card-table tbody select.field-bare { background-image: none; }
+table#card-table tbody tr:hover select.field-bare,
+table#card-table tbody select.field-bare:focus {
+  background-image: linear-gradient(45deg, #0000 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, #0000 50%);
+}
+
+table#card-table .table-due .date-field-display .hero-calendar { display: none; }
+table#card-table .table-due { min-width: 6.5rem; }
+table#card-table tbody tr:not(:hover) .table-due:not(:focus-within) .date-field-clear { opacity: 0; }
+/* An empty date says nothing at rest; a date rolled up from the subcards
+   (its placeholder) still shows, muted. */
+table#card-table tbody tr:not(:hover) form:not([data-derived]) > .table-due[data-empty]:not(:focus-within) .date-field-placeholder {
+  opacity: 0;
+}
+
+/* The due date wears its state's colour, as the due chip did. */
+table#card-table form[data-due="overdue"] .date-field-display { color: var(--color-error); }
+table#card-table form[data-due="soon"] .date-field-display { color: var(--color-warning); }
+table#card-table form[data-due="done"] .date-field-display { color: var(--color-success); }
+table#card-table form[data-derived] .date-field-placeholder { font-style: italic; }
+
+/* Tags on one line: each chip truncates past 8rem, and "+N" says the rest. */
+#card-table .table-tag { display: inline-flex; flex: 0 1 auto; min-width: 0; max-width: 8rem; }
+#card-table .table-tag > span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
