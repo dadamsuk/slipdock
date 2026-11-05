@@ -279,8 +279,12 @@ handbook: carry on as below.
 Each section page also lists its **rules** under `## Rules`, one item each
 (`- **UX-4** must · <test path or judgement> · <the rule>`): keep to the
 ones whose scope covers the files you touch (`must` is rejected, `should`
-noted), and cite one by its id when you say why. A rule the card adds goes
-there, with the page's prefix and the next unused number.
+noted), and cite one by its id when you say why. **A rule is a person's
+call, not yours:** a rule the card adds, rewords or drops goes in as a
+proposal, not an edit (`slipdock garden propose <board> <file.json>`, an
+`edit_section` step on the page's `## Rules`, the next unused number with
+the page's prefix), and a person applies it. An agent's edit to a rule is
+flagged for a person to keep or revert (the gardener's `rule_changed`).
 
 A card with lane paths shows them in its Handbook block (`rules`); for any
 other set of paths, `slipdock handbook <board> --paths a,b`. **Before
@@ -496,6 +500,7 @@ anybody reads later:
    | added something reusable | Shared modules / Components |
    | added or changed a UI pattern | UX & UI |
    | changed how to test, build or deploy | Testing & tooling / Operations |
+   | adds, rewords or drops a rule (`## Rules`) | a proposal, not an edit: `slipdock garden propose` |
 
    Edit by section, never the whole page: `slipdock page section <page>
    "<path>" --body - --message "#<card> <what changed>"` (or `--append`), so

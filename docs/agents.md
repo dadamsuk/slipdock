@@ -403,7 +403,15 @@ git diff --name-only main | slipdock handbook <board> --paths-from -
 Over REST that is `GET /api/boards/:board/handbook?paths=a,b`. A card
 whose lane has `paths` carries the same rules in `get_card`'s `handbook`
 (`rules`, `must` first, cut to fit, with `rules_more`), and `slipdock card`
-prints them in its Handbook block.
+prints them in its Handbook block. The answer also lists the pages whose
+`covers:` take the paths in (`pages`, each with how many), which is what a
+reconcile reads for a range of commits.
+
+A rule is a person's call. One a card adds, rewords or drops goes in as a
+proposal (`slipdock garden propose`), not an edit. An agent's edit to a
+rule is flagged anyway: the gardener's `rule_changed` check compares each
+page's rules with the last version a person approved and suggests putting
+them back, which the person applies, or keeping them, which they dismiss.
 
 ## Let the board send it work (runners)
 

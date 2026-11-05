@@ -1409,9 +1409,13 @@ checks:
 | Handbook pages that cover everything | a handbook page whose `covers:` has a glob that matches nearly any path (`**`, `lib/**`: `**` with fewer than two folders before it), so it is suggested for every card | a comment on the Index saying which page to narrow |
 | Rules without a test | a `must` rule whose check has been `judgement` for more than 30 days (by the page's history), or a rule id used twice | a comment on the Index naming the rule, the page and the line; rules are never edited by a suggestion |
 | Decisions out of order | a decision that supersedes another without linking back to it, or a page in `Handbook/Decisions` without `Decision:` in its title | a comment on the Index saying what to change |
+| Rules changed by an agent | a rule an agent added, reworded or removed since a person last approved the page's rules (their own edit, an applied suggestion, or keeping an earlier one) | Apply reverts the page's `## Rules` to the approved text, leaving the rest of the page alone; Dismiss keeps the change and records the approval |
 
-The last four keep a [handbook](#tools) in order, and are off on a board
-without one. They are deterministic, read only the handbook's pages and their
+The last five keep a [handbook](#tools) in order, and are off on a board
+without one. *Rules changed by an agent* is how rules stay a person's call:
+agents may edit any page, but a change to a rule waits for a person to keep
+it or put it back, and agents are expected to propose a rule rather than
+write one (`slipdock garden propose`). They are deterministic, read only the handbook's pages and their
 history, and leave contradictions between pages to the triage pass. Where the
 fix isn't mechanical they comment on the handbook's Index page, saying what to
 change and where; a split edits a page's section, so only a person can apply
@@ -6590,9 +6594,12 @@ root (one handbook per tree) and needs write access there. It makes the
 `pages: Handbook` query lists the folder; skeleton pages for Specification,
 Architecture, UX & UI, Components, Data model, Shared modules, Testing &
 tooling and Operations, each with `handbook:`, `read_when:` and `covers:`
-front matter; and two cards: **Seed the handbook** (the procedure for
-drafting every page from the codebase) and **Reconcile the handbook**
-(nightly, waiting on the seed). Each night's reconcile takes at most 20
+front matter; and three cards: **Seed the handbook** (the procedure for
+drafting every page from the codebase), **Reconcile the handbook**
+(nightly, waiting on the seed) and **Triage findings** (nightly, waiting on
+the seed: it merges duplicate findings, dismisses one-offs, and promotes
+what recurs or shows the handbook wrong, a rule or a decision as a proposal
+for a person, logging each run on the Index's `## Triage`). Each night's reconcile takes at most 20
 commits from where the Index's `## Log` stopped, pipes their paths to
 `slipdock handbook <board> --paths-from -`, and reads only the pages that
 lists; with nothing new on the default branch it closes with `Handbook: no
@@ -6601,7 +6608,9 @@ section page without a `## Rules` section (as 1.0.0 made most of them)
 gets an empty one appended, and nothing else on it changes. A handbook from
 before 1.2.0 reconciled weekly: installing over it gives the reconcile
 card (the series' current one) the nightly procedure and moves its series
-to every day, and changes nothing else on it.
+to every day, and changes nothing else on it. Installing 1.3.0 over an
+older handbook adds the Triage findings card and appends `## Triage` to the
+Index.
 
 **Rules** live in each section page's `## Rules`, one list item each, the
 parts separated by ` · `: `- **UX-4** must · test/app_web/design_tokens_test.exs ·

@@ -1602,7 +1602,9 @@ defmodule SlipdockWeb.APIGuide do
     match everything (`broad_covers`), `must` rules left to `judgement`
     and rule ids used twice (`rule_without_check`), and decisions that
     supersede one without linking back or aren't titled `Decision:`
-    (`stale_decision`) — and keeps a suggestion for each. `POST /api/boards/:board/garden` (optionally
+    (`stale_decision`), and rules an agent added, reworded or removed since
+    a person approved them (`rule_changed`: apply reverts them, dismiss
+    keeps them) — and keeps a suggestion for each. `POST /api/boards/:board/garden` (optionally
     `check`) looks it over now; `GET` lists the open suggestions, the last
     run and every check's settings. A suggestion has `check`, `explanation`,
     `cards`, `pages`, `proposal` (its steps), `alternatives` and
@@ -3228,11 +3230,15 @@ defmodule SlipdockWeb.APIGuide do
 
     **The rules for some paths:** `slipdock handbook <board> --paths a,b`
     (REST `GET /api/boards/:board/handbook?paths=a,b`) gives every rule
-    whose scope covers them, `must` first; for a whole change,
+    whose scope covers them, `must` first, and the pages whose `covers:`
+    take them in (`pages`, with how many each); for a whole change,
     `git diff --name-only main | slipdock handbook <board> --paths-from -`. A card with lane `paths` carries
     them in its `handbook` block as `rules` (`rules_more` counts any cut).
     Read them before building and check the diff against them before
-    submitting: a verifier uses the same list.
+    submitting: a verifier uses the same list. A rule is a person's call:
+    one a card adds, rewords or drops goes in as a proposal (`slipdock
+    garden propose`), not an edit, and an agent's edit to a rule is flagged
+    for a person to keep or revert (`rule_changed`).
 
     **Before closing, the docs gate.** Check the diff against the handbook:
 
