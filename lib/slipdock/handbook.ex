@@ -30,7 +30,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.1.0"
+  @version "1.2.0"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -108,6 +108,7 @@ defmodule Slipdock.Handbook do
 
   @seed_title "Seed the handbook"
   @reconcile_title "Reconcile the handbook"
+  @reconcile_repeat "every day"
 
   @seed_description """
   Write the first real version of this board's handbook (the `Handbook/` folder, see its Index). Its pages are skeletons until this card is done. Spec: the Handbook Tool, W-1934.
@@ -134,13 +135,16 @@ defmodule Slipdock.Handbook do
   """
 
   @reconcile_description """
-  Bring the handbook (the `Handbook/` folder, see its Index) back in line with the code. Passes update it as they close cards; this catches what they missed, implementation choices above all. Spec: W-1934 §Drift.
+  Bring the handbook (the `Handbook/` folder, see its Index) back in line with the code, a small range at a time. Passes update it as they close cards; this catches what they missed, implementation choices above all. It comes every night and lands on top of the ready list, so keep it short. Spec: W-1934 §Drift.
 
-  1. Find where the last reconcile stopped: the last line of the Index's `## Log` (a commit range). None yet: start from the commit that seeded the handbook.
-  2. `git log --stat <last>..HEAD` on the default branch. For each change, check the pages whose `covers:` globs match its paths, and the checklist: user-visible behaviour → Specification; structure or boundaries → Architecture / Data model; a choice between alternatives → a new page in `Handbook/Decisions`; something reusable → Shared modules / Components; a UI pattern → UX & UI; how to test, build or deploy → Testing & tooling / Operations.
-  3. Update what drifted by section, with `--message "#<this card> reconcile <range>"`.
-  4. Append the range covered to the Index's `## Log`: `- <date>: <from>..<to>, updated <codes> (or nothing drifted)`.
-  5. Close the card with a `Handbook:` line. The next one comes by itself next week.
+  1. Find where the last reconcile stopped: the last line of the Index's `## Log` (a commit range, `<from>..<to>`). None yet: start from the commit that seeded the handbook. A `<to>` that is no longer in the default branch's history (it was rewritten): find its equivalent by its subject.
+  2. `git fetch`, then `git log --oneline --reverse <to>..origin/<default branch>`. Nothing new: close the card with `Handbook: no change (nothing landed)`, and leave the Log alone.
+  3. Take at most 20 of those commits, oldest first: the range is `<to>..<the 20th>`. The rest wait for the next night.
+  4. Find what the range touches: `git log --name-only --format= <range> | sort -u | slipdock handbook <board> --paths-from -`. It lists the pages whose `covers:` match those paths, and the rules the paths fall under. Read only those pages, by section (`slipdock page section`), against the range's diffs.
+  5. For each change, check those pages and the checklist: user-visible behaviour → Specification; structure or boundaries → Architecture / Data model; a choice between alternatives → a new page in `Handbook/Decisions`; something reusable → Shared modules / Components; a UI pattern → UX & UI; how to test, build or deploy → Testing & tooling / Operations. A changed path that no page covers but one should: add it to that page's `covers:`.
+  6. Update what drifted, by section, with `--message "#<this card> reconcile <range>"`. Facts, links and splits are yours to fix. A rule (`## Rules`) or a decision that looks wrong is a person's call: don't rewrite it, say so as a finding (`handbook-wrong:` or `rule:`) in the closing comment.
+  7. Append the range to the Index's `## Log`: `- <date>: <from>..<to> (<n> commits), updated <codes>` (or `nothing drifted`).
+  8. Close the card with a `Handbook:` line. The next one comes by itself tomorrow.
   """
 
   @doc """
@@ -195,7 +199,7 @@ defmodule Slipdock.Handbook do
         %{
           "title" => @reconcile_title,
           "description" => @reconcile_description,
-          "repeat" => "every mon"
+          "repeat" => @reconcile_repeat
         }
       ]
     }
@@ -222,12 +226,13 @@ defmodule Slipdock.Handbook do
         {:ok, report} ->
           if @reconcile_title in report.added["cards"], do: reconcile_after_seed(root)
           report = add_rules_sections(root, user, report)
+          {report, upgraded} = upgrade_reconcile(root, user, report)
 
           {:ok,
            %{
              board: Boards.get_board!(root.id),
              created: created,
-             upgraded: false,
+             upgraded: upgraded,
              version: %{version: @version},
              install: %{version: @version},
              report: report
@@ -272,6 +277,70 @@ defmodule Slipdock.Handbook do
     page.body
     |> Wiki.Section.headings()
     |> Enum.any?(&(&1.level == 2 and String.downcase(String.trim(&1.title)) == "rules"))
+  end
+
+  # A handbook installed before 1.2.0 reconciled weekly, over everything
+  # since the last run. Installing over it moves the reconcile card (the
+  # series' current instance, else the newest of that title) to the nightly
+  # procedure: its description, and a series' rule when it is on another.
+  # Nothing else on the card or the series changes, and a card already
+  # current is left alone. Reported as "<title> (updated: nightly)".
+  defp upgrade_reconcile(root, user, report) do
+    if @reconcile_title in report.added["cards"] do
+      {report, false}
+    else
+      case reconcile_card(root) do
+        nil ->
+          {report, false}
+
+        {card, series} ->
+          described = card.description == @reconcile_description
+          {:ok, daily} = Slipdock.Recurrence.Rule.parse_phrase(@reconcile_repeat)
+          daily = Slipdock.Recurrence.Rule.to_string(daily)
+          nightly = is_nil(series) or series.rule == daily
+
+          # Neither write stops the install: what fails is just not reported.
+          described_now =
+            not described and
+              match?(
+                {:ok, _},
+                Boards.update_card(card, %{"description" => @reconcile_description}, by: user)
+              )
+
+          nightly_now =
+            not nightly and
+              match?(
+                {:ok, _},
+                Slipdock.Recurrence.set(card, %{"rule" => @reconcile_repeat}, user)
+              )
+
+          if described_now or nightly_now,
+            do: {note_card(report, "#{@reconcile_title} (updated: nightly)"), true},
+            else: {report, false}
+      end
+    end
+  end
+
+  defp note_card(report, name), do: update_in(report, [:added, "cards"], &(&1 ++ [name]))
+
+  defp reconcile_card(root) do
+    cards =
+      from(c in Slipdock.Boards.Card,
+        where: c.board_id == ^root.id and c.title == @reconcile_title,
+        order_by: [desc: c.id]
+      )
+      |> Repo.all()
+
+    with_series =
+      Enum.find_value(cards, fn card ->
+        if series = Slipdock.Recurrence.for_card(card), do: {card, series}
+      end)
+
+    cond do
+      with_series -> with_series
+      card = List.first(cards) -> {card, nil}
+      true -> nil
+    end
   end
 
   # The first reconcile waits for the seed: there is nothing to reconcile
@@ -438,8 +507,9 @@ defmodule Slipdock.Handbook do
 
   @doc """
   The rules of `board`'s handbook for `paths`, for `reader`:
-  `%{board:, index_page:, paths:, rules:}` with every matching rule, or nil
-  when the tree keeps no handbook or `reader` can't read it. Options as
+  `%{board:, index_page:, paths:, pages:, rules:}` with the pages whose
+  `covers:` take in any of them (`pages_for/2`) and every matching rule, or
+  nil when the tree keeps no handbook or `reader` can't read it. Options as
   `for_card/3`.
   """
   def rules_for_board(%Board{} = board, reader, paths, opts \\ []) do
@@ -451,11 +521,43 @@ defmodule Slipdock.Handbook do
         board: handbook.board.code,
         index_page: handbook.index.code,
         paths: paths,
+        pages: pages_for(handbook, paths),
         rules: rules_for(handbook, paths)
       }
     else
       _ -> nil
     end
+  end
+
+  @doc """
+  The handbook's pages (not the Index) whose `covers:` take in any of
+  `paths`, matched as lanes are: `%{code:, title:, paths:}`, where `paths`
+  counts the ones the page covers, most first and then in the handbook's
+  order. What a reconcile reads for a range of commits (#1787). A page with
+  no `covers:` claims nothing, so it is never listed.
+  """
+  def pages_for(nil, _paths), do: []
+
+  def pages_for(handbook, paths) do
+    paths = clean_paths(paths)
+
+    handbook.pages
+    |> Enum.reject(&(&1.id == handbook.index.id))
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {page, order} ->
+      case List.wrap(field(page, "covers")) |> Enum.filter(&is_binary/1) do
+        [] ->
+          []
+
+        globs ->
+          case Enum.count(paths, &Slipdock.Lanes.overlap?(globs, [&1])) do
+            0 -> []
+            n -> [{order, %{code: page.code, title: page.title, paths: n}}]
+          end
+      end
+    end)
+    |> Enum.sort_by(fn {order, page} -> {-page.paths, order} end)
+    |> Enum.map(&elem(&1, 1))
   end
 
   defp clean_paths(paths) do

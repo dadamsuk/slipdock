@@ -1938,7 +1938,8 @@ defmodule SlipdockCLI.Boards do
     |> Enum.uniq()
   end
 
-  # One answer from several: the rules once each, `must` first.
+  # One answer from several: the rules once each, `must` first, and the
+  # pages once each.
   defp merge_rules(nil, data), do: data
   defp merge_rules(acc, %{"handbook" => nil}), do: acc
   defp merge_rules(%{"handbook" => nil}, data), do: data
@@ -1949,7 +1950,26 @@ defmodule SlipdockCLI.Boards do
       |> Enum.uniq_by(& &1["id"])
       |> Enum.sort_by(&if(&1["severity"] == "must", do: 0, else: 1))
 
-    %{acc | "handbook" => %{a | "rules" => rules, "paths" => a["paths"] ++ b["paths"]}}
+    handbook =
+      %{a | "rules" => rules, "paths" => a["paths"] ++ b["paths"]}
+      |> merge_pages(a["pages"], b["pages"])
+
+    %{acc | "handbook" => handbook}
+  end
+
+  # Pages once each, their path counts added up, most first.
+  defp merge_pages(h, nil, nil), do: h
+
+  defp merge_pages(h, a, b) do
+    pages =
+      ((a || []) ++ (b || []))
+      |> Enum.group_by(& &1["code"])
+      |> Enum.map(fn {_code, [first | _] = same} ->
+        Map.put(first, "paths", Enum.sum(Enum.map(same, &(&1["paths"] || 0))))
+      end)
+      |> Enum.sort_by(&(-&1["paths"]))
+
+    Map.put(h, "pages", pages)
   end
 
   # The verdict in parts (#1778): each `--check`, then `--checks-file`'s

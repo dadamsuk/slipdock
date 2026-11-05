@@ -6580,9 +6580,16 @@ Architecture, UX & UI, Components, Data model, Shared modules, Testing &
 tooling and Operations, each with `handbook:`, `read_when:` and `covers:`
 front matter; and two cards: **Seed the handbook** (the procedure for
 drafting every page from the codebase) and **Reconcile the handbook**
-(weekly, waiting on the seed). Installing again adds only what is missing:
-a section page without a `## Rules` section (as 1.0.0 made most of them)
-gets an empty one appended, and nothing else on it changes.
+(nightly, waiting on the seed). Each night's reconcile takes at most 20
+commits from where the Index's `## Log` stopped, pipes their paths to
+`slipdock handbook <board> --paths-from -`, and reads only the pages that
+lists; with nothing new on the default branch it closes with `Handbook: no
+change (nothing landed)`. Installing again adds only what is missing: a
+section page without a `## Rules` section (as 1.0.0 made most of them)
+gets an empty one appended, and nothing else on it changes. A handbook from
+before 1.2.0 reconciled weekly: installing over it gives the reconcile
+card (the series' current one) the nightly procedure and moves its series
+to every day, and changes nothing else on it.
 
 **Rules** live in each section page's `## Rules`, one list item each, the
 parts separated by ` · `: `- **UX-4** must · test/app_web/design_tokens_test.exs ·
@@ -6598,12 +6605,13 @@ counts the rules (`rules` in `GET /api/boards/:board/handbook`: `count`,
 `must` and `problems`) and lists each item it couldn't read, with its page,
 line and why.
 
-`slipdock handbook <board> --paths a,b` gives the rules whose scope covers
-any of those paths (files, folders or globs, matched as lanes are), `must`
-first; `--paths-from -` reads them one per line, so `git diff --name-only
+`slipdock handbook <board> --paths a,b` gives the pages whose `covers:`
+take in any of those paths (each with how many, most first: what a
+reconcile reads) and the rules whose scope covers any of them (files,
+folders or globs, matched as lanes are), `must` first; `--paths-from -` reads them one per line, so `git diff --name-only
 main | slipdock handbook <board> --paths-from -` checks a whole change. Over
 REST it is `GET /api/boards/:board/handbook?paths=a,b` (commas or newlines,
-or `paths[]=`), answering `{board, index_page, paths, rules}`; the CLI
+or `paths[]=`), answering `{board, index_page, paths, pages, rules}`; the CLI
 splits a long list over several requests, so a read-only token can ask. A
 card with lane `paths` has the same rules in its `handbook` block
 (`get_card`, `GET /api/cards/:id`, `slipdock card`): `rules` with each

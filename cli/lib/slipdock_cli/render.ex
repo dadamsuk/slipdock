@@ -821,6 +821,35 @@ defmodule SlipdockCLI.Render do
   def handbook_for_paths(%{"handbook" => h}) do
     paths = h["paths"] || []
 
+    # The pages whose `covers:` take the paths in (#1787): what a reconcile
+    # reads. A server older than that sends none, and prints no block.
+    case h["pages"] do
+      nil ->
+        :ok
+
+      pages ->
+        IO.puts(bold("Pages") <> dim("  whose covers: take these paths in"))
+
+        case pages do
+          [] ->
+            IO.puts("  " <> dim("none"))
+
+          pages ->
+            Enum.each(pages, fn p ->
+              n = p["paths"] || 0
+
+              IO.puts(
+                "  #{p["code"]} #{p["title"]}  " <>
+                  dim(
+                    "#{n} path#{if n == 1, do: "", else: "s"} · slipdock page read #{p["code"]}"
+                  )
+              )
+            end)
+        end
+
+        IO.puts("")
+    end
+
     IO.puts(
       bold("Rules") <>
         dim("  #{h["board"]} · #{length(paths)} path#{if length(paths) == 1, do: "", else: "s"}")

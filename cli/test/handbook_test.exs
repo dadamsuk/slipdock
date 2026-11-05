@@ -246,6 +246,69 @@ defmodule SlipdockCLI.HandbookTest do
     assert length(Regex.scan(~r/DATA-1 should/, out)) == 1
   end
 
+  defp pages_body(paths, pages) do
+    data = JSON.decode!(rules_body(paths, [@rule]))
+    JSON.encode!(put_in(data, ["handbook", "pages"], pages))
+  end
+
+  test "--paths prints the pages whose covers take the paths in, before the rules (#1787)" do
+    serve(
+      pages_body(["priv/repo/a.exs", "lib/x.ex"], [
+        %{"code" => "W-5", "title" => "Data model", "paths" => 2},
+        %{"code" => "W-3", "title" => "Architecture", "paths" => 1}
+      ])
+    )
+
+    out =
+      capture_io(fn -> Boards.run("handbook", ["proj"], paths: "priv/repo/a.exs,lib/x.ex") end)
+
+    assert out =~ "Pages  whose covers: take these paths in"
+    assert out =~ "W-5 Data model  2 paths · slipdock page read W-5"
+    assert out =~ "W-3 Architecture  1 path · slipdock page read W-3"
+    [pages_at, rules_at] = for w <- ["Pages", "Rules"], do: :binary.match(out, w) |> elem(0)
+    assert pages_at < rules_at
+  end
+
+  test "--paths with no page covering them says none; an older server prints no block" do
+    serve(pages_body(["README.md"], []))
+    out = capture_io(fn -> Boards.run("handbook", ["proj"], paths: "README.md") end)
+    assert out =~ ~r/Pages .*\n  none\n/
+
+    serve(rules_body(["README.md"], [@rule]))
+    out = capture_io(fn -> Boards.run("handbook", ["proj"], paths: "README.md") end)
+    refute out =~ "Pages"
+    assert out =~ "DATA-2 must"
+  end
+
+  test "--paths-from - adds up a page's paths across chunks, most first" do
+    paths = for n <- 1..45, do: "lib/m#{n}.ex"
+
+    System.put_env(
+      "SLIPDOCK_URL",
+      FakeServer.start([
+        {200,
+         pages_body(Enum.take(paths, 40), [
+           %{"code" => "W-3", "title" => "Architecture", "paths" => 3},
+           %{"code" => "W-6", "title" => "Shared modules", "paths" => 2}
+         ])},
+        {200,
+         pages_body(Enum.drop(paths, 40), [
+           %{"code" => "W-6", "title" => "Shared modules", "paths" => 4}
+         ])}
+      ])
+    )
+
+    out =
+      capture_io(Enum.join(paths, "\n"), fn ->
+        Boards.run("handbook", ["proj"], paths_from: "-")
+      end)
+
+    assert out =~ "W-6 Shared modules  6 paths"
+    assert out =~ "W-3 Architecture  3 paths"
+    assert elem(:binary.match(out, "W-6"), 0) < elem(:binary.match(out, "W-3"), 0)
+    assert length(Regex.scan(~r/W-6 Shared/, out)) == 1
+  end
+
   test "--paths on a board without a handbook says so" do
     serve(JSON.encode!(%{"board" => %{"code" => "proj"}, "handbook" => nil}))
     out = capture_io(fn -> Boards.run("handbook", ["proj"], paths: "a.ex") end)

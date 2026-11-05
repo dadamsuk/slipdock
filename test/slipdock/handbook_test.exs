@@ -104,7 +104,7 @@ defmodule Slipdock.HandbookTest do
   end
 
   describe "the Seed and Reconcile cards (#1263)" do
-    test "install makes both, the reconcile weekly and waiting on the seed",
+    test "install makes both, the reconcile nightly and waiting on the seed",
          %{user: user, board: board} do
       {:ok, result} = Handbook.install(user, board)
       assert result.report.added["cards"] == ["Seed the handbook", "Reconcile the handbook"]
@@ -128,7 +128,12 @@ defmodule Slipdock.HandbookTest do
 
       series = Slipdock.Recurrence.for_card(rec)
       assert series
-      assert Slipdock.Recurrence.Series.summary(series) =~ ~r/Mon/i
+      assert series.rule == "FREQ=DAILY"
+      # The nightly procedure (#1787): a small range, only the pages it touches.
+      assert rec.description =~ "at most 20 of those commits"
+      assert rec.description =~ "--paths-from -"
+      assert rec.description =~ "Handbook: no change (nothing landed)"
+      assert rec.description =~ "tomorrow"
 
       assert Enum.map(Boards.get_card!(rec.id).blocked_by, & &1.id) == [seed.id]
     end
@@ -323,11 +328,109 @@ defmodule Slipdock.HandbookTest do
     end
   end
 
+  describe "upgrading the reconcile to nightly (#1787)" do
+    # As a handbook before 1.2.0 left it: a weekly series with the old text.
+    defp weekly_reconcile(user, board) do
+      {:ok, _} = Handbook.install(user, board)
+
+      rec =
+        Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Reconcile the handbook")
+
+      {:ok, rec} =
+        Boards.update_card(rec, %{
+          "description" => "Weekly: `git log --stat <last>..HEAD`.",
+          "priority" => "high",
+          "due_date" => ~D[2026-11-02]
+        })
+
+      {:ok, _} = Slipdock.Recurrence.set(rec, %{"rule" => "every mon", "at" => "06:30"}, user)
+      Repo.reload!(rec)
+    end
+
+    test "installing over it gives the card the nightly procedure and repeat, nothing else",
+         %{user: user, board: board} do
+      rec = weekly_reconcile(user, board)
+      before = Slipdock.Recurrence.for_card(rec)
+      assert before.rule =~ "WEEKLY"
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.upgraded
+      assert "Reconcile the handbook (updated: nightly)" in again.report.added["cards"]
+
+      after_rec = Repo.reload!(rec)
+      assert after_rec.description =~ "at most 20 of those commits"
+      assert after_rec.title == rec.title
+      assert after_rec.priority == "high"
+      assert after_rec.column_id == rec.column_id
+      assert after_rec.due_date == rec.due_date
+
+      series = Slipdock.Recurrence.for_card(after_rec)
+      assert series.id == before.id
+      assert series.rule == "FREQ=DAILY"
+      assert series.create_at == before.create_at
+      assert series.timezone == before.timezone
+
+      # Once current, installing again leaves it be.
+      {:ok, third} = Handbook.install(user, board)
+      refute third.upgraded
+      refute Enum.any?(third.report.added["cards"], &(&1 =~ "updated"))
+    end
+
+    test "the series' current card is the one changed, not an older copy",
+         %{user: user, board: board} do
+      rec = weekly_reconcile(user, board)
+      {:ok, old} = Boards.copy_card(rec)
+      # The copy is newer by id but not the series' instance.
+      assert old.id > rec.id
+      {:ok, old} = Boards.update_card(old, %{"description" => "an old week"})
+
+      {:ok, _} = Handbook.install(user, board)
+      assert Repo.reload!(rec).description =~ "at most 20 of those commits"
+      assert Repo.reload!(old).description == "an old week"
+    end
+
+    test "a stopped series keeps stopped: only the description moves on",
+         %{user: user, board: board} do
+      rec = weekly_reconcile(user, board)
+      {:ok, _} = Slipdock.Recurrence.stop(rec)
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.upgraded
+      assert Repo.reload!(rec).description =~ "at most 20 of those commits"
+      assert Slipdock.Recurrence.for_card(rec) == nil
+    end
+
+    test "a series already daily only gets its description", %{user: user, board: board} do
+      rec = weekly_reconcile(user, board)
+      {:ok, _} = Slipdock.Recurrence.set(rec, %{"rule" => "day"}, user)
+      next_on = Slipdock.Recurrence.for_card(rec).next_on
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.upgraded
+      assert Slipdock.Recurrence.for_card(rec).next_on == next_on
+    end
+
+    test "with no reconcile card at all there is nothing to upgrade",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+
+      rec =
+        Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Reconcile the handbook")
+
+      {:ok, _} = Boards.update_card(rec, %{"title" => "Renamed by a person"})
+
+      {:ok, again} = Handbook.install(user, board)
+      refute again.upgraded
+      # A card of that title is made again, as any missing blueprint card is.
+      assert again.report.added["cards"] == ["Reconcile the handbook"]
+    end
+  end
+
   describe "rules (#1773)" do
     test "a new handbook's section pages each start with an empty ## Rules",
          %{user: user, board: board} do
       {:ok, result} = Handbook.install(user, board)
-      assert result.version.version == "1.1.0"
+      assert result.version.version == Handbook.version()
       [_index | sections] = handbook_pages(board)
 
       for page <- sections do
