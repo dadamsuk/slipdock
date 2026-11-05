@@ -342,7 +342,11 @@ and closed, or handed back (below) with a handoff saying where its build got to.
 
 The parent closes last, when its rollup shows every child done and the build
 of the last push is green (step 7.4: it waits for that build), with a comment
-summarising the set rather than repeating each child's write-up.
+summarising the set rather than repeating each child's write-up. Subcards can
+be added while you work, so list the sub-board again just before. The board
+refuses an agent closing (or submitting) a card while a subcard is open — not
+done and not archived; one awaiting verification counts as finished — and the
+refusal names them: finish them, or archive the ones that don't belong.
 
 ## 6. Work it, writing as you go
 

@@ -29,10 +29,18 @@ defmodule Slipdock.Verified do
       its prompt saying what to check and how to decide. A decision cancels
       any other verify job still open on the card.
 
+  One check has no switch (#1758): an agent can't complete (or submit) a
+  card whose sub-board still has open cards, by a write or a move into a
+  done list; the refusal names them (`open_subcards/1`). It guards against
+  a contradiction, an epic done over unfinished work, rather than asking
+  more of an agent's work, so it holds on every board.
+
   The checks apply to agents (`Slipdock.Actor` kind `"agent"`), not to the
   in-app assistant, which acts on a person's say in the web app, nor to
   people or automations: a person is who the checks report to.
   """
+
+  import Ecto.Query, only: [from: 2]
 
   alias Slipdock.Boards.{Board, Card, Column}
   alias Slipdock.Repo
@@ -73,14 +81,16 @@ defmodule Slipdock.Verified do
   `{:ok, attrs, changes}` — `attrs` as they are to be cast, and `changes` to
   put on the card besides (the verification fields, which are never cast) —
   or `{:error, field, message}` when `actor` may not make the change they
-  describe to `card`: an agent changing a locked bar, or completing a card
-  with no evidence on a board that asks for it.
+  describe to `card`: an agent changing a locked bar, completing a card
+  whose sub-board has open cards (on any board), or completing one with no
+  evidence on a board that asks for it.
 
   On a board that verifies work, an agent's completion becomes a
   submission, and a person's completion of a pending card an acceptance.
   """
   def check_update(%Card{} = card, attrs, actor) do
     with :ok <- check_bar_edit(card, attrs, actor),
+         :ok <- check_subcards(card, attrs, actor),
          :ok <- check_evidence(card, attrs, actor) do
       {attrs, changes} = card |> clear_evidence(attrs) |> verification(card, actor)
       {:ok, attrs, changes}
@@ -111,7 +121,8 @@ defmodule Slipdock.Verified do
   @doc """
   `:ok`, or `{:error, message}` when `actor` may not move `card` into `to`:
   an agent starting work on a card with no bar on a board that asks for one,
-  or completing one by a move with no evidence on a board that asks for it.
+  completing one by a move while its sub-board has open cards (on any
+  board), or with no evidence on a board that asks for it.
   """
   def check_move(%Card{} = card, %Column{} = to, actor) do
     cond do
@@ -119,6 +130,9 @@ defmodule Slipdock.Verified do
         {:error,
          "this board asks for each card's bar before work starts: write what done means " <>
            "for card ##{card.id} (its `bar`), then move it"}
+
+      message = check_subcards_move(card, to, actor) ->
+        {:error, message}
 
       message = check_done_move(card, to, actor) ->
         {:error, message}
@@ -148,6 +162,61 @@ defmodule Slipdock.Verified do
   end
 
   def moved(%Card{} = card, _to), do: {:ok, card}
+
+  ## Open subcards (#1758) ----------------------------------------------------
+
+  # How many open subcards a refusal names before it says how many more.
+  @named_subcards 10
+
+  @doc """
+  The cards still open on `card`'s sub-board, as `{id, title}` in id order:
+  not completed, not archived and not submitted for verification (pending,
+  or accepted and merging, which is the verifier's to finish). A subcard
+  that is complete counts as done whatever its own sub-board holds. An
+  archived sub-board, or none, has none.
+  """
+  def open_subcards(%Card{id: id}) do
+    from(c in Card,
+      join: b in Board,
+      on: b.id == c.board_id,
+      where:
+        b.parent_card_id == ^id and is_nil(b.archived_at) and c.completed == false and
+          is_nil(c.archived_at) and coalesce(c.verify_state, "") not in ["pending", "merging"],
+      order_by: c.id,
+      select: {c.id, c.title}
+    )
+    |> Repo.all()
+  end
+
+  defp check_subcards(card, attrs, actor) do
+    with true <- completes?(card, attrs) and gated?(actor),
+         message when is_binary(message) <- subcards_message(card) do
+      {:error, :completed, "is refused: " <> message}
+    else
+      _ -> :ok
+    end
+  end
+
+  defp check_subcards_move(card, to, actor) do
+    if Column.done?(to) and not card.completed and gated?(actor), do: subcards_message(card)
+  end
+
+  # Why `card` can't be completed by an agent yet, or nil when it can.
+  defp subcards_message(%Card{} = card) do
+    case open_subcards(card) do
+      [] ->
+        nil
+
+      open ->
+        {named, rest} = Enum.split(open, @named_subcards)
+        names = Enum.map_join(named, ", ", fn {id, title} -> "##{id} #{title}" end)
+        more = if rest == [], do: "", else: " and #{length(rest)} more"
+        verb = if length(open) == 1, do: "is", else: "are"
+
+        "card ##{card.id} has open subcards: #{names}#{more} #{verb} still open. " <>
+          "Finish or archive them first, then complete it"
+    end
+  end
 
   ## Evidence -----------------------------------------------------------------
 
