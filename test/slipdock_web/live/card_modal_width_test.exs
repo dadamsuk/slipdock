@@ -39,16 +39,17 @@ defmodule SlipdockWeb.CardModalWidthTest do
     assert "w-full" in classes
   end
 
-  test "board settings take 80% of the width on a desktop", %{conn: conn} do
+  # Sized to its form (#1741): the lg modal, not 80% of the screen, with
+  # the form in a 40rem column inside it.
+  test "board settings are a large modal, not 80% of the screen", %{conn: conn} do
     board = board_fixture(%{"name" => "Settings width"})
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
     classes = view |> element("#settings-modal") |> render() |> panel_classes()
 
-    assert "sm:max-w-[80%]" in classes
-    refute "max-w-md" in classes
+    assert "max-w-4xl" in classes
+    refute "sm:max-w-[80%]" in classes
     # Full screen on a phone, as every modal is.
-    refute Enum.any?(classes, &String.starts_with?(&1, "max-w-"))
     assert "w-full" in classes
   end
 

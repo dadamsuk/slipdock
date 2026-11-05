@@ -10,6 +10,7 @@
 @import "./views/timeline.css";
 @import "./views/calendar.css";
 @import "./views/prioritise.css";
+@import "./views/board-settings.css";
 @source "../css";
 @source "../js";
 @source "../../lib/slipdock_web";

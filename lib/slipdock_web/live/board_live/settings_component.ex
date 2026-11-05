@@ -50,7 +50,9 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   defp tab(key) when key in @tab_keys, do: key
   defp tab(_), do: "general"
 
-  defp panel_class(tab, key), do: ["space-y-4", tab != key && "hidden"]
+  # Every panel is the one form column (#1741): at most 40rem, whatever the
+  # modal's width, so a field never runs wider than what it holds.
+  defp panel_class(tab, key), do: ["settings-column space-y-4", tab != key && "hidden"]
 
   @impl true
   def mount(socket),
@@ -497,7 +499,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
   defp settings_modal(assigns) do
     ~H"""
-    <.modal id="settings-modal" on_close={JS.patch(@close_path)} size="page">
+    <.modal id="settings-modal" on_close={JS.patch(@close_path)} size="lg">
       <div class="space-y-5 p-6">
         <h2 class="section-title">Board settings</h2>
         <.tabs id="settings-tabs" label="Board settings" stretch>
@@ -527,66 +529,75 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         >
           <div id="settings-panel-general" role="tabpanel" class={panel_class(@tab, "general")}>
             <.input field={@form[:name]} label="Name" />
-            <div>
-              <.input
-                field={@form[:code]}
-                label="Code"
-                maxlength={Board.code_length()}
-                class="input field field-mono w-full"
-              />
-              <p class="-mt-1 text-xs text-base-content/50">
-                A short, unique handle for this board — up to {Board.code_length()} characters, used
-                in links and on the command line. Clear it to take a fresh one from the name.
+            <%!-- Short values sit in boxes their own size, in pairs (#1741). --%>
+            <div class="space-y-1">
+              <div class="settings-pair">
+                <.input
+                  field={@form[:code]}
+                  label="Code"
+                  maxlength={Board.code_length()}
+                  class="input field field-mono w-36"
+                />
+                <.input
+                  :if={is_nil(@board.parent_card_id)}
+                  field={@form[:shortcut]}
+                  label="Shortcut key"
+                  maxlength={Board.shortcut_length()}
+                  class="input field field-mono w-16"
+                />
+              </div>
+              <p class="text-xs text-base-content/60">
+                The code is this board's handle in links and on the command line, up to {Board.code_length()} characters.
+                <span :if={is_nil(@board.parent_card_id)}>
+                  The shortcut key opens it from the switcher: press <kbd class="kbd kbd-xs">b</kbd>, then the key.
+                </span>
+                Clear one to take a fresh one from the name.
               </p>
             </div>
-            <div :if={is_nil(@board.parent_card_id)}>
-              <.input
-                field={@form[:shortcut]}
-                label="Shortcut key"
-                maxlength={Board.shortcut_length()}
-                class="input field field-mono w-24"
-              />
-              <p class="-mt-1 text-xs text-base-content/50">
-                What jumps to this board from the switcher: press <kbd class="kbd kbd-xs">b</kbd>
-                anywhere, then this. One or two letters or digits, unique across your boards.
-                Clear it to take a fresh one from the name.
-              </p>
-            </div>
-            <div :if={is_nil(@board.parent_card_id)}>
-              <.input
-                name="hotkey"
-                id="board-hotkey"
-                type="select"
-                label="Hotkey"
-                value={if @hotkey, do: to_string(@hotkey), else: ""}
-                options={Hotkeys.choices(@hotkeys, @board)}
-              />
-              <p class="-mt-1 text-xs text-base-content/50">
-                Opens this board from any page: <kbd class="kbd kbd-xs">Ctrl</kbd>
+            <div :if={is_nil(@board.parent_card_id)} class="space-y-1">
+              <div class="settings-pair">
+                <.input
+                  name="hotkey"
+                  id="board-hotkey"
+                  type="select"
+                  label="Hotkey"
+                  value={if @hotkey, do: to_string(@hotkey), else: ""}
+                  options={Hotkeys.choices(@hotkeys, @board)}
+                  class="select field w-44"
+                />
+                <.input
+                  field={@form[:default_view]}
+                  id="board-default-view"
+                  type="select"
+                  label="Default view"
+                  options={default_view_options(@board)}
+                  class="select field w-36"
+                />
+              </div>
+              <p class="text-xs text-base-content/60">
+                The hotkey opens this board from any page: <kbd class="kbd kbd-xs">Ctrl</kbd>
                 + <kbd class="kbd kbd-xs">Shift</kbd>
                 + the digit. Only you see your digits. Picking one that another board
-                or your wiki already has moves it to this board.
+                or your wiki already has moves it to this board. The default view is what
+                opening the board shows.
               </p>
             </div>
             <.input field={@form[:description]} type="textarea" label="Description" />
-            <%!-- Where the board index, the switcher and favourites land. Only a
-                root board is opened from those, so a sub-board has no say. --%>
-            <div :if={is_nil(@board.parent_card_id)}>
+            <div :if={is_nil(@board.parent_card_id)} class="settings-pair">
               <.input
-                field={@form[:default_view]}
-                id="board-default-view"
-                type="select"
-                label="Default view"
-                options={default_view_options(@board)}
+                field={@form[:vote_budget]}
+                type="number"
+                min="0"
+                label="Votes per person"
+                class="input field w-24"
               />
-              <p class="-mt-1 text-xs text-base-content/50">
-                What opening this board shows, from the board list, the switcher and favourites.
-                The view menu still reaches every view.
-              </p>
-            </div>
-            <div :if={is_nil(@board.parent_card_id)} class="grid grid-cols-2 gap-2">
-              <.input field={@form[:vote_budget]} type="number" min="0" label="Votes per person" />
-              <.input field={@form[:vote_max]} type="number" min="1" label="Max votes per card" />
+              <.input
+                field={@form[:vote_max]}
+                type="number"
+                min="1"
+                label="Max votes per card"
+                class="input field w-24"
+              />
             </div>
             <%!-- A sprint board's cards are sprints: it gains New sprint, and
                 each sprint Add cards…. Unticked, the hidden field sends "". --%>
@@ -634,7 +645,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               </label>
             </div>
             <div class="space-y-1.5">
-              <span class="text-sm font-medium">Colour</span>
+              <span class="field-label">Colour</span>
               <div class="flex flex-wrap gap-1.5">
                 <.color_swatch
                   :for={{name, _} <- Palette.all()}
@@ -694,12 +705,13 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   </span>
                 </span>
               </label>
-              <div :if={@board.delivery_metrics} class="grid grid-cols-1 gap-2 pl-6 sm:grid-cols-3">
+              <div :if={@board.delivery_metrics} class="settings-pair pl-6">
                 <.input
                   field={@form[:incident_tag]}
                   id="board-incident-tag"
                   label="Incident tag"
                   placeholder="incident"
+                  class="input field w-36"
                 />
                 <.input
                   field={@form[:hotfix_window_hours]}
@@ -707,12 +719,14 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   type="number"
                   min="0"
                   label="Hotfix window (hours)"
+                  class="input field w-24"
                 />
                 <.input
                   field={@form[:card_ref_pattern]}
                   id="board-card-ref-pattern"
                   label="Card ids in commits"
                   placeholder="#(\d+)"
+                  class="input field field-mono w-36"
                 />
               </div>
             </div>

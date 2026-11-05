@@ -1,0 +1,23 @@
+/* Board settings, tags and automations ------------------------------------ */
+
+/* The settings form (#1741): one column at most 40rem wide, whatever the
+   modal's width, with every label stacked over its box. Short values (a
+   code, a shortcut key, numbers) sit in boxes sized to them, side by side
+   in a `settings-pair`; the pair wraps on a phone. `<.input>` puts a margin
+   under its fieldset, which a pair leaves to the gap. */
+.settings-column { max-width: 40rem; }
+.settings-pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: 1rem;
+}
+.settings-pair > .fieldset { padding-bottom: 0; }
+
+/* A tag's name is edited in place: text at rest, a field when hovered or
+   focused, on the row's 28px line. */
+.tag-row input.field-bare {
+  height: 1.75rem;
+  padding-inline: 0.5rem;
+  font-size: 0.875rem;
+}
