@@ -27,7 +27,8 @@ defmodule Slipdock.Swimlanes do
     {"blocked", "Blocked"},
     {"review", "Needs review"},
     {"waiting", "Waiting"},
-    {"starred", "Starred"}
+    {"starred", "Starred"},
+    {"stuck", "Stuck"}
   ]
   @max_gap_fill 120
 

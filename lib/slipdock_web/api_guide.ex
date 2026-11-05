@@ -35,6 +35,7 @@ defmodule SlipdockWeb.APIGuide do
       recipes(base),
       automations(),
       runners(),
+      health_monitor(),
       deployments(base),
       meetings(),
       chat_capture(),
@@ -191,6 +192,7 @@ defmodule SlipdockWeb.APIGuide do
     "Recipes" => "recipes",
     "Automations and alerts" => "automations",
     "Runners" => "runners",
+    "Health monitor" => "health",
     "Deployments" => "deployments",
     "Meeting capture" => "meetings",
     "Chat capture" => "chats",
@@ -647,10 +649,11 @@ defmodule SlipdockWeb.APIGuide do
       a description mentions a person who can see the board, and emails them
       a link to the card — so mention somebody when you need their attention,
       not as a signature, and never yourself.
-    - **Flags** — `flagged`, `blocked`, `review`, `waiting`, `starred`. Hand-set
-      labels, independent of the computed `blocked` — except that a card
-      flagged `blocked` loses the flag when the last card it depends on is
-      completed or archived.
+    - **Flags** — `flagged`, `blocked`, `review`, `waiting`, `starred`, `stuck`.
+      Hand-set labels, independent of the computed `blocked` — except that a
+      card flagged `blocked` loses the flag when the last card it depends on is
+      completed or archived. `stuck` is the health monitor's (see *Health
+      monitor*).
     - **Dependencies** — `blocked_by` / `blocks` between cards, with cycle
       detection. `blocked: true` is computed: something it waits on is still
       open. The two cards may be on different boards — a subcard waiting on
@@ -1994,6 +1997,35 @@ defmodule SlipdockWeb.APIGuide do
     brief:
 
     #{Slipdock.Deployments.Setup.prompt(defaults, %{base_url: base})}
+    """
+  end
+
+  defp health_monitor do
+    """
+    ## Health monitor
+
+    Every few minutes the server looks each board tree with runners or rules
+    over for work stuck in ways only a person would otherwise notice (W-2310):
+    jobs nobody takes, deadlocks, verification and merges that stall, cards and
+    waits nobody is moving. Each finding is an **incident**. Where a safe fix
+    exists it is tried (a few times at most, each attempt a comment on the
+    card); otherwise, or once the fixes run out, it is **flagged**: the card
+    gets the `stuck` flag and a comment saying what was found and tried, or the
+    board gets an alert when no card is involved. Fixes touch only jobs, the
+    queue, flags and comments; nothing is deleted, merged or closed.
+
+    - **A card flagged `stuck`** needs a person. Don't work around it or take
+      the flag off yourself: say on the card what you know, and leave it.
+      Taking the flag off marks the incident handled, and the same state is
+      not flagged again.
+    - **Hearing about it:** the `health_flagged` trigger (`detector` narrows
+      it), or the preset *The health monitor needs a person*, with an email.
+    - **Reading it:** `GET /api/boards/:board/health` (open and flagged
+      incidents, recent ones, the last run, each detector's settings);
+      `POST` the same path runs it now (write access); `PATCH
+      /api/boards/:board/health/settings {detector, enabled?, max_attempts?, …}`.
+      The CLI's `slipdock health <board>`; the board's Health page, linked from
+      Runners.
     """
   end
 

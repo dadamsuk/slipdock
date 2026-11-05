@@ -284,6 +284,7 @@ is not accepted.
 | `send_to_runner` | Send cards to a runner | `column`*, `pool`* (default), `kind` (claude), `wait`* (no), `prompt` |
 | `feed_runner` | Work a list with a runner, top card first | `column`*, `pool`* (default), `kind` (claude), `wait`* (yes), `requeue` (1), `prompt` |
 | `runner_trouble` | A runner job times out or a card is given up | `pool`, `notify`* (alert), `email` |
+| `health_flagged` | The health monitor needs a person | `detector`, `notify`* (alert), `email` |
 <!-- presets:end -->
 
 `slipdock automation-presets` prints the same list from a running server.

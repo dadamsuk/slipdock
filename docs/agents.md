@@ -465,6 +465,16 @@ job is doing now on the job alone, not the card: a verify job reports each
 step that way. The details, and the HTTP protocol a runner speaks, are in
 [the manual](manual.md#runners) and the guide's *Runners* section.
 
+**The health monitor.** Every few minutes the server looks for work stuck
+in ways only a person would otherwise notice — jobs nobody takes, deadlocks,
+verification and merges that stall, cards and waits nobody is moving — tries
+a safe fix (a comment on the card each time), and flags what it can't fix: the
+card gets the `stuck` flag, or the board an alert. A card flagged `stuck` is
+for a person; an agent says on it what it knows and leaves the flag alone.
+`slipdock health <board>`, the board's Health page and
+`GET /api/boards/:board/health` show the incidents; see
+[the manual](manual.md#the-health-monitor).
+
 **Verified work.** A board can check what its agents finish, with each
 check off until it is turned on in the board's settings: a **bar** written
 before work starts, which then locks (best written by whoever files the

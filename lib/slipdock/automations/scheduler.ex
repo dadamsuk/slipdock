@@ -53,6 +53,7 @@ defmodule Slipdock.Automations.Scheduler do
     make_recurring_cards()
     wake_snoozed_cards()
     read_documents()
+    check_health()
     tick()
   rescue
     exception ->
@@ -100,6 +101,14 @@ defmodule Slipdock.Automations.Scheduler do
     Slipdock.OCR.sweep()
   rescue
     exception -> Logger.error("Document reading sweep failed: #{Exception.message(exception)}")
+  end
+
+  # The health monitor runs every few minutes, not every tick (see
+  # `Slipdock.Health`).
+  defp check_health do
+    Slipdock.Health.tick()
+  rescue
+    exception -> Logger.error("Health monitor failed: #{Exception.message(exception)}")
   end
 
   # Meeting captures a restart or a crash left half-read (see

@@ -431,6 +431,15 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           </p>
         </div>
         <div class="flex shrink-0 items-center gap-1">
+          <%!-- What the health monitor found stuck (W-2310). --%>
+          <.link
+            navigate={~p"/boards/#{@board}/health"}
+            class="btn btn-ghost btn-sm"
+            id="runners-health"
+            title="Work the health monitor found stuck, fixed or flagged"
+          >
+            <.icon name="hero-lifebuoy" class="size-4" /> Health
+          </.link>
           <%!-- The whole tree's brake (#1116); a pool's is on its row. --%>
           <button
             :if={@can_manage and is_nil(@tree_pause)}

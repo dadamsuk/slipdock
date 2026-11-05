@@ -10,6 +10,7 @@ defmodule SlipdockCLI do
     Boards,
     Deploy,
     Garden,
+    Health,
     Inbound,
     Lanes,
     Meetings,
@@ -631,6 +632,12 @@ defmodule SlipdockCLI do
     garden dismiss|undo <id>...         dismiss (it stays dismissed) or undo an applied one
     garden settings <board> [<check> key=value...]
                                         show the checks, or change one (enabled=false, days=30)
+    health <board> [--run]              work the health monitor found stuck on the board tree:
+                                        open, flagged for a person (the stuck flag), and lately
+                                        fixed or cleared. --run looks it over now
+    health settings <board> [<detector> key=value...]
+                                        show the detectors, or change one (enabled=false,
+                                        max_attempts=3, or a threshold)
     copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
                                         a copy of the card as it is now: checklist unticked,
                                         subcards reopened; no comments, dates or attachments.
@@ -1319,6 +1326,7 @@ defmodule SlipdockCLI do
     Admin,
     Boards,
     Garden,
+    Health,
     Inbound,
     Automations,
     Runners,

@@ -17,7 +17,7 @@ defmodule Slipdock.Automations.Presets do
   alias Slipdock.Automations.Spec
   alias Slipdock.Boards.Board
 
-  @flags ~w(blocked waiting review flagged starred)
+  @flags ~w(blocked waiting review flagged starred stuck)
   @card_fields ~w(title description priority due_date start_date percent_complete assignee flags color)
 
   # How a "tell me" preset tells you.
@@ -146,7 +146,7 @@ defmodule Slipdock.Automations.Presets do
       key: "flagged",
       group: "Follow",
       title: "A card is flagged",
-      description: "Hear when a card is flagged blocked, waiting or for review.",
+      description: "Hear when a card is flagged blocked, waiting, for review or stuck.",
       fields: [
         %{name: "flag", label: "Flag", type: "flag", required: true, default: "blocked"},
         @notify,
@@ -323,6 +323,25 @@ defmodule Slipdock.Automations.Presets do
           "on the list or given up on (flagged blocked).",
       fields: [
         %{name: "pool", label: "Runner pool", type: "text", required: false, hint: "any pool"},
+        @notify,
+        @email
+      ]
+    },
+    %{
+      key: "health_flagged",
+      group: "Connect",
+      title: "The health monitor needs a person",
+      description:
+        "Hear when the health monitor finds work stuck that it couldn't fix: a card it " <>
+          "flagged stuck, or a board alert.",
+      fields: [
+        %{
+          name: "detector",
+          label: "Only this detector",
+          type: "text",
+          required: false,
+          hint: "any detector; e.g. no_runner, deadlock"
+        },
         @notify,
         @email
       ]
@@ -679,6 +698,31 @@ defmodule Slipdock.Automations.Presets do
       title: "Runner job {{job.id}} {{job.outcome}}: {{card.title}}",
       severity: "warning"
     )
+  end
+
+  defp spec("health_flagged", p, opts) do
+    detector =
+      p["detector"] |> blank_or(nil) |> then(&(&1 && &1 |> to_string() |> String.downcase()))
+
+    trigger = put_present(%{"type" => "health_flagged"}, "detector", detector)
+    name = if detector, do: "Health: #{detector} needs a person", else: "Health monitor"
+
+    with {:ok, name, trigger, conditions, actions} <-
+           notify(p, opts, name, trigger, [],
+             title: "Stuck ({{incident.detector}}): {{incident.summary}}",
+             severity: "warning"
+           ) do
+      # The incident may have no card: the email says what and links the Health page.
+      body = "{{incident.summary}}\n\nHealth: {{incident.url}}\n{{card.url}}"
+
+      actions =
+        Enum.map(actions, fn
+          %{"type" => "email"} = a -> Map.put(a, "body", body)
+          a -> a
+        end)
+
+      {:ok, name, trigger, conditions, actions}
+    end
   end
 
   defp spec("feed_runner", p, _opts) do
