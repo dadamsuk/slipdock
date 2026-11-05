@@ -306,26 +306,37 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     ~H"""
     <div id="rule-presets" class="space-y-2">
       <p class="text-xs font-medium text-base-content/60">Ready-made</p>
-      <div :for={group <- @groups} class="flex flex-wrap items-center gap-1.5">
-        <span class="w-16 shrink-0 text-2xs uppercase tracking-wide text-base-content/40">
-          {hd(group).group}
-        </span>
-        <button
-          :for={p <- group}
-          phx-target={@target}
-          type="button"
-          id={"rule-preset-#{p.key}"}
-          class={[
-            "chip chip-line text-xs hover:bg-base-200",
-            @preset == p.key && "bg-primary/10 ring-1 ring-primary/40"
-          ]}
-          phx-click="pick_rule_preset"
-          phx-value-key={p.key}
-          title={p.description}
-          aria-pressed={to_string(@preset == p.key)}
-        >
-          {p.title}
-        </button>
+      <%!-- One grid (#1741): the group names in their own column, and each
+            group's buttons in a grid of equal cells beside it, so a group
+            that runs to a second row wraps under its own buttons, never
+            under the names. --%>
+      <div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2">
+        <div :for={group <- @groups} class="contents">
+          <span data-role="preset-group-label" class="section-label pt-1.5">
+            {hd(group).group}
+          </span>
+          <div
+            data-role="preset-group"
+            class="grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-1.5"
+          >
+            <button
+              :for={p <- group}
+              phx-target={@target}
+              type="button"
+              id={"rule-preset-#{p.key}"}
+              class={[
+                "btn btn-sm btn-secondary h-auto min-h-8 justify-start whitespace-normal py-1 text-left font-normal leading-snug",
+                @preset == p.key && "ring-1 ring-primary"
+              ]}
+              phx-click="pick_rule_preset"
+              phx-value-key={p.key}
+              title={p.description}
+              aria-pressed={to_string(@preset == p.key)}
+            >
+              {p.title}
+            </button>
+          </div>
+        </div>
       </div>
 
       <.form
@@ -608,15 +619,20 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
               ]}
             >
               <div class="flex items-start gap-3">
+                <%!-- The brand switch (#1704): the `toggle` class alone. Its
+                      label names the rule; the switch says on or off. --%>
                 <input
                   phx-target={@target}
                   type="checkbox"
+                  role="switch"
+                  id={"rule-switch-#{rule.id}"}
                   class="toggle mt-0.5 shrink-0"
                   checked={rule.enabled}
+                  aria-checked={to_string(rule.enabled)}
                   phx-click="toggle_rule"
                   phx-value-id={rule.id}
-                  aria-label={"Turn “#{rule.name}” " <> if(rule.enabled, do: "off", else: "on")}
-                  title={if rule.enabled, do: "Turn off", else: "Turn on"}
+                  aria-label={rule.name}
+                  title={if rule.enabled, do: "On: click to pause it", else: "Off: click to run it"}
                 />
                 <div class="min-w-0 flex-1 space-y-1">
                   <p class="text-sm font-medium leading-snug">{rule.name}</p>
