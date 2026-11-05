@@ -1259,7 +1259,9 @@ defmodule SlipdockWeb.SlipdockComponents do
       # facet like the rest, so a board can leave it off.
       state_line: match?(%Slipdock.CardState{line: line} when is_binary(line), state),
       driver: match?(%Slipdock.CardState{driver: d} when is_binary(d), state),
-      age: on.("age") and match?(%Slipdock.CardState{age: age} when is_integer(age), state)
+      age: on.("age") and match?(%Slipdock.CardState{age: age} when is_integer(age), state),
+      # The card's number (#1856); a wiki page on the board has none.
+      id: on.("id") and not page?
     }
 
     # Start and due, both shown and both set, draw as one range (#1708).
@@ -1268,7 +1270,7 @@ defmodule SlipdockWeb.SlipdockComponents do
 
     meta? =
       facets
-      |> Map.drop([:cover, :borders, :image, :status, :tags])
+      |> Map.drop([:cover, :borders, :image, :status, :tags, :id])
       |> Map.values()
       |> Enum.any?()
 
@@ -1381,6 +1383,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         >
           {@card.title}
         </p>
+        <.card_id :if={@f.id} card={@card} />
         <.favourite_mark :if={@favourite?} class="size-3" />
         <span
           :if={@f.tags}
@@ -1414,8 +1417,13 @@ defmodule SlipdockWeb.SlipdockComponents do
         <span :if={@actions != []} class="-mr-1 shrink-0">{render_slot(@actions)}</span>
       </div>
       <div :if={!@compact} class="space-y-2 p-3">
-        <div :if={@f.tags} class="flex flex-wrap gap-1">
-          <.tag_chip :for={tag <- @card.tags} tag={tag} size="xs" />
+        <%!-- The card's number sits in the top-right corner (#1856): at the
+             end of the tags when they are shown, else of the title row. --%>
+        <div :if={@f.tags} class="flex items-start gap-2">
+          <div class="flex min-w-0 flex-1 flex-wrap gap-1">
+            <.tag_chip :for={tag <- @card.tags} tag={tag} size="xs" />
+          </div>
+          <.card_id :if={@f.id} card={@card} />
         </div>
 
         <%!-- The title starts where the tags and the meta row do (#1707): the
@@ -1432,6 +1440,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           >
             {@card.title}
           </p>
+          <.card_id :if={@f.id and not @f.tags} card={@card} />
           <.favourite_mark :if={@favourite?} class="mt-1 size-3.5" />
           <button
             :if={@f.status and not @page?}
@@ -1529,12 +1538,27 @@ defmodule SlipdockWeb.SlipdockComponents do
     """
   end
 
+  # The card's number on its front (#1856), quieter than the title.
+  attr :card, :map, required: true
+
+  defp card_id(assigns) do
+    ~H"""
+    <span
+      data-role="card-id"
+      class="shrink-0 text-xs font-normal tabular-nums leading-snug text-base-content/40"
+      title={"Card ##{@card.id}"}
+    >
+      #{@card.id}
+    </span>
+    """
+  end
+
+  # The handoff itself on the card's front (#1171), when the Display menu asks
+  # for it: the next step then the note, cut to two lines or in full.
   attr :handoff, :any, required: true
   attr :label, :string, required: true
   attr :mode, :string, required: true
 
-  # The handoff itself on the card's front (#1171), when the Display menu asks
-  # for it: the next step then the note, cut to two lines or in full.
   defp handoff_note(assigns) do
     assigns =
       assign(assigns,
