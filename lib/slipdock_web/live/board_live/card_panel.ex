@@ -628,6 +628,217 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   @doc "The rest of the panel's top, under the title: flags, tags and the description."
   def card_header_form(assigns) do
     ~H"""
+    <%!-- Flags and tags (#1727): what is on the card, as chips, and a
+          "+ Add" that opens a checklist of the rest. Outside the card's form:
+          they are clicks, and the tag picker holds a small form of its own. --%>
+    <div class="space-y-3 px-1 pt-2">
+      <div
+        id="card-flags"
+        class="flex flex-wrap items-center gap-x-3 gap-y-1.5"
+        data-section-key="f"
+        data-section-popover="card-flags-menu"
+      >
+        <p class="section-label w-12 shrink-0">
+          <.keyed_label key="f" label="Flags" />
+        </p>
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <.flag_chip
+            :for={flag <- applied_flags(@card)}
+            flag={flag}
+            removable={@can_write}
+            phx-target={@target}
+          />
+          <button
+            :if={@can_write}
+            type="button"
+            id="card-flags-add"
+            popovertarget="card-flags-menu"
+            class="btn btn-ghost btn-xs gap-1 font-normal text-base-content/60"
+            aria-label="Add a flag"
+          >
+            <.icon name="hero-plus" class="size-3.5" /> Add
+          </button>
+          <span :if={!@can_write and @card.flags == []} class="text-xs text-base-content/40">
+            None
+          </span>
+        </div>
+        <div
+          :if={@can_write}
+          id="card-flags-menu"
+          popover
+          phx-hook="AnchoredPopover"
+          data-anchor="card-flags-add"
+          data-align="start"
+          class="pop-menu"
+        >
+          <ul class="menu w-52 rounded-xl bg-base-100 p-1 text-sm shadow-xl ring-1 ring-base-content/10">
+            <li :for={{flag, label, icon, color, _} <- flags()}>
+              <button
+                type="button"
+                id={"card-flag-pick-#{flag}"}
+                role="menuitemcheckbox"
+                aria-checked={to_string(flag in @card.flags)}
+                phx-click="toggle_flag"
+                phx-value-flag={flag}
+                phx-target={@target}
+                class="flex items-center gap-2"
+              >
+                <.icon
+                  name="hero-check"
+                  class={["size-4", if(flag in @card.flags, do: "text-primary", else: "invisible")]}
+                />
+                <.icon name={icon} class={["size-4", color]} />
+                <span class="flex-1 text-left">{label}</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div
+        id="card-tags"
+        class="flex flex-wrap items-center gap-x-3 gap-y-1.5"
+        data-section-key="t"
+        data-section-popover="card-tags-menu"
+      >
+        <p class="section-label w-12 shrink-0">
+          <.keyed_label key="t" label="Tags" />
+        </p>
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <span
+            :for={tag <- Enum.sort_by(@card.tags, &String.downcase(&1.name))}
+            id={"card-tag-#{tag.id}"}
+            data-role="tag-chip"
+            class={[
+              "inline-flex items-center gap-1 rounded-full py-0.5 pl-2.5 text-xs font-medium",
+              Palette.chip(tag.color),
+              if(@can_write, do: "pr-1", else: "pr-2.5")
+            ]}
+          >
+            {tag.name}
+            <button
+              :if={@can_write}
+              type="button"
+              phx-click="toggle_tag"
+              phx-value-id={tag.id}
+              phx-target={@target}
+              class="rounded-full p-0.5 opacity-60 transition hover:bg-base-content/10 hover:opacity-100"
+              title={"Remove “#{tag.name}”"}
+              aria-label={"Remove the tag #{tag.name}"}
+            >
+              <.icon name="hero-x-mark" class="size-3" />
+            </button>
+          </span>
+          <button
+            :if={@can_write}
+            type="button"
+            id="card-tags-add"
+            popovertarget="card-tags-menu"
+            class="btn btn-ghost btn-xs gap-1 font-normal text-base-content/60"
+            aria-label="Add a tag"
+          >
+            <.icon name="hero-plus" class="size-3.5" /> Add
+          </button>
+          <span :if={!@can_write and @card.tags == []} class="text-xs text-base-content/40">
+            None
+          </span>
+        </div>
+        <div
+          :if={@can_write}
+          id="card-tags-menu"
+          popover
+          phx-hook="AnchoredPopover"
+          data-anchor="card-tags-add"
+          data-align="start"
+          class="pop-menu"
+        >
+          <div class="w-64 rounded-xl bg-base-100 p-1 text-sm shadow-xl ring-1 ring-base-content/10">
+            <%!-- One box: it narrows the list as you type, and Enter makes a
+                  tag of what is typed (or applies the one of that name). --%>
+            <.form
+              for={%{}}
+              as={:tag}
+              id="card-tag-search"
+              phx-submit="create_tag"
+              phx-target={@target}
+              phx-hook="TagFilter"
+              data-list="card-tags-list"
+              class="p-1"
+            >
+              <input
+                type="text"
+                name="name"
+                id="card-tag-search-input"
+                maxlength="30"
+                autocomplete="off"
+                placeholder="Search or name a new tag"
+                aria-label="Search tags"
+                class="input field-bare w-full"
+              />
+            </.form>
+            <ul id="card-tags-list" class="menu max-h-64 w-full flex-nowrap overflow-y-auto p-0">
+              <li
+                :for={tag <- @board.tags}
+                data-tag-name={tag.name}
+              >
+                <button
+                  type="button"
+                  id={"card-tag-pick-#{tag.id}"}
+                  role="menuitemcheckbox"
+                  aria-checked={to_string(Enum.any?(@card.tags, &(&1.id == tag.id)))}
+                  phx-click="toggle_tag"
+                  phx-value-id={tag.id}
+                  phx-target={@target}
+                  class="flex items-center gap-2"
+                >
+                  <.icon
+                    name="hero-check"
+                    class={[
+                      "size-4",
+                      if(Enum.any?(@card.tags, &(&1.id == tag.id)),
+                        do: "text-primary",
+                        else: "invisible"
+                      )
+                    ]}
+                  />
+                  <span class={["size-2 shrink-0 rounded-full", Palette.dot(tag.color)]}></span>
+                  <span class="min-w-0 flex-1 truncate text-left">{tag.name}</span>
+                </button>
+              </li>
+              <li
+                data-role="no-tags"
+                hidden={@board.tags != []}
+                class="px-3 py-1.5 text-xs text-base-content/50"
+              >
+                No tags match.
+              </li>
+            </ul>
+            <div class="border-t border-base-content/10 p-1">
+              <button
+                type="submit"
+                form="card-tag-search"
+                id="card-tag-create"
+                data-role="new-tag"
+                hidden
+                class="btn btn-ghost btn-sm w-full justify-start gap-1.5 font-normal"
+              >
+                <.icon name="hero-plus" class="size-4" />
+                <span>New tag “<span data-role="new-tag-name"></span>”</span>
+              </button>
+              <.link
+                id="card-tag-manage"
+                data-role="manage-tags"
+                patch={@tags_path}
+                class="btn btn-ghost btn-sm w-full justify-start gap-1.5 font-normal"
+              >
+                <.icon name="hero-plus" class="size-4" /> New tag
+              </.link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <.form
       phx-target={@target}
       for={@form}
@@ -636,41 +847,6 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       phx-submit="card_change"
       class="space-y-3"
     >
-      <div class="space-y-1.5 px-1 pt-2" data-section-key="f">
-        <p class="section-label">
-          <.keyed_label key="f" label="Flags" />
-        </p>
-        <div class="flex flex-wrap gap-1.5">
-          <.flag_toggle
-            :for={{flag, _, _, _, _} <- flags()}
-            phx-target={@target}
-            flag={flag}
-            active={flag in @card.flags}
-            phx-click="toggle_flag"
-            phx-value-flag={flag}
-          />
-        </div>
-      </div>
-
-      <div class="space-y-1.5 px-1" data-section-key="t">
-        <p class="section-label">
-          <.keyed_label key="t" label="Tags" />
-        </p>
-        <div class="flex flex-wrap items-center gap-1.5">
-          <.tag_toggle
-            :for={tag <- @board.tags}
-            phx-target={@target}
-            tag={tag}
-            active={Enum.any?(@card.tags, &(&1.id == tag.id))}
-            phx-click="toggle_tag"
-            phx-value-id={tag.id}
-          />
-          <.link patch={@tags_path} class="btn btn-ghost btn-xs">
-            <.icon name="hero-plus" class="size-3.5" /> New tag
-          </.link>
-        </div>
-      </div>
-
       <div class="space-y-1.5 px-1" data-section-key="d">
         <div class="flex items-center justify-between">
           <label
@@ -770,6 +946,47 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         </p>
       </div>
     </.form>
+    """
+  end
+
+  # The card's flags in the order the picker lists them.
+  defp applied_flags(card), do: for({flag, _, _, _, _} <- flags(), flag in card.flags, do: flag)
+
+  attr :flag, :string, required: true
+  attr :removable, :boolean, default: false
+  attr :rest, :global
+
+  # An applied flag (#1727): its colour, icon and name, and an × to take it
+  # off for someone who may.
+  defp flag_chip(assigns) do
+    {_, label, icon, color, active_cls} = List.keyfind!(flags(), assigns.flag, 0)
+    assigns = assign(assigns, label: label, icon_name: icon, color: color, active_cls: active_cls)
+
+    ~H"""
+    <span
+      id={"card-flag-#{@flag}"}
+      data-role="flag-chip"
+      class={[
+        "inline-flex items-center gap-1 rounded-full py-0.5 pl-2 text-xs font-medium ring-1",
+        @active_cls,
+        if(@removable, do: "pr-1", else: "pr-2.5")
+      ]}
+    >
+      <.icon name={@icon_name} class={["size-3.5", @color]} />
+      {@label}
+      <button
+        :if={@removable}
+        type="button"
+        phx-click="toggle_flag"
+        phx-value-flag={@flag}
+        class="rounded-full p-0.5 opacity-60 transition hover:bg-base-content/10 hover:opacity-100"
+        title={"Remove “#{@label}”"}
+        aria-label={"Remove the flag #{@label}"}
+        {@rest}
+      >
+        <.icon name="hero-x-mark" class="size-3" />
+      </button>
+    </span>
     """
   end
 

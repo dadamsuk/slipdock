@@ -44,9 +44,11 @@ import {PasskeyLogin, PasskeyRegister} from "./passkey"
 import {DockDrag} from "./dock_drag"
 import {DateField} from "./date_field"
 import {FilePicker} from "./file_picker"
+import {TagFilter} from "./tag_filter"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
+Hooks.TagFilter = TagFilter
 Hooks.Replay = Replay
 Hooks.ExcalidrawEditor = ExcalidrawEditor
 Hooks.MarkdownEditor = MarkdownEditor
@@ -102,24 +104,51 @@ Hooks.Viewport = {
 Hooks.AnchoredPopover = {
   mounted() {
     this.el.addEventListener("beforetoggle", e => {
-      if (e.newState !== "open") return
-      const trigger = document.getElementById(this.el.dataset.anchor)
-      if (!trigger) return
-
-      const r = trigger.getBoundingClientRect()
-      const width = this.el.offsetWidth || 192
-      const gap = 4
-
-      this.el.style.left = `${Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8)}px`
-
-      if (r.bottom > window.innerHeight / 2) {
-        this.el.style.top = "auto"
-        this.el.style.bottom = `${window.innerHeight - r.top + gap}px`
-      } else {
-        this.el.style.bottom = "auto"
-        this.el.style.top = `${r.bottom + gap}px`
-      }
+      if (e.newState === "open") this.place()
     })
+    // Escape closes the menu and nothing else: on the card panel the modal
+    // closes on Escape too, from the window, so the menu takes it first.
+    this.onKey = e => {
+      if (e.key !== "Escape" || !this.el.matches(":popover-open")) return
+      e.preventDefault()
+      e.stopPropagation()
+      this.el.hidePopover()
+    }
+    window.addEventListener("keydown", this.onKey, true)
+  },
+
+  destroyed() {
+    window.removeEventListener("keydown", this.onKey, true)
+  },
+
+  // A patch rewrites the style attribute, so a menu that stays open while
+  // you use it (the card's flag and tag pickers, #1727) is put back by its
+  // trigger rather than left wherever the browser draws a bare popover.
+  updated() {
+    if (this.el.matches(":popover-open")) this.place()
+  },
+
+  // Beside its trigger: under it, or over it in the bottom half of the
+  // screen; its right edge on the trigger's, or with `data-align="start"`
+  // its left edge on the trigger's left.
+  place() {
+    const trigger = document.getElementById(this.el.dataset.anchor)
+    if (!trigger) return
+
+    const r = trigger.getBoundingClientRect()
+    const width = this.el.offsetWidth || 192
+    const gap = 4
+    const left = this.el.dataset.align === "start" ? r.left : r.right - width
+
+    this.el.style.left = `${Math.min(Math.max(8, left), window.innerWidth - width - 8)}px`
+
+    if (r.bottom > window.innerHeight / 2) {
+      this.el.style.top = "auto"
+      this.el.style.bottom = `${window.innerHeight - r.top + gap}px`
+    } else {
+      this.el.style.bottom = "auto"
+      this.el.style.top = `${r.bottom + gap}px`
+    }
   },
 }
 
@@ -955,6 +984,19 @@ Hooks.CardKeys = {
     const section = this.el.querySelector(`[data-section-key="${e.key}"]`)
     if (!section) return
     this.to(e, this.topOf(section), "smooth")
+    this.openPicker(section)
+  },
+
+  // A section whose content is picked from a list (flags, tags: #1727) opens
+  // that list on its key too, with the focus in it, once the scroll is done.
+  openPicker(section) {
+    const menu = document.getElementById(section.dataset.sectionPopover || "")
+    if (!menu || !menu.showPopover || menu.matches(":popover-open")) return
+    setTimeout(() => {
+      menu.showPopover()
+      const first = menu.querySelector("input:not([type=hidden]), button:not([hidden])")
+      if (first) first.focus()
+    }, 250)
   },
 
   // The sections in the order the card shows them, with the scroll position

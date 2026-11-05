@@ -84,10 +84,8 @@ defmodule SlipdockWeb.WaitLiveTest do
     ask(ctx)
     {:ok, view, _} = open(ctx.conn, ctx)
 
-    render_click(
-      view
-      |> element("#card-modal [phx-click='toggle_flag'][phx-value-flag='waiting']")
-    )
+    # The applied flag's chip, and its × (#1727).
+    view |> element("#card-modal #card-flag-waiting button") |> render_click()
 
     assert %{close_reason: "withdrawn", closed_by_id: id} = Boards.last_wait(ctx.card)
     assert id == ctx.owner.id
