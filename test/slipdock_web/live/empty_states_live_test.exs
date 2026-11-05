@@ -270,4 +270,110 @@ defmodule SlipdockWeb.EmptyStatesLiveTest do
       assert render(view) =~ fixture_email("hopeful@example.com")
     end
   end
+
+  describe "the wiki" do
+    test "no pages: the full empty state; a writer may write the first one", %{
+      conn: conn,
+      user: user
+    } do
+      board = board_fixture(%{}, owner: user)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
+      assert empty(view, "wiki-empty", "full", "No pages yet")
+
+      assert has_element?(
+               view,
+               ~s|#{action("wiki-empty")} a[href="/boards/#{board.id}/wiki/new"]|,
+               "Write the first one"
+             )
+    end
+
+    test "a reader sees it with no action" do
+      owner = user_fixture("wiki-owner@example.com")
+      board = board_fixture(%{}, owner: owner)
+      {conn, reader} = fresh_conn("wiki-reader")
+      share_fixture(board, [reader], "read")
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
+      assert empty(view, "wiki-empty", "full", "No pages yet")
+      refute has_element?(view, action("wiki-empty"))
+    end
+
+    test "a page replaces it", %{conn: conn, user: user} do
+      board = board_fixture(%{}, owner: user)
+      page_fixture(board)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
+      refute has_element?(view, "#wiki-empty")
+    end
+  end
+
+  describe "Templates" do
+    # The built-ins are seeded by a migration, so only a server without them
+    # (and a user with none of their own) ever sees it.
+    test "none: the full empty state, with no action (the form is above it)", %{conn: conn} do
+      Repo.delete_all(from(t in Slipdock.Boards.Template, where: t.system))
+      {:ok, view, _} = live(conn, ~p"/templates")
+      assert empty(view, "templates-empty", "full", "No templates yet")
+      refute has_element?(view, action("templates-empty"))
+    end
+
+    test "a template replaces it", %{conn: conn, user: user} do
+      {:ok, _} = Boards.create_template(user, %{"name" => "Mine", "columns" => ["A"]})
+      {:ok, view, _} = live(conn, ~p"/templates")
+      refute has_element?(view, "#templates-empty")
+    end
+  end
+
+  describe "Automations" do
+    test "no rules: a compact empty state in the modal", %{conn: conn, user: user} do
+      board = board_fixture(%{}, owner: user)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+      assert empty(view, "rules-empty", "compact", "No rules yet")
+      refute has_element?(view, action("rules-empty"))
+    end
+
+    test "a rule replaces it", %{conn: conn, user: user} do
+      board = board_fixture(%{}, owner: user)
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_created"},
+        "actions" => [%{"type" => "add_flags", "flags" => ["review"]}]
+      })
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+      refute has_element?(view, "#rules-empty")
+    end
+  end
+
+  describe "Visualise" do
+    test "an empty board: aging, work mix and runners are compact empty states", %{
+      conn: conn,
+      user: user
+    } do
+      board = board_fixture(%{}, owner: user)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
+
+      assert empty(view, "aging-empty", "compact", "Nothing in progress")
+      assert empty(view, "mix-empty", "compact", "No tags yet")
+      assert empty(view, "runners-empty", "compact", "No runners")
+      refute has_element?(view, action("aging-empty"))
+      refute has_element?(view, action("mix-empty"))
+
+      assert has_element?(
+               view,
+               ~s|#{action("runners-empty")} a[href="/boards/#{board.id}/automations"]|,
+               "Set one up in Automations"
+             )
+
+      refute has_element?(view, "#jobs-empty")
+    end
+
+    test "a runner with no jobs: Recent jobs is a compact empty state", %{conn: conn, user: user} do
+      board = board_fixture(%{}, owner: user)
+      {:ok, _, _} = Slipdock.Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
+
+      refute has_element?(view, "#runners-empty")
+      assert empty(view, "jobs-empty", "compact", "No jobs yet")
+      refute has_element?(view, "#recent-jobs")
+    end
+  end
 end

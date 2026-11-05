@@ -6158,20 +6158,20 @@ defmodule SlipdockWeb.WikiLive.Index do
       What the board can't say: how it works, what was decided and why.
     </p>
 
-    <div
+    <.empty_state
       :if={@empty}
-      class="mt-10 rounded-xl border border-dashed border-base-300 p-8 text-center"
+      id="wiki-empty"
+      icon="hero-book-open"
+      title="No pages yet"
+      class="mt-10"
     >
-      <.icon name="hero-book-open" class="size-8 text-base-content/30" />
-      <p class="mt-3 text-sm text-base-content/60">No pages yet.</p>
-      <.link
-        :if={@can_write}
-        patch={~p"/boards/#{@board}/wiki/new"}
-        class="btn btn-primary btn-sm mt-4"
-      >
-        Write the first one
-      </.link>
-    </div>
+      Start with how something works, or why it was decided.
+      <:action :if={@can_write}>
+        <.link patch={~p"/boards/#{@board}/wiki/new"} class="btn btn-primary btn-sm">
+          Write the first one
+        </.link>
+      </:action>
+    </.empty_state>
 
     <p class="mt-4 text-sm">
       <a href={~p"/boards/#{@board}/wiki.zip"} class="link text-base-content/60">

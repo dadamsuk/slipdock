@@ -10,11 +10,17 @@
 source "$(dirname "$0")/lib.sh"
 e2e_start
 # The fixture page with no versions, and the board with nothing in its log.
+# Journal Desk ($HUNT) has no pages, rules, cards, tags or runners.
 SLUG=$(mix run -e '
   import Ecto.Query
   page = Slipdock.Repo.get!(Slipdock.Wiki.Page, '"$PAGE"')
+  # A runner with no jobs on Keystone; no built-in templates, so the
+  # Templates page has nothing to list.
+  kb = Slipdock.Boards.get_board!('"$KB"')
+  {:ok, _, _} = Slipdock.Runners.create_runner(kb, %{"name" => "idle-box", "pool" => "e2e"})
+  Slipdock.Repo.delete_all(from t in Slipdock.Boards.Template, where: t.system)
   Slipdock.Repo.delete_all(from r in Slipdock.Wiki.Revision, where: r.page_id == ^page.id)
   Slipdock.Repo.delete_all(from a in Slipdock.Boards.Activity, where: a.board_id == '"$KB"')
   IO.puts("SLUG #{page.slug}")
 ' | grep '^SLUG' | cut -d' ' -f2)
-node tools/e2e/empty-state.mjs "$LINK" "$BASE" "$KB" "$SLUG"
+node tools/e2e/empty-state.mjs "$LINK" "$BASE" "$KB" "$SLUG" "$HUNT"

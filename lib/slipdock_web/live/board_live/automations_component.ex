@@ -588,7 +588,15 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
               Rules <span :if={@rules != []} class="text-base-content/50">({length(@rules)})</span>
             </span>
           </div>
-          <p :if={@rules == []} class="text-sm text-base-content/60">No rules yet.</p>
+          <.empty_state
+            :if={@rules == []}
+            id="rules-empty"
+            icon="hero-bolt"
+            title="No rules yet"
+            compact
+          >
+            Describe one above, or start from an example.
+          </.empty_state>
           <ul class="max-h-[45vh] space-y-2 overflow-y-auto kanban-scroll pr-1">
             <li
               :for={rule <- @rules}

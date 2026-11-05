@@ -238,7 +238,12 @@ defmodule SlipdockWeb.VisualiseLiveTest do
     test "nothing open in doing or ready says so", %{conn: conn} = ctx do
       card_fixture(ctx.done)
       {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/visualise")
-      assert has_element?(view, "#aging-empty", "Nothing in progress.")
+
+      assert has_element?(
+               view,
+               "#aging-empty[data-empty-state=compact] h3",
+               "Nothing in progress"
+             )
     end
 
     test "open cards in doing and ready, oldest first, backlog and done left out",
