@@ -87,11 +87,45 @@ defmodule Slipdock.Handbook.RulesForTest do
     end
   end
 
+  describe "pages_for/2 (#1787)" do
+    test "the pages whose covers take the paths in, most paths first", %{handbook: h} do
+      pages =
+        Handbook.pages_for(h, [
+          "priv/repo/migrations/20261105_add.exs",
+          "lib/app_web/live/x.ex",
+          "assets/css/app.css",
+          "README.md"
+        ])
+
+      assert Enum.map(pages, &{&1.title, &1.paths}) == [{"UX & UI", 2}, {"Data model", 1}]
+      assert Enum.all?(pages, &String.starts_with?(&1.code, "W-"))
+    end
+
+    test "a tie keeps the handbook's order, and globs match as lanes do", %{handbook: h} do
+      # One path each: the handbook's order (as rules_for/2 keeps it).
+      pages = Handbook.pages_for(h, ["lib/app_web/x.ex", "priv/repo/**"])
+      assert Enum.map(pages, & &1.title) == ["Data model", "UX & UI"]
+      assert Enum.map(pages, & &1.paths) == [1, 1]
+    end
+
+    test "a page with no covers, the Index, or nothing matching is never listed",
+         %{handbook: h} do
+      # Operations covers nothing (its rule is everywhere's), but claims no paths.
+      assert Handbook.pages_for(h, ["README.md", "lib/other.ex"]) == []
+      assert Handbook.pages_for(h, []) == []
+      assert Handbook.pages_for(nil, ["lib/a.ex"]) == []
+    end
+  end
+
   describe "rules_for_board/4" do
     test "every matching rule, the paths cleaned", %{user: user, board: board} do
       got = Handbook.rules_for_board(board, user, [" README.md ", "README.md", ""])
       assert got.paths == ["README.md"]
       assert ids(got.rules) == ["OPS-1"]
+      assert got.pages == []
+
+      got = Handbook.rules_for_board(board, user, ["assets/app.js"])
+      assert [%{title: "UX & UI", paths: 1}] = got.pages
       assert got.index_page == Handbook.find(board).index.code
     end
 

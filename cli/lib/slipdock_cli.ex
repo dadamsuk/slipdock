@@ -194,7 +194,8 @@ defmodule SlipdockCLI do
     handbook <board>|<card>             the handbook (Handbook/ wiki pages) of the board's tree:
                                         its index, decisions and rule count, or the sections
                                         a card should read before building (also in `card`)
-      --paths a,b       the board's rules that apply to those paths, `must` first
+      --paths a,b       the pages whose covers: take those paths in, and the
+                        board's rules that apply to them, `must` first
       --paths-from -    the same, one path per line from stdin (or a file):
                         git diff --name-only main | slipdock handbook B --paths-from -
     pulse <board>                       the board's flow numbers: in progress, waiting, done in
