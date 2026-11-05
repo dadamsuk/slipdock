@@ -39,6 +39,32 @@ defmodule SlipdockWeb.SearchLiveTest do
     assert has_element?(view, "[role=tab][aria-selected=false]", "Search")
   end
 
+  # #1740: the toggle is `<.tabs>`, its tabs links that patch, the mode
+  # showing the one in the Tab order.
+  test "the toggle is the shared tab bar of patch links", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/search?q=refunds")
+
+    assert has_element?(
+             view,
+             ~s|#look-tabs[role=tablist][phx-hook=Tabs][aria-label="How to look"]|
+           )
+
+    assert has_element?(
+             view,
+             ~s|a#look-tab-search[data-phx-link=patch][aria-selected="true"][tabindex="0"]|
+           )
+
+    assert has_element?(
+             view,
+             ~s|a#look-tab-ask[data-phx-link=patch][aria-selected="false"][tabindex="-1"][href="/ask?q=refunds"]|
+           )
+
+    view |> element("#look-tab-ask") |> render_click()
+    assert_patch(view, "/ask?q=refunds")
+    assert has_element?(view, ~s|#look-tab-ask[aria-selected="true"][tabindex="0"]|)
+    assert has_element?(view, ~s|#look-tab-search[aria-selected="false"][tabindex="-1"]|)
+  end
+
   test "the toggle carries the query across, and keeps each mode's own state", ctx do
     {:ok, view, _html} = live(ctx.conn, ~p"/search")
     view |> form("#deep-search") |> render_change(%{"q" => "invoice rounding refunds"})

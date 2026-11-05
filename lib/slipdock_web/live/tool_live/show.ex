@@ -85,6 +85,9 @@ defmodule SlipdockWeb.ToolLive.Show do
   def handle_event("client", %{"client" => client}, socket) when client in @clients,
     do: {:noreply, assign(socket, client: client)}
 
+  # A client there is no such thing as (a hand-made event) changes nothing.
+  def handle_event("client", _params, socket), do: {:noreply, socket}
+
   def handle_event("install", _params, socket) do
     %{current_user: user, tool: tool, version: version} = socket.assigns
 
@@ -385,8 +388,8 @@ defmodule SlipdockWeb.ToolLive.Show do
             <p class="mt-1 text-sm text-base-content/60">
               Pick the assistant you use. Each way ends the same: you ask it to set the Tool up.
             </p>
-            <div class="mt-3 flex flex-wrap gap-2" role="tablist">
-              <button
+            <.tabs id="tool-clients" label="Your assistant" class="mt-3">
+              <:tab
                 :for={
                   {key, label} <- [
                     {"claude_ai", "Claude (website or app)"},
@@ -395,20 +398,20 @@ defmodule SlipdockWeb.ToolLive.Show do
                   ]
                 }
                 id={"tool-client-#{key}"}
-                role="tab"
-                aria-selected={to_string(@client == key)}
-                class={["btn btn-sm", if(@client == key, do: "btn-primary", else: "btn-ghost")]}
+                active={@client == key}
+                controls={"tool-steps-#{String.replace(key, "_", "-")}"}
                 phx-click="client"
                 phx-value-client={key}
               >
                 {label}
-              </button>
-            </div>
+              </:tab>
+            </.tabs>
 
             <ol
-              :if={@client == "claude_ai"}
               id="tool-steps-claude-ai"
-              class="mt-4 list-decimal space-y-3 pl-5 text-sm"
+              role="tabpanel"
+              aria-labelledby="tool-client-claude_ai"
+              class={["mt-4 list-decimal space-y-3 pl-5 text-sm", @client != "claude_ai" && "hidden"]}
             >
               <li>
                 Connect Claude to Slipdock, if you haven't already: in Claude, open <b>Settings → Connectors</b>, choose <b>Add custom connector</b>, and paste <code class="select-all">{@base_url}/mcp</code>. Sign in when Slipdock asks.
@@ -434,9 +437,13 @@ defmodule SlipdockWeb.ToolLive.Show do
             </ol>
 
             <ol
-              :if={@client == "claude_code"}
               id="tool-steps-claude-code"
-              class="mt-4 list-decimal space-y-3 pl-5 text-sm"
+              role="tabpanel"
+              aria-labelledby="tool-client-claude_code"
+              class={[
+                "mt-4 list-decimal space-y-3 pl-5 text-sm",
+                @client != "claude_code" && "hidden"
+              ]}
             >
               <li>
                 If you don't have the <code>slipdock</code>
@@ -454,9 +461,10 @@ defmodule SlipdockWeb.ToolLive.Show do
             </ol>
 
             <ol
-              :if={@client == "chatgpt"}
               id="tool-steps-chatgpt"
-              class="mt-4 list-decimal space-y-3 pl-5 text-sm"
+              role="tabpanel"
+              aria-labelledby="tool-client-chatgpt"
+              class={["mt-4 list-decimal space-y-3 pl-5 text-sm", @client != "chatgpt" && "hidden"]}
             >
               <li>
                 Connect ChatGPT to Slipdock: open <b>Settings → Apps &amp; Connectors</b>, add a

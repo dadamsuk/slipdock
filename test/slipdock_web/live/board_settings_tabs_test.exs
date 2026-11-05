@@ -78,6 +78,37 @@ defmodule SlipdockWeb.BoardSettingsTabsTest do
   test "?tab= opens on that tab", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings?tab=gardening")
     assert_showing(view, "gardening")
+    assert has_element?(view, ~s|#settings-tab-gardening[tabindex="0"]|)
+    assert has_element?(view, ~s|#settings-tab-general[tabindex="-1"]|)
+  end
+
+  # #1740: the bar is `<.tabs>`, the keyboard hook on it, and each tab
+  # names its panel, which is there to name.
+  test "the tab bar is the shared tabs component, each tab naming its panel", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings?tab=sharing")
+
+    assert has_element?(
+             view,
+             ~s|#settings-tabs[role=tablist][phx-hook=Tabs][aria-label="Board settings"]|
+           )
+
+    for key <- keys() do
+      assert has_element?(
+               view,
+               ~s|#settings-tabs > button#settings-tab-#{key}[role=tab][aria-controls="settings-panel-#{key}"]|
+             )
+
+      assert has_element?(view, "#settings-panel-#{key}[role=tabpanel]")
+    end
+
+    # Only the tab showing is in the Tab order, and it follows a click.
+    assert has_element?(view, ~s|#settings-tab-sharing[tabindex="0"]|)
+    view |> element("#settings-tab-deploys") |> render_click()
+    assert has_element?(view, ~s|#settings-tab-deploys[tabindex="0"]|)
+    assert has_element?(view, ~s|#settings-tab-sharing[tabindex="-1"]|)
   end
 
   test "a tab there is no such thing as opens General", %{conn: conn, board: board} do
