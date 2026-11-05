@@ -470,6 +470,13 @@ the hook contract and points at a worked example served at
 `/runner/examples/passlog.sh` that writes `Pass <card> (<YYYY-MM-DD HH.MM>)`
 into the card's folder.
 
+Runners also report **drift**: on every claim the SHA-256 of each installed
+slipdock skill's `SKILL.md` and of the `slipdock` CLI, which the server
+compares with what it serves. `slipdock runners` (SKILLS · CLI), the Runners
+panel and the runner's `drift` in the API say current, drifted (naming the
+skills), old or unknown, and a drifted runner raises one alert until it is
+current again. Nothing is changed for you: edit the installed copies by hand.
+
 **A job runs with nobody watching**, so two things are set up for it. A
 Claude runner may use the Slipdock MCP tools without asking (`--allowedTools`
 for the servers named in the wizard — `claude_ai_Slipdock`, the claude.ai

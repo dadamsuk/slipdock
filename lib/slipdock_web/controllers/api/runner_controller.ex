@@ -51,6 +51,10 @@ defmodule SlipdockWeb.API.RunnerController do
       conn.assigns.runner
       |> Runners.report_kinds(conn |> get_req_header("x-runner-kinds") |> List.first())
       |> Runners.report_version(conn |> get_req_header("x-runner-version") |> List.first())
+      |> Slipdock.Runners.Drift.report(
+        conn |> get_req_header("x-runner-skills") |> List.first(),
+        conn |> get_req_header("x-runner-cli") |> List.first()
+      )
 
     conn = latest_header(conn, runner)
 

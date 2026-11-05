@@ -1320,11 +1320,26 @@ defmodule SlipdockWeb.API.JSON do
         |> Slipdock.Runners.script_state(SlipdockWeb.RunnerInstallController.latest())
         |> to_string(),
       missing_kinds: Slipdock.Runners.missing_kinds(r),
+      # Its installed skills and CLI against what this server serves (#1795).
+      drift: drift(r),
       session: Slipdock.Runners.Runner.session?(r),
       settings: r.settings || %{},
       created_at: r.inserted_at
     }
   end
+
+  defp drift(runner) do
+    %{skills: skills, cli: cli} = Slipdock.Runners.Drift.states(runner)
+
+    %{
+      skills: if(match?({:drifted, _}, skills), do: "drifted", else: to_string(skills)),
+      drifted_skills: drifted_names(skills),
+      cli: to_string(cli)
+    }
+  end
+
+  defp drifted_names({:drifted, names}), do: names
+  defp drifted_names(_state), do: []
 
   @doc """
   `%{paused: [pause, ...]}` while `board`'s tree or a pool on it is paused

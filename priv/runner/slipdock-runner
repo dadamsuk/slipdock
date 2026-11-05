@@ -43,6 +43,11 @@
 # if the download's SHA-256 matches both; then it starts again in place. A
 # mismatch keeps this script, says so in the log, and isn't tried again. The
 # config is never touched.
+#
+# Drift (#1795): every claim also says the SHA-256 of each slipdock skill
+# installed under SKILLS_DIR (default ~/.claude/skills) and of the slipdock
+# CLI (SLIPDOCK_CLI, else the one on the PATH), and the runners list shows
+# any that differ from the server's. Nothing is changed on this machine.
 set -u
 
 # The built-in merge (see above). The server sends only data: the pull
@@ -103,7 +108,7 @@ for arg in "$@"; do
     --once) ONCE=1 ;;
     --config=*) CONFIG=${arg#--config=} ;;
     -h | --help)
-      sed -n '2,45p' "$0"
+      sed -n '2,50p' "$0"
       exit 0
       ;;
     *)
@@ -166,10 +171,39 @@ sha256() {
 # Which script this is, said on every claim (#1658).
 SELF=$0
 MY_SHA=$(sha256 "$SELF" 2>/dev/null)
-{
-  printf 'X-Runner-Kinds: %s\n' "$KINDS"
-  case "$MY_SHA" in ?*) printf 'X-Runner-Version: sh %s\n' "$MY_SHA" ;; esac
-} >"$WORK/kinds"
+
+# What this machine has installed, said on every claim (#1795): the SHA-256
+# of each slipdock skill's SKILL.md under SKILLS_DIR (default
+# ~/.claude/skills) and of the slipdock CLI (SLIPDOCK_CLI, else the one on
+# the PATH). The server says when they differ from what it serves; it never
+# changes them.
+SKILLS_DIR=${SKILLS_DIR:-$HOME/.claude/skills}
+installed_skills() {
+  list=
+  for f in "$SKILLS_DIR"/slipdock*/SKILL.md; do
+    [ -f "$f" ] || continue
+    name=$(basename "$(dirname "$f")")
+    s=$(tr -d '\r' <"$f" >"$WORK/skill" && sha256 "$WORK/skill" 2>/dev/null)
+    [ -n "$s" ] && list="$list${list:+,}$name=$s"
+  done
+  printf '%s' "${list:-none}"
+}
+installed_cli() {
+  cli=${SLIPDOCK_CLI:-$(command -v slipdock 2>/dev/null)}
+  if [ -n "$cli" ] && [ -f "$cli" ]; then sha256 "$cli" 2>/dev/null; else printf none; fi
+}
+
+# The claim's headers, written again before each claim: a skill edited while
+# the runner waits is reported on the next one.
+claim_headers() {
+  {
+    printf 'X-Runner-Kinds: %s\n' "$KINDS"
+    case "$MY_SHA" in ?*) printf 'X-Runner-Version: sh %s\n' "$MY_SHA" ;; esac
+    printf 'X-Runner-Skills: %s\n' "$(installed_skills)"
+    cli_sha=$(installed_cli)
+    case "$cli_sha" in ?*) printf 'X-Runner-CLI: %s\n' "$cli_sha" ;; esac
+  } >"$WORK/kinds"
+}
 SKIP_SHA=
 
 # self_update LATEST — between jobs: fetch the script and its checksums, and
@@ -516,6 +550,7 @@ query="wait=$WAIT"
 say "taking jobs from $SLIPDOCK_URL${POOL:+ (pool $POOL)}"
 
 while :; do
+  claim_headers
   post "/api/runner/claim?$query" /dev/null $((WAIT + 15)) "$WORK/kinds"
 
   case "$CODE" in

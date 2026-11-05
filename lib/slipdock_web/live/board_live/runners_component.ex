@@ -15,7 +15,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   alias Slipdock.{Access, Automations, Runners}
   alias Slipdock.Automations.Spec
-  alias Slipdock.Runners.{HookPrompt, Runner, Setup}
+  alias Slipdock.Runners.{Drift, HookPrompt, Runner, Setup}
 
   @events ~w(open_wizard close_wizard wizard_change connect regenerate rotate_token
     revoke_runner close_setup edit_answers close_dialog reveal show_runner
@@ -557,6 +557,22 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               {if script_state(runner) == :out_of_date, do: "out of date", else: "old script"}
             </span>
             <span
+              :if={match?({:drifted, _}, drift(runner).skills)}
+              id={"runner-#{runner.id}-skills"}
+              class="badge badge-warning badge-xs shrink-0"
+              title={"Its installed skills differ from this server's: #{Drift.describe(drift(runner).skills)}. Edit them by hand; they are never copied over"}
+            >
+              skills drifted
+            </span>
+            <span
+              :if={drift(runner).cli == :old}
+              id={"runner-#{runner.id}-cli"}
+              class="badge badge-warning badge-xs shrink-0"
+              title="Its slipdock CLI is older than the one this server serves (/cli/SHA256SUMS): install it again"
+            >
+              old CLI
+            </span>
+            <span
               :for={kind <- Slipdock.Runners.missing_kinds(runner)}
               id={"runner-#{runner.id}-lacks-#{kind}"}
               class="badge badge-error badge-xs shrink-0"
@@ -805,6 +821,12 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         <dd>
           {if @runner.last_seen_at, do: relative_time(@runner.last_seen_at), else: "never"}
         </dd>
+        <%= if not Runner.session?(@runner) do %>
+          <dt class="text-base-content/60">Skills</dt>
+          <dd id={"runner-#{@runner.id}-skills-state"}>{Drift.describe(drift(@runner).skills)}</dd>
+          <dt class="text-base-content/60">CLI</dt>
+          <dd id={"runner-#{@runner.id}-cli-state"}>{Drift.describe(drift(@runner).cli)}</dd>
+        <% end %>
         <%= if @d.api_token do %>
           <dt class="text-base-content/60">API token</dt>
           <dd>
@@ -1616,6 +1638,9 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   defp off_here?(_key, _p), do: false
 
   # Whether a runner's script is the one this server hands out (#1658).
+  # Its installed skills and CLI against this server's (#1795).
+  defp drift(runner), do: Drift.states(runner)
+
   defp script_state(runner),
     do: Slipdock.Runners.script_state(runner, SlipdockWeb.RunnerInstallController.latest())
 end

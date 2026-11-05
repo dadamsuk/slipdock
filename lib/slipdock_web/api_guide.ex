@@ -2253,6 +2253,13 @@ defmodule SlipdockWeb.APIGuide do
     in `X-Runner-Kinds`. Claims also say the script's own SHA-256
     (`X-Runner-Version`); the runners list's `script` says whether it is
     current, and `missing_kinds` what the board needs that it lacks.
+    They also say what the machine has installed (`X-Runner-Skills`, each
+    slipdock skill's `SKILL.md` SHA-256; `X-Runner-CLI`, the CLI's), and
+    each runner's `drift` compares them with what this server serves:
+    `skills` current, drifted (`drifted_skills` names them) or unknown,
+    `cli` current, old, none or unknown. A drifted runner raises one
+    alert, cleared once it is current. The server only reports: installed
+    skills are edited by hand, never copied over.
     """
   end
 

@@ -28,6 +28,13 @@ defmodule Slipdock.Runners.Runner do
     # (`X-Runner-Version`, #1658): "sh <sha256>" or "ps1 <sha256>", the
     # script file's own SHA-256; nil for one that never said.
     field :version, :string
+    # What it said it has installed on its last claim (#1795,
+    # `Slipdock.Runners.Drift`): each slipdock skill's SKILL.md SHA-256 by
+    # name, and its CLI's ("none" without one); nil for never said.
+    field :skills, :map
+    field :cli_sha, :string
+    # The alert raised while either differs from what the server serves.
+    field :drift_alert_id, :integer
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :created_by, Slipdock.Accounts.User
