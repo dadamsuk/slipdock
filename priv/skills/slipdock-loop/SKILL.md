@@ -515,6 +515,30 @@ anybody reads later:
 
    The gardener reads that line: a card closed on a handbook board without
    one is flagged. On a board with no handbook, leave the line out.
+
+   **Then the findings**, on every board: what this card taught that the
+   code, the tests and the handbook don't show. The bar for one: *would the
+   next pass, on a different card, have done better knowing this?* Settled
+   knowledge goes straight into the handbook, as above; a finding is for the
+   rest: what is uncertain, cuts across cards, or shows the handbook was
+   wrong. One item per line, each with its kind, after the `Handbook:` line:
+
+   ```
+   - Findings:
+     - gotcha: `mix format` can need two passes; run the check after it
+     - rule: every new MCP tool gets a docs test     (a rule candidate)
+     - handbook-wrong: W-1950 §Tests says …, but …
+     - tooling: the installed CLI ignores --paths-from
+     - process: merges wait for an idle runner
+   ```
+
+   `Findings: none` is a normal answer; filler isn't. The board keeps each
+   one (`slipdock findings <board>`) for a person to promote into the
+   handbook, merge or dismiss, and records rejections, timeouts, requeues,
+   lane refusals and failed merges by itself, so don't write those up again.
+   What you learn about the project goes here or in the handbook, never only
+   in your own agent memory, which nobody else reads: that keeps only facts
+   about the machine and the person.
 2. **Commit**, with the card id in the message (`#129`), and push if that is the
    project's convention. One card, one commit, so the card and the diff point at
    each other.
@@ -601,6 +625,8 @@ anybody reads later:
    - Commit: `abc1234` (master) — https://github.com/owner/repo/commit/abc1234
    - CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", "started — … (checked before the epic closes)" on a subcard, or "no CI")
    - Handbook: updated W-3 §Contexts, new W-41   (or "no change (<why>)"; only on a handbook board)
+   - Findings:   (or "Findings: none")
+     - gotcha: <what the next pass should know>
    - Follow-ups: <anything deliberately not done, and where it went — card #141, W-31, or "none">
    - Token cost: ~135k tokens (context budget 15.00M → 14.86M, claim to close)
    ```
@@ -660,7 +686,8 @@ With one on, the pass changes like this:
   checks a verifier will (see **A verify job** below) on your own work: the
   bar covers the ask, each part of the bar is met, no `must` rule for the
   diff is broken, and the `Handbook:` line is honest. Put the `Handbook:`
-  line in `--evidence` too, so it is on the card when the verifier starts.
+  line in `--evidence` too, so it is on the card when the verifier starts,
+  and the `Findings:` block with it.
 - **Evidence on completion.** At step 7.5 `slipdock done <id>` carries what
   you checked and where: `--evidence-commit <sha> --branch <branch> --tests
   <the test files you added or changed, comma-separated> --suite
@@ -709,7 +736,9 @@ With one on, the pass changes like this:
   3. **The rules** (a board with a handbook): `git diff --name-only
      $(git merge-base origin/<default> <sha>) <sha> | slipdock handbook
      <board> --paths-from -` lists the rules for the diff. A broken `must`
-     is a rejection citing its id; `should` misses go in the accept reason.
+     is a rejection citing its id; `should` misses go in the accept reason,
+     each as a finding in a `Findings:` block there (`- rule: ARCH-6
+     missed: <how>`).
   4. **The `Handbook:` line** (a board with a handbook), in the evidence or
      the closing comment, against the docs gate (step 7.1): no line, `no
      change` on a diff that needed an update, or pages named that weren't

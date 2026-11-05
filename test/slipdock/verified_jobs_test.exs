@@ -237,4 +237,39 @@ defmodule Slipdock.VerifiedJobsTest do
       assert Boards.get_board!(hd(report.boards).id).verify_pool == "checkers"
     end
   end
+
+  describe "missed should rules become findings (#1784)" do
+    test "the prompt asks for them as a Findings block in the accept reason", ctx do
+      {:ok, _} = Slipdock.Handbook.install(ctx.owner, ctx.board)
+      prompt = Verified.verify_prompt(ctx.card, Boards.get_board!(ctx.board.id))
+
+      assert prompt =~
+               "List any `should` rule missed in the accept reason, each as a finding in a " <>
+                 "`Findings:` block there (`- rule: ARCH-6 missed: <how>`)"
+    end
+
+    test "without a handbook there are no rules, and no ask for them", ctx do
+      refute Verified.verify_prompt(ctx.card, ctx.board) =~ "Findings:"
+    end
+
+    test "an accept reason with that block leaves rule findings on the card", ctx do
+      set(ctx, %{"verify_work" => true})
+      card = submit(ctx, %{"evidence" => "mix test: 4 passed"})
+      checker = %{ctx.builder | agent: "checker", job_id: nil}
+
+      {:ok, _} =
+        Verified.decide(
+          card,
+          "accept",
+          %{"reason" => "Bar met.\n\nFindings:\n- rule: ARCH-6 missed: a clock of its own"},
+          checker,
+          ctx.owner
+        )
+
+      assert [%Slipdock.Findings.Finding{kind: "rule", source: "agent", text: text}] =
+               Repo.all(from(f in Slipdock.Findings.Finding, where: f.card_id == ^card.id))
+
+      assert text == "ARCH-6 missed: a clock of its own"
+    end
+  end
 end

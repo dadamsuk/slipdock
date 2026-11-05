@@ -70,6 +70,23 @@ Tidying a page, rewrite its description freely but leave its rules alone;
 changing a rule is a card of its own. `slipdock handbook <board>` lists any
 item that doesn't parse.
 
+### What you learned: the handbook, a finding, or your memory
+
+| It is… | It goes… |
+|---|---|
+| Settled: how the project is, a rule it keeps | the **handbook** section that covers it (a rule in its `## Rules`) |
+| Uncertain, cuts across cards, or shows the handbook is wrong | a **finding**: a `Findings:` block in the card's closing comment (`- gotcha:`, `- rule:`, `- handbook-wrong:`, `- tooling:`, `- process:`) |
+| About this machine or this person (a local path, flaky DNS here, how they like to work) | your own **agent memory** |
+
+Project facts never live only in agent memory: the verifier, other runners
+and other machines can't read it, and a copy kept there as well as in the
+handbook drifts. A finding gets a second look before it becomes a rule
+(`slipdock findings <board>`, then `slipdock finding <id> promote --note
+"W-12 §Tests TEST-9"` once it is in the handbook). The bar for writing one:
+*would the next pass, on a different card, have done better knowing this?*
+
+### Pages and folders
+
 Two different questions, and answering the wrong one is what makes a wiki hard
 to read later.
 

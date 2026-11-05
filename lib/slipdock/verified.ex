@@ -1712,7 +1712,7 @@ defmodule Slipdock.Verified do
 
   defp rules_judging(_),
     do:
-      "Judge every `must` rule it lists: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. A broken `must` is a rejection citing its id (`ARCH-3: …`). List any `should` rule missed in the accept reason."
+      "Judge every `must` rule it lists: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. A broken `must` is a rejection citing its id (`ARCH-3: …`). List any `should` rule missed in the accept reason, each as a finding in a `Findings:` block there (`- rule: ARCH-6 missed: <how>`), so the board keeps it."
 
   defp cite_list(nil), do: "the bar item (`bar 2: …`) or the ask (`the ask: …`)"
 
