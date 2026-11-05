@@ -25,8 +25,7 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
       "The board gardener's open tidy-up suggestions: epics done but still open, cards in Done " <>
         "never completed (or completed outside Done), cards stuck in progress, epics with no " <>
         "next step, long-overdue cards, abandoned backlog, likely duplicates, orphaned pages and " <>
-        "mistyped [[links]], and proposed handbook edits (check proposal) that agents filed. " <>
-        "Each has an explanation and the steps applying it would take. " <>
+        "mistyped [[links]]. Each has an explanation and the steps applying it would take. " <>
         "run: true looks the board over again first (needs write access). Nothing changes until " <>
         "a person approves a suggestion: show them, then garden_decide what they chose."
 
