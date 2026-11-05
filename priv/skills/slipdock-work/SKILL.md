@@ -101,8 +101,11 @@ whole card before touching it.
   push the default branch: commit on `card-<id>`, push it, open the pull
   request once (`gh pr create --head card-<id> --title "<title> (#<id>)"
   --fill`; a rejected card's next attempt pushes the same branch), watch
-  its checks (the full test run: before pushing, run only the tests you
-  added or changed), and complete with `slipdock done <id> --pr <url>`. Accepting
+  its checks with `gh pr checks card-<id> --watch --fail-fast` (the full
+  test run: before pushing, run only the tests you added or changed and
+  the project's own pre-push checks, which its `CLAUDE.md`, contributing
+  guide or handbook lists, else formatting and a compile that fails on
+  warnings), and complete with `slipdock done <id> --pr <url>`. Accepting
   the card merges it; don't merge it yourself. A failed merge sends the
   card back rejected with the reason: rebase the branch and submit again.
 - **Lanes, where they are on** (the board's line in the guide says `lanes:

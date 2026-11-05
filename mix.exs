@@ -28,7 +28,7 @@ defmodule Slipdock.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [precommit: :test, pre_push: :test]
     ]
   end
 
@@ -114,7 +114,75 @@ defmodule Slipdock.MixProject do
         "esbuild slipdock --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
+      pre_push: &pre_push/1
     ]
   end
+
+  @doc """
+  The checks CI's `static checks` job and its build run, in the same order
+  with the same arguments, for running before a push (`mix pre_push`).
+  `test/slipdock/ci_workflow_test.exs` fails when CI runs one this doesn't.
+
+  Credo lints what the change adds since where it left `origin/main`. Give
+  credo's own base instead to check another commit: `mix pre_push
+  --from-git-ref <ref>`. `--config-file` is the absolute path, as CI's
+  `"$PWD/.credo.exs"`, so the current `.credo.exs` judges both sides.
+  """
+  def pre_push_steps(credo_base \\ []) do
+    credo_base =
+      if credo_base == [], do: ["--from-git-merge-base", "origin/main"], else: credo_base
+
+    [
+      {"compile", ["--force", "--warnings-as-errors"]},
+      {"format", ["--check-formatted"]},
+      {"hex.audit", []},
+      {"deps.audit", []},
+      {"sobelow", ["--config"]},
+      {"credo", ["diff" | credo_base] ++ ["--config-file", Path.expand(".credo.exs", __DIR__)]}
+    ]
+  end
+
+  @doc """
+  Runs `pre_push_steps/1` in turn, each as its own `mix` process (as CI's
+  steps are) in `pre_push_build_root/0`, and stops at the first that exits
+  non-zero, with each one's time.
+  """
+  def pre_push(args, run \\ &run_mix/2) do
+    started = System.monotonic_time(:millisecond)
+
+    for {task, argv} <- pre_push_steps(args) do
+      line = Enum.join([task | argv], " ")
+      Mix.shell().info([:cyan, "==> pre_push: mix #{line}", :reset])
+      step_started = System.monotonic_time(:millisecond)
+
+      case run.(task, argv) do
+        0 -> Mix.shell().info("    #{seconds(step_started)} s")
+        status -> Mix.raise("pre_push: mix #{line} failed (exit #{status})", exit_status: status)
+      end
+    end
+
+    Mix.shell().info([:green, "==> pre_push: all checks passed in #{seconds(started)} s", :reset])
+  end
+
+  @doc """
+  Where the checks build: a build root of their own, so the forced compile
+  doesn't rewrite `_build/test` under a `mix test` running beside it. The
+  first run compiles the dependencies there once.
+  """
+  def pre_push_build_root, do: Path.expand("_build/pre_push", __DIR__)
+
+  defp run_mix(task, argv) do
+    {_, status} =
+      System.cmd("mix", [task | argv],
+        into: IO.stream(),
+        stderr_to_stdout: true,
+        env: [{"MIX_ENV", to_string(Mix.env())}, {"MIX_BUILD_ROOT", pre_push_build_root()}]
+      )
+
+    status
+  end
+
+  defp seconds(since),
+    do: Float.round((System.monotonic_time(:millisecond) - since) / 1000, 1)
 end

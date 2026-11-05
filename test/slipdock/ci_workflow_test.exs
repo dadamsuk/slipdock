@@ -196,4 +196,49 @@ defmodule Slipdock.CiWorkflowTest do
     assert runs?(job("cli"), "mix hex.audit")
     assert File.read!(Path.join(@root, ".credo.exs")) =~ ~s("cli/lib/")
   end
+
+  describe "mix pre_push (#1866)" do
+    # The alias's steps as CI writes them: credo's absolute config path is
+    # CI's "$PWD/.credo.exs".
+    defp pre_push_commands do
+      config = Path.join(@root, ".credo.exs")
+
+      for {task, argv} <- Mix.Project.get!().pre_push_steps() do
+        argv = Enum.map(argv, &if(&1 == config, do: ~s("$PWD/.credo.exs"), else: &1))
+        Enum.join(["mix", task | argv], " ")
+      end
+    end
+
+    defp mix_runs(job) do
+      for "run: mix " <> _ = line <- job,
+          line != "run: mix deps.get",
+          do: String.replace_prefix(line, "run: ", "")
+    end
+
+    test "runs every mix command the static checks job runs" do
+      static = mix_runs(job("static"))
+      assert "mix sobelow --config" in static
+
+      for command <- static do
+        assert command in pre_push_commands(),
+               "CI's static checks run `#{command}`, which `mix pre_push` doesn't"
+      end
+    end
+
+    test "in the static job's order" do
+      static = mix_runs(job("static"))
+      assert Enum.filter(pre_push_commands(), &(&1 in static)) == static
+    end
+
+    test "covers the build's compile and format checks, before the static ones" do
+      test_job = mix_runs(job("test"))
+      assert "mix compile --warnings-as-errors" in test_job
+      assert "mix format --check-formatted" in test_job
+
+      assert [
+               "mix compile --force --warnings-as-errors",
+               "mix format --check-formatted" | _
+             ] = pre_push_commands()
+    end
+  end
 end
