@@ -35,12 +35,12 @@ defmodule SlipdockWeb.UsersLiveTest do
     %{conn: log_in_user(conn, admin), admin: admin, ordinary: ordinary}
   end
 
-  describe "the limits in the people list" do
+  describe "the limits, in the person panel" do
     test "shows what each person is using, and lets a paid-up date be set", %{
       conn: conn,
       ordinary: ordinary
     } do
-      {:ok, view, html} = live(conn, ~p"/users")
+      {:ok, view, html} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       assert html =~ "Paid up to"
       assert html =~ "boards"
@@ -61,7 +61,7 @@ defmodule SlipdockWeb.UsersLiveTest do
       {:ok, _} =
         Accounts.update_standing(ordinary, %{"paid_until" => "2027-01-31"})
 
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       view
       |> form("#paid-until-#{ordinary.id}", %{"paid_until" => ""})
@@ -72,8 +72,8 @@ defmodule SlipdockWeb.UsersLiveTest do
   end
 
   describe "unlimited" do
-    test "can be switched on and off from the people list", %{conn: conn, ordinary: ordinary} do
-      {:ok, view, _} = live(conn, ~p"/users")
+    test "can be switched on and off from the person panel", %{conn: conn, ordinary: ordinary} do
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       refute has_element?(view, "#unlimited-#{ordinary.id}[checked]")
       view |> element("#unlimited-#{ordinary.id}") |> render_click()
@@ -87,16 +87,19 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
 
     test "is not offered for an admin, who is exempt already", %{conn: conn, admin: admin} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{admin.id}")
       refute has_element?(view, "#unlimited-#{admin.id}")
     end
   end
 
   # #1206: meetings, transcription and voiceprints, per person.
   describe "meetings" do
-    test "can be allowed and taken away from the people list", %{conn: conn, ordinary: ordinary} do
+    test "can be allowed and taken away from the person panel", %{
+      conn: conn,
+      ordinary: ordinary
+    } do
       no_meetings(ordinary)
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       refute has_element?(view, "#meetings-#{ordinary.id}[checked]")
       view |> element("#meetings-#{ordinary.id}") |> render_click()
@@ -109,23 +112,23 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
 
     test "is not offered for an admin, who always has them", %{conn: conn, admin: admin} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{admin.id}")
       refute has_element?(view, "#meetings-#{admin.id}")
       assert Slipdock.Meetings.allowed?(no_meetings(admin))
     end
   end
 
-  # #1207: permissions are checkboxes, the rest are buttons, and no second title.
-  describe "the row's controls" do
+  # #1207: permissions are checkboxes, the rest are buttons, and no second
+  # title. Since #1739 they are in the person panel, not on the row.
+  describe "the panel's controls" do
     test "permissions are checkboxes showing each person's standing", %{
       conn: conn,
       admin: admin,
       ordinary: ordinary
     } do
-      {:ok, view, html} = live(conn, ~p"/users")
+      {:ok, view, html} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       refute html =~ ~r/<h2[^>]*>\s*People/
-      assert has_element?(view, "input[type=checkbox][checked]#admin-#{admin.id}")
       assert has_element?(view, "input[type=checkbox]#admin-#{ordinary.id}")
       refute has_element?(view, "#admin-#{ordinary.id}[checked]")
       assert has_element?(view, "input[type=checkbox]#unlimited-#{ordinary.id}")
@@ -133,16 +136,19 @@ defmodule SlipdockWeb.UsersLiveTest do
       refute html =~ "Make admin"
       refute html =~ "Make unlimited"
       refute html =~ "Allow meetings"
+
+      {:ok, view, _} = live(conn, ~p"/users?user=#{admin.id}")
+      assert has_element?(view, "input[type=checkbox][checked]#admin-#{admin.id}")
     end
 
     test "an admin's unlimited and meetings boxes are ticked and cannot be changed", %{
       conn: conn,
       admin: admin
     } do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{admin.id}")
 
       assert view
-             |> element("tr", Accounts.get_user!(admin.id).email)
+             |> element("#panel-permissions")
              |> render()
              |> LazyHTML.from_fragment()
              |> LazyHTML.query("input[type=checkbox][disabled][checked]")
@@ -150,7 +156,7 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
 
     test "ticking Admin promotes, and the box shows it", %{conn: conn, ordinary: ordinary} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
       view |> element("#admin-#{ordinary.id}") |> render_click()
       assert has_element?(view, "#admin-#{ordinary.id}[checked][phx-click=demote]")
       assert Accounts.admin?(Accounts.get_user!(ordinary.id))
@@ -158,16 +164,16 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
 
     test "disable, enable, close and support are buttons", %{conn: conn, ordinary: ordinary} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       assert has_element?(
                view,
-               "button.btn-ghost.btn-error[data-confirm][phx-click=disable][phx-value-id='#{ordinary.id}']"
+               "#danger-zone button.btn-ghost.btn-error[data-confirm][phx-click=disable][phx-value-id='#{ordinary.id}']"
              )
 
       assert has_element?(
                view,
-               "button.btn-ghost.btn-error[phx-click=confirm-delete][phx-value-user_id='#{ordinary.id}']"
+               "#danger-zone button.btn-ghost.btn-error[data-confirm][phx-click=confirm-delete][phx-value-user_id='#{ordinary.id}']"
              )
 
       assert has_element?(
@@ -182,14 +188,14 @@ defmodule SlipdockWeb.UsersLiveTest do
 
       assert has_element?(
                view,
-               "button.btn:not(.btn-outline)[phx-click=enable][phx-value-id='#{ordinary.id}']"
+               "#danger-zone button.btn:not(.btn-outline)[phx-click=enable][phx-value-id='#{ordinary.id}']"
              )
     end
   end
 
   describe "an admin demoted while the page is open" do
     test "cannot use it any more", %{conn: conn, admin: admin, ordinary: ordinary} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
       {:ok, _} = Accounts.promote(user_fixture("other-admin@example.com"))
       {:ok, _} = Accounts.demote(admin)
 
@@ -206,7 +212,7 @@ defmodule SlipdockWeb.UsersLiveTest do
   describe "who can get in" do
     test "an admin can", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/users")
-      assert html =~ "Permissions"
+      assert html =~ "Last seen"
     end
 
     test "an ordinary user is sent away without being told there is anything here", %{
@@ -214,6 +220,9 @@ defmodule SlipdockWeb.UsersLiveTest do
       ordinary: ordinary
     } do
       assert {:error, {:redirect, %{to: "/"}}} = live(log_in_user(conn, ordinary), ~p"/users")
+
+      assert {:error, {:redirect, %{to: "/"}}} =
+               live(log_in_user(conn, ordinary), ~p"/users?user=#{ordinary.id}")
     end
   end
 
@@ -227,7 +236,7 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
 
     test "promoting and demoting", %{conn: conn, ordinary: ordinary} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       view
       |> element("input[phx-click='promote'][phx-value-id='#{ordinary.id}']")
@@ -243,7 +252,7 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
 
     test "the last admin cannot be demoted, and is told why", %{conn: conn, admin: admin} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{admin.id}")
 
       html =
         view
@@ -253,44 +262,46 @@ defmodule SlipdockWeb.UsersLiveTest do
       assert html =~ "only admin"
       assert html =~ "nobody left"
       assert Accounts.admin?(Slipdock.Repo.reload(admin))
+      # The box still says admin, and the panel is still open on them.
+      assert has_element?(view, "#person-panel #admin-#{admin.id}[checked]")
     end
 
-    test "the last admin cannot be disabled either", %{conn: conn, admin: admin} do
-      {:ok, view, _} = live(conn, ~p"/users")
+    test "the last admin cannot be disabled either, being yourself", %{conn: conn, admin: admin} do
+      {:ok, view, _} = live(conn, ~p"/users?user=#{admin.id}")
 
-      html =
-        view
-        |> element("button[phx-click='disable'][phx-value-id='#{admin.id}']")
-        |> render_click()
+      refute has_element?(view, "button[phx-click='disable']")
+      html = render_click(view, "disable", %{"id" => to_string(admin.id)})
 
-      assert html =~ "only admin"
+      assert html =~ "You can&#39;t disable your own account."
       refute Accounts.disabled?(Slipdock.Repo.reload(admin))
     end
 
     test "disabling and enabling somebody else", %{conn: conn, ordinary: ordinary} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       view
       |> element("button[phx-click='disable'][phx-value-id='#{ordinary.id}']")
       |> render_click()
 
       assert Accounts.disabled?(Slipdock.Repo.reload(ordinary))
+      assert has_element?(view, "#person-#{ordinary.id} .badge", "disabled")
 
       view
       |> element("button[phx-click='enable'][phx-value-id='#{ordinary.id}']")
       |> render_click()
 
       refute Accounts.disabled?(Slipdock.Repo.reload(ordinary))
+      refute has_element?(view, "#person-#{ordinary.id} .badge", "disabled")
     end
 
     test "closing an account says what it will take before it does anything", %{
       conn: conn,
       ordinary: ordinary
     } do
-      {:ok, view, html} = live(conn, ~p"/users")
+      {:ok, view, html} = live(conn, ~p"/users?user=#{ordinary.id}")
 
-      # The intro says what each action does (#1699).
-      assert html =~ "signs someone out everywhere and stops them"
+      # The danger zone says what each action does (#1699).
+      assert html =~ "signs someone out everywhere and stops them signing in"
       assert html =~ "deletes the account and everything they own, after showing you what will go"
 
       html =
@@ -305,7 +316,7 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
 
     test "and refuses unless the address is typed exactly", %{conn: conn, ordinary: ordinary} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       view
       |> element("button[phx-click='confirm-delete'][phx-value-user_id='#{ordinary.id}']")
@@ -324,6 +335,10 @@ defmodule SlipdockWeb.UsersLiveTest do
       |> render_submit()
 
       refute Accounts.get_user(ordinary.id)
+      # The panel closes with them, and they are gone from the table.
+      assert_patch(view, ~p"/users")
+      refute has_element?(view, "#person-panel")
+      refute has_element?(view, "#person-#{ordinary.id}")
     end
   end
 
@@ -381,7 +396,7 @@ defmodule SlipdockWeb.UsersLiveTest do
   describe "changing somebody's address" do
     test "edits in place, and they sign in with the new one", %{conn: conn, ordinary: ordinary} do
       new_email = fixture_email("renamed@example.com")
-      {:ok, view, html} = live(conn, ~p"/users")
+      {:ok, view, html} = live(conn, ~p"/users?user=#{ordinary.id}")
       refute html =~ ~s(id="email-#{ordinary.id}")
 
       view
@@ -399,7 +414,7 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
 
     test "cancel leaves it as it was", %{conn: conn, ordinary: ordinary} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       view
       |> element("button[phx-click='edit-email'][phx-value-user_id='#{ordinary.id}']")
@@ -416,7 +431,7 @@ defmodule SlipdockWeb.UsersLiveTest do
       admin: admin,
       ordinary: ordinary
     } do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
 
       view
       |> element("button[phx-click='edit-email'][phx-value-user_id='#{ordinary.id}']")

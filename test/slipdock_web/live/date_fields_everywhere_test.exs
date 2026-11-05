@@ -127,7 +127,7 @@ defmodule SlipdockWeb.DateFieldsEverywhereTest do
     end
 
     test "saves on a pick, and clears", %{conn: conn, other: other} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{other.id}")
       assert date_field?(view, "paid-until-date-#{other.id}")
       assert has_element?(view, "#paid-until-date-#{other.id} [data-role=date-text]", "Not paid")
 
@@ -146,7 +146,7 @@ defmodule SlipdockWeb.DateFieldsEverywhereTest do
     end
 
     test "a value that isn't a date is refused", %{conn: conn, other: other} do
-      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, view, _} = live(conn, ~p"/users?user=#{other.id}")
 
       html =
         view
