@@ -1414,10 +1414,28 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           size="size-5 translate-y-px"
         />
       </:actions>
+      <%!-- The cover strip lies over the top of the toolbar row, as it lies
+            under the heart and close button, so the toolbar and they share
+            one row whether the card has a cover or not. --%>
       <div
         :if={@card.color}
-        class={["h-3 rounded-t-2xl bg-gradient-to-r", Palette.gradient(@card.color)]}
+        class={[
+          "pointer-events-none absolute inset-x-0 top-0 h-3 bg-gradient-to-r sm:rounded-t-2xl",
+          Palette.gradient(@card.color)
+        ]}
       >
+      </div>
+      <%!-- The actions (#1725), left of the heart and close button, which the
+            modal draws in its corner: `pr-24` keeps the row clear of them. --%>
+      <div class="flex h-14 items-center justify-end pl-6 pr-24">
+        <.card_toolbar
+          board={@board}
+          can_write={@can_write}
+          card={@card}
+          handoff_link={@can_comment and is_nil(current_handoff(@card)) and not @editing_handoff}
+          ask_link={@can_write and is_nil(Card.open_wait(@card)) and is_nil(@asking)}
+          target={@target}
+        />
       </div>
       <p
         :if={!@can_write}
@@ -1453,31 +1471,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           <span class="truncate font-medium">{@parent.board.name}</span>
         </.link>
       </div>
-      <%!-- At the very top, so a card that is really an epic opens onto its
-            board in one click instead of a scroll down to its subcards. --%>
-      <div
-        :if={@card.sub_board}
-        id="card-open-board"
-        class="flex min-w-0 items-center gap-2 bg-primary/5 py-1.5 pl-6 pr-24 text-xs text-base-content/70"
-      >
-        <.icon name="hero-squares-2x2" class="size-3.5 shrink-0 text-primary" />
-        <span class="truncate">
-          This card has subcards<span :for={{done, total} <- [Card.progress(@card)]}>
-            · {done} of {total} done
-          </span>
-        </span>
-        <.link
-          navigate={~p"/boards/#{@card.sub_board.id}"}
-          class="btn btn-primary btn-xs ml-auto shrink-0"
-          title="Open this card's subcards as a board"
-        >
-          Open board <.icon name="hero-arrow-right" class="size-3.5" />
-        </.link>
-      </div>
       <%!-- Two kinds of control, two fieldsets: the card's own fields need
             write, the discussion (comments, status, votes) only comment. --%>
       <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]">
-        <div class="min-w-0 space-y-7 p-6">
+        <div class="min-w-0 space-y-7 px-6 pb-6 pt-1">
           <div class="space-y-3">
             <fieldset disabled={!@can_write} class="min-w-0">
               <.card_title_form
@@ -1485,10 +1482,6 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 can_write={@can_write}
                 card={@card}
                 form={@form}
-                handoff_link={
-                  @can_comment and is_nil(current_handoff(@card)) and not @editing_handoff
-                }
-                ask_link={@can_write and is_nil(Card.open_wait(@card)) and is_nil(@asking)}
                 target={@target}
               />
             </fieldset>

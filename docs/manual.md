@@ -488,9 +488,9 @@ Open:      questions waiting on someone
 Pointers:  branch, files, commits, pages (W-…)
 ```
 
-Most cards never need one, so until one is written it is just an **Add “Left
-off”** link on the line under the card's title (beside its `#id`, list and
-age). Once there is one it sits straight beneath the title: *Left off — next:*
+Most cards never need one, so until one is written it is just a **Left off**
+button in the toolbar at the top of the card (beside **Move**, **Ask** and
+**⋯**). Once there is one it sits straight beneath the title: *Left off — next:*
 and the next step, the note, who left it, when and how (the web app, the API,
 MCP, the CLI or a runner), and, once there has been more than one, a
 **History** of every earlier one. The note is Markdown, as a comment is
@@ -891,8 +891,8 @@ the wait closes as *skipped* and the card moves on as it would on an answer.
 A question an agent wrote as one numbered block (`1. … 2. …`) is split into
 the series too.
 
-To ask questions yourself, press **Ask questions** on the line under the
-card's title. Write one question per box (**Add a question** for another, up
+To ask questions yourself, press **Ask** in the toolbar at the top of the
+card. Write one question per box (**Add a question** for another, up
 to 20), choose who they are on (or anyone), and press **Ask**. Questions
 asked before stay on the card under **Questions asked before**, each with its
 answers, who answered and when, or how it ended without an answer. The answer is
@@ -1212,7 +1212,7 @@ MCP, `get_card` shows it and `update_card` takes `recurrence` (an object, or
 `null` to stop it).
 
 **Duplicate.** The same copy, made by hand: **Duplicate** in the card's
-Actions puts a copy straight after it and opens it (`slipdock copy 12`,
+**⋯** menu (top right, beside the heart) puts a copy straight after it and opens it (`slipdock copy 12`,
 `POST /api/cards/:id/copy`, with `board`, `column`, `title` or `at: top`).
 
 ## Snoozing cards
@@ -1417,7 +1417,8 @@ lists, named after the card and sharing the parent's colour. Everything a
 board can do works inside it — drag and drop, swimlanes, saved views, the
 API and the CLI — and sub-boards nest to any depth. The card modal shows the
 subcards grouped by list with a progress bar, lets you add and tick them off,
-and has an **Open board** button; the card itself carries a `done/total`
+and its line under the title (*Board › List · #id · created*) has the one
+**Open board** link, with how many are done; the card itself carries a `done/total`
 badge. The sub-board's header shows a breadcrumb back through every parent.
 
 Tags are shared by a whole board tree: they live on the root board, so a tag

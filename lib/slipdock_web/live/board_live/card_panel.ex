@@ -21,22 +21,146 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :card, Card, required: true
-  attr :form, :any, required: true
 
   attr :handoff_link, :boolean,
     default: false,
-    doc: "offer \"Add “Left off”\" (the board's label) on the meta line"
+    doc: "offer the handoff (the board's label for it): a commenter may write one"
 
   attr :ask_link, :boolean,
     default: false,
-    doc: "offer \"Ask questions\" on the meta line (#1220)"
+    doc: "offer Ask questions (#1220)"
 
   attr :target, :any, required: true
 
   @doc """
-  The very top of the panel: the title and the meta line under it (the
-  card's link, its list, when it was made). A form of its own, so that the
-  handoff can sit straight beneath it, outside every form.
+  The card's actions (#1725), in a row at the top of the panel that ends
+  where the heart and the close button begin: Move (to another board), the
+  handoff, Ask, and a ⋯ menu with Duplicate, Archive and Delete. Outside
+  the card's fieldsets, so each says for itself who may use it: a reader
+  gets none of them, a commenter only the handoff. The words drop below
+  `sm`, leaving the icons, so the row stays one row on a phone.
+  """
+  def card_toolbar(assigns) do
+    ~H"""
+    <div id="card-toolbar" class="flex min-w-0 items-center justify-end gap-0.5">
+      <button
+        :if={@can_write}
+        type="button"
+        id="card-move-board"
+        phx-click="open_move_board"
+        phx-target="#board-move"
+        phx-value-id={@card.id}
+        class="btn btn-ghost btn-sm gap-1.5 px-2 font-normal"
+        title="Move this card to another board, with its subcards"
+        aria-label="Move to another board"
+      >
+        <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" />
+        <span class="hidden sm:inline">Move</span>
+      </button>
+      <%!-- Most cards never get a handoff, so until one is written it is
+            this and no more (W-1804). --%>
+      <button
+        :if={@handoff_link}
+        type="button"
+        id="handoff-edit"
+        phx-click="edit_handoff"
+        phx-target={@target}
+        class="btn btn-ghost btn-sm gap-1.5 px-2 font-normal"
+        title="Say where you left this card, so whoever picks it up next reads that first"
+        aria-label={"Add “#{Slipdock.Boards.Board.handoff_label(@board)}”"}
+      >
+        <.icon name="hero-bookmark" class="size-4" />
+        <span class="hidden max-w-[9rem] truncate sm:inline">
+          {Slipdock.Boards.Board.handoff_label(@board)}
+        </span>
+      </button>
+      <%!-- Follow-up questions (#1220): ask someone, a box per question. --%>
+      <button
+        :if={@ask_link}
+        type="button"
+        id="wait-ask"
+        phx-click="ask_questions"
+        phx-target={@target}
+        class="btn btn-ghost btn-sm gap-1.5 px-2 font-normal"
+        title="Ask someone questions on this card: the card waits on their answers"
+        aria-label="Ask questions"
+      >
+        <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" />
+        <span class="hidden sm:inline">Ask</span>
+      </button>
+      <button
+        :if={@can_write}
+        type="button"
+        id="card-more"
+        popovertarget="card-more-menu"
+        class="btn btn-ghost btn-sm btn-square"
+        title="More actions"
+        aria-label="More actions"
+      >
+        <.icon name="hero-ellipsis-horizontal" class="size-5" />
+      </button>
+      <div
+        :if={@can_write}
+        id="card-more-menu"
+        popover
+        phx-hook="AnchoredPopover"
+        data-anchor="card-more"
+        class="pop-menu"
+      >
+        <ul class="menu w-48 rounded-xl bg-base-100 p-1 text-sm shadow-xl ring-1 ring-base-content/10">
+          <li>
+            <button
+              id="duplicate-card"
+              type="button"
+              popovertarget="card-more-menu"
+              popovertargetaction="hide"
+              phx-target={@target}
+              phx-click="duplicate_card"
+              title="A copy as it is now: checklist unticked, subcards reopened; no comments, dates or files"
+            >
+              <.icon name="hero-document-duplicate" class="size-4" /> Duplicate
+            </button>
+          </li>
+          <li>
+            <button
+              id="archive-card"
+              type="button"
+              popovertarget="card-more-menu"
+              popovertargetaction="hide"
+              phx-target={@target}
+              phx-click="archive_card"
+            >
+              <.icon name="hero-archive-box" class="size-4" /> Archive
+            </button>
+          </li>
+          <li class="border-t border-base-content/10 pt-1">
+            <button
+              id="delete-card"
+              type="button"
+              phx-target={@target}
+              phx-click="delete_card"
+              data-confirm="Delete this card permanently?"
+              class="text-error"
+            >
+              <.icon name="hero-trash" class="size-4" /> Delete
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+    """
+  end
+
+  attr :board, :any, required: true
+  attr :can_write, :boolean, required: true
+  attr :card, Card, required: true
+  attr :form, :any, required: true
+  attr :target, :any, required: true
+
+  @doc """
+  The very top of the panel: the title and the quiet meta line under it
+  (board › list, the card's link, when it was made). A form of its own, so
+  that the handoff can sit straight beneath it, outside every form.
   """
   def card_title_form(assigns) do
     ~H"""
@@ -48,7 +172,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       phx-submit="card_change"
       class="space-y-3"
     >
-      <div class="flex items-start gap-3 pr-8">
+      <div class="flex items-start gap-3">
         <button
           type="button"
           class={[
@@ -101,26 +225,22 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       <p :if={@form[:short_name].errors != []} class="text-sm text-error">
         A short name is at most {ShortNames.max_length()} characters.
       </p>
-      <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1 text-sm text-base-content/50">
-        <%!-- A link, not a button: this sits in the fieldset that is
-              disabled for a read-only card, and a reader can share a link
-              too. The hook copies the URL instead of following it. --%>
-        <a
-          id="card-copy-link"
-          href={url(~p"/boards/#{@card.board_id}/cards/#{@card.id}")}
-          phx-hook="CopyLink"
-          class="badge badge-ghost badge-sm gap-1 font-mono text-base-content/70 hover:text-primary"
-          title="Copy a link to this card"
-        >
-          <span data-label>#{@card.id}</span>
-          <.icon name="hero-link" class="size-3" />
-        </a>
-        <span>in list</span>
+      <%!-- A quiet breadcrumb (#1725): Board › List · #id · created, and on
+            an epic the one way to its subcards' board. Words and a bare
+            select, no bordered buttons: the actions are in the toolbar
+            (`card_toolbar/1`). --%>
+      <div
+        id="card-meta"
+        class="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1 text-sm text-base-content/50"
+      >
+        <span id="card-meta-board" class="max-w-[14rem] truncate" title={@board.name}>
+          {@board.name}
+        </span>
+        <span aria-hidden="true">›</span>
         <%!-- The quickest way to move a card, and the only practical one
               on a phone, where dragging it across a board that shows one
-              list at a time is no way to live. The sidebar keeps its own
-              copy of this field; `card_change` touches only what the form
-              it came from carried. --%>
+              list at a time is no way to live. `card_change` touches only
+              what the form it came from carried. --%>
         <select
           :if={@can_write}
           name="card[column_id]"
@@ -139,50 +259,39 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <span :if={!@can_write} class="font-medium text-base-content/80">
           {@card.column.name}
         </span>
-        <%!-- `type="button"` matters: this sits inside the card form. --%>
-        <button
-          :if={@can_write}
-          type="button"
-          id="card-move-board"
-          phx-click="open_move_board"
-          phx-target="#board-move"
-          phx-value-id={@card.id}
-          class="meta-action"
-          title="Move this card to another board, with its subcards"
-        >
-          Move to board…
-        </button>
-        <span>· created <.timestamp id="card-created-at" at={@card.inserted_at} /></span>
-        <%!-- The actions on this line (Move to board…, the handoff, Ask
-              questions) are drawn as buttons, `meta-action`, whether they
-              are buttons or links, so they don't read as more text (#1230). --%>
-        <%!-- Most cards never get a handoff, so until one is written it is
-              this and no more (W-1804). A link, not a button, like the copy
-              link: this fieldset is disabled for a commenter, who may
-              write one. --%>
+        <span aria-hidden="true">·</span>
+        <%!-- A link, not a button: this sits in the fieldset that is
+              disabled for a read-only card, and a reader can share a link
+              too. The hook copies the URL instead of following it. --%>
         <a
-          :if={@handoff_link}
-          id="handoff-edit"
-          href="#"
-          phx-click="edit_handoff"
-          phx-target={@target}
-          class="meta-action"
-          title="Say where you left this card, so whoever picks it up next reads that first"
+          id="card-copy-link"
+          href={url(~p"/boards/#{@card.board_id}/cards/#{@card.id}")}
+          phx-hook="CopyLink"
+          class="inline-flex items-center gap-1 font-mono text-base-content/60 hover:text-primary"
+          title="Copy a link to this card"
         >
-          Add “{Slipdock.Boards.Board.handoff_label(@board)}”
+          <span data-label>#{@card.id}</span>
+          <.icon name="hero-link" class="size-3" />
         </a>
-        <%!-- Follow-up questions (#1220): ask someone, a box per question. --%>
-        <a
-          :if={@ask_link}
-          id="wait-ask"
-          href="#"
-          phx-click="ask_questions"
-          phx-target={@target}
-          class="meta-action"
-          title="Ask someone questions on this card: the card waits on their answers"
+        <span aria-hidden="true">·</span>
+        <span>created <.timestamp id="card-created-at" at={@card.inserted_at} /></span>
+        <%!-- An epic opens onto its board in one click from the top, the
+              only "Open board" on the card. --%>
+        <span
+          :if={@card.sub_board}
+          id="card-open-board"
+          class="inline-flex items-center gap-1.5"
         >
-          Ask questions
-        </a>
+          <span aria-hidden="true">·</span>
+          <.link
+            navigate={~p"/boards/#{@card.sub_board.id}"}
+            class="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+            title="Open this card's subcards as a board"
+          >
+            <.icon name="hero-squares-2x2" class="size-3.5" /> Open board
+          </.link>
+          <span :for={{done, total} <- [Card.progress(@card)]}>{done} of {total} done</span>
+        </span>
       </div>
     </.form>
     """
@@ -1042,7 +1151,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   @doc "The panel's sidebar: list, assignees, priority, dates, health, time, fields, votes, cover and the card's actions."
   def card_sidebar(assigns) do
     ~H"""
-    <aside class="min-w-0 space-y-5 rounded-b-2xl bg-base-200/60 p-5 md:rounded-r-2xl md:rounded-bl-none">
+    <aside class="min-w-0 space-y-5 rounded-b-2xl bg-base-200/60 p-5 md:rounded-bl-none">
       <%!-- The card's own fields need write; status updates and votes are
             the discussion, which a commenter joins (#863). --%>
       <fieldset disabled={!@can_write} class="min-w-0 space-y-5">
@@ -1345,37 +1454,6 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <.repeat_section card={@card} repeat={@repeat} target={@target} />
 
         <.snooze_section card={@card} can_write={@can_write} current_user={@current_user} />
-
-        <div class="space-y-1.5 border-t border-base-content/10 pt-4">
-          <span class="section-label">Actions</span>
-          <button
-            id="duplicate-card"
-            phx-target={@target}
-            type="button"
-            class="btn btn-sm w-full justify-start"
-            phx-click="duplicate_card"
-            title="A copy as it is now: checklist unticked, subcards reopened; no comments, dates or files"
-          >
-            <.icon name="hero-document-duplicate" class="size-4" /> Duplicate
-          </button>
-          <button
-            phx-target={@target}
-            type="button"
-            class="btn btn-sm w-full justify-start"
-            phx-click="archive_card"
-          >
-            <.icon name="hero-archive-box" class="size-4" /> Archive
-          </button>
-          <button
-            phx-target={@target}
-            type="button"
-            class="btn btn-ghost btn-error btn-sm w-full justify-start"
-            phx-click="delete_card"
-            data-confirm="Delete this card permanently?"
-          >
-            <.icon name="hero-trash" class="size-4" /> Delete
-          </button>
-        </div>
       </fieldset>
     </aside>
     """

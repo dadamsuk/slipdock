@@ -43,13 +43,6 @@ defmodule SlipdockWeb.BoardLive.CardSections do
           >
             <.icon name="hero-queue-list" class="size-3.5" /> Add cards…
           </button>
-          <.link
-            :if={@card.sub_board}
-            navigate={~p"/boards/#{@card.sub_board.id}"}
-            class="btn btn-xs btn-primary"
-          >
-            Open board <.icon name="hero-arrow-right" class="size-3.5" />
-          </.link>
         </div>
       </div>
 
