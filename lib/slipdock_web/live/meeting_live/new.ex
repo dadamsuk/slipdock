@@ -379,7 +379,7 @@ defmodule SlipdockWeb.MeetingLive.New do
                 </li>
                 <li :if={!@destinations.reading} class="text-warning">
                   <.icon name="hero-exclamation-triangle" class="size-3.5" />
-                  You have no AI model set up, so nothing can be read yet. Add one under Account → Settings → AI model.
+                  You have no AI model set up, so nothing can be read yet. Add one under Account → Preferences → AI model.
                 </li>
                 <li :if={@combination in [:audio, :both]}>
                   <.icon name="hero-arrow-up-right" class="size-3.5 text-base-content/50" />

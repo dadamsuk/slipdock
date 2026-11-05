@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.AccountLive.AgentComponent do
   @moduledoc """
-  The Set up an agent tab: pointing an agent at this server. The short
+  Account › Set up an agent: pointing an agent at this server. The short
   version is the first section; everything under it is optional, and
   labelled as such, because the thing that goes wrong here is people
   believing they must install something first.
@@ -60,8 +60,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
     ~H"""
     <div class="space-y-8">
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="section-title">Set up an agent</h2>
-        <p class="mt-1 text-sm text-base-content/60">
+        <p class="text-sm text-base-content/60">
           Claude, ChatGPT or anything else that can run a shell command can read and
           write these boards. The agent runs wherever you already use it — your laptop,
           a cloud session, a phone app — and talks to this server over the web. You do

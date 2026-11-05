@@ -108,7 +108,7 @@ defmodule SlipdockWeb.SessionController do
     conn
     |> delete_session(:user_return_to)
     |> put_flash(:info, "Signed in. Add a passkey below, and next time sign in with it.")
-    |> UserAuth.log_in_user(user, to: ~p"/account#passkeys")
+    |> UserAuth.log_in_user(user, to: ~p"/account/sign-in#passkeys")
   end
 
   defp expired(conn) do

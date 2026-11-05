@@ -1,12 +1,13 @@
 defmodule SlipdockWeb.AccountLive.Index do
   @moduledoc """
-  The account area: the tab bar, and whichever tab the URL names. Each tab is
-  its own component in `SlipdockWeb.AccountLive` — this page only picks one,
-  and keeps what they share: the user, and the flash.
+  The account area: a side nav (a picker on a phone) and whichever section
+  the URL names, in `SlipdockWeb.SettingsLayout` (#1737). Each section is its
+  own component in `SlipdockWeb.AccountLive` — this page only picks one, and
+  keeps what they share: the user, and the flash.
   """
   use SlipdockWeb, :live_view
 
-  alias SlipdockWeb.AccountLive
+  alias SlipdockWeb.{AccountLive, SettingsLayout}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -22,21 +23,22 @@ defmodule SlipdockWeb.AccountLive.Index do
     if socket.assigns.live_action == :email_log and not inbound?,
       do: raise(SlipdockWeb.InboundOff)
 
-    # Each tab is its own mount (the tab bar navigates rather than patches),
-    # so a tab pays only for its own queries — the one-page version ran all
-    # of them to show you a fifth of the result. The component does its own
-    # loading when it first renders.
+    # Each section is its own mount (the nav navigates rather than patches),
+    # so a section pays only for its own queries — the one-page version ran
+    # all of them to show you a fifth of the result. The component does its
+    # own loading when it first renders.
     {:ok,
      assign(socket,
-       page_title: tab_title(socket.assigns.live_action),
+       page_title: page_title(socket.assigns.live_action),
+       sections: sections(voiceprints?, inbound?),
        voiceprints?: voiceprints?,
        inbound?: inbound?
      )}
   end
 
-  # What the tabs send up. A flash is drawn by the layout, which is ours, and
-  # a saved user has to reach the header (the name, and where quick add puts
-  # things) as well as the tab that saved it.
+  # What the sections send up. A flash is drawn by the layout, which is ours,
+  # and a saved user has to reach the header (the name, and where quick add
+  # puts things) as well as the section that saved it.
   @impl true
   def handle_info({:flash, kind, message}, socket),
     do: {:noreply, put_flash(socket, kind, message)}
@@ -44,45 +46,48 @@ defmodule SlipdockWeb.AccountLive.Index do
   def handle_info({:current_user, user}, socket),
     do: {:noreply, assign(socket, current_user: user)}
 
-  # One label per tab, used for the title, the breadcrumb and the tab itself,
-  # so the three cannot drift apart.
-  defp tab_title(:settings), do: "Settings"
-  defp tab_title(:tokens), do: "API tokens"
-  defp tab_title(:data), do: "Import & export"
-  defp tab_title(:agent), do: "Set up an agent"
-  defp tab_title(:voiceprint), do: "Voiceprint"
-  defp tab_title(:email_log), do: "Email Log"
-  defp tab_title(_), do: "Account"
-
-  defp tab_component(:settings), do: AccountLive.SettingsComponent
-  defp tab_component(:tokens), do: AccountLive.TokensComponent
-  defp tab_component(:data), do: AccountLive.DataComponent
-  defp tab_component(:agent), do: AccountLive.AgentComponent
-  defp tab_component(:voiceprint), do: AccountLive.VoiceprintComponent
-  defp tab_component(:email_log), do: AccountLive.InboundLogComponent
-  defp tab_component(_), do: AccountLive.ProfileComponent
-
-  attr :to, :string, required: true
-  attr :active, :boolean, required: true
-  attr :icon, :string, required: true
-  attr :label, :string, required: true
-
-  defp account_tab(assigns) do
-    ~H"""
-    <.link
-      navigate={@to}
-      aria-current={@active && "page"}
-      class={[
-        "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium",
-        (@active && "bg-primary/10 text-primary") ||
-          "text-base-content/60 hover:bg-base-200/70 hover:text-base-content"
-      ]}
-    >
-      <.icon name={@icon} class="size-4" />
-      <span>{@label}</span>
-    </.link>
-    """
+  # Every section, in the nav's order: {live action, path, icon, label}. The
+  # label is the nav entry, the section's heading and the browser title, so
+  # the three cannot drift apart. Voiceprint and Email log are there only
+  # while the server has them on.
+  defp all_sections do
+    [
+      {:index, ~p"/account", "hero-user-circle", "Profile"},
+      {:settings, ~p"/account/settings", "hero-adjustments-horizontal", "Preferences"},
+      {:sign_in, ~p"/account/sign-in", "hero-finger-print", "Sign-in & passkeys"},
+      {:tokens, ~p"/account/tokens", "hero-key", "API tokens"},
+      {:agent, ~p"/account/agent", "hero-cpu-chip", "Set up an agent"},
+      {:data, ~p"/account/data", "hero-arrows-right-left", "Import & export"},
+      {:voiceprint, ~p"/account/voiceprint", "hero-microphone", "Voiceprint"},
+      {:email_log, ~p"/account/email-log", "hero-inbox-arrow-down", "Email log"}
+    ]
   end
+
+  @doc "The account's sections, in order, as the nav lists them."
+  def sections(voiceprints?, inbound?) do
+    for {key, _, _, _} = section <- all_sections(),
+        key != :voiceprint or voiceprints?,
+        key != :email_log or inbound?,
+        do: section
+  end
+
+  # The landing section's title is the area's; the rest are named for
+  # themselves ("API tokens", not "Account").
+  defp page_title(:index), do: "Account"
+
+  defp page_title(action) do
+    {_, _, _, label} = List.keyfind(all_sections(), action, 0)
+    label
+  end
+
+  defp section_component(:settings), do: AccountLive.SettingsComponent
+  defp section_component(:sign_in), do: AccountLive.SignInComponent
+  defp section_component(:tokens), do: AccountLive.TokensComponent
+  defp section_component(:data), do: AccountLive.DataComponent
+  defp section_component(:agent), do: AccountLive.AgentComponent
+  defp section_component(:voiceprint), do: AccountLive.VoiceprintComponent
+  defp section_component(:email_log), do: AccountLive.InboundLogComponent
+  defp section_component(:index), do: AccountLive.ProfileComponent
 
   @impl true
   def render(assigns) do
@@ -99,69 +104,27 @@ defmodule SlipdockWeb.AccountLive.Index do
       nav_active={if @live_action == :agent, do: :agent, else: :account}
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <.page width="narrow" class="space-y-8">
-          <%!-- One title for every tab: the tabs say which part you're in, so
-               the first is Profile rather than a second "Account" (#1714). --%>
+        <.page width="standard">
+          <%!-- One title for every section: the nav says which part you're
+               in, and the frame heads the content with the same words. --%>
           <.page_header
             title="Account"
-            subtitle="Your profile, settings, tokens and data."
+            subtitle="Your profile, preferences, sign-in, tokens and data."
           />
-          <nav
-            id="account-tabs"
-            aria-label="Account"
-            class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10"
-          >
-            <.account_tab
-              to={~p"/account"}
-              active={@live_action == :index}
-              icon="hero-user-circle"
-              label="Profile"
+          <SettingsLayout.frame id="account" label="Account" current={@live_action}>
+            <:section
+              :for={{key, to, icon, label} <- @sections}
+              key={key}
+              to={to}
+              icon={icon}
+              label={label}
             />
-            <.account_tab
-              to={~p"/account/settings"}
-              active={@live_action == :settings}
-              icon="hero-adjustments-horizontal"
-              label="Settings"
+            <.live_component
+              module={section_component(@live_action)}
+              id={"account-#{@live_action}"}
+              current_user={@current_user}
             />
-            <.account_tab
-              to={~p"/account/tokens"}
-              active={@live_action == :tokens}
-              icon="hero-key"
-              label="API tokens"
-            />
-            <.account_tab
-              to={~p"/account/data"}
-              active={@live_action == :data}
-              icon="hero-arrows-right-left"
-              label="Import & export"
-            />
-            <.account_tab
-              to={~p"/account/agent"}
-              active={@live_action == :agent}
-              icon="hero-cpu-chip"
-              label="Set up an agent"
-            />
-            <.account_tab
-              :if={@voiceprints?}
-              to={~p"/account/voiceprint"}
-              active={@live_action == :voiceprint}
-              icon="hero-microphone"
-              label="Voiceprint"
-            />
-            <.account_tab
-              :if={@inbound?}
-              to={~p"/account/email-log"}
-              active={@live_action == :email_log}
-              icon="hero-inbox-arrow-down"
-              label="Email Log"
-            />
-          </nav>
-
-          <.live_component
-            module={tab_component(@live_action)}
-            id={"account-#{@live_action}"}
-            current_user={@current_user}
-          />
+          </SettingsLayout.frame>
         </.page>
       </div>
     </Layouts.app>

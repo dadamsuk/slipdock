@@ -40,7 +40,7 @@ const pages = [
   ['/templates', 'Templates', 'standard'],
   ['/groups', 'Groups', 'standard'],
   ['/work', 'My work', 'standard'],
-  ['/account', 'Account', 'narrow'],
+  ['/account', 'Account', 'standard'],
   ['/wiki/.settings', 'Wiki settings', 'narrow'],
   [`/boards/${kb}/visualise`, 'Visualise', 'full'],
   [`/boards/${kb}/tidy`, 'Tidy up', 'standard'],

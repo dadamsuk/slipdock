@@ -180,7 +180,7 @@ defmodule SlipdockCLI.WholeWikiTest do
 
     test "drive status, not connected and not set up" do
       for {status, words} <- [
-            {"not_connected", "not connected — connect it on Account → Settings"},
+            {"not_connected", "not connected — connect it on Account → Preferences"},
             {"revoked", "no longer accepted by Google"},
             {"not_configured", "not set up on this server"}
           ] do

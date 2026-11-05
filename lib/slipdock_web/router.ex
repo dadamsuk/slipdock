@@ -296,12 +296,13 @@ defmodule SlipdockWeb.Router do
       # works through it.
       live "/search", SearchLive.Index, :search
       live "/ask", SearchLive.Index, :ask
-      # The account area is four pages rather than one long scroll: who you
-      # are, the preferences, the tokens, and moving work in and out. They
-      # share a LiveView (and so a tab bar) because they share the
-      # person they are about.
+      # The account area is a page per section rather than one long scroll:
+      # who you are, the preferences, signing in, the tokens, and moving work
+      # in and out. They share a LiveView (and so a side nav, #1737) because
+      # they share the person they are about.
       live "/account", AccountLive.Index, :index
       live "/account/settings", AccountLive.Index, :settings
+      live "/account/sign-in", AccountLive.Index, :sign_in
       live "/account/tokens", AccountLive.Index, :tokens
       live "/account/data", AccountLive.Index, :data
       # How to point an agent at this server. A page rather than a doc because

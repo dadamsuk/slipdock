@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.AccountLive.PasskeysComponent do
   @moduledoc """
-  The passkeys on the Account tab (#828): adding one, and the list to remove
+  The passkeys in Account › Sign-in & passkeys (#828): adding one, and the list to remove
   them from. Adding needs the authenticator, so the `PasskeyRegister` hook
   runs it against `SlipdockWeb.PasskeyController` and reports back here;
   listing and removing are this component's own.

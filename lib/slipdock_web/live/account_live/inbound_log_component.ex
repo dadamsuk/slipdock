@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.AccountLive.InboundLogComponent do
   @moduledoc """
-  The account's Email Log tab (#1242, its own tab since #1290): your last 50 messages to
+  Account › Email log (#1242, its own section since #1290): your last 50 messages to
   Slipdock's inbound addresses, and what came of each. When someone says "I
   emailed it and nothing happened", this is where the answer is: refused and
   why, ignored as automatic, or what it made. Only there while inbound mail
@@ -51,7 +51,6 @@ defmodule SlipdockWeb.AccountLive.InboundLogComponent do
     >
       <div class="flex items-start justify-between gap-3">
         <div>
-          <h2 class="section-title">Inbound email</h2>
           <p class="text-sm text-base-content/60">
             Your last 50 messages to Slipdock's addresses at {Inbound.domain()}, and what came of each.
           </p>

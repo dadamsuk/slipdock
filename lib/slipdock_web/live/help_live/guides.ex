@@ -627,7 +627,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
           <.app_link
             current_user={@current_user}
             to={~p"/account/email-log"}
-          >Account › Email Log</.app_link>
+          >Account › Email log</.app_link>
           lists your last 50 messages: what each made, or why it bounced. From the CLI, <code>slipdock inbound log</code>.
         </li>
         <li>
@@ -910,7 +910,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
         The AI features need a model to talk to. Each person brings their own, under <.app_link
           current_user={@current_user}
           to={~p"/account/settings"}
-        >Account → Settings → AI model</.app_link>:
+        >Account → Preferences → AI model</.app_link>:
         either an OpenRouter key, billed to your OpenRouter account, or an OpenAI-compatible
         endpoint of your own (LM Studio, Ollama and the like), which keeps everything on your network.
       </p>

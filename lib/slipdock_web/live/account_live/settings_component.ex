@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.AccountLive.SettingsComponent do
   @moduledoc """
-  The Settings tab — the dials: how a quick-added line is read, the model
+  Account › Preferences — the dials: how a quick-added line is read, the model
   the AI features run on, what is on show, and the links pinned to the
   header.
   """

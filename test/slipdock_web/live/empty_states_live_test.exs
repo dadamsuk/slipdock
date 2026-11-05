@@ -179,7 +179,7 @@ defmodule SlipdockWeb.EmptyStatesLiveTest do
     test "with none: a compact empty state; Add a passkey only where the browser can", %{
       conn: conn
     } do
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/sign-in")
       assert empty(view, "passkeys-empty", "compact", "No passkeys yet")
       # Not known yet whether the browser can make one: no action.
       refute has_element?(view, action("passkeys-empty"))

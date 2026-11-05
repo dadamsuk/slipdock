@@ -89,7 +89,7 @@ defmodule SlipdockWeb.API.VaultController do
         {:ok, vault}
 
       {:error, :not_connected} ->
-        {:error, :conflict, "connect Google Drive first (Account → Settings)"}
+        {:error, :conflict, "connect Google Drive first (Account → Preferences)"}
 
       {:error, :revoked} ->
         {:error, :conflict, "Google no longer accepts your Drive connection: connect it again"}

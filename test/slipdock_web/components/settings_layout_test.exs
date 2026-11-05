@@ -113,6 +113,12 @@ defmodule SlipdockWeb.SettingsLayoutTest do
       assert text(q(html, "#area-content #the-content")) == "Section body"
     end
 
+    test "draws the title with the section-title token, not a size of its own" do
+      class = hd(attr(q(render_frame(), "[data-role=settings-section-title]"), "class"))
+      assert class =~ "section-title"
+      refute class =~ ~r/(?<![\w:-])text-(?:lg|xl|2xl)(?![\w-])/
+    end
+
     test "leaves the title out when the section draws its own" do
       html = render_frame(title: false)
       assert Enum.count(q(html, "[data-role=settings-section-title]")) == 0

@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.GoogleController do
   @moduledoc """
   Connecting a Google Drive (W-1690): off to Google's consent screen, back
-  with a code, and disconnecting. The account Settings tab links here; the
+  with a code, and disconnecting. Account › Preferences links here; the
   work is `Slipdock.Google`'s.
 
   The `state` sent to Google is random and kept in the session, and the code

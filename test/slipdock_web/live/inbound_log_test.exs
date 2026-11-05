@@ -72,19 +72,23 @@ defmodule SlipdockWeb.InboundLogTest do
     end
   end
 
-  describe "the Email Log tab" do
-    test "while inbound mail is off: no tab, and its URL is a 404", %{conn: conn, user: user} do
+  describe "the Email log section" do
+    test "while inbound mail is off: not in the nav, and its URL is a 404", %{
+      conn: conn,
+      user: user
+    } do
       TestConfig.put(:inbound, domain: nil, secrets: [])
       log(user, [])
 
       {:ok, view, _html} = live(conn, ~p"/account")
-      refute has_element?(view, ~s{#account-tabs a[href="/account/email-log"]})
+      refute has_element?(view, ~s{#account-nav a[href="/account/email-log"]})
+      refute has_element?(view, ~s{#account-picker a[href="/account/email-log"]})
       refute has_element?(view, "#inbound-log")
 
       assert_raise SlipdockWeb.InboundOff, fn -> live(conn, ~p"/account/email-log") end
     end
 
-    test "is a tab of its own: on the tab bar, and gone from the Account tab", %{
+    test "is a section of its own: in the nav, and gone from Profile", %{
       conn: conn,
       user: user
     } do
@@ -92,14 +96,21 @@ defmodule SlipdockWeb.InboundLogTest do
       email = log(user, subject: "Where did it go")
 
       {:ok, view, _html} = live(conn, ~p"/account")
-      assert has_element?(view, ~s{#account-tabs a[href="/account/email-log"]}, "Email Log")
+      assert has_element?(view, ~s{#account-nav a[href="/account/email-log"]}, "Email log")
       refute has_element?(view, "#inbound-log")
-      # The addresses stay on the Account tab; only the log moved.
+      # The addresses stay on Profile; only the log moved.
       assert has_element?(view, "#account-inbound")
 
       {:ok, view, _html} = live(conn, ~p"/account/email-log")
-      assert page_title(view) =~ "Email Log"
-      assert has_element?(view, ~s{#account-tabs a[aria-current="page"]}, "Email Log")
+      assert page_title(view) =~ "Email log"
+      assert has_element?(view, ~s{#account-nav a[aria-current="page"]}, "Email log")
+
+      assert has_element?(
+               view,
+               "#account-content [data-role=settings-section-title]",
+               "Email log"
+             )
+
       assert has_element?(view, "#inbound-#{email.id}", "Where did it go")
       refute has_element?(view, "#account-inbound")
     end

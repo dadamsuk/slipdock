@@ -118,7 +118,7 @@ defmodule SlipdockWeb.HelpLiveTest do
     test "signed out, places in the app are named but not linked", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/help/ai")
 
-      assert html =~ "Account → Settings → AI model"
+      assert html =~ "Account → Preferences → AI model"
       refute has_element?(view, ~s{a[href="/account/settings"]})
       refute has_element?(view, ~s{a[href="/search"]})
       refute has_element?(view, ~s{a[href="/ask"]})
@@ -404,8 +404,8 @@ defmodule SlipdockWeb.HelpLiveTest do
     test "signed in, the Account page is a link", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/help/email")
       assert has_element?(view, ~s{#email-addresses a[href="/account"]}, "Account")
-      # The log of what mail did is its own tab (#1290).
-      assert has_element?(view, ~s{#email-more a[href="/account/email-log"]}, "Email Log")
+      # The log of what mail did is its own section (#1290).
+      assert has_element?(view, ~s{#email-more a[href="/account/email-log"]}, "Email log")
     end
 
     @tag :anonymous
