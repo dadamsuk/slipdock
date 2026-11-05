@@ -20,6 +20,8 @@ Not optional: new or changed code comes with tests for it, in the same commit. C
 
 The project handbook is W-1943 (Handbook/Index) on the `slipdock` board. Read the sections a card needs before building (`slipdock card` lists them) and update them before closing it, with a `Handbook:` line in the closing comment.
 
+What a card teaches about the project goes there too, never only into your own agent memory, which the verifier, other runners and other machines can't read. Settled knowledge goes into the handbook section that covers it (testing, CI and shipping are in W-1950, runbooks in W-1951). What is uncertain, cuts across cards or shows the handbook was wrong goes in a `Findings:` block beside the `Handbook:` line (`slipdock findings slipdock` lists them). Agent memory keeps only facts about the machine and the person.
+
 ## Before you push
 
 CI treats warnings as errors and checks formatting, so run both first:
