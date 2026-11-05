@@ -45,7 +45,9 @@ defmodule Slipdock.Gardener.HandbookHygieneTest do
   end
 
   test "they come last in the gardener, in order, each with its label" do
-    assert Gardener.check_keys() |> Enum.take(-4) == @keys
+    # Then rule_changed (#1791), last.
+    assert Gardener.check_keys() |> Enum.slice(-5, 4) == @keys
+    assert List.last(Gardener.check_keys()) == "rule_changed"
     assert Gardener.check_keys() |> Enum.take(11) |> List.last() == "handbook_gap"
 
     assert Enum.map(@keys, &Gardener.label/1) == [
@@ -55,7 +57,7 @@ defmodule Slipdock.Gardener.HandbookHygieneTest do
              "Decisions out of order"
            ]
 
-    assert Enum.take(Gardener.suggestion_keys(), -5) == @keys ++ ["proposal"]
+    assert Enum.take(Gardener.suggestion_keys(), -6) == @keys ++ ["rule_changed", "proposal"]
   end
 
   test "off on a board without a handbook, on with one", %{user: user} do

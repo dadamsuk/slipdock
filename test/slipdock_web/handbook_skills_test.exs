@@ -28,7 +28,11 @@ defmodule SlipdockWeb.HandbookSkillsTest do
     "--message \"#<card> <what changed>\"",
     "A card that names a page (\"Document\n   in: Architecture\") must update that page.",
     "On a board with no handbook, leave the line out.",
-    "- Handbook: updated W-3 §Contexts, new W-41"
+    "- Handbook: updated W-3 §Contexts, new W-41",
+    # A rule goes in as a proposal, not an edit (#1791).
+    "**A rule is a person's\ncall, not yours:**",
+    "goes in as a\nproposal, not an edit (`slipdock garden propose <board> <file.json>`",
+    "| adds, rewords or drops a rule (`## Rules`) | a proposal, not an edit: `slipdock garden propose` |"
   ]
 
   test "slipdock-loop has the read step, the gate and the line, in every copy" do

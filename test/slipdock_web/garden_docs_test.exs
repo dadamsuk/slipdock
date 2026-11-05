@@ -50,7 +50,7 @@ defmodule SlipdockWeb.GardenDocsTest do
     manual = read("docs/manual.md")
 
     assert manual =~
-             ~r/The last four keep a \[handbook\]\(#tools\) in order, and are off on a board\s+without one/
+             ~r/The last five keep a \[handbook\]\(#tools\) in order, and are off on a board\s+without one/
 
     assert manual =~ "comment on the handbook's Index page"
     assert manual =~ "the days a `must`\nrule may stay `judgement`"
@@ -72,6 +72,25 @@ defmodule SlipdockWeb.GardenDocsTest do
     assert agents =~ "`POST /api/boards/:board/garden/proposals`"
     assert agents =~ ~r/`edit_section`, `comment` or\s+`file_page` only/
     assert agents =~ ~r/is a person's to apply, dismiss or undo: the API refuses an agent/
+  end
+
+  test "rule_changed and proposing rules are in the guide and docs/agents.md (#1791)" do
+    guide = SlipdockWeb.APIGuide.markdown()
+    assert guide =~ ~r/\(`rule_changed`: apply reverts them, dismiss\s+keeps them\)/
+
+    assert guide =~
+             ~r/A rule is a person's call:\s+one a card adds, rewords or drops goes in as a proposal/
+
+    assert guide =~ ~r/the pages whose `covers:`\s+take them in \(`pages`/
+
+    agents = read("docs/agents.md")
+    assert agents =~ "A rule is a person's call."
+    assert agents =~ ~r/the gardener's `rule_changed` check compares each\s+page's rules/
+    assert agents =~ ~r/`covers:` take the paths in \(`pages`/
+
+    manual = read("docs/manual.md")
+    assert manual =~ "| Rules changed by an agent |"
+    assert manual =~ "**Triage findings** (nightly, waiting on"
   end
 
   test "README and docs/agents.md link to it" do

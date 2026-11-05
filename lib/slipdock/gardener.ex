@@ -49,7 +49,8 @@ defmodule Slipdock.Gardener do
     Slipdock.Gardener.Checks.LongSection,
     Slipdock.Gardener.Checks.BroadCovers,
     Slipdock.Gardener.Checks.RuleWithoutCheck,
-    Slipdock.Gardener.Checks.StaleDecision
+    Slipdock.Gardener.Checks.StaleDecision,
+    Slipdock.Gardener.Checks.RuleChanged
   ]
 
   @doc "Every check, in the order the Tidy-up page shows them."
