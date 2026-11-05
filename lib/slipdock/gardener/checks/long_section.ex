@@ -8,7 +8,8 @@ defmodule Slipdock.Gardener.Checks.LongSection do
 
   Two sections are left alone: `## Rules`, whose length is how many rules
   the page has (splitting it would move rules out of it, and they would
-  stop being rules), and the Index's `## Log`, which grows by design.
+  stop being rules), and the Index's `## Log` and `## Triage`, which grow
+  by design (a line each reconcile and triage run).
 
   Where the section has a `###` subsection, the fix splits it there: an
   `edit_section` that keeps every line and promotes that subsection's
@@ -58,7 +59,7 @@ defmodule Slipdock.Gardener.Checks.LongSection do
   defp exempt?(handbook, page, h) do
     case String.downcase(h.title) do
       "rules" -> true
-      "log" -> page.id == handbook.index.id
+      title when title in ["log", "triage"] -> page.id == handbook.index.id
       _ -> false
     end
   end

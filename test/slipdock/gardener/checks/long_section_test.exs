@@ -161,11 +161,20 @@ defmodule Slipdock.Gardener.Checks.LongSectionTest do
 
     set_body(page(board, "Testing & tooling"), "## Rules\n\n" <> Enum.join(rules, "\n"), user)
 
-    set_body(
-      hb.index,
-      hb.index.body <> "\n" <> String.duplicate("- 2026-01-01: a..b (20 commits)\n", 80),
-      user
-    )
+    # The Index's two logs, each long: the Log and the Triage (#1791).
+    {:ok, logged} =
+      Wiki.append_section(
+        hb.index,
+        "Handbook/Log",
+        String.duplicate("- 2026-01-01: a..b (20 commits)\n", 80)
+      )
+
+    {:ok, _} =
+      Wiki.append_section(
+        logged,
+        "Handbook/Triage",
+        String.duplicate("- 2026-01-01: 9 read, 2 merged, 1 dismissed, 4 promoted\n", 60)
+      )
 
     assert find(LongSection, board) == []
 
