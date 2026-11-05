@@ -465,7 +465,9 @@ step that way. The details, and the HTTP protocol a runner speaks, are in
 
 **Verified work.** A board can check what its agents finish, with each
 check off until it is turned on in the board's settings: a **bar** written
-before work starts, which then locks; **evidence** when a card completes;
+before work starts, which then locks (best written by whoever files the
+card: `create_card` and `slipdock add` take `bar` and `paths`, so a planned
+card is one write, checked as on an update); **evidence** when a card completes;
 and a **second agent** who accepts the work or rejects it with the reason.
 With a verify pool set, each submitted card is queued as a `verify` job.
 On a board that ships by pull request, its CI is the one full test run: the
@@ -494,7 +496,8 @@ repository hands it on rather than failing the card. The skills
 
 **Lanes.** Agents side by side in one repository stay out of each other's
 files, each part optional and off by default: a card's `paths` (globs, set
-with `update_card` `paths` or `slipdock edit --paths`), a board switch
+with `update_card` `paths` or `slipdock edit --paths`, or when the card is
+made: `create_card` `paths`, `slipdock add --paths`), a board switch
 (`lanes`) that refuses an agent starting a card whose paths overlap one in
 progress, naming it (a person moving the card overrides it), a runner
 setting that runs each job in a git worktree of its own (`--worktree`), and

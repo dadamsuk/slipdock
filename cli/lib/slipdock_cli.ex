@@ -579,6 +579,7 @@ defmodule SlipdockCLI do
         --flag F (repeatable)  --tag T (repeatable)  --start YYYY-MM-DD  --due YYYY-MM-DD  --color C
         --percent N (0-100)  --border C, --border-top/-right/-bottom/-left C   (see edit)
         --spent T  --estimate T  --unit minutes|hours|days|weeks|months   (time tracking; see edit)
+        --bar TEXT  --paths "G1,G2"  its bar and the globs its work touches (see edit)
         --archived                  archive it as soon as it is made (a record of finished work)
     edit <id> [opts]                    change fields on a card
         --title T  --desc TEXT  --priority P  --start DATE | --no-start  --due DATE | --no-due

@@ -47,6 +47,10 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
         },
         start_date: %{type: "string", description: "YYYY-MM-DD."},
         due_date: %{type: "string", description: "YYYY-MM-DD."},
+        # The bar and paths (#1757), as update_card takes them, so a planned
+        # card is one write. The bar isn't locked yet: that is when work starts.
+        bar: update_card_property(:bar),
+        paths: update_card_property(:paths),
         archived: %{
           type: "boolean",
           description: "File it away as soon as it is made, e.g. a record of finished work."
@@ -60,6 +64,9 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
       additionalProperties: false
     }
   end
+
+  defp update_card_property(key),
+    do: SlipdockWeb.MCP.Tools.UpdateCard.input_schema().properties |> Map.fetch!(key)
 
   @impl true
   def read_only?, do: false
@@ -84,7 +91,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
 
   defp params(args, title, column, tags, assignees) do
     args
-    |> Map.take(~w(short_name description priority start_date due_date))
+    |> Map.take(~w(short_name description priority start_date due_date bar paths))
     |> Map.merge(%{"title" => title, "column" => column})
     |> then(&if(tags, do: Map.put(&1, "tags", tags), else: &1))
     |> then(&if(assignees, do: Map.put(&1, "assignees", assignees), else: &1))
