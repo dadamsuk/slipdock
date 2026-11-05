@@ -341,7 +341,7 @@ defmodule SlipdockCLI.Wiki do
             "message" => o[:message]
           })
         )
-        |> out(o, &page_ok("appended to #{Enum.join(path_words, " ")} of", &1))
+        |> out(o, &section_ok("appended to #{Enum.join(path_words, " ")} of", &1))
 
       body = page_body(o) ->
         HTTP.put(
@@ -352,7 +352,7 @@ defmodule SlipdockCLI.Wiki do
             "base_hash" => o[:base_hash]
           })
         )
-        |> out(o, &page_ok("replaced #{Enum.join(path_words, " ")} of", &1))
+        |> out(o, &section_ok("replaced #{Enum.join(path_words, " ")} of", &1))
 
       true ->
         HTTP.get("/pages/#{enc(ref)}/section/#{path}")
@@ -810,6 +810,13 @@ defmodule SlipdockCLI.Wiki do
     body = fetch!("/pages/#{enc(ref)}/section/#{section_path(section)}")["body"] || ""
     body |> String.split("\n", parts: 2) |> hd()
   end
+
+  # The server says what a section write did ("heading kept", "table
+  # extended"); show it, so a surprise is visible where the command ran.
+  defp section_ok(verb, %{"note" => note, "page" => p}) when is_binary(note),
+    do: IO.puts("#{verb} #{p["code"]} #{p["title"]} (#{note})  " <> Render.dim(p["url"]))
+
+  defp section_ok(verb, r), do: page_ok(verb, r)
 
   defp meld_where(o), do: if(o[:section], do: "section #{o[:section]}", else: "the page")
 

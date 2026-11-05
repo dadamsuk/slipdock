@@ -464,4 +464,153 @@ defmodule Slipdock.WikiTest do
       assert Wiki.visible?(draft, Access.page_permission(user, draft))
     end
   end
+
+  describe "section writes (#1756)" do
+    setup %{board: board, user: user} do
+      body =
+        "# Guide\n\nIntro.\n\n## Keyboard\n\nOld keys.\n\n### Chords\n\nOld chords.\n\n" <>
+          "## Mouse\n\nClicks.\n"
+
+      {:ok, page} = Wiki.create_page(board, %{"title" => "Keys", "body" => body}, user: user)
+      %{page: page}
+    end
+
+    test "a body with no heading keeps the section's heading", %{page: page, user: user} do
+      assert {:ok, saved, "heading kept"} =
+               Wiki.edit_section(page, :replace, "Guide/Keyboard", "New keys.", user: user)
+
+      assert saved.body ==
+               "# Guide\n\nIntro.\n\n## Keyboard\n\nNew keys.\n\n## Mouse\n\nClicks.\n"
+
+      assert Enum.map(Wiki.sections(saved), & &1.path) ==
+               ["Guide", "Guide/Keyboard", "Guide/Mouse"]
+    end
+
+    test "a heading of the same level replaces it: a rename", %{page: page, user: user} do
+      assert {:ok, saved, "heading replaced"} =
+               Wiki.edit_section(page, :replace, "Keyboard", "## Keys\n\nNew.", user: user)
+
+      assert saved.body =~ "## Keys\n\nNew.\n\n## Mouse"
+      refute saved.body =~ "Keyboard"
+    end
+
+    test "the same heading line is reported as kept", %{page: page, user: user} do
+      assert {:ok, saved, "heading kept"} =
+               Wiki.edit_section(page, :replace, "Keyboard", "## Keyboard\n\nNew.", user: user)
+
+      assert saved.body =~ "## Keyboard\n\nNew.\n\n## Mouse"
+      assert length(String.split(saved.body, "## Keyboard")) == 2
+    end
+
+    test "a body opening with a deeper heading goes under the kept one", %{
+      page: page,
+      user: user
+    } do
+      assert {:ok, saved, "heading kept"} =
+               Wiki.edit_section(page, :replace, "Keyboard", "### Arrows\n\nUp.", user: user)
+
+      assert saved.body =~ "## Keyboard\n\n### Arrows\n\nUp.\n\n## Mouse"
+      assert "Guide/Keyboard/Arrows" in Enum.map(Wiki.sections(saved), & &1.path)
+    end
+
+    test "a body opening with a higher heading still keeps the section's", %{
+      page: page,
+      user: user
+    } do
+      assert {:ok, saved, "heading kept"} =
+               Wiki.edit_section(page, :replace, "Keyboard", "# Other\n\nText.", user: user)
+
+      assert saved.body =~ "## Keyboard\n\n# Other\n\nText."
+    end
+
+    test "an empty body empties the section and keeps its heading", %{page: page, user: user} do
+      assert {:ok, saved, "heading kept"} =
+               Wiki.edit_section(page, :replace, "Keyboard", "\n\n", user: user)
+
+      assert saved.body =~ "Intro.\n\n## Keyboard\n\n## Mouse"
+      refute saved.body =~ "Chords"
+    end
+
+    test "a nested subsection keeps its own heading", %{page: page, user: user} do
+      assert {:ok, saved, "heading kept"} =
+               Wiki.edit_section(page, :replace, "Guide/Keyboard/Chords", "New chords.",
+                 user: user
+               )
+
+      assert saved.body =~ "Old keys.\n\n### Chords\n\nNew chords.\n\n## Mouse"
+    end
+
+    test "the last section of a page keeps its heading too", %{page: page, user: user} do
+      assert {:ok, saved, "heading kept"} =
+               Wiki.edit_section(page, :replace, "Mouse", "Scrolls.", user: user)
+
+      assert String.ends_with?(saved.body, "## Mouse\n\nScrolls.")
+    end
+
+    test "replace_section/4 keeps its {:ok, page} shape", %{page: page, user: user} do
+      assert {:ok, %Page{} = saved} = Wiki.replace_section(page, "Mouse", "Taps.", user: user)
+      assert saved.body =~ "## Mouse\n\nTaps."
+    end
+
+    test "a missing section is not found, with the paths there are", %{page: page} do
+      assert {:error, :not_found, hint} = Wiki.edit_section(page, :replace, "Nowhere", "x")
+      assert hint =~ "Guide/Keyboard"
+      assert {:error, :not_found, _} = Wiki.edit_section(page, :append, "Nowhere", "x")
+    end
+  end
+
+  describe "appending to a section (#1756)" do
+    setup %{board: board, user: user} do
+      body =
+        "# Shortcuts\n\n| Key | Does |\n|-----|------|\n| a | add |\n\n" <>
+          "# Log\n\n- one\n\n# Notes\n\nA paragraph.\n"
+
+      {:ok, page} = Wiki.create_page(board, %{"title" => "Table", "body" => body}, user: user)
+      %{page: page}
+    end
+
+    test "rows appended to a section ending in a table extend it", %{page: page, user: user} do
+      assert {:ok, saved, "table extended"} =
+               Wiki.edit_section(page, :append, "Shortcuts", "| b | bold |\n| c | copy |",
+                 user: user
+               )
+
+      assert saved.body =~
+               "| Key | Does |\n|-----|------|\n| a | add |\n| b | bold |\n| c | copy |\n\n# Log"
+    end
+
+    test "leading blank lines before the rows don't break the table", %{page: page} do
+      assert {:ok, saved, "table extended"} =
+               Wiki.edit_section(page, :append, "Shortcuts", "\n\n| b | bold |")
+
+      assert saved.body =~ "| a | add |\n| b | bold |\n\n# Log"
+    end
+
+    test "a whole new table after a table keeps its blank line", %{page: page} do
+      assert {:ok, saved, "appended"} =
+               Wiki.edit_section(page, :append, "Shortcuts", "| X | Y |\n|---|---|\n| 1 | 2 |")
+
+      assert saved.body =~ "| a | add |\n\n| X | Y |\n|---|---|\n| 1 | 2 |\n\n# Log"
+    end
+
+    test "prose after a table is a new paragraph", %{page: page} do
+      assert {:ok, saved, "appended"} = Wiki.edit_section(page, :append, "Shortcuts", "More.")
+      assert saved.body =~ "| a | add |\n\nMore.\n\n# Log"
+    end
+
+    test "rows appended after prose are not joined to it", %{page: page} do
+      assert {:ok, saved, "appended"} = Wiki.edit_section(page, :append, "Notes", "| z | zz |")
+      assert String.ends_with?(saved.body, "A paragraph.\n\n| z | zz |\n")
+    end
+
+    test "a bullet still joins its list", %{page: page} do
+      assert {:ok, saved, "list extended"} = Wiki.edit_section(page, :append, "Log", "- two")
+      assert saved.body =~ "- one\n- two\n\n# Notes"
+    end
+
+    test "append_section/4 keeps its {:ok, page} shape", %{page: page} do
+      assert {:ok, %Page{} = saved} = Wiki.append_section(page, "Shortcuts", "| d | del |")
+      assert saved.body =~ "| a | add |\n| d | del |"
+    end
+  end
 end

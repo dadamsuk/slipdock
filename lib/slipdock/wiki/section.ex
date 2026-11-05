@@ -54,32 +54,68 @@ defmodule Slipdock.Wiki.Section do
   end
 
   @doc """
-  Replaces a section's text. The replacement is used as given, so it should
-  carry its own heading — read it first if you mean to keep the old one.
+  Replaces a section's text, and says what became of its heading.
+
+  A replacement that opens with a heading of the section's own level replaces
+  that heading too — a rename — and is reported as `"heading replaced"` (or
+  `"heading kept"` when it is the same line). Any other replacement, an empty
+  one included, goes under the section's own heading, which is kept: losing
+  it silently merges the text into the section above.
   """
-  @spec replace(String.t() | nil, path, String.t()) :: {:ok, String.t()} | {:error, :not_found}
+  @spec replace(String.t() | nil, path, String.t()) ::
+          {:ok, String.t(), String.t()} | {:error, :not_found}
   def replace(body, path, text) do
     with {:ok, {from, to}} <- span(body, path) do
       all = lines(body)
+      heading = Enum.at(all, from)
       kept_before = Enum.slice(all, 0, from)
       kept_after = Enum.slice(all, to..-1//1)
+
+      given =
+        text |> String.trim_trailing() |> lines() |> Enum.drop_while(&(String.trim(&1) == ""))
+
+      level = heading_level(heading)
+
+      {replacement, note} =
+        cond do
+          given == [] ->
+            {[heading], "heading kept"}
+
+          heading_level(hd(given)) != level ->
+            {[heading, "" | given], "heading kept"}
+
+          String.trim(hd(given)) == String.trim(heading) ->
+            {given, "heading kept"}
+
+          true ->
+            {given, "heading replaced"}
+        end
+
       # Keep one blank line between the new text and whatever follows, so a
       # replacement that forgot its trailing newline cannot weld itself to the
       # next heading.
-      replacement = text |> String.trim_trailing() |> lines()
       spacer = if kept_after == [], do: [], else: [""]
-      {:ok, Enum.join(kept_before ++ replacement ++ spacer ++ kept_after, "\n")}
+      {:ok, Enum.join(kept_before ++ replacement ++ spacer ++ kept_after, "\n"), note}
+    end
+  end
+
+  defp heading_level(line) do
+    case Regex.run(~r/^\s*(\#{1,6})\s+\S/, line || "") do
+      [_, hashes] -> String.length(hashes)
+      _ -> nil
     end
   end
 
   @doc """
-  Adds `text` to the end of a section, before whatever follows it.
+  Adds `text` to the end of a section, before whatever follows it, and says
+  how it joined: `"table extended"`, `"list extended"` or `"appended"`.
 
   This is the write that can never conflict, and the one an agent should
   reach for: appending a dated note under `## Log` touches nothing anyone
   else wrote.
   """
-  @spec append(String.t() | nil, path, String.t()) :: {:ok, String.t()} | {:error, :not_found}
+  @spec append(String.t() | nil, path, String.t()) ::
+          {:ok, String.t(), String.t()} | {:error, :not_found}
   def append(body, path, text) do
     with {:ok, {_from, to}} <- span(body, path) do
       all = lines(body)
@@ -88,20 +124,42 @@ defmodule Slipdock.Wiki.Section do
       before =
         before |> Enum.reverse() |> Enum.drop_while(&(String.trim(&1) == "")) |> Enum.reverse()
 
-      added = text |> String.trim_trailing() |> lines()
+      added =
+        text |> String.trim_trailing() |> lines() |> Enum.drop_while(&(String.trim(&1) == ""))
 
-      # A bullet added to a list of bullets is part of that list; anything
-      # else is a new paragraph. Getting this wrong turns one tight list into
-      # two loose ones, which is visible and annoying.
-      separator = if continues_list?(List.last(before), List.first(added)), do: [], else: [""]
+      # A bullet added to a list of bullets is part of that list, and rows
+      # added to a table are part of that table; anything else is a new
+      # paragraph. A blank line there turns one tight list into two loose
+      # ones, and strands the rows outside the table as plain text.
+      {separator, note} =
+        cond do
+          continues_table?(before, added) -> {[], "table extended"}
+          continues_list?(List.last(before), List.first(added)) -> {[], "list extended"}
+          true -> {[""], "appended"}
+        end
 
       {:ok,
        (before ++ separator ++ added ++ [""] ++ rest)
        |> Enum.join("\n")
        |> String.trim_trailing()
-       |> Kernel.<>("\n")}
+       |> Kernel.<>("\n"), note}
     end
   end
+
+  # Rows continue a table the section ends in; a whole new table (rows with
+  # their own `|---|` delimiter line) does not, and keeps its blank line.
+  defp continues_table?(before, [first | more]) do
+    table_row?(List.last(before)) and table_row?(first) and
+      not Enum.any?(Enum.take([first | more], 2), &delimiter_row?/1)
+  end
+
+  defp continues_table?(_before, _added), do: false
+
+  defp table_row?(line) when is_binary(line), do: String.starts_with?(String.trim(line), "|")
+  defp table_row?(_line), do: false
+
+  defp delimiter_row?(line),
+    do: Regex.match?(~r/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/, line)
 
   defp continues_list?(last, first) when is_binary(last) and is_binary(first),
     do: list_item?(last) and list_item?(first)

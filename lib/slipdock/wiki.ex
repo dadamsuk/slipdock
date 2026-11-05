@@ -1497,19 +1497,45 @@ defmodule Slipdock.Wiki do
   @doc "Every heading in a page, as paths — what a missed section lists back."
   def sections(%Page{} = page), do: Section.headings(page.body)
 
-  @doc "Replaces one section of a page. Takes the same options as `update_page/3`."
+  @doc """
+  Replaces one section of a page. Takes the same options as `update_page/3`.
+  A body without a heading of the section's level keeps the old heading.
+  """
   def replace_section(%Page{} = page, path, text, opts \\ []) do
-    write_section(page, opts, fn body -> Section.replace(body, path, text) end, path)
+    page |> edit_section(:replace, path, text, opts) |> drop_note()
   end
 
   @doc """
   Adds to the end of one section. The write that cannot conflict, so it takes
-  no `base_hash` and never refuses.
+  no `base_hash` and never refuses. Rows added to a section ending in a table
+  extend the table.
   """
   def append_section(%Page{} = page, path, text, opts \\ []) do
-    opts = Keyword.delete(opts, :base_hash)
-    write_section(page, opts, fn body -> Section.append(body, path, text) end, path)
+    page |> edit_section(:append, path, text, opts) |> drop_note()
   end
+
+  @doc """
+  `replace_section/4` or `append_section/4`, returning `{:ok, page, note}`:
+  the note says what happened to the section (`"heading kept"`,
+  `"heading replaced"`, `"table extended"`, `"list extended"`, `"appended"`),
+  so a caller can check and tell its own caller.
+  """
+  def edit_section(page, how, path, text, opts \\ [])
+
+  def edit_section(%Page{} = page, :replace, path, text, opts),
+    do: write_section(page, opts, &Section.replace(&1, path, text), path)
+
+  def edit_section(%Page{} = page, :append, path, text, opts),
+    do:
+      write_section(
+        page,
+        Keyword.delete(opts, :base_hash),
+        &Section.append(&1, path, text),
+        path
+      )
+
+  defp drop_note({:ok, page, _note}), do: {:ok, page}
+  defp drop_note(other), do: other
 
   @doc "Adds to the end of the page."
   def append(%Page{} = page, text, opts \\ []) do
@@ -1522,8 +1548,14 @@ defmodule Slipdock.Wiki do
     current = Repo.get!(Page, page.id)
 
     case fun.(current.body) do
-      {:ok, body} -> update_page(current, %{"body" => body}, opts)
-      {:error, :not_found} -> {:error, :not_found, section_hint(current, path)}
+      {:ok, body, note} ->
+        case update_page(current, %{"body" => body}, opts) do
+          {:ok, page} -> {:ok, page, note}
+          error -> error
+        end
+
+      {:error, :not_found} ->
+        {:error, :not_found, section_hint(current, path)}
     end
   end
 

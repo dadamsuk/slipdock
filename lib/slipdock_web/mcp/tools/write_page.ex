@@ -19,8 +19,8 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
   def description,
     do:
       "Writes the board's wiki. mode create (board, title) makes a page; append and " <>
-        "append_section add to one; replace_section and replace rewrite and need base_hash " <>
-        "(content_hash from read_page). Search before creating."
+        "append_section add to one; replace_section and replace need base_hash " <>
+        "(content_hash from read_page). Section writes keep the heading. Search before creating."
 
   @impl true
   def input_schema do
@@ -63,16 +63,23 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
 
     with {:ok, mode} <- mode(args),
          {:ok, body} <- body(args),
-         {:ok, page} <- write(mode, args, body, auth, opts(args, context)) do
+         {:ok, page, note} <- noted(write(mode, args, body, auth, opts(args, context))) do
       page = Wiki.get_page!(page.id)
 
       {:ok,
        page
        |> V.page_summary()
        |> Map.take([:id, :code, :title, :slug, :status, :content_hash])
-       |> Map.put(:url, context.base_url <> V.page_url(page))}
+       |> Map.put(:url, context.base_url <> V.page_url(page))
+       |> then(&if(note, do: Map.put(&1, :note, note), else: &1))}
     end
   end
+
+  # A section write says what it did to the section ("heading kept", "table
+  # extended"), so the caller can check; the other modes have nothing to add.
+  defp noted({:ok, page}), do: {:ok, page, nil}
+  defp noted({:ok, page, note}), do: {:ok, page, note}
+  defp noted(other), do: other
 
   defp mode(args) do
     case args["mode"] do
@@ -103,12 +110,12 @@ defmodule SlipdockWeb.MCP.Tools.WritePage do
 
         "append_section" ->
           with {:ok, path} <- Args.required(args, "section"),
-               do: Args.refusal(Wiki.append_section(page, path, body, opts))
+               do: Args.refusal(Wiki.edit_section(page, :append, path, body, opts))
 
         "replace_section" ->
           with {:ok, path} <- Args.required(args, "section"),
                {:ok, _} <- Args.required(args, "base_hash"),
-               do: Args.refusal(Wiki.replace_section(page, path, body, opts))
+               do: Args.refusal(Wiki.edit_section(page, :replace, path, body, opts))
 
         "replace" ->
           with {:ok, _} <- Args.required(args, "base_hash"),
