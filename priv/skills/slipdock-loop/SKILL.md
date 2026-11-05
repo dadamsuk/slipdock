@@ -346,7 +346,9 @@ summarising the set rather than repeating each child's write-up. Subcards can
 be added while you work, so list the sub-board again just before. The board
 refuses an agent closing (or submitting) a card while a subcard is open — not
 done and not archived; one awaiting verification counts as finished — and the
-refusal names them: finish them, or archive the ones that don't belong.
+refusal names them: finish them, or archive the ones that don't belong. Nor
+can an agent reopen a done card (untick it, or move it out of Done): if one
+needs more, add a card for that and link it.
 
 ## 6. Work it, writing as you go
 

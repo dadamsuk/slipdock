@@ -514,6 +514,17 @@ done list. The 422 or tool error names them (`#12 Foo, #13 Bar are still
 open`), so a pass that missed subcards added while it worked finds them
 there. A person can always close it.
 
+**Done stays done.** On every board, with no switch, an agent can't reopen
+a completed card: unticking it (`slipdock undone`, `PATCH /api/cards/:id
+{"completed": false}`) or moving it out of the done list (`move_card`,
+`slipdock move`) is refused with a 422 or tool error, and the card stays
+done. Nothing in a pass needs it: a rejection comes before Done, a retry
+only puts back a card left in progress, and a recurring card is copied. A
+script that does it undoes finished work, as a runner hook putting back a
+card it thought stuck did while the card's merge was finishing. A person
+reopens finished work; if a done card needs more, add a card for that and
+link it.
+
 **Lanes.** Agents side by side in one repository stay out of each other's
 files, each part optional and off by default: a card's `paths` (globs, set
 with `update_card` `paths` or `slipdock edit --paths`, or when the card is

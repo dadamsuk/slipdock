@@ -92,4 +92,18 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert flat.("priv/skills/slipdock/SKILL.md") =~ "slipdock verify <id> merged"
     assert flat.("cli/lib/slipdock_cli.ex") =~ "verify <id> accept|reject|merged"
   end
+
+  test "done stays done, said where people and agents look (#1850)" do
+    flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
+
+    assert flat.("docs/manual.md") =~
+             "**Done stays done.** An agent can't reopen a completed card"
+
+    assert flat.("docs/manual.md") =~ "or accepted and waiting for its pull request to merge"
+    assert flat.("docs/agents.md") =~ "**Done stays done.** On every board, with no switch"
+    assert flat.("README.md") =~ "reopen a done card: done stays done unless a person reopens it"
+    assert flat.("lib/slipdock_web/api_guide.ex") =~ "or reopen a done card**"
+    assert flat.("priv/skills/slipdock-loop/SKILL.md") =~ "Nor can an agent reopen a done card"
+    assert flat.("priv/skills/slipdock/SKILL.md") =~ "an agent can't undo or move a done card"
+  end
 end

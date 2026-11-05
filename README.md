@@ -87,7 +87,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   (`slipdock verify 12 merged` when you merged it yourself). On a board that
   ships by push, a card awaiting verification frees its lane and its
   dependents. Runners say which script they run, and new installs keep
-  themselves current between jobs, on a matching checksum.
+  themselves current between jobs, on a matching checksum. On every board,
+  switch or not, an agent can't close an epic over open subcards or reopen
+  a done card: done stays done unless a person reopens it.
 - **Lanes** — [parallel agents stay out of each other's files](docs/manual.md#lanes),
   all optional and off by default: a card's paths (`slipdock edit 12 --paths
   "lib/runners/**"`), a board switch that refuses an agent starting a card

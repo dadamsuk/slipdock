@@ -597,6 +597,21 @@ completes cards as usual, and the in-app assistant and automations are not
 checked either. A card's subcards start with their parent board's switches,
 and the switches travel with a board's export.
 
+Two checks have no switch and hold on every board, because each guards
+against a contradiction rather than asking more of an agent:
+
+- **No epic done over open subcards.** An agent completing (or submitting)
+  a card while its sub-board has open cards is refused, and the refusal
+  names them (`#12 Foo, #13 Bar are still open`). One awaiting verification
+  counts as finished.
+- **Done stays done.** An agent can't reopen a completed card: unticking it
+  (`slipdock undone`) or moving it out of the done list (`slipdock move`,
+  MCP `move_card`) is refused (`422`), and the card stays done. Nothing in a
+  pass needs it — a rejection comes before Done, a retry only puts back a
+  card left in progress, a recurring card is copied — and a script that
+  does it undoes finished work. A person reopens a done card; moving it
+  from one done list to another, or editing it, is still an agent's to do.
+
 ### The bar
 
 **A bar before work starts** (`slipdock set-board B --bar-required`,
@@ -675,8 +690,9 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   `$SLIPDOCK_JOB_ID` as `x-slipdock-job`; MCP the job it claimed) is
   credited to the runner: *Accepted by runner verifier*, not the token's
   label, which the builder and interactive sessions share.
-- A runner job that ends with its card awaiting verification has finished:
-  the card stays where it is, and `requeue_stuck` doesn't count it as stuck.
+- A runner job that ends with its card awaiting verification, or accepted
+  and waiting for its pull request to merge, has finished: the card stays
+  where it is, and `requeue_stuck` doesn't count it as stuck.
 - **Whoever submitted it can't decide it** (`403`). A different agent means
   a different token, or a different runner job on the same token. A person
   is always different, and a person completing a pending card accepts it.
@@ -3275,7 +3291,10 @@ retries it is flagged **blocked** and left in progress, with a comment, and
 the runner waits until somebody moves or closes it. Only the job's own card
 is touched, never one somebody moved to in progress by hand, and never by a
 job cancelled before a runner took it; a job whose lease lapsed and was
-handed out again counts once, when it finally ends. Completing the card
+handed out again counts once, when it finally ends. A card awaiting
+verification, or accepted and waiting for its merge, isn't stuck, and the
+card is checked with its row locked, so a merge finishing at the same
+moment is never undone. Completing the card
 starts its count again. The job records what was done (`recovery`:
 `requeued` or `gave_up`). *Work a list with a runner* puts a card back once
 by default (its **Put a card left in progress back, N times** field; 0

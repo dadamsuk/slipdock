@@ -1131,10 +1131,9 @@ defmodule SlipdockWeb.APIGuide do
 
         POST  /api/cards/57/handoff  {"next_step": "…", "body": "State: …"}
 
-    Set `at_risk` if it is at risk. Then either leave
-    it in `doing` because you are coming straight back, or move it back to the
-    ready list. Never leave a card in `doing` with no comment newer than the
-    move — nobody can tell whether it is alive.
+    Then leave it in `doing` if you are coming straight back, else move it
+    back to the ready list. Never leave a card in `doing` with no comment
+    newer than the move — nobody can tell whether it is alive.
 
     ### What not to do
 
@@ -1148,8 +1147,8 @@ defmodule SlipdockWeb.APIGuide do
       elsewhere first. `DELETE /api/boards/:board/columns/:id/recursive`
       deletes the list and every card in it, subcards too, and cannot be
       undone: use it only when the person asked for exactly that.
-    - **Do not complete an epic with open subcards**, or move a card to `done`
-      without `completed: true` (or the reverse).
+    - **Do not complete an epic with open subcards, or reopen a done card**;
+      never move a card to `done` without `completed: true` (or the reverse).
     - **Do not rewrite a card's title or description to match what you actually
       did.** If the scope changed, say so in a comment and let the person
       decide; the title is their record of what they asked for.
