@@ -23,7 +23,9 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
       "Builds the board a Tool (see list_tools) comes with — lists, folders, tags, page " <>
         "skeletons, rules — and returns its code. Already installed: returns that board, " <>
         "adding what a newer version brings without touching edited pages. tool: \"handbook\" " <>
-        "with board installs the built-in handbook on that board's root instead (W-1934)."
+        "with board installs the built-in handbook on that board's root instead (W-1934); " <>
+        "tool: \"sweep\" with board installs the code sweep there: its rotation page, a " <>
+        "Triage list and a daily Sweep the code card (W-2310)."
 
   @impl true
   def input_schema do
@@ -39,7 +41,8 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
         board: %{
           type: "string",
           description:
-            "For the handbook: the board (id, code or name) to install it on; it goes on the root."
+            "For the handbook or the sweep: the board (id, code or name) to install it on; " <>
+              "it goes on the root."
         }
       },
       required: ["tool"],
@@ -54,20 +57,29 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
   def call(args, %{user: user, token: token} = context) do
     with {:ok, ref} <- Args.required(args, "tool"),
          {:ok, board} <- Args.optional(args, "board") do
-      if Slipdock.Handbook.tool?(ref) and (board || not match?({:ok, _}, Tools.fetch(user, ref))),
-        do: install_handbook(board, context),
-        else: install_tool(args, ref, user, token, context)
+      case on_board(ref, board, user) do
+        nil -> install_tool(args, ref, user, token, context)
+        mod -> install_on_board(mod, board, context)
+      end
     end
   end
 
-  defp install_handbook(nil, _context),
-    do: {:error, "the handbook installs onto a board: give board (id, code or name)"}
+  # The built-in Tools that go onto a board that exists: the handbook
+  # (#1262) and the code sweep (#1793). Named without a board, a published
+  # Tool of the same name is the one meant.
+  defp on_board(ref, board, user) do
+    mod = Enum.find([Slipdock.Handbook, Slipdock.Sweep], & &1.tool?(ref))
+    if mod && (board || not match?({:ok, _}, Tools.fetch(user, ref))), do: mod
+  end
 
-  defp install_handbook(ref, context) do
+  defp install_on_board(mod, nil, _context),
+    do: {:error, "the #{mod.name()} installs onto a board: give board (id, code or name)"}
+
+  defp install_on_board(mod, ref, context) do
     auth = Args.auth(context)
 
     with {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :write)),
-         {:ok, result} <- Args.refusal(Slipdock.Handbook.install(context.user, board)) do
+         {:ok, result} <- Args.refusal(mod.install(context.user, board)) do
       {:ok, ToolJSON.install(result, context.base_url)}
     end
   end

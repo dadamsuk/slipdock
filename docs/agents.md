@@ -288,6 +288,12 @@ approve; never dismiss one on your own judgment, since a dismissal is
 remembered. The CLI is `slipdock garden <board> [--run]` and `slipdock garden
 apply|dismiss|undo <id>`. See [the manual](manual.md#tidying-up).
 
+Never take work from a **Triage** list (category `triage`; the guide marks
+it `triage: for a person`). The code sweep (`slipdock tools install-board
+sweep --board B`, or `install_tool` with `tool: "sweep"`) files what it finds
+there for a person to triage, one area and one lens a night; nothing feeds a
+runner from it. See [the manual](manual.md#tools).
+
 Agents propose handbook edits rather than make them, where a rule or a
 decision is concerned: `POST /api/boards/:board/garden/proposals` (`slipdock
 garden propose <board> <file.json | ->`) files an open suggestion of check

@@ -40,7 +40,7 @@ defmodule SlipdockWeb.APIGuide do
       meetings(),
       chat_capture(),
       wiki(),
-      handbook(),
+      handbook() <> sweeps(),
       findings_section(),
       verified_work(user, Keyword.get(opts, :token)),
       lanes_section(user, Keyword.get(opts, :token)),
@@ -3259,6 +3259,38 @@ defmodule SlipdockWeb.APIGuide do
     """
   end
 
+  # Code sweeps (#1793, W-2310 §Sweeps and static checks), under the
+  # handbook: a section of its own would lengthen the short guide's index.
+  defp sweeps do
+    """
+
+    ### Code sweeps
+
+    The built-in **Sweep Tool** reads the code one area and one lens a
+    night, on a rotation (authorization, duplication, dead code, test
+    gaps, old code that breaks a newer rule, secrets and personal details).
+    It goes on a board's root:
+
+    ```sh
+    slipdock tools install-board sweep --board <board>   # or install_tool {tool: "sweep", board}
+    ```
+
+    It adds a `Sweeps` page (the rotation table: areas from the handbook's
+    `covers:`, against the lenses, each cell the commit last swept), a
+    **Triage** list and a daily *Sweep the code* card whose description is
+    the procedure. Installing again adds only what is missing.
+
+    **Never take work from a Triage list.** Its category is `triage`, and
+    the boards below mark it `triage: for a person`: it is never the ready
+    list or the backlog, a `list_top` feed sends nothing from it, and a
+    rule's runner action skips a card that arrives there. What a sweep
+    files waits there for a person, who moves what is worth doing into the
+    ready list. A sweep files one card per issue (where, why it matters,
+    the fix); a security issue gets the `security` tag and stays vague
+    anywhere public.
+    """
+  end
+
   defp findings_section do
     """
 
@@ -3765,6 +3797,7 @@ defmodule SlipdockWeb.APIGuide do
 
   defp role_note(columns, col) do
     case role(columns, col) do
+      nil when col.category == "triage" -> "triage: for a person, never take work from it"
       nil -> "uncategorised"
       role when is_binary(col.category) and col.category != "" -> role
       role -> "#{role} by name only"
@@ -3778,6 +3811,7 @@ defmodule SlipdockWeb.APIGuide do
   """
   def role(columns, %Column{} = col) do
     cond do
+      col.category == "triage" -> nil
       Enum.member?(~w(todo doing done dropped), col.category) -> col.category
       named?(col, ["in progress", "doing", "wip", "started", "active"]) -> "doing"
       named?(col, ["done", "complete", "shipped", "finished"]) -> "done"
@@ -3785,7 +3819,8 @@ defmodule SlipdockWeb.APIGuide do
       named?(col, todo_names() ++ backlog_names()) -> "todo"
       # An uncategorised list on a board that has no categories at all: assume
       # work can come from it, since the board offers nothing better.
-      Enum.all?(columns, &Enum.member?([nil, ""], &1.category)) -> "todo"
+      # A Triage list (#1793) doesn't count: installing one keeps that reading.
+      Enum.all?(columns, &Enum.member?([nil, "", "triage"], &1.category)) -> "todo"
       true -> nil
     end
   end

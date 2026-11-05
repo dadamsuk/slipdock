@@ -259,6 +259,10 @@ on a person sets `waiting` itself), anything waiting for verification
 previous pass in this session flagged `review` and handed back, and every
 stand-in (`↪stand-in-for:#N`, `stand_in_for` in the JSON): it marks where a
 card went into a sprint, and the work is that card, not the stand-in.
+Never take a card from a **Triage** list (category `triage`, which the guide
+marks `triage: for a person`), even when it is the only list with cards: a
+code sweep files there for a person to triage, and they move what is worth
+doing into the ready list.
 
 Read the whole card before touching it: `slipdock card <id>` for the description,
 checklist, comments, dependencies, links and whether it has subcards. The

@@ -627,14 +627,17 @@ defmodule Slipdock.Automations do
   `unassigned: true`, nobody's — that pass the rule's conditions. A card
   whose last job from this rule ended under `feed_cooldown_seconds` ago is
   passed over, so one the runner left where it was doesn't go straight back
-  out, unless it was rejected since (#1659); `force: true` ignores that. Nil when there is none.
+  out, unless it was rejected since (#1659); `force: true` ignores that. Nil when there is none,
+  and always nil on a Triage list (#1793).
   """
   def next_card(%Rule{} = rule, opts \\ []) do
     trigger = rule.spec["trigger"]
     now = opts[:now] || DateTime.utc_now()
 
     with %Board{} = board <- Repo.get(Board, rule.board_id),
-         {:ok, column} <- Slipdock.Boards.find_column(board, to_string(trigger["column"])) do
+         {:ok, column} <- Slipdock.Boards.find_column(board, to_string(trigger["column"])),
+         # A Triage list is for a person (#1793): a feed never takes from it.
+         false <- Slipdock.Boards.Column.triage?(column) do
       cooling = if opts[:force], do: MapSet.new(), else: cooling_cards(rule, now)
 
       from(c in Card,

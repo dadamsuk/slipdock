@@ -10,7 +10,10 @@ defmodule Slipdock.Boards.Column do
     {"todo", "To do"},
     {"doing", "In progress"},
     {"done", "Done"},
-    {"dropped", "Dropped"}
+    {"dropped", "Dropped"},
+    # Filed for a person to look at (#1793): no ready list, feed or rule's
+    # runner action takes work from it.
+    {"triage", "Triage"}
   ]
 
   schema "columns" do
@@ -57,6 +60,9 @@ defmodule Slipdock.Boards.Column do
 
   def dropped?(%__MODULE__{category: "dropped"}), do: true
   def dropped?(_), do: false
+
+  def triage?(%__MODULE__{category: "triage"}), do: true
+  def triage?(_), do: false
 
   @doc "Whether the list stands for a date range."
   def horizon?(%__MODULE__{horizon_from: from, horizon_to: to}),

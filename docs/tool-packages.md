@@ -163,8 +163,11 @@ Each list is either a name or an object:
 - `role` is one of `ready`, `backlog`, `doing`, `done` or `dropped`. It sets
   the category: `ready` and `backlog` become `todo`, and the others become
   the category of the same name.
-- `category` is one of `todo`, `doing`, `done` or `dropped`. If it is given
-  with a `role`, the two must agree.
+- `category` is one of `todo`, `doing`, `done`, `dropped` or `triage`. If it
+  is given with a `role`, the two must agree. A `triage` list holds work for
+  a person to look at: it is never the ready list or the backlog, a
+  `list_top` feed sends nothing from it, and a rule's runner action skips a
+  card arriving in it. It has no role.
 - With neither, the category is guessed from the name:
   - `done`, `complete`, `completed`, `finished`, `shipped` or `closed` give `done`;
   - `doing`, `in progress`, `wip`, `working on`, `in review` or `review` give `doing`;
@@ -328,6 +331,12 @@ Install with `POST /api/tools/<name>/install` (optional `version`, and
 install is MCP `install_tool` (`tool`, `version`, `board_name`), the CLI's
 `slipdock tools install-board <name>`, or **Make the board** on the Tool's
 page. Installing needs a write token that isn't confined to some boards.
+
+Two built-in Tools go onto a board that already exists instead of building
+one, with `board` given: `handbook` (the project handbook) and `sweep` (the
+code sweep: a `Sweeps` rotation page, a `Triage` list and a daily *Sweep the
+code* card). Both go on the board's root and add only what is missing when
+installed again. See [the manual](manual.md#tools).
 
 On a **first install** the server builds the board:
 

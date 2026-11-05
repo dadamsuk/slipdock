@@ -715,15 +715,27 @@ defmodule Slipdock.Automations.Runner do
   # the kind means is the runner's own business (see `Slipdock.Runners`).
   defp do_perform("runner", action, ctx) do
     with {:ok, card} <- need_card(ctx) do
-      case Slipdock.Runners.queue(card, runner_attrs(action, ctx)) do
-        {:ok, :already_open, job} -> {:ok, "job ##{job.id} is already #{job.status}"}
-        {:ok, job} -> {:ok, "queued job ##{job.id} for the #{job.pool} runners"}
-        {:error, reason} -> {:error, "runner: #{reason}"}
-      end
+      if in_triage?(card),
+        do: {:ok, "skipped: a card in a Triage list is for a person, not a runner"},
+        else: queue_for_runner(card, action, ctx)
     end
   end
 
   defp do_perform(type, _action, _ctx), do: {:error, "unknown action “#{type}”"}
+
+  # A Triage list holds what a sweep filed for a person (#1793): no rule
+  # sends its cards to the loop.
+  defp in_triage?(%Card{column_id: nil}), do: false
+
+  defp in_triage?(%Card{column_id: id}), do: Column.triage?(Repo.get(Column, id))
+
+  defp queue_for_runner(card, action, ctx) do
+    case Slipdock.Runners.queue(card, runner_attrs(action, ctx)) do
+      {:ok, :already_open, job} -> {:ok, "job ##{job.id} is already #{job.status}"}
+      {:ok, job} -> {:ok, "queued job ##{job.id} for the #{job.pool} runners"}
+      {:error, reason} -> {:error, "runner: #{reason}"}
+    end
+  end
 
   ## Action helpers -----------------------------------------------------------
 
