@@ -166,4 +166,11 @@ defmodule Slipdock.CiWorkflowTest do
       assert text =~ "Nothing that credo turns on by default is off here."
     end
   end
+
+  describe "context boundaries" do
+    test "are checked by the suite CI runs on every partition" do
+      assert File.exists?(Path.join(@root, "test/slipdock/boundaries_test.exs"))
+      assert runs?(job("test"), "mix test --partitions 4")
+    end
+  end
 end
