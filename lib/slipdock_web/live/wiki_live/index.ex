@@ -154,9 +154,11 @@ defmodule SlipdockWeb.WikiLive.Index do
       revision: nil,
       form: nil,
       preview: "",
-      # The editor's preview beside the source; a writer can put it away
-      # for the whole width, and the browser remembers (EditorPrefs).
-      show_preview: true,
+      # The editor's Preview pane beside the source. The editor already
+      # renders as you type, so it starts off (#1744): one pane at the whole
+      # width. A writer who wants it gets it, and the browser remembers
+      # (EditorPrefs).
+      show_preview: false,
       page_tools: false,
       conflict: nil,
       base_hash: nil,
@@ -7063,11 +7065,42 @@ defmodule SlipdockWeb.WikiLive.Index do
     """
   end
 
+  attr :class, :string, default: nil, doc: "the buttons' classes, drawn in a row"
+  attr :item, :boolean, default: false, doc: "draw them as menu items instead"
+
+  # The three Meld Encrypt actions (`assets/js/meld_editor.js` handles any
+  # `[data-meld-action]` click inside `#meld-tools`), in the editor's row or
+  # its ⋯ menu (#1744).
+  defp meld_actions(assigns) do
+    assigns =
+      assign(assigns, :actions, [
+        {"encrypt", "hero-lock-closed", "Encrypt",
+         "Encrypt the selected text, or type a new secret to add encrypted"},
+        {"whole", "hero-document-text", "Encrypt whole note",
+         "Encrypt the whole note into one block"},
+        {"edit", "hero-lock-open", "Decrypt to edit",
+         "Decrypt the block the cursor is in, to change it or remove its encryption"}
+      ])
+
+    ~H"""
+    <%= for {action, icon, label, title} <- @actions do %>
+      <li :if={@item}>
+        <button type="button" data-meld-action={action} title={title}>
+          <.icon name={icon} class="size-4" /> {label}
+        </button>
+      </li>
+      <button :if={!@item} type="button" data-meld-action={action} class={@class} title={title}>
+        <.icon name={icon} class="size-4" /> {label}
+      </button>
+    <% end %>
+    """
+  end
+
   attr :form, :any, required: true
   attr :page, :any, default: nil
   attr :board, :any, required: true
   attr :preview, :string, default: ""
-  attr :show_preview, :boolean, default: true
+  attr :show_preview, :boolean, default: false
   attr :conflict, :any, default: nil
   attr :base_hash, :string, default: nil
   attr :uploads, :any, required: true
@@ -7078,6 +7111,9 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :page_tools, :any, default: nil, doc: "the AI tools button: its pressed state, or nil"
 
   defp editor(assigns) do
+    assigns =
+      assign(assigns, :encrypted?, Slipdock.Wiki.Meld.encrypted?(assigns.form[:body].value))
+
     ~H"""
     <.form for={@form} id="page-form" phx-change="validate" phx-submit="save" class="space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -7092,19 +7128,58 @@ defmodule SlipdockWeb.WikiLive.Index do
             It will sit on the board in <span class="font-medium">{@column.name}</span>.
           </p>
         </div>
-        <div class="flex items-center gap-2">
-          <%!-- Only where the preview can show: below lg it never does. --%>
+        <div class="flex flex-wrap items-center gap-2">
+          <%!-- Meld Encrypt (W-103 R6.2, R6.4): secrets are typed into the
+                passphrase dialog, outside this form, and only ciphertext
+                comes into the body. Ignored by LiveView, since the hook
+                keeps the purge choice and its notes. Few pages are
+                encrypted, so on an ordinary page the actions wait in the
+                editor's ⋯ menu; on one that already holds a secret they
+                stand in the row, where they matter (#1744). --%>
+          <div
+            id="meld-tools"
+            phx-hook="MeldEditor"
+            phx-update="ignore"
+            data-textarea="page_body"
+            data-encrypted={to_string(@encrypted?)}
+            class="flex flex-wrap items-center gap-1 text-xs"
+          >
+            <span data-meld-note class="text-warning" hidden></span>
+            <input type="hidden" name="purge_revisions" value="" data-meld-purge />
+            <%= if @encrypted? do %>
+              <.meld_actions class="btn btn-ghost btn-sm" />
+            <% else %>
+              <div class="dropdown dropdown-end">
+                <div
+                  id="editor-menu"
+                  tabindex="0"
+                  role="button"
+                  class="btn btn-ghost btn-sm btn-square"
+                  title="More: encryption"
+                  aria-label="More editor actions"
+                >
+                  <.icon name="hero-ellipsis-horizontal" class="size-5" />
+                </div>
+                <ul
+                  id="editor-menu-items"
+                  tabindex="0"
+                  class="menu dropdown-content z-40 mt-1 w-64 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+                >
+                  <.meld_actions item />
+                </ul>
+              </div>
+            <% end %>
+          </div>
+          <%!-- Only where the preview can show: below lg it never does. A
+                pressed toggle is a ghost button, active (#1744). --%>
           <button
             type="button"
             id="toggle-preview"
             phx-hook="EditorPrefs"
             phx-click="toggle_preview"
             aria-pressed={to_string(@show_preview)}
-            title={if @show_preview, do: "Hide the preview", else: "Show the preview"}
-            class={[
-              "btn btn-sm hidden lg:inline-flex",
-              if(@show_preview, do: "btn-soft", else: "btn-ghost")
-            ]}
+            title={if @show_preview, do: "Hide the preview", else: "Show the preview beside it"}
+            class={["btn btn-ghost btn-sm hidden lg:inline-flex", @show_preview && "btn-active"]}
           >
             <.icon name={if @show_preview, do: "hero-eye", else: "hero-eye-slash"} class="size-4" />
             Preview
@@ -7118,10 +7193,10 @@ defmodule SlipdockWeb.WikiLive.Index do
           >
             Auto-saved
           </span>
-          <button type="button" phx-click="cancel_edit" class="btn btn-ghost btn-sm">
+          <button id="cancel-edit" type="button" phx-click="cancel_edit" class="btn btn-ghost btn-sm">
             Cancel
           </button>
-          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          <button id="save-page" type="submit" class="btn btn-primary btn-sm">Save</button>
         </div>
       </div>
 
@@ -7191,44 +7266,6 @@ defmodule SlipdockWeb.WikiLive.Index do
             Body (Markdown)
             <span class="ml-1 font-normal text-base-content/50">— paste or drop an image to attach it</span>
           </label>
-          <%!-- Meld Encrypt (W-103 R6.2, R6.4): secrets are typed into the
-                passphrase dialog, outside this form, and only ciphertext
-                comes into the body. Ignored by LiveView, since the hook
-                keeps the purge choice and its notes. --%>
-          <div
-            id="meld-tools"
-            phx-hook="MeldEditor"
-            phx-update="ignore"
-            data-textarea="page_body"
-            class="mb-1 flex flex-wrap items-center gap-1 text-xs"
-          >
-            <button
-              type="button"
-              data-meld-action="encrypt"
-              class="btn btn-ghost btn-xs"
-              title="Encrypt the selected text, or type a new secret to add encrypted"
-            >
-              <.icon name="hero-lock-closed" class="size-3.5" /> Encrypt
-            </button>
-            <button
-              type="button"
-              data-meld-action="whole"
-              class="btn btn-ghost btn-xs"
-              title="Encrypt the whole note into one block"
-            >
-              Encrypt whole note
-            </button>
-            <button
-              type="button"
-              data-meld-action="edit"
-              class="btn btn-ghost btn-xs"
-              title="Decrypt the block the cursor is in, to change it or remove its encryption"
-            >
-              <.icon name="hero-lock-open" class="size-3.5" /> Decrypt to edit
-            </button>
-            <span data-meld-note class="text-warning" hidden></span>
-            <input type="hidden" name="purge_revisions" value="" data-meld-purge />
-          </div>
           <%!-- The Markdown editor (MarkdownEditor) takes over the
                 textarea, which stays the form's field. Ignored by LiveView
                 so a patch never resets it; keyed on the page, so opening

@@ -4313,9 +4313,10 @@ The editor is **raw Markdown with a live preview**, deliberately and for good:
 the source stays diffable, greppable and identical to what an agent reads and
 writes over the API, which a rich-text layer could not promise. Pasting or
 dropping an image into it attaches the image, the way it does on a card.
-The editor spans the whole width of the page; **Preview** beside Save puts the
-preview away (and brings it back) for the source alone, and your browser
-remembers which you chose.
+The editor opens as one pane across the whole width of the page: headings,
+lists and code take their shape as you type. **Preview** beside Save puts the
+rendered page beside it (and takes it away again), and your browser remembers
+which you chose.
 
 **References.** Inside a body, `[[Retry policy]]` links a page on this board
 (by title, then slug), `[[retry-policy|how it works]]` gives it link text,
@@ -5134,7 +5135,9 @@ reach the server.
   the tab's memory, so the next passage opens without asking. Nothing
   decrypted can be turned into a card. A whole encrypted note (`.mdenc`)
   opens the same way from the tree.
-- **Writing.** In the editor, *Encrypt* with nothing selected opens a box
+- **Writing.** The encryption actions are in the editor's `⋯` menu, beside
+  Preview; on a page that already holds encrypted text they stand in that
+  row instead. *Encrypt* with nothing selected opens a box
   where you type the secret, the passphrase twice and an optional hint.
   Only the encrypted block goes into the page, so the secret is never saved
   or sent. With text selected, *Encrypt* encrypts the selection, and

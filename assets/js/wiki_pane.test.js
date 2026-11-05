@@ -7,6 +7,7 @@ import {
   WikiTreeCollapse, WikiTreeResize, WikiTreeView, VIEW_KEY,
   WikiWidthToggle, WikiFileOpen, fileLinkId, setFullWidth, isFullWidth, FULL_WIDTH_KEY,
   WIDTH_KEY, COLLAPSED_KEY, DEFAULT_WIDTH, MIN_WIDTH, MAX_WIDTH, STEP,
+  EditorPrefs, PREVIEW_KEY, savedPreview, savePreview,
 } from "./wiki_pane.js"
 
 function storage(initial = {}) {
@@ -350,4 +351,59 @@ test("WikiFileOpen: asks the server to open the file and keeps the browser put",
 
   hook.destroyed()
   assert.equal(listeners.click, undefined)
+})
+
+// The editor's Preview pane (#1744): off unless this browser turned it on.
+function prefsHook(store) {
+  const pushed = []
+  const handlers = {}
+  return {
+    pushed, handlers, storage: store,
+    pushEvent: (name, payload) => pushed.push([name, payload]),
+    handleEvent: (name, fn) => { handlers[name] = fn },
+    ...EditorPrefs,
+  }
+}
+
+test("the preview is off unless this browser turned it on", () => {
+  assert.equal(savedPreview(storage()), false)
+  assert.equal(savedPreview(storage({[PREVIEW_KEY]: "on"})), true)
+  // "off" was what the old default-on editor kept: still off.
+  assert.equal(savedPreview(storage({[PREVIEW_KEY]: "off"})), false)
+  assert.equal(savedPreview(storage({[PREVIEW_KEY]: "yes"})), false)
+  assert.equal(savedPreview(brokenStorage), false)
+})
+
+test("turning it on keeps 'on'; turning it off forgets", () => {
+  const store = storage()
+  assert.equal(savePreview(store, true), true)
+  assert.equal(store.items[PREVIEW_KEY], "on")
+  assert.equal(savePreview(store, false), false)
+  assert.ok(!(PREVIEW_KEY in store.items))
+  // A storage that refuses still answers with the choice.
+  assert.equal(savePreview(brokenStorage, true), true)
+})
+
+test("the hook asks for the preview only where the browser kept it on", () => {
+  const off = prefsHook(storage())
+  off.mounted()
+  assert.deepEqual(off.pushed, [])
+
+  const old = prefsHook(storage({[PREVIEW_KEY]: "off"}))
+  old.mounted()
+  assert.deepEqual(old.pushed, [])
+
+  const on = prefsHook(storage({[PREVIEW_KEY]: "on"}))
+  on.mounted()
+  assert.deepEqual(on.pushed, [["restore_preview", {on: true}]])
+})
+
+test("the hook keeps each choice the server reports back", () => {
+  const store = storage()
+  const hook = prefsHook(store)
+  hook.mounted()
+  hook.handlers["wiki-editor:preview"]({on: true})
+  assert.equal(store.items[PREVIEW_KEY], "on")
+  hook.handlers["wiki-editor:preview"]({on: false})
+  assert.ok(!(PREVIEW_KEY in store.items))
 })
