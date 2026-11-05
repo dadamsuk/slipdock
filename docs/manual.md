@@ -1325,7 +1325,7 @@ checks:
 | Epics whose work is all done | an open card whose subcards are all done | complete it and move it to Done |
 | In Done but not complete | a card in a done list that was never ticked off (an epic with work still open beneath is left alone) | complete it |
 | Complete but not in Done | a completed card outside a done list | move it to Done |
-| In progress, untouched | a card in an in-progress list with no activity — no edit, no comment, nothing in its log — for 14 days | move it back to the ready list; or snooze it a week, or ask on it |
+| In progress, untouched | a card in an in-progress list with no activity — no edit, no comment, nothing in its log — for 14 days (a card an agent put there is the [health monitor](#the-health-monitor)'s) | move it back to the ready list; or snooze it a week, or ask on it |
 | Epics with no next step | an open epic with subcards, none of them open, its work not all done | flag it for review, with a comment saying so |
 | Long overdue | an open card due more than 30 days ago | give it a new date a week out; or snooze it, or archive it |
 | Abandoned in the backlog | a card in a to-do list untouched for 180 days (off unless you turn it on) | archive it (it can be restored) |
@@ -1474,6 +1474,10 @@ Settings belong to the tree's root board, whichever board in it you name.
 | `merge_missing` | An accepted card on a board that ships by pull request, shown as *merging*, with no merge job open for 10 minutes (`minutes`). | Queues the merge again, to the pool a merge would go to, up to twice; then flagged (at once when no runner takes merge jobs). |
 | `merge_failing` | A card whose merge failed twice (`failures`), the latest merge among them. It is back as rejected each time; the flag says it is looping. | None: flagged, with the merges' reasons. |
 | `verify_slow` | A verify job claimed for over an hour (`minutes`, 60) with no progress step or note. `hung_job` leaves verify jobs to it. | None: flagged. |
+| `orphan_in_progress` | A card in a doing list that an agent put there, with no job open on it and nothing done for 2 hours (`minutes`, 120), and not pending verification or merging. The Tidy-up check *In progress, untouched* leaves these to it and keeps the cards people drive. | Moves it back to the top of its list (its last job's feed list, else the ready list) with a comment, once; orphaned again, it is flagged. |
+| `unanswered_wait` | A question (a wait) open for over 2 days (`days`). | Emails the person it is on again (with nobody named, the board's owner), once. Still open after another 2 days, it is flagged. |
+| `dead_blocker` | An open card blocked by one in a dropped list or, on a board with a feed, in a list no feed takes from and not in progress (a *Maybe Later*), so it can never start. An archived blocker no longer blocks. | None: the blocked card is flagged, naming the blocker. |
+| `lane_hog` | A card in progress whose lane has kept another card's job waiting for over 4 hours (`hours`) while nothing happened on it. | None: the card holding the lane is flagged. |
 
 ## Dependencies
 
