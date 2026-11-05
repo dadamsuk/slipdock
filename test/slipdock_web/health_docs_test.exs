@@ -44,4 +44,13 @@ defmodule SlipdockWeb.HealthDocsTest do
     assert agents =~ "manual.md#the-health-monitor"
     assert agents =~ "leaves the flag alone"
   end
+
+  test "README links the manual's section, and the slipdock skill knows stuck and health" do
+    assert read("README.md") =~ "docs/manual.md#the-health-monitor"
+    skill = read("priv/skills/slipdock/SKILL.md")
+    assert skill =~ "flagged blocked review waiting starred stuck"
+    assert skill =~ "stuck is the health monitor's: leave it for a person"
+    assert skill =~ "slipdock health <board> [--run]"
+    assert skill =~ "slipdock health settings <board>"
+  end
 end
