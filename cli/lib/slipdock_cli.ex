@@ -191,8 +191,11 @@ defmodule SlipdockCLI do
                                         to production, each with its DORA band and the trend
                                         (needs the board's delivery metrics on; see `deploy`)
     handbook <board>|<card>             the handbook (Handbook/ wiki pages) of the board's tree:
-                                        its index and decisions, or the sections a card
-                                        should read before building (also in `card`)
+                                        its index, decisions and rule count, or the sections
+                                        a card should read before building (also in `card`)
+      --paths a,b       the board's rules that apply to those paths, `must` first
+      --paths-from -    the same, one path per line from stdin (or a file):
+                        git diff --name-only main | slipdock handbook B --paths-from -
     pulse <board>                       the board's flow numbers: in progress, waiting, done in
                                         7 days and today, P50/P85 time to done, moves in 24h
                                         forward and back, and each list's in/out and usual stay
@@ -1052,6 +1055,7 @@ defmodule SlipdockCLI do
     bar: :string,
     lanes: :boolean,
     paths: :string,
+    paths_from: :string,
     evidence_required: :boolean,
     verify_work: :boolean,
     verify_pool: :string,

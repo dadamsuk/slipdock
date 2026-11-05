@@ -165,12 +165,22 @@ defmodule SlipdockCLI.Boards do
   # this week, how long work takes to get done, and each list's traffic.
   # The handbook (#1265): a card's suggested reading (`#123` or a number), or
   # a board's index.
+  #
+  # With `--paths a,b` or `--paths-from -` (one per line, as `git diff
+  # --name-only` prints them), a board's rules for those paths (#1774), asked
+  # @rule_paths at a time so a long diff fits in GETs a read-only token can
+  # make.
   def run("handbook", [ref], o) do
-    if card_ref?(ref) do
-      HTTP.get("/cards/#{enc(String.trim_leading(ref, "#"))}")
-      |> out(o, &Render.handbook_for_card(&1["card"]))
-    else
-      HTTP.get("/boards/#{enc(ref)}/handbook") |> out(o, &Render.handbook(&1))
+    cond do
+      o[:paths] || o[:paths_from] ->
+        handbook_rules(ref, o)
+
+      card_ref?(ref) ->
+        HTTP.get("/cards/#{enc(String.trim_leading(ref, "#"))}")
+        |> out(o, &Render.handbook_for_card(&1["card"]))
+
+      true ->
+        HTTP.get("/boards/#{enc(ref)}/handbook") |> out(o, &Render.handbook(&1))
     end
   end
 
@@ -1871,4 +1881,58 @@ defmodule SlipdockCLI.Boards do
   defp verified_word("accept"), do: "accepted"
   defp verified_word("reject"), do: "rejected"
   defp verified_word("merged"), do: "marked merged"
+
+  # The rules for a set of paths (#1774), behind `handbook --paths`.
+  @rule_paths 40
+
+  defp handbook_rules(ref, o) do
+    if card_ref?(ref), do: fail("--paths takes a board: slipdock handbook <board> --paths …")
+
+    case rule_paths(o) do
+      [] ->
+        fail("no paths: --paths a,b or --paths-from - (one per line)")
+
+      paths ->
+        paths
+        |> Enum.chunk_every(@rule_paths)
+        |> Enum.reduce_while({:ok, nil}, &ask_rules(ref, &1, &2))
+        |> out(o, &Render.handbook_for_paths/1)
+    end
+  end
+
+  defp ask_rules(ref, chunk, {:ok, acc}) do
+    case HTTP.get("/boards/#{enc(ref)}/handbook", paths: Enum.join(chunk, ",")) do
+      {:ok, data} -> {:cont, {:ok, merge_rules(acc, data)}}
+      error -> {:halt, error}
+    end
+  end
+
+  defp rule_paths(o) do
+    from_file =
+      case o[:paths_from] do
+        nil -> ""
+        "-" -> read_stdin()
+        file -> File.read!(file)
+      end
+
+    [o[:paths] || "", from_file]
+    |> Enum.flat_map(&String.split(&1, [",", "\n"]))
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  # One answer from several: the rules once each, `must` first.
+  defp merge_rules(nil, data), do: data
+  defp merge_rules(acc, %{"handbook" => nil}), do: acc
+  defp merge_rules(%{"handbook" => nil}, data), do: data
+
+  defp merge_rules(%{"handbook" => a} = acc, %{"handbook" => b}) do
+    rules =
+      (a["rules"] ++ b["rules"])
+      |> Enum.uniq_by(& &1["id"])
+      |> Enum.sort_by(&if(&1["severity"] == "must", do: 0, else: 1))
+
+    %{acc | "handbook" => %{a | "rules" => rules, "paths" => a["paths"] ++ b["paths"]}}
+  end
 end

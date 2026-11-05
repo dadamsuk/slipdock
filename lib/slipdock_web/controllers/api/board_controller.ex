@@ -283,17 +283,30 @@ defmodule SlipdockWeb.API.BoardController do
 
   # The board tree's handbook (#1265, `Slipdock.Handbook`): its index and
   # decisions, or null when the root board keeps none.
-  def handbook(conn, %{"board" => ref}) do
+  #
+  # With `?paths=a,b` (#1774; commas or newlines, or `paths[]=`) it answers
+  # the rules that apply to them instead: `{board, handbook: {board,
+  # index_page, paths, rules}}`. A GET, so a read-only token can ask; the
+  # CLI splits a long diff over several.
+  def handbook(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :read) do
-      json(conn, %{
-        board: %{id: board.id, code: board.code},
-        handbook:
-          Slipdock.Handbook.for_board(board, conn.assigns.current_user,
-            token: conn.assigns[:api_token]
-          )
-      })
+      user = conn.assigns.current_user
+      opts = [token: conn.assigns[:api_token]]
+
+      handbook =
+        case handbook_paths(params["paths"]) do
+          nil -> Slipdock.Handbook.for_board(board, user, opts)
+          paths -> Slipdock.Handbook.rules_for_board(board, user, paths, opts)
+        end
+
+      json(conn, %{board: %{id: board.id, code: board.code}, handbook: handbook})
     end
   end
+
+  defp handbook_paths(nil), do: nil
+  defp handbook_paths(paths) when is_list(paths), do: Enum.filter(paths, &is_binary/1)
+  defp handbook_paths(paths) when is_binary(paths), do: String.split(paths, [",", "\n"])
+  defp handbook_paths(_), do: []
 
   # The board's flow day by day over 7, 30 or 90 days (#1186,
   # `Slipdock.Flow`): what the Visualise page's trend charts draw.

@@ -282,6 +282,13 @@ ones whose scope covers the files you touch (`must` is rejected, `should`
 noted), and cite one by its id when you say why. A rule the card adds goes
 there, with the page's prefix and the next unused number.
 
+A card with lane paths shows them in its Handbook block (`rules`); for any
+other set of paths, `slipdock handbook <board> --paths a,b`. **Before
+submitting, check the diff against them**: `git diff --name-only
+<default-branch> | slipdock handbook <board> --paths-from -` lists every
+rule the change falls under. Break a `must` and the verifier rejects the
+card; say in the wrap-up how any `judgement` rule was kept.
+
 ## 4. Claim it, and say so
 
 The claim is the lock — do it before any work, so a concurrent pass or a

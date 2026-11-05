@@ -6488,6 +6488,18 @@ counts the rules (`rules` in `GET /api/boards/:board/handbook`: `count`,
 `must` and `problems`) and lists each item it couldn't read, with its page,
 line and why.
 
+`slipdock handbook <board> --paths a,b` gives the rules whose scope covers
+any of those paths (files, folders or globs, matched as lanes are), `must`
+first; `--paths-from -` reads them one per line, so `git diff --name-only
+main | slipdock handbook <board> --paths-from -` checks a whole change. Over
+REST it is `GET /api/boards/:board/handbook?paths=a,b` (commas or newlines,
+or `paths[]=`), answering `{board, index_page, paths, rules}`; the CLI
+splits a long list over several requests, so a read-only token can ask. A
+card with lane `paths` has the same rules in its `handbook` block
+(`get_card`, `GET /api/cards/:id`, `slipdock card`): `rules` with each
+one's id, severity, page, section, check and text, held to 2 KB with
+`rules_more` counting the rest.
+
 On a handbook board a card's JSON (`get_card`, `GET /api/cards/:id`) has a
 `handbook` key: `board`, `index_page`, `index` (each page's code, title,
 summary and `read_when`, held to 2 KB) with `more`, and `suggested`: up

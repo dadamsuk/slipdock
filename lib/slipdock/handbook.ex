@@ -383,6 +383,7 @@ defmodule Slipdock.Handbook do
         more: more,
         suggested: suggest(handbook, card, reader, opts)
       }
+      |> put_card_rules(handbook, card)
     else
       _ -> nil
     end
@@ -406,6 +407,94 @@ defmodule Slipdock.Handbook do
       _ -> nil
     end
   end
+
+  ## The rules for a set of paths (#1774) ------------------------------------------
+
+  @rules_cap 2048
+  @rule_text 160
+
+  @doc """
+  The rules of `handbook` (as `find/1` gives it) whose scope overlaps any of
+  `paths`: file paths, folders or globs (a card's lane paths), matched as
+  lanes are (`Slipdock.Lanes.glob_overlap?/2`). A rule with no scope of its
+  own has its page's `covers:`, or everywhere when that is empty (see
+  `Slipdock.Handbook.Rules`). `must` rules come first, then `should`, each in
+  the handbook's order. No handbook, or no paths, is no rules.
+  """
+  def rules_for(nil, _paths), do: []
+
+  def rules_for(handbook, paths) do
+    case clean_paths(paths) do
+      [] ->
+        []
+
+      paths ->
+        handbook
+        |> Slipdock.Handbook.Rules.rules()
+        |> Enum.filter(fn rule -> Slipdock.Lanes.overlap?(rule.scope, paths) end)
+        |> Enum.sort_by(&if(&1.severity == "must", do: 0, else: 1))
+    end
+  end
+
+  @doc """
+  The rules of `board`'s handbook for `paths`, for `reader`:
+  `%{board:, index_page:, paths:, rules:}` with every matching rule, or nil
+  when the tree keeps no handbook or `reader` can't read it. Options as
+  `for_card/3`.
+  """
+  def rules_for_board(%Board{} = board, reader, paths, opts \\ []) do
+    with %{} = handbook <- find(board),
+         true <- readable?(reader, handbook.board, opts[:token]) do
+      paths = clean_paths(paths)
+
+      %{
+        board: handbook.board.code,
+        index_page: handbook.index.code,
+        paths: paths,
+        rules: rules_for(handbook, paths)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp clean_paths(paths) do
+    paths
+    |> List.wrap()
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  # A card with lane paths carries the rules for them, `must` first, cut to
+  # fit #{@rules_cap} bytes of JSON like the index (`rules_more` counts what
+  # that left out: `slipdock handbook <board> --paths …` has them all).
+  defp put_card_rules(reading, handbook, card) do
+    case card.paths || [] do
+      [] ->
+        reading
+
+      paths ->
+        entries =
+          for rule <- rules_for(handbook, paths) do
+            %{
+              id: rule.id,
+              severity: rule.severity,
+              page: rule.page,
+              section: rule.section,
+              check: rule.check,
+              text: cut(rule.text, @rule_text)
+            }
+          end
+
+        {rules, more} = fit(entries, [], @rules_cap)
+        Map.merge(reading, %{rules: rules, rules_more: more})
+    end
+  end
+
+  @doc false
+  def rules_cap, do: @rules_cap
 
   # How many rules the handbook has, and what didn't parse (#1773): the
   # writer of a rule finds out here that it isn't one.
@@ -441,22 +530,23 @@ defmodule Slipdock.Handbook do
         }
       end)
 
-    fit(entries, [])
+    fit(entries, [], @index_cap)
   end
 
   # Keeps entries while the whole still fits, so a folder somebody filled
   # with fifty pages can't swamp every card it is shown on.
-  defp fit([], kept), do: {Enum.reverse(kept), 0}
+  defp fit([], kept, _cap), do: {Enum.reverse(kept), 0}
 
-  defp fit([entry | rest] = left, kept) do
-    if byte_size(Jason.encode!(Enum.reverse([entry | kept]))) <= @index_cap,
-      do: fit(rest, [entry | kept]),
+  defp fit([entry | rest] = left, kept, cap) do
+    if byte_size(Jason.encode!(Enum.reverse([entry | kept]))) <= cap,
+      do: fit(rest, [entry | kept], cap),
       else: {Enum.reverse(kept), length(left)}
   end
 
-  defp cut(nil), do: nil
-  defp cut(text) when byte_size(text) <= @field_chars, do: text
-  defp cut(text), do: String.slice(text, 0, @field_chars - 1) <> "…"
+  defp cut(text, chars \\ @field_chars)
+  defp cut(nil, _chars), do: nil
+  defp cut(text, chars) when byte_size(text) <= chars, do: text
+  defp cut(text, chars), do: String.slice(text, 0, chars - 1) <> "…"
 
   defp text_field(page, key) do
     case field(page, key) do

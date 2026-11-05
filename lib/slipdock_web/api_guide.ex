@@ -3192,6 +3192,14 @@ defmodule SlipdockWeb.APIGuide do
     `slipdock handbook <board>` (its `rules`) counts them and lists any
     item that doesn't parse, with its page and line.
 
+    **The rules for some paths:** `slipdock handbook <board> --paths a,b`
+    (REST `GET /api/boards/:board/handbook?paths=a,b`) gives every rule
+    whose scope covers them, `must` first; for a whole change,
+    `git diff --name-only main | slipdock handbook <board> --paths-from -`. A card with lane `paths` carries
+    them in its `handbook` block as `rules` (`rules_more` counts any cut).
+    Read them before building and check the diff against them before
+    submitting: a verifier uses the same list.
+
     **Before closing, the docs gate.** Check the diff against the handbook:
 
     | The card… | Updates… |
