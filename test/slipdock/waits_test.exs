@@ -116,6 +116,18 @@ defmodule Slipdock.WaitsTest do
       %{runner: runner}
     end
 
+    # The card gets subcards: Sub (with Subsub beneath it) and Sibling.
+    defp subcards(ctx) do
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, board} = sub_board(ctx.card, t)
+      column = hd(Boards.get_board!(board.id).columns)
+      sub = card_fixture(column, %{"title" => "Sub"})
+      sibling = card_fixture(column, %{"title" => "Sibling"})
+      {:ok, deeper} = sub_board(sub, t)
+      subsub = card_fixture(hd(Boards.get_board!(deeper.id).columns), %{"title" => "Subsub"})
+      %{sub: sub, sibling: sibling, subsub: subsub}
+    end
+
     defp job_on(ctx, card) do
       {:ok, job} = Runners.queue(card, %{pool: "dev", kind: "claude", prompt: "do it"})
       %Runners.Job{} = Runners.claim(ctx.runner)
@@ -131,7 +143,9 @@ defmodule Slipdock.WaitsTest do
       other = card_fixture(ctx.todo, %{"title" => "Other"})
       job = job_on(ctx, other)
 
-      assert {:error, "job ##{job.id} is working on another card, not ##{ctx.card.id}"} ==
+      assert {:error,
+              "job ##{job.id} is working on another card: ##{ctx.card.id} isn't ##{other.id} " <>
+                "or beneath it"} ==
                Boards.open_wait(ctx.card, agent(ctx.owner), %{
                  "needs" => "Which region?",
                  "job_id" => job.id
@@ -149,6 +163,72 @@ defmodule Slipdock.WaitsTest do
       assert Repo.get!(Runners.Job, job.id) == finished
       assert Repo.aggregate(Wait, :count) == 0
       refute "waiting" in card(ctx).flags
+    end
+
+    test "an epic's job may wait on its subcard and its subcard's subcard, and parks (#1755)",
+         ctx do
+      %{sub: sub, subsub: subsub} = subcards(ctx)
+      job = job_on(ctx, ctx.card)
+
+      {:ok, wait} =
+        Boards.open_wait(sub, agent(ctx.owner), %{"needs" => "Which?", "job_id" => job.id})
+
+      assert {wait.card_id, wait.job_id} == {sub.id, job.id}
+      assert "waiting" in Boards.get_card!(sub.id).flags
+      refute "waiting" in card(ctx).flags
+
+      {:ok, deeper} =
+        Boards.open_wait(subsub, agent(ctx.owner), %{"needs" => "Size?", "job_id" => job.id})
+
+      assert {deeper.card_id, deeper.job_id} == {subsub.id, job.id}
+
+      assert {:ok, %Runners.Job{status: "parked"}} =
+               Runners.finish(ctx.runner, job.id, %{exit: "0"})
+    end
+
+    test "a subcard's job can't wait on the epic above it, nor a finished epic job beneath",
+         ctx do
+      %{sub: sub, sibling: sibling} = subcards(ctx)
+      job = job_on(ctx, sub)
+
+      assert {:error,
+              "job ##{job.id} is working on another card: ##{ctx.card.id} isn't ##{sub.id} " <>
+                "or beneath it"} ==
+               Boards.open_wait(ctx.card, agent(ctx.owner), %{"needs" => "?", "job_id" => job.id})
+
+      assert {:error,
+              "job ##{job.id} is working on another card: ##{sibling.id} isn't ##{sub.id} " <>
+                "or beneath it"} ==
+               Boards.open_wait(sibling, agent(ctx.owner), %{"needs" => "?", "job_id" => job.id})
+
+      {:ok, _} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
+      epic_job = job_on(ctx, ctx.card)
+      {:ok, _} = Runners.finish(ctx.runner, epic_job.id, %{exit: "1"})
+
+      assert {:error, "job ##{epic_job.id} is failed: only a claimed or running job can wait"} ==
+               Boards.open_wait(sub, agent(ctx.owner), %{"needs" => "?", "job_id" => epic_job.id})
+
+      assert Repo.aggregate(Wait, :count) == 0
+    end
+
+    test "a session's epic job is found from its subcard, its own card's job first", ctx do
+      %{sub: sub, subsub: subsub} = subcards(ctx)
+      {_token, api_token} = Slipdock.Accounts.create_api_token(ctx.owner, "desktop")
+      {:ok, session} = Runners.session_runner(ctx.board, "dev", api_token, ctx.owner)
+      {:ok, epic_job} = Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "epic"})
+      %Runners.Job{} = Runners.claim(session)
+
+      assert Runners.session_job_on_card(api_token, subsub.id) == epic_job.id
+      assert Runners.session_job_on_card(api_token, ctx.card.id) == epic_job.id
+
+      {:ok, sub_job} = Runners.queue(sub, %{pool: "dev", kind: "claude", prompt: "sub"})
+      %Runners.Job{} = Runners.claim(session)
+      assert Runners.session_job_on_card(api_token, sub.id) == sub_job.id
+      assert Runners.session_job_on_card(api_token, subsub.id) == sub_job.id
+
+      other = card_fixture(ctx.todo, %{"title" => "Other"})
+      assert Runners.session_job_on_card(api_token, other.id) == nil
+      assert Runners.session_job_on_card(api_token, 999_999_999) == nil
     end
 
     test "a job that doesn't exist is refused", ctx do

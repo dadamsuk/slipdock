@@ -2056,7 +2056,9 @@ defmodule SlipdockWeb.APIGuide do
     **Parking on a question.** A job whose agent needs something only a
     person can give asks it as a wait (`update_card` `wait`, `POST
     /api/cards/:id/wait`, `slipdock wait <card> … --job <id>`) and stops:
-    the job ends `parked` whatever it reports. `finish` with `{"outcome":
+    the job ends `parked` whatever it reports. The card is the job's own or
+    one beneath it: an epic's job asks about a subcard on the subcard, and
+    the answer sends the epic again, naming the subcard. `finish` with `{"outcome":
     "waiting", "wait": {"needs": "…", "choices": […]}}` asks and parks in one
     step, both or neither. A list_top rule puts the parked card back on top
     of its list, flagged waiting, without spending a `requeue_stuck` retry, so
