@@ -16,6 +16,12 @@ defmodule Slipdock.Gardener.Steps do
     * `redate` `%{"card", "due"}` – give it a new due date (ISO 8601, or nil)
     * `rewrite_link` `%{"page", "from", "to"}` – point `[[from]]` at `[[to]]`
     * `file_page` `%{"page", "folder"}` – into that folder (nil: out of any)
+    * `edit_section` `%{"page", "section", "body", "base"}` – replace one
+      section of a page (a heading path, as `slipdock page section` takes)
+      with `body`, through `Slipdock.Wiki.replace_section/4`, which keeps
+      its heading. `base` is `section_hash/1` of the section as the
+      proposal saw it: one that has changed since is refused, so a stale
+      proposal never overwrites what somebody wrote after it (#1788)
 
   A card id may be `"pick"`, with the candidates in `"from"`: the person
   chooses which when applying (`:keep` names the one that stays, so `"pick"`
@@ -39,7 +45,7 @@ defmodule Slipdock.Gardener.Steps do
   alias Slipdock.Wiki
   alias Slipdock.Wiki.Page
 
-  @ops ~w(complete move archive link_duplicate flag comment snooze redate rewrite_link file_page)
+  @ops ~w(complete move archive link_duplicate flag comment snooze redate rewrite_link file_page edit_section)
 
   @doc "The ops a proposal may use."
   def ops, do: @ops
@@ -346,8 +352,72 @@ defmodule Slipdock.Gardener.Steps do
     end
   end
 
+  defp apply_step(
+         %{"op" => "edit_section", "page" => id, "section" => path, "body" => body} = step,
+         user
+       ) do
+    with {:ok, page} <- page(id),
+         {:ok, current} <- section(page, path),
+         :ok <- same_base(page, path, current, step["base"]) do
+      case Wiki.replace_section(page, path, body, user: user, via: "gardener") do
+        {:ok, saved} ->
+          {:ok,
+           [
+             %{
+               "op" => "set_body",
+               "page" => page.id,
+               "body" => page.body,
+               "expect" => saved.content_hash
+             }
+           ]}
+
+        {:error, :not_found, _hint} ->
+          {:error, "“#{page.title}” has no section “#{path}” any more"}
+
+        {:error, :conflict, _} ->
+          {:error, "the page changed while it was being saved"}
+
+        {:error, reason} ->
+          {:error, describe_error(reason)}
+      end
+    end
+  end
+
   defp apply_step(%{"op" => op}, _user), do: {:error, "unknown step “#{op}”"}
   defp apply_step(_step, _user), do: {:error, "a step needs an op"}
+
+  @doc """
+  The hash an `edit_section` step's `base` is: of the section's text,
+  heading included, trailing blank lines aside.
+  """
+  def section_hash(text) when is_binary(text) do
+    :crypto.hash(:sha256, String.trim_trailing(text))
+    |> Base.encode16(case: :lower)
+    |> binary_part(0, 16)
+  end
+
+  @doc "The `section_hash/1` of `path` on `page` now, or `{:error, reason}`."
+  def current_section_hash(%Page{} = page, path) do
+    with {:ok, text} <- section(page, path), do: {:ok, section_hash(text)}
+  end
+
+  defp section(page, path) do
+    case Wiki.Section.read(page.body, path) do
+      {:ok, text} -> {:ok, text}
+      {:error, :not_found} -> {:error, "“#{page.title}” has no section “#{path}”"}
+    end
+  end
+
+  defp same_base(_page, _path, _current, nil), do: :ok
+
+  defp same_base(page, path, current, base) do
+    if section_hash(current) == base,
+      do: :ok,
+      else:
+        {:error,
+         "“#{page.title}” §#{path} has changed since this was proposed: " <>
+           "read it again and propose afresh"}
+  end
 
   defp save_body(page, body, user) do
     case Wiki.update_page(page, %{"body" => body}, user: user, via: "gardener") do

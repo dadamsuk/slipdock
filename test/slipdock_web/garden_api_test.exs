@@ -8,7 +8,7 @@ defmodule SlipdockWeb.GardenAPITest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Access, Accounts, Boards, Gardener}
+  alias Slipdock.{Access, Accounts, Boards, Gardener, Repo}
 
   setup %{user: owner} do
     board = board_fixture(%{}, owner: owner)
@@ -185,6 +185,160 @@ defmodule SlipdockWeb.GardenAPITest do
              |> patch(path, %{"check" => "long_overdue", "days" => "9"})
              |> json_response(403)
     end
+  end
+
+  describe "proposals (#1788)" do
+    setup ctx do
+      body = "# Data model\n\n## Rules\n\n- **DATA-1** must · judgement · Never cast.\n"
+
+      {:ok, page} =
+        Slipdock.Wiki.create_page(ctx.board, %{"title" => "Data model", "body" => body})
+
+      Map.put(ctx, :page, page)
+    end
+
+    defp proposal(page),
+      do: %{
+        "explanation" => "DATA-1 keeps breaking: name the fields",
+        "steps" => [
+          %{
+            "op" => "edit_section",
+            "page" => page.code,
+            "section" => "Data model/Rules",
+            "body" => "- **DATA-1** must · judgement · Never cast owner ids."
+          }
+        ],
+        "findings" => [4]
+      }
+
+    defp agent(conn), do: put_req_header(conn, "x-slipdock-agent", "1")
+
+    defp agent_token(user) do
+      user |> with_token([]) |> put_req_header("x-slipdock-client", "cli") |> agent()
+    end
+
+    test "an agent files one (201), and again gets the same one (200)", ctx do
+      path = "/api/boards/#{ctx.board.code}/garden/proposals"
+
+      assert %{"created" => true, "suggestion" => s} =
+               agent_token(ctx.owner) |> post(path, proposal(ctx.page)) |> json_response(201)
+
+      assert s["check"] == "proposal"
+      assert s["label"] == "Proposed edits"
+      assert s["findings"] == [4]
+      assert s["person_only"] == true
+      assert [%{"op" => "edit_section", "page" => page_id, "base" => base}] = s["proposal"]
+      assert page_id == ctx.page.id
+      assert is_binary(base)
+      assert [%{"id" => ^page_id, "code" => _}] = s["pages"]
+
+      assert %{"created" => false, "suggestion" => %{"id" => id}} =
+               agent_token(ctx.owner) |> post(path, proposal(ctx.page)) |> json_response(200)
+
+      assert id == s["id"]
+
+      # Listed, and narrowed by check=proposal.
+      assert %{"suggestions" => [%{"id" => ^id}]} =
+               as(ctx.owner)
+               |> get("/api/boards/#{ctx.board.code}/garden?check=proposal")
+               |> json_response(200)
+    end
+
+    test "a step outside the list, an unknown field, a reader and a read-only token are refused",
+         ctx do
+      path = "/api/boards/#{ctx.board.code}/garden/proposals"
+      bad = %{proposal(ctx.page) | "steps" => [%{"op" => "complete", "card" => ctx.stray.id}]}
+
+      assert %{"error" => error} = as(ctx.owner) |> post(path, bad) |> json_response(422)
+      assert error =~ "a proposal can't take a “complete” step"
+
+      assert %{"error" => "unknown field(s): apply"} =
+               as(ctx.owner)
+               |> post(path, Map.put(proposal(ctx.page), "apply", true))
+               |> json_response(400)
+
+      assert as(ctx.reader) |> post(path, proposal(ctx.page)) |> json_response(403)
+
+      assert with_token(ctx.owner, scope: "read")
+             |> post(path, proposal(ctx.page))
+             |> json_response(403)
+
+      assert Gardener.list_open(ctx.board, check: "proposal") == []
+    end
+
+    test "an agent can't apply, dismiss or undo one; the person can", ctx do
+      {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
+
+      for verb <- ~w(apply dismiss) do
+        assert %{"error" => error} =
+                 agent_token(ctx.owner)
+                 |> post("/api/garden/suggestions/#{s.id}/#{verb}", %{})
+                 |> json_response(422)
+
+        assert error =~ "only a person can #{verb} a proposed handbook edit"
+      end
+
+      assert Gardener.get_suggestion(s.id).state == "open"
+
+      # A person at the CLI (no agent header) applies it.
+      person = ctx.owner |> with_token([]) |> put_req_header("x-slipdock-client", "cli")
+
+      assert %{"suggestion" => %{"state" => "applied"}} =
+               person |> post("/api/garden/suggestions/#{s.id}/apply", %{}) |> json_response(200)
+
+      assert Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body =~ "Never cast owner ids."
+
+      assert agent_token(ctx.owner)
+             |> post("/api/garden/suggestions/#{s.id}/undo", %{})
+             |> json_response(422)
+
+      assert %{"suggestion" => %{"state" => "open"}} =
+               person
+               |> post("/api/garden/suggestions/#{s.id}/undo", %{})
+               |> json_response(200)
+    end
+
+    test "an ordinary suggestion is still an agent's to apply", ctx do
+      s = open_one(ctx.board)
+
+      assert %{"suggestion" => %{"state" => "applied"}} =
+               agent_token(ctx.owner)
+               |> post("/api/garden/suggestions/#{s.id}/apply", %{})
+               |> json_response(200)
+    end
+
+    test "MCP garden lists proposals by check, and garden_decide applies one with confirm", ctx do
+      {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
+
+      assert %{"suggestions" => [listed]} =
+               as(ctx.owner)
+               |> mcp_call("garden", %{board: ctx.board.code, check: "proposal"})
+               |> Map.fetch!("structuredContent")
+
+      assert listed["id"] == s.id
+      assert listed["person_only"]
+
+      assert %{"suggestion" => %{"state" => "applied"}} =
+               as(ctx.owner)
+               |> mcp_call("garden_decide", %{suggestion: s.id, decision: "apply", confirm: true})
+               |> Map.fetch!("structuredContent")
+    end
+  end
+
+  defp mcp_call(conn, tool, args) do
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post(
+      "/mcp",
+      Jason.encode!(%{
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: %{name: tool, arguments: args}
+      })
+    )
+    |> json_response(200)
+    |> Map.fetch!("result")
   end
 
   describe "MCP" do

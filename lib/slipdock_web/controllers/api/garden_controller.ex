@@ -8,8 +8,12 @@ defmodule SlipdockWeb.API.GardenController do
       the open suggestions. Write access.
     * `PATCH /api/boards/:board/garden/settings {check, enabled?, …}` – one
       check's switch and thresholds. Write access.
+    * `POST /api/boards/:board/garden/proposals {explanation, steps,
+      findings?, cards?}` – file a proposal (#1788, `Gardener.propose/4`):
+      201 with it, or 200 with the one already filed. Write access.
     * `POST /api/garden/suggestions/:id/apply {keep?, choice?}`,
-      `…/dismiss` and `…/undo` – decide one. Write access.
+      `…/dismiss` and `…/undo` – decide one. Write access; a proposal, or
+      a suggestion that edits a section, only a person's (not an agent's).
   """
   use SlipdockWeb, :controller
 
@@ -53,17 +57,39 @@ defmodule SlipdockWeb.API.GardenController do
     end
   end
 
+  def propose(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
+         :ok <- known(params, ~w(board explanation steps findings cards)) do
+      case Gardener.propose(board, conn.assigns.current_user, Map.delete(params, "board")) do
+        {:ok, s, :new} ->
+          conn |> put_status(:created) |> json(%{suggestion: G.suggestion(s), created: true})
+
+        {:ok, s, :exists} ->
+          json(conn, %{suggestion: G.suggestion(s), created: false})
+
+        error ->
+          refused(error)
+      end
+    end
+  end
+
   def apply(conn, %{"id" => id} = params) do
     with :ok <- known(params, ~w(id keep choice)) do
       decide(conn, id, :write, fn s, user ->
-        Gardener.apply(s, user, keep: params["keep"], choice: params["choice"])
+        Gardener.apply(s, user,
+          keep: params["keep"],
+          choice: params["choice"],
+          actor: Slipdock.Actor.from_conn(conn)
+        )
       end)
     end
   end
 
-  def dismiss(conn, %{"id" => id}), do: decide(conn, id, :write, &Gardener.dismiss/2)
+  def dismiss(conn, %{"id" => id}),
+    do: decide(conn, id, :write, &Gardener.dismiss(&1, &2, actor: Slipdock.Actor.from_conn(conn)))
 
-  def undo(conn, %{"id" => id}), do: decide(conn, id, :write, &Gardener.undo/2)
+  def undo(conn, %{"id" => id}),
+    do: decide(conn, id, :write, &Gardener.undo(&1, &2, actor: Slipdock.Actor.from_conn(conn)))
 
   defp decide(conn, id, need, fun) do
     with {:ok, suggestion} <- fetch(id),
@@ -103,7 +129,7 @@ defmodule SlipdockWeb.API.GardenController do
   defp check_param(""), do: {:ok, nil}
 
   defp check_param(key) do
-    if Gardener.check(key),
+    if Enum.member?(Gardener.suggestion_keys(), key),
       do: {:ok, key},
       else:
         {:error, :bad_request,

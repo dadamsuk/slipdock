@@ -286,6 +286,16 @@ approve; never dismiss one on your own judgment, since a dismissal is
 remembered. The CLI is `slipdock garden <board> [--run]` and `slipdock garden
 apply|dismiss|undo <id>`. See [the manual](manual.md#tidying-up).
 
+Agents propose handbook edits rather than make them, where a rule or a
+decision is concerned: `POST /api/boards/:board/garden/proposals` (`slipdock
+garden propose <board> <file.json | ->`) files an open suggestion of check
+`proposal`, with an `explanation`, `steps` (`edit_section`, `comment` or
+`file_page` only) and the `findings` and `cards` behind it. An
+`edit_section` step names a `page`, a `section` (its heading path) and the
+new `body`; its `base` is the section as it was, so applying it refuses a
+section edited since. A proposal, and any suggestion with an `edit_section`
+step, is a person's to apply, dismiss or undo: the API refuses an agent.
+
 It also offers prompts, ready-made workflows the client lists in its own menu
 (the **+** menu in the Claude apps, `/mcp__slipdock__<name>` in Claude Code),
 each rendered with live board data: `plan-my-day`, `weekly-review`, `triage`,

@@ -25,7 +25,8 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
       "The board gardener's open tidy-up suggestions: epics done but still open, cards in Done " <>
         "never completed (or completed outside Done), cards stuck in progress, epics with no " <>
         "next step, long-overdue cards, abandoned backlog, likely duplicates, orphaned pages and " <>
-        "mistyped [[links]]. Each has an explanation and the steps applying it would take. " <>
+        "mistyped [[links]], and proposed handbook edits (check proposal) that agents filed. " <>
+        "Each has an explanation and the steps applying it would take. " <>
         "run: true looks the board over again first (needs write access). Nothing changes until " <>
         "a person approves a suggestion: show them, then garden_decide what they chose."
 
@@ -38,7 +39,7 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
         run: %{type: "boolean", description: "Look the board over now, before listing."},
         check: %{
           type: "string",
-          enum: Gardener.check_keys(),
+          enum: Gardener.suggestion_keys(),
           description: "Only this check's suggestions (and only this check, with run)."
         }
       },
@@ -86,10 +87,10 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
   defp check(nil), do: {:ok, nil}
 
   defp check(key) do
-    if Gardener.check(key),
+    if Enum.member?(Gardener.suggestion_keys(), key),
       do: {:ok, key},
       else:
         {:error,
-         "unknown check #{inspect(key)}: one of #{Enum.join(Gardener.check_keys(), ", ")}"}
+         "unknown check #{inspect(key)}: one of #{Enum.join(Gardener.suggestion_keys(), ", ")}"}
   end
 end
