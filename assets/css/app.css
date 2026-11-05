@@ -335,6 +335,42 @@ select.field-bare { height: 1.75rem; padding-block: 0; padding-left: 0.25rem; fo
   background-color: var(--color-base-100);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 20%, transparent);
 }
+/* The file picker (#1722, `file_picker/1`): a dashed drop zone in the field
+   look with a Choose file button, then the chosen file as a row. The native
+   input is out of sight but focusable; its focus rings the button. */
+.file-picker { position: relative; }
+.file-picker-zone {
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem;
+  border: 1px dashed color-mix(in oklab, var(--color-base-content) 25%, transparent);
+  border-radius: var(--radius-field); background-color: var(--color-base-100);
+  font-size: 0.875rem; line-height: 1.25rem;
+}
+.file-picker.phx-drop-target-active .file-picker-zone {
+  border-color: var(--color-primary);
+  background-color: color-mix(in oklab, var(--color-primary) 6%, var(--color-base-100));
+}
+.file-picker-error .file-picker-zone { border-color: var(--color-error); }
+.file-picker-input {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; opacity: 0;
+}
+.file-picker:has(.file-picker-input:focus-visible) label.btn {
+  outline: 2px solid var(--color-primary); outline-offset: 2px;
+}
+.file-picker-files:not(:empty) { margin-top: 0.5rem; display: grid; gap: 0.25rem; }
+.file-picker-file {
+  display: flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding-inline: 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  border-radius: var(--radius-field); background-color: var(--color-base-100);
+  font-size: 0.875rem; line-height: 1.25rem;
+}
+.file-picker-file[hidden] { display: none; }
+.file-picker-remove {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 1.5rem; height: 1.5rem; border-radius: 9999px; cursor: pointer;
+  color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+}
+.file-picker-remove:hover { background-color: var(--color-base-200); color: var(--color-base-content); }
 .field:focus, .field:focus-within, .field-bare:focus, .md-editor:focus-within {
   --input-color: var(--color-primary);
   border-color: var(--color-primary);

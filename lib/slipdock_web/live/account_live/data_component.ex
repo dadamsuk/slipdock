@@ -52,11 +52,6 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
   defp import_error(reason),
     do: Importers.error_message(reason) || "That file could not be imported."
 
-  defp upload_error_text(:too_large), do: "That file is too big."
-  defp upload_error_text(:not_accepted), do: "A board document is a .json file."
-  defp upload_error_text(:too_many_files), do: "One file at a time."
-  defp upload_error_text(other), do: "That file could not be read (#{inspect(other)})."
-
   # The query string behind the download link, so the picker and the link
   # cannot drift apart.
   defp boards_download_path(picked, with_archived?) do
@@ -222,33 +217,14 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
             phx-change="validate_board_document"
             class="mt-3"
           >
-            <.live_file_input
+            <.file_picker
+              id="import-boards-file"
               upload={@uploads.board_document}
-              class="file-input file-input-sm w-full max-w-sm"
+              cancel="cancel_board_document"
+              target={@myself}
+              hint="A Slipdock or Trello export (.json), up to 8 MB"
+              class="max-w-md"
             />
-
-            <div
-              :for={entry <- @uploads.board_document.entries}
-              class="mt-2 flex items-center gap-3 text-sm"
-            >
-              <span class="font-mono text-xs">{entry.client_name}</span>
-              <button
-                type="button"
-                phx-click="cancel_board_document"
-                phx-target={@myself}
-                phx-value-ref={entry.ref}
-                class="btn btn-ghost btn-xs"
-              >
-                Remove
-              </button>
-            </div>
-
-            <p
-              :for={error <- upload_errors(@uploads.board_document)}
-              class="mt-2 text-sm text-error"
-            >
-              {upload_error_text(error)}
-            </p>
 
             <button
               type="submit"

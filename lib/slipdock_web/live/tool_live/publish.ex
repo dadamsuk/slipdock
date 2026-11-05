@@ -53,27 +53,13 @@ defmodule SlipdockWeb.ToolLive.Publish do
   def form(assigns) do
     ~H"""
     <form id={@id} phx-submit="publish_package" phx-change="validate_package" class="mt-3">
-      <.live_file_input upload={@upload} class="file-input file-input-sm w-full max-w-sm" />
-      <div :for={entry <- @upload.entries} class="mt-2 flex items-center gap-3 text-sm">
-        <span class="font-mono text-xs">{entry.client_name}</span>
-        <button
-          type="button"
-          phx-click="cancel_package"
-          phx-value-ref={entry.ref}
-          class="btn btn-ghost btn-xs"
-        >
-          Remove
-        </button>
-      </div>
-      <p :for={error <- upload_errors(@upload)} class="mt-2 text-sm text-error">
-        {error_text(error)}
-      </p>
-      <p
-        :for={error <- Enum.flat_map(@upload.entries, &upload_errors(@upload, &1))}
-        class="mt-2 text-sm text-error"
-      >
-        {error_text(error)}
-      </p>
+      <.file_picker
+        id={"#{@id}-file"}
+        upload={@upload}
+        cancel="cancel_package"
+        hint={"A tool package (.tar.gz), up to #{div(Tools.Package.max_compressed(), 1024 * 1024)} MB"}
+        class="max-w-md"
+      />
       <p :if={@error} id={"#{@id}-error"} class="mt-2 text-sm text-error">{@error}</p>
       <button type="submit" class="btn btn-primary btn-sm mt-3" disabled={@upload.entries == []}>
         {@label}
@@ -81,10 +67,4 @@ defmodule SlipdockWeb.ToolLive.Publish do
     </form>
     """
   end
-
-  defp error_text(:too_large),
-    do: "That file is over #{div(Tools.Package.max_compressed(), 1024 * 1024)} MB."
-
-  defp error_text(:too_many_files), do: "One package at a time."
-  defp error_text(other), do: "That file could not be read (#{inspect(other)})."
 end

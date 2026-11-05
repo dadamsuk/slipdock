@@ -108,7 +108,7 @@ defmodule SlipdockWeb.ToolPublishLiveTest do
         file_input(view, "#tools-publish-form", :package, [%{name: "big.tar.gz", content: big}])
 
       assert {:error, [[_ref, :too_large]]} = render_upload(input, "big.tar.gz")
-      assert render(view) =~ "That file is over 10 MB."
+      assert render(view) =~ "That file is too big: the limit is 10 MB."
     end
 
     test "the button waits for a file", %{conn: conn} do
