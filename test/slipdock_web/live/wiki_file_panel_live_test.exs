@@ -93,6 +93,8 @@ defmodule SlipdockWeb.WikiFilePanelLiveTest do
     assert has_element?(view, "#wiki-main.hidden")
     view |> element("#wiki-file-panel") |> render_keydown(%{"key" => "Escape"})
 
+    # The words are in the Preview pane, which starts off (#1744).
+    view |> element("#toggle-preview") |> render_click()
     assert view |> element("#wiki-main") |> render() =~ "Unsaved words"
   end
 
