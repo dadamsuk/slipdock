@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
   @moduledoc """
-  The voiceprint tab, there only while an admin has voiceprints on (see
+  Account › Voiceprint, there only while an admin has voiceprints on (see
   `Slipdock.Meetings.Voiceprints`): the person's own voiceprint, the consent
   wording they agree to, enrolling from a recording of their own or from a
   meeting where their voice was confirmed, and deleting it. Everything here
@@ -113,7 +113,6 @@ defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
         class="space-y-4 rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
         <div>
-          <h2 class="section-title">Voiceprint</h2>
           <p class="text-sm text-base-content/60">
             Optional, and only yours to decide. A voiceprint helps meeting capture suggest when it was
             you speaking; the suggestion is shown as evidence and can be corrected. Only numbers made

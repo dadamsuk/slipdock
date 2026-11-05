@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.AccountLive.DataComponent do
   @moduledoc """
-  The Import & export tab: work leaving and work arriving — the whole-account
+  Account › Import & export: work leaving and work arriving — the whole-account
   zip, and boards as files another Slipdock can read.
   """
   use SlipdockWeb, :live_component

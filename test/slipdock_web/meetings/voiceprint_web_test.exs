@@ -206,10 +206,11 @@ defmodule SlipdockWeb.Meetings.VoiceprintWebTest do
     end
   end
 
-  describe "the account tab" do
+  describe "the account's Voiceprint section" do
     test "isn't there while voiceprints are off", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/account")
+      {:ok, view, html} = live(conn, ~p"/account")
       refute html =~ "/account/voiceprint"
+      refute has_element?(view, "#account-nav a", "Voiceprint")
       assert_raise SlipdockWeb.MeetingsOff, fn -> live(conn, ~p"/account/voiceprint") end
     end
 
@@ -218,11 +219,21 @@ defmodule SlipdockWeb.Meetings.VoiceprintWebTest do
       user: user
     } do
       voiceprints_on()
-      {:ok, _view, html} = live(conn, ~p"/account")
-      assert html =~ "/account/voiceprint"
+      {:ok, view, _html} = live(conn, ~p"/account")
+      assert has_element?(view, ~s{#account-nav a[href="/account/voiceprint"]}, "Voiceprint")
+      assert has_element?(view, ~s{#account-picker a[href="/account/voiceprint"]}, "Voiceprint")
 
       {:ok, view, html} = live(conn, ~p"/account/voiceprint")
       assert html =~ Voiceprints.wording()
+      assert has_element?(view, ~s{#account-nav a[aria-current="page"]}, "Voiceprint")
+      # The frame heads the section; the component no longer says it twice.
+      titles =
+        html
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query("h2")
+        |> Enum.map(&(&1 |> LazyHTML.text() |> String.trim()))
+
+      assert Enum.count(titles, &(&1 == "Voiceprint")) == 1
 
       upload = fn ->
         view

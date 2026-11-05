@@ -31,9 +31,13 @@ defmodule SlipdockWeb.PageFrameLiveTest do
     {"/boards/:id/tidy", "Tidy up", "standard"},
     {"/boards/:id/visualise", "Visualise", "full"},
     {"/help", "Help", "standard"},
-    {"/account", "Account", "narrow"},
-    {"/account/settings", "Account", "narrow"},
-    {"/account/tokens", "Account", "narrow"}
+    # The settings layout (#1737): a side nav beside a narrow content column.
+    {"/account", "Account", "standard"},
+    {"/account/settings", "Account", "standard"},
+    {"/account/sign-in", "Account", "standard"},
+    {"/account/tokens", "Account", "standard"},
+    {"/account/agent", "Account", "standard"},
+    {"/account/data", "Account", "standard"}
   ]
 
   @admin_pages [
@@ -100,12 +104,13 @@ defmodule SlipdockWeb.PageFrameLiveTest do
       assert has_element?(view, "[data-role=page-actions] #new-template", "New template")
     end
 
-    test "Account's first tab is Profile, so Account is said once", %{conn: conn} do
+    test "Account's first section is Profile, so Account is said once", %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/account")
 
       assert has_element?(view, "h1", "Account")
-      assert has_element?(view, "#account-tabs a[href='/account']", "Profile")
-      refute has_element?(view, "#account-tabs a", "Account")
+      assert has_element?(view, "#account-nav a[href='/account']", "Profile")
+      refute has_element?(view, "#account-nav a", "Account")
+      assert has_element?(view, "#account-content [data-role=settings-section-title]", "Profile")
     end
 
     test "a saved multiboard is titled with its name and keeps the title's id", %{conn: conn} do

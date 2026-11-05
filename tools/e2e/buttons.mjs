@@ -84,11 +84,15 @@ for (const scheme of ['light', 'dark']) {
   if (save.bg !== save.primary) fail(`${scheme}: Save is ${save.bg}, not the solid primary ${save.primary}`)
   if (save.fg !== save.primaryContent) fail(`${scheme}: Save's label is ${save.fg}, not primary-content`)
   r.profile = await beside(`${scheme} Account → Profile`, '#profile-form button[type=submit]', '#profile-form input[type=text]')
+  if (await outlines()) fail(`${scheme}: Account still has btn-outline`)
+  await shot(`account-${scheme}`, '#profile-form')
+
+  // Sign out lives in Account → Sign-in & passkeys (#1737).
+  await open('/account/sign-in', scheme)
   const signOut = await look('a[href="/logout"].btn')
   if (signOut.border === signOut.text) fail(`${scheme}: Sign out still draws a base-content border`)
   if (signOut.borderWidth !== 1) fail(`${scheme}: Sign out's border is ${signOut.borderWidth}px, not a 1px hairline`)
-  if (await outlines()) fail(`${scheme}: Account still has btn-outline`)
-  await shot(`account-${scheme}`, '#profile-form')
+  if (await outlines()) fail(`${scheme}: Sign-in & passkeys still has btn-outline`)
 
   await open('/account/data', scheme)
   const tint = await look('.btn-secondary')

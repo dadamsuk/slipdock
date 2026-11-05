@@ -194,7 +194,7 @@ way in: what it is, the pictures, and how to get it running.
 - **Quick add in the header** of every page (or press `c`): one line of
   plain English — "call the printers about the banners friday, urgent" —
   read by a cheap model into a card on your default board and list, both
-  set under Account › Settings
+  set under Account › Preferences
 - **Deep search and Ask** — one page over every board at once, in two modes.
   *Search* matches by meaning rather than substring: cards, comments and status
   updates are embedded, so "the thing that was blocked on legal" finds the card
@@ -2105,8 +2105,8 @@ The **avatar menu** is in sections, and marks the page you are on:
   Search, Ask and Favourites are not repeated here: they are in the header
   beside it.
 - **Set up**: Templates, Groups, Tools, Set up an agent.
-- **You**: **Account & settings** (one entry: Settings, API tokens, Import &
-  export and the rest are tabs on the Account page), Help, and the theme as a
+- **You**: **Account & settings** (one entry: Preferences, API tokens, Import &
+  export and the rest are sections in the Account page's side nav), Help, and the theme as a
   row of three buttons — system, light, dark.
 - **Admin**, for admins only: Overview, Users, Tool listings and
   Configuration, folded into one group that opens by itself on its own pages.
@@ -2240,7 +2240,7 @@ where it went, with a link to the page; the box empties, ready for the next one.
 - **The place** is the folder of your wiki the model thinks fits best, by what the note is
   about. It may add one new folder beneath an existing one, never a new top-level folder, and
   only somewhere you can write. If its first answer can't be used it is asked once more.
-- **Your settings** (Account → Settings → Quick notes) pick a location in your wiki.
+- **Your settings** (Account → Preferences → Quick notes) pick a location in your wiki.
   The location is where a note goes when the model can't place it, and the save says so.
   With nothing set, it is the top of your Knowledge Base.
 - **No model, or one that fails:** the note is still saved, at your location, named after
@@ -2435,7 +2435,7 @@ giving it one takes the digit off whichever board had it. Set both under
 Boards you go to all day, and your wiki, can be pinned to the header, at the
 top right of every page just left of the quick add button, each as an icon
 you choose (the same set wiki folders and pages wear); hover one for its name.
-Pin them under *Header links* in [Account › Settings](/account/settings):
+Pin them under *Header links* in [Account › Preferences](/account/settings):
 choose the board (or your wiki) and its icon, then *Pin to header*. The arrows move
 one along and *Remove* unpins it. Up to eight; pinning one already pinned
 changes its icon.
@@ -2571,7 +2571,7 @@ the line names one, all come out of it; what it understood is shown as
 chips beside the card it made, with a link to open it. Only boards you
 can write to, and their own lists and tags, can be chosen — a name the
 model invents is dropped rather than created. If the model is off (the
-checkbox on Account › *Settings*) or unreachable, the typed syntax above is
+checkbox on Account › *Preferences*) or unreachable, the typed syntax above is
 still read, and the card still goes in.
 
 The code lives in `Slipdock.QuickAdd.Capture` (the catalogue of what may be
@@ -2667,7 +2667,7 @@ history says it came by email (`By email from <you>`).
 **The personal address reads the subject as Quick Add does**: `Renew the cert
 due: friday #high @dan`, `#todo` for a list, `every:`, `snooze:` and `; a
 comment`, and the model when it is on. With no board named the card goes to
-your Quick Add default (Account › *Settings*). Name one with `[Board] Title`
+your Quick Add default (Account › *Preferences*). Name one with `[Board] Title`
 — by name or code, the way a mail filter writes it — or in words the model
 reads ("… on the website board").
 
@@ -2692,7 +2692,7 @@ Automatic mail — auto-replies, bulk and list mail, anything that says
 `Auto-Submitted` — is ignored rather than bounced, so two systems can't
 answer each other forever.
 
-**Did it arrive?** Account › *Email Log* (`/account/email-log`; also `slipdock inbound log` and
+**Did it arrive?** Account › *Email log* (`/account/email-log`; also `slipdock inbound log` and
 `GET /api/inbound/log`) lists your last 50 messages: what each made, or why it
 bounced or was ignored.
 
@@ -3669,7 +3669,7 @@ discarded it. **Discard** decides against a capture without writing anything.
 Configuration → **Meetings** (or `slipdock admin set meetings_…=…`):
 `meetings_enabled`; where it shows — `meetings_visibility=used_only` (a
 board's tab appears after its first capture) or `every_board`; whether people
-may hide it for themselves (`meetings_hideable`, then Account → Settings →
+may hide it for themselves (`meetings_hideable`, then Account → Preferences →
 Display); what may be sent (`meetings_accept_transcripts`, `…_audio`,
 `…_findings`); and which models read a meeting (`meetings_reading_model`, empty
 for each person's own; `meetings_second_reading=off|same|model` (off by
@@ -4716,7 +4716,7 @@ cursor, so it knows when to ask. The log keeps 90 days
 older than that, the feed answers `resync: true` and the current cursor,
 which means list the wiki again rather than trust the gap.
 
-**Names in trees and lists.** Account › Settings, or the button at the top
+**Names in trees and lists.** Account › Preferences, or the button at the top
 of the tree, chooses full titles or short names for the wiki's tree, card
 folders and breadcrumbs. It is yours, everywhere you sign in, and
 `slipdock names short` or `PUT /api/me/display` set the same thing. A card
@@ -4955,7 +4955,7 @@ has the detail); editing the tags by hand doesn't.
 
 To make it play:
 
-1. **Connect Google Drive** on **Account → Settings** (read-only). The
+1. **Connect Google Drive** on **Account → Preferences** (read-only). The
    section is only there when the server has a Google client (see the
    README).
 2. **Set your wiki's recordings folder** on Wiki settings (e.g.
@@ -5101,8 +5101,8 @@ The bar names the problem:
 | It says | Fix |
 | --- | --- |
 | Google Drive isn't set up on this server (`not_configured`) | The admin sets `GOOGLE_CLIENT_ID`/`SECRET` (README, *Google Drive*). |
-| Google Drive isn't connected (`not_connected`) | The wiki's owner connects Drive on **Account → Settings**. |
-| Drive access was revoked (`revoked`) | Connect again on **Account → Settings** (weekly, in Google's Testing mode). |
+| Google Drive isn't connected (`not_connected`) | The wiki's owner connects Drive on **Account → Preferences**. |
+| Drive access was revoked (`revoked`) | Connect again on **Account → Preferences** (weekly, in Google's Testing mode). |
 | No recordings folder set (`no_folder`) | The wiki's owner sets it in Wiki settings, or `slipdock wiki set --recordings-folder PATH`. |
 | This page is in nobody's wiki (`no_vault`) | Its board has no owner; give it one. |
 | Not in the wiki's recordings folder (`outside_folder`) | Move the file under that folder, or fix the `recording:` path (from the root of My Drive). |
@@ -5301,7 +5301,7 @@ within 15 minutes; using one signs you in for 30 days on that browser. The code
 exists for the times the link cannot be clicked — read out of a log, typed from
 a phone.
 
-**Passkeys.** Once signed in, add a passkey under **Account → Passkeys** (or, when
+**Passkeys.** Once signed in, add a passkey under **Account → Sign-in & passkeys** (or, when
 finishing an email sign-in, press **Sign in and set up a passkey** under the
 **Sign in** button to land straight there): name
 it, press **Add a passkey**, and unlock the device the browser asks for (a
@@ -5327,23 +5327,30 @@ Every board has an owner, fixed when it is made: the board settings form and
 owner is open to nobody rather than to everybody. Ownership moves only when an
 account is deleted and its boards are handed over.
 
-**Your own four pages**, under the avatar menu's **Account & settings** and tabbed across the top of
-each other, because one long scroll had the display name, the AI key and a
-board importer on it and nothing told you which was which:
+**Your own pages**, under the avatar menu's **Account & settings**: one page
+per section, listed in a side nav on the left (on a phone, a picker at the top
+that opens onto the same list), because one long scroll had the display name,
+the AI key and a board importer on it and nothing told you which was which.
+The current section is marked in the nav and named again over its content:
 
-- **Account** (`/account`) — your display name, how many cards you have used
-  against the limit if there is one, every time an admin has been let into
-  your boards and why, your passkeys, your personal address for [emailing
-  cards in](#emailing-your-board), signing out, and the licence.
-- **Settings** (`/account/settings`) — the dials: where quick add puts a card,
-  whether the line is read by a model, and your OpenRouter key.
+- **Profile** (`/account`) — your display name and timezone, how many cards you
+  have used against the limit if there is one, every time an admin has been let
+  into your boards and why, your personal address for [emailing
+  cards in](#emailing-your-board), and the licence.
+- **Preferences** (`/account/settings`) — the dials: where quick add puts a card,
+  whether the line is read by a model, your AI model, what is on show, header
+  links and Google Drive.
+- **Sign-in & passkeys** (`/account/sign-in`) — your passkeys, and signing out.
 - **API tokens** (`/account/tokens`) — make, inspect and revoke the tokens the
   CLI and agents sign in with.
-- **Email Log** (`/account/email-log`, only while the server receives mail)
-  — your last 50 messages to its inbound addresses, and what each one made
-  or why it bounced or was ignored; also `slipdock inbound log`.
+- **Set up an agent** (`/account/agent`) — pointing Claude, ChatGPT or another
+  agent at this server.
 - **Import & export** (`/account/data`) — everything you have as a zip, and
   boards as files another Slipdock can read back.
+- **Voiceprint** (`/account/voiceprint`, only while an admin has voiceprints on).
+- **Email log** (`/account/email-log`, only while the server receives mail)
+  — your last 50 messages to its inbound addresses, and what each one made
+  or why it bounced or was ignored; also `slipdock inbound log`.
 
 **Setting the server up.** A server nobody has claimed shows a setup wizard and
 sends every other page to it. It asks who may register, how mail goes out and
@@ -5703,7 +5710,7 @@ In development the server binds to this machine's Tailscale IPv4 (found via
 `SLIPDOCK_BIND_IP=127.0.0.1` (loopback), and `PORT` to change the port.
 
 The AI features run on **each person's own key, or their own endpoint**, set
-under **Account → Settings → AI model** in the web UI (`slipdock ai-key <key>`
+under **Account → Preferences → AI model** in the web UI (`slipdock ai-key <key>`
 and `slipdock ai-endpoint <url>` from the CLI, `mix slipdock.ai_key <email>
 <key>` on the server). Both are kept in one JSON file, `ai_keys.json` in the
 app's directory, `0600`, outside the database — `SLIPDOCK_AI_KEY_FILE` moves
@@ -5716,7 +5723,7 @@ the rest stay hidden, and `/api/ask` says what is missing.
 Everything here speaks the OpenAI-compatible `/chat/completions` API, which is
 what OpenRouter speaks and so does every local model server — **LM Studio**,
 **Ollama**, **llama.cpp**'s server, **vLLM** — as well as most company
-gateways. Point *Account → Settings → AI model* at one:
+gateways. Point *Account → Preferences → AI model* at one:
 
 | Field | What it is |
 | --- | --- |

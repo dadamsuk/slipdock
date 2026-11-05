@@ -77,7 +77,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
       other = user_fixture("passkey-live-other@example.com")
       add_passkey(other, "Their phone")
 
-      {:ok, view, html} = live(conn, ~p"/account")
+      {:ok, view, html} = live(conn, ~p"/account/sign-in")
       assert html =~ "Passkeys"
       assert has_element?(view, "#passkeys li", "Work laptop")
       assert has_element?(view, "#passkeys li", "not used yet")
@@ -85,12 +85,12 @@ defmodule SlipdockWeb.PasskeysLiveTest do
     end
 
     test "says so when there are none", %{conn: conn} do
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/sign-in")
       assert has_element?(view, "#passkeys-empty[data-empty-state=compact] h3", "No passkeys yet")
     end
 
     test "the add form appears only where the browser can make passkeys", %{conn: conn} do
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/sign-in")
       refute has_element?(view, "#passkey-add-form")
       refute has_element?(view, "#passkeys-unsupported")
 
@@ -104,7 +104,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
     end
 
     test "once the hook has added one, the list shows it with a flash", %{conn: conn, user: user} do
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/sign-in")
 
       # The hook posts to the controller, then tells the page.
       add_passkey(user, "Desk key")
@@ -115,7 +115,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
     end
 
     test "a failure reported by the hook is a flash", %{conn: conn} do
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/sign-in")
 
       view
       |> element("#passkeys")
@@ -126,7 +126,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
 
     test "removes one after asking", %{conn: conn, user: user} do
       passkey = add_passkey(user, "Old phone")
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/sign-in")
 
       button = element(view, "#passkey-#{passkey.id} button", "Remove")
       assert render(button) =~ "data-confirm"
@@ -140,7 +140,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
     test "cannot remove somebody else's, or a nonsense id", %{conn: conn} do
       other = user_fixture("passkey-live-victim@example.com")
       theirs = add_passkey(other, "Not yours")
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/sign-in")
 
       view
       |> element("#passkeys")
@@ -155,7 +155,7 @@ defmodule SlipdockWeb.PasskeysLiveTest do
 
     test "at the cap, the form gives way to a sentence", %{conn: conn, user: user} do
       for i <- 1..Passkeys.max_per_user(), do: add_passkey(user, "Key #{i}")
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/sign-in")
       view |> element("#passkeys") |> render_hook("passkey_support", %{"supported" => true})
 
       refute has_element?(view, "#passkey-add-form")

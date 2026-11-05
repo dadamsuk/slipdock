@@ -24,18 +24,18 @@ defmodule SlipdockWeb.PasskeyNudgeTest do
     assert Accounts.magic_link_valid?(token)
   end
 
-  test "pressing it signs in and lands on the passkeys section of the account page", %{
+  test "pressing it signs in and lands on the passkeys in Account › Sign-in & passkeys", %{
     conn: conn,
     user: user
   } do
     token = Accounts.create_sign_in_token(user)
     conn = post(conn, ~p"/login/#{token}", %{"then" => "passkey"})
 
-    assert redirected_to(conn) == "/account#passkeys"
+    assert redirected_to(conn) == "/account/sign-in#passkeys"
     assert get_session(conn, :user_token)
     refute Accounts.magic_link_valid?(token)
 
-    {:ok, _view, html} = conn |> recycle() |> live(~p"/account")
+    {:ok, _view, html} = conn |> recycle() |> live(~p"/account/sign-in")
     assert html =~ ~s(id="passkeys")
   end
 
@@ -50,7 +50,7 @@ defmodule SlipdockWeb.PasskeyNudgeTest do
       |> init_test_session(%{user_return_to: "/boards"})
       |> post(~p"/login/#{token}", %{"then" => "passkey"})
 
-    assert redirected_to(conn) == "/account#passkeys"
+    assert redirected_to(conn) == "/account/sign-in#passkeys"
   end
 
   test "the plain button still goes where it did", %{conn: conn, user: user} do

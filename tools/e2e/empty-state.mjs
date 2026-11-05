@@ -25,7 +25,7 @@ const pages = [
   ['tools-listed', '/tools', '#tools-listed-empty', 'compact', 'None listed on this server', null, null],
   ['groups', '/groups', '#groups-empty', 'full', 'No groups yet', 'Create group', 'main'],
   ['tokens', '/account/tokens', '#tokens-empty', 'compact', 'No tokens yet', 'Create token', 'main'],
-  ['passkeys', '/account', '#passkeys-empty', 'compact', 'No passkeys yet', 'Add a passkey', '#passkeys'],
+  ['passkeys', '/account/sign-in', '#passkeys-empty', 'compact', 'No passkeys yet', 'Add a passkey', '#passkeys'],
   ['activity', `/boards/${board}/activity`, '#activity-empty', 'compact', 'Nothing has happened yet', null, '#activity-modal'],
   ['history', `/boards/${board}/wiki/${slug}/history`, '#history-empty', 'full', 'No versions yet', null, 'main'],
   ['signups', '/users/signups', '#signups-empty', 'compact', 'Nobody is waiting', null, 'main'],

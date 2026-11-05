@@ -42,7 +42,7 @@ try {
   if (await confirm.count()) await Promise.all([page.waitForNavigation(), confirm.click()])
 
   // Adding one.
-  await page.goto(`${base}/account`, { waitUntil: 'networkidle' })
+  await page.goto(`${base}/account/sign-in`, { waitUntil: 'networkidle' })
   await connected()
   await page.waitForSelector('#passkey-add-form', { timeout: 8000 }).catch(() => fail('no add form: the hook did not say the browser can'))
   await page.fill('#passkey-add-form input[name=name]', 'E2E key')
@@ -68,7 +68,7 @@ try {
   await flash('Welcome back')
   ok(`signed in with the passkey, landed on ${new URL(page.url()).pathname}`)
 
-  await page.goto(`${base}/account`, { waitUntil: 'networkidle' })
+  await page.goto(`${base}/account/sign-in`, { waitUntil: 'networkidle' })
   await connected()
   await page.locator('#passkeys li', { hasText: 'used' }).filter({ hasNotText: 'not used yet' }).waitFor({ timeout: 8000 })
     .catch(() => fail('the passkey does not say it was used'))

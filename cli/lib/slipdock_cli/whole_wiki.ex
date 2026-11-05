@@ -375,10 +375,10 @@ defmodule SlipdockCLI.WholeWiki do
           "Google Drive: connected" <> if(d["email"], do: " as #{d["email"]}", else: "")
 
         "revoked" ->
-          "Google Drive: no longer accepted by Google — connect again (Account → Settings)"
+          "Google Drive: no longer accepted by Google — connect again (Account → Preferences)"
 
         "not_connected" ->
-          "Google Drive: not connected — connect it on Account → Settings"
+          "Google Drive: not connected — connect it on Account → Preferences"
 
         _ ->
           "Google Drive: not set up on this server"

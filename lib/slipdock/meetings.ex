@@ -28,7 +28,7 @@ defmodule Slipdock.Meetings do
   and does not use the transcription server, so it is not gated this way.
 
   And `meetings_hideable` lets each person put it out of sight for themselves
-  (Account › Settings › Display). That is a display preference: the API and
+  (Account › Preferences › Display). That is a display preference: the API and
   the CLI answer the same either way.
 
   Whether a board has had a capture is a column on the board

@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.InboundOff do
   @moduledoc """
-  Raised by the account's Email Log tab while inbound mail is off (see
+  Raised by the account's Email log section while inbound mail is off (see
   `Slipdock.Inbound.enabled?/0`). A 404, the same as a page that does not
   exist: with no mail coming in there is no log to show.
   """

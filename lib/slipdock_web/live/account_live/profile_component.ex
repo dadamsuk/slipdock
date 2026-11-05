@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.AccountLive.ProfileComponent do
   @moduledoc """
-  The Account tab: who you are, what you have used, who has been let in, and
-  the way out.
+  Account › Profile: who you are, what you have used and who has been let
+  in. Passkeys and signing out are in Sign-in & passkeys (#1737).
   """
   use SlipdockWeb, :live_component
   alias SlipdockWeb.Dates
@@ -113,7 +113,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
     ~H"""
     <div class="space-y-8">
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="section-title">Profile</h2>
+        <%!-- The frame heads this section "Profile" already. --%>
         <p class="text-sm text-base-content/60">Signed in as {@current_user.email}</p>
         <.form
           for={@profile_form}
@@ -232,27 +232,11 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
       </section>
 
       <.live_component
-        module={SlipdockWeb.AccountLive.PasskeysComponent}
-        id="account-passkeys"
-        current_user={@current_user}
-      />
-
-      <.live_component
         :if={Slipdock.Inbound.enabled?()}
         module={SlipdockWeb.InboundAddressesComponent}
         id="account-inbound"
         current_user={@current_user}
       />
-
-      <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <h2 class="section-title">Session</h2>
-        <p class="text-sm text-base-content/60">
-          Signing in, by link or passkey, keeps you signed in for 30 days on this browser.
-        </p>
-        <.link href={~p"/logout"} method="delete" class="btn btn-sm mt-4">
-          <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Sign out
-        </.link>
-      </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
         <h2 class="section-title">About</h2>

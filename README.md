@@ -789,7 +789,7 @@ an OAuth client you make once:
 
    Unlike the settings above, these are read on every start. Unset, the Drive
    connection isn't offered at all.
-3. People connect Drive on **Account → Settings**, and set their wiki's
+3. People connect Drive on **Account → Preferences**, and set their wiki's
    recordings folder in Wiki settings (or `slipdock wiki set
    --recordings-folder PATH`).
 
