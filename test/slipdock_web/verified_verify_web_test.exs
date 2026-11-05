@@ -137,13 +137,13 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
       mcp(ctx.checker, "verify_card", %{
         card: ctx.card.id,
         decision: "reject",
-        reason: "Fails on empty"
+        reason: "bar 1: Fails on empty"
       })
 
     assert result["isError"] == false
     card = Repo.get!(Card, ctx.card.id)
     assert card.verify_state == "rejected"
-    assert card.verify_note == "Fails on empty"
+    assert card.verify_note == "bar 1: Fails on empty"
   end
 
   test "the card panel offers Accept and Reject on a pending card, and a person decides", ctx do
@@ -301,7 +301,10 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
 
     json =
       ctx.checker
-      |> post(~p"/api/cards/#{ctx.card.id}/verify", %{"decision" => "reject", "reason" => "No"})
+      |> post(~p"/api/cards/#{ctx.card.id}/verify", %{
+        "decision" => "reject",
+        "reason" => "bar 1: No"
+      })
       |> json_response(200)
 
     assert json["card"]["verify_rejections"] == 1

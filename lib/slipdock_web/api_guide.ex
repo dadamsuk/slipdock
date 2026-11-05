@@ -3638,7 +3638,11 @@ defmodule SlipdockWeb.APIGuide do
     --evidence-commit SHA`, `POST /api/cards/:id/verify {"decision":
     "accept"|"reject", "reason": "…", "commit": "…"}`). Accepting completes
     it and moves it to the done list. Rejecting needs the reason, citing the check it fails (`bar 2: …`,
-    `the ask: …`, a rule id such as `ARCH-3: …`, or `Handbook line: …`): it goes
+    `the ask: …`, a rule id such as `ARCH-3: …`, or `Handbook line: …`) and
+    giving the verdict in parts as `checks` (`ask=ok|misses`, `bar:2=fail:why`,
+    `suite=412:0`, `rule:UX-4=broken`, `handbook_line=ok|disputed`; kept as
+    `verify_checks`, and refused without a failing part, or on an accept
+    with a broken `must` rule): it goes
     on the card as a comment and in `get_card`'s `rejection` (a claimed
     job's prompt carries it too; the handoff only points there), the
     evidence is cleared, the builder's own assignment comes off, its

@@ -322,7 +322,13 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       in_job = %{ctx.checker | via: "cli", agent: "slipdock CLI on box", job_id: ctx.verify_job}
 
       {:ok, card} =
-        Verified.decide(ctx.verifying, "reject", %{"reason" => "no tests"}, in_job, ctx.user)
+        Verified.decide(
+          ctx.verifying,
+          "reject",
+          %{"reason" => "bar 1: no tests"},
+          in_job,
+          ctx.user
+        )
 
       assert Enum.any?(comments(card), &(&1 =~ "**Rejected** by runner verifier."))
       refute Enum.any?(comments(card), &(&1 =~ "slipdock CLI on box"))
@@ -345,7 +351,7 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       |> put_req_header("x-slipdock-job", "#{ctx.verify_job}")
       |> post(~p"/api/cards/#{ctx.verifying.id}/verify", %{
         "decision" => "reject",
-        "reason" => "no"
+        "reason" => "bar 1: no"
       })
       |> json_response(200)
 
@@ -358,14 +364,20 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       in_job = %{ctx.checker | job_id: elsewhere.id}
 
       {:ok, card} =
-        Verified.decide(ctx.verifying, "reject", %{"reason" => "no"}, in_job, ctx.user)
+        Verified.decide(ctx.verifying, "reject", %{"reason" => "bar 1: no"}, in_job, ctx.user)
 
       assert Enum.any?(comments(card), &(&1 =~ "**Rejected** by agent “checker”."))
     end
 
     test "no job is the token's label, as before", ctx do
       {:ok, card} =
-        Verified.decide(ctx.verifying, "reject", %{"reason" => "no"}, ctx.checker, ctx.user)
+        Verified.decide(
+          ctx.verifying,
+          "reject",
+          %{"reason" => "bar 1: no"},
+          ctx.checker,
+          ctx.user
+        )
 
       assert Verified.who(card.verify_by) == "agent “checker”"
     end

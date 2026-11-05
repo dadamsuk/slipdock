@@ -61,7 +61,7 @@ defmodule Slipdock.PendingReleaseTest do
       Verified.decide(
         Repo.get!(Card, card.id),
         "reject",
-        %{"reason" => "The empty case fails"},
+        %{"reason" => "bar 1: The empty case fails"},
         ctx.checker,
         ctx.owner
       )

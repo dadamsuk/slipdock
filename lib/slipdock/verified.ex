@@ -548,11 +548,87 @@ defmodule Slipdock.Verified do
          "the evidence is for commit #{card.evidence_commit}: verify the work at that commit"}
 
       true ->
-        with {:ok, _} = decided <-
-               apply_decision(card, decision, %{reason: reason, commit: commit}, actor, user) do
+        with {:ok, checks} <- verdict(card, decision, params, reason, actor),
+             {:ok, _} = decided <-
+               apply_decision(
+                 card,
+                 decision,
+                 %{reason: reason, commit: commit, checks: checks},
+                 actor,
+                 user
+               ) do
           cancel_verify_jobs(card, actor)
           decided
         end
+    end
+  end
+
+  # The decision's verdict in parts (#1778), from `params["checks"]`, or for
+  # a rejection given none, the checks its reason cites (`bar 2: …`). A
+  # rejection names at least one failing part (a person's, given no parts at
+  # all, may stand on its reason); an acceptance carries none but a missed
+  # `should` rule. nil when there are no parts to keep.
+  defp verdict(card, decision, params, reason, actor) do
+    alias Slipdock.Verified.Checks
+
+    with {:ok, given} <- checks_param(params) do
+      checks =
+        if given == %{} and decision == "reject", do: Checks.from_reason(reason), else: given
+
+      checks = Checks.with_severity(checks, handbook_rules(card))
+      # A person's rejection, given no parts at all, may stand on its reason.
+      must_fail = given != %{} or gated?(actor)
+
+      with :ok <- verdict_holds(decision, checks, must_fail) do
+        {:ok, stored_checks(checks, given)}
+      end
+    end
+  end
+
+  defp verdict_holds("reject", checks, true) do
+    if Slipdock.Verified.Checks.failing(checks) == [],
+      do:
+        {:error, :unprocessable_entity,
+         "a rejection names what fails: give a failing check (`--check bar:2=fail:why`, " <>
+           "`rule:UX-4=broken`, `ask=misses`, `handbook_line=disputed`), or start the reason " <>
+           "with the one it fails (`bar 2: …`, `the ask: …`, `UX-4: …`, `Handbook line: …`)"},
+      else: :ok
+  end
+
+  defp verdict_holds("accept", checks, _must_fail) do
+    case Slipdock.Verified.Checks.blocking(checks) do
+      [] ->
+        :ok
+
+      blocking ->
+        {:error, :unprocessable_entity,
+         "an acceptance can't carry a failing check: " <>
+           Enum.join(blocking, ", ") <>
+           " (a broken `must` rule, a bar item, the ask, the suite or the Handbook line is a rejection)"}
+    end
+  end
+
+  defp verdict_holds(_decision, _checks, _must_fail), do: :ok
+
+  # nil when there are no parts; parts read from the reason are marked, as
+  # the comment already says them.
+  defp stored_checks(checks, _given) when checks == %{}, do: nil
+  defp stored_checks(checks, given) when given == %{}, do: Map.put(checks, "from_reason", true)
+  defp stored_checks(checks, _given), do: checks
+
+  defp checks_param(params) do
+    case Slipdock.Verified.Checks.parse(Map.get(params, "checks")) do
+      {:ok, _} = ok -> ok
+      {:error, message} -> {:error, :unprocessable_entity, message}
+    end
+  end
+
+  # The handbook's rules for the card's tree, for the severity of each rule
+  # a verdict names; none without a handbook.
+  defp handbook_rules(card) do
+    case card |> board() |> Slipdock.Handbook.find() do
+      nil -> []
+      handbook -> Slipdock.Handbook.Rules.rules(handbook)
     end
   end
 
@@ -574,14 +650,27 @@ defmodule Slipdock.Verified do
     end
   end
 
-  defp apply_decision(card, "accept", %{reason: note, commit: commit}, actor, user) do
+  defp apply_decision(
+         card,
+         "accept",
+         %{reason: note, commit: commit, checks: checks},
+         actor,
+         user
+       ) do
     if Board.ships_by_pr?(board(card)),
-      do: accept_to_merge(card, note, commit, actor, user),
-      else: accept_and_complete(card, note, commit, actor, user)
+      do: accept_to_merge(card, note, commit, checks, actor, user),
+      else: accept_and_complete(card, note, commit, checks, actor, user)
   end
 
-  defp apply_decision(card, "reject", %{reason: reason, commit: commit}, actor, user) do
+  defp apply_decision(
+         card,
+         "reject",
+         %{reason: reason, commit: commit, checks: checks},
+         actor,
+         user
+       ) do
     changes = [
+      verify_checks: checks,
       verify_state: "rejected",
       verify_by: actor_map(actor),
       verify_note: reason,
@@ -599,14 +688,15 @@ defmodule Slipdock.Verified do
              verify_changes: changes
            ) do
       by = who(actor, user)
-      comment(card, "**Rejected** by #{by}.", reason, user)
+      comment(card, "**Rejected** by #{by}.", with_parts(reason, checks), user)
       send_back(card, "Rework: rejected by #{by}, reason under Verification", actor, user)
     end
     |> api_error()
   end
 
-  defp accept_and_complete(card, note, commit, actor, user) do
+  defp accept_and_complete(card, note, commit, checks, actor, user) do
     changes = [
+      verify_checks: checks,
       verify_state: "accepted",
       verify_by: actor_map(actor),
       verify_note: blank_to_nil(note),
@@ -622,7 +712,7 @@ defmodule Slipdock.Verified do
              by: user,
              verify_changes: changes
            ) do
-      comment(card, "**Accepted** by #{who(actor, user)}.", note, user)
+      comment(card, "**Accepted** by #{who(actor, user)}.", with_parts(note, checks), user)
       done = card |> board() |> Repo.preload(:columns) |> Map.get(:columns) |> done_list()
 
       if done && done.id != card.column_id,
@@ -672,8 +762,9 @@ defmodule Slipdock.Verified do
 
   # Accepted on a board that ships by pull request: the card waits, merging,
   # while a runner merges its pull request; the merge finishing completes it.
-  defp accept_to_merge(card, note, commit, actor, user) do
+  defp accept_to_merge(card, note, commit, checks, actor, user) do
     changes = [
+      verify_checks: checks,
       verify_state: "merging",
       verify_by: actor_map(actor),
       verify_note: blank_to_nil(note),
@@ -690,7 +781,7 @@ defmodule Slipdock.Verified do
       comment(
         card,
         "**Accepted** by #{who(actor, user)}; merging #{card.evidence_pr || "its pull request"}.",
-        note,
+        with_parts(note, checks),
         user
       )
 
@@ -1253,8 +1344,9 @@ defmodule Slipdock.Verified do
     #{check_step(card, board)}
     #{judging |> Enum.with_index(3) |> Enum.map_join("\n", fn {text, n} -> "#{n}. #{text}" end)}
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
-       - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn"`
-       - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically"`
+       - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
+       - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically" --check bar:2=fail:"why" …`
+    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a`, `handbook_line=ok|disputed`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
     A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
     """
   end
@@ -1358,6 +1450,25 @@ defmodule Slipdock.Verified do
 
   defp api_error({:error, %Ecto.Changeset{} = cs}), do: {:error, cs}
   defp api_error(other), do: other
+
+  # The decision's comment keeps its verdict in parts (#1778), so a later
+  # decision replacing `verify_checks` loses nothing.
+  defp with_parts(note, nil), do: note
+  defp with_parts(note, %{"from_reason" => true}), do: note
+
+  defp with_parts(note, checks) do
+    parts =
+      checks
+      |> Slipdock.Verified.Checks.lines()
+      |> Enum.map_join("\n", fn
+        {label, result, nil} -> "- #{label}: #{result}"
+        {label, result, why} -> "- #{label}: #{result} — #{why}"
+      end)
+
+    [note, "Checks:\n\n" <> parts]
+    |> Enum.reject(&Enum.member?([nil, ""], &1))
+    |> Enum.join("\n\n")
+  end
 
   defp comment(card, line, note, user) do
     body = if note in [nil, ""], do: line, else: "#{line}\n\n#{note}"

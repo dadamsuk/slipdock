@@ -144,14 +144,14 @@ defmodule Slipdock.VerifiedVerifyTest do
                Verified.decide(
                  card,
                  "reject",
-                 %{"reason" => "The empty list case fails\nSee the log"},
+                 %{"reason" => "bar 1: The empty list case fails\nSee the log"},
                  ctx.checker,
                  ctx.owner
                )
 
       refute card.completed
       assert card.verify_state == "rejected"
-      assert card.verify_note == "The empty list case fails\nSee the log"
+      assert card.verify_note == "bar 1: The empty list case fails\nSee the log"
       assert card.evidence == nil and card.evidence_commit == nil
       refute "review" in card.flags
 
@@ -176,7 +176,7 @@ defmodule Slipdock.VerifiedVerifyTest do
       assert again.verify_state == "pending"
 
       {:ok, again} =
-        Verified.decide(again, "reject", %{"reason" => "Still"}, ctx.checker, ctx.owner)
+        Verified.decide(again, "reject", %{"reason" => "bar 1: Still"}, ctx.checker, ctx.owner)
 
       assert again.verify_rejections == 2
     end

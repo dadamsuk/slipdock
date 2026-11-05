@@ -55,14 +55,14 @@ defmodule SlipdockWeb.VerifiedReworkMCPTest do
       Verified.decide(
         Repo.get!(Card, ctx.card.id),
         "reject",
-        %{"reason" => "The empty list case fails"},
+        %{"reason" => "bar 1: The empty list case fails"},
         ctx.checker,
         ctx.owner
       )
 
     assert %{
              "rejection" => %{
-               "reason" => "The empty list case fails",
+               "reason" => "bar 1: The empty list case fails",
                "by" => "agent “checker”",
                "rejections" => 1,
                "at" => at

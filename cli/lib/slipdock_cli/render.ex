@@ -1044,6 +1044,8 @@ defmodule SlipdockCLI.Render do
       IO.puts(bold("Verification") <> "  " <> verify_line(state, c) <> rejected)
       if note = c["verify_note"], do: IO.puts(indent(note))
       if sha = c["merge_sha"], do: IO.puts(indent("merged as " <> sha))
+
+      put_verify_checks(state, c["verify_checks"])
     end
 
     if Enum.any?(
@@ -2572,6 +2574,45 @@ defmodule SlipdockCLI.Render do
   end
 
   # Where an agent's completion stands (#1633), and who it is waiting on.
+  # The last decision's verdict in parts (#1778), one line each:
+  # `✓ bar 1`, `✗ UX-4 must broken: hex colour`. None while pending.
+  defp put_verify_checks(state, checks),
+    do: Enum.each(verify_check_lines(state, checks), &IO.puts(indent(&1)))
+
+  defp verify_check_lines("pending", _checks), do: []
+
+  defp verify_check_lines(_state, %{} = checks) do
+    notes = checks["notes"] || %{}
+
+    (check_part("the ask", checks["ask"], notes["ask"]) ++
+       for(b <- checks["bar"] || [], do: {"bar " <> to_string(b["item"]), b["result"], b["note"]}) ++
+       suite_part(checks["suite"]) ++
+       for(r <- checks["rules"] || [], do: {rule_part(r), r["result"], r["note"]}) ++
+       check_part("Handbook line", checks["handbook_line"], notes["handbook_line"]))
+    |> Enum.map(&check_line/1)
+  end
+
+  defp verify_check_lines(_state, _checks), do: []
+
+  defp check_part(_label, nil, _note), do: []
+  defp check_part(label, result, note), do: [{label, result, note}]
+
+  defp suite_part(%{"passed" => p, "failed" => f}) when is_integer(f) and f > 0,
+    do: [{"suite #{p} passed, #{f} failed", "fail", nil}]
+
+  defp suite_part(%{"passed" => p, "failed" => f}),
+    do: [{"suite #{p} passed, #{f} failed", "ok", nil}]
+
+  defp suite_part(_), do: []
+
+  defp rule_part(r), do: [r["id"], r["severity"]] |> Enum.reject(&is_nil/1) |> Enum.join(" ")
+
+  defp check_line({label, result, note}) do
+    mark = if Enum.member?(~w(misses fail broken disputed), result), do: "✗", else: "✓"
+    shown = if Enum.member?(~w(ok fail), result), do: "", else: " " <> result
+    mark <> " " <> label <> shown <> if(note, do: ": " <> note, else: "")
+  end
+
   defp verify_line("pending", c),
     do:
       "pending — submitted by #{actor_name(c["verify_submitter"])}; another agent or a person decides"

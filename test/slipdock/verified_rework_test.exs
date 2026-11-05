@@ -54,7 +54,7 @@ defmodule Slipdock.VerifiedReworkTest do
     card
   end
 
-  defp reject(card, ctx, reason \\ "The empty list case fails") do
+  defp reject(card, ctx, reason \\ "bar 1: The empty list case fails") do
     {:ok, card} =
       Verified.decide(
         Repo.get!(Card, card.id),
@@ -162,7 +162,7 @@ defmodule Slipdock.VerifiedReworkTest do
   describe "the reason, once" do
     test "the handoff points at the verification block and doesn't copy the reason", ctx do
       card = card_fixture(ctx.doing, %{"title" => "Reason"})
-      card = card |> submit(ctx.builder) |> reject(ctx, "Empty list fails\nSee the log")
+      card = card |> submit(ctx.builder) |> reject(ctx, "bar 1: Empty list fails\nSee the log")
 
       handoff = Boards.current_handoff(card)
       assert handoff.next_step == "Rework: rejected by agent “checker”, reason under Verification"
@@ -175,7 +175,7 @@ defmodule Slipdock.VerifiedReworkTest do
       # Once as the comment, once on the card (the verification block).
       assert [comment] = Enum.filter(comments(card), &(&1 =~ "Empty list fails"))
       assert comment =~ "**Rejected** by agent “checker”"
-      assert Repo.get!(Card, card.id).verify_note == "Empty list fails\nSee the log"
+      assert Repo.get!(Card, card.id).verify_note == "bar 1: Empty list fails\nSee the log"
     end
 
     test "rejection/1 names the reason and who, only for a rejected card", ctx do
@@ -184,9 +184,9 @@ defmodule Slipdock.VerifiedReworkTest do
       card = submit(card, ctx.builder)
       assert Verified.rejection(card) == nil
 
-      card = reject(card, ctx, "Fix the parser")
+      card = reject(card, ctx, "bar 1: Fix the parser")
 
-      assert %{reason: "Fix the parser", by: "agent “checker”", rejections: 1} =
+      assert %{reason: "bar 1: Fix the parser", by: "agent “checker”", rejections: 1} =
                Verified.rejection(card)
     end
   end
@@ -271,7 +271,7 @@ defmodule Slipdock.VerifiedReworkTest do
       # The job on `a` ended seconds ago: without the rejection it would cool.
       assert Slipdock.Automations.next_card(rule) == nil
 
-      card = reject(a, ctx, "Handle the empty list")
+      card = reject(a, ctx, "bar 1: Handle the empty list")
 
       assert card.column_id == ctx.todo.id
       assert ids(card) == []
@@ -281,7 +281,7 @@ defmodule Slipdock.VerifiedReworkTest do
       assert again.card_id == a.id
       prompt = Runners.claimed_prompt(again)
       assert prompt =~ "rejected by agent “checker”"
-      assert prompt =~ "Handle the empty list"
+      assert prompt =~ "bar 1: Handle the empty list"
     end
 
     test "a rejection older than the card's last job doesn't lift its cool-down", ctx do

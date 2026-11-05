@@ -498,6 +498,8 @@ defmodule SlipdockWeb.API.JSON do
       verify_by: c.verify_by,
       verify_at: c.verify_at,
       verify_rejections: if(c.verify_rejections > 0, do: c.verify_rejections),
+      # The last decision's verdict in parts (#1778).
+      verify_checks: c.verify_checks,
       # The paths its work touches (#1628), when it declares any.
       paths: if(c.paths not in [nil, []], do: c.paths)
     ]

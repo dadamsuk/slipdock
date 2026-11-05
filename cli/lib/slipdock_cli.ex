@@ -665,6 +665,11 @@ defmodule SlipdockCLI do
                                         merge), reject needs the reason; not a card you
                                         submitted (--evidence-commit: what you checked at).
                                         merged: a person merged a merging card's PR by hand
+        --check PART=RESULT[:note]      the verdict in parts, repeated: ask=ok|misses,
+                                        bar:2=ok|fail, suite=412:0, rule:UX-4=ok|broken|n/a,
+                                        handbook_line=ok|disputed. A reject names a failing
+                                        part; an accept can't carry a broken must rule
+        --checks-file F                 the same, one per line (or a JSON map of parts)
     accept <id> [--reason TEXT]  |  reject <id> --reason TEXT
                                         the same as verify <id> accept / reject
     flag <id> <flag>... [--off]         add (or remove) flags
@@ -1076,7 +1081,9 @@ defmodule SlipdockCLI do
     days: :integer,
     # `slipdock garden <board> --run --check K`, `garden apply <id> --keep N --choice C`.
     run: :boolean,
-    check: :string,
+    # Also `verify <id> … --check bar:2=fail:why`, repeated (#1778).
+    check: :keep,
+    checks_file: :string,
     keep: :string,
     # `garden apply <id> --choice C`; `wait <id> … --choice X --choice Y`.
     choice: :keep,

@@ -115,7 +115,9 @@ defmodule Slipdock.VerifiedJobsTest do
         Slipdock.Runners.queue(card, %{pool: "checkers", kind: "verify", prompt: "x"})
 
       checker = %{ctx.builder | job_id: second.id}
-      {:ok, _} = Verified.decide(card, "reject", %{"reason" => "No header"}, checker, ctx.owner)
+
+      {:ok, _} =
+        Verified.decide(card, "reject", %{"reason" => "bar 1: No header"}, checker, ctx.owner)
 
       assert Repo.get!(Job, first.id).status == "cancelled"
       assert Repo.get!(Job, second.id).status == "queued"

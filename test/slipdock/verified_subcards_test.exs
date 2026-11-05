@@ -169,7 +169,9 @@ defmodule Slipdock.VerifiedSubcardsTest do
       one = card_fixture(ctx.column, %{"title" => "Foo"})
       {:ok, _} = complete(one, ctx.agent)
       checker = %{ctx.agent | agent: "checker"}
-      {:ok, _} = Verified.decide(fresh(one), "reject", %{"reason" => "No"}, checker, ctx.owner)
+
+      {:ok, _} =
+        Verified.decide(fresh(one), "reject", %{"reason" => "bar 1: No"}, checker, ctx.owner)
 
       assert Verified.open_subcards(ctx.epic) == [{one.id, "Foo"}]
       assert {:error, _} = complete(fresh(ctx.epic), ctx.agent)
