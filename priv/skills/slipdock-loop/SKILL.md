@@ -731,6 +731,14 @@ With one on, the pass changes like this:
   until then, and the merge completes it). A merge that fails sends the
   card back rejected, the merge's reason as the rejection: rebase
   `card-<id>` on the default branch, push, and complete it again.
+  **A card tagged `security`** ships a neutral pull request, because the
+  repository may be public and the PR is readable before the fix deploys:
+  the title `Maintenance (#<id>)`, not the card's, `--body "Card #<id>."`
+  instead of `--fill`, and commit messages, title and body that say what
+  changed in general terms ("Tighten access checks in board events"),
+  never the hole, how to exploit it or which endpoints it hit. The detail
+  stays on the card; after the deploy, the closing comment may link it.
+  The prompt and `slipdock card` (`security: a neutral PR`) say so.
 - **A verify job** (a job of kind `verify`, or a card you are asked to
   verify) is checking, not doing. Claim nothing, move nothing and change no
   code. Never verify a card you built. Read the bar and the evidence, then

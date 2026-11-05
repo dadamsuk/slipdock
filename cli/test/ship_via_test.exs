@@ -80,6 +80,22 @@ defmodule SlipdockCLI.ShipViaTest do
     refute capture_io(fn -> Render.card(card(%{})) end) =~ "Ships by pull request"
   end
 
+  test "card says when the pull request is to be neutral, a security card's (#1794)" do
+    shipping = %{
+      "via" => "pull_request",
+      "branch" => "card-12",
+      "neutral" => true,
+      "instructions" => "Describe the change neutrally."
+    }
+
+    out = capture_io(fn -> Render.card(card(%{"shipping" => shipping})) end)
+    assert out =~ "branch card-12 · security: a neutral PR"
+    assert out =~ "Describe the change neutrally."
+
+    plain = Map.put(shipping, "neutral", false)
+    refute capture_io(fn -> Render.card(card(%{"shipping" => plain})) end) =~ "neutral PR"
+  end
+
   defp card(extra) do
     Map.merge(
       %{

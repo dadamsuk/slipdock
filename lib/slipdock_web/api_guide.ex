@@ -3694,6 +3694,12 @@ defmodule SlipdockWeb.APIGuide do
     submitted commit and its checks passed. A rejected card's next attempt pushes the same branch,
     so the same pull request updates. A claimed job's prompt and the
     card's `shipping` (in `get_card`) say all this for the card in hand.
+    **A card tagged `security`** gets a neutral pull request (`shipping`
+    has `neutral: true`): the title `Maintenance (#<id>)` rather than the
+    card's, `--body "Card #<id>."` rather than `--fill`, and commits, title
+    and body that say what changed in general terms, never the hole, an
+    exploit or the affected endpoints. The detail stays on the card until
+    the fix is deployed; the closing comment may link it after that.
     Don't merge it: accepting the card sets `verify_state: "merging"` and
     queues a `merge` job for a runner (one idle now first, else the one
     that accepted it), and the merge completes the card

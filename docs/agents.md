@@ -549,7 +549,11 @@ With a verify pool set, each submitted card is queued as a `verify` job.
 On a board that ships by pull request, its CI is the one full test run: the
 builder runs only its own tests before pushing, and the verifier checks the
 pull request's checks at the submitted commit rather than running the suite
-again.
+again. A card tagged `security` ships a neutral pull request: the title
+`Maintenance (#<id>)` rather than the card's, a body of only the card id, and
+commits that describe the change in general terms, never the hole; the
+detail stays on the card until it deploys (`shipping.neutral` in
+`get_card`).
 The verifier judges four things, in order: **the ask** (does the bar cover
 what the card asks for? a bar that leaves part out is a rejection), **the
 bar**, and on a board with a handbook **the rules** for the diff's paths
