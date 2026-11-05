@@ -327,6 +327,10 @@ defmodule SlipdockCLI.Boards do
         "start_date" => o[:start],
         "due_date" => o[:due],
         "percent_complete" => o[:percent],
+        # The bar and the paths (#1757) as edit sends them, so a planned card
+        # is one write: the server checks both as it does on an update.
+        "bar" => o[:bar],
+        "paths" => o[:paths],
         "time_spent" => o[:spent],
         "time_estimate" => o[:estimate],
         "time_unit" => o[:unit],

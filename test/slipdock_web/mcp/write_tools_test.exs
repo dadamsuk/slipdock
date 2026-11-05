@@ -283,6 +283,82 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert text =~ "read-only"
       refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.title == "Nope"))
     end
+
+    # #1757: a planned card in one write, checked as update_card checks them.
+    test "with its bar and paths in the one call, the bar not locked", ctx do
+      made =
+        ctx.conn
+        |> call("create_card", %{
+          board: "delivery11",
+          title: "Planned",
+          bar: "Both land; tests for each.",
+          paths: ["lib/x/**", "docs/{a,b}.md"]
+        })
+        |> ok!()
+
+      card = api_card(ctx.conn, made["id"])
+      assert card["bar"] == "Both land; tests for each."
+      assert card["paths"] == ["lib/x/**", "docs/{a,b}.md"]
+      refute card["bar_locked_at"]
+      assert Boards.get_card!(made["id"]).bar_locked_at == nil
+    end
+
+    test "with a bar alone, or paths alone", ctx do
+      bar =
+        ctx.conn
+        |> call("create_card", %{board: "delivery11", title: "Bar only", bar: "Done."})
+        |> ok!()
+
+      assert api_card(ctx.conn, bar["id"])["bar"] == "Done."
+      refute Map.has_key?(api_card(ctx.conn, bar["id"]), "paths")
+
+      paths =
+        ctx.conn
+        |> call("create_card", %{board: "delivery11", title: "Paths only", paths: ["lib/y.ex"]})
+        |> ok!()
+
+      assert api_card(ctx.conn, paths["id"])["paths"] == ["lib/y.ex"]
+      refute Map.has_key?(api_card(ctx.conn, paths["id"]), "bar")
+    end
+
+    test "a bar too long or bad paths are refused, and nothing is made", ctx do
+      too_long = String.duplicate("a", Boards.Card.bar_length() + 1)
+
+      assert ctx.conn
+             |> call("create_card", %{board: "delivery11", title: "Long", bar: too_long})
+             |> error!() =~ "bar"
+
+      assert ctx.conn
+             |> call("create_card", %{board: "delivery11", title: "Abs", paths: ["/etc/x"]})
+             |> error!() =~ "relative"
+
+      assert ctx.conn
+             |> call("create_card", %{board: "delivery11", title: "Up", paths: ["lib/../x"]})
+             |> error!() =~ ".."
+
+      for title <- ~w(Long Abs Up), do: refute(Repo.get_by(Boards.Card, title: title))
+    end
+
+    test "its schema takes bar and paths as update_card does, and its description is short",
+         ctx do
+      tools =
+        ctx.conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/mcp", Jason.encode!(%{jsonrpc: "2.0", id: 1, method: "tools/list"}))
+        |> json_response(200)
+        |> get_in(["result", "tools"])
+        |> Map.new(&{&1["name"], &1})
+
+      create = tools["create_card"]
+      update = tools["update_card"]
+      assert String.length(create["description"]) < 250
+
+      for key <- ~w(bar paths) do
+        assert create["inputSchema"]["properties"][key] ==
+                 update["inputSchema"]["properties"][key],
+               key
+      end
+    end
   end
 
   describe "update_card" do

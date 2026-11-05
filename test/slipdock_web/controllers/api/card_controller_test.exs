@@ -199,6 +199,137 @@ defmodule SlipdockWeb.API.CardControllerTest do
     end
   end
 
+  # A planned card in one write (#1757): the bar and paths go through the
+  # same checks as on an update, and the bar doesn't lock until work starts.
+  describe "creating with its bar and paths" do
+    test "both land in the one create", %{conn: conn} do
+      card =
+        conn
+        |> post("/api/boards/cardsapi/cards", %{
+          title: "Planned",
+          bar: "  The API takes both; tests for each.  ",
+          paths: "lib/x/**,docs/{a,b}.md"
+        })
+        |> json_response(201)
+        |> Map.fetch!("card")
+
+      assert card["bar"] == "The API takes both; tests for each."
+      assert card["paths"] == ["lib/x/**", "docs/{a,b}.md"]
+      refute card["bar_locked_at"]
+
+      saved = Boards.get_card!(card["id"])
+      assert saved.paths == ["lib/x/**", "docs/{a,b}.md"]
+      assert saved.bar_locked_at == nil
+    end
+
+    test "each alone, paths as a list too", %{conn: conn} do
+      bar =
+        conn
+        |> post("/api/boards/cardsapi/cards", %{title: "Bar only", bar: "Done when shipped."})
+        |> json_response(201)
+        |> Map.fetch!("card")
+
+      assert bar["bar"] == "Done when shipped."
+      refute Map.has_key?(bar, "paths")
+
+      paths =
+        conn
+        |> post("/api/boards/cardsapi/cards", %{title: "Paths only", paths: ["lib/y.ex"]})
+        |> json_response(201)
+        |> Map.fetch!("card")
+
+      assert paths["paths"] == ["lib/y.ex"]
+      refute Map.has_key?(paths, "bar")
+    end
+
+    test "a bar over 4,000 characters is a 422, and no card is made", %{conn: conn} do
+      too_long = String.duplicate("a", Boards.Card.bar_length() + 1)
+
+      assert %{"details" => %{"bar" => [message]}} =
+               conn
+               |> post("/api/boards/cardsapi/cards", %{title: "Long bar", bar: too_long})
+               |> json_response(422)
+
+      assert message =~ "4000"
+      refute Slipdock.Repo.get_by(Boards.Card, title: "Long bar")
+
+      at_limit = String.duplicate("a", Boards.Card.bar_length())
+
+      assert conn
+             |> post("/api/boards/cardsapi/cards", %{title: "Full bar", bar: at_limit})
+             |> json_response(201)
+    end
+
+    test "paths that aren't relative globs are a 422 as on update, and no card is made", %{
+      conn: conn
+    } do
+      for {paths, words} <- [
+            {"/etc/passwd", "relative"},
+            {"lib/../secret", ".."},
+            {"lib/{a,b.ex", "braces"}
+          ] do
+        assert %{"details" => %{"paths" => [message]}} =
+                 conn
+                 |> post("/api/boards/cardsapi/cards", %{
+                   title: "Bad paths",
+                   bar: "fine",
+                   paths: paths
+                 })
+                 |> json_response(422)
+
+        assert message =~ words, paths
+      end
+
+      refute Slipdock.Repo.get_by(Boards.Card, title: "Bad paths")
+    end
+
+    test "on a board that asks for bars, an agent's bar is not locked at creation", %{
+      user: user,
+      board: board
+    } do
+      {:ok, _} = Boards.update_board(board, %{"bar_required" => true, "lanes" => true})
+      agent = with_token(user, [])
+
+      card =
+        agent
+        |> post("/api/boards/cardsapi/cards", %{title: "Agent planned", bar: "First bar"})
+        |> json_response(201)
+        |> Map.fetch!("card")
+
+      refute card["bar_locked_at"]
+
+      # Still the agent's to change, as any bar is before work starts.
+      changed =
+        agent
+        |> patch("/api/cards/#{card["id"]}", %{bar: "Second bar"})
+        |> json_response(200)
+
+      assert changed["card"]["bar"] == "Second bar"
+    end
+
+    test "the guide and agents.md say a card can be made with them", %{user: user, board: board} do
+      {:ok, _} = Boards.update_board(board, %{"bar_required" => true, "lanes" => true})
+      squash = &String.replace(&1, ~r/\s+/, " ")
+
+      {token, _} = Accounts.create_api_token(user, "reader")
+
+      guide =
+        build_conn()
+        |> put_req_header("authorization", "Bearer " <> token)
+        |> get("/api/guide")
+        |> response(200)
+        |> squash.()
+
+      assert guide =~ "`bar` and `paths` on `POST /api/boards/:board/cards` and `create_card`"
+      assert guide =~ ~s(`slipdock add --bar TEXT --paths "a/**"`)
+      assert guide =~ "`create_card`, `slipdock add --paths`"
+
+      agents = "docs/agents.md" |> File.read!() |> squash.()
+      assert agents =~ "`create_card` and `slipdock add` take `bar` and `paths`"
+      assert agents =~ "`create_card` `paths`, `slipdock add --paths`"
+    end
+  end
+
   describe "editing" do
     test "tags: set by one name, added, removed, and an unknown one refused", %{
       conn: conn,

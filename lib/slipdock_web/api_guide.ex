@@ -3482,7 +3482,8 @@ defmodule SlipdockWeb.APIGuide do
       card's `paths`: globs relative to the repository, like
       `lib/slipdock/runners/**` or `docs/{manual,agents}.md`
       (`PATCH /api/cards/:id {"paths": ["…"]}`, `update_card` `paths`,
-      `slipdock edit ID --paths "a/**,b.md"`). Moving it in is refused
+      `slipdock edit ID --paths "a/**,b.md"`; or `paths` when making it:
+      `create_card`, `slipdock add --paths`). Moving it in is refused
       (`422`, naming the card in the way) while its paths overlap an open
       card already in progress on the board's tree, the card's own subcards
       and parents aside, and so is widening an in-progress card's paths onto
@@ -3537,7 +3538,10 @@ defmodule SlipdockWeb.APIGuide do
     **A bar before work starts.** Before moving a card into an in-progress
     list, write what done means for it in the card's `bar`
     (`PATCH /api/cards/:id {"bar": "…"}`, `update_card` `bar`, `slipdock edit
-    ID --bar TEXT`). Moving a card with no bar into an in-progress list is
+    ID --bar TEXT`), or when you make it: `bar` and `paths` on
+    `POST /api/boards/:board/cards` and `create_card`, `slipdock add --bar
+    TEXT --paths "a/**"`, checked as on an update. A planner's bar is better
+    than one written at claim time. Moving a card with no bar into an in-progress list is
     refused (`422`). The bar locks when work starts: changing it after that
     is refused too, and only a person can. Work to the bar as written, and
     say on the card how each part of it was met.
