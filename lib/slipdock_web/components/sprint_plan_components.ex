@@ -6,6 +6,7 @@ defmodule SlipdockWeb.SprintPlanComponents do
   (`plan_table/1`), from `Slipdock.Sprints.plan/3`.
   """
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.SlipdockComponents, only: [priority_badge: 1]
 
@@ -303,7 +304,7 @@ defmodule SlipdockWeb.SprintPlanComponents do
           :if={@shown.due}
           class="whitespace-nowrap px-2 py-1.5 text-right text-xs text-base-content/60"
         >
-          {card.due_date && Calendar.strftime(card.due_date, "%-d %b")}
+          {card.due_date && Dates.short(card.due_date)}
         </td>
       </tr>
       <.plan_rows

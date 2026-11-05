@@ -152,7 +152,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         >
           Move to board…
         </button>
-        <span>· created {relative_time(@card.inserted_at)}</span>
+        <span>· created <.timestamp id="card-created-at" at={@card.inserted_at} /></span>
         <%!-- The actions on this line (Move to board…, the handoff, Ask
               questions) are drawn as buttons, `meta-action`, whether they
               are buttons or links, so they don't read as more text (#1230). --%>
@@ -1415,9 +1415,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       </div>
       <div :if={@snoozed} id="snooze-current" class="space-y-1 text-sm">
         <p class="font-medium">
-          💤 Until {@card.snoozed_until
-          |> Slipdock.Timezones.to_local(@zone)
-          |> Calendar.strftime("%a %-d %b %Y")}
+          💤 Until {SlipdockWeb.Dates.weekday(@card.snoozed_until, zone: @zone)}
         </p>
         <p :if={@card.snooze_note} class="text-xs text-base-content/60" id="snooze-note">
           {@card.snooze_note}
@@ -1573,7 +1571,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <div :if={@repeat.preview} id="repeat-preview" class="rounded-lg bg-base-100 p-2 text-xs">
           <p class="font-medium" id="repeat-summary">{@repeat.preview.summary}</p>
           <p :if={@repeat.preview.dates != []} class="text-base-content/60" id="repeat-dates">
-            Next: {Enum.map_join(@repeat.preview.dates, ", ", &Calendar.strftime(&1, "%a %-d %b %Y"))}
+            Next: {Enum.map_join(@repeat.preview.dates, ", ", &SlipdockWeb.Dates.weekday(&1))}
           </p>
           <p :if={@repeat.preview.kind == :after_done} class="text-base-content/60">
             Counted from the day each one is done.
@@ -1606,8 +1604,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         "Paused."
 
       series.next_on ->
-        "Next due #{Calendar.strftime(series.next_on, "%a %-d %b")}" <>
-          ", made #{Calendar.strftime(Slipdock.Timezones.to_local(series.next_at, series.timezone), "%a %-d %b %H:%M")}."
+        "Next due #{SlipdockWeb.Dates.weekday(series.next_on)}" <>
+          ", made #{SlipdockWeb.Dates.datetime(series.next_at, zone: series.timezone)}."
 
       series.kind == "after_done" ->
         "The next is counted from when this one is done."

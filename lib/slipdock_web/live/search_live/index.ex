@@ -20,6 +20,7 @@ defmodule SlipdockWeb.SearchLive.Index do
   whose mode or query is no longer the one on screen.
   """
   use SlipdockWeb, :live_view
+  alias SlipdockWeb.Dates
 
   alias Slipdock.AI.Researcher
   alias Slipdock.SavedQueries
@@ -743,9 +744,7 @@ defmodule SlipdockWeb.SearchLive.Index do
                   :if={result.card && Slipdock.Boards.Card.snoozed?(result.card)}
                   data-role="snoozed"
                 >
-                  · 💤 until {result.card.snoozed_until
-                  |> Slipdock.Timezones.to_local(@zone)
-                  |> Calendar.strftime("%a %-d %b")}
+                  · 💤 until {Dates.weekday(result.card.snoozed_until, zone: @zone)}
                 </span>
                 <span :if={result.card && result.card.due_date}>· due {result.card.due_date}</span>
                 <span :if={result.page && result.page.summary}>· {result.page.summary}</span>

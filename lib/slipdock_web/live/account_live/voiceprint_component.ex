@@ -7,6 +7,7 @@ defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
   is about the signed-in person; nothing names anybody else.
   """
   use SlipdockWeb, :live_component
+  alias SlipdockWeb.Dates
 
   alias Slipdock.Meetings.Voiceprints
 
@@ -123,9 +124,8 @@ defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
           <p>
             You have a voiceprint, made from {if @voiceprint.source == "meeting",
               do: "a meeting where your voice was confirmed",
-              else: "a recording of your own"} with your consent on {Calendar.strftime(
-              @voiceprint.consented_at,
-              "%-d %B %Y"
+              else: "a recording of your own"} with your consent on {Dates.long(
+              @voiceprint.consented_at
             )}.
           </p>
           <button
@@ -183,7 +183,7 @@ defmodule SlipdockWeb.AccountLive.VoiceprintComponent do
           <summary class="cursor-pointer">Your consent record</summary>
           <ul class="mt-2 space-y-1">
             <li :for={c <- @consents}>
-              {Calendar.strftime(c.inserted_at, "%-d %b %Y %H:%M")} — {c.event} (wording {c.wording_version})
+              {Dates.datetime(c.inserted_at)} — {c.event} (wording {c.wording_version})
             </li>
           </ul>
         </details>

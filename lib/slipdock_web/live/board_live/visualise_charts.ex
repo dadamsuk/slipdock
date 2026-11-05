@@ -15,6 +15,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseCharts do
   plain functions, so it can be tested without rendering.
   """
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.BoardLive.VisualiseComponents, only: [duration: 1]
 
@@ -133,7 +134,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseCharts do
         else: Enum.map(0..4, &round(&1 * (n - 1) / 4))
 
     Enum.map(picks, fn i ->
-      {Calendar.strftime(Enum.at(dates, i), "%-d %b"), pct((i + 0.5) / n)}
+      {Dates.short(Enum.at(dates, i)), pct((i + 0.5) / n)}
     end)
   end
 
@@ -154,10 +155,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseCharts do
       <div class="flex flex-wrap items-baseline gap-x-2 px-1">
         <h2 id="trends-title" class="section-title">Trends</h2>
         <span class="text-xs text-base-content/60">
-          Last {@history.days} days, {Calendar.strftime(@history.since, "%-d %b")} to {Calendar.strftime(
-            @history.until,
-            "%-d %b"
-          )}
+          Last {@history.days} days, {Dates.short(@history.since)} to {Dates.short(@history.until)}
         </span>
       </div>
       <div class="grid gap-4 lg:grid-cols-2">
@@ -390,7 +388,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseCharts do
           data-day={b.date}
         >
           <title>
-            {Calendar.strftime(b.date, "%-d %b")}: {b.d.succeeded} succeeded, {b.d.failed} failed
+            {Dates.short(b.date)}: {b.d.succeeded} succeeded, {b.d.failed} failed
           </title>
         </rect>
         <rect

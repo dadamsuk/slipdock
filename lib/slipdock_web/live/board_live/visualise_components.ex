@@ -6,6 +6,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
   error), so every piece follows the theme, light or dark.
   """
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   @doc """
   Seconds as the page writes them: 47s, 10m 47s, 1h 23m, 12.8 days. A dash
@@ -766,8 +767,8 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
         d: d,
         compare: prev > 0,
         note:
-          "#{d.environment} · #{Calendar.strftime(d.since, "%-d %b")} to " <>
-            "#{Calendar.strftime(d.until, "%-d %b")} (#{d.days} days)" <>
+          "#{d.environment} · #{Dates.short(d.since)} to " <>
+            "#{Dates.short(d.until)} (#{d.days} days)" <>
             if(prev > 0,
               do: "",
               else: " · no deploys recorded in the #{d.days} days before, so no comparison yet"
@@ -784,9 +785,8 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
           id="dora-last-deploy"
           class="rounded-full bg-base-200 px-2 py-0.5 font-mono text-2xs text-base-content/70"
         >
-          Last deploy {@d.last_deploy.tag || String.slice(@d.last_deploy.sha || "", 0, 7)} · {Calendar.strftime(
-            @d.last_deploy.at,
-            "%-d %b %H:%M"
+          Last deploy {@d.last_deploy.tag || String.slice(@d.last_deploy.sha || "", 0, 7)} · {Dates.datetime(
+            @d.last_deploy.at
           )}
         </span>
       </:aside>

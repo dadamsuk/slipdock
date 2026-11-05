@@ -9,6 +9,7 @@ defmodule SlipdockWeb.UsersLive.Index do
   at, with the reason the admin gave.
   """
   use SlipdockWeb, :live_view
+  alias SlipdockWeb.Dates
 
   alias Slipdock.{Accounts, Quota, Settings}
   alias SlipdockWeb.Params
@@ -514,7 +515,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                   :if={user.last_signed_in_at}
                   id={"last-seen-#{user.id}"}
                   datetime={DateTime.to_iso8601(user.last_signed_in_at)}
-                  title={Calendar.strftime(user.last_signed_in_at, "%-d %b %Y, %H:%M UTC")}
+                  title={Dates.exact(user.last_signed_in_at)}
                 >
                   {last_seen(user.last_signed_in_at)}
                 </time>
@@ -715,7 +716,9 @@ defmodule SlipdockWeb.UsersLive.Index do
             <div :if={request.note && request.note != ""} class="text-sm text-base-content/70">
               “{request.note}”
             </div>
-            <div class="text-xs text-base-content/50">asked {request.inserted_at}</div>
+            <div class="text-xs text-base-content/50">
+              asked <SlipdockWeb.SlipdockComponents.timestamp at={request.inserted_at} />
+            </div>
           </div>
           <div class="flex shrink-0 gap-2">
             <button phx-click="approve" phx-value-id={request.id} class="btn btn-primary btn-sm">
@@ -731,14 +734,8 @@ defmodule SlipdockWeb.UsersLive.Index do
     """
   end
 
-  # When they last signed in, as a person reads it (#1698): "5m ago" for the
-  # past week, then the date, with the year once it is not this one.
+  # When they last signed in, as a person reads it (#1698, #1719): "5 min
+  # ago" for the past week, then the date, with the year once it is not this one.
   @doc false
-  def last_seen(%DateTime{} = at, now \\ DateTime.utc_now()) do
-    cond do
-      DateTime.diff(now, at) < 7 * 86_400 -> SlipdockWeb.SlipdockComponents.relative_time(at)
-      at.year == now.year -> Calendar.strftime(at, "%-d %b")
-      true -> Calendar.strftime(at, "%-d %b %Y")
-    end
-  end
+  def last_seen(%DateTime{} = at, now \\ DateTime.utc_now()), do: Dates.relative(at, now: now)
 end

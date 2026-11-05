@@ -6,6 +6,7 @@ defmodule SlipdockWeb.MeetingLive.Index do
   answers 404 before this mounts.
   """
   use SlipdockWeb, :live_view
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.MeetingLive.Components
 
@@ -135,9 +136,9 @@ defmodule SlipdockWeb.MeetingLive.Index do
                 >
                   <span class="block truncate font-medium">{c.title}</span>
                   <span class="block text-xs text-base-content/60">
-                    {Calendar.strftime(c.started_at || c.inserted_at, "%d %b %Y")} · {source_words(
-                      c.source
-                    )} by {who(c.owner)}
+                    {Dates.long(c.started_at || c.inserted_at)} · {source_words(c.source)} by {who(
+                      c.owner
+                    )}
                     <span :if={@counts[c.id].findings > 0}>· {@counts[c.id].findings} found</span>
                     <span :if={@counts[c.id].open > 0} class="text-warning">
                       · {@counts[c.id].open} to settle

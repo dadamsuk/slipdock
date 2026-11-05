@@ -9,6 +9,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
   On a phone it is one column, with the transcript behind a toggle.
   """
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.MeetingLive.Components, only: [clock: 1]
 
@@ -239,7 +240,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         <span class="text-xs text-base-content/60">
           committed by {(@capture.committed_by &&
                            (@capture.committed_by.name || @capture.committed_by.email)) || "—"}
-          {@capture.committed_at && Calendar.strftime(@capture.committed_at, "%d %b %Y, %H:%M")}
+          {@capture.committed_at && Dates.datetime(@capture.committed_at)}
         </span>
         <button
           :if={@can_write and is_nil(@capture.undone_at) and is_nil(@conflicts)}

@@ -10,6 +10,7 @@ defmodule SlipdockWeb.GardenLive.Index do
   every decision need write access.
   """
   use SlipdockWeb, :live_view
+  alias SlipdockWeb.Dates
 
   import Ecto.Query
 
@@ -241,7 +242,7 @@ defmodule SlipdockWeb.GardenLive.Index do
   defp page_path(%Page{} = p), do: ~p"/boards/#{p.board_id}/wiki/#{p.slug}"
 
   defp when_text(nil), do: "never"
-  defp when_text(%DateTime{} = at), do: Calendar.strftime(at, "%-d %b %Y, %H:%M UTC")
+  defp when_text(%DateTime{} = at), do: Dates.exact(at)
 
   @impl true
   def render(assigns) do

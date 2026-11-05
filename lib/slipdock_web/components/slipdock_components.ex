@@ -1,6 +1,7 @@
 defmodule SlipdockWeb.SlipdockComponents do
   @moduledoc "Presentational components for boards, columns and cards."
   use Phoenix.Component
+  alias SlipdockWeb.Dates
   use Gettext, backend: SlipdockWeb.Gettext
   use Phoenix.VerifiedRoutes, endpoint: SlipdockWeb.Endpoint, router: SlipdockWeb.Router
 
@@ -308,7 +309,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         @derived && "bg-transparent ring-1 ring-inset ring-current/40 ring-dashed"
       ]}
       title={
-        "Due #{Calendar.strftime(@date, "%A, %B %-d %Y")}" <>
+        "Due #{Dates.full(@date)}" <>
           if(@derived, do: " (rolled up from subcards)", else: "")
       }
     >
@@ -379,7 +380,7 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   def past_date_detail(which, days, _on), do: past_date_label(which, days)
 
-  defp fmt_long(%Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
+  defp fmt_long(%Date{} = d), do: Dates.long(d)
   defp fmt_long(other), do: to_string(other)
 
   attr :card, :map, required: true
@@ -503,32 +504,48 @@ defmodule SlipdockWeb.SlipdockComponents do
       # "overdue" does not say which date, and a card has two. Everywhere else
       # now says "past due date"; this is the compact form of the same thing.
       n when n < 0 and n > -7 -> "#{-n}d past due"
-      n when n > 0 and n < 7 -> Calendar.strftime(date, "%a")
-      _ -> Calendar.strftime(date, "%b %-d")
+      n when n > 0 and n < 7 -> Dates.day_name(date)
+      _ -> Dates.short(date)
     end
   end
 
   defp loaded_attachments(%{attachments: list}) when is_list(list), do: list
   defp loaded_attachments(_), do: []
 
-  def relative_time(%DateTime{} = dt) do
-    seconds = DateTime.diff(DateTime.utc_now(), dt)
+  @doc "How long ago (or ahead) a moment is: `SlipdockWeb.Dates.relative/2`. In markup prefer `timestamp/1`, which adds the exact time."
+  def relative_time(value), do: Dates.relative(value)
 
-    cond do
-      # Ahead of us: a token's expiry, say. Without this branch a negative
-      # difference falls through to "just now", which reads as the opposite
-      # of what it means.
-      seconds <= -7 * 86_400 -> Calendar.strftime(dt, "%b %-d")
-      seconds <= -86_400 -> "in #{div(-seconds, 86_400)}d"
-      seconds <= -3600 -> "in #{div(-seconds, 3600)}h"
-      seconds < 0 -> "in #{max(div(-seconds, 60), 1)}m"
-      seconds < 60 -> "just now"
-      seconds < 3600 -> "#{div(seconds, 60)}m ago"
-      seconds < 86_400 -> "#{div(seconds, 3600)}h ago"
-      seconds < 7 * 86_400 -> "#{div(seconds, 86_400)}d ago"
-      true -> Calendar.strftime(dt, "%b %-d")
-    end
+  attr :at, :any, required: true, doc: "a DateTime, NaiveDateTime or Date; nil renders nothing"
+  attr :id, :string, default: nil
+  attr :class, :any, default: nil
+  attr :zone, :string, default: nil, doc: "the viewer's timezone; the process's when nil"
+  attr :format, :atom, default: :relative, values: [:relative, :short, :long, :datetime]
+
+  @doc """
+  A moment as people read it, in a `<time>` with the machine value in
+  `datetime` and the exact time in `title` (#1719): "5 min ago" that says
+  "4 Nov 2026, 11:43 UTC" on hover. `format` picks another
+  `SlipdockWeb.Dates` style for the text.
+  """
+  def timestamp(assigns) do
+    opts = if assigns.zone, do: [zone: assigns.zone], else: []
+    at = assigns.at
+
+    assigns =
+      assign(assigns,
+        text: at && apply(Dates, assigns.format, [at, opts]),
+        title: at && Dates.exact(at, opts),
+        iso: at && iso8601(at)
+      )
+
+    ~H"""
+    <time :if={@at} id={@id} class={@class} datetime={@iso} title={@title} data-role="timestamp">{@text}</time>
+    """
   end
+
+  defp iso8601(%DateTime{} = at), do: DateTime.to_iso8601(at)
+  defp iso8601(%NaiveDateTime{} = at), do: NaiveDateTime.to_iso8601(at) <> "Z"
+  defp iso8601(%Date{} = d), do: Date.to_iso8601(d)
 
   ## Dependencies ------------------------------------------------------------
 
@@ -915,8 +932,8 @@ defmodule SlipdockWeb.SlipdockComponents do
         @state == :later && "chip-line text-base-content/70"
       ]}
       title={
-        "Starts #{Calendar.strftime(@start, "%A, %B %-d %Y")}, due " <>
-          Calendar.strftime(@due, "%A, %B %-d %Y") <>
+        "Starts #{Dates.full(@start)}, due " <>
+          Dates.full(@due) <>
           if(@derived, do: " (rolled up from subcards)", else: "")
       }
     >
@@ -931,8 +948,8 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   defp range_day(date) do
     if date.year == Date.utc_today().year,
-      do: Calendar.strftime(date, "%-d %b"),
-      else: Calendar.strftime(date, "%-d %b %Y")
+      do: Dates.short(date),
+      else: Dates.long(date)
   end
 
   attr :card, :map, required: true
@@ -955,7 +972,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         @derived && "ring-1 ring-inset ring-dashed ring-current/40"
       ]}
       title={
-        "Starts #{Calendar.strftime(@date, "%A, %B %-d %Y")}" <>
+        "Starts #{Dates.full(@date)}" <>
           if(@derived, do: " (rolled up from subcards)", else: "")
       }
     >
@@ -969,7 +986,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       0 -> "Today"
       1 -> "Tomorrow"
       -1 -> "Yesterday"
-      _ -> Calendar.strftime(date, "%b %-d")
+      _ -> Dates.short(date)
     end
   end
 
@@ -1574,15 +1591,14 @@ defmodule SlipdockWeb.SlipdockComponents do
       title={snooze_title(@card, @zone)}
     >
       <span aria-hidden="true" class="leading-none">💤</span>
-      {@card.snoozed_until |> Slipdock.Timezones.to_local(@zone) |> Calendar.strftime("%-d %b")}
+      {Dates.short(@card.snoozed_until, zone: @zone)}
       <span class="sr-only">Snoozed</span>
     </span>
     """
   end
 
   defp snooze_title(card, zone) do
-    local = Slipdock.Timezones.to_local(card.snoozed_until, zone)
-    until = "Snoozed until " <> Calendar.strftime(local, "%a %-d %b %Y %H:%M")
+    until = "Snoozed until " <> Dates.exact(card.snoozed_until, zone: zone)
     if card.snooze_note, do: until <> " — " <> card.snooze_note, else: until
   end
 
@@ -1607,7 +1623,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       cond do
         series.ended_at -> " — ended"
         series.paused -> " — paused"
-        series.next_on -> " — next due #{Calendar.strftime(series.next_on, "%a %-d %b")}"
+        series.next_on -> " — next due #{Dates.weekday(series.next_on)}"
         true -> ""
       end
 

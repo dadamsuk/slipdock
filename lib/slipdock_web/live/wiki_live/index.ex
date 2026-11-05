@@ -14,12 +14,13 @@ defmodule SlipdockWeb.WikiLive.Index do
   that kind break.
   """
   use SlipdockWeb, :live_view
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.ItemComponents
   import SlipdockWeb.FolderPicker
 
   import SlipdockWeb.SlipdockComponents,
-    only: [view_tabs: 1, filter_menu: 1, modal: 1, favourite_toggle: 1]
+    only: [view_tabs: 1, filter_menu: 1, modal: 1, favourite_toggle: 1, timestamp: 1]
 
   alias Slipdock.{Access, Accounts, Boards, Fields, Votes, Wiki}
   alias Slipdock.Boards.Attachment
@@ -4156,8 +4157,8 @@ defmodule SlipdockWeb.WikiLive.Index do
       page.priority != "none" && {page.priority, "Priority"},
       page.completed && {"written", "Marked written"},
       assignee_facet(page.assignee),
-      page.start_date && {"starts #{page.start_date}", "Start date"},
-      page.due_date && {"due #{page.due_date}", "Due date"},
+      page.start_date && {"starts #{Dates.short(page.start_date)}", "Start date"},
+      page.due_date && {"due #{Dates.short(page.due_date)}", "Due date"},
       page.percent_complete && {"#{page.percent_complete}%", "Per cent complete"}
     ]
     |> Enum.filter(&is_tuple/1)
@@ -4195,15 +4196,15 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp iso(%DateTime{} = at), do: DateTime.to_iso8601(at)
 
   defp stamp(nil), do: ""
-  defp stamp(%DateTime{} = at), do: Calendar.strftime(at, "%d %b %Y, %H:%M")
+  defp stamp(%DateTime{} = at), do: Dates.datetime(at)
 
   # Short, for the tree's Recent view: the time today, the day otherwise.
   defp recent_stamp(nil), do: ""
 
   defp recent_stamp(%DateTime{} = at) do
-    if DateTime.to_date(at) == Date.utc_today(),
-      do: Calendar.strftime(at, "%H:%M"),
-      else: Calendar.strftime(at, "%d %b")
+    if Dates.long(at) == Dates.long(DateTime.utc_now()),
+      do: Dates.time(at),
+      else: Dates.short(at)
   end
 
   defp via_label("web"), do: "in the app"
@@ -7305,7 +7306,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             {if autosave.page, do: "Editing #{autosave.page.title}", else: Autosave.title(autosave)}
           </.link>
           <span class="flex shrink-0 items-center gap-2 text-xs text-base-content/50">
-            {SlipdockWeb.SlipdockComponents.relative_time(as_datetime(autosave.updated_at))}
+            <.timestamp at={as_datetime(autosave.updated_at)} />
             <button
               type="button"
               phx-click="discard_autosave"
@@ -7384,7 +7385,10 @@ defmodule SlipdockWeb.WikiLive.Index do
             patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history/#{revision.id}"}
             class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3"
           >
-            <span class="w-40 shrink-0 text-sm text-base-content/60">{stamp(revision.inserted_at)}</span>
+            <span class="w-40 shrink-0 text-sm text-base-content/60"><.timestamp
+              at={revision.inserted_at}
+              format={:datetime}
+            /></span>
             <span class="font-medium">{author_label(revision)}</span>
             <span :if={revision.via && revision.via != "web"} class="chip chip-line text-2xs">
               {via_label(revision.via)}{if revision.agent, do: " · #{revision.agent}"}

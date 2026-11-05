@@ -4,6 +4,7 @@ defmodule SlipdockWeb.CalendarComponents do
   drag and drop between days, quick add on a day, and the tray of undated cards.
   """
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.TimelineComponents, only: [dateless_tray: 1]
@@ -73,10 +74,10 @@ defmodule SlipdockWeb.CalendarComponents do
                     day.today? && "bg-primary text-primary-content",
                     (!day.today? and day.date.day == 1) && "text-base-content"
                   ]}
-                  title={Calendar.strftime(day.date, "%A, %-d %B %Y")}
+                  title={Dates.full(day.date)}
                 >
                   {if day.date.day == 1 and not @week?,
-                    do: Calendar.strftime(day.date, "%-d %b"),
+                    do: Dates.short(day.date),
                     else: day.date.day}
                 </span>
                 <button
@@ -85,7 +86,7 @@ defmodule SlipdockWeb.CalendarComponents do
                   class="btn btn-ghost btn-xs btn-square opacity-0 transition group-hover/day:opacity-100 focus:opacity-100 no-hover:opacity-100"
                   phx-click="swim_start_add"
                   phx-value-cell={day.key}
-                  title={"Add a card #{if @start?, do: "starting", else: "due"} #{Calendar.strftime(day.date, "%-d %b")}"}
+                  title={"Add a card #{if @start?, do: "starting", else: "due"} #{Dates.short(day.date)}"}
                 >
                   <.icon name="hero-plus" class="size-3.5" />
                 </button>
@@ -233,7 +234,7 @@ defmodule SlipdockWeb.CalendarComponents do
                 day.past? && !day.today? && "text-base-content/50"
               ]}>
                 <span :if={day.today?} class="text-primary">Today · </span>
-                {Calendar.strftime(day.date, "%a %-d %b")}
+                {Dates.weekday(day.date)}
               </h3>
               <span
                 :if={day.cards != []}
@@ -248,7 +249,7 @@ defmodule SlipdockWeb.CalendarComponents do
                 class="btn btn-ghost btn-xs btn-square ml-auto"
                 phx-click="swim_start_add"
                 phx-value-cell={day.key}
-                title={"Add a card #{if @start?, do: "starting", else: "due"} #{Calendar.strftime(day.date, "%-d %b")}"}
+                title={"Add a card #{if @start?, do: "starting", else: "due"} #{Dates.short(day.date)}"}
               >
                 <.icon name="hero-plus" class="size-4" />
               </button>
@@ -404,8 +405,8 @@ defmodule SlipdockWeb.CalendarComponents do
         class="shrink-0 text-base-content/40"
         title={
           if @start,
-            do: "Due #{Calendar.strftime(@card.due_date, "%-d %b")}",
-            else: "Started #{Calendar.strftime(@card.start_date, "%-d %b")}"
+            do: "Due #{Dates.short(@card.due_date)}",
+            else: "Started #{Dates.short(@card.start_date)}"
         }
       >
         <.icon name="hero-arrow-long-right" class="size-3" />

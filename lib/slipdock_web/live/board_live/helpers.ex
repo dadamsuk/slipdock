@@ -5,6 +5,7 @@ defmodule SlipdockWeb.BoardLive.Helpers do
   """
 
   import Phoenix.Component, only: [upload_errors: 2]
+  alias SlipdockWeb.Dates
   import Phoenix.LiveView, only: [cancel_upload: 3, push_event: 3]
 
   alias Slipdock.Boards.Attachment
@@ -136,7 +137,7 @@ defmodule SlipdockWeb.BoardLive.Helpers do
 
   def fmt_date(nil), do: "—"
 
-  def fmt_date(%Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
+  def fmt_date(%Date{} = d), do: Dates.long(d)
 
   def checklist_progress(items) do
     total = length(items)

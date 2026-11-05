@@ -1007,10 +1007,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
     >
       <h2 class="section-title">This month</h2>
       <p class="mt-1 text-sm text-base-content/60">
-        What meeting capture has cost the server since {Calendar.strftime(
-          @meetings_usage.month,
-          "%-d %B"
-        )}:
+        What meeting capture has cost the server since {SlipdockWeb.Dates.short(@meetings_usage.month)}:
         work on people's own keys is theirs and not counted here.
       </p>
       <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
@@ -1539,7 +1536,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
             <.icon name="hero-check-circle" class="size-4" /> A test message went out.
           </p>
           <p :if={@settings.smtp_verified_at} class="mt-2 text-xs text-base-content/50">
-            Last confirmed working: {@settings.smtp_verified_at}
+            Last confirmed working:
+            <SlipdockWeb.SlipdockComponents.timestamp at={@settings.smtp_verified_at} />
           </p>
         </div>
 

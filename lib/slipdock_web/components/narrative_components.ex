@@ -4,6 +4,7 @@ defmodule SlipdockWeb.NarrativeComponents do
   view selects over a date range, group by group, card by card.
   """
   use SlipdockWeb, :html
+  alias SlipdockWeb.Dates
 
   import SlipdockWeb.SlipdockComponents
   alias Slipdock.Boards.Card
@@ -350,13 +351,13 @@ defmodule SlipdockWeb.NarrativeComponents do
   defp event_tone(_), do: "text-base-content/40"
 
   defp fmt(d), do: Slipdock.Dates.medium(d)
-  defp fmt_at(%DateTime{} = dt), do: Calendar.strftime(dt, "%a %-d %b")
+  defp fmt_at(%DateTime{} = dt), do: Dates.weekday(dt)
 
   defp range_label(from, to) do
     cond do
       from == to -> fmt(from)
       from.year == to.year and from.month == to.month -> "#{from.day}–#{fmt(to)}"
-      from.year == to.year -> "#{Calendar.strftime(from, "%-d %b")} – #{fmt(to)}"
+      from.year == to.year -> "#{Dates.short(from)} – #{fmt(to)}"
       true -> "#{fmt(from)} – #{fmt(to)}"
     end
   end

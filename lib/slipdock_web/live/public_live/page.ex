@@ -10,6 +10,7 @@ defmodule SlipdockWeb.PublicLive.Page do
   current; the answers are a snapshot, and publishing again refreshes them.
   """
   use SlipdockWeb, :live_view
+  alias SlipdockWeb.Dates
 
   alias Slipdock.Wiki
   alias Slipdock.Wiki.Page
@@ -65,5 +66,5 @@ defmodule SlipdockWeb.PublicLive.Page do
   end
 
   defp stamp(nil), do: "—"
-  defp stamp(%DateTime{} = at), do: Calendar.strftime(at, "%d %b %Y")
+  defp stamp(%DateTime{} = at), do: Dates.long(at)
 end
