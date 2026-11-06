@@ -25,6 +25,11 @@ defmodule Slipdock.AI.CardRecord do
     * `card_lead_time` — where its time went: its lead time by phase,
       worked out by `Slipdock.LeadTime` (#1876), per subcard and in total
       on an epic
+    * `job_log_summary` — a job's log summed up (#1877,
+      `Slipdock.Runners.TranscriptSummary`): what the agent said, where its
+      time went (model and tool time by kind), the longest calls and the
+      failed ones, each with its line in the log
+    * `job_log` — one stretch of a job's log in full, by line
 
   Each takes a `card_id`, the open card when left out. A card outside the
   open card's tree is refused, so the chat stays about the card it was
@@ -39,13 +44,19 @@ defmodule Slipdock.AI.CardRecord do
   alias Slipdock.Accounts.User
   alias Slipdock.AI.Context
   alias Slipdock.Boards.{Activity, Board, Card, CardLink, Comment, Handoff}
-  alias Slipdock.Runners.{Job, TranscriptRetention}
+  alias Slipdock.Runners.{Job, Transcript, TranscriptRetention, TranscriptSummary, TranscriptView}
 
   @comments_per_page 25
   @comment_cap 3_000
   @output_cap 2_000
   @prompt_cap 12_000
   @activity_limit 80
+  @log_messages 40
+  @log_message_cap 400
+  @log_stretch 120
+  @log_stretch_cap 30_000
+  @log_entry_cap 3_000
+  @job_tools ~w(read_job job_log_summary job_log)
 
   @card_id %{
     type: "integer",
@@ -91,14 +102,31 @@ defmodule Slipdock.AI.CardRecord do
        "the pool), build, CI, waiting on a person, verification wait, verify, rework, merge, " <>
        "deploy, and time the record can't explain — with each span in order and what it " <>
        "came from. On an epic, each subcard's too, and the subcards added up. Quote its " <>
-       "numbers rather than adding them up yourself.", %{}}
+       "numbers rather than adding them up yourself.", %{}},
+    {"job_log_summary",
+     "A runner job's log summed up (by its id, from card_jobs): what its agent said step by " <>
+       "step, where its time went (model time, and tool time by kind: tests, checks, CI waits, " <>
+       "git, slipdock, reading and editing code, subagents), its longest calls and every call " <>
+       "that failed with what it said, each with its line in the log. Works on a running " <>
+       "job, a finished one and a kept log; says when a log has expired.",
+     %{job_id: %{type: "integer", description: "The job's id."}}},
+    {"job_log",
+     "One stretch of a runner job's log in full, by line (from job_log_summary): each " <>
+       "message, tool call with its input, and tool result with its text, at most " <>
+       "#{@log_stretch} lines a call.",
+     %{
+       job_id: %{type: "integer", description: "The job's id."},
+       from: %{type: "integer", description: "The first line, from 0."},
+       to: %{type: "integer", description: "The last line (at most #{@log_stretch} after from)."}
+     }}
   ]
 
   @doc "The tool definitions, in the OpenAI function-calling shape."
   def tools do
     Enum.map(@tools, fn {name, description, props} ->
-      props = if name == "read_job", do: props, else: Map.put(props, :card_id, @card_id)
-      required = if name == "read_job", do: ["job_id"], else: []
+      job? = Enum.member?(@job_tools, name)
+      props = if job?, do: props, else: Map.put(props, :card_id, @card_id)
+      required = if job?, do: ["job_id"], else: []
 
       %{
         type: "function",
@@ -118,11 +146,11 @@ defmodule Slipdock.AI.CardRecord do
   Runs tool `name` with `args` for `user`, about the card `root` and its
   tree. Returns the text the model is given; a refusal is text too.
   """
-  def call(%User{} = user, %Card{} = root, "read_job", args) do
-    with {:ok, id} <- int(args["job_id"], "read_job needs a numeric job_id."),
+  def call(%User{} = user, %Card{} = root, name, args) when name in @job_tools do
+    with {:ok, id} <- int(args["job_id"], "#{name} needs a numeric job_id."),
          {:ok, job} <- fetch_job(id),
          {:ok, card} <- resolve(user, root, job.card_id, "Job ##{id}") do
-      job_text(%{job | card: card}, args["prompt"] == true)
+      job_tool(name, %{job | card: card}, args)
     else
       {:error, message} -> message
     end
@@ -138,6 +166,10 @@ defmodule Slipdock.AI.CardRecord do
   end
 
   def call(_user, _root, _name, _args), do: "Nobody is signed in."
+
+  defp job_tool("read_job", job, args), do: job_text(job, args["prompt"] == true)
+  defp job_tool("job_log_summary", job, _args), do: log_summary_text(job)
+  defp job_tool("job_log", job, args), do: log_stretch_text(job, args)
 
   ## Which card ----------------------------------------------------------------
 
@@ -511,6 +543,158 @@ defmodule Slipdock.AI.CardRecord do
       "The subcards added up: #{dur(total.seconds)}.",
       phase_lines(total.totals, total.seconds)
     ]
+  end
+
+  ## Job logs ------------------------------------------------------------------
+
+  # Where the log stands: nil when there is one to read, else what to say.
+  defp log_missing(%Job{} = job) do
+    job = Repo.preload(job, :transcript_page)
+
+    cond do
+      job.transcript_deleted_at ->
+        "Job ##{job.id}'s log has expired: it was deleted #{at(job.transcript_deleted_at)}, " <>
+          "as the board deletes logs nobody kept. The job's steps, summary and exit status " <>
+          "remain (read_job)."
+
+      job.transcript_lines == 0 and job.transcript_page ->
+        "Job ##{job.id}'s log isn't on the server any more, but it was kept as page " <>
+          "#{job.transcript_page.code} (#{job.transcript_page.title}), which holds what its " <>
+          "agent said."
+
+      job.transcript_lines == 0 ->
+        "Job ##{job.id} has no log: its runner sent none" <>
+          if(Job.open?(job), do: " yet.", else: " (runners send one since #1870).")
+
+      true ->
+        nil
+    end
+  end
+
+  defp log_summary_text(job) do
+    case log_missing(job) do
+      nil -> job |> Transcript.read() |> TranscriptSummary.summarise() |> summary_text(job)
+      message -> message
+    end
+  end
+
+  defp summary_text(sum, job) do
+    [
+      "Log of job ##{job.id} (#{job.kind} on ##{job.card_id}): #{sum.lines} lines" <>
+        log_state(job) <> ".",
+      "Spans #{at(sum.from)} → #{at(sum.to)}, #{dur(sum.seconds)}.",
+      "",
+      "Where the time went (each stretch between two lines goes to the tool call waiting " <>
+        "for its answer, else to the model):",
+      "- model (thinking and writing): #{dur(sum.model_seconds)}#{share(sum.model_seconds, sum.seconds)}",
+      "- tools: #{dur(sum.tool_seconds)}#{share(sum.tool_seconds, sum.seconds)}",
+      tool_kind_lines(sum),
+      "",
+      "Longest calls:",
+      if(sum.longest == [], do: "- none", else: Enum.map(sum.longest, &call_line/1)),
+      "",
+      "Failed calls (#{length(sum.failed)}):",
+      if(sum.failed == [],
+        do: "- none",
+        else:
+          Enum.map(
+            sum.failed,
+            &[call_line(&1), "  said: " <> String.replace(&1.error, "\n", "\n  ")]
+          )
+      ),
+      "",
+      "What the agent said (#{length(sum.messages)} messages):",
+      message_lines(sum.messages),
+      "",
+      "job_log with from and to reads any stretch of it in full."
+    ]
+    |> lines()
+  end
+
+  defp log_state(job) do
+    job = Repo.preload(job, :transcript_page)
+
+    cond do
+      Job.open?(job) -> ", still coming in: the job is #{job.status}"
+      job.transcript_page -> ", kept as page #{job.transcript_page.code}"
+      exp = TranscriptRetention.expires_at(job) -> ", expiring #{at(exp)}"
+      true -> ""
+    end <>
+      if(job.transcript_capped,
+        do: " (it reached its size limit, so its end is missing)",
+        else: ""
+      )
+  end
+
+  defp share(_part, 0), do: ""
+  defp share(part, whole), do: " (#{round(part * 100 / whole)}%)"
+
+  defp tool_kind_lines(sum) do
+    TranscriptSummary.kinds()
+    |> Enum.filter(&(sum.tools[&1].calls > 0))
+    |> Enum.map(fn kind ->
+      t = sum.tools[kind]
+      "  - #{kind}: #{dur(t.seconds)} over #{t.calls} call#{if t.calls == 1, do: "", else: "s"}"
+    end)
+  end
+
+  defp call_line(c) do
+    took = if c.seconds, do: " · #{dur(c.seconds)}", else: " · no answer in the log"
+    "- line #{c.line} · #{at(c.at)} · #{c.name} (#{c.kind}): #{c.what}#{took}"
+  end
+
+  defp message_lines([]), do: "- none"
+
+  defp message_lines(messages) do
+    shown =
+      if length(messages) > @log_messages,
+        do:
+          Enum.take(messages, div(@log_messages, 2)) ++
+            [:gap] ++ Enum.take(messages, -div(@log_messages, 2)),
+        else: messages
+
+    Enum.map(shown, fn
+      :gap -> "- … #{length(messages) - @log_messages} more in between (job_log reads them)"
+      m -> "- line #{m.line} · #{at(m.at)}: #{cap(m.text, @log_message_cap)}"
+    end)
+  end
+
+  defp log_stretch_text(job, args) do
+    with nil <- log_missing(job),
+         {:ok, from} <- int(args["from"] || 0, "from must be a line number."),
+         {:ok, to} <- int(args["to"] || from + @log_stretch - 1, "to must be a line number.") do
+      from = max(from, 0)
+      to = to |> min(from + @log_stretch - 1) |> max(from)
+      stretch(job, from, to)
+    else
+      {:error, message} -> message
+      message -> message
+    end
+  end
+
+  defp stretch(job, from, to) do
+    text =
+      job
+      |> Transcript.read(from)
+      |> String.split("\n")
+      |> Enum.take(to - from + 1)
+      |> Enum.join("\n")
+
+    entries = TranscriptView.entries(text, from)
+
+    body =
+      Enum.map_join(entries, "\n", fn e ->
+        line = "[line #{e.line}] " <> TranscriptView.format(e)
+        if e.detail, do: line <> "\n" <> cap(e.detail, @log_entry_cap), else: line
+      end)
+
+    [
+      "Job ##{job.id}'s log, lines #{from}–#{to} of #{job.transcript_lines} " <>
+        "(#{length(entries)} entries; hook output and thinking are left out):",
+      if(body == "", do: "(nothing to show in these lines)", else: cap(body, @log_stretch_cap)),
+      to + 1 < job.transcript_lines && "More: job_log from #{to + 1}."
+    ]
+    |> lines()
   end
 
   ## Pieces --------------------------------------------------------------------

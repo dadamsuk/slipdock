@@ -544,7 +544,10 @@ its steps, exit status and summary, the timeline, waits, handoffs, comments,
 and the bar, evidence, rejections, audits, merge and deploys. It also works
 out where a card's time went (`card_lead_time`): its lead time by phase, from
 the ready list (and which jobs held the pool) through build, CI, verify and
-merge to deploy, with what it can't explain as a phase of its own. CI is read
+merge to deploy, with what it can't explain as a phase of its own. And it
+reads a job's log, summed up first (what the agent said, model and tool time
+by kind, the longest and the failed calls, each by line) and then any stretch
+in full, while the log lasts. CI is read
 from the `Build started` / `Build failed` / `Build passed` comments and from
 steps that mention CI, so write those as they happen: a failure reported only
 after its fix is pushed reads as one CI span with the fix inside it. So a step

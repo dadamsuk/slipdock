@@ -40,6 +40,8 @@ defmodule Slipdock.CardChatTest do
     }
   end
 
+  @job_tools ~w(read_job job_log_summary job_log)
+
   defp call(ctx, name, args \\ %{}), do: CardRecord.call(ctx.owner, ctx.epic, name, args)
 
   describe "which card a tool reads" do
@@ -53,7 +55,7 @@ defmodule Slipdock.CardChatTest do
     end
 
     test "a card outside the open card's tree is refused, whoever may read it", ctx do
-      for name <- CardRecord.names() -- ["read_job"] do
+      for name <- CardRecord.names() -- @job_tools do
         text = call(ctx, name, %{"card_id" => ctx.other.id})
         assert text =~ "isn't on this card or beneath it", name
         refute text =~ "Somebody else's card", name
@@ -64,7 +66,7 @@ defmodule Slipdock.CardChatTest do
       stranger = user_fixture("stranger@example.com")
       {:ok, _} = Boards.add_comment(ctx.epic, "a secret note")
 
-      for name <- CardRecord.names() -- ["read_job"] do
+      for name <- CardRecord.names() -- @job_tools do
         text = CardRecord.call(stranger, ctx.epic, name, %{})
         assert text == "There is no card ##{ctx.epic.id} you can see.", name
 
@@ -73,8 +75,11 @@ defmodule Slipdock.CardChatTest do
       end
 
       job = working_job_fixture(ctx.child)
-      text = CardRecord.call(stranger, ctx.epic, "read_job", %{"job_id" => job.id})
-      assert text == "There is no card ##{ctx.child.id} you can see."
+
+      for name <- @job_tools do
+        text = CardRecord.call(stranger, ctx.epic, name, %{"job_id" => job.id})
+        assert text == "There is no card ##{ctx.child.id} you can see.", name
+      end
     end
 
     test "nonsense ids, missing cards and unknown tools say so", ctx do
