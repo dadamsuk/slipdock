@@ -253,8 +253,7 @@ defmodule Slipdock.Lanes do
 
   defp paths_conflict(card, board, paths) do
     root = Board.root_id(board)
-    exclude = [card.id | ancestor_ids(board)]
-    below = Slipdock.Boards.subtree_board_ids(card.id)
+    {exclude, below} = own_tree(card, board)
 
     from(c in Card,
       as: :card,
@@ -272,6 +271,14 @@ defmodule Slipdock.Lanes do
     |> Repo.all()
     |> Enum.find(&overlap?(paths, &1.paths))
   end
+
+  # The cards that don't count against `card` (itself and its parents) and
+  # the boards below it. A card not yet made (`check_create/3`) has no id,
+  # and nothing below it.
+  defp own_tree(%Card{id: nil}, board), do: {ancestor_ids(board), []}
+
+  defp own_tree(%Card{id: id}, board),
+    do: {[id | ancestor_ids(board)], Slipdock.Boards.subtree_board_ids(id)}
 
   # The cards on the sub-board of the card in progress being looked at: it
   # is an epic when there are any.
@@ -350,6 +357,32 @@ defmodule Slipdock.Lanes do
     else
       _ -> :ok
     end
+  end
+
+  @doc """
+  `changeset` (a new card's) with a `paths` error when `actor` (an agent)
+  creates the card straight into a doing list, on a board with lanes on,
+  with paths that overlap a card in progress (#1815): the check a move into
+  that list makes. Otherwise it comes back as it was.
+  """
+  def check_create(%Ecto.Changeset{valid?: true} = changeset, %Column{} = column, actor) do
+    card = Ecto.Changeset.apply_changes(changeset)
+
+    with true <- column.category == "doing" and gated?(actor),
+         %Card{} = other <- conflict(card, card.paths) do
+      Ecto.Changeset.add_error(changeset, :paths, create_message(column, other))
+    else
+      _ -> changeset
+    end
+  end
+
+  def check_create(%Ecto.Changeset{} = changeset, _column, _actor), do: changeset
+
+  defp create_message(column, other) do
+    "overlap those of ##{other.id} \"#{other.title}\", in progress " <>
+      "(#{Enum.join(other.paths, ", ")}): this board keeps agents in lanes. Create the card " <>
+      "in another list than #{column.name}, narrow its paths, wait for ##{other.id}, " <>
+      "or ask a person to move it"
   end
 
   @doc """

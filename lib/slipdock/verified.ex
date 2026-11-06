@@ -170,6 +170,40 @@ defmodule Slipdock.Verified do
 
   def moved(%Card{} = card, _to), do: {:ok, card}
 
+  @doc """
+  The checks of a move into `column`, for a card being created there (#1815):
+  `changeset` (a new card's) with a `bar` error when `actor` (an agent) may
+  not start work on it, because the list is a doing list, the board asks for
+  a bar and the card has none; else with the bar locked, as a move into the
+  list would lock it. A changeset already invalid, or for any other list,
+  comes back as it was.
+  """
+  def check_create(%Ecto.Changeset{valid?: true} = changeset, %Column{} = column, actor) do
+    card = Ecto.Changeset.apply_changes(changeset)
+
+    cond do
+      not doing?(column) or not board(card).bar_required ->
+        changeset
+
+      blank?(card.bar) and gated?(actor) ->
+        Ecto.Changeset.add_error(
+          changeset,
+          :bar,
+          "is needed to start work: this board asks for each card's bar before work " <>
+            "starts, so write what done means (its `bar`) to create a card in " <>
+            "#{column.name}, or create it in another list"
+        )
+
+      blank?(card.bar) ->
+        changeset
+
+      true ->
+        Ecto.Changeset.put_change(changeset, :bar_locked_at, DateTime.utc_now(:second))
+    end
+  end
+
+  def check_create(%Ecto.Changeset{} = changeset, _column, _actor), do: changeset
+
   ## Done stays done (#1850) --------------------------------------------------
 
   @doc """

@@ -53,7 +53,8 @@ defmodule SlipdockWeb.API.CardWrites do
          {:ok, assignee} <- resolve_assignees(board, params, user),
          {:ok, card} <-
            Boards.create_card(column, params |> Map.take(@card_fields) |> Map.merge(assignee),
-             by: user
+             by: user,
+             actor: Slipdock.Actor.from_conn(auth)
            ),
          {:ok, _} <- maybe_set_tags(card, tags),
          {:ok, _} <- maybe_archive(card, archived) do

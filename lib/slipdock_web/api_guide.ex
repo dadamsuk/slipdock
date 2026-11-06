@@ -3686,7 +3686,8 @@ defmodule SlipdockWeb.APIGuide do
       `create_card`, `slipdock add --paths`). Moving it in is refused
       (`422`, naming the card in the way) while its paths overlap an open
       card already in progress on the board's tree, the card's own subcards
-      and parents aside, and so is widening an in-progress card's paths onto
+      and parents aside, and so are creating one straight into an
+      in-progress list and widening an in-progress card's paths onto
       another's. An epic's lane is its subcards': in progress it holds none
       of its own, and it waits only when none of the subcards it could take
       could start. Narrow the paths, take other work, or ask a person: a
@@ -3751,7 +3752,8 @@ defmodule SlipdockWeb.APIGuide do
     `POST /api/boards/:board/cards` and `create_card`, `slipdock add --bar
     TEXT --paths "a/**"`, checked as on an update. A planner's bar is better
     than one written at claim time. Moving a card with no bar into an in-progress list is
-    refused (`422`). The bar locks when work starts: changing it after that
+    refused (`422`), and so is creating one there with no bar. The bar locks when work
+    starts (the move, or the card created in progress): changing it after that
     is refused too, and only a person can. Work to the bar as written, and
     say on the card how each part of it was met.
     """
