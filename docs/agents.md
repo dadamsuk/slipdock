@@ -537,7 +537,13 @@ has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
 card. `job_progress` with `step` (`slipdock job-progress --step`) says what a
 job is doing now on the job alone, not the card: a verify job reports each
 step that way, and every runner job's prompt asks for its milestones too (on
-an epic, each subcard as it starts, is submitted and merges). The epic's
+an epic, each subcard as it starts, is submitted and merges). Every step is
+kept on the job with its time. The card's own chat (*Ask AI about this card*)
+reads that record for a person: every job on the card and its subcards with
+its steps, exit status and summary, the timeline, waits, handoffs, comments,
+and the bar, evidence, rejections, audits, merge and deploys. So a step that
+says what happened (*CI red: credo*, *#1876 submitted*) is what answers *why
+did it fail?* and *where did the time go?* later. The epic's
 comments are the server's to keep: it posts a line on the epic as each
 subcard starts, is submitted, rejected, accepted, merged, fails a build,
 waits on a person or ships, with the done count, and keeps the epic's %

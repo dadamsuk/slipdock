@@ -151,6 +151,34 @@ defmodule SlipdockWeb.AILiveTest do
     assert system =~ "Due date: none"
   end
 
+  test "the open card's chat reads the card's record with tools (#1875)", %{
+    conn: conn,
+    board: board,
+    card: card
+  } do
+    {:ok, _} = Boards.add_comment(card, "CI went red on credo")
+
+    Slipdock.AIStub.reply_sequence([
+      {:tool_calls, [{"card_comments", %{}}]},
+      "Comment says CI went red on credo."
+    ])
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+    view |> element("#card-ai-#{card.id} > div > button") |> render_click()
+
+    view
+    |> form("#card-ai-#{card.id}-form-0", %{"message" => "Why did CI fail?"})
+    |> render_submit()
+
+    assert render_async(view) =~ "Comment says CI went red on credo."
+
+    assert_receive {:ai_request, %{"tools" => tools}}
+    assert "card_jobs" in Enum.map(tools, & &1["function"]["name"])
+    assert_receive {:ai_request, %{"messages" => messages}}
+    tool = Enum.find(messages, &(&1["role"] == "tool"))
+    assert tool["content"] =~ "CI went red on credo"
+  end
+
   test "the narrative page generates prose at a chosen level", %{conn: conn, board: board} do
     Slipdock.AIStub.reply_with("Shipped thing was completed. Write the plan is still open.")
     {:ok, view, html} = live(conn, ~p"/boards/#{board}/narrative")

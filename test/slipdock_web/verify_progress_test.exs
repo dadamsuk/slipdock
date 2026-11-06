@@ -289,6 +289,12 @@ defmodule SlipdockWeb.VerifyProgressTest do
       assert shown["step"] == "tests passed: 412, failed: 0"
       assert shown["step_at"]
 
+      # Every step is kept, oldest first, with its time (#1875).
+      assert Enum.map(shown["steps"], & &1["text"]) ==
+               ["tests running: mix test", "tests passed: 412, failed: 0"]
+
+      assert Enum.all?(shown["steps"], &is_binary(&1["at"]))
+
       %{"jobs" => listed} =
         conn |> get(~p"/api/boards/#{ctx.board.id}/jobs") |> json_response(200)
 
