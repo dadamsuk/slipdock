@@ -295,6 +295,28 @@ defmodule Slipdock.Swimlanes do
     if keys == [], do: ["free"], else: keys
   end
 
+  # The axes whose bucket is stored on the item itself, so the item as loaded
+  # now says for certain which bucket it is in. The rest are worked out from
+  # what a single loaded item doesn't carry (formula scores, links,
+  # dependencies) or refuse a move anyway (created, updated).
+  @stored_axes ~w(none column assignee priority tag flag completed color due_date schedule)
+
+  @doc """
+  Whether `item` (a card, or a page placed on the board, as loaded now) still
+  sits in the cell `{row_key, col_key}` of a grid drawn with `config`. A tab
+  drew the grid; a `false` here means the item has moved since (#1923). An
+  axis whose bucket can't be read off the item alone counts as a match.
+  """
+  def in_cell?(item, row_key, col_key, %Config{} = config) do
+    in_bucket?(item, config.rows, row_key, config.unit) and
+      in_bucket?(item, config.cols, col_key, config.unit)
+  end
+
+  defp in_bucket?(item, axis, key, unit) when axis in @stored_axes,
+    do: Enum.member?(card_keys(item, axis, unit), key)
+
+  defp in_bucket?(_item, _axis, _key, _unit), do: true
+
   @doc "The ordered buckets for `axis`, given the (already filtered) cards."
   def buckets(axis, board, cards, config, today \\ Date.utc_today())
 
