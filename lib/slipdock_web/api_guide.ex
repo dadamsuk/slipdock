@@ -3843,8 +3843,10 @@ defmodule SlipdockWeb.APIGuide do
     --evidence-commit SHA --branch B --tests a.exs,b.exs --suite
     passed:38:0`, or the same fields on `PATCH /api/cards/:id` with
     `"completed": true`. The server checks their shape, not their truth: a
-    second agent does that. Completing with none of them, or
-    moving the card into a done list without it, is refused (`422`). The
+    second agent does that. Completing with none of them, moving the card
+    into a done list without it, or creating a card already done (in a
+    done list, or with `"completed": true`) without it, is refused
+    (`422`). The
     evidence is posted on the card as a comment; reopening the card clears
     it, so the next completion brings its own.
     """
@@ -3855,7 +3857,8 @@ defmodule SlipdockWeb.APIGuide do
     **A second agent verifies.** Completing a card *submits* it: it stays
     open in its list with `verify_state: "pending"` and the `review` flag,
     and isn't done until someone else decides. Moving it into a done list
-    yourself is refused. Don't take a pending card as your next work unless
+    yourself is refused, and so is creating a card already done (in a done
+    list, or completed): create it in another list and complete it. Don't take a pending card as your next work unless
     you are the verifier. To verify one you did not submit: check out the
     evidence's commit and judge, in order, the ask (does the bar cover what
     the card asks for?), the bar, and on a board with a handbook the rules

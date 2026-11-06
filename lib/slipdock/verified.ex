@@ -79,6 +79,17 @@ defmodule Slipdock.Verified do
 
   ## The bar ------------------------------------------------------------------
 
+  @evidence_message "is required: this board asks an agent completing a card for what it " <>
+                      "checked — none of evidence (what you checked), evidence_commit (and " <>
+                      "evidence_branch), evidence_tests (the test files), evidence_suite " <>
+                      "({result: passed|failed, passed, failed}) or evidence_pr (the pull " <>
+                      "request's URL) was given"
+
+  @pr_message "is required: this board ships by pull request, so an agent completing a " <>
+                "card names the pull request its work is in (evidence_pr, `slipdock done " <>
+                "--pr URL`); push the card's branch and open one, never the default branch " <>
+                "(an epic, whose subcards ship their own, needs none)"
+
   @doc """
   `{:ok, attrs, changes}` — `attrs` as they are to be cast, and `changes` to
   put on the card besides (the verification fields, which are never cast) —
@@ -175,12 +186,54 @@ defmodule Slipdock.Verified do
   `changeset` (a new card's) with a `bar` error when `actor` (an agent) may
   not start work on it, because the list is a doing list, the board asks for
   a bar and the card has none; else with the bar locked, as a move into the
-  list would lock it. A changeset already invalid, or for any other list,
-  comes back as it was.
+  list would lock it.
+
+  Created finished (#1918), in a done list or with `completed` set, the card
+  meets what an agent completing it would: on a board that verifies work it
+  is refused (a submission needs a card to submit; a board that ships by
+  pull request always verifies), and on one that asks for evidence it needs
+  some. A changeset already invalid, or for any other list, comes back as
+  it was.
   """
   def check_create(%Ecto.Changeset{valid?: true} = changeset, %Column{} = column, actor) do
     card = Ecto.Changeset.apply_changes(changeset)
 
+    if (Column.done?(column) or card.completed) and gated?(actor),
+      do: check_create_done(changeset, card, column),
+      else: check_create_doing(changeset, card, column, actor)
+  end
+
+  def check_create(%Ecto.Changeset{} = changeset, _column, _actor), do: changeset
+
+  defp check_create_done(changeset, card, column) do
+    board = board(card)
+
+    cond do
+      board.verify_work ->
+        Ecto.Changeset.add_error(
+          changeset,
+          :completed,
+          "is refused: this board verifies work, so an agent can't create a card already " <>
+            "done (in #{column.name} or completed). Create it in another list, then submit it " <>
+            "by completing it (complete_card, `slipdock done`) for a different agent or a " <>
+            "person to accept"
+        )
+
+      board.evidence_required and not evidence?(card) ->
+        Ecto.Changeset.add_error(
+          changeset,
+          :evidence,
+          @evidence_message <>
+            ", to create a card in #{column.name}. Give it in the create, or create the " <>
+            "card in another list and complete it with evidence (complete_card, `slipdock done`)"
+        )
+
+      true ->
+        changeset
+    end
+  end
+
+  defp check_create_doing(changeset, card, column, actor) do
     cond do
       not doing?(column) or not board(card).bar_required ->
         changeset
@@ -201,8 +254,6 @@ defmodule Slipdock.Verified do
         Ecto.Changeset.put_change(changeset, :bar_locked_at, DateTime.utc_now(:second))
     end
   end
-
-  def check_create(%Ecto.Changeset{} = changeset, _column, _actor), do: changeset
 
   ## Done stays done (#1850) --------------------------------------------------
 
@@ -353,19 +404,8 @@ defmodule Slipdock.Verified do
 
   ## Evidence -----------------------------------------------------------------
 
-  @evidence_message "is required: this board asks an agent completing a card for what it " <>
-                      "checked — none of evidence (what you checked), evidence_commit (and " <>
-                      "evidence_branch), evidence_tests (the test files), evidence_suite " <>
-                      "({result: passed|failed, passed, failed}) or evidence_pr (the pull " <>
-                      "request's URL) was given"
-
   # The fields evidence is made of (#1632, #1623): any one of them is some.
   @evidence_fields ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr)a
-
-  @pr_message "is required: this board ships by pull request, so an agent completing a " <>
-                "card names the pull request its work is in (evidence_pr, `slipdock done " <>
-                "--pr URL`); push the card's branch and open one, never the default branch " <>
-                "(an epic, whose subcards ship their own, needs none)"
 
   defp check_evidence(%Card{} = card, attrs, actor) do
     cond do

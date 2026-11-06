@@ -694,8 +694,11 @@ MCP `complete_card`'s `evidence` and `commit`, or `PATCH /api/cards/:id
   `evidence_tests` and `evidence_suite`. Any one of them counts as
   evidence.
 - Completing with none of it (in the same write or already on the card),
-  or moving the card into a done list without it, is refused (`422`, naming
-  the fields that would do).
+  moving the card into a done list without it, or creating a card already
+  done without it (`slipdock add --column Done`, or `"completed": true` on
+  `POST /api/boards/:board/cards`), is refused (`422`, naming the fields
+  that would do). MCP `create_card` takes no evidence, so an agent creates
+  the card in another list and completes it.
 - The evidence shows on the card (**Evidence**, with the commit, branch,
   suite and test files) and in
   `slipdock card`, and is posted as a comment when the card completes.
@@ -708,7 +711,9 @@ MCP `complete_card`'s `evidence` and `commit`, or `PATCH /api/cards/:id
 `PATCH /api/boards/:board {"verify_work": true}`) makes an agent's
 completion a **submission**. The card stays open in its list, flagged
 *needs review*, with `verify_state: "pending"`, and it isn't done until
-someone else decides. The card shows **Awaiting verification**, who
+someone else decides. An agent can't skip the submission by creating a card
+already done (in a done list, or completed): that is refused (`422`, MCP
+tool error), and the card is made in another list and completed instead. The card shows **Awaiting verification**, who
 submitted it, and **Accept** and **Reject** for anyone who can edit it.
 
 - **Accept** (`slipdock accept 12`, or `slipdock verify 12 accept`; MCP `verify_card`;

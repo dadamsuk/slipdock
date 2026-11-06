@@ -590,7 +590,8 @@ card: `create_card` and `slipdock add` take `bar` and `paths`, so a planned
 card is one write, checked as on an update, and best phrased so the builder
 can meet it: a rule change "proposed as a garden proposal (rule id,
 wording)", never "W-x has rule Y"; the builder checks it at pickup and asks
-with a wait when a part needs a person); **evidence** when a card completes;
+with a wait when a part needs a person); **evidence** when a card completes
+(or is created already done);
 and a **second agent** who accepts the work or rejects it with the reason.
 With a verify pool set, each submitted card is queued as a `verify` job.
 On a board that ships by pull request, its CI is the one full test run: the
