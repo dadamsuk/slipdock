@@ -39,8 +39,8 @@ defmodule Slipdock.Portable do
   than an omission, and `warnings/1` on an export says which of them had
   something to leave behind.
 
-  An export from before meeting capture was removed (W-2330) may carry a
-  `captures` key; an import leaves it out, as it always did.
+  An older export may carry a `captures` key (W-2330); an import leaves it
+  out, as it always did.
   """
 
   # The work is split three ways: `Slipdock.Portable.Export` writes a tree

@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.SearchLinks do
   @moduledoc """
   Where a search match lives, as a link that lands on it rather than on the
-  card it belongs to: the comment, the status update, the meeting quote, the
+  card it belongs to: the comment, the status update, the
   part of a recording's transcript, or the section of a wiki page.
 
   A card is opened with `?at=<dom id>` (see `at/1`), which the card panel

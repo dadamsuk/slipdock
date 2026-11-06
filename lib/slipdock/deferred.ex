@@ -4,8 +4,8 @@ defmodule Slipdock.Deferred do
 
   A write made through the ordinary functions (`Slipdock.Boards.create_card/3`
   and the rest) also tells people — mention emails — and runs automation
-  rules. Inside a transaction that may yet roll back (a meeting capture's
-  commit, its undo), those must not happen until the rows they are about are
+  rules. Inside a transaction that may yet roll back (copying a board, a
+  runner's recovery), those must not happen until the rows they are about are
   certainly there, and must not happen at all if they are not.
 
   `collect/1` runs a function with effects held back in this process, and

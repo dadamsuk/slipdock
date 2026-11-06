@@ -9,7 +9,7 @@ defmodule Slipdock.Wiki.Revision do
   for the editor, `"api"` or `"cli"` for a token (with the token's name in
   `agent`), `"mcp"` for an MCP client (likewise), `"assistant"` for the
   in-app model, `"automation"` for a rule, `"meeting"` on old
-  revisions written by meeting capture, before it was removed (W-2330), `"gardener"` for a
+  revisions written from a meeting before W-2330, `"gardener"` for a
   tidy-up suggestion applied (see `Slipdock.Gardener.Steps`), `"email"` for
   mail to a page address (see `Slipdock.Inbound.Pages`).
   """

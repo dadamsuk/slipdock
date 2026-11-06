@@ -507,7 +507,7 @@ defmodule Slipdock.AI do
     end
   end
 
-  # Somebody keeping accounts (meeting capture's usage ledger) is told what
+  # A caller keeping accounts (`on_usage`) is told what
   # each call cost, as the endpoint reported it: tokens, and a cost where the
   # provider gives one (OpenRouter does, as `usage.cost`).
   defp report_usage(nil, _resp, _provider), do: :ok

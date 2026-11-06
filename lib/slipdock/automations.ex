@@ -362,7 +362,7 @@ defmodule Slipdock.Automations do
   `:assignee`, `:tag`, `:flag`.
   """
   def dispatch(event) when is_map(event) do
-    # Inside a write that may yet roll back (a meeting capture's commit),
+    # Inside a write that may yet roll back (a board being copied),
     # rules wait until it has landed — see `Slipdock.Deferred`.
     if Slipdock.Deferred.collecting?() do
       Slipdock.Deferred.defer(fn -> dispatch(event) end)

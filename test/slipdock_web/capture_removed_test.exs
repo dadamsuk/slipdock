@@ -163,6 +163,62 @@ defmodule SlipdockWeb.CaptureRemovedTest do
     end
   end
 
+  describe "nothing left that names it (#1820)" do
+    # The terms the sweep looked for (W-2330 §What goes). Wiki revision
+    # history's `"meeting"` value and the meeting pages docs (W-1690) don't
+    # match any of them, and stay.
+    @terms ~r/meeting mode|meeting capture|chat capture|chat_capture|meetings_|capture_chat|capture_meeting|get_capture|commit_capture|resolve_capture|Slipdock\.Meetings|MeetingLive|slipdock-capture|card_provenance/i
+
+    @swept ~w(lib cli/lib priv/skills docs tools assets/js)
+    @swept_files ~w(README.md AGENTS.md cli/help.txt)
+
+    defp swept_files do
+      dirs =
+        for dir <- @swept,
+            path <- Path.wildcard(Path.join([@root, dir, "**", "*"])),
+            File.regular?(path),
+            do: path
+
+      dirs ++ Enum.map(@swept_files, &Path.join(@root, &1))
+    end
+
+    test "no file in lib/, cli/, priv/skills, docs/ or tools/ names capture" do
+      files = swept_files()
+      assert Path.join(@root, "lib/slipdock/wiki/revision.ex") in files
+      assert Path.join(@root, "docs/manual.md") in files
+
+      hits =
+        for path <- files,
+            text = File.read!(path),
+            String.valid?(text),
+            {line, n} <- text |> String.split("\n") |> Enum.with_index(1),
+            line =~ @terms,
+            do: "#{Path.relative_to(path, @root)}:#{n}: #{String.trim(line)}"
+
+      assert hits == [], "capture is still named:\n" <> Enum.join(hits, "\n")
+    end
+
+    test "the sweep would catch a mention" do
+      assert "  alias Slipdock.Meetings.Capture" =~ @terms
+      assert "turn on Meeting capture in Config" =~ @terms
+      assert ~s("chat_capture_enabled" => true) =~ @terms
+      assert "slipdock-capture/SKILL.md" =~ @terms
+      refute "@vias ~w(web api meeting sync)" =~ @terms
+      refute "### Meeting pages (recordings on Google Drive)" =~ @terms
+    end
+
+    test "no module of Slipdock.Meetings or the meeting pages is compiled" do
+      {:ok, modules} = :application.get_key(:slipdock, :modules)
+      names = Enum.map(modules, &inspect/1)
+
+      assert names != []
+      assert "Slipdock.Transcription.Voiceprints" in names
+      refute Enum.any?(names, &String.starts_with?(&1, "Slipdock.Meetings"))
+      refute Enum.any?(names, &String.starts_with?(&1, "SlipdockWeb.MeetingLive"))
+      refute Code.ensure_loaded?(Slipdock.Meetings)
+    end
+  end
+
   test "the slipdock-capture skill is gone" do
     refute File.exists?(Path.join(@root, "priv/skills/slipdock-capture"))
     refute File.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~ "capture"
