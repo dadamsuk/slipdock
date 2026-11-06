@@ -119,7 +119,7 @@ defmodule SlipdockWeb.MCP.Tools do
   """
   def call(tool, args, %{token: token} = context) when is_map(args) do
     cond do
-      not tool.read_only?() and read_only_token?(token) ->
+      read_only_token?(token) and writes?(tool, args) ->
         {:error,
          "this API token is read-only, so it can't #{tool.name()}. " <>
            "Don't retry: connect again with write access, or use a write token " <>
@@ -223,6 +223,16 @@ defmodule SlipdockWeb.MCP.Tools do
       board_id: card.board_id,
       url: base_url <> "/boards/#{card.board_id}/cards/#{card.id}"
     })
+  end
+
+  # A tool that writes only for some arguments (garden's run) says which; any
+  # other is read-only or not as a whole.
+  defp writes?(tool, args) do
+    Code.ensure_loaded(tool)
+
+    if function_exported?(tool, :writes?, 1),
+      do: tool.writes?(args),
+      else: not tool.read_only?()
   end
 
   defp read_only_token?(%{scope: "read"}), do: true

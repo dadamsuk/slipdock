@@ -384,9 +384,46 @@ defmodule SlipdockWeb.GardenAPITest do
       conn = with_token(ctx.owner, scope: "read")
       assert %{"suggestions" => []} = conn |> call("garden", %{board: ctx.board.code}) |> ok!()
 
-      assert with_token(ctx.owner, scope: "read")
-             |> call("garden", %{board: ctx.board.code, run: true})
-             |> error!()
+      assert %{"suggestions" => []} =
+               with_token(ctx.owner, scope: "read")
+               |> call("garden", %{board: ctx.board.code, run: false})
+               |> ok!()
+
+      # run as a boolean or as the string the argument parser also takes
+      for run <- [true, "true"] do
+        text =
+          with_token(ctx.owner, scope: "read")
+          |> call("garden", %{board: ctx.board.code, run: run})
+          |> error!()
+
+        assert text =~ "read-only, so it can't garden"
+      end
+
+      assert Gardener.last_run(ctx.board) == nil
+      assert Gardener.list_open(ctx.board) == []
+    end
+
+    test "a reader's run is refused and runs nothing", ctx do
+      text = as(ctx.reader) |> call("garden", %{board: ctx.board.code, run: true}) |> error!()
+      assert text =~ "edit this board"
+      assert Gardener.last_run(ctx.board) == nil
+    end
+
+    # run: true records a run and files suggestions, so tools/list must not tell
+    # a client garden is read-only: it would run it without asking (#1868).
+    test "tools/list doesn't mark garden read-only", ctx do
+      tools =
+        as(ctx.owner)
+        |> put_req_header("content-type", "application/json")
+        |> post("/mcp", Jason.encode!(%{jsonrpc: "2.0", id: 1, method: "tools/list"}))
+        |> json_response(200)
+        |> get_in(["result", "tools"])
+
+      garden = Enum.find(tools, &(&1["name"] == "garden"))
+
+      assert garden["annotations"]["readOnlyHint"] == false
+      assert garden["annotations"]["destructiveHint"] == false
+      assert garden["description"] =~ "run: true looks again first (a write)"
     end
 
     test "garden_decide without confirm is refused, and changes nothing", ctx do
