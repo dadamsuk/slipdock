@@ -571,12 +571,23 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
 
   @doc """
   How well agent work goes over the page's window (#1796): first-time-right,
-  rework, job outcomes per 100 jobs and health incidents, then rework by
-  handbook area.
+  rework, job outcomes per 100 jobs and health incidents; then rejections in
+  parts, disputed Handbook lines and audits (#1798); then rework by handbook
+  area and the rules most broken.
   """
   def quality_section(assigns) do
     q = assigns.quality
-    assigns = assign(assigns, q: q, v: q.verified, j: q.jobs, h: q.health)
+
+    assigns =
+      assign(assigns,
+        q: q,
+        v: q.verified,
+        j: q.jobs,
+        h: q.health,
+        r: q.rejections,
+        a: q.audits,
+        rules: Enum.take(q.rejections.by_rule, 10)
+      )
 
     ~H"""
     <.section id="quality" title="Quality" note={"Last #{@q.days} days"}>
@@ -630,6 +641,23 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
           value={to_string(@h.incidents)}
           detail={"#{@h.fixed} fixed · #{@h.flagged} flagged · #{@h.cleared} cleared · #{@h.open} open"}
         />
+        <.tile
+          id="quality-rejections"
+          label="Rejections"
+          value={to_string(@r.rejections)}
+          detail={rejection_detail(@r)}
+        />
+        <.tile
+          id="quality-disputed"
+          label="Disputed Handbook lines"
+          value={to_string(@r.disputed_lines)}
+          detail={
+            if @a.audits == 0,
+              do: "no audits",
+              else:
+                "#{@a.audits} #{plural(@a.audits, "audit")}: #{@a.agreed} agreed · #{@a.disagreed} disagreed"
+          }
+        />
       </div>
       <div :if={@q.areas != []} class="mt-4 overflow-x-auto">
         <h3 class="mb-2 text-sm font-semibold">Rework by area</h3>
@@ -655,8 +683,49 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
           </tbody>
         </table>
       </div>
+      <div :if={@rules != []} class="mt-4 overflow-x-auto">
+        <h3 class="mb-2 text-sm font-semibold">Rules most broken</h3>
+        <table id="quality-rules" class="w-full min-w-[28rem] text-sm">
+          <thead class="text-left text-2xs uppercase tracking-wide text-base-content/60">
+            <tr>
+              <th class="py-1 pr-2 font-medium">Rule</th>
+              <th class="py-1 pr-2 font-medium">Broken</th>
+              <th class="py-1 font-medium">Page</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-base-content/5">
+            <tr :for={rule <- @rules} id={"quality-rule-#{rule.id}"}>
+              <td class="py-1.5 pr-2">
+                <span class="font-mono text-xs">{rule.id}</span>
+                <span :if={rule.severity} class="text-xs text-base-content/60">{rule.severity}</span>
+              </td>
+              <td class="py-1.5 pr-2 tabular-nums">{rule.count}</td>
+              <td class="py-1.5">
+                {if rule.page, do: "#{rule.page.code} #{rule.page.title}", else: "not in the handbook"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </.section>
     """
+  end
+
+  @part_names %{
+    "ask" => "the ask",
+    "bar" => "the bar",
+    "rules" => "the rules",
+    "suite" => "the suite",
+    "handbook_line" => "the Handbook line"
+  }
+
+  # What the rejections failed, most first: "3 the rules · 1 the bar · 1 naming no part".
+  defp rejection_detail(%{rejections: 0}), do: "none in the window"
+
+  defp rejection_detail(r) do
+    parts = for p <- r.by_part, do: "#{p.count} #{@part_names[p.part] || p.part}"
+    unparted = if r.unparted > 0, do: ["#{r.unparted} naming no part"], else: []
+    Enum.join(parts ++ unparted, " · ")
   end
 
   attr :runner, :map, required: true

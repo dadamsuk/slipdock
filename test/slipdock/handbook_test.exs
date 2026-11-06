@@ -352,6 +352,7 @@ defmodule Slipdock.HandbookTest do
       assert triage.description =~ "dismiss --note"
       assert triage.description =~ "slipdock garden propose <board> <file.json>"
       assert triage.description =~ "a card for the test instead"
+      assert triage.description =~ "`slipdock quality <board> --rules`"
       assert triage.description =~ "## Triage"
       assert Enum.map(Boards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
 

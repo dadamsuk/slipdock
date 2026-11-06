@@ -207,7 +207,10 @@ defmodule SlipdockCLI do
     quality <board> [--days N]          how well agent work goes (30 days unless given):
                                         cards accepted first time, rejections per card and
                                         by handbook area, job timeouts, failures, requeues and
-                                        give-ups per 100 jobs, health incidents fixed and flagged
+                                        give-ups per 100 jobs, health incidents fixed and flagged,
+                                        rejections by part (the ask, bar, rules, suite, Handbook
+                                        line) and by rule id, disputed Handbook lines and audits
+      --rules           every rule broken in the window, with its page (the top 5 without it)
     swimlanes <board> [view opts]       cards as a grid, grouped on two axes
     table <board> [view opts] [--fields F]  cards as a table (F: comma list of
         id title column priority assignee flags tags start due completed percent time checklist comments deps subcards
@@ -1110,6 +1113,8 @@ defmodule SlipdockCLI do
     next: :string,
     simple: :boolean,
     days: :integer,
+    # `slipdock quality <board> --rules`: every broken rule, not the top five.
+    rules: :boolean,
     # `slipdock garden <board> --run --check K`, `garden apply <id> --keep N --choice C`.
     run: :boolean,
     # Also `verify <id> … --check bar:2=fail:why`, repeated (#1778).

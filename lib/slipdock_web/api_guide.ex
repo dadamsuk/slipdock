@@ -1333,7 +1333,11 @@ defmodule SlipdockWeb.APIGuide do
     # (each card under the handbook page covering most of its lane paths, or
     # "unmapped"), jobs (timeouts, failed, requeues, gave_up, each per_100
     # finished jobs) and health (incidents fixed, flagged, cleared, open);
-    # previous is the window before's verified numbers
+    # previous is the window before's verified numbers. rejections counts the
+    # verifiers' rejections in parts: by_part (ask, bar, rules, suite,
+    # handbook_line), by_rule (id, count, severity and page, most broken
+    # first), disputed_lines and unparted (naming no part); audits counts
+    # audits agreed and disagreed. slipdock quality --rules lists every rule
     curl -s -H "$H" "B/api/boards/1/quality?days=30"
 
     # cards past their list's usual stay, and who holds them (driver=all|agent|human)

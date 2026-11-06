@@ -10,8 +10,8 @@ defmodule Slipdock.QualityTest do
   import Ecto.Query
   import Slipdock.Fixtures
 
-  alias Slipdock.{Boards, Handbook, Quality, Repo, Wiki}
-  alias Slipdock.Boards.{Activity, Card}
+  alias Slipdock.{Actor, Boards, Handbook, Quality, Repo, Verified, Wiki}
+  alias Slipdock.Boards.{Activity, Card, Comment}
   alias Slipdock.Health.Incident
   alias Slipdock.Runners.Job
 
@@ -171,6 +171,21 @@ defmodule Slipdock.QualityTest do
       assert report(board, days: 0).days == 1
     end
 
+    test "the window takes in its last second: a card accepted just now counts",
+         %{board: board, todo: todo} do
+      verified!(todo, 0, 0)
+      card = card_fixture(todo)
+
+      Repo.update_all(from(c in Card, where: c.id == ^card.id),
+        set: [verify_state: "accepted", verify_at: DateTime.utc_now(:second)]
+      )
+
+      assert report(board).verified.accepted == 1
+      assert report(board).previous.accepted == 0
+      # Without :now, today: both are within its 30 days.
+      assert Quality.for_board(board).verified.accepted == 2
+    end
+
     test "sub-boards' cards count, however deep; a sub-board counts only its own",
          %{board: board, todo: todo} do
       {:ok, t} = Boards.find_template(nil, "Simple")
@@ -301,4 +316,177 @@ defmodule Slipdock.QualityTest do
       assert report(board).health.incidents == 2
     end
   end
+
+  describe "rejections by part and rule (#1798)" do
+    defp agent(user, label),
+      do: %{Actor.unknown() | kind: "agent", via: "mcp", user_id: user.id, agent: label}
+
+    # A card submitted by one agent and rejected by another, through
+    # `Verified.decide/5`: the comment it posts is what is counted.
+    defp rejected!(ctx, params) do
+      [_backlog, _todo, doing, _done] = ctx.board.columns
+      card = card_fixture(doing)
+
+      {:ok, card} =
+        Boards.update_card(card, %{"completed" => true},
+          actor: agent(ctx.user, "builder"),
+          by: ctx.user
+        )
+
+      {:ok, _} = Verified.decide(card, "reject", params, agent(ctx.user, "checker"), ctx.user)
+      card
+    end
+
+    defp comment!(card, body, at) do
+      Repo.insert!(%Comment{card_id: card.id, body: body, inserted_at: at, updated_at: at})
+    end
+
+    defp rejections(board), do: Quality.for_board(board).rejections
+
+    setup ctx do
+      {:ok, board} = Boards.update_board(ctx.board, %{"verify_work" => true})
+      {:ok, _} = Handbook.install(ctx.user, board)
+      ux = Enum.find(Handbook.find(board).pages, &(&1.title == "UX & UI"))
+
+      {:ok, _} =
+        Wiki.update_page(ux, %{
+          "body" =>
+            "# UX & UI\n\n## Rules\n\n" <>
+              "- **UX-1** must · judgement · Colours come from the tokens.\n" <>
+              "- **UX-2** should · judgement · Say it once.\n"
+        })
+
+      %{board: Boards.get_board!(board.id), ux: ux}
+    end
+
+    test "counts each rejection's failing parts from its verdict, and rules by id with their page",
+         ctx do
+      rejected!(ctx, %{
+        "reason" => "Not yet",
+        "checks" => ["bar:1=ok", "bar:2=fail:no footer", "rule:UX-1=broken:hex", "ask=ok"]
+      })
+
+      rejected!(ctx, %{
+        "reason" => "Again",
+        "checks" => ["rule:UX-1=broken", "rule:UX-2=broken", "handbook_line=disputed:W-3"]
+      })
+
+      rejected!(ctx, %{"reason" => "Short", "checks" => ["ask=misses", "suite=10:2"]})
+
+      r = rejections(ctx.board)
+      assert r.rejections == 3
+      assert r.unparted == 0
+      assert r.disputed_lines == 1
+
+      assert r.by_part == [
+               %{part: "rules", count: 2},
+               %{part: "ask", count: 1},
+               %{part: "bar", count: 1},
+               %{part: "suite", count: 1},
+               %{part: "handbook_line", count: 1}
+             ]
+
+      code = ctx.ux.code
+
+      assert [
+               %{id: "UX-1", count: 2, severity: "must", page: %{code: ^code, title: "UX & UI"}},
+               %{id: "UX-2", count: 1, severity: "should", page: %{code: ^code}}
+             ] = r.by_rule
+    end
+
+    test "a rejection given no parts counts the ones its reason cites", ctx do
+      rejected!(ctx, %{"reason" => "bar 3: the totals are wrong\nUX-1: a hex colour"})
+
+      r = rejections(ctx.board)
+      assert r.unparted == 0
+      assert Enum.map(r.by_part, & &1.part) == ["bar", "rules"]
+      assert [%{id: "UX-1", count: 1}] = r.by_rule
+    end
+
+    test "a person's rejection that names no part is unparted", ctx do
+      [_backlog, _todo, doing, _done] = ctx.board.columns
+      card = card_fixture(doing)
+
+      {:ok, card} =
+        Boards.update_card(card, %{"completed" => true},
+          actor: agent(ctx.user, "builder"),
+          by: ctx.user
+        )
+
+      {:ok, _} =
+        Verified.decide(
+          card,
+          "reject",
+          %{"reason" => "Not what I meant"},
+          Actor.web(ctx.user),
+          ctx.user
+        )
+
+      assert %{rejections: 1, unparted: 1, by_part: [], by_rule: []} = rejections(ctx.board)
+    end
+
+    test "an older reason-only rejection is unparted, whatever its reason cites", ctx do
+      [_backlog, todo | _] = ctx.board.columns
+      card = card_fixture(todo)
+      comment!(card, "**Rejected** by checker.\n\nbar 2: no footer", ago_now(20))
+
+      r = rejections(ctx.board)
+      assert r.rejections == 1
+      assert r.unparted == 1
+
+      # The same reason since verdicts were kept in parts counts as bar.
+      comment!(card, "**Rejected** by checker.\n\nbar 2: no footer", ago_now(0))
+
+      assert %{rejections: 2, unparted: 1, by_part: [%{part: "bar", count: 1}]} =
+               rejections(ctx.board)
+    end
+
+    test "a rule the handbook no longer has keeps its id, with no page", ctx do
+      rejected!(ctx, %{"reason" => "Gone", "checks" => ["rule:OLD-9=broken"]})
+      assert [%{id: "OLD-9", page: nil, severity: nil}] = rejections(ctx.board).by_rule
+    end
+
+    test "only the window counts; acceptances and other comments are not rejections", ctx do
+      [_backlog, todo | _] = ctx.board.columns
+      card = card_fixture(todo)
+      comment!(card, "**Rejected** by checker.\n\nOld\n\nChecks:\n\n- bar 1: fail", ago_now(45))
+      comment!(card, "**Accepted** by checker.\n\nFine\n\nChecks:\n\n- bar 1: ok", ago_now(1))
+      comment!(card, "Rejected it, in words", ago_now(1))
+
+      assert %{rejections: 0, by_part: []} = rejections(ctx.board)
+    end
+
+    test "audits agreed and disagreed in the window", ctx do
+      [_backlog, todo | _] = ctx.board.columns
+      card = card_fixture(todo)
+      comment!(card, "**Audit: agrees** with the acceptance, by auditor.", ago_now(1))
+      comment!(card, "**Audit: disagrees** with the acceptance, by auditor.\n\nbar 2", ago_now(2))
+      comment!(card, "**Audit: disagrees** with the acceptance, by auditor.", ago_now(2))
+      comment!(card, "**Audit: agrees** with the acceptance, by auditor.", ago_now(50))
+
+      assert Quality.for_board(ctx.board).audits == %{audits: 3, agreed: 1, disagreed: 2}
+    end
+
+    test "rejection_parts/3 reads a Checks block line by line" do
+      body =
+        "**Rejected** by x.\n\nwhy\n\nChecks:\n\n" <>
+          "- the ask: ok\n- bar 1: ok\n- bar 2: fail — no footer: really\n" <>
+          "- suite: 410 passed, 2 failed\n- UX-4 must: broken — hex\n- ARCH-1: n/a\n" <>
+          "- Handbook line: disputed — W-3"
+
+      assert Quality.rejection_parts(body, @now, nil) == [
+               {"bar", "2"},
+               {"suite", nil},
+               {"rules", "UX-4"},
+               {"handbook_line", nil}
+             ]
+
+      ok_suite = "**Rejected** by x.\n\nwhy\n\nChecks:\n\n- suite: 410 passed, 0 failed"
+      assert Quality.rejection_parts(ok_suite, @now, nil) == []
+    end
+  end
+
+  # Days before now, for the rows `Quality.for_board/2` reads without `:now`.
+  defp ago_now(days),
+    do: DateTime.add(DateTime.utc_now(:second), -days * 86_400, :second)
 end

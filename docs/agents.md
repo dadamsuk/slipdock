@@ -245,8 +245,10 @@ and `slipdock runner-stats <board>` (`runners: true`,
 `slipdock quality <board> [--days N]` (`GET /api/boards/:id/quality?days=`)
 how well agent work goes: cards accepted on their first submission,
 rejections per card by handbook area, job timeouts, failures, requeues and
-give-ups per 100 jobs, and health incidents fixed versus flagged. A person
-sees all of it on the board's **Visualise** page. A card's history — how
+give-ups per 100 jobs, health incidents fixed versus flagged, rejections by
+part and by rule id, disputed `Handbook:` lines and audits (`--rules` lists
+every broken rule with its page, what the triage card reads). A person sees
+all of it on the board's **Visualise** page. A card's history — how
 long it sat in each list and who moved it, its waits and its jobs — is
 `get_card` with `timeline: true`, `GET /api/cards/:id/timeline` or
 `slipdock timeline <id>`. See

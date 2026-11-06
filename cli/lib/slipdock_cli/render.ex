@@ -352,8 +352,11 @@ defmodule SlipdockCLI.Render do
     IO.puts("cycle time: P50 #{span(c["p50"])} · P85 #{span(c["p85"])} over #{c["cards"]} cards")
   end
 
-  @doc "A board's quality numbers (#1796, `GET /boards/:b/quality`)."
-  def quality(q) do
+  @doc """
+  A board's quality numbers (#1796, `GET /boards/:b/quality`); `all_rules`
+  (`--rules`) lists every broken rule rather than the five most broken.
+  """
+  def quality(q, all_rules \\ false) do
     v = q["verified"]
     p = q["previous"]
     IO.puts("last #{q["days"]} days (#{q["since"]} to #{q["until"]})")
@@ -399,7 +402,67 @@ defmodule SlipdockCLI.Render do
       "health: #{h["incidents"]} incidents · #{h["fixed"]} fixed, #{h["flagged"]} flagged, " <>
         "#{h["cleared"]} cleared, #{h["open"]} open"
     )
+
+    quality_rejections(q["rejections"], all_rules)
+
+    case q["audits"] do
+      %{"audits" => n} = a when n > 0 ->
+        IO.puts("audits: #{n} · #{a["agreed"]} agreed, #{a["disagreed"]} disagreed")
+
+      _ ->
+        :ok
+    end
   end
+
+  @quality_top_rules 5
+
+  # Rejections in parts (#1798): what failed, then the rules most broken.
+  defp quality_rejections(%{"rejections" => n} = r, all_rules) when n > 0 do
+    parts = Enum.map_join(r["by_part"], ", ", &"#{&1["count"]} #{part_name(&1["part"])}")
+    unparted = if r["unparted"] > 0, do: "#{r["unparted"]} naming no part", else: nil
+
+    IO.puts(
+      "rejections: #{n} · " <>
+        Enum.join(Enum.reject([parts, unparted], &Enum.member?([nil, ""], &1)), ", ")
+    )
+
+    if r["disputed_lines"] > 0, do: IO.puts("disputed Handbook lines: #{r["disputed_lines"]}")
+
+    rules = r["by_rule"]
+    shown = if all_rules, do: rules, else: Enum.take(rules, @quality_top_rules)
+
+    if shown != [] do
+      IO.puts(dim("  rule        broken  page"))
+      Enum.each(shown, &IO.puts(quality_rule(&1)))
+    end
+
+    if length(rules) > length(shown),
+      do: IO.puts(dim("  … #{length(rules) - length(shown)} more: --rules lists them all"))
+  end
+
+  defp quality_rejections(_r, _all_rules),
+    do: IO.puts("rejections: " <> dim("none in the window"))
+
+  defp quality_rule(rule) do
+    page =
+      case rule["page"] do
+        %{"code" => code, "title" => title} -> "#{code} #{title}"
+        _ -> dim("not in the handbook")
+      end
+
+    id = Enum.join(Enum.reject([rule["id"], rule["severity"]], &is_nil/1), " ")
+
+    "  " <>
+      String.pad_trailing(id, 12) <>
+      String.pad_leading(to_string(rule["count"]), 6) <> "  " <> page
+  end
+
+  defp part_name("ask"), do: "the ask"
+  defp part_name("bar"), do: "the bar"
+  defp part_name("rules"), do: "the rules"
+  defp part_name("suite"), do: "the suite"
+  defp part_name("handbook_line"), do: "the Handbook line"
+  defp part_name(other), do: other
 
   defp quality_area(a) do
     name = if a["code"], do: "#{a["code"]} #{a["title"]}", else: a["title"]

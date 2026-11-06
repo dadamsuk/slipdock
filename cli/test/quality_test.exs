@@ -67,7 +67,17 @@ defmodule SlipdockCLI.QualityTest do
               "gave_up" => nil
             }
           },
-      "health" => %{"incidents" => 3, "fixed" => 2, "flagged" => 1, "cleared" => 0, "open" => 0}
+      "health" => %{"incidents" => 3, "fixed" => 2, "flagged" => 1, "cleared" => 0, "open" => 0},
+      "rejections" =>
+        opts[:rejections] ||
+          %{
+            "rejections" => 0,
+            "unparted" => 0,
+            "by_part" => [],
+            "by_rule" => [],
+            "disputed_lines" => 0
+          },
+      "audits" => opts[:audits] || %{"audits" => 0, "agreed" => 0, "disagreed" => 0}
     }
   end
 
@@ -147,5 +157,66 @@ defmodule SlipdockCLI.QualityTest do
     serve(quality(verified(1, 1, 1.0, 0, 0.0), []))
     out = capture_io(fn -> Boards.run("quality", ["ship"], json: true) end)
     assert %{"quality" => %{"verified" => %{"accepted" => 1}}} = JSON.decode!(out)
+  end
+
+  defp rule(id, count, page \\ nil),
+    do: %{"id" => id, "count" => count, "severity" => page && "must", "page" => page}
+
+  defp many_rules do
+    %{
+      "rejections" => 9,
+      "unparted" => 1,
+      "by_part" => [
+        %{"part" => "rules", "count" => 6},
+        %{"part" => "bar", "count" => 2},
+        %{"part" => "handbook_line", "count" => 1}
+      ],
+      "by_rule" => [
+        rule("UX-4", 3, %{"code" => "W-1946", "title" => "UX & UI"}),
+        rule("ARCH-1", 2, %{"code" => "W-1945", "title" => "Architecture"}),
+        rule("DATA-1", 1, %{"code" => "W-1948", "title" => "Data model"}),
+        rule("COMP-2", 1, %{"code" => "W-1947", "title" => "Components"}),
+        rule("OPS-8", 1, %{"code" => "W-1951", "title" => "Operations"}),
+        rule("OLD-9", 1)
+      ],
+      "disputed_lines" => 1
+    }
+  end
+
+  test "rejections by part, the five most broken rules and audits (#1798)" do
+    serve(
+      quality(verified(1, 0, +0.0, 9, 9.0),
+        rejections: many_rules(),
+        audits: %{"audits" => 3, "agreed" => 2, "disagreed" => 1}
+      )
+    )
+
+    out = capture_io(fn -> Boards.run("quality", ["ship"], []) end)
+
+    assert out =~
+             "rejections: 9 · 6 the rules, 2 the bar, 1 the Handbook line, 1 naming no part"
+
+    assert out =~ "disputed Handbook lines: 1"
+    assert out =~ ~r/UX-4 must\s+3  W-1946 UX & UI/
+    assert out =~ ~r/OPS-8 must\s+1  W-1951 Operations/
+    refute out =~ "OLD-9"
+    assert out =~ "… 1 more: --rules lists them all"
+    assert out =~ "audits: 3 · 2 agreed, 1 disagreed"
+  end
+
+  test "--rules lists every broken rule, one the handbook lacks too" do
+    serve(quality(verified(1, 0, +0.0, 9, 9.0), rejections: many_rules()))
+    out = capture_io(fn -> Boards.run("quality", ["ship"], rules: true) end)
+
+    assert out =~ ~r/OLD-9\s+1  not in the handbook/
+    refute out =~ "more: --rules"
+    refute out =~ "audits:"
+  end
+
+  test "no rejections says so" do
+    serve(quality(verified(1, 1, 1.0, 0, 0.0), []))
+    out = capture_io(fn -> Boards.run("quality", ["ship"], []) end)
+    assert out =~ "rejections: none in the window"
+    refute out =~ "disputed"
   end
 end

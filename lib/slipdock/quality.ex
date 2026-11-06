@@ -1,4 +1,6 @@
 defmodule Slipdock.Quality do
+  @parts_migration 20_261_105_170_000
+
   @moduledoc """
   How well agent work goes on a board (#1796, W-2310 §Quality numbers): the
   numbers that say where the loop goes wrong, beside `Slipdock.Dora` (how
@@ -26,7 +28,23 @@ defmodule Slipdock.Quality do
       `per_100` jobs;
     * `health` — the health incidents raised in the window: `fixed` by the
       monitor, `flagged` to a person (at any point), `cleared` by
-      themselves and still `open`.
+      themselves and still `open`;
+    * `rejections` (#1798) — the verifiers' rejections in the window, in
+      parts: `by_part` (the ask, the bar, the rules, the suite, the Handbook
+      line: how many rejections failed each), `by_rule` (each rule id broken,
+      with its page and severity from the handbook, most broken first),
+      `disputed_lines` (rejections that disputed the `Handbook:` line) and
+      `unparted`, the rejections that name no part;
+    * `audits` — the audits of accepted cards decided in the window, and how
+      many `agreed` and `disagreed`.
+
+  A card keeps only its last verdict (`verify_checks`), so each decision is
+  read from the comment `Slipdock.Verified.decide/5` posts for it: a
+  `**Rejected** by` comment's `Checks:` lines are its parts. One without
+  them, made since verdicts were kept in parts (migration
+  `#{@parts_migration}`, as this database ran it), has the parts its reason
+  cites (`Checks.from_reason/1`, what the verdict stored); one from before
+  that is unparted.
 
   `previous` holds the window before's `verified` numbers, for a trend.
   """
@@ -57,7 +75,9 @@ defmodule Slipdock.Quality do
     ids = tree_ids(board)
     accepted = accepted_cards(ids, prev_since, now)
     reopened = reopened_ids(Enum.map(accepted, & &1.id))
-    {current, previous} = Enum.split_with(accepted, &within?(&1.verify_at, since, now))
+
+    {current, previous} =
+      Enum.split_with(accepted, &(DateTime.compare(&1.verify_at, since) != :lt))
 
     %{
       days: days,
@@ -67,6 +87,8 @@ defmodule Slipdock.Quality do
       areas: areas(board, current, reopened),
       jobs: jobs(ids, since, now),
       health: health(board, ids, since, now),
+      rejections: rejections(board, ids, since, now),
+      audits: audits(ids, since, now),
       previous: verified(previous, reopened)
     }
   end
@@ -78,7 +100,7 @@ defmodule Slipdock.Quality do
       from c in Card,
         where:
           c.board_id in ^ids and c.verify_state in @accepted and c.verify_at >= ^from and
-            c.verify_at < ^to and is_nil(c.stand_in_for_id),
+            c.verify_at <= ^to and is_nil(c.stand_in_for_id),
         select: %{
           id: c.id,
           paths: c.paths,
@@ -106,7 +128,7 @@ defmodule Slipdock.Quality do
       from(c in Card,
         where:
           c.board_id in ^ids and c.verify_state == "rejected" and c.verify_at >= ^from and
-            c.verify_at < ^to and is_nil(c.archived_at)
+            c.verify_at <= ^to and is_nil(c.archived_at)
       ),
       :count
     )
@@ -169,7 +191,7 @@ defmodule Slipdock.Quality do
     rows =
       Repo.all(
         from j in Job,
-          where: j.board_id in ^ids and j.finished_at >= ^from and j.finished_at < ^to,
+          where: j.board_id in ^ids and j.finished_at >= ^from and j.finished_at <= ^to,
           select: {j.status, j.recovery}
       )
 
@@ -201,7 +223,7 @@ defmodule Slipdock.Quality do
         from i in Incident,
           where:
             (i.board_id == ^board.id or i.card_id in subquery(card_ids)) and
-              i.inserted_at >= ^from and i.inserted_at < ^to,
+              i.inserted_at >= ^from and i.inserted_at <= ^to,
           select: {i.status, i.flagged_at}
       )
 
@@ -212,6 +234,150 @@ defmodule Slipdock.Quality do
       cleared: Enum.count(rows, &(elem(&1, 0) == "cleared")),
       open: Enum.count(rows, &(elem(&1, 0) == "open"))
     }
+  end
+
+  # -- Rejections in parts ------------------------------------------------------
+
+  @part_order ~w(ask bar rules suite handbook_line)
+
+  defp rejections(board, ids, from, to) do
+    since_parts = parts_since()
+
+    decisions =
+      for {body, at} <- decision_comments(ids, "**Rejected** by%", from, to),
+          do: rejection_parts(body, at, since_parts)
+
+    rules = handbook_rules(board)
+    count = fn kind -> Enum.count(decisions, &Enum.any?(&1, fn p -> elem(p, 0) == kind end)) end
+
+    %{
+      rejections: length(decisions),
+      unparted: Enum.count(decisions, &(&1 == [])),
+      by_part:
+        for(kind <- @part_order, (n = count.(kind)) > 0, do: %{part: kind, count: n})
+        |> Enum.sort_by(&(-&1.count)),
+      by_rule: by_rule(decisions, rules),
+      disputed_lines: count.("handbook_line")
+    }
+  end
+
+  defp by_rule(decisions, rules) do
+    known = Map.new(rules, &{String.upcase(&1.id), &1})
+
+    decisions
+    |> Enum.flat_map(fn parts -> for {"rules", id} <- parts, do: id end)
+    |> Enum.frequencies()
+    |> Enum.map(fn {id, n} ->
+      rule = known[id]
+
+      %{
+        id: id,
+        count: n,
+        severity: rule && rule.severity,
+        page: rule && %{code: rule.page, title: rule.page_title}
+      }
+    end)
+    |> Enum.sort_by(&{-&1.count, &1.id})
+  end
+
+  defp handbook_rules(board) do
+    case Slipdock.Handbook.find(board) do
+      nil -> []
+      handbook -> Slipdock.Handbook.Rules.rules(handbook)
+    end
+  end
+
+  defp audits(ids, from, to) do
+    bodies = decision_comments(ids, "**Audit: %", from, to)
+
+    agreed =
+      Enum.count(bodies, fn {body, _} -> String.starts_with?(body, "**Audit: agrees**") end)
+
+    disagreed =
+      Enum.count(bodies, fn {body, _} -> String.starts_with?(body, "**Audit: disagrees**") end)
+
+    %{audits: agreed + disagreed, agreed: agreed, disagreed: disagreed}
+  end
+
+  defp decision_comments(ids, pattern, from, to) do
+    Repo.all(
+      from cm in Slipdock.Boards.Comment,
+        join: c in Card,
+        on: c.id == cm.card_id,
+        where:
+          c.board_id in ^ids and like(cm.body, ^pattern) and cm.inserted_at >= ^from and
+            cm.inserted_at <= ^to,
+        order_by: [asc: cm.id],
+        select: {cm.body, cm.inserted_at}
+    )
+  end
+
+  # When this database began keeping verdicts in parts; nil if it never ran
+  # the migration (then no rejection is held to be from before it).
+  defp parts_since do
+    case Repo.query!("SELECT inserted_at FROM schema_migrations WHERE version = $1", [
+           @parts_migration
+         ]).rows do
+      [[%NaiveDateTime{} = at]] -> DateTime.from_naive!(at, "Etc/UTC")
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The failing parts of one rejection, from the comment it was posted as
+  (`body`, at `at`): `[{"bar", "2"}, {"rules", "UX-4"}, {"ask", nil}, …]`,
+  `[]` when it names none. `since_parts` is when verdicts began to be kept
+  in parts: a comment from before it, without a `Checks:` block, is
+  unparted whatever its reason says.
+  """
+  def rejection_parts(body, at, since_parts) when is_binary(body) do
+    case String.split(body, "\n\nChecks:\n", parts: 2) do
+      [_, lines] ->
+        lines |> String.split("\n") |> Enum.flat_map(&checks_line/1) |> Enum.uniq()
+
+      [_] ->
+        if since_parts && DateTime.compare(at, since_parts) == :lt,
+          do: [],
+          else: body |> reason() |> Slipdock.Verified.Checks.from_reason() |> map_parts()
+    end
+  end
+
+  # The reason: what follows the comment's opening line.
+  defp reason(body), do: body |> String.split("\n\n", parts: 2) |> Enum.at(1, "")
+
+  # One `- label: result[ — why]` line, as `Checks.lines/1` wrote it.
+  defp checks_line(line) do
+    case Regex.run(~r/^\s*-\s+(.+?):\s+(.+?)(?:\s+—\s.*)?\s*$/u, line) do
+      [_, label, result] -> line_part(label, result)
+      _ -> []
+    end
+  end
+
+  defp line_part("the ask", "misses"), do: [{"ask", nil}]
+  defp line_part("Handbook line", "disputed"), do: [{"handbook_line", nil}]
+
+  defp line_part("suite", result) do
+    if Slipdock.Verified.Checks.failing_result?(result), do: [{"suite", nil}], else: []
+  end
+
+  defp line_part("bar " <> item, "fail"), do: [{"bar", String.trim(item)}]
+
+  defp line_part(label, "broken") do
+    case Regex.run(~r/^([A-Z][A-Z0-9]*-\d+)\b/i, label) do
+      [_, id] -> [{"rules", String.upcase(id)}]
+      _ -> []
+    end
+  end
+
+  defp line_part(_label, _result), do: []
+
+  # A stored verdict's failing parts, in the same shape.
+  defp map_parts(checks) do
+    ask = if checks["ask"] == "misses", do: [{"ask", nil}], else: []
+    line = if checks["handbook_line"] == "disputed", do: [{"handbook_line", nil}], else: []
+    bar = for %{"result" => "fail", "item" => i} <- checks["bar"] || [], do: {"bar", i}
+    rules = for %{"result" => "broken", "id" => id} <- checks["rules"] || [], do: {"rules", id}
+    ask ++ bar ++ rules ++ line
   end
 
   # -- Words -------------------------------------------------------------------------
@@ -289,9 +455,4 @@ defmodule Slipdock.Quality do
 
   defp clamp_days(d) when is_integer(d), do: d |> max(1) |> min(@max_days)
   defp clamp_days(_), do: @default_days
-
-  defp within?(nil, _from, _to), do: false
-
-  defp within?(at, from, to),
-    do: DateTime.compare(at, from) != :lt and DateTime.compare(at, to) == :lt
 end
