@@ -52,6 +52,7 @@ import {installKeyHints} from "./key_hints"
 import {ToolbarFold} from "./toolbar_fold"
 import {LogTail} from "./log_tail"
 import {DisplayPrefs} from "./display_prefs"
+import {DropdownAlign} from "./dropdown_align"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -1412,21 +1413,7 @@ Hooks.BoardKeys = {
 }
 
 
-Hooks.DropdownAlign = {
-  mounted() {
-    this.align()
-    this.el.addEventListener("focusin", () => this.align())
-    window.addEventListener("resize", this.onResize = () => this.align())
-  },
-  destroyed() { window.removeEventListener("resize", this.onResize) },
-  align() {
-    const menu = this.el.querySelector(".dropdown-content")
-    if (!menu) return
-    const width = menu.offsetWidth || parseFloat(getComputedStyle(menu).width) || 288
-    const left = this.el.getBoundingClientRect().left
-    this.el.classList.toggle("dropdown-end", left + width > window.innerWidth - 8)
-  },
-}
+Hooks.DropdownAlign = DropdownAlign
 
 // The wiki's middle column scrolls on its own. A page linked from inside the
 // wiki opens in place (a patch, so the tree is not rebuilt and sent again),
