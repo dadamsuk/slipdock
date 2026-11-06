@@ -987,22 +987,21 @@ defmodule SlipdockWeb.BoardLive.Show do
   # A list holds cards and, sometimes, wiki pages placed on the board. The
   # drag sends back whichever it moved — a bare number for a card, `page-7`
   # for a page — and both land in the same ordering.
+  #
+  # `from` is the list the tab drew the item in. A tab whose view is stale (a
+  # phone that slept with its socket down, #1921) can send a move for a card
+  # that has since gone elsewhere, and Phoenix replays it on rejoin: moving it
+  # anyway dragged done cards back into progress. So a `from` that isn't where
+  # the item is now is refused and the tab redrawn. Every sender in this build
+  # passes `from`; a push without one (a tab on an older bundle, which
+  # `phx-track-static` reloads on rejoin) moves as it always did.
   def handle_event("move_card", %{"id" => id, "to" => to} = params, socket) do
     case Boards.item_ref(id) do
       {:card, card_id} ->
-        board = socket.assigns.board
-
-        with {:ok, card} <- load_card(board, card_id),
-             %Column{} = column <- board_column(socket, to) do
-          Boards.move_card(card.id, column.id, params["before"],
-            actor: Slipdock.Actor.web(socket.assigns.current_user)
-          )
-        end
-
-        {:noreply, socket}
+        move_board_card(socket, card_id, to, params)
 
       {:page, page_id} ->
-        move_placed_page(socket, page_id, Params.id(to), params["before"])
+        move_placed_page(socket, page_id, Params.id(to), params["before"], params["from"])
 
       nil ->
         {:noreply, socket}
@@ -1518,5 +1517,24 @@ defmodule SlipdockWeb.BoardLive.Show do
       />
     </Layouts.app>
     """
+  end
+
+  defp move_board_card(socket, card_id, to, params) do
+    board = socket.assigns.board
+
+    with {:ok, card} <- load_card(board, card_id),
+         %Column{} = column <- board_column(socket, to) do
+      if moved_since_drawn?(params["from"], card.column_id) do
+        {:noreply, moved_since_drawn(socket)}
+      else
+        Boards.move_card(card.id, column.id, params["before"],
+          actor: Slipdock.Actor.web(socket.assigns.current_user)
+        )
+
+        {:noreply, socket}
+      end
+    else
+      _ -> {:noreply, socket}
+    end
   end
 end

@@ -14,7 +14,9 @@ way in: what it is, the pictures, and how to get it running.
   date — see [A list's order and groups](#a-lists-order-and-groups)
 - Cards with drag-and-drop between and within lists (let go anywhere in a
   list's column — its header, its footer, the board below it — and the card
-  goes to the bottom of that list), description, priority
+  goes to the bottom of that list; a card that has moved since your tab drew
+  it, say while a phone slept, stays where it is now, and the board tells you
+  and redraws), description, priority
   (low → critical), six flags (flagged, blocked, needs review, waiting, starred, stuck),
   due dates with overdue/soon states, completion toggle, cover colours, tags,
   checklists (drag an item by its handle to put it in a new order; a placed
