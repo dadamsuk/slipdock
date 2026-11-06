@@ -2316,7 +2316,11 @@ defmodule SlipdockWeb.APIGuide do
     the runner scripts, and go only to runners whose claims list `merge`
     in `X-Runner-Kinds`. Claims also say the script's own SHA-256
     (`X-Runner-Version`); the runners list's `script` says whether it is
-    current, and `missing_kinds` what the board needs that it lacks.
+    current, and `missing_kinds` what the board needs that it lacks. Every
+    claim (empty or not) and every finish answers with the script this
+    server hands out (`X-Runner-Latest`), and a runner set to keep itself
+    current replaces itself between any two jobs: after an empty claim, or
+    after a job's finish and before its next claim, never during a job.
     They also say what the machine has installed (`X-Runner-Skills`, each
     slipdock skill's `SKILL.md` SHA-256; `X-Runner-CLI`, the CLI's), and
     each runner's `drift` compares them with what this server serves:

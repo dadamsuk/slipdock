@@ -651,7 +651,9 @@ nothing to merge. The claimed job's prompt and the card itself
 both runner scripts have a built-in `merge` kind that merges the accepted
 commit's pull request in their own repository (`MERGE=0` turns it off;
 runners installed now replace themselves with the server's newer script
-between jobs, on a matching checksum, so new kinds reach them):
+between any two jobs, after an empty claim or after a job's finish and
+before the next claim, on a matching checksum, so new kinds reach them
+however busy the queue is):
 accepting a card there queues the merge, and the merge completes it (a
 failed merge sends it back rejected with the reason). The merge goes to a
 runner that is idle now, else to the one that accepted the card, so it

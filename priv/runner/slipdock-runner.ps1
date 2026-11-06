@@ -40,11 +40,15 @@
 # Keeping current (#1658), off unless the config sets $SelfUpdate = $true
 # (new installs do): every claim says which script this is (its own
 # SHA-256, line endings as served), and the server answers with the one it
-# hands out. When they differ and a claim came back empty, so no job is
-# running, the runner fetches the script and SHA256SUMS from the server (or
+# hands out, on an empty claim, on one that hands out a job, and on each
+# job's finish. When they differ, the runner updates between jobs (#1925):
+# after an empty claim, or after a job's finish is reported and before the
+# next claim, never during a job, so a busy queue can't keep an old script
+# running. It fetches the script and SHA256SUMS from the server (or
 # $SelfUpdateUrl), and replaces itself only if the download's SHA-256
-# matches both; then it starts again. A mismatch keeps this script, says so
-# in the log, and isn't tried again. The config is never touched.
+# matches both; then it starts again, and the old script claims nothing
+# more. A failed fetch or a mismatch keeps this script, says so in the log,
+# and isn't tried again for that version. The config is never touched.
 #
 # Live log (#1870): while a job runs, the runner sends its agent's Claude
 # Code transcript to the server about every $TranscriptEvery seconds
@@ -544,7 +548,13 @@ function Complete-Job([int]$exitCode, [string]$status) {
   }
   for ($try = 1; $try -le 5; $try++) {
     $a = Send-Slipdock "/api/runner/jobs/$JobId/finish?$query" (Read-Log) 30
-    if ($a.Status -eq 200 -or $a.Status -eq 404) { return }
+    if ($a.Status -eq 200) {
+      # The script the server hands out now, which a deploy during the job
+      # may have changed since the claim (#1925).
+      $script:FinishLatest = Get-Header $a 'X-Runner-Latest'
+      return
+    }
+    if ($a.Status -eq 404) { return }
     Start-Sleep -Seconds ($try * 2)
   }
   Say "job #${JobId}: could not report it finished (HTTP $($a.Status))"
@@ -729,6 +739,7 @@ $MySha = ''
 try { $MySha = Get-ScriptSha $PSCommandPath } catch { }
 if ($MySha) { $KindsHeader['X-Runner-Version'] = "ps1 $MySha" }
 $SkipSha = ''
+$FinishLatest = ''
 
 # What this machine has installed (#1795): each slipdock skill's SKILL.md
 # (line endings as LF, as the server's copy is) and the CLI, by SHA-256.
@@ -814,6 +825,24 @@ function Update-Self([string]$latest) {
   return $true
 }
 
+# Between jobs, with $SelfUpdate on (#1658, #1925): when $latest is a script
+# other than this one, replace this one with it and start again. Returns only
+# when this script carries on: $SelfUpdate off, nothing newer, or an update
+# that failed (not tried again for $latest).
+function Invoke-KeepCurrent([string]$latest) {
+  if (-not $SelfUpdate -or ("$SelfUpdate" -in @('0', 'no', 'false', 'off'))) { return }
+  if ($latest -notmatch '^[0-9a-f]{64}$' -or $latest -eq $MySha -or $latest -eq $script:SkipSha) { return }
+  if (Update-Self $latest) {
+    if ($Once) { exit 0 }
+    # Start again as the new script, with the same arguments.
+    $shell = (Get-Process -Id $PID).Path
+    $again = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-Config', "`"$Config`"")
+    Start-Process -FilePath $shell -ArgumentList $again -NoNewWindow | Out-Null
+    exit 0
+  }
+  $script:SkipSha = $latest
+}
+
 $query = "wait=$Wait"
 if ($Pool) { $query += "&pool=$Pool" }
 $poolNote = ''
@@ -833,24 +862,18 @@ try {
       if ($claim.Status -eq 200) {
         $backoff = 1
         $quiet = 0
+        $latest = Get-Header $claim 'X-Runner-Latest'
+        $script:FinishLatest = ''
         Invoke-Job $claim
+        # Between jobs (#1925): the job's finish is reported, the next claim
+        # not yet made. The finish's answer is the newer word, if it came.
+        if ($script:FinishLatest) { $latest = $script:FinishLatest }
+        Invoke-KeepCurrent $latest
       } elseif ($claim.Status -eq 204) {
         $backoff = 1
         $quiet = 0
         # Between jobs: keep current, if the config asks (#1658).
-        $latest = Get-Header $claim 'X-Runner-Latest'
-        if ($SelfUpdate -and ("$SelfUpdate" -notin @('0', 'no', 'false', 'off')) -and $latest -match '^[0-9a-f]{64}$' -and
-          $latest -ne $MySha -and $latest -ne $SkipSha) {
-          if (Update-Self $latest) {
-            if ($Once) { exit 0 }
-            # Start again as the new script, with the same arguments.
-            $shell = (Get-Process -Id $PID).Path
-            $again = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-Config', "`"$Config`"")
-            Start-Process -FilePath $shell -ArgumentList $again -NoNewWindow | Out-Null
-            exit 0
-          }
-          $SkipSha = $latest
-        }
+        Invoke-KeepCurrent (Get-Header $claim 'X-Runner-Latest')
         # A server stopping for a deploy says how long to wait before asking
         # again, by when its replacement is there to answer.
         $pause = 0

@@ -24,7 +24,10 @@ defmodule SlipdockWeb.API.RunnerController do
   a runner that lists it. A merge job comes with `X-Merge-PR` and
   `X-Merge-Commit`, and its finish may say `merged=<sha>`. A claim may say
   the runner script's own SHA-256 (`X-Runner-Version: sh <sha>`, #1658);
-  the answer then says the one this server hands out (`X-Runner-Latest`).
+  the answer then says the one this server hands out (`X-Runner-Latest`),
+  and so does each job's finish (#1925): a runner set to update itself does
+  so between jobs, after the finish and before its next claim, so a deploy
+  during a long job reaches the next one.
 
   A job that asked a person something (a wait opened with its id) finishes
   `ok parked`, whatever its exit code. A job sent again after its question
@@ -109,9 +112,14 @@ defmodule SlipdockWeb.API.RunnerController do
     }
 
     case Runners.finish(conn.assigns.runner, id, attrs) do
-      {:ok, job} -> text_reply(conn, 200, "ok #{job.status}")
-      {:error, :not_found} -> text_reply(conn, 404, "no such job for this runner")
-      {:error, message} -> text_reply(conn, 422, message)
+      {:ok, job} ->
+        conn |> latest_header(conn.assigns.runner) |> text_reply(200, "ok #{job.status}")
+
+      {:error, :not_found} ->
+        text_reply(conn, 404, "no such job for this runner")
+
+      {:error, message} ->
+        text_reply(conn, 422, message)
     end
   end
 

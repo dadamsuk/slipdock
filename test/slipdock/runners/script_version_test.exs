@@ -82,4 +82,63 @@ defmodule Slipdock.Runners.ScriptVersionTest do
     assert get_resp_header(conn, "x-runner-latest") == []
     assert SlipdockWeb.API.JSON.runner(Repo.get!(Runner, ctx.runner.id)).script == "unknown"
   end
+
+  describe "a job's finish says the latest too (#1925)" do
+    defp claim_job(ctx, version_header) do
+      card = card_fixture(hd(ctx.board.columns), %{"title" => "Go"})
+      {:ok, _} = Runners.queue(card, %{pool: "dev", kind: "echo", prompt: "go"})
+
+      conn =
+        build_conn()
+        |> put_req_header("authorization", "Bearer " <> ctx.token)
+        |> put_req_header("x-runner-kinds", "echo")
+
+      conn =
+        if version_header,
+          do: put_req_header(conn, "x-runner-version", version_header),
+          else: conn
+
+      conn = post(conn, "/api/runner/claim?wait=0")
+      assert conn.status == 200
+      conn |> get_resp_header("x-job-id") |> hd()
+    end
+
+    defp finish_job(ctx, id) do
+      build_conn()
+      |> put_req_header("authorization", "Bearer " <> ctx.token)
+      |> put_req_header("content-type", "text/plain")
+      |> post("/api/runner/jobs/#{id}/finish?exit=0", "done")
+    end
+
+    test "a claim that hands out a job, and that job's finish, both carry X-Runner-Latest", ctx do
+      id = claim_job(ctx, "sh " <> @old)
+      conn = finish_job(ctx, id)
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "x-runner-latest") == [RunnerInstallController.latest()["sh"]]
+    end
+
+    test "a ps1 runner's finish names the ps1 script", ctx do
+      id = claim_job(ctx, "ps1 " <> @old)
+      conn = finish_job(ctx, id)
+
+      assert get_resp_header(conn, "x-runner-latest") == [RunnerInstallController.latest()["ps1"]]
+    end
+
+    test "a runner that never said its version gets no latest on finish", ctx do
+      id = claim_job(ctx, nil)
+      conn = finish_job(ctx, id)
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "x-runner-latest") == []
+    end
+
+    test "a finish for a job that isn't the runner's answers 404 with no latest", ctx do
+      _ = claim_job(ctx, "sh " <> @old)
+      conn = finish_job(ctx, 999_999_999)
+
+      assert conn.status == 404
+      assert get_resp_header(conn, "x-runner-latest") == []
+    end
+  end
 end

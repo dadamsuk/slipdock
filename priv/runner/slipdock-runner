@@ -37,12 +37,17 @@
 #
 # Keeping current (#1658), off unless the config sets SELF_UPDATE=1 (new
 # installs do): every claim says which script this is (its own SHA-256), and
-# the server answers with the one it hands out. When they differ and a claim
-# came back empty, so no job is running, the runner fetches the script and
-# SHA256SUMS from the server (or SELF_UPDATE_URL), and replaces itself only
-# if the download's SHA-256 matches both; then it starts again in place. A
-# mismatch keeps this script, says so in the log, and isn't tried again. The
-# config is never touched.
+# the server answers with the one it hands out, on an empty claim, on one
+# that hands out a job, and on each job's finish. When they differ, the
+# runner updates between jobs (#1925): after an empty claim, or after a
+# job's finish is reported and before the next claim, never during a job,
+# so a busy queue (an epic sent again a second after each pass) can't keep
+# an old script running. It fetches the script and SHA256SUMS from the
+# server (or SELF_UPDATE_URL), and replaces itself only if the download's
+# SHA-256 matches both; then it starts again in place, and the old script
+# claims nothing more. A failed fetch or a mismatch keeps this script, says
+# so in the log, and isn't tried again for that version. The config is never
+# touched.
 #
 # Live log (#1870): while a job runs, the runner sends its agent's Claude
 # Code transcript to the server about every TRANSCRIPT_EVERY seconds
@@ -226,6 +231,21 @@ claim_headers() {
 }
 SKIP_SHA=
 
+# keep_current LATEST — between jobs, with SELF_UPDATE on (#1658, #1925):
+# when LATEST is a script other than this one, replace this one with it and
+# start again in place. Returns only when this script carries on: SELF_UPDATE
+# off, nothing newer, or an update that failed (not tried again for LATEST).
+keep_current() {
+  case "${SELF_UPDATE:-}" in 1 | yes | true | on) ;; *) return 0 ;; esac
+  case "$1" in '' | *[!0-9a-f]* | "$MY_SHA" | "$SKIP_SHA") return 0 ;; esac
+  if self_update "$1"; then
+    [ -n "$ONCE" ] && exit 0
+    rm -rf "$WORK"
+    exec sh "$SELF" "--config=$CONFIG"
+  fi
+  SKIP_SHA=$1
+}
+
 # self_update LATEST — between jobs: fetch the script and its checksums, and
 # put the script in place of this one only if its SHA-256 matches both the
 # published sum and LATEST. 0 when it was replaced.
@@ -253,6 +273,7 @@ self_update() {
 }
 
 JOB_PID=
+FINISH_LATEST=
 JOB_ID=
 CODE=
 LANE=
@@ -497,7 +518,15 @@ finish() {
   tries=0
   while :; do
     post "/api/runner/jobs/$JOB_ID/finish?$query" "$WORK/tail" 30
-    case "$CODE" in 200 | 404) return 0 ;; esac
+    case "$CODE" in
+      200)
+        # The script the server hands out now, which a deploy during the job
+        # may have changed since the claim (#1925).
+        FINISH_LATEST=$(header x-runner-latest)
+        return 0
+        ;;
+      404) return 0 ;;
+    esac
     tries=$((tries + 1))
     if [ "$tries" -ge 5 ]; then
       say "job #$JOB_ID: could not report it finished (HTTP $CODE)"
@@ -684,28 +713,19 @@ while :; do
     200)
       backoff=1
       quiet=0
+      # Read before the job, whose own requests replace $WORK/hdr.
+      latest=$(header x-runner-latest)
+      FINISH_LATEST=
       run_job
+      # Between jobs (#1925): the job's finish is reported, the next claim
+      # not yet made. The finish's answer is the newer word, if it came.
+      keep_current "${FINISH_LATEST:-$latest}"
       ;;
     204)
       backoff=1
       quiet=0
       # Between jobs: keep current, if the config asks (#1658).
-      latest=$(header x-runner-latest)
-      case "${SELF_UPDATE:-}" in
-        1 | yes | true | on)
-          case "$latest" in
-            '' | *[!0-9a-f]* | "$MY_SHA" | "$SKIP_SHA") ;;
-            *)
-              if self_update "$latest"; then
-                [ -n "$ONCE" ] && exit 0
-                rm -rf "$WORK"
-                exec sh "$SELF" "$@"
-              fi
-              SKIP_SHA=$latest
-              ;;
-          esac
-          ;;
-      esac
+      keep_current "$(header x-runner-latest)"
       # A server stopping for a deploy says how long to wait before asking
       # again, by when its replacement is there to answer.
       pause=$(header retry-after)
