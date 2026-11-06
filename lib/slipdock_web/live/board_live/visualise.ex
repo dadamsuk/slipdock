@@ -6,7 +6,8 @@ defmodule SlipdockWeb.BoardLive.Visualise do
   Timeline and Prioritise, and left out of it on a simple board as they are.
 
   Everything is worked out when the page asks, from `Slipdock.Pulse`,
-  `Slipdock.Flow`, `Slipdock.RunnerStats` and `Slipdock.Dora`; nothing is
+  `Slipdock.Flow`, `Slipdock.RunnerStats`, `Slipdock.Quality` and
+  `Slipdock.Dora`; nothing is
   stored. `?days=7|30|90` (30 unless given) is the trend window, kept in the
   URL so a link reproduces the view. The Pulse tiles keep Pulse's own 7
   days, and DORA its own 30, and each says so.
@@ -127,6 +128,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
       history: Flow.history(board, days: socket.assigns.days),
       mix: work_mix(board, columns, socket.assigns.days),
       runners: Slipdock.RunnerStats.for_board(board, days: socket.assigns.days),
+      quality: Slipdock.Quality.for_board(board, days: socket.assigns.days),
       aging: aging(board, columns, usual),
       outside:
         for(
@@ -311,6 +313,8 @@ defmodule SlipdockWeb.BoardLive.Visualise do
             </div>
 
             <.runners_section board={@board} stats={@runners} />
+
+            <.quality_section quality={@quality} />
 
             <.dora_section board={@board} dora={@dora} cycle_p50={@pulse.time_to_done.p50} />
           </.page>

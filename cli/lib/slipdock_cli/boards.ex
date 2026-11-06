@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone verify accept reject flag tag check timer log tick move-check comment link unlink weblink unweblink attach attachments download detach card-front transcribe read-text attachment-text card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work multiboard multiboards save-multiboard set-multiboard delete-multiboard search ask search-status saved save unsave boards board columns tags activity pulse flow quality handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone verify accept reject flag tag check timer log tick move-check comment link unlink weblink unweblink attach attachments download detach card-front transcribe read-text attachment-text card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   defp card_ref?(ref), do: String.match?(ref, ~r/\A#?\d+\z/)
 
@@ -193,6 +193,13 @@ defmodule SlipdockCLI.Boards do
     do:
       HTTP.get("/boards/#{enc(ref)}/flow", days: o[:days])
       |> out(o, &Render.flow(&1["flow"]))
+
+  # How well agent work goes (#1796): first-time-right, rework by area, job
+  # outcomes per 100 jobs and health incidents, over --days (30 unless given).
+  def run("quality", [ref], o),
+    do:
+      HTTP.get("/boards/#{enc(ref)}/quality", days: o[:days])
+      |> out(o, &Render.quality(&1["quality"]))
 
   def run("cards", [ref], o) do
     completed =

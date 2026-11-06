@@ -565,6 +565,100 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
     """
   end
 
+  ## Quality ------------------------------------------------------------------
+
+  attr :quality, :map, required: true, doc: "from Slipdock.Quality.for_board/2"
+
+  @doc """
+  How well agent work goes over the page's window (#1796): first-time-right,
+  rework, job outcomes per 100 jobs and health incidents, then rework by
+  handbook area.
+  """
+  def quality_section(assigns) do
+    q = assigns.quality
+    assigns = assign(assigns, q: q, v: q.verified, j: q.jobs, h: q.health)
+
+    ~H"""
+    <.section id="quality" title="Quality" note={"Last #{@q.days} days"}>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <.tile
+          id="quality-first-time-right"
+          label="Right first time"
+          value={Slipdock.Quality.pct(@v.rate)}
+          detail={
+            if @v.accepted == 0,
+              do: "no cards accepted",
+              else: "#{@v.first_time_right} of #{@v.accepted} accepted cards"
+          }
+        />
+        <.tile
+          id="quality-rework"
+          label="Rejections per card"
+          value={to_string(@v.per_card || "–")}
+          detail={
+            "#{@v.rejections} #{plural(@v.rejections, "rejection")}" <>
+              if(@v.reopened > 0, do: " · #{@v.reopened} reopened", else: "") <>
+              if(@v.in_rework > 0, do: " · #{@v.in_rework} in rework", else: "")
+          }
+        />
+        <.tile
+          id="quality-jobs"
+          label="Jobs gone wrong per 100"
+          value={
+            if @j.jobs == 0,
+              do: "–",
+              else:
+                to_string(
+                  Float.round(
+                    @j.per_100.timeouts + @j.per_100.failed + @j.per_100.requeues +
+                      @j.per_100.gave_up,
+                    1
+                  )
+                )
+          }
+          detail={
+            if @j.jobs == 0,
+              do: "no jobs finished",
+              else:
+                "#{@j.timeouts} timed out · #{@j.failed} failed · #{@j.requeues} requeued · " <>
+                  "#{@j.gave_up} given up, of #{@j.jobs}"
+          }
+        />
+        <.tile
+          id="quality-health"
+          label="Health incidents"
+          value={to_string(@h.incidents)}
+          detail={"#{@h.fixed} fixed · #{@h.flagged} flagged · #{@h.cleared} cleared · #{@h.open} open"}
+        />
+      </div>
+      <div :if={@q.areas != []} class="mt-4 overflow-x-auto">
+        <h3 class="mb-2 text-sm font-semibold">Rework by area</h3>
+        <table id="quality-areas" class="w-full min-w-[28rem] text-sm">
+          <thead class="text-left text-2xs uppercase tracking-wide text-base-content/60">
+            <tr>
+              <th class="py-1 pr-2 font-medium">Area</th>
+              <th class="py-1 pr-2 font-medium">Cards</th>
+              <th class="py-1 pr-2 font-medium">Right first time</th>
+              <th class="py-1 font-medium">Rejections</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-base-content/5">
+            <tr :for={a <- @q.areas} id={"quality-area-#{a.code || "unmapped"}"}>
+              <td class="py-1.5 pr-2">
+                <span :if={a.code} class="font-mono text-xs text-base-content/60">{a.code}</span>
+                {a.title}
+              </td>
+              <td class="py-1.5 pr-2 tabular-nums">{a.cards}</td>
+              <td class="py-1.5 pr-2 tabular-nums">{Slipdock.Quality.pct(a.rate)}</td>
+              <td class="py-1.5 tabular-nums">{a.rejections}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </.section>
+    """
+  end
+
   attr :runner, :map, required: true
 
   defp runner_card(assigns) do

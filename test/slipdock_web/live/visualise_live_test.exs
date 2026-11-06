@@ -416,6 +416,43 @@ defmodule SlipdockWeb.VisualiseLiveTest do
     assert has_element?(view, "#mix-empty", "no tags yet")
   end
 
+  describe "quality (#1796)" do
+    test "shows first-time-right, rework, jobs and health over the window",
+         %{conn: conn, board: board, todo: todo} do
+      for rejections <- [0, 2] do
+        card = card_fixture(todo, %{"paths" => ["lib/x.ex"]})
+
+        Repo.update_all(from(c in Slipdock.Boards.Card, where: c.id == ^card.id),
+          set: [
+            verify_state: "accepted",
+            verify_at: DateTime.add(DateTime.utc_now(:second), -3600),
+            verify_rejections: rejections
+          ]
+        )
+      end
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
+
+      assert has_element?(view, "#quality", "Last 30 days")
+      assert has_element?(view, "#quality-first-time-right [data-value]", "50%")
+      assert has_element?(view, "#quality-first-time-right", "1 of 2 accepted cards")
+      assert has_element?(view, "#quality-rework [data-value]", "1.0")
+      assert has_element?(view, "#quality-jobs", "no jobs finished")
+      assert has_element?(view, "#quality-health [data-value]", "0")
+      assert has_element?(view, "#quality-area-unmapped", "unmapped")
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise?days=7")
+      assert has_element?(view, "#quality", "Last 7 days")
+    end
+
+    test "a board with nothing verified says so", %{conn: conn, board: board} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
+      assert has_element?(view, "#quality-first-time-right [data-value]", "–")
+      assert has_element?(view, "#quality-first-time-right", "no cards accepted")
+      refute has_element?(view, "#quality-areas")
+    end
+  end
+
   defp backdate(card, seconds) do
     at = DateTime.add(DateTime.utc_now(), -seconds, :second)
 
