@@ -2256,6 +2256,15 @@ defmodule SlipdockWeb.APIGuide do
     `X-Transcript-Capped`; the job itself says `transcript_lines`,
     `transcript_capped` and `transcript_at`.
 
+    To watch a job, read it as lines: `GET /api/jobs/:id/log?from=N`
+    answers `{job: {id, card_id, status, open}, from, next, capped, entries}`, one
+    entry per message, tool call or tool result (`kind` `prompt`, `message`,
+    `tool`, `result`, `error` or `note`, with `at`, `text`, `detail` (the
+    whole of what `text` shortens) and `line`, the entry as one line of
+    text). Read again with `from` = `next` until `job.open` is false.
+    `slipdock job <id> --follow` does this; over MCP it is `job_log`
+    (`job`, `from`), which answers the same with `log`, as text, for `entries`.
+
     A server stopping for a deploy answers every open claim at once with a
     204 and `Retry-After: 1`: wait that many seconds, then claim again, and
     the new server answers. A 502, 503 or 504 on a claim is a deploy too

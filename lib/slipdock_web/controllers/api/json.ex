@@ -1370,6 +1370,37 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  @doc """
+  Where a read of a job's live log (#1871) stands: the job, whether more
+  can come, the line it read `from` and the `next` to read from. REST adds
+  the `entries`, MCP the `log` as text.
+  """
+  def job_log(%Slipdock.Runners.Job{} = job, from, next) do
+    %{
+      job: %{
+        id: job.id,
+        card_id: job.card_id,
+        status: job.status,
+        open: Slipdock.Runners.Job.open?(job)
+      },
+      from: from,
+      next: next,
+      capped: job.transcript_capped
+    }
+  end
+
+  @doc "One entry of a job's log (#1871), with `line` the way `slipdock job-log` prints it."
+  def log_entry(entry) do
+    %{
+      id: entry.id,
+      at: entry.at,
+      kind: entry.kind,
+      text: entry.text,
+      detail: entry.detail,
+      line: Slipdock.Runners.TranscriptView.format(entry)
+    }
+  end
+
   def job(%Slipdock.Runners.Job{} = j) do
     %{
       id: j.id,

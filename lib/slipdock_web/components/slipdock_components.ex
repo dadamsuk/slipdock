@@ -580,7 +580,7 @@ defmodule SlipdockWeb.SlipdockComponents do
   attr :id, :string, default: nil
   attr :class, :any, default: nil
   attr :zone, :string, default: nil, doc: "the viewer's timezone; the process's when nil"
-  attr :format, :atom, default: :relative, values: [:relative, :short, :long, :datetime]
+  attr :format, :atom, default: :relative, values: [:relative, :short, :long, :datetime, :time]
 
   @doc """
   A moment as people read it, in a `<time>` with the machine value in

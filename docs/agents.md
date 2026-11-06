@@ -191,7 +191,7 @@ that connects gets a small set of tools rather than the whole API:
 
 | Reading | Writing |
 |---|---|
-| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `wiki_info`, `activity`, `download_file`, `list_automations`, `list_tools`, `garden`, `page_tool` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `garden_decide`, `upload_file`, `delete_attachment`, `complete_card`, `verify_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board`, `archive_board`, `delete_board`, `write_page`, `quick_note`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_wiki`, `manage_automation`, `install_tool`, `claim_job`, `job_progress`, `finish_job` |
+| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `wiki_info`, `activity`, `download_file`, `list_automations`, `list_tools`, `garden`, `page_tool`, `job_log` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `garden_decide`, `upload_file`, `delete_attachment`, `complete_card`, `verify_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board`, `archive_board`, `delete_board`, `write_page`, `quick_note`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_wiki`, `manage_automation`, `install_tool`, `claim_job`, `job_progress`, `finish_job` |
 
 Files move without passing through the model: with a shell, `upload_file`
 with `card` (or `page`) and `link: true` answers with a single-use
@@ -471,7 +471,9 @@ can **pause** the tree or one pool with a reason (`slipdock pause <board>
 jobs too. A held job names one reason: paused, WIP full, a card in
 progress, or no runner online. While a job runs, its runner sends the agent's
 transcript about once a minute, so the job has a **live log** on the server
-(`GET /api/jobs/:id/transcript`, JSON Lines, tokens taken out). It takes standing instructions
+(`GET /api/jobs/:id/transcript`, JSON Lines, tokens taken out), watched on the
+card and the Runners panel, with `slipdock job <id> --follow`, or the MCP tool
+`job_log` (`GET /api/jobs/:id/log`, one line per message or tool call). It takes standing instructions
 and before/after hooks, written into the config or prompt it generates; for the
 site-specific part of a hook (which notifier, what to keep from a pass) it gives
 a prompt to paste into Claude Code on that machine (*Have Claude write this

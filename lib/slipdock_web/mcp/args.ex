@@ -86,6 +86,15 @@ defmodule SlipdockWeb.MCP.Args do
     end
   end
 
+  @doc "An optional place to start from: 0 or a positive whole number, `default` when absent."
+  def offset(args, key, default \\ 0) do
+    case args[key] do
+      nil -> {:ok, default}
+      n when is_integer(n) and n >= 0 -> {:ok, n}
+      _ -> {:error, "#{key} must be 0 or a positive whole number"}
+    end
+  end
+
   @doc "A required id: a whole number, or a string of one (`\"#129\"` too)."
   def id(args, key) do
     case args[key] do

@@ -30,6 +30,18 @@ defmodule SlipdockWeb.TimestampTest do
     assert html =~ ~s(title="19 Nov 2025, 12:30 NZDT")
   end
 
+  test "the time alone, for a line in a job's log (#1871)" do
+    html =
+      render_component(&SlipdockComponents.timestamp/1,
+        at: ~U[2025-11-18 23:30:00Z],
+        zone: "Pacific/Auckland",
+        format: :time
+      )
+
+    assert html =~ ">12:30</time>"
+    assert html =~ ~s(title="19 Nov 2025, 12:30 NZDT")
+  end
+
   test "a naive datetime is UTC and a bare date is a day" do
     assert render_component(&SlipdockComponents.timestamp/1,
              at: ~N[2025-03-04 10:00:00],

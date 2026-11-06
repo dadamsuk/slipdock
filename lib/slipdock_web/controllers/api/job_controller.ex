@@ -219,17 +219,43 @@ defmodule SlipdockWeb.API.JobController do
   """
   def transcript(conn, %{"id" => id} = params) do
     with {:ok, job, _card} <- fetch_job(conn, id, :read) do
-      from =
-        case Integer.parse(to_string(params["from"] || "0")) do
-          {n, ""} when n >= 0 -> n
-          _ -> 0
-        end
+      from = from_param(params["from"])
 
       conn
       |> put_resp_content_type("application/x-ndjson")
       |> put_resp_header("x-transcript-lines", to_string(job.transcript_lines))
       |> put_resp_header("x-transcript-capped", to_string(job.transcript_capped))
       |> send_resp(200, Slipdock.Runners.Transcript.read(job, from))
+    end
+  end
+
+  @doc """
+  The job's live log read as lines (#1871): one entry per message, tool call
+  or tool result, from transcript line `from` on (`Slipdock.Runners.TranscriptView`).
+  `next` is the `from` for the next read, and `job.open` whether more can
+  come. `slipdock job --log` and `--follow` read this.
+  """
+  def log(conn, %{"id" => id} = params) do
+    with {:ok, job, _card} <- fetch_job(conn, id, :read) do
+      from = from_param(params["from"])
+
+      entries =
+        job
+        |> Slipdock.Runners.Transcript.read(from)
+        |> Slipdock.Runners.TranscriptView.entries(from)
+        |> Enum.map(&V.log_entry/1)
+
+      json(
+        conn,
+        job |> V.job_log(from, max(job.transcript_lines, from)) |> Map.put(:entries, entries)
+      )
+    end
+  end
+
+  defp from_param(value) do
+    case Integer.parse(to_string(value || "0")) do
+      {n, ""} when n >= 0 -> n
+      _ -> 0
     end
   end
 

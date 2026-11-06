@@ -225,7 +225,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 56 tools (five of them only
+  other MCP clients get the boards and the wiki as 57 tools (five of them only
   while meeting mode or chat capture is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -3850,6 +3850,8 @@ own work rather than from a background loop, so it holds its job on a
 | `slipdock runner rm <board> <runner>` | Revokes a runner. |
 | `slipdock jobs <board> [--status S]` / `slipdock jobs --card ID` | Jobs, newest first. `S` is `open` or a status. |
 | `slipdock job <id>` | One job: status, runner, its latest step, prompt, log tail. |
+| `slipdock job <id> --follow [--interval SECS]` | Watches a job: its live log as it arrives, one line per message, tool call or result, until the job ends (exit 0). |
+| `slipdock job-log <id> [--follow] [--json]` | The job's live log so far; `--json` prints one entry per line. |
 | `slipdock cancel-job <id>` | Stops a job. |
 | `slipdock claim-job <board> --pool P` | Takes the next job as this session. |
 | `slipdock job-progress [<id>] [--step S] [--message NOTE]` | Renews the lease. `--step` says what the job is doing now: kept on the job (its `step`, shown on the Runners panel and in `slipdock job`/`jobs`), never on the card. The note is also a comment on the card (`--message -` reads it from stdin, line breaks and all). Without an id, the runner job in `$SLIPDOCK_JOB_ID`: the agent a runner started may report on its own job. Prints `ok` or `cancel`. |
@@ -3939,6 +3941,21 @@ the job: the next one catches up. Set in the config:
 | `TRANSCRIPTS` | `$Transcripts` | `~/.claude/projects` | where Claude Code keeps its transcripts |
 | `TRANSCRIPT_SEND` | `$TranscriptSend` | 524288 | the most one send carries, in bytes |
 | `TRANSCRIPT_LINE` | `$TranscriptLine` | 32768 | a longer line is sent as a note of its length |
+
+**Watching a job.** A job's live log shows on the card, under the job in
+*Runner jobs*, and on the Automations panel under the runner's current job
+(click the runner's name): one line per message, tool call or tool result of
+its agent, each with its time, newest at the bottom. It updates by itself as
+the runner sends more. A line with more to it (a tool call's input, a
+command's whole output) opens when clicked. A running job's log is open; a
+finished one's is folded under *Live log* until clicked. A page holds the last
+300 lines and says how many earlier ones there are.
+
+From a terminal, `slipdock job <id> --follow` prints the same lines as they
+arrive and stops, exit 0, once the job has ended (`--interval SECS` between
+reads, 10 by default); `slipdock job-log <id>` prints what is there so far.
+Over MCP, `job_log` reads it, `from` an earlier call's `next`. Both read
+`GET /api/jobs/:id/log?from=N`.
 
 The runner protocol and the session endpoints are in the agent guide
 (`slipdock guide`, section *Runners*).
@@ -7119,6 +7136,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
 | `job_progress` | Renews a claimed job's lease; `step`, if given, is kept on the job as what it is doing now (not on the card); `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |
+| `job_log` | A runner job's [live log](#runners) so far, as `slipdock job-log` prints it: one line per message, tool call or result of its agent. `from` carries on from an earlier call's `next`; `job.open` is false once the job has ended. Anyone who can read the card may. |
 | `capture_meeting` | Sends a meeting's transcript (WebVTT, SRT, `Name:` lines, a Fireflies or Otter export) to a board for [meeting capture](#meeting-capture), with `title`, `when`, `attendees`, and optionally the agent's own `findings` in the published schema. Nothing is written to the board by it. Recordings go through the CLI or the API. |
 | `capture_chat` | Sends the conversation the model is in (`Name: text` turns, or a Claude or ChatGPT export with `format` and `conversation`) to a board for [chat capture](#meeting-capture), optionally with the model's own `findings`: then no server model or AI key is needed, and every quote is still checked against the conversation. Only while chat capture is on (the default). Nothing is written to the board by it. |
 | `get_capture` | A capture: its state, what it found and what each finding becomes, the open questions with numbered answers, and — once it is ready — the `preview` digest to commit with. |

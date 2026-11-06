@@ -597,6 +597,12 @@ defmodule SlipdockWeb.BoardLive.Show do
      socket |> assign(board: Boards.put_states(socket.assigns.board)) |> assign_columns()}
   end
 
+  # More of a shown job's live log arrived (#1871): its log reads the new lines.
+  def handle_info({:transcript, job_id, _lines}, socket) do
+    SlipdockWeb.BoardLive.JobLogComponent.notify(job_id)
+    {:noreply, socket}
+  end
+
   def handle_info({:deployment, deployment}, socket) do
     # The settings wizard waits for the first deploy (#1134).
     if socket.assigns[:panel] == :settings,

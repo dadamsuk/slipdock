@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Runners do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(runner runners runner-stats jobs job cancel-job claim-job job-progress finish-job pause resume)
+  @commands ~w(runner runners runner-stats jobs job job-log cancel-job claim-job job-progress finish-job pause resume)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -165,7 +165,23 @@ defmodule SlipdockCLI.Runners do
     |> out(o, &Render.jobs(&1["jobs"]))
   end
 
-  def run("job", [id], o), do: HTTP.get("/jobs/#{enc(id)}") |> out(o, &Render.job(&1["job"]))
+  def run("job", [id], o) do
+    if o[:follow],
+      do: run("job-log", [id], o),
+      else: HTTP.get("/jobs/#{enc(id)}") |> out(o, &Render.job(&1["job"]))
+  end
+
+  # A job's live log (#1871), one line per message, tool call or result.
+  # With --follow it keeps reading, every --interval seconds (10), until the
+  # job has ended and the last of its log is printed.
+  def run("job-log", [id], o) do
+    every =
+      if is_integer(o[:interval]) and o[:interval] >= 0, do: o[:interval] * 1000, else: 10_000
+
+    follow_log(id, 0, o, o[:poll_ms] || every)
+  end
+
+  def run("job-log", _, _o), do: fail("usage: slipdock job-log <id> [--follow] [--interval SECS]")
 
   def run("cancel-job", [id], o) do
     HTTP.post("/jobs/#{enc(id)}/cancel", %{})
@@ -316,6 +332,44 @@ defmodule SlipdockCLI.Runners do
 
       {_, _} ->
         fail("--needs goes with --status waiting")
+    end
+  end
+
+  defp follow_log(id, from, o, every) do
+    case HTTP.get("/jobs/#{enc(id)}/log", from: from) do
+      {:ok, %{"entries" => entries, "next" => next, "job" => job}} ->
+        print_entries(entries, o)
+        follow_on(job, id, next, o, every)
+
+      other ->
+        dropped(other, id, from, o, every)
+    end
+  end
+
+  # A dropped connection mid-follow is tried again; the log waits on the server.
+  defp dropped({:error, :connect, _}, id, from, o, every) when from > 0,
+    do: follow_on(%{"open" => true}, id, from, o, every)
+
+  defp dropped(other, _id, _from, o, _every), do: out(other, o, fn _ -> :ok end)
+
+  defp print_entries(entries, o) do
+    if o[:json],
+      do: Enum.each(entries, &IO.puts(HTTP.encode(&1))),
+      else: Enum.each(entries, &IO.puts(&1["line"]))
+  end
+
+  # Without --follow, once is enough; with it, read again until the job ends.
+  defp follow_on(job, id, next, o, every) do
+    cond do
+      !o[:follow] ->
+        :ok
+
+      job["open"] != true ->
+        unless o[:json], do: IO.puts(:stderr, "job ##{job["id"]} #{job["status"]}")
+
+      true ->
+        Process.sleep(every)
+        follow_log(id, next, o, every)
     end
   end
 end
