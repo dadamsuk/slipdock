@@ -273,6 +273,12 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **AI, on your own key — or your own hardware** — [chat about a board, ask
   questions in prose over every board at once, search by meaning rather than
   substring, and an edit mode you approve before it applies](docs/manual.md#ai-assistant).
+  Open a card a runner worked on and ask it how the work went: why CI
+  failed, whether the rejection was fair, where its 78 minutes went (its lead
+  time by phase, from the queue to the deploy), or what the agent did in a
+  job, from the job's own log. The answer comes from the server's record of
+  the card and its subcards, names the jobs and comments it used, and says
+  what the record doesn't hold.
   Bring an OpenRouter key, or point it at any OpenAI-compatible endpoint of
   your own — LM Studio, Ollama, llama.cpp, vLLM — and nothing leaves your
   network at all. Neither one, no AI features; nothing is sent anywhere
