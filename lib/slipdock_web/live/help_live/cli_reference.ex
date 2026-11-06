@@ -43,9 +43,9 @@ defmodule SlipdockWeb.HelpLive.CLIReference do
         </p>
         <code
           id="cli-reference-usage"
-          class="mt-3 block whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs"
+          class="mt-3 block break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs"
           phx-no-format
-        >{Enum.join(@all.usage, "\n")}</code>
+        ><%= for line <- @all.usage do %><span class="block"><%= for {chunk, i} <- Enum.with_index(CLIHelp.chunks(line)) do %><%= if i > 0, do: " " %><span class="inline-block max-w-full">{chunk}</span><% end %></span><% end %></code>
         <p id="cli-reference-title" class="mt-2 text-xs text-base-content/60">{@all.title}</p>
       </header>
 
