@@ -87,6 +87,36 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
     )
   end
 
+  # Each claim the server answers, as {query string, status, milliseconds}.
+  defp record_claims do
+    test = self()
+    id = "claims-#{System.unique_integer([:positive])}"
+
+    :ok =
+      :telemetry.attach(
+        id,
+        [:phoenix, :endpoint, :stop],
+        fn _event, %{duration: duration}, %{conn: conn}, _ ->
+          if conn.request_path == "/api/runner/claim" do
+            ms = System.convert_time_unit(duration, :native, :millisecond)
+            send(test, {:claim, conn.query_string, conn.status, ms})
+          end
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(id) end)
+    fn -> collect_claims([]) end
+  end
+
+  defp collect_claims(acc) do
+    receive do
+      {:claim, query, status, ms} -> collect_claims([{query, status, ms} | acc])
+    after
+      0 -> Enum.reverse(acc)
+    end
+  end
+
   defp queue(card, kind, prompt \\ "go"),
     do: Runners.queue(card, %{pool: "dev", kind: kind, prompt: prompt})
 
@@ -120,10 +150,16 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
     assert after_lines(ctx) == ["done 0"]
   end
 
+  # Timed on the server, not by the clock around the run (#1915): pwsh alone
+  # can take 15 s to start on a loaded CI machine. $Wait = 0 read as falsy
+  # would ask for the 25 s default, and the server would hold the claim open.
   test "with nothing queued, -Once asks once and leaves — $Wait = 0 meaning no wait", ctx do
-    started = System.monotonic_time(:millisecond)
+    claims = record_claims()
     assert {_out, 0} = run_once(ctx, config(ctx))
-    assert System.monotonic_time(:millisecond) - started < 15_000
+
+    assert [{query, 204, ms}] = claims.()
+    assert URI.decode_query(query)["wait"] == "0"
+    assert ms < 5_000
   end
 
   test "an unknown kind is refused with 127 and nothing runs", ctx do
