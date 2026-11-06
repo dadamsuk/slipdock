@@ -920,6 +920,22 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 </p>
               </div>
             </div>
+            <%!-- Promotion by recurrence (#1942, `Slipdock.Findings.Promote`). --%>
+            <div class="space-y-1">
+              <span class="text-sm font-medium">Findings</span>
+              <.input
+                field={@form[:findings_propose_at]}
+                id="board-findings-propose-at"
+                type="number"
+                min="0"
+                max="100"
+                label="Propose a rule when a finding is seen this many times"
+              />
+              <p class="-mt-1 text-xs text-base-content/50">
+                On a board with a handbook, the lesson is drafted as a rule on the Tidy-up page for
+                you to apply or dismiss. 0 never proposes.
+              </p>
+            </div>
             <%!-- What a card's handoff is called on this board, and what the
                 AI is told when it drafts one (#1212). Blank is the default. --%>
             <div class="space-y-1">

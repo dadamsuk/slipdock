@@ -77,6 +77,17 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     assert JSON.decode!(body) == %{"verify_audit" => 10}
   end
 
+  test "set-board --findings-propose-at sends the threshold (#1942)" do
+    serve([{200, @board}])
+
+    capture_io(fn ->
+      Boards.run("set-board", ["docs"], parse(["--findings-propose-at", "0"]))
+    end)
+
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"findings_propose_at" => 0}
+  end
+
   test "verify agree and disagree post an audit's say (#1780)" do
     serve([{200, @card}, {200, @card}])
 

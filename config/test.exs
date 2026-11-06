@@ -49,6 +49,9 @@ config :slipdock, :board_key_claims, Slipdock.BoardKeyClaims
 # Tests send the editor its `:autosave` tick themselves.
 config :slipdock, :wiki_autosave_after_ms, :timer.hours(1)
 
+# Draft a finding's proposal inline, so a test sees it filed (#1942).
+config :slipdock, :findings, async: false
+
 config :slipdock, :automations,
   enabled: true,
   interval: :manual,

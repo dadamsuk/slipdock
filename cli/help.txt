@@ -681,6 +681,7 @@ WRITE
       [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
       [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
       [--verify-pool POOL] [--verify-rejection-limit N] [--verify-audit N]
+      [--findings-propose-at N]
       [--ship-via push|pull-request]
       [--lanes | --no-lanes]
                                       rename a board, change its code, shortcut key or colour,
@@ -729,6 +730,9 @@ WRITE
                                       --verify-audit N: about 1 in N cards an agent
                                       accepted is audited by another runner in the
                                       verify pool (0, the default, none);
+                                      --findings-propose-at N: a finding seen N times
+                                      gets a handbook rule drafted as a Tidy-up
+                                      proposal for a person (default 3; 0 never)
                                       --ship-via pull-request: agents open a pull request,
                                       never push the default branch, and accepting the
                                       card has a runner merge it (needs --verify-work)

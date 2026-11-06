@@ -234,6 +234,17 @@ defmodule SlipdockWeb.FindingsLive.Index do
           runner{if runner_name(@finding), do: " #{runner_name(@finding)}"}
         </span>
         <span :if={@finding.by} class="text-base-content/50" data-role="by">by {@finding.by}</span>
+        <%!-- The rule drafted for it once it was seen often enough (#1942). --%>
+        <.link
+          :if={@finding.proposal_id}
+          navigate={~p"/boards/#{@finding.board_id}/tidy"}
+          class="badge badge-sm badge-outline"
+          data-role="proposal"
+          title="A rule drafted from this finding, for you to apply or dismiss on the Tidy-up page"
+        >
+          proposal #{@finding.proposal_id}{if @finding.proposed_rule,
+            do: " · #{@finding.proposed_rule}"}
+        </.link>
         <div :if={@can_write} class="ml-auto flex items-center gap-1" data-role="triage">
           <%= if @finding.status == "open" do %>
             <.link

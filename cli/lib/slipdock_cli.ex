@@ -92,6 +92,7 @@ defmodule SlipdockCLI do
     verify_pool: :string,
     verify_rejection_limit: :integer,
     verify_audit: :integer,
+    findings_propose_at: :integer,
     # How long runner job logs stay (#1872), and `job <id> --keep`.
     job_log_hours: :integer,
     failure_log_hours: :integer,

@@ -78,6 +78,7 @@ test/slipdock/sweep_install_test.exs
 test/slipdock_web/card_timeline_api_test.exs
 test/slipdock_web/controllers/api/card_controller_test.exs
 test/slipdock_web/controllers/api/finding_controller_test.exs
+test/slipdock_web/findings_propose_at_test.exs
 test/slipdock_web/live/age_chip_option_test.exs
 test/slipdock_web/live/list_show_images_test.exs
 test/slipdock_web/live/verify_audit_live_test.exs

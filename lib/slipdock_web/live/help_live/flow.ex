@@ -519,7 +519,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
           (beside <em>Health</em>
           in the Runners panel; a card with open findings links to it), or with
           <code>slipdock findings B</code>
-          and <code>slipdock finding 41 promote --note "…"</code>.
+          and <code>slipdock finding 41 promote --note "…"</code>. A finding seen three times
+          (the board's setting) is drafted as a rule on the Tidy-up page for you to apply.
         </li>
       </ul>
     </.person_note>

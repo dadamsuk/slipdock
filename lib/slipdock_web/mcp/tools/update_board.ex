@@ -14,7 +14,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
 
   @fields ~w(name description color simple default_view handoff_label bar_required
              evidence_required verify_work verify_pool lanes ship_via job_log_hours
-             failure_log_hours)
+             failure_log_hours findings_propose_at)
 
   @impl true
   def name, do: "update_board"
@@ -25,9 +25,9 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   @impl true
   def description,
     do:
-      "Changes settings on a board you own: name, description, color, simple, default_view, " <>
-        "handoff_label, bar_required, evidence_required, verify_work, verify_pool, ship_via, " <>
-        "lanes, job_log_hours, failure_log_hours. Only what you send changes."
+      "Changes a board you own: name, description, color, simple, default_view, handoff_label, " <>
+        "bar_required, evidence_required, verify_work, verify_pool, ship_via, lanes, " <>
+        "job_log_hours, failure_log_hours, findings_propose_at. Only what you send changes."
 
   @impl true
   def input_schema do
@@ -61,6 +61,11 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
         failure_log_hours: %{
           type: "integer",
           description: "Hours a failed, stuck or rejected job's log stays (168 by default)."
+        },
+        findings_propose_at: %{
+          type: "integer",
+          description:
+            "A finding seen this many times gets a handbook rule proposal drafted (3 by default; 0 off)."
         }
       },
       required: ["board"],
