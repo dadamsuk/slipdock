@@ -176,6 +176,10 @@ defmodule Slipdock.Swimlanes.Config do
   # twins) are excluded: only the active density's chooser is on the form.
   @form_list_fields ~w(kinds tags priorities flags columns colors)a
   @filter_fields ~w(q due done deps kinds tags priorities flags columns colors)a
+  # What the Display menu sets (#1879): the part of a config the browser
+  # remembers per board and view, so leaving the board and coming back keeps it.
+  @display_fields ~w(density width handoff place color_by show show_compact fields fields_compact tell)a
+  @display_keys Enum.map(@display_fields, &Atom.to_string/1)
 
   defstruct mode: "swimlanes",
             rows: "priority",
@@ -401,6 +405,37 @@ defmodule Slipdock.Swimlanes.Config do
 
   defp keep_unlisted(new, old, unlisted),
     do: ordered(new ++ Enum.filter(old, &(&1 in unlisted)), @facet_keys)
+
+  @doc "The query keys the Display menu sets, as strings."
+  def display_keys, do: @display_keys
+
+  @doc """
+  The Display menu's part of `to_query/2`, as a string-keyed map: what a
+  browser remembers for a board's view (#1879). Empty when the display is
+  the base's.
+  """
+  def display_query(%__MODULE__{} = config, %__MODULE__{} = base) do
+    for field <- @display_fields,
+        value = Map.fetch!(config, field),
+        value != Map.fetch!(base, field),
+        into: %{} do
+      {Atom.to_string(field), encode(value)}
+    end
+  end
+
+  @doc """
+  Puts remembered display options (a map from the browser) on `config`.
+  Only the Display menu's keys with string values are taken; anything
+  else is dropped, and each value is cast as a query parameter would be.
+  """
+  def put_display(%__MODULE__{} = config, remembered) when is_map(remembered) do
+    remembered
+    |> Map.take(@display_keys)
+    |> Map.filter(fn {_key, value} -> is_binary(value) end)
+    |> from_query(config)
+  end
+
+  def put_display(%__MODULE__{} = config, _), do: config
 
   @doc "Builds a config from a stored string-keyed map."
   def from_map(map) when is_map(map), do: from_query(map, %__MODULE__{})

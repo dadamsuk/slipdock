@@ -34,7 +34,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   }
 
   alias SlipdockWeb.Params
-  alias SlipdockWeb.BoardLive.{Keyboard, Sharing, SnoozeEvents, ViewEvents}
+  alias SlipdockWeb.BoardLive.{DisplayPrefs, Keyboard, Sharing, SnoozeEvents, ViewEvents}
   alias Slipdock.Swimlanes.Config
 
   @empty_filters Slipdock.Filters.empty()
@@ -67,7 +67,8 @@ defmodule SlipdockWeb.BoardLive.Show do
     start_rename_column cancel_rename_column start_add_card aim_document cancel_add_card
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
-    swim_toggle_row swim_start_add swim_cancel_add toggle_select_mode clear_selection) ++
+    swim_toggle_row swim_start_add swim_cancel_add toggle_select_mode clear_selection
+    display_restore) ++
                  SnoozeEvents.read_events()
 
   # Events only the board owner may perform.
@@ -335,6 +336,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       # `?tab=gardening`: which tab the settings panel opens on.
       |> assign(settings_tab: params["tab"])
       |> scroll_to_anchor()
+      |> DisplayPrefs.sync()
 
     if socket.assigns.view_only and is_nil(socket.redirected) do
       {:noreply, enforce_view_only(socket, params)}
@@ -707,6 +709,10 @@ defmodule SlipdockWeb.BoardLive.Show do
   # they get here only past the guards above.
   def handle_event(event, params, socket) when event in @view_events,
     do: ViewEvents.handle_event(event, params, socket)
+
+  # What the browser remembered of this board's Display options (#1879).
+  def handle_event("display_restore", params, socket),
+    do: {:noreply, DisplayPrefs.restore(socket, params)}
 
   def handle_event(event, params, socket) when event in @keyboard_events,
     do: Keyboard.handle_event(event, params, socket)
@@ -1383,6 +1389,8 @@ defmodule SlipdockWeb.BoardLive.Show do
         tags={@board.tags}
         destinations={@bulk_destinations}
       />
+
+      <div id="display-prefs" phx-hook="DisplayPrefs" class="hidden"></div>
 
       <div
         id="board-keys"

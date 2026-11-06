@@ -51,6 +51,7 @@ import {Tabs} from "./tabs"
 import {installKeyHints} from "./key_hints"
 import {ToolbarFold} from "./toolbar_fold"
 import {LogTail} from "./log_tail"
+import {DisplayPrefs} from "./display_prefs"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -67,6 +68,7 @@ Hooks.DateField = DateField
 Hooks.FilePicker = FilePicker
 Hooks.ToolbarFold = ToolbarFold
 Hooks.LogTail = LogTail
+Hooks.DisplayPrefs = DisplayPrefs
 
 // Keeps the server's idea of the window width up to date, so views that
 // render something different on a phone (the calendar's agenda, the board's
