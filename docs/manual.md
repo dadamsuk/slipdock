@@ -894,11 +894,13 @@ after that. `shipping` has `neutral: true` and `slipdock card` shows
 The pull request's CI is the one full test run. Before pushing, the builder
 runs the tests it added or changed and the project's own pre-push checks,
 not the whole suite, and it completes the card once the checks pass, giving
-CI's result as the suite. The pre-push checks are what the project's
-`CLAUDE.md`, contributing guide or handbook lists, ideally one command that
-runs what CI's static checks run (Slipdock's own is `mix pre_push`); a
-project that lists none gets formatting and a compile that fails on
-warnings. The builder watches the checks with `gh pr checks <branch> --watch
+CI's result as the suite. Where the pre-push checks are, in order: the
+`## Before you push` section of the board's [handbook](#tools) Testing &
+tooling page, when it has one (the prompt names the `slipdock page section`
+command that reads it); else what the project's `CLAUDE.md`, contributing
+guide or handbook lists elsewhere, ideally one command that runs what CI checks (Slipdock's own is
+`mix pre_push`); and a project that lists none gets formatting and a compile
+that fails on warnings. The builder watches the checks with `gh pr checks <branch> --watch
 --fail-fast`, so a failed check is seen when it fails rather than when the
 slowest one ends. The verifier
 doesn't run the suite again either (see [Verify jobs](#verify-jobs)). With
@@ -6921,6 +6923,24 @@ card (the series' current one) the nightly procedure and moves its series
 to every day, and changes nothing else on it. Installing 1.3.0 over an
 older handbook adds the Triage findings card and appends `## Triage` to the
 Index.
+
+**Before you push** (1.4.0): every check CI enforces on a pull request
+should run locally through one command, and builders are told which. The
+Testing & tooling page has a `## Before you push` section for it: the one
+command, in CI's order with CI's arguments, and any CI check with no local
+equivalent (a Windows runner, say), with why. The seed card fills it from
+the CI config, and where the repo has no such command it proposes one (an
+alias, a make target or a script) in its closing comment rather than adding
+it. The nightly reconcile checks the section against the CI config whenever
+its range touches it (`.github/workflows/**` and the like). On a board that
+ships by pull request, the builder's prompt points at the section first.
+A handbook installed before 1.4.0 gets the section by installing again:
+it is added after the page's `## CI` section (else at the end), empty but
+for its hint, and the reconcile card gets the CI step; nothing else on the
+page changes, and a page that already has the section is left alone. Then
+write the project's command into it (`slipdock page section <code> "Testing
+& tooling/Before you push" --body …`), or leave it to the next reconcile
+that touches the CI config.
 
 **The code sweep** is the other built-in Tool that goes onto a board that
 exists (#1793): `install_tool` with `tool: "sweep"` and `board`, `POST

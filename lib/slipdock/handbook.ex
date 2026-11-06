@@ -30,7 +30,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.3.0"
+  @version "1.4.0"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -44,6 +44,14 @@ defmodule Slipdock.Handbook do
   def tool?(_), do: false
 
   ## The Tool --------------------------------------------------------------------
+
+  # The section every Testing & tooling page has (#1878): every check CI
+  # enforces runs locally through one command, and builders are told it.
+  @before_you_push """
+  ## Before you push
+
+  _The one command that runs locally what CI enforces on a pull request, in CI's order with CI's arguments, and how long it takes. Then any CI check with no local equivalent (a Windows runner, a hosted scan), each with why. Builders run this before every push._
+  """
 
   @sections [
     {"Specification", "specification", "What the product does, feature by feature.",
@@ -67,7 +75,8 @@ defmodule Slipdock.Handbook do
      "## Modules\n\n_One section per module: what it does and when to reach for it._\n"},
     {"Testing & tooling", "testing", "How to test, CI, local setup.",
      "writing tests, changing CI, the build or the local setup",
-     "## Tests\n\n_How the suite is laid out and run._\n\n## CI\n\n_What runs on every push._\n\n## Local setup\n\n_From a clean checkout to a running app._\n"},
+     "## Tests\n\n_How the suite is laid out and run._\n\n## CI\n\n_What runs on every push._\n\n" <>
+       @before_you_push <> "\n## Local setup\n\n_From a clean checkout to a running app._\n"},
     {"Operations", "operations", "Deploys, configuration and runbooks.",
      "changing deploys, configuration, secrets or anything run in production",
      "## Deploy\n\n_How a change reaches production._\n\n## Configuration\n\n_Settings and where they come from._\n\n## Runbooks\n\n_What to do when something breaks._\n"}
@@ -135,12 +144,13 @@ defmodule Slipdock.Handbook do
      - put the page's rules in its `## Rules` section, one list item each and nowhere else: `- **UX-1** must · test/app_web/tokens_test.exs · No colour literals in templates.` (id with the page's prefix, `must` or `should`, an optional `scope <globs>` part, then the check: the test that enforces it, or `judgement`). A rule with an obvious mechanical check and no test yet is `judgement`: list it in the closing comment as a candidate test. Prose elsewhere can cite a rule by its id. `slipdock handbook <board>` counts the rules and lists any item that doesn't parse, with its page and line.
 
      Write the body with `slipdock page edit <page> --file F --summary S --message "#<this card> seed"`, and the front matter with `slipdock page props <page> --file F` (the YAML alone: `handbook:`, `read_when:`, `covers:`). Drafting pages in parallel and reviewing each before writing works well.
-  4. Write one page per decision you find in the existing design records, specs and comments, filed in `Handbook/Decisions`: title `Decision: <what was chosen>`, then context, the choice, the alternatives and why not, and a link to where it was decided.
-  5. Add one line to the repo's CLAUDE.md (or AGENTS.md) pointing at the Index: `Project handbook: <Index code> on the <board> board — read the sections a card needs before building, and update them before closing it (a Handbook: line in the closing comment).` The wiki is the source of truth: do not copy the handbook into the repo.
-  6. Commit the CLAUDE.md change with this card's id, and close the card with a `Handbook:` line listing every page written.
-  7. Check the result: `slipdock handbook <a few past card ids>` should point a UI card at UX & UI, a schema change at Data model, and so on. Tighten `read_when`/`covers` where it doesn't.
+  4. Before you push: for every check CI runs on a pull request (each job and step the workflows run for one), write on Testing & tooling's `## Before you push` how to run it locally, and gather them into the one command that runs them all, in CI's order with CI's arguments. A check with no local equivalent (a Windows runner, a hosted service) is named there, with why. Where the repo has no such command, don't add one unasked: list the separate commands there meanwhile, and propose the one command (an alias, a make target or a script, with the steps it would run) in the closing comment.
+  5. Write one page per decision you find in the existing design records, specs and comments, filed in `Handbook/Decisions`: title `Decision: <what was chosen>`, then context, the choice, the alternatives and why not, and a link to where it was decided.
+  6. Add one line to the repo's CLAUDE.md (or AGENTS.md) pointing at the Index: `Project handbook: <Index code> on the <board> board — read the sections a card needs before building, and update them before closing it (a Handbook: line in the closing comment).` The wiki is the source of truth: do not copy the handbook into the repo.
+  7. Commit the CLAUDE.md change with this card's id, and close the card with a `Handbook:` line listing every page written.
+  8. Check the result: `slipdock handbook <a few past card ids>` should point a UI card at UX & UI, a schema change at Data model, and so on. Tighten `read_when`/`covers` where it doesn't.
 
-  **Done when:** every section page has real content and front matter, the decisions found have pages, CLAUDE.md points at the Index, and a person has been asked (in the closing comment) to read the drafts once.
+  **Done when:** every section page has real content and front matter, Before you push names the one command (or the closing comment proposes it), the decisions found have pages, CLAUDE.md points at the Index, and a person has been asked (in the closing comment) to read the drafts once.
   """
 
   @reconcile_description """
@@ -151,9 +161,10 @@ defmodule Slipdock.Handbook do
   3. Take at most 20 of those commits, oldest first: the range is `<to>..<the 20th>`. The rest wait for the next night.
   4. Find what the range touches: `git log --name-only --format= <range> | sort -u | slipdock handbook <board> --paths-from -`. It lists the pages whose `covers:` match those paths, and the rules the paths fall under. Read only those pages, by section (`slipdock page section`), against the range's diffs.
   5. For each change, check those pages and the checklist: user-visible behaviour → Specification; structure or boundaries → Architecture / Data model; a choice between alternatives → a new page in `Handbook/Decisions`; something reusable → Shared modules / Components; a UI pattern → UX & UI; how to test, build or deploy → Testing & tooling / Operations. A changed path that no page covers but one should: add it to that page's `covers:`.
-  6. Update what drifted, by section, with `--message "#<this card> reconcile <range>"`. Facts, links and splits are yours to fix. A rule (`## Rules`) or a decision that looks wrong is a person's call: don't rewrite it, say so as a finding (`handbook-wrong:` or `rule:`) in the closing comment.
-  7. Append the range to the Index's `## Log`: `- <date>: <from>..<to> (<n> commits), updated <codes>` (or `nothing drifted`).
-  8. Close the card with a `Handbook:` line. The next one comes by itself tomorrow.
+  6. A range that touches CI config (`.github/workflows/**`, `.gitlab-ci.yml`, `.circleci/**`, `Jenkinsfile`, and the like): read Testing & tooling's `## Before you push` against the workflows as they now are, and fix the drift there. Every check CI runs on a pull request runs through its one command or is named as having no local equivalent, with why. A new check the command doesn't run: say so in the section, and propose the change to the command in the closing comment rather than making it unasked.
+  7. Update what drifted, by section, with `--message "#<this card> reconcile <range>"`. Facts, links and splits are yours to fix. A rule (`## Rules`) or a decision that looks wrong is a person's call: don't rewrite it, say so as a finding (`handbook-wrong:` or `rule:`) in the closing comment.
+  8. Append the range to the Index's `## Log`: `- <date>: <from>..<to> (<n> commits), updated <codes>` (or `nothing drifted`).
+  9. Close the card with a `Handbook:` line. The next one comes by itself tomorrow.
   """
 
   @triage_description """
@@ -255,6 +266,7 @@ defmodule Slipdock.Handbook do
            ) do
         {:ok, report} ->
           after_seed(root, report.added["cards"])
+          report = add_before_you_push(root, user, report)
           report = add_rules_sections(root, user, report)
           report = add_triage_log(root, user, report)
           {report, upgraded} = upgrade_reconcile(root, user, report)
@@ -305,6 +317,38 @@ defmodule Slipdock.Handbook do
   end
 
   defp rules_section?(page), do: has_heading?(page, "rules")
+
+  @doc "The `## Before you push` section a Testing & tooling page starts with (#1878)."
+  def before_you_push_skeleton, do: @before_you_push
+
+  # A handbook from before 1.4.0 has no `## Before you push` on its Testing &
+  # tooling page: added after its `## CI` section when it has one, else at
+  # the end, so nothing written there is touched. A page that has the
+  # section is left alone. Reported as "<title> (Before you push added)".
+  # (Reinstalling also gives the reconcile card its CI step: see
+  # `upgrade_reconcile/3`.)
+  defp add_before_you_push(root, user, report) do
+    with %{pages: pages} <- find(root),
+         %Page{} = page <- Enum.find(pages, &(key(&1) == "testing")),
+         false <- has_heading?(page, "before you push"),
+         {:ok, _} <- append_before_you_push(page, user) do
+      update_in(report, [:added, "pages"], &(&1 ++ [page.title <> " (Before you push added)"]))
+    else
+      _ -> report
+    end
+  end
+
+  defp append_before_you_push(page, user) do
+    opts = [user: user, message: "Before you push added by the Handbook Tool, #{@version}"]
+
+    case Enum.find(Wiki.Section.headings(page.body), &h2?(&1, "ci")) do
+      nil -> Wiki.append(page, @before_you_push, opts)
+      ci -> Wiki.append_section(page, ci.path, @before_you_push, opts)
+    end
+  end
+
+  defp h2?(heading, title),
+    do: heading.level == 2 and String.downcase(String.trim(heading.title)) == title
 
   # A handbook installed before 1.2.0 reconciled weekly, over everything
   # since the last run. Installing over it moves the reconcile card (the
@@ -405,7 +449,7 @@ defmodule Slipdock.Handbook do
   defp has_heading?(page, title) do
     page.body
     |> Wiki.Section.headings()
-    |> Enum.any?(&(&1.level == 2 and String.downcase(String.trim(&1.title)) == title))
+    |> Enum.any?(&h2?(&1, title))
   end
 
   defp can_write(user, board) do
@@ -444,6 +488,25 @@ defmodule Slipdock.Handbook do
   end
 
   def find(_), do: nil
+
+  @doc """
+  Where `board`'s handbook says what to run before a push (#1878): the
+  Testing & tooling page's code and the path `slipdock page section` reads,
+  as `%{page: "W-12", path: "Testing & tooling/Before you push"}`, or nil
+  when the tree has no handbook or that page has no such section.
+  """
+  def before_you_push(%Board{} = board) do
+    with %{pages: pages} <- find(board),
+         %Page{} = page <- Enum.find(pages, &(key(&1) == "testing")),
+         %{path: path} <-
+           Enum.find(Wiki.Section.headings(page.body), &h2?(&1, "before you push")) do
+      %{page: page.code, path: path}
+    else
+      _ -> nil
+    end
+  end
+
+  def before_you_push(_), do: nil
 
   @doc "The decision pages: those filed in `Handbook/Decisions`."
   def decisions(%{board: root}) do
