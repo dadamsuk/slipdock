@@ -3845,11 +3845,21 @@ machine: bring the copies up to date by hand. With *Keep the runner current* tic
 new installs; `--no-self-update` to `install.sh`, `-NoSelfUpdate` to
 `install.ps1`, `slipdock runner new … --no-self-update`; by hand
 `SELF_UPDATE=1` or `$SelfUpdate = $true` in the config), a runner whose
-claim comes back empty, so no job is running, fetches the new script and
-`SHA256SUMS`. It replaces itself only if the download's SHA-256 matches
-both the published sum and the version the server announced, then starts
-again in place. A mismatch keeps the running script, says so in the log,
-and that version isn't tried again until the runner restarts. The config is
+script isn't the server's updates itself **between any two jobs** (#1925):
+after a claim comes back empty, and after each job's finish is reported,
+before it claims the next. The server names its script (`X-Runner-Latest`)
+on every claim, empty or not, and on every finish, so a busy queue, or an
+epic the board sends again a second after each pass, still lets it update,
+and a deploy during a long job reaches the job after it. A job is never cut
+off for it, and once a newer script is known the old one claims nothing
+more. It fetches the new script and `SHA256SUMS`, replaces itself only if
+the download's SHA-256 matches both the published sum and the version the
+server announced, then starts again in place. A failed fetch or a mismatch
+keeps the running script, which carries on taking jobs, says so in the log,
+and that version isn't tried again until the runner restarts. So a
+self-updating runner never needs restarting by hand to pick up a new
+script: one still marked *out of date* after a job has ended has an update
+that failed, and its log says why. The config is
 never touched, so a runner installed before this has no such line and stays
 as it is until it is installed again. `SELF_UPDATE_URL` (`$SelfUpdateUrl`)
 fetches from somewhere else than the server.

@@ -145,4 +145,27 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert flat.("docs/agents.md") =~ "replace themselves with the server's newer script"
     assert flat.("lib/slipdock_web/api_guide.ex") =~ "(`X-Runner-Version`)"
   end
+
+  test "a runner updates itself between any two jobs, as the scripts and docs say (#1925)" do
+    # Comment markers at line starts go too, so a phrase can cross lines.
+    flat = fn path -> path |> read() |> String.replace(~r/\s*\n#?\s*|\s+/, " ") end
+
+    for script <- ~w(priv/runner/slipdock-runner priv/runner/slipdock-runner.ps1) do
+      assert flat.(script) =~
+               "updates between jobs (#1925): after an empty claim, or after a job's finish is reported and before the next claim, never during a job"
+
+      refute flat.(script) =~ "came back empty, so no job is running"
+    end
+
+    manual = flat.("docs/manual.md")
+    assert manual =~ "updates itself **between any two jobs** (#1925)"
+    assert manual =~ "never needs restarting by hand"
+    refute manual =~ "claim comes back empty, so no job is running"
+
+    assert flat.("docs/agents.md") =~
+             "between any two jobs, after an empty claim or after a job's finish"
+
+    assert flat.("lib/slipdock_web/api_guide.ex") =~
+             "replaces itself between any two jobs: after an empty claim, or after a job's finish"
+  end
 end

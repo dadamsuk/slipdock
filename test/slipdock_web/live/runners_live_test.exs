@@ -326,6 +326,22 @@ defmodule SlipdockWeb.RunnersLiveTest do
       refute has_element?(view, "#runner-jobs-#{runner.id}")
     end
 
+    test "a runner whose script is behind the server's is marked out of date (#1925)", ctx do
+      %{conn: conn, board: board} = ctx
+      latest = SlipdockWeb.RunnerInstallController.latest()
+      {:ok, behind, _} = Runners.create_runner(board, %{"name" => "behind", "pool" => "dev"})
+      {:ok, current, _} = Runners.create_runner(board, %{"name" => "current", "pool" => "dev"})
+      {:ok, silent, _} = Runners.create_runner(board, %{"name" => "silent", "pool" => "dev"})
+      Runners.report_version(behind, "sh " <> String.duplicate("a", 64))
+      Runners.report_version(current, "ps1 " <> latest["ps1"])
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+
+      assert has_element?(view, "#runner-#{behind.id}-script", "out of date")
+      refute has_element?(view, "#runner-#{current.id}-script")
+      assert has_element?(view, "#runner-#{silent.id}-script", "old script")
+    end
+
     test "a Claude session's runner names its API token", %{conn: conn, board: board, user: user} do
       {_token, api_token} = Slipdock.Accounts.create_api_token(user, "desktop")
       {:ok, runner} = Runners.session_runner(board, "loop", api_token, user)
