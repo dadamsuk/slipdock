@@ -23,7 +23,6 @@ const sections = [
   ['/overview', 'Overview', 'wide'],
   ['/config', 'Server', 'narrow'],
   ['/config/mail', 'Email', 'narrow'],
-  ['/config/meetings', 'Meetings', 'narrow'],
   ['/config/ai', 'AI', 'narrow'],
   ['/admin/tools', 'Tools', 'wide'],
 ]
@@ -159,15 +158,15 @@ ok('the People panel opens at ?user= inside the Admin area and closes back to /u
 // 4. A phone: no side nav; the picker names the page, lists every entry, and
 //    carries the build strip.
 await page.setViewportSize({ width: 390, height: 844 })
-await open('/config/meetings')
+await open('/config/ai')
 if (await page.locator('#admin-nav').isVisible()) fail('390: the side nav shows on a phone')
 const picker = page.locator('#admin-picker')
 if (!(await picker.isVisible())) fail('390: no section picker')
 const summary = (await picker.locator('summary').innerText()).replace(/\s+/g, ' ').trim()
-if (!summary.includes('Meetings')) fail(`390: the picker says "${summary}"`)
+if (!summary.includes('AI')) fail(`390: the picker says "${summary}"`)
 await snap('admin-server-390')
 await picker.locator('summary').click()
-checkList('390 picker', await listed('#admin-picker nav'), '/config/meetings')
+checkList('390 picker', await listed('#admin-picker nav'), '/config/ai')
 if (!(await picker.locator('[data-role=build-info]').isVisible())) fail('390: no build strip in the picker')
 await snap('admin-picker-390-open')
 await Promise.all([page.waitForURL(`${base}/admin/tools`), picker.locator('a[href="/admin/tools"]').click()])

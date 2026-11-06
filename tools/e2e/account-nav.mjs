@@ -21,7 +21,6 @@ const sections = [
   ['/account/tokens', 'API tokens'],
   ['/account/agent', 'Set up an agent'],
   ['/account/data', 'Import & export'],
-  ['/account/voiceprint', 'Voiceprint'],
   ['/account/email-log', 'Email log'],
 ]
 

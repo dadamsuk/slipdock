@@ -951,7 +951,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
         <.app_link current_user={@current_user} to={~p"/search"}>Search</.app_link>
         covers every board at once and matches by <em>meaning</em>, not exact words. "The
         thing that was blocked on legal" finds the card whose comment said "waiting on the
-        contract review". It searches cards, comments, status updates, meeting transcripts
+        contract review". It searches cards, comments, status updates, recording transcripts
         and wiki pages.
       </p>
       <p>
