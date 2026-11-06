@@ -351,6 +351,9 @@ defmodule Slipdock.Health.CardDetectorsTest do
           inserted_at: ago(5 * 60)
         })
 
+      # Only a card a runner job is working on holds a lane (#1922).
+      working_job_fixture(holder)
+
       {holder, held, job}
     end
 

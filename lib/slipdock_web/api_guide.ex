@@ -2179,7 +2179,10 @@ defmodule SlipdockWeb.APIGuide do
     says the same, one reason in this order: `paused by David: bad deploy`,
     `WIP full: In Progress 3/3`, `#123 is in progress`, `No runner online
     for pool dev` (none seen in three leases; never told to a runner that
-    is asking). WIP full applies when the owner turns on `automation_wip`
+    is asking). `#123 is in progress` (and a lane's `Lane: overlaps #12, in
+    progress`) only ever names a card a runner job is working on: one with
+    a job queued, claimed or running on it or its epic. A card in progress
+    with no open job holds nothing back. WIP full applies when the owner turns on `automation_wip`
     (settings, `PATCH /api/boards/:board`, `slipdock set-board
     --automation-wip`): while the first in-progress list is at its WIP
     limit, jobs and list_top sends for cards not already in progress wait.
@@ -3685,8 +3688,10 @@ defmodule SlipdockWeb.APIGuide do
       `slipdock edit ID --paths "a/**,b.md"`; or `paths` when making it:
       `create_card`, `slipdock add --paths`). Moving it in is refused
       (`422`, naming the card in the way) while its paths overlap an open
-      card already in progress on the board's tree, the card's own subcards
-      and parents aside, and so are creating one straight into an
+      card in progress on the board's tree that a runner job is working on
+      (a job queued, claimed or running on it or its epic; a card in
+      progress with no open job holds no lane), the card's own subcards and
+      parents aside, and so are creating one straight into an
       in-progress list and widening an in-progress card's paths onto
       another's. An epic's lane is its subcards': in progress it holds none
       of its own, and it waits only when none of the subcards it could take

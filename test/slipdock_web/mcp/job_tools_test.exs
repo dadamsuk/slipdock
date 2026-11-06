@@ -86,7 +86,8 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
 
     test "says which job is held back while something is in progress", ctx do
       doing = Enum.find(ctx.board.columns, &(&1.category == "doing"))
-      busy = card_fixture(doing, %{"title" => "By hand"})
+      busy = card_fixture(doing, %{"title" => "Being worked"})
+      working_job_fixture(busy)
 
       {:ok, job} =
         Runners.queue(ctx.card, %{

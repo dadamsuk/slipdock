@@ -132,6 +132,7 @@ defmodule Slipdock.LanesTest do
 
     test "an agent can't start an overlapping card, and is told which card is in the way", ctx do
       running = card(ctx.doing, "Running", "lib/runners/**")
+      working_job_fixture(running)
       next = card(ctx.todo, "Next", "lib/runners/claim.ex")
 
       assert {:error, :unprocessable_entity, message} =
@@ -176,6 +177,7 @@ defmodule Slipdock.LanesTest do
 
     test "an agent can't widen an in-progress card's paths onto another's", ctx do
       running = card(ctx.doing, "Running", "lib/runners/**")
+      working_job_fixture(running)
       mine = card(ctx.doing, "Mine", "lib/boards/**")
 
       assert {:error, changeset} =
@@ -200,6 +202,8 @@ defmodule Slipdock.LanesTest do
 
     test "the card's own subcards and parents don't count against it", ctx do
       epic = card(ctx.doing, "Epic", "lib/**")
+      # The epic's job works its subcards.
+      working_job_fixture(epic)
       {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
@@ -229,6 +233,7 @@ defmodule Slipdock.LanesTest do
       on(%{ctx | board: off})
 
       running = card(ctx.doing, "Running", "lib/**")
+      working_job_fixture(running)
       todo = hd(sub.columns)
       doing = doing_list(sub)
       child = card(todo, "Child", "lib/a.ex")
@@ -251,6 +256,7 @@ defmodule Slipdock.LanesTest do
 
     test "an overlapping card's job is held, said why, and the next one is claimed", ctx do
       running = card(ctx.doing, "Running", "lib/**")
+      working_job_fixture(running)
       blocked = card(ctx.todo, "Blocked", "lib/a.ex")
       free = card(ctx.todo, "Free", "docs/**")
       {:ok, held} = queue(blocked)

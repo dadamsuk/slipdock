@@ -71,9 +71,10 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     queued = Enum.filter(open_jobs, &(&1.status == "queued"))
     live = Enum.filter(open_jobs, &(&1.status in ~w(claimed running)))
     lanes = Lanes.held_cards(root_id)
+    worked = Runners.worked(root_id)
 
     edges =
-      Enum.flat_map(queued, &queued_edges(&1, lanes, live, ctx)) ++
+      Enum.flat_map(queued, &queued_edges(&1, {lanes, worked}, live, ctx)) ++
         answer_edges(root_id, open_jobs) ++
         dependency_edges(ctx.board_ids) ++
         finishing_edges(ctx.board_ids, open_jobs) ++
@@ -85,7 +86,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     |> Map.new(fn {k, v} -> {k, Enum.reverse(Enum.uniq_by(v, &elem(&1, 0)))} end)
   end
 
-  defp queued_edges(job, lanes, live, ctx) do
+  defp queued_edges(job, {lanes, worked}, live, ctx) do
     finishing = job.kind in Verified.finishing_kinds()
     node = {:job, job.id}
 
@@ -95,6 +96,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
           for(
             c <- doing_cards([job.board_id]),
             c.id != job.card_id,
+            worked?(c, worked),
             do: {node, {:card, c.id}, "job ##{job.id} waits while ##{c.id} is in progress"}
           ),
         else: []
@@ -253,13 +255,18 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     )
   end
 
+  # Only a card a runner job is working on holds a job that waits while
+  # anything is in progress (#1922), as `Runners.waiting_on/1` counts it.
+  defp worked?(%{id: id, board_id: board_id}, {cards, boards}),
+    do: Enum.member?(cards, id) or Enum.member?(boards, board_id)
+
   defp doing_cards(board_ids) do
     from(c in Card,
       join: col in assoc(c, :column),
       where:
         c.board_id in ^board_ids and col.category == "doing" and is_nil(c.archived_at) and
           c.completed == false,
-      select: %{id: c.id}
+      select: %{id: c.id, board_id: c.board_id}
     )
     |> Repo.all()
   end

@@ -66,6 +66,7 @@ defmodule Slipdock.Runners.HeldReasonTest do
     Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [automation_wip: true])
     ctx.doing |> Ecto.Changeset.change(wip_limit: 1) |> Repo.update!()
     busy = card_fixture(ctx.doing, %{"title" => "Busy"})
+    working_job_fixture(busy)
     {:ok, job} = queue(card_fixture(ctx.todo), true)
 
     {:ok, _} = Runners.pause(ctx.board, %{"pool" => "dev", "reason" => "bad deploy"}, ctx.owner)

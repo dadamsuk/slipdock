@@ -453,10 +453,11 @@ sends the top open card nobody has taken, skipping blocked, waiting and
 dependency-blocked ones, so a runner can take over from a `/loop` or cron
 pass working the To Do list. Its jobs **wait while anything is in progress**
 (`wait_while_doing` on the `runner` action, ticked by default for that rule):
-a queued job isn't handed out while another open card sits in an
-in-progress list on its board — a card somebody is working by hand
-included — and the job listing says why (`waiting_on: "#123 is in
-progress"`). A card its job leaves in progress goes back to the top of the
+a queued job isn't handed out while another open card that a runner job
+is working on (a job queued, claimed or running on it or its epic) sits in
+an in-progress list on its board, and the job listing says why
+(`waiting_on: "#123 is in progress"`). A card in progress with no open job,
+one somebody moved there by hand included, holds nothing back. A card its job leaves in progress goes back to the top of the
 list for another try (`requeue_stuck: N` on the `runner` action, 1 by
 default for that rule), then is flagged blocked and left there, so an agent
 pass never has to recover its own card. A rule with the trigger
@@ -665,7 +666,9 @@ another session shares the repository. On a board that verifies work and
 ships by push, a card awaiting verification frees its lane and stops
 blocking its dependents until a rejection; on a pull request board it keeps
 both until the merge. An epic's lane is its subcards': in progress it holds
-none of its own, and it waits only when none of its subcards could start. Lanes hold work jobs only, never a verify or merge
+none of its own, and it waits only when none of its subcards could start.
+Only a card a runner job is working on holds a lane: one in progress with
+no open job, dragged there by hand or left behind, holds none. Lanes hold work jobs only, never a verify or merge
 job. See [the manual](manual.md#lanes).
 
 ## If you self-host

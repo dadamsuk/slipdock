@@ -167,6 +167,30 @@ defmodule Slipdock.Fixtures do
   end
 
   @doc """
+  An open runner job on `card` (running, by default), so the card counts as
+  worked: only a card in progress that a runner job is working on holds
+  other jobs back or keeps its lane (#1922, `Slipdock.Runners.worked/1`).
+  `attrs` override the job's fields (`status: "queued"`, `kind: "verify"`).
+  """
+  def working_job_fixture(%Slipdock.Boards.Card{} = card, attrs \\ %{}) do
+    board = Slipdock.Repo.get!(Slipdock.Boards.Board, card.board_id)
+
+    struct(
+      %Slipdock.Runners.Job{
+        board_id: board.id,
+        root_board_id: Slipdock.Boards.Board.root_id(board),
+        card_id: card.id,
+        pool: "fixture",
+        kind: "claude",
+        prompt: "work the card",
+        status: "running"
+      },
+      attrs
+    )
+    |> Slipdock.Repo.insert!()
+  end
+
+  @doc """
   An automation rule on `board`, straight from a spec (no model involved).
   `spec` is `%{"trigger" => …, "conditions" => …, "actions" => …}`.
   """

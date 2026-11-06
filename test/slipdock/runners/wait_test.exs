@@ -33,8 +33,10 @@ defmodule Slipdock.Runners.WaitTest do
     do: Runners.queue(card, %{pool: "loop", kind: "claude", prompt: "go", wait_while_doing: wait})
 
   describe "claiming" do
-    test "a card in progress holds the job back, queued and with no try counted", ctx do
-      busy = card_fixture(ctx.doing, %{"title" => "Being worked by hand"})
+    test "a card in progress that a job is working on holds the job back, queued and with no try counted",
+         ctx do
+      busy = card_fixture(ctx.doing, %{"title" => "Being worked"})
+      working_job_fixture(busy)
       {:ok, job} = queue(ctx.card)
 
       assert Runners.claim(ctx.runner) == nil
@@ -48,6 +50,7 @@ defmodule Slipdock.Runners.WaitTest do
 
     test "once that card leaves the list, the next claim gets the job", ctx do
       busy = card_fixture(ctx.doing)
+      working_job_fixture(busy)
       {:ok, job} = queue(ctx.card)
       assert Runners.claim(ctx.runner) == nil
 
@@ -98,7 +101,7 @@ defmodule Slipdock.Runners.WaitTest do
     end
 
     test "a later job that doesn't wait is handed out past one that does", ctx do
-      card_fixture(ctx.doing)
+      ctx.doing |> card_fixture() |> working_job_fixture()
       {:ok, waiting} = queue(ctx.card)
       {:ok, free} = queue(card_fixture(ctx.todo), false)
 

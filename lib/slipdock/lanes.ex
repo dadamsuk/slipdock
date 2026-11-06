@@ -7,7 +7,10 @@ defmodule Slipdock.Lanes do
   `docs/{manual,agents}.md`. With the board's `lanes` switch on (off by
   default; sub-boards made afterwards inherit it, and the root's switch holds
   for its whole tree), an agent can't start a card whose paths
-  overlap those of an open card already in progress on the board's tree:
+  overlap those of an open card already in progress on the board's tree
+  that a runner job is working on (#1922: its own job, or its epic's, is
+  queued, claimed or running; a card in progress with nothing working on it,
+  dragged there by hand or left behind, holds no lane):
 
     * moving it into a doing list is refused, naming the other card;
     * changing an in-progress card's paths to overlap one is refused;
@@ -259,17 +262,39 @@ defmodule Slipdock.Lanes do
       as: :card,
       join: col in assoc(c, :column),
       join: b in assoc(c, :board),
+      as: :board,
       where:
         (b.id == ^root or b.root_id == ^root) and col.category == "doing" and
           is_nil(c.archived_at) and c.completed == false and c.paths != ^[] and
           c.id not in ^exclude and c.board_id not in ^below and
-          (coalesce(c.verify_state, "") != "pending" or
-             (b.ship_via == "pull_request" and b.verify_work)) and
           not exists(epic_subcards()),
+      where: ^holding(Slipdock.Runners.worked(root)),
       order_by: [asc: c.board_id, asc: col.position, asc: c.position, asc: c.id]
     )
     |> Repo.all()
     |> Enum.find(&overlap?(paths, &1.paths))
+  end
+
+  # Whether a card in progress holds its lane: a runner job is working on it
+  # (#1922, `Slipdock.Runners.worked/1`), and it isn't released (pending on
+  # a push board, #1661). A pull-request board's card pending verification
+  # or merging keeps its lane until the merge, with or without a job.
+  defp holding({worked_cards, worked_boards}) do
+    pr_finishing =
+      dynamic(
+        [board: b, card: c],
+        b.ship_via == "pull_request" and b.verify_work and
+          coalesce(c.verify_state, "") in ["pending", "merging"]
+      )
+
+    released =
+      dynamic([card: c], coalesce(c.verify_state, "") == "pending" and not (^pr_finishing))
+
+    dynamic(
+      [card: c],
+      (c.id in ^worked_cards or c.board_id in ^worked_boards or ^pr_finishing) and
+        not (^released)
+    )
   end
 
   # The cards that don't count against `card` (itself and its parents) and

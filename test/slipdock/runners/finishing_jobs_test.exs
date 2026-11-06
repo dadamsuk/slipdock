@@ -45,7 +45,9 @@ defmodule Slipdock.Runners.FinishingJobsTest do
   describe "lanes" do
     setup ctx do
       {:ok, board} = Boards.update_board(ctx.board, %{"lanes" => true})
-      %{board: board, running: card(ctx.doing, "Running", "lib/**")}
+      running = card(ctx.doing, "Running", "lib/**")
+      working_job_fixture(running)
+      %{board: board, running: running}
     end
 
     for kind <- ["verify", "merge"] do

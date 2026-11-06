@@ -71,6 +71,7 @@ defmodule Slipdock.LanesEpicTest do
 
     test "is held when every subcard it could take overlaps a card in progress", ctx do
       running = card(ctx.doing, "Running", "lib/**")
+      working_job_fixture(running)
       {epic, sub} = epic(ctx.todo)
       card(sub.todo, "One", "lib/a.ex")
       card(sub.todo, "Two", "lib/b.ex")
@@ -88,7 +89,7 @@ defmodule Slipdock.LanesEpicTest do
     end
 
     test "a subcard in progress already, or one with no paths, frees it", ctx do
-      card(ctx.doing, "Running", "lib/**")
+      ctx.doing |> card("Running", "lib/**") |> working_job_fixture()
       {epic, sub} = epic(ctx.todo)
       card(sub.todo, "Overlaps", "lib/a.ex")
       started = card(sub.doing, "Started", "lib/c.ex")
@@ -103,7 +104,7 @@ defmodule Slipdock.LanesEpicTest do
     end
 
     test "submitted, blocked and flagged subcards aren't ones it could take", ctx do
-      card(ctx.doing, "Running", "lib/a.ex")
+      ctx.doing |> card("Running", "lib/a.ex") |> working_job_fixture()
       {epic, sub} = epic(ctx.todo)
       card(sub.todo, "Overlaps", "lib/a.ex")
       {:ok, _} = queue(epic)
@@ -123,6 +124,7 @@ defmodule Slipdock.LanesEpicTest do
 
     test "with no subcard left to take, its own paths count, as before", ctx do
       running = card(ctx.doing, "Running", "docs/manual.md")
+      working_job_fixture(running)
       {epic, sub} = epic(ctx.todo)
       card(sub.done, "Finished", "lib/a.ex", %{"completed" => true})
       {:ok, _} = queue(epic)
@@ -135,6 +137,8 @@ defmodule Slipdock.LanesEpicTest do
   describe "an epic in progress" do
     test "holds no lane of its own; its subcards in progress hold theirs", ctx do
       {epic, sub} = epic(ctx.doing)
+      # The epic's job works its subcards.
+      working_job_fixture(epic)
       child = card(sub.doing, "Child", "lib/a.ex")
       card(sub.todo, "Later", "docs/later.md")
 
@@ -149,6 +153,7 @@ defmodule Slipdock.LanesEpicTest do
 
     test "a card with an empty sub-board isn't an epic: it holds its own lane", ctx do
       wide = card(ctx.doing, "Wide", "lib/**")
+      working_job_fixture(wide)
       {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, _sub} = sub_board(wide, t)
 
