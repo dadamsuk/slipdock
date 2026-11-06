@@ -203,6 +203,9 @@ READ
                                       (S: open, queued, claimed, running, done, failed, cancelled, timeout)
   jobs --card ID                      one card's jobs
   job <id>                            one job: status, runner, prompt and the tail of its log
+  job <id> --follow [--interval SECS] a running job's live log as it arrives, one line per
+                                      message, tool call or result, until the job ends
+  job-log <id> [--follow]             the job's live log so far (--json: one entry per line)
   templates                           list board templates (sets of lists)
   fields <board>                      list custom fields (and their {keys} for formulas)
   milestones <board>                  list milestones on a board tree

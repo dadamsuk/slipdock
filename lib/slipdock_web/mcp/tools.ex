@@ -61,7 +61,8 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.InstallTool,
     Tools.ClaimJob,
     Tools.JobProgress,
-    Tools.FinishJob
+    Tools.FinishJob,
+    Tools.JobLog
   ]
 
   # Meeting capture's tools (see `Slipdock.Meetings`): listed, and callable,

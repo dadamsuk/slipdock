@@ -582,6 +582,13 @@ defmodule SlipdockWeb.BoardLive.CardSections do
             Held: {held}
           </p>
           <p :if={job.error} class="mt-1 text-error">{job.error}</p>
+          <%!-- What its agent is doing, as it does it (#1871). --%>
+          <.live_component
+            :if={job.transcript_lines > 0 or Enum.member?(~w(claimed running), job.status)}
+            module={SlipdockWeb.BoardLive.JobLogComponent}
+            id={SlipdockWeb.BoardLive.JobLogComponent.id("card", job.id)}
+            job={job}
+          />
           <pre
             :if={tail = job_log(job)}
             class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-base-200 p-1.5 font-mono text-2xs"

@@ -478,6 +478,8 @@ slipdock runner rm <board> <runner>           # revoke
 slipdock jobs <board> [--status open|queued|running|done|failed|cancelled|timeout]
 slipdock jobs --card ID                       # one card's jobs
 slipdock job <id>                             # status, runner, latest step, prompt, the tail of its log
+slipdock job <id> --follow                    # watch it: its live log, a line per message or tool call, until it ends
+slipdock job-log <id>                         # the live log so far (MCP: job_log, from = the last call's next)
 slipdock cancel-job <id>                      # queued: at once; running: on the next heartbeat
 slipdock claim-job <board> --pool P           # take the next job as this session ("nothing queued")
 slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tree or pool); a person resumes
@@ -729,7 +731,8 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
 - "Have my laptop work cards that land in Doing" → `slipdock runner new 1 laptop --pool dev
   --agent claude --cwd ~/src/app --column Doing`, then give the user the printed steps (the
   token is in them and shown once)
-- "What is the agent doing with #129?" → `slipdock jobs --card 129`, then `slipdock job <id>`
+- "What is the agent doing with #129?" → `slipdock jobs --card 129`, then `slipdock job <id>`,
+  or `slipdock job <id> --follow` to watch it live
 - "Stop that agent" → `slipdock cancel-job <id>`
 - "Stop that rule for now" → `slipdock automations 1` (find it), then `slipdock set-automation 1 3 --off`
 - "What is the board trying to tell me?" → `slipdock alerts`

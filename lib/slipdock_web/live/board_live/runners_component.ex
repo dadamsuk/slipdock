@@ -860,6 +860,12 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               {job.step}
               <span class="text-base-content/60">· {relative_time(job.step_at)}</span>
             </span>
+            <%!-- Watch it (#1871). --%>
+            <.live_component
+              module={SlipdockWeb.BoardLive.JobLogComponent}
+              id={SlipdockWeb.BoardLive.JobLogComponent.id("runner", job.id)}
+              job={job}
+            />
           <% else %>
             idle
           <% end %>

@@ -230,6 +230,8 @@ defmodule SlipdockCLI do
     message: :string,
     # `slipdock job-progress --step "…"` (#1668).
     step: :string,
+    # `slipdock job <id> --follow` (#1871).
+    follow: :boolean,
     base_hash: :string,
     section: :string,
     hint: :string,
