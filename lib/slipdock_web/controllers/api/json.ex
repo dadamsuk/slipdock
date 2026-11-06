@@ -1397,6 +1397,11 @@ defmodule SlipdockWeb.API.JSON do
       error: j.error,
       prompt: j.prompt,
       log_tail: j.log_tail,
+      # Its live log (#1870): the transcript lines held so far, read with
+      # GET /api/jobs/:id/transcript.
+      transcript_lines: j.transcript_lines,
+      transcript_capped: j.transcript_capped,
+      transcript_at: j.transcript_at,
       # The latest progress message its agent gave (#1668), and when.
       step: j.step,
       step_at: j.step_at,

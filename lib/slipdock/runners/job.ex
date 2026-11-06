@@ -70,6 +70,14 @@ defmodule Slipdock.Runners.Job do
     # never posted on the card.
     field :step, :string
     field :step_at, :utc_datetime
+    # Its live log (#1870): the agent's transcript, sent by the runner as it
+    # goes and kept in chunks (see `Slipdock.Runners.Transcript`). Lines are
+    # the runner's count, so a resend is trimmed; capped once the whole-log
+    # limit was hit.
+    field :transcript_lines, :integer, default: 0
+    field :transcript_bytes, :integer, default: 0
+    field :transcript_capped, :boolean, default: false
+    field :transcript_at, :utc_datetime
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :root_board, Slipdock.Boards.Board

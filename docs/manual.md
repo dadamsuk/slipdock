@@ -3860,7 +3860,9 @@ own work rather than from a background loop, so it holds its job on a
 job, runs the config's `job_<kind>` function with the prompt in
 `$SLIPDOCK_PROMPT` (and `$SLIPDOCK_JOB_ID`, `$SLIPDOCK_CARD`,
 `$SLIPDOCK_CARD_URL`), heartbeats with the tail of its log every 20 seconds,
-and reports the exit code. A cancel from the board, or a job over its
+and reports the exit code. While the job runs it also sends the agent's
+Claude Code transcript about once a minute, so the job has a live log on the
+server (see **A job's live log** below). A cancel from the board, or a job over its
 `JOB_TIMEOUT`, stops the job and everything it started. One runner works one
 job at a time; run more for more. Install it with
 
@@ -3916,6 +3918,27 @@ if it ever stops — no admin rights. Its log is `runner.log` beside the config:
 an error the runner hits is written there (the task's window is hidden), and a
 job it was running is stopped and failed rather than left behind. `install.ps1` and `slipdock-runner.ps1`
 are in `/runner/SHA256SUMS` too.
+
+**A job's live log.** While a job runs, both runners send its agent's
+Claude Code transcript to the server about once a minute, and the rest as it
+ends, so what the agent is doing can be read before it finishes: `GET
+/api/jobs/:id/transcript` answers it as JSON Lines. The runner finds the
+transcript as the newest `.jsonl` in a project folder under
+`~/.claude/projects` (`$CLAUDE_CONFIG_DIR/projects` if that is set) written
+since the job started that mentions the card's link. Each send is only the
+lines the server hasn't got, at most 512 KB, with any line over 32 KiB (a big
+tool result) replaced by a line saying how long it was, and with this
+machine's Slipdock tokens taken out — the runner's, `$SLIPDOCK_TOKEN` and the
+CLI's saved ones; the server takes out the shapes of other secrets as well. A
+log stops at 8 MB, with a last line saying so. A send that fails never stops
+the job: the next one catches up. Set in the config:
+
+| Shell (`config`) | Windows (`config.ps1`) | Default | |
+|---|---|---|---|
+| `TRANSCRIPT_EVERY` | `$TranscriptEvery` | 60 | seconds between sends; 0 sends nothing |
+| `TRANSCRIPTS` | `$Transcripts` | `~/.claude/projects` | where Claude Code keeps its transcripts |
+| `TRANSCRIPT_SEND` | `$TranscriptSend` | 524288 | the most one send carries, in bytes |
+| `TRANSCRIPT_LINE` | `$TranscriptLine` | 32768 | a longer line is sent as a note of its length |
 
 The runner protocol and the session endpoints are in the agent guide
 (`slipdock guide`, section *Runners*).

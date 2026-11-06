@@ -10,6 +10,14 @@ defmodule SlipdockWeb.API.RunnerController do
       POST /api/runner/claim?wait=30          204, or 200 + X-Job-* headers, prompt as body
       POST /api/runner/jobs/:id/heartbeat     body = log tail → "ok" or "cancel"
       POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → "ok"
+      POST /api/runner/jobs/:id/transcript?from=N   body = transcript lines from N → "ok L"
+
+  The transcript (#1870) is the job's live log: whole lines of its agent's
+  Claude Code transcript from line `N`, about once a minute and once more as
+  the job ends. The answer is the lines the server now holds, `ok L` (or
+  `capped L` once the log is full, and nothing more is kept), and the next
+  send starts at `L`. A `from` past what is held answers 409 `from L`: send
+  again from `L`. See `Slipdock.Runners.Transcript`.
 
   A claim may say which job kinds the runner takes (`X-Runner-Kinds:
   claude,merge`, #1656): kept on the runner, and a `merge` job goes only to
@@ -107,6 +115,25 @@ defmodule SlipdockWeb.API.RunnerController do
     end
   end
 
+  def transcript(conn, %{"id" => id} = params) do
+    {text, conn} = head_body(conn, Slipdock.Runners.Transcript.max_send())
+    secrets = [conn.assigns.runner_token]
+
+    case Slipdock.Runners.Transcript.append(
+           conn.assigns.runner,
+           id,
+           params["from"] || "0",
+           text,
+           secrets: secrets
+         ) do
+      {:ok, lines} -> text_reply(conn, 200, "ok #{lines}")
+      {:capped, lines} -> text_reply(conn, 200, "capped #{lines}")
+      {:gap, lines} -> text_reply(conn, 409, "from #{lines}")
+      {:error, :ended} -> text_reply(conn, 409, "the job has ended")
+      {:error, :not_found} -> text_reply(conn, 404, "no such job for this runner")
+    end
+  end
+
   defp context_headers(conn, job) do
     %{wait: wait, handoff: handoff} = Runners.claim_context(job)
 
@@ -155,7 +182,7 @@ defmodule SlipdockWeb.API.RunnerController do
         |> halt()
 
       runner ->
-        assign(conn, :runner, runner)
+        conn |> assign(:runner, runner) |> assign(:runner_token, token)
     end
   end
 
@@ -209,6 +236,27 @@ defmodule SlipdockWeb.API.RunnerController do
         {acc, conn}
     end
   end
+
+  # The body from its start, up to `max` bytes: a transcript send's whole
+  # lines count from the front, and what is past the limit is sent again.
+  defp head_body(conn, max, acc \\ "") do
+    case read_body(conn, length: max, read_length: min(max, 1_000_000)) do
+      {:ok, chunk, conn} ->
+        {cap(acc <> chunk, max), conn}
+
+      {:more, chunk, conn} when byte_size(acc) + byte_size(chunk) >= max ->
+        {cap(acc <> chunk, max), conn}
+
+      {:more, chunk, conn} ->
+        head_body(conn, max, acc <> chunk)
+
+      {:error, _} ->
+        {acc, conn}
+    end
+  end
+
+  defp cap(text, max) when byte_size(text) > max, do: binary_part(text, 0, max)
+  defp cap(text, _max), do: text
 
   defp card_url(job),
     do: "#{Slipdock.Automations.Runner.base_url()}/boards/#{job.board_id}/cards/#{job.card_id}"

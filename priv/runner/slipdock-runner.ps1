@@ -46,6 +46,18 @@
 # matches both; then it starts again. A mismatch keeps this script, says so
 # in the log, and isn't tried again. The config is never touched.
 #
+# Live log (#1870): while a job runs, the runner sends its agent's Claude
+# Code transcript to the server about every $TranscriptEvery seconds
+# (default 60; 0 turns it off), and once more as the job ends, so the job
+# can be watched from the board. The transcript is the newest .jsonl under
+# $Transcripts (default ~\.claude\projects, one level of project folders)
+# written since the job started that mentions the card's link. Each send is
+# the lines the server hasn't got, at most $TranscriptSend bytes (default
+# 524288), any line over $TranscriptLine bytes (default 32768) replaced by
+# a line saying how long it was, and this machine's Slipdock tokens taken
+# out: the runner's, $env:SLIPDOCK_TOKEN and the slipdock CLI's saved ones.
+# A send that fails never stops the job; the next one catches up.
+#
 # Drift (#1795): every claim also says the SHA-256 of each slipdock skill
 # installed under $SkillsDir (default ~\.claude\skills) and of the slipdock
 # CLI ($SlipdockCli, else the escript beside the slipdock on the PATH), and
@@ -144,6 +156,14 @@ if ($null -eq $Wait) { $Wait = 25 }
 if ($null -eq $Heartbeat) { $Heartbeat = 20 }
 if ($null -eq $JobTimeout) { $JobTimeout = 3600 }
 if ($null -eq $LogTail) { $LogTail = 8000 }
+if ($null -eq $TranscriptEvery) { $TranscriptEvery = 60 }
+if (-not $Transcripts) {
+  $claudeHome = $env:CLAUDE_CONFIG_DIR
+  if (-not $claudeHome) { $claudeHome = Join-Path $HOME '.claude' }
+  $Transcripts = Join-Path $claudeHome 'projects'
+}
+if (-not $TranscriptSend) { $TranscriptSend = 524288 }
+if (-not $TranscriptLine) { $TranscriptLine = 32768 }
 if (($null -ne $Merge) -and (-not $Merge -or ("$Merge" -in @('0', 'no', 'false', 'off')))) {
   Remove-Item Function:Job-Merge -ErrorAction SilentlyContinue
 }
@@ -269,6 +289,121 @@ function Read-Log {
   }
   if ($text.Length -gt $LogTail) { $text = $text.Substring($text.Length - $LogTail) }
   return $text
+}
+
+# The live log (#1870). Tx is the job's transcript once found, TxLines the
+# lines the server holds, TxDone set once it says the log is full.
+$script:Tx = ''
+$script:TxLines = 0
+$script:TxDone = $false
+$script:TxFailed = $false
+$script:TxSecrets = @()
+$script:TxStarted = [datetime]::MinValue
+
+# This machine's Slipdock tokens, read again for each job: the runner's,
+# $env:SLIPDOCK_TOKEN and the CLI's (~\.config\slipdock, and under
+# XDG_CONFIG_HOME if that is set).
+function Get-Secrets {
+  $list = @($RunnerToken, $env:SLIPDOCK_TOKEN)
+  $dirs = @(Join-Path (Join-Path $HOME '.config') 'slipdock')
+  if ($env:XDG_CONFIG_HOME) { $dirs += Join-Path $env:XDG_CONFIG_HOME 'slipdock' }
+  foreach ($d in $dirs) {
+    $files = @(Join-Path $d 'token')
+    $more = Join-Path $d 'tokens'
+    if (Test-Path -LiteralPath $more -PathType Container) {
+      $files += @(Get-ChildItem -LiteralPath $more -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+    }
+    foreach ($f in $files) {
+      if (Test-Path -LiteralPath $f -PathType Leaf) {
+        try { $list += ([IO.File]::ReadAllText($f)).Trim() } catch { }
+      }
+    }
+  }
+  return @($list | Where-Object { $_ -and ($_ -cmatch '^[A-Za-z0-9_.~+/=-]{8,}$') } | Sort-Object -Unique)
+}
+
+# A file another process is still writing, read without locking it out.
+function Read-Shared([string]$path) {
+  $fs = New-Object IO.FileStream($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+  try { return (New-Object IO.StreamReader($fs, $Utf8)).ReadToEnd() } finally { $fs.Dispose() }
+}
+
+# Sets Tx to the job's transcript: the newest .jsonl in a folder under
+# $Transcripts, written since the job started, that names the card's link.
+# Kept once found.
+function Find-Transcript {
+  if ($script:Tx) { return $true }
+  if (-not $env:SLIPDOCK_CARD_URL -or -not (Test-Path -LiteralPath $Transcripts -PathType Container)) { return $false }
+  $files = @(Get-ChildItem -LiteralPath $Transcripts -Filter '*.jsonl' -File -ErrorAction SilentlyContinue)
+  foreach ($d in @(Get-ChildItem -LiteralPath $Transcripts -Directory -ErrorAction SilentlyContinue)) {
+    $files += @(Get-ChildItem -LiteralPath $d.FullName -Filter '*.jsonl' -File -ErrorAction SilentlyContinue)
+  }
+  $recent = @($files | Where-Object { $_.LastWriteTimeUtc -gt $script:TxStarted } | Sort-Object LastWriteTimeUtc -Descending)
+  foreach ($f in $recent) {
+    $named = $false
+    try { $named = (Read-Shared $f.FullName).Contains($env:SLIPDOCK_CARD_URL) } catch { }
+    if ($named) {
+      $script:Tx = $f.FullName
+      Add-Log "slipdock-runner: sending the transcript $($script:Tx) as the job's live log"
+      return $true
+    }
+  }
+  return $false
+}
+
+# Sends the transcript's lines the server hasn't got: whole lines from
+# TxLines, and the server's answer says where the next starts. A failed
+# send is left for the next; at the end ($final) it sends until caught up,
+# trying a failed send three more times.
+function Send-Transcript([bool]$final = $false) {
+  if ($TranscriptEvery -le 0 -or $script:TxDone) { return }
+  if (-not (Find-Transcript)) { return }
+  $rounds = 2
+  if ($final) { $rounds = 50 }
+  $retry = 0
+  while ($rounds -gt 0) {
+    $rounds--
+    $text = ''
+    try { $text = Read-Shared $script:Tx } catch { return }
+    # Whole lines only: one still being written waits for the next send.
+    $end = $text.LastIndexOf("`n")
+    if ($end -lt 0) { return }
+    $lines = $text.Substring(0, $end).Split("`n")
+    if ($lines.Count -le $script:TxLines) { return }
+    $sb = New-Object Text.StringBuilder
+    $size = 0
+    for ($i = $script:TxLines; $i -lt $lines.Count; $i++) {
+      $line = $lines[$i].TrimEnd("`r")
+      $n = $Utf8.GetByteCount($line)
+      if ($n -gt $TranscriptLine) {
+        $line = '{"type":"slipdock_cut","bytes":' + $n + ',"limit":' + $TranscriptLine + '}'
+        $n = $line.Length
+      }
+      if ($i -gt $script:TxLines -and ($size + $n + 1) -gt $TranscriptSend) { break }
+      $size += $n + 1
+      foreach ($secret in $script:TxSecrets) { $line = $line.Replace($secret, '[redacted]') }
+      [void]$sb.Append($line).Append("`n")
+    }
+    $a = Send-Slipdock "/api/runner/jobs/$JobId/transcript?from=$($script:TxLines)" $sb.ToString() 15
+    $said = ([string]$a.Body).Trim() -split ' '
+    $held = -1
+    if ($said.Count -ge 2 -and $said[1] -match '^[0-9]+$') { $held = [int]$said[1] }
+    if (($a.Status -eq 200 -and $said[0] -eq 'ok') -or ($a.Status -eq 409 -and $said[0] -eq 'from')) {
+      $script:TxFailed = $false
+      if ($held -ge 0) { $script:TxLines = $held }
+    } elseif ($a.Status -eq 200 -and $said[0] -eq 'capped') {
+      Add-Log "slipdock-runner: the server's log for this job is full; the rest of the transcript is not sent"
+      $script:TxDone = $true
+      return
+    } else {
+      if (-not $script:TxFailed) { Say "job #${JobId}: could not send the transcript (HTTP $($a.Status)); trying again later" }
+      $script:TxFailed = $true
+      # At the end there is no next send: a few more tries, a little apart.
+      $retry++
+      if (-not $final -or $retry -gt 3) { return }
+      Start-Sleep -Seconds $retry
+    }
+  }
 }
 
 function Add-Log([string]$text) {
@@ -425,6 +560,13 @@ function Invoke-Job($claim) {
   if ($card -notmatch '^[0-9]+$') { $card = '' }
   foreach ($f in @('log', 'out', 'err', 'merged')) { Remove-Item -LiteralPath (Join-Path $Work $f) -ErrorAction SilentlyContinue }
   [IO.File]::WriteAllText((Join-Path $Work 'log'), '', $Utf8)
+  # The live log's starting point: a transcript written after this is the job's.
+  $script:TxStarted = (Get-Date).ToUniversalTime()
+  $script:Tx = ''
+  $script:TxLines = 0
+  $script:TxDone = ($kind -eq 'merge')
+  $script:TxFailed = $false
+  $script:TxSecrets = Get-Secrets
 
   $fn = ''
   if ($kind -match '^[a-z0-9][a-z0-9_-]*$') { $fn = Get-JobFunction $kind }
@@ -495,6 +637,7 @@ function Invoke-Job($claim) {
 
     $started = Get-Date
     $last = [datetime]::MinValue
+    $lastTx = Get-Date
     $ended = ''
     while (-not $proc.HasExited) {
       if (((Get-Date) - $started).TotalSeconds -ge $JobTimeout) { $ended = 'timeout'; break }
@@ -504,6 +647,10 @@ function Invoke-Job($claim) {
         if ($a.Status -eq 200 -and $a.Body.Trim() -eq 'cancel') { $ended = 'cancelled'; break }
         if ($a.Status -eq 404) { $ended = 'lost'; break }
       }
+      if ($TranscriptEvery -gt 0 -and ((Get-Date) - $lastTx).TotalSeconds -ge $TranscriptEvery) {
+        $lastTx = Get-Date
+        Send-Transcript
+      }
       Start-Sleep -Milliseconds 500
     }
 
@@ -512,6 +659,7 @@ function Invoke-Job($claim) {
         Say "job #${JobId}: over its ${JobTimeout}s - stopped"
         Stop-JobTree $proc
         Add-Log "slipdock-runner: stopped after ${JobTimeout}s"
+        Send-Transcript $true
         Invoke-AfterJob 124 'timeout'
         Close-Lane
         Complete-Job 124 'timeout'
@@ -520,6 +668,7 @@ function Invoke-Job($claim) {
         Say "job #${JobId}: cancelled from the board - stopped"
         Stop-JobTree $proc
         Add-Log 'slipdock-runner: cancelled from the board'
+        Send-Transcript $true
         Invoke-AfterJob 130 'cancelled'
         Close-Lane
         Complete-Job 130 'cancelled'
@@ -535,6 +684,7 @@ function Invoke-Job($claim) {
         $rc = $proc.ExitCode
         if ($null -eq $rc) { $rc = 1 }
         Say "job #${JobId}: exit $rc"
+        Send-Transcript $true
         if ($rc -eq 0) { Invoke-AfterJob 0 'done' } else { Invoke-AfterJob $rc 'failed' }
         Close-Lane
         Complete-Job $rc ''
