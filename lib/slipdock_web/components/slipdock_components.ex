@@ -2033,11 +2033,16 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   slot :inner_block, required: true
 
+  # Below `sm` the overlay is sized to the screen (`w-screen h-dvh`), not left
+  # to `inset-0`: a page wider than the phone makes mobile Chrome widen the
+  # layout viewport to fit it, and an `inset-0` overlay widens with it, leaving
+  # the sheet half off the screen (#1862). At `sm` and up `inset-0` stays, as
+  # `100vw` there would take in the page's scrollbar.
   def modal(assigns) do
     ~H"""
     <div
       id={@id}
-      class="kanban-modal fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-base-content/40 p-0 backdrop-blur-sm sm:p-8"
+      class="kanban-modal fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-base-content/40 p-0 backdrop-blur-sm max-sm:h-dvh max-sm:w-screen sm:p-8"
       phx-window-keydown={@on_close}
       phx-key="Escape"
       phx-click-away={@on_close}

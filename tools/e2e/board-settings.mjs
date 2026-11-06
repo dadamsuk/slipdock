@@ -201,4 +201,59 @@ for (const width of [1280, 1440]) {
   if (sw.bg !== sw.primary) fail(`${width}: the switch is ${sw.bg} when on, not the primary ${sw.primary}`)
   console.log(`ok: automations at ${width}: ${groups.length} groups in ${perRow} shared columns, none under the names; the switch is the primary`)
 }
+// --- On a phone (#1862) -------------------------------------------------------
+// Anything on the page wider than the phone makes mobile Chrome widen the
+// layout viewport to fit it; the settings sheet has to stay the screen's
+// size, close button and all, however it is opened.
+if (!before) {
+  // Signed in as the desktop page is: the sign-in link is spent.
+  const storageState = await page.context().storageState()
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, storageState })
+  const p = await phone.newPage()
+  const fits = async (how) => {
+    await p.waitForSelector('#settings-modal .kanban-modal-in')
+    await p.waitForTimeout(400)
+    const m = await p.evaluate(() => {
+      const r = (s) => document.querySelector(s).getBoundingClientRect()
+      const [sheet, close] = [r('#settings-modal .kanban-modal-in'), r('#settings-modal [aria-label=Close]')]
+      return { vw: visualViewport.width, vh: visualViewport.height, layout: innerWidth, left: sheet.left, width: sheet.width, overlayH: r('#settings-modal').height, closeRight: close.right }
+    })
+    if (!near(m.left, 0) || !near(m.width, m.vw)) fail(`phone, ${how}: the sheet is at ${m.left}px, ${m.width}px wide, on a ${m.vw}px screen (layout viewport ${m.layout}px)`)
+    if (m.closeRight > m.vw) fail(`phone, ${how}: the close button ends at ${m.closeRight}px, off a ${m.vw}px screen`)
+    if (m.overlayH > m.vh + 1) fail(`phone, ${how}: the overlay is ${m.overlayH}px tall on a ${m.vh}px screen`)
+    return m
+  }
+  const tabs = async (how) => {
+    for (const tab of await p.$$eval('#settings-tabs [role=tab]', (els) => els.map((e) => e.id))) {
+      await p.click(`#${tab}`)
+      await p.waitForTimeout(250)
+      await fits(`${how}, ${tab}`)
+    }
+  }
+
+  // Opened straight from its URL, every tab.
+  await p.goto(`${base}/boards/${board}/settings`, { waitUntil: 'load' })
+  await p.waitForSelector('.phx-connected')
+  await fits('opened by URL')
+  await tabs('opened by URL')
+
+  // From the board, with something on it wider than the phone.
+  await p.goto(`${base}/boards/${board}`, { waitUntil: 'load' })
+  await p.waitForSelector('.phx-connected')
+  await p.evaluate(() => {
+    const wide = document.createElement('div')
+    wide.style.cssText = 'width: 800px; height: 4px'
+    document.body.append(wide) // outside the LiveView, so no patch takes it away
+  })
+  await p.waitForTimeout(200)
+  const layout = await p.evaluate(() => innerWidth)
+  if (layout <= 390) fail(`phone: the wide page left the layout viewport at ${layout}px, so this checks nothing`)
+  await p.evaluate(() => [...document.querySelectorAll('a')].find((a) => /\/settings$/.test(a.getAttribute('href') || '')).click())
+  const m = await fits('from a wide board')
+  if (m.layout <= 390) fail(`phone: the layout viewport went back to ${m.layout}px before the sheet was measured`)
+  await tabs('from a wide board')
+  if (shots) await p.screenshot({ path: `${shots}/after-phone.png` })
+  await phone.close()
+  console.log(`ok: phone: the settings sheet is ${m.width}px on a ${m.vw}px screen with the layout viewport at ${m.layout}px, close button on screen, every tab`)
+}
 await browser.close()
