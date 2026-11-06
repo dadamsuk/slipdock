@@ -57,7 +57,11 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
     {:ok, _} = Slipdock.Boards.update_card(ctx.card, %{"bar" => "The parser reads dates"})
     {:ok, _} = queue(ctx.card)
     claimed = claim!(ctx)
-    assert claimed["prompt"] =~ ~r/\AWork on it\n\nThe card's bar .*\nThe parser reads dates\z/s
+    # Then the check at pickup, before building (#1883).
+    check = Regex.escape(Slipdock.Verified.bar_pickup_check())
+
+    assert claimed["prompt"] =~
+             ~r/\AWork on it\n\nThe card's bar .*\nThe parser reads dates\n\n#{check}\z/s
   end
 
   test "tools/list offers all three as writes that destroy nothing", %{conn: conn} do

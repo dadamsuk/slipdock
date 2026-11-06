@@ -86,6 +86,14 @@ whole card before touching it.
 - **Verified work, where a board has it on** (its line in the guide says
   `verified work: …`). Write the card's bar before starting it (`slipdock
   edit <id> --bar "…"`), and never try to change it once work has started.
+  **Check the bar at pickup**, before building: if a part can't be met as
+  written because it needs a person (a handbook rule added, reworded or
+  dropped, a merge, a deploy to prod, applying a proposal), stop and ask
+  with a wait (`slipdock wait <id> "…"`) naming the part and what you could
+  do instead, rather than building to your own reading of it and leaving
+  the conflict to the verifier. Write bars that can be met: a rule change
+  is "proposed as a garden proposal (rule id, wording)", never "W-x has
+  rule Y".
   Complete it with what you checked (`slipdock done <id> --evidence-commit
   <sha> --tests a,b --suite passed:38:0 --evidence "…"`). On a board
   where a second agent verifies, `done` submits the card and leaves it
