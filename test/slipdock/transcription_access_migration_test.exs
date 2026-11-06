@@ -24,7 +24,9 @@ defmodule Slipdock.TranscriptionAccessMigrationTest do
 
     # As they stood before: only meetings_access set. `kept` had
     # transcription without meetings, which the copy mustn't take away.
-    # (`meetings_access` is no longer in the schema, so by SQL.)
+    # `meetings_access` was dropped with meeting capture (#1819), so it is
+    # put back here, inside the test's transaction, as it stood then.
+    Repo.query!("ALTER TABLE users ADD COLUMN meetings_access boolean NOT NULL DEFAULT false")
     Repo.update_all(User, set: [transcription_access: false])
     Repo.query!("UPDATE users SET meetings_access = (id = $1)", [had.id])
     Repo.update_all(from(u in User, where: u.id == ^kept.id), set: [transcription_access: true])

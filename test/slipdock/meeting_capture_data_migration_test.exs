@@ -81,4 +81,57 @@ defmodule Slipdock.MeetingCaptureDataMigrationTest do
   test "can't be rolled back" do
     assert_raise Ecto.MigrationError, ~r/can't be put back/, fn -> @migration.down() end
   end
+
+  describe "the schema drop (20261106210000)" do
+    [{drop, _}] =
+      Code.require_file("priv/repo/migrations/20261106210000_drop_meeting_capture_tables.exs")
+
+    @drop drop
+
+    defp names(sql, params) do
+      %{rows: rows} = Repo.query!(sql, params)
+      List.flatten(rows)
+    end
+
+    test "the 11 capture tables are gone" do
+      tables = Enum.map(@drop.tables(), &Atom.to_string/1)
+      assert length(tables) == 11
+
+      assert names(
+               "SELECT table_name FROM information_schema.tables " <>
+                 "WHERE table_schema = 'public' AND table_name = ANY($1)",
+               [tables]
+             ) == []
+    end
+
+    test "no meetings or chat capture column is left, and the kept ones are there" do
+      for {table, cols} <- @drop.columns() do
+        assert names(
+                 "SELECT column_name FROM information_schema.columns " <>
+                   "WHERE table_schema = 'public' AND table_name = $1 AND column_name = ANY($2)",
+                 [Atom.to_string(table), Enum.map(cols, &Atom.to_string/1)]
+               ) == []
+      end
+
+      # Nothing named for meetings or capture anywhere, bar wiki history's
+      # `via` values, which are data, not columns.
+      assert names(
+               "SELECT table_name || '.' || column_name FROM information_schema.columns " <>
+                 "WHERE table_schema = 'public' AND " <>
+                 "(column_name LIKE '%meeting%' OR column_name LIKE '%capture%')",
+               []
+             ) == []
+
+      # What transcription kept from it (#1817) stays.
+      assert names(
+               "SELECT column_name FROM information_schema.columns " <>
+                 "WHERE table_name = 'users' AND column_name = 'transcription_access'",
+               []
+             ) == ["transcription_access"]
+    end
+
+    test "can't be rolled back" do
+      assert_raise Ecto.MigrationError, ~r/can't be put back/, fn -> @drop.down() end
+    end
+  end
 end
