@@ -9,6 +9,7 @@ defmodule SlipdockWeb.BrokenLabelsLiveTest do
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
+  import SlipdockWeb.RelativeTimeHelpers
 
   alias Slipdock.{Accounts, Boards, Repo, Settings, Wiki}
   alias Slipdock.Wiki.KnowledgeBase
@@ -129,9 +130,13 @@ defmodule SlipdockWeb.BrokenLabelsLiveTest do
       Repo.update!(Ecto.Changeset.change(recent, last_signed_in_at: at))
       Repo.update!(Ecto.Changeset.change(never, last_signed_in_at: nil))
 
-      {:ok, view, html} = live(conn, ~p"/users")
+      {{:ok, view, html}, before, later} = rendered_around(fn -> live(conn, ~p"/users") end)
 
-      assert has_element?(view, "#last-seen-#{recent.id}", "5 min ago")
+      assert Enum.any?(
+               expected_labels(at, "5 min ago", before, later),
+               &has_element?(view, "#last-seen-#{recent.id}", &1)
+             )
+
       assert has_element?(view, "#last-seen-#{recent.id}[datetime='#{DateTime.to_iso8601(at)}']")
       refute has_element?(view, "#last-seen-#{never.id}")
       refute html =~ ~r/>\s*\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\s*</

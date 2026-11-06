@@ -8,6 +8,7 @@ defmodule SlipdockWeb.UsersPanelTest do
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
+  import SlipdockWeb.RelativeTimeHelpers
 
   alias Slipdock.{Accounts, Repo, Settings}
   alias SlipdockWeb.UsersLive.Index, as: UsersIndex
@@ -78,9 +79,12 @@ defmodule SlipdockWeb.UsersPanelTest do
       at = DateTime.add(DateTime.utc_now(:second), -3 * 3600)
       Repo.update!(Ecto.Changeset.change(person, last_signed_in_at: at))
 
-      {:ok, view, _} = live(conn, ~p"/users")
+      {{:ok, view, _}, before, later} = rendered_around(fn -> live(conn, ~p"/users") end)
 
-      assert has_element?(view, "#person-#{person.id} time#last-seen-#{person.id}", "3 h ago")
+      assert Enum.any?(
+               expected_labels(at, "3 h ago", before, later),
+               &has_element?(view, "#person-#{person.id} time#last-seen-#{person.id}", &1)
+             )
 
       assert has_element?(
                view,
