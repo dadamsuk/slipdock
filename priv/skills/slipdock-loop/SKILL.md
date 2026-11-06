@@ -778,7 +778,12 @@ With one on, the pass changes like this:
   --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
   <id> reject --reason "<the check>: <what falls short, specifically>"`.
   A rejection cites the check it fails: a bar item (`bar 2: …`), the ask
-  (`the ask: …`), a rule id (`UX-4: …`) or the Handbook line. Give the
+  (`the ask: …`), a rule id (`UX-4: …`) or the Handbook line. A bar item
+  that adds, rewords or drops a handbook rule is met by a matching open rule
+  proposal (an `edit_section` on that page's `## Rules`; `slipdock garden
+  <board> --check proposal`): judge its content, not the live rules, and
+  name its id when you accept. Never ask the builder to edit `## Rules`
+  directly; ask for the proposal to be filed or corrected. Give the
   verdict in parts too, one `--check` each (MCP `verify_card` `checks`):
   `ask=ok|misses`, `bar:2=ok|fail`, `suite=412:0`, `rule:UX-4=ok|broken|n/a`,
   `handbook_line=ok|disputed`, each with `:"why"` if it needs one. A

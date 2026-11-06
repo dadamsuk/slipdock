@@ -183,6 +183,11 @@ defmodule Slipdock.VerifiedAuditTest do
       assert prompt =~ "- the ask: ok\n- bar 1: ok"
       assert prompt =~ "Judge every rule it lists, `should` rules as well as `must`"
       assert prompt =~ "--paths-from -"
+      # A rule the bar asks for is met by a proposal, never an edit (#1882).
+      assert prompt =~ Verified.rule_proposal_sentence()
+      assert prompt =~ Verified.rule_rejection_sentence()
+      assert prompt =~ "A rejection never asks the builder to edit `## Rules` directly"
+      assert prompt =~ "--check proposal --json"
       assert prompt =~ "slipdock verify #{card.id} agree --reason"
       assert prompt =~ "slipdock verify #{card.id} disagree --reason"
       refute prompt =~ "verify #{card.id} accept"
