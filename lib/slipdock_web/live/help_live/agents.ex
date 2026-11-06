@@ -1121,7 +1121,8 @@ defmodule SlipdockWeb.HelpLive.Agents do
         </li>
         <li>
           <strong>Work a list with a runner</strong>: take the top card, one at a time, and
-          skip cards that are blocked, waiting or already assigned. This is how a runner
+          skip cards that are blocked, waiting, already assigned or already have a job open
+          on them, so two such rules for two pools can share one list. This is how a runner
           takes over from a <code>/loop</code> working the To Do list.
         </li>
         <li>
