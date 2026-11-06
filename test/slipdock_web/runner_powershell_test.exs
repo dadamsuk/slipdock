@@ -64,8 +64,24 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
     path
   end
 
-  defp run_once(ctx, config) do
-    System.cmd(@pwsh, ["-NoProfile", "-File", @script, "-Once", "-Config", config],
+  # Under a deadline well inside ExUnit's 60 s (#1854): a runner that hangs
+  # is stopped, and the test fails on its exit (124) with everything it said,
+  # rather than timing out inside System.cmd with nothing to go on.
+  defp run_once(ctx, config, deadline \\ 40) do
+    System.cmd(
+      "timeout",
+      [
+        "-k",
+        "5",
+        "#{deadline}",
+        @pwsh,
+        "-NoProfile",
+        "-File",
+        @script,
+        "-Once",
+        "-Config",
+        config
+      ],
       cd: ctx.dir,
       stderr_to_stdout: true
     )
@@ -149,11 +165,11 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
     {:ok, queued} = queue(ctx.card, "sleep")
     cfg = config(ctx)
     child_file = Path.join(ctx.dir, "child")
-    running = Task.async(fn -> run_once(ctx, cfg) end)
+    running = Task.async(fn -> run_once(ctx, cfg, 150) end)
     wait_for(fn -> File.exists?(child_file) and job(queued).status == "running" end, 900)
     {:ok, _} = Runners.cancel_job(job(queued))
 
-    {out, 0} = Task.await(running, 60_000)
+    {out, 0} = Task.await(running, 160_000)
     assert out =~ "cancelled from the board"
     assert %{status: "cancelled", exit_code: 130} = job(queued)
     refute alive?(child_file |> File.read!() |> String.trim())
@@ -186,6 +202,11 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
   # runner. Linux doesn't lock those the same way, so the job here locks the
   # runner's `log` beside them, exclusively, across a few heartbeats: the
   # heartbeats carry on without it, and the job finishes with all of it.
+  #
+  # .NET on Linux makes FileShare.None an exclusive flock, and the
+  # heartbeat's read of the log holds a shared one while it reads. So the
+  # job's open fails if it lands on a heartbeat (more often on a loaded
+  # machine, #1854): it tries again until the lock is its own.
   test "a log file the runner can't open for a heartbeat doesn't stop it", ctx do
     {:ok, queued} = queue(ctx.card, "hold")
 
@@ -194,7 +215,14 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
       $runner = (Get-Process -Id $PID).Parent.Id
       $out = Get-ChildItem "/proc/$runner/fd" | ForEach-Object { & readlink $_.FullName } |
         Where-Object { $_ -like '*slipdock-runner-*/out' } | Select-Object -First 1
-      $fs = [IO.File]::Open((Join-Path (Split-Path -Parent $out) 'log'), 'Open', 'ReadWrite', 'None')
+      $log = Join-Path (Split-Path -Parent $out) 'log'
+      $fs = $null
+      for ($try = 1; -not $fs; $try++) {
+        try { $fs = [IO.File]::Open($log, 'Open', 'ReadWrite', 'None') } catch {
+          if ($try -ge 200) { throw }
+          Start-Sleep -Milliseconds 25
+        }
+      }
       Write-Output 'holding the log'
       Start-Sleep -Seconds 4
       $fs.Dispose()
@@ -206,10 +234,59 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
     refute out =~ "failed"
 
     done = job(queued)
-    assert {done.status, done.exit_code} == {"done", 0}
+
+    assert {done.status, done.exit_code} == {"done", 0},
+           out <> "\n--- job output:\n" <> done.output
+
     assert done.output =~ "holding the log"
     assert done.output =~ "let go"
     assert after_lines(ctx) == ["done 0"]
+  end
+
+  # #1854: PowerShell 7.4's -TimeoutSec only bounds the wait for headers. A
+  # server that sends them and stalls in the body held the runner until it
+  # hung up; the read has a time limit of its own now, so the claim gives
+  # up after its 15 s like any unanswered one.
+  @tag timeout: 90_000
+  test "a server that stalls partway through an answer is given up on", ctx do
+    stall = stalling_server()
+    started = System.monotonic_time(:millisecond)
+    {out, 1} = run_once(%{ctx | url: stall}, config(%{ctx | url: stall}), 60)
+
+    assert out =~ "could not reach the queue (HTTP 0)"
+    assert System.monotonic_time(:millisecond) - started < 50_000
+  end
+
+  # Answers every request with headers for a 100-byte body, sends two bytes
+  # of it, and then nothing more until the test is over.
+  defp stalling_server do
+    test = self()
+
+    start_supervised!(
+      {Task,
+       fn ->
+         {:ok, listen} = :gen_tcp.listen(0, [:binary, ip: {127, 0, 0, 1}, active: false])
+         {:ok, port} = :inet.port(listen)
+         send(test, {:stalling, port})
+         stall(listen)
+       end}
+    )
+
+    assert_receive {:stalling, port}
+    "http://127.0.0.1:#{port}"
+  end
+
+  defp stall(listen) do
+    {:ok, socket} = :gen_tcp.accept(listen)
+    {:ok, _request} = :gen_tcp.recv(socket, 0)
+
+    :ok =
+      :gen_tcp.send(
+        socket,
+        "HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: 100\r\n\r\nab"
+      )
+
+    stall(listen)
   end
 
   test "an error while a job runs is logged, and the job stopped and failed", ctx do

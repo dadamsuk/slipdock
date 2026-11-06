@@ -159,8 +159,12 @@ defmodule SlipdockWeb.RunnerSelfUpdateTest do
       path
     end
 
+    # Under a deadline inside ExUnit's 60 s (#1854): a runner that hangs is
+    # stopped, and the test fails on its exit (124) with what it said by then.
     defp ps_run(ctx, script, config) do
-      System.cmd(@pwsh, ["-NoProfile", "-File", script, "-Once", "-Config", config],
+      System.cmd(
+        "timeout",
+        ["-k", "5", "40", @pwsh, "-NoProfile", "-File", script, "-Once", "-Config", config],
         cd: ctx.dir,
         stderr_to_stdout: true
       )
