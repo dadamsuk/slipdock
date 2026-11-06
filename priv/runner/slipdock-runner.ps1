@@ -163,6 +163,18 @@ function Say([string]$message) {
   try { [IO.File]::AppendAllText($RunnerLog, $line + "`n", $Utf8) } catch { }
 }
 
+# A web call's time limit. PowerShell 7.4's -TimeoutSec stops only the wait
+# for the answer's headers: a server that sends them and then stalls in the
+# body holds the call until it hangs up (#1854), so where there is an
+# -OperationTimeoutSeconds that is set as well. Windows PowerShell has none,
+# and its -TimeoutSec covers the call.
+$ReadTimeout = (Get-Command Invoke-WebRequest).Parameters.ContainsKey('OperationTimeoutSeconds')
+function Get-WebTimeout([int]$timeout) {
+  $limit = @{ TimeoutSec = $timeout }
+  if ($ReadTimeout) { $limit['OperationTimeoutSeconds'] = $timeout }
+  return $limit
+}
+
 # POST to the queue. Answers @{ Status; Body; Headers }: Status 0 when
 # nothing answered. Windows PowerShell throws on any 4xx/5xx, so the answer
 # is taken from the exception as well.
@@ -170,10 +182,11 @@ function Send-Slipdock([string]$path, [string]$body, [int]$timeout, [hashtable]$
   $bytes = $Utf8.GetBytes($body)
   $headers = @{ Authorization = "Bearer $RunnerToken" }
   foreach ($k in $extra.Keys) { $headers[$k] = $extra[$k] }
+  $limit = Get-WebTimeout $timeout
   try {
     $r = Invoke-WebRequest -UseBasicParsing -Method Post -Uri ($SlipdockUrl + $path) `
       -Headers $headers `
-      -ContentType 'text/plain; charset=utf-8' -Body $bytes -TimeoutSec $timeout
+      -ContentType 'text/plain; charset=utf-8' -Body $bytes @limit
     $content = $r.Content
     if ($content -is [byte[]]) { $content = $Utf8.GetString($content) }
     return @{ Status = [int]$r.StatusCode; Body = [string]$content; Headers = $r.Headers }
@@ -609,7 +622,8 @@ function Update-ClaimHeaders {
 # Bytes from the server, or from a file:// URL.
 function Get-Remote([string]$url) {
   if ($url -like 'file://*') { return [IO.File]::ReadAllBytes(([Uri]$url).LocalPath) }
-  $r = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 60
+  $limit = Get-WebTimeout 60
+  $r = Invoke-WebRequest -UseBasicParsing -Uri $url @limit
   if ($r.RawContentStream) { return $r.RawContentStream.ToArray() }
   return $Utf8.GetBytes([string]$r.Content)
 }
