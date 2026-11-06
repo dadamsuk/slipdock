@@ -69,6 +69,38 @@ defmodule SlipdockCLI.FindingsTest do
     assert out =~ "#5 [merged] process (timeout #12) ×3: job #9 timed out → #4 — same cause"
   end
 
+  # #1941: one row per lesson, with the other cards it was said on, and a
+  # runner's tooling only with --scope.
+  test "--scope goes in the query; a row names the other cards and the runner" do
+    lesson =
+      Map.merge(@open, %{
+        "count" => 2,
+        "cards" => [%{"id" => 1781}, %{"id" => 12}, %{"id" => 13}]
+      })
+
+    runner =
+      Map.merge(@open, %{
+        "id" => 6,
+        "kind" => "tooling",
+        "scope" => "runner",
+        "runner" => %{"id" => 2, "name" => "laptop"},
+        "text" => "the installed CLI lags"
+      })
+
+    serve([{200, JSON.encode!(%{"findings" => [lesson, runner]})}])
+    out = capture_io(fn -> Findings.run("findings", ["slipdock"], scope: "all") end)
+
+    assert_received {:request, "GET", path, _}
+    assert path =~ "scope=all"
+    assert out =~ "#4 gotcha (agent #1781, also #12 #13) ×2: mix format can need two passes"
+    assert out =~ "#6 tooling [runner laptop] (agent #1781): the installed CLI lags"
+  end
+
+  test "a runner's finding with no runner known still says runner" do
+    line = Findings.line(Map.merge(@open, %{"scope" => "runner", "kind" => "tooling"}))
+    assert line =~ "tooling [runner] (agent #1781)"
+  end
+
   test "nothing open says so; nothing in another status too" do
     serve([{200, JSON.encode!(%{"findings" => []})}, {200, JSON.encode!(%{"findings" => []})}])
     assert capture_io(fn -> Findings.run("findings", ["b"], []) end) =~ "No open findings."

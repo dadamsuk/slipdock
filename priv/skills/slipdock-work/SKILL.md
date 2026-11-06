@@ -178,6 +178,14 @@ whole card before touching it.
   (`#42`) in the commit message. The closing comment links to the commit, or to
   the PR if one was opened (`Commit: https://github.com/…/commit/abc1234`). With
   no remote to link to, give the short hash and branch instead.
+- **Findings, once.** What a card taught that the code, the tests and the
+  handbook don't show goes in a `Findings:` block in its closing comment,
+  beside the `Handbook:` line (`- gotcha: …`, `rule`, `handbook-wrong`,
+  `tooling`, `process`; `- tooling (runner): …` for this machine's own CLI or
+  skills; or `Findings: none`). Write it **in the closing comment, once** (on
+  a board that verifies work, the completion's evidence): never repeated in a
+  wrap-up, a restatement or on the epic, because the board records every
+  comment's block. `slipdock-loop` has the bar for one.
 - **Token cost in the write-up.** The closing comment on a card ends with a
   line giving the tokens the work used, e.g. `Token cost: ~135k tokens
   (context budget 15.00M → 14.86M, claim to close)`. Take a reading of the

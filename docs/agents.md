@@ -565,8 +565,13 @@ for a person; an agent says on it what it knows and leaves the flag alone.
 
 **Findings.** What a pass learned that the code doesn't show goes on the
 board, not in one machine's agent memory: a `Findings:` block in the closing
-comment, beside the `Handbook:` line, one `- kind: text` item each (`gotcha`,
-`rule`, `handbook-wrong`, `tooling`, `process`), or `Findings: none`. The test
+comment, once (on a board that verifies work, the completion's evidence; never
+repeated in a wrap-up or on the epic), beside the `Handbook:` line, one
+`- kind: text` item each (`gotcha`, `rule`, `handbook-wrong`, `tooling`,
+`process`, and `tooling (runner)` for the machine's own CLI or skills, kept
+with the runner), or `Findings: none`. A lesson said again is counted on the
+finding it repeats, on this card or another (`rule` and `handbook-wrong`
+excepted across cards). The test
 for one: would the next pass, on a different card, have done better knowing
 this? Settled knowledge goes straight into the handbook. The server records
 its own (rejections, timeouts, requeues, lane refusals, failed merges), and a

@@ -1636,15 +1636,40 @@ its `Handbook:` line, one item per line, each with its kind:
   - gotcha: `mix format` can need two passes
   - rule: every new MCP tool gets a docs test        (a rule candidate)
   - handbook-wrong: W-1950 §Tests says async is safe, but the fixture is one user
-  - tooling: the installed CLI ignores --paths
+  - tooling (runner): the installed CLI ignores --paths
   - process: merges wait for an idle runner
 ```
 
 `Findings: none` is a normal answer. A line with no known kind is kept whole
-as a `gotcha`, so nothing written is lost to a typo. The block is read when
-the comment is posted (the evidence of a completion too); the same item twice
-on one card is kept once, and deleting the comment drops the findings it made
-that nobody has triaged yet.
+as a `gotcha`, so nothing written is lost to a typo. Write the block once, in
+the closing comment (on a board that verifies work, the completion's
+evidence): not again in a wrap-up, a restatement or on the epic. The block is
+read when the comment is posted (the evidence of a completion too), and
+deleting the comment takes back what it added that nobody has triaged yet.
+
+**One record per lesson.** A lesson said again is counted, not kept twice:
+
+- **On the same card**, an item with the same kind as an open finding there
+  and the same text after normalising (case, whitespace, backticks, trailing
+  punctuation, and every `#id` and commit sha read alike) adds to that
+  finding's count. So does a restatement in other words, when at least 60% of
+  its normalised words are the same.
+- **On another card of the tree**, an item whose normalised text and kind
+  match an open finding is recorded *merged* into it, which counts it. The
+  list shows that one finding, with every card it was said on. `rule` and
+  `handbook-wrong` items are never merged across cards: a rule candidate is
+  judged on its own card.
+- **A tooling item about the machine, not the project** is written
+  `- tooling (runner): …` (the installed CLI or skills lag the repo, say). It
+  is kept with the runner whose job the pass ran in (its card's job, or its
+  epic's), shown with `--scope runner` (`scope=runner`, the Findings page's
+  Scope filter) and left out of the board's list by default. `(runner)` on any
+  other kind is ignored.
+
+A board with findings from before this (#1941) collapses them with
+`mix slipdock.findings.dedupe <board> [--dry-run]`, which applies the same
+two rules to the open ones as merges a person can reopen
+(the handbook's Operations page, W-1951 §Runbooks, has the release form).
 
 **Recorded by the server.** The system notes its own signals without asking:
 a verifier's rejection, a job that times out or fails, a card requeued or
@@ -1681,13 +1706,14 @@ became, or merge it into another open finding picked from a list) and
 ```sh
 slipdock findings slipdock                       # open ones, newest first
 slipdock findings slipdock --kind rule --days 7  # also --status all, --source timeout, --card 12
+slipdock findings slipdock --scope runner        # tooling kept with a runner; --scope all for both
 slipdock finding 41 promote --note "W-1950 §Tests TEST-9"
 slipdock finding 42 merge --into 41
 slipdock finding 43 dismiss
 ```
 
 ```
-GET   /api/boards/:board/findings?status=&kind=&source=&card=&since=   (since: a date, a time or days)
+GET   /api/boards/:board/findings?status=&kind=&source=&card=&since=&scope=   (since: a date, a time or days; scope: board, runner or all)
 PATCH /api/findings/:id {action: dismiss|promote|merge|reopen, note?, into?}
 ```
 

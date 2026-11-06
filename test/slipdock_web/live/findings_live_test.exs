@@ -13,6 +13,8 @@ defmodule SlipdockWeb.FindingsLiveTest do
   alias Slipdock.{Access, Boards, Repo}
   alias Slipdock.Findings.Finding
 
+  import Ecto.Query, only: [from: 2]
+
   setup %{user: owner} do
     board = board_fixture(%{"name" => "Learned"}, owner: owner)
     [backlog | _] = board.columns
@@ -63,6 +65,31 @@ defmodule SlipdockWeb.FindingsLiveTest do
 
       refute render(view) =~ "already handled"
       refute has_element?(view, "#findings-empty")
+    end
+
+    test "a lesson said on several cards is one row, linking each card (#1941)", ctx do
+      {:ok, _} =
+        Boards.add_comment(ctx.card, "- Findings:\n  - gotcha: keep it once", by: ctx.owner)
+
+      {:ok, _} =
+        Boards.add_comment(ctx.other, "- Findings:\n  - gotcha: Keep it once.", by: ctx.owner)
+
+      [kept] =
+        Repo.all(from f in Finding, where: f.status == "open" and f.board_id == ^ctx.board.id)
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings")
+      assert has_element?(view, "#finding-#{kept.id} [data-role=count]", "×2")
+
+      assert has_element?(
+               view,
+               ~s(#finding-#{kept.id} [data-role=also] a[href="/boards/#{ctx.board.id}/cards/#{ctx.other.id}"])
+             )
+
+      assert view
+             |> element("#findings-list")
+             |> render()
+             |> String.split("data-role=\"text\"")
+             |> length() == 2
     end
 
     test "a sub-board's page lists the root's findings, its subcards' included", ctx do
@@ -165,12 +192,38 @@ defmodule SlipdockWeb.FindingsLiveTest do
       assert shown(view, ctx.new) and shown(view, ctx.old)
     end
 
+    # #1941: a runner's tooling is out of the project's list until asked for.
+    test "scope: the project by default, a runner's tooling, or both", ctx do
+      runner =
+        finding(ctx.board, ctx.card, text: "the CLI lags", kind: "tooling", scope: "runner")
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings")
+      assert shown(view, ctx.new)
+      refute shown(view, runner)
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings?scope=runner")
+      assert shown(view, runner)
+      refute shown(view, ctx.new)
+      assert has_element?(view, "#finding-#{runner.id} [data-role=runner]", "runner")
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings?scope=all")
+      assert shown(view, runner) and shown(view, ctx.new)
+
+      view
+      |> form("#findings-filters",
+        filters: %{status: "open", kind: "", source: "", card: "", since: "", scope: "board"}
+      )
+      |> render_change()
+
+      assert_patch(view, ~p"/boards/#{ctx.board}/findings")
+    end
+
     test "changing the form puts the filters in the URL", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings")
 
       view
       |> form("#findings-filters",
-        filters: %{status: "open", kind: "rule", source: "", card: "", since: ""}
+        filters: %{status: "open", kind: "rule", source: "", card: "", since: "", scope: "board"}
       )
       |> render_change()
 

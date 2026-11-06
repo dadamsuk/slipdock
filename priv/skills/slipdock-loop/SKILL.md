@@ -534,16 +534,25 @@ anybody reads later:
    next pass, on a different card, have done better knowing this?* Settled
    knowledge goes straight into the handbook, as above; a finding is for the
    rest: what is uncertain, cuts across cards, or shows the handbook was
-   wrong. One item per line, each with its kind, after the `Handbook:` line:
+   wrong. One item per line, each with its kind, after the `Handbook:` line,
+   **in the closing comment, once** (on a board that verifies work, that is
+   the completion's evidence): never again in the wrap-up, a restatement or
+   on the epic, since every comment's block is recorded:
 
    ```
    - Findings:
      - gotcha: `mix format` can need two passes; run the check after it
      - rule: every new MCP tool gets a docs test     (a rule candidate)
      - handbook-wrong: W-1950 §Tests says …, but …
-     - tooling: the installed CLI ignores --paths-from
+     - tooling: the release image lacks pwsh, so the runner tests skip
+     - tooling (runner): the installed CLI ignores --paths-from
      - process: merges wait for an idle runner
    ```
+
+   `tooling (runner)` is for this machine's own installed CLI or skills,
+   not the project: it is kept with the runner, out of the board's list.
+   A lesson already on the board is counted, not kept twice, so write it
+   as it comes rather than checking the list first.
 
    `Findings: none` is a normal answer; filler isn't. The board keeps each
    one (`slipdock findings <board>`) for a person to promote into the
@@ -638,7 +647,7 @@ anybody reads later:
    - Commit: `abc1234` (master) — https://github.com/owner/repo/commit/abc1234
    - CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", "started — … (checked before the epic closes)" on a subcard, or "no CI")
    - Handbook: updated W-3 §Contexts, new W-41   (or "no change (<why>)"; only on a handbook board)
-   - Findings:   (or "Findings: none")
+   - Findings:   (or "Findings: none"; "Findings: in the evidence" when the evidence carried them)
      - gotcha: <what the next pass should know>
    - Follow-ups: <anything deliberately not done, and where it went — card #141, W-31, or "none">
    - Token cost: ~135k tokens (context budget 15.00M → 14.86M, claim to close)
@@ -710,7 +719,9 @@ With one on, the pass changes like this:
   bar covers the ask, each part of the bar is met, no `must` rule for the
   diff is broken, and the `Handbook:` line is honest. Put the `Handbook:`
   line in `--evidence` too, so it is on the card when the verifier starts,
-  and the `Findings:` block with it.
+  and the `Findings:` block with it: the evidence is the closing comment
+  that carries the block, once. The wrap-up after it says
+  `Findings: in the evidence` rather than repeating them.
 - **Evidence on completion.** At step 7.5 `slipdock done <id>` carries what
   you checked and where: `--evidence-commit <sha> --branch <branch> --tests
   <the test files you added or changed, comma-separated> --suite

@@ -159,8 +159,19 @@ defmodule SlipdockWeb.MCP.DocsTest do
 
       assert gate =~ "`Findings: none` is a normal answer; filler isn't."
       assert loop =~ ~r/- Handbook: updated W-3.*\n   - Findings:/
-      assert loop =~ "and the `Findings:` block with it."
+      assert loop =~ "and the `Findings:` block with it: the evidence is the closing comment"
       assert loop =~ "each as a finding in a `Findings:` block there"
+    end
+
+    # #1941: every comment's block is recorded, so the skills say it is
+    # written once, and how a tooling item about the machine is marked.
+    test "both skills say the Findings block goes in the closing comment, once" do
+      for skill <- ~w(slipdock-loop slipdock-work) do
+        text = read("priv/skills/#{skill}/SKILL.md") |> String.replace(~r/\s+/, " ")
+        assert text =~ "in the closing comment, once", skill
+        assert text =~ "on the epic", skill
+        assert text =~ "tooling (runner)", skill
+      end
     end
 
     test "the docs skill says where each kind of knowledge goes" do

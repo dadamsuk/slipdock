@@ -3,9 +3,11 @@ defmodule SlipdockWeb.API.FindingController do
   Findings over HTTP (W-2310 §Findings, see `Slipdock.Findings`). They are
   kept on the root board of a tree, so both actions check the root.
 
-    * `GET /api/boards/:board/findings?status=&kind=&source=&card=&since=` –
+    * `GET /api/boards/:board/findings?status=&kind=&source=&card=&since=&scope=` –
       the tree's findings, open by default (`status=all` for every one;
-      `since` a date, an ISO 8601 time or a number of days). Read access.
+      `since` a date, an ISO 8601 time or a number of days; `scope` board by
+      default, `runner` or `all`), each with the `cards` it was said on. Read
+      access.
     * `PATCH /api/findings/:id {action: dismiss|promote|merge|reopen, note?, into?}`
       – triage one. Write access.
   """
