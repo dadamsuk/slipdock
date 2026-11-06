@@ -2132,7 +2132,8 @@ defmodule SlipdockWeb.APIGuide do
     job only, as its `step` and `step_at`, and shows on the Runners panel and
     in `slipdock job`/`jobs`. Every step is also kept on the job with its time
     (the job JSON's `steps`, the newest 200), which the card's chat reads as
-    the job's milestones, so report each one as it happens. The agent a runner started for a job may report
+    the job's milestones (and its lead time by phase: a step that mentions CI
+    starting, going green or red marks a CI run), so report each one as it happens. The agent a runner started for a job may report
     on it too, sending the job's id as `x-slipdock-job` (the CLI does, from
     `$SLIPDOCK_JOB_ID`). Finishing the job does not close the card, so close it as usual.
     The session shows in the board's runner list as `<token label> (session)`.

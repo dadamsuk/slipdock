@@ -22,6 +22,9 @@ defmodule Slipdock.AI.CardRecord do
       their answers, and its activity log (flags, snoozes, edits)
     * `card_verification` — bar, evidence, verdicts, rejections with their
       reasons, audits, merge jobs and deploys
+    * `card_lead_time` — where its time went: its lead time by phase,
+      worked out by `Slipdock.LeadTime` (#1876), per subcard and in total
+      on an epic
 
   Each takes a `card_id`, the open card when left out. A card outside the
   open card's tree is refused, so the chat stays about the card it was
@@ -32,7 +35,7 @@ defmodule Slipdock.AI.CardRecord do
 
   import Ecto.Query
 
-  alias Slipdock.{Access, Boards, CardTimeline, Deployments, Repo, Verified}
+  alias Slipdock.{Access, Boards, CardTimeline, Deployments, LeadTime, Repo, Verified}
   alias Slipdock.Accounts.User
   alias Slipdock.AI.Context
   alias Slipdock.Boards.{Activity, Board, Card, CardLink, Comment, Handoff}
@@ -81,7 +84,14 @@ defmodule Slipdock.AI.CardRecord do
      "A card's verified-work record: the bar, the evidence (commit, branch, tests, suite, " <>
        "pull request), the verdict and who gave it, each rejection with its reason, audits, " <>
        "the verify and merge jobs and their outcome, the merge commit, and the deploys that " <>
-       "shipped it where the board records deploys.", %{}}
+       "shipped it where the board records deploys.", %{}},
+    {"card_lead_time",
+     "Where a card's time went: its lead time, from creation to its first deploy (or its " <>
+       "completion, or now), by phase — backlog, waiting for a runner (and which jobs held " <>
+       "the pool), build, CI, waiting on a person, verification wait, verify, rework, merge, " <>
+       "deploy, and time the record can't explain — with each span in order and what it " <>
+       "came from. On an epic, each subcard's too, and the subcards added up. Quote its " <>
+       "numbers rather than adding them up yourself.", %{}}
   ]
 
   @doc "The tool definitions, in the OpenAI function-calling shape."
@@ -359,6 +369,16 @@ defmodule Slipdock.AI.CardRecord do
     |> lines()
   end
 
+  defp render("card_lead_time", card, _args) do
+    epic = LeadTime.for_epic(card)
+
+    [
+      lead_text(card, epic.card, true),
+      subcards_lead_text(epic)
+    ]
+    |> lines()
+  end
+
   defp bar_text(%Card{bar: bar} = card) do
     cond do
       not present(bar) -> "Bar: none written"
@@ -386,6 +406,112 @@ defmodule Slipdock.AI.CardRecord do
 
   defp verdicts_text(verdicts),
     do: Enum.map(verdicts, &["", "[comment ##{&1.id}] #{at(&1.inserted_at)}", &1.body])
+
+  ## Lead time -----------------------------------------------------------------
+
+  @phase_names %{
+    backlog: "backlog",
+    waiting_for_runner: "waiting for a runner",
+    build: "build",
+    ci: "CI",
+    waiting_on_person: "waiting on a person",
+    verification_wait: "waiting for verification",
+    verify: "verify",
+    rework: "rework after a rejection",
+    merge: "merge",
+    deploy: "deploy",
+    unexplained: "unexplained (the record holds nothing for it)"
+  }
+
+  @segment_cap 60
+  @held_cap 5
+
+  defp lead_text(card, lt, segments?) do
+    [
+      "Lead time of #{label(card)}: #{dur(lt.seconds)}, #{lead_span(lt)}.",
+      "By phase:",
+      phase_lines(lt.totals, lt.seconds),
+      opt(segments?, ["", "In order (#{length(lt.segments)} spans):" | segment_lines(lt)]),
+      opt(
+        segments? and lt.jobs == 0,
+        "No runner job was ever sent on it: its time comes from the lists it sat in."
+      )
+    ]
+  end
+
+  defp lead_span(%{ends: :deployed} = lt),
+    do:
+      "from its creation #{at(lt.from)} to its first deploy #{at(lt.to)}; " <>
+        "done #{at(lt.done_at)}, #{dur(lt.done_seconds)} after creation"
+
+  defp lead_span(%{ends: :completed} = lt),
+    do:
+      "from its creation #{at(lt.from)} to done #{at(lt.to)} " <>
+        "(no recorded deploy names it)"
+
+  defp lead_span(lt), do: "from its creation #{at(lt.from)} to now (#{at(lt.to)}): still open"
+
+  defp phase_lines(totals, seconds) do
+    LeadTime.phases()
+    |> Enum.filter(&(totals[&1] > 0))
+    |> Enum.map(fn phase ->
+      "- #{@phase_names[phase]}: #{dur(totals[phase])}" <>
+        if(seconds > 0, do: " (#{round(totals[phase] * 100 / seconds)}%)", else: "")
+    end)
+    |> case do
+      [] -> ["- none: no time has passed"]
+      lines -> lines
+    end
+  end
+
+  defp segment_lines(lt) do
+    shown = Enum.take(lt.segments, @segment_cap)
+
+    Enum.map(shown, &segment_line/1) ++
+      if length(lt.segments) > @segment_cap,
+        do: ["- … #{length(lt.segments) - @segment_cap} more spans not shown"],
+        else: []
+  end
+
+  defp segment_line(s) do
+    "- #{at(s.from)} → #{at(s.to)} · #{@phase_names[s.phase]} (#{dur(s.seconds)})" <>
+      suffix(s.note, fn -> ": #{s.note}" end) <>
+      suffix(s.refs != [], fn -> " [#{Enum.join(s.refs, ", ")}]" end) <>
+      held_text(s[:held_by])
+  end
+
+  defp held_text(nil), do: ""
+  defp held_text([]), do: " · no other job on its pool was running"
+
+  defp held_text(jobs) do
+    more = length(jobs) - @held_cap
+
+    " · its pool was busy with " <>
+      Enum.map_join(Enum.take(jobs, @held_cap), "; ", fn j ->
+        "job ##{j.job_id} (#{j.kind}) on ##{j.card_id} “#{j.title}”, #{at(j.from)} → " <>
+          if(j.to, do: at(j.to), else: "still running")
+      end) <>
+      if(more > 0, do: "; and #{more} more jobs", else: "")
+  end
+
+  defp subcards_lead_text(%{subcards: []}), do: nil
+
+  defp subcards_lead_text(%{subcards: subs, total: total}) do
+    [
+      "",
+      "Its subcards (#{length(subs)}), each from its own creation:",
+      Enum.map(subs, fn {sub, lt} ->
+        [
+          "",
+          "Lead time of #{label(sub)}: #{dur(lt.seconds)}, #{lead_span(lt)}."
+          | phase_lines(lt.totals, lt.seconds)
+        ]
+      end),
+      "",
+      "The subcards added up: #{dur(total.seconds)}.",
+      phase_lines(total.totals, total.seconds)
+    ]
+  end
 
   ## Pieces --------------------------------------------------------------------
 
