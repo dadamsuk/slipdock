@@ -3,16 +3,22 @@ defmodule SlipdockWeb.TimestampTest do
   import Phoenix.LiveViewTest
   import Phoenix.Component, only: [sigil_H: 2]
 
+  import SlipdockWeb.RelativeTimeHelpers
+
   alias SlipdockWeb.SlipdockComponents
 
   test "writes the relative time, with the exact time in the title" do
     at = DateTime.add(DateTime.utc_now(), -5 * 60)
 
-    html = render_component(&SlipdockComponents.timestamp/1, at: at, id: "t")
+    {html, before, later} =
+      rendered_around(fn ->
+        render_component(&SlipdockComponents.timestamp/1, at: at, id: "t")
+      end)
+
     {:ok, doc} = Floki.parse_fragment(html)
     [el] = Floki.find(doc, "time#t")
 
-    assert Floki.text(el) == "5 min ago"
+    assert Floki.text(el) in expected_labels(at, "5 min ago", before, later)
     assert Floki.attribute(el, "datetime") == [DateTime.to_iso8601(at)]
     assert Floki.attribute(el, "title") == [SlipdockWeb.Dates.exact(at)]
     assert [_] = Floki.attribute(el, "data-role")
