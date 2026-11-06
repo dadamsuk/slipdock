@@ -82,11 +82,11 @@ defmodule Slipdock.EpicLogTest do
 
   defp start(card, ctx), do: Boards.move_card(card.id, ctx.working.id, nil, actor: ctx.builder)
 
-  defp submit(card, ctx) do
+  defp submit(card, ctx, pr \\ @pr) do
     {:ok, card} =
       Boards.update_card(
         fresh(card),
-        %{"completed" => true, "evidence_pr" => @pr, "evidence_commit" => "abc1234"},
+        %{"completed" => true, "evidence_pr" => pr, "evidence_commit" => "abc1234"},
         actor: ctx.builder
       )
 
@@ -278,18 +278,35 @@ defmodule Slipdock.EpicLogTest do
         {:ok, _} = merged(card, ctx)
       end
 
+      # A pull request of the epic's own, which the acceptance merges (#1917).
+      own = "https://github.com/acme/app/pull/8"
       age(ctx.epic, 120)
-      submit(ctx.epic, ctx)
+      submit(ctx.epic, ctx, own)
       assert List.last(lines(ctx.epic)) =~ "**Submitted** for verification · the epic itself"
-      assert List.last(lines(ctx.epic)) =~ "[PR #7](#{@pr}) · `abc1234` · 2/2 done"
+      assert List.last(lines(ctx.epic)) =~ "[PR #8](#{own}) · `abc1234` · 2/2 done"
 
       age(ctx.epic, 120)
       {:ok, _} = accept(ctx.epic, ctx)
-      assert List.last(lines(ctx.epic)) =~ "**Accepted** · the epic itself · [PR #7]"
+      assert List.last(lines(ctx.epic)) =~ "**Accepted** · the epic itself · [PR #8]"
 
       {:ok, _} = merged(ctx.epic, ctx)
       assert List.last(lines(ctx.epic)) =~ "**Accepted and merged** · the epic itself"
       assert List.last(lines(ctx.epic)) =~ "`abc1234` · 2/2 done"
+    end
+
+    test "an epic naming a PR its subcards merged is accepted with nothing to merge (#1917)",
+         ctx do
+      for card <- [ctx.one, ctx.two] do
+        submit(card, ctx)
+        {:ok, _} = accept(card, ctx)
+        {:ok, _} = merged(card, ctx)
+      end
+
+      age(ctx.epic, 120)
+      submit(ctx.epic, ctx)
+      age(ctx.epic, 120)
+      assert {:ok, %{completed: true, verify_state: "accepted"}} = accept(ctx.epic, ctx)
+      assert List.last(lines(ctx.epic)) =~ "**Accepted** · the epic itself"
     end
 
     test "the epic's own start posts nothing", ctx do

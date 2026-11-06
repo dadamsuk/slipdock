@@ -3767,7 +3767,14 @@ defmodule SlipdockWeb.APIGuide do
     in its title), and complete the card with the pull request's URL in
     `evidence_pr` (`slipdock done ID --pr URL`, `complete_card` `pr`): the
     merge needs it, and a board asking for evidence refuses the completion
-    without it (`422`). The build to watch is the
+    without it (`422`). **An epic** (a card whose sub-board holds cards)
+    has no pull request of its own to name: each subcard ships and merges
+    its own. Once they are all accepted and merged, complete the epic
+    without `--pr` (`slipdock done ID --evidence "<the subcards' PRs, the
+    last merged build>"`), and accepting it completes it with nothing to
+    merge (so does one naming a pull request a subcard already merged).
+    Only work done on the epic itself goes on its own branch, with a pull
+    request named by `--pr`, which the acceptance merges. The build to watch is the
     pull request's (`gh pr checks <branch> --watch --fail-fast`), and it is
     the full test run: before pushing, run the tests you added or changed
     and the project's own pre-push checks (what its `CLAUDE.md`,

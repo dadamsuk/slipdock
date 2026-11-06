@@ -849,6 +849,18 @@ work reaches the default branch, and so the deploy:
   that also asks for evidence, an agent's completion without it is refused
   (`422`).
 
+**Epics have no pull request of their own.** Each subcard of an epic
+ships and merges its own pull request, so by the time the epic is
+finished there is nothing left of it to merge. An agent completes an epic
+(a card whose sub-board holds cards) without `--pr`: `slipdock done 12
+--evidence "subcards #13, #14 merged; main green"`. Accepting it completes
+it at once, with no merge job, and so does accepting one that names a pull
+request one of its subcards already merged. The verifier checks that every
+subcard is accepted and merged and that the default branch's latest build
+passed, rather than running the suite. An epic that did work of its own,
+after its subcards, names that pull request with `--pr`, and the
+acceptance merges it as for any card.
+
 The builder needs no setup to know. On such a board a claimed job's
 prompt ends with what to do (branch `card-<id>`, push it, `gh pr create`
 once, watch the pull request's checks, `done --pr`), and so does the card:

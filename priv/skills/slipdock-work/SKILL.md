@@ -114,7 +114,10 @@ whole card before touching it.
   the project's own pre-push checks, which its `CLAUDE.md`, contributing
   guide or handbook lists, else formatting and a compile that fails on
   warnings), and complete with `slipdock done <id> --pr <url>`. Accepting
-  the card merges it; don't merge it yourself. A failed merge sends the
+  the card merges it; don't merge it yourself. An epic names no PR: its
+  subcards merged their own, so once they all have, complete it with
+  `slipdock done <id> --evidence "…"` and no `--pr`, and accepting it
+  merges nothing. A failed merge sends the
   card back rejected with the reason: rebase the branch and submit again.
 - **Lanes, where they are on** (the board's line in the guide says `lanes:
   on`). Before starting a card, write the paths its work will touch:

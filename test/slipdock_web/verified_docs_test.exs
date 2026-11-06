@@ -162,4 +162,22 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert flat.("priv/skills/slipdock-loop/SKILL.md") =~ "Nor can an agent reopen a done card"
     assert flat.("priv/skills/slipdock/SKILL.md") =~ "an agent can't undo or move a done card"
   end
+
+  test "an epic on a pull request board completes without a PR of its own (#1917)" do
+    flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
+
+    assert flat.("lib/slipdock_web/api_guide.ex") =~
+             "complete the epic without `--pr`"
+
+    assert flat.("docs/agents.md") =~ "An epic there names none of its own"
+    assert flat.("docs/manual.md") =~ "**Epics have no pull request of their own.**"
+    assert flat.("README.md") =~ "completes without a pull request of its own"
+    loop = flat.("priv/skills/slipdock-loop/SKILL.md")
+    assert loop =~ "complete the epic without `--pr`"
+    assert loop =~ "never open a token PR"
+    assert flat.("priv/skills/slipdock-work/SKILL.md") =~ "An epic names no PR"
+
+    assert flat.("priv/skills/slipdock/SKILL.md") =~
+             "completes with --evidence alone and accepting merges nothing"
+  end
 end
