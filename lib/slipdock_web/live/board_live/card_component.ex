@@ -80,6 +80,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        card_pages: [],
        card_grants: [],
        card_jobs: [],
+       card_findings: 0,
        card_timeline: nil,
        doc_query: "",
        doc_results: [],
@@ -253,6 +254,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     do:
       assign(socket,
         card_jobs: Runners.list_card_jobs(card.id, 5),
+        # How many open findings it has (W-2310 §Findings, #1940).
+        card_findings: Slipdock.Findings.open_count(card),
         # The lists, waits and jobs it has been through, on one axis (#1131).
         card_timeline: Slipdock.CardTimeline.for_card(card)
       )
@@ -1253,6 +1256,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         grants={@card_grants}
         pages={@card_pages}
         jobs={@card_jobs}
+        findings={@card_findings}
         timeline={@card_timeline}
         doc_query={@doc_query}
         doc_results={@doc_results}
@@ -1394,6 +1398,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :grants, :list, required: true
   attr :pages, :list, default: [], doc: "the wiki pages that talk about this card"
   attr :jobs, :list, default: [], doc: "the card's latest runner jobs"
+  attr :findings, :integer, default: 0, doc: "how many open findings the card has"
   attr :timeline, :any, default: nil, doc: "the card's timeline (#1131)"
   attr :doc_query, :string, default: "", doc: "what is typed into the Docs picker"
   attr :doc_results, :list, default: [], doc: "pages the Docs picker is offering"
@@ -1682,6 +1687,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 pages={@pages}
                 target={@target}
               />
+
+              <.findings_line :if={@findings > 0} board={@board} card={@card} count={@findings} />
 
               <.jobs_section
                 :if={@jobs != []}

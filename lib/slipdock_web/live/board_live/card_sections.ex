@@ -526,6 +526,29 @@ defmodule SlipdockWeb.BoardLive.CardSections do
     """
   end
 
+  attr :board, :any, required: true
+  attr :card, :any, required: true
+  attr :count, :integer, required: true
+
+  @doc """
+  How many open findings the card has (W-2310 §Findings), linking to the
+  board's Findings page filtered to it (#1940).
+  """
+  def findings_line(assigns) do
+    ~H"""
+    <section class="px-1" id="card-findings">
+      <.link
+        navigate={~p"/boards/#{@board}/findings?card=#{@card.id}"}
+        class="flex items-center gap-1.5 text-xs link link-hover"
+        id="card-findings-link"
+      >
+        <.icon name="hero-light-bulb" class="size-3.5" />
+        {@count} open {if @count == 1, do: "finding", else: "findings"}
+      </.link>
+    </section>
+    """
+  end
+
   attr :can_write, :boolean, required: true
   attr :jobs, :list, required: true
   attr :target, :any, required: true

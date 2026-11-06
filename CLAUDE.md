@@ -6,8 +6,9 @@ Elixir and Phoenix conventions for this codebase are in `AGENTS.md`.
 
 Consider each of these. Not every one applies to every change, but judge each:
 
-- The CLI (`cli/`), not just the UI.
+- Every door (SPEC-2): the web UI, the REST API, the CLI (`cli/`) and the MCP tools (`lib/slipdock_web/mcp/tools/`). A door left out is said why on the card.
 - The agents page and the API guide (`docs/agents.md`, `lib/slipdock_web/api_guide.ex`).
+- The in-app help pages (SPEC-10): `HelpLive.Guides` for the app, `HelpLive.Agents` and `HelpLive.Flow` for agents and runners.
 - The packaged skills in `priv/skills/`. Installed copies of them elsewhere are edited the same way, never copied over.
 - `README.md` and `docs/manual.md`.
 - The test suite.

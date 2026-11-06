@@ -514,7 +514,12 @@ defmodule SlipdockWeb.HelpLive.Flow do
           shows there too, for you to keep or put back.
         </li>
         <li>
-          Findings wait for you to promote, merge or dismiss (<code>slipdock findings B</code>, <code>slipdock finding 41 promote --note "…"</code>).
+          Findings wait for you to promote, merge or dismiss on the board's
+          <strong>Findings page</strong>
+          (beside <em>Health</em>
+          in the Runners panel; a card with open findings links to it), or with
+          <code>slipdock findings B</code>
+          and <code>slipdock finding 41 promote --note "…"</code>.
         </li>
       </ul>
     </.person_note>

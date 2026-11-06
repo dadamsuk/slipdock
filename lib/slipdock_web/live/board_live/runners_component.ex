@@ -440,6 +440,15 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           >
             <.icon name="hero-lifebuoy" class="size-4" /> Health
           </.link>
+          <%!-- What passes learned, to triage (W-2310 §Findings, #1940). --%>
+          <.link
+            navigate={~p"/boards/#{@board}/findings"}
+            class="btn btn-ghost btn-sm"
+            id="runners-findings"
+            title="What passes learned and the system saw go wrong, to promote, merge or dismiss"
+          >
+            <.icon name="hero-light-bulb" class="size-4" /> Findings
+          </.link>
           <%!-- The whole tree's brake (#1116); a pool's is on its row. --%>
           <button
             :if={@can_manage and is_nil(@tree_pause)}
