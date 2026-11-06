@@ -149,6 +149,63 @@ defmodule SlipdockWeb.RunnerPasslogTest do
     assert ["page", "new", "3", "Pass 775 (" <> _ | _] = called(ctx)
   end
 
+  describe "the hook's pass log is opt-in (#1873)" do
+    # A job's run through the hook, before and after, with `extra` in its
+    # environment: whether the stand-in CLI was asked to write a page.
+    defp hook_pass(ctx, extra) do
+      transcripts = Path.join(ctx.tmp, "transcripts")
+      File.mkdir_p!(transcripts)
+
+      env =
+        [
+          {"SLIPDOCK_PASSLOG_CLI", ctx.stub},
+          {"STUB_OUT", ctx.tmp},
+          {"SLIPDOCK_HOOK_LOG", Path.join(ctx.tmp, "log")},
+          {"SLIPDOCK_HOOK_STATE", Path.join(ctx.tmp, "state")},
+          {"SLIPDOCK_HOOK_TRANSCRIPTS", transcripts},
+          {"SLIPDOCK_JOB_ID", "41"},
+          {"SLIPDOCK_CARD", "775"},
+          {"SLIPDOCK_CARD_URL", "https://slipdock.example/boards/3/cards/775"},
+          {"SLIPDOCK_STATUS", "done"},
+          {"SLIPDOCK_EXIT", "0"}
+        ] ++ extra
+
+      assert {_, 0} = System.cmd("bash", [@hook, "before"], env: env, stderr_to_stdout: true)
+      transcript = Path.join(transcripts, "s.jsonl")
+      File.write!(transcript, ~s({"prompt":"https://slipdock.example/boards/3/cards/775"}\n))
+      # Later than the job's start mark, without waiting for the clock.
+      later = :calendar.universal_time() |> :calendar.datetime_to_gregorian_seconds()
+      File.touch!(transcript, later + 60)
+
+      assert {_, 0} = System.cmd("bash", [@hook, "after"], env: env, stderr_to_stdout: true)
+      File.exists?(Path.join(ctx.tmp, "args"))
+    end
+
+    test "by default the hook writes no page, and still logs the job", ctx do
+      # SLIPDOCK_HOOK_PASSLOG is unset in the hook's environment.
+      refute hook_pass(ctx, [{"SLIPDOCK_HOOK_PASSLOG", nil}])
+
+      assert File.read!(Path.join(ctx.tmp, "log")) =~
+               "job #41 on card #775 finished (done, exit 0)"
+    end
+
+    test "set but empty is off too", ctx do
+      refute hook_pass(ctx, [{"SLIPDOCK_HOOK_PASSLOG", ""}])
+    end
+
+    test "set, it writes the page", ctx do
+      assert hook_pass(ctx, [{"SLIPDOCK_HOOK_PASSLOG", @script}])
+      assert ["page", "new", "3", "Pass 775 (" <> _ | _] = called(ctx)
+    end
+
+    test "the hook and the pass log say why it is off, and what keeps a log instead" do
+      hook = File.read!(@hook)
+      assert hook =~ "Pass log, off unless SLIPDOCK_HOOK_PASSLOG is set"
+      assert hook =~ "Keep this log (`slipdock job <id> --keep`)"
+      assert File.read!(@script) =~ "Opt-in (#1873)"
+    end
+  end
+
   test "is served with the other examples", %{conn: conn} do
     assert "passlog.sh" in HookPrompt.example_files()
     body = conn |> get("/runner/examples/passlog.sh") |> response(200)

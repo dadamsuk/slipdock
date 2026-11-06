@@ -98,6 +98,17 @@ NOTIFY= PASSLOG= hook after 7 50 timeout 124; rc=$?
 check "exits 0"                     '[ $rc -eq 0 ]'
 check "nothing called"              '[ ! -s "$T/calls" ] && [ ! -s "$T/notes" ]'
 
+echo "the pass log is off unless SLIPDOCK_HOOK_PASSLOG is set: a clean job writes no page"
+setup
+hook before 7 55; transcript s 7
+env -u SLIPDOCK_HOOK_PASSLOG FAKE=$T SLIPDOCK_HOOK_LOG=$T/log SLIPDOCK_HOOK_STATE=$T/state \
+  SLIPDOCK_HOOK_TRANSCRIPTS=$T/transcripts SLIPDOCK_HOOK_NOTIFY=$T/bin/notify \
+  SLIPDOCK_JOB_ID=55 SLIPDOCK_CARD=7 SLIPDOCK_CARD_URL="${URL}7" \
+  SLIPDOCK_STATUS=done SLIPDOCK_EXIT=0 bash "$HOOK" after; rc=$?
+check "exits 0"                     '[ $rc -eq 0 ]'
+check "no passlog"                  '! grep -q ^passlog "$T/calls"'
+check "the job is still logged"     'grep -q "job #55 on card #7 finished" "$T/log"'
+
 echo "never touches the board"
 check "no slipdock command in it"   '! grep -Eq "^[^#]*slipdock (move|flag|comment|edit|done)" "$HOOK"'
 

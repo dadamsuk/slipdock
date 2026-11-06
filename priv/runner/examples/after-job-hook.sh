@@ -13,11 +13,18 @@
 #
 # Before a job: marks when it started, so the transcript can be found after.
 # After a job:
-#   * Pass log: the job's Claude Code transcript (the newest one written since
-#     the job started that mentions the card's URL) goes to $PASSLOG, which
-#     can turn it into a page in the card's folder. passlog.sh, beside this
-#     file, is one that does.
 #   * A job that timed out or failed sends an alert through $NOTIFY.
+#   * Pass log, off unless SLIPDOCK_HOOK_PASSLOG is set: the job's Claude Code
+#     transcript (the newest one written since the job started that mentions
+#     the card's URL) goes to $PASSLOG, which can turn it into a page in the
+#     card's folder. passlog.sh, beside this file, is one that does.
+#
+# Why the pass log is off (#1873): the runner sends every job's transcript to
+# the server as it runs, where it can be watched and is deleted a while after
+# the job ends (the board's "keep job logs for"). A log worth keeping is kept
+# from the card, with Keep this log (`slipdock job <id> --keep`), as the same
+# `Pass <card> (<date>)` page in the card's folder. A page for every pass made
+# hundreds nobody opened. Set SLIPDOCK_HOOK_PASSLOG only to keep them all.
 #
 # What it leaves to the server: putting back a card the job left in
 # progress (the rule's requeue_stuck) and alerting on that (a job_finished
@@ -33,9 +40,10 @@ STATE=${SLIPDOCK_HOOK_STATE:-$HOME/.local/state/slipdock-runner}
 # Where Claude Code keeps this project's transcripts: ~/.claude/projects/
 # and the job's working directory with every / and . as a -.
 TRANSCRIPTS=${SLIPDOCK_HOOK_TRANSCRIPTS:-$HOME/.claude/projects/-home-me-src-app}
-# PASSLOG TRANSCRIPT --exit N — empty to skip. passlog.sh, beside this file,
-# turns the transcript into the page `Pass <card> (<YYYY-MM-DD HH.MM>)` with
-# `slipdock page new … --card`, so it lands in the card's folder.
+# PASSLOG TRANSCRIPT --exit N — empty (the default) to write no page: keep a
+# job's log with Keep this log instead (see above). passlog.sh, beside this
+# file, turns the transcript into the page `Pass <card> (<YYYY-MM-DD HH.MM>)`
+# with `slipdock page new … --card`, so it lands in the card's folder.
 PASSLOG=${SLIPDOCK_HOOK_PASSLOG:-}
 # NOTIFY TITLE MESSAGE — empty to only log. For example:
 #   ntfy:     curl -fsS -H "Title: $1" -d "$2" https://ntfy.sh/your-topic

@@ -926,8 +926,9 @@ or a cloud routine), or ChatGPT (its Slipdock connector and a prompt for a chat
 or a scheduled task; no repository, so no commit or push), and it gives you exactly what to paste — and can add the
 rule that sends a list's cards, plus standing instructions and before/after
 hooks for every job — and a prompt that has Claude Code on the machine write
-those hooks for you (your notifier, what to keep from each pass), from a
-worked example. A Claude runner may use the Slipdock MCP tools without
+those hooks for you (your notifier, and what to keep from each pass: by
+default nothing, since a job's live log is on the card until it expires and
+**Keep this log** keeps the ones worth keeping), from a worked example. A Claude runner may use the Slipdock MCP tools without
 asking (on by default) and every job is told nobody will answer questions, since
 nobody is watching — to open a wait and stop if it needs a person, and to take
 nothing more once the board is paused — and to leave a handoff if it stops with the card unfinished

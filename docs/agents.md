@@ -484,7 +484,8 @@ hook*, or `slipdock runner setup <board> <runner> --hook-prompt`), which states
 the hook contract and points at a worked example served at
 `/runner/examples/after-job-hook.sh`, with a pass-log script at
 `/runner/examples/passlog.sh` that writes `Pass <card> (<YYYY-MM-DD HH.MM>)`
-into the card's folder.
+into the card's folder. The pass log is opt-in (`SLIPDOCK_HOOK_PASSLOG`): a
+job's log is kept with Keep this log instead.
 
 Runners also report **drift**: on every claim the SHA-256 of each installed
 slipdock skill's `SKILL.md` and of the `slipdock` CLI, which the server

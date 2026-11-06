@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # A worked example of a pass log, for after-job-hook.sh to call: what a job's
 # agent wrote, as a page for the card. Adapt it rather than run it as it is.
-# Point the hook at it:
+#
+# Opt-in (#1873): the server keeps every job's live log for a while, and Keep
+# this log on the card (`slipdock job <id> --keep`) writes the same page for
+# the jobs worth keeping. Use this only to keep a page for every pass. Point
+# the hook at it:
 #
 #   SLIPDOCK_HOOK_PASSLOG=/path/to/passlog.sh
 #

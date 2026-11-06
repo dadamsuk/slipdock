@@ -38,6 +38,13 @@ defmodule Slipdock.Runners.HookPromptTest do
       assert text =~ "--session-id"
     end
 
+    test "keeps nothing from a job by default: Keep this log does that (#1873)" do
+      text = HookPrompt.text("server", "https://slipdock.example")
+      assert text =~ "2. What to keep from each job: by default nothing."
+      assert text =~ "Keep this log on the card (`slipdock job <id> --keep`)"
+      assert text =~ "Only if I want a page for every pass"
+    end
+
     test "points at the worked example on this server, without a doubled slash" do
       text = HookPrompt.text("server", "https://slipdock.example/")
       assert text =~ "https://slipdock.example/runner/examples/after-job-hook.sh\n"
