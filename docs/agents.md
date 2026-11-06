@@ -446,7 +446,8 @@ with an optional prompt for what each job is told) —
 or one that works a list **top card first, one at a time** (*Work a list with
 a runner*, trigger `list_top`): whenever nothing it sent is still open it
 sends the top open card nobody has taken, skipping blocked, waiting and
-dependency-blocked ones, so a runner can take over from a `/loop` or cron
+dependency-blocked ones and any with a job already open on it (so two such
+rules for two pools work one list side by side), so a runner can take over from a `/loop` or cron
 pass working the To Do list. Its jobs **wait while anything is in progress**
 (`wait_while_doing` on the `runner` action, ticked by default for that rule):
 a queued job isn't handed out while another open card that a runner job

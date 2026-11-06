@@ -316,6 +316,62 @@ defmodule Slipdock.Automations.FeedTest do
     end
   end
 
+  # Two feeds on one list, for two pools, work it side by side (#1956): each
+  # passes over a card the other already has a job open on.
+  describe "two feeds on one list" do
+    defp spare_rule(board) do
+      rule_fixture(board, %{
+        feed_spec()
+        | "actions" => [%{"type" => "runner", "pool" => "spare"}]
+      })
+    end
+
+    test "each sends a different card, and the next free one when its job ends", ctx do
+      [a, b, c] = for t <- ~w(a b c), do: card_fixture(ctx.todo, %{"title" => t})
+      {:ok, spare, _} = Runners.create_runner(ctx.board, %{"name" => "spare", "pool" => "spare"})
+
+      loop = feed_rule(ctx.board)
+      other = spare_rule(ctx.board)
+
+      assert queued_cards(loop) == [a.id]
+      assert queued_cards(other) == [b.id]
+
+      # Claimed and running holds the card just as queued does.
+      job = Runners.claim(spare)
+      Runners.heartbeat(spare, job.id)
+
+      finish(ctx.runner, "done")
+      assert queued_cards(loop) == [c.id]
+      assert queued_cards(other) == [b.id]
+    end
+
+    test "neither sends a card the other holds, even when it is the only one", ctx do
+      only = card_fixture(ctx.todo, %{"title" => "only"})
+      loop = feed_rule(ctx.board)
+      other = spare_rule(ctx.board)
+
+      assert queued_cards(loop) == [only.id]
+      assert jobs(other) == []
+      assert {:idle, :empty} = Automations.feed(other)
+      assert Automations.next_card(other, force: true) == nil
+    end
+
+    test "a job no rule queued holds its card until it ends", ctx do
+      [held, free] = for t <- ~w(held free), do: card_fixture(ctx.todo, %{"title" => t})
+      {:ok, job} = Runners.queue(held, %{pool: "loop", kind: "claude", prompt: "by hand"})
+
+      rule = feed_rule(ctx.board)
+      assert queued_cards(rule) == [free.id]
+      # Both are held now: one by hand, one by the rule's own job.
+      assert Automations.next_card(rule, force: true) == nil
+
+      # Once the hand-queued job is over, the card is the rule's to send.
+      {:ok, _} = Runners.cancel_job(job)
+      assert %Card{id: id} = Automations.next_card(rule, force: true)
+      assert id == held.id
+    end
+  end
+
   describe "making one" do
     test "the preset makes a list_top rule that skips assigned cards", ctx do
       preset = Presets.get("feed_runner")
