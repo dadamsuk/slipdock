@@ -166,9 +166,11 @@ defmodule SlipdockCLI.Runners do
   end
 
   def run("job", [id], o) do
-    if o[:follow],
-      do: run("job-log", [id], o),
-      else: HTTP.get("/jobs/#{enc(id)}") |> out(o, &Render.job(&1["job"]))
+    cond do
+      o[:keep_log] -> keep_log(id, o)
+      o[:follow] -> run("job-log", [id], o)
+      true -> HTTP.get("/jobs/#{enc(id)}") |> out(o, &Render.job(&1["job"]))
+    end
   end
 
   # A job's live log (#1871), one line per message, tool call or result.
@@ -371,5 +373,13 @@ defmodule SlipdockCLI.Runners do
         Process.sleep(every)
         follow_log(id, next, o, every)
     end
+  end
+
+  # Keep this log (#1872): the ended job's log as a page in the card's folder.
+  defp keep_log(id, o) do
+    HTTP.post("/jobs/#{enc(id)}/keep", %{})
+    |> out(o, fn %{"page" => p} ->
+      IO.puts("kept job ##{id}'s log as #{p["code"]} #{p["title"]}  #{p["url"] || ""}")
+    end)
   end
 end

@@ -2,7 +2,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   @moduledoc """
   Changes a board's settings, as `PATCH /api/boards/:board` does, for the
   ones an agent is asked to set (#1620): its name, description, colour,
-  simple mode, default view, handoff label, and the Verified work switches.
+  simple mode, default view, handoff label, the Verified work switches, and
+  how long runner job logs stay (#1872).
   Only the board's owner may.
   """
   @behaviour SlipdockWeb.MCP.Tool
@@ -12,7 +13,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   alias SlipdockWeb.MCP.{Args, Tools}
 
   @fields ~w(name description color simple default_view handoff_label bar_required
-             evidence_required verify_work verify_pool lanes ship_via)
+             evidence_required verify_work verify_pool lanes ship_via job_log_hours
+             failure_log_hours)
 
   @impl true
   def name, do: "update_board"
@@ -24,8 +26,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def description,
     do:
       "Changes settings on a board you own: name, description, color, simple, default_view, " <>
-        "handoff_label, Verified work's bar_required, evidence_required, verify_work, " <>
-        "verify_pool and ship_via, and lanes. Only what you send changes."
+        "handoff_label, bar_required, evidence_required, verify_work, verify_pool, ship_via, " <>
+        "lanes, job_log_hours, failure_log_hours. Only what you send changes."
 
   @impl true
   def input_schema do
@@ -51,6 +53,14 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
         lanes: %{
           type: "boolean",
           description: "Refuse agents starting cards whose paths overlap."
+        },
+        job_log_hours: %{
+          type: "integer",
+          description: "Hours a finished runner job's log stays (24 by default)."
+        },
+        failure_log_hours: %{
+          type: "integer",
+          description: "Hours a failed, stuck or rejected job's log stays (168 by default)."
         }
       },
       required: ["board"],

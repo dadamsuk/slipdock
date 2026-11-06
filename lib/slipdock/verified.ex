@@ -773,6 +773,8 @@ defmodule Slipdock.Verified do
              verify_changes: changes
            ) do
       by = who(actor, user)
+      # The rejected work's log, and the verifier's, keep the failure time (#1872).
+      Slipdock.Runners.TranscriptRetention.card_failed(card)
       comment(card, "**Rejected** by #{by}.", with_parts(reason, checks), user)
       Slipdock.Findings.Signals.rejected(card, reason, checks, actor)
       if over, do: ask_a_person(card, count, limit, actor, user)
@@ -1253,6 +1255,7 @@ defmodule Slipdock.Verified do
              actor: actor,
              verify_changes: changes
            ) do
+      Slipdock.Runners.TranscriptRetention.card_failed(card)
       comment(card, merge_failed_line(card, said), reason, nil)
       Slipdock.Findings.Signals.merge_failed(card, job, said)
 

@@ -2329,6 +2329,27 @@ defmodule SlipdockCLI.Render do
     table(["JOB", "STATUS", "CARD", "STEP", "POOL/KIND", "RUNNER", "WHEN"], rows)
   end
 
+  # What becomes of a job's live log (#1872): kept as a page, deleted, or
+  # when it goes.
+  defp job_log_fate(j) do
+    cond do
+      j["transcript_page_id"] ->
+        IO.puts("log:      kept as page ##{j["transcript_page_id"]}")
+
+      j["transcript_deleted_at"] ->
+        IO.puts("log:      deleted #{stamp(j["transcript_deleted_at"])}")
+
+      j["transcript_expires_at"] ->
+        IO.puts(
+          "log:      #{j["transcript_lines"]} lines, deleted #{stamp(j["transcript_expires_at"])} " <>
+            "unless kept (slipdock job #{j["id"]} --keep)"
+        )
+
+      true ->
+        :ok
+    end
+  end
+
   def job(j) do
     IO.puts("job ##{j["id"]}  #{job_status(j)}  card ##{j["card_id"]}  #{j["pool"]}/#{j["kind"]}")
     if j["runner"], do: IO.puts("runner:   #{j["runner"]} (attempt #{j["attempts"]})")
@@ -2337,6 +2358,7 @@ defmodule SlipdockCLI.Render do
     if j["step"], do: IO.puts("step:     #{j["step"]} (#{stamp(j["step_at"])})")
     IO.puts("queued:   #{stamp(j["queued_at"])}")
     if j["finished_at"], do: IO.puts("finished: #{stamp(j["finished_at"])}")
+    job_log_fate(j)
     IO.puts("\nprompt:\n" <> indent(j["prompt"] || ""))
 
     case j["output"] || j["log_tail"] do

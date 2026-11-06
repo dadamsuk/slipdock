@@ -81,6 +81,24 @@ defmodule Slipdock.HealthTest do
       refute "stuck" in card!(card).flags
     end
 
+    test "flagging a card stuck moves its job's log to the failure time (#1872)", %{
+      board: board,
+      card: card
+    } do
+      {:ok, runner, _} = Slipdock.Runners.create_runner(board, %{"name" => "box", "pool" => "hp"})
+      {:ok, _} = Slipdock.Runners.queue(card, %{pool: "hp", kind: "claude", prompt: "go"})
+      job = Slipdock.Runners.claim(runner)
+      {:ok, _} = Slipdock.Runners.finish(runner, job.id, %{exit: "0"})
+      Process.put(:probe_findings, [finding(card)])
+
+      # No fix to try, so the first run flags it.
+      assert {:ok, %{"flagged" => 1}} = run(board)
+      assert "stuck" in card!(card).flags
+      job = Repo.get!(Slipdock.Runners.Job, job.id)
+      assert job.transcript_failed_at
+      assert Slipdock.Runners.TranscriptRetention.failure?(job)
+    end
+
     test "a fix that is only tried is tried up to max_attempts, then flagged", %{
       board: board,
       card: card

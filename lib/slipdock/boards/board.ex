@@ -80,6 +80,11 @@ defmodule Slipdock.Boards.Board do
     # drags only ever see the badge.
     field :automation_wip, :boolean, default: false
 
+    # How long a finished runner job's live log stays, in hours, and how long
+    # one that failed does (#1872). Read from the top board of the job.
+    field :job_log_hours, :integer, default: 24
+    field :failure_log_hours, :integer, default: 168
+
     # What the board calls a card's handoff where people read it, and what
     # the AI is told when it drafts one (#1212). nil is "Left off" and
     # `Slipdock.AI.HandoffDrafter.default_instructions/0`; see
@@ -516,6 +521,8 @@ defmodule Slipdock.Boards.Board do
       :incident_tag,
       :hotfix_window_hours,
       :automation_wip,
+      :job_log_hours,
+      :failure_log_hours,
       :handoff_label,
       :handoff_prompt,
       :bar_required,
@@ -539,6 +546,16 @@ defmodule Slipdock.Boards.Board do
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 50,
       message: "must be 0 (no limit) to 50"
+    )
+    |> validate_number(:job_log_hours,
+      greater_than_or_equal_to: 1,
+      less_than_or_equal_to: 8760,
+      message: "must be 1 hour to 8760 (a year)"
+    )
+    |> validate_number(:failure_log_hours,
+      greater_than_or_equal_to: 1,
+      less_than_or_equal_to: 8760,
+      message: "must be 1 hour to 8760 (a year)"
     )
     |> validate_number(:verify_audit,
       greater_than_or_equal_to: 0,

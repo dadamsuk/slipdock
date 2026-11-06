@@ -397,6 +397,9 @@ defmodule Slipdock.Health do
             unless "stuck" in card.flags,
               do: Boards.update_card(card, %{"flags" => card.flags ++ ["stuck"]})
 
+            # Its job's log keeps the failure time from now (#1872).
+            Slipdock.Runners.TranscriptRetention.card_failed(card, verify: false)
+
             Boards.add_comment(Repo.get!(Card, card.id), Enum.join(body, "\n"))
           end)
 

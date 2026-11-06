@@ -755,6 +755,35 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 </span>
               </label>
             </div>
+            <%!-- How long runner job logs stay (#1872). Set on the top
+                board: a sub-board's jobs follow it. --%>
+            <div :if={is_nil(@board.root_id)} id="board-job-logs" class="space-y-1">
+              <span class="text-sm font-medium">Runner job logs</span>
+              <p class="text-xs text-base-content/50">
+                A job's live log is deleted this long after the job ends, unless someone keeps it
+                as a page. Failed, cancelled, stuck or rejected work keeps the second time.
+              </p>
+              <div class="settings-pair">
+                <.input
+                  field={@form[:job_log_hours]}
+                  id="board-job-log-hours"
+                  type="number"
+                  min="1"
+                  max="8760"
+                  label="Keep job logs for (hours)"
+                  class="input field w-24"
+                />
+                <.input
+                  field={@form[:failure_log_hours]}
+                  id="board-failure-log-hours"
+                  type="number"
+                  min="1"
+                  max="8760"
+                  label="Keep failure logs for (hours)"
+                  class="input field w-24"
+                />
+              </div>
+            </div>
             <%!-- Verified work (#1620): optional checks on what agents say
                 they finished. Every switch is off by default. --%>
             <div id="board-verified-work" class="space-y-1">

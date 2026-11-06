@@ -4,6 +4,7 @@ defmodule SlipdockWeb.JobLogLiveTest do
   # or result, updated as the runner sends more, without a reload.
   use SlipdockWeb.ConnCase, async: true
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -133,5 +134,121 @@ defmodule SlipdockWeb.JobLogLiveTest do
     {:ok, 2} = Transcript.append(ctx.runner, ctx.job.id, 0, @first)
     render(view)
     assert lines(view, id) =~ "Bash: slipdock card 4"
+  end
+
+  describe "what becomes of the log (#1872)" do
+    defp ended(ctx, status \\ "done") do
+      Runners.claim(ctx.runner)
+      {:ok, 2} = Transcript.append(ctx.runner, ctx.job.id, 0, @first)
+      exit = if status == "done", do: "0", else: "1"
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job.id, %{exit: exit, status: status})
+      Slipdock.Repo.get!(Slipdock.Runners.Job, ctx.job.id)
+    end
+
+    test "an ended job says when its log goes, and Keep this log keeps it", ctx do
+      job = ended(ctx)
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+      id = JobLogComponent.id("card", job.id)
+
+      assert has_element?(view, "##{id}-expires", "unless kept")
+      refute has_element?(view, "##{id}-expires", "the work failed")
+      expires = Slipdock.Runners.TranscriptRetention.expires_at(job)
+
+      assert has_element?(
+               view,
+               ~s(##{id}-expires time[datetime="#{DateTime.to_iso8601(expires)}"])
+             )
+
+      view |> element("##{id}-keep") |> render_click()
+
+      job = Slipdock.Repo.get!(Slipdock.Runners.Job, job.id)
+      page = Slipdock.Wiki.get_page(job.transcript_page_id)
+      assert page.title =~ "Pass #{ctx.card.id} ("
+
+      assert has_element?(
+               view,
+               ~s(##{id}-kept a[href="/boards/#{page.board_id}/wiki/#{page.slug}"])
+             )
+
+      assert has_element?(view, "##{id}-kept", page.title)
+      refute has_element?(view, "##{id}-keep")
+      refute has_element?(view, "##{id}-expires")
+      # The card's Docs list it without a reload.
+      assert has_element?(view, "#card-docs", page.title)
+    end
+
+    test "a failure keeps longer, and says so", ctx do
+      ended(ctx, "failed")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+      id = JobLogComponent.id("card", ctx.job.id)
+      assert has_element?(view, "##{id}-expires", "kept longer: the work failed")
+    end
+
+    test "a deleted log says when it went, with nothing to keep", ctx do
+      job = ended(ctx)
+
+      Slipdock.Repo.update_all(
+        from(j in Slipdock.Runners.Job, where: j.id == ^job.id),
+        set: [finished_at: ~U[2020-01-01 00:00:00Z]]
+      )
+
+      1 = Slipdock.Runners.TranscriptRetention.sweep()
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+      id = JobLogComponent.id("card", job.id)
+      assert has_element?(view, "##{id}-deleted", "Log deleted")
+      refute has_element?(view, "##{id}-keep")
+      refute has_element?(view, "##{id}-expires")
+    end
+
+    test "someone who can only read the card sees when it goes, but no Keep", ctx do
+      ended(ctx)
+      reader = user_fixture("reader#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [reader], "read")
+
+      {:ok, view, _} =
+        live(log_in_user(build_conn(), reader), ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+
+      id = JobLogComponent.id("card", ctx.job.id)
+      assert has_element?(view, "##{id}-expires")
+      refute has_element?(view, "##{id}-keep")
+    end
+
+    test "a keep that fails says why in the panel", ctx do
+      job = ended(ctx)
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+      id = JobLogComponent.id("card", job.id)
+
+      # The log goes between the page drawing and the click.
+      Slipdock.Repo.update_all(
+        from(j in Slipdock.Runners.Job, where: j.id == ^job.id),
+        set: [finished_at: ~U[2020-01-01 00:00:00Z]]
+      )
+
+      Slipdock.Runners.TranscriptRetention.sweep()
+      view |> element("##{id}-keep") |> render_click()
+      assert has_element?(view, "##{id}-keep-error", "no log to keep")
+    end
+  end
+
+  describe "the board's job log times (#1872)" do
+    test "are set in the board's settings", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+      assert has_element?(view, "#board-job-logs #board-job-log-hours[value=\"24\"]")
+      assert has_element?(view, "#board-job-logs #board-failure-log-hours[value=\"168\"]")
+
+      view
+      |> form("#board-form", %{"board" => %{"job_log_hours" => "6", "failure_log_hours" => "72"}})
+      |> render_submit()
+
+      board = Slipdock.Boards.get_board!(ctx.board.id)
+      assert {board.job_log_hours, board.failure_log_hours} == {6, 72}
+    end
+
+    test "a sub-board follows its top board, so offers neither", ctx do
+      {:ok, t} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(ctx.card, t)
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{sub}/settings")
+      refute has_element?(view, "#board-job-logs")
+    end
   end
 end

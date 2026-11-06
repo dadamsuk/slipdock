@@ -3,8 +3,8 @@
 # a throwaway server and runs a real `claude -p` on it, sending its
 # transcript every few seconds; Chromium watches the card's job panel fill
 # in without a reload, opens a tool call to its whole input, and sees the
-# log fold once the job has ended. Then `slipdock job --follow`'s endpoint
-# reads the same lines.
+# log stop updating once the job has ended, then says when the log will be
+# deleted and keeps it with Keep this log (#1872).
 #
 #   tools/e2e/job-log.sh
 #
@@ -63,5 +63,8 @@ mix run -e '
   unless job.status == "done", do: raise("the job ended #{job.status}")
   unless Enum.any?(entries, &(&1.kind == :tool and &1.text =~ "sleep 6")), do: raise("no tool call in the log")
   if job |> Transcript.read() |> String.contains?("'"$TOKEN"'"), do: raise("the runner token is in the log")
-  IO.puts("ok: the server holds #{job.transcript_lines} lines, #{length(entries)} entries, no token")
+  page = job.transcript_page_id && Slipdock.Wiki.get_page(job.transcript_page_id)
+  unless page && page.body =~ "Pass on #", do: raise("the kept page is missing or not a pass log")
+  unless is_nil(Slipdock.Runners.TranscriptRetention.expires_at(job)), do: raise("a kept log still expires")
+  IO.puts("ok: the server holds #{job.transcript_lines} lines, #{length(entries)} entries, no token; kept as #{page.code}")
 '
