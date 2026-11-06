@@ -624,7 +624,10 @@ builder runs the same checks before submitting. The verdict is kept in parts on 
 (`verify_checks`: the ask, each bar item, the suite, each rule and the
 Handbook line), given as `checks` to `verify_card` or `POST
 /api/cards/:id/verify`, or `slipdock verify … --check bar:2=fail:why`
-(repeated, or `--checks-file`). A rejection names at least one failing part;
+(repeated, or `--checks-file`). A rule broken only in lines the diff didn't
+change is `rule:<id>=pre-existing:<file>:<line>`: never a rejection, kept as a
+`rule` finding on the card (source `verification`), and shown apart from passed
+and failed parts. A rejection names at least one failing part;
 an acceptance with a broken `must` rule (or any other failing part) is
 refused. The card panel and `slipdock card` list the parts under
 Verification; a later decision replaces them, and each decision's comment
@@ -638,7 +641,9 @@ nothing. The builder's resubmission evidence names the rejected commit and
 what changed since. A board's `verify_rejection_limit` (2 by default, 0 never;
 `slipdock set-board --verify-rejection-limit`) sends the rejection after that
 many to a person: a wait on the board's owner, *Rework as rejected* or
-*Accept as is*, with the card flagged `waiting` so runners pass it over. An
+*Accept as is*, with the card flagged `waiting` so runners pass it over. The
+wait lists the parts that failed in each rejection and asks whether the
+approach, not the fix, is wrong. An
 agent never answers it. A board's `verify_audit` (1 in N; 0, the default,
 none; `slipdock set-board --verify-audit N`) checks the checker: about one card
 in N that an agent accepted is queued to the verify pool again as an audit, a

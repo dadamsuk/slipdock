@@ -766,6 +766,7 @@ defmodule Slipdock.Verified do
                  user
                ) do
           cancel_verify_jobs(card, actor)
+          Slipdock.Findings.Signals.pre_existing(card, checks, actor)
           decided
         end
     end
@@ -847,7 +848,8 @@ defmodule Slipdock.Verified do
         {:error, :unprocessable_entity,
          "a rejection names what fails: give a failing check (`--check bar:2=fail:why`, " <>
            "`rule:UX-4=broken`, `ask=misses`, `handbook_line=disputed`), or start the reason " <>
-           "with the one it fails (`bar 2: …`, `the ask: …`, `UX-4: …`, `Handbook line: …`)"},
+           "with the one it fails (`bar 2: …`, `the ask: …`, `UX-4: …`, `Handbook line: …`)" <>
+           pre_existing_note(checks)},
       else: :ok
   end
 
@@ -865,6 +867,15 @@ defmodule Slipdock.Verified do
   end
 
   defp verdict_holds(_decision, _checks, _must_fail), do: :ok
+
+  # A rejection naming only pre-existing rule hits (#1945) is told why.
+  defp pre_existing_note(checks) do
+    if Slipdock.Verified.Checks.pre_existing(checks) == [],
+      do: "",
+      else:
+        ". A rule broken only in code the change didn't touch (`pre-existing`) is never a " <>
+          "rejection: accept, and it is kept as a finding"
+  end
 
   # nil when there are no parts; parts read from the reason are marked, as
   # the comment already says them.
@@ -989,26 +1000,27 @@ defmodule Slipdock.Verified do
   # The rejection over the limit: the reasons so far as a comment, then a
   # wait on the board's owner to rework the card as rejected or accept it.
   defp ask_a_person(card, count, limit, actor, user) do
+    rejections = rejection_comments(card)
+
     reasons =
-      card
-      |> rejection_reasons()
+      rejections
       |> Enum.with_index(1)
-      |> Enum.map_join("\n", fn {r, n} -> "#{n}. #{r}" end)
+      |> Enum.map_join("\n", fn {{reason, failed}, n} ->
+        "#{n}. #{reason}" <>
+          if(failed == [], do: "", else: " (failed: #{Enum.join(failed, ", ")})")
+      end)
 
     comment(
       card,
       "**Rejected #{count} times**, past the board's limit of #{limit}: a person decides now.",
-      "The reasons so far:\n\n" <> reasons,
+      "The reasons so far:\n\n" <> reasons <> "\n\n" <> approach_line(rejections),
       user
     )
 
     owner = card |> board() |> Slipdock.Handbook.root() |> Map.get(:owner_id)
 
     case Slipdock.Boards.open_wait(card, actor, %{
-           needs:
-             "Card ##{card.id} was rejected #{count} times (the board allows #{limit}). " <>
-               "Rework it as rejected, or accept it as is? The reasons are in the comments; " <>
-               "you can edit the bar before you answer.",
+           needs: limit_question(card, count, limit, rejections),
            choices: [@rework_choice, @accept_choice],
            on_user_id: owner,
            purpose: @limit_purpose
@@ -1030,7 +1042,11 @@ defmodule Slipdock.Verified do
   defp inspect_error(why), do: inspect(why)
 
   # Each rejection's reason, oldest first, from the cards' own comments.
-  defp rejection_reasons(%Card{id: id}) do
+  defp rejection_reasons(card), do: card |> rejection_comments() |> Enum.map(&elem(&1, 0))
+
+  # Each rejection, oldest first, as `{reason, failing parts}`: the parts
+  # from its comment's `Checks:` block, else the ones its reason cites.
+  defp rejection_comments(%Card{id: id}) do
     from(c in Slipdock.Boards.Comment,
       where: c.card_id == ^id and like(c.body, "**Rejected** by%"),
       order_by: [asc: c.id],
@@ -1038,14 +1054,76 @@ defmodule Slipdock.Verified do
     )
     |> Repo.all()
     |> Enum.map(fn body ->
-      body
-      |> String.split("\n\n", parts: 2)
-      |> Enum.at(1, "(no reason given)")
-      |> String.split("\n\nChecks:", parts: 2)
-      |> hd()
-      |> String.replace(~r/\s+/, " ")
-      |> String.slice(0, 400)
+      [reason | checks] =
+        body
+        |> String.split("\n\n", parts: 2)
+        |> Enum.at(1, "(no reason given)")
+        |> String.split("\n\nChecks:", parts: 2)
+
+      failed =
+        case checks do
+          [lines] ->
+            failing_labels(lines)
+
+          [] ->
+            reason |> Slipdock.Verified.Checks.from_reason() |> Slipdock.Verified.Checks.failing()
+        end
+
+      {reason |> String.replace(~r/\s+/, " ") |> String.slice(0, 400), failed}
     end)
+  end
+
+  # The failing parts of a decision comment's `Checks:` lines
+  # (`- bar 2: fail — why`), by label.
+  defp failing_labels(lines) do
+    for line <- String.split(lines, "\n"),
+        [_, label, result] <- [Regex.run(~r/^\s*-\s+(.+?):\s+(.+?)(?:\s+—\s.*)?\s*$/u, line)],
+        Slipdock.Verified.Checks.failing_result?(result),
+        do: label |> String.replace(~r/ (must|should)$/, "")
+  end
+
+  # Past the rejection limit (#1945): the round cap's question. The parts
+  # that failed each time, and that the approach, not the fix, may be wrong.
+  defp approach_line(rejections) do
+    again =
+      rejections
+      |> Enum.flat_map(&elem(&1, 1))
+      |> Enum.frequencies()
+      |> Enum.filter(fn {_, n} -> n > 1 end)
+      |> Enum.map(&elem(&1, 0))
+
+    lead =
+      if again == [],
+        do: "Each round failed on something else.",
+        else: "#{Enum.join(again, ", ")} failed more than once."
+
+    lead <>
+      " The approach may be wrong, not the fix: before another round of fixes, " <>
+      "decide whether the card needs a different approach, a reworded bar, or accepting as is."
+  end
+
+  @limit_needs_cap 990
+  defp limit_question(card, count, limit, rejections) do
+    rounds =
+      rejections
+      |> Enum.with_index(1)
+      |> Enum.map_join("; ", fn {{_, failed}, n} ->
+        "#{n}. " <> if(failed == [], do: "(no part named)", else: Enum.join(failed, ", "))
+      end)
+
+    head = "Card ##{card.id} was rejected #{count} times (the board allows #{limit}). "
+
+    tail =
+      " The approach may be wrong, not the fix: rework it as rejected (rewording the bar or " <>
+        "the card first if the approach should change), or accept it as is? The reasons are " <>
+        "in the comments; you can edit the bar before you answer."
+
+    room = @limit_needs_cap - String.length(head) - String.length(tail) - 30
+
+    rounds =
+      if String.length(rounds) > room, do: String.slice(rounds, 0, room) <> "…", else: rounds
+
+    head <> "Failed each time: " <> rounds <> "." <> tail
   end
 
   @doc """
@@ -1658,7 +1736,7 @@ defmodule Slipdock.Verified do
     #{decide}. Say once whether you agree, and report it as a step first (`deciding: agree` or `deciding: disagree`):
        - `slipdock verify #{card.id} agree --reason "what you checked" --check ask=ok --check bar:1=ok …`
        - `slipdock verify #{card.id} disagree --reason "where the verdict is wrong, specifically" --check bar:2=fail:"why" …`
-    Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a`, `handbook_line=ok|disputed`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
+    Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
     """
   end
 
@@ -1915,7 +1993,7 @@ defmodule Slipdock.Verified do
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
        - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically" --check bar:2=fail:"why" …`
-    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a`, `handbook_line=ok|disputed`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
+    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
     A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
     """
   end
@@ -2070,11 +2148,22 @@ defmodule Slipdock.Verified do
 
   defp rules_judging(true),
     do:
-      "Judge every rule it lists, `should` rules as well as `must`: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. Name each one you find broken by its id (`ARCH-3: …`)."
+      "Judge every rule it lists, `should` rules as well as `must`: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. Name each one you find broken by its id (`ARCH-3: …`). " <>
+        pre_existing_sentence()
 
   defp rules_judging(_),
     do:
-      "Judge every `must` rule it lists: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. A broken `must` is a rejection citing its id (`ARCH-3: …`). List any `should` rule missed in the accept reason, each as a finding in a `Findings:` block there (`- rule: ARCH-6 missed: <how>`), so the board keeps it."
+      "Judge every `must` rule it lists: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. A broken `must` is a rejection citing its id (`ARCH-3: …`). List any `should` rule missed in the accept reason, each as a finding in a `Findings:` block there (`- rule: ARCH-6 missed: <how>`), so the board keeps it. " <>
+        pre_existing_sentence()
+
+  @doc """
+  What the verify and audit prompts say about a rule broken only in code
+  the change didn't touch (#1945): report it as `pre-existing`, never
+  reject for it.
+  """
+  def pre_existing_sentence,
+    do:
+      "A rule broken only in lines the diff didn't change is not the builder's: give it as `--check rule:<id>=pre-existing:<file>:<line>` (where it is broken), never as `broken` and never as a reason to reject. It is kept as a `rule` finding on the card, and an acceptance may carry it. A hit that is in lines the diff added or changed is `broken` as usual."
 
   defp cite_list(nil), do: "the bar item (`bar 2: …`) or the ask (`the ask: …`)"
 

@@ -11,6 +11,8 @@ defmodule Slipdock.Findings.Signals do
     * a **lane** refuses an agent's move (`lane_refused/3`)
     * a **merge** job fails (`merge_failed/3`)
     * an **audit** disagrees (`audit_disagreed/3`)
+    * a verdict reports a rule broken in code the change didn't touch
+      (`pre_existing/3`, source `verification`: it isn't a rejection)
     * the **health** monitor flags an incident (`health_flagged/3`)
 
   Each records its source, card and job; a repeat on the same card and cause
@@ -118,6 +120,34 @@ defmodule Slipdock.Findings.Signals do
       text: "Runner job ##{job.id} left the card in progress after its retries: flagged blocked.",
       job_id: job.id
     })
+  end
+
+  @doc """
+  A verdict on `card` (`checks`, in the stored shape) reported rules broken
+  only in code the change didn't touch (#1945): one `rule` finding for each
+  such part, source `verification`, its cause naming the rule and the place,
+  so a part reported again (the next round, or another card) is counted
+  rather than kept twice.
+  """
+  def pre_existing(%Card{} = card, checks, actor) do
+    checks
+    |> Slipdock.Verified.Checks.pre_existing()
+    |> Enum.uniq_by(&{&1["id"], &1["file"], &1["line"]})
+    |> Enum.each(fn r ->
+      place = "#{r["file"]}:#{r["line"]}"
+
+      record(%{
+        card: card,
+        source: "verification",
+        kind: "rule",
+        cause: "pre-existing #{r["id"]} #{place}",
+        text:
+          "#{r["id"]} is broken in code the change didn't touch, at #{place}" <>
+            if(r["note"], do: ": #{r["note"]}", else: "") <>
+            " (reported by the verifier, not a rejection).",
+        job_id: job_id(actor)
+      })
+    end)
   end
 
   @doc "A lane refused an agent moving `card`, or changing its paths, because of `other`."

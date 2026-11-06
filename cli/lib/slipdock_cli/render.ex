@@ -2799,7 +2799,7 @@ defmodule SlipdockCLI.Render do
        suite_part(checks["suite"]) ++
        for(
          r <- checks["rules"] || [],
-         do: {rule_part(r), r["result"], carried_note(r["note"], r["carried_from"])}
+         do: {rule_part(r), r["result"], r |> rule_note() |> carried_note(r["carried_from"])}
        ) ++
        check_part(
          "Handbook line",
@@ -2833,8 +2833,22 @@ defmodule SlipdockCLI.Render do
 
   defp rule_part(r), do: [r["id"], r["severity"]] |> Enum.reject(&is_nil/1) |> Enum.join(" ")
 
+  # A pre-existing rule hit (#1945) leads with where it is broken.
+  defp rule_note(%{"result" => "pre-existing", "file" => file} = r) do
+    place = "#{file}:#{r["line"]}"
+    if r["note"], do: place <> "; " <> r["note"], else: place
+  end
+
+  defp rule_note(r), do: r["note"]
+
   defp check_line({label, result, note}) do
-    mark = if Enum.member?(~w(misses fail broken disputed), result), do: "✗", else: "✓"
+    mark =
+      cond do
+        result == "pre-existing" -> "○"
+        Enum.member?(~w(misses fail broken disputed), result) -> "✗"
+        true -> "✓"
+      end
+
     shown = if Enum.member?(~w(ok fail), result), do: "", else: " " <> result
     mark <> " " <> label <> shown <> if(note, do: ": " <> note, else: "")
   end
