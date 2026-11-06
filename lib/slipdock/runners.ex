@@ -36,6 +36,7 @@ defmodule Slipdock.Runners do
   @max_log 8_000
   # The longest progress message a job keeps (#1668).
   @max_step 300
+  @max_steps 200
   # A burst of rules must not fill the queue faster than anybody can read it.
   @queue_per_minute 60
   @max_open_per_tree 200
@@ -1255,7 +1256,12 @@ defmodule Slipdock.Runners do
           changes =
             [lease_expires_at: DateTime.add(now, lease_for(runner)), updated_at: now]
             |> then(&if(log in [nil, ""], do: &1, else: [{:log_tail, tail(log)} | &1]))
-            |> then(&if(is_nil(step), do: &1, else: [step: step, step_at: now] ++ &1))
+            |> then(
+              &if(is_nil(step),
+                do: &1,
+                else: [step: step, step_at: now, steps: add_step(job.steps, step, now)] ++ &1
+              )
+            )
             |> then(
               &if(job.status == "claimed",
                 do: [status: "running", started_at: now] ++ &1,
@@ -1465,6 +1471,13 @@ defmodule Slipdock.Runners do
   # A job is only ever reported on by the runner holding it. Anybody else's —
   # another tree's, or one handed to another runner after a lease ran out — is
   # not there as far as this runner is concerned.
+  # The job's step history (#1875), oldest first, the newest
+  # #{@max_steps} kept.
+  defp add_step(steps, text, now),
+    do:
+      ((steps || []) ++ [%{"text" => text, "at" => DateTime.to_iso8601(now)}])
+      |> Enum.take(-@max_steps)
+
   defp step_text(step) when is_binary(step) do
     case String.trim(step) do
       "" -> nil

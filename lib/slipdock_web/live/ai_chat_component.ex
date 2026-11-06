@@ -123,7 +123,8 @@ defmodule SlipdockWeb.AIChatComponent do
 
             if mode == "edit",
               do: {:edit, Assistant.propose(context, history, text, user: user)},
-              else: {:chat, Assistant.chat(context, history, text, user: user)}
+              else:
+                {:chat, Assistant.chat(context, history, text, user: user, card: source[:card])}
           end)
 
         {:noreply, socket}

@@ -70,6 +70,9 @@ defmodule Slipdock.Runners.Job do
     # never posted on the card.
     field :step, :string
     field :step_at, :utc_datetime
+    # Every step reported, oldest first (#1875): `%{"text" => …, "at" =>
+    # ISO 8601}` maps, the newest 200 kept. Read by the card chat.
+    field :steps, {:array, :map}, default: []
     # Its live log (#1870): the agent's transcript, sent by the runner as it
     # goes and kept in chunks (see `Slipdock.Runners.Transcript`). Lines are
     # the runner's count, so a resend is trimmed; capped once the whole-log

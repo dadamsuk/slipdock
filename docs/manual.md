@@ -3288,6 +3288,29 @@ is ever sent to a model unless you ask.
   its own *Ask AI about this card* section at the foot of its modal.
   *Open card 123* (or *show card id 123*, *go to #123*) opens that card,
   on any board you can open, without asking the model at all.
+- **Ask a card how its work went** — with a card open, the chat also has
+  tools over the server's record of that card and every card beneath it,
+  so it can answer *why did CI fail?*, *how many times was it verified?*,
+  *what is the runner doing on this epic?*:
+  - `read_card`, `card_comments` (every comment, a page at a time),
+    `card_handoffs`, `card_links` and `card_subcards`;
+  - `card_jobs` and `read_job`: each runner job's kind, pool, runner,
+    status, when it was queued, claimed, started and finished, every step
+    its agent reported (`job-progress --step`) with its time, its exit
+    status, error and summary, and its prompt on request;
+  - `card_timeline`: the lists it sat in and for how long, each wait with
+    its question and answer, and its activity log (flags, snoozes, edits);
+  - `card_verification`: the bar, the evidence, each verdict and rejection
+    with its reason, audits, the verify and merge jobs, the merge commit,
+    and the deploys that shipped it where the board records deploys.
+
+  They run as you: a card you can't open isn't read, and a card outside
+  the open card's tree is refused. The answer names the jobs and comments
+  it used (*job #712*, *comment #4410*) and says plainly what the record
+  doesn't hold, such as a CI log beyond what the evidence recorded. Steps
+  are kept for every job since this release; an older job shows only its
+  last one. Ask in the open card's *Ask AI about this card* section, or in
+  the drawer with the card open.
 - **Edit mode** — the *Edit* toggle in the drawer (for people who can
   write) turns a request into a list of concrete changes: set or clear
   dates, priority, assignee, flags and tags, the cover colour and the
@@ -3318,7 +3341,8 @@ is ever sent to a model unless you ask.
 The code lives in `Slipdock.AI` (the client, and which endpoint, key and model
 each request resolves to), `Slipdock.AI.Context`
 (what the model is told), `Slipdock.AI.Assistant` and `Slipdock.AI.Actions`
-(chat, proposals and applying them), `Slipdock.AI.Narrator` (the generator),
+(chat, proposals and applying them), `Slipdock.AI.CardRecord` (the card
+chat's tools over a card's record), `Slipdock.AI.Narrator` (the generator),
 `Slipdock.AI.Researcher` (the tool-calling assistant behind *Ask*, with
 `Slipdock.Work` for one person's cards across every board) and the
 `SlipdockWeb.AIChatComponent` / `SlipdockWeb.NarrativeGeneratorComponent`

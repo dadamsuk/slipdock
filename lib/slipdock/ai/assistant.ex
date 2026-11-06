@@ -10,7 +10,10 @@ defmodule Slipdock.AI.Assistant do
   message.
   """
 
+  require Logger
+
   alias Slipdock.AI
+  alias Slipdock.AI.CardRecord
 
   @history_limit 12
 
@@ -57,14 +60,119 @@ defmodule Slipdock.AI.Assistant do
   - If the user is just asking a question, answer it in "reply" and return "actions": [].
   """
 
-  @doc "Answers a question about the page. Returns `{:ok, markdown}` or `{:error, message}`."
-  def chat(context, history, message, opts \\ []) do
-    messages =
-      [%{role: "system", content: @chat_prompt <> "\n\n---\n\n" <> context}] ++
-        recent(history) ++ [%{role: "user", content: message}]
+  # Said besides the chat prompt when a card is open and the chat has the
+  # tools over its record (#1875).
+  @record_prompt """
+  A card is open, and you have tools that read the server's record of it and of every card beneath it (its subcards, and theirs): `read_card`, `card_comments` (every comment, a page at a time; the page above shows only the recent ones), `card_handoffs`, `card_links`, `card_subcards`, `card_jobs` (each runner job sent on it: kind, pool, runner, status, times, the steps its agent reported, exit status and summary), `read_job` (one job in full, its prompt on request), `card_timeline` (the lists it sat in and for how long, waits and their answers, its activity log) and `card_verification` (the bar, the evidence, each verdict and rejection with its reason, audits, the merge and the deploys). Each takes a `card_id`: the open card's when left out, or a subcard's.
 
-    AI.complete(messages, Keyword.merge([max_tokens: 1200], opts))
+  Questions about how the work went — how long it took and where the time went, why it was rejected or failed, what a runner did, whether it merged or shipped, what is happening on it now — are answered from those tools. Use them before saying you can't see something: the page above is only the card as it stands. Call several at once when the question needs them.
+
+  In the answer, name what you relied on, by its id: the jobs (job #712), the comments (comment #4410), the waits, the wiki pages. Here you may give card ids (#1856) as well as titles. Quote times and durations as the tools give them; don't work out sums the tools didn't give you, and say that a figure is yours when you must. Say plainly when the record doesn't hold the answer — the CI log beyond what the evidence recorded, what an agent did between the steps it reported, anything on the runner's machine — rather than guessing at it.
+  """
+
+  @max_rounds 8
+  @empty_retries 2
+
+  @doc """
+  Answers a question about the page. Returns `{:ok, markdown}` or `{:error, message}`.
+
+  With `opts[:card]` (the open card) and `opts[:user]` (who is asking), the
+  model is also given `Slipdock.AI.CardRecord`'s tools over that card's
+  record, run as that user, for at most #{@max_rounds} rounds.
+  """
+  def chat(context, history, message, opts \\ []) do
+    {card, opts} = Keyword.pop(opts, :card)
+
+    case {card, opts[:user]} do
+      {%Slipdock.Boards.Card{} = card, %Slipdock.Accounts.User{} = user} ->
+        chat_with_record(card, user, context, history, message, opts)
+
+      _ ->
+        messages =
+          [%{role: "system", content: @chat_prompt <> "\n\n---\n\n" <> context}] ++
+            recent(history) ++ [%{role: "user", content: message}]
+
+        AI.complete(messages, Keyword.merge([max_tokens: 1200], opts))
+    end
   end
+
+  defp chat_with_record(card, user, context, history, message, opts) do
+    system = @chat_prompt <> "\n" <> @record_prompt <> "\n\n---\n\n" <> context
+
+    messages =
+      [%{"role" => "system", "content" => system}] ++
+        Enum.map(recent(history), &%{"role" => &1.role, "content" => &1.content}) ++
+        [%{"role" => "user", "content" => message}]
+
+    record_loop(
+      {user, card},
+      messages,
+      @max_rounds,
+      @empty_retries,
+      Keyword.merge([max_tokens: 1500], opts)
+    )
+  end
+
+  # Out of rounds: one last turn with the tools refused, so what was read
+  # becomes an answer rather than another call.
+  defp record_loop(_who, messages, 0, _retries, opts) do
+    nudge = %{
+      "role" => "user",
+      "content" =>
+        "Answer now from what the tools have returned, and say what you couldn't find out."
+    }
+
+    case AI.complete_tools(messages ++ [nudge], CardRecord.tools(), [tool_choice: "none"] ++ opts) do
+      {:ok, %{"content" => content}} when is_binary(content) and content != "" -> {:ok, content}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, "The assistant read the record but gave no answer; please ask again."}
+    end
+  end
+
+  defp record_loop({user, card} = who, messages, rounds, retries, opts) do
+    case AI.complete_tools(messages, CardRecord.tools(), opts) do
+      {:ok, %{"tool_calls" => calls} = turn} when is_list(calls) and calls != [] ->
+        results = Enum.map(calls, &run_tool(user, card, &1))
+        record_loop(who, messages ++ [turn] ++ results, rounds - 1, retries, opts)
+
+      {:ok, %{"content" => content}} when is_binary(content) and content != "" ->
+        {:ok, content}
+
+      {:ok, _empty} when retries > 0 ->
+        record_loop(who, messages, rounds - 1, retries - 1, opts)
+
+      {:ok, _empty} ->
+        {:error, "The model returned an empty answer; please try again."}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp run_tool(user, card, %{"id" => id, "function" => %{"name" => name} = fun}) do
+    args = decode_args(fun["arguments"])
+    Logger.debug("Card chat on ##{card.id} ran #{name} #{inspect(args)}")
+    text = CardRecord.call(user, card, name, args)
+    %{"role" => "tool", "tool_call_id" => id, "name" => name, "content" => text}
+  end
+
+  defp run_tool(_user, _card, call) do
+    %{
+      "role" => "tool",
+      "tool_call_id" => call["id"] || "unknown",
+      "content" => "Malformed tool call."
+    }
+  end
+
+  defp decode_args(args) when is_binary(args) do
+    case Jason.decode(args) do
+      {:ok, %{} = map} -> map
+      _ -> %{}
+    end
+  end
+
+  defp decode_args(%{} = args), do: args
+  defp decode_args(_), do: %{}
 
   @doc """
   Proposes changes for a request. Returns `{:ok, %{reply: text, actions: list}}`

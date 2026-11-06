@@ -2130,7 +2130,9 @@ defmodule SlipdockWeb.APIGuide do
     `progress`, or the lease runs out and somebody else gets the card. `note` also goes on the card as a
     comment; `step` (what you're doing now, ≤ 300 characters) is kept on the
     job only, as its `step` and `step_at`, and shows on the Runners panel and
-    in `slipdock job`/`jobs`. The agent a runner started for a job may report
+    in `slipdock job`/`jobs`. Every step is also kept on the job with its time
+    (the job JSON's `steps`, the newest 200), which the card's chat reads as
+    the job's milestones, so report each one as it happens. The agent a runner started for a job may report
     on it too, sending the job's id as `x-slipdock-job` (the CLI does, from
     `$SLIPDOCK_JOB_ID`). Finishing the job does not close the card, so close it as usual.
     The session shows in the board's runner list as `<token label> (session)`.

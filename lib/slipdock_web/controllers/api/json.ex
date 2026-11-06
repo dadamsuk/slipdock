@@ -1448,6 +1448,8 @@ defmodule SlipdockWeb.API.JSON do
       # The latest progress message its agent gave (#1668), and when.
       step: j.step,
       step_at: j.step_at,
+      # Every step it reported, oldest first (#1875): `[{text, at}]`.
+      steps: j.steps || [],
       output: j.output,
       queued_at: j.inserted_at,
       claimed_at: j.claimed_at,
