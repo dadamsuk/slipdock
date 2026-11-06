@@ -14,7 +14,7 @@ defmodule Slipdock.Transcription.Voiceprints do
       somebody's voice going to the admin's own server, so it is never on by
       default.
     * **Only a person's name.** "Speaker 2" teaches nothing
-      (`Slipdock.Meetings.Speakers.person_label?/1`).
+      (`Slipdock.Transcript.person_label?/1`).
     * **One stretch**: consecutive lines of theirs with nobody else between,
       the longest of them, kept clear of anybody else's line that overlaps
       it and half a second in from each end, cut to at most 60 s; under 3 s
@@ -28,9 +28,9 @@ defmodule Slipdock.Transcription.Voiceprints do
 
   import Ecto.Query, warn: false
 
-  alias Slipdock.{Meetings, Recordings, Repo, Settings, Transcription, Vaults}
+  alias Slipdock.{Meetings, Recordings, Repo, Settings, Transcript, Transcription, Vaults}
   alias Slipdock.Google.Drive
-  alias Slipdock.Meetings.{Capture, Relisten, Speakers, Transcript, Utterance, Voice}
+  alias Slipdock.Meetings.{Capture, Speakers, Utterance, Voice}
   alias Slipdock.Wiki.{FrontMatter, Page, TranscriptSpeakers}
 
   @max_ms 60_000
@@ -48,9 +48,10 @@ defmodule Slipdock.Transcription.Voiceprints do
 
   @doc """
   `enabled?/0` for whoever named the voice: only somebody an admin has let
-  use meetings and transcription teaches the server a voice (#1206).
+  use transcription teaches the server a voice (#1206,
+  `Slipdock.Transcription.allowed?/1`).
   """
-  def enabled_for?(user), do: enabled?() and Meetings.allowed?(user)
+  def enabled_for?(user), do: enabled?() and Transcription.allowed?(user)
 
   @doc """
   The stretches `speaker` speaks in `lines` (each with `:speaker`,
@@ -123,7 +124,7 @@ defmodule Slipdock.Transcription.Voiceprints do
     {by, opts} = Keyword.pop(opts, :by)
     name = String.trim(name)
 
-    if enabled_for?(by) and Speakers.person_label?(name) do
+    if enabled_for?(by) and Transcript.person_label?(name) do
       later(fn ->
         result = from_page(page, name, opts)
         log(result, "page #{page.id}")
@@ -152,7 +153,7 @@ defmodule Slipdock.Transcription.Voiceprints do
     {by, opts} = Keyword.pop(opts, :by)
     name = Speakers.name(voice)
 
-    if enabled_for?(by) and Speakers.person_label?(name) do
+    if enabled_for?(by) and Transcript.person_label?(name) do
       later(fn ->
         result = from_voice(voice, name, opts)
         log(result, "capture #{voice.capture_id}")
@@ -235,8 +236,110 @@ defmodule Slipdock.Transcription.Voiceprints do
   end
 
   defp send_clip(name, path, filename, {from, to}, opts) do
-    with {:ok, clip} <- Relisten.clip(path, filename, from, to) do
+    with {:ok, clip} <- clip(path, filename, from, to) do
       Transcription.add_voiceprint(clip, name, opts)
+    end
+  end
+
+  ## Clips --------------------------------------------------------------------
+
+  @doc """
+  The stretch from `from` to `to` (ms) of the recording at `path` as a WAV:
+  cut from a WAV here, or through ffmpeg from anything else when it is
+  installed (`config :slipdock, :transcription, ffmpeg: path | false`;
+  found on the `PATH` by default). `{:ok, wav}` or `{:error, message}`.
+  """
+  def clip(path, filename, from, to) do
+    ext = (filename || path) |> Path.extname() |> String.downcase()
+
+    cond do
+      ext == ".wav" -> wav_clip(path, from, to)
+      ffmpeg = ffmpeg() -> ffmpeg_clip(ffmpeg, path, from, to)
+      true -> {:error, "only WAV recordings can be cut without ffmpeg"}
+    end
+  end
+
+  defp wav_clip(path, from, to) do
+    {:ok, file} = File.open(path, [:read, :binary])
+    {:ok, head} = :file.pread(file, 0, 65_536)
+
+    result =
+      with {:ok, fmt, offset, size} <- layout(head, 12, nil) do
+        <<_::little-16, _::little-16, _::little-32, rate::little-32, align::little-16, _::binary>> =
+          fmt
+
+        align = max(align, 1)
+        start = min(div(from * rate, 1000) |> div(align) |> Kernel.*(align), size)
+        stop = min(div(to * rate, 1000) |> div(align) |> Kernel.*(align), size)
+        {:ok, data} = :file.pread(file, offset + start, max(stop - start, 0))
+        fmt16 = binary_part(fmt, 0, 16)
+
+        {:ok,
+         IO.iodata_to_binary([
+           <<"RIFF", 36 + byte_size(data)::little-32, "WAVE", "fmt ", 16::little-32>>,
+           fmt16,
+           <<"data", byte_size(data)::little-32>>,
+           data
+         ])}
+      end
+
+    File.close(file)
+    result
+  end
+
+  defp layout(<<"RIFF", _::32, "WAVE", rest::binary>>, at, fmt), do: layout(rest, at, fmt)
+
+  defp layout(<<"fmt ", size::little-32, fmt::binary-size(size), rest::binary>>, at, _),
+    do: layout(rest, at + 8 + size, fmt)
+
+  defp layout(<<"data", size::little-32, _::binary>>, at, fmt) when is_binary(fmt),
+    do: {:ok, fmt, at + 8, size}
+
+  defp layout(<<_::binary-size(4), size::little-32, rest::binary>>, at, fmt)
+       when byte_size(rest) >= size do
+    <<_::binary-size(^size), more::binary>> = rest
+    layout(more, at + 8 + size, fmt)
+  end
+
+  defp layout(_, _, _), do: {:error, "the recording's WAV header could not be read"}
+
+  # Not a hole: ffmpeg gets an argument list (no shell): a server-made path and numbers.
+  # sobelow_skip ["CI.System"]
+  defp ffmpeg_clip(ffmpeg, path, from, to) do
+    out = Path.join(System.tmp_dir!(), "slipdock-clip-#{System.unique_integer([:positive])}.wav")
+
+    args = [
+      "-v",
+      "error",
+      "-y",
+      "-ss",
+      "#{from / 1000}",
+      "-to",
+      "#{to / 1000}",
+      "-i",
+      path,
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      out
+    ]
+
+    try do
+      case System.cmd(ffmpeg, args, stderr_to_stdout: true) do
+        {_, 0} -> File.read(out)
+        {err, _} -> {:error, String.slice(err, 0, 200)}
+      end
+    after
+      File.rm(out)
+    end
+  end
+
+  defp ffmpeg do
+    case Keyword.get(Slipdock.Config.get(:transcription, []), :ffmpeg, :find) do
+      :find -> System.find_executable("ffmpeg")
+      false -> nil
+      path -> path
     end
   end
 

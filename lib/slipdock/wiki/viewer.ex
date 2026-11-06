@@ -12,7 +12,7 @@ defmodule Slipdock.Wiki.Viewer do
   tree is cut short at a count a browser can still draw.
   """
 
-  alias Slipdock.Meetings.Transcript
+  alias Slipdock.Transcript
   alias Slipdock.Wiki.{Files, WikiFile}
 
   @audio ~w(.mp3 .m4a .wav .ogg .oga .opus .aac .flac)
@@ -230,8 +230,7 @@ defmodule Slipdock.Wiki.Viewer do
   `{:ok, %{turns: turns, speakers: names, duration_ms: ms}}`, or
   `{:error, message}` when no cue in it has words.
 
-  The cues are read the way a meeting capture reads them
-  (`Slipdock.Meetings.Transcript`): a `<v Name>` voice tag or a `Name:`
+  The cues are read by `Slipdock.Transcript`: a `<v Name>` voice tag or a `Name:`
   prefix names the speaker, other markup is dropped. Cues one after
   another from the same speaker are one turn,
   `%{speaker: name | nil, start_ms: ms, end_ms: ms | nil, lines: [text]}`; `speakers` are

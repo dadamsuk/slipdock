@@ -256,41 +256,50 @@ defmodule SlipdockWeb.AdminAPITest do
       assert user["cards"]["limit"] == 5
     end
 
-    # #1206: meetings, transcription and voiceprints, per person.
-    test "allowing somebody meetings, and taking it away", %{conn: conn, ordinary: ordinary} do
-      no_meetings(ordinary)
+    # #1206 / #1817: recording transcription and voiceprints, per person.
+    test "allowing somebody transcription, and taking it away", %{
+      conn: conn,
+      ordinary: ordinary
+    } do
+      no_transcription(ordinary)
 
       user =
         conn
-        |> patch(~p"/api/admin/users/#{ordinary.id}", %{"meetings" => true})
+        |> patch(~p"/api/admin/users/#{ordinary.id}", %{"transcription" => true})
         |> json_response(200)
         |> Map.get("user")
 
-      assert user["meetings"]
-      assert Slipdock.Repo.reload(ordinary).meetings_access
+      assert user["transcription"]
+      refute Map.has_key?(user, "meetings")
+      assert Slipdock.Repo.reload(ordinary).transcription_access
 
       listed = get(conn, ~p"/api/admin/users") |> json_response(200) |> Map.get("users")
-      assert Enum.find(listed, &(&1["email"] == ordinary.email))["meetings"]
+      assert Enum.find(listed, &(&1["email"] == ordinary.email))["transcription"]
 
       user =
         conn
-        |> patch(~p"/api/admin/users/#{ordinary.id}", %{"meetings" => false})
+        |> patch(~p"/api/admin/users/#{ordinary.id}", %{"transcription" => false})
         |> json_response(200)
         |> Map.get("user")
 
-      refute user["meetings"]
-      refute Slipdock.Repo.reload(ordinary).meetings_access
+      refute user["transcription"]
+      refute Slipdock.Repo.reload(ordinary).transcription_access
 
-      body = patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"meetings" => "yes"})
-      assert json_response(body, 400)["error"] =~ "meetings"
-      refute Slipdock.Repo.reload(ordinary).meetings_access
+      body = patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"transcription" => "yes"})
+      assert json_response(body, 400)["error"] =~ "transcription"
+      refute Slipdock.Repo.reload(ordinary).transcription_access
+
+      # The old key is no longer a way to set it.
+      body = patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"meetings" => true})
+      assert json_response(body, 400)["error"] =~ "transcription"
+      refute Slipdock.Repo.reload(ordinary).transcription_access
     end
 
-    test "an admin is reported as allowed meetings whatever the switch says",
+    test "an admin is reported as allowed transcription whatever the switch says",
          %{conn: conn, admin: admin} do
-      no_meetings(admin)
+      no_transcription(admin)
       listed = get(conn, ~p"/api/admin/users") |> json_response(200) |> Map.get("users")
-      assert Enum.find(listed, &(&1["email"] == admin.email))["meetings"]
+      assert Enum.find(listed, &(&1["email"] == admin.email))["transcription"]
     end
 
     test "unlimited has to be a boolean", %{conn: conn, ordinary: ordinary} do

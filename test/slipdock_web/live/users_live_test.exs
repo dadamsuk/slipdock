@@ -92,29 +92,32 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
   end
 
-  # #1206: meetings, transcription and voiceprints, per person.
-  describe "meetings" do
+  # #1206 / #1817: recording transcription and voiceprints, per person.
+  describe "transcription" do
     test "can be allowed and taken away from the person panel", %{
       conn: conn,
       ordinary: ordinary
     } do
-      no_meetings(ordinary)
-      {:ok, view, _} = live(conn, ~p"/users?user=#{ordinary.id}")
+      no_transcription(ordinary)
+      {:ok, view, html} = live(conn, ~p"/users?user=#{ordinary.id}")
 
-      refute has_element?(view, "#meetings-#{ordinary.id}[checked]")
-      view |> element("#meetings-#{ordinary.id}") |> render_click()
-      assert has_element?(view, "#meetings-#{ordinary.id}[checked]")
-      assert Slipdock.Meetings.allowed?(Accounts.get_user!(ordinary.id))
+      assert html =~ "Transcription"
+      refute has_element?(view, "#meetings-#{ordinary.id}")
+      refute has_element?(view, "#transcription-#{ordinary.id}[checked]")
+      view |> element("#transcription-#{ordinary.id}") |> render_click()
+      assert has_element?(view, "#transcription-#{ordinary.id}[checked]")
+      assert Slipdock.Transcription.allowed?(Accounts.get_user!(ordinary.id))
 
-      view |> element("#meetings-#{ordinary.id}") |> render_click()
-      refute has_element?(view, "#meetings-#{ordinary.id}[checked]")
-      refute Slipdock.Meetings.allowed?(Accounts.get_user!(ordinary.id))
+      view |> element("#transcription-#{ordinary.id}") |> render_click()
+      refute has_element?(view, "#transcription-#{ordinary.id}[checked]")
+      refute Slipdock.Transcription.allowed?(Accounts.get_user!(ordinary.id))
     end
 
-    test "is not offered for an admin, who always has them", %{conn: conn, admin: admin} do
-      {:ok, view, _} = live(conn, ~p"/users?user=#{admin.id}")
-      refute has_element?(view, "#meetings-#{admin.id}")
-      assert Slipdock.Meetings.allowed?(no_meetings(admin))
+    test "is not offered for an admin, who always has it", %{conn: conn, admin: admin} do
+      {:ok, view, html} = live(conn, ~p"/users?user=#{admin.id}")
+      refute has_element?(view, "#transcription-#{admin.id}")
+      assert html =~ "Admins always have recording transcription and voiceprints."
+      assert Slipdock.Transcription.allowed?(no_transcription(admin))
     end
   end
 
@@ -134,7 +137,7 @@ defmodule SlipdockWeb.UsersLiveTest do
       assert has_element?(view, "input[type=checkbox]#admin-#{ordinary.id}")
       refute has_element?(view, "#admin-#{ordinary.id}[checked]")
       assert has_element?(view, "input[type=checkbox]#unlimited-#{ordinary.id}")
-      assert has_element?(view, "input[type=checkbox]#meetings-#{ordinary.id}")
+      assert has_element?(view, "input[type=checkbox]#transcription-#{ordinary.id}")
       refute html =~ "Make admin"
       refute html =~ "Make unlimited"
       refute html =~ "Allow meetings"

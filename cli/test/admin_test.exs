@@ -58,31 +58,32 @@ defmodule SlipdockCLI.AdminTest do
     refute output =~ "unlimited"
   end
 
-  describe "meetings" do
-    defp meetings_user(on),
+  # #1206 / #1817: recording transcription and voiceprints, per person.
+  describe "transcription" do
+    defp transcription_user(on),
       do:
-        ~s({"user":{"id":7,"email":"sam@example.com","meetings":#{on},"cards":{"used":3,"limited?":false}}})
+        ~s({"user":{"id":7,"email":"sam@example.com","transcription":#{on},"cards":{"used":3,"limited?":false}}})
 
-    test "on sends meetings: true for that person, and the answer says so" do
-      serve([{200, @users}, {200, meetings_user(true)}])
+    test "on sends transcription: true for that person, and the answer says so" do
+      serve([{200, @users}, {200, transcription_user(true)}])
 
       output =
-        capture_io(fn -> Admin.run("admin", ["meetings", "Sam@example.com", "on"], []) end)
+        capture_io(fn -> Admin.run("admin", ["transcription", "Sam@example.com", "on"], []) end)
 
       assert_received {:request, "PATCH", "/api/admin/users/7", body}
-      assert body == ~s({"meetings":true})
-      assert output =~ "[meetings]"
+      assert body == ~s({"transcription":true})
+      assert output =~ "[transcription]"
     end
 
-    test "off sends meetings: false, and the flag is gone from the answer" do
-      serve([{200, @users}, {200, meetings_user(false)}])
+    test "off sends transcription: false, and the flag is gone from the answer" do
+      serve([{200, @users}, {200, transcription_user(false)}])
 
       output =
-        capture_io(fn -> Admin.run("admin", ["meetings", "sam@example.com", "off"], []) end)
+        capture_io(fn -> Admin.run("admin", ["transcription", "sam@example.com", "off"], []) end)
 
       assert_received {:request, "PATCH", "/api/admin/users/7", body}
-      assert body == ~s({"meetings":false})
-      refute output =~ "meetings"
+      assert body == ~s({"transcription":false})
+      refute output =~ "transcription"
     end
   end
 

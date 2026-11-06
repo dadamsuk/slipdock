@@ -9,23 +9,26 @@ defmodule Slipdock.Fixtures do
   """
   def user_fixture(email \\ nil) do
     {:ok, user} = Accounts.get_or_create_user_by_email(fixture_email(email))
-    # Allowed meetings and transcription (#1206), so the tests of those
-    # features need not each say so; the gate's own tests take it away with
-    # `no_meetings/1`.
-    allow_meetings(user)
+    # Allowed transcription (#1206), so the tests of it need not each say
+    # so; the gate's own tests take it away with `no_transcription/1`.
+    allow_transcription(user)
   end
 
-  @doc "`user` let use meetings, recording transcription and voiceprints (#1206)."
-  def allow_meetings(user) do
-    {:ok, user} = Accounts.update_standing(user, %{"meetings_access" => true})
+  @doc "`user` let use recording transcription and voiceprints (#1206)."
+  def allow_transcription(user) do
+    {:ok, user} = Accounts.update_standing(user, %{"transcription_access" => true})
     user
   end
 
-  @doc "`user` without meetings, recording transcription and voiceprints (#1206)."
-  def no_meetings(user) do
-    {:ok, user} = Accounts.update_standing(user, %{"meetings_access" => false})
+  @doc "`user` without recording transcription and voiceprints (#1206)."
+  def no_transcription(user) do
+    {:ok, user} = Accounts.update_standing(user, %{"transcription_access" => false})
     user
   end
+
+  @doc "Meeting mode follows the transcription permission until it is removed (#1819)."
+  def allow_meetings(user), do: allow_transcription(user)
+  def no_meetings(user), do: no_transcription(user)
 
   @doc """
   The address `user_fixture/1` really uses for `email`. In an async test an

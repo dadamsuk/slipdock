@@ -21,7 +21,7 @@ defmodule Slipdock.Meetings do
     * `:every_board` — the tab is on every board.
 
   Even while it is on, it is only there for the people an admin has turned
-  it on for (`meetings_access` on the user, #1206), and for admins. For
+  it on for (`transcription_access` on the user, #1206), and for admins. For
   everybody else it is as though it were off, and their refusals say so
   (`off_message/1`). The same goes for sending a card's recording to the
   transcription server and for voiceprints. Chat capture is not a meeting
@@ -74,13 +74,11 @@ defmodule Slipdock.Meetings do
   def enabled?, do: Settings.get().meetings_enabled == true
 
   @doc """
-  Whether an admin has let this person use meetings and transcription
-  (#1206): admins always may; anybody else needs `meetings_access`.
+  Whether an admin has let this person use meetings: the same permission as
+  transcription (`Slipdock.Transcription.allowed?/1`, #1206).
   """
   @spec allowed?(User.t() | nil) :: boolean()
-  def allowed?(%User{admin: true}), do: true
-  def allowed?(%User{meetings_access: true}), do: true
-  def allowed?(_), do: false
+  defdelegate allowed?(user), to: Slipdock.Transcription
 
   @doc "Whether meeting mode is on, and on for this person."
   @spec enabled_for?(User.t() | nil) :: boolean()

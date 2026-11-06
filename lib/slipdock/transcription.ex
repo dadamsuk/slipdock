@@ -41,10 +41,23 @@ defmodule Slipdock.Transcription do
   def configured?, do: present?(Settings.get().transcription_server_url)
 
   @doc """
-  Whether this person may send a recording to it: a server is named, and an
-  admin has let them use meetings and transcription (#1206).
+  Whether this person may send a recording to it: a server is named, and
+  they are `allowed?/1`.
   """
-  def available_to?(user), do: configured?() and Slipdock.Meetings.allowed?(user)
+  def available_to?(user), do: configured?() and allowed?(user)
+
+  @doc """
+  Whether an admin has let this person use transcription (#1206): send a
+  card's recording to the transcription server, and teach it voices
+  (`Slipdock.Transcription.Voiceprints`). Admins always may; anybody else
+  needs `transcription_access`, set on Users, by `PATCH
+  /api/admin/users/:id {"transcription": true}` or `slipdock admin
+  transcription <email> on`.
+  """
+  @spec allowed?(Slipdock.Accounts.User.t() | nil) :: boolean()
+  def allowed?(%Slipdock.Accounts.User{admin: true}), do: true
+  def allowed?(%Slipdock.Accounts.User{transcription_access: true}), do: true
+  def allowed?(_), do: false
 
   @doc """
   Asks the server who it is (`GET /v1/status`): `{:ok, status}` with its
@@ -135,7 +148,7 @@ defmodule Slipdock.Transcription do
       not configured?() ->
         {:error, :not_configured}
 
-      not Slipdock.Meetings.allowed?(user) ->
+      not allowed?(user) ->
         {:error, :not_allowed}
 
       not Attachment.audio?(attachment) ->

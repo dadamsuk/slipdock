@@ -1,0 +1,12 @@
+1
+00:00:01,500 --> 00:00:03,000
+<font color="#fff">No speaker on this cue</font>
+
+2
+00:00:02,000 --> 00:00:04,000
+Sam: overlapping, with a speaker
+
+
+3
+00:00:04,000 --> 00:00:05,250
+
