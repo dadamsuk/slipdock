@@ -65,8 +65,37 @@ await page.goto(`${base}/wiki`, { waitUntil: 'load' })
 await openBoard(page)
 if (query(page) !== '') fail(`after the reset: URL has "${query(page)}", want none`)
 
+// On a phone (#1926): the Display menu and the View menu open wholly on
+// screen. A button mid-toolbar has room on neither side for a 288px menu, and
+// end-aligning alone put the Display menu's left edge at -66px.
+const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+await phone.addCookies(await ctx.cookies())
+const p = await phone.newPage()
+await openBoard(p)
+const onScreen = async (menu, when) => {
+  const r = await p.evaluate((m) => {
+    const b = document.querySelector(`#${m} .dropdown-content`).getBoundingClientRect()
+    return { left: Math.round(b.left), right: Math.round(b.right), vw: document.documentElement.clientWidth }
+  }, menu)
+  if (r.left < 8 || r.right > r.vw - 8) fail(`phone, ${menu} ${when}: menu at ${r.left}–${r.right} on a ${r.vw}px screen`)
+  return r
+}
+await p.locator('#display-menu [role=button]').click()
+await p.waitForTimeout(300)
+const shown = await onScreen('display-menu', 'opened')
+if (process.env.SHOTS) await p.screenshot({ path: `${process.env.SHOTS}/display-menu-phone.png` })
+// Choosing an option patches the menu; it must stay where it is.
+await p.locator('#display-menu input[name=density][value=compact] + span').click()
+await p.waitForTimeout(500)
+await onScreen('display-menu', 'after choosing compact')
+await p.locator('body').click({ position: { x: 5, y: 600 } })
+await p.locator('#view-menu [role=button]').click()
+await p.waitForTimeout(300)
+await onScreen('view-menu', 'opened')
+await phone.close()
+
 await browser.close()
 if (problems.length) {
   console.log(problems.map((p) => `FAIL ${p}`).join('\n'))
   process.exit(1)
-} else console.log('ok: display options are remembered in this browser only')
+} else console.log(`ok: display options are remembered in this browser only; on a phone the Display menu opens at ${shown.left}–${shown.right} of ${shown.vw}px`)
