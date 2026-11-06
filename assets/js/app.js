@@ -31,7 +31,6 @@ import {columnDrop, dropZones, pointOf, zoneAt} from "./card_drop"
 import {ModalDialog} from "./modal_dialog"
 import {boardHotkey, noteHotkey, placeHotkey, searchHotkey} from "./board_hotkey"
 import {installPosthog} from "./posthog"
-import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
 import {EditorPrefs, WikiFileOpen, WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthToggle} from "./wiki_pane"
 import {TimelineLabelResize, linkPath} from "./timeline_labels"
@@ -58,7 +57,6 @@ const Hooks = {}
 Hooks.ModalDialog = ModalDialog
 Hooks.TagFilter = TagFilter
 Hooks.Tabs = Tabs
-Hooks.Replay = Replay
 Hooks.ExcalidrawEditor = ExcalidrawEditor
 Hooks.MarkdownEditor = MarkdownEditor
 Hooks.PageLink = PageLink
@@ -1679,13 +1677,6 @@ window.addEventListener("phx:scroll-to-anchor", ({detail: {id}}) => {
     setTimeout(() => el.classList.remove("search-hit"), 2600)
   }
   requestAnimationFrame(find)
-})
-
-// A meeting's review: "N questions to settle · next" selects the next
-// finding with an open question; this brings it into view.
-window.addEventListener("phx:scroll-to-finding", ({detail: {id}}) => {
-  requestAnimationFrame(() =>
-    document.getElementById(`finding-${id}`)?.scrollIntoView({behavior: "smooth", block: "center"}))
 })
 
 // data-confirm asks with the app's own dialog rather than the browser's.

@@ -18,7 +18,6 @@ defmodule SlipdockWeb.MCP.Prompts do
     Prompts.Triage,
     Prompts.Resume,
     Prompts.LeaveHandoff,
-    Prompts.CaptureThisChat,
     Prompts.TidyBoard
   ]
 

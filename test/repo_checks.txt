@@ -53,8 +53,7 @@ test/slipdock_web/quality_docs_test.exs
 test/slipdock_web/inbound_docs_test.exs
 test/slipdock_web/lanes_docs_test.exs
 test/slipdock_web/mcp/docs_test.exs
-test/slipdock_web/meetings/chat_docs_test.exs
-test/slipdock_web/meetings/docs_and_skills_test.exs
+test/slipdock_web/capture_removed_test.exs
 test/slipdock_web/orchestration_fixes_docs_test.exs
 test/slipdock_web/recording_api_docs_test.exs
 test/slipdock_web/recurrence_docs_test.exs

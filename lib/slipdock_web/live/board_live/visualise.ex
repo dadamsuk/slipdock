@@ -52,7 +52,6 @@ defmodule SlipdockWeb.BoardLive.Visualise do
          board: board,
          page_title: "Visualise · #{board.name}",
          marks: Slipdock.Favourites.marks(user),
-         meetings: meetings_tab(user, board),
          page_jumps: [],
          refresh: nil
        )}
@@ -62,13 +61,6 @@ defmodule SlipdockWeb.BoardLive.Visualise do
          socket
          |> put_flash(:error, "You don't have access to that board.")
          |> push_navigate(to: "/")}
-    end
-  end
-
-  defp meetings_tab(user, board) do
-    case Slipdock.Meetings.presence(user, board) do
-      :none -> :none
-      _ -> :tab
     end
   end
 
@@ -286,7 +278,6 @@ defmodule SlipdockWeb.BoardLive.Visualise do
             mode={:visualise}
             view={nil}
             marks={@marks}
-            meetings={@meetings}
           />
         </div>
 

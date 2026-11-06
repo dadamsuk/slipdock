@@ -45,17 +45,6 @@ defmodule SlipdockWeb.Router do
     plug SlipdockWeb.Plugs.OwnWiki
   end
 
-  # Meeting capture (see `Slipdock.Meetings`): the API's routes, which are not
-  # there at all while an admin has meeting mode and chat capture both off.
-  pipeline :meetings do
-    plug SlipdockWeb.MeetingsHook
-  end
-
-  # Voiceprints are meeting mode's alone: chat capture has no voices.
-  pipeline :meeting_mode do
-    plug SlipdockWeb.MeetingsHook, :meetings_only
-  end
-
   # The agent guide: readable without a token, richer with one.
   pipeline :api_guide do
     plug :maybe_fetch_api_user
@@ -247,9 +236,6 @@ defmodule SlipdockWeb.Router do
     # Adding a passkey (#828): a challenge, then the authenticator's answer.
     post "/account/passkeys/options", PasskeyController, :options
     post "/account/passkeys", PasskeyController, :create
-    # A meeting capture's recording, for replaying a passage (see
-    # `SlipdockWeb.CaptureAudioController`).
-    get "/captures/:id/audio", CaptureAudioController, :show
     get "/boards/:id/export.csv", ExportController, :table
     # The board's wiki as a folder of Markdown: the escape hatch.
     get "/boards/:id/wiki.zip", ExportController, :wiki
@@ -274,7 +260,6 @@ defmodule SlipdockWeb.Router do
       live "/overview", OverviewLive.Index, :index
       live "/config", ConfigLive.Index, :index
       live "/config/mail", ConfigLive.Index, :mail
-      live "/config/meetings", ConfigLive.Index, :meetings
       live "/config/ai", ConfigLive.Index, :ai
       # Tools waiting for an admin to list them for everyone (#964).
       live "/admin/tools", ToolLive.Review, :index
@@ -311,8 +296,6 @@ defmodule SlipdockWeb.Router do
       # How to point an agent at this server. A page rather than a doc because
       # the one thing it has to get right is this install's own address.
       live "/account/agent", AccountLive.Index, :agent
-      # A person's own voiceprint: only while an admin has voiceprints on.
-      live "/account/voiceprint", AccountLive.Index, :voiceprint
       # Your last 50 inbound emails and what came of each (#1290): only while
       # this server takes mail.
       live "/account/email-log", AccountLive.Index, :email_log
@@ -351,20 +334,11 @@ defmodule SlipdockWeb.Router do
       live "/shared/folders/:id", SharedLive, :folder
       live "/boards/:id/wiki/:slug/history", WikiLive.Index, :history
       live "/boards/:id/wiki/:slug/history/:rev", WikiLive.Index, :revision
-      # A board's meetings (see `Slipdock.Meetings`): only while an admin has
-      # meeting mode on, which each page checks for itself as it mounts.
       live "/boards/:id/tidy", GardenLive.Index, :index
       # What the health monitor found stuck (W-2310).
       live "/boards/:id/health", HealthLive.Index, :index
       # A board's flow, velocity, runners and delivery on one page (#1185).
       live "/boards/:id/visualise", BoardLive.Visualise, :index
-      live "/boards/:id/meetings", MeetingLive.Index, :index
-      live "/boards/:id/meetings/new", MeetingLive.New, :new
-      live "/boards/:id/meetings/:capture_id", MeetingLive.Show, :show
-      live "/boards/:id/meetings/:capture_id/preview", MeetingLive.Preview, :preview
-      live "/boards/:id/meetings/:capture_id/speakers", MeetingLive.Speakers, :speakers
-      live "/boards/:id/meetings/:capture_id/resolve", MeetingLive.Resolve, :resolve
-      live "/boards/:id/meetings/:capture_id/resolve/:question_id", MeetingLive.Resolve, :resolve
       live "/boards/:id", BoardLive.Show, :show
       # The receiving end of a share: who handed this board over, and the way
       # out of it. A page of its own because it is not part of the board.
@@ -462,7 +436,6 @@ defmodule SlipdockWeb.Router do
 
     get "/settings", AdminController, :settings
     patch "/settings", AdminController, :update_settings
-    get "/meetings/usage", AdminController, :meetings_usage
     post "/allowlist", AdminController, :allow
     delete "/allowlist", AdminController, :disallow
     get "/overview", AdminController, :overview
@@ -492,33 +465,6 @@ defmodule SlipdockWeb.Router do
     get "/skills/:name/chatgpt.zip", SkillController, :chatgpt
     get "/skills/:name", SkillController, :show
     get "/skills/:name/*file", SkillController, :show
-  end
-
-  scope "/api", SlipdockWeb.API do
-    pipe_through [:api, :meetings]
-
-    get "/meetings", MeetingController, :mode
-    get "/meetings/findings-schema", MeetingController, :schema
-    get "/boards/:board/captures", MeetingController, :index
-    post "/boards/:board/captures", MeetingController, :create
-    get "/captures/:id", MeetingController, :show
-    post "/captures/:id/retry", MeetingController, :retry
-    get "/captures/:id/preview", MeetingController, :preview
-    post "/captures/:id/commit", MeetingController, :commit
-    post "/captures/:id/undo", MeetingController, :undo
-    post "/captures/:id/discard", MeetingController, :discard
-    post "/captures/:id/resolve", MeetingController, :resolve
-    post "/captures/:id/findings/:fid", MeetingController, :finding
-  end
-
-  scope "/api", SlipdockWeb.API do
-    pipe_through [:api, :meeting_mode]
-
-    # The caller's own voiceprint, and only theirs: no route takes a person
-    # (see `Slipdock.Meetings.Voiceprints`).
-    get "/me/voiceprint", VoiceprintController, :show
-    post "/me/voiceprint", VoiceprintController, :create
-    delete "/me/voiceprint", VoiceprintController, :delete
   end
 
   # The caller's one wiki (W-2201): every board they own as one tree of

@@ -35,8 +35,6 @@ defmodule SlipdockWeb.AdminNav do
       {:overview, ~p"/overview", "hero-chart-bar", "Overview", "Accounts", "wide"},
       {:server, ~p"/config", "hero-server-stack", "Server", "Configuration", "narrow"},
       {:mail, ~p"/config/mail", "hero-envelope", "Email", "Configuration", "narrow"},
-      {:meetings, ~p"/config/meetings", "hero-video-camera", "Meetings", "Configuration",
-       "narrow"},
       {:ai, ~p"/config/ai", "hero-sparkles", "AI", "Configuration", "narrow"},
       {:tools, ~p"/admin/tools", "hero-puzzle-piece", "Tools", "Review", "wide"}
     ]

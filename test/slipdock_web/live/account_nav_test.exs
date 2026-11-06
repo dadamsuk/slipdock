@@ -16,9 +16,8 @@ defmodule SlipdockWeb.AccountNavTest do
 
   setup %{conn: conn}, do: %{conn: log_in_user(conn, user_fixture("owner@example.com"))}
 
-  # {path, nav label, what it shows, what it must not}. Voiceprint and
-  # Email log come and go with the server's settings, and have their own
-  # tests (voiceprint_web_test, inbound_log_test).
+  # {path, nav label, what it shows, what it must not}. Email log comes and
+  # goes with the server's settings, and has its own tests (inbound_log_test).
   @sections [
     {"/account", "Profile", ["Signed in as", "About"], ["Passkeys", "Session", "Quick add"]},
     {"/account/settings", "Preferences", ["Quick add", "AI model"], ["About", "Bring boards in"]},
@@ -133,38 +132,16 @@ defmodule SlipdockWeb.AccountNavTest do
     assert has_element?(view, ~s{#account-menu a[href="/account"][aria-current="page"]})
   end
 
-  describe "sections/2" do
-    test "lists Voiceprint and Email log only while they are on" do
-      keys = fn v, i -> AccountLive.Index.sections(v, i) |> Enum.map(&elem(&1, 0)) end
+  describe "sections/1" do
+    test "lists Email log only while the server takes mail, and never a Voiceprint" do
+      keys = fn i -> AccountLive.Index.sections(i) |> Enum.map(&elem(&1, 0)) end
 
-      assert keys.(false, false) == [:index, :settings, :sign_in, :tokens, :agent, :data]
-
-      assert keys.(true, false) == [
-               :index,
-               :settings,
-               :sign_in,
-               :tokens,
-               :agent,
-               :data,
-               :voiceprint
-             ]
-
-      assert keys.(false, true) == [
-               :index,
-               :settings,
-               :sign_in,
-               :tokens,
-               :agent,
-               :data,
-               :email_log
-             ]
-
-      assert List.last(keys.(true, true)) == :email_log
-      assert length(keys.(true, true)) == 8
+      assert keys.(false) == [:index, :settings, :sign_in, :tokens, :agent, :data]
+      assert keys.(true) == [:index, :settings, :sign_in, :tokens, :agent, :data, :email_log]
     end
 
     test "labels are in sentence case" do
-      for {_, _, _, label} <- AccountLive.Index.sections(true, true) do
+      for {_, _, _, label} <- AccountLive.Index.sections(true) do
         [_first | rest] = String.split(label)
         for word <- rest, word not in ~w(API), do: assert(word == String.downcase(word), label)
       end

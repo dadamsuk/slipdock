@@ -96,31 +96,10 @@ admin set key=value...              signup_mode=open|allowlist|approval|closed,
                                     ai_system_user=you@example.com: whose AI key semantic
                                     search and scheduled automations use (an admin's);
                                     ai_system_user= clears it
-                                    meetings_enabled=true turns meeting capture on;
-                                    chat_capture_enabled=false turns chat capture off;
-                                    meetings_visibility=used_only|every_board,
-                                    meetings_hideable=false, and what may be sent:
-                                    meetings_accept_transcripts|audio|findings=false,
-                                    meetings_reading_model=<id> (empty: each person's own),
-                                    meetings_second_reading=same|model|off,
-                                    meetings_second_model=<id>; per person per month:
-                                    meetings_transcription_minutes=600,
-                                    meetings_audio_storage_mb=2048,
-                                    meetings_transcript_captures=200 (each with _enabled),
-                                    meetings_longest_minutes=240, meetings_max_file_mb=500,
-                                    meetings_audio_retention=until_committed|30_days|90_days,
-                                    meetings_transcription=none|provider|endpoint,
-                                    meetings_transcription_model=openai/whisper-large-v3,
-                                    meetings_transcription_url=, meetings_transcription_max_mb=25,
-                                    meetings_diarisation=labels|endpoint,
-                                    meetings_diarisation_url=, meetings_dialogue_inference=false,
-                                    meetings_voiceprints=true, meetings_voiceprint_url=,
-                                    meetings_relisten_model=<audio-capable model> (empty: off)
                                     transcription_server_url=https://host:8765 (your own
                                     transcription server: Transcribe on a card's recording;
                                     empty: off),
                                     transcription_server_token=<key> (empty: none)
-admin meetings-usage                meeting capture this month: totals, heaviest users
 admin allow <entry>                 let an address or a whole domain register
 admin disallow <entry>
 admin users                         who is here, what they use, when last seen
@@ -136,8 +115,8 @@ admin paid <email> <date|none>      paid up to a date: off the free tier and off
                                     the trial clock (e.g. 2026-12-31)
 admin unlimited <email> on|off      off the free tier for good, no date needed;
                                     the server-wide ceilings still apply
-admin meetings <email> on|off       let them use meetings, recording transcription
-                                    and voiceprints (admins always may)
+admin transcription <email> on|off  let them use recording transcription and
+                                    voiceprints (admins always may)
 admin signups                       who is waiting to be let in
 admin approve|reject <email>
 
@@ -530,41 +509,6 @@ TOOLS  (packages of docs, files, a board and skills that people on this server s
                                       the whole package, every file at its path, as
                                       <name>-<version>.tar.gz (or F, or - for stdout):
                                       unpack it, change it, publish it again
-
-MEETINGS  (meeting capture: off unless this server's admin turns it on, and
-           every command here says "meeting mode is off on this server" until then)
-  meetings                            whether meeting mode is on, and where it shows
-  capture new <board> [opts]          send a meeting: prints its id, link and questions
-      --transcript F  WebVTT, SRT, Name: text, a Fireflies or Otter export (- for stdin)
-      --audio F       the recording (wav, mp3, m4a, flac, ogg, webm, aac)
-      --findings F    your own findings, in the schema `capture schema` prints
-      --ics F         the invite: attendees, start and title
-      --title T  --when 2026-10-07T10:00  --attendees "Priya, sam@example.com"
-      --format vtt|srt|text|blocks|fireflies|otter  --with-parent (read the parent board too)
-  capture ls <board>                  the board's captures, newest first
-  capture show <id>                   what it found, and the questions to settle
-  capture resolve <id> <question> <answer>   answer by number or label;
-                                      --replayed 7:38-7:44 says what you listened to
-  capture include|leave-out <id> <finding>
-  capture preview <id>                exactly what committing writes, and its digest
-  capture commit <id> [--preview D]   write it, in one go (refused if anything moved)
-  capture undo <id> [--rest]          undo it all (--rest: all but what was edited since)
-  capture retry <id>                  carry a failed capture on
-  capture discard <id>                decide against it; nothing is written
-  capture schema                      the findings format, as JSON Schema
-  capture-chat <board> <file> [opts]  send a conversation with an AI assistant (chat
-                                      capture: on unless the admin turned it off; needs no
-                                      meeting mode). The file: Name: text turns, or a
-                                      Claude or ChatGPT export (- for stdin)
-      --format chat|claude-export|chatgpt-export  --conversation ID|TITLE (one of several)
-      --title T  --findings F (your own, quoting the conversation exactly)
-      --drop-transcript  once committed, keep only the quoted words
-  voiceprint                          your own voiceprint, if you have one (only while the
-                                      admin has voiceprints on), and meetings to enrol from
-  voiceprint enrol --audio F --consent       from a recording of your own voice;
-  voiceprint enrol --from-capture ID --consent   or a meeting where your voice was confirmed.
-                                      Prints the consent wording; --consent agrees to it
-  voiceprint delete                   delete it now: meetings stop using it
 
 WRITE
   add <board> <title> [opts]          create a card

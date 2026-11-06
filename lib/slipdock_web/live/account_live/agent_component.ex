@@ -255,38 +255,6 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
       </section>
 
       <section
-        :if={Slipdock.Meetings.chat_enabled?()}
-        id="agent-chat-capture"
-        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
-      >
-        <h2 class="section-title">Hand it a conversation</h2>
-        <p class="mt-1 text-sm text-base-content/60">
-          Chat capture is on here. Ask Claude or ChatGPT to <em>capture this conversation</em>
-          and it sends the chat to a board with <code>capture_chat</code>
-          (or <code>slipdock capture-chat &lt;board&gt; chat.txt</code>
-          for an export). The decisions and to-dos you agreed to are proposed, each quoted,
-          and it commits only when you ask.
-        </p>
-      </section>
-
-      <section
-        :if={Slipdock.Meetings.enabled_for?(@current_user)}
-        id="agent-meetings"
-        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
-      >
-        <h2 class="section-title">Hand it a meeting</h2>
-        <p class="mt-1 text-sm text-base-content/60">
-          Meeting mode is on here. An agent can send a meeting's transcript to a board — <code>slipdock capture new &lt;board&gt; --transcript meeting.vtt</code>, or
-          <code>capture_meeting</code>
-          over MCP — and Slipdock proposes the decisions,
-          actions and card changes in it for a person to review. The <code>slipdock-capture</code>
-          skill tells the agent the two rules that keep it honest: it answers a capture's
-          questions only with <em>your</em>
-          answers, and commits only when you ask.
-        </p>
-      </section>
-
-      <section
         id="agent-runners"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >

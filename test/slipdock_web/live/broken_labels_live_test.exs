@@ -23,33 +23,6 @@ defmodule SlipdockWeb.BrokenLabelsLiveTest do
     {log_in_user(conn, admin), admin}
   end
 
-  describe "Config → Meetings switches" do
-    # The label names the setting; the switch alone shows whether it is on.
-    for on <- [true, false] do
-      test "say what they set, not that it is on (#{if on, do: "on", else: "off"})", %{
-        conn: conn
-      } do
-        {conn, _} = as_admin(conn)
-
-        {:ok, _} =
-          Settings.update(%{
-            "meetings_enabled" => unquote(on),
-            "chat_capture_enabled" => unquote(on)
-          })
-
-        {:ok, view, html} = live(conn, ~p"/config/meetings")
-
-        assert has_element?(view, "label:has(#meetings-enabled) .font-medium", "Meeting mode")
-        assert has_element?(view, "label:has(#chat-capture-enabled) .font-medium", "Chat capture")
-        refute html =~ "Meeting mode is on"
-        refute html =~ "Chat capture is on"
-
-        assert has_element?(view, "#meetings-enabled[checked]") == unquote(on)
-        assert has_element?(view, "#chat-capture-enabled[checked]") == unquote(on)
-      end
-    end
-  end
-
   describe "the wiki home's page count" do
     setup %{user: user} do
       {:ok, kb} = KnowledgeBase.ensure(user)

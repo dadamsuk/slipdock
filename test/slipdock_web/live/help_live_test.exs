@@ -443,19 +443,16 @@ defmodule SlipdockWeb.HelpLiveTest do
       assert html =~ "install_tool"
     end
 
-    test "the MCP page names the prompts; capture-this-chat only while chat capture is on",
-         %{conn: conn} do
+    test "the MCP page names the prompts, and no capture (W-2330)", %{conn: conn} do
       # Without a finished setup, a settings row sends every page to /setup.
       {:ok, _} = Slipdock.Settings.complete_setup(%{"admin_email" => "admin@example.com"})
-      {:ok, view, _} = live(conn, ~p"/help/agents/mcp")
+      {:ok, view, html} = live(conn, ~p"/help/agents/mcp")
       assert has_element?(view, "#help-mcp-prompts", "plan-my-day")
       assert has_element?(view, "#help-mcp-prompts", "tidy-board")
-      assert has_element?(view, "#help-mcp-prompts", "capture-this-chat")
-
-      {:ok, _} = Slipdock.Settings.update(%{"chat_capture_enabled" => false})
-      {:ok, view, _} = live(conn, ~p"/help/agents/mcp")
       assert has_element?(view, "#help-mcp-prompts", "resume")
-      refute has_element?(view, "#help-mcp-prompts", "capture-this-chat")
+      refute html =~ "capture-this-chat"
+      refute html =~ "capture_chat"
+      refute has_element?(view, "#help-mcp-capture-chat")
     end
 
     test "the MCP page says how to attach a board, card or page", %{conn: conn} do
@@ -520,7 +517,7 @@ defmodule SlipdockWeb.HelpLiveTest do
       assert section_ids ==
                ~w(cli-start-here cli-find-anything cli-auth cli-admin cli-read cli-favourites) ++
                  ~w(cli-wiki cli-folders cli-your-wiki cli-sync cli-skills cli-tools) ++
-                 ~w(cli-meetings cli-write cli-view-options cli-values cli-output)
+                 ~w(cli-write cli-view-options cli-values cli-output)
     end
 
     @tag :anonymous

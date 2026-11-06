@@ -166,8 +166,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   a sync client gets the title, short name and disk path of everything. Renaming
   a card, a short name or a board reaches a synced folder as a move. What the
   server writes names itself the same way: a write-up is `Cards/<short>/<short>.md`,
-  a recurring card's occurrences add their date, a meeting's page is
-  `<YYYY-MM-DD> <meeting>` in `Meetings/`, and the runner example `passlog.sh`
+  a recurring card's occurrences add their date, and the runner example `passlog.sh`
   writes `Pass <card> (<YYYY-MM-DD HH.MM>)` into the card's folder.
 - **Recurring cards** — [repeating work kept on the card](docs/manual.md#recurring-cards)
   ("every Monday: review invoices", "the last Friday of the month", "three days
@@ -331,21 +330,6 @@ Briefly, with the detail in [the manual](docs/manual.md):
   as a connector by its address and sign in through the browser (OAuth), or
   connect with an API token ([the tools](docs/manual.md#mcp-server),
   [connecting](docs/agents.md#over-mcp)).
-- **Meeting and chat capture**, when an admin turns on meeting mode, for the people
-  they turn it on for (admins always have it) — send a meeting's
-  recording or transcript (WebVTT, SRT, Fireflies, Otter) and it proposes the
-  decisions, actions and card changes in it, read alongside the board's cards
-  and wiki: every proposal quoted word for word from the transcript, anything
-  uncertain asked as a question, nothing written until a person commits it in
-  one write that can be undone as a whole, and a *From a meeting* trail back to
-  the words on every card it touches ([how it works](docs/manual.md#meeting-capture)).
-  Voiceprints, if an admin turns them on, are each person's own choice: opted
-  into with their consent recorded, only the embedding kept, deletable at any time.
-  A conversation with Claude or ChatGPT goes the same way (chat capture, on by
-  default, no meeting mode needed): the model in the chat sends it with
-  `capture_chat`, or you send a paste or an export, and the decisions and
-  to-dos you agreed to land on the board — quoted, and committed only when you
-  say so ([capturing a conversation](docs/manual.md#capturing-a-conversation)).
 - **An agent on your board in a minute** —
   [setting one up](docs/agents.md) needs no software and no access to the
   server: give it the address, approve it once in the browser, and it reads the
@@ -1040,7 +1024,7 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 58 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 53 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
@@ -1055,9 +1039,7 @@ its home), `share` (share a wiki page or folder with a person or group, or take 
 back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_wiki` (set your wiki's keys or recordings folder, move a folder to another board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, `job_log` to read a job's live log while it runs and
-`keep_job_log` to keep one as a page before it expires, and for capture — `capture_meeting` while an admin has meeting mode on,
-`capture_chat` (send this conversation) while chat capture is on (the default), and `get_capture`,
-`resolve_capture_question` and `commit_capture` while either is
+`keep_job_log` to keep one as a page before it expires
 — each checked exactly as the API
 checks the same token, so a read-only or board-scoped token stays that way.
 The deletes need an explicit confirmation. claude.ai connects from
@@ -1066,7 +1048,7 @@ over https; Claude Code only needs to reach it from where it runs. The
 details are in [the manual](docs/manual.md#mcp-server), and setting up a
 particular client in [docs/agents.md](docs/agents.md#over-mcp).
 
-It also offers 7 prompts, ready-made workflows the client lists in its own
+It also offers 6 prompts, ready-made workflows the client lists in its own
 menu (the **+** menu in the Claude apps, `/mcp__slipdock__plan-my-day` and the
 like in Claude Code), each started with live board data already in it:
 `plan-my-day` (my overdue, due-today and in-progress cards and the top of the
@@ -1074,8 +1056,7 @@ ready lists, and a plan for today), `weekly-review` (the last 7 days, what
 slipped and what is stale; changes nothing), `triage` (a board's Backlog or
 Inbox, card by card), `resume` (a card's handoff, open subcards and latest
 comments, and the next step), `leave-handoff` (write the card's handoff from
-this conversation), `capture-this-chat` (send this conversation through chat
-capture, while it is on) and `tidy-board` (walk the gardener's suggestions).
+this conversation) and `tidy-board` (walk the gardener's suggestions).
 Board and card arguments complete as you type. ChatGPT's connectors use tools
 only, so prompts don't show there.
 

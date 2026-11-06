@@ -11,7 +11,7 @@ defmodule SlipdockWeb.HelpLive.CLIHelpTest do
 
   # The card's list (#1884), in the help's order.
   @groups ["START HERE", "FIND ANYTHING", "AUTH", "ADMIN", "READ", "FAVOURITES", "WIKI"] ++
-            ["FOLDERS", "YOUR WIKI", "SYNC", "SKILLS", "TOOLS", "MEETINGS", "WRITE"] ++
+            ["FOLDERS", "YOUR WIKI", "SYNC", "SKILLS", "TOOLS", "WRITE"] ++
             ["VIEW OPTIONS", "VALUES", "OUTPUT"]
 
   test "the real help has every group, in its order, after USAGE" do

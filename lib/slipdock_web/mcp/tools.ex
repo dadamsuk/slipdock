@@ -66,38 +66,14 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.KeepJobLog
   ]
 
-  # Meeting capture's tools (see `Slipdock.Meetings`): listed, and callable,
-  # only while they are on. Off, a client is not shown them and calling one
-  # by name is an unknown tool, the same as any other name this server has
-  # never heard of. Sending a meeting needs meeting mode; reviewing and
-  # committing a capture needs meeting mode or chat capture (#1075), each
-  # capture still checked for its own kind. Meeting mode is also per person
-  # (#1206): to somebody an admin hasn't let use meetings it is not there.
-  @meeting_only [Tools.CaptureMeeting]
-  @chat_only [Tools.CaptureChat]
-  @review_tools [Tools.GetCapture, Tools.ResolveCaptureQuestion, Tools.CommitCapture]
-  @meeting_tools @meeting_only ++ @chat_only ++ @review_tools
+  @doc """
+  Every tool module offered, in the order `tools/list` gives them. The same
+  for everybody: what a person may do with each is the tool's own check.
+  """
+  def all(_user \\ nil), do: @tools
 
-  @doc "Every tool module offered right now, in the order `tools/list` gives them."
-  def all, do: offered(Slipdock.Meetings.enabled?())
-
-  @doc "Every tool module offered to this person right now."
-  def all(user), do: offered(Slipdock.Meetings.enabled_for?(user))
-
-  defp offered(meetings?) do
-    chat? = Slipdock.Meetings.chat_enabled?()
-
-    @tools ++
-      if(meetings?, do: @meeting_only, else: []) ++
-      if(chat?, do: @chat_only, else: []) ++
-      if(meetings? or chat?, do: @review_tools, else: [])
-  end
-
-  @doc "Every tool this server has, meeting mode or not: what the docs must describe."
-  def every, do: @tools ++ @meeting_tools
-
-  @doc "Capture's tools, which only exist while meeting mode or chat capture is on."
-  def meeting_tools, do: @meeting_tools
+  @doc "Every tool this server has: what the docs must describe."
+  def every, do: @tools
 
   @doc "The tool called `name`, or nil — nil too for a tool not offered right now."
   def find(name), do: Enum.find(all(), &(&1.name() == name))

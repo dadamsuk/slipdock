@@ -1,0 +1,166 @@
+defmodule SlipdockWeb.CaptureRemovedTest do
+  @moduledoc """
+  Meeting and chat capture are gone (W-2330, #1818): no page, route, MCP tool
+  or prompt, CLI command, admin setting or skill is left for them. Old links
+  answer 404. What Vault's meeting notes use (the transcription server
+  settings, a card's Transcribe, the wiki's recordings) stays.
+  """
+  use SlipdockWeb.ConnCase, async: true
+
+  import Slipdock.Fixtures
+
+  alias Slipdock.{Accounts, Settings}
+  alias SlipdockWeb.MCP.{Prompts, Tools}
+
+  @root Path.expand("../..", __DIR__)
+
+  # Every way in that capture had, as {verb, path}.
+  @gone [
+    {"GET", "/boards/1/meetings"},
+    {"GET", "/boards/1/meetings/new"},
+    {"GET", "/boards/1/meetings/2"},
+    {"GET", "/boards/1/meetings/2/preview"},
+    {"GET", "/boards/1/meetings/2/speakers"},
+    {"GET", "/boards/1/meetings/2/resolve"},
+    {"GET", "/config/meetings"},
+    {"GET", "/account/voiceprint"},
+    {"GET", "/captures/2/audio"},
+    {"GET", "/api/meetings"},
+    {"GET", "/api/meetings/findings-schema"},
+    {"GET", "/api/boards/1/captures"},
+    {"POST", "/api/boards/1/captures"},
+    {"GET", "/api/captures/2"},
+    {"POST", "/api/captures/2/commit"},
+    {"POST", "/api/captures/2/resolve"},
+    {"GET", "/api/me/voiceprint"},
+    {"POST", "/api/me/voiceprint"},
+    {"DELETE", "/api/me/voiceprint"},
+    {"GET", "/api/admin/meetings/usage"}
+  ]
+
+  @capture_tools ~w(capture_meeting capture_chat get_capture commit_capture resolve_capture_question)
+
+  defp token_conn(user, scope) do
+    {token, _} = Accounts.create_api_token(user, "test", scope: scope)
+    build_conn() |> put_req_header("authorization", "Bearer " <> token)
+  end
+
+  # A 404 from the app's own catch-all, or from no route matching at all.
+  defp assert_404(request) do
+    assert request.().status == 404
+  rescue
+    e in Phoenix.Router.NoRouteError -> assert Plug.Exception.status(e) == 404
+  end
+
+  setup do
+    {:ok, _} = Settings.complete_setup(%{"admin_email" => "admin@example.com"})
+    {:ok, admin} = Accounts.promote(user_fixture("admin@example.com"))
+    %{admin: admin}
+  end
+
+  describe "routes" do
+    test "the router has none of capture's routes" do
+      for {verb, path} <- @gone do
+        assert Phoenix.Router.route_info(SlipdockWeb.Router, verb, path, "localhost") == :error,
+               "#{verb} #{path} is still routed"
+      end
+    end
+
+    test "an old capture link answers 404, signed in or by token", %{conn: conn, admin: admin} do
+      conn = log_in_user(conn, admin)
+      board = board_fixture(%{"name" => "Pricing"}, owner: admin)
+
+      assert_404(fn -> get(conn, "/boards/#{board.id}/meetings") end)
+      assert_404(fn -> get(conn, "/boards/#{board.id}/meetings/7/resolve") end)
+      assert_404(fn -> get(token_conn(admin, "write"), "/api/meetings") end)
+
+      assert_404(fn ->
+        post(token_conn(admin, "write"), "/api/boards/#{board.id}/captures", %{})
+      end)
+    end
+
+    test "the agent guide lists no capture endpoint", %{admin: admin} do
+      guide = token_conn(admin, "write") |> get(~p"/api/guide") |> response(200)
+
+      refute guide =~ "/captures"
+      refute guide =~ "/api/meetings"
+      refute guide =~ "voiceprint\n"
+      refute guide =~ "## Meeting capture"
+      refute guide =~ "## Chat capture"
+    end
+  end
+
+  describe "MCP" do
+    test "no capture tool is listed or found, for anybody", %{admin: admin} do
+      names = Enum.map(Tools.every(), & &1.name())
+      assert names == Enum.map(Tools.all(admin), & &1.name())
+
+      for tool <- @capture_tools do
+        refute tool in names
+        assert Tools.find(tool, admin) == nil
+      end
+    end
+
+    test "no capture prompt" do
+      names = Enum.map(Prompts.every(), & &1.name())
+      refute "capture-this-chat" in names
+      assert "plan-my-day" in names
+    end
+  end
+
+  describe "the CLI's help" do
+    test "names no capture, meetings or voiceprint command, nor their settings" do
+      help = File.read!(Path.join(@root, "cli/help.txt"))
+
+      refute help =~ ~r/^\s+(meetings|capture|capture-chat|voiceprint)\b/m
+      refute help =~ "admin meetings"
+      refute help =~ "meetings_"
+      refute help =~ "chat_capture_enabled"
+      assert help =~ "admin transcription <email> on|off"
+      assert help =~ "transcription_server_url"
+    end
+  end
+
+  describe "the admin settings" do
+    test "carry no meetings or chat capture key, and won't take one", %{admin: admin} do
+      conn = token_conn(admin, "admin")
+      settings = conn |> get(~p"/api/admin/settings") |> json_response(200) |> Map.get("settings")
+
+      refute Map.has_key?(settings, "meetings")
+      refute Map.has_key?(settings, "chat_capture")
+      assert Map.has_key?(settings, "transcription_server")
+
+      before = Settings.get()
+
+      conn
+      |> patch(~p"/api/admin/settings", %{
+        "meetings_enabled" => true,
+        "chat_capture_enabled" => false
+      })
+      |> json_response(200)
+
+      after_patch = Settings.get()
+      assert after_patch.meetings_enabled == before.meetings_enabled
+      assert after_patch.chat_capture_enabled == before.chat_capture_enabled
+    end
+
+    test "the transcription server settings are still editable", %{admin: admin} do
+      settings =
+        token_conn(admin, "admin")
+        |> patch(~p"/api/admin/settings", %{
+          "transcription_server_url" => "https://transcribe.example.com:8765",
+          "transcription_voiceprints" => true
+        })
+        |> json_response(200)
+        |> Map.get("settings")
+
+      assert settings["transcription_server"]["url"] == "https://transcribe.example.com:8765"
+      assert Settings.get().transcription_voiceprints == true
+    end
+  end
+
+  test "the slipdock-capture skill is gone" do
+    refute File.exists?(Path.join(@root, "priv/skills/slipdock-capture"))
+    refute File.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~ "capture"
+  end
+end
