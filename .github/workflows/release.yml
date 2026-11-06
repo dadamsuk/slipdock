@@ -72,6 +72,76 @@ jobs:
     if: ${{ !cancelled() && needs.suite.outputs.run != 'false' }}
     uses: ./.github/workflows/ci.yml
 
+  # Keeps main's build cache warm when the suite is skipped (#1913). Partition
+  # 1 of the suite is what saves the build under main's key, and a pull
+  # request restores only from its own ref's caches and main's, so after a
+  # skip every new PR would restore an older main build and compile more.
+  # This compiles the same build the suite would and saves it under the same
+  # key. Nothing needs it: it is off the merge and deploy path, and a failure
+  # here costs a slower PR, never a deploy. The keys, paths and steps are
+  # ci.yml's test job's, which ci_workflow_test.exs holds them to.
+  warm-cache:
+    needs: suite
+    if: ${{ needs.suite.outputs.run == 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      MIX_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: "1.20"
+          otp-version: "27"
+
+      - name: Cache keys
+        id: keys
+        run: |
+          deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
+          config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
+          echo "deps=$deps" >> "$GITHUB_OUTPUT"
+          echo "config=$config" >> "$GITHUB_OUTPUT"
+          echo "code=$config-${{ hashFiles('lib/**', 'test/support/**', 'priv/**', 'docs/**') }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ steps.keys.outputs.code }}
+          restore-keys: |
+            ${{ steps.keys.outputs.config }}-
+            ${{ steps.keys.outputs.deps }}-
+            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      # An exact hit means this tree's build is saved already, and the
+      # rest of the job has nothing to do.
+      - name: Backdate mix.exs and config to the cached build
+        if: steps.mix-cache.outputs.cache-hit != 'true' && startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
+        run: touch -d 2000-01-01 mix.exs config/*.exs
+
+      - if: steps.mix-cache.outputs.cache-hit != 'true'
+        run: mix deps.get
+
+      # The suite's compile, so the manifest it saves carries the same
+      # warnings (none, since the PR's CI passed on this tree).
+      - name: Compile without warnings
+        if: steps.mix-cache.outputs.cache-hit != 'true'
+        run: mix compile --warnings-as-errors
+
+      - uses: actions/cache/save@v4
+        if: steps.mix-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ steps.keys.outputs.code }}
+
   build:
     runs-on: ${{ matrix.runner }}
     permissions:
