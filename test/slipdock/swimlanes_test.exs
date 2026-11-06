@@ -376,4 +376,36 @@ defmodule Slipdock.SwimlanesTest do
       assert reload(board).saved_views == []
     end
   end
+
+  describe "in_cell?/4" do
+    setup do
+      board = board_fixture()
+      [_, todo | _] = board.columns
+      card = Boards.get_card!(card_fixture(todo, %{"priority" => "high"}).id)
+      %{todo: todo, card: card}
+    end
+
+    test "is true only for the cell the card sits in now", %{todo: todo, card: card} do
+      config = %Config{rows: "priority", cols: "column"}
+
+      assert Swimlanes.in_cell?(card, "high", to_string(todo.id), config)
+      refute Swimlanes.in_cell?(card, "low", to_string(todo.id), config)
+      refute Swimlanes.in_cell?(card, "high", "0", config)
+    end
+
+    test "takes a due-date bucket at the grid's unit", %{card: card} do
+      card = %{card | due_date: ~D[2026-09-17]}
+      config = %Config{rows: "due_date", cols: "none", unit: "month"}
+
+      assert Swimlanes.in_cell?(card, "2026-09-01", "all", config)
+      refute Swimlanes.in_cell?(card, "2026-10-01", "all", config)
+      refute Swimlanes.in_cell?(card, "none", "all", config)
+    end
+
+    test "counts an axis it can't read off the card alone as a match", %{card: card} do
+      for axis <- ~w(created updated goal dependencies f:1) do
+        assert Swimlanes.in_cell?(card, "anything", "all", %Config{rows: axis, cols: "none"})
+      end
+    end
+  end
 end

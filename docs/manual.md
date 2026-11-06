@@ -337,7 +337,10 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   its list, priority, status, colour or due date (set to the start of the
   bucket), or swaps the source tag/flag for the target one. Created / updated
   axes can't be dragged into. In *board order* a drop between two cards also
-  reorders them.
+  reorders them. A card that has left the cell you dragged it from since your
+  tab drew the grid (a runner moved it to Done while a phone slept, say, or
+  someone changed its priority or took a tag off) stays as it is now, and the
+  grid tells you and redraws.
 - **Add** inside a cell creates a card with that cell's attributes.
 - Click a row header to collapse it.
 - **Dependencies** — an axis with Blocked / Blocks others / No dependencies

@@ -215,17 +215,26 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
     {:noreply, assign(socket, swim_collapsed: collapsed)}
   end
 
+  # `from` is the cell the tab drew the item in, and the move is worked out
+  # from it. A stale tab (#1921, #1923) can name a cell the item has since
+  # left — a card a runner has moved to Done, a person taken off it — and
+  # moving it anyway would pull it out of Done or swap the wrong person. So a
+  # `from` the item no longer sits in is refused and the grid redrawn.
   def handle_event("swim_move", %{"id" => id, "from" => from, "to" => to} = params, socket) do
     %{swim: config, grid: grid} = socket.assigns
 
     with {:ok, {from_row, from_col}} <- cell_keys(grid, from),
          {:ok, {to_row, to_col}} <- cell_keys(grid, to),
          {:ok, item} <- load_item(socket.assigns.board, id) do
-      ops =
-        Swimlanes.move_ops(config.rows, item, from_row, to_row, config) ++
-          Swimlanes.move_ops(config.cols, item, from_col, to_col, config)
+      if Swimlanes.in_cell?(item, from_row, from_col, config) do
+        ops =
+          Swimlanes.move_ops(config.rows, item, from_row, to_row, config) ++
+            Swimlanes.move_ops(config.cols, item, from_col, to_col, config)
 
-      {:noreply, apply_swim_ops(socket, item, ops, params["before"])}
+        {:noreply, apply_swim_ops(socket, item, ops, params["before"])}
+      else
+        {:noreply, moved_since_drawn(socket)}
+      end
     else
       _ -> {:noreply, socket}
     end
