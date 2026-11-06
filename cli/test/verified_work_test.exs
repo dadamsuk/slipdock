@@ -389,6 +389,37 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     refute out =~ "bar 2"
   end
 
+  test "card shows a part carried from an earlier verdict, and the commit it passed at" do
+    checks = %{
+      "ask" => "ok",
+      "carried" => %{"ask" => "abc1234def"},
+      "bar" => [
+        %{"item" => "1", "result" => "ok", "carried_from" => "abc1234def", "note" => "tidy"},
+        %{"item" => "2", "result" => "ok"}
+      ],
+      "rules" => [%{"id" => "UX-4", "result" => "ok", "carried_from" => "abc1234def"}],
+      "judged_at" => "fedcba9876",
+      "decision" => "accept"
+    }
+
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "verify_state" => "accepted",
+            "verify_by" => %{"kind" => "agent", "agent" => "checker"},
+            "verify_checks" => checks
+          })
+        )
+      end)
+
+    assert out =~ "✓ the ask: carried from abc1234"
+    assert out =~ "✓ bar 1: carried from abc1234; tidy"
+    assert out =~ "✓ UX-4: carried from abc1234"
+    assert out =~ "✓ bar 2\n"
+    refute out =~ "bar 2: carried"
+  end
+
   defp card(extra) do
     Map.merge(
       %{

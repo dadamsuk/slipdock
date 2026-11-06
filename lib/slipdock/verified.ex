@@ -779,19 +779,67 @@ defmodule Slipdock.Verified do
   defp verdict(card, decision, params, reason, actor) do
     alias Slipdock.Verified.Checks
 
-    with {:ok, given} <- checks_param(params) do
-      checks =
-        if given == %{} and decision == "reject", do: Checks.from_reason(reason), else: given
-
+    with {:ok, given} <- checks_param(params),
+         from_reason = given == %{} and decision == "reject",
+         checks = if(from_reason, do: Checks.from_reason(reason), else: given),
+         {:ok, checks} <- carry_previous(card, checks) do
       checks = Checks.with_severity(checks, handbook_rules(card))
       # A person's rejection, given no parts at all, may stand on its reason.
       must_fail = given != %{} or gated?(actor)
 
       with :ok <- verdict_holds(decision, checks, must_fail) do
-        {:ok, stored_checks(checks, given)}
+        {:ok, checks |> stored_checks(from_reason) |> judged_at(decision, params, card)}
       end
     end
   end
+
+  # A resubmission's verdict (#1944): what the last verdict passed and this
+  # one didn't judge is carried, marked with the commit it passed at.
+  defp carry_previous(card, checks) do
+    previous = previous_verdict(card)
+
+    case Slipdock.Verified.Checks.carry(
+           checks,
+           previous && previous.checks,
+           previous && previous.sha
+         ) do
+      {:ok, _} = ok -> ok
+      {:error, message} -> {:error, :unprocessable_entity, message}
+    end
+  end
+
+  # The commit the verdict judged: the one the verifier named, else the
+  # evidence's. The next verdict carries from it.
+  defp judged_at(nil, _decision, _params, _card), do: nil
+
+  defp judged_at(checks, decision, params, card) do
+    case blank_to_nil(trim(Map.get(params, "commit"))) || blank_to_nil(trim(card.evidence_commit)) do
+      nil -> checks
+      sha -> Map.merge(checks, %{"judged_at" => sha, "decision" => decision})
+    end
+  end
+
+  @doc """
+  The verdict a pending card's submission follows (#1944): the last
+  decision's parts and the commit they judged, `%{checks, sha, reason,
+  rejections, accepted}`, when the card was decided before (a rejection, or
+  an acceptance whose merge failed) and that verdict named its commit. nil
+  for a first submission, or a verdict kept without its commit.
+  """
+  def previous_verdict(%Card{verify_checks: %{"judged_at" => sha} = checks} = card)
+      when is_binary(sha) and sha != "" do
+    accepted = checks["decision"] == "accept"
+
+    %{
+      checks: checks,
+      sha: sha,
+      accepted: accepted,
+      reason: if(accepted, do: nil, else: card |> rejection_reasons() |> List.last()),
+      rejections: card.verify_rejections || 0
+    }
+  end
+
+  def previous_verdict(_card), do: nil
 
   defp verdict_holds("reject", checks, true) do
     if Slipdock.Verified.Checks.failing(checks) == [],
@@ -820,9 +868,9 @@ defmodule Slipdock.Verified do
 
   # nil when there are no parts; parts read from the reason are marked, as
   # the comment already says them.
-  defp stored_checks(checks, _given) when checks == %{}, do: nil
-  defp stored_checks(checks, given) when given == %{}, do: Map.put(checks, "from_reason", true)
-  defp stored_checks(checks, _given), do: checks
+  defp stored_checks(checks, _from_reason) when checks == %{}, do: nil
+  defp stored_checks(checks, true), do: Map.put(checks, "from_reason", true)
+  defp stored_checks(checks, false), do: checks
 
   defp checks_param(params) do
     case Slipdock.Verified.Checks.parse(Map.get(params, "checks")) do
@@ -1639,9 +1687,18 @@ defmodule Slipdock.Verified do
       checks =
         checks |> Slipdock.Verified.Checks.with_severity(handbook_rules(card)) |> empty_nil()
 
-      if decision == "disagree" and reason == "",
-        do: {:error, :unprocessable_entity, "a disagreement needs its reason"},
-        else: record_audit(card, decision, reason, checks, actor, user)
+      cond do
+        decision == "disagree" and reason == "" ->
+          {:error, :unprocessable_entity, "a disagreement needs its reason"}
+
+        checks && Slipdock.Verified.Checks.carried_asks(checks) != [] ->
+          # An audit judges every part afresh (#1944): nothing is carried.
+          {:error, :unprocessable_entity,
+           "an audit judges every part: give each a result of its own, not `carried`"}
+
+        true ->
+          record_audit(card, decision, reason, checks, actor, user)
+      end
     end
   end
 
@@ -1853,7 +1910,7 @@ defmodule Slipdock.Verified do
     Verify card ##{card.id} “#{card.title}” on #{board.name} before it counts as done: #{url}
 
     Another agent did the work and submitted it. You are the second agent: check the work, don't redo it, and don't change the code or the card beyond your decision.
-
+    #{resubmission_block(card)}
     #{card_block(card, board, judging)}
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
@@ -1862,6 +1919,62 @@ defmodule Slipdock.Verified do
     A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
     """
   end
+
+  # A resubmission (#1944): the last verdict, the commit it judged, and how
+  # to judge only what failed and what changed since. "" for a first
+  # verification, so its prompt is as it was.
+  defp resubmission_block(%Card{} = card) do
+    case previous_verdict(card) do
+      nil -> ""
+      previous -> resubmission_text(card, previous)
+    end
+  end
+
+  defp resubmission_text(card, previous) do
+    alias Slipdock.Verified.Checks
+    sha = previous.sha
+    now = card.evidence_commit || "<commit>"
+    passed = Checks.passed_parts(previous.checks)
+
+    parts =
+      case Checks.lines(previous.checks) do
+        [] ->
+          "(it gave no parts)"
+
+        lines ->
+          Enum.map_join(lines, "\n", fn
+            {label, result, nil} -> "- #{label}: #{result}"
+            {label, result, why} -> "- #{label}: #{result} — #{why}"
+          end)
+      end
+
+    """
+
+    This card was judged before, at commit #{sha}, and sent back#{if previous.accepted, do: " after its merge failed (it had been accepted)", else: " (rejected #{previous.rejections}×)"}. Judge what changed, not the whole card again.
+    #{if previous.accepted, do: "Why it came back: the card's last **Merge failed** comment.", else: "The last verdict's reason: #{previous.reason || "(see the card's last **Rejected** comment)"}"}
+    Its parts:
+    #{parts}
+
+    How to judge this round:
+    - List what the commits since touched: `git diff --name-only #{sha} #{now}` (on a rebased branch, `git fetch origin #{sha}` first; if that commit can't be found, judge every part).
+    - Judge every part that failed, and any part whose files, or what it is about, the commits since touch. Run the suite or check CI as below, whatever changed.
+    - Carry the rest: a part that passed at #{Checks.short(sha)} and that nothing since touches stands. Don't judge it again; give it as `--check bar:1=carried` (or leave it out) and it is recorded as carried from #{Checks.short(sha)}.#{carry_list(passed)}
+    - Never raise again a part that passed or that the new commits fixed. Flag a class of problem once, with an example or two, not every instance.
+    - If you reject, name what changed since the last rejection, and say why the fix falls short, so the next round converges.
+    """
+  end
+
+  defp carry_list([]), do: " (The last verdict passed no part, so there is nothing to carry.)"
+
+  defp carry_list(passed),
+    do:
+      " Passed then: " <>
+        Enum.map_join(passed, ", ", fn
+          {"ask", _} -> "the ask"
+          {"handbook_line", _} -> "the Handbook line"
+          {"bar", i} -> "bar #{i}"
+          {"rules", id} -> id
+        end) <> "."
 
   # What the card asks, its bar and evidence, and the steps to its checks:
   # the same for a verify job and an audit.

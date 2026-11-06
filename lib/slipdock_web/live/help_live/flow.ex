@@ -456,7 +456,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
       </li>
       <li>
         <strong>Rejected</strong>: the card goes back to the top of its list, and the reason is the
-        next pass's brief.
+        next pass's brief. Submitted again, it is judged on what failed and what the new commits
+        touch; a part that passed before and nothing since touches is carried, shown as
+        <em>carried from</em>
+        the commit it passed at.
       </li>
       <li>
         <strong>Audits check the checker</strong>: with <em>Audit 1 in N accepted cards</em>

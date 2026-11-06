@@ -2787,14 +2787,36 @@ defmodule SlipdockCLI.Render do
 
   defp verify_check_lines(_state, %{} = checks) do
     notes = checks["notes"] || %{}
+    carried = checks["carried"] || %{}
 
-    (check_part("the ask", checks["ask"], notes["ask"]) ++
-       for(b <- checks["bar"] || [], do: {"bar " <> to_string(b["item"]), b["result"], b["note"]}) ++
+    (check_part("the ask", checks["ask"], carried_note(notes["ask"], carried["ask"])) ++
+       for(
+         b <- checks["bar"] || [],
+         do:
+           {"bar " <> to_string(b["item"]), b["result"],
+            carried_note(b["note"], b["carried_from"])}
+       ) ++
        suite_part(checks["suite"]) ++
-       for(r <- checks["rules"] || [], do: {rule_part(r), r["result"], r["note"]}) ++
-       check_part("Handbook line", checks["handbook_line"], notes["handbook_line"]))
+       for(
+         r <- checks["rules"] || [],
+         do: {rule_part(r), r["result"], carried_note(r["note"], r["carried_from"])}
+       ) ++
+       check_part(
+         "Handbook line",
+         checks["handbook_line"],
+         carried_note(notes["handbook_line"], carried["handbook_line"])
+       ))
     |> Enum.map(&check_line/1)
   end
+
+  # A part carried from an earlier verdict (#1944): passed at that commit,
+  # not judged again.
+  defp carried_note(note, sha) when is_binary(sha) do
+    carried = "carried from " <> String.slice(sha, 0, 7)
+    if note, do: carried <> "; " <> note, else: carried
+  end
+
+  defp carried_note(note, _sha), do: note
 
   defp verify_check_lines(_state, _checks), do: []
 

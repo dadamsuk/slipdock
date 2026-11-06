@@ -737,7 +737,11 @@ With one on, the pass changes like this:
 - **A rejected card** goes back to the top of the ready list with
   a `Rework: rejected by …` handoff, the reason as a comment and in the
   job's prompt (`get_card`'s `rejection`). Picked up again, that reason is the brief: fix
-  exactly that, then complete it again with fresh evidence.
+  exactly that, then complete it again with fresh evidence. That evidence
+  names the rejected commit and what changed since (`--evidence "Rejected
+  at abc1234; since: the header row, test/x_test.exs"`): the next verifier
+  judges only the failed parts and what the new commits touch, and carries
+  the parts that passed (shown as *carried from abc1234*).
 - **Shipping by pull request** (`ships by pull request` on the board's
   line; the claimed job's prompt and `slipdock card` say so too, under
   *Ships by pull request*). Step 7 changes: **never push the default
@@ -816,7 +820,14 @@ With one on, the pass changes like this:
   `handbook_line=ok|disputed`, each with `:"why"` if it needs one. A
   rejection names at least one failing part; an acceptance can't carry one
   (a missed `should` rule aside). You can't decide a card you submitted
-  yourself (`403`).
+  yourself (`403`). **A resubmission** (the prompt says the card was
+  judged before, at a commit) is judged on what changed: the parts that
+  failed, and any part the commits since touch (`git diff --name-only
+  <that commit> <this one>`). A part that passed then and nothing since
+  touches is carried (`--check bar:1=carried`, or left out), recorded as
+  *carried from <sha>*. Never raise again a part that passed or was fixed;
+  flag a class of problem once; a rejection names what changed since the
+  last. An audit carries nothing.
 - **An audit** (a verify job with `audit: true`, on a card already
   accepted) checks the checker. Judge the work as a verify job does,
   `should` rules too, against the original verdict its prompt shows, then

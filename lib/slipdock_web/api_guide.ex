@@ -3781,7 +3781,14 @@ defmodule SlipdockWeb.APIGuide do
     giving the verdict in parts as `checks` (`ask=ok|misses`, `bar:2=fail:why`,
     `suite=412:0`, `rule:UX-4=broken`, `handbook_line=ok|disputed`; kept as
     `verify_checks`, and refused without a failing part, or on an accept
-    with a broken `must` rule): it goes
+    with a broken `must` rule). A card resubmitted after a rejection is
+    judged on what changed: its verify prompt carries the last verdict and
+    the commit it judged, the verifier judges the parts that failed and any
+    part the commits since touch, and a part that passed then and isn't
+    judged again (`bar:1=carried`, or left out) is kept carried, marked
+    with that commit (`carried_from`, or `verify_checks.carried` for the
+    ask and the Handbook line); a part that failed can't be carried, and an
+    audit carries nothing. A rejection goes
     on the card as a comment and in `get_card`'s `rejection` (a claimed
     job's prompt carries it too; the handoff only points there), the
     evidence is cleared, the builder's own assignment comes off, its

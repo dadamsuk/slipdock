@@ -12,8 +12,16 @@ defmodule Slipdock.Verified.Checks do
                       "severity" => "must" | "should" | nil, "note" => …}],
         "handbook_line" => "ok" | "disputed",
         "notes" => %{"ask" => …, "handbook_line" => …},
-        "from_reason" => true   # read from a rejection's reason, given no parts
+        "from_reason" => true,  # read from a rejection's reason, given no parts
+        "judged_at" => "abc1234", # the commit the verdict judged (#1944)
+        "decision" => "reject" | "accept",
+        "carried" => %{"ask" => "abc1234", "handbook_line" => …}
       }
+
+  A part carried from an earlier verdict (#1944) passed at that verdict's
+  commit and wasn't judged again: a bar item or rule has `"carried_from" =>
+  sha`, the ask and the Handbook line are named in `"carried"`. A verifier
+  gives one as `bar:1=carried`, or leaves it out (see `carry/3`).
 
   Every part is optional. A verifier gives them as a map in that shape, or
   as a list of lines, one part each (`slipdock verify --check`):
@@ -23,14 +31,17 @@ defmodule Slipdock.Verified.Checks do
       suite=412:0            (passed:failed)
       rule:UX-4=broken:hex colour in card.ex
       handbook_line=disputed:W-3 wasn't edited
+      bar:1=carried          (passed at the last verdict's commit; #1944)
   """
 
   @results %{
-    "ask" => ~w(ok misses),
-    "bar" => ~w(ok fail),
-    "rule" => ~w(ok broken n/a),
-    "handbook_line" => ~w(ok disputed)
+    "ask" => ~w(ok misses carried),
+    "bar" => ~w(ok fail carried),
+    "rule" => ~w(ok broken n/a carried),
+    "handbook_line" => ~w(ok disputed carried)
   }
+
+  @carried "carried"
 
   @doc """
   The parts in `given` (nil, a list of lines or a map in the stored shape),
@@ -175,6 +186,8 @@ defmodule Slipdock.Verified.Checks do
   defp from_map("rules", items) when is_list(items), do: list_items("rule", "id", items)
 
   defp from_map("from_reason", _), do: {:ok, []}
+  # Set by the server, never by the verifier: given back, they are ignored.
+  defp from_map(key, _) when key in ~w(judged_at decision carried), do: {:ok, []}
 
   defp from_map("notes", %{} = notes) do
     {:ok,
@@ -322,15 +335,34 @@ defmodule Slipdock.Verified.Checks do
   """
   def lines(%{} = checks) when map_size(checks) > 0 do
     notes = checks["notes"] || %{}
+    carried = checks["carried"] || %{}
 
-    one_line("the ask", checks["ask"], notes["ask"]) ++
-      for(b <- checks["bar"] || [], do: {"bar #{b["item"]}", b["result"], b["note"]}) ++
+    one_line("the ask", checks["ask"], carried_note(notes["ask"], carried["ask"])) ++
+      for(
+        b <- checks["bar"] || [],
+        do: {"bar #{b["item"]}", b["result"], carried_note(b["note"], b["carried_from"])}
+      ) ++
       suite_line(checks["suite"]) ++
-      for(r <- checks["rules"] || [], do: {rule_label(r), r["result"], r["note"]}) ++
-      one_line("Handbook line", checks["handbook_line"], notes["handbook_line"])
+      for(
+        r <- checks["rules"] || [],
+        do: {rule_label(r), r["result"], carried_note(r["note"], r["carried_from"])}
+      ) ++
+      one_line(
+        "Handbook line",
+        checks["handbook_line"],
+        carried_note(notes["handbook_line"], carried["handbook_line"])
+      )
   end
 
   def lines(_), do: []
+
+  defp carried_note(note, nil), do: note
+  defp carried_note(nil, sha), do: "carried from #{short(sha)}"
+  defp carried_note(note, sha), do: "carried from #{short(sha)}; #{note}"
+
+  @doc "A commit as the card shows it: its first seven characters."
+  def short(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
+  def short(_), do: nil
 
   defp one_line(_label, nil, _note), do: []
   defp one_line(label, result, note), do: [{label, result, note}]
@@ -345,4 +377,99 @@ defmodule Slipdock.Verified.Checks do
   @doc "Whether `result` (as `lines/1` gives it) is a failing one."
   def failing_result?(result),
     do: Enum.member?(~w(misses fail broken disputed), result) or result =~ ~r/[1-9]\d* failed$/
+
+  ## Carried parts (#1944) ------------------------------------------------------
+
+  @doc """
+  The parts of `prior` (an earlier verdict, in the stored shape) that
+  passed: `[{"ask", nil}, {"bar", "1"}, {"rules", "UX-4"}, {"handbook_line",
+  nil}]`. A rule passed when it was `ok` or `n/a`. The suite is never among
+  them: CI, or the verifier, runs it at every commit.
+  """
+  def passed_parts(%{} = prior) do
+    if(prior["ask"] == "ok", do: [{"ask", nil}], else: []) ++
+      for(%{"result" => "ok", "item" => i} <- prior["bar"] || [], do: {"bar", i}) ++
+      for(
+        %{"result" => r, "id" => id} <- prior["rules"] || [],
+        Enum.member?(["ok", "n/a"], r),
+        do: {"rules", id}
+      ) ++
+      if prior["handbook_line"] == "ok", do: [{"handbook_line", nil}], else: []
+  end
+
+  def passed_parts(_), do: []
+
+  @doc """
+  `checks` (this decision's parts) with what `prior`, the verdict before it
+  at commit `sha`, passed and this one didn't judge carried over (#1944).
+
+  A part given as `carried` takes the earlier result, marked as carried
+  from `sha`; one this verdict leaves out is carried the same way. A part
+  given a result of its own is judged, and stands as given. `carried` on a
+  part that didn't pass earlier (or with no earlier verdict to carry from)
+  is `{:error, message}`: a failed part is judged again, never carried.
+  """
+  def carry(%{} = checks, prior, sha) do
+    asked = carried_asks(checks)
+    passed = if is_binary(sha) and sha != "", do: passed_parts(prior), else: []
+
+    case asked -- passed do
+      [] ->
+        {:ok, Enum.reduce(passed, checks, &carry_part(&2, &1, prior, sha))}
+
+      [_ | _] = bad ->
+        {:error, not_carried_message(bad, sha, prior)}
+    end
+  end
+
+  defp not_carried_message(bad, sha, prior) do
+    labels = Enum.map_join(bad, ", ", &part_label/1)
+
+    if passed_parts(prior) == [] or not is_binary(sha),
+      do:
+        "nothing to carry #{labels} from: there is no earlier verdict with a commit, so judge it",
+      else: "#{labels} didn't pass at #{short(sha)}, so it can't be carried: judge it"
+  end
+
+  defp part_label({"ask", _}), do: "the ask"
+  defp part_label({"handbook_line", _}), do: "the Handbook line"
+  defp part_label({"bar", i}), do: "bar #{i}"
+  defp part_label({"rules", id}), do: id
+
+  @doc "The parts `checks` gives as `carried`, as `passed_parts/1` names them."
+  def carried_asks(checks) do
+    if(checks["ask"] == @carried, do: [{"ask", nil}], else: []) ++
+      for(%{"result" => @carried, "item" => i} <- checks["bar"] || [], do: {"bar", i}) ++
+      for(%{"result" => @carried, "id" => id} <- checks["rules"] || [], do: {"rules", id}) ++
+      if checks["handbook_line"] == @carried, do: [{"handbook_line", nil}], else: []
+  end
+
+  defp carry_part(checks, {part, nil}, prior, sha) when part in ~w(ask handbook_line) do
+    if is_nil(checks[part]) or checks[part] == @carried do
+      checks
+      |> Map.put(part, prior[part])
+      |> Map.update("carried", %{part => sha}, &Map.put(&1, part, sha))
+    else
+      checks
+    end
+  end
+
+  defp carry_part(checks, {field, key}, prior, sha) do
+    key_field = if field == "bar", do: "item", else: "id"
+    list = checks[field] || []
+    given = Enum.find(list, &(&1[key_field] == key))
+
+    if given == nil or given["result"] == @carried do
+      earlier = Enum.find(prior[field], &(&1[key_field] == key))
+
+      item =
+        earlier
+        |> Map.take([key_field, "result", "severity", "note"])
+        |> Map.put("carried_from", sha)
+
+      put_item(checks, field, key_field, item)
+    else
+      checks
+    end
+  end
 end
