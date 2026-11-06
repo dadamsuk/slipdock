@@ -129,6 +129,7 @@ defmodule Slipdock.VerifiedCreateTest do
       board = switch(ctx, %{"lanes" => true})
       held = card_fixture(ctx.doing, %{"title" => "Holding"})
       {:ok, held} = Boards.update_card(held, %{"paths" => ["lib/foo/**"]})
+      working_job_fixture(held)
       %{board: board, held: held}
     end
 

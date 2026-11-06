@@ -176,6 +176,8 @@ defmodule Slipdock.FindingsSignalsTest do
     test "an agent moving into a lane in use is a finding, naming the other card", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
       {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
+      # Only a card a runner job is working on holds its lane (#1922).
+      working_job_fixture(ctx.card)
       mine = card_fixture(ctx.todo, %{"title" => "Mine"})
       {:ok, mine} = Boards.update_card(mine, %{"paths" => ["lib/a/b.ex"]})
 
@@ -194,6 +196,8 @@ defmodule Slipdock.FindingsSignalsTest do
     test "an agent widening its paths onto another card's is one too", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
       {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
+      # Only a card a runner job is working on holds its lane (#1922).
+      working_job_fixture(ctx.card)
       mine = card_fixture(ctx.doing, %{"title" => "Mine"})
 
       assert {:error, _} =

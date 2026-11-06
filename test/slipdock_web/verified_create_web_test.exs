@@ -120,6 +120,7 @@ defmodule SlipdockWeb.VerifiedCreateWebTest do
     {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
     held = card_fixture(ctx.doing, %{"title" => "Holding"})
     {:ok, held} = Boards.update_card(held, %{"paths" => ["lib/foo/**"]})
+    working_job_fixture(held)
 
     body =
       ctx.agent

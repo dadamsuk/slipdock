@@ -480,10 +480,33 @@ defmodule Slipdock.Runners do
       )
       |> Repo.all()
 
-    {card_ids, Enum.flat_map(card_ids, &Boards.subtree_board_ids/1)}
+    {card_ids, boards_under(card_ids)}
   end
 
   def worked(root_id), do: worked([root_id])
+
+  # Every board below the given cards, a query per level of nesting rather
+  # than per card, so the board page asks the same number whatever its size.
+  defp boards_under([]), do: []
+
+  defp boards_under(card_ids),
+    do: below(Repo.all(from(b in Board, where: b.parent_card_id in ^card_ids, select: b.id)))
+
+  defp below([]), do: []
+
+  defp below(board_ids) do
+    next =
+      Repo.all(
+        from(sb in Board,
+          join: c in Card,
+          on: sb.parent_card_id == c.id,
+          where: c.board_id in ^board_ids,
+          select: sb.id
+        )
+      )
+
+    board_ids ++ below(next)
+  end
 
   # The open cards in a doing list on the job's board, other than its own,
   # that a runner job is working on (`worked/1`): a job that waits while

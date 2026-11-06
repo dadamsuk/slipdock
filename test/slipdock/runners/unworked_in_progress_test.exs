@@ -148,6 +148,12 @@ defmodule Slipdock.Runners.UnworkedInProgressTest do
       # A job on the sub-board waits while the child is in progress.
       {:ok, job} = queue(card(hd(sub.columns), "Sibling"))
       assert Runners.waiting_on(job).id == child.id
+
+      # Nested deeper: the child's own sub-board is worked by the epic's job too.
+      {:ok, deeper} = sub_board(child, t)
+      assert {cards, boards} = Runners.worked(ctx.board.id)
+      assert epic.id in cards
+      assert Enum.sort(boards) == Enum.sort([sub_id, deeper.id])
     end
   end
 
