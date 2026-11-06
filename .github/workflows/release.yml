@@ -310,8 +310,10 @@ jobs:
           TAG: ${{ needs.merge.outputs.deploy-tag }}
           # How the suite was satisfied (#1857), kept on the record. An env
           # var, not --note: the CLI comes from the server being replaced,
-          # and one older than the switch would refuse it.
-          SLIPDOCK_DEPLOY_NOTE: ${{ needs.suite.outputs.note || 'suite: ran' }}
+          # and one older than the switch would refuse it. Quoted: a plain
+          # YAML scalar can't hold a colon and a space, and an unparseable
+          # workflow fails every push before any job starts (#1916).
+          SLIPDOCK_DEPLOY_NOTE: "${{ needs.suite.outputs.note || 'suite: ran' }}"
 
       - uses: tailscale/github-action@v4
         with:

@@ -556,6 +556,50 @@ defmodule Slipdock.CiWorkflowTest do
   end
 
   # release.yml's first job, and the script it runs (#1857).
+  # GitHub reports a workflow that doesn't parse only as "a workflow file
+  # issue" on every push, with no job run (#1916: a colon and a space in a
+  # plain scalar stopped every release for an afternoon). The line checks
+  # above read the text, so they pass on a file GitHub can't load.
+  describe "every workflow parses (#1916)" do
+    @workflows Path.wildcard(Path.join(@root, ".github/workflows/*.yml")) ++
+                 Path.wildcard(Path.join(@root, "priv/deploy/examples/github-*.yml"))
+
+    test "the list covers the workflows it must" do
+      names = Enum.map(@workflows, &Path.relative_to(&1, @root))
+      assert ".github/workflows/ci.yml" in names
+      assert ".github/workflows/release.yml" in names
+      assert "priv/deploy/examples/github-actions.yml" in names
+    end
+
+    for path <- @workflows do
+      @path path
+      test "#{Path.relative_to(path, @root)} is YAML with jobs" do
+        assert {:ok, %{"jobs" => jobs}} = YamlElixir.read_from_file(@path),
+               "#{@path} does not parse as YAML, or has no jobs"
+
+        assert is_map(jobs) and map_size(jobs) > 0
+      end
+    end
+
+    test "the deploy note reaches GitHub as the expression it was written as" do
+      {:ok, release} =
+        YamlElixir.read_from_file(Path.join(@root, ".github/workflows/release.yml"))
+
+      [step] = Enum.filter(release["jobs"]["deploy"]["steps"], &(&1["id"] == "record"))
+
+      assert step["env"]["SLIPDOCK_DEPLOY_NOTE"] ==
+               "${{ needs.suite.outputs.note || 'suite: ran' }}"
+    end
+
+    test "the check catches the line that broke it, unquoted" do
+      assert {:error, _} =
+               YamlElixir.read_from_string("""
+               env:
+                 NOTE: ${{ needs.suite.outputs.note || 'suite: ran' }}
+               """)
+    end
+  end
+
   describe "the post-merge suite gate" do
     @release File.read!(Path.join(@root, ".github/workflows/release.yml"))
     @gate Path.join(@root, ".github/scripts/suite-gate.sh")
@@ -599,7 +643,7 @@ defmodule Slipdock.CiWorkflowTest do
     test "the deploy record carries the gate's note" do
       assert has?(
                release_job("deploy"),
-               "SLIPDOCK_DEPLOY_NOTE: ${{ needs.suite.outputs.note || 'suite: ran' }}"
+               ~s(SLIPDOCK_DEPLOY_NOTE: "${{ needs.suite.outputs.note || 'suite: ran' }}")
              )
     end
 
