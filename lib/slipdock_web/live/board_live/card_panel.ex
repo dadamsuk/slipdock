@@ -351,11 +351,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           class="flex items-start gap-1.5"
         >
           <.icon
-            name={if failing_check?(result), do: "hero-x-mark", else: "hero-check"}
-            class={[
-              "mt-0.5 size-4 shrink-0",
-              if(failing_check?(result), do: "text-error", else: "text-success")
-            ]}
+            name={check_icon(result)}
+            class={["mt-0.5 size-4 shrink-0", check_colour(result)]}
           />
           <span>
             <span class="font-medium">{label}</span>
@@ -465,6 +462,16 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   end
 
   defp failing_check?(result), do: Slipdock.Verified.Checks.failing_result?(result)
+
+  # A part's mark: failed, passed, or a rule broken only in code the change
+  # didn't touch (#1945), which is neither.
+  defp check_icon("pre-existing"), do: "hero-archive-box"
+  defp check_icon(result), do: if(failing_check?(result), do: "hero-x-mark", else: "hero-check")
+
+  defp check_colour("pre-existing"), do: "text-warning"
+
+  defp check_colour(result),
+    do: if(failing_check?(result), do: "text-error", else: "text-success")
 
   defp verify_icon("pending"), do: "hero-clock"
   defp verify_icon("merging"), do: "hero-arrow-path"

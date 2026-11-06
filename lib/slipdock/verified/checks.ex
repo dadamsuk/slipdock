@@ -32,12 +32,19 @@ defmodule Slipdock.Verified.Checks do
       rule:UX-4=broken:hex colour in card.ex
       handbook_line=disputed:W-3 wasn't edited
       bar:1=carried          (passed at the last verdict's commit; #1944)
+      rule:UX-4=pre-existing:lib/card.ex:42:hex colour
+                             (broken only in lines the diff didn't change; #1945)
+
+  A `pre-existing` rule part (#1945) carries the `file` and `line` where
+  the rule is broken in code the change didn't touch. It isn't a failing
+  part: it never makes a rejection, an acceptance may carry it, and the
+  server records it as a `rule` finding on the card instead.
   """
 
   @results %{
     "ask" => ~w(ok misses carried),
     "bar" => ~w(ok fail carried),
-    "rule" => ~w(ok broken n/a carried),
+    "rule" => ~w(ok broken n/a carried pre-existing),
     "handbook_line" => ~w(ok disputed carried)
   }
 
@@ -143,6 +150,26 @@ defmodule Slipdock.Verified.Checks do
          do: {:ok, {:bar, %{"item" => key, "result" => result, "note" => note}}}
   end
 
+  defp build("rule", key, "pre-existing", note) when is_binary(key) and key != "" do
+    case Regex.run(~r/^\s*([^\s:]+):(\d+)(?:\s*[:;,]?\s*(.*))?$/s, note || "") do
+      [_, file, line | rest] ->
+        {:ok,
+         {:rule,
+          %{
+            "id" => String.upcase(key),
+            "result" => "pre-existing",
+            "file" => file,
+            "line" => String.to_integer(line),
+            "note" => rest |> List.first() |> to_string() |> String.trim() |> blank_nil()
+          }}}
+
+      nil ->
+        {:error,
+         "check `rule:#{key}=pre-existing` needs the file and line where it is broken: " <>
+           "`rule:#{key}=pre-existing:lib/foo.ex:42[:why]`"}
+    end
+  end
+
   defp build("rule", key, result, note) when is_binary(key) and key != "" do
     with :ok <- result_ok("rule", result),
          do: {:ok, {:rule, %{"id" => String.upcase(key), "result" => result, "note" => note}}}
@@ -210,8 +237,17 @@ defmodule Slipdock.Verified.Checks do
   defp list_item(part, key_field, item) do
     item = if is_map(item), do: Map.new(item, fn {k, v} -> {to_string(k), v} end), else: %{}
     note = if is_binary(item["note"]), do: blank_nil(String.trim(item["note"]))
+    note = with_place(item, note)
     build(part, to_string(item[key_field] || ""), to_string(item["result"] || ""), note)
   end
+
+  # A pre-existing rule given as a map has its place as fields (#1945).
+  defp with_place(%{"result" => "pre-existing", "file" => file} = item, note)
+       when is_binary(file) and file != "" do
+    "#{file}:#{item["line"]}" <> if(note, do: ":" <> note, else: "")
+  end
+
+  defp with_place(_item, note), do: note
 
   defp one({:ok, part}), do: {:ok, [part]}
   defp one(error), do: error
@@ -345,7 +381,7 @@ defmodule Slipdock.Verified.Checks do
       suite_line(checks["suite"]) ++
       for(
         r <- checks["rules"] || [],
-        do: {rule_label(r), r["result"], carried_note(r["note"], r["carried_from"])}
+        do: {rule_label(r), r["result"], r |> rule_note() |> carried_note(r["carried_from"])}
       ) ++
       one_line(
         "Handbook line",
@@ -371,6 +407,20 @@ defmodule Slipdock.Verified.Checks do
     do: [{"suite", "#{p} passed, #{f} failed", nil}]
 
   defp suite_line(_), do: []
+
+  # A pre-existing rule's note leads with where it is broken (#1945).
+  defp rule_note(%{"result" => "pre-existing", "file" => file} = r) do
+    place = "#{file}:#{r["line"]}"
+    if r["note"], do: "#{place}; #{r["note"]}", else: place
+  end
+
+  defp rule_note(r), do: r["note"]
+
+  @doc "The pre-existing rule parts of `checks` (#1945): broken only in code the change didn't touch."
+  def pre_existing(%{} = checks),
+    do: for(%{"result" => "pre-existing"} = r <- checks["rules"] || [], do: r)
+
+  def pre_existing(_), do: []
 
   defp rule_label(r), do: [r["id"], r["severity"]] |> Enum.reject(&is_nil/1) |> Enum.join(" ")
 

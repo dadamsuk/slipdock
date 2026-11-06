@@ -368,7 +368,10 @@ defmodule Slipdock.VerifiedReworkTest do
 
       reasons = Enum.find(bodies(card), &(&1 =~ "**Rejected 3 times**"))
       assert reasons =~ "past the board's limit of 2"
-      assert reasons =~ "1. bar 1: try 1\n2. bar 2: try 2\n3. bar 3: try 3"
+
+      assert reasons =~
+               "1. bar 1: try 1 (failed: bar 1)\n2. bar 2: try 2 (failed: bar 2)\n" <>
+                 "3. bar 3: try 3 (failed: bar 3)"
     end
 
     test "at 0 no rejection opens a wait; at 1 the second does", ctx do

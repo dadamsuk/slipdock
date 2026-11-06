@@ -420,6 +420,39 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     refute out =~ "bar 2: carried"
   end
 
+  test "card shows a pre-existing rule hit apart from passed and failed parts, with its place" do
+    checks = %{
+      "bar" => [%{"item" => "1", "result" => "ok"}],
+      "rules" => [
+        %{
+          "id" => "UX-4",
+          "severity" => "must",
+          "result" => "pre-existing",
+          "file" => "lib/card.ex",
+          "line" => 42,
+          "note" => "hex"
+        },
+        %{"id" => "UX-5", "result" => "pre-existing", "file" => "lib/a.ex", "line" => 7}
+      ]
+    }
+
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "verify_state" => "accepted",
+            "verify_by" => %{"kind" => "agent", "agent" => "checker"},
+            "verify_checks" => checks
+          })
+        )
+      end)
+
+    assert out =~ "✓ bar 1"
+    assert out =~ "○ UX-4 must pre-existing: lib/card.ex:42; hex"
+    assert out =~ "○ UX-5 pre-existing: lib/a.ex:7"
+    refute out =~ "✗"
+  end
+
   defp card(extra) do
     Map.merge(
       %{

@@ -819,7 +819,11 @@ With one on, the pass changes like this:
   `ask=ok|misses`, `bar:2=ok|fail`, `suite=412:0`, `rule:UX-4=ok|broken|n/a`,
   `handbook_line=ok|disputed`, each with `:"why"` if it needs one. A
   rejection names at least one failing part; an acceptance can't carry one
-  (a missed `should` rule aside). You can't decide a card you submitted
+  (a missed `should` rule aside). A rule broken only in lines the diff
+  didn't change is not the builder's: give it as
+  `rule:UX-4=pre-existing:<file>:<line>`, never `broken` and never a
+  rejection; it is kept as a `rule` finding on the card, and an
+  acceptance may carry it. You can't decide a card you submitted
   yourself (`403`). **A resubmission** (the prompt says the card was
   judged before, at a commit) is judged on what changed: the parts that
   failed, and any part the commits since touch (`git diff --name-only

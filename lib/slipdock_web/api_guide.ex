@@ -3291,7 +3291,7 @@ defmodule SlipdockWeb.APIGuide do
     The test for one: would the next pass, on a different card, have done
     better knowing this? `Findings: none` is a normal answer; filler isn't.
     A line with no known kind is kept whole as a `gotcha`. The server also
-    records its own (source `rejection`, `requeue`, `timeout`, `failed`,
+    records its own (source `rejection`, `verification`, `requeue`, `timeout`, `failed`,
     `lane`, `merge`, `audit`, `health`), counting repeats on a card, on any
     board, handbook or not.
 
@@ -3781,6 +3781,8 @@ defmodule SlipdockWeb.APIGuide do
     it and moves it to the done list. Rejecting needs the reason, citing the check it fails (`bar 2: …`,
     `the ask: …`, a rule id such as `ARCH-3: …`, or `Handbook line: …`) and
     giving the verdict in parts as `checks` (`ask=ok|misses`, `bar:2=fail:why`,
+    `rule:UX-4=pre-existing:lib/x.ex:42` for a rule broken only in lines
+    the diff didn't change, never a rejection and kept as a `rule` finding,
     `suite=412:0`, `rule:UX-4=broken`, `handbook_line=ok|disputed`; kept as
     `verify_checks`, and refused without a failing part, or on an accept
     with a broken `must` rule). A card resubmitted after a rejection is
@@ -3799,7 +3801,8 @@ defmodule SlipdockWeb.APIGuide do
     what the reason says and completes it again. Past the board's
     `verify_rejection_limit` (2 by default, 0 never) the rejection opens a
     wait on the board's owner instead (*Rework as rejected* or *Accept as
-    is*): the card is flagged `waiting`, and only a person answers. A
+    is*, listing the parts that failed each time and asking whether the
+    approach, not the fix, is wrong): the card is flagged `waiting`, and only a person answers. A
     board's `verify_audit` (1 in N, 0 none) queues about one card in N an
     agent accepted to the verify pool again as an audit (kind `verify`,
     `audit: true`; never to its builder's or verifier's runner): judge it

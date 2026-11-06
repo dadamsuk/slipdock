@@ -444,7 +444,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
       in that pool, never the runner that built it, judges in order: does the bar cover the ask;
       is each part of the bar met; did the suite pass (on a pull request board, the pull
       request's checks); are the rules kept (<code>must</code>
-      and <code>should</code>); and is the Handbook line honest. Then
+      and <code>should</code>; a rule broken only in code the change didn't touch is reported as
+      pre-existing and kept as a finding, never a rejection); and is the Handbook line honest. Then
       <code>slipdock verify 12 accept</code>
       or <code>slipdock verify 12 reject --reason "bar 2: …"</code>.
     </p>
@@ -479,7 +480,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
         <li>
           After <em>Rejections before a person decides</em>
           (2 by default), the next rejection opens a wait on the board's owner: rework it as
-          rejected, or accept it as is. You can reword the bar first.
+          rejected, or accept it as is. It lists what failed each time, and asks whether the
+          approach, not the fix, is wrong. You can reword the bar first.
         </li>
         <li>
           When no runner can merge, merge the pull request yourself and press

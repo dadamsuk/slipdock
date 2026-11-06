@@ -738,13 +738,23 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   (repeat `--check`, or `--checks-file F`, one per line), MCP
   `verify_card` `checks`, or `"checks": [...]` on the REST call. The parts
   are `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`,
-  `rule:<id>=ok|broken|n/a` and `handbook_line=ok|disputed`, each with
+  `rule:<id>=ok|broken|n/a|pre-existing` and `handbook_line=ok|disputed`, each with
   `:<why>` if it needs one. A rejection has to name a failing part (an
   agent's reason that starts `bar 2:`, `the ask:`, a rule id or `Handbook
   line:` counts). An acceptance with any failing part is refused, except a
   missed `should` rule. The parts are kept on the card (`verify_checks`),
   listed under its verification block and in `slipdock card`, and written
   into the decision's comment. A later decision replaces them.
+- **Rule hits on code the change didn't touch are reported, not
+  rejected.** A rule broken only in lines the diff didn't change isn't the
+  builder's: the verifier gives it as `--check
+  rule:UX-4=pre-existing:lib/card.ex:42` (the file and line where it is
+  broken, then `:why` if it needs one). It is never a rejection: a
+  rejection naming only such parts is refused, and an acceptance may carry
+  them. Each is kept as a `rule` finding on the card (source
+  `verification`), once per part, and shown under Verification with its
+  own mark (an archive box on the card, `○` in `slipdock card`), apart from
+  the parts that passed and failed.
 - **A resubmission is judged on what changed.** When a rejected card is
   submitted again, its verify job's prompt carries the last verdict and
   the commit it judged. The verifier judges the parts that failed and any
@@ -763,7 +773,9 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   is how often a card may be rejected. The rejection after that still goes
   back to the top of the ready list, but its evidence is kept, a comment
   lists every rejection's reason, and a wait opens on the board's owner
-  with two choices. The card is flagged `waiting`, so no runner rule sends
+  with two choices. The comment and the wait list the parts that failed in
+  each rejection and say the approach may be wrong, not the fix, so it is
+  read as a decision rather than another retry. The card is flagged `waiting`, so no runner rule sends
   it. You can edit its bar before you answer. *Rework as rejected* (or any
   other answer, or skipping) clears the evidence and lets the runners take
   it again. *Accept as is* accepts it in your name, and on a pull request
@@ -1717,7 +1729,8 @@ two rules to the open ones as merges a person can reopen
 **Recorded by the server.** The system notes its own signals without asking:
 a verifier's rejection, a job that times out or fails, a card requeued or
 given up on, a lane refusing a move, a merge that fails, an audit that
-disagrees, a health-monitor incident (sources `rejection`, `timeout`,
+disagrees, a health-monitor incident, a verifier reporting a rule broken in
+code the change didn't touch (sources `rejection`, `verification`, `timeout`,
 `failed`, `requeue`, `lane`, `merge`, `audit`, `health`). Each has its source,
 card and job, and a repeat on the same card for the same cause adds to its
 count rather than making another: a card that times out three times is one

@@ -51,6 +51,8 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
           description:
             "The verdict in parts, one each: ask=ok|misses, bar:2=ok|fail[:why], " <>
               "suite=412:0, rule:UX-4=ok|broken|n/a[:why], handbook_line=ok|disputed; " <>
+              "rule:UX-4=pre-existing:<file>:<line> for a rule broken only in unchanged lines " <>
+              "(never a rejection); " <>
               "on a resubmission, =carried for a part passed before."
         }
       },

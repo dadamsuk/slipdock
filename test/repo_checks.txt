@@ -86,6 +86,7 @@ test/slipdock_web/live/verify_rejection_limit_live_test.exs
 test/slipdock_web/live/visualise_polish_test.exs
 test/slipdock_web/verify_checks_web_test.exs
 test/slipdock_web/verified_reverify_web_test.exs
+test/slipdock_web/verified_preexisting_web_test.exs
 test/slipdock_web/verify_progress_test.exs
 
 # CI's workflow and the pre-push alias against the repo
