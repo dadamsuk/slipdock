@@ -633,9 +633,12 @@ card that has one), `slipdock edit 12 --bar "…"`, `PATCH /api/cards/:id
 {"bar": "…"}` or MCP `update_card`'s `bar`, up to 4000 characters.
 
 - An agent moving a card with no bar into an in-progress list is refused
-  (`422`), and the card stays where it was.
+  (`422`), and the card stays where it was. So is an agent creating one
+  straight into an in-progress list with no bar (`slipdock add --column`,
+  `POST /api/boards/:board/cards`, MCP `create_card`): no card is made.
 - The bar **locks** the first time the card enters an in-progress list with
-  one written (`bar_locked_at` on the card, a *locked* badge on the field).
+  one written (`bar_locked_at` on the card, a *locked* badge on the field),
+  by a move or by being created there.
   After that an agent changing it is refused; a person still can.
 - A person changing a locked bar is a line in the board's activity
   (*changed the locked bar of …*), as setting or clearing one is.
@@ -938,7 +941,8 @@ set-board slipdock --lanes`, `update_board` `lanes`, `PATCH /api/boards/:id
 board's switch holds for its whole tree), an agent can't start a card whose
 paths overlap those of an open card already in progress anywhere on the
 tree: moving it into an in-progress list is refused with the other card
-named, and so is widening an in-progress card's paths onto another's. The
+named, and so are creating one straight into an in-progress list and
+widening an in-progress card's paths onto another's. The
 card's own subcards and parents don't count against it, and a card with no
 paths overlaps nothing. **An epic's lane is its subcards'**: an epic (a card
 whose sub-board has cards) in progress holds no lane of its own, since the

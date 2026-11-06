@@ -1905,6 +1905,10 @@ defmodule Slipdock.Boards do
     # automation rule and the model, and all of them come through this
     # function. See `Slipdock.Quota`.
     |> Quota.enforce(column)
+    # Created straight into a doing list (#1815), the card meets the checks
+    # a move into it makes: the bar (#1620), then lanes (#1628).
+    |> Slipdock.Verified.check_create(column, Slipdock.Actor.resolve(opts))
+    |> Slipdock.Lanes.check_create(column, Slipdock.Actor.resolve(opts))
     |> save_with_assignees(&Repo.insert/1, assignees)
     |> tap_ok(fn card ->
       log(Repo, card.board_id, card.id, "card", "added “#{card.title}” to #{column.name}")
