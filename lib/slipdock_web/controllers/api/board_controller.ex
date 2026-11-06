@@ -330,6 +330,17 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
+  # How well agent work goes over `days` (#1796, `Slipdock.Quality`):
+  # first-time-right, rework by area, job outcomes and health incidents.
+  def quality(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- fetch_board(conn, ref, :read) do
+      json(conn, %{
+        board: %{id: board.id, code: board.code},
+        quality: Slipdock.Quality.for_board(board, days: params["days"])
+      })
+    end
+  end
+
   def delete(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),
          {:ok, _} <- Boards.delete_board(board) do

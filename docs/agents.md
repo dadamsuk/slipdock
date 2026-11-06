@@ -241,8 +241,12 @@ filter on `stuck` and `driver`; `slipdock pulse <board>` (`get_board` with
 `pulse: true`) gives the board's flow numbers, `slipdock flow <board>`
 (`history: true`, `GET /api/boards/:id/flow?days=`) its flow day by day,
 and `slipdock runner-stats <board>` (`runners: true`,
-`GET /api/boards/:id/runner_stats`) how its runners are doing; a person sees
-all of it on the board's **Visualise** page. A card's history — how
+`GET /api/boards/:id/runner_stats`) how its runners are doing, and
+`slipdock quality <board> [--days N]` (`GET /api/boards/:id/quality?days=`)
+how well agent work goes: cards accepted on their first submission,
+rejections per card by handbook area, job timeouts, failures, requeues and
+give-ups per 100 jobs, and health incidents fixed versus flagged. A person
+sees all of it on the board's **Visualise** page. A card's history — how
 long it sat in each list and who moved it, its waits and its jobs — is
 `get_card` with `timeline: true`, `GET /api/cards/:id/timeline` or
 `slipdock timeline <id>`. See

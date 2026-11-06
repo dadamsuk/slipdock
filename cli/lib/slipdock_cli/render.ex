@@ -352,6 +352,74 @@ defmodule SlipdockCLI.Render do
     IO.puts("cycle time: P50 #{span(c["p50"])} · P85 #{span(c["p85"])} over #{c["cards"]} cards")
   end
 
+  @doc "A board's quality numbers (#1796, `GET /boards/:b/quality`)."
+  def quality(q) do
+    v = q["verified"]
+    p = q["previous"]
+    IO.puts("last #{q["days"]} days (#{q["since"]} to #{q["until"]})")
+
+    if v["accepted"] == 0 do
+      IO.puts("first-time-right: " <> dim("no cards accepted in the window"))
+    else
+      IO.puts(
+        "first-time-right: #{share(v["rate"])} (#{v["first_time_right"]} of #{v["accepted"]} accepted)" <>
+          quality_before(p)
+      )
+
+      IO.puts(
+        "rework: #{v["rejections"]} rejections, #{v["per_card"]} per card" <>
+          if(v["reopened"] > 0, do: " · #{v["reopened"]} reopened", else: "")
+      )
+    end
+
+    if v["in_rework"] > 0,
+      do: IO.puts("in rework now: #{v["in_rework"]} rejected, not yet accepted")
+
+    if q["areas"] != [] do
+      IO.puts(dim("  area                              cards  right  rejections  per card"))
+      Enum.each(q["areas"], &IO.puts(quality_area(&1)))
+    end
+
+    j = q["jobs"]
+
+    if j["jobs"] == 0 do
+      IO.puts("jobs: " <> dim("none finished in the window"))
+    else
+      r = j["per_100"]
+
+      IO.puts(
+        "jobs: #{j["jobs"]} finished · per 100: #{r["timeouts"]} timeouts, #{r["failed"]} failed, " <>
+          "#{r["requeues"]} requeues, #{r["gave_up"]} give-ups"
+      )
+    end
+
+    h = q["health"]
+
+    IO.puts(
+      "health: #{h["incidents"]} incidents · #{h["fixed"]} fixed, #{h["flagged"]} flagged, " <>
+        "#{h["cleared"]} cleared, #{h["open"]} open"
+    )
+  end
+
+  defp quality_area(a) do
+    name = if a["code"], do: "#{a["code"]} #{a["title"]}", else: a["title"]
+
+    "  " <>
+      String.pad_trailing(String.slice(name, 0, 32), 32) <>
+      String.pad_leading(to_string(a["cards"]), 7) <>
+      String.pad_leading(share(a["rate"]), 7) <>
+      String.pad_leading(to_string(a["rejections"]), 12) <>
+      String.pad_leading(to_string(a["per_card"]), 10)
+  end
+
+  defp share(nil), do: "–"
+  defp share(r), do: "#{round(r * 100)}%"
+
+  defp quality_before(%{"accepted" => n, "rate" => rate}) when n > 0,
+    do: dim(" · #{share(rate)} the window before")
+
+  defp quality_before(_), do: ""
+
   def runner_stats(%{"runners" => []}), do: IO.puts(dim("no runners take work from this board"))
 
   def runner_stats(s) do

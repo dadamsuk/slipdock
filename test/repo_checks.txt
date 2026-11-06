@@ -44,6 +44,7 @@ test/slipdock_web/generated_names_docs_test.exs
 test/slipdock_web/handbook_docs_test.exs
 test/slipdock_web/handoff_docs_test.exs
 test/slipdock_web/health_docs_test.exs
+test/slipdock_web/quality_docs_test.exs
 test/slipdock_web/inbound_docs_test.exs
 test/slipdock_web/lanes_docs_test.exs
 test/slipdock_web/mcp/docs_test.exs
