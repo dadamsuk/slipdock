@@ -308,6 +308,13 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   screen). Like the rest of the Display menu it is kept in the URL and in a
   saved view.
 
+  Your browser also remembers the Display options you last chose for each
+  board and each view (board, table, timeline and so on), so leaving the
+  board and coming back to its plain address brings them back. They are kept
+  in this browser only: another browser or device starts from the defaults.
+  A link that names its own display options, and a saved view, use theirs
+  instead. Filters are not remembered.
+
   Until you choose otherwise, a card shows only what you need at a glance:
   its tags, title, assignee, due date, priority (high, critical and low;
   medium is the unremarkable middle and stays off the front), flags,
