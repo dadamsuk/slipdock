@@ -23,7 +23,6 @@ defmodule SlipdockWeb.SearchLinksTest do
       for {kind, section, at} <- [
             {"comment", "", "comment-7"},
             {"status_update", "", "status-update-7"},
-            {"provenance", "", "provenance-7"},
             {"transcript", "", "transcript-7"},
             {"transcript", "part 3", "transcript-7-part-3"},
             {"document", "", "document-7"},
@@ -45,12 +44,21 @@ defmodule SlipdockWeb.SearchLinksTest do
 
   test "at/1 takes only what path/2 writes" do
     for good <-
-          ~w(comment-1 status-update-22 provenance-3 transcript-4 transcript-4-part-12 document-4
+          ~w(comment-1 status-update-22 transcript-4 transcript-4-part-12 document-4
                   document-4-part-2) do
       assert SearchLinks.at(good) == good
     end
 
-    for bad <- [nil, "", "card-1", "comment-", "comment-1;x", "transcript-4-part-", "<script>"] do
+    for bad <- [
+          nil,
+          "",
+          "card-1",
+          "provenance-3",
+          "comment-",
+          "comment-1;x",
+          "transcript-4-part-",
+          "<script>"
+        ] do
       assert SearchLinks.at(bad) == nil
     end
   end

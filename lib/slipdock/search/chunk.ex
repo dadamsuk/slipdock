@@ -52,7 +52,6 @@ defmodule Slipdock.Search.Chunk do
     [card_chunk(card)] ++
       Enum.map(card.comments, &comment_chunk(&1, card)) ++
       Enum.map(card.status_updates, &status_chunk(&1, card)) ++
-      provenance_chunks(card) ++
       transcript_chunks(card) ++
       card_document_chunks(card)
   end
@@ -159,30 +158,6 @@ defmodule Slipdock.Search.Chunk do
       body: body
     }
   end
-
-  # What was said in the meeting a card came from, so a search for those
-  # words finds the card (see `Slipdock.Meetings.Provenance`).
-  defp provenance_chunks(%Card{provenance: list} = card) when is_list(list) do
-    list
-    |> Enum.filter(&(is_binary(&1.quote) and &1.quote != ""))
-    |> Enum.map(fn p ->
-      %{
-        kind: "provenance",
-        source_id: p.id,
-        section: "",
-        card_id: card.id,
-        page_id: nil,
-        board_id: card.board_id,
-        body:
-          join([
-            "Said in the meeting “#{p.meeting}” about card “#{card.title}” (#{where_inline(card)}):",
-            "#{p.speaker || "Somebody"}: “#{p.quote}”"
-          ])
-      }
-    end)
-  end
-
-  defp provenance_chunks(_card), do: []
 
   # What was said in a recording attached to the card, once it has been
   # transcribed (see `Slipdock.Transcription`). A call runs long, so a

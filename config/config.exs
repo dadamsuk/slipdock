@@ -36,9 +36,9 @@ config :slipdock, :uploads_dir, Path.expand("../priv/uploads", __DIR__)
 # (SLIPDOCK_SOURCE_URL).
 config :slipdock, :source_url, "https://github.com/dadamsuk/slipdock"
 
-# Meeting capture takes recordings and transcripts in formats the MIME table
-# does not know by default (see `Slipdock.Meetings.Limits`); LiveView's upload
-# filter needs each extension to have a type.
+# Audio uploads (Vault's recordings, a card's recording to transcribe) come in
+# formats the MIME table does not know by default; LiveView's upload filter
+# needs each extension to have a type.
 config :mime, :types, %{
   "audio/mp4" => ["m4a"],
   "audio/flac" => ["flac"],

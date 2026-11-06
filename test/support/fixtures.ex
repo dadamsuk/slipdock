@@ -26,10 +26,6 @@ defmodule Slipdock.Fixtures do
     user
   end
 
-  @doc "Meeting mode follows the transcription permission until it is removed (#1819)."
-  def allow_meetings(user), do: allow_transcription(user)
-  def no_meetings(user), do: no_transcription(user)
-
   @doc """
   The address `user_fixture/1` really uses for `email`. In an async test an
   `@example.com` address moves to the test's own domain (see

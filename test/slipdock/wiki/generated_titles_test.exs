@@ -64,38 +64,6 @@ defmodule Slipdock.Wiki.GeneratedTitlesTest do
     end
   end
 
-  describe "meeting/2" do
-    @day ~D[2026-10-06]
-
-    test "the date, then the first source with anything in it" do
-      assert meeting(@day, [nil, "  ", "Sales intro"]) == "2026-10-06 Sales intro"
-    end
-
-    test "a recording's date, time and extension go" do
-      assert meeting(@day, ["2026 10 06 14.27.47 cto intro sales training platform.mp4"]) ==
-               "2026-10-06 cto intro sales training platform"
-    end
-
-    test "numbers that aren't a date stay" do
-      assert meeting(@day, ["3 year plan"]) == "2026-10-06 3 year plan"
-    end
-
-    test "what a link can't hold goes" do
-      assert meeting(@day, ["Pricing / plans | [draft]"]) == "2026-10-06 Pricing plans draft"
-    end
-
-    test "a few words, however many it is given" do
-      title = meeting(@day, [String.duplicate("planning ", 40)])
-      assert String.length(title) <= 71
-      assert String.ends_with?(title, "…")
-    end
-
-    test "nothing to go on" do
-      assert meeting(@day, [nil, "2026-10-06 14.27.47.mp4"]) == "2026-10-06 Meeting"
-      assert meeting(@day, []) == "2026-10-06 Meeting"
-    end
-  end
-
   describe "fired/3" do
     @day ~D[2026-11-01]
 

@@ -131,7 +131,7 @@ defmodule Slipdock.Search.EmbeddingTest do
 
     test "kinds, labels and which kinds are pages" do
       assert Embedding.kinds() ==
-               ~w(card comment status_update page page_section provenance transcript
+               ~w(card comment status_update page page_section transcript
                   document page_document file_document)
 
       assert Enum.map(Embedding.kinds(), &Embedding.label/1) ==
@@ -141,7 +141,6 @@ defmodule Slipdock.Search.EmbeddingTest do
                  "status update",
                  "page",
                  "page section",
-                 "said in a meeting",
                  "recording transcript",
                  "text in a file",
                  "text in a file",

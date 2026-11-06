@@ -39,11 +39,8 @@ defmodule Slipdock.Portable do
   than an omission, and `warnings/1` on an export says which of them had
   something to leave behind.
 
-  Meeting captures (see `Slipdock.Meetings`) go *out* with their board, as a
-  record — the transcript, what was found, how each question was settled —
-  but an import leaves them out: a capture is a record of a commit made on
-  this server, and replaying it elsewhere would claim a review that did not
-  happen there. The cards it wrote carry their own provenance either way.
+  An export from before meeting capture was removed (W-2330) may carry a
+  `captures` key; an import leaves it out, as it always did.
   """
 
   # The work is split three ways: `Slipdock.Portable.Export` writes a tree

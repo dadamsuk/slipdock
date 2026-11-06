@@ -181,7 +181,6 @@ defmodule Slipdock.Quota do
   def used(user_id, :storage) when is_integer(user_id) do
     (Repo.aggregate(owned_attachments(user_id), :sum, :size) || 0) +
       (Repo.one(from(f in owned_wiki_files(user_id), select: type(sum(f.size), :integer))) || 0) +
-      (Repo.one(from(c in owned_audio(user_id), select: type(sum(c.audio_size), :integer))) || 0) +
       Slipdock.Tools.storage_used(user_id)
   end
 
@@ -481,18 +480,6 @@ defmodule Slipdock.Quota do
       |> Repo.all()
       |> Map.new()
 
-    # Meeting recordings are bytes on the disk too (see `Slipdock.Meetings`).
-    audio =
-      from(c in Slipdock.Meetings.Capture,
-        join: b in subquery(owners_of_boards(user_ids)),
-        on: b.id == c.board_id,
-        where: not is_nil(c.audio_key),
-        group_by: b.owner_id,
-        select: {b.owner_id, type(sum(c.audio_size), :integer)}
-      )
-      |> Repo.all()
-      |> Map.new()
-
     boards =
       from(b in Board,
         where:
@@ -519,7 +506,7 @@ defmodule Slipdock.Quota do
          pages: page_count,
          files: file_count,
          boards: Map.get(boards, id, 0),
-         storage: bytes + (Map.get(audio, id) || 0)
+         storage: bytes
        }}
     end)
   end
@@ -867,15 +854,6 @@ defmodule Slipdock.Quota do
     from(f in Slipdock.Wiki.WikiFile,
       join: b in subquery(owned_boards(user_id)),
       on: b.id == f.board_id
-    )
-  end
-
-  # Every meeting recording still on the disk on one of those boards.
-  defp owned_audio(user_id) do
-    from(c in Slipdock.Meetings.Capture,
-      join: b in subquery(owned_boards(user_id)),
-      on: b.id == c.board_id,
-      where: not is_nil(c.audio_key)
     )
   end
 end

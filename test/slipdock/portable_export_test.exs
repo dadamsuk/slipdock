@@ -70,6 +70,15 @@ defmodule Slipdock.PortableExportTest do
   defp card(tree, title), do: Enum.find(tree.cards, &(&1.title == title))
 
   describe "the document" do
+    # Meeting capture is gone (W-2330, #1819): a tree carries no captures.
+    test "carries no meeting captures" do
+      %{owner: owner} = tree()
+      tree = only_tree(owner)
+
+      refute Map.has_key?(tree, :captures)
+      refute Portable.export(owner) |> Jason.encode!() =~ "captures"
+    end
+
     test "says which format it is, so a reader never has to guess" do
       %{owner: owner} = tree()
       document = Portable.export(owner)

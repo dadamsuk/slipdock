@@ -2,18 +2,16 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
   @moduledoc """
   Naming a voice teaches the transcription server it (#1201): the longest
   stretch of that person speaking is cut from the recording and sent to
-  `POST /v1/voiceprints` under the name, from a meeting capture's *Who said
-  what* and from a wiki page's transcript — only with the admin's switch on,
+  `POST /v1/voiceprints` under the name, from a wiki page's transcript —
+  only with the admin's switch on,
   a server that takes voiceprints, and a person's name.
   """
   use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
-  import Slipdock.MeetingsFixtures
   import Slipdock.GoogleStub
 
-  alias Slipdock.{Meetings, Repo, Settings, Transcription, Vaults, Wiki}
-  alias Slipdock.Meetings.{Event, Speakers, Voice}
+  alias Slipdock.{Repo, Settings, Transcription, Vaults, Wiki}
   alias Slipdock.Transcription.Voiceprints
 
   @url "https://transcribe.example:8765"
@@ -100,9 +98,6 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
 
   # The audio a clip holds, past its 44-byte header.
   defp clip_data(<<"RIFF", _::binary-size(40), data::binary>>), do: data
-
-  defp events(capture),
-    do: Repo.all(from(e in Event, where: e.capture_id == ^capture.id))
 
   defp line(speaker, from, to), do: %{speaker: speaker, start_ms: from, end_ms: to}
 
@@ -206,123 +201,6 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
     test "with no server there is nothing to send to" do
       assert {:error, "no transcription server is set up"} =
                Transcription.add_voiceprint("CLIP", "Sam")
-    end
-  end
-
-  describe "naming a voice in a meeting capture" do
-    setup do
-      meetings_on()
-      owner = user_fixture("owner@example.com")
-      board = board_fixture(%{"name" => "Pricing"}, owner: owner)
-      path = Path.join(System.tmp_dir!(), "m-#{System.unique_integer([:positive])}.wav")
-      File.write!(path, wav(24))
-      on_exit(fn -> File.rm(path) end)
-
-      {:ok, capture} =
-        Meetings.create_capture(
-          board,
-          owner,
-          %{title: "Call", fingerprint: Meetings.fingerprint(audio: path)},
-          audio: %{path: path, filename: "call.wav"},
-          utterances: [
-            %{speaker: "Voice A", text: "Hello.", start_ms: 0, end_ms: 2_000},
-            %{speaker: "Voice B", text: "Hi.", start_ms: 2_000, end_ms: 4_000},
-            %{speaker: "Voice A", text: "So, the plan.", start_ms: 4_000, end_ms: 9_000},
-            %{speaker: "Voice A", text: "And then.", start_ms: 9_000, end_ms: 12_000},
-            %{speaker: "Voice B", text: "Right.", start_ms: 12_000, end_ms: 16_000},
-            %{speaker: "Voice A", text: "Next.", start_ms: 16_000, end_ms: 20_000},
-            %{speaker: "Voice B", text: "Fine.", start_ms: 20_000, end_ms: 24_000}
-          ]
-        )
-
-      {:ok, _} = Speakers.diarise(capture)
-      voice = Repo.get_by!(Voice, capture_id: capture.id, label: "Voice A")
-      %{owner: owner, capture: capture, voice: voice}
-    end
-
-    test "sends their longest stretch under the name, and the capture records it", ctx do
-      on()
-      serve()
-
-      assert {:ok, _} = Speakers.reassign(ctx.voice, %{"name" => "Sam Smith"}, ctx.owner)
-
-      assert_received {:voiceprint, "/v1/voiceprints", "Sam Smith", clip, _}
-      data = clip_data(clip)
-      # 4.5 s to 11.5 s: seven seconds, from inside second 4 to inside 11.
-      assert byte_size(data) == 7 * @rate * 2
-      assert :binary.first(data) == 4 and :binary.last(data) == 11
-
-      assert Enum.any?(
-               events(ctx.capture),
-               &(&1.message ==
-                   "Sam Smith's voice sent to the transcription server as a voiceprint.")
-             )
-    end
-
-    test "a clip the server refuses is followed by the next-longest", ctx do
-      on()
-      refuse_then_take(1)
-
-      assert {:ok, %{"id" => "vp_2"}} = Voiceprints.from_voice(ctx.voice, "Sam Smith")
-
-      assert_received {:voiceprint, _, "Sam Smith", first, _}
-      assert_received {:voiceprint, _, "Sam Smith", second, _}
-      # 4.5–11.5 s refused, then 16.5–19.5 s; 0.5–1.5 s is too short to offer.
-      assert byte_size(clip_data(first)) == 7 * @rate * 2
-      assert byte_size(clip_data(second)) == 3 * @rate * 2
-      assert :binary.first(clip_data(second)) == 16 and :binary.last(clip_data(second)) == 19
-      refute_received {:voiceprint, _, _, _, _}
-    end
-
-    test "when every stretch is refused, the last refusal is the answer", ctx do
-      on()
-      refuse_then_take(99)
-
-      assert {:error, {:refused, "the transcription server said 422: Multiple speakers"}} =
-               Voiceprints.from_voice(ctx.voice, "Sam Smith")
-
-      # Both stretches offered, no more.
-      assert_received {:voiceprint, _, _, _, _}
-      assert_received {:voiceprint, _, _, _, _}
-      refute_received {:voiceprint, _, _, _, _}
-
-      assert Voiceprints.describe({:refused, "Multiple speakers"}) == "Multiple speakers"
-    end
-
-    test "nothing is sent while the switch is off", ctx do
-      on(%{"transcription_voiceprints" => false})
-      serve()
-
-      assert {:ok, _} = Speakers.reassign(ctx.voice, %{"name" => "Sam Smith"}, ctx.owner)
-      assert Voiceprints.voice_named(ctx.voice) == :off
-      refute_received {:status, _}
-      refute_received {:voiceprint, _, _, _, _}
-    end
-
-    test "a placeholder name teaches nothing", ctx do
-      on()
-      serve()
-
-      assert {:ok, _} = Speakers.reassign(ctx.voice, %{"name" => "Speaker 3"}, ctx.owner)
-      refute_received {:voiceprint, _, _, _, _}
-    end
-
-    test "a server that doesn't take voiceprints is only asked its status", ctx do
-      on()
-      serve(%{@status | "capabilities" => []})
-
-      assert {:ok, voice} = Speakers.reassign(ctx.voice, %{"name" => "Sam Smith"}, ctx.owner)
-      assert voice.name == "Sam Smith"
-      assert_received {:status, _}
-      refute_received {:voiceprint, _, _, _, _}
-      refute Enum.any?(events(ctx.capture), &(&1.message =~ "voiceprint"))
-    end
-
-    test "with the recording gone there is nothing to cut it from", ctx do
-      on()
-      File.rm!(Meetings.audio_path(ctx.capture))
-
-      assert Voiceprints.from_voice(ctx.voice, "Sam Smith") == {:error, :no_recording}
     end
   end
 
@@ -501,6 +379,94 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
 
       assert Voiceprints.from_page(ctx.page, "Nobody") == {:error, :not_found}
       refute_received {:drive, _, _, _}
+    end
+  end
+
+  # Ported from the capture path when meeting capture went (#1819): the same
+  # retries, now through a page's transcript.
+  describe "a clip the server refuses, from a wiki page" do
+    setup do
+      user = user_fixture("refused@example.com")
+      board = board_fixture(%{"name" => "Calls"}, owner: user)
+      {:ok, vault} = user |> Vaults.root() |> Vaults.update_vault(%{"name" => "Calls"})
+      vault |> Ecto.Changeset.change(recordings_folder: "Rec") |> Repo.update!()
+      connect!(user)
+
+      drive!([
+        %{
+          "id" => "fold",
+          "name" => "Rec",
+          "mimeType" => "application/vnd.google-apps.folder",
+          "parents" => ["root"]
+        },
+        %{
+          "id" => "aud",
+          "name" => "c.wav",
+          "mimeType" => "audio/wav",
+          "parents" => ["fold"],
+          content: wav(20)
+        }
+      ])
+
+      # Sam speaks 4–12 s and 16–20 s, Priya between: two stretches of
+      # Sam's, 4.5–11.5 s (7 s) and 16.5–19.5 s (3 s); 0.5–1.5 s is too short.
+      body = """
+      ```vtt
+      WEBVTT
+
+      00:00:00.000 --> 00:00:02.000
+      <v Speaker 1>Hello.
+
+      00:00:02.000 --> 00:00:04.000
+      <v Speaker 2>Hi.
+
+      00:00:04.000 --> 00:00:12.000
+      <v Speaker 1>So, the plan.
+
+      00:00:12.000 --> 00:00:16.000
+      <v Speaker 2>Right.
+
+      00:00:16.000 --> 00:00:20.000
+      <v Speaker 1>Next.
+      ```
+      """
+
+      page =
+        page_fixture(board, %{
+          "title" => "Call",
+          "front_matter" => "---\nrecording: gdrive:Rec/c.wav\n---\n\n",
+          "body" => body
+        })
+
+      %{page: page}
+    end
+
+    test "is followed by the next-longest", ctx do
+      on()
+      refuse_then_take(1)
+
+      assert {:ok, %{"id" => "vp_2"}} = Voiceprints.from_page(ctx.page, "Speaker 1")
+
+      assert_received {:voiceprint, _, "Speaker 1", first, _}
+      assert_received {:voiceprint, _, "Speaker 1", second, _}
+      assert byte_size(clip_data(first)) == 7 * @rate * 2
+      assert byte_size(clip_data(second)) == 3 * @rate * 2
+      assert :binary.first(clip_data(second)) == 16 and :binary.last(clip_data(second)) == 19
+      refute_received {:voiceprint, _, _, _, _}
+    end
+
+    test "when every stretch is refused, the last refusal is the answer", ctx do
+      on()
+      refuse_then_take(99)
+
+      assert {:error, {:refused, "the transcription server said 422: Multiple speakers"}} =
+               Voiceprints.from_page(ctx.page, "Speaker 1")
+
+      assert_received {:voiceprint, _, _, _, _}
+      assert_received {:voiceprint, _, _, _, _}
+      refute_received {:voiceprint, _, _, _, _}
+
+      assert Voiceprints.describe({:refused, "Multiple speakers"}) == "Multiple speakers"
     end
   end
 end

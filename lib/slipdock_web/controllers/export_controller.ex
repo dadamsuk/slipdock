@@ -65,10 +65,8 @@ defmodule SlipdockWeb.ExportController do
   Not admin-only on purpose: being able to leave with your work is a thing you
   should not have to ask anybody for.
   """
-  def account(conn, params) do
-    # `?audio=1` takes the meeting recordings too.
-    audio = params["audio"] in ["1", "true"]
-    {filename, binary} = Slipdock.AccountExport.zip(conn.assigns.current_user, audio: audio)
+  def account(conn, _params) do
+    {filename, binary} = Slipdock.AccountExport.zip(conn.assigns.current_user)
 
     conn
     |> put_resp_content_type("application/zip")

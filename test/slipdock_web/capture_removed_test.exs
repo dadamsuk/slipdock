@@ -130,8 +130,7 @@ defmodule SlipdockWeb.CaptureRemovedTest do
       refute Map.has_key?(settings, "chat_capture")
       assert Map.has_key?(settings, "transcription_server")
 
-      before = Settings.get()
-
+      # Sent anyway, they are ignored: the settings have no such fields.
       conn
       |> patch(~p"/api/admin/settings", %{
         "meetings_enabled" => true,
@@ -139,9 +138,14 @@ defmodule SlipdockWeb.CaptureRemovedTest do
       })
       |> json_response(200)
 
-      after_patch = Settings.get()
-      assert after_patch.meetings_enabled == before.meetings_enabled
-      assert after_patch.chat_capture_enabled == before.chat_capture_enabled
+      settings = Map.from_struct(Settings.get())
+      refute Map.has_key?(settings, :meetings_enabled)
+      refute Map.has_key?(settings, :chat_capture_enabled)
+
+      refute Enum.any?(
+               Map.keys(settings),
+               &(&1 |> Atom.to_string() |> String.starts_with?("meetings_"))
+             )
     end
 
     test "the transcription server settings are still editable", %{admin: admin} do

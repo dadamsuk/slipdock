@@ -26,9 +26,6 @@ defmodule Slipdock.Application do
       {Task.Supervisor,
        name: Slipdock.TaskSupervisor,
        max_children: Application.get_env(:slipdock, :automations, [])[:max_in_flight] || 50},
-      # Which meeting captures this node is reading (see
-      # `Slipdock.Meetings.Pipeline`): one runner per capture.
-      {Registry, keys: :unique, name: Slipdock.Meetings.Registry},
       # The drawings somebody has open: one `Slipdock.Wiki.DrawingSession`
       # each, holding the live scene and saving it.
       {Registry, keys: :unique, name: Slipdock.Wiki.DrawingRegistry},
