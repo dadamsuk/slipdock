@@ -917,6 +917,15 @@ with the tail of the log — and a Cancel button.
   first record to now. The same spans come from `GET
   /api/cards/:id/timeline`, MCP `get_card` with `timeline: true` and
   `slipdock timeline <id>`.
+- **Watch a job as it runs, keep its log only if it matters.** The runner
+  sends the agent's transcript to the server about once a minute, so a
+  running job's **live log** shows under the job on the card and under the
+  runner on the Automations panel, one line per message or tool call, each
+  opening to the whole of it, updating as it goes (`slipdock job <id>
+  --follow`, MCP `job_log`). A day after the job ends the log is deleted (a
+  week for failed, stuck or rejected work; each board sets both), unless
+  someone presses **Keep this log** (`slipdock job <id> --keep`), which
+  writes it as a `Pass <card> (<date>)` page in the card's folder.
 
 Set one up on the board under **Automations → Connect a runner**: pick a
 Linux or macOS machine (a POSIX `sh` + `curl` runner, as a systemd or launchd
