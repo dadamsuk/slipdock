@@ -834,4 +834,87 @@ defmodule Slipdock.CiWorkflowTest do
       ran!(gate(dir, [], [{"EVENT_NAME", "workflow_dispatch"}]), "always tests")
     end
   end
+
+  # After a skipped suite, release.yml's warm-cache job saves the build under
+  # main's key in partition 1's place (#1913). It must save what the suite
+  # would have, under the key a PR looks for, and never hold up a deploy.
+  describe "warming main's build cache when the suite is skipped" do
+    defp workflow(file) do
+      {:ok, yaml} = YamlElixir.read_from_file(Path.join(@root, ".github/workflows/#{file}"))
+      yaml
+    end
+
+    defp warm, do: workflow("release.yml")["jobs"]["warm-cache"]
+    defp suite_job, do: workflow("ci.yml")["jobs"]["test"]
+
+    defp step(job, key, value), do: Enum.find(job["steps"], &(&1[key] == value))
+
+    defp step_at(job, key, value),
+      do: Enum.find_index(job["steps"], &(&1[key] == value))
+
+    test "runs only when the gate said the suite is skipped, after the gate" do
+      assert warm()["needs"] == "suite"
+      assert warm()["if"] == "${{ needs.suite.outputs.run == 'false' }}"
+    end
+
+    test "is off the merge and deploy path: no job needs it" do
+      for {name, job} <- workflow("release.yml")["jobs"], name != "warm-cache" do
+        refute "warm-cache" in List.wrap(job["needs"]), "#{name} needs warm-cache"
+      end
+    end
+
+    test "compiles in the test environment, with the suite's toolchain" do
+      assert warm()["env"]["MIX_ENV"] == "test"
+      assert workflow("ci.yml")["env"]["MIX_ENV"] == "test"
+
+      assert step(warm(), "uses", "erlef/setup-beam@v1")["with"] ==
+               step(suite_job(), "uses", "erlef/setup-beam@v1")["with"]
+    end
+
+    test "uses the suite's cache keys, paths and restore order exactly" do
+      assert step(warm(), "id", "keys")["run"] == step(suite_job(), "id", "keys")["run"]
+
+      assert step(warm(), "uses", "actions/cache/restore@v4")["with"] ==
+               step(suite_job(), "uses", "actions/cache/restore@v4")["with"]
+
+      assert step(warm(), "uses", "actions/cache/save@v4")["with"] ==
+               step(suite_job(), "uses", "actions/cache/save@v4")["with"]
+    end
+
+    test "backdates and compiles as the suite does, before saving" do
+      name = "Backdate mix.exs and config to the cached build"
+      assert step(warm(), "name", name)["run"] == step(suite_job(), "name", name)["run"]
+
+      assert step(warm(), "name", name)["if"] =~
+               step(suite_job(), "name", name)["if"]
+
+      compile = "Compile without warnings"
+      assert step(warm(), "name", compile)["run"] == step(suite_job(), "name", compile)["run"]
+
+      assert step_at(warm(), "name", name) < step_at(warm(), "run", "mix deps.get")
+      assert step_at(warm(), "run", "mix deps.get") < step_at(warm(), "name", compile)
+
+      assert step_at(warm(), "name", compile) <
+               step_at(warm(), "uses", "actions/cache/save@v4")
+    end
+
+    test "does nothing past the restore on an exact hit, so it never saves a key twice" do
+      after_restore =
+        warm()["steps"]
+        |> Enum.drop(step_at(warm(), "uses", "actions/cache/restore@v4") + 1)
+
+      assert after_restore != []
+
+      for s <- after_restore do
+        assert s["if"] =~ "steps.mix-cache.outputs.cache-hit != 'true'",
+               "#{s["name"] || s["run"] || s["uses"]} runs on an exact hit"
+      end
+    end
+
+    test "needs no database or secrets: it only compiles" do
+      refute Map.has_key?(warm(), "services")
+      refute Map.has_key?(warm(), "environment")
+      assert warm()["permissions"] == %{"contents" => "read"}
+    end
+  end
 end
