@@ -633,11 +633,13 @@ against a contradiction rather than asking more of an agent:
   counts as finished.
 - **Done stays done.** An agent can't reopen a completed card: unticking it
   (`slipdock undone`) or moving it out of the done list (`slipdock move`,
-  MCP `move_card`) is refused (`422`), and the card stays done. Nothing in a
-  pass needs it — a rejection comes before Done, a retry only puts back a
-  card left in progress, a recurring card is copied — and a script that
-  does it undoes finished work. A person reopens a done card; moving it
-  from one done list to another, or editing it, is still an agent's to do.
+  MCP `move_card`), on its own board or to a list on another board that
+  isn't a done list (`slipdock move ID COL --board B`), is refused (`422`),
+  and the card stays done. Nothing in a pass needs it — a rejection comes
+  before Done, a retry only puts back a card left in progress, a recurring
+  card is copied — and a script that does it undoes finished work. A person reopens a done card; moving it
+  from one done list to another (another board's included), or editing it,
+  is still an agent's to do.
 
 ### The bar
 

@@ -2720,8 +2720,27 @@ defmodule Slipdock.Boards do
         {:error, "A card can't be moved into its own subcards."}
 
       true ->
-        with :ok <- room_for_move(card, to_column),
-             do: do_move_card_to_board(card, to_column, Slipdock.Actor.resolve(opts))
+        actor = Slipdock.Actor.resolve(opts)
+
+        with :ok <- reopen_across_boards(card, to_column, actor),
+             :ok <- room_for_move(card, to_column),
+             do: do_move_card_to_board(card, to_column, actor)
+    end
+  end
+
+  # Done stays done on another board too (#1851): an agent can't take a
+  # completed card out of a done list into one that isn't. Judged against
+  # the list it would land in, which is a kept stand-in's, if there is one.
+  defp reopen_across_boards(%Card{} = card, %Column{} = to_column, actor) do
+    landing =
+      case stand_in_on(card.id, to_column.board_id) do
+        nil -> to_column
+        slot -> Repo.get!(Column, slot.column_id)
+      end
+
+    case Slipdock.Verified.reopen_move_message(card, landing, actor) do
+      nil -> :ok
+      message -> {:error, message}
     end
   end
 

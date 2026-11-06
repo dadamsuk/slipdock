@@ -4,7 +4,8 @@ defmodule Slipdock.VerifiedReopenTest do
   reopen a completed card, by unticking it or by moving it out of a done
   list, and the refusal says a person reopens finished work. People, the
   in-app assistant and automations still can, and an agent still moves cards
-  that aren't done and edits done ones otherwise.
+  that aren't done and edits done ones otherwise. A move to another board
+  (`Boards.move_card_to_board/3`) is held to the same (#1851).
   """
   use Slipdock.DataCase, async: true
 
@@ -137,6 +138,78 @@ defmodule Slipdock.VerifiedReopenTest do
 
     assert message =~ "an agent can't reopen it"
     assert_done(ctx)
+  end
+
+  describe "a move to another board (#1851)" do
+    setup ctx do
+      other = board_fixture(%{"name" => "Elsewhere", "code" => unique_code()}, owner: ctx.owner)
+      [o_backlog, o_todo, o_doing, o_done] = other.columns
+      %{other: other, o_backlog: o_backlog, o_todo: o_todo, o_doing: o_doing, o_done: o_done}
+    end
+
+    test "an agent moving a done card to a list there that isn't done is refused, and it stays",
+         ctx do
+      for column <- [ctx.o_backlog, ctx.o_todo, ctx.o_doing],
+          actor <- [ctx.agent, %{ctx.agent | via: "runner", job_id: 1}, %{ctx.agent | via: "cli"}] do
+        assert {:error, message} = Boards.move_card_to_board(ctx.card, column, actor: actor)
+        assert message == Verified.reopen_message(ctx.card, ctx.agent)
+        assert_done(ctx)
+      end
+    end
+
+    test "people, the in-app assistant and automations still move it", ctx do
+      for actor <- [Actor.web(ctx.owner), %{ctx.agent | via: "assistant"}, Actor.automation()] do
+        card = card_fixture(ctx.done, %{"title" => "Done too", "completed" => true})
+        assert {:ok, _} = Boards.move_card_to_board(card, ctx.o_todo, actor: actor)
+        moved = fresh(card)
+        assert moved.board_id == ctx.other.id and moved.column_id == ctx.o_todo.id
+        refute moved.completed
+      end
+
+      # With no actor at all, nothing is checked.
+      assert {:ok, _} = Boards.move_card_to_board(ctx.card, ctx.o_todo)
+      assert fresh(ctx.card).column_id == ctx.o_todo.id
+    end
+
+    test "an agent still moves a done card to the other board's done list", ctx do
+      assert {:ok, _} = Boards.move_card_to_board(ctx.card, ctx.o_done, actor: ctx.agent)
+      card = fresh(ctx.card)
+      assert card.completed and card.column_id == ctx.o_done.id
+    end
+
+    test "an agent still moves cards that aren't done, or ticked ones not in a done list", ctx do
+      open = card_fixture(ctx.todo, %{"title" => "Open"})
+      assert {:ok, _} = Boards.move_card_to_board(open, ctx.o_doing, actor: ctx.agent)
+      assert fresh(open).column_id == ctx.o_doing.id
+
+      ticked = card_fixture(ctx.todo, %{"title" => "Ticked", "completed" => true})
+      assert {:ok, _} = Boards.move_card_to_board(ticked, ctx.o_todo, actor: ctx.agent)
+      assert fresh(ticked).column_id == ctx.o_todo.id
+    end
+
+    test "judged by where it lands: a kept stand-in's list", ctx do
+      stand_in = fn column ->
+        Repo.insert!(%Card{
+          title: "Work",
+          board_id: ctx.other.id,
+          column_id: column.id,
+          position: 0,
+          stand_in_for_id: ctx.card.id
+        })
+      end
+
+      # A stand-in in To Do: aiming at the done list still lands in To Do.
+      in_todo = stand_in.(ctx.o_todo)
+      assert {:error, _} = Boards.move_card_to_board(ctx.card, ctx.o_done, actor: ctx.agent)
+      assert_done(ctx)
+
+      # A stand-in in the done list: aiming at To Do lands in Done, so it stays done.
+      Repo.delete!(in_todo)
+      stand_in.(ctx.o_done)
+      assert {:ok, _} = Boards.move_card_to_board(ctx.card, ctx.o_todo, actor: ctx.agent)
+      card = fresh(ctx.card)
+      assert card.completed and card.column_id == ctx.o_done.id
+    end
   end
 
   describe "Verified.reopen_message/2" do
