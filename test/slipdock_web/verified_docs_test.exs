@@ -146,7 +146,7 @@ defmodule SlipdockWeb.VerifiedDocsTest do
              "A failed merge sends the card back rejected"
 
     assert flat.("priv/skills/slipdock/SKILL.md") =~ "slipdock verify <id> merged"
-    assert flat.("cli/lib/slipdock_cli.ex") =~ "verify <id> accept|reject|merged"
+    assert flat.("cli/help.txt") =~ "verify <id> accept|reject|merged"
   end
 
   test "done stays done, said where people and agents look (#1850)" do

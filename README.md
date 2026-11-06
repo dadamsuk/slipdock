@@ -345,7 +345,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   server's own guide for the rest. The app has the same thing with your address
   filled in, under **Set up an agent**, and **Help → Agents** (`/help/agents`,
   readable signed out) compares the ways in — the guide and API, MCP, the CLI,
-  skills, runners and webhooks — and says when to reach for each.
+  skills, runners and webhooks — and says when to reach for each, with every
+  CLI command at `/help/agents/cli/reference`.
 - **Help inside the app** — `/help`, readable without an account: short guides
   to boards, the wiki, sharing, automations and the AI features (asking about a
   board, searching and asking across every board), and to connecting agents.

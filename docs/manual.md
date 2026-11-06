@@ -6501,6 +6501,16 @@ response holds `rows`, `cols` (with labels and counts), `cells[row][col]`
 
 `cli/` is a zero-dependency escript that wraps the API.
 
+**Every command, on the web.** Help → Agents → CLI links to the **command
+reference** (`/help/agents/cli/reference`, readable signed out): every command
+in `slipdock help`, one section per group of the help in its order (Start here,
+Find anything, Auth, Admin, Read, … Values, Output), each with an anchor, a
+contents list at the top, and a box that filters the commands by name. It is
+made when the server is built from `cli/help.txt`, the same file `slipdock help`
+prints, so the two can't disagree: a change to the CLI's help is a change to
+that file, and the page follows it. On a phone a long command wraps between its
+options, and its option list scrolls inside its own box.
+
 On Windows, one line in PowerShell installs it from the server you use, for
 you alone and with no admin rights of its own:
 

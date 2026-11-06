@@ -122,7 +122,7 @@ defmodule SlipdockWeb.PageFrameLiveTest do
     end
 
     test "a help section and an agent topic each have one h1", %{conn: conn} do
-      for path <- [~p"/help/agents"] do
+      for path <- [~p"/help/agents", ~p"/help/agents/cli/reference"] do
         {:ok, _view, html} = live(conn, path)
         h1s = html |> LazyHTML.from_fragment() |> LazyHTML.query("h1")
         assert Enum.count(h1s) == 1, "#{path} has #{Enum.count(h1s)} h1s"

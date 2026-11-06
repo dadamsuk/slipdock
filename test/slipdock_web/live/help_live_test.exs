@@ -475,4 +475,144 @@ defmodule SlipdockWeb.HelpLiveTest do
       assert Enum.map(cells, &elem(&1, 0)) == [:no, :yes, :no, :no, :no, :no]
     end
   end
+
+  describe "the CLI command reference (#1884)" do
+    alias SlipdockWeb.HelpLive.{CLIHelp, CLIReference}
+
+    defp flat(text),
+      do: text |> String.replace(~r/\s+/u, " ") |> String.trim() |> String.downcase()
+
+    # The page's words, with a space wherever a tag was: a command and its
+    # description are separate elements, but one line of the help.
+    defp page_text(html) do
+      html
+      |> String.replace("<", " <")
+      |> doc()
+      |> LazyHTML.query("#cli-reference")
+      |> LazyHTML.text()
+    end
+
+    @tag :anonymous
+    test "opens signed out, under the CLI's topic, with one h1", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/help/agents/cli/reference")
+
+      assert page_title(view) =~ "CLI command reference"
+      assert count(doc(html), "h1") == 1
+      assert has_element?(view, "#cli-reference h1", "CLI command reference")
+      assert has_element?(view, ~s{#help-topics a[aria-current="page"][href="/help/agents/cli"]})
+      assert has_element?(view, ~s{#help-sections-nav a[aria-current="page"]}, "Agents")
+    end
+
+    @tag :anonymous
+    test "every group, in the help's order, with an anchor and a contents link", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/help/agents/cli/reference")
+      page = doc(html)
+      groups = CLIReference.reference().groups
+
+      section_ids =
+        page |> LazyHTML.query("#cli-reference section[data-group]") |> LazyHTML.attribute("id")
+
+      assert section_ids == Enum.map(groups, & &1.id)
+
+      contents = page |> LazyHTML.query("#cli-reference-contents a") |> LazyHTML.attribute("href")
+      assert contents == Enum.map(groups, &"##{&1.id}")
+
+      assert section_ids ==
+               ~w(cli-start-here cli-find-anything cli-auth cli-admin cli-read cli-favourites) ++
+                 ~w(cli-wiki cli-folders cli-your-wiki cli-sync cli-skills cli-tools) ++
+                 ~w(cli-meetings cli-write cli-view-options cli-values cli-output)
+    end
+
+    @tag :anonymous
+    test "every line of `slipdock help` is on the page, and every command has its entry",
+         %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/help/agents/cli/reference")
+      text = html |> page_text() |> flat()
+
+      missing =
+        CLIHelp.text()
+        |> String.split("\n")
+        |> Enum.reject(&(String.trim(&1) == "" or String.contains?(text, flat(&1))))
+
+      assert missing == [],
+             "lines of the CLI's help missing from the page:\n#{Enum.join(missing, "\n")}"
+
+      # Spaces between a usage's pieces are text nodes of their own, which
+      # LazyHTML drops: put them back as page_text/1 does, then compare words.
+      squash = &(&1 |> String.replace(~r/\s+/u, " ") |> String.trim())
+
+      usages =
+        html
+        |> String.replace("<span", " <span")
+        |> doc()
+        |> LazyHTML.query("[data-role=cli-usage]")
+        |> Enum.map(&(&1 |> LazyHTML.text() |> squash.()))
+
+      expected =
+        for g <- CLIReference.reference().groups, e <- g.entries, do: squash.(e.usage)
+
+      assert usages == expected
+      assert length(usages) > 300
+    end
+
+    @tag :anonymous
+    test "the filter keeps matching commands and their groups, and says when none match",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/agents/cli/reference")
+
+      html = view |> form("#cli-reference-filter", q: "page ls") |> render_change()
+      assert has_element?(view, "#cli-wiki [data-role=cli-usage]", "page ls <board>")
+      refute has_element?(view, "#cli-read")
+      refute has_element?(view, "#cli-write")
+      assert html |> doc() |> count("[data-role=cli-command]") == 1
+      # The contents list still names every group.
+      assert has_element?(view, ~s{#cli-reference-contents a[href="#cli-write"]})
+
+      view |> form("#cli-reference-filter", q: "SYNC") |> render_change()
+      assert has_element?(view, "#cli-sync")
+      refute has_element?(view, "#cli-admin")
+
+      view |> form("#cli-reference-filter", q: "no-such-command") |> render_change()
+      assert has_element?(view, "#cli-reference-none", "no-such-command")
+      refute has_element?(view, "section[data-group]")
+
+      view |> form("#cli-reference-filter", q: "") |> render_change()
+      refute has_element?(view, "#cli-reference-none")
+      assert has_element?(view, "#cli-output")
+      assert has_element?(view, "#cli-start-here")
+    end
+
+    @tag :anonymous
+    test "the CLI's topic page links to it, and the link lands", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/agents/cli")
+
+      view |> element("#help-cli-reference-link") |> render_click()
+
+      assert_patch(view, ~p"/help/agents/cli/reference")
+      assert has_element?(view, "#cli-reference")
+      refute has_element?(view, "#help-topic-cli")
+    end
+
+    @tag :anonymous
+    test "Working with an AI agent links to it beside the CLI, and the link lands", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/agents")
+
+      view |> element("#help-way-cli #help-way-cli-reference") |> render_click()
+
+      assert_patch(view, ~p"/help/agents/cli/reference")
+      assert has_element?(view, "#cli-reference")
+      refute has_element?(view, "#help-compare")
+    end
+
+    @tag :anonymous
+    test "back to the CLI's page from the reference", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/agents/cli/reference")
+
+      view |> element(~s{#cli-reference a[href="/help/agents/cli"]}) |> render_click()
+
+      assert_patch(view, ~p"/help/agents/cli")
+      assert has_element?(view, "#help-topic-cli")
+      refute has_element?(view, "#cli-reference")
+    end
+  end
 end

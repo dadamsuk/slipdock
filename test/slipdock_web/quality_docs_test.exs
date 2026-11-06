@@ -46,7 +46,7 @@ defmodule SlipdockWeb.QualityDocsTest do
   end
 
   test "the CLI's help lists the command" do
-    help = read("cli/lib/slipdock_cli.ex")
+    help = read("cli/help.txt")
     assert help =~ "quality <board> [--days N]"
     assert help =~ "--rules           every rule broken in the window"
   end

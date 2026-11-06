@@ -56,7 +56,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
   end
 
   test "the CLI commands the manual's table names are ones the CLI has" do
-    help = read("cli/lib/slipdock_cli.ex")
+    help = read("cli/help.txt")
 
     for command <- [
           "runner new",

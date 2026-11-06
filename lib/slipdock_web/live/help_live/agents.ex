@@ -405,6 +405,14 @@ defmodule SlipdockWeb.HelpLive.Agents do
           <.link patch={~p"/help/agents/#{t.slug}"} class="link mt-auto pt-3 text-sm font-medium">
             More about {t.short} →
           </.link>
+          <.link
+            :if={t.slug == "cli"}
+            id="help-way-cli-reference"
+            patch={~p"/help/agents/cli/reference"}
+            class="link pt-1 text-sm font-medium"
+          >
+            Every CLI command →
+          </.link>
         </article>
       </div>
     </section>
@@ -486,6 +494,29 @@ defmodule SlipdockWeb.HelpLive.Agents do
 
   def topic_page(assigns) do
     ~H"""
+    <.topic_nav topics={@topics} current={@topic.slug} />
+
+    <article id={"help-topic-#{@topic.slug}"} class="space-y-6">
+      <header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+        <.page_header title={@topic.title} subtitle={@topic.intro} class="">
+          <:leading><.icon name={@topic.icon} class="size-6 text-primary" /></:leading>
+        </.page_header>
+        <p class="mt-2 text-sm">
+          <span class="font-medium">Use it when</span>
+          <span class="text-base-content/70">{lowercase_first(@topic.when)}</span>
+        </p>
+      </header>
+      <.topic slug={@topic.slug} base_url={@base_url} current_user={@current_user} />
+    </article>
+    """
+  end
+
+  attr :topics, :list, required: true
+  attr :current, :string, required: true
+
+  # Across the top of a topic's page (and the CLI's reference): back, then each way in.
+  def topic_nav(assigns) do
+    ~H"""
     <nav
       id="help-topics"
       aria-label="Help topics"
@@ -500,29 +531,16 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <.link
         :for={t <- @topics}
         patch={~p"/help/agents/#{t.slug}"}
-        aria-current={t.slug == @topic.slug && "page"}
+        aria-current={t.slug == @current && "page"}
         class={[
           "flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium",
-          (t.slug == @topic.slug && "bg-primary/10 text-primary") ||
+          (t.slug == @current && "bg-primary/10 text-primary") ||
             "text-base-content/60 hover:bg-base-200/70 hover:text-base-content"
         ]}
       >
         {t.short}
       </.link>
     </nav>
-
-    <article id={"help-topic-#{@topic.slug}"} class="space-y-6">
-      <header class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-        <.page_header title={@topic.title} subtitle={@topic.intro} class="">
-          <:leading><.icon name={@topic.icon} class="size-6 text-primary" /></:leading>
-        </.page_header>
-        <p class="mt-2 text-sm">
-          <span class="font-medium">Use it when</span>
-          <span class="text-base-content/70">{lowercase_first(@topic.when)}</span>
-        </p>
-      </header>
-      <.topic slug={@topic.slug} base_url={@base_url} current_user={@current_user} />
-    </article>
     """
   end
 
@@ -774,6 +792,20 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <p>
         It's an Elixir escript, so the machine that runs it needs Erlang/OTP. That's why
         nothing else on this page depends on it.
+      </p>
+    </.part>
+
+    <.part title="Every command" id="help-cli-commands">
+      <p>
+        The
+        <.link
+          patch={~p"/help/agents/cli/reference"}
+          id="help-cli-reference-link"
+          class="link font-medium"
+        >command reference</.link>
+        lists every command by group, with a filter to find one by name. It is made from the
+        same text <code>slipdock help</code>
+        prints, so it never falls behind the CLI, and is easier to search than a terminal.
       </p>
     </.part>
 

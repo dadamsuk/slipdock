@@ -7,13 +7,17 @@ defmodule SlipdockWeb.HelpLive.Index do
     * `/help/:section` — a guide to part of the app (`SlipdockWeb.HelpLive.Guides`).
     * `/help/agents` and `/help/agents/:topic` — connecting an AI agent
       (`SlipdockWeb.HelpLive.Agents`).
+    * `/help/agents/cli/reference` — every CLI command, from the CLI's own help
+      (`SlipdockWeb.HelpLive.CLIReference`). Under the CLI's topic, because it
+      is part of that way in; a path of its own, so it can be linked and
+      bookmarked like any other page.
 
   The agent topics lived at `/help/:topic` first; those addresses still work,
   and redirect to where the topic is now.
   """
   use SlipdockWeb, :live_view
 
-  alias SlipdockWeb.HelpLive.{Agents, Guides}
+  alias SlipdockWeb.HelpLive.{Agents, CLIReference, Guides}
 
   @agent_slugs Agents.slugs()
   @guide_slugs Guides.slugs()
@@ -26,7 +30,9 @@ defmodule SlipdockWeb.HelpLive.Index do
        topics: Agents.topics(),
        base_url: SlipdockWeb.BaseURL.from_socket(socket),
        section: nil,
-       topic: nil
+       topic: nil,
+       cli_query: "",
+       cli_groups: CLIReference.reference().groups
      )}
   end
 
@@ -39,6 +45,9 @@ defmodule SlipdockWeb.HelpLive.Index do
 
   defp apply_action(socket, :agents, _params),
     do: assign(socket, section: nil, topic: nil, page_title: "Agents · Help")
+
+  defp apply_action(socket, :cli_reference, _params),
+    do: assign(socket, section: nil, topic: nil, page_title: "CLI command reference · Help")
 
   defp apply_action(socket, :agent_topic, %{"topic" => slug}) when slug in @agent_slugs do
     topic = Enum.find(socket.assigns.topics, &(&1.slug == slug))
@@ -64,6 +73,12 @@ defmodule SlipdockWeb.HelpLive.Index do
   end
 
   @impl true
+  def handle_event("filter_commands", %{"q" => q}, socket) do
+    groups = CLIReference.filter(q)
+    {:noreply, assign(socket, cli_query: q, cli_groups: groups)}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_user={@current_user}>
@@ -80,7 +95,7 @@ defmodule SlipdockWeb.HelpLive.Index do
             :if={@live_action != :index}
             sections={@sections}
             section={@section}
-            agents?={@live_action in [:agents, :agent_topic]}
+            agents?={@live_action in [:agents, :agent_topic, :cli_reference]}
           />
 
           <article :if={@section} id={"help-section-#{@section.slug}"} class="space-y-6">
@@ -109,6 +124,13 @@ defmodule SlipdockWeb.HelpLive.Index do
             topics={@topics}
             base_url={@base_url}
             current_user={@current_user}
+          />
+
+          <Agents.topic_nav :if={@live_action == :cli_reference} topics={@topics} current="cli" />
+          <CLIReference.page
+            :if={@live_action == :cli_reference}
+            groups={@cli_groups}
+            query={@cli_query}
           />
         </.page>
       </div>
