@@ -2809,6 +2809,8 @@ defmodule SlipdockCLI.Render do
     |> Enum.map(&check_line/1)
   end
 
+  defp verify_check_lines(_state, _checks), do: []
+
   # A part carried from an earlier verdict (#1944): passed at that commit,
   # not judged again.
   defp carried_note(note, sha) when is_binary(sha) do
@@ -2817,8 +2819,6 @@ defmodule SlipdockCLI.Render do
   end
 
   defp carried_note(note, _sha), do: note
-
-  defp verify_check_lines(_state, _checks), do: []
 
   defp check_part(_label, nil, _note), do: []
   defp check_part(label, result, note), do: [{label, result, note}]
