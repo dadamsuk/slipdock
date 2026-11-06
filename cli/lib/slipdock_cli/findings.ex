@@ -22,7 +22,7 @@ defmodule SlipdockCLI.Findings do
 
   def run("findings", _args, _o) do
     fail(
-      "usage: slipdock findings <board> [--status open|promoted|dismissed|merged|all] [--kind K] [--source S] [--card ID] [--days N]"
+      "usage: slipdock findings <board> [--status open|promoted|dismissed|merged|all] [--kind K] [--source S] [--card ID] [--days N] [--scope board|runner|all]"
     )
   end
 
@@ -46,7 +46,8 @@ defmodule SlipdockCLI.Findings do
       kind: o[:kind] |> List.wrap() |> List.last(),
       source: o[:source],
       card: o[:card],
-      since: o[:days]
+      since: o[:days],
+      scope: o[:scope]
     ]
   end
 
@@ -74,13 +75,34 @@ defmodule SlipdockCLI.Findings do
   @doc false
   def line(f) do
     card = if c = f["card"], do: " ##{c["id"]}", else: ""
+    also = also(f)
+    runner = runner(f)
     count = if (f["count"] || 1) > 1, do: " ×#{f["count"]}", else: ""
     status = if f["status"] == "open", do: "", else: " [#{f["status"]}]"
     note = if blank?(f["note"]), do: "", else: " — #{f["note"]}"
     into = if f["merged_into_id"], do: " → ##{f["merged_into_id"]}", else: ""
 
-    "##{f["id"]}#{status} #{f["kind"]} (#{f["source"]}#{card})#{count}: #{f["text"]}#{into}#{note}"
+    "##{f["id"]}#{status} #{f["kind"]}#{runner} (#{f["source"]}#{card}#{also})#{count}: #{f["text"]}#{into}#{note}"
   end
+
+  # The other cards a lesson was said on, merged into this one (#1941).
+  defp also(f) do
+    own = get_in(f, ["card", "id"])
+
+    case for(c <- f["cards"] || [], c["id"] != own, do: "##{c["id"]}") do
+      [] -> ""
+      ids -> ", also " <> Enum.join(ids, " ")
+    end
+  end
+
+  defp runner(%{"scope" => "runner"} = f) do
+    case f["runner"] do
+      %{"name" => name} -> " [runner #{name}]"
+      _ -> " [runner]"
+    end
+  end
+
+  defp runner(_f), do: ""
 
   defp blank?(v) when v in [nil, ""], do: true
   defp blank?(_), do: false

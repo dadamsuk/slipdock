@@ -69,6 +69,35 @@ defmodule SlipdockWeb.API.FindingControllerTest do
              |> json_response(422)
   end
 
+  # #1941: one row per lesson, with the cards it was said on; a runner's
+  # tooling only when asked for.
+  test "a lesson said on another card is one row with both cards, and scope filters", ctx do
+    other = card_fixture(Enum.at(ctx.board.columns, 1), %{"title" => "Again"})
+
+    {:ok, _} =
+      Boards.add_comment(
+        other,
+        "- Findings:\n  - gotcha: One.\n  - tooling (runner): the installed CLI lags",
+        by: ctx.owner
+      )
+
+    %{"findings" => findings} = list(ctx.reader, ctx.board)
+    assert Enum.map(findings, & &1["text"]) |> Enum.sort() == ["one", "two"]
+    one = Enum.find(findings, &(&1["text"] == "one"))
+    assert one["count"] == 2 and one["scope"] == "board"
+    assert Enum.map(one["cards"], & &1["id"]) == [ctx.card.id, other.id]
+
+    assert %{"findings" => [runner]} = list(ctx.reader, ctx.board, "?scope=runner")
+    assert runner["scope"] == "runner" and runner["kind"] == "tooling" and runner["runner"] == nil
+    assert %{"findings" => all} = list(ctx.reader, ctx.board, "?scope=all")
+    assert length(all) == 3
+
+    assert %{"error" => "scope is board, runner or all"} =
+             as(ctx.reader)
+             |> get("/api/boards/#{ctx.board.code}/findings?scope=nope")
+             |> json_response(422)
+  end
+
   test "a sub-board's ref lists the root's findings", ctx do
     {:ok, t} = Boards.find_template(nil, "Simple")
     {:ok, sub} = sub_board(ctx.card, t)

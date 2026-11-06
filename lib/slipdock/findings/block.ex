@@ -13,13 +13,18 @@ defmodule Slipdock.Findings.Block do
   `Findings: none` says there was nothing. An item whose kind isn't one of
   `Slipdock.Findings.Finding.kinds/0` is kept whole as a `gotcha`, so nothing
   written is lost to a typo.
+
+  `- tooling (runner): …` marks a tooling item as about the machine the pass
+  ran on (its installed CLI or skills), not the project: its `scope` is
+  `runner` (#1941). Every other item, and `(runner)` on any other kind, is
+  `board`.
   """
 
   alias Slipdock.Findings.Finding
 
   @header ~r/^([ \t>]*)(?:([-*+])[ \t]+)?(?:\*\*|__)?Findings(?:\*\*|__)?:(?:\*\*|__)?[ \t]*(.*)$/i
   @item ~r/^([ \t>]*)[-*+][ \t]+(.*)$/
-  @kind ~r/^(?:\*\*|__|`)?([A-Za-z][A-Za-z _-]*?)(?:\*\*|__|`)?[ \t]*:(?:\*\*|__)?[ \t]*(.*)$/s
+  @kind ~r/^(?:\*\*|__|`)?([A-Za-z][A-Za-z _-]*?)(?:[ \t]*\(([A-Za-z]+)\))?(?:\*\*|__|`)?[ \t]*:(?:\*\*|__)?[ \t]*(.*)$/s
   @none ~r/^(?:\*\*|__|_)?none\b/i
   @aliases %{
     "rule-candidate" => "rule",
@@ -29,7 +34,7 @@ defmodule Slipdock.Findings.Block do
   }
 
   @doc """
-  The block's items as `[%{kind: kind, text: text}]`: `[]` for `Findings: none`
+  The block's items as `[%{kind: kind, text: text, scope: scope}]`: `[]` for `Findings: none`
   (or an empty block), nil when the text has no block at all.
   """
   def parse(text) when is_binary(text) do
@@ -102,18 +107,24 @@ defmodule Slipdock.Findings.Block do
   defp leading(line), do: hd(Regex.run(~r/^[ \t>]*/, line))
   defp width(prefix), do: prefix |> String.replace("\t", "  ") |> String.length()
 
-  @doc "One item as `%{kind, text}`; one with no known kind is a `gotcha`, kept whole."
+  @doc "One item as `%{kind, text, scope}`; one with no known kind is a `gotcha`, kept whole."
   def classify(item) do
-    with [_, kind, text] <- Regex.run(@kind, item),
+    with [_, kind, qualifier, text] <- Regex.run(@kind, item),
          kind = normalise(kind),
          true <- Enum.member?(Finding.kinds(), kind),
          text = String.trim(text),
          true <- text != "" do
-      %{kind: kind, text: text}
+      %{kind: kind, text: text, scope: scope(kind, qualifier)}
     else
-      _ -> %{kind: "gotcha", text: item}
+      _ -> %{kind: "gotcha", text: item, scope: "board"}
     end
   end
+
+  defp scope("tooling", qualifier) do
+    if String.downcase(qualifier) == "runner", do: "runner", else: "board"
+  end
+
+  defp scope(_kind, _qualifier), do: "board"
 
   defp normalise(kind) do
     kind = kind |> String.downcase() |> String.trim() |> String.replace(~r/[ _]+/, "-")

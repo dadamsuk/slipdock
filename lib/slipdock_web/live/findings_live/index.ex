@@ -22,7 +22,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
 
   import SlipdockWeb.SlipdockComponents, only: [modal: 1]
 
-  @filters ~w(status kind source card since)
+  @filters ~w(status kind source card since scope)
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -64,8 +64,11 @@ defmodule SlipdockWeb.FindingsLive.Index do
 
     {findings, error} =
       case Findings.list(root, filters) do
-        {:ok, findings} -> {findings, nil}
-        {:error, message} -> {elem(Findings.list(root, %{filters | "since" => ""}), 1), message}
+        {:ok, findings} ->
+          {findings, nil}
+
+        {:error, message} ->
+          {elem(Findings.list(root, %{filters | "since" => "", "scope" => ""}), 1), message}
       end
 
     triage = socket.assigns.triage_id && triage_finding(root, socket.assigns.triage_id)
@@ -92,7 +95,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
 
   # What a finding can merge into: the tree's other open findings.
   defp merge_options(root, finding) do
-    {:ok, open} = Findings.list(root, %{"status" => "open"})
+    {:ok, open} = Findings.list(root, %{"status" => "open", "scope" => "all"})
 
     for f <- open, f.id != finding.id do
       {"##{f.id} #{f.kind}: #{String.slice(f.text, 0, 80)}", f.id}
@@ -151,7 +154,9 @@ defmodule SlipdockWeb.FindingsLive.Index do
   defp findings_path(board, filters, triage) do
     query =
       filters
-      |> Enum.reject(fn {k, v} -> blank?(v) or {k, v} == {"status", "open"} end)
+      |> Enum.reject(fn {k, v} ->
+        blank?(v) or Enum.member?([{"status", "open"}, {"scope", "board"}], {k, v})
+      end)
       |> Map.new()
       |> then(&if(triage, do: Map.put(&1, "triage", triage), else: &1))
 
@@ -160,6 +165,12 @@ defmodule SlipdockWeb.FindingsLive.Index do
 
   defp blank?(v), do: is_nil(v) or v == ""
 
+  # The other cards the lesson was said on: those merged into it (#1941).
+  defp also(%Finding{card_id: own, cards: cards}), do: Enum.reject(cards || [], &(&1.id == own))
+
+  defp runner_name(%Finding{runner: %Slipdock.Runners.Runner{name: name}}), do: name
+  defp runner_name(_finding), do: nil
+
   defp root(%Board{root_id: nil} = board), do: board
   defp root(%Board{root_id: id}), do: Repo.get!(Board, id)
 
@@ -167,6 +178,11 @@ defmodule SlipdockWeb.FindingsLive.Index do
     do:
       [{"Open", "open"}, {"Promoted", "promoted"}, {"Dismissed", "dismissed"}] ++
         [{"Merged", "merged"}, {"Any status", "all"}]
+
+  # A runner's tooling (#1941) is about one machine, so it is out of the
+  # board's list unless asked for.
+  defp scope_options,
+    do: [{"The project", "board"}, {"Runners' tooling", "runner"}, {"Both", "all"}]
 
   defp status_class("open"), do: "badge-info"
   defp status_class("promoted"), do: "badge-success"
@@ -204,6 +220,19 @@ defmodule SlipdockWeb.FindingsLive.Index do
         >
           #{@finding.card.id} {@finding.card.title}
         </.link>
+        <span :if={also(@finding) != []} class="text-base-content/60" data-role="also">
+          also
+          <.link
+            :for={c <- also(@finding)}
+            navigate={~p"/boards/#{c.board_id}/cards/#{c.id}"}
+            class="link"
+          >
+            #{c.id}
+          </.link>
+        </span>
+        <span :if={@finding.scope == "runner"} class="badge badge-sm badge-ghost" data-role="runner">
+          runner{if runner_name(@finding), do: " #{runner_name(@finding)}"}
+        </span>
         <span :if={@finding.by} class="text-base-content/50" data-role="by">by {@finding.by}</span>
         <div :if={@can_write} class="ml-auto flex items-center gap-1" data-role="triage">
           <%= if @finding.status == "open" do %>
@@ -284,7 +313,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
             id="findings-filters"
             phx-change="filter"
             phx-submit="filter"
-            class="grid grid-cols-2 gap-2 sm:grid-cols-5"
+            class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
           >
             <.input
               field={@filter_form[:status]}
@@ -320,6 +349,12 @@ defmodule SlipdockWeb.FindingsLive.Index do
               label="Since"
               placeholder="days or a date"
               phx-debounce="400"
+            />
+            <.input
+              field={@filter_form[:scope]}
+              type="select"
+              label="Scope"
+              options={scope_options()}
             />
           </.form>
 

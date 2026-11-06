@@ -64,22 +64,25 @@ defmodule Slipdock.FindingsTest do
       """
 
       assert Block.parse(text) == [
-               %{kind: "rule", text: "keep the guide under its cap"},
-               %{kind: "tooling", text: "pwsh lives in a local folder"}
+               %{kind: "rule", text: "keep the guide under its cap", scope: "board"},
+               %{kind: "tooling", text: "pwsh lives in a local folder", scope: "board"}
              ]
     end
 
     test "an inline item, a continued line, and the list ends at the next outer item" do
       assert Block.parse("- Findings: gotcha: inline one\n- Follow-ups: card #9") ==
-               [%{kind: "gotcha", text: "inline one"}]
+               [%{kind: "gotcha", text: "inline one", scope: "board"}]
 
       text = "- Findings:\n  - gotcha: wraps\n    onto a second line\n- Commit: abc"
-      assert Block.parse(text) == [%{kind: "gotcha", text: "wraps onto a second line"}]
+
+      assert Block.parse(text) == [
+               %{kind: "gotcha", text: "wraps onto a second line", scope: "board"}
+             ]
     end
 
     test "a malformed item with a colon but no known kind stays whole" do
       assert Block.parse("Findings:\n- Note: the size cap is close") ==
-               [%{kind: "gotcha", text: "Note: the size cap is close"}]
+               [%{kind: "gotcha", text: "Note: the size cap is close", scope: "board"}]
     end
   end
 

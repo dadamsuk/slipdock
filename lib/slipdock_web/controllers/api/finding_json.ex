@@ -19,6 +19,9 @@ defmodule SlipdockWeb.API.FindingJSON do
       by: f.by,
       note: f.note,
       merged_into_id: f.merged_into_id,
+      scope: f.scope,
+      runner: runner(f.runner),
+      cards: Enum.map(f.cards || [], &card/1),
       created_at: f.inserted_at,
       updated_at: f.updated_at
     }
@@ -26,4 +29,7 @@ defmodule SlipdockWeb.API.FindingJSON do
 
   defp card(%Slipdock.Boards.Card{} = c), do: %{id: c.id, title: c.title, board_id: c.board_id}
   defp card(_), do: nil
+
+  defp runner(%Slipdock.Runners.Runner{} = r), do: %{id: r.id, name: r.name}
+  defp runner(_), do: nil
 end

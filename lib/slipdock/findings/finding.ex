@@ -15,6 +15,15 @@ defmodule Slipdock.Findings.Finding do
     * `cause` – for the system's findings, what repeats are matched on: the same
       card, source and cause adds to `count` rather than making another
     * `by` – who recorded it, in words; `user` when a person's account wrote it
+    * `lesson` – the text normalised (`Slipdock.Findings.Lesson`): what repeats
+      on other cards are matched on (#1941)
+    * `comment_ids` – the comments that said it, so an edited or deleted
+      comment takes back only its own count
+    * `scope` – `board`, or `runner` for a tooling item about one machine's
+      installed CLI or skills, kept with that `runner` and out of the board's
+      default list
+    * `cards` (virtual) – set by `Slipdock.Findings.list/2`: its own card and
+      the cards of the findings merged into it
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -22,6 +31,7 @@ defmodule Slipdock.Findings.Finding do
   @kinds ~w(gotcha rule handbook-wrong tooling process)
   @sources ~w(agent rejection requeue timeout failed lane merge audit health)
   @statuses ~w(open promoted dismissed merged)
+  @scopes ~w(board runner)
   @max_text_len 2000
 
   schema "findings" do
@@ -33,12 +43,17 @@ defmodule Slipdock.Findings.Finding do
     field :by, :string
     field :note, :string
     field :count, :integer, default: 1
+    field :lesson, :string
+    field :comment_ids, {:array, :integer}, default: []
+    field :scope, :string, default: "board"
+    field :cards, {:array, :any}, virtual: true, default: []
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :comment, Slipdock.Boards.Comment
     belongs_to :job, Slipdock.Runners.Job
     belongs_to :user, Slipdock.Accounts.User
+    belongs_to :runner, Slipdock.Runners.Runner
     belongs_to :merged_into, __MODULE__
 
     timestamps(type: :utc_datetime)
@@ -47,21 +62,25 @@ defmodule Slipdock.Findings.Finding do
   def kinds, do: @kinds
   def sources, do: @sources
   def statuses, do: @statuses
+  def scopes, do: @scopes
 
   @doc "The most a finding's text keeps."
   def max_text, do: @max_text_len
 
   @doc """
   A new finding. Where it came from (`board_id`, `card_id`, `comment_id`,
-  `job_id`, `user_id`) is set by `Slipdock.Findings` on the struct, never cast.
+  `comment_ids`, `job_id`, `runner_id`, `user_id`) is set by `Slipdock.Findings`
+  on the struct, never cast; `lesson` follows the text.
   """
   def changeset(finding, attrs) do
     finding
-    |> cast(attrs, [:kind, :source, :text, :cause, :by])
+    |> cast(attrs, [:kind, :source, :text, :cause, :by, :scope])
     |> update_change(:text, &cut/1)
+    |> put_lesson()
     |> validate_required([:board_id, :kind, :source, :text])
     |> validate_inclusion(:kind, @kinds)
     |> validate_inclusion(:source, @sources)
+    |> validate_inclusion(:scope, @scopes)
     |> validate_length(:cause, max: 255)
     |> validate_length(:by, max: 255)
   end
@@ -74,6 +93,13 @@ defmodule Slipdock.Findings.Finding do
     |> validate_required([:status])
     |> validate_inclusion(:status, @statuses)
     |> validate_length(:note, max: 2000)
+  end
+
+  defp put_lesson(changeset) do
+    case get_field(changeset, :text) do
+      nil -> changeset
+      text -> put_change(changeset, :lesson, Slipdock.Findings.Lesson.normalise(text))
+    end
   end
 
   defp cut(nil), do: nil

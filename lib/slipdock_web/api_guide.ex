@@ -3259,7 +3259,9 @@ defmodule SlipdockWeb.APIGuide do
     for every later pass (W-2310). Settled knowledge goes straight into the
     handbook; a **finding** is for the rest: what is uncertain, cuts across
     cards, or shows the handbook was wrong. Write them as a block in the
-    closing comment, beside the `Handbook:` line:
+    closing comment, once, beside the `Handbook:` line (on a board that
+    verifies work, the completion's evidence is that comment): never again
+    in a wrap-up, a restatement or on the epic.
 
     ```
     - Handbook: no change (a test-only fix)
@@ -3268,8 +3270,21 @@ defmodule SlipdockWeb.APIGuide do
       - rule: every new tool gets a docs test
       - handbook-wrong: W-1950 §Tests says …, but …
       - tooling: …
+      - tooling (runner): the installed CLI lacks --paths-from
       - process: …
     ```
+
+    `tooling (runner)` marks an item about the machine the pass ran on (its
+    installed CLI or skills), not the project: it is kept with the runner,
+    out of the board's default list (`scope=runner` shows them).
+
+    One record per lesson: an item repeating an open finding on the same
+    card (after normalising case, whitespace, backticks, trailing
+    punctuation, `#id`s and shas, or most of its words in common) adds to
+    its `count`; one with the same normalised text as an open finding on
+    another card of the tree is recorded `merged` into it, and the listing
+    shows that one with every card it was said on (`cards`). `rule` and
+    `handbook-wrong` items are never merged across cards.
 
     The test for one: would the next pass, on a different card, have done
     better knowing this? `Findings: none` is a normal answer; filler isn't.
@@ -3281,8 +3296,8 @@ defmodule SlipdockWeb.APIGuide do
     Findings are kept on the tree's root board, `open` until a person
     triages them: `promoted` (into the handbook, said in `note`),
     `dismissed`, or `merged` into another finding (which takes its count).
-    `slipdock findings <board> [--status S] [--kind K] [--days N]` (REST
-    `GET /api/boards/:board/findings?status=&kind=&source=&card=&since=`)
+    `slipdock findings <board> [--status S] [--kind K] [--days N] [--scope S]` (REST
+    `GET /api/boards/:board/findings?status=&kind=&source=&card=&since=&scope=`)
     lists them; `slipdock finding <id> dismiss|promote|reopen [--note …]`
     or `merge --into <id>` (`PATCH /api/findings/:id {action, note, into}`,
     write access) triages one. A card's `findings` (in `get_card` and

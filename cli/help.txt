@@ -581,10 +581,12 @@ WRITE
   health settings <board> [<detector> key=value...]
                                       show the detectors, or change one (enabled=false,
                                       max_attempts=3, or a threshold)
-  findings <board> [--status S] [--kind K] [--source S] [--card ID] [--days N]
+  findings <board> [--status S] [--kind K] [--source S] [--card ID] [--days N] [--scope board|runner|all]
                                       what cards taught (Findings: blocks) and what the system
                                       saw go wrong, on the tree's root board; open by default
-                                      (S: open|promoted|dismissed|merged|all)
+                                      (S: open|promoted|dismissed|merged|all). One row per lesson,
+                                      with the other cards it was said on ("also #12"). --scope
+                                      runner: the tooling (runner) items kept with a runner
   finding <id> dismiss|promote|reopen [--note TEXT]
                                       triage one (promote: say what it became, W-1950 §Tests)
   finding <id> merge --into ID        fold a repeat into another finding, adding its count
