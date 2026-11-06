@@ -179,6 +179,7 @@ defmodule SlipdockWeb.Router do
   scope "/api/runner", SlipdockWeb.API do
     post "/claim", RunnerController, :claim
     post "/jobs/:id/heartbeat", RunnerController, :heartbeat
+    post "/jobs/:id/transcript", RunnerController, :transcript
     post "/jobs/:id/finish", RunnerController, :finish
   end
 
@@ -710,6 +711,7 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/jobs/claim", JobController, :claim
     get "/cards/:id/jobs", JobController, :card_jobs
     get "/jobs/:id", JobController, :show
+    get "/jobs/:id/transcript", JobController, :transcript
     post "/jobs/:id/cancel", JobController, :cancel
     post "/jobs/:id/progress", JobController, :progress
     post "/jobs/:id/finish", JobController, :finish

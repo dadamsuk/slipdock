@@ -12,6 +12,7 @@ defmodule SlipdockWeb.RunnerScriptTest do
 
   alias Slipdock.{Repo, Runners}
   alias Slipdock.Runners.Job
+  alias SlipdockWeb.FlakyTranscripts, as: Flaky
 
   @script Path.expand("../../priv/runner/slipdock-runner", __DIR__)
 
@@ -574,6 +575,128 @@ defmodule SlipdockWeb.RunnerScriptTest do
 
       {out, 1} = run_once(ctx, config(%{ctx | url: url}))
       assert out =~ "could not reach the queue (HTTP 502)"
+    end
+  end
+
+  describe "the live log (#1870)" do
+    # Writes a transcript where Claude Code would: one line naming the card,
+    # then a line every half second, a too-long one and some tokens.
+    defp transcript_config(ctx, extra \\ "") do
+      tx = Path.join([ctx.dir, "projects", "-work-app", "session.jsonl"])
+
+      config(ctx, """
+      TRANSCRIPTS='#{ctx.dir}/projects'
+      TRANSCRIPT_EVERY=1
+      TRANSCRIPT_LINE=200
+      job_tx() {
+        t='#{tx}'
+        mkdir -p "${t%/*}"
+        printf '{"n":0,"text":"%s"}\\n' "$SLIPDOCK_CARD_URL" >"$t"
+        for i in 1 2 3 4 5 6; do printf '{"n":%s}\\n' "$i" >>"$t"; sleep 0.5; done
+        printf '{"n":7,"text":"%s"}\\n' "$(printf 'x%.0s' $(seq 1 300))" >>"$t"
+        printf '{"n":8,"text":"runner %s env %s saved %s"}\\n' "$SLIPDOCK_RUNNER_TOKEN" "$SLIPDOCK_TOKEN" "$(cat '#{ctx.dir}/cfg/slipdock/token')" >>"$t"
+        printf '{"n":9,"partial":' >>"$t"
+      }
+      #{extra}
+      """)
+    end
+
+    defp transcript_env(ctx) do
+      File.mkdir_p!(Path.join(ctx.dir, "cfg/slipdock"))
+      File.write!(Path.join(ctx.dir, "cfg/slipdock/token"), "abcdefghsaved0123456789\n")
+
+      [
+        {"SLIPDOCK_TOKEN", "abcdefghenv0123456789"},
+        {"XDG_CONFIG_HOME", Path.join(ctx.dir, "cfg")}
+      ]
+    end
+
+    defp transcript(job), do: job |> job() |> Slipdock.Runners.Transcript.read()
+
+    test "sends the transcript while the job runs, and the rest as it ends", ctx do
+      {:ok, queued} = queue(ctx.card, "tx")
+      running = Task.async(fn -> run_once(ctx, transcript_config(ctx), transcript_env(ctx)) end)
+
+      # Some of it is on the server before the job has ended.
+      wait_for(fn ->
+        j = job(queued)
+        j.status == "running" and j.transcript_lines >= 2
+      end)
+
+      {_out, 0} = Task.await(running, 30_000)
+      done = job(queued)
+      assert done.status == "done"
+      assert done.transcript_lines == 9
+      assert done.output =~ "sending the transcript"
+
+      lines = queued |> transcript() |> String.split("\n", trim: true)
+      assert length(lines) == 9
+      assert Enum.map(Enum.take(lines, 7), &Jason.decode!(&1)["n"]) == Enum.to_list(0..6)
+      assert hd(lines) =~ "/cards/#{ctx.card.id}"
+
+      # The long line was cut on this machine, and said so.
+      assert Jason.decode!(Enum.at(lines, 7)) ==
+               %{
+                 "type" => "slipdock_cut",
+                 "bytes" => byte_size(~s({"n":7,"text":""})) + 300,
+                 "limit" => 200
+               }
+
+      # This machine's tokens never left it.
+      last = List.last(lines)
+      assert last =~ ~s("n":8)
+      refute last =~ ctx.token
+      refute last =~ "abcdefghenv0123456789"
+      refute last =~ "abcdefghsaved0123456789"
+      assert last =~ "runner [redacted] env [redacted] saved [redacted]"
+      # A line still being written is not sent.
+      refute transcript(queued) =~ "partial"
+    end
+
+    test "only a transcript written since the job started that names the card is sent", ctx do
+      dir = Path.join([ctx.dir, "projects", "-elsewhere"])
+      File.mkdir_p!(dir)
+      old = Path.join(dir, "old.jsonl")
+      File.write!(old, ~s({"old":"#{ctx.url}/boards/1/cards/#{ctx.card.id}"}\n))
+      File.touch!(old, System.os_time(:second) - 600)
+
+      extra = """
+      job_other() {
+        printf '{"other":"another session"}\\n' >'#{dir}/other.jsonl'
+        sleep 2
+      }
+      """
+
+      {:ok, queued} = queue(ctx.card, "other")
+      {_out, 0} = run_once(ctx, transcript_config(ctx, extra), transcript_env(ctx))
+      assert job(queued).status == "done"
+      assert job(queued).transcript_lines == 0
+      refute (job(queued).output || "") =~ "sending the transcript"
+    end
+
+    test "TRANSCRIPT_EVERY=0 sends nothing", ctx do
+      {:ok, queued} = queue(ctx.card, "tx")
+
+      {_out, 0} =
+        run_once(ctx, transcript_config(ctx, "TRANSCRIPT_EVERY=0"), transcript_env(ctx))
+
+      assert job(queued).status == "done"
+      assert job(queued).transcript_lines == 0
+    end
+
+    test "sends that fail leave the job running, and the next one catches up", ctx do
+      url = Flaky.start(fail: 4)
+      {:ok, queued} = queue(ctx.card, "tx")
+
+      {out, 0} =
+        run_once(ctx, transcript_config(%{ctx | url: url}), transcript_env(ctx))
+
+      assert out =~ "could not send the transcript (HTTP 503); trying again later", out
+      assert Flaky.failed() == 4
+      done = job(queued)
+      assert {done.status, done.exit_code} == {"done", 0}
+      assert done.transcript_lines == 9
+      assert queued |> transcript() |> String.split("\n", trim: true) |> length() == 9
     end
   end
 end

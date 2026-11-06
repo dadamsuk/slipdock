@@ -881,4 +881,105 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
       assert File.read!(cfg) =~ "--allowedTools" == (expected != "")
     end
   end
+
+  describe "the live log (#1870)" do
+    # Writes a transcript where Claude Code would: one line naming the card,
+    # then a line every half second, a too-long one and some tokens.
+    defp transcript_config(ctx, extra \\ "") do
+      tx = Path.join([ctx.dir, "projects", "-work-app", "session.jsonl"])
+      saved = Path.join(ctx.dir, "cfg/slipdock/token")
+      File.mkdir_p!(Path.dirname(saved))
+      File.write!(saved, "abcdefghsaved0123456789\n")
+
+      config(ctx, """
+      $Transcripts = '#{ctx.dir}/projects'
+      $TranscriptEvery = 1
+      $TranscriptLine = 200
+      $env:XDG_CONFIG_HOME = '#{ctx.dir}/cfg'
+      $env:SLIPDOCK_TOKEN = 'abcdefghenv0123456789'
+      function Job-Tx {
+        $t = '#{tx}'
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $t) | Out-Null
+        $u = New-Object System.Text.UTF8Encoding($false)
+        [IO.File]::WriteAllText($t, ('{"n":0,"text":"' + $env:SLIPDOCK_CARD_URL + '"}' + "`n"), $u)
+        foreach ($i in 1..6) { [IO.File]::AppendAllText($t, ('{"n":' + $i + '}' + "`n"), $u); Start-Sleep -Milliseconds 500 }
+        [IO.File]::AppendAllText($t, ('{"n":7,"text":"' + ('x' * 300) + '"}' + "`n"), $u)
+        $saved = ([IO.File]::ReadAllText('#{saved}')).Trim()
+        [IO.File]::AppendAllText($t, ('{"n":8,"text":"runner ' + $RunnerToken + ' env ' + $env:SLIPDOCK_TOKEN + ' saved ' + $saved + '"}' + "`n"), $u)
+        [IO.File]::AppendAllText($t, '{"n":9,"partial":', $u)
+      }
+      #{extra}
+      """)
+    end
+
+    defp transcript(job), do: job |> job() |> Slipdock.Runners.Transcript.read()
+
+    test "sends the transcript while the job runs, and the rest as it ends", ctx do
+      {:ok, queued} = queue(ctx.card, "tx")
+      running = Task.async(fn -> run_once(ctx, transcript_config(ctx)) end)
+
+      wait_for(fn ->
+        j = job(queued)
+        j.status == "running" and j.transcript_lines >= 2
+      end)
+
+      {out, 0} = Task.await(running, 45_000)
+      done = job(queued)
+      assert done.status == "done", out
+      assert done.transcript_lines == 9
+      assert done.output =~ "sending the transcript"
+
+      lines = queued |> transcript() |> String.split("\n", trim: true)
+      assert length(lines) == 9
+      assert Enum.map(Enum.take(lines, 7), &Jason.decode!(&1)["n"]) == Enum.to_list(0..6)
+      assert hd(lines) =~ "/cards/#{ctx.card.id}"
+
+      assert Jason.decode!(Enum.at(lines, 7)) ==
+               %{
+                 "type" => "slipdock_cut",
+                 "bytes" => byte_size(~s({"n":7,"text":""})) + 300,
+                 "limit" => 200
+               }
+
+      last = List.last(lines)
+      refute last =~ ctx.token
+      refute last =~ "abcdefghenv0123456789"
+      refute last =~ "abcdefghsaved0123456789"
+      assert last =~ "runner [redacted] env [redacted] saved [redacted]"
+      refute transcript(queued) =~ "partial"
+    end
+
+    test "only a transcript written since the job started that names the card is sent", ctx do
+      dir = Path.join([ctx.dir, "projects", "-elsewhere"])
+      File.mkdir_p!(dir)
+      old = Path.join(dir, "old.jsonl")
+      File.write!(old, ~s({"old":"#{ctx.url}/boards/1/cards/#{ctx.card.id}"}\n))
+      File.touch!(old, System.os_time(:second) - 600)
+
+      extra = """
+      function Job-Other {
+        [IO.File]::WriteAllText('#{dir}/other.jsonl', ('{"other":"another session"}' + "`n"))
+        Start-Sleep -Seconds 2
+      }
+      """
+
+      {:ok, queued} = queue(ctx.card, "other")
+      {_out, 0} = run_once(ctx, transcript_config(ctx, extra))
+      assert job(queued).status == "done"
+      assert job(queued).transcript_lines == 0
+      refute (job(queued).output || "") =~ "sending the transcript"
+    end
+
+    test "sends that fail leave the job running, and the next one catches up", ctx do
+      url = SlipdockWeb.FlakyTranscripts.start(fail: 4)
+      {:ok, queued} = queue(ctx.card, "tx")
+      {out, 0} = run_once(%{ctx | url: url}, transcript_config(%{ctx | url: url}))
+
+      assert out =~ "could not send the transcript (HTTP 503); trying again later"
+      assert SlipdockWeb.FlakyTranscripts.failed() == 4
+      done = job(queued)
+      assert {done.status, done.exit_code} == {"done", 0}
+      assert done.transcript_lines == 9
+    end
+  end
 end

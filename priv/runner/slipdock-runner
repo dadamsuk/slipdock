@@ -44,6 +44,18 @@
 # mismatch keeps this script, says so in the log, and isn't tried again. The
 # config is never touched.
 #
+# Live log (#1870): while a job runs, the runner sends its agent's Claude
+# Code transcript to the server about every TRANSCRIPT_EVERY seconds
+# (default 60; 0 turns it off), and once more as the job ends, so the job
+# can be watched from the board. The transcript is the newest .jsonl under
+# TRANSCRIPTS (default ~/.claude/projects, one level of project folders)
+# written since the job started that mentions the card's link. Each send is
+# the lines the server hasn't got, at most TRANSCRIPT_SEND bytes (default
+# 524288), any line over TRANSCRIPT_LINE bytes (default 32768) replaced by
+# a line saying how long it was, and this machine's Slipdock tokens taken
+# out: the runner's, $SLIPDOCK_TOKEN and the slipdock CLI's saved ones. A
+# send that fails never stops the job; the next one catches up.
+#
 # Drift (#1795): every claim also says the SHA-256 of each slipdock skill
 # installed under SKILLS_DIR (default ~/.claude/skills) and of the slipdock
 # CLI (SLIPDOCK_CLI, else the one on the PATH), and the runners list shows
@@ -108,7 +120,8 @@ for arg in "$@"; do
     --once) ONCE=1 ;;
     --config=*) CONFIG=${arg#--config=} ;;
     -h | --help)
-      sed -n '2,50p' "$0"
+      # The whole header: every comment line from the second to the first code.
+      awk 'NR > 1 && /^#/ { print; next } NR > 1 { exit }' "$0"
       exit 0
       ;;
     *)
@@ -136,6 +149,13 @@ HEARTBEAT=${HEARTBEAT:-20}
 JOB_TIMEOUT=${JOB_TIMEOUT:-3600}
 GRACE=${GRACE:-10}
 LOG_TAIL=${LOG_TAIL:-8000}
+TRANSCRIPT_EVERY=${TRANSCRIPT_EVERY:-60}
+TRANSCRIPTS=${TRANSCRIPTS:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects}
+TRANSCRIPT_SEND=${TRANSCRIPT_SEND:-524288}
+TRANSCRIPT_LINE=${TRANSCRIPT_LINE:-32768}
+case "$TRANSCRIPT_EVERY" in '' | *[!0-9]*) TRANSCRIPT_EVERY=0 ;; esac
+case "$TRANSCRIPT_SEND" in '' | *[!0-9]* | 0) TRANSCRIPT_SEND=524288 ;; esac
+case "$TRANSCRIPT_LINE" in '' | *[!0-9]* | 0) TRANSCRIPT_LINE=32768 ;; esac
 case "${MERGE:-}" in 0 | no | false | off) unset -f job_merge ;; esac
 
 command -v curl >/dev/null 2>&1 || {
@@ -377,6 +397,96 @@ lane_close() {
   unset SLIPDOCK_WORKTREE
 }
 
+# The live log (#1870). TX is the job's transcript once found, TX_LINES the
+# lines the server holds, TX_DONE set once it says the log is full.
+TX=
+TX_LINES=0
+TX_DONE=
+TX_FAILED=
+
+# scrub_list — this machine's Slipdock tokens, as a sed script in $WORK
+# (never on a command line, where ps shows it), read again for each job.
+scrub_list() {
+  {
+    printf '%s\n' "$SLIPDOCK_RUNNER_TOKEN" "${SLIPDOCK_TOKEN:-}"
+    # The CLI keeps them in ~/.config/slipdock; XDG_CONFIG_HOME too, if set.
+    for cfg in "$HOME/.config/slipdock" ${XDG_CONFIG_HOME:+"$XDG_CONFIG_HOME/slipdock"}; do
+      for f in "$cfg/token" "$cfg"/tokens/*; do [ -f "$f" ] && cat "$f" && echo; done
+    done
+  } 2>/dev/null | tr -d '\r' | grep -E '^[A-Za-z0-9_.~+/=-]{8,}$' | sort -u |
+    sed -e 's/\./\\./g' -e 's/.*/s|&|[redacted]|g/' >"$WORK/scrub.sed"
+}
+
+# find_transcript — sets TX to the job's transcript: the newest .jsonl in a
+# folder under TRANSCRIPTS, written since the job started, that mentions the
+# card's link. Kept once found.
+find_transcript() {
+  [ -n "$TX" ] && return 0
+  [ -n "${SLIPDOCK_CARD_URL:-}" ] && [ -d "$TRANSCRIPTS" ] || return 1
+  found=$(find "$TRANSCRIPTS" -maxdepth 2 -name '*.jsonl' -newer "$WORK/started" 2>/dev/null)
+  [ -n "$found" ] || return 1
+  # shellcheck disable=SC2086
+  for f in $(ls -t $found 2>/dev/null); do
+    if grep -qF "$SLIPDOCK_CARD_URL" "$f" 2>/dev/null; then
+      TX=$f
+      echo "slipdock-runner: sending the transcript $TX as the job's live log" >>"$WORK/log"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# send_transcript [final] — sends the transcript's lines the server hasn't
+# got. Each send is whole lines from TX_LINES, and the server's answer says
+# where the next starts. A failed send is left for the next; at the end
+# (final) it sends until caught up, trying a failed send three more times.
+send_transcript() {
+  [ "$TRANSCRIPT_EVERY" -gt 0 ] && [ -z "$TX_DONE" ] || return 0
+  find_transcript || return 0
+  rounds=2
+  retry=0
+  [ -n "${1:-}" ] && rounds=50
+  while [ "$rounds" -gt 0 ]; do
+    rounds=$((rounds - 1))
+    # Whole lines only: one still being written waits for the next send.
+    total=$(wc -l <"$TX" 2>/dev/null | tr -d ' ')
+    case "$total" in '' | *[!0-9]*) return 0 ;; esac
+    [ "$total" -gt "$TX_LINES" ] || return 0
+    sed -n "$((TX_LINES + 1)),${total}p" "$TX" |
+      LC_ALL=C awk -v max="$TRANSCRIPT_SEND" -v cut="$TRANSCRIPT_LINE" '{
+        n = length($0)
+        if (n > cut) $0 = "{\"type\":\"slipdock_cut\",\"bytes\":" n ",\"limit\":" cut "}"
+        if (NR > 1 && size + length($0) + 1 > max) exit
+        size += length($0) + 1
+        print
+      }' | sed -f "$WORK/scrub.sed" >"$WORK/tx" 2>/dev/null
+    post "/api/runner/jobs/$JOB_ID/transcript?from=$TX_LINES" "$WORK/tx" 15
+    word=
+    n=
+    read -r word n <"$WORK/resp" 2>/dev/null
+    case "$n" in *[!0-9]*) n= ;; esac
+    case "$CODE:$word" in
+      200:ok | 409:from)
+        TX_FAILED=
+        [ -n "$n" ] && TX_LINES=$n
+        ;;
+      200:capped)
+        echo "slipdock-runner: the server's log for this job is full; the rest of the transcript is not sent" >>"$WORK/log"
+        TX_DONE=1
+        return 0
+        ;;
+      *)
+        [ -n "$TX_FAILED" ] || say "job #$JOB_ID: could not send the transcript (HTTP $CODE); trying again later"
+        TX_FAILED=1
+        # At the end there is no next send: a few more tries, a little apart.
+        retry=$((retry + 1))
+        [ -n "${1:-}" ] && [ "$retry" -le 3 ] || return 0
+        sleep "$retry"
+        ;;
+    esac
+  done
+}
+
 # finish EXIT STATUS — reports the job ended, with the tail of its log.
 finish() {
   query="exit=$1"
@@ -412,6 +522,13 @@ run_job() {
 
   : >"$WORK/log"
   rm -f "$WORK/rc" "$WORK/rc.tmp" "$WORK/merged"
+  # The live log's starting point: a transcript written after this is the job's.
+  touch "$WORK/started"
+  TX=
+  TX_LINES=0
+  TX_DONE=
+  TX_FAILED=
+  scrub_list
 
   fn=
   case "$kind" in
@@ -485,6 +602,9 @@ $JOB_INSTRUCTIONS"
 
   started=$(date +%s)
   last=0
+  tx_last=$started
+  # A merge runs no agent, so it has no transcript.
+  [ "$kind" = merge ] && TX_DONE=1
   ended=
   while [ ! -e "$WORK/rc" ] && kill -0 "$JOB_PID" 2>/dev/null; do
     now=$(date +%s)
@@ -502,6 +622,10 @@ $JOB_INSTRUCTIONS"
         404) ended=lost && break ;;
       esac
     fi
+    if [ "$TRANSCRIPT_EVERY" -gt 0 ] && [ $((now - tx_last)) -ge "$TRANSCRIPT_EVERY" ]; then
+      tx_last=$now
+      send_transcript
+    fi
     sleep 1
   done
 
@@ -510,6 +634,7 @@ $JOB_INSTRUCTIONS"
       say "job #$JOB_ID: over its ${JOB_TIMEOUT}s — stopped"
       stop_job
       echo "slipdock-runner: stopped after ${JOB_TIMEOUT}s" >>"$WORK/log"
+      send_transcript final
       run_after_job 124 timeout
       lane_close
       finish 124 timeout
@@ -518,6 +643,7 @@ $JOB_INSTRUCTIONS"
       say "job #$JOB_ID: cancelled from the board — stopped"
       stop_job
       echo "slipdock-runner: cancelled from the board" >>"$WORK/log"
+      send_transcript final
       run_after_job 130 cancelled
       lane_close
       finish 130 cancelled
@@ -534,6 +660,7 @@ $JOB_INSTRUCTIONS"
       rc=$(cat "$WORK/rc" 2>/dev/null)
       case "$rc" in '' | *[!0-9]*) rc=1 ;; esac
       say "job #$JOB_ID: exit $rc"
+      send_transcript final
       if [ "$rc" -eq 0 ]; then run_after_job 0 done; else run_after_job "$rc" failed; fi
       lane_close
       finish "$rc" ""

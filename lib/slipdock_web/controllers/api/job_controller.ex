@@ -211,6 +211,28 @@ defmodule SlipdockWeb.API.JobController do
     end
   end
 
+  @doc """
+  The job's live log so far (#1870), as JSON Lines: one line per line of its
+  agent's transcript, from line `from` (0-based, default 0). `X-Transcript-Lines`
+  says how many lines the server holds, which is the `from` for the next read,
+  and `X-Transcript-Capped: true` that the log hit its size limit.
+  """
+  def transcript(conn, %{"id" => id} = params) do
+    with {:ok, job, _card} <- fetch_job(conn, id, :read) do
+      from =
+        case Integer.parse(to_string(params["from"] || "0")) do
+          {n, ""} when n >= 0 -> n
+          _ -> 0
+        end
+
+      conn
+      |> put_resp_content_type("application/x-ndjson")
+      |> put_resp_header("x-transcript-lines", to_string(job.transcript_lines))
+      |> put_resp_header("x-transcript-capped", to_string(job.transcript_capped))
+      |> send_resp(200, Slipdock.Runners.Transcript.read(job, from))
+    end
+  end
+
   def cancel(conn, %{"id" => id}) do
     with {:ok, job, _card} <- fetch_job(conn, id, :write) do
       case Runners.cancel_job(job) do

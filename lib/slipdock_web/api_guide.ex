@@ -2157,7 +2157,8 @@ defmodule SlipdockWeb.APIGuide do
 
     **Seeing and stopping jobs** needs read access to the card, and
     cancelling one write: `GET /api/cards/:id/jobs`, `GET
-    /api/boards/:board/jobs?status=open`, `GET /api/jobs/:id`, `POST
+    /api/boards/:board/jobs?status=open`, `GET /api/jobs/:id`, `GET
+    /api/jobs/:id/transcript` (its live log, below), `POST
     /api/jobs/:id/cancel`. A queued job is cancelled at once; a running one
     is asked to stop, and its runner hears so on its next heartbeat.
 
@@ -2233,7 +2234,27 @@ defmodule SlipdockWeb.APIGuide do
                                                X-Card-Ref, X-Card-Url, X-Lease-Seconds; prompt as body
     POST /api/runner/jobs/:id/heartbeat        body = log tail  → ok | cancel
     POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
+    POST /api/runner/jobs/:id/transcript?from=N  body = transcript lines from N → ok L | capped L
     ```
+
+    **A job's live log.** While a job runs, its runner sends the agent's
+    Claude Code transcript about once a minute, and once more as the job
+    ends: `POST /api/runner/jobs/:id/transcript?from=N`, the body the
+    transcript's whole lines from line `N` (0-based). The answer `ok L` is
+    the lines the server now holds and where the next send starts, so a
+    failed send is simply sent again and one that arrives twice is trimmed;
+    a `from` past them answers 409 `from L`. A send is read up to 1 MB (the
+    rest comes next time), a line over 32 KiB is kept as
+    `{"type":"slipdock_cut","bytes":N,"limit":L}`, and once the log holds
+    8 MB a last `{"type":"slipdock_capped",…}` line says so and the answer
+    is `capped L`: nothing more is kept. Tokens are taken out before it is
+    stored: the runner's, any `sd…_` token, and the usual secret shapes
+    (cloud and GitHub keys, private keys, bearer headers, `password=…`).
+    Read it back with read access to the card: `GET
+    /api/jobs/:id/transcript?from=N` answers JSON Lines from line `N`, with
+    `X-Transcript-Lines` (the `from` for the next read) and
+    `X-Transcript-Capped`; the job itself says `transcript_lines`,
+    `transcript_capped` and `transcript_at`.
 
     A server stopping for a deploy answers every open claim at once with a
     204 and `Retry-After: 1`: wait that many seconds, then claim again, and

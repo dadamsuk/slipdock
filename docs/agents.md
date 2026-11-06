@@ -469,7 +469,9 @@ can **pause** the tree or one pool with a reason (`slipdock pause <board>
 `slipdock resume`), and with **WIP limits hold automated work** on
 (`slipdock set-board --automation-wip`) a full first in-progress list holds
 jobs too. A held job names one reason: paused, WIP full, a card in
-progress, or no runner online. It takes standing instructions
+progress, or no runner online. While a job runs, its runner sends the agent's
+transcript about once a minute, so the job has a **live log** on the server
+(`GET /api/jobs/:id/transcript`, JSON Lines, tokens taken out). It takes standing instructions
 and before/after hooks, written into the config or prompt it generates; for the
 site-specific part of a hook (which notifier, what to keep from a pass) it gives
 a prompt to paste into Claude Code on that machine (*Have Claude write this
