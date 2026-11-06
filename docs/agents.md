@@ -541,9 +541,15 @@ an epic, each subcard as it starts, is submitted and merges). Every step is
 kept on the job with its time. The card's own chat (*Ask AI about this card*)
 reads that record for a person: every job on the card and its subcards with
 its steps, exit status and summary, the timeline, waits, handoffs, comments,
-and the bar, evidence, rejections, audits, merge and deploys. So a step that
-says what happened (*CI red: credo*, *#1876 submitted*) is what answers *why
-did it fail?* and *where did the time go?* later. The epic's
+and the bar, evidence, rejections, audits, merge and deploys. It also works
+out where a card's time went (`card_lead_time`): its lead time by phase, from
+the ready list (and which jobs held the pool) through build, CI, verify and
+merge to deploy, with what it can't explain as a phase of its own. CI is read
+from the `Build started` / `Build failed` / `Build passed` comments and from
+steps that mention CI, so write those as they happen: a failure reported only
+after its fix is pushed reads as one CI span with the fix inside it. So a step
+that says what happened (*CI red: credo*, *#1876 submitted*) is what answers
+*why did it fail?* and *where did the time go?* later. The epic's
 comments are the server's to keep: it posts a line on the epic as each
 subcard starts, is submitted, rejected, accepted, merged, fails a build,
 waits on a person or ships, with the done count, and keeps the epic's %

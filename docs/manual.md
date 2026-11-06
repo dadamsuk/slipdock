@@ -3302,7 +3302,21 @@ is ever sent to a model unless you ask.
     its question and answer, and its activity log (flags, snoozes, edits);
   - `card_verification`: the bar, the evidence, each verdict and rejection
     with its reason, audits, the verify and merge jobs, the merge commit,
-    and the deploys that shipped it where the board records deploys.
+    and the deploys that shipped it where the board records deploys;
+  - `card_lead_time`: where its time went. Its lead time, from creation
+    to the first deploy that shipped it (or to done, or now while it is
+    open), split into phases: backlog, waiting for a runner (naming the
+    jobs that kept the pool busy meanwhile), build, CI, waiting on a
+    person, waiting for verification, verify, rework after a rejection,
+    merge and deploy. Each second goes to one phase; where things overlap
+    the later stage wins (a merge job over the verify job, a wait over the
+    job it parked, CI over the build it ran in). CI runs come from the
+    `Build started` / `Build failed` / `Build passed` comments a runner
+    writes and from steps that mention CI. Time the record holds nothing
+    for is *unexplained*, a phase of its own. On an epic it gives each
+    subcard's breakdown too, a subcard's build credited to the epic's job
+    that ran while it was in progress, and the subcards added up. Ask
+    *where did this card's time go?* or *why did #1856 take 78 minutes?*
 
   They run as you: a card you can't open isn't read, and a card outside
   the open card's tree is refused. The answer names the jobs and comments

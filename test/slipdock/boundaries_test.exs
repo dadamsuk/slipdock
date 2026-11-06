@@ -44,6 +44,7 @@ defmodule Slipdock.BoundariesTest do
     "lib/slipdock/health/detectors/orphan_in_progress.ex" =>
       {~w(lib/slipdock_web/api_guide.ex), "role list"},
     "lib/slipdock/inbound/cards.ex" => {~w(lib/slipdock_web/api_guide.ex), "role list"},
+    "lib/slipdock/lead_time.ex" => {~w(lib/slipdock_web/api_guide.ex), "role list"},
     "lib/slipdock/quick_add/capture.ex" => {~w(lib/slipdock_web/api_guide.ex), "role list"},
     "lib/slipdock/recurrence.ex" => {~w(lib/slipdock_web/api_guide.ex), "role list"},
     # Debt: Markdown from wiki HTML belongs beside the wiki, not the renderer.
