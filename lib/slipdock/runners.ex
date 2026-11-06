@@ -1683,7 +1683,8 @@ defmodule Slipdock.Runners do
 
   @doc """
   The prompt a claimed job is handed (#1622): as it was queued, followed by
-  the card's bar when it has one, so the agent works to it, its paths, and
+  the card's bar when it has one, so the agent works to it (and checks it at
+  pickup for parts only a person can meet, #1883), its paths, and
   the reason a verifier rejected it, when it is rejected (#1659). A verify
   job's prompt carries the bar already.
   """
@@ -1696,7 +1697,8 @@ defmodule Slipdock.Runners do
         state = if locked, do: ", locked when work started", else: ""
 
         (job.prompt || "") <>
-          "\n\nThe card's bar (what done means for it#{state}); work to it as written:\n" <> bar
+          "\n\nThe card's bar (what done means for it#{state}); work to it as written:\n" <>
+          bar <> "\n\n" <> Slipdock.Verified.bar_pickup_check()
 
       _ ->
         job.prompt

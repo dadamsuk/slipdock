@@ -3756,6 +3756,21 @@ defmodule SlipdockWeb.APIGuide do
     starts (the move, or the card created in progress): changing it after that
     is refused too, and only a person can. Work to the bar as written, and
     say on the card how each part of it was met.
+
+    **Check the bar at pickup**, before building: read each part against
+    this guide. If one can't be met as written because it needs a person (a
+    handbook rule added, reworded or dropped, a merge, a deploy to prod,
+    applying a proposal), stop and ask: open a wait (`slipdock wait ID …`,
+    `update_card` `wait`) naming the part and what you could do instead, so
+    a person rewords the bar or confirms the alternative. Don't build to
+    your own reading of it and leave the conflict to the verifier.
+
+    **Write a bar that can be met.** Each part is something the builder can
+    do and show. A rule change is phrased as "proposed as a garden proposal
+    (rule id, wording)", never "W-x has rule Y", since a rule is a person's
+    call and an agent only proposes it. The same goes for anything else only
+    a person does: "pull request open, its CI green", not "merged"; "ready
+    to deploy", not "live on prod".
     """
   end
 

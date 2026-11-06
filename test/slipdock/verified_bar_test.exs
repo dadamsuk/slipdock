@@ -144,8 +144,18 @@ defmodule Slipdock.VerifiedBarTest do
       {:ok, card} = Boards.update_card(ctx.card, %{"bar" => "Tests pass"})
       {:ok, job} = Slipdock.Runners.queue(card, %{pool: "dev", kind: "claude", prompt: "Do it."})
 
+      # #1883: then the check at pickup, before building.
       assert Slipdock.Runners.claimed_prompt(job) ==
-               "Do it.\n\nThe card's bar (what done means for it); work to it as written:\nTests pass"
+               "Do it.\n\nThe card's bar (what done means for it); work to it as written:\nTests pass" <>
+                 "\n\n" <> Slipdock.Verified.bar_pickup_check()
+
+      check = Slipdock.Verified.bar_pickup_check()
+      assert check =~ "Before building, check each part of the bar against the guide"
+      assert check =~ "needs a person (a handbook rule added, reworded or dropped, a merge"
+      assert check =~ "stop and ask. Open a wait"
+
+      assert check =~
+               "Don't build to your own reading of it and leave the conflict to the verifier."
 
       :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
       assert Slipdock.Runners.claimed_prompt(job) =~ "locked when work started"
@@ -157,7 +167,9 @@ defmodule Slipdock.VerifiedBarTest do
 
       other = card_fixture(ctx.todo, %{"title" => "No bar"})
       {:ok, plain} = Slipdock.Runners.queue(other, %{pool: "dev", kind: "claude", prompt: "Go."})
+      # No bar, nothing to check at pickup.
       assert Slipdock.Runners.claimed_prompt(plain) == "Go."
+      refute Slipdock.Runners.claimed_prompt(plain) =~ "check each part of the bar"
     end
 
     test "turned off again, a locked bar is an agent's to change", ctx do

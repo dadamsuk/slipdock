@@ -77,6 +77,42 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     assert cli =~ "--pr https://"
   end
 
+  test "builders check the bar at pickup and ask when a part needs a person (#1883)" do
+    flat = fn text -> String.replace(text, ~r/\s+/, " ") end
+    installed = Path.expand("~/.claude/skills")
+
+    # The packaged skills, and an installed copy where there is one: those are
+    # edited the same way, never copied over, so each is checked for the wording.
+    for skill <- ["slipdock-loop", "slipdock-work"],
+        path <- [
+          Path.join([@root, "priv/skills", skill, "SKILL.md"]),
+          Path.join([installed, skill, "SKILL.md"])
+        ],
+        File.exists?(path),
+        text = flat.(File.read!(path)) do
+      assert text =~ "**Check the bar at pickup**, before building", path
+      assert text =~ "needs a person (a handbook rule added, reworded or dropped, a merge", path
+      assert text =~ ~s(slipdock wait <id> "…"), path
+      assert text =~ "the conflict to the verifier", path
+
+      assert text =~
+               ~s|"proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|,
+             path
+    end
+
+    manual = flat.(read("docs/manual.md"))
+    assert manual =~ "**Checked at pickup.**"
+    assert manual =~ "**Write a bar that can be met.**"
+
+    assert manual =~
+             ~s|"proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|
+
+    assert flat.(read("docs/agents.md")) =~
+             ~s|a rule change "proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|
+
+    assert flat.(read("docs/agents.md")) =~ "the builder checks it at pickup and asks with a wait"
+  end
+
   test "builders run the project's own pre-push checks and watch with --fail-fast (#1866)" do
     flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
 

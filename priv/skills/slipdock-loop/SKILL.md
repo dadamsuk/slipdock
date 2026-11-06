@@ -695,6 +695,16 @@ With one on, the pass changes like this:
   "…"`, one line per part. Moving it without one is refused. The bar locks
   once work starts: never try to change it after that (only a person can).
   Work to it as written and say in the wrap-up how each part was met.
+- **Check the bar at pickup**, before building — a bar already written
+  included. Read each part against the guide. If one can't be met as
+  written because it needs a person (a handbook rule added, reworded or
+  dropped, a merge, a deploy to prod, applying a proposal), stop and ask:
+  open a wait (`slipdock wait <id> "…"`, see **Handing a card back**)
+  naming the part and what you could do instead, so a person rewords the
+  bar or confirms the alternative. Don't build to your own reading of it
+  and leave the conflict to the verifier. A bar you write yourself is one
+  that can be met: a rule change is "proposed as a garden proposal (rule
+  id, wording)", never "W-x has rule Y".
 - **The verifier's checks, first.** Before submitting, run the four
   checks a verifier will (see **A verify job** below) on your own work: the
   bar covers the ask, each part of the bar is met, no `must` rule for the

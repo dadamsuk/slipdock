@@ -1771,6 +1771,17 @@ defmodule Slipdock.Verified do
     """
   end
 
+  @doc """
+  What a builder is told to do with the bar at pickup, before building
+  (#1883): read each part against the guide and, when one needs a person,
+  ask rather than meet it some other way and leave the conflict to the
+  verifier. Said in a claimed job's prompt after the bar; the guide and the
+  loop and work skills say the same.
+  """
+  def bar_pickup_check,
+    do:
+      "Before building, check each part of the bar against the guide: if one can't be met as written because it needs a person (a handbook rule added, reworded or dropped, a merge, a deploy to prod, applying a proposal), stop and ask. Open a wait (`slipdock wait <card> …`, update_card `wait`) naming the part and what you could do instead, so a person rewords the bar or confirms the alternative. Don't build to your own reading of it and leave the conflict to the verifier."
+
   @doc "What the verify and audit prompts say meets a bar item asking for a rule change (#1882)."
   def rule_proposal_sentence,
     do:

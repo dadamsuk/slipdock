@@ -145,12 +145,31 @@ defmodule SlipdockWeb.VerifiedBarWebTest do
     guide = ctx.agent |> get(~p"/api/guide") |> response(200)
     refute guide =~ "## Verified work"
     refute guide =~ "verified work:"
+    refute guide =~ "**Check the bar at pickup**"
+    refute guide =~ "**Write a bar that can be met.**"
 
     {:ok, _} = on(ctx)
     guide = ctx.agent |> get(~p"/api/guide") |> response(200)
     assert guide =~ "## Verified work"
     assert guide =~ "**A bar before work starts.**"
     assert guide =~ "verified work: a bar before work starts"
+
+    # #1883: the builder checks the bar at pickup and asks when a part needs
+    # a person; a bar is written so it can be met, a rule change as a proposal.
+    %{"guide" => text} = Jason.decode!(guide)
+
+    flat = String.replace(text, ~r/\s+/, " ")
+    assert flat =~ "**Check the bar at pickup**, before building"
+
+    assert flat =~
+             "because it needs a person (a handbook rule added, reworded or dropped, a merge"
+
+    assert flat =~ "stop and ask: open a wait"
+    assert flat =~ "Don't build to your own reading of it and leave the conflict to the verifier."
+    assert flat =~ "**Write a bar that can be met.**"
+
+    assert flat =~
+             ~s|A rule change is phrased as "proposed as a garden proposal (rule id, wording)", never "W-x has rule Y"|
   end
 
   test "board settings turn it on, and the card panel shows the bar and its lock", ctx do

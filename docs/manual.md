@@ -648,6 +648,16 @@ card that has one), `slipdock edit 12 --bar "…"`, `PATCH /api/cards/:id
 - Moving the card back to a ready list leaves the bar locked: work started
   once, and the bar is what it was measured against.
 - Turn the switch off and a locked bar is anybody's to change again.
+- **Checked at pickup.** The job's prompt (and the guide and the skills)
+  tells the builder to read each part of the bar before building, and to
+  ask with a wait when one needs a person (a handbook rule added, reworded
+  or dropped, a merge, a deploy to prod, applying a proposal), rather than
+  meet it some other way and leave the conflict to the verifier. The card
+  waits until you reword the bar or confirm the alternative.
+- **Write a bar that can be met.** A rule change is phrased as "proposed as
+  a garden proposal (rule id, wording)", never "W-x has rule Y": a rule is
+  yours to apply, and an agent only proposes it. Likewise "pull request
+  open, its CI green" rather than "merged".
 
 ### Evidence
 
