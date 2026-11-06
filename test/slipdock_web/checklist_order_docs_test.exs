@@ -31,6 +31,6 @@ defmodule SlipdockWeb.ChecklistOrderDocsTest do
     assert read("docs/agents.md") =~
              ~s(`POST /api/checklist/<item_id>/move {"before": <item_id>}`)
 
-    assert read("cli/lib/slipdock_cli.ex") =~ "move-check <item-id> [--before <item-id>]"
+    assert read("cli/help.txt") =~ "move-check <item-id> [--before <item-id>]"
   end
 end

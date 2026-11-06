@@ -35,7 +35,7 @@ defmodule SlipdockWeb.HandbookDocsTest do
 
   test "README, the CLI help and the skill name the commands" do
     assert read("README.md") =~ "**The handbook.** One Tool is built in"
-    help = read("cli/lib/slipdock_cli.ex")
+    help = read("cli/help.txt")
     assert help =~ "tools install-board handbook --board B"
     assert help =~ "handbook <board>|<card>"
 

@@ -122,6 +122,7 @@ defmodule SlipdockWeb.Router do
       ] do
       live "/help", HelpLive.Index, :index
       live "/help/agents", HelpLive.Index, :agents
+      live "/help/agents/cli/reference", HelpLive.Index, :cli_reference
       live "/help/agents/:topic", HelpLive.Index, :agent_topic
       live "/help/:section", HelpLive.Index, :section
     end

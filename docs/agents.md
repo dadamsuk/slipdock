@@ -27,7 +27,9 @@ of this with your own server's address already filled in, ready to copy.
 **Help → Agents** (`/help/agents`, open to anyone, signed in or not) is the short version for
 somebody choosing: each way in — the guide and API, MCP, the CLI, the skills,
 runners and webhooks — with when to use it, a table of what each supports, and
-a page per way in.
+a page per way in. The CLI's page links to a command reference
+(`/help/agents/cli/reference`): every command in `slipdock help`, by group, with
+a filter.
 
 ## 1 · Point it at the board
 
