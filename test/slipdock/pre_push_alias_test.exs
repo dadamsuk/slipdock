@@ -42,6 +42,7 @@ defmodule Slipdock.PrePushAliasTest do
     assert project().pre_push_steps() == [
              {"compile", ["--force", "--warnings-as-errors"]},
              {"format", ["--check-formatted"]},
+             {"test", project().repo_checks()},
              {"hex.audit", []},
              {"deps.audit", []},
              {"sobelow", ["--config"]},
@@ -68,8 +69,8 @@ defmodule Slipdock.PrePushAliasTest do
              List.last(project().pre_push_steps(["--from-git-ref", "777104a1~1"]))
 
     # The other steps don't take them.
-    assert project().pre_push_steps(["--from-git-ref", "x"]) |> Enum.take(5) ==
-             project().pre_push_steps() |> Enum.take(5)
+    assert project().pre_push_steps(["--from-git-ref", "x"]) |> Enum.drop(-1) ==
+             project().pre_push_steps() |> Enum.drop(-1)
   end
 
   test "builds in a root of its own, so it can run beside mix test" do
@@ -81,8 +82,10 @@ defmodule Slipdock.PrePushAliasTest do
   test "runs every step in turn and says how long it took" do
     out = capture_io(fn -> project().pre_push([], recorder()) end)
 
-    assert ran() == ["compile", "format", "hex.audit", "deps.audit", "sobelow", "credo"]
+    assert ran() == ["compile", "format", "test", "hex.audit", "deps.audit", "sobelow", "credo"]
     assert out =~ "==> pre_push: mix compile --force --warnings-as-errors"
+    n = length(project().repo_checks())
+    assert out =~ "==> pre_push: mix test (the #{n} files in test/repo_checks.txt)\n"
     assert out =~ "==> pre_push: mix sobelow --config"
     assert out =~ ~r/all checks passed in \d+\.\d s/
   end
@@ -98,7 +101,37 @@ defmodule Slipdock.PrePushAliasTest do
       assert error.message == "pre_push: mix hex.audit failed (exit 3)"
     end)
 
-    assert ran() == ["compile", "format", "hex.audit"]
+    assert ran() == ["compile", "format", "test", "hex.audit"]
+  end
+
+  test "a failing repo check stops the run before the audits (#1867)" do
+    capture_io(fn ->
+      assert_raise Mix.Error,
+                   ~r/^pre_push: mix test \(the \d+ files in .*\) failed \(exit 2\)$/,
+                   fn ->
+                     project().pre_push([], recorder(%{"test" => 2}))
+                   end
+    end)
+
+    assert ran() == ["compile", "format", "test"]
+  end
+
+  test "runs the repo checks after compile and format, before the slower audits (#1867)" do
+    tasks = Enum.map(project().pre_push_steps(), &elem(&1, 0))
+    assert Enum.take(tasks, 3) == ["compile", "format", "test"]
+
+    {"test", files} = Enum.at(project().pre_push_steps(), 2)
+    assert "test/slipdock/nothing_personal_test.exs" in files
+    assert Enum.all?(files, &File.regular?(Path.join(@root, &1)))
+  end
+
+  test "every step runs with the repo checks' own test database (#1867)" do
+    # Its own, so a `mix test` beside it doesn't hold it up; every step's, so
+    # the test step doesn't recompile what reads the partition from config.
+    env = project().pre_push_env()
+    assert {"MIX_TEST_PARTITION", "_pre_push"} in env
+    assert {"MIX_BUILD_ROOT", project().pre_push_build_root()} in env
+    assert {"MIX_ENV", "test"} in env
   end
 
   test "a credo finding (exit 8) fails the run, after every other check" do
@@ -109,7 +142,7 @@ defmodule Slipdock.PrePushAliasTest do
         end
       end)
 
-    assert length(ran()) == 6
+    assert length(ran()) == 7
     refute out =~ "all checks passed"
   end
 end

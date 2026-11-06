@@ -1,0 +1,95 @@
+# The tests that hold the repository's own files, docs and skills to a rule
+# or to the server (#1867). `mix pre_push` runs them, because a builder runs
+# only the tests it added or changed and the pull request's CI the rest, and
+# these are the ones a change elsewhere breaks. They run in about 15 s.
+#
+# What qualifies (W-1950 §Tests):
+# - source conventions: a rule read off lib/ (fonts, buttons, controls,
+#   design tokens, date inputs and the like);
+# - docs and skills held to the server: docs/, README.md and priv/skills/
+#   against the guide, the tools, the CLI or each other;
+# - fixture uniqueness, and nothing personal.
+# A feature test that also holds a doc or a skill to what it built goes on
+# too, as a whole file, as long as it is cheap: the list's budget is 20 s.
+# One that is too slow for that, or whose docs/ or lib/ paths are only data,
+# is an exception below, with its reason.
+#
+# `test/slipdock/repo_checks_test.exs` fails when a test file reads docs/ or
+# priv/skills/, or wildcards over lib/ or test/, and is neither listed here
+# nor an `except <path>: <reason>` line.
+
+# Source conventions
+test/slipdock_web/fonts_test.exs
+test/slipdock_web/buttons_test.exs
+test/slipdock_web/controls_test.exs
+test/slipdock_web/design_tokens_test.exs
+test/slipdock_web/no_raw_date_input_test.exs
+test/slipdock_web/one_date_format_test.exs
+test/slipdock/directory_leaks_test.exs
+test/slipdock/mentions_test.exs
+test/slipdock_web/live/file_picker_live_test.exs
+
+# Docs and skills held to the server
+test/slipdock_web/controllers/api/skills_test.exs
+test/slipdock_web/handbook_skills_test.exs
+test/slipdock/handbook/rules_docs_test.exs
+test/slipdock/handbook/rules_for_docs_test.exs
+test/slipdock/tool_packages_doc_test.exs
+test/slipdock_web/board_views_docs_test.exs
+test/slipdock_web/card_face_docs_test.exs
+test/slipdock_web/checklist_order_docs_test.exs
+test/slipdock_web/delivery_docs_test.exs
+test/slipdock_web/garden_docs_test.exs
+test/slipdock_web/generated_names_docs_test.exs
+test/slipdock_web/handbook_docs_test.exs
+test/slipdock_web/handoff_docs_test.exs
+test/slipdock_web/health_docs_test.exs
+test/slipdock_web/inbound_docs_test.exs
+test/slipdock_web/lanes_docs_test.exs
+test/slipdock_web/mcp/docs_test.exs
+test/slipdock_web/meetings/chat_docs_test.exs
+test/slipdock_web/meetings/docs_and_skills_test.exs
+test/slipdock_web/orchestration_fixes_docs_test.exs
+test/slipdock_web/recording_api_docs_test.exs
+test/slipdock_web/recurrence_docs_test.exs
+test/slipdock_web/reply_docs_test.exs
+test/slipdock_web/runner_docs_test.exs
+test/slipdock_web/saved_multiboard_docs_test.exs
+test/slipdock_web/skill_progress_docs_test.exs
+test/slipdock_web/snooze_docs_test.exs
+test/slipdock_web/subagent_wait_docs_test.exs
+test/slipdock_web/tool_links_docs_test.exs
+test/slipdock_web/transfer_links_docs_test.exs
+test/slipdock_web/verified_docs_test.exs
+test/slipdock_web/verified_merge_docs_test.exs
+test/slipdock_web/verify_by_ci_docs_test.exs
+test/slipdock_web/wait_docs_test.exs
+
+# Feature tests that also hold docs or skills to what they built
+test/slipdock/runners_drift_test.exs
+test/slipdock/runners/hook_prompt_test.exs
+test/slipdock/runners_security_ship_test.exs
+test/slipdock/sweep_install_test.exs
+test/slipdock_web/card_timeline_api_test.exs
+test/slipdock_web/controllers/api/card_controller_test.exs
+test/slipdock_web/controllers/api/finding_controller_test.exs
+test/slipdock_web/live/age_chip_option_test.exs
+test/slipdock_web/live/list_show_images_test.exs
+test/slipdock_web/live/verify_audit_live_test.exs
+test/slipdock_web/live/verify_rejection_limit_live_test.exs
+test/slipdock_web/live/visualise_polish_test.exs
+test/slipdock_web/verify_checks_web_test.exs
+test/slipdock_web/verify_progress_test.exs
+
+# CI's workflow and the pre-push alias against the repo
+test/slipdock/ci_workflow_test.exs
+
+# Fixtures and nothing personal
+test/slipdock/fixtures_test.exs
+test/slipdock/nothing_personal_test.exs
+test/slipdock/repo_checks_test.exs
+
+# Not on the list
+except test/slipdock_web/all_fields_test.exs: renders every LiveView route, 23 s alone; its one source rule (no daisyUI field sizes) waits for CI
+except test/slipdock/lanes_test.exs: its docs/ paths are lane globs held as data; it reads no file
+except test/slipdock/lanes_epic_test.exs: its docs/ paths are lane globs held as data; it reads no file

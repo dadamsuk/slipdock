@@ -124,6 +124,11 @@ defmodule Slipdock.MixProject do
   with the same arguments, for running before a push (`mix pre_push`).
   `test/slipdock/ci_workflow_test.exs` fails when CI runs one this doesn't.
 
+  After the compile and format checks it runs the tests in
+  `test/repo_checks.txt` (`repo_checks/0`): the ones that hold the repo's own
+  files, docs and skills to a rule, which a builder running only its own
+  tests would otherwise first see fail in the pull request's CI.
+
   Credo lints what the change adds since where it left `origin/main`. Give
   credo's own base instead to check another commit: `mix pre_push
   --from-git-ref <ref>`. `--config-file` is the absolute path, as CI's
@@ -136,6 +141,7 @@ defmodule Slipdock.MixProject do
     [
       {"compile", ["--force", "--warnings-as-errors"]},
       {"format", ["--check-formatted"]},
+      {"test", repo_checks()},
       {"hex.audit", []},
       {"deps.audit", []},
       {"sobelow", ["--config"]},
@@ -152,7 +158,7 @@ defmodule Slipdock.MixProject do
     started = System.monotonic_time(:millisecond)
 
     for {task, argv} <- pre_push_steps(args) do
-      line = Enum.join([task | argv], " ")
+      line = step_line(task, argv)
       Mix.shell().info([:cyan, "==> pre_push: mix #{line}", :reset])
       step_started = System.monotonic_time(:millisecond)
 
@@ -172,12 +178,62 @@ defmodule Slipdock.MixProject do
   """
   def pre_push_build_root, do: Path.expand("_build/pre_push", __DIR__)
 
+  @repo_checks Path.expand("test/repo_checks.txt", __DIR__)
+
+  @doc """
+  The test files `test/repo_checks.txt` lists, which `mix pre_push` runs.
+  `test/slipdock/repo_checks_test.exs` says what qualifies and keeps it honest.
+  """
+  def repo_checks, do: @repo_checks |> File.read!() |> parse_repo_checks() |> Map.fetch!(:tests)
+
+  @doc """
+  Parses `test/repo_checks.txt`: one test path per line, `#` comments, and
+  `except <path>: <reason>` for a file that looks like a repo check but isn't.
+  """
+  def parse_repo_checks(text) do
+    lines =
+      for line <- String.split(text, "\n"),
+          line = String.trim(line),
+          line != "" and not String.starts_with?(line, "#"),
+          do: line
+
+    {exceptions, tests} = Enum.split_with(lines, &String.starts_with?(&1, "except "))
+
+    exceptions =
+      Map.new(exceptions, fn "except " <> rest ->
+        case String.split(rest, ":", parts: 2) do
+          [path, reason] -> {String.trim(path), String.trim(reason)}
+          [path] -> {String.trim(path), ""}
+        end
+      end)
+
+    %{tests: tests, exceptions: exceptions}
+  end
+
+  @doc """
+  The environment every step runs in. The repo checks use a test database of
+  their own (`MIX_TEST_PARTITION`), so they don't wait for the
+  `Slipdock.TestRunLock` of a `mix test` running beside them. The compile gets
+  it too: the partition is part of the test config, and a step with another
+  would recompile what reads it.
+  """
+  def pre_push_env do
+    [
+      {"MIX_ENV", to_string(Mix.env())},
+      {"MIX_BUILD_ROOT", pre_push_build_root()},
+      {"MIX_TEST_PARTITION", "_pre_push"}
+    ]
+  end
+
+  defp step_line("test", files), do: "test (the #{length(files)} files in test/repo_checks.txt)"
+  defp step_line(task, argv), do: Enum.join([task | argv], " ")
+
   defp run_mix(task, argv) do
     {_, status} =
       System.cmd("mix", [task | argv],
         into: IO.stream(),
         stderr_to_stdout: true,
-        env: [{"MIX_ENV", to_string(Mix.env())}, {"MIX_BUILD_ROOT", pre_push_build_root()}]
+        env: pre_push_env()
       )
 
     status
