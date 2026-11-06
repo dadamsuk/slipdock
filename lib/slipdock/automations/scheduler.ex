@@ -64,6 +64,8 @@ defmodule Slipdock.Automations.Scheduler do
 
   defp sweep_runner_jobs do
     Slipdock.Runners.sweep()
+    # Job logs past their board's time go (#1872).
+    Slipdock.Runners.TranscriptRetention.sweep()
   rescue
     exception -> Logger.error("Runner job sweep failed: #{Exception.message(exception)}")
   end

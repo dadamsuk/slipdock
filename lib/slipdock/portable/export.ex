@@ -253,6 +253,8 @@ defmodule Slipdock.Portable.Export do
       incident_tag: board.incident_tag,
       hotfix_window_hours: board.hotfix_window_hours,
       automation_wip: board.automation_wip,
+      job_log_hours: board.job_log_hours,
+      failure_log_hours: board.failure_log_hours,
       handoff_label: board.handoff_label,
       handoff_prompt: board.handoff_prompt,
       bar_required: board.bar_required,

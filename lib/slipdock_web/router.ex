@@ -713,6 +713,7 @@ defmodule SlipdockWeb.Router do
     get "/jobs/:id", JobController, :show
     get "/jobs/:id/transcript", JobController, :transcript
     get "/jobs/:id/log", JobController, :log
+    post "/jobs/:id/keep", JobController, :keep
     post "/jobs/:id/cancel", JobController, :cancel
     post "/jobs/:id/progress", JobController, :progress
     post "/jobs/:id/finish", JobController, :finish

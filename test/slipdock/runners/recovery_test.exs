@@ -79,6 +79,9 @@ defmodule Slipdock.Runners.RecoveryTest do
         job = finish(ctx, job, unquote(status))
 
         assert job.recovery == "requeued"
+        # Leaving its card in progress is a failure: its log keeps that time (#1872).
+        assert job.transcript_failed_at
+        assert Slipdock.Runners.TranscriptRetention.failure?(job)
         a = card(ctx.a)
         assert a.column_id == ctx.todo.id
         assert Enum.at(Boards.get_board!(ctx.board.id).columns, 1).id == ctx.todo.id
@@ -126,6 +129,7 @@ defmodule Slipdock.Runners.RecoveryTest do
       job = finish(ctx, job, "timeout")
 
       assert job.recovery == "gave_up"
+      assert job.transcript_failed_at
       a = card(ctx.a)
       assert a.column_id == ctx.doing.id
       assert "blocked" in a.flags
@@ -213,7 +217,9 @@ defmodule Slipdock.Runners.RecoveryTest do
       rule_fixture(ctx.board, spec())
       job = take(ctx)
       {:ok, _} = Boards.update_card(card(ctx.a), %{"completed" => true})
-      assert finish(ctx, job, "done").recovery == nil
+      done = finish(ctx, job, "done")
+      assert done.recovery == nil
+      refute done.transcript_failed_at
 
       job = Runners.claim(ctx.runner)
       assert finish(ctx, job).recovery == nil

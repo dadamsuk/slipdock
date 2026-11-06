@@ -1087,6 +1087,9 @@ defmodule SlipdockCLI.Boards do
         "show_pulse" => o[:show_pulse],
         # WIP limits holding runner jobs and list_top sends (#1116).
         "automation_wip" => o[:automation_wip],
+        # How long runner job logs stay, in hours (#1872).
+        "job_log_hours" => o[:job_log_hours],
+        "failure_log_hours" => o[:failure_log_hours],
         # Verified work (#1620): the bar before work starts.
         "bar_required" => o[:bar_required],
         "evidence_required" => o[:evidence_required],

@@ -100,4 +100,66 @@ defmodule SlipdockCLI.JobLogTest do
     assert out =~ "job #9  running"
     assert_received {:request, "GET", "/api/jobs/9", _}
   end
+
+  describe "keeping a log (#1872)" do
+    test "job <id> --keep is read as --keep-log, not garden's --keep N" do
+      {o, ["job", "9"], []} =
+        OptionParser.parse(SlipdockCLI.wait_on(["job", "9", "--keep"]),
+          strict: SlipdockCLI.switches()
+        )
+
+      assert o[:keep_log] == true
+      # Garden's own --keep still takes its value.
+      assert SlipdockCLI.wait_on(["garden", "apply", "3", "--keep", "2"]) ==
+               ["garden", "apply", "3", "--keep", "2"]
+    end
+
+    test "job --keep asks the server to keep it, and says where" do
+      serve([
+        {200,
+         ~s|{"job":{"id":9},"page":{"id":4,"code":"W-4","title":"Pass 7 (2026-11-06 12.00)","url":"/boards/1/wiki/pass-7"}}|}
+      ])
+
+      out = capture_io(fn -> Runners.run("job", ["9"], keep_log: true) end)
+      assert_received {:request, "POST", "/api/jobs/9/keep", _}
+      assert out == "kept job #9's log as W-4 Pass 7 (2026-11-06 12.00)  /boards/1/wiki/pass-7\n"
+    end
+
+    test "a refused keep comes back as the server's 422" do
+      serve([{422, ~s({"error":"the job is still running: keep its log once it has ended"})}])
+
+      assert {:error, 422, %{"error" => "the job is still running" <> _}} =
+               HTTP.post("/jobs/9/keep", %{})
+    end
+
+    test "job shows when its log goes, that it was kept, or that it went" do
+      base = ~s("id":9,"status":"done","card_id":4,"pool":"p","kind":"claude","prompt":"p")
+
+      serve([
+        {200,
+         ~s({"job":{#{base},"transcript_lines":40,"transcript_expires_at":"2026-11-07T12:00:00Z"}})},
+        {200, ~s({"job":{#{base},"transcript_page_id":12}})},
+        {200, ~s({"job":{#{base},"transcript_deleted_at":"2026-11-05T12:00:00Z"}})}
+      ])
+
+      expiring = capture_io(fn -> Runners.run("job", ["9"], []) end)
+      assert expiring =~ "log:      40 lines, deleted"
+      assert expiring =~ "unless kept (slipdock job 9 --keep)"
+      assert capture_io(fn -> Runners.run("job", ["9"], []) end) =~ "log:      kept as page #12"
+      assert capture_io(fn -> Runners.run("job", ["9"], []) end) =~ "log:      deleted"
+    end
+
+    test "set-board sends the two log times" do
+      {o, ["set-board", "ops"], []} =
+        OptionParser.parse(
+          ["set-board", "ops", "--job-log-hours", "6", "--failure-log-hours", "72"],
+          strict: SlipdockCLI.switches()
+        )
+
+      serve([{200, ~s({"board":{"id":3,"name":"Ops"}})}])
+      capture_io(fn -> SlipdockCLI.Boards.run("set-board", ["ops"], o) end)
+      assert_received {:request, "PATCH", "/api/boards/ops", sent}
+      assert JSON.decode!(sent) == %{"job_log_hours" => 6, "failure_log_hours" => 72}
+    end
+  end
 end

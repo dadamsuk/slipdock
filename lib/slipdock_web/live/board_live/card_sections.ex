@@ -529,6 +529,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   attr :can_write, :boolean, required: true
   attr :jobs, :list, required: true
   attr :target, :any, required: true
+  attr :user, :any, default: nil, doc: "who is reading: keeping a log is written as them"
 
   @doc """
   The runner jobs automation rules have sent this card on, newest first:
@@ -584,10 +585,15 @@ defmodule SlipdockWeb.BoardLive.CardSections do
           <p :if={job.error} class="mt-1 text-error">{job.error}</p>
           <%!-- What its agent is doing, as it does it (#1871). --%>
           <.live_component
-            :if={job.transcript_lines > 0 or Enum.member?(~w(claimed running), job.status)}
+            :if={
+              job.transcript_lines > 0 or Enum.member?(~w(claimed running), job.status) or
+                not is_nil(job.transcript_deleted_at) or not is_nil(job.transcript_page_id)
+            }
             module={SlipdockWeb.BoardLive.JobLogComponent}
             id={SlipdockWeb.BoardLive.JobLogComponent.id("card", job.id)}
             job={job}
+            user={@user}
+            can_write={@can_write}
           />
           <pre
             :if={tail = job_log(job)}

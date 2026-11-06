@@ -206,6 +206,8 @@ READ
   job <id> --follow [--interval SECS] a running job's live log as it arrives, one line per
                                       message, tool call or result, until the job ends
   job-log <id> [--follow]             the job's live log so far (--json: one entry per line)
+  job <id> --keep                     keep an ended job's log: written as a page Pass <card>
+                                      (<date>) in the card's folder, so it never expires
   templates                           list board templates (sets of lists)
   fields <board>                      list custom fields (and their {keys} for formulas)
   milestones <board>                  list milestones on a board tree
@@ -726,6 +728,7 @@ WRITE
       [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
       [--simple | --no-simple] [--page-card-features | --no-page-card-features]
       [--show-pulse | --no-show-pulse] [--automation-wip | --no-automation-wip]
+      [--job-log-hours N] [--failure-log-hours N]
       [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
       [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
       [--handoff-prompt TEXT | --handoff-prompt-file PATH] [--inbound-senders LIST]
@@ -747,6 +750,9 @@ WRITE
                                       --show-pulse puts the board's pulse over its lists;
                                       --automation-wip makes the first in-progress list's
                                       WIP limit hold runner jobs and list sends;
+                                      --job-log-hours (24) and --failure-log-hours (168):
+                                      how long an ended job's live log stays, and a
+                                      failed, stuck or rejected one's, unless kept;
                                       --delivery-metrics lets the board record deploys
                                       and shows its DORA numbers (see `deploy`, `dora`);
                                       --incident-tag names the tag on incident cards

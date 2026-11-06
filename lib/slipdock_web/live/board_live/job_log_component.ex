@@ -15,7 +15,7 @@ defmodule SlipdockWeb.BoardLive.JobLogComponent do
 
   import SlipdockWeb.SlipdockComponents, only: [timestamp: 1]
 
-  alias Slipdock.Runners.{Job, Transcript, TranscriptView}
+  alias Slipdock.Runners.{Job, Transcript, TranscriptRetention, TranscriptView}
 
   # The most entries a page holds; a longer log starts this far from its end.
   @shown 300
@@ -40,31 +40,42 @@ defmodule SlipdockWeb.BoardLive.JobLogComponent do
     {:ok,
      socket
      |> assign(job: nil, next: nil, count: 0, skipped: 0, open: nil)
+     |> assign(page: nil, expires: nil, keep_error: nil, user: nil, can_write: false)
      |> stream_configure(:entries, dom_id: &"#{&1.dom}")
      |> stream(:entries, [])}
   end
 
   @impl true
   def update(%{more: true}, %{assigns: %{open: false, job: %Job{} = job}} = socket),
-    do: {:ok, assign(socket, job: Slipdock.Runners.get_job(job.id) || job)}
+    do: {:ok, socket |> assign(job: Slipdock.Runners.get_job(job.id) || job) |> assign_fate()}
 
-  def update(%{more: true}, socket), do: {:ok, read_more(socket)}
+  def update(%{more: true}, socket), do: {:ok, socket |> read_more() |> assign_fate()}
 
   def update(%{job: %Job{} = job} = assigns, socket) do
     old = socket.assigns.job
     # The page re-renders often; the log is read again only when the job moved.
     moved? =
-      is_nil(old) or old.status != job.status or job.transcript_lines > old.transcript_lines
+      is_nil(old) or old.status != job.status or job.transcript_lines > old.transcript_lines or
+        old.transcript_page_id != job.transcript_page_id or
+        old.transcript_deleted_at != job.transcript_deleted_at
 
     socket =
       socket
-      |> assign(id: assigns.id)
+      |> assign(id: assigns.id, user: assigns[:user], can_write: assigns[:can_write] == true)
       |> then(&if(is_nil(&1.assigns.open), do: assign(&1, open: Job.open?(job)), else: &1))
       |> then(&if(moved?, do: assign(&1, job: job), else: &1))
       |> subscribe()
 
-    {:ok, if(moved?, do: read_more(socket), else: socket)}
+    {:ok, if(moved?, do: socket |> read_more() |> assign_fate(), else: socket)}
   end
+
+  # What becomes of the log (#1872): the page it was kept as, or when it goes.
+  defp assign_fate(%{assigns: %{job: %Job{} = job}} = socket) do
+    page = job.transcript_page_id && Slipdock.Wiki.get_page(job.transcript_page_id)
+    assign(socket, page: page, expires: TranscriptRetention.expires_at(job))
+  end
+
+  defp assign_fate(socket), do: socket
 
   # One subscription per job per page, however many places show it.
   defp subscribe(%{assigns: %{job: job}} = socket) do
@@ -112,6 +123,27 @@ defmodule SlipdockWeb.BoardLive.JobLogComponent do
   defp read_more(socket, _opts), do: socket
 
   @impl true
+  def handle_event("keep", _params, %{assigns: %{can_write: true, user: %{} = user}} = socket) do
+    case TranscriptRetention.keep(socket.assigns.job, user, via: "web") do
+      {:ok, _page, job} ->
+        # The card's Docs list the page it became.
+        send_update(SlipdockWeb.BoardLive.CardComponent,
+          id: "card-panel",
+          pages_changed: job.card_id
+        )
+
+        {:noreply, socket |> assign(job: job, keep_error: nil) |> assign_fate()}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, keep_error: TranscriptRetention.refusal(reason))}
+    end
+  end
+
+  def handle_event("keep", _params, socket),
+    do:
+      {:noreply,
+       assign(socket, keep_error: "Only someone who can edit the card can keep its log.")}
+
   def handle_event("toggle", _params, socket) do
     # The lines left the page when it folded, so opening reads them afresh.
     if socket.assigns.open do
@@ -141,6 +173,41 @@ defmodule SlipdockWeb.BoardLive.JobLogComponent do
           · last <.timestamp at={@job.transcript_at} format={:time} />
         </span>
       </button>
+      <%!-- What becomes of it (#1872): kept as a page, gone, or when it goes. --%>
+      <div
+        :if={!Job.open?(@job)}
+        id={"#{@id}-fate"}
+        class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-base-content/60"
+      >
+        <span :if={@page} id={"#{@id}-kept"}>
+          Kept as
+          <.link navigate={"/boards/#{@page.board_id}/wiki/#{@page.slug}"} class="link">
+            {@page.code} {@page.title}
+          </.link>
+        </span>
+        <span :if={!@page && @job.transcript_deleted_at} id={"#{@id}-deleted"}>
+          Log deleted <.timestamp at={@job.transcript_deleted_at} />
+        </span>
+        <span :if={!@page && @expires} id={"#{@id}-expires"}>
+          Deleted <.timestamp at={@expires} format={:datetime} />
+          unless kept{if TranscriptRetention.failure?(@job),
+            do: " (kept longer: the work failed)"}
+        </span>
+        <button
+          :if={@can_write && @expires}
+          type="button"
+          id={"#{@id}-keep"}
+          phx-click="keep"
+          phx-target={@myself}
+          class="btn btn-ghost btn-xs"
+          title="Write this log as a page in the card's folder, so it stays"
+        >
+          <.icon name="hero-bookmark" class="size-3" /> Keep this log
+        </button>
+      </div>
+      <.callout :if={@keep_error} kind={:error} id={"#{@id}-keep-error"} class="mt-1">
+        {@keep_error}
+      </.callout>
       <div :if={@open}>
         <p :if={@skipped > 0} id={"#{@id}-skipped"} class="mt-1 text-2xs text-base-content/50">
           {@skipped} earlier lines not shown: <code>slipdock job-log {@job.id}</code>

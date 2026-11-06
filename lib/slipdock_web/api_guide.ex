@@ -2265,6 +2265,19 @@ defmodule SlipdockWeb.APIGuide do
     `slipdock job <id> --follow` does this; over MCP it is `job_log`
     (`job`, `from`), which answers the same with `log`, as text, for `entries`.
 
+    A log is deleted a set time after its job ends, unless kept: the top
+    board's `job_log_hours` (24) or, for a failure, `failure_log_hours`
+    (168), both set with `PATCH /api/boards/:board`. A failure is a job
+    that failed, timed out or was cancelled, or whose card was later
+    rejected, flagged `stuck` or put back; its time runs from then. The job
+    says `transcript_expires_at` (nil while it runs or once kept),
+    `transcript_failure`, `transcript_page_id` and `transcript_deleted_at`.
+    `POST /api/jobs/:id/keep` (write access to the card) writes the ended
+    job's log as a page `Pass <card> (<date>)` in the card's folder, links
+    it from the job and stops it expiring, answering `{job, page}`; again
+    gives the same page; 422 while it runs or once the log is gone.
+    `slipdock job <id> --keep`; MCP `keep_job_log`.
+
     A server stopping for a deploy answers every open claim at once with a
     204 and `Retry-After: 1`: wait that many seconds, then claim again, and
     the new server answers. A 502, 503 or 504 on a claim is a deploy too

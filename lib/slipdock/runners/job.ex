@@ -78,6 +78,13 @@ defmodule Slipdock.Runners.Job do
     field :transcript_bytes, :integer, default: 0
     field :transcript_capped, :boolean, default: false
     field :transcript_at, :utc_datetime
+    # Kept or not (#1872): when the job's work turned out a failure after it
+    # ended (its card rejected, flagged stuck or put back), which moves its
+    # log to the failure time from then; the page Keep this log wrote, which
+    # stops it expiring; and when the sweep deleted it.
+    field :transcript_failed_at, :utc_datetime
+    field :transcript_deleted_at, :utc_datetime
+    belongs_to :transcript_page, Slipdock.Wiki.Page
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :root_board, Slipdock.Boards.Board

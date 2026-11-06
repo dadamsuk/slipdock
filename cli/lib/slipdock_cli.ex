@@ -93,6 +93,10 @@ defmodule SlipdockCLI do
     verify_pool: :string,
     verify_rejection_limit: :integer,
     verify_audit: :integer,
+    # How long runner job logs stay (#1872), and `job <id> --keep`.
+    job_log_hours: :integer,
+    failure_log_hours: :integer,
+    keep_log: :boolean,
     ship_via: :string,
     pr: :string,
     evidence: :string,
@@ -362,6 +366,10 @@ defmodule SlipdockCLI do
   @doc false
   def wait_on([cmd | rest]) when cmd in ["wait", "finish-job"],
     do: [cmd | Enum.map(rest, &if(&1 == "--on", do: "--wait-on", else: &1))]
+
+  # `job <id> --keep` (#1872): --keep is also garden's `--keep N`, a value.
+  def wait_on(["job" | rest]),
+    do: ["job" | Enum.map(rest, &if(&1 == "--keep", do: "--keep-log", else: &1))]
 
   def wait_on(argv), do: argv
 

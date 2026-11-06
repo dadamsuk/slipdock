@@ -128,6 +128,15 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     end
   end
 
+  # A page about this card was written from inside the panel, as Keep this
+  # log does (#1872): the Docs section lists it straight away.
+  def update(%{pages_changed: card_id}, socket) do
+    case socket.assigns.card do
+      %Card{id: ^card_id} -> {:ok, assign_pages(socket)}
+      _ -> {:ok, socket}
+    end
+  end
+
   def update(assigns, socket) do
     %{card: given, board: board, current_user: user} = assigns
 
@@ -1682,7 +1691,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
               <.provenance_section :if={@provenance != []} provenance={@provenance} />
 
-              <.jobs_section :if={@jobs != []} can_write={@can_write} jobs={@jobs} target={@target} />
+              <.jobs_section
+                :if={@jobs != []}
+                can_write={@can_write}
+                jobs={@jobs}
+                target={@target}
+                user={@current_user}
+              />
 
               <.links_section
                 board={@board}

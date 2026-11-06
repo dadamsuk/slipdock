@@ -479,6 +479,8 @@ defmodule Slipdock.Portable.Import do
           hotfix_window_hours:
             if(is_integer(doc[:hotfix_window_hours]), do: doc[:hotfix_window_hours], else: 24),
           automation_wip: bool(doc[:automation_wip], false),
+          job_log_hours: hours(doc[:job_log_hours], 24),
+          failure_log_hours: hours(doc[:failure_log_hours], 168),
           # Cut to fit rather than lose the board over them (#1212).
           handoff_label: text_upto(doc[:handoff_label], Board.handoff_limits().label),
           handoff_prompt: text_upto(doc[:handoff_prompt], Board.handoff_limits().prompt),
@@ -1163,4 +1165,8 @@ defmodule Slipdock.Portable.Import do
   defp date(_), do: nil
 
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
+
+  # A job log time (#1872): the board's own when it is one Slipdock takes.
+  defp hours(n, _default) when is_integer(n) and n >= 1 and n <= 8760, do: n
+  defp hours(_, default), do: default
 end

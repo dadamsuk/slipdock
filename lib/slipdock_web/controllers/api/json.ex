@@ -118,6 +118,9 @@ defmodule SlipdockWeb.API.JSON do
       hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
+      # How long runner job logs stay, in hours (#1872).
+      job_log_hours: b.job_log_hours,
+      failure_log_hours: b.failure_log_hours,
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
       # Lanes (#1628), off by default.
@@ -214,6 +217,9 @@ defmodule SlipdockWeb.API.JSON do
       hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
+      # How long runner job logs stay, in hours (#1872).
+      job_log_hours: b.job_log_hours,
+      failure_log_hours: b.failure_log_hours,
       # Verified work's switches (#1620), all off by default.
       bar_required: b.bar_required,
       # Lanes (#1628), off by default.
@@ -1433,6 +1439,12 @@ defmodule SlipdockWeb.API.JSON do
       transcript_lines: j.transcript_lines,
       transcript_capped: j.transcript_capped,
       transcript_at: j.transcript_at,
+      # Kept or not (#1872): when the log goes (nil while the job runs, once
+      # kept or gone), the page Keep this log wrote, and when it went.
+      transcript_expires_at: Slipdock.Runners.TranscriptRetention.expires_at(j),
+      transcript_failure: Slipdock.Runners.TranscriptRetention.failure?(j),
+      transcript_page_id: j.transcript_page_id,
+      transcript_deleted_at: j.transcript_deleted_at,
       # The latest progress message its agent gave (#1668), and when.
       step: j.step,
       step_at: j.step_at,

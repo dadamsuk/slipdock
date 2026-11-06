@@ -480,6 +480,8 @@ slipdock jobs --card ID                       # one card's jobs
 slipdock job <id>                             # status, runner, latest step, prompt, the tail of its log
 slipdock job <id> --follow                    # watch it: its live log, a line per message or tool call, until it ends
 slipdock job-log <id>                         # the live log so far (MCP: job_log, from = the last call's next)
+slipdock job <id> --keep                      # keep an ended job's log as a page Pass <card> (<date>); else it expires
+slipdock set-board <board> --job-log-hours 24 --failure-log-hours 168   # how long logs stay
 slipdock cancel-job <id>                      # queued: at once; running: on the next heartbeat
 slipdock claim-job <board> --pool P           # take the next job as this session ("nothing queued")
 slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tree or pool); a person resumes

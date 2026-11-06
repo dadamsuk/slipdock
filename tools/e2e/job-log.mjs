@@ -66,6 +66,18 @@ try {
   const text = await page.locator(`${log}-lines`).innerText()
   if (!text.includes('sleep 6')) fail('the finished log lost its lines')
 
+  // Once ended (#1872): it says when the log goes, and Keep this log keeps it.
+  await until('no expiry shown on the ended job', async () => (await page.locator(`${log}-expires`).count()) > 0, 30)
+  const expires = await page.locator(`${log}-expires`).innerText()
+  if (!expires.includes('unless kept')) fail('the expiry line reads: ' + expires)
+  await page.locator(`${log}-keep`).click()
+  await until('Keep this log never said where it went', async () => (await page.locator(`${log}-kept a`).count()) > 0, 30)
+  const kept = await page.locator(`${log}-kept`).innerText()
+  if (!/Pass \d+ \(\d{4}-\d\d-\d\d \d\d\.\d\d\)/.test(kept)) fail('the kept line reads: ' + kept)
+  if (await page.locator(`${log}-keep`).count()) fail('Keep this log is still offered after keeping')
+  await page.screenshot({ path: process.env.SHOT_KEPT || '/tmp/job-log-kept-e2e.png', fullPage: false })
+  console.log('ok: ' + kept.trim())
+
   console.log('ok: the card showed the live log, growing, a call opened and stayed open')
 } catch (e) {
   fail(e.stack || String(e))

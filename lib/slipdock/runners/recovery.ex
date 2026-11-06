@@ -288,7 +288,12 @@ defmodule Slipdock.Runners.Recovery do
   defp mark(job, recovery) do
     {count, _} =
       Repo.update_all(from(j in Job, where: j.id == ^job.id and is_nil(j.recovery)),
-        set: [recovery: recovery]
+        # A job that left its card in progress is a failure: its log keeps
+        # the failure time from now (#1872).
+        set: [
+          recovery: recovery,
+          transcript_failed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        ]
       )
 
     count == 1
