@@ -99,6 +99,7 @@ defmodule Slipdock.PendingReleaseTest do
     test "on a push board a pending card's paths stop counting", ctx do
       ctx = ship(ctx, "push")
       a = card(ctx.doing, "A", "lib/**")
+      working_job_fixture(a)
       b = card(ctx.todo, "B", "lib/a.ex")
       assert %Card{id: id} = Lanes.conflict(b)
       assert id == a.id
@@ -128,6 +129,7 @@ defmodule Slipdock.PendingReleaseTest do
       b = card(ctx.todo, "B", "lib/a.ex")
       submit(a, ctx)
       :ok = move(b, ctx.doing, ctx)
+      b_job = working_job_fixture(b)
 
       a = reject(a, ctx)
       # Back on the ready list, out of the doing list.
@@ -139,7 +141,9 @@ defmodule Slipdock.PendingReleaseTest do
 
       # ...and takes its lane once B is out of the way, holding off others.
       {:ok, _} = Boards.update_card(Repo.get!(Card, b.id), %{"completed" => true})
+      b_job |> Ecto.Changeset.change(status: "done") |> Repo.update!()
       assert :ok = move(a, ctx.doing, ctx)
+      working_job_fixture(a)
       c = card(ctx.todo, "C", "lib/b.ex")
       assert %Card{id: id} = Lanes.conflict(c)
       assert id == a.id
@@ -149,6 +153,7 @@ defmodule Slipdock.PendingReleaseTest do
       ctx = ship(ctx, "push")
       {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "r", "pool" => "dev"})
       a = card(ctx.doing, "A", "lib/**")
+      working_job_fixture(a)
       b = card(ctx.todo, "B", "lib/a.ex")
       {:ok, job} = Runners.queue(b, %{pool: "dev", kind: "claude", prompt: "go"})
       assert Runners.claim(runner) == nil

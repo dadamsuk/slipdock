@@ -955,9 +955,9 @@ characters, relative, and without `..`. They are shown on the card and in
 set-board slipdock --lanes`, `update_board` `lanes`, `PATCH /api/boards/:id
 {"lanes": true}`; sub-boards made afterwards inherit it, and the root
 board's switch holds for its whole tree), an agent can't start a card whose
-paths overlap those of an open card already in progress anywhere on the
-tree: moving it into an in-progress list is refused with the other card
-named, and so are creating one straight into an in-progress list and
+paths overlap those of an open card in progress anywhere on the tree that
+a runner job is working on: moving it into an in-progress list is refused
+with the other card named, and so are creating one straight into an in-progress list and
 widening an in-progress card's paths onto another's. The
 card's own subcards and parents don't count against it, and a card with no
 paths overlaps nothing. **An epic's lane is its subcards'**: an epic (a card
@@ -965,7 +965,15 @@ whose sub-board has cards) in progress holds no lane of its own, since the
 subcards being built in it hold theirs, and an epic waits only when none of
 the subcards its pass could take (open, not submitted, not blocked or
 flagged) could start, each checked on its own paths. An epic with none left
-to take is checked on its own paths. A runner job for such a card waits, held as
+to take is checked on its own paths. **Only a card being worked holds a
+lane** (#1922): one with a runner job open on it (queued, claimed or
+running, a verify or merge job still to finish included), or a subcard of
+an epic whose job is open. A card in progress with nothing working on it,
+dragged there by hand or left behind by a job that ended, holds no lane;
+the health monitor's *orphan in progress* and the gardener's *stale in
+progress* checks report it instead. A person working a card by hand
+doesn't hold runners off its files either: give the card a job of its own,
+or pause the board's runners. A runner job for such a card waits, held as
 *Lane: overlaps #N, in progress*, and the next job is taken instead. Only
 work waits: a job that verifies or merges a card edits nobody's files, so
 neither lanes nor the board's WIP limit hold one. People
@@ -3535,9 +3543,14 @@ have a `runner` action, and the list must exist.
 
 **Waiting while anything is in progress.** A `runner` action with
 `"wait_while_doing": true` queues jobs that are not handed out while any
-other open card is in an in-progress list (a list with the *In progress*
-category) on the job's board — the job's own card doesn't count, and nor do
-cards on its sub-boards. The job stays `queued`, no try is counted, and the
+other open card that a runner job is working on is in an in-progress list
+(a list with the *In progress* category) on the job's board — the job's own
+card doesn't count, and nor do cards on its sub-boards. A card counts while
+a job is open on it (queued, claimed or running, a verify or merge job still
+to finish included) or on the epic it is a subcard of; a card in progress
+with no open job, moved there by hand or left behind, doesn't hold the
+runner, and no reason names it. The health monitor and the gardener still
+report it as left in progress. The job stays `queued`, no try is counted, and the
 next claim after that list clears takes it. `slipdock jobs` and the API show
 the reason (`waiting_on`), and an empty claim says which job is held back.
 *Work a list with a runner* turns it on by default (its **Wait while
@@ -3546,15 +3559,16 @@ board with no in-progress list refuses the option when the rule is saved.
 
 **Putting back a card left in progress.** A job can end — done, failed,
 cancelled, timed out — with its card still in an in-progress list: the
-agent crashed, ran out of time, or simply never closed it. On a rule that
-waits while anything is in progress, that card would hold the runner for
-good. A `runner` action on a `list_top` rule with `"requeue_stuck": N` (0
+agent crashed, ran out of time, or simply never closed it. Nothing works
+on that card any more, so it holds no runner back, but its work is left
+half done. A `runner` action on a `list_top` rule with `"requeue_stuck": N` (0
 to 10) has the server deal with it when the job ends: the card gets a
 comment saying why and which retry it is, and goes back to the top of the
 rule's list (unassigned, if the rule only sends cards nobody has taken), so
 it is the next one sent — the cool-down doesn't apply to it. After N
-retries it is flagged **blocked** and left in progress, with a comment, and
-the runner waits until somebody moves or closes it. Only the job's own card
+retries it is flagged **blocked** and left in progress, with a comment, for
+somebody to move or close; with no job open on it, it holds no runner back
+meanwhile. Only the job's own card
 is touched, never one somebody moved to in progress by hand, and never by a
 job cancelled before a runner took it; a job whose lease lapsed and was
 handed out again counts once, when it finally ends. A card awaiting

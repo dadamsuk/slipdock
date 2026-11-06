@@ -18,6 +18,7 @@ defmodule SlipdockWeb.LanesWebTest do
     [_backlog, todo, doing, _done] = board.columns
     running = card_fixture(doing, %{"title" => "Running"})
     {:ok, running} = Boards.update_card(running, %{"paths" => ["lib/runners/**"]})
+    working_job_fixture(running)
     card = card_fixture(todo, %{"title" => "Next"})
     {token, _} = Accounts.create_api_token(user, "bot")
 

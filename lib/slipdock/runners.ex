@@ -460,32 +460,85 @@ defmodule Slipdock.Runners do
 
   ## Claiming -----------------------------------------------------------------
 
-  # The open cards in a doing list on the job's board, other than its own: a
-  # job that waits while anything is in progress is not handed out while
-  # there is one. Its own card doesn't count, so a job put back after a
-  # lapsed claim, whose agent had already moved the card along, still goes.
-  defp busy_cards do
+  @doc """
+  The cards a runner job is working on in the tree under `root_id` (#1922),
+  as `{card_ids, board_ids}`: a card is worked when it is in `card_ids` (an
+  open job — queued, claimed or running, of any kind — is on it) or sits on
+  a board in `board_ids` (under a card with an open job: an epic's job works
+  its subcards). Only a worked card in progress holds runners off, by
+  `wait_while_doing` or by its lane; one with nothing working on it is left
+  to the stale and orphan in-progress checks.
+  """
+  def worked(root_ids) when is_list(root_ids) do
+    card_ids =
+      from(j in Job,
+        where:
+          j.root_board_id in ^root_ids and j.status in ^Job.open_statuses() and
+            not is_nil(j.card_id),
+        distinct: true,
+        select: j.card_id
+      )
+      |> Repo.all()
+
+    {card_ids, boards_under(card_ids)}
+  end
+
+  def worked(root_id), do: worked([root_id])
+
+  # Every board below the given cards, a query per level of nesting rather
+  # than per card, so the board page asks the same number whatever its size.
+  defp boards_under([]), do: []
+
+  defp boards_under(card_ids),
+    do: below(Repo.all(from(b in Board, where: b.parent_card_id in ^card_ids, select: b.id)))
+
+  defp below([]), do: []
+
+  defp below(board_ids) do
+    next =
+      Repo.all(
+        from(sb in Board,
+          join: c in Card,
+          on: sb.parent_card_id == c.id,
+          where: c.board_id in ^board_ids,
+          select: sb.id
+        )
+      )
+
+    board_ids ++ below(next)
+  end
+
+  # The open cards in a doing list on the job's board, other than its own,
+  # that a runner job is working on (`worked/1`): a job that waits while
+  # anything is in progress is not handed out while there is one. Its own
+  # card doesn't count, so a job put back after a lapsed claim, whose agent
+  # had already moved the card along, still goes.
+  defp busy_cards({worked_cards, worked_boards}) do
     from(c in Card,
       join: col in assoc(c, :column),
       where:
         c.board_id == parent_as(:job).board_id and col.category == "doing" and
-          is_nil(c.archived_at) and c.completed == false and c.id != parent_as(:job).card_id,
+          is_nil(c.archived_at) and c.completed == false and c.id != parent_as(:job).card_id and
+          (c.id in ^worked_cards or c.board_id in ^worked_boards),
       select: 1
     )
   end
 
   @doc """
   Why a queued job that waits while anything is in progress is not being
-  handed out: the card in the way (the first, in list order), or nil when
-  nothing is.
+  handed out: the card in the way (the first, in list order, that a runner
+  job is working on: `worked/1`), or nil when nothing is.
   """
   def waiting_on(%Job{status: "queued", wait_while_doing: true} = job) do
+    {worked_cards, worked_boards} = worked(job.root_board_id)
+
     Repo.one(
       from(c in Card,
         join: col in assoc(c, :column),
         where:
           c.board_id == ^job.board_id and col.category == "doing" and is_nil(c.archived_at) and
-            c.completed == false and c.id != ^job.card_id,
+            c.completed == false and c.id != ^job.card_id and
+            (c.id in ^worked_cards or c.board_id in ^worked_boards),
         order_by: [asc: col.position, asc: c.position, asc: c.id],
         limit: 1
       )
@@ -559,7 +612,7 @@ defmodule Slipdock.Runners do
     pauses = Map.new(trees, &{&1, open_pauses(&1)})
     online = Map.new(trees, &{&1, seen_pools(&1)})
     wip = Map.new(boards, &{&1, wip_full(&1)})
-    doing = doing_cards(boards)
+    doing = doing_cards(boards, worked(trees))
     in_doing = MapSet.new(for {_, cards} <- doing, c <- cards, do: c.id)
     lanes = Map.new(trees, &{&1, Slipdock.Lanes.held_cards(&1)})
 
@@ -614,16 +667,16 @@ defmodule Slipdock.Runners do
     |> Enum.map(& &1.pool)
   end
 
-  # Each board's cards in doing lists, in list order: open ones only, as
-  # `waiting_on/1` counts them.
-  defp doing_cards([]), do: %{}
+  # Each board's cards in doing lists, in list order: open ones a runner job
+  # is working on only, as `waiting_on/1` counts them.
+  defp doing_cards([], _worked), do: %{}
 
-  defp doing_cards(board_ids) do
+  defp doing_cards(board_ids, {worked_cards, worked_boards}) do
     from(c in Card,
       join: col in assoc(c, :column),
       where:
         c.board_id in ^board_ids and col.category == "doing" and is_nil(c.archived_at) and
-          c.completed == false,
+          c.completed == false and (c.id in ^worked_cards or c.board_id in ^worked_boards),
       order_by: [asc: col.position, asc: c.position, asc: c.id],
       select: %{id: c.id, board_id: c.board_id}
     )
@@ -996,6 +1049,7 @@ defmodule Slipdock.Runners do
     wip_full = wip_full_boards(runner.board_id)
     # Lanes (#1628): cards whose paths overlap a card in progress wait.
     lane_held = runner.board_id |> Slipdock.Lanes.held_cards() |> Map.keys()
+    worked = worked(runner.board_id)
 
     candidate =
       from(j in Job,
@@ -1007,7 +1061,7 @@ defmodule Slipdock.Runners do
         where: is_nil(j.exclude_runner_id) or j.exclude_runner_id != ^runner.id,
         # Nor an audit to its card's builder or verifier (#1780).
         where: not fragment("? = ANY(?)", ^runner.id, j.exclude_runner_ids),
-        where: not j.wait_while_doing or not exists(busy_cards()),
+        where: not j.wait_while_doing or not exists(busy_cards(worked)),
         where:
           j.board_id not in ^wip_full or exists(own_card_doing()) or
             j.kind in ^Slipdock.Verified.finishing_kinds(),

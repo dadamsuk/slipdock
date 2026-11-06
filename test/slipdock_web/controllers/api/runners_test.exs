@@ -303,7 +303,8 @@ defmodule SlipdockWeb.API.RunnersTest do
 
     test "claim says which job is held back while something is in progress, and why", ctx do
       doing = Enum.find(ctx.board.columns, &(&1.category == "doing"))
-      busy = card_fixture(doing, %{"title" => "By hand"})
+      busy = card_fixture(doing, %{"title" => "Being worked"})
+      working_job_fixture(busy)
 
       {:ok, job} =
         Runners.queue(ctx.card, %{
@@ -326,11 +327,12 @@ defmodule SlipdockWeb.API.RunnersTest do
                "reason" => "##{busy.id} is in progress"
              }
 
-      [listed] =
+      listed =
         ctx.conn
         |> get(~p"/api/boards/#{ctx.board.id}/jobs?status=open")
         |> json_response(200)
         |> Map.fetch!("jobs")
+        |> Enum.find(&(&1["id"] == job.id))
 
       assert listed["wait_while_doing"] == true
       assert listed["waiting_on"] == "##{busy.id} is in progress"

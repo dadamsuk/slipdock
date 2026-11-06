@@ -70,6 +70,9 @@ defmodule Slipdock.Health.DeadlockTest do
     Repo.update_all(from(r in Rule, where: r.id == ^rule.id), set: [enabled: true])
 
     parked = job(a, rule_id: rule.id, status: "parked", attempts: 1)
+    # A parked job works nothing (#1922): A holds its lane only while some
+    # other job is open on it, here one of no rule's.
+    job(a, status: "running", pool: "other")
     held = job(b, rule_id: rule.id, attempts: 0)
 
     wait =
@@ -138,6 +141,39 @@ defmodule Slipdock.Health.DeadlockTest do
              "the answer on ##{s.a.id} waits for job ##{s.held.id} (queued, on ##{s.b.id}) to close"
 
     assert length(f.data["edges"]) == 3
+  end
+
+  test "with only the parked job on A, A holds no lane and there is no deadlock (#1922)",
+       ctx do
+    s = shape_1750(ctx)
+
+    Repo.update_all(from(j in Job, where: j.card_id == ^s.a.id and j.pool == "other"),
+      set: [status: "done"]
+    )
+
+    assert Slipdock.Lanes.held_cards(ctx.board.id) == %{}
+    assert Runners.held_reason(Repo.reload!(s.held), claimant: true) == nil
+    assert detect(ctx.board) == []
+  end
+
+  test "a job waiting while doing is held only by a worked card, and only that is a cycle (#1922)",
+       ctx do
+    s = shape_1750(ctx)
+    # No lanes: the queued job waits while anything is in progress instead.
+    Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [lanes: false])
+    Repo.update_all(from(j in Job, where: j.id == ^s.held.id), set: [wait_while_doing: true])
+
+    # A works on (its other job is running): the job waits on it, a cycle.
+    assert [f] = detect(ctx.board)
+    assert f.summary =~ "job ##{s.held.id} waits while ##{s.a.id} is in progress"
+
+    # Only the parked job left on A: nothing holds the job, so no cycle.
+    Repo.update_all(from(j in Job, where: j.card_id == ^s.a.id and j.pool == "other"),
+      set: [status: "done"]
+    )
+
+    assert Runners.waiting_on(Repo.reload!(s.held)) == nil
+    assert detect(ctx.board) == []
   end
 
   test "a dependency cycle is flagged on both cards, and nothing changes", ctx do

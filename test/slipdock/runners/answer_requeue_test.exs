@@ -273,8 +273,10 @@ defmodule Slipdock.Runners.AnswerRequeueTest do
 
       {next, held} = queued_behind(ctx, "next", ["docs/**"])
 
-      assert Runners.held_reason(Repo.reload!(held), claimant: true) ==
-               "Lane: overlaps ##{child.id}, in progress"
+      # While the epic's job is parked nothing works its subcard, so the
+      # subcard holds no lane (#1922): the next card's job is free to go.
+      assert Runners.held_reason(Repo.reload!(held), claimant: true) == nil
+      assert child.paths == ["docs/design/**"]
 
       wait = answer(ctx, a)
 
