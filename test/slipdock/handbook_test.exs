@@ -564,9 +564,12 @@ defmodule Slipdock.HandbookTest do
 
       assert Enum.sort(again.report.added["pages"]) ==
                Enum.sort(
-                 for t <- Map.keys(by_title),
+                 ["Testing & tooling (Before you push added)"] ++
+                   for(
+                     t <- Map.keys(by_title),
                      t not in ["Index", "UX & UI"],
                      do: t <> " (Rules section added)"
+                   )
                )
 
       ops = Repo.get!(Page, by_title["Operations"].id)
@@ -597,6 +600,129 @@ defmodule Slipdock.HandbookTest do
       assert problem.page == data.code
       assert problem.line == 7
       assert problem.problem =~ "no check"
+    end
+  end
+
+  describe "Before you push (#1878)" do
+    defp testing(board), do: Enum.find(handbook_pages(board), &(Handbook.key(&1) == "testing"))
+
+    test "a new Testing & tooling page has the section, after CI, with its hint",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      page = testing(board)
+
+      assert {:ok, section} =
+               Wiki.Section.read(page.body, "Testing & tooling/Before you push")
+
+      assert section =~ "The one command that runs locally what CI enforces on a pull request"
+      assert section =~ "no local equivalent"
+      assert section =~ "with why"
+
+      titles = for h <- Wiki.Section.headings(page.body), h.level == 2, do: h.title
+      assert titles == ["Tests", "CI", "Before you push", "Local setup", "Rules"]
+
+      assert Handbook.before_you_push(board) ==
+               %{page: page.code, path: "Testing & tooling/Before you push"}
+    end
+
+    test "before_you_push/1 is nil with no handbook, or no such section",
+         %{user: user, board: board} do
+      assert Handbook.before_you_push(board) == nil
+      assert Handbook.before_you_push(nil) == nil
+
+      {:ok, _} = Handbook.install(user, board)
+      {:ok, _} = Wiki.update_page(testing(board), %{"body" => "# Testing & tooling\n\n## CI\n"})
+      assert Handbook.before_you_push(board) == nil
+    end
+
+    test "the seed gathers every pull-request check into one command, proposed if missing",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      seed = card_titled(board, "Seed the handbook")
+
+      assert seed.description =~
+               "for every check CI runs on a pull request (each job and step the workflows run for one), write on Testing & tooling's `## Before you push` how to run it locally, and gather them into the one command that runs them all"
+
+      assert seed.description =~
+               "A check with no local equivalent (a Windows runner, a hosted service) is named there, with why."
+
+      assert seed.description =~ "Where the repo has no such command, don't add one unasked"
+
+      assert seed.description =~
+               "propose the one command (an alias, a make target or a script, with the steps it would run) in the closing comment"
+
+      assert seed.description =~ "Before you push names the one command"
+      # The steps stay numbered in order.
+      numbers = for [_, n] <- Regex.scan(~r/^(\d+)\. /m, seed.description), do: n
+      assert numbers == Enum.map(1..8, &to_string/1)
+    end
+
+    test "the reconcile checks Before you push when the range touches CI config",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      rec = card_titled(board, "Reconcile the handbook")
+
+      assert rec.description =~
+               "A range that touches CI config (`.github/workflows/**`, `.gitlab-ci.yml`"
+
+      assert rec.description =~
+               "read Testing & tooling's `## Before you push` against the workflows as they now are, and fix the drift there"
+
+      assert rec.description =~ "propose the change to the command in the closing comment"
+      numbers = for [_, n] <- Regex.scan(~r/^(\d+)\. /m, rec.description), do: n
+      assert numbers == Enum.map(1..9, &to_string/1)
+    end
+
+    test "installing over a 1.3.0 handbook adds it after CI, and the CI step to the reconcile",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      page = testing(board)
+
+      old =
+        "# Testing & tooling\n\n## CI\n\n- **test**: the suite.\n\n## Local setup\n\nOurs.\n\n## Rules\n\n- **TEST-1** must · judgement · Green.\n"
+
+      {:ok, _} = Wiki.update_page(page, %{"body" => old})
+      rec = card_titled(board, "Reconcile the handbook")
+      {:ok, _} = Boards.update_card(rec, %{"description" => "The 1.3.0 procedure."})
+      others = for p <- handbook_pages(board), p.id != page.id, into: %{}, do: {p.id, p.body}
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["pages"] == ["Testing & tooling (Before you push added)"]
+
+      body = Repo.get!(Page, page.id).body
+
+      assert body ==
+               "# Testing & tooling\n\n## CI\n\n- **test**: the suite.\n\n" <>
+                 Handbook.before_you_push_skeleton() <>
+                 "\n## Local setup\n\nOurs.\n\n## Rules\n\n- **TEST-1** must · judgement · Green.\n"
+
+      for p <- handbook_pages(board), p.id != page.id, do: assert(p.body == others[p.id], p.title)
+      assert Repo.reload!(rec).description =~ "A range that touches CI config"
+
+      # Again: nothing more.
+      {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["pages"] == []
+      assert Repo.get!(Page, page.id).body == body
+    end
+
+    test "a page with no CI section gets it at the end; one with the section is left alone",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      page = testing(board)
+      {:ok, _} = Wiki.update_page(page, %{"body" => "# Testing & tooling\n\nWritten by us.\n"})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert "Testing & tooling (Before you push added)" in again.report.added["pages"]
+      body = Repo.get!(Page, page.id).body
+      assert body =~ ~r/\A# Testing & tooling\n\nWritten by us.\n\n## Before you push\n/
+      # Before the Rules this install also appended.
+      assert body =~ ~r/## Before you push\n.*## Rules/s
+
+      ours = "# Testing & tooling\n\n## Before you push\n\n`make check`.\n"
+      {:ok, _} = Wiki.update_page(page, %{"body" => ours})
+      {:ok, third} = Handbook.install(user, board)
+      refute "Testing & tooling (Before you push added)" in third.report.added["pages"]
+      assert Repo.get!(Page, page.id).body =~ ~r/\A#{Regex.escape(ours)}/
     end
   end
 

@@ -80,6 +80,64 @@ defmodule Slipdock.ShipPrBuilderTest do
              "if it lists none, formatting and a compile that fails on warnings."
 
     refute text =~ "quick checks"
+    refute text =~ "Before you push"
+  end
+
+  describe "the handbook's Before you push section (#1878)" do
+    defp testing_page(board) do
+      Enum.find(Slipdock.Handbook.find(board).pages, &(Slipdock.Handbook.key(&1) == "testing"))
+    end
+
+    test "comes first, then the project's docs, then format and compile", ctx do
+      ship_by_pr(ctx)
+      {:ok, _} = Slipdock.Handbook.install(ctx.owner, ctx.board)
+      code = testing_page(ctx.board).code
+      text = Verified.ship_instructions(Repo.get!(Card, ctx.card.id))
+
+      section =
+        ~s[Its pre-push checks are in the handbook's Before you push section (`slipdock page section #{code} "Testing & tooling/Before you push"`)]
+
+      docs = "if that names none, the ones its `CLAUDE.md` or contributing guide lists"
+      fallback = "if it lists none, formatting and a compile that fails on warnings."
+
+      positions = for s <- [section, docs, fallback], do: :binary.match(text, s)
+      refute :nomatch in positions, text
+      assert positions == Enum.sort(positions)
+    end
+
+    test "a subcard's prompt finds the section on its root board's handbook", ctx do
+      ship_by_pr(ctx)
+      {:ok, _} = Slipdock.Handbook.install(ctx.owner, ctx.board)
+      {:ok, t} = Boards.find_template(nil, "Simple")
+
+      {:ok, sub} =
+        Boards.create_sub_board(ctx.card, t, code: "sp#{System.unique_integer([:positive])}")
+
+      child = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Child"})
+
+      assert Verified.pre_push_checks(Repo.get!(Card, child.id)) =~
+               "slipdock page section #{testing_page(ctx.board).code}"
+    end
+
+    test "a handbook whose Testing & tooling page lacks it falls back to the project's docs",
+         ctx do
+      ship_by_pr(ctx)
+      {:ok, _} = Slipdock.Handbook.install(ctx.owner, ctx.board)
+      page = testing_page(ctx.board)
+
+      {:ok, _} =
+        Slipdock.Wiki.update_page(page, %{
+          "body" => "# Testing & tooling\n\n## CI\n\nAll of it.\n"
+        })
+
+      text = Verified.ship_instructions(Repo.get!(Card, ctx.card.id))
+      refute text =~ "Before you push"
+
+      assert text =~
+               "Its pre-push checks are the ones its `CLAUDE.md`, contributing guide or handbook lists"
+
+      assert text =~ "if it lists none, formatting and a compile that fails on warnings."
+    end
   end
 
   test "the builder watches the checks with --fail-fast (#1866)", ctx do
