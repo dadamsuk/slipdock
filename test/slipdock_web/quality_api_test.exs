@@ -48,7 +48,35 @@ defmodule SlipdockWeb.QualityAPITest do
     assert %{"incidents" => 0} = q["health"]
     assert %{"accepted" => 0} = q["previous"]
 
+    assert %{"rejections" => 0, "unparted" => 0, "by_part" => [], "by_rule" => []} =
+             q["rejections"]
+
+    assert q["audits"] == %{"audits" => 0, "agreed" => 0, "disagreed" => 0}
+
     assert conn |> get("/api/boards/#{board.id}/quality") |> json_response(200)
+  end
+
+  test "rejections come in parts and by rule (#1798)", %{conn: conn, board: board} do
+    [_backlog, todo | _] = board.columns
+    card = card_fixture(todo)
+    now = DateTime.utc_now(:second)
+
+    Repo.insert!(%Slipdock.Boards.Comment{
+      card_id: card.id,
+      body: "**Rejected** by c.\n\nNo\n\nChecks:\n\n- the ask: misses\n- ARCH-1 must: broken",
+      inserted_at: now,
+      updated_at: now
+    })
+
+    r = rest(conn, board)["quality"]["rejections"]
+    assert r["rejections"] == 1
+
+    assert r["by_part"] == [
+             %{"part" => "ask", "count" => 1},
+             %{"part" => "rules", "count" => 1}
+           ]
+
+    assert [%{"id" => "ARCH-1", "count" => 1, "page" => nil}] = r["by_rule"]
   end
 
   test "?days= narrows the window", %{conn: conn, board: board} do

@@ -199,7 +199,7 @@ defmodule SlipdockCLI.Boards do
   def run("quality", [ref], o),
     do:
       HTTP.get("/boards/#{enc(ref)}/quality", days: o[:days])
-      |> out(o, &Render.quality(&1["quality"]))
+      |> out(o, &Render.quality(&1["quality"], o[:rules] == true))
 
   def run("cards", [ref], o) do
     completed =

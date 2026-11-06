@@ -166,7 +166,7 @@ defmodule Slipdock.Handbook do
      - a new or changed **rule**, or a decision: don't edit it. File it as a proposal for a person to apply (`slipdock garden propose <board> <file.json>`, an `edit_section` step on the page's `## Rules`, the findings' ids as `findings`);
      - a rule whose check could be a test: file a card for the test instead (`slipdock add <board> "Test for <rule id>: …"`), and say so on the finding;
      - then `slipdock finding <id> promote --note "<what it became: W-12 §Tests, proposal #34, card #56>"`.
-  4. Use the numbers, where the board has them: a rule that keeps being broken needs clearer wording or a test, as a proposal or a card.
+  4. Read the numbers: `slipdock quality <board> --rules` (the last 30 days) gives the rejections by part and by rule id, each rule with its page, the disputed `Handbook:` lines and rework by area. A rule that keeps being broken needs clearer wording or a test, as a proposal or a card. Disputed lines point at a page the docs gate keeps missing, and an area with a lot of rework at a section to read again. Say which rules you acted on in the log line.
   5. Log it: append to the Index's `## Triage` a line `- <date>: <n> read, <n> merged, <n> dismissed, <n> promoted; proposals <ids or none>`.
   6. Close the card with a `Handbook:` line naming what was written, and the proposals filed. The next one comes by itself tomorrow.
   """

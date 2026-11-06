@@ -445,11 +445,48 @@ defmodule SlipdockWeb.VisualiseLiveTest do
       assert has_element?(view, "#quality", "Last 7 days")
     end
 
+    test "shows rejections in parts, disputed lines, audits and the rules most broken (#1798)",
+         %{conn: conn, board: board, todo: todo} do
+      card = card_fixture(todo)
+      now = DateTime.utc_now(:second)
+
+      for body <- [
+            "**Rejected** by c.\n\nNo\n\nChecks:\n\n- UX-4: broken\n- Handbook line: disputed",
+            "**Rejected** by c.\n\nNo\n\nChecks:\n\n- UX-4: broken\n- bar 2: fail",
+            "**Audit: disagrees** with the acceptance, by a."
+          ] do
+        Repo.insert!(%Slipdock.Boards.Comment{
+          card_id: card.id,
+          body: body,
+          inserted_at: now,
+          updated_at: now
+        })
+      end
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
+
+      assert has_element?(view, "#quality-rejections [data-value]", "2")
+
+      assert has_element?(
+               view,
+               "#quality-rejections",
+               "2 the rules · 1 the bar · 1 the Handbook line"
+             )
+
+      assert has_element?(view, "#quality-disputed [data-value]", "1")
+      assert has_element?(view, "#quality-disputed", "1 audit: 0 agreed · 1 disagreed")
+      assert has_element?(view, "#quality-rule-UX-4", "not in the handbook")
+      assert has_element?(view, "#quality-rule-UX-4 td:nth-child(2)", "2")
+    end
+
     test "a board with nothing verified says so", %{conn: conn, board: board} do
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
       assert has_element?(view, "#quality-first-time-right [data-value]", "–")
       assert has_element?(view, "#quality-first-time-right", "no cards accepted")
       refute has_element?(view, "#quality-areas")
+      assert has_element?(view, "#quality-rejections", "none in the window")
+      assert has_element?(view, "#quality-disputed", "no audits")
+      refute has_element?(view, "#quality-rules")
     end
   end
 

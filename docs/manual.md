@@ -1140,7 +1140,13 @@ it is worked out when you open it, and follows the board as it changes.
   incidents fixed, flagged, cleared and open. Then **rework by area**: each
   accepted card under the handbook page whose `covers:` take in most of its
   lane paths, or *unmapped* (no paths, no page covering them, or no
-  handbook), most rejections first.
+  handbook), most rejections first. **Rejections** counts the verifiers'
+  rejections in the window by what they failed: the ask, the bar, the rules,
+  the suite or the `Handbook:` line, from each decision's verdict in parts
+  (one given no parts counts the parts its reason cites, `bar 2: …`; one from
+  before verdicts were kept in parts, or naming none, counts as naming no
+  part). Beside it, the **disputed Handbook lines** and the audits that agreed
+  or disagreed, then the **rules most broken**, each with its page.
 - **Delivery (DORA)** — with delivery metrics on: the four DORA numbers, each
   with its band on a Low to Elite scale and the elite target, deploys per day,
   and idea to production in its parts (commit to deploy, start to done, card
@@ -1154,6 +1160,9 @@ and MCP `get_board` with `history: true` give the day-by-day series;
 and `get_board` with `runners: true` the runner numbers;
 `slipdock quality <board> [--days N]` and `GET /api/boards/:id/quality?days=`
 the quality numbers (30 days unless given; `--json` for the whole answer).
+`slipdock quality <board> --rules` lists every rule broken in the window
+rather than the five most broken: the handbook's **Triage findings** card
+reads it to find the rules that need clearer wording or a test.
 
 ## Delivery metrics: deploys and DORA
 
