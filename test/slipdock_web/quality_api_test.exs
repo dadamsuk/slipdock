@@ -16,13 +16,17 @@ defmodule SlipdockWeb.QualityAPITest do
     board = board_fixture(%{"name" => "Checked"}, owner: user)
     [_backlog, todo | _] = board.columns
 
+    # Accepted 36 hours ago: inside the default 30 days, and in the middle of
+    # `?days=1`'s window before, not on its edge. The request reads the clock
+    # again, so a card exactly 2 days old would drop out of that window
+    # whenever a second ticked over in between (#1928).
     for rejections <- [0, 0, 3] do
       card = card_fixture(todo)
 
       Repo.update_all(from(c in Card, where: c.id == ^card.id),
         set: [
           verify_state: "accepted",
-          verify_at: DateTime.add(DateTime.utc_now(:second), -2 * 86_400),
+          verify_at: DateTime.add(DateTime.utc_now(:second), -36 * 3600),
           verify_rejections: rejections
         ]
       )

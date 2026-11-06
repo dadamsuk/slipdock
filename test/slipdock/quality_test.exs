@@ -186,6 +186,23 @@ defmodule Slipdock.QualityTest do
       assert Quality.for_board(board).verified.accepted == 2
     end
 
+    test "each window takes in its first second and not the one before it (#1928)",
+         %{board: board, todo: todo} do
+      verified!(todo, 1, 0)
+      verified!(todo, 2, 0)
+      card = verified!(todo, 0, 0)
+
+      Repo.update_all(from(c in Card, where: c.id == ^card.id),
+        set: [verify_at: DateTime.add(ago(2), -1, :second)]
+      )
+
+      r = report(board, days: 1)
+      assert r.since == ago(1)
+      assert r.verified.accepted == 1
+      assert r.previous.accepted == 1
+      assert report(board, days: 3).verified.accepted == 3
+    end
+
     test "sub-boards' cards count, however deep; a sub-board counts only its own",
          %{board: board, todo: todo} do
       {:ok, t} = Boards.find_template(nil, "Simple")
