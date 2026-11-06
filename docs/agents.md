@@ -570,8 +570,10 @@ comment, beside the `Handbook:` line, one `- kind: text` item each (`gotcha`,
 for one: would the next pass, on a different card, have done better knowing
 this? Settled knowledge goes straight into the handbook. The server records
 its own (rejections, timeouts, requeues, lane refusals, failed merges), and a
-person triages them: `slipdock findings <board>`, `slipdock finding <id>
-promote|dismiss|merge --into <id>`, `GET /api/boards/:board/findings`; see
+person triages them on the board's Findings page (`/boards/:id/findings`,
+beside Health; a card links there when it has open ones), or with
+`slipdock findings <board>`, `slipdock finding <id> promote|dismiss|merge
+--into <id>`, `GET /api/boards/:board/findings`; see
 [the manual](manual.md#findings).
 
 **Verified work.** A board can check what its agents finish, with each

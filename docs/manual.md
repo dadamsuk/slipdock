@@ -1666,6 +1666,18 @@ finding of the same tree, which takes its count. *Reopen* undoes any of them.
 Anyone who can read the board can list them, and a card shows how many open
 ones it has.
 
+**The Findings page.** Each board has one at `/boards/:id/findings`, linked
+beside *Health* in the Runners part of the board's Automations panel;
+on a sub-board it lists the whole tree's, as the API does. It shows the open
+findings, newest first, each with its kind, source, count, card, who recorded
+it and its text, and filters them as the API does: status (open, promoted,
+dismissed, merged, any), kind, source, card and since (days back or a date),
+kept in the URL so a filtered list can be shared. With write access each open
+finding has **Promote or merge…** (a panel: promote with a note saying what it
+became, or merge it into another open finding picked from a list) and
+**Dismiss**; a triaged one has **Reopen**. A card with open findings says
+"N open findings" in its panel, linking to the page filtered to that card.
+
 ```sh
 slipdock findings slipdock                       # open ones, newest first
 slipdock findings slipdock --kind rule --days 7  # also --status all, --source timeout, --card 12

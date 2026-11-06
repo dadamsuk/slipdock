@@ -247,6 +247,14 @@ defmodule SlipdockWeb.HelpLive.Guides do
           picks the checks and how long before something counts.
         </li>
         <li>
+          <strong>Findings</strong>: what agents' passes learned on a board, and what went wrong
+          (a rejection, a job that timed out), kept for you to triage. <em>Findings</em>
+          in the board's <em>Automations</em>
+          panel, beside <em>Health</em>, opens the board's Findings page: filter by
+          status, kind, source, card or date, and promote a finding into the handbook, merge
+          repeats or dismiss it. A card with open findings says how many, and links there.
+        </li>
+        <li>
           <strong>Status updates</strong>: on track, at risk or off track, with a note, shown
           beside the health the board works out for itself.
         </li>
