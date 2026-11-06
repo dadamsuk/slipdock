@@ -134,11 +134,13 @@ defmodule SlipdockWeb.UsersLive.Index do
     end)
   end
 
-  # Meetings, recording transcription and voiceprints, for this one person
-  # (#1206). Admins always have them, so there is nothing to switch for one.
-  def handle_event("toggle-meetings", %{"id" => id}, socket) do
+  # Recording transcription and voiceprints, for this one person (#1206).
+  # Admins always have them, so there is nothing to switch for one.
+  def handle_event("toggle-transcription", %{"id" => id}, socket) do
     with_user(socket, id, fn user ->
-      {:ok, _} = Accounts.update_standing(user, %{"meetings_access" => !user.meetings_access})
+      {:ok, _} =
+        Accounts.update_standing(user, %{"transcription_access" => !user.transcription_access})
+
       {:noreply, socket |> load() |> say(:info, "Saved.")}
     end)
   end
@@ -504,11 +506,11 @@ defmodule SlipdockWeb.UsersLive.Index do
                   <span :if={user.disabled_at} class="badge badge-xs">disabled</span>
                   <span :if={user.unlimited} class="badge badge-xs badge-success">unlimited</span>
                   <span
-                    :if={user.meetings_access and !user.admin}
+                    :if={user.transcription_access and !user.admin}
                     class="badge badge-xs badge-info"
-                    title="May use meetings, transcription and voiceprints"
+                    title="May use recording transcription and voiceprints"
                   >
-                    meetings
+                    transcription
                   </span>
                 </div>
               </td>
@@ -668,27 +670,27 @@ defmodule SlipdockWeb.UsersLive.Index do
         </label>
         <.exempt_box
           :if={@user.admin}
-          label="Meetings"
-          why="Admins always have meetings, recording transcription and voiceprints."
+          label="Transcription"
+          why="Admins always have recording transcription and voiceprints."
         />
         <label
           :if={!@user.admin}
           class="flex cursor-pointer items-center gap-2"
           title={
-            if @user.meetings_access,
-              do: "Take away meetings, recording transcription and voiceprints.",
+            if @user.transcription_access,
+              do: "Take away recording transcription and voiceprints.",
               else:
-                "Let them use meetings, recording transcription and voiceprints, where the server has them on."
+                "Let them use recording transcription and voiceprints, where the server has them on."
           }
         >
           <input
             type="checkbox"
-            id={"meetings-#{@user.id}"}
+            id={"transcription-#{@user.id}"}
             class="checkbox"
-            checked={@user.meetings_access}
-            phx-click="toggle-meetings"
+            checked={@user.transcription_access}
+            phx-click="toggle-transcription"
             phx-value-id={@user.id}
-          /> Meetings
+          /> Transcription
         </label>
       </div>
     </section>

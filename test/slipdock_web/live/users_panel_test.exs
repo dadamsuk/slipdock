@@ -292,17 +292,23 @@ defmodule SlipdockWeb.UsersPanelTest do
     end
   end
 
-  describe "meetings" do
-    test "are allowed and taken away from the panel", %{conn: conn, person: person} do
-      {:ok, person} = Accounts.update_standing(person, %{"meetings_access" => false})
+  describe "transcription" do
+    test "is allowed and taken away from the panel", %{conn: conn, person: person} do
+      {:ok, person} = Accounts.update_standing(person, %{"transcription_access" => false})
       {:ok, view, _} = open(conn, person)
 
-      view |> element("#meetings-#{person.id}") |> render_click()
-      assert Repo.reload(person).meetings_access
-      assert has_element?(view, "#person-#{person.id} [data-role=roles] .badge", "meetings")
+      view |> element("#transcription-#{person.id}") |> render_click()
+      assert Repo.reload(person).transcription_access
+      assert has_element?(view, "#person-#{person.id} [data-role=roles] .badge", "transcription")
 
-      view |> element("#meetings-#{person.id}") |> render_click()
-      refute Repo.reload(person).meetings_access
+      view |> element("#transcription-#{person.id}") |> render_click()
+      refute Repo.reload(person).transcription_access
+
+      refute has_element?(
+               view,
+               "#person-#{person.id} [data-role=roles] .badge",
+               "transcription"
+             )
     end
   end
 

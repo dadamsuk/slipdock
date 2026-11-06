@@ -8,7 +8,7 @@ defmodule Slipdock.Wiki.TranscriptSpeakers do
   the player and anybody reading the page afterwards see the person, and the
   change is an ordinary page revision that can be looked at or undone.
 
-  A cue names its speaker the two ways `Slipdock.Meetings.Transcript` reads:
+  A cue names its speaker the two ways `Slipdock.Transcript` reads:
   a `<v Name>` voice tag, which keeps its place and any class it has, or a
   `Name:` prefix, which becomes a voice tag, because a prefix only reads back
   as a name while it is short and plain. Nothing outside a ` ```vtt ` block

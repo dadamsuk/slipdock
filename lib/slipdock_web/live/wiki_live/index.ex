@@ -2163,7 +2163,7 @@ defmodule SlipdockWeb.WikiLive.Index do
          "“#{String.trim(from)}” is now “#{String.trim(to)}” in the transcript." <>
            if(
              Slipdock.Transcription.Voiceprints.enabled_for?(socket.assigns.current_user) and
-               Slipdock.Meetings.Speakers.person_label?(to),
+               Slipdock.Transcript.person_label?(to),
              do: " Their longest stretch goes to the transcription server as a voiceprint.",
              else: ""
            )

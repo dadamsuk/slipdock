@@ -324,14 +324,14 @@ defmodule SlipdockWeb.API.AdminController do
   defp apply_user_change(user, %{"unlimited" => unlimited}) when is_boolean(unlimited),
     do: Accounts.update_standing(user, %{"unlimited" => unlimited})
 
-  # Meetings, recording transcription and voiceprints, for this person (#1206).
-  defp apply_user_change(user, %{"meetings" => meetings}) when is_boolean(meetings),
-    do: Accounts.update_standing(user, %{"meetings_access" => meetings})
+  # Recording transcription and voiceprints, for this person (#1206).
+  defp apply_user_change(user, %{"transcription" => on}) when is_boolean(on),
+    do: Accounts.update_standing(user, %{"transcription_access" => on})
 
   defp apply_user_change(_user, _params),
     do:
       {:error, :bad_request,
-       "pass email, admin, disabled, card_limit, paid_until, unlimited or meetings"}
+       "pass email, admin, disabled, card_limit, paid_until, unlimited or transcription"}
 
   defp blank_to_nil(value) when value in ["", "none", "-", nil], do: nil
   defp blank_to_nil(value), do: value
@@ -354,8 +354,8 @@ defmodule SlipdockWeb.API.AdminController do
       last_signed_in_at: user.last_signed_in_at,
       paid_until: user.paid_until,
       unlimited: user.unlimited,
-      # May use meetings and transcription: on for them, or an admin (#1206).
-      meetings: Slipdock.Meetings.allowed?(user),
+      # May use transcription and voiceprints: on for them, or an admin (#1206).
+      transcription: Slipdock.Transcription.allowed?(user),
       # `cards` is the item count — cards, pages and files — and keeps its name
       # because callers match on it. `limits` is every dimension and the trial.
       cards: if(usage, do: Quota.report(user, usage).items, else: Quota.status(user)),

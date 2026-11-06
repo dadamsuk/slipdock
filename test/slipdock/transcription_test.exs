@@ -302,7 +302,7 @@ defmodule Slipdock.TranscriptionTest do
     # #1206: only the people an admin has let use it, and admins.
     test "needs the person to be allowed it", %{audio: audio, user: user} do
       {:ok, _} = Settings.update(%{transcription_server_url: @url})
-      denied = no_meetings(user)
+      denied = no_transcription(user)
 
       assert {:error, :not_allowed} = Transcription.transcribe_attachment(audio, denied)
       assert {:error, :not_allowed} = Transcription.transcribe_attachment(audio, nil)

@@ -2206,9 +2206,9 @@ server**: a server of your own that speaks the small HTTP API below. Give its ad
 connection** asks the server for its status before anything is saved. The
 token is kept on the server and never shown again — leave the box empty to
 keep it, or tick **Forget the stored token**. With no address there is no
-Transcribe button, and nobody but the people an admin has allowed meetings
-(see [who may use it](#meeting-capture)), and admins, gets one: the API
-answers anybody else 403.
+Transcribe button, and nobody but the people an admin has allowed
+transcription (*Who may use transcription*, under [accounts and sharing](#accounts-and-sharing)),
+and admins, gets one: the API answers anybody else 403.
 
 The work runs in the background, so the card can be closed meanwhile. The
 transcript appears under the recording, folded away as **Transcript**; when the
@@ -4091,8 +4091,9 @@ anything, no MCP tools, no section in the agent guide. Turning it off deletes
 nothing; turning it back on shows every capture again.
 
 **Who may use it.** With meeting mode on, meetings are still only for the
-people an admin turns them on for: Users → tick *Meetings* on their row, or
-`slipdock admin meetings <email> on`. Admins always have them. For anybody
+people an admin turns transcription on for: Users → tick *Transcription*
+on their row, or `slipdock admin transcription <email> on`. Admins always
+have them. For anybody
 else it is as though meeting mode were off — no Meetings tab, no meeting
 pages, no `capture_meeting` tool, no voiceprint — and the API answers 404
 `meetings_not_allowed` ("meetings and transcription aren't turned on for
@@ -5987,10 +5988,11 @@ it **unlimited** (Users → tick *Unlimited*, or `slipdock admin unlimited <emai
 which does the same for a named person with no date to invent: no free allowance,
 no trial. The ceilings above still apply to them, as they do to admins.
 
-**Who may use meetings.** Meetings, transcribing a card's recording and
-voiceprints are per person: Users → tick *Meetings* (or `slipdock admin
-meetings <email> on|off`, or `PATCH /api/admin/users/:id {"meetings": true}`).
-Admins always may. See [meeting capture](#meeting-capture).
+**Who may use transcription.** Transcribing a card's recording and teaching the transcription server voices
+are per person: Users → tick *Transcription* (or `slipdock admin
+transcription <email> on|off`, or `PATCH /api/admin/users/:id
+{"transcription": true}`; the users list reports `transcription`). Admins
+always may. Meeting mode, while it lasts, follows the same permission.
 
 **Looking at somebody's boards to help them.** Being an admin does not let you
 read other people's boards. **Support**, on a person's row under Users, does —

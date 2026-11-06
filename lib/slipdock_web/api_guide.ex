@@ -705,7 +705,7 @@ defmodule SlipdockWeb.APIGuide do
       `PATCH /api/cards/:id/attachments/:attachment_id`) keeps one off it — do
       that for a log or a diagram nobody needs to see at a glance. A recording
       (`audio/…`) can be transcribed, when the server has a transcription server
-      set up: `POST /api/cards/:id/attachments/:attachment_id/transcribe` answers
+      set up and an admin has given you *Transcription* (else 403): `POST /api/cards/:id/attachments/:attachment_id/transcribe` answers
       202 and works in the background; the attachment's `transcript_status`
       goes `running` → `done` (with `transcript`) or `failed` (with
       `transcript_error`). Read the transcript before summarising a call.
@@ -1904,10 +1904,9 @@ defmodule SlipdockWeb.APIGuide do
       when there are several; one that replaces an earlier decision strikes it
       on whichever page holds it.
 
-      It is on only for the people an admin has turned it on for (and for
+      It is on only for the people an admin has given *Transcription* (and for
       admins): for anybody else the routes answer 404 `meetings_not_allowed`,
-      and `GET /api/meetings` says `allowed: false`. The same goes for sending
-      a card's recording to the transcription server.
+      and `GET /api/meetings` says `allowed: false`.
 
           GET  /api/meetings                         is meeting mode on, and what may be sent
           GET  /api/meetings/findings-schema         the format for your own findings

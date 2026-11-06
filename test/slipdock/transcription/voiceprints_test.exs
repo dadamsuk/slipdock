@@ -431,7 +431,7 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
     test "a recording that isn't WAV needs ffmpeg to be cut, and says so", ctx do
       on()
       serve()
-      Slipdock.TestConfig.merge(:meetings, ffmpeg: false)
+      Slipdock.TestConfig.merge(:transcription, ffmpeg: false)
 
       drive!([
         %{

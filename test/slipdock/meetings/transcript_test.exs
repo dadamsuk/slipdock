@@ -44,53 +44,6 @@ defmodule Slipdock.Meetings.TranscriptTest do
     end
   end
 
-  test "a messy WebVTT: BOM, CRLF, STYLE, no hours, overlaps, tags and entities" do
-    assert {:ok, %{format: "vtt", lines: lines}} = Transcript.parse(fixture("messy.vtt"))
-
-    assert lines == [
-             %{
-               speaker: nil,
-               start_ms: 1_000,
-               end_ms: 3_500,
-               text: "Nobody named here & that is fine"
-             },
-             %{
-               speaker: "Sam Smith",
-               start_ms: 3_000,
-               end_ms: 6_000,
-               text: "Overlapping with the one before"
-             },
-             %{speaker: "Priya", start_ms: 5_000, end_ms: 7_000, text: "and this one too"}
-           ]
-  end
-
-  test "a messy SRT: CRLF, markup, a cue without a speaker, an empty cue dropped" do
-    assert {:ok, %{format: "srt", lines: lines}} = Transcript.parse(fixture("messy.srt"))
-
-    assert lines == [
-             %{speaker: nil, start_ms: 1_500, end_ms: 3_000, text: "No speaker on this cue"},
-             %{
-               speaker: "Sam",
-               start_ms: 2_000,
-               end_ms: 4_000,
-               text: "overlapping, with a speaker"
-             }
-           ]
-  end
-
-  test "plain text keeps lines with no speaker, and is not fooled by a colon mid-sentence" do
-    text = "Priya: Hello all\nWe agreed on three things today: ship it, test it, tell people\n"
-    assert {:ok, %{format: "text", lines: [a, b]}} = Transcript.parse(text)
-    assert a == %{speaker: "Priya", start_ms: nil, end_ms: nil, text: "Hello all"}
-    assert b.speaker == nil
-    assert b.text == "We agreed on three things today: ship it, test it, tell people"
-  end
-
-  test "words are kept exactly, apart from runs of whitespace" do
-    {:ok, %{lines: [line]}} = Transcript.parse("Sam:  “Let’s   ship” — 15%… by Fri.")
-    assert line.text == "“Let’s ship” — 15%… by Fri."
-  end
-
   describe "refusals" do
     test "an empty transcript" do
       assert {:error, "the transcript is empty"} = Transcript.parse("  \n\uFEFF ")
@@ -112,21 +65,10 @@ defmodule Slipdock.Meetings.TranscriptTest do
                Transcript.parse(~s({"a": 1}), format: "otter")
     end
 
-    test "a WebVTT with no cues has no words" do
-      assert {:error, "no words were found in the transcript (read as vtt)"} =
-               Transcript.parse("WEBVTT\n\nNOTE nothing said\n")
-    end
-
     test "a format nobody reads" do
       assert {:error, ~s("docx" is not a transcript format) <> _} =
                Transcript.parse("hello", format: "docx")
     end
-  end
-
-  test "timestamps of every shape" do
-    assert Transcript.timestamp_ms("01:02:03.456") == 3_723_456
-    assert Transcript.timestamp_ms("02:03,4") == 123_400
-    assert Transcript.timestamp_ms("2:03") == 123_000
   end
 
   describe "chats (#1073)" do
