@@ -1978,7 +1978,9 @@ defmodule SlipdockWeb.APIGuide do
       definition for is refused there and nothing runs.
     - **One queue.** Every runner of a pool on a board tree takes jobs from
       the same queue, one at a time, so two of them never work one card. A
-      rule has at most one open job per card.
+      rule has at most one open job per card, and a `list_top` rule passes
+      over a card any job is open on, so two of them (one per pool) can work
+      one list side by side.
 
     A job goes `queued → claimed → running → done | failed | cancelled |
     timeout`. A claim holds a lease (90 seconds) that each heartbeat renews;

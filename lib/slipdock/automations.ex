@@ -627,8 +627,11 @@ defmodule Slipdock.Automations do
   `unassigned: true`, nobody's — that pass the rule's conditions. A card
   whose last job from this rule ended under `feed_cooldown_seconds` ago is
   passed over, so one the runner left where it was doesn't go straight back
-  out, unless it was rejected since (#1659); `force: true` ignores that. Nil when there is none,
-  and always nil on a Triage list (#1793).
+  out, unless it was rejected since (#1659); `force: true` ignores that. A
+  card with an open job (queued, claimed or running) from any rule, or from
+  none, is passed over too, cool-down or not, so two `list_top` rules on one
+  list work it side by side rather than both sending its top card (#1956).
+  Nil when there is none, and always nil on a Triage list (#1793).
   """
   def next_card(%Rule{} = rule, opts \\ []) do
     trigger = rule.spec["trigger"]
@@ -640,23 +643,8 @@ defmodule Slipdock.Automations do
          false <- Slipdock.Boards.Column.triage?(column) do
       cooling = if opts[:force], do: MapSet.new(), else: cooling_cards(rule, now)
 
-      from(c in Card,
-        where:
-          c.column_id == ^column.id and is_nil(c.archived_at) and c.completed == false and
-            is_nil(c.stand_in_for_id) and
-            coalesce(c.verify_state, "") not in ["pending", "merging"],
-        order_by: [asc: c.position, asc: c.id]
-      )
-      |> Slipdock.Snooze.not_snoozed(now)
-      |> Repo.all()
-      |> Repo.preload([
-        :column,
-        :tags,
-        :assignee,
-        :assignees,
-        :status_updates,
-        blocked_by: Slipdock.Boards.dependency_query()
-      ])
+      column
+      |> feed_candidates(now)
       |> Enum.find(fn card ->
         not Card.blocked?(card) and
           not Enum.any?(card.flags, &(&1 in ["blocked", "waiting"])) and
@@ -669,7 +657,40 @@ defmodule Slipdock.Automations do
     end
   end
 
+  # The list's cards a feed could send, in list order, before the checks that
+  # need them loaded: open, not a stand-in, not awaiting verification or a
+  # merge, not snoozed, and with no job open on them (#1956).
+  defp feed_candidates(column, now) do
+    from(c in Card,
+      where:
+        c.column_id == ^column.id and is_nil(c.archived_at) and c.completed == false and
+          is_nil(c.stand_in_for_id) and
+          coalesce(c.verify_state, "") not in ["pending", "merging"] and
+          c.id not in subquery(open_job_cards()),
+      order_by: [asc: c.position, asc: c.id]
+    )
+    |> Slipdock.Snooze.not_snoozed(now)
+    |> Repo.all()
+    |> Repo.preload([
+      :column,
+      :tags,
+      :assignee,
+      :assignees,
+      :status_updates,
+      blocked_by: Slipdock.Boards.dependency_query()
+    ])
+  end
+
   defp assigned?(card), do: not is_nil(card.assignee_id) or card.assignees != []
+
+  # Cards some job is already open on, whichever rule (or none) queued it:
+  # another feed on the same list has sent it, or a person has (#1956).
+  defp open_job_cards do
+    from(j in Slipdock.Runners.Job,
+      where: j.status in ^Slipdock.Runners.Job.open_statuses(),
+      select: j.card_id
+    )
+  end
 
   defp cooling_cards(rule, now) do
     since = DateTime.add(now, -feed_cooldown())

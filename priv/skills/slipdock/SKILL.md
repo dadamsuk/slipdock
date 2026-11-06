@@ -539,7 +539,8 @@ that a runner of that pool takes; at most one open job per card per rule. The ru
 don't try to put a command in a rule, and a job failing with exit 127 means that machine has
 no function for the kind. With the trigger `list_top` (`{"type": "list_top", "column": "To
 Do", "unassigned": true}`, preset `feed_runner`) the rule works a list in order instead: one
-open job at a time, always for the top ready card. `"wait_while_doing": true` on the runner
+open job at a time, always for the top ready card that no job is already open on (so two
+such rules, one per pool, work one list side by side). `"wait_while_doing": true` on the runner
 action (the default for `feed_runner`) holds its jobs back while any other open card is in an
 in-progress list on the board; `slipdock jobs` shows `queued (waiting: #N is in progress)`.
 To set the whole thing up, `slipdock runner new` (or **Automations →
