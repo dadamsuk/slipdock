@@ -3316,7 +3316,18 @@ is ever sent to a model unless you ask.
     for is *unexplained*, a phase of its own. On an epic it gives each
     subcard's breakdown too, a subcard's build credited to the epic's job
     that ran while it was in progress, and the subcards added up. Ask
-    *where did this card's time go?* or *why did #1856 take 78 minutes?*
+    *where did this card's time go?* or *why did #1856 take 78 minutes?*;
+  - `job_log_summary` and `job_log`: a job's live log, while the job
+    runs, once it has finished, or kept with *Keep this log*. The
+    summary comes first, because a log is far too long to read whole: what
+    the agent said, step by step; where its time went, split between the
+    model and its tools, and the tools by kind (tests, checks such as
+    compile, format and credo, CI waits, git, `slipdock`, reading and
+    editing code, subagents); its longest calls; and every call that
+    failed, with what it said. Each names its line in the log, and
+    `job_log` reads a stretch of up to 120 lines in full. A log that has
+    expired says so, and when. Ask *where did job #719's time go?* or *what
+    failed in the last build?*
 
   They run as you: a card you can't open isn't read, and a card outside
   the open card's tree is refused. The answer names the jobs and comments
