@@ -746,7 +746,13 @@ With one on, the pass changes like this:
   the checks pass. Complete with
   `slipdock done <id> --pr <url>` beside the other evidence. Don't merge
   it: accepting the card has a runner merge it (the card shows *merging*
-  until then, and the merge completes it). A merge that fails sends the
+  until then, and the merge completes it). **An epic** has no pull
+  request of its own: each subcard ships and merges its own. Once they are
+  all accepted and merged, complete the epic without `--pr` (`slipdock
+  done <id> --evidence "<the subcards' PRs, the last merged build>"`);
+  accepting it completes it with nothing to merge. Never name a subcard's
+  merged PR, and never open a token PR to have one: only work done on the
+  epic itself gets `card-<id>` and a `--pr`. A merge that fails sends the
   card back rejected, the merge's reason as the rejection: rebase
   `card-<id>` on the default branch, push, and complete it again.
   **A card tagged `security`** ships a neutral pull request, because the

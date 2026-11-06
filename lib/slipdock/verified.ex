@@ -299,6 +299,58 @@ defmodule Slipdock.Verified do
     end
   end
 
+  @doc """
+  Whether `card` is an epic (#1917): its sub-board, not archived, holds a
+  card that isn't archived. On a board that ships by pull request each
+  subcard ships its own pull request, so an epic needs none of its own.
+  """
+  def epic?(%Card{id: id}) do
+    from(c in Card,
+      join: b in Board,
+      on: b.id == c.board_id,
+      where: b.parent_card_id == ^id and is_nil(b.archived_at) and is_nil(c.archived_at)
+    )
+    |> Repo.exists?()
+  end
+
+  @doc """
+  Whether accepting `card` on a board that ships by pull request has
+  nothing to merge (#1917): it is an epic, and it names no pull request, or
+  one a subcard of it already merged (an accepted, completed subcard with
+  the same `evidence_pr`). Such an epic completes on acceptance, as on a
+  push board; an epic naming a pull request of its own still merges it.
+  """
+  def nothing_to_merge?(%Card{} = card) do
+    epic?(card) and (blank?(card.evidence_pr) or subcard_merged?(card, card.evidence_pr))
+  end
+
+  defp subcard_merged?(%Card{id: id}, pr) do
+    pr = pr_key(pr)
+
+    from(c in Card,
+      join: b in Board,
+      on: b.id == c.board_id,
+      where:
+        b.parent_card_id == ^id and is_nil(c.archived_at) and c.completed == true and
+          c.verify_state == "accepted" and not is_nil(c.evidence_pr),
+      select: c.evidence_pr
+    )
+    |> Repo.all()
+    |> Enum.any?(&(pr_key(&1) == pr))
+  end
+
+  # The same pull request whatever its trailing slash, case or fragment.
+  defp pr_key(url),
+    do:
+      url
+      |> trim()
+      |> String.split(["#", "?"])
+      |> hd()
+      |> String.trim_trailing("/")
+      |> String.downcase()
+
+  @nothing_to_merge "an epic whose subcards merged their own pull requests: nothing to merge"
+
   ## Evidence -----------------------------------------------------------------
 
   @evidence_message "is required: this board asks an agent completing a card for what it " <>
@@ -312,7 +364,8 @@ defmodule Slipdock.Verified do
 
   @pr_message "is required: this board ships by pull request, so an agent completing a " <>
                 "card names the pull request its work is in (evidence_pr, `slipdock done " <>
-                "--pr URL`); push the card's branch and open one, never the default branch"
+                "--pr URL`); push the card's branch and open one, never the default branch " <>
+                "(an epic, whose subcards ship their own, needs none)"
 
   defp check_evidence(%Card{} = card, attrs, actor) do
     cond do
@@ -323,7 +376,7 @@ defmodule Slipdock.Verified do
         {:error, :evidence, @evidence_message}
 
       Board.ships_by_pr?(board(card)) and
-          not present?(given(attrs, :evidence_pr, card.evidence_pr)) ->
+        not present?(given(attrs, :evidence_pr, card.evidence_pr)) and not epic?(card) ->
         {:error, :evidence_pr, @pr_message}
 
       true ->
@@ -509,9 +562,25 @@ defmodule Slipdock.Verified do
       #{if neutral, do: neutral_note() <> "\n", else: ""}- Before pushing, run the tests you added or changed and the project's own pre-push checks, not the whole suite: the pull request's CI runs it. Its pre-push checks are the ones its `CLAUDE.md`, contributing guide or handbook lists, often one command that runs what CI checks; if it lists none, formatting and a compile that fails on warnings.
       - The build to watch is the pull request's (`gh pr checks #{branch} --watch --fail-fast`, so a failed check stops the watch when it fails). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
       - Complete the card with its URL: `slipdock done #{card.id} --pr <url>` (complete_card `pr`), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
+      #{if epic?(card), do: epic_note(card), else: ""}
       """
       |> String.trim_trailing()
     end
+  end
+
+  @doc """
+  What the builder of an epic on a pull request board is told (#1917):
+  its subcards ship their own pull requests, so once they are all accepted
+  and merged the epic completes without `--pr`, and accepting it merges
+  nothing. A pull request of its own is only for work done on the epic
+  itself.
+  """
+  def epic_note(%Card{id: id}) do
+    "- This card is an epic: each subcard ships its own pull request on its own branch. " <>
+      "Once every subcard is accepted and merged, complete the epic without `--pr`: " <>
+      "`slipdock done #{id} --evidence \"<the subcards' PRs and the last merged build>\" --suite passed`. " <>
+      "Accepting it then completes it with nothing to merge. " <>
+      "Only work done on the epic itself, after its subcards, goes on `card-#{id}` with a pull request of its own, named with `--pr`."
   end
 
   defp neutral_note do
@@ -735,9 +804,17 @@ defmodule Slipdock.Verified do
          actor,
          user
        ) do
-    if Board.ships_by_pr?(board(card)),
-      do: accept_to_merge(card, note, commit, checks, actor, user),
-      else: accept_and_complete(card, note, commit, checks, actor, user)
+    cond do
+      not Board.ships_by_pr?(board(card)) ->
+        accept_and_complete(card, note, commit, checks, actor, user)
+
+      nothing_to_merge?(card) ->
+        # An epic whose subcards merged their own pull requests (#1917).
+        accept_and_complete(card, note, commit, checks, actor, user, @nothing_to_merge)
+
+      true ->
+        accept_to_merge(card, note, commit, checks, actor, user)
+    end
   end
 
   defp apply_decision(
@@ -901,7 +978,7 @@ defmodule Slipdock.Verified do
     Slipdock.Automations.feed_board(card.board_id)
   end
 
-  defp accept_and_complete(card, note, commit, checks, actor, user) do
+  defp accept_and_complete(card, note, commit, checks, actor, user, why \\ nil) do
     changes = [
       verify_checks: checks,
       verify_state: "accepted",
@@ -919,7 +996,8 @@ defmodule Slipdock.Verified do
              by: user,
              verify_changes: changes
            ) do
-      comment(card, "**Accepted** by #{who(actor, user)}.", with_parts(note, checks), user)
+      line = "**Accepted** by #{who(actor, user)}" <> if(why, do: "; #{why}.", else: ".")
+      comment(card, line, with_parts(note, checks), user)
       done = card |> board() |> Repo.preload(:columns) |> Map.get(:columns) |> done_list()
 
       if done && done.id != card.column_id,
@@ -1852,26 +1930,47 @@ defmodule Slipdock.Verified do
 
     pr = card.evidence_pr
 
-    if Board.ships_by_pr?(board) and not blank?(pr) do
-      head = commit || "the commit you check"
-
-      """
-      2. #{tree}, and read the change itself (its diff from the default branch) and the tests it names. Don't run the suite: the pull request's CI runs it at this commit.
-         - `gh pr view #{pr} --json headRefOid,statusCheckRollup`: the head must be #{head}. If the pull request has moved on since it was submitted, reject it to be submitted again at its head.
-         - Every check must have passed. While any is still running, wait (`gh pr checks #{pr} --watch`). A failed check is a rejection: name it.
-         - If the pull request has no checks at all, run the suite in the clean tree instead.
-         Steps to report:
-         - `checked out #{commit || "<commit>"}`
-         - `CI: <n> checks passed at #{commit || "<commit>"}` (or `waiting for CI`, `CI failed: <check>`)\
-      """
-    else
-      """
-      2. #{tree}, run the suite there, and read the change itself and the tests it names. Steps to report:
-         - `checked out #{commit || "<commit>"}`
-         - `tests running: <which>`
-         - `tests passed: <n>, failed: <n>` (or `tests failed: …`)\
-      """
+    cond do
+      Board.ships_by_pr?(board) and not blank?(pr) -> pr_check_step(tree, commit, pr)
+      Board.ships_by_pr?(board) and epic?(card) -> epic_check_step(tree)
+      true -> suite_check_step(tree, commit)
     end
+  end
+
+  # An epic on a pull request board with no pull request of its own (#1917):
+  # each subcard's was checked and merged, so its CI ran the suite.
+  defp epic_check_step(tree) do
+    """
+    2. This card is an epic with no pull request of its own: each subcard shipped and merged its own, and their CI ran the suite. #{tree}, and don't run the suite.
+       - Every subcard is accepted and merged (`slipdock card <id>` lists them; a subcard still open or merging is a rejection naming it).
+       - The default branch's latest build passed (`gh run list --branch <default branch> --limit 1`); a failed one is a rejection naming it.
+       Steps to report:
+       - `subcards: <n> merged`
+       - `CI: default branch passed at <sha>` (or `CI failed: <check>`)\
+    """
+  end
+
+  defp pr_check_step(tree, commit, pr) do
+    head = commit || "the commit you check"
+
+    """
+    2. #{tree}, and read the change itself (its diff from the default branch) and the tests it names. Don't run the suite: the pull request's CI runs it at this commit.
+       - `gh pr view #{pr} --json headRefOid,statusCheckRollup`: the head must be #{head}. If the pull request has moved on since it was submitted, reject it to be submitted again at its head.
+       - Every check must have passed. While any is still running, wait (`gh pr checks #{pr} --watch`). A failed check is a rejection: name it.
+       - If the pull request has no checks at all, run the suite in the clean tree instead.
+       Steps to report:
+       - `checked out #{commit || "<commit>"}`
+       - `CI: <n> checks passed at #{commit || "<commit>"}` (or `waiting for CI`, `CI failed: <check>`)\
+    """
+  end
+
+  defp suite_check_step(tree, commit) do
+    """
+    2. #{tree}, run the suite there, and read the change itself and the tests it names. Steps to report:
+       - `checked out #{commit || "<commit>"}`
+       - `tests running: <which>`
+       - `tests passed: <n>, failed: <n>` (or `tests failed: …`)\
+    """
   end
 
   # Whoever decides first decides: the other verify jobs on the card stop

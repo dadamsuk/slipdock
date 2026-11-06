@@ -642,7 +642,10 @@ can check another runner's work. Deciding is `verify_card` or `slipdock
 verify`, and never on a card you submitted yourself. A board can also
 **ship by pull request**: its agents push a `card-<id>` branch and open a
 pull request, never the default branch, and complete with its URL
-(`slipdock done --pr`). The claimed job's prompt and the card itself
+(`slipdock done --pr`). An epic there names none of its own: its subcards
+each ship and merge theirs, and once they are all merged the epic completes
+with `slipdock done --evidence "…"` and no `--pr`, and is accepted with
+nothing to merge. The claimed job's prompt and the card itself
 (`get_card`'s `shipping`) say so, so a runner needs no setup for it, and
 both runner scripts have a built-in `merge` kind that merges the accepted
 commit's pull request in their own repository (`MERGE=0` turns it off;
