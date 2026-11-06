@@ -554,4 +554,240 @@ defmodule Slipdock.CiWorkflowTest do
       assert files == %{"test/d_test.exs" => {false, 3}}
     end
   end
+
+  # release.yml's first job, and the script it runs (#1857).
+  describe "the post-merge suite gate" do
+    @release File.read!(Path.join(@root, ".github/workflows/release.yml"))
+    @gate Path.join(@root, ".github/scripts/suite-gate.sh")
+
+    @sha String.duplicate("a", 40)
+    @head String.duplicate("b", 40)
+    @tested String.duplicate("c", 40)
+    @tree String.duplicate("d", 40)
+    @repo "owner/repo"
+
+    defp release_job(name) do
+      [_, rest] = String.split(@release, "\n  #{name}:\n", parts: 2)
+      rest |> String.split(~r/\n  [a-z][a-z0-9_-]*:\n/, parts: 2) |> hd() |> lines()
+    end
+
+    test "the PR run's name carries the commit it tested" do
+      assert has?(
+               lines(@ci),
+               ~s(run-name: "${{ github.event.pull_request.title }} · tested ${{ github.sha }}")
+             )
+    end
+
+    test "release.yml runs the gate first, and the suite unless the gate said false" do
+      assert has?(release_job("suite"), "run: .github/scripts/suite-gate.sh")
+      test_job = release_job("test")
+      assert has?(test_job, "needs: suite")
+      assert has?(test_job, "if: ${{ !cancelled() && needs.suite.outputs.run != 'false' }}")
+      assert has?(test_job, "uses: ./.github/workflows/ci.yml")
+    end
+
+    test "merge goes ahead on a passed suite, or one the gate skipped, and nothing else" do
+      merge = release_job("merge")
+      assert has?(merge, "needs: [suite, test, build]")
+
+      assert has?(
+               merge,
+               "if: ${{ !cancelled() && needs.build.result == 'success' && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.suite.outputs.run == 'false')) }}"
+             )
+    end
+
+    test "the deploy record carries the gate's note" do
+      assert has?(
+               release_job("deploy"),
+               "SLIPDOCK_DEPLOY_NOTE: ${{ needs.suite.outputs.note || 'suite: ran' }}"
+             )
+    end
+
+    # A fake `gh api <path>` answering from files in `dir`, one per path; a
+    # path with no file is the API failing.
+    defp gate(dir, answers, env \\ []) do
+      bin = Path.join(dir, "bin")
+      api = Path.join(dir, "api")
+      out = Path.join(dir, "out")
+      summary = Path.join(dir, "summary")
+      # A fresh start each call, so one call's answers can't pass for the next's.
+      Enum.each([api, out, summary], &File.rm_rf!/1)
+      File.mkdir_p!(bin)
+      File.mkdir_p!(api)
+
+      File.write!(Path.join(bin, "gh"), """
+      #!/usr/bin/env bash
+      [ "$1" = api ] || exit 2
+      f="#{api}/$(printf %s "$2" | tr '/?&=' '____')"
+      [ -f "$f" ] || { echo "HTTP 502" >&2; exit 1; }
+      cat "$f"
+      """)
+
+      File.chmod!(Path.join(bin, "gh"), 0o755)
+
+      for {path, body} <- answers,
+          do:
+            File.write!(Path.join(api, String.replace(path, ~r{[/?&=]}, "_")), JSON.encode!(body))
+
+      env =
+        [
+          {"PATH", bin <> ":" <> System.get_env("PATH")},
+          {"EVENT_NAME", "push"},
+          {"REF", "refs/heads/main"},
+          {"SHA", @sha},
+          {"REPO", @repo},
+          {"GITHUB_OUTPUT", out},
+          {"GITHUB_STEP_SUMMARY", summary},
+          {"GIT_DIR", Path.join(dir, "no-repo")}
+        ] ++ env
+
+      {stdout, code} = System.cmd(@gate, [], env: env, cd: dir, stderr_to_stdout: true)
+      assert code == 0, "the gate failed: #{stdout}"
+
+      outputs =
+        for line <- out |> File.read!() |> String.split("\n", trim: true), into: %{} do
+          [k, v] = String.split(line, "=", parts: 2)
+          {k, v}
+        end
+
+      Map.put(outputs, "summary", File.read!(summary))
+    end
+
+    defp pulls(prs \\ [%{"number" => 92, "merged_at" => "2026-11-06T05:00:00Z"}]),
+      do:
+        {"repos/#{@repo}/commits/#{@sha}/pulls",
+         Enum.map(prs, &Map.merge(%{"merge_commit_sha" => @sha, "head" => %{"sha" => @head}}, &1))}
+
+    defp runs(list),
+      do:
+        {"repos/#{@repo}/actions/workflows/ci.yml/runs?event=pull_request&head_sha=#{@head}&per_page=100",
+         %{"workflow_runs" => list}}
+
+    defp a_run(over \\ %{}),
+      do:
+        Map.merge(
+          %{
+            "id" => 500,
+            "html_url" => "https://example.com/runs/500",
+            "status" => "completed",
+            "conclusion" => "success",
+            "created_at" => "2026-11-06T04:50:00Z",
+            "display_title" => "CI: a change (#1857) · tested #{@tested}"
+          },
+          over
+        )
+
+    defp jobs(id \\ 500, conclusions \\ ["success", "success"]),
+      do:
+        {"repos/#{@repo}/actions/runs/#{id}/jobs?per_page=100",
+         %{"jobs" => Enum.with_index(conclusions, &%{"name" => "job #{&2}", "conclusion" => &1})}}
+
+    defp tree(sha, tree), do: {"repos/#{@repo}/git/commits/#{sha}", %{"tree" => %{"sha" => tree}}}
+
+    defp green, do: [pulls(), runs([a_run()]), jobs(), tree(@tested, @tree), tree(@sha, @tree)]
+
+    defp answers(over), do: Map.merge(Map.new(green()), Map.new(over))
+
+    defp ran!(out, why) do
+      assert out["run"] == "true"
+      assert out["note"] =~ "suite: ran ("
+      assert out["note"] =~ why
+      assert out["summary"] =~ "**Ran.**"
+    end
+
+    @tag :tmp_dir
+    test "skips the suite when the PR's last run passed on the same tree", %{tmp_dir: dir} do
+      out = gate(dir, green())
+      assert out["run"] == "false"
+      assert out["note"] == "suite: passed on PR #92 at ccccccc, same tree"
+      assert out["summary"] =~ "**Skipped.** Passed on PR #92"
+      assert out["summary"] =~ "[500](https://example.com/runs/500)"
+      assert out["summary"] =~ @tested
+      assert out["summary"] =~ @tree
+    end
+
+    @tag :tmp_dir
+    test "runs it when main moved and the tree differs", %{tmp_dir: dir} do
+      out = gate(dir, answers([tree(@sha, String.duplicate("e", 40))]))
+      ran!(out, "main moved after PR #92's CI run 500")
+    end
+
+    @tag :tmp_dir
+    test "runs it when the last run is red, or still going", %{tmp_dir: dir} do
+      ran!(gate(dir, answers([runs([a_run(%{"conclusion" => "failure"})])])), "ended failure")
+
+      ran!(
+        gate(dir, answers([runs([a_run(%{"status" => "in_progress", "conclusion" => nil})])])),
+        "is in_progress, not finished"
+      )
+    end
+
+    @tag :tmp_dir
+    test "judges the latest run, not an older green one", %{tmp_dir: dir} do
+      older = a_run(%{"id" => 400, "created_at" => "2026-11-06T04:00:00Z"})
+      newer = a_run(%{"id" => 600, "conclusion" => "cancelled"})
+      ran!(gate(dir, answers([runs([newer, older])])), "run 600 ended cancelled")
+    end
+
+    @tag :tmp_dir
+    test "runs it when a job didn't pass, though the run did", %{tmp_dir: dir} do
+      ran!(gate(dir, answers([jobs(500, ["success", "skipped"])])), "not every job")
+      ran!(gate(dir, answers([jobs(500, [])])), "has no jobs")
+    end
+
+    @tag :tmp_dir
+    test "runs it when there is no run, or one that doesn't say what it tested", %{tmp_dir: dir} do
+      ran!(gate(dir, answers([runs([])])), "PR #92 has no CI run on its last commit")
+
+      ran!(
+        gate(dir, answers([runs([a_run(%{"display_title" => "CI: a change (#1857)"})])])),
+        "doesn't say which commit it tested"
+      )
+    end
+
+    @tag :tmp_dir
+    test "runs it for a commit no PR's merge made", %{tmp_dir: dir} do
+      ran!(gate(dir, answers([pulls([])])), "no pull request's merge made aaaaaaa")
+
+      ran!(
+        gate(dir, answers([pulls([%{"number" => 92, "merged_at" => nil}])])),
+        "no pull request"
+      )
+
+      ran!(
+        gate(
+          dir,
+          answers([pulls([%{"number" => 7, "merge_commit_sha" => @tested, "merged_at" => "x"}])])
+        ),
+        "no pull request"
+      )
+    end
+
+    @tag :tmp_dir
+    test "runs it whenever the API fails, at any step", %{tmp_dir: dir} do
+      [pulls_path, runs_path, jobs_path, tested_path, _] = Enum.map(green(), &elem(&1, 0))
+
+      for {path, why} <- [
+            {pulls_path, "didn't say which pull request made"},
+            {runs_path, "didn't list PR #92's CI runs"},
+            {jobs_path, "didn't list the jobs"},
+            {tested_path, "didn't give the tree of"}
+          ] do
+        dir = Path.join(dir, Integer.to_string(:erlang.phash2(path)))
+        ran!(gate(dir, Map.delete(answers([]), path)), why)
+      end
+
+      bad = Path.join(dir, "garbled")
+      ran!(gate(bad, answers([{pulls_path, "not json"}])), "didn't parse")
+    end
+
+    @tag :tmp_dir
+    test "runs it for a tag, a dispatch, or a push elsewhere, without asking the API", %{
+      tmp_dir: dir
+    } do
+      ran!(gate(dir, green(), [{"REF", "refs/tags/v1.2.3"}]), "a push to refs/tags/v1.2.3")
+      ran!(gate(dir, green(), [{"EVENT_NAME", "workflow_dispatch"}]), "a workflow_dispatch run")
+      ran!(gate(dir, [], [{"EVENT_NAME", "workflow_dispatch"}]), "always tests")
+    end
+  end
 end

@@ -885,7 +885,7 @@ defmodule SlipdockCLI do
                                                    staged outside its paths refuse the commit;
                                                    no card or no paths passes; a board it can't
                                                    reach warns and passes
-    deploy run [--env E] [--tag T] [--dir D] [--dry-run] -- <command…>
+    deploy run [--env E] [--tag T] [--note T] [--dir D] [--dry-run] -- <command…>
                                                    record a deploy around your deploy command (in
                                                    CI): asks the board for the environment's last
                                                    deployed sha, sends the commits since it (git log
@@ -898,8 +898,10 @@ defmodule SlipdockCLI do
                                                    since the newest one before it are sent. Needs
                                                    $SLIPDOCK_DEPLOY_TOKEN (and
                                                    $SLIPDOCK_URL); env defaults to production
-    deploy start [--env E] [--tag T] [--sha S] [--dry-run]
+    deploy start [--env E] [--tag T] [--sha S] [--note TEXT] [--dry-run]
                                                    the same in two steps: prints the deploy's id…
+                                                   (--note, or $SLIPDOCK_DEPLOY_NOTE: a line kept
+                                                   on the deploy, e.g. how its suite passed)
     deploy finish --status succeeded|failed [--id N]
                                                    …and records how it ended (id from --id or
                                                    $SLIPDOCK_DEPLOY_ID)

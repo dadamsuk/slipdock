@@ -12,7 +12,10 @@ defmodule Slipdock.Deployments.Deployment do
       first, as `git log` gives them; `card_ids` is every card they name,
       on the board's own tree only;
     * `source` — `cli`, `api` or `backfill`;
-    * `rollback` — the sha is an ancestor of the previous one.
+    * `rollback` — the sha is an ancestor of the previous one;
+    * `note` — a line from CI about this deploy (#1857), such as how its
+      suite was satisfied: `suite: ran`, or passed on the pull request at
+      the same tree.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -33,6 +36,7 @@ defmodule Slipdock.Deployments.Deployment do
     field :commits, {:array, :map}, default: []
     field :card_ids, {:array, :integer}, default: []
     field :rollback, :boolean, default: false
+    field :note, :string
 
     belongs_to :board, Slipdock.Boards.Board
 
@@ -60,7 +64,8 @@ defmodule Slipdock.Deployments.Deployment do
       :source,
       :commits,
       :card_ids,
-      :rollback
+      :rollback,
+      :note
     ])
     |> update_change(:sha, &String.downcase/1)
     |> update_change(:previous_sha, &String.downcase/1)
@@ -71,6 +76,7 @@ defmodule Slipdock.Deployments.Deployment do
     |> validate_format(:sha, @sha_format, message: "must be a hex commit sha")
     |> validate_format(:previous_sha, @sha_format, message: "must be a hex commit sha")
     |> validate_length(:tag, max: 200)
+    |> validate_length(:note, max: 500)
     |> validate_inclusion(:status, @statuses)
     |> validate_inclusion(:source, @sources)
     |> validate_finished()

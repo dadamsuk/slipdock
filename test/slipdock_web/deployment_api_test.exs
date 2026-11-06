@@ -92,6 +92,33 @@ defmodule SlipdockWeb.DeploymentAPITest do
            |> Map.get("sha") == nil
   end
 
+  test "a note is kept on the deploy and given back; none is nil; over 500 is a 422", %{
+    token: token
+  } do
+    note = "suite: passed on PR #92 at abc1234, same tree"
+
+    d = token |> start(%{"sha" => @sha, "note" => note}) |> json_response(201)
+    assert d["deployment"]["note"] == note
+    assert Repo.get!(Deployment, d["deployment"]["id"]).note == note
+
+    ci(token) |> patch(~p"/api/deployments/#{d["deployment"]["id"]}", %{"status" => "succeeded"})
+
+    assert ci(token)
+           |> get(~p"/api/deployments/last?environment=production")
+           |> json_response(200)
+           |> get_in(["deployment", "note"]) == note
+
+    assert token
+           |> start(%{"sha" => @sha2})
+           |> json_response(201)
+           |> get_in(["deployment", "note"]) ==
+             nil
+
+    assert token
+           |> start(%{"sha" => @sha2, "note" => String.duplicate("x", 501)})
+           |> json_response(422)
+  end
+
   test "finishing twice, or with a bad status, is a 422", %{token: token} do
     id = token |> start(%{"sha" => @sha}) |> json_response(201) |> get_in(["deployment", "id"])
 

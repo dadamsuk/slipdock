@@ -93,7 +93,9 @@ defmodule SlipdockCLI.Deploy do
 
       r ->
         out(r, o, fn %{"deployment" => d} ->
-          IO.puts("#{d["sha"]}#{tag_text(d["tag"])}  #{env(o)} · #{d["finished_at"]}")
+          IO.puts(
+            "#{d["sha"]}#{tag_text(d["tag"])}  #{env(o)} · #{d["finished_at"]}#{note_text(d["note"])}"
+          )
         end)
     end
   end
@@ -340,6 +342,7 @@ defmodule SlipdockCLI.Deploy do
             "previous_sha" => plan["previous_sha"],
             "commits" => plan["commits"],
             "rollback" => plan["rollback"],
+            "note" => note(o),
             "source" => "cli"
           })
 
@@ -973,6 +976,18 @@ defmodule SlipdockCLI.Deploy do
   defp env(o), do: o[:env] || "production"
   defp dir(o), do: o[:dir] || "."
   defp tag(o), do: o |> Keyword.get_values(:tag) |> List.last()
+
+  # A line about the deploy (#1857): --note, else $SLIPDOCK_DEPLOY_NOTE, which
+  # a CI job can set for an older CLI that would refuse a switch it lacks.
+  defp note(o) do
+    case o[:note] || System.get_env("SLIPDOCK_DEPLOY_NOTE") do
+      nil -> nil
+      text -> if String.trim(text) == "", do: nil, else: String.trim(text)
+    end
+  end
+
+  defp note_text(nil), do: ""
+  defp note_text(n), do: " · #{n}"
   defp tag_text(nil), do: ""
   defp tag_text(t), do: " (#{t})"
   defp short(nil), do: "-"

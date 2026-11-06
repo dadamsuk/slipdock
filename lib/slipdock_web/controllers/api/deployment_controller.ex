@@ -44,7 +44,7 @@ defmodule SlipdockWeb.API.DeploymentController do
     attrs =
       params
       |> Map.take(
-        ~w(environment sha tag previous_sha commits rollback status started_at finished_at source)
+        ~w(environment sha tag previous_sha commits rollback status started_at finished_at source note)
       )
       |> Map.update("source", "api", &(&1 || "api"))
 
