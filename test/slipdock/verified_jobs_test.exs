@@ -238,6 +238,39 @@ defmodule Slipdock.VerifiedJobsTest do
     end
   end
 
+  describe "a rule proposal meets a bar asking for a rule (#1882)" do
+    test "the prompt says an open proposal meets it, and a rejection never asks for an edit",
+         ctx do
+      {:ok, _} = Slipdock.Handbook.install(ctx.owner, ctx.board)
+      board = Boards.get_board!(ctx.board.id)
+      prompt = Verified.verify_prompt(ctx.card, board)
+
+      assert prompt =~
+               "A bar item that adds, rewords or drops a handbook rule is met by a matching " <>
+                 "open rule proposal: a garden proposal with an `edit_section` step on that " <>
+                 "page's `## Rules` that says what the bar asks"
+
+      assert prompt =~
+               "A rejection never asks the builder to edit `## Rules` directly: when the " <>
+                 "proposal is missing or says the wrong thing, ask for it to be filed or corrected."
+
+      assert prompt =~ "--check proposal --json"
+      assert prompt =~ "judge the proposal's content, not the live Rules list"
+      assert prompt =~ "name its id in the accept reason"
+      # Still one bar step, numbered with the rest.
+      assert prompt =~ "4. The bar. Each item"
+      assert prompt =~ "5. The rules."
+    end
+
+    test "without a handbook there are no rules, and nothing about proposals", ctx do
+      prompt = Verified.verify_prompt(ctx.card, ctx.board)
+      assert prompt =~ "4. The bar. Each item"
+      refute prompt =~ Verified.rule_proposal_sentence()
+      refute prompt =~ Verified.rule_rejection_sentence()
+      refute prompt =~ "garden"
+    end
+  end
+
   describe "missed should rules become findings (#1784)" do
     test "the prompt asks for them as a Findings block in the accept reason", ctx do
       {:ok, _} = Slipdock.Handbook.install(ctx.owner, ctx.board)

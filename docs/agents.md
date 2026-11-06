@@ -579,8 +579,14 @@ bar**, and on a board with a handbook **the rules** for the diff's paths
 <board> --paths-from -`; a broken `must` is a rejection) and **the
 `Handbook:` line**, held against the docs gate (`no change` on a diff that
 needed an update is a rejection). A rejection cites the check it fails: a bar
-item, the ask, a rule id or the Handbook line. The builder runs the same
-checks before submitting. The verdict is kept in parts on the card
+item, the ask, a rule id or the Handbook line. A rule being a person's call,
+a bar item that adds, rewords or drops a handbook rule is met by a matching
+open rule proposal (an `edit_section` step on that page's `## Rules`;
+`slipdock garden <board> --check proposal`): the verifier judges the
+proposal's content, not the live Rules list, and names its id when it
+accepts. A rejection never asks the builder to edit `## Rules` directly,
+only to file or correct the proposal; an audit judges the same way. The
+builder runs the same checks before submitting. The verdict is kept in parts on the card
 (`verify_checks`: the ask, each bar item, the suite, each rule and the
 Handbook line), given as `checks` to `verify_card` or `POST
 /api/cards/:id/verify`, or `slipdock verify … --check bar:2=fail:why`

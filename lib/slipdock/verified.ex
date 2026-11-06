@@ -1719,8 +1719,33 @@ defmodule Slipdock.Verified do
       "The bar. Each item, against the change and the tests it names. A part not met is a rejection naming the item (`bar 2: …`). Step: `judging against the bar`"
     ]
 
-    if handbook, do: base ++ handbook_steps(card, board, handbook, opts), else: base
+    if handbook,
+      do: [hd(base), bar_with_proposals(handbook) | handbook_steps(card, board, handbook, opts)],
+      else: base
   end
+
+  # On a board with a handbook a rule is a person's call, so a bar item that
+  # asks for a rule change is met by an open proposal, never a direct edit
+  # (#1882).
+  defp bar_with_proposals(handbook) do
+    code = handbook.board.code || to_string(handbook.board.id)
+
+    """
+    The bar. Each item, against the change and the tests it names. A part not met is a rejection naming the item (`bar 2: …`).
+       #{rule_proposal_sentence()} List them with `slipdock garden #{code} --check proposal --json` and judge the proposal's content, not the live Rules list: name its id in the accept reason (`bar 3: met by proposal #5`).
+       #{rule_rejection_sentence()} Step: `judging against the bar`\
+    """
+  end
+
+  @doc "What the verify and audit prompts say meets a bar item asking for a rule change (#1882)."
+  def rule_proposal_sentence,
+    do:
+      "A bar item that adds, rewords or drops a handbook rule is met by a matching open rule proposal: a garden proposal with an `edit_section` step on that page's `## Rules` that says what the bar asks, since a rule is a person's call and an agent files a proposal rather than editing it."
+
+  @doc "What the verify and audit prompts say a rejection never asks for (#1882)."
+  def rule_rejection_sentence,
+    do:
+      "A rejection never asks the builder to edit `## Rules` directly: when the proposal is missing or says the wrong thing, ask for it to be filed or corrected."
 
   defp handbook_steps(card, board, handbook, opts) do
     code = handbook.board.code || to_string(handbook.board.id)

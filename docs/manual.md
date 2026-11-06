@@ -765,7 +765,13 @@ with a handbook (its `Handbook/` wiki pages) the rules for the paths the change 
 (`git diff --name-only` from the merge base, piped to `slipdock handbook B
 --paths-from -`: a broken `must` rule is a rejection) and the closing
 `Handbook:` line against the docs gate. A rejection cites what it fails: a
-bar item, the ask, a rule id or the Handbook line. It also asks the agent to say where it is at each
+bar item, the ask, a rule id or the Handbook line. Since a rule is a person's
+call, a bar item that adds, rewords or drops a handbook rule is met by a
+matching open rule proposal (an `edit_section` on that page's `## Rules`,
+listed by `slipdock garden B --check proposal`): the verifier judges what the
+proposal says, not the live rules, and names its id when it accepts, and a
+rejection never asks the builder to edit `## Rules`, only to file or correct
+the proposal. An audit judges it the same way. It also asks the agent to say where it is at each
 step with `slipdock job-progress --step "…"` (checked out the commit, tests
 running, tests passed or failed with counts, judging against the bar, the
 decision), and never with a note: the steps show against the job on the

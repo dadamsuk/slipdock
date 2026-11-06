@@ -3785,7 +3785,13 @@ defmodule SlipdockWeb.APIGuide do
     evidence's commit and judge, in order, the ask (does the bar cover what
     the card asks for?), the bar, and on a board with a handbook the rules
     for the diff's paths (`slipdock handbook B --paths-from -`) and the
-    closing `Handbook:` line against the docs gate; then `verify_card` (`slipdock verify ID accept|reject --reason TEXT
+    closing `Handbook:` line against the docs gate. A bar item that adds,
+    rewords or drops a handbook rule is met by a matching open rule proposal
+    (an `edit_section` step on that page's `## Rules`; `slipdock garden B
+    --check proposal`): judge the proposal's content, not the live rules,
+    and name its id when accepting. A rejection never asks the builder to
+    edit `## Rules` directly, only to file or correct the proposal. Then
+    `verify_card` (`slipdock verify ID accept|reject --reason TEXT
     --evidence-commit SHA`, `POST /api/cards/:id/verify {"decision":
     "accept"|"reject", "reason": "…", "commit": "…"}`). Accepting completes
     it and moves it to the done list. Rejecting needs the reason, citing the check it fails (`bar 2: …`,
