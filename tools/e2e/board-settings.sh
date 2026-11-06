@@ -5,12 +5,15 @@
 # in place on Enter and blur, Escape putting the name back, ⋯ Delete behind
 # the confirm, New tag at the top), and the ready-made automations staying
 # in their group's column at 1280 and 1440, with the brand switch.
+# On a phone (#1862) the settings sheet is the screen's width, opened by
+# URL or from a board with something on it wider than the phone.
 #
 #   PORT=4141 tools/e2e/board-settings.sh
 #
 # Needs playwright-core on NODE_PATH and Chromium at CHROME_PATH. SHOTS=<dir>
 # saves screenshots; BEFORE=1 only takes them (for the old screens).
 source "$(dirname "$0")/lib.sh"
+mix tailwind slipdock > /dev/null 2>&1
 e2e_start
 
 # Two tags and a ready-made rule on Keystone.
