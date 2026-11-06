@@ -47,9 +47,6 @@ defmodule SlipdockCLI.Admin do
     HTTP.get(path) |> out(o, &render_overview/1)
   end
 
-  def run("admin", ["meetings-usage"], o),
-    do: HTTP.get("/admin/meetings/usage") |> out(o, &render_meetings_usage/1)
-
   def run("admin", ["promote", email], o), do: admin_user(email, %{admin: true}, o)
   def run("admin", ["demote", email], o), do: admin_user(email, %{admin: false}, o)
   def run("admin", ["disable", email], o), do: admin_user(email, %{disabled: true}, o)
@@ -126,16 +123,12 @@ defmodule SlipdockCLI.Admin do
                                         ai_system_user=<admin email> (empty to clear),
                                         ai_model, ai_quick_model, ai_organise_model,
                                         ai_fallback_models=a,b (empty: env/config),
-                                        meetings_enabled, meetings_visibility
-                                        (used_only|every_board), meetings_hideable,
-                                        meetings_accept_transcripts|audio|findings,
-                                        chat_capture_enabled (on by default)
+                                        transcription_server_url, transcription_server_token
     admin allow <entry> | disallow <entry>
     admin users                         who is here
     admin overview [--sort S]           usage: accounts, activity, and what each person owns
                                         (S: storage|cards|boards|lists|pages|files|
                                         last_active|signed_up|email)
-    admin meetings-usage                meeting capture this month: totals, heaviest users
     admin add <email>                   a new account; they are invited by email
     admin email <email> <new-email>     change the address somebody signs in with
     admin close <email> --force         delete them and their work for good
@@ -186,13 +179,7 @@ defmodule SlipdockCLI.Admin do
               "board_limit",
               "item_limit",
               "storage_limit_mb",
-              "trial_days",
-              "meetings_transcription_minutes",
-              "meetings_audio_storage_mb",
-              "meetings_transcript_captures",
-              "meetings_longest_minutes",
-              "meetings_max_file_mb",
-              "meetings_transcription_max_mb"
+              "trial_days"
             ] do
     case Integer.parse(value) do
       {n, ""} -> n
@@ -207,18 +194,7 @@ defmodule SlipdockCLI.Admin do
               "board_limit_enabled",
               "item_limit_enabled",
               "storage_limit_enabled",
-              "trial_enabled",
-              "meetings_enabled",
-              "chat_capture_enabled",
-              "meetings_hideable",
-              "meetings_accept_transcripts",
-              "meetings_accept_audio",
-              "meetings_accept_findings",
-              "meetings_transcription_minutes_enabled",
-              "meetings_audio_storage_mb_enabled",
-              "meetings_transcript_captures_enabled",
-              "meetings_dialogue_inference",
-              "meetings_voiceprints"
+              "trial_enabled"
             ],
        do: value in ["1", "true", "yes", "on"]
 
@@ -241,7 +217,6 @@ defmodule SlipdockCLI.Admin do
     Analytics:        #{render_analytics(s["analytics"])}
     Search & rules AI:#{render_ai(s["ai"])}
     AI models:        #{render_models(s["ai"])}
-    Meeting mode:     #{render_meetings(s["meetings"])}
     Transcription:    #{render_transcription_server(s["transcription_server"])}
     Waiting:          #{s["pending_signups"]}\
     """)
@@ -252,32 +227,6 @@ defmodule SlipdockCLI.Admin do
     do: "#{url}#{if t["token_set"], do: " (with a token)", else: " (no token)"}"
 
   defp render_transcription_server(_), do: "not set up"
-
-  defp render_meetings_usage(%{"usage" => u}) do
-    IO.puts("""
-    Meeting capture since #{u["month"]} (shared key only; own keys are not counted):
-      transcription  #{u["transcription_minutes"]} min
-      model tokens   #{u["tokens"]}
-      cost reported  $#{:erlang.float_to_binary((u["cost"] || 0) / 1, decimals: 2)}
-      audio stored   #{div(u["audio_bytes"] || 0, 1024 * 1024)} MB
-      people         #{u["people"]}\
-    """)
-
-    for h <- u["heaviest"] || [] do
-      IO.puts(
-        "  #{h["name"] || h["email"]}: #{div(round(h["transcription_seconds"] || 0), 60)} min, #{h["tokens"]} tokens"
-      )
-    end
-  end
-
-  # Off, or on and where it shows; older servers say nothing about it.
-  defp render_meetings(%{"enabled" => true} = m),
-    do:
-      "on, #{String.replace(m["visibility"] || "used_only", "_", " ")}" <>
-        if(m["hideable"], do: ", people may hide it", else: "")
-
-  defp render_meetings(%{}), do: "off"
-  defp render_meetings(_), do: "—"
 
   # PostHog, on only while a key is set; an unset host is PostHog's US cloud.
   defp render_analytics(%{"posthog_key" => key} = a) when is_binary(key) and key != "",

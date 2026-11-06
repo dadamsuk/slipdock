@@ -6,7 +6,7 @@ defmodule SlipdockWeb.UsersLive.Index do
   The people table is read-only (#1739). A row, or its Manage link, opens
   that person's panel (`person_panel/1`, a `<.modal>`) at `/users?user=<id>`,
   and every control lives there: their address, permissions (Admin,
-  Unlimited, Meetings), their own item limit and paid-up date, support
+  Unlimited, Transcription), their own item limit and paid-up date, support
   access, and a danger zone where Disable and Close each ask first
   (`data-confirm`), Close then showing what it takes and asking for the
   address typed out. Your own panel has no Support or danger zone.

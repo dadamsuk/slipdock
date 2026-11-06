@@ -235,7 +235,7 @@ defmodule SlipdockWeb.ButtonsTest do
          %{conn: conn, board: board, card: card} do
       paths =
         ~w(/ /account /account/settings /account/tokens /account/data /config /config/mail
-           /config/meetings /config/ai /users /groups) ++
+           /config/ai /users /groups) ++
           [
             "/boards/#{board.id}/wiki/new",
             "/boards/#{board.id}/tags",

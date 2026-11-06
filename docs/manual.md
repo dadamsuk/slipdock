@@ -225,8 +225,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 58 tools (five of them only
-  while meeting mode or chat capture is on), signing in
+  other MCP clients get the boards and the wiki as 53 tools, signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
@@ -2224,8 +2223,8 @@ retrying (a full queue, a model still loading, a timeout).
 **Teaching it voices.** With **Teach it voices** ticked under the
 transcription server (`slipdock admin set transcription_voiceprints=true`),
 and a server that takes voiceprints (see below), putting a person's name on a
-voice — in a [meeting page's transcript](#meeting-recordings-from-google-drive)
-or on a meeting capture's **Who said what** — sends the longest stretch of
+voice in a [meeting page's transcript](#meeting-recordings-from-google-drive)
+sends the longest stretch of
 that person speaking to the server as a voiceprint under that name: their
 lines one after another with nobody else between, the longest run of them,
 kept clear of anybody else's line that overlaps it and half a second in from
@@ -2233,8 +2232,8 @@ each end, cut from the recording to at most a minute. If the server refuses
 that clip (a `422`, such as "Multiple speakers"), the next-longest is sent,
 up to three in all. Under three seconds is too
 little and isn't sent, and nor is a placeholder like `Speaker 2`. It happens
-in the background once the name is saved; a meeting page then says whether it
-went and, if not, why, and a capture's history says when it went. Naming
+in the background once the name is saved; the meeting page then says whether it
+went and, if not, why. Naming
 them again sends a fresh one. A recording that isn't WAV is cut with
 `ffmpeg`, which the Docker image includes; on a server of your own, install it. It is off by default: it is that
 person's voice going to your server, so tell the people you name.
@@ -2516,7 +2515,7 @@ The **avatar menu** is in sections, and marks the page you are on:
   Configuration, folded into one group that opens by itself on its own pages.
   While it is folded it carries the count of signups and tool listings
   waiting. Each opens the **Admin** area: one page with a side nav (People,
-  Sign-ups, Overview; Server, Email, Meetings, AI; Tools) and the running
+  Sign-ups, Overview; Server, Email, AI; Tools) and the running
   build under it. On a phone the nav is a picker at the top. The people
   table only reads: **Manage** on a row (or the row itself) opens that
   person's panel, which holds their limit, paid-up date, permissions,
@@ -2524,7 +2523,7 @@ The **avatar menu** is in sections, and marks the page you are on:
 - **Sign out**.
 
 A board's **`…` menu** is in three groups: what you do with the board (Share
-this board, Copy board code, Capture a meeting when meeting mode is on, Tidy
+this board, Copy board code, Tidy
 up…), how it is set up (Tags, Automations, Board settings), and what it has
 done (Activity, Archived cards). **Share** is also a button of its own on the
 board's toolbar: it opens Board settings on the Sharing tab. The board's name
@@ -3191,11 +3190,11 @@ card whose only match is a two-year-old comment looks exactly like a card whose
 title is a bullseye until you can see which it was.
 
 Each match is a link of its own, to where it is rather than to the card: the
-card opens scrolled to that comment, status update or meeting quote, lit up for
+card opens scrolled to that comment or status update, lit up for
 a moment. A recording's transcript is labelled with the file and the part
 (*transcript of call.mp3, part 2 of 5*); its link opens the transcript at that
 part, shaded. A page section's link goes to its heading. The links are
-`…/cards/<id>?at=comment-7`, `?at=status-update-7`, `?at=provenance-7` and
+`…/cards/<id>?at=comment-7`, `?at=status-update-7` and
 `?at=transcript-5-part-2`, so they can be shared; the API gives each match
 its `url`, and `slipdock search --full` prints it. Filter to one board or
 include archived cards. A card's id (`#123`) or link as the query finds that
@@ -4077,318 +4076,6 @@ card can keep its log; a running job's log can be kept once it has ended.
 
 The runner protocol and the session endpoints are in the agent guide
 (`slipdock guide`, section *Runners*).
-## Meeting capture
-
-Send a meeting's recording or transcript to a board, and Slipdock writes it up
-the way a person would afterwards: a short summary, the key topics, and the few
-things that go on the board — actions somebody took on, decisions the meeting
-agreed, changes to cards already there — each tied to the exact words it came
-from. A person reviews
-the proposals, settles anything uncertain, and commits them in one write. It is
-**off unless an admin turns on meeting mode**, and with it off there is no trace
-of it: no menu entries, no pages, no API routes, no CLI commands that do
-anything, no MCP tools, no section in the agent guide. Turning it off deletes
-nothing; turning it back on shows every capture again.
-
-**Who may use it.** With meeting mode on, meetings are still only for the
-people an admin turns transcription on for: Users → tick *Transcription*
-on their row, or `slipdock admin transcription <email> on`. Admins always
-have them. For anybody
-else it is as though meeting mode were off — no Meetings tab, no meeting
-pages, no `capture_meeting` tool, no voiceprint — and the API answers 404
-`meetings_not_allowed` ("meetings and transcription aren't turned on for
-you…") where it would have said `meetings_off`; `GET /api/meetings` says
-`allowed: false`. The same switch covers sending a card's recording to the
-[transcription server](#recordings) and teaching it voices. Chat capture is
-not a meeting and doesn't use the transcription server, so it stays on for
-everybody. Upgrading keeps meetings for anybody who already owns one.
-
-### What it promises
-
-These are what meeting capture is built around, and each is tested.
-
-- **Nothing is written that a person didn't approve.** Reading a meeting
-  produces proposals only; the model that reads it has no tools and cannot
-  write anything. The board changes when somebody presses **Commit**.
-- **Nothing is claimed that the transcript doesn't say.** Every proposal
-  quotes the transcript, and code — not a model — checks each quote is there
-  word for word (forgiving only case, quote marks, dashes and spacing). A
-  proposal whose quote isn't there is dropped, and the drop is shown.
-- **Uncertainty is shown, never quietly resolved.** When the two readings of
-  the meeting disagree (15% or 50%?), a name matches nobody on the board, a
-  proposal only loosely matches an existing card, or who said something
-  decides who owns it and the speaker is unsure, it becomes a question.
-  "Not decided" and "Nobody yet" are always answers.
-- **A person's call is recorded as theirs.** Every answer keeps who gave it,
-  when, through what (the web, the API, an agent relaying it) and after what
-  (a passage replayed). The transcript itself is never edited.
-- **Existing work is changed, not duplicated.** Talk about a card already on
-  the board proposes a change or a comment on it; a weak match asks.
-- **What you preview is what is written.** The commit preview is the change
-  set the commit applies, and the commit refuses if the review has changed
-  since the preview you saw.
-- **Nothing is written over newer changes.** Each proposed change remembers
-  the version of the card or page it was based on; if somebody edited it
-  since, the commit refuses and names it.
-- **All or nothing.** The commit is one transaction: a failure part of the way
-  through writes nothing.
-- **Undoable as a whole**, and it says first if anything it wrote has been
-  edited since, so an edit is never silently thrown away.
-- **Once.** Sending the same transcript or recording to a board again finds
-  the first capture; a committed capture is never committed again.
-- **The trail survives.** A card or decision that came from a meeting keeps
-  the quote, the speaker, the time and who committed it, after the capture
-  and its recording are gone.
-- **Nothing leaks across permissions.** A meeting is read alongside only what
-  its sender can open.
-
-### Sending a meeting
-
-From a board's **Meetings** tab (or **… → Capture a meeting** on a board that
-has had none yet), **Capture a meeting** takes up to three things:
-
-| Sent | Transcribed here | Replay | Speakers from | Counts against |
-|---|---|---|---|---|
-| A recording | yes | yes | voices, dialogue, the invite | transcription minutes, storage |
-| A recording and a transcript | no, lined up only | yes | voices, the transcript's labels, dialogue | storage |
-| A transcript | no | no | the transcript's labels, dialogue | captures |
-| …and an agent's findings | — | — | — | nothing more; still checked word for word |
-
-Transcripts: WebVTT, SRT, plain `Name: words` lines (with or without
-`[00:01:02]` stamps), and Fireflies or Otter exports, text or JSON. An `.ics`
-invite gives the attendees — the strongest hint at who is speaking — the
-start and the title. The page says where the meeting will be sent before
-anything is (the reading model and its host, from your AI settings), and what
-it counts against.
-
-### What happens next
-
-The capture is read in steps, each stored before the next, so a restart
-carries on where it stopped: transcribing (for a recording), working out who
-spoke, gathering what the board and its wiki already know (cards mentioned by
-`#412`, `W-31` or a board code and number like `PL-14`, titles said aloud, and
-semantically similar cards and pages), reading the meeting, and checking every
-quote. The whole meeting is read at once, and the model is asked to be
-selective: an hour's conversation usually has a handful of actions, and
-opinion, background, ideas and open questions go in the summary and topics
-rather than becoming things to review. (A transcript too long to read at once
-is read in overlapping stretches.) The capture's page shows the steps as
-they go and the findings as they appear; you can leave, and the sender is
-emailed when it is ready.
-
-### Reviewing and committing
-
-The review shows the transcript beside the findings. Selecting a finding
-lights up the words it came from; each one shows its signals as words
-(*quoted word for word*, *both readings agree*, *linked by id*, *name not
-recognised*… — never a confidence percentage), what Slipdock already knew
-about the cards involved, its questions, and what it **becomes** in plain
-words. Include it, leave it out, edit it, or add something the transcript
-missed (marked as added by a person). Questions are asked only where the
-answer changes what is written, and most are **optional**: a name nobody on
-the board has (the card keeps the name, *For Ryan (not on this board)*, or is
-matched to the person in the meeting who has it), a card only similar in
-meaning (left alone, it is a new card), who said an unsure line (left alone,
-unattributed). **Commit** stays off only while a question with no sensible
-default is open on something going in — two members with the name said, a
-card named aloud, which reading is right; leaving a finding out sets its
-questions aside (they come back if it is included again), and an answered
-question is marked *Settled*. A change to a card Slipdock can't find, with
-none to offer, is shown left out rather than asked about. Keys: J/K between findings, 1–4 answer, I/X include or leave out, Enter
-edits, N the next question.
-
-**Commit…** opens the preview: new cards by list, changes to cards as before →
-after, comments, the lines added to and struck on decisions pages, cards that
-slip as a knock-on, who is assigned, what is left out, and whether anything
-has moved since it was read. Each meeting gets one wiki page of its own,
-*2026-10-07 Pricing sync*, named from what the reading says the meeting was
-about rather than the recording's file name, and filed in the board's
-`Meetings` folder (a second capture named the same on the same day gets
-*… (2)*, never the first one's page). The page opens with the meeting, its date, who was there and a link back to the
-capture, then the meeting's **summary** and **key topics** (shown above the
-findings on the review, to read rather than settle), then a **Decisions**
-section; when the decisions span more than one topic, each topic is a heading. A meeting
-with a summary and no decisions still gets its page. The preview shows a new
-page whole, exactly as it will be written. A decision that replaces an earlier one strikes it through on whichever
-decisions page it is — an earlier meeting's, an older *Decisions / …* page, or
-one per topic such as *Decisions / Pricing* — and the two link to each other.
-
-Each open question has **listen and resolve**, which opens them one at a time:
-the passage with the lines around it, what the transcriber was unsure of, what
-each reading heard, other lines that bear on it, and — where a model re-listened
-to it — that model's view, labelled a guess. With a recording there is a
-waveform with the passage marked, **Replay**, **At 0.75×** and **Loop**; an answer
-given after replaying is recorded that way ("after replaying 7:38–7:44").
-Without one, the page says why there is nothing to replay. **Ask the speaker**
-sends the question and the passage to the person who said it; that item waits
-for their answer while everything else can be committed, and is written in a
-commit of its own once they answer — every item is still written only once,
-and undo reverses the lot. Re-listening is the admin's to switch on
-(`meetings_relisten_model`, an audio-capable model): unclear passages a finding
-depends on are cut from the recording and listened to again, and what comes
-back is a signal, never an override — it agrees (the finding says
-*re-listened*), or it hears something else and that becomes a question.
-
-After the commit the capture's page is its receipt — everything written, with
-links — with **Undo all**. The board's Meetings tab is the inbox: every
-capture, its state, what it found and has left to settle, and who committed or
-discarded it. **Discard** decides against a capture without writing anything.
-
-### Settings
-
-Configuration → **Meetings** (or `slipdock admin set meetings_…=…`):
-`meetings_enabled`; where it shows — `meetings_visibility=used_only` (a
-board's tab appears after its first capture) or `every_board`; whether people
-may hide it for themselves (`meetings_hideable`, then Account → Preferences →
-Display); what may be sent (`meetings_accept_transcripts`, `…_audio`,
-`…_findings`); and which models read a meeting (`meetings_reading_model`, empty
-for each person's own; `meetings_second_reading=off|same|model` (off by
-default: a second, independent reading doubles the cost, and where the two
-differ it asks which is right) and
-`meetings_second_model`). Readings run on the sender's AI settings. An answer
-outside the findings format is sent back once; whatever still doesn't fit after
-that is left out and listed on the capture's record, and the rest is kept. An
-answer cut off by the model's output limit (a busy meeting) is read again in
-halves; if even a few lines are too much, pick a model with a larger output
-limit.
-
-Transcription: `meetings_transcription=none` (the default: a recording needs a
-transcript sent with it), `provider` (each sender's own AI settings —
-OpenRouter's `/api/v1/audio/transcriptions` with their key or the shared one,
-or their own OpenAI-compatible endpoint) or `endpoint` (one of the server's:
-`meetings_transcription_url`, a local whisper server, say), with
-`meetings_transcription_model` (`openai/whisper-large-v3`) and
-`meetings_transcription_max_mb` (25), the largest file sent at once. Longer
-recordings are cut into stretches that overlap by five seconds and stitched at
-the middle of each overlap, word by word, so nothing is lost or said twice at a
-seam: WAV files here, other formats when `ffmpeg` is installed on the server
-(the Docker image does not include it; send WAV or a transcript instead). A
-transcript sent with a recording is used word for word and lined up with it —
-by its own times, or, for plain text, spread over the recording in proportion
-to what was said, and marked as estimated. Recordings are deleted when their
-keeping runs out (the scheduler checks every minute), which frees the storage;
-the capture then says replay is no longer possible.
-
-Voices: who said something decides who owns an action and who made a
-decision. `meetings_diarisation=labels` (the default) takes the voices from the
-transcript's own speaker labels; `endpoint` sends a recording whose transcript
-has none to a diarisation service of yours (`meetings_diarisation_url`), which
-answers `{"segments": [{"start", "end", "speaker"}]}` in seconds — a pyannote or
-WhisperX server fits; lines two voices talk over are marked *voice unsure*.
-Each voice is then attributed with its evidence shown: a label that names a
-member or an attendee, being addressed by name and then answering ("Good
-question, Sam."), an introduction ("I'm Ollie"), and elimination against the
-attendees (`meetings_dialogue_inference=false` turns the dialogue part off).
-Two voices that come out as the same person are merged. **Who said what**,
-from the review, shows a card per voice — clips to replay where there is a
-recording, the person and why, confirm or change — and the unsure lines a
-finding depends on. Changing a voice changes the owner or decision-maker of
-exactly the findings that took it from that voice, without reading again.
-With **Teach it voices** on for the transcription server, confirming or
-changing a voice to a person's name also sends their longest stretch of the
-recording to that server as a voiceprint (see *Teaching it voices* under
-[Recordings](#recordings)).
-
-Voiceprints, by consent: off unless an admin turns them on
-(`meetings_voiceprints=true`, with `meetings_voiceprint_url`, an embedding
-service of yours that is sent a recording — and, for a stretch of a meeting,
-`segments` as `[[start, end]]` in seconds — and answers `{"embedding":
-[numbers]}`; a SpeechBrain ECAPA or pyannote server fits). Then each person
-decides for themselves, under **Account › Voiceprint** (or `slipdock voiceprint
-enrol --audio me.wav --consent`): from a short recording of their own voice,
-or from a meeting where their voice was confirmed. Nobody can enrol, see or
-delete anybody else's: every route is the caller's own, and one that names a
-person is refused. The consent wording they agreed to is recorded, word for
-word with its version, beside when; only the embedding is kept, never the
-audio it was made from. Deleting it takes effect at once — later captures stop
-using it — and the withdrawal is recorded. The voiceprint and the consent
-record are in the person's own export (`voiceprint.json`). In a capture with a
-recording, a voice whose lines sound like somebody's voiceprint gets that as
-one more piece of evidence, shown with its similarity, weighed with the rest
-and confirmable like any other. There is deliberately no MCP tool for it:
-consent to biometric data is the person's to give, not an agent's.
-
-Limits, per person per month, each with a switch: `meetings_transcription_minutes`
-(600), `meetings_audio_storage_mb` (2048, the recordings they have stored now)
-and `meetings_transcript_captures` (200); for every meeting,
-`meetings_longest_minutes` (240) and `meetings_max_file_mb` (500); and how long
-recordings are kept, `meetings_audio_retention`. They are checked before
-anything is stored or sent to a provider, and a meeting over one is refused
-with `meeting_limit_reached` (HTTP 402), naming the limit — retrying will not
-help. Transcription and reading on a person's own AI key or endpoint don't
-count; stored audio does. A recording's length is read from a WAV header, or
-estimated from its size until the transcriber reports it. Every
-transcription, model call and stored recording goes on a usage ledger;
-Configuration → Meetings shows this month's totals and the heaviest users
-(`slipdock admin meetings-usage`, `GET /api/admin/meetings/usage`), and the
-upload page shows each person what they have left.
-
-### From a terminal, and from agents
-
-```
-slipdock meetings                                   is it on here
-slipdock capture new <board> --transcript F [--audio F] [--findings F] [--ics F]
-                                [--title T] [--when T] [--attendees A] [--with-parent]
-slipdock capture ls <board> | show <id> | preview <id> | schema
-slipdock capture resolve <id> <question> <answer> [--replayed SPAN]
-slipdock capture include|leave-out <id> <finding>
-slipdock capture commit <id> [--preview DIGEST] | undo <id> [--rest]
-slipdock capture retry <id> | discard <id>
-```
-
-The API is under `/api/meetings`, `/api/boards/:board/captures` and
-`/api/captures/:id` (see [JSON API](#json-api)); an agent's own findings use
-the format at `GET /api/meetings/findings-schema`. Over MCP, `capture_meeting`
-(or `capture_chat`, [for a conversation](#capturing-a-conversation)),
-`get_capture`, `resolve_capture_question` and `commit_capture`. An agent
-answers a capture's questions **only with the person's own answers**, and
-commits only when asked; its answers are recorded as the person's, *via
-agent*. The `slipdock-capture` skill says all of this to an agent.
-
-### Capturing a conversation
-
-A conversation with Claude, ChatGPT or another assistant makes decisions and
-to-dos too, and then scrolls away. **Chat capture** puts it through the same
-pipeline and the same promises: every proposal quoted word for word from the
-conversation, anything uncertain asked, nothing written until the person
-commits it, undoable as a whole.
-
-- **Its own switch, on by default.** Configuration › Meetings › *Chat capture
-  is on* (`chat_capture_enabled`). It doesn't need meeting mode: there are no
-  recordings, voiceprints or attendees to consent. With only chat capture on,
-  the review pages, the capture API and the review MCP tools are there, and a
-  meeting capture is not; with only meeting mode on, a chat capture is not.
-- **Two ways in.** The model in the chat sends it, over MCP with
-  `capture_chat`, as `Name: text` turns, optionally with its own findings —
-  then no server model or AI key is needed, and the quotes are still checked
-  against the conversation, so a model can't invent agreement. Or a person
-  sends a paste or an export: `POST /api/boards/:board/captures` with
-  `kind: "chat"`, or `slipdock capture-chat`.
-- **Formats.** `chat` (`Name: text` turns; a turn runs on, line after line, to
-  the next label; a label inside a ``` code fence is part of the turn; words
-  before the first label belong to nobody), `claude-export` (claude.ai's
-  `conversations.json`, or one conversation) and `chatgpt-export` (a
-  conversation's `mapping`, read along the branch it was left on, so abandoned
-  edits are not read). An export holding several conversations needs
-  `conversation`: one's id or title. All three are detected.
-- **Read as a conversation.** No transcribing, no voices to separate, no
-  working out who spoke: the speakers are the person who sent it and the
-  assistant. The reading treats the assistant's suggestions as suggestions —
-  a decision or action needs the person's agreement in the conversation, and
-  that agreement is the quote. An action with nobody named is the person's.
-- **Reviewed and committed the same way.** The trail on a card it touches
-  reads *From a conversation*, with the quote, and links back to the capture.
-- **Keep the transcript, or not.** The conversation is stored, as a meeting's
-  transcript is, and private to its sender and the board's writers. Untick
-  *Keep the conversation after committing* on the commit preview (or send
-  `keep_transcript: false`, `--drop-transcript`) and its lines are deleted
-  once committed, leaving only the quoted evidence.
-
-```sh
-slipdock capture-chat <board> chat.txt [--format chat|claude-export|chatgpt-export]
-                      [--conversation ID|TITLE] [--title T] [--findings F] [--drop-transcript]
-```
-
 ## Wiki
 
 The board answers *what are we doing*. It cannot answer *how does this work*,
@@ -5929,7 +5616,6 @@ The current section is marked in the nav and named again over its content:
   agent at this server.
 - **Import & export** (`/account/data`) — everything you have as a zip, and
   boards as files another Slipdock can read back.
-- **Voiceprint** (`/account/voiceprint`, only while an admin has voiceprints on).
 - **Email log** (`/account/email-log`, only while the server receives mail)
   — your last 50 messages to its inbound addresses, and what each one made
   or why it bounced or was ignored; also `slipdock inbound log`.
@@ -5992,7 +5678,7 @@ no trial. The ceilings above still apply to them, as they do to admins.
 are per person: Users → tick *Transcription* (or `slipdock admin
 transcription <email> on|off`, or `PATCH /api/admin/users/:id
 {"transcription": true}`; the users list reports `transcription`). Admins
-always may. Meeting mode, while it lasts, follows the same permission.
+always may.
 
 **Looking at somebody's boards to help them.** Being an admin does not let you
 read other people's boards. **Support**, on a person's row under Users, does —
@@ -6357,7 +6043,7 @@ rate-limited model is replaced by the next without the person noticing. They
 are sent only to OpenRouter and only with the server's own model. Somebody who
 picked their own model or endpoint gets exactly that, with no fallbacks to a
 model they didn't choose. Whichever model answered is the one logged,
-recorded in meeting usage and shown under a narrative. A `429` is also asked
+shown under a narrative. A `429` is also asked
 once more after a second, or after the endpoint's `Retry-After` when that is
 5 seconds or less. A second `429` reaches the person as *The model is
 rate-limited right now; try again in a moment.*
@@ -6611,25 +6297,6 @@ GET    /api/wiki/sync/files/:file         POST /api/wiki/sync/files[/:file_id]  
 PATCH  /api/wiki/sync/files/:file_id      {path, base}   DELETE ?base= &purge=true
 POST   /api/header-links                  {board | wiki: true, icon}
 # /api/vaults and /api/vaults/:id/... answer the same, kept for older clients; will be removed.
-
-# Meeting capture: only while meeting mode is on (404 "meeting mode is off on this server" otherwise),
-# and on for the caller (404 meetings_not_allowed otherwise)
-GET    /api/meetings                      is it on, where it shows, what may be sent
-GET    /api/meetings/findings-schema      the format an agent's own findings use
-POST   /api/boards/:board/captures        multipart: audio, transcript, findings, ics; or JSON with
-                                          them as text; title, when, attendees, format, parent
-GET    /api/boards/:board/captures        GET  /api/captures/:id    state, lines, findings, questions, record
-POST   /api/captures/:id/resolve          {question, answer: value | number | label | null, replayed}
-POST   /api/captures/:id/findings/:fid    {included} or {title, body, list, due_date, topic}
-                                          (topic: a decision's heading on the meeting's decisions page)
-GET    /api/captures/:id/preview          the change set and its digest, and what has moved
-POST   /api/captures/:id/commit           {preview: digest}; 409 committed / stale (named) / changed
-POST   /api/captures/:id/undo             {rest}; 409 lists what was edited since
-POST   /api/captures/:id/retry            POST /api/captures/:id/discard
-GET    /api/me/voiceprint                 your own voiceprint, the consent wording, meetings to enrol from
-POST   /api/me/voiceprint                 multipart audio, or capture (id); consent: the wording's version
-DELETE /api/me/voiceprint                 delete it now (only while an admin has voiceprints on;
-                                          any user, user_id or email in the request is a 403)
 ```
 
 A page's `:id` is its numeric id, its code (`W-31`), or `board-code/slug` with
@@ -7186,10 +6853,6 @@ CI, which a chat can't.
   for the build and is never closed on a red one.
   Written for `/loop`, a schedule or a cron, so the board carries all the
   state between passes.
-- **`slipdock-capture`** — [meeting capture](#meeting-capture), where an admin
-  has meeting mode on: sending a recording or transcript, putting the
-  capture's questions to the user and recording only their answers,
-  previewing, and committing only when asked.
 
 Board-specific detail — board codes, list names, tag vocabularies — stays out
 of these files on purpose and comes from `GET /api/guide`, which generates it
@@ -7276,14 +6939,6 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |
 | `job_log` | A runner job's [live log](#runners) so far, as `slipdock job-log` prints it: one line per message, tool call or result of its agent. `from` carries on from an earlier call's `next`; `job.open` is false once the job has ended. Anyone who can read the card may. |
 | `keep_job_log` | Keeps an ended runner job's live log, which otherwise [expires](#runners): writes it as a page `Pass <card> (<date>)` in the card's folder and links it from the job. Again gives the same page. Needs write access to the card. |
-| `capture_meeting` | Sends a meeting's transcript (WebVTT, SRT, `Name:` lines, a Fireflies or Otter export) to a board for [meeting capture](#meeting-capture), with `title`, `when`, `attendees`, and optionally the agent's own `findings` in the published schema. Nothing is written to the board by it. Recordings go through the CLI or the API. |
-| `capture_chat` | Sends the conversation the model is in (`Name: text` turns, or a Claude or ChatGPT export with `format` and `conversation`) to a board for [chat capture](#meeting-capture), optionally with the model's own `findings`: then no server model or AI key is needed, and every quote is still checked against the conversation. Only while chat capture is on (the default). Nothing is written to the board by it. |
-| `get_capture` | A capture: its state, what it found and what each finding becomes, the open questions with numbered answers, and — once it is ready — the `preview` digest to commit with. |
-| `resolve_capture_question` | Answers one question with the answer the person gave in the conversation (never the model's own); recorded as theirs, *via agent*. |
-| `commit_capture` | Writes a ready capture to the board in one go, when the person asks; pass `preview` so exactly what they saw is written. Refused, naming the card, if something it changes was edited since. |
-
-The last four exist only while an admin has [meeting mode](#meeting-capture)
-on: off, they are not listed, and calling one by name is an unknown tool.
 
 The reading tools are marked read-only, so a client can let them run
 without asking each time. The deletes are marked destructive and none of
@@ -7321,7 +6976,6 @@ tokens: a long list ends with "…and N more, use list_cards".
 | `triage` | `board` | The board's intake list (its Backlog or Inbox) card by card: keep, move to the ready list, tag, date or archive, as you decide each. |
 | `resume` | `card` | The card's [handoff](#where-it-was-left-handoffs), blockers, open subcards and latest comments; says where it stands and the next step. |
 | `leave-handoff` | `card` | Writes the card's handoff from this conversation with `leave_handoff`, showing you the note first. |
-| `capture-this-chat` | `board` | Sends this conversation through [chat capture](#capturing-a-conversation) and walks the preview; commits only when you say. Listed only while chat capture is on. |
 | `tidy-board` | `board` | Looks the board over with the [gardener](#tidying-up) and walks its suggestions one at a time with `garden_decide`. With a read-only token it lists the suggestions as they stand. |
 
 A prompt that writes is still listed for a read-only token; its text then

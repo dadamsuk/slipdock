@@ -9,7 +9,6 @@ defmodule SlipdockWeb.FilePickerLiveTest do
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
-  import Slipdock.MeetingsFixtures
   import Slipdock.ToolPackages
 
   alias Slipdock.{Portable, Settings}
@@ -135,63 +134,5 @@ defmodule SlipdockWeb.FilePickerLiveTest do
 
       assert has_element?(view, "#import-boards-file.file-picker-error")
     end
-  end
-
-  describe "Account → Voiceprint" do
-    setup do
-      meetings_on()
-
-      {:ok, _} =
-        Settings.update(%{
-          "meetings_voiceprints" => true,
-          "meetings_voiceprint_url" => "http://voice.example/embed"
-        })
-
-      :ok
-    end
-
-    test "the recording is a file picker; the × takes it back", %{conn: conn} do
-      {:ok, view, html} = live(conn, ~p"/account/voiceprint")
-      assert bare_file_inputs(html) == []
-      assert has_element?(view, "#voiceprint-recording-file[data-file-picker]")
-
-      view
-      |> file_input("#voiceprint-recording", :recording, [
-        %{name: "me.wav", content: "MY VOICE", type: "audio/wav"}
-      ])
-      |> render_upload("me.wav")
-
-      assert has_element?(view, "#voiceprint-recording-file [data-role=file-size]", "8 B")
-
-      view
-      |> element("#voiceprint-recording-file button[aria-label='Remove me.wav']")
-      |> render_click()
-
-      refute has_element?(view, "#voiceprint-recording-file [data-role=file-name]", "me.wav")
-    end
-
-    test "a file that isn't audio is refused", %{conn: conn} do
-      {:ok, view, _} = live(conn, ~p"/account/voiceprint")
-
-      input =
-        file_input(view, "#voiceprint-recording", :recording, [
-          %{name: "me.txt", content: "hello", type: "text/plain"}
-        ])
-
-      assert {:error, [[_, :not_accepted]]} = render_upload(input, "me.txt")
-
-      assert has_element?(
-               view,
-               "#voiceprint-recording-file [data-role=file-error]",
-               "isn't accepted"
-             )
-    end
-  end
-
-  test "the other pages' hidden file inputs sit behind their own buttons", %{conn: conn} do
-    board = board_fixture(%{"name" => "Files"}, owner: user_fixture())
-    card = card_fixture(hd(board.columns), %{"title" => "With files"})
-    {:ok, _view, html} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
-    assert bare_file_inputs(html) == []
   end
 end

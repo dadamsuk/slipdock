@@ -2212,11 +2212,6 @@ defmodule SlipdockWeb.SlipdockComponents do
   attr :view, :any, default: nil, doc: "the saved view currently loaded, if any"
   attr :marks, :any, default: nil, doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
 
-  attr :meetings, :atom,
-    default: :none,
-    doc:
-      "`:tab` puts Meetings beside the wiki (see `Slipdock.Meetings.presence/2`); on a meeting page, `:hidden` when the reader hid it"
-
   # The view switcher that leads every board toolbar: the current view, with
   # the others in a menu, followed by the reader's own favourite saved views.
   def view_tabs(assigns) do
@@ -2230,15 +2225,6 @@ defmodule SlipdockWeb.SlipdockComponents do
       case assigns.mode do
         :wiki ->
           {:wiki, "/wiki", "Wiki", "hero-book-open", "Wiki", nil}
-
-        :meetings ->
-          # A conversation's page with meeting mode off (#1077), or not on
-          # for the reader (#1206), is no Meetings tab.
-          if assigns.meetings != :none,
-            do: {:meetings, "/meetings", "Meetings", "hero-microphone", "Meetings", nil},
-            else:
-              {:meetings, "/meetings", "Conversation", "hero-chat-bubble-left-right",
-               "Conversation", nil}
 
         mode ->
           Enum.find(tabs, hd(tabs), fn {m, _, _, _, _, _} -> m == mode end)
@@ -2305,21 +2291,6 @@ defmodule SlipdockWeb.SlipdockComponents do
             <.icon name="hero-book-open" class="size-4 shrink-0" />
             <span class="flex-1">Wiki</span>
             <.icon :if={@mode == :wiki} name="hero-check" class="size-3.5" />
-          </.link>
-        </li>
-        <%!-- Meeting capture, the other thing a board keeps beside its cards,
-              while meeting mode shows here (see `Slipdock.Meetings`). --%>
-        <li :if={@meetings == :tab or (@mode == :meetings and @meetings != :none)}>
-          <.link
-            id="view-menu-meetings"
-            navigate={~p"/boards/#{@board.id}/meetings"}
-            class={["flex items-center gap-2", @mode == :meetings && "menu-active"]}
-            title="Meetings: captures of what was decided and agreed"
-            aria-current={@mode == :meetings && "page"}
-          >
-            <.icon name="hero-microphone" class="size-4 shrink-0" />
-            <span class="flex-1">Meetings</span>
-            <.icon :if={@mode == :meetings} name="hero-check" class="size-3.5" />
           </.link>
         </li>
         <li :if={@favourites != []} class="menu-title mt-1 border-t border-base-content/10 pt-2">

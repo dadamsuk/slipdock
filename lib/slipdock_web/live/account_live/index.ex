@@ -11,13 +11,7 @@ defmodule SlipdockWeb.AccountLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    voiceprints? = Slipdock.Meetings.Voiceprints.enabled_for?(socket.assigns.current_user)
-
-    # Not there at all while voiceprints are off, like every meeting page.
-    if socket.assigns.live_action == :voiceprint and not voiceprints?,
-      do: raise(SlipdockWeb.MeetingsOff)
-
-    # The same for the email log while this server takes no mail.
+    # Not there at all while this server takes no mail.
     inbound? = Slipdock.Inbound.enabled?()
 
     if socket.assigns.live_action == :email_log and not inbound?,
@@ -30,8 +24,7 @@ defmodule SlipdockWeb.AccountLive.Index do
     {:ok,
      assign(socket,
        page_title: page_title(socket.assigns.live_action),
-       sections: sections(voiceprints?, inbound?),
-       voiceprints?: voiceprints?,
+       sections: sections(inbound?),
        inbound?: inbound?
      )}
   end
@@ -48,8 +41,8 @@ defmodule SlipdockWeb.AccountLive.Index do
 
   # Every section, in the nav's order: {live action, path, icon, label}. The
   # label is the nav entry, the section's heading and the browser title, so
-  # the three cannot drift apart. Voiceprint and Email log are there only
-  # while the server has them on.
+  # the three cannot drift apart. Email log is there only while the server
+  # takes mail.
   defp all_sections do
     [
       {:index, ~p"/account", "hero-user-circle", "Profile"},
@@ -58,15 +51,13 @@ defmodule SlipdockWeb.AccountLive.Index do
       {:tokens, ~p"/account/tokens", "hero-key", "API tokens"},
       {:agent, ~p"/account/agent", "hero-cpu-chip", "Set up an agent"},
       {:data, ~p"/account/data", "hero-arrows-right-left", "Import & export"},
-      {:voiceprint, ~p"/account/voiceprint", "hero-microphone", "Voiceprint"},
       {:email_log, ~p"/account/email-log", "hero-inbox-arrow-down", "Email log"}
     ]
   end
 
   @doc "The account's sections, in order, as the nav lists them."
-  def sections(voiceprints?, inbound?) do
+  def sections(inbound?) do
     for {key, _, _, _} = section <- all_sections(),
-        key != :voiceprint or voiceprints?,
         key != :email_log or inbound?,
         do: section
   end
@@ -85,7 +76,6 @@ defmodule SlipdockWeb.AccountLive.Index do
   defp section_component(:tokens), do: AccountLive.TokensComponent
   defp section_component(:data), do: AccountLive.DataComponent
   defp section_component(:agent), do: AccountLive.AgentComponent
-  defp section_component(:voiceprint), do: AccountLive.VoiceprintComponent
   defp section_component(:email_log), do: AccountLive.InboundLogComponent
   defp section_component(:index), do: AccountLive.ProfileComponent
 

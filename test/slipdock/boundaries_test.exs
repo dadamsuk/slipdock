@@ -53,7 +53,7 @@ defmodule Slipdock.BoundariesTest do
 
   # Today's compile-connected cycles: how many, and how many files in them
   # are joined by a compile-time edge. Only ever lowered.
-  @cycle_ceiling %{cycles: 1, compile: 13}
+  @cycle_ceiling %{cycles: 1, compile: 12}
 
   # ---- the checks ----------------------------------------------------------
 
@@ -156,9 +156,9 @@ defmodule Slipdock.BoundariesTest do
     end
 
     test "a new cycle, or a new compile edge in one, is over the ceiling" do
-      assert over_ceiling(%{cycles: 2, compile: 13}, @cycle_ceiling) == [:cycles]
-      assert over_ceiling(%{cycles: 1, compile: 14}, @cycle_ceiling) == [:compile]
-      assert over_ceiling(%{cycles: 1, compile: 13}, @cycle_ceiling) == []
+      assert over_ceiling(%{cycles: 2, compile: 12}, @cycle_ceiling) == [:cycles]
+      assert over_ceiling(%{cycles: 1, compile: 13}, @cycle_ceiling) == [:compile]
+      assert over_ceiling(%{cycles: 1, compile: 12}, @cycle_ceiling) == []
     end
   end
 

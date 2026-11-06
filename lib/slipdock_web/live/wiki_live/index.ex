@@ -143,7 +143,6 @@ defmodule SlipdockWeb.WikiLive.Index do
       can_manage: perm == :owner,
       # The AI tools beside a page (#1539): whether they can run, and open.
       page_tools_ai: Slipdock.AI.configured?(socket.assigns.current_user),
-      meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
       # The board's `…` menu, as its own views have it: where its panels
       # are, and whether it offers Email to this board.
       view_only: perm == :view,
@@ -303,12 +302,6 @@ defmodule SlipdockWeb.WikiLive.Index do
     |> Map.new(&{&1, SlipdockWeb.BoardLive.Paths.panel_path(base, &1)})
     |> Map.put(:tidy, ~p"/boards/#{board}/tidy")
   end
-
-  # The menu's way into meeting capture, as the board's own has it.
-  defp board_meetings_path(%{meetings: :menu, can_write: true, board: board}),
-    do: ~p"/boards/#{board}/meetings"
-
-  defp board_meetings_path(_assigns), do: nil
 
   defp switch_board(%{assigns: %{board: %{id: id}}} = socket, id, _params), do: {:ok, socket}
   defp switch_board(socket, nil, _params), do: {:ok, socket}
@@ -4365,7 +4358,6 @@ defmodule SlipdockWeb.WikiLive.Index do
           view_only={@view_only}
           ai?={false}
           rules={[]}
-          meetings_path={board_meetings_path(assigns)}
           inbound={@inbound}
           navigate
         />
@@ -4451,7 +4443,6 @@ defmodule SlipdockWeb.WikiLive.Index do
             mode={:wiki}
             view={nil}
             marks={@marks}
-            meetings={@meetings}
           />
           <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
 
@@ -4540,7 +4531,6 @@ defmodule SlipdockWeb.WikiLive.Index do
               paths={@board_paths}
               can_manage={@can_manage}
               rules={[]}
-              meetings_path={board_meetings_path(assigns)}
               inbound={@inbound}
               navigate
             />

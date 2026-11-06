@@ -748,9 +748,6 @@ defmodule SlipdockWeb.HelpLive.Agents do
           <code>resume</code>
           and <code>leave-handoff</code>: pick a card up where it was left, or leave it for the next person.
         </li>
-        <li :if={Slipdock.Meetings.chat_enabled?()}>
-          <code>capture-this-chat</code>: send this conversation to a board.
-        </li>
         <li><code>tidy-board</code>: walk the gardener's tidy-up suggestions.</li>
       </ul>
       <p>
@@ -781,19 +778,6 @@ defmodule SlipdockWeb.HelpLive.Agents do
       </p>
     </.part>
 
-    <.part
-      :if={Slipdock.Meetings.chat_enabled?()}
-      title="Capture this conversation"
-      id="help-mcp-capture-chat"
-    >
-      <p>
-        Decided something in a chat? Ask the assistant to <em>capture this conversation</em>
-        to a board. It sends the chat with <code>capture_chat</code>, quoting it word for word;
-        Slipdock proposes the decisions and to-dos you agreed to, each with your words beside
-        it, and nothing is written until you say yes. A Claude or ChatGPT export works too, with <code>slipdock capture-chat</code>.
-      </p>
-    </.part>
-
     <.part title="What it can't do">
       <ul class="list-disc space-y-1 pl-5">
         <li>
@@ -819,7 +803,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
         is a command-line client for everything the API does: boards, cards, comments,
         the wiki, files (<code>slipdock attach</code>
         and <code>slipdock download</code>), search,
-        automations, runners and meeting capture. It saves the server's
+        automations and runners. It saves the server's
         address and your token, so neither you nor the agent has to repeat them, and its
         output is easier to read in a transcript than raw JSON.
       </p>
@@ -946,10 +930,6 @@ defmodule SlipdockWeb.HelpLive.Agents do
           <code>slipdock-loop</code>: working the To Do list unattended, one card per pass, from
           <code>/loop</code>
           or a schedule. It watches the build after each push and never closes a card while the build is red.
-        </li>
-        <li>
-          <code>slipdock-capture</code>: sending a meeting, or a conversation with an assistant,
-          for capture where it's switched on, answering only with your answers.
         </li>
       </ul>
     </.part>

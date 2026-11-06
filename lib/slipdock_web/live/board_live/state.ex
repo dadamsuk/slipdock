@@ -287,7 +287,6 @@ defmodule SlipdockWeb.BoardLive.State do
 
     socket
     |> assign(board: board, page_title: board.name, ancestry: Boards.ancestry(board))
-    |> assign(meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board))
     |> assign(pulse: board_pulse(board), pauses: board_pauses(board))
     # Deploys move the delivery strip themselves; a reload only follows
     # the switch.

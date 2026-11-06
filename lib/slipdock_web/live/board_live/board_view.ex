@@ -121,10 +121,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :ai?, :boolean, required: true
   attr :rules, :list, required: true
 
-  attr :meetings_path, :string,
-    default: nil,
-    doc: "where the menu's Capture a meeting goes, if anywhere"
-
   attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
 
   @doc "The board's own buttons, at the end of its toolbar: sprints, the chat and the board's menu, sharing among it."
@@ -206,7 +202,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         paths={@paths}
         can_manage={@can_manage}
         rules={@rules}
-        meetings_path={@meetings_path}
         inbound={@inbound}
       />
     </div>
@@ -216,7 +211,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :paths, :map, required: true
   attr :can_manage, :boolean, required: true
   attr :rules, :list, required: true
-  attr :meetings_path, :string, default: nil
   attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
   attr :code, :string, default: nil, doc: "the board's code, for the menu's Copy board code"
 
@@ -241,7 +235,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           paths={@paths}
           can_manage={@can_manage}
           rules={@rules}
-          meetings_path={@meetings_path}
           inbound={@inbound}
           navigate={@navigate}
         />
@@ -256,7 +249,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :view_only, :boolean, required: true
   attr :ai?, :boolean, required: true
   attr :rules, :list, required: true
-  attr :meetings_path, :string, default: nil
   attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
   attr :code, :string, default: nil, doc: "the board's code, for the menu's Copy board code"
 
@@ -283,7 +275,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       paths={@paths}
       can_manage={@can_manage}
       rules={@rules}
-      meetings_path={@meetings_path}
       inbound={@inbound}
       navigate={@navigate}
     />
@@ -295,7 +286,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :paths, :map, required: true
   attr :can_manage, :boolean, required: true
   attr :rules, :list, required: true
-  attr :meetings_path, :string, default: nil
   attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
 
   attr :navigate, :boolean,
@@ -325,13 +315,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <span data-label>Copy board code</span>
         <span id={@share_id <> "-code"} class="ml-auto font-mono text-2xs text-base-content/60">{@code}</span>
       </button>
-    </li>
-    <%!-- Meeting mode on, but this board has had no capture yet: one way in,
-          rather than a tab with nothing behind it (see `Slipdock.Meetings`). --%>
-    <li :if={@meetings_path}>
-      <.link navigate={@meetings_path} id={@share_id <> "-capture-meeting"}>
-        <.icon name="hero-microphone" class="size-4" /> Capture a meeting
-      </.link>
     </li>
     <li>
       <.link navigate={@paths.tidy} id={@share_id <> "-tidy"}>
@@ -415,7 +398,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :share_key, :integer, required: true
   attr :favourites, :any, required: true
   attr :narrow?, :boolean, required: true
-  attr :meetings, :atom, default: :none, doc: "`Slipdock.Meetings.presence/2` for this board"
   attr :renaming_column, :any, required: true
   attr :focus, :any, required: true
   attr :adding_to, :any, required: true
@@ -443,7 +425,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     <div class="flex h-full flex-col">
       <.board_toolbar
         board={@board}
-        meetings={@meetings}
         filters={@filters}
         filtering={@filtering}
         columns={@columns}
@@ -1324,7 +1305,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :groups, :list, default: []
   attr :share_key, :integer, default: 0
   attr :marks, :any, default: nil, doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
-  attr :meetings, :atom, default: :none
   attr :select_mode, :boolean, default: false
   slot :inner_block, doc: "the board's own buttons, last, right of Views"
 
@@ -1339,7 +1319,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     ~H"""
     <.view_toolbar id="board-toolbar" mode={:board} shown={@shown} hidden={@hidden}>
       <:switcher :if={!@view_only}>
-        <.view_tabs board={@board} meetings={@meetings} mode={:board} view={@view} marks={@marks} />
+        <.view_tabs board={@board} mode={:board} view={@view} marks={@marks} />
       </:switcher>
       <:search>
         <.search_box

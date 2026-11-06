@@ -37,8 +37,6 @@ defmodule SlipdockWeb.APIGuide do
       runners(),
       health_monitor(),
       deployments(base),
-      meetings(),
-      chat_capture(),
       wiki(),
       handbook() <> sweeps(),
       findings_section(),
@@ -195,8 +193,6 @@ defmodule SlipdockWeb.APIGuide do
     "Runners" => "runners",
     "Health monitor" => "health",
     "Deployments" => "deployments",
-    "Meeting capture" => "meetings",
-    "Chat capture" => "chats",
     "The wiki: writing things down" => "wiki",
     "The handbook" => "handbook",
     "Findings" => "findings",
@@ -530,7 +526,7 @@ defmodule SlipdockWeb.APIGuide do
     token, or a connection the person approved read-only, can call the read
     tools, and a write tool answers it with an error saying so. The conventions in this guide apply the same way through
     either door. Prompts: `plan-my-day`, `weekly-review`, `triage`, `resume`,
-    `leave-handoff`, `capture-this-chat`, `tidy-board`. Resources, which the
+    `leave-handoff`, `tidy-board`. Resources, which the
     person attaches: `slipdock://card/42`, `board/`, `page/`, `view/`, `work`.
 
     ### The AI key, and which model answers
@@ -1882,125 +1878,6 @@ defmodule SlipdockWeb.APIGuide do
 
     Dismissing is per person: yours going does not take anyone else's.
     """
-  end
-
-  # Meeting capture (see `Slipdock.Meetings`): only on a server whose admin
-  # has turned it on. Off, the guide says nothing about it at all.
-  defp meetings do
-    if Slipdock.Meetings.enabled?() do
-      """
-
-      ## Meeting capture
-
-      This server has **meeting mode** on: a meeting's recording or transcript
-      can be turned into proposed decisions, actions and card changes, read
-      alongside a board's cards and wiki. Nothing is written to a board until a
-      person reviews the capture and commits it, in one write that can be
-      undone as a whole. Every finding quotes the transcript word for word (a
-      quote that is not there is dropped), and anything uncertain becomes a
-      question for a person. Each meeting gets one wiki page of its own,
-      *<YYYY-MM-DD> <meeting in a few words>* in the board's `Meetings` folder:
-      its summary and key topics, then a Decisions section, grouped by topic
-      when there are several; one that replaces an earlier decision strikes it
-      on whichever page holds it.
-
-      It is on only for the people an admin has given *Transcription* (and for
-      admins): for anybody else the routes answer 404 `meetings_not_allowed`,
-      and `GET /api/meetings` says `allowed: false`.
-
-          GET  /api/meetings                         is meeting mode on, and what may be sent
-          GET  /api/meetings/findings-schema         the format for your own findings
-          POST /api/boards/:board/captures           send one: multipart (audio, transcript,
-                                                     findings, ics) or JSON (transcript, findings,
-                                                     ics as text); title, when, attendees, format
-          GET  /api/boards/:board/captures           a board's captures
-          GET  /api/captures/:id                     state, lines, findings, questions, record
-          POST /api/captures/:id/resolve             {question, answer} — an option's number or label
-          POST /api/captures/:id/findings/:fid       {included: false} or {title, body, list, due_date, topic}
-                                                     (topic: a decision's heading on the meeting's page)
-          GET  /api/captures/:id/preview             exactly what committing writes, and its digest
-          POST /api/captures/:id/commit              {preview: digest}; 409 if anything moved since
-          POST /api/captures/:id/undo                409 lists what was edited since; {rest: true}
-          POST /api/captures/:id/retry | /discard
-      #{voiceprints()}
-      A reading is selective: a short summary and the key topics (`notes` on
-      the capture) carry the talk, and findings are only actions somebody took
-      on, decisions agreed and changes to existing cards. Findings you send
-      may carry a `name` (the meeting in a few words, for its page's title), a
-      `summary` and `topics` too, which then stand in for the reading's.
-
-      Over MCP: `capture_meeting` (send a transcript, with your own findings if
-      you have them), `get_capture`, `resolve_capture_question`,
-      `commit_capture`. From a terminal: `slipdock capture new <board>
-      --transcript meeting.vtt`, then `capture show`, `resolve`, `preview`,
-      `commit`.
-
-      Two rules for agents. **Answer a capture's questions only with the
-      person's own answer**, given to you in the conversation — never your
-      own reading of the transcript; it is recorded as theirs, *via agent*. And
-      **commit only when the person asks**, passing the preview digest so
-      exactly what they saw is written.
-      """
-    else
-      ""
-    end
-  end
-
-  # Chat capture (#1075): its own switch, on by default. The pipeline and the
-  # review are meeting capture's, so with meeting mode on the routes are
-  # already listed above.
-  defp chat_capture do
-    if Slipdock.Meetings.chat_enabled?() do
-      """
-
-      ## Chat capture
-
-      A conversation with an AI assistant (Claude, ChatGPT) can be captured
-      like a meeting: its decisions and to-dos proposed, each quoted word for
-      word from the conversation, committed only when the person says so. An
-      assistant's suggestion counts only where the person agreed to it.
-      #{if Slipdock.Meetings.enabled?(), do: "", else: chat_routes()}
-      Send one with `kind: chat` and the conversation as `transcript`
-      (`Name: text` turns, or a Claude or ChatGPT export: format `chat`,
-      `claude-export`, `chatgpt-export`; `conversation` picks one from an
-      export of several). Over MCP, `capture_chat` sends the conversation
-      you are in, with your own findings if you read it yourself (no server
-      model needed; quotes still checked). Then the same review as a meeting:
-      `get_capture`, `resolve_capture_question`, `commit_capture`.
-      **Commit only when the person asks**, with the preview's digest.
-      """
-    else
-      ""
-    end
-  end
-
-  defp chat_routes do
-    """
-
-        POST /api/boards/:board/captures           {kind: "chat", transcript, format?, findings?}
-        GET  /api/captures/:id                     state, lines, findings, questions, record
-        POST /api/captures/:id/resolve             {question, answer}
-        GET  /api/captures/:id/preview             exactly what committing writes, and its digest
-        POST /api/captures/:id/commit              {preview: digest}
-        POST /api/captures/:id/undo | /discard
-    """
-  end
-
-  # Voiceprints are a person's own decision: the guide names the routes so an
-  # agent can tell its user where to go, and says it isn't the agent's to do.
-  defp voiceprints do
-    if Slipdock.Meetings.Voiceprints.enabled?() do
-      """
-          GET|POST|DELETE /api/me/voiceprint     the caller's own voiceprint (enrolling needs
-                                                 consent: the wording's version)
-
-      Voiceprints are on here. Enrolling is consent to biometric data, so it is
-      the person's own to do (Account › Voiceprint, or `slipdock voiceprint
-      enrol --consent` run by them); never enrol or delete one on their behalf.
-      """
-    else
-      ""
-    end
   end
 
   # Deploys and DORA metrics (#1134). The setup prompt is the wizard's own,
@@ -4003,14 +3880,9 @@ defmodule SlipdockWeb.APIGuide do
   ## The endpoint list, from the router itself ---------------------------------
 
   defp endpoints do
-    meetings? = Slipdock.Meetings.capture_enabled?()
-
     SlipdockWeb.Router
     |> Phoenix.Router.routes()
     |> Enum.filter(&String.starts_with?(&1.path, "/api"))
-    # Capture's routes answer 404 while meeting mode and chat capture are
-    # both off, so they are not offered either.
-    |> Enum.reject(&(not meetings? and &1.plug == SlipdockWeb.API.MeetingController))
     |> Enum.map(fn route -> {route.verb |> Atom.to_string() |> String.upcase(), route.path} end)
   end
 end

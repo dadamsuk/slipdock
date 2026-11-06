@@ -24,12 +24,11 @@ defmodule SlipdockWeb.AdminNavTest do
     {"/overview", :overview, "Overview", "wide"},
     {"/config", :server, "Server", "narrow"},
     {"/config/mail", :mail, "Email", "narrow"},
-    {"/config/meetings", :meetings, "Meetings", "narrow"},
     {"/config/ai", :ai, "AI", "narrow"},
     {"/admin/tools", :tools, "Tools", "wide"}
   ]
 
-  @entries ~w(/users /users/signups /overview /config /config/mail /config/meetings /config/ai /admin/tools)
+  @entries ~w(/users /users/signups /overview /config /config/mail /config/ai /admin/tools)
 
   defp admin_conn(conn, mode) do
     {:ok, _} =

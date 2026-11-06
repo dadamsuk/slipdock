@@ -196,8 +196,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     {:noreply, assign_quick_add(socket, changeset)}
   end
 
-  # Display: for now, whether meeting capture is out of sight for this person
-  # (see `Slipdock.Meetings`). Only offered while the admin lets people choose.
+  # Display: how trees and lists name a card's folder.
   def handle_event("save_display", %{"display" => params}, socket) do
     case Accounts.update_display(socket.assigns.current_user, params) do
       {:ok, user} ->
@@ -359,12 +358,6 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
 
   @impl true
   def render(assigns) do
-    assigns =
-      assign(assigns,
-        meetings_choice?:
-          Slipdock.Meetings.enabled_for?(assigns.current_user) and Slipdock.Meetings.hideable?()
-      )
-
     ~H"""
     <div class="space-y-8">
       <section
@@ -391,41 +384,6 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
             value={@current_user.tree_names}
             options={[{"Full titles", "full"}, {"Short names", "short"}]}
           />
-          <button type="submit" class="btn btn-primary btn-sm">Save</button>
-        </form>
-      </section>
-
-      <section
-        :if={@meetings_choice?}
-        id="display-settings"
-        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
-      >
-        <h2 class="section-title">Display</h2>
-        <p class="text-sm text-base-content/60">What you see. Nobody else is affected.</p>
-        <form
-          id="display-form"
-          phx-submit="save_display"
-          phx-target={@myself}
-          class="mt-4 space-y-3"
-        >
-          <label class="flex cursor-pointer items-start gap-3 text-sm">
-            <input type="hidden" name="display[hide_meetings]" value="false" />
-            <input
-              type="checkbox"
-              id="display-hide-meetings"
-              name="display[hide_meetings]"
-              value="true"
-              checked={@current_user.hide_meetings}
-              class="checkbox mt-0.5"
-            />
-            <span>
-              <span class="block font-medium">Hide meetings</span>
-              <span class="block text-xs text-base-content/60">
-                No Meetings tab and no Capture a meeting in the menus, on any board. What other
-                people capture still reaches the boards when they commit it.
-              </span>
-            </span>
-          </label>
           <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </form>
       </section>

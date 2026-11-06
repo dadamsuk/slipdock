@@ -62,40 +62,6 @@ defmodule SlipdockWeb.API.AdminController do
         # `system_user` is the admin chosen here (nil for none), `source` and
         # `using` what is actually in effect — see `Slipdock.AI.Keys.system_source/0`.
         ai: ai_json(settings),
-        # Meeting capture: off unless turned on, and where it shows when on.
-        # Chat capture's own switch (#1075), on by default.
-        chat_capture: %{enabled: settings.chat_capture_enabled},
-        meetings: %{
-          enabled: settings.meetings_enabled,
-          visibility: settings.meetings_visibility,
-          hideable: settings.meetings_hideable,
-          accepts: %{
-            transcripts: settings.meetings_accept_transcripts,
-            audio: settings.meetings_accept_audio,
-            findings: settings.meetings_accept_findings
-          },
-          limits: Slipdock.Meetings.Usage.limits(),
-          audio_retention: settings.meetings_audio_retention,
-          voices: %{
-            diarisation: settings.meetings_diarisation,
-            url: settings.meetings_diarisation_url,
-            dialogue_inference: settings.meetings_dialogue_inference,
-            voiceprints: settings.meetings_voiceprints,
-            voiceprint_url: settings.meetings_voiceprint_url
-          },
-          transcription: %{
-            with: settings.meetings_transcription,
-            model: settings.meetings_transcription_model,
-            url: settings.meetings_transcription_url,
-            max_mb: settings.meetings_transcription_max_mb
-          },
-          reading: %{
-            model: settings.meetings_reading_model,
-            second: settings.meetings_second_reading,
-            second_model: settings.meetings_second_model,
-            relisten_model: settings.meetings_relisten_model
-          }
-        },
         # Where Transcribe on a card's recording sends it. The token is only
         # ever said to be there, never what it is.
         transcription_server: %{
@@ -113,9 +79,18 @@ defmodule SlipdockWeb.API.AdminController do
     # prove something first — a code to the new address, a test message that
     # arrived — and letting a PATCH skip those would undo the point of them.
     with {:ok, params} <- ai_system_user(params),
-         {:ok, _} <- Settings.update(Map.take(params, Slipdock.Settings.Instance.policy_fields())) do
+         {:ok, _} <- Settings.update(Map.take(params, settable())) do
       settings(conn, %{})
     end
+  end
+
+  # Meeting and chat capture's settings are no longer anybody's to set
+  # (W-2330); their columns go with the rest of capture.
+  defp settable do
+    Enum.reject(
+      Slipdock.Settings.Instance.policy_fields(),
+      &(String.starts_with?(&1, "meetings_") or &1 == "chat_capture_enabled")
+    )
   end
 
   # The server's AI is named by email, the way a person would; stored by id.
@@ -151,11 +126,6 @@ defmodule SlipdockWeb.API.AdminController do
       # `ai_model`, `ai_quick_model`, `ai_organise_model`, `ai_fallback_models`.
       models: Map.new(Slipdock.AI.model_settings(), &{&1, Slipdock.AI.model_setting(&1)})
     }
-  end
-
-  @doc "Meeting capture this month: the server's totals and the heaviest users."
-  def meetings_usage(conn, _params) do
-    json(conn, %{usage: Slipdock.Meetings.Usage.server_month()})
   end
 
   def allow(conn, %{"entry" => entry}) do

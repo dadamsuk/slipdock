@@ -12,7 +12,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   not save without a test message that arrived, and changing the admin address
   needs the new one to confirm before it takes effect.
 
-  Its four parts (Server, Email, Meetings and AI) are entries in the Admin
+  Its three parts (Server, Email and AI) are entries in the Admin
   nav (`SlipdockWeb.AdminNav`), whose footer says which build is running.
   """
   use SlipdockWeb, :live_view
@@ -44,11 +44,10 @@ defmodule SlipdockWeb.ConfigLive.Index do
     {:noreply, assign(socket, tab: tab, page_title: AdminNav.label(section(tab)))}
   end
 
-  # The Admin nav's key for each live action (#1738): the four parts of
+  # The Admin nav's key for each live action (#1738): the three parts of
   # Configuration are entries in the nav, not tabs of their own.
   defp section(:index), do: :server
   defp section(:mail), do: :mail
-  defp section(:meetings), do: :meetings
   defp section(:ai), do: :ai
 
   defp transcription_form(settings, errors \\ []) do
@@ -141,7 +140,6 @@ defmodule SlipdockWeb.ConfigLive.Index do
       admin_email_pending: settings.admin_email,
       ai_source: Keys.system_source(),
       ai_models_in_force: Map.new(AI.model_settings(), &{&1, AI.model_setting(&1)}),
-      meetings_usage: Slipdock.Meetings.Usage.server_month(),
       ai_candidates: ai_candidates()
     )
   end
@@ -152,18 +150,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       board_limit board_limit_enabled item_limit item_limit_enabled
                       storage_limit_mb storage_limit_enabled trial_days trial_enabled
                       terms_url privacy_url terms_version posthog_key posthog_host
-                      posthog_respect_dnt ai_system_user_id meetings_enabled chat_capture_enabled
-                      meetings_visibility meetings_hideable meetings_accept_transcripts
-                      meetings_accept_audio meetings_accept_findings meetings_reading_model
-                      meetings_second_reading meetings_second_model
-                      meetings_transcription_minutes meetings_transcription_minutes_enabled
-                      meetings_audio_storage_mb meetings_audio_storage_mb_enabled
-                      meetings_transcript_captures meetings_transcript_captures_enabled
-                      meetings_longest_minutes meetings_max_file_mb meetings_audio_retention
-                      meetings_transcription meetings_transcription_model
-                      meetings_transcription_url meetings_transcription_max_mb
-                      meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
-                      meetings_relisten_model meetings_voiceprints meetings_voiceprint_url
+                      posthog_respect_dnt ai_system_user_id
                       ai_model ai_quick_model ai_organise_model ai_fallback_models)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
@@ -525,7 +512,6 @@ defmodule SlipdockWeb.ConfigLive.Index do
           <div class="space-y-6">
             <.server_tab :if={@tab == :index} {assigns} />
             <.mail_tab :if={@tab == :mail} {assigns} />
-            <.meetings_tab :if={@tab == :meetings} {assigns} />
             <.ai_tab :if={@tab == :ai} {assigns} />
           </div>
         </AdminNav.frame>
@@ -597,395 +583,6 @@ defmodule SlipdockWeb.ConfigLive.Index do
           {@model_list_error}
         </p>
       </.form>
-    </section>
-    """
-  end
-
-  # Meeting capture (see `Slipdock.Meetings`): whether it exists here at all,
-  # and where it shows. Screen 1 of the mockups.
-  defp meetings_tab(assigns) do
-    ~H"""
-    <section
-      id="meetings-settings"
-      class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
-    >
-      <h2 class="section-title">Meeting mode</h2>
-      <p class="mt-1 text-sm text-base-content/60">
-        People send a meeting's recording or transcript, and Slipdock proposes the decisions,
-        actions and card changes in it, each tied to the words it came from. Nothing reaches a
-        board until somebody reviews and commits it. Off, there is no trace of it anywhere:
-        no menus, no routes, no commands, no MCP tools. Turning it off deletes nothing.
-      </p>
-
-      <.form for={@form} id="meetings-form" phx-submit="save-settings" class="mt-4 space-y-5">
-        <input type="hidden" name="settings[signup_mode]" value={@settings.signup_mode} />
-        <label class="flex cursor-pointer items-start gap-3 text-sm">
-          <input type="hidden" name="settings[meetings_enabled]" value="false" />
-          <input
-            type="checkbox"
-            id="meetings-enabled"
-            name="settings[meetings_enabled]"
-            value="true"
-            checked={@settings.meetings_enabled}
-            class="toggle mt-0.5"
-          />
-          <span>
-            <span class="block font-medium">Meeting mode</span>
-            <span class="block text-xs text-base-content/60">
-              Captures are read with each person's AI settings, so their key or endpoint is
-              what a meeting is sent to.
-            </span>
-          </span>
-        </label>
-
-        <label class="flex cursor-pointer items-start gap-3 text-sm">
-          <input type="hidden" name="settings[chat_capture_enabled]" value="false" />
-          <input
-            type="checkbox"
-            id="chat-capture-enabled"
-            name="settings[chat_capture_enabled]"
-            value="true"
-            checked={@settings.chat_capture_enabled}
-            class="toggle mt-0.5"
-          />
-          <span>
-            <span class="block font-medium">Chat capture</span>
-            <span class="block text-xs text-base-content/60">
-              A conversation with Claude or ChatGPT is read the same way: its decisions and
-              to-dos proposed, each quoted, committed only when the person says so. It has no
-              recordings or voices, so it does not need meeting mode.
-            </span>
-          </span>
-        </label>
-
-        <fieldset class="space-y-2">
-          <legend class="text-sm font-medium">Where it shows</legend>
-          <label
-            :for={
-              {value, title, text} <- [
-                {:used_only, "Only where used",
-                 "A board's Meetings tab appears after its first capture. Until then there is one entry in the board's … menu."},
-                {:every_board, "On every board", "Every board has a Meetings tab."}
-              ]
-            }
-            class="flex cursor-pointer gap-3 rounded-xl p-3 ring-1 ring-base-content/10 hover:bg-base-200 has-[:checked]:bg-primary/5 has-[:checked]:ring-primary"
-          >
-            <input
-              type="radio"
-              name="settings[meetings_visibility]"
-              value={value}
-              checked={@settings.meetings_visibility == value}
-              class="radio mt-0.5"
-            />
-            <span class="text-sm">
-              <span class="block font-medium">{title}</span>
-              <span class="block text-xs text-base-content/60">{text}</span>
-            </span>
-          </label>
-        </fieldset>
-
-        <label class="flex cursor-pointer items-start gap-3 text-sm">
-          <input type="hidden" name="settings[meetings_hideable]" value="false" />
-          <input
-            type="checkbox"
-            name="settings[meetings_hideable]"
-            value="true"
-            checked={@settings.meetings_hideable}
-            class="checkbox mt-0.5"
-          />
-          <span>
-            <span class="block font-medium">Let people hide it</span>
-            <span class="block text-xs text-base-content/60">
-              Each person can put meeting capture out of sight for themselves, under Account →
-              Settings → Display.
-            </span>
-          </span>
-        </label>
-
-        <fieldset class="space-y-2">
-          <legend class="text-sm font-medium">What may be sent</legend>
-          <label
-            :for={
-              {field, title, text} <- [
-                {:meetings_accept_transcripts, "Transcripts",
-                 "WebVTT, SRT, Name: text, and Fireflies or Otter exports. Cost no transcription."},
-                {:meetings_accept_audio, "Recordings",
-                 "Stored on this server, counted against the board owner's file storage."},
-                {:meetings_accept_findings, "Findings from an agent",
-                 "An agent's own reading of the meeting, checked like Slipdock's."}
-              ]
-            }
-            class="flex cursor-pointer items-start gap-3 text-sm"
-          >
-            <input type="hidden" name={"settings[#{field}]"} value="false" />
-            <input
-              type="checkbox"
-              name={"settings[#{field}]"}
-              value="true"
-              checked={Map.get(@settings, field)}
-              class="checkbox mt-0.5"
-            />
-            <span>
-              <span class="block font-medium">{title}</span>
-              <span class="block text-xs text-base-content/60">{text}</span>
-            </span>
-          </label>
-        </fieldset>
-
-        <fieldset class="space-y-3">
-          <legend class="text-sm font-medium">Reading</legend>
-          <p id="reading-explained" class="text-xs text-base-content/60">
-            A meeting is read once, whole, for its summary, key topics and the few things that go
-            on the board. A second, independent reading is off unless you turn it on: it doubles
-            the cost, marks what only one reading found, and asks which is right where they differ.
-            Each reading runs on the AI settings of the person who sent the meeting.
-          </p>
-          <.input
-            field={@form[:meetings_reading_model]}
-            label="Model for the first reading"
-            placeholder="Empty: each person's own model"
-            value={@settings.meetings_reading_model}
-          />
-          <.input
-            field={@form[:meetings_second_reading]}
-            type="select"
-            label="Second reading"
-            options={[
-              {"None (one reading)", "off"},
-              {"The same model again", "same"},
-              {"Another model", "model"}
-            ]}
-            value={@settings.meetings_second_reading}
-          />
-          <.input
-            field={@form[:meetings_second_model]}
-            label="Model for the second reading"
-            placeholder="Only used with “Another model”"
-            value={@settings.meetings_second_model}
-          />
-          <.input
-            field={@form[:meetings_relisten_model]}
-            label="Model to re-listen to unclear passages"
-            placeholder="Empty: re-listening is off. An audio-capable model, e.g. openai/gpt-4o-audio-preview"
-            value={@settings.meetings_relisten_model}
-          />
-        </fieldset>
-
-        <fieldset id="meetings-transcription" class="space-y-3">
-          <legend class="text-sm font-medium">Transcription</legend>
-          <p class="text-xs text-base-content/60">
-            Who turns a recording into words. Any OpenAI-compatible transcription endpoint works:
-            OpenRouter's, a local whisper server, a gateway. Recordings larger than it takes are
-            split (WAV always; other formats when ffmpeg is installed on this server).
-          </p>
-          <.input
-            field={@form[:meetings_transcription]}
-            type="select"
-            label="Transcribe with"
-            options={[
-              {"Nothing: a recording needs a transcript sent with it", "none"},
-              {"Each person's own AI settings (OpenRouter or their endpoint)", "provider"},
-              {"An endpoint of this server's", "endpoint"}
-            ]}
-            value={@settings.meetings_transcription}
-          />
-          <div class="grid gap-3 sm:grid-cols-3">
-            <.input
-              field={@form[:meetings_transcription_model]}
-              label="Model"
-              value={@settings.meetings_transcription_model}
-            />
-            <.input
-              field={@form[:meetings_transcription_url]}
-              type="url"
-              label="Endpoint"
-              placeholder="http://whisper.local:8000/v1"
-              value={@settings.meetings_transcription_url}
-            />
-            <.input
-              field={@form[:meetings_transcription_max_mb]}
-              type="number"
-              label="Largest file it takes (MB)"
-              value={@settings.meetings_transcription_max_mb}
-            />
-          </div>
-        </fieldset>
-
-        <fieldset id="meetings-voices" class="space-y-3">
-          <legend class="text-sm font-medium">Voices</legend>
-          <.input
-            field={@form[:meetings_diarisation]}
-            type="select"
-            label="Separate voices with"
-            options={[
-              {"The transcript's own speaker labels", "labels"},
-              {"A diarisation endpoint (for recordings)", "endpoint"}
-            ]}
-            value={@settings.meetings_diarisation}
-          />
-          <.input
-            field={@form[:meetings_diarisation_url]}
-            type="url"
-            label="Diarisation endpoint"
-            placeholder="http://diarise.local:8000/diarise"
-            value={@settings.meetings_diarisation_url}
-          />
-          <p class="text-xs text-base-content/60">
-            It is sent the recording and answers {"{\"segments\": [{\"start\", \"end\", \"speaker\"}]}"} in
-            seconds — a pyannote or WhisperX server fits.
-          </p>
-          <label class="flex cursor-pointer items-start gap-3 text-sm">
-            <input type="hidden" name="settings[meetings_dialogue_inference]" value="false" />
-            <input
-              type="checkbox"
-              name="settings[meetings_dialogue_inference]"
-              value="true"
-              checked={@settings.meetings_dialogue_inference}
-              class="checkbox mt-0.5"
-            />
-            <span>
-              <span class="block font-medium">Work out who is speaking from the dialogue</span>
-              <span class="block text-xs text-base-content/60">
-                Being addressed by name and then answering, introducing oneself. Every inference is
-                shown, and anything a finding depends on is asked.
-              </span>
-            </span>
-          </label>
-          <label class="flex cursor-pointer items-start gap-3 text-sm">
-            <input type="hidden" name="settings[meetings_voiceprints]" value="false" />
-            <input
-              type="checkbox"
-              name="settings[meetings_voiceprints]"
-              value="true"
-              checked={@settings.meetings_voiceprints}
-              class="checkbox mt-0.5"
-            />
-            <span>
-              <span class="block font-medium">Offer voiceprints</span>
-              <span class="block text-xs text-base-content/60">
-                Biometric data. Each person decides for themselves in their account, with their consent
-                recorded; nobody can enrol somebody else. Only the embedding is kept, never the audio,
-                and it is one signal among the others.
-              </span>
-            </span>
-          </label>
-          <.input
-            field={@form[:meetings_voiceprint_url]}
-            type="url"
-            label="Voiceprint endpoint"
-            placeholder="http://voice.local:8000/embed"
-            value={@settings.meetings_voiceprint_url}
-          />
-          <p class="text-xs text-base-content/60">
-            It is sent a recording (and the stretches to listen to, as {"\"segments\": [[start, end]]"} in
-            seconds) and answers {"{\"embedding\": [numbers]}"} — a SpeechBrain ECAPA or pyannote
-            embedding server fits.
-          </p>
-        </fieldset>
-
-        <fieldset id="meetings-limits" class="space-y-3">
-          <legend class="text-sm font-medium">Limits, per person per month</legend>
-          <p class="text-xs text-base-content/60">
-            Checked before anything is stored or sent to a provider. Transcription and reading on a
-            person's own AI key or endpoint don't count; stored audio always does.
-          </p>
-          <div
-            :for={
-              {switch, number, label} <- [
-                {:meetings_transcription_minutes_enabled, :meetings_transcription_minutes,
-                 "Transcription minutes"},
-                {:meetings_audio_storage_mb_enabled, :meetings_audio_storage_mb,
-                 "Stored meeting audio (MB)"},
-                {:meetings_transcript_captures_enabled, :meetings_transcript_captures,
-                 "Captures from transcripts"}
-              ]
-            }
-            class="flex items-end gap-3"
-          >
-            <label class="flex items-center gap-2 pb-2 text-sm">
-              <input type="hidden" name={"settings[#{switch}]"} value="false" />
-              <input
-                type="checkbox"
-                name={"settings[#{switch}]"}
-                value="true"
-                checked={Map.get(@settings, switch)}
-                class="checkbox"
-              /> {label}
-            </label>
-            <input
-              type="number"
-              min="0"
-              name={"settings[#{number}]"}
-              value={Map.get(@settings, number)}
-              class="input field w-28"
-              aria-label={label}
-            />
-          </div>
-          <div class="grid gap-3 sm:grid-cols-3">
-            <.input
-              field={@form[:meetings_longest_minutes]}
-              type="number"
-              label="Longest meeting (minutes)"
-              value={@settings.meetings_longest_minutes}
-            />
-            <.input
-              field={@form[:meetings_max_file_mb]}
-              type="number"
-              label="Largest recording (MB)"
-              value={@settings.meetings_max_file_mb}
-            />
-            <.input
-              field={@form[:meetings_audio_retention]}
-              type="select"
-              label="Keep recordings"
-              options={[
-                {"Until committed", "until_committed"},
-                {"30 days", "30_days"},
-                {"90 days", "90_days"}
-              ]}
-              value={@settings.meetings_audio_retention}
-            />
-          </div>
-        </fieldset>
-
-        <button type="submit" class="btn btn-primary btn-sm">Save</button>
-      </.form>
-    </section>
-
-    <section
-      id="meetings-usage"
-      class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
-    >
-      <h2 class="section-title">This month</h2>
-      <p class="mt-1 text-sm text-base-content/60">
-        What meeting capture has cost the server since {SlipdockWeb.Dates.short(@meetings_usage.month)}:
-        work on people's own keys is theirs and not counted here.
-      </p>
-      <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
-        <dt class="text-base-content/60">Transcription</dt>
-        <dd id="usage-minutes">{@meetings_usage.transcription_minutes} min</dd>
-        <dt class="text-base-content/60">Model tokens</dt>
-        <dd id="usage-tokens">{@meetings_usage.tokens}</dd>
-        <dt class="text-base-content/60">Cost reported</dt>
-        <dd id="usage-cost">${:erlang.float_to_binary(@meetings_usage.cost, decimals: 2)}</dd>
-        <dt class="text-base-content/60">Audio stored</dt>
-        <dd id="usage-audio">{div(@meetings_usage.audio_bytes, 1024 * 1024)} MB</dd>
-      </dl>
-      <table :if={@meetings_usage.heaviest != []} id="usage-heaviest" class="table table-sm mt-3">
-        <thead>
-          <tr>
-            <th>Heaviest users</th><th>Transcription</th><th>Tokens</th><th>Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr :for={h <- @meetings_usage.heaviest}>
-            <td>{h.name || h.email}</td>
-            <td>{div(round(h.transcription_seconds), 60)} min</td>
-            <td>{h.tokens}</td>
-            <td>${:erlang.float_to_binary(h.cost, decimals: 2)}</td>
-          </tr>
-        </tbody>
-      </table>
     </section>
     """
   end

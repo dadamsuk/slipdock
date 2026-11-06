@@ -1,6 +1,6 @@
 ---
 name: slipdock
-description: Read and write cards on the user's self-hosted Slipdock boards with the `slipdock` CLI. Use whenever the user mentions their kanban or Slipdock board, cards, lists/columns, tags, flags, or asks to add, move, complete, flag, tag, check off, comment on, archive, or look up tasks/cards. Also use to summarise what is on a board, what is overdue, blocked, or in progress, to set up or inspect board automations (rules that email, move, flag or alert by themselves) and the alerts they raise, to connect runners (coding agents on the user's own machines that the board sends cards to) and follow or cancel their jobs, to send a meeting's recording or transcript, or a conversation with an AI assistant, for capture, to tidy a board up (the gardener's suggestions: epics done but open, stale or duplicate cards, orphaned pages), and to read or write the wiki pages, docs, runbooks, specs and decision notes kept on a board.
+description: Read and write cards on the user's self-hosted Slipdock boards with the `slipdock` CLI. Use whenever the user mentions their kanban or Slipdock board, cards, lists/columns, tags, flags, or asks to add, move, complete, flag, tag, check off, comment on, archive, or look up tasks/cards. Also use to summarise what is on a board, what is overdue, blocked, or in progress, to set up or inspect board automations (rules that email, move, flag or alert by themselves) and the alerts they raise, to connect runners (coding agents on the user's own machines that the board sends cards to) and follow or cancel their jobs, to tidy a board up (the gardener's suggestions: epics done but open, stale or duplicate cards, orphaned pages), and to read or write the wiki pages, docs, runbooks, specs and decision notes kept on a board.
 ---
 
 # Slipdock CLI
@@ -512,16 +512,6 @@ slipdock tools file <name> <path> [--version V] [--out F]   # one file by its pa
 slipdock tools download <name> [--version V] [--out F|-] [--force]   # the whole package, <name>-<version>.tar.gz
 slipdock wiki files <board> [--folder F]      # the wiki's files that are not pages (a Tool's board files are in Tool/)
 slipdock wiki get <board> <path> [--out F|-]  # one of them by path (Tool/cv.docx): saved here, as F, or to stdout
-
-# Meeting capture, where the admin has turned meeting mode on (`slipdock meetings`).
-# The whole workflow, and its two rules, are the slipdock-capture skill.
-slipdock capture new <board> --transcript F [--audio F] [--title T] [--attendees A]
-slipdock capture show <id>                    # what it found, and the questions — ask the USER
-slipdock capture resolve <id> <q> <answer>    # only with the user's own answer
-slipdock capture preview <id> | commit <id> --preview D | undo <id>
-# Chat capture (on by default; no meeting mode needed): a conversation with
-# Claude or ChatGPT, as Name: text turns or an export, into the same review.
-slipdock capture-chat <board> chat.txt [--format chat|claude-export|chatgpt-export] [--conversation C] [--drop-transcript]
 ```
 
 **Run `slipdock automation-help` before writing a `--spec`** — it prints the exact vocabulary

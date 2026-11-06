@@ -129,7 +129,6 @@ What you get:
 | `slipdock-wiki` | The wiki: finding, reading, writing, linking, section writes. |
 | `slipdock-docs` | The harder half of the wiki — what is worth writing down, and where it goes. |
 | `slipdock-loop` | Working the ready list unattended, one card per pass, for `/loop` or a cron — watching the GitHub build after each push and never closing a card on a red one. |
-| `slipdock-capture` | Meeting capture, where an admin has it on: sending a recording or transcript, putting its questions to *you*, and committing only when you say. |
 
 ### In ChatGPT
 
@@ -201,14 +200,6 @@ with `card` (or `page`) and `link: true` answers with a single-use
 gives a `download_url` the same way. So a scheduled task or a shared skill
 needs no long-lived API token to move files
 ([details](manual.md#mcp-server)).
-
-While an admin has meeting mode on, and on for the person you work for,
-`capture_meeting` sends a meeting; while
-chat capture is on (the default), `capture_chat` sends the conversation you are
-in. With either on: `get_capture` to read, `resolve_capture_question` and
-`commit_capture` to write.
-An agent answers a capture's questions only with the person's own answers,
-and commits only when asked; see [the manual](manual.md#meeting-capture).
 
 Whatever the door, a card's `handoff` is where it was left: `get_card` puts it
 first, and an agent reads it before starting and leaves one (`leave_handoff`,
@@ -315,7 +306,7 @@ step, is a person's to apply, dismiss or undo: the API refuses an agent.
 It also offers prompts, ready-made workflows the client lists in its own menu
 (the **+** menu in the Claude apps, `/mcp__slipdock__<name>` in Claude Code),
 each rendered with live board data: `plan-my-day`, `weekly-review`, `triage`,
-`resume`, `leave-handoff`, `capture-this-chat` (while chat capture is on) and
+`resume`, `leave-handoff` and
 `tidy-board`. A `board` or `card` argument completes as the person types. A
 connector caches the list: after an upgrade that adds one, disconnect and
 connect again. ChatGPT's connectors don't show prompts. See

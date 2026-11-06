@@ -48,7 +48,6 @@ defmodule SlipdockWeb.PageFrameLiveTest do
     {"/overview", "Admin", "full"},
     {"/config", "Admin", "full"},
     {"/config/mail", "Admin", "full"},
-    {"/config/meetings", "Admin", "full"},
     {"/config/ai", "Admin", "full"},
     {"/admin/tools", "Admin", "full"}
   ]

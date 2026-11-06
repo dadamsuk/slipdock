@@ -36,7 +36,6 @@ defmodule SlipdockWeb.GeneratedNamesDocsTest do
 
   test "the manual and README name what's written" do
     manual = read("docs/manual.md")
-    assert manual =~ "*2026-10-07 Pricing sync*"
     refute manual =~ "*Decisions / Pricing sync · 7 Oct 2026*"
     assert manual =~ "`/runner/examples/passlog.sh`"
     assert manual =~ "`Weekly review 2026-11-02`"
