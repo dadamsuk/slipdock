@@ -21,11 +21,9 @@ defmodule SlipdockWeb.MCP.Tools.Share do
   @impl true
   def description,
     do:
-      "Shares a wiki page (code) or a folder (with its board) with a person by email or a group, " <>
-        "read, comment (read plus comment, status and vote; no edits) or write; a folder " <>
-        "shares everything in it. off = true takes it back. Neither " <>
-        "with nor group lists who has it. Only the board's writers share; a sharee gets " <>
-        "shared_no_reshare."
+      "Shares a wiki page (code) or a folder (with its board) with a person by email " <>
+        "or a group: read, comment (no edits) or write. off = true takes it back; " <>
+        "neither with nor group lists who has it. Only the board's writers share."
 
   @impl true
   def input_schema do
@@ -33,7 +31,10 @@ defmodule SlipdockWeb.MCP.Tools.Share do
       type: "object",
       properties: %{
         page: %{type: "string", description: "Page code like W-31 (or a slug with board)."},
-        folder: %{type: "string", description: "Folder name, path or id (with board)."},
+        folder: %{
+          type: "string",
+          description: "Folder name, path or id (with board); shares everything in it."
+        },
         board: %{type: "string", description: "The folder's (or slug's) board."},
         with: %{type: "string", description: "Email of the person to share with."},
         group: %{type: "string", description: "A group of yours, by name or id."},

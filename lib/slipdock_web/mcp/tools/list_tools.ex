@@ -30,15 +30,10 @@ defmodule SlipdockWeb.MCP.Tools.ListTools do
   @impl true
   def description,
     do:
-      "Tools on this server you can install (yours, shared, listed), each with the board " <>
-        "your install made. With tool: that Tool's board blueprint, skills and files. With " <>
-        "tool and file (a path in the package, like skills/<skill>/SKILL.md or " <>
-        "files/notes.md): that file's text, from the latest version unless version says. " <>
-        "With tool and skill: that skill's SKILL.md, or with file too, the file at that path " <>
-        "in the skill's folder (references/x.md). With a shell, link: true instead returns a " <>
-        "single-use download_url, good for 10 minutes and needing no token: for the file, " <>
-        "the skill's claude.ai zip, or with neither the skills .tar.gz. package: true " <>
-        "links the whole package (.tar.gz, every file at its path) instead."
+      "Installable Tools (yours, shared, listed). With tool: its blueprint, skills " <>
+        "and files; with file, its text. With tool and skill: that skill's SKILL.md. " <>
+        "link: true instead returns a single-use download_url; package: true links the " <>
+        "whole package."
 
   @impl true
   def input_schema do

@@ -25,10 +25,10 @@ defmodule SlipdockWeb.MCP.Tools.PageHistory do
   @impl true
   def description,
     do:
-      "A page's revisions, newest first: id, author, via, message, time. With rev, that " <>
-        "revision's body and the diff it made, or with against too, its diff from that other " <>
-        "revision; diff=true alone gives the latest save's diff. " <>
-        "revert_page puts a revision back."
+      "A page's revisions, newest first: id, author, via, message, time. With rev, " <>
+        "that revision's body and diff; with against too, its diff from that other " <>
+        "revision; diff=true alone, the latest save's diff. revert_page puts a revision " <>
+        "back."
 
   @impl true
   def input_schema do

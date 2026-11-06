@@ -17,9 +17,10 @@ defmodule SlipdockWeb.MCP.Tools.CommitCapture do
   @impl true
   def description,
     do:
-      "Writes a ready meeting capture to the board in one go — only when the person has asked you to. " <>
-        "Pass the preview digest from get_capture so exactly what they saw is written. Refused if a " <>
-        "question is open or a card it changes was edited since; undoable from the capture's page."
+      "Writes a ready meeting capture to the board in one go, only when the person " <>
+        "has asked you to. Pass get_capture's preview digest so exactly what they saw " <>
+        "is written. Refused if a question is open or a card it changes was edited " <>
+        "since; undoable."
 
   @impl true
   def input_schema do

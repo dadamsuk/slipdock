@@ -52,22 +52,10 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
   @impl true
   def description,
     do:
-      "Attaches a file (up to 10 MB) to a card, or to a wiki page. Bytes you write out " <>
-        "yourself as base64 go wrong above about 1 KB, so pick the path where they don't " <>
-        "pass through you. With a shell where the file is: card or page with link: true " <>
-        "returns a single-use upload_url, good for 10 minutes, and no token is needed to use " <>
-        "it: curl -F file=@a.docx -F sha256=<hex> <upload_url> (also takes filename, replace, " <>
-        "hide_on_card) answers with the attachment. A file in your wiki: wiki_file (its path " <>
-        "in the wiki, or its id), and the server copies it. Otherwise " <>
-        "text for a text file's contents, or content_base64 with sha256 (required: the hex " <>
-        "SHA-256 of the bytes before base64; a file that changed on the way is refused with " <>
-        "sha256_mismatch and not stored), anything over 1 KB in chunks: the first with " <>
-        "append: true (plus card or page, filename) and its own sha256 returns an upload_id; " <>
-        "each next chunk with upload_id, append: true, offset and its sha256 (a refused " <>
-        "chunk is resent on its own); then upload_id, finish: true and the whole file's " <>
-        "sha256, which makes the attachment. Returns the attachment, with the sha256 of the " <>
-        "bytes as stored, and markdown that embeds it. replace: true deletes older files of " <>
-        "the same name once this one is stored."
+      "Attaches a file (up to 10 MB) to a card or wiki page. Pick a way the bytes " <>
+        "don't pass through you: link: true gives a shell an upload_url; wiki_file " <>
+        "copies a wiki file. Else text, or content_base64 with sha256 (required), in " <>
+        "chunks over 1 KB."
 
   @impl true
   def input_schema do

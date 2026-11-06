@@ -20,10 +20,9 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
   @impl true
   def description,
     do:
-      "Takes the oldest job queued for a runner pool on a board, with a lease. Work the " <>
-        "card it names, report with job_progress between steps (the lease is 20 min; stop if it says " <>
-        "cancel), end with finish_job. Answers \"nothing queued\" when there is none, or why work is held. A job " <>
-        "sent again after a question was answered carries wait and handoff."
+      "Takes the oldest job queued for a runner pool on a board, with a 20-minute " <>
+        "lease. Work its card, report with job_progress between steps (stop if it says " <>
+        "cancel), end with finish_job. Says \"nothing queued\", or why work is held."
 
   @impl true
   def input_schema do

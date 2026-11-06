@@ -22,11 +22,9 @@ defmodule SlipdockWeb.MCP.Tools.GardenDecide do
   @impl true
   def description,
     do:
-      "Applies or dismisses one suggestion from garden. Apply only what the person has approved, " <>
-        "one by one; never apply a whole list on your own judgment. A dismissal is remembered and " <>
-        "the suggestion won't come back unless its subject changes. decision undo puts an applied " <>
-        "one back. keep: the card that stays, for a duplicate; choice: one of its alternatives " <>
-        "instead of the proposal. Needs confirm = true."
+      "Applies or dismisses one garden suggestion the person approved; never a list " <>
+        "on your own judgment. A dismissal sticks unless its subject changes; undo puts " <>
+        "an applied one back. keep and choice: see their fields. Needs confirm."
 
   @impl true
   def input_schema do

@@ -46,10 +46,10 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   @impl true
   def description,
     do:
-      "A file attached to a card or wiki page, by its attachment id (get_card and " <>
-        "read_page list them). Text comes back as text, an image as an image, anything " <>
-        "else (up to 5 MB) as base64. With a shell, link: true instead returns a single-use " <>
-        "download_url, good for 10 minutes and needing no token: curl -fsSo <name> <url>."
+      "A file attached to a card or wiki page, by attachment id (get_card and " <>
+        "read_page list them): text as text, an image as an image, else (up to 5 MB) " <>
+        "base64. With a shell, link: true returns a single-use download_url (10 " <>
+        "minutes, no token)."
 
   @impl true
   def input_schema do

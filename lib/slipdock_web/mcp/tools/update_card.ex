@@ -24,12 +24,9 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   @impl true
   def description,
     do:
-      "Changes a card: title, description, priority, dates, percent_complete, its cover " <>
-        "colour (color) and the colour of each edge (border_top/right/bottom/left), flags " <>
-        "(blocked, waiting, review), tags, assignees, the cards blocking it and its " <>
-        "checklist (item ids from get_card), and whether it repeats: recurrence " <>
-        "{rule: \"every mon\"} makes it a recurring card (null stops it), and whether it " <>
-        "is snoozed: snoozed_until hides it until then (null wakes it). Only what you " <>
+      "Changes a card: title, description, priority, dates, percent_complete, " <>
+        "colours, flags (blocked, waiting, review), tags, assignees, blockers, " <>
+        "checklist (item ids from get_card), recurrence, snoozed_until. Only what you " <>
         "pass changes."
 
   @impl true
