@@ -917,6 +917,7 @@ defmodule Slipdock.Runners do
 
     # A node on its way down hands out nothing: an answer the endpoint drops
     # would leave the job leased to nobody until the lease runs out.
+    asked(runner)
     first = if ClaimDrain.draining?(), do: :draining, else: try_claim(runner)
 
     case first do
@@ -926,7 +927,8 @@ defmodule Slipdock.Runners do
 
         try do
           # Looked at after subscribing, so a drain in between isn't missed.
-          if not ClaimDrain.draining?(), do: wait_for_job(runner, deadline)
+          if not ClaimDrain.draining?(),
+            do: runner |> wait_for_job(deadline) |> asked_if_empty(runner)
         after
           Phoenix.PubSub.unsubscribe(@pubsub, topic)
           ClaimDrain.unsubscribe()
@@ -939,6 +941,20 @@ defmodule Slipdock.Runners do
         result
     end
   end
+
+  # When `runner` last asked for a job (#1849): the health monitor's sign
+  # that it takes work beside the job it holds.
+  defp asked(runner) do
+    Repo.update_all(from(r in Runner, where: r.id == ^runner.id), set: [asked_at: now()])
+  end
+
+  # A wait that ended empty was asking all along: said again at its end.
+  defp asked_if_empty(nil, runner) do
+    asked(runner)
+    nil
+  end
+
+  defp asked_if_empty(job, _runner), do: job
 
   @doc "True when this node is stopping, and so answering claims with nothing at once."
   defdelegate draining?, to: ClaimDrain

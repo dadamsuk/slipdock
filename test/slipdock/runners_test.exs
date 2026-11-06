@@ -255,6 +255,29 @@ defmodule Slipdock.RunnersTest do
       assert Runners.claim(ctx.runner) == nil
     end
 
+    # #1849: the health monitor tells a runner that takes more work beside
+    # the job it holds from a busy one by when it last asked.
+    test "says when the runner asked, with a job to hand or without", ctx do
+      assert Repo.get!(Runner, ctx.runner.id).asked_at == nil
+      {:ok, _} = queue(ctx.card)
+      before = DateTime.utc_now(:second)
+
+      assert %Job{} = Runners.claim(ctx.runner)
+      asked = Repo.get!(Runner, ctx.runner.id).asked_at
+      assert DateTime.compare(asked, before) != :lt
+
+      Repo.update_all(from(r in Runner, where: r.id == ^ctx.runner.id), set: [asked_at: nil])
+      assert Runners.claim(ctx.runner) == nil
+      assert %DateTime{} = Repo.get!(Runner, ctx.runner.id).asked_at
+    end
+
+    test "a wait that ends empty says the runner asked again at its end", ctx do
+      started = DateTime.utc_now(:second)
+      assert Runners.claim(ctx.runner, 1_100) == nil
+      asked = Repo.get!(Runner, ctx.runner.id).asked_at
+      assert DateTime.diff(asked, started) >= 1
+    end
+
     test "two runners asking at once never get the same job", ctx do
       {:ok, job} = queue(ctx.card)
       {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "other", "pool" => "dev"})

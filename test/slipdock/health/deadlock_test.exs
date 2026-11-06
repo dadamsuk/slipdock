@@ -176,7 +176,10 @@ defmodule Slipdock.Health.DeadlockTest do
     assert {:ok, %{"found" => 0}} = run(ctx.board)
   end
 
-  test "a cycle through a claimed job is flagged, not fixed", ctx do
+  # #1849, incident #2: the pass on an epic waits for its subcard to merge,
+  # the subcard for its merge job, and the merge for the one runner taking
+  # merges, which holds the pass.
+  defp merge_shape(ctx, runner_attrs) do
     {:ok, t} = Boards.find_template(nil, "Simple")
     epic = card_fixture(ctx.doing, %{"title" => "Epic"})
     {:ok, sub} = sub_board(epic, t)
@@ -190,18 +193,30 @@ defmodule Slipdock.Health.DeadlockTest do
       job(epic,
         status: "running",
         attempts: 1,
+        runner_id: runner.id,
+        claimed_at: ago(40),
         lease_expires_at: DateTime.add(DateTime.utc_now(:second), 600)
       )
 
     merge = job(merging, kind: "merge", board_id: sub.id, root_board_id: ctx.board.id)
 
     Repo.update_all(from(r in Runner, where: r.id == ^runner.id),
-      set: [
-        last_seen_at: DateTime.utc_now(:second),
-        current_job_id: pass.id,
-        kinds: ["claude", "merge"]
-      ]
+      set:
+        [
+          last_seen_at: DateTime.utc_now(:second),
+          current_job_id: pass.id,
+          kinds: ["claude", "merge"]
+        ] ++ runner_attrs
     )
+
+    %{epic: epic, merging: merging, runner: runner, pass: pass, merge: merge, sub: sub}
+  end
+
+  defp ago(minutes), do: DateTime.add(DateTime.utc_now(:second), -minutes * 60)
+
+  test "a cycle through a claimed job is flagged, not fixed", ctx do
+    # A runner that never said when it asked for work counts as busy.
+    %{epic: epic, merging: merging, pass: pass, merge: merge} = merge_shape(ctx, [])
 
     assert [f] = detect(ctx.board)
 
@@ -217,6 +232,64 @@ defmodule Slipdock.Health.DeadlockTest do
     assert Repo.get!(Job, merge.id).status == "queued"
     assert "stuck" in card!(epic).flags
     assert "stuck" in card!(merging).flags
+  end
+
+  test "a runner asking for work after claiming the pass takes the merge: no deadlock", ctx do
+    merge_shape(ctx, asked_at: ago(1))
+
+    assert detect(ctx.board) == []
+    assert {:ok, %{"found" => 0}} = run(ctx.board)
+  end
+
+  test "a runner that last asked before claiming the pass is busy with it", ctx do
+    %{pass: pass, merge: merge} = merge_shape(ctx, asked_at: ago(41))
+
+    assert [f] = detect(ctx.board)
+    assert f.summary =~ "merge job ##{merge.id} waits for runner loop, busy with job ##{pass.id}"
+  end
+
+  test "a second claim overwriting current_job_id leaves the runner busy with both", ctx do
+    %{pass: pass, merge: merge, runner: runner, sub: sub} = merge_shape(ctx, asked_at: ago(30))
+
+    # It asked after the pass (so it takes more) and was handed a verify job,
+    # which overwrote `current_job_id`; it hasn't asked since.
+    other = card_fixture(hd(sub.columns), %{"title" => "Other"})
+
+    verify =
+      job(other,
+        kind: "verify",
+        board_id: sub.id,
+        root_board_id: ctx.board.id,
+        status: "running",
+        runner_id: runner.id,
+        claimed_at: ago(29),
+        lease_expires_at: DateTime.add(DateTime.utc_now(:second), 600)
+      )
+
+    Repo.update_all(from(r in Runner, where: r.id == ^runner.id),
+      set: [current_job_id: verify.id]
+    )
+
+    assert [f] = detect(ctx.board)
+    assert f.summary =~ "merge job ##{merge.id} waits for runner loop, busy with job ##{pass.id}"
+
+    # The verify job is no part of the cycle, but the merge waits on it too.
+    waits = Deadlock.graph(Context.new(ctx.board))[{:job, merge.id}]
+
+    assert {{:job, verify.id},
+            "merge job ##{merge.id} waits for runner loop, busy with job ##{verify.id}"} in waits
+  end
+
+  test "one free merge runner beside a busy one: no deadlock", ctx do
+    merge_shape(ctx, [])
+
+    {:ok, free, _} = Runners.create_runner(ctx.board, %{"name" => "spare", "pool" => "loop"})
+
+    Repo.update_all(from(r in Runner, where: r.id == ^free.id),
+      set: [last_seen_at: DateTime.utc_now(:second), kinds: ["merge"]]
+    )
+
+    assert detect(ctx.board) == []
   end
 
   test "found by the monitor" do
