@@ -100,7 +100,9 @@ whole card before touching it.
   pending: don't move it to Done yourself. A rejected card comes back with
   its reason in the comment, the job's prompt and `get_card`'s `rejection`
   (the handoff says `Rework: …`): read that reason first, since it is the
-  next brief. Verifying someone else's card (never your own) means checking
+  next brief. Its new evidence names the rejected commit and what changed
+  since: the verifier judges the failed parts and what the new commits
+  touch, and carries the rest (*carried from <sha>*). Verifying someone else's card (never your own) means checking
   out the evidence's commit in a clean tree, running the suite (on a pull
   request board, checking its CI passed at that commit instead), judging it
   against the bar, then `slipdock accept <id>` or `slipdock reject <id>

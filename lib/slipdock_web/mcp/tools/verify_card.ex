@@ -50,7 +50,8 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
           items: %{type: "string"},
           description:
             "The verdict in parts, one each: ask=ok|misses, bar:2=ok|fail[:why], " <>
-              "suite=412:0, rule:UX-4=ok|broken|n/a[:why], handbook_line=ok|disputed."
+              "suite=412:0, rule:UX-4=ok|broken|n/a[:why], handbook_line=ok|disputed; " <>
+              "on a resubmission, =carried for a part passed before."
         }
       },
       required: ["card", "decision"],

@@ -72,7 +72,7 @@ defmodule Slipdock.VerifiedChecksTest do
       assert {:error, msg} = Checks.parse(["rule=ok"])
       assert msg =~ "`rule:<id>=…`"
       assert {:error, msg} = Checks.parse(["bar:1=maybe"])
-      assert msg =~ "check `bar` is ok, fail, not `maybe`"
+      assert msg =~ "check `bar` is ok, fail, carried, not `maybe`"
       assert {:error, msg} = Checks.parse(["suite=lots"])
       assert msg =~ "`suite=<passed>:<failed>`"
       assert {:error, msg} = Checks.parse(["vibes=ok"])

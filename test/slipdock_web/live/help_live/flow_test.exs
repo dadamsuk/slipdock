@@ -123,6 +123,19 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     end
 
     @tag :anonymous
+    test "says a resubmission is judged on what changed, the rest carried (#1944)", %{
+      conn: conn
+    } do
+      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+
+      text =
+        doc(html) |> texts("#flow-verifying") |> Enum.join(" ") |> String.replace(~r/\s+/, " ")
+
+      assert text =~ "Submitted again, it is judged on what failed and what the new commits touch"
+      assert text =~ "shown as carried from the commit it passed at"
+    end
+
+    @tag :anonymous
     test "marks every point where a person must act", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
       d = doc(html)

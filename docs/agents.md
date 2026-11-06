@@ -627,7 +627,14 @@ Handbook line), given as `checks` to `verify_card` or `POST
 an acceptance with a broken `must` rule (or any other failing part) is
 refused. The card panel and `slipdock card` list the parts under
 Verification; a later decision replaces them, and each decision's comment
-keeps its own. A board's `verify_rejection_limit` (2 by default, 0 never;
+keeps its own. A card resubmitted after a rejection is judged on what
+changed: the verify prompt carries the last verdict and the commit it judged,
+the verifier judges the parts that failed and any part the commits since touch
+(`git diff --name-only <then> <now>`), and a part that passed then and isn't
+judged again (`--check bar:1=carried`, or left out) is carried, shown as
+*carried from <sha>*. A failed part can't be carried; an audit carries
+nothing. The builder's resubmission evidence names the rejected commit and
+what changed since. A board's `verify_rejection_limit` (2 by default, 0 never;
 `slipdock set-board --verify-rejection-limit`) sends the rejection after that
 many to a person: a wait on the board's owner, *Rework as rejected* or
 *Accept as is*, with the card flagged `waiting` so runners pass it over. An

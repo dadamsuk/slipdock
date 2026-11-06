@@ -745,6 +745,18 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   missed `should` rule. The parts are kept on the card (`verify_checks`),
   listed under its verification block and in `slipdock card`, and written
   into the decision's comment. A later decision replaces them.
+- **A resubmission is judged on what changed.** When a rejected card is
+  submitted again, its verify job's prompt carries the last verdict and
+  the commit it judged. The verifier judges the parts that failed and any
+  part the commits since touch, and carries the rest: a part that passed
+  then and isn't judged again (`--check bar:1=carried`, or left out) is
+  kept, shown as *carried from abc1234* on the card and in `slipdock card`.
+  A part that failed can't be carried, and an acceptance is still refused
+  when a part it judges fails. The verifier is told not to raise a passed
+  or fixed part again, to flag a class of problem once, and to say what
+  changed since the last rejection. So the builder's new evidence names the
+  rejected commit and what changed since. An audit judges every part and
+  carries nothing.
 - **Too many rejections go to a person.** **Rejections before a person
   decides** (`slipdock set-board B --verify-rejection-limit 2`, `PATCH
   /api/boards/:board {"verify_rejection_limit": 2}`; 2 by default, 0 never)
