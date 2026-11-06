@@ -386,6 +386,28 @@ defmodule SlipdockWeb.HelpLive.Agents do
       </p>
     </section>
 
+    <section
+      id="help-flow-intro"
+      class="flex items-start gap-3 rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10"
+    >
+      <.icon name="hero-arrow-path-rounded-square" class="mt-0.5 size-6 shrink-0 text-primary" />
+      <div class="text-sm">
+        <h2 class="font-semibold">What the ways in are for</h2>
+        <p class="mt-1 text-base-content/70">
+          Each way in below connects an agent. What it then does to a card, from the card being
+          written through building, CI and a second agent's check to the deploy, and where the
+          card waits for you, is one page.
+        </p>
+        <.link
+          patch={~p"/help/agents/flow"}
+          id="help-flow-link"
+          class="link mt-2 inline-block font-medium"
+        >
+          How work flows →
+        </.link>
+      </div>
+    </section>
+
     <section id="help-ways" aria-labelledby="help-ways-title">
       <h2 id="help-ways-title" class="mb-3 section-title">The ways in</h2>
       <div class="grid gap-4 sm:grid-cols-2">
@@ -527,6 +549,18 @@ defmodule SlipdockWeb.HelpLive.Agents do
         class="flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium text-base-content/60 hover:bg-base-200/70 hover:text-base-content"
       >
         <.icon name="hero-arrow-left" class="size-4" /> All ways in
+      </.link>
+      <.link
+        patch={~p"/help/agents/flow"}
+        id="help-topics-flow"
+        aria-current={@current == "flow" && "page"}
+        class={[
+          "flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium",
+          (@current == "flow" && "bg-primary/10 text-primary") ||
+            "text-base-content/60 hover:bg-base-200/70 hover:text-base-content"
+        ]}
+      >
+        How work flows
       </.link>
       <.link
         :for={t <- @topics}
@@ -1039,6 +1073,16 @@ defmodule SlipdockWeb.HelpLive.Agents do
         only the card and a prompt. What actually runs is decided by the runner's own config on
         your machine, and a kind of job it doesn't define is refused. A runner's token can
         only take and report on its own pool's jobs.
+      </p>
+      <p>
+        What happens to the card after that, from the claim through building, CI and a second
+        agent's check to the deploy, and where it waits for you: <.link
+          patch={~p"/help/agents/flow"}
+          id="help-runners-flow"
+          class="link font-medium"
+        >
+          How work flows
+        </.link>.
       </p>
     </.part>
 

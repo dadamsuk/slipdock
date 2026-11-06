@@ -600,6 +600,10 @@ between servers carry every handoff, signed by whoever imports them.
 
 ## Verified work
 
+How this fits with runners, lanes, CI and the handbook, one card from being
+written to the deploy, with who acts at each stage and where it waits for a
+person, is the help page **How work flows** (`/help/agents/flow`).
+
 A board can check what an agent says it finished. Each check is a switch
 under **Verified work** in the board's settings, off by default; with all of
 them off the board behaves as it always has. The checks apply to agents (MCP,
@@ -3482,7 +3486,9 @@ deliveries inline (`async: false`, as the tests do).
 A rule's **Send to runner** action (`runner` in a spec) sends a card to a
 coding agent on a machine of your own. It queues a **job** for a **pool**
 of runners; a runner of that pool, on the same board tree, takes it, runs
-the agent, and reports how it went.
+the agent, and reports how it went. What happens to the card after that,
+through verification and CI to the deploy, is the help page **How work
+flows** (`/help/agents/flow`).
 
 ```json
 {"type": "runner", "pool": "default", "kind": "claude",

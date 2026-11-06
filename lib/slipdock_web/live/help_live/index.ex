@@ -11,13 +11,16 @@ defmodule SlipdockWeb.HelpLive.Index do
       (`SlipdockWeb.HelpLive.CLIReference`). Under the CLI's topic, because it
       is part of that way in; a path of its own, so it can be linked and
       bookmarked like any other page.
+    * `/help/agents/flow` — how a card flows through runners, verifiers and CI
+      to a deploy (`SlipdockWeb.HelpLive.Flow`): not a way in, so not a topic,
+      but beside them.
 
   The agent topics lived at `/help/:topic` first; those addresses still work,
   and redirect to where the topic is now.
   """
   use SlipdockWeb, :live_view
 
-  alias SlipdockWeb.HelpLive.{Agents, CLIReference, Guides}
+  alias SlipdockWeb.HelpLive.{Agents, CLIReference, Flow, Guides}
 
   @agent_slugs Agents.slugs()
   @guide_slugs Guides.slugs()
@@ -48,6 +51,9 @@ defmodule SlipdockWeb.HelpLive.Index do
 
   defp apply_action(socket, :cli_reference, _params),
     do: assign(socket, section: nil, topic: nil, page_title: "CLI command reference · Help")
+
+  defp apply_action(socket, :flow, _params),
+    do: assign(socket, section: nil, topic: nil, page_title: "How work flows · Help")
 
   defp apply_action(socket, :agent_topic, %{"topic" => slug}) when slug in @agent_slugs do
     topic = Enum.find(socket.assigns.topics, &(&1.slug == slug))
@@ -95,7 +101,7 @@ defmodule SlipdockWeb.HelpLive.Index do
             :if={@live_action != :index}
             sections={@sections}
             section={@section}
-            agents?={@live_action in [:agents, :agent_topic, :cli_reference]}
+            agents?={@live_action in [:agents, :agent_topic, :cli_reference, :flow]}
           />
 
           <article :if={@section} id={"help-section-#{@section.slug}"} class="space-y-6">
@@ -125,6 +131,8 @@ defmodule SlipdockWeb.HelpLive.Index do
             base_url={@base_url}
             current_user={@current_user}
           />
+
+          <Flow.page :if={@live_action == :flow} topics={@topics} />
 
           <Agents.topic_nav :if={@live_action == :cli_reference} topics={@topics} current="cli" />
           <CLIReference.page
@@ -186,6 +194,11 @@ defmodule SlipdockWeb.HelpLive.Index do
           <li>
             <.link patch={~p"/help/agents"} id="help-hub-agents-summary" class="link font-medium">
               Summary: every way in, side by side
+            </.link>
+          </li>
+          <li>
+            <.link patch={~p"/help/agents/flow"} id="help-hub-agents-flow" class="link">
+              How work flows: a card from idea to deploy
             </.link>
           </li>
           <li :for={t <- Agents.topics()}>
