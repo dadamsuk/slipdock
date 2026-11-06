@@ -281,7 +281,7 @@ duplicates, orphaned pages, mistyped links, and on a handbook board long
 sections, broad `covers:`, `must` rules left to `judgement`, duplicate rule ids
 and decisions that don't link back to the one they supersede — and proposes
 fixes that a person approves. `garden` lists a board's open suggestions (`run: true` looks it over
-first), and `garden_decide` applies, dismisses or undoes one with
+first, which is a write: a read-only token can list but not run), and `garden_decide` applies, dismisses or undoes one with
 `confirm: true`. Show the person the suggestions and apply only what they
 approve; never dismiss one on your own judgment, since a dismissal is
 remembered. The CLI is `slipdock garden <board> [--run]` and `slipdock garden

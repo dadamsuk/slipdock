@@ -786,6 +786,18 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     def call(_args, _context), do: {:ok, %{wrote: true}}
   end
 
+  # Writes only when asked to, as garden does with run: true.
+  defmodule SometimesWrites do
+    @behaviour SlipdockWeb.MCP.Tool
+    def name, do: "sometimes_writes"
+    def title, do: "Sometimes writes"
+    def description, do: "Writes with write: true."
+    def input_schema, do: %{type: "object"}
+    def read_only?, do: false
+    def writes?(args), do: args["write"] == true
+    def call(args, _context), do: {:ok, %{wrote: args["write"] == true}}
+  end
+
   defmodule Strict do
     @behaviour SlipdockWeb.MCP.Tool
     def name, do: "strict"
@@ -817,6 +829,21 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       assert message =~ "read-only"
       assert message =~ "Don't retry"
       assert {:ok, %{wrote: true}} = SlipdockWeb.MCP.Tools.call(Writes, %{}, write)
+    end
+
+    test "a tool with writes?/1 refuses a read-only token only the calls that write", ctx do
+      read = %{user: ctx.user, token: %{scope: "read"}, base_url: ""}
+      write = %{user: ctx.user, token: %{scope: "write"}, base_url: ""}
+
+      assert {:ok, %{wrote: false}} = SlipdockWeb.MCP.Tools.call(SometimesWrites, %{}, read)
+
+      assert {:error, message} =
+               SlipdockWeb.MCP.Tools.call(SometimesWrites, %{"write" => true}, read)
+
+      assert message =~ "read-only"
+
+      assert {:ok, %{wrote: true}} =
+               SlipdockWeb.MCP.Tools.call(SometimesWrites, %{"write" => true}, write)
     end
 
     test "additionalProperties: false refuses an argument the schema doesn't name", ctx do

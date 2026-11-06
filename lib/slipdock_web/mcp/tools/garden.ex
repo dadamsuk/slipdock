@@ -3,6 +3,11 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
   The board gardener's open suggestions, as `GET /api/boards/:board/garden`
   gives them; `run: true` looks the board over first, as `POST` does, which
   needs write access (W-1807).
+
+  So the tool as a whole is not read-only, and `tools/list` says so: a client
+  that trusted a `readOnlyHint` would run the gardener, which records a run
+  and files suggestions, without asking (#1868). A listing changes nothing,
+  though, so a read-only token may still make one (`writes?/1`).
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -24,7 +29,7 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
     do:
       "The board gardener's open tidy-up suggestions (epics done but open, stuck or " <>
         "stale cards, likely duplicates, orphaned pages, broken [[links]]), each with " <>
-        "why and its steps. run: true looks again first. Show the person, then " <>
+        "why and its steps. run: true looks again first (a write). Show the person, then " <>
         "garden_decide."
 
   @impl true
@@ -49,7 +54,10 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
   end
 
   @impl true
-  def read_only?, do: true
+  def read_only?, do: false
+
+  @impl true
+  def writes?(args), do: Args.boolean(args, "run", false) == {:ok, true}
 
   @impl true
   def call(args, context) do

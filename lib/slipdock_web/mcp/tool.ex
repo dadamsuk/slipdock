@@ -21,11 +21,20 @@ defmodule SlipdockWeb.MCP.Tool do
   @callback title() :: String.t()
   @callback description() :: String.t()
   @callback input_schema() :: map()
-  @doc "`true` for a tool that changes nothing. A read-scope token may call only these."
+  @doc """
+  `true` for a tool that changes nothing whatever it is called with: it is
+  what `tools/list` tells the client (`readOnlyHint`), so a tool that writes
+  only for some arguments is `false` here and says which in `writes?/1`.
+  """
   @callback read_only?() :: boolean()
+  @doc """
+  Whether this call, with these arguments, changes anything: a read-scope
+  token may make only the calls that don't. Left out, `not read_only?()`.
+  """
+  @callback writes?(args :: map()) :: boolean()
   @doc "`true` for a write that can overwrite what is there. Left out, false."
   @callback destructive?() :: boolean()
-  @optional_callbacks destructive?: 0
+  @optional_callbacks destructive?: 0, writes?: 1
   @callback call(args :: map(), context()) ::
               {:ok, term()} | {:ok, map(), [map()]} | {:error, String.t()}
 end
