@@ -81,8 +81,9 @@ defmodule SlipdockCLI.Findings do
     status = if f["status"] == "open", do: "", else: " [#{f["status"]}]"
     note = if blank?(f["note"]), do: "", else: " — #{f["note"]}"
     into = if f["merged_into_id"], do: " → ##{f["merged_into_id"]}", else: ""
+    proposal = proposal(f)
 
-    "##{f["id"]}#{status} #{f["kind"]}#{runner} (#{f["source"]}#{card}#{also})#{count}: #{f["text"]}#{into}#{note}"
+    "##{f["id"]}#{status} #{f["kind"]}#{runner} (#{f["source"]}#{card}#{also})#{count}: #{f["text"]}#{into}#{proposal}#{note}"
   end
 
   # The other cards a lesson was said on, merged into this one (#1941).
@@ -103,6 +104,14 @@ defmodule SlipdockCLI.Findings do
   end
 
   defp runner(_f), do: ""
+
+  # The garden proposal drafted for it once it was seen often enough (#1942).
+  defp proposal(%{"proposal_id" => id} = f) when is_integer(id) do
+    rule = if blank?(f["proposed_rule"]), do: "", else: " #{f["proposed_rule"]}"
+    " [proposal ##{id}#{rule}]"
+  end
+
+  defp proposal(_f), do: ""
 
   defp blank?(v) when v in [nil, ""], do: true
   defp blank?(_), do: false

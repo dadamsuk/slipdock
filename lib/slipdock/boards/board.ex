@@ -114,6 +114,9 @@ defmodule Slipdock.Boards.Board do
     # Spot-checks (#1780): about 1 in N cards an agent accepted is queued
     # again for the verify pool as an audit. 0 audits none.
     field :verify_audit, :integer, default: 0
+    # A finding counted this many times gets a garden proposal drafted for
+    # it (#1942, `Slipdock.Findings.Promote`). 0 is off.
+    field :findings_propose_at, :integer, default: 3
     # How the board's verified work reaches the default branch (#1654):
     # "push" (the builder pushes it) or "pull_request" (the builder opens a
     # pull request, and accepting the card queues a merge job). pull_request
@@ -526,6 +529,7 @@ defmodule Slipdock.Boards.Board do
       :verify_pool,
       :verify_rejection_limit,
       :verify_audit,
+      :findings_propose_at,
       :ship_via,
       :kind,
       :default_view
@@ -555,6 +559,12 @@ defmodule Slipdock.Boards.Board do
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 1000,
       message: "must be 0 (no audits) or N, to audit 1 in N accepted cards (at most 1000)"
+    )
+    |> validate_number(:findings_propose_at,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 100,
+      message:
+        "must be 0 (never) or how many times a finding is seen before it is proposed (at most 100)"
     )
     |> put_ship_via()
     |> update_change(:handoff_label, &trim_to_nil/1)

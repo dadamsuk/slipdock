@@ -1100,6 +1100,8 @@ defmodule SlipdockCLI.Boards do
         "verify_rejection_limit" => o[:verify_rejection_limit],
         # Audit 1 in N cards an agent accepted (#1780); 0 none.
         "verify_audit" => o[:verify_audit],
+        # A finding seen N times is drafted as a proposal (#1942); 0 never.
+        "findings_propose_at" => o[:findings_propose_at],
         # How accepted work ships (#1654): push, or pull-request.
         "ship_via" => o[:ship_via] && String.replace(o[:ship_via], "-", "_"),
         # Lanes (#1628): agents can't start cards whose paths overlap.

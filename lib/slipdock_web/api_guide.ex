@@ -3302,6 +3302,15 @@ defmodule SlipdockWeb.APIGuide do
     or `merge --into <id>` (`PATCH /api/findings/:id {action, note, into}`,
     write access) triages one. A card's `findings` (in `get_card` and
     `GET /api/cards/:id`) counts its open ones.
+
+    A finding counted to the board's `findings_propose_at` (3 by default, 0
+    off; `update_board`, `PATCH /api/boards/:board`, `slipdock set-board
+    --findings-propose-at N`) is drafted by the server as a garden proposal
+    for a person: a rule on the `## Rules` of the handbook page covering its
+    cards' paths (else Specification), `must` citing a check the finding
+    names, else `should`. A finding shows it as `proposal_id` and
+    `proposed_rule`, never has two open, and is `promoted` when a person
+    applies it. Don't file one by hand for a finding that has one.
     """
   end
 

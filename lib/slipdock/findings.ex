@@ -24,7 +24,7 @@ defmodule Slipdock.Findings do
 
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Comment}
-  alias Slipdock.Findings.{Block, Finding, Lesson}
+  alias Slipdock.Findings.{Block, Finding, Lesson, Promote}
   alias Slipdock.Repo
   alias Slipdock.Runners.Job
 
@@ -63,7 +63,15 @@ defmodule Slipdock.Findings do
           Enum.flat_map(items, &keep_item(&1, at))
       end
     end)
+    |> tap_ok(&Promote.consider/1)
   end
+
+  defp tap_ok({:ok, value} = result, fun) do
+    fun.(value)
+    result
+  end
+
+  defp tap_ok(other, _fun), do: other
 
   defp keep_item(item, at) do
     item = %{item | text: String.slice(item.text, 0, Finding.max_text())}
@@ -256,6 +264,7 @@ defmodule Slipdock.Findings do
       finding ->
         count_repeat(finding, attrs)
     end
+    |> tap_ok(&Promote.consider/1)
   end
 
   defp insert_signal(attrs, cause) do
@@ -460,6 +469,7 @@ defmodule Slipdock.Findings do
       end)
 
     unless dry?, do: Enum.each(across, &fold(&1, :tree))
+    unless dry?, do: Promote.consider(Enum.map(same_card ++ across, fn {_, into} -> into.id end))
     same_card ++ across
   end
 
@@ -548,11 +558,20 @@ defmodule Slipdock.Findings do
     note = params["note"] || params[:note]
 
     case action do
-      "dismiss" -> set(finding, "dismissed", note)
-      "promote" -> set(finding, "promoted", note)
-      "reopen" -> reopen(finding)
-      "merge" -> merge(finding, params["into"] || params[:into], note)
-      other -> {:error, "unknown change #{inspect(other)}: dismiss, promote, merge or reopen"}
+      "dismiss" ->
+        set(finding, "dismissed", note)
+
+      "promote" ->
+        set(finding, "promoted", note)
+
+      "reopen" ->
+        finding |> reopen() |> tap_ok(&Promote.consider/1)
+
+      "merge" ->
+        finding |> merge(params["into"] || params[:into], note) |> tap_ok(&Promote.consider/1)
+
+      other ->
+        {:error, "unknown change #{inspect(other)}: dismiss, promote, merge or reopen"}
     end
   end
 

@@ -24,6 +24,9 @@ defmodule Slipdock.Findings.Finding do
       default list
     * `cards` (virtual) – set by `Slipdock.Findings.list/2`: its own card and
       the cards of the findings merged into it
+    * `proposal` – the garden proposal drafted for it once its count reached
+      the board's `findings_propose_at` (#1942), with `proposed_rule` (the
+      rule id it proposes) and `proposed_at_count` (its count then)
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -54,6 +57,9 @@ defmodule Slipdock.Findings.Finding do
     belongs_to :job, Slipdock.Runners.Job
     belongs_to :user, Slipdock.Accounts.User
     belongs_to :runner, Slipdock.Runners.Runner
+    belongs_to :proposal, Slipdock.Gardener.Suggestion
+    field :proposed_rule, :string
+    field :proposed_at_count, :integer
     belongs_to :merged_into, __MODULE__
 
     timestamps(type: :utc_datetime)

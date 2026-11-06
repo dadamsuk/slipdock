@@ -262,6 +262,7 @@ defmodule Slipdock.Gardener do
       )
       |> Repo.update()
       |> tap_ok(&broadcast/1)
+      |> tap_ok(&Slipdock.Findings.Promote.decided(&1, :applied))
     end
   end
 
@@ -281,6 +282,7 @@ defmodule Slipdock.Gardener do
       )
       |> Repo.update()
       |> tap_ok(&broadcast/1)
+      |> tap_ok(&Slipdock.Findings.Promote.decided(&1, :dismissed))
     end
   end
 
@@ -304,6 +306,7 @@ defmodule Slipdock.Gardener do
       |> Ecto.Changeset.change(state: "open", decided_by_id: nil, decided_at: nil, undo: nil)
       |> Repo.update()
       |> tap_ok(&broadcast/1)
+      |> tap_ok(&Slipdock.Findings.Promote.decided(&1, :undone))
     end
   end
 
@@ -354,8 +357,13 @@ defmodule Slipdock.Gardener do
   `{:ok, suggestion, :new}`; `{:ok, suggestion, :exists}` when the same
   proposal is open, applied or dismissed already (a dismissal is
   remembered); or `{:error, :forbidden}` / `{:error, sentence}`.
+
+  `round:` (an option) is part of what makes it the same proposal: the
+  server's promotion of a finding (`Slipdock.Findings.Promote`) passes the
+  finding and its count, so a draft dismissed once can be filed again when
+  the finding has been seen more since.
   """
-  def propose(%Board{} = board, user, attrs, _opts \\ []) do
+  def propose(%Board{} = board, user, attrs, opts \\ []) do
     board = Slipdock.Handbook.root(board)
 
     attrs = Map.new(attrs || %{}, fn {k, v} -> {to_string(k), v} end)
@@ -370,7 +378,8 @@ defmodule Slipdock.Gardener do
       step_cards = steps |> Steps.touched_card_ids() |> Enum.uniq()
       subject = %{"cards" => Enum.uniq(step_cards ++ cards), "pages" => pages}
       subject = if findings == [], do: subject, else: Map.put(subject, "findings", findings)
-      fp = fingerprint(@proposal, %{subject: subject, state: steps})
+      state = if opts[:round], do: {steps, opts[:round]}, else: steps
+      fp = fingerprint(@proposal, %{subject: subject, state: state})
 
       case filed(board.id, fp) do
         %Suggestion{} = existing -> {:ok, existing, :exists}

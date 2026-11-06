@@ -130,6 +130,8 @@ defmodule SlipdockWeb.API.JSON do
       verify_pool: b.verify_pool,
       verify_rejection_limit: b.verify_rejection_limit,
       verify_audit: b.verify_audit,
+      # A finding seen this many times is drafted as a proposal (#1942); 0 off.
+      findings_propose_at: b.findings_propose_at,
       ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
@@ -229,6 +231,8 @@ defmodule SlipdockWeb.API.JSON do
       verify_pool: b.verify_pool,
       verify_rejection_limit: b.verify_rejection_limit,
       verify_audit: b.verify_audit,
+      # A finding seen this many times is drafted as a proposal (#1942); 0 off.
+      findings_propose_at: b.findings_propose_at,
       ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).

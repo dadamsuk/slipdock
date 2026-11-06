@@ -302,6 +302,11 @@ garden propose <board> <file.json | ->`) files an open suggestion of check
 new `body`; its `base` is the section as it was, so applying it refuses a
 section edited since. A proposal, and any suggestion with an `edit_section`
 step, is a person's to apply, dismiss or undo: the API refuses an agent.
+The server files one by itself when a finding's count reaches the board's
+`findings_propose_at` (3 by default, 0 off): a rule on the `## Rules` of
+the page covering the finding's cards (else Specification), `must` citing
+a check the finding names, else `should`. Accepting it promotes the finding;
+see [the manual](manual.md#findings).
 
 It also offers prompts, ready-made workflows the client lists in its own menu
 (the **+** menu in the Claude apps, `/mcp__slipdock__<name>` in Claude Code),

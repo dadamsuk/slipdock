@@ -1559,6 +1559,11 @@ which couldn't be. A possible duplicate shows the two cards side by side, with
 **Keep this one** under each. **Recently applied** lists what was applied, by
 whom, with **Undo**.
 
+**Rules drafted from findings.** A finding seen as often as the board's
+threshold is proposed here as a handbook rule by the server itself (see
+[Findings](#findings), *Promotion by recurrence*): **Apply** writes the rule
+and marks the finding promoted, **Dismiss** leaves it open.
+
 Applying goes through the ordinary edits, so the activity log has the change
 and a line "via gardener: …", automations fire (completing a card is a
 `card_completed`), and permissions are what they always are: it needs write
@@ -1665,6 +1670,32 @@ deleting the comment takes back what it added that nobody has triaged yet.
   epic's), shown with `--scope runner` (`scope=runner`, the Findings page's
   Scope filter) and left out of the board's list by default. `(runner)` on any
   other kind is ignored.
+
+**Promotion by recurrence.** A lesson nobody triages is still settled once
+it keeps coming back. When an open finding's count reaches the board's
+threshold (*Propose a rule when a finding is seen this many times* in board
+settings, `slipdock set-board B --findings-propose-at N`, `update_board`
+`findings_propose_at`, `PATCH /api/boards/:board`; 3 by default, 0 never),
+the server drafts a rule and files it on the [Tidy-up page](#tidying-up) as
+a proposal for a person to apply or dismiss:
+
+- **Where.** On the `## Rules` of the handbook page whose `covers:` take in
+  the paths of the finding's cards (most first), else the Specification page.
+  The rule's id is the page's prefix and its next number (`UX-12`).
+- **Up the ladder.** A finding that names a check (a `*_test.exs`, a `mix`
+  command, the repo checks) becomes a `must` rule citing it; any other, a
+  `should` rule left to judgement. A model words it, given the finding, its
+  cards and the page's rules. With no model, or one that fails, it is a
+  `should` rule carrying the finding's own words.
+- **One at a time.** A finding never has two open proposals. **Apply**
+  writes the rule and marks the finding *promoted* with the rule id;
+  **Dismiss** leaves it open with a note, and nothing is proposed again until
+  its count has risen by the threshold once more. Undoing an applied one opens
+  the finding again.
+- **What is proposed.** Only the project's findings, not a runner's tooling,
+  and only on a board with a handbook: elsewhere findings are kept as they are.
+  `slipdock findings` and the Findings page show `proposal #id` on a finding
+  that has one.
 
 A board with findings from before this (#1941) collapses them with
 `mix slipdock.findings.dedupe <board> [--dry-run]`, which applies the same

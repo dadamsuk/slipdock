@@ -96,6 +96,12 @@ defmodule SlipdockCLI.FindingsTest do
     assert out =~ "#6 tooling [runner laptop] (agent #1781): the installed CLI lags"
   end
 
+  test "a finding with a proposal drafted says which, with its rule (#1942)" do
+    line = Findings.line(Map.merge(@open, %{"proposal_id" => 77, "proposed_rule" => "UX-4"}))
+    assert line =~ "mix format can need two passes [proposal #77 UX-4]"
+    assert Findings.line(Map.put(@open, "proposal_id", 78)) =~ "[proposal #78]"
+  end
+
   test "a runner's finding with no runner known still says runner" do
     line = Findings.line(Map.merge(@open, %{"scope" => "runner", "kind" => "tooling"}))
     assert line =~ "tooling [runner] (agent #1781)"
