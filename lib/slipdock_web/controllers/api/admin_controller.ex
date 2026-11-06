@@ -79,18 +79,9 @@ defmodule SlipdockWeb.API.AdminController do
     # prove something first — a code to the new address, a test message that
     # arrived — and letting a PATCH skip those would undo the point of them.
     with {:ok, params} <- ai_system_user(params),
-         {:ok, _} <- Settings.update(Map.take(params, settable())) do
+         {:ok, _} <- Settings.update(Map.take(params, Slipdock.Settings.Instance.policy_fields())) do
       settings(conn, %{})
     end
-  end
-
-  # Meeting and chat capture's settings are no longer anybody's to set
-  # (W-2330); their columns go with the rest of capture.
-  defp settable do
-    Enum.reject(
-      Slipdock.Settings.Instance.policy_fields(),
-      &(String.starts_with?(&1, "meetings_") or &1 == "chat_capture_enabled")
-    )
   end
 
   # The server's AI is named by email, the way a person would; stored by id.

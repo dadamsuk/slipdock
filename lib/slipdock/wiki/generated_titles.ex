@@ -10,10 +10,6 @@ defmodule Slipdock.Wiki.GeneratedTitles do
   @pass_log ~r/\A\s*pass log\s+#?(\d+)(?=[\s:\-–—]|\z)(.*)\z/isu
   @stamp ~r/\((\d{4}-\d{2}-\d{2})(?:[ T](\d{2})[:.\-](\d{2})(?:[:.\-]\d{2})?)?\)\s*\z/u
 
-  @recording_stamp ~r/\A(?:19|20)\d{2}[\s._\-]\d{1,2}[\s._\-]\d{1,2}[\d\s._:\-T]*/u
-  @recording_ext ~r/\.(?:mp3|mp4|m4a|wav|webm|mov|mkv|ogg|flac|txt|vtt|srt)\z/iu
-
-  @words 60
   @fired_part 80
 
   @doc """
@@ -46,35 +42,6 @@ defmodule Slipdock.Wiki.GeneratedTitles do
       [date] -> " (#{date})"
       nil -> ""
     end
-  end
-
-  @doc """
-  A meeting's page: `<YYYY-MM-DD> <meeting in a few words>`. `sources` are
-  the words to name it with, best first: the first with anything left in it
-  once a recording's date, time and extension are gone, and cleaned of what
-  a link can't hold, wins.
-  """
-  def meeting(%Date{} = date, sources) do
-    words =
-      sources
-      |> Enum.map(&few_words/1)
-      |> Enum.find("Meeting", &(&1 != ""))
-
-    "#{Date.to_iso8601(date)} #{words}"
-  end
-
-  defp few_words(nil), do: ""
-
-  defp few_words(text) do
-    text
-    |> to_string()
-    |> String.replace(~r/[[:cntrl:]\/\\|\[\]]+/u, " ")
-    |> String.replace(~r/\s+/u, " ")
-    |> String.trim()
-    |> String.replace(@recording_ext, "")
-    |> String.replace(@recording_stamp, "")
-    |> String.replace(~r/[\s.,;:!?\-]+\z/u, "")
-    |> DiskName.shorten(@words)
   end
 
   @doc """

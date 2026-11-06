@@ -43,7 +43,6 @@ defmodule SlipdockWeb.SearchLinks do
   @doc "The DOM id a card's chunk is drawn under in the card panel, or nil for the card itself."
   def anchor(%{kind: "comment", source_id: id}), do: "comment-#{id}"
   def anchor(%{kind: "status_update", source_id: id}), do: "status-update-#{id}"
-  def anchor(%{kind: "provenance", source_id: id}), do: "provenance-#{id}"
 
   def anchor(%{kind: "transcript", source_id: id, section: "part " <> n}),
     do: "transcript-#{id}-part-#{n}"
@@ -61,7 +60,7 @@ defmodule SlipdockWeb.SearchLinks do
   writes, or nil. Anything else is ignored rather than looked for.
   """
   def at(value) when is_binary(value) do
-    if value =~ ~r/\A(comment|status-update|provenance|transcript|document)-\d+(-part-\d+)?\z/,
+    if value =~ ~r/\A(comment|status-update|transcript|document)-\d+(-part-\d+)?\z/,
       do: value
   end
 

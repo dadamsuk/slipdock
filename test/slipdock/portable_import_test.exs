@@ -489,6 +489,30 @@ defmodule Slipdock.PortableImportTest do
              ) == 0
     end
 
+    # Exports from before meeting capture went (W-2330, #1819) carry
+    # `captures`: still left out, and the rest arrives.
+    test "an old export's captures are left out, and the board still arrives" do
+      receiver = user_fixture("old-export@example.com")
+
+      document =
+        tree_document([], [%{ref: "k0", board: "r", title: "From a call"}],
+          captures: [
+            %{
+              id: 7,
+              board: "r",
+              title: "Pricing call",
+              lines: [%{speaker: "Sam", text: "Ship it on Friday."}],
+              findings: [%{kind: "action", title: "Ship it", quote: "Ship it on Friday."}]
+            }
+          ]
+        )
+
+      assert {:ok, report} = Portable.import(receiver, document)
+      board = Boards.get_board!(hd(report.boards).id)
+      assert card(board, "From a call")
+      refute Portable.export(receiver) |> Jason.encode!() =~ "Pricing call"
+    end
+
     test "a card claiming the root as its sub-board is refused" do
       document = tree_document([], [%{ref: "k0", board: "r", title: "Loop", subcards: "r"}])
       assert {:error, {:bad_sub_board, "r"}} = Portable.import(user_fixture(), document)

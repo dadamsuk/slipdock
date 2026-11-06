@@ -93,8 +93,7 @@ defmodule Slipdock.Transcript do
 
   @doc false
   # The lines of an already cleaned transcript in one of `formats/0`, empty
-  # ones included. `Slipdock.Meetings.Transcript` reads these three formats
-  # through it.
+  # ones included.
   def lines(content, "vtt"),
     do: content |> String.split(~r/\n{2,}/) |> Enum.flat_map(&vtt_cue/1)
 

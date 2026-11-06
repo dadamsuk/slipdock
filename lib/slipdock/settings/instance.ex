@@ -22,7 +22,6 @@ defmodule Slipdock.Settings.Instance do
   @signup_modes [:open, :allowlist, :approval, :closed]
   @directories [:instance, :shared_only]
   @tls_modes [:always, :never, :if_available]
-  @meeting_visibilities [:used_only, :every_board]
 
   schema "settings" do
     field :signup_mode, Ecto.Enum, values: @signup_modes, default: :closed
@@ -78,50 +77,6 @@ defmodule Slipdock.Settings.Instance do
     field :posthog_host, :string
     field :posthog_respect_dnt, :boolean, default: true
 
-    # Meeting capture (see `Slipdock.Meetings`): off until an admin turns it
-    # on, and then either shown only on boards that have had a capture
-    # (`:used_only`, with one entry in the board's menu everywhere else) or
-    # on every board. `meetings_hideable` lets each person put it out of sight.
-    field :meetings_enabled, :boolean, default: false
-    # Chat capture (#1075): a conversation with an AI assistant read the same
-    # way, behind its own switch, on by default — nothing about it involves a
-    # recording, a voiceprint or attendees' consent.
-    field :chat_capture_enabled, :boolean, default: true
-    field :meetings_visibility, Ecto.Enum, values: @meeting_visibilities, default: :used_only
-    field :meetings_hideable, :boolean, default: true
-    # What a capture may be sent, each switched on or off for the server.
-    field :meetings_accept_transcripts, :boolean, default: true
-    field :meetings_accept_audio, :boolean, default: true
-    field :meetings_accept_findings, :boolean, default: true
-    # Which models read a meeting: nil reads with the person's own model;
-    # the second reading is the same model again, another, or none.
-    field :meetings_reading_model, :string
-    field :meetings_second_reading, :string, default: "off"
-    field :meetings_second_model, :string
-    # What one person may use of meeting capture in a month (see
-    # `Slipdock.Meetings.Usage`). A number and a switch each, like the
-    # guardrails; the longest meeting and the largest file are always on.
-    field :meetings_transcription_minutes, :integer, default: 600
-    field :meetings_transcription_minutes_enabled, :boolean, default: true
-    field :meetings_audio_storage_mb, :integer, default: 2048
-    field :meetings_audio_storage_mb_enabled, :boolean, default: true
-    field :meetings_transcript_captures, :integer, default: 200
-    field :meetings_transcript_captures_enabled, :boolean, default: true
-    field :meetings_longest_minutes, :integer, default: 240
-    field :meetings_max_file_mb, :integer, default: 500
-    field :meetings_audio_retention, :string, default: "30_days"
-    # Who turns a recording into words (see `Slipdock.Meetings.Transcriber`).
-    field :meetings_transcription, :string, default: "none"
-    field :meetings_transcription_model, :string, default: "openai/whisper-large-v3"
-    field :meetings_transcription_url, :string
-    field :meetings_transcription_max_mb, :integer, default: 25
-    # How voices are separated and attributed (see `Slipdock.Meetings.Speakers`).
-    field :meetings_diarisation, :string, default: "labels"
-    field :meetings_diarisation_url, :string
-    field :meetings_dialogue_inference, :boolean, default: true
-    # Voiceprints, by each person's consent (see `Slipdock.Meetings.Voiceprints`):
-    # off unless turned on, and the endpoint that turns speech into an embedding.
-    field :meetings_voiceprints, :boolean, default: false
     # The server that transcribes a recording attached to a card when someone
     # presses Transcribe (see `Slipdock.Transcription`), and the key it wants.
     # The token never leaves the server: not to the page, not to the API.
@@ -131,10 +86,6 @@ defmodule Slipdock.Settings.Instance do
     # speech to the transcription server as a voiceprint (see
     # `Slipdock.Transcription.Voiceprints`): off unless turned on.
     field :transcription_voiceprints, :boolean, default: false
-    field :meetings_voiceprint_url, :string
-    # The audio-capable model unclear passages are re-listened to with
-    # (see `Slipdock.Meetings.Relisten`); nil leaves re-listening off.
-    field :meetings_relisten_model, :string
 
     # Whose AI settings unattended work runs on: the search indexer, every
     # search query, scheduled automations. An admin, because those settings
@@ -163,9 +114,6 @@ defmodule Slipdock.Settings.Instance do
 
   @doc "What `smtp_tls` may be."
   def tls_modes, do: @tls_modes
-
-  @doc "What `meetings_visibility` may be."
-  def meeting_visibilities, do: @meeting_visibilities
 
   @doc """
   How each mode reads to a person choosing one. The admin UI and the setup
@@ -202,18 +150,7 @@ defmodule Slipdock.Settings.Instance do
                     login_fallback_enabled board_limit board_limit_enabled item_limit
                     item_limit_enabled storage_limit_mb storage_limit_enabled
                     trial_days trial_enabled posthog_key posthog_host
-                    posthog_respect_dnt ai_system_user_id meetings_enabled chat_capture_enabled
-                    meetings_visibility meetings_hideable meetings_accept_transcripts
-                    meetings_accept_audio meetings_accept_findings meetings_reading_model
-                    meetings_second_reading meetings_second_model
-                    meetings_transcription_minutes meetings_transcription_minutes_enabled
-                    meetings_audio_storage_mb meetings_audio_storage_mb_enabled
-                    meetings_transcript_captures meetings_transcript_captures_enabled
-                    meetings_longest_minutes meetings_max_file_mb meetings_audio_retention
-                    meetings_transcription meetings_transcription_model
-                    meetings_transcription_url meetings_transcription_max_mb
-                    meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
-                    meetings_relisten_model meetings_voiceprints meetings_voiceprint_url
+                    posthog_respect_dnt ai_system_user_id
                     transcription_server_url transcription_server_token
                     transcription_voiceprints ai_model ai_quick_model ai_organise_model
                     ai_fallback_models)a
@@ -249,13 +186,6 @@ defmodule Slipdock.Settings.Instance do
       :smtp_from_email,
       :posthog_key,
       :posthog_host,
-      :meetings_reading_model,
-      :meetings_second_model,
-      :meetings_transcription_model,
-      :meetings_transcription_url,
-      :meetings_diarisation_url,
-      :meetings_relisten_model,
-      :meetings_voiceprint_url,
       :transcription_server_url,
       :transcription_server_token,
       :ai_model,
@@ -264,41 +194,7 @@ defmodule Slipdock.Settings.Instance do
     ])
     |> normalise_model_list(:ai_fallback_models)
     |> validate_model_ids([:ai_model, :ai_quick_model, :ai_organise_model])
-    |> validate_inclusion(:meetings_transcription, ~w(none provider endpoint))
-    |> validate_inclusion(:meetings_diarisation, ~w(labels endpoint))
-    |> validate_web_url(:meetings_diarisation_url)
-    |> then(fn cs ->
-      if get_field(cs, :meetings_diarisation) == "endpoint" and
-           get_field(cs, :meetings_diarisation_url) in [nil, ""],
-         do:
-           add_error(cs, :meetings_diarisation_url, "is needed to separate voices on an endpoint"),
-         else: cs
-    end)
-    |> validate_web_url(:meetings_voiceprint_url)
-    |> then(fn cs ->
-      if get_field(cs, :meetings_voiceprints) == true and
-           get_field(cs, :meetings_voiceprint_url) in [nil, ""],
-         do: add_error(cs, :meetings_voiceprint_url, "is needed to turn voiceprints on"),
-         else: cs
-    end)
-    |> validate_number(:meetings_transcription_max_mb, greater_than: 0)
-    |> validate_web_url(:meetings_transcription_url)
     |> validate_web_url(:transcription_server_url)
-    |> then(fn cs ->
-      if get_field(cs, :meetings_transcription) == "endpoint" and
-           get_field(cs, :meetings_transcription_url) in [nil, ""],
-         do: add_error(cs, :meetings_transcription_url, "is needed to transcribe on an endpoint"),
-         else: cs
-    end)
-    |> validate_number(:meetings_transcription_minutes, greater_than_or_equal_to: 0)
-    |> validate_number(:meetings_audio_storage_mb, greater_than_or_equal_to: 0)
-    |> validate_number(:meetings_transcript_captures, greater_than_or_equal_to: 0)
-    |> validate_number(:meetings_longest_minutes, greater_than: 0)
-    |> validate_number(:meetings_max_file_mb, greater_than: 0)
-    |> validate_inclusion(:meetings_audio_retention, ~w(until_committed 30_days 90_days))
-    |> validate_inclusion(:meetings_second_reading, ~w(same model off),
-      message: "is same, model or off"
-    )
     |> validate_number(:free_card_limit, greater_than: 0)
     |> validate_number(:board_limit, greater_than: 0)
     |> validate_number(:item_limit, greater_than: 0)

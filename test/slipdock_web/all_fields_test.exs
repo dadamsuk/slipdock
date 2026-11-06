@@ -15,7 +15,6 @@ defmodule SlipdockWeb.AllFieldsTest do
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
-  import Slipdock.MeetingsFixtures
   import Slipdock.ToolPackages
 
   alias Slipdock.{Access, Accounts, Multiboard, Settings, Tools, Wiki}
@@ -129,15 +128,6 @@ defmodule SlipdockWeb.AllFieldsTest do
     {:ok, _} =
       Settings.complete_setup(%{"admin_email" => "admin@example.com", "signup_mode" => :closed})
 
-    # Meetings and voiceprints on, so their pages are there to check.
-    meetings_on()
-
-    {:ok, _} =
-      Settings.update(%{
-        "meetings_voiceprints" => true,
-        "meetings_voiceprint_url" => "http://voice.example/embed"
-      })
-
     {:ok, admin} = Accounts.promote(user_fixture("admin@example.com"))
     board = board_fixture(%{"name" => "Every field"}, owner: admin)
     [todo | _] = board.columns
@@ -162,9 +152,6 @@ defmodule SlipdockWeb.AllFieldsTest do
     File.write!(path, "PNG")
     {:ok, file} = Files.create(board, %{name: "cat.png"}, path)
     File.rm(path)
-
-    capture = capture_fixture(board, admin)
-    question = question_fixture(capture)
 
     name = unique_name()
     {:ok, _} = Tools.publish(admin, package(name))
@@ -193,8 +180,6 @@ defmodule SlipdockWeb.AllFieldsTest do
       "card_id" => card.id,
       "slug" => page.slug,
       "rev" => rev.id,
-      "capture_id" => capture.id,
-      "question_id" => question.id,
       "topic" => SlipdockWeb.HelpLive.Agents.topics() |> hd() |> topic_key(),
       "section" => SlipdockWeb.HelpLive.Guides.sections() |> hd() |> topic_key()
     }

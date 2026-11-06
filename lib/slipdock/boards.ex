@@ -4948,7 +4948,7 @@ defmodule Slipdock.Boards do
   Copies `source` into the uploads directory under `key`, making the folders
   it needs. Returns `:ok` or `{:error, reason}`.
 
-  Folders are shared — every recording is in `captures/` — and
+  Folders are shared by many files, and
   `remove_files/1` takes a folder away once it is empty, so one can vanish
   between making it and copying into it (`:enoent`, or `:enotdir` from
   `File.mkdir_p/1`, which reports a folder that existed when it tried to
@@ -5033,7 +5033,7 @@ defmodule Slipdock.Boards do
     ) ++
       Repo.all(
         from(f in Slipdock.Wiki.WikiFile, where: f.board_id in subquery(ids), select: f.key)
-      ) ++ Slipdock.Meetings.audio_keys(boards) ++ Slipdock.Wiki.Autosaves.board_keys(ids)
+      ) ++ Slipdock.Wiki.Autosaves.board_keys(ids)
   end
 
   @doc "Removes uploaded files by key, and any folder they leave empty."

@@ -50,7 +50,6 @@ defmodule Slipdock.Automations.Scheduler do
     sweep_runner_jobs()
     prune_wiki_changes()
     prune_autosaves()
-    resume_captures()
     make_recurring_cards()
     wake_snoozed_cards()
     read_documents()
@@ -120,15 +119,6 @@ defmodule Slipdock.Automations.Scheduler do
     Slipdock.Health.tick()
   rescue
     exception -> Logger.error("Health monitor failed: #{Exception.message(exception)}")
-  end
-
-  # Meeting captures a restart or a crash left half-read (see
-  # `Slipdock.Meetings.Pipeline`).
-  defp resume_captures do
-    Slipdock.Meetings.Pipeline.sweep()
-    Slipdock.Meetings.Audio.purge_expired()
-  rescue
-    exception -> Logger.error("Meeting capture sweep failed: #{Exception.message(exception)}")
   end
 
   defp interval,

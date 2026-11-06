@@ -15,7 +15,6 @@ defmodule SlipdockWeb.MCP.ToolDescriptionsTest do
 
   setup do
     {:ok, _} = Settings.complete_setup(%{"admin_email" => "admin@example.com"})
-    {:ok, _} = Settings.update(%{"meetings_enabled" => true, "chat_capture_enabled" => true})
     :ok
   end
 

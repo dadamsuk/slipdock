@@ -54,15 +54,6 @@ defmodule SlipdockWeb.WikiTreeNamesLiveTest do
       assert has_element?(again, "#tree-names option[selected][value='short']")
     end
 
-    test "leaves hide_meetings alone", %{conn: conn, user: user} do
-      {:ok, user} = Accounts.update_display(user, %{hide_meetings: true})
-      {:ok, view, _html} = live(conn, ~p"/account/settings")
-
-      view |> form("#tree-names-form", display: %{tree_names: "short"}) |> render_submit()
-
-      assert Accounts.get_user!(user.id).hide_meetings
-    end
-
     test "refuses anything but the two choices", %{user: user} do
       assert {:error, changeset} = Accounts.update_display(user, %{tree_names: "tiny"})
       assert Keyword.has_key?(changeset.errors, :tree_names)

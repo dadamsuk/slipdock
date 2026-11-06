@@ -2,9 +2,8 @@ defmodule Slipdock.Transcription.Voiceprints do
   @moduledoc """
   Teaching the transcription server a voice (#1201).
 
-  When somebody puts a name on a voice — in a wiki page's transcript
-  (`Slipdock.Wiki.rename_speaker/4`) or on a meeting capture's *Who said
-  what* (`Slipdock.Meetings.Speakers.reassign/3`) — the longest unbroken
+  When somebody puts a name on a voice in a wiki page's transcript
+  (`Slipdock.Wiki.rename_speaker/4`), the longest unbroken
   stretch of that person speaking is cut from the recording and sent to the
   transcription server (`Slipdock.Transcription.add_voiceprint/3`) under
   that name, so the next recording it transcribes can say it was them.
@@ -21,16 +20,12 @@ defmodule Slipdock.Transcription.Voiceprints do
       is too little to send. A server that refuses the clip (a 422, such as
       "Multiple speakers") is offered the next-longest, up to three.
     * **In the background**, after the name is saved: the recording may have
-      to come from Google Drive first. What happens is logged, and on a
-      capture recorded in its history.
+      to come from Google Drive first. What happens is logged.
   """
   require Logger
 
-  import Ecto.Query, warn: false
-
-  alias Slipdock.{Meetings, Recordings, Repo, Settings, Transcript, Transcription, Vaults}
+  alias Slipdock.{Recordings, Repo, Settings, Transcript, Transcription, Vaults}
   alias Slipdock.Google.Drive
-  alias Slipdock.Meetings.{Capture, Speakers, Utterance, Voice}
   alias Slipdock.Wiki.{FrontMatter, Page, TranscriptSpeakers}
 
   @max_ms 60_000
@@ -144,34 +139,6 @@ defmodule Slipdock.Transcription.Voiceprints do
   def said({:error, reason}, name),
     do: "#{name}'s voiceprint wasn't sent: #{describe(reason)}."
 
-  @doc """
-  A meeting capture's voice was confirmed as somebody: their longest
-  stretch goes to the server, in the background. `:ok` or `:off`.
-  `by:` is who confirmed it, and must be allowed (`enabled_for?/1`).
-  """
-  def voice_named(%Voice{} = voice, opts \\ []) do
-    {by, opts} = Keyword.pop(opts, :by)
-    name = Speakers.name(voice)
-
-    if enabled_for?(by) and Transcript.person_label?(name) do
-      later(fn ->
-        result = from_voice(voice, name, opts)
-        log(result, "capture #{voice.capture_id}")
-
-        with {:ok, _} <- result do
-          Meetings.record(
-            Repo.get!(Capture, voice.capture_id),
-            "voice",
-            "#{name}'s voice sent to the transcription server as a voiceprint.",
-            data: %{"voice_id" => voice.id}
-          )
-        end
-      end)
-    else
-      :off
-    end
-  end
-
   @doc false
   # The work `page_named/3` starts, inline.
   def from_page(%Page{} = page, name, opts \\ []) do
@@ -193,30 +160,6 @@ defmodule Slipdock.Transcription.Voiceprints do
         send_clips(name, path, filename, spans, opts)
       after
         File.rm(path)
-      end
-    end
-  end
-
-  @doc false
-  # The work `voice_named/2` starts, inline.
-  def from_voice(%Voice{} = voice, name, opts \\ []) do
-    capture = Repo.get!(Capture, voice.capture_id)
-    path = Meetings.audio_path(capture)
-
-    lines =
-      Repo.all(
-        from(u in Utterance,
-          where: u.capture_id == ^capture.id,
-          order_by: u.position,
-          select: %{speaker: u.voice_id, start_ms: u.start_ms, end_ms: u.end_ms}
-        )
-      )
-
-    if is_nil(path) or not File.regular?(path) do
-      {:error, :no_recording}
-    else
-      with {:ok, spans} <- spans(lines, voice.id) do
-        send_clips(name, path, capture.audio_filename || path, spans, opts)
       end
     end
   end

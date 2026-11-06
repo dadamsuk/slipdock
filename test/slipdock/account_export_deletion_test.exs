@@ -34,6 +34,9 @@ defmodule Slipdock.AccountExportDeletionTest do
 
       assert "account.json" in paths
       assert Enum.any?(paths, &String.starts_with?(&1, "boards/"))
+      # Meeting capture is gone (W-2330, #1819): no captures, no voiceprint.
+      refute Enum.any?(paths, &String.starts_with?(&1, "captures/"))
+      refute "voiceprint.json" in paths
 
       {_, json} = Enum.find(entries, fn {p, _} -> to_string(p) == "account.json" end)
       account = Jason.decode!(json)

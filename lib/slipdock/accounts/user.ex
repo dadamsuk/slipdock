@@ -26,10 +26,6 @@ defmodule Slipdock.Accounts.User do
     # The multiboard overview's lists, top N and layout (#1479), as
     # `Slipdock.Multiboard.prefs/1` reads them.
     field :multiboard, :map, default: %{}
-    # Meeting capture out of sight for this person, when the server's admin
-    # lets people choose (see `Slipdock.Meetings.visible?/2`). A display
-    # preference: the API and the CLI answer the same either way.
-    field :hide_meetings, :boolean, default: false
     # "Names in trees and lists": full titles, or short names where a thing
     # has one. See `Slipdock.Vaults.Names`.
     field :tree_names, :string, default: "full"
@@ -56,9 +52,6 @@ defmodule Slipdock.Accounts.User do
     # admins always have it (see `Slipdock.Transcription.allowed?/1`). The
     # server's own settings still decide whether it is on at all.
     field :transcription_access, :boolean, default: false
-    # What `transcription_access` was copied from; dropped with meeting
-    # capture (#1819).
-    field :meetings_access, :boolean, default: false
     # Set when this account exists because somebody shared something with the
     # address, rather than because its owner asked for one.
     field :invited_at, :utc_datetime
@@ -149,10 +142,10 @@ defmodule Slipdock.Accounts.User do
   @doc "What the multiboard overview shows (#1479): see `Slipdock.Multiboard`."
   def multiboard_changeset(user, attrs), do: cast(user, attrs, [:multiboard])
 
-  @doc "This person's display preferences: whether meeting capture is hidden, and `tree_names`."
+  @doc "This person's display preferences: `tree_names`."
   def display_changeset(user, attrs) do
     user
-    |> cast(attrs, [:hide_meetings, :tree_names])
+    |> cast(attrs, [:tree_names])
     |> validate_required([:tree_names])
     |> validate_inclusion(:tree_names, @tree_names)
   end

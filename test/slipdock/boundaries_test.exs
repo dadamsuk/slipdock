@@ -33,8 +33,6 @@ defmodule Slipdock.BoundariesTest do
     "lib/slipdock/automations/runner.ex" => {~w(lib/slipdock_web/endpoint.ex), "links"},
     "lib/slipdock/google.ex" => {~w(lib/slipdock_web/endpoint.ex), "OAuth redirect URL"},
     "lib/slipdock/inbound/tokens.ex" => {~w(lib/slipdock_web/endpoint.ex), "secret key base"},
-    "lib/slipdock/meetings/pipeline.ex" => {~w(lib/slipdock_web/endpoint.ex), "links"},
-    "lib/slipdock/meetings/review.ex" => {~w(lib/slipdock_web/endpoint.ex), "links"},
     # SlipdockWeb.APIGuide.list_roles/0: the card roles agents are told
     # about. Debt: the list belongs in a context, and these move with it.
     "lib/slipdock/blueprint.ex" => {~w(lib/slipdock_web/api_guide.ex), "role list"},
