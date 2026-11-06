@@ -6,7 +6,8 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     * a queued job → what holds it: the cards in progress it waits beside
       (`wait_while_doing`), the card in progress whose lane its card overlaps,
       the cards filling a WIP limit, or — for a merge job — the jobs keeping
-      every merge runner busy;
+      every merge runner busy (holding a job, and not asking for another
+      since it claimed it: runners take merges mid-pass);
     * a held answer (`Slipdock.Runners.Requeue`, `pending`) → the job of its
       rule it waits to close;
     * an open card → the answer to its question, still held; and its
@@ -129,21 +130,40 @@ defmodule Slipdock.Health.Detectors.Deadlock do
   end
 
   # A merge job waits for a merge runner; when every one online is busy, it
-  # waits for the jobs they hold.
+  # waits for the jobs they hold. Holding a job isn't being busy: runners
+  # take merges mid-pass (#1849), so a runner that asked for work after its
+  # newest claim is free for the merge, and there is no edge at all.
   defp merge_runner_edges(job, live, ctx) do
-    runners =
+    held =
       job.root_board_id
       |> Runs.runners()
       |> Enum.filter(&(Runners.takes_merge?(&1) and Runs.online?(&1, ctx.now)))
+      |> Enum.map(&{&1, held_jobs(&1, live)})
 
-    if runners != [] and Enum.all?(runners, & &1.current_job_id) do
-      for r <- runners,
-          held = Enum.find(live, &(&1.id == r.current_job_id)),
+    if held != [] and Enum.all?(held, &busy?/1) do
+      for {r, jobs} <- held,
+          held_job <- jobs,
           do:
-            {{:job, job.id}, {:job, held.id},
-             "merge job ##{job.id} waits for runner #{r.name}, busy with job ##{held.id}"}
+            {{:job, job.id}, {:job, held_job.id},
+             "merge job ##{job.id} waits for runner #{r.name}, busy with job ##{held_job.id}"}
     else
       []
+    end
+  end
+
+  # The live jobs `runner` holds: those leased to it, and the one it claimed last.
+  defp held_jobs(runner, live),
+    do: Enum.filter(live, &(&1.runner_id == runner.id or &1.id == runner.current_job_id))
+
+  # Busy: it holds a live job and hasn't asked for another since its newest
+  # claim. One that never said when it asked (`asked_at` nil) counts as busy.
+  defp busy?({_runner, []}), do: false
+  defp busy?({%{asked_at: nil}, _jobs}), do: true
+
+  defp busy?({%{asked_at: asked}, jobs}) do
+    case jobs |> Enum.map(& &1.claimed_at) |> Enum.reject(&is_nil/1) do
+      [] -> true
+      claims -> DateTime.compare(asked, Enum.max(claims, DateTime)) != :gt
     end
   end
 

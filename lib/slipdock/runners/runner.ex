@@ -19,7 +19,14 @@ defmodule Slipdock.Runners.Runner do
     field :token_hash, :binary, redact: true
     field :settings, :map, default: %{}
     field :last_seen_at, :utc_datetime
+    # The job it claimed last. Not proof it is busy: one token can be held
+    # by more than one process, and a session asks whenever it likes, so a
+    # second claim overwrites it while the first job still runs.
     field :current_job_id, :integer
+    # When it last asked for a job (#1849): set as a claim starts and again
+    # when a wait for one ends empty. Asked after its newest claim means it
+    # takes more work beside the job it holds.
+    field :asked_at, :utc_datetime
     # The job kinds it said it takes on its last claim (`X-Runner-Kinds`,
     # #1656); nil for one that never said (an older runner, a session).
     # Only `merge` jobs are routed on it.

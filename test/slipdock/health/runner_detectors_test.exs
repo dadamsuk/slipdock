@@ -225,6 +225,22 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
       assert id == job.id
     end
 
+    # #1849, incident #1: job #523's pass on #1759 reported no steps and
+    # wrote nothing on the epic for 55 minutes while it commented on and
+    # built #1760–#1765. That is work, not a hung job.
+    test "an epic's pass with no steps, writing only on its subcards, isn't hung", ctx do
+      running(ctx, 60)
+      {:ok, _} = Boards.add_comment(ctx.card, "Picked up", by: ctx.owner)
+      age_comments(ctx.card, 55)
+      assert [_] = detect(HungJob, ctx.board)
+
+      sub = subcard(ctx.card, "Health monitor 3")
+      {:ok, _} = Boards.add_comment(sub, "Built, tests passing", by: ctx.owner)
+      age_comments(sub, 3)
+
+      assert detect(HungJob, ctx.board) == []
+    end
+
     test "the server's notes on a subcard, and work on another card, are not", ctx do
       running(ctx, 60)
       one = subcard(ctx.card, "One")
