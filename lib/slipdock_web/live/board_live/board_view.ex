@@ -1240,6 +1240,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
             popovertargetaction="hide"
             phx-click="move_card"
             phx-value-id={@item_id}
+            phx-value-from={@card.column_id}
             phx-value-to={column.id}
             disabled={column.id == @card.column_id}
             class={[

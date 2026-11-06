@@ -243,18 +243,39 @@ defmodule SlipdockWeb.BoardLive.State do
 
   def mode_name(_), do: "swimlanes"
 
-  def move_placed_page(socket, page_id, column_id, before) do
+  def move_placed_page(socket, page_id, column_id, before, from \\ nil) do
     with {:ok, page} <- Wiki.find_page(page_id),
          true <- Access.can_write?(Access.page_permission(socket.assigns.current_user, page)),
+         false <- moved_since_drawn?(from, page.column_id),
          {:ok, _} <- Wiki.place(page, column_id, before) do
       {:noreply, reload_board(socket)}
     else
+      true ->
+        {:noreply, moved_since_drawn(socket)}
+
       {:error, _, message} when is_binary(message) ->
         {:noreply, put_flash(socket, :error, message)}
 
       _ ->
         {:noreply, put_flash(socket, :error, "That page couldn't be moved.")}
     end
+  end
+
+  @doc """
+  Whether a move's `from` (the list the tab drew the item in) is no longer
+  where the item is (#1921). A move that names no `from` isn't stale.
+  """
+  def moved_since_drawn?(nil, _current), do: false
+  def moved_since_drawn?(from, current), do: SlipdockWeb.Params.id(from) != current
+
+  @doc "Refuses a stale move: says so and redraws the board as it is now."
+  def moved_since_drawn(socket) do
+    socket
+    |> reload_board()
+    |> put_flash(
+      :error,
+      "That has moved since this board was drawn, so it stayed where it is. The board is up to date now."
+    )
   end
 
   def reload_board(socket) do
