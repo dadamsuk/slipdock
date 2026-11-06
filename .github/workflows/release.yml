@@ -27,6 +27,36 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # Does the suite need to run again? (#1857) A merged pull request's CI
+  # already tested the PR merged into main; if main hadn't moved since, this
+  # commit has that tree exactly, and a second run tests nothing new. The
+  # script says skip only for a push to main whose PR has a finished, all-green
+  # CI run on the same tree; anything else, its own failure included, runs the
+  # suite. Its note goes in the run summary and on the deploy record.
+  suite:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      note: ${{ steps.gate.outputs.note }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Decide whether the suite runs
+        id: gate
+        run: .github/scripts/suite-gate.sh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+
   # Nothing is published that the suite has not passed. An image built from a
   # red tree is worse than no image, because somebody will run it.
   #
@@ -34,7 +64,12 @@ jobs:
   # other: the build only pushes by digest, which nobody pulls, and nothing
   # gets a tag until the merge job, which needs both. A red suite therefore
   # still publishes nothing, but a green one is not kept waiting for the build.
+  #
+  # Skipped only when the gate said so in as many words: a gate that failed
+  # or said nothing leaves the suite to run.
   test:
+    needs: suite
+    if: ${{ !cancelled() && needs.suite.outputs.run != 'false' }}
     uses: ./.github/workflows/ci.yml
 
   build:
@@ -110,8 +145,12 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # The suite passed here, or the gate skipped it because it had passed on the
+  # pull request at this tree. A skip anything else caused (a failed gate, a
+  # cancelled run) is not a pass.
   merge:
-    needs: [test, build]
+    needs: [suite, test, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.suite.outputs.run == 'false')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -193,9 +232,13 @@ jobs:
   # Needs, on the production environment: secrets TS_OAUTH_CLIENT_ID,
   # TS_AUDIENCE, DEPLOY_HOST (the server's tailnet name) and DEPLOY_HEALTH_URL
   # (https://…/healthz), and the variable DEPLOY_USER.
+  #
+  # The merge job only succeeds once the suite has passed (here, or on the
+  # pull request at this tree), so its success is the gate; !cancelled() lets
+  # a skipped test job through to it.
   deploy:
-    needs: [test, merge]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [suite, test, merge]
+    if: ${{ !cancelled() && needs.merge.result == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -265,6 +308,10 @@ jobs:
           SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
           SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
           TAG: ${{ needs.merge.outputs.deploy-tag }}
+          # How the suite was satisfied (#1857), kept on the record. An env
+          # var, not --note: the CLI comes from the server being replaced,
+          # and one older than the switch would refuse it.
+          SLIPDOCK_DEPLOY_NOTE: ${{ needs.suite.outputs.note || 'suite: ran' }}
 
       - uses: tailscale/github-action@v4
         with:

@@ -2012,7 +2012,9 @@ defmodule SlipdockWeb.APIGuide do
     token** (`sdd_…`, which records deploys and can do nothing else), usually by
     wrapping the deploy command: `slipdock deploy run --env production --
     ./deploy.sh`. The token goes to `GET /api/deployments/last?environment=E`,
-    `POST /api/deployments` and `PATCH /api/deployments/:id` only. Commits name
+    `POST /api/deployments` (with an optional `note`, a line up to 500
+    characters such as how the suite passed: `slipdock deploy run --note`) and
+    `PATCH /api/deployments/:id` only. Commits name
     cards as `#123` (or the board's `card_ref_pattern`); a card a succeeded
     deploy names gets a **Shipped to production** line (`shipped` on
     `get_card`).

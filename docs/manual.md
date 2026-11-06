@@ -1185,6 +1185,27 @@ isn't one). Where the deploy is more than one command,
 --status succeeded|failed` ends it. `slipdock deploy backfill --from-tags
 [--pattern 'v*']` records past releases from git tags, once.
 
+**A note on the deploy.** `--note TEXT` on `deploy run` or `deploy start`
+(or `$SLIPDOCK_DEPLOY_NOTE`, for a CLI older than the switch) keeps a line on
+the deploy, up to 500 characters: `note` in the API and on `slipdock deploy
+last`. Slipdock's own release workflow uses it to say how the suite was
+satisfied (below).
+
+**Slipdock's own deploys skip a suite that already passed.** After a pull
+request merges, `release.yml` runs the suite again before it tags and
+deploys the image, unless its first job, `suite`
+(`.github/scripts/suite-gate.sh`), finds that the run would test nothing new.
+That holds for a push to `main` whose pull request's latest CI run has
+completed with every job passed, on a commit whose tree is the same as the
+merged commit's: main didn't move between that run and the merge. The run's
+name carries the commit it tested (`… · tested <sha>`), since a pull request
+run's `head_sha` is the branch's head, not the merge it tested. Then the
+`test` job is skipped, and the merge and deploy go ahead. Anything else runs
+the suite as before: another tree, a red, missing or unfinished run, a
+commit no pull request made, the GitHub API failing, a tag, or
+`workflow_dispatch`. The run's summary and the deploy's note say which
+(`suite: passed on PR #92 at 1a2b3c4, same tree`, or `suite: ran (<why>)`).
+
 **Deploys the record missed.** Recording is allowed to fail, so a deploy can go
 out unrecorded. `slipdock deploy backfill --from-runs FILE` (`-` reads stdin)
 records them from CI's runs. It takes a JSON list as `gh run list --json

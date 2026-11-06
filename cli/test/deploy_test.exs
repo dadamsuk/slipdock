@@ -18,13 +18,14 @@ defmodule SlipdockCLI.DeployTest do
 
     saved =
       Map.new(
-        ~w(HOME SLIPDOCK_URL SLIPDOCK_TOKEN SLIPDOCK_DEPLOY_TOKEN),
+        ~w(HOME SLIPDOCK_URL SLIPDOCK_TOKEN SLIPDOCK_DEPLOY_TOKEN SLIPDOCK_DEPLOY_NOTE),
         &{&1, System.get_env(&1)}
       )
 
     System.put_env("HOME", root)
     System.put_env("SLIPDOCK_DEPLOY_TOKEN", "sdd_test")
     System.delete_env("SLIPDOCK_TOKEN")
+    System.delete_env("SLIPDOCK_DEPLOY_NOTE")
 
     on_exit(fn ->
       Enum.each(saved, fn
@@ -112,6 +113,56 @@ defmodule SlipdockCLI.DeployTest do
     assert Enum.map(body["commits"], & &1["sha"]) == [b, a]
     assert Enum.at(body["commits"], 1)["message"] =~ "body mentions #22"
     assert Enum.at(body["commits"], 1)["committed_at"] =~ ~r/^\d{4}-\d\d-\d\dT/
+  end
+
+  describe "a note on the deploy (#1857)" do
+    defp posted_note(repo, o) do
+      serve([last(nil), created()])
+      assert {:ok, _} = Deploy.record_start([dir: repo] ++ o)
+      assert_received {:request, "POST", "/api/deployments", body}
+      JSON.decode!(body)
+    end
+
+    test "--note is sent, trimmed", %{repo: repo} do
+      commit!(repo, "one")
+      body = posted_note(repo, note: "  suite: ran \n")
+      assert body["note"] == "suite: ran"
+    end
+
+    test "$SLIPDOCK_DEPLOY_NOTE is sent when there is no --note, and --note wins", %{
+      repo: repo
+    } do
+      commit!(repo, "one")
+      System.put_env("SLIPDOCK_DEPLOY_NOTE", "suite: passed on PR #9 at abc1234, same tree")
+      assert posted_note(repo, [])["note"] == "suite: passed on PR #9 at abc1234, same tree"
+      assert posted_note(repo, note: "suite: ran")["note"] == "suite: ran"
+    end
+
+    test "no note, or a blank one, sends none", %{repo: repo} do
+      commit!(repo, "one")
+      refute Map.has_key?(posted_note(repo, []), "note")
+      System.put_env("SLIPDOCK_DEPLOY_NOTE", "   ")
+      refute Map.has_key?(posted_note(repo, []), "note")
+    end
+
+    test "`deploy last` shows the note" do
+      serve([
+        {200,
+         JSON.encode!(%{
+           "sha" => "abc1234",
+           "deployment" => %{
+             "sha" => "abc1234",
+             "tag" => "sha-abc1234",
+             "finished_at" => "2026-11-06T05:00:00Z",
+             "note" => "suite: ran"
+           }
+         })}
+      ])
+
+      out = capture_io(fn -> Deploy.run("deploy", ["last"], []) end)
+      assert out =~ "abc1234 (sha-abc1234)  production"
+      assert out =~ " · suite: ran"
+    end
   end
 
   test "deploying something behind the last deploy is a rollback", %{repo: repo} do

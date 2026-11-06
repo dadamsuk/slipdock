@@ -38,11 +38,12 @@ defmodule Slipdock.ReleaseWorkflowTest do
   test "deploys only pushes to main or v* tags, after the suite and the image" do
     job = deploy_job()
 
-    assert has?(job, "needs: [test, merge]")
+    assert has?(job, "needs: [suite, test, merge]")
 
+    # merge succeeds only on a passed suite, or one the gate skipped (#1857).
     assert has?(
              job,
-             "if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))"
+             "if: ${{ !cancelled() && needs.merge.result == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}"
            )
   end
 

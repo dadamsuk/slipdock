@@ -84,6 +84,7 @@ defmodule SlipdockWeb.API.JSON do
       finished_at: d.finished_at,
       source: d.source,
       rollback: d.rollback,
+      note: d.note,
       cards: d.card_ids,
       commits: d.commits
     }

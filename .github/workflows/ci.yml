@@ -1,5 +1,12 @@
 name: Test
 
+# The commit a pull request run tests is the PR merged into main
+# (refs/pull/N/merge), which the API doesn't give: a run's head_sha is the
+# PR's head. Its name carries it, so release.yml's suite gate can tell whether
+# main's merge commit has the tree this run passed on (#1857). Ignored when
+# release.yml calls this workflow.
+run-name: "${{ github.event.pull_request.title }} · tested ${{ github.sha }}"
+
 on:
   pull_request:
   workflow_call:
