@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.QualityDocsTest do
   @moduledoc """
   The quality numbers (#1796) as the docs describe them: the API guide's
-  example, docs/agents.md, the manual's Visualise section and its doors, and
+  example, docs/agents.md, the README, the manual's Visualise section and its doors, and
   the CLI's help.
   """
   use SlipdockWeb.ConnCase, async: true
@@ -35,6 +35,14 @@ defmodule SlipdockWeb.QualityDocsTest do
 
     assert manual =~
              "`slipdock quality <board> [--days N]` and `GET /api/boards/:id/quality?days=`"
+  end
+
+  test "the README lists the quality numbers and their doors" do
+    readme = read("README.md")
+    assert readme =~ "- **Quality numbers** — [is the agent loop right first time?]"
+    assert readme =~ "(docs/manual.md#visualise-flow-velocity-runners-and-delivery)"
+    assert readme =~ "`slipdock quality <board> [--days N] [--rules]`"
+    assert readme =~ "`GET /api/boards/:id/quality?days=`"
   end
 
   test "the CLI's help lists the command" do

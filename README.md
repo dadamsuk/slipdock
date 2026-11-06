@@ -136,6 +136,13 @@ Briefly, with the detail in [the manual](docs/manual.md):
   The same history and runner numbers: `slipdock flow <board> [--days N]`,
   `slipdock runner-stats <board>`, `GET /api/boards/:id/flow?days=` and
   `/runner_stats`, or `get_board` with `history: true` or `runners: true`.
+- **Quality numbers** — [is the agent loop right first time?](docs/manual.md#visualise-flow-velocity-runners-and-delivery):
+  over a window, the cards accepted on their first submission, rejections per
+  card and by handbook area, rejections by part and by rule id, the `Handbook:`
+  lines a verifier disputed, job timeouts, requeues and give-ups per 100 jobs,
+  and health incidents fixed versus flagged. A *Quality* section on
+  *Visualise*, `slipdock quality <board> [--days N] [--rules]` or
+  `GET /api/boards/:id/quality?days=`; the triage pass reads them too.
 - **Delivery metrics (DORA)** — [deploys recorded from CI](docs/manual.md#delivery-metrics-deploys-and-dora):
   wrap your deploy step in `slipdock deploy run --env production -- ./deploy.sh`
   and the board records each deploy with the commits since the last one, then
