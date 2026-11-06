@@ -20,12 +20,10 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
   @impl true
   def description,
     do:
-      "Builds the board a Tool (see list_tools) comes with — lists, folders, tags, page " <>
-        "skeletons, rules — and returns its code. Already installed: returns that board, " <>
-        "adding what a newer version brings without touching edited pages. tool: \"handbook\" " <>
-        "with board installs the built-in handbook on that board's root instead (W-1934); " <>
-        "tool: \"sweep\" with board installs the code sweep there: its rotation page, a " <>
-        "Triage list and a daily Sweep the code card (W-2310)."
+      "Builds the board a Tool (see list_tools) comes with and returns its code. " <>
+        "Already installed, it adds what a newer version brings without touching edited " <>
+        "pages. tool: \"handbook\" or tool: \"sweep\" with board installs that on its " <>
+        "root instead."
 
   @impl true
   def input_schema do
@@ -41,8 +39,9 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
         board: %{
           type: "string",
           description:
-            "For the handbook or the sweep: the board (id, code or name) to install it on; " <>
-              "it goes on the root."
+            "For the handbook (W-1934) or the sweep (W-2310: its rotation page, a Triage list " <>
+              "and a daily Sweep the code card): the board (id, code or name) to install it " <>
+              "on; it goes on the root."
         }
       },
       required: ["tool"],

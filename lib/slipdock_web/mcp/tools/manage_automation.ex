@@ -24,12 +24,9 @@ defmodule SlipdockWeb.MCP.Tools.ManageAutomation do
   @impl true
   def description,
     do:
-      "Board owner only. create a rule on a board from spec (trigger, conditions, actions — " <>
-        "list_automations with vocabulary: true has the grammar), preset with params, or text " <>
-        "(a sentence the server's model turns into a spec; needs an AI key); name and scope " <>
-        "optional. update a rule (rule: id or name) with any of name, scope, enabled, spec, or " <>
-        "text to rewrite it. delete one (rule, confirm: true); update enabled: false turns " <>
-        "it off instead. pause holds runner work with a reason (a pool, or the whole tree)."
+      "Board owner only. create a rule from spec (list_automations vocabulary: true " <>
+        "has the grammar), preset with params, or text; update one (rule: id or name); " <>
+        "delete one (confirm: true); pause holds runner work, with a reason."
 
   @impl true
   def input_schema do
@@ -46,13 +43,19 @@ defmodule SlipdockWeb.MCP.Tools.ManageAutomation do
         },
         preset: %{type: "string", description: "create: a preset key, from list_automations."},
         params: %{type: "object", description: "create: the preset's fields."},
-        text: %{type: "string", description: "The rule in a sentence, for the model."},
+        text: %{
+          type: "string",
+          description: "The rule in a sentence, for the server's model (needs an AI key)."
+        },
         scope: %{
           type: "string",
           enum: Automations.Rule.scopes(),
           description: "board: its own cards (default); tree: sub-boards' cards too."
         },
-        enabled: %{type: "boolean"},
+        enabled: %{
+          type: "boolean",
+          description: "update: false turns a rule off without deleting it."
+        },
         confirm: %{type: "boolean", description: "Must be true to delete a rule."},
         pool: %{
           type: "string",

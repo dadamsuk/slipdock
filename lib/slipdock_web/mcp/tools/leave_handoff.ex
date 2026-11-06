@@ -17,12 +17,10 @@ defmodule SlipdockWeb.MCP.Tools.LeaveHandoff do
   @impl true
   def description,
     do:
-      "Leaves the card's handoff: where you left it, for whoever picks it up next. Write one " <>
-        "whenever you stop with the card unfinished. It replaces the last one (older ones are " <>
-        "kept as history) and get_card shows it first. next_step is the one next step, one " <>
-        "line; body is the note: State, Next, Gotchas, Open, Pointers. clear: true clears it " <>
-        "(the history keeps it); delete: true deletes the current one outright, so the one " <>
-        "before it is current again: its author or someone who can edit the card."
+      "Leaves the card's handoff for whoever picks it up next: write one whenever you " <>
+        "stop unfinished. It replaces the last (kept as history); get_card shows it " <>
+        "first. next_step: one line; body: the note. clear: true clears it; delete: " <>
+        "true deletes it."
 
   @impl true
   def input_schema do
@@ -41,7 +39,8 @@ defmodule SlipdockWeb.MCP.Tools.LeaveHandoff do
         delete: %{
           type: "boolean",
           description:
-            "Delete the current handoff instead of writing one: gone from the history too."
+            "Delete the current handoff instead of writing one: gone from the history too, and " <>
+              "the one before it is current again. Its author or someone who can edit the card."
         }
       },
       required: ["card"],

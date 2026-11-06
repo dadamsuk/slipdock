@@ -25,13 +25,10 @@ defmodule SlipdockWeb.MCP.Tools.CaptureChat do
   @impl true
   def description,
     do:
-      "Sends this conversation to a board so the decisions and to-dos in it can be committed as cards. " <>
-        "transcript: the conversation as \"Name: text\" turns, the person's turns under their name and yours " <>
-        "under \"Assistant\", copied word for word (or a Claude/ChatGPT export with format). findings " <>
-        "(optional, schema at /api/meetings/findings-schema): your own reading — only what the person " <>
-        "agreed to, each quoting the transcript exactly; quotes not in it are dropped. Without findings the " <>
-        "server reads it. Nothing is written until commit_capture: show the person get_capture's preview " <>
-        "and commit only when they say so."
+      "Sends this conversation to a board so its decisions and to-dos can become " <>
+        "cards. transcript: the turns word for word, yours as \"Assistant\". Nothing is " <>
+        "written until commit_capture: show get_capture's preview and commit only when " <>
+        "they say so."
 
   @impl true
   def input_schema do
@@ -41,7 +38,9 @@ defmodule SlipdockWeb.MCP.Tools.CaptureChat do
         board: %{type: "string", description: "Board id, code or name."},
         transcript: %{
           type: "string",
-          description: "The conversation: \"Name: text\" turns, or an export's JSON."
+          description:
+            "The conversation: \"Name: text\" turns, the person's under their name and yours " <>
+              "under \"Assistant\", copied word for word; or a Claude/ChatGPT export with format."
         },
         title: %{type: "string", description: "What the conversation was about."},
         format: %{type: "string", enum: @formats, description: "Detected when left out."},
@@ -51,7 +50,10 @@ defmodule SlipdockWeb.MCP.Tools.CaptureChat do
         },
         findings: %{
           type: "object",
-          description: "Your own findings: {\"findings\": [...], \"summary\"?, \"topics\"?}."
+          description:
+            "Your own findings: {\"findings\": [...], \"summary\"?, \"topics\"?}, schema at " <>
+              "/api/meetings/findings-schema. Only what the person agreed to, each quoting the " <>
+              "transcript exactly (other quotes are dropped). Left out, the server reads it."
         },
         keep_transcript: %{
           type: "boolean",

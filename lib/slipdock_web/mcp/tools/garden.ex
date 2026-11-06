@@ -22,12 +22,10 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
   @impl true
   def description,
     do:
-      "The board gardener's open tidy-up suggestions: epics done but still open, cards in Done " <>
-        "never completed (or completed outside Done), cards stuck in progress, epics with no " <>
-        "next step, long-overdue cards, abandoned backlog, likely duplicates, orphaned pages and " <>
-        "mistyped [[links]]. Each has an explanation and the steps applying it would take. " <>
-        "run: true looks the board over again first (needs write access). Nothing changes until " <>
-        "a person approves a suggestion: show them, then garden_decide what they chose."
+      "The board gardener's open tidy-up suggestions (epics done but open, stuck or " <>
+        "stale cards, likely duplicates, orphaned pages, broken [[links]]), each with " <>
+        "why and its steps. run: true looks again first. Show the person, then " <>
+        "garden_decide."
 
   @impl true
   def input_schema do
@@ -35,7 +33,10 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
       type: "object",
       properties: %{
         board: %{type: "string", description: "Board id, code or name."},
-        run: %{type: "boolean", description: "Look the board over now, before listing."},
+        run: %{
+          type: "boolean",
+          description: "Look the board over now, before listing (needs write access)."
+        },
         check: %{
           type: "string",
           enum: Gardener.suggestion_keys(),

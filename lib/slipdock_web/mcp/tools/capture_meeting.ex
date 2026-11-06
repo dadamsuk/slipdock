@@ -20,10 +20,10 @@ defmodule SlipdockWeb.MCP.Tools.CaptureMeeting do
   @impl true
   def description,
     do:
-      "Sends a meeting transcript (WebVTT, SRT, \"Name: words\" lines, Fireflies or Otter export) to a " <>
-        "board. Slipdock reads it with the board's cards and wiki and proposes decisions, actions and card " <>
-        "changes for a person to review; nothing is written until they commit. Optional findings follow " <>
-        "the schema at /api/meetings/findings-schema. Recordings: use the CLI or the API."
+      "Sends a meeting transcript (WebVTT, SRT, \"Name: words\" lines, Fireflies or " <>
+        "Otter export) to a board, which proposes decisions, actions and card changes " <>
+        "for a person to review; nothing is written until they commit. Recordings: the " <>
+        "CLI or the API."
 
   @impl true
   def input_schema do
@@ -38,7 +38,9 @@ defmodule SlipdockWeb.MCP.Tools.CaptureMeeting do
         format: %{type: "string", enum: Slipdock.Meetings.Transcript.formats()},
         findings: %{
           type: "object",
-          description: "Your own findings: {\"findings\": [...]}, optional."
+          description:
+            "Your own findings: {\"findings\": [...]}, optional; schema at " <>
+              "/api/meetings/findings-schema."
         }
       },
       required: ["board", "transcript"],
