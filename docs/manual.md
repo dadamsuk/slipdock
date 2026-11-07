@@ -1467,6 +1467,18 @@ usual stay) and, on runner boards, *Driver*: All, Agent or Human. The API, MCP a
 `GET /api/boards/:id/cards?stuck=true&driver=agent`, MCP `list_cards` with
 `stuck` and `driver`.
 
+**Who made it, and who changed it last.** Under a card's properties (in
+the sidebar, and on a phone under the title) *Created by X, 3 days ago*
+and *Last changed by Y, 2 minutes ago*. The last change is any kind: an
+edit, a move, a comment, a checklist item, an attachment or a flag. X and
+Y are a person, a runner loop by its runner's name (*Dev server loop*), an
+agent by its token's label, or an automation rule by its name. When nobody
+was recorded, as on cards older than this, only the time shows: the name
+is never guessed. `slipdock card` prints them on its *Created* and
+*Updated* lines; `GET /api/cards/:id` and MCP `get_card` carry
+`created_by`, `updated_by` (each `{kind, name, user_id}`, a runner's with
+its `job_id` too, or null) and `updated_at`, the time of the last change.
+
 **Its timeline.** Near the bottom of the card, the **Timeline** draws what
 the card has been through on one time axis, from its first record to now:
 a lane of the lists it has sat in, coloured by the list's category (to do,
