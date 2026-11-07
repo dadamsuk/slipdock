@@ -35,14 +35,6 @@ defmodule Slipdock.Search.Indexer do
 
   @zero %{embedded: 0, unchanged: 0, removed: 0}
 
-  # How each kind in the queue is loaded, forgotten (when it has gone since it
-  # was queued) and indexed. A new kind is one line here and an `enqueue_*`.
-  @kinds [
-    card: {&Search.load_cards/1, &Search.forget_card/1, &Search.index_cards/1},
-    page: {&Search.load_pages/1, &Search.forget_page/1, &Search.index_pages/1},
-    file: {&Search.load_files/1, &Search.forget_file/1, &Search.index_files/1}
-  ]
-
   ## Client -------------------------------------------------------------------
 
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -192,9 +184,9 @@ defmodule Slipdock.Search.Indexer do
   end
 
   # One queue, three kinds of thing in it: cards, pages and files embed the
-  # same way and are merely loaded and swept differently (`@kinds`).
+  # same way and are merely loaded and swept differently (`kinds/0`).
   defp embed(entries) do
-    ids = for {kind, _} <- @kinds, into: %{}, do: {kind, for({^kind, id} <- entries, do: id)}
+    ids = for {kind, _} <- kinds(), into: %{}, do: {kind, for({^kind, id} <- entries, do: id)}
 
     case embed_kinds(ids) do
       {:ok, counts} ->
@@ -220,12 +212,24 @@ defmodule Slipdock.Search.Indexer do
 
   # Each kind in turn, summing the counts; the first error stops the rest.
   defp embed_kinds(ids) do
-    Enum.reduce_while(@kinds, {:ok, @zero}, fn {kind, funs}, {:ok, acc} ->
+    Enum.reduce_while(kinds(), {:ok, @zero}, fn {kind, funs}, {:ok, acc} ->
       case embed_kind(Map.fetch!(ids, kind), funs) do
         {:ok, counts} -> {:cont, {:ok, Map.merge(acc, counts, fn _k, a, b -> a + b end)}}
         error -> {:halt, error}
       end
     end)
+  end
+
+  # How each kind in the queue is loaded, forgotten (when it has gone since it
+  # was queued) and indexed. A new kind is one line here and an `enqueue_*`.
+  # A function, not an attribute: captures in an attribute would make
+  # `Search` a compile-time dependency (W-1945, `Slipdock.BoundariesTest`).
+  defp kinds do
+    [
+      card: {&Search.load_cards/1, &Search.forget_card/1, &Search.index_cards/1},
+      page: {&Search.load_pages/1, &Search.forget_page/1, &Search.index_pages/1},
+      file: {&Search.load_files/1, &Search.forget_file/1, &Search.index_files/1}
+    ]
   end
 
   defp embed_kind([], _funs), do: {:ok, @zero}
