@@ -604,7 +604,8 @@ pointer (`in the evidence`, `recorded on #1819`), an event the board records
 itself, something the card fixed, or a fact about the card's own code
 (`Boards.move_card/4 returns :ok`); `Findings: none` is the usual answer.
 Settled knowledge goes straight into the handbook. The server records
-its own (rejections, timeouts, requeues, lane refusals, failed merges), and a
+its own (rejections, timeouts, requeues, failed merges; a lane refusal is
+not one), and a
 person triages them on the board's Findings page (`/boards/:id/findings`,
 beside Health; a card links there when it has open ones), or with
 `slipdock findings <board>`, `slipdock finding <id> promote|dismiss|merge

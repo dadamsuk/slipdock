@@ -205,7 +205,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Findings** — [what each card taught, kept on the board](docs/manual.md#findings):
   a pass writes a `Findings:` block (gotcha, rule, handbook-wrong, tooling,
   process) in its closing comment, the server records rejections, timeouts,
-  requeues, lane refusals and failed merges by itself, and someone triages them
+  requeues and failed merges by itself, and someone triages them
   into the handbook on the board's Findings page (a card says how many open
   ones it has), `slipdock findings <board>` or `GET /api/boards/:board/findings`.
 - **Ledger** — [what shipped since yesterday, to skim](docs/manual.md#the-ledger):
