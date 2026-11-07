@@ -145,6 +145,11 @@ defmodule SlipdockCLI do
     title: :string,
     desc: :string,
     short_name: :string,
+    # An incident (#1946): `add`/`edit --caused-by N --missed-by X`.
+    caused_by: :string,
+    no_caused_by: :boolean,
+    missed_by: :string,
+    no_missed_by: :boolean,
     due: :string,
     no_due: :boolean,
     assignee: :keep,

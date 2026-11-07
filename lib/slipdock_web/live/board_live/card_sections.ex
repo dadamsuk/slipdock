@@ -390,6 +390,127 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   end
 
   attr :board, :any, required: true
+  attr :card, Card, required: true
+  attr :card_link, :any, required: true
+  attr :can_write, :boolean, required: true
+  attr :incident, :map, default: nil
+  attr :error, :string, default: nil, doc: "why the last change was refused (UX-29)"
+  attr :target, :any, required: true
+
+  @doc """
+  The Incident line (#1946): the card whose shipping caused this one and the
+  check that should have caught it, editable; and the incidents this card
+  caused. Shown on a simple board only when there is something to say.
+  """
+  def incident_section(assigns) do
+    assigns =
+      assign(assigns,
+        cause: assigns.incident && assigns.incident.cause,
+        caused: (assigns.incident && assigns.incident.caused) || [],
+        set?: not is_nil(assigns.card.caused_by_id) or not is_nil(assigns.card.missed_by),
+        incident_form:
+          to_form(
+            %{
+              "caused_by" => assigns.card.caused_by_id && "##{assigns.card.caused_by_id}",
+              "missed_by" => assigns.card.missed_by
+            },
+            as: :incident
+          )
+      )
+
+    ~H"""
+    <section
+      :if={
+        @incident &&
+          (@set? or @caused != [] or @error != nil or (@can_write and not @board.simple))
+      }
+      id="card-incident"
+      class="space-y-1.5 px-1"
+    >
+      <h3 class="flex items-center gap-1.5 section-label">
+        <.icon name="hero-fire" class="size-3.5" /> Incident
+      </h3>
+      <.callout :if={@error} id="incident-error" kind={:error}>{@error}</.callout>
+      <p :if={@set?} id="incident-cause" class="flex flex-wrap items-center gap-1 text-sm">
+        <span :if={@cause} class="text-base-content/60">Caused by</span>
+        <span :if={@cause && Map.get(@cause, :hidden)} class="italic text-base-content/50">
+          #{@cause.id} (on a board you can't see)
+        </span>
+        <.link
+          :if={@cause && !Map.get(@cause, :hidden)}
+          patch={if @cause.board_id == @board.id, do: @card_link.(@cause.id)}
+          navigate={
+            if @cause.board_id != @board.id, do: ~p"/boards/#{@cause.board_id}/cards/#{@cause.id}"
+          }
+          class="hover:underline"
+        >
+          #{@cause.id} {@cause.title}
+        </.link>
+        <span :if={!@cause} class="text-base-content/60">Cause not named</span>
+        <span :if={@card.missed_by} class="badge badge-sm badge-warning">
+          missed by {@card.missed_by}
+        </span>
+        <button
+          :if={@can_write}
+          phx-target={@target}
+          type="button"
+          class="btn btn-ghost btn-xs"
+          phx-click="clear_incident"
+          title="Clear the incident's cause and the check that missed it"
+        >
+          Clear
+        </button>
+      </p>
+      <ul :if={@caused != []} id="incident-caused" class="space-y-1">
+        <li :for={incident <- @caused} id={"caused-incident-#{incident.id}"} class="text-sm">
+          <span class="text-base-content/60">Caused incident</span>
+          <.link
+            patch={if incident.board_id == @board.id, do: @card_link.(incident.id)}
+            navigate={
+              if incident.board_id != @board.id,
+                do: ~p"/boards/#{incident.board_id}/cards/#{incident.id}"
+            }
+            class="hover:underline"
+          >
+            #{incident.id} {incident.title}
+          </.link>
+          <span :if={incident.missed_by} class="text-xs text-base-content/50">
+            · missed by {incident.missed_by}
+          </span>
+        </li>
+      </ul>
+      <.form
+        :if={@can_write}
+        for={@incident_form}
+        id={"incident-form-#{@card.id}"}
+        phx-target={@target}
+        phx-submit="save_incident"
+        class="flex flex-wrap items-start gap-1"
+      >
+        <.input
+          field={@incident_form[:caused_by]}
+          label="Caused by"
+          placeholder="#123"
+          title="The card whose shipping caused this incident"
+          class="input field w-28"
+          autocomplete="off"
+        />
+        <.input
+          type="select"
+          field={@incident_form[:missed_by]}
+          label="Missed by"
+          prompt="—"
+          options={Card.layers()}
+          title="The check that should have caught it"
+          class="select field"
+        />
+        <button type="submit" class="btn btn-sm btn-ghost self-end mb-2">Save</button>
+      </.form>
+    </section>
+    """
+  end
+
+  attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :doc_query, :string, default: ""
   attr :doc_results, :list, default: []

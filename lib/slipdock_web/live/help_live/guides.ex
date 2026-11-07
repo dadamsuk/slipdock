@@ -255,6 +255,12 @@ defmodule SlipdockWeb.HelpLive.Guides do
           repeats or dismiss it. A card with open findings says how many, and links there.
         </li>
         <li>
+          <strong>Incidents</strong>: when a card broke something that shipped, its <em>Incident</em>
+          line, under Dependencies, names the card that shipped it and the check that should
+          have caught it (bar, rules, CI, verify, audit or none). The causing card then shows
+          the incident it caused, and carries a finding naming that check.
+        </li>
+        <li>
           <strong>Status updates</strong>: on track, at risk or off track, with a note, shown
           beside the health the board works out for itself.
         </li>

@@ -14,6 +14,9 @@ defmodule Slipdock.Findings.Signals do
     * a verdict reports a rule broken in code the change didn't touch
       (`pre_existing/3`, source `verification`: it isn't a rejection)
     * the **health** monitor flags an incident (`health_flagged/3`)
+    * a card names the card that caused it and the check that missed it
+      (`incident/2`, source `incident`, #1946): one finding per incident,
+      on the causing card, changed in place as the incident's fields change
 
   Each records its source, card and job; a repeat on the same card and cause
   adds to the count (`Slipdock.Findings.record/1`), and the same job never
@@ -28,8 +31,12 @@ defmodule Slipdock.Findings.Signals do
   """
   require Logger
 
-  alias Slipdock.Boards.Card
+  import Ecto.Query
+
+  alias Slipdock.Boards.{Board, Card}
   alias Slipdock.Findings
+  alias Slipdock.Findings.Finding
+  alias Slipdock.{Incidents, Repo}
   alias Slipdock.Runners.Job
 
   @doc "A verifier rejected `card`: `reason` and the verdict's parts (`checks`)."
@@ -210,6 +217,61 @@ defmodule Slipdock.Findings.Signals do
       cards ->
         Enum.each(cards, &record(Map.put(attrs, :card, &1)))
     end
+  end
+
+  @doc """
+  Keeps the finding for `incident` (#1946) in step with its fields: while it
+  names a cause and a layer, one `process` finding on the causing card says
+  which layer missed it. Changing the layer or the cause changes that
+  finding (its text, and the card it is on) rather than adding one; clearing
+  either takes an untriaged one away, and leaves one a person has promoted or
+  dismissed as they left it. `by` is who set it, in words.
+  """
+  def incident(%Card{} = incident, by \\ nil) do
+    key = Incidents.finding_cause(incident)
+    cause = incident.missed_by && Incidents.cause(incident)
+
+    existing =
+      Repo.one(
+        from f in Finding,
+          where: f.source == "incident" and f.cause == ^key and f.status != "merged",
+          order_by: [desc: f.id],
+          limit: 1
+      )
+
+    case {existing, cause} do
+      {nil, nil} ->
+        :ok
+
+      {nil, cause} ->
+        record(%{
+          card: cause,
+          source: "incident",
+          kind: "process",
+          cause: key,
+          text: Incidents.finding_text(incident, incident.missed_by),
+          by: by
+        })
+
+      {%Finding{status: "open"} = finding, nil} ->
+        Repo.delete(finding)
+
+      {_triaged, nil} ->
+        :ok
+
+      {finding, cause} ->
+        finding
+        |> Finding.changeset(%{text: Incidents.finding_text(incident, incident.missed_by)})
+        |> Ecto.Changeset.change(
+          card_id: cause.id,
+          board_id: Board.root_id(cause.board)
+        )
+        |> Repo.update()
+    end
+  rescue
+    e ->
+      Logger.warning("incident finding not kept: #{Exception.message(e)}")
+      :ok
   end
 
   defp record(attrs) do

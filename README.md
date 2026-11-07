@@ -203,6 +203,10 @@ Briefly, with the detail in [the manual](docs/manual.md):
   requeues, lane refusals and failed merges by itself, and someone triages them
   into the handbook on the board's Findings page (a card says how many open
   ones it has), `slipdock findings <board>` or `GET /api/boards/:board/findings`.
+- **Incidents** — [what broke after it shipped, and which check missed it](docs/manual.md#incidents):
+  a card names the card that caused it (`caused_by`) and the check that should
+  have caught it (`missed_by`: bar, rules, ci, verify, audit or none), and the
+  causing card carries a `process` finding with source `incident`.
 - **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the
   estimate and red past it.

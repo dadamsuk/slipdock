@@ -519,6 +519,7 @@ WRITE
       --percent N (0-100)  --border C, --border-top/-right/-bottom/-left C   (see edit)
       --spent T  --estimate T  --unit minutes|hours|days|weeks|months   (time tracking; see edit)
       --bar TEXT  --paths "G1,G2"  its bar and the globs its work touches (see edit)
+      --caused-by N  --missed-by L  file it as an incident (see edit)
       --archived                  archive it as soon as it is made (a record of finished work)
   edit <id> [opts]                    change fields on a card
       --title T  --desc TEXT  --priority P  --start DATE | --no-start  --due DATE | --no-due
@@ -541,6 +542,12 @@ WRITE
                                    2d, 1w, 1mo, "1h 30m" (a day is 8h, a week 5d, a month 4w)
       --unit minutes|hours|days|weeks|months   how the card shows both (default hours)
       --log T                      add T to the time spent (--log=-30m takes it off)
+      --caused-by N | --no-caused-by   this card is an incident: N (or #N) is the card
+                                   whose shipping caused it, on any board you can read
+      --missed-by L | --no-missed-by   the check that should have caught it: bar, rules,
+                                   ci, verify, audit or none. With --caused-by it records a
+                                   process finding (source incident) on the causing card;
+                                   `slipdock findings B --source incident` lists them
   timer <id> start|stop               run a card's timer; stopping adds what it ran to the
                                       time spent
   log <id> <time>                     add time spent by hand (same as edit --log)

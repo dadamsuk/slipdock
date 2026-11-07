@@ -1069,6 +1069,33 @@ defmodule SlipdockCLI.Render do
 
   defp handbook_rules(_), do: :ok
 
+  # Both ends of an incident (#1946): what caused it, and what it caused.
+  defp incident_fields(c) do
+    if text = incident_text(c), do: field("Incident", text)
+
+    Enum.each(c["incidents"] || [], fn i ->
+      missed = if i["missed_by"], do: " (missed by #{i["missed_by"]})", else: ""
+      field("Incidents", "caused incident ##{i["id"]} #{i["title"]}#{missed}")
+    end)
+  end
+
+  # "caused by #12 Title · missed by ci", from the card's own fields and,
+  # where the server sent it, the cause's title.
+  defp incident_text(c) do
+    if c["caused_by"] || c["missed_by"], do: incident_line(c)
+  end
+
+  defp incident_line(c) do
+    cause =
+      case {c["caused_by"], c["caused_by_card"]} do
+        {nil, _} -> "cause not named"
+        {id, %{"title" => title}} -> "caused by ##{id} #{title}"
+        {id, _} -> "caused by ##{id}"
+      end
+
+    if m = c["missed_by"], do: cause <> " · missed by #{m}", else: cause
+  end
+
   def card(c) do
     IO.puts(
       bold("##{c["id"]} #{c["title"]}") <> if(c["completed"], do: "  ✓ completed", else: "")
@@ -1104,6 +1131,7 @@ defmodule SlipdockCLI.Render do
     if borders = borders_line(c), do: field("Borders", borders)
     field("Blocked by", dependency_list(c["blocked_by"], c["board_id"]))
     field("Blocks", dependency_list(c["blocks"], c["board_id"]))
+    incident_fields(c)
 
     if c["links"] not in [nil, []] do
       field(

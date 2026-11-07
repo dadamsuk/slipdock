@@ -348,6 +348,9 @@ defmodule SlipdockCLI.Boards do
         # is one write: the server checks both as it does on an update.
         "bar" => o[:bar],
         "paths" => o[:paths],
+        # An incident (#1946): the card that shipped it, the check that missed it.
+        "caused_by" => o[:caused_by],
+        "missed_by" => o[:missed_by],
         "time_spent" => o[:spent],
         "time_estimate" => o[:estimate],
         "time_unit" => o[:unit],
@@ -374,6 +377,8 @@ defmodule SlipdockCLI.Boards do
         "bar" => o[:bar],
         # The files its work touches (#1628): globs, split by the server.
         "paths" => o[:paths],
+        "caused_by" => o[:caused_by],
+        "missed_by" => o[:missed_by],
         "time_spent" => o[:spent],
         "time_estimate" => o[:estimate],
         "time_unit" => o[:unit],
@@ -393,6 +398,7 @@ defmodule SlipdockCLI.Boards do
       |> then(fn b -> if o[:no_spent], do: Map.put(b, "time_spent", nil), else: b end)
       |> then(fn b -> if o[:no_estimate], do: Map.put(b, "time_estimate", nil), else: b end)
       |> then(fn b -> if o[:no_assignee], do: Map.put(b, "assignee", ""), else: b end)
+      |> incident_clears(o)
 
     if body == %{}, do: fail("nothing to change — pass at least one option (see --help)")
     HTTP.patch("/cards/#{enc(id)}", body) |> out(o, &card_ok("updated", &1))
@@ -1986,6 +1992,13 @@ defmodule SlipdockCLI.Boards do
 
   # The verdict in parts (#1778): each `--check`, then `--checks-file`'s
   # lines, or its JSON map of parts as it is. nil when none are given.
+  # `--no-caused-by` and `--no-missed-by` (#1946): a null clears each.
+  defp incident_clears(body, o) do
+    Enum.reduce([no_caused_by: "caused_by", no_missed_by: "missed_by"], body, fn {flag, key}, b ->
+      if o[flag], do: Map.put(b, key, nil), else: b
+    end)
+  end
+
   defp verify_checks(o) do
     given = Keyword.get_values(o, :check)
 

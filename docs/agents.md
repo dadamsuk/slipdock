@@ -587,6 +587,18 @@ beside Health; a card links there when it has open ones), or with
 --into <id>`, `GET /api/boards/:board/findings`; see
 [the manual](manual.md#findings).
 
+**Incidents.** When a person tells you a card broke something that shipped,
+file it (or edit it) as an incident: `caused_by`, the card whose shipping
+caused it (any card you can read), and `missed_by`, the check that should
+have caught it (`bar`, `rules`, `ci`, `verify`, `audit` or `none`).
+`slipdock add|edit … --caused-by 123 --missed-by ci` (`--no-caused-by`,
+`--no-missed-by` clear them), `update_card`/`create_card` `caused_by` and
+`missed_by`, or `PATCH /api/cards/:id`. An unknown layer or a card you can't
+read is refused with a sentence. While both are set the causing card carries
+one `process` finding with source `incident`, kept in step as they change
+(`slipdock findings <board> --source incident`). Set them only when told: an
+incident is a person's judgement. See [the manual](manual.md#incidents).
+
 **Verified work.** A board can check what its agents finish, with each
 check off until it is turned on in the board's settings: a **bar** written
 before work starts, which then locks (best written by whoever files the

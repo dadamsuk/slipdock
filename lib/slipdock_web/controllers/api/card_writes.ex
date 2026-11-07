@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.CardWrites do
   alias Slipdock.Boards
   alias Slipdock.Boards.{Board, Card}
 
-  @card_fields ~w(title short_name description priority flags start_date due_date date_precision completed percent_complete time_spent time_estimate time_unit log_time color border_top border_right border_bottom border_left bar evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr paths)
+  @card_fields ~w(title short_name description priority flags start_date due_date date_precision completed percent_complete time_spent time_estimate time_unit log_time color border_top border_right border_bottom border_left bar evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr paths caused_by missed_by)
 
   @doc "The card fields a create or update takes as they are."
   def card_fields, do: @card_fields
@@ -54,6 +54,8 @@ defmodule SlipdockWeb.API.CardWrites do
          {:ok, card} <-
            Boards.create_card(column, params |> Map.take(@card_fields) |> Map.merge(assignee),
              by: user,
+             # An incident's cause is checked through the token's scope (#1946).
+             token: auth.assigns[:api_token],
              actor: Slipdock.Actor.from_conn(auth)
            ),
          {:ok, _} <- maybe_set_tags(card, tags),
@@ -85,6 +87,8 @@ defmodule SlipdockWeb.API.CardWrites do
          {:ok, card} <-
            Boards.update_card(card, Map.merge(card_attrs(card, params), assignee),
              by: user,
+             # An incident's cause is checked through the token's scope (#1946).
+             token: auth.assigns[:api_token],
              actor: Slipdock.Actor.from_conn(auth)
            ),
          {:ok, _} <- maybe_set_tags(card, tags),

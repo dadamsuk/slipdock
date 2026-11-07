@@ -516,7 +516,11 @@ defmodule SlipdockWeb.API.JSON do
       # The last decision's verdict in parts (#1778).
       verify_checks: c.verify_checks,
       # The paths its work touches (#1628), when it declares any.
-      paths: if(c.paths not in [nil, []], do: c.paths)
+      paths: if(c.paths not in [nil, []], do: c.paths),
+      # An incident (#1946): the card that caused it and the check that
+      # missed it, when it says.
+      caused_by: c.caused_by_id,
+      missed_by: c.missed_by
     ]
     |> Enum.reject(fn {_, v} -> is_nil(v) end)
     |> Enum.into(map)
@@ -1156,6 +1160,45 @@ defmodule SlipdockWeb.API.JSON do
   @doc "How many open findings the card has (W-2310 §Findings)."
   def put_findings(map, %Card{} = card),
     do: Map.put(map, :findings, Slipdock.Findings.open_count(card))
+
+  @doc """
+  Puts both ends of an incident (#1946) on a card's JSON, as `user` may read
+  them through `token` (which only narrows): `caused_by_card`, the card it
+  names as its cause (`hidden` with no title when it can't be read), and
+  `incidents`, the cards naming it as theirs, each with the check that missed
+  it. Left off when there are none.
+  """
+  def put_incidents(map, %Card{} = card, user, token \\ nil) do
+    cause =
+      case Slipdock.Incidents.cause(card) do
+        nil ->
+          nil
+
+        cause ->
+          if Slipdock.Incidents.readable?(cause, user, token),
+            do: incident_stub(cause),
+            else: %{id: cause.id, hidden: true}
+      end
+
+    caused =
+      card
+      |> Slipdock.Incidents.caused_readable(user, token)
+      |> Enum.map(&Map.put(incident_stub(&1), :missed_by, &1.missed_by))
+
+    [caused_by_card: cause, incidents: if(caused != [], do: caused)]
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+    |> Enum.into(map)
+  end
+
+  defp incident_stub(%Card{} = c) do
+    %{
+      id: c.id,
+      title: c.title,
+      completed: c.completed,
+      board_id: c.board_id,
+      board: if(match?(%Board{}, c.board), do: c.board.code)
+    }
+  end
 
   @doc """
   How the card's work ships, on a board that ships by pull request (#1655):

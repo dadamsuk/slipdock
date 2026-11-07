@@ -69,6 +69,7 @@ test/slipdock_web/verified_docs_test.exs
 test/slipdock_web/verified_merge_docs_test.exs
 test/slipdock_web/verify_by_ci_docs_test.exs
 test/slipdock_web/wait_docs_test.exs
+test/slipdock/incidents_docs_test.exs
 
 # Feature tests that also hold docs or skills to what they built
 test/slipdock/runners_drift_test.exs

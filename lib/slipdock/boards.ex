@@ -1895,6 +1895,15 @@ defmodule Slipdock.Boards do
   def create_card(%Column{} = column, attrs, opts \\ []) do
     position = next_position(from(c in Card, where: c.column_id == ^column.id))
     card = %Card{board_id: column.board_id, column_id: column.id, position: position}
+
+    # An incident's cause (#1946): a card the writer can read, or a refusal.
+    case Slipdock.Incidents.check(card, attrs, writer(opts), opts[:token]) do
+      {:ok, attrs} -> insert_card(card, column, attrs, opts)
+      {:error, field, message} -> {:error, refused(card, field, message)}
+    end
+  end
+
+  defp insert_card(card, column, attrs, opts) do
     {assignees, attrs} = assignee_change(card, attrs)
     attrs = Slipdock.TimeTracking.normalize_attrs(card, attrs)
 
@@ -1917,9 +1926,34 @@ defmodule Slipdock.Boards do
       Indexer.enqueue(card)
       if ShortNames.stale?(nil, card), do: ShortNames.refine_later(card)
       Slipdock.Mentions.description_changed(card, nil, card.description, opts[:by])
+      if card.missed_by, do: Slipdock.Findings.Signals.incident(card, writer_name(opts))
       automate(%{type: "card_created", card: card, column: column})
     end)
   end
+
+  # The incident's finding on its cause follows its fields (#1946).
+  defp incident_saved(card, updated, opts) do
+    if Slipdock.Incidents.changed?(card, updated),
+      do: Slipdock.Findings.Signals.incident(updated, writer_name(opts))
+  end
+
+  # Who is writing, when a person's account is (`opts[:by]`).
+  defp writer(opts) do
+    case opts[:by] do
+      %Slipdock.Accounts.User{} = user -> user
+      _ -> nil
+    end
+  end
+
+  defp writer_name(opts) do
+    case writer(opts) do
+      nil -> nil
+      user -> user.name || user.email
+    end
+  end
+
+  defp refused(card, field, message),
+    do: card |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(field, message)
 
   @doc "Changes a card. `opts[:by]` as for `create_card/3`."
   def update_card(card, attrs, opts \\ [])
@@ -1939,10 +1973,13 @@ defmodule Slipdock.Boards do
   def update_card(%Card{} = card, attrs, opts) do
     # Verified work (#1620): what an agent may change on a board that checks.
     # A verifier's decision (`Slipdock.Verified.decide/5`) brings its own.
+    # An incident's cause (#1946) first: a card the writer can read.
     checked =
-      case opts[:verify_changes] do
-        nil -> check_update(card, attrs, Slipdock.Actor.resolve(opts))
-        changes -> {:ok, attrs, changes}
+      case {Slipdock.Incidents.check(card, attrs, writer(opts), opts[:token]),
+            opts[:verify_changes]} do
+        {{:error, _, _} = refused, _} -> refused
+        {{:ok, attrs}, nil} -> check_update(card, attrs, Slipdock.Actor.resolve(opts))
+        {{:ok, attrs}, changes} -> {:ok, attrs, changes}
       end
 
     case checked do
@@ -1950,7 +1987,7 @@ defmodule Slipdock.Boards do
         save_card(card, attrs, changes, opts)
 
       {:error, field, message} ->
-        {:error, card |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(field, message)}
+        {:error, refused(card, field, message)}
     end
   end
 
@@ -2008,6 +2045,8 @@ defmodule Slipdock.Boards do
         do: Slipdock.Recurrence.completion_changed(updated)
 
       if changeset.changes[:completed] == true, do: unblock_dependents(updated, opts)
+
+      incident_saved(card, updated, opts)
 
       # Evidence a completion carried is kept as a comment (#1632).
       Slipdock.Verified.saved(card, updated, opts[:by])
