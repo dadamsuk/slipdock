@@ -95,7 +95,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Lanes** — [parallel agents stay out of each other's files](docs/manual.md#lanes),
   all optional and off by default: a card's paths (`slipdock edit 12 --paths
   "lib/runners/**"`), a board switch that refuses an agent starting a card
-  whose paths overlap one in progress (`slipdock set-board --lanes`), a git
+  whose paths overlap one in progress (`slipdock set-board --lanes`), or in
+  advisory mode starts it and names that card in the job's prompt
+  (`slipdock set-board --lane-mode advise`), a git
   worktree per runner job (`--worktree`), a pre-commit hook that keeps a
   commit inside its card's paths (`slipdock hook install lane-check`), and a
   board's shared paths that never count toward a lane, for the files nearly

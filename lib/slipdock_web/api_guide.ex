@@ -3737,7 +3737,7 @@ defmodule SlipdockWeb.APIGuide do
 
   # The board line's lanes items (#1628): on, and its shared paths (#1971).
   defp lanes_lines(%{lanes: true} = board) do
-    "\n  - lanes: on — write a card's paths before starting it (see *Lanes*)" <>
+    lanes_line(Slipdock.Lanes.mode(board)) <>
       case Slipdock.Lanes.shared_paths(board) do
         [] -> ""
         shared -> "\n  - shared paths (hold no lane): " <> Enum.map_join(shared, ", ", &"`#{&1}`")
@@ -3745,6 +3745,14 @@ defmodule SlipdockWeb.APIGuide do
   end
 
   defp lanes_lines(_board), do: ""
+
+  defp lanes_line("advise"),
+    do:
+      "\n  - lanes: advise — write a card's paths before starting it; an overlap is " <>
+        "told in the job's prompt, not held (see *Lanes*)"
+
+  defp lanes_line(_mode),
+    do: "\n  - lanes: on — write a card's paths before starting it (see *Lanes*)"
 
   # Lanes (#1628): described only when one of the reader's boards has it on.
   defp lanes_section(nil, _token), do: ""
@@ -3797,6 +3805,19 @@ defmodule SlipdockWeb.APIGuide do
       lane-check hook lets a staged file under one through. Others may be
       editing them too: keep to your own sections, and rebase on the
       default branch before pushing.
+
+      **Advisory lanes.** A board's `lane_mode` is `off`, `hold` (all of
+      the above; `lanes: true` means it) or `advise` (`lanes: advise` on its
+      line; `PATCH /api/boards/:id {"lane_mode": "advise"}`, `update_board`
+      `lane_mode`, `slipdock set-board B --lane-mode advise`). Under
+      `advise` nothing is refused or held: you start the card, and a
+      claimed job's prompt carries a *Lanes* block naming each card in
+      progress whose paths overlap yours, the globs, and the job and
+      runner on it. Before editing those files read that card (`slipdock
+      card <id>`) and its branch (`card-<id>`, if pushed), stay out of
+      them where you can, and rebase on the default branch before pushing.
+      A card's JSON says the overlap as `lane_overlap` (`{card, title,
+      mode}`). `lanes: true/false` keeps working and means `hold`/`off`.
       """
     else
       ""

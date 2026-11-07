@@ -99,6 +99,11 @@ defmodule Slipdock.Boards.Board do
     # Lanes (#1628): an agent can't start a card whose `paths` overlap a
     # card in progress on the tree (see `Slipdock.Lanes`). Off by default.
     field :lanes, :boolean, default: false
+    # Advisory lanes (#1972): what an overlap does with lanes on. `hold`
+    # refuses an agent's start and holds its job; `advise` tells the agent in
+    # its job's prompt instead. `off` with lanes off. `lanes` follows it
+    # (`put_lane_mode/2`); writing `lanes` alone sets `hold` or `off`.
+    field :lane_mode, :string, default: "off"
     # Profiles (#1951): a card an agent claims or starts with no profile gets
     # one inferred (see `Slipdock.Profiles`). Off by default; its human tier
     # (#1952) reads it.
@@ -543,6 +548,7 @@ defmodule Slipdock.Boards.Board do
       :handoff_prompt,
       :bar_required,
       :lanes,
+      :lane_mode,
       :profiles,
       :profile_tiers,
       :shared_paths,
@@ -559,6 +565,7 @@ defmodule Slipdock.Boards.Board do
     |> put_senders(attrs)
     |> validate_senders()
     |> Slipdock.Lanes.validate_paths(:shared_paths)
+    |> put_lane_mode(attrs)
     |> update_change(:verify_pool, &pool_name/1)
     |> validate_format(:verify_pool, Slipdock.Runners.Runner.name_format(),
       message: "must be a runner pool's name: lower case letters, digits, - or _"
@@ -626,6 +633,40 @@ defmodule Slipdock.Boards.Board do
     )
     |> validate_change(:card_ref_pattern, &validate_card_ref_pattern/2)
   end
+
+  @lane_modes ~w(off hold advise)
+
+  @doc "A board's lane modes (#1972): `off`, `hold` and `advise`."
+  def lane_modes, do: @lane_modes
+
+  # The lane mode and the `lanes` switch kept in step (#1972): a `lane_mode`
+  # sets the switch (on unless `off`); `lanes` written without one is `hold`
+  # or `off`, as it always meant.
+  defp put_lane_mode(changeset, attrs) do
+    cond do
+      has_attr?(attrs, :lane_mode) ->
+        changeset
+        |> validate_inclusion(:lane_mode, @lane_modes,
+          message: "must be one of: #{Enum.join(@lane_modes, ", ")}"
+        )
+        |> then(&put_change(&1, :lanes, get_field(&1, :lane_mode) != "off"))
+
+      has_attr?(attrs, :lanes) ->
+        put_change(
+          changeset,
+          :lane_mode,
+          if(get_field(changeset, :lanes), do: "hold", else: "off")
+        )
+
+      true ->
+        changeset
+    end
+  end
+
+  defp has_attr?(%{} = attrs, key),
+    do: Map.has_key?(attrs, key) or Map.has_key?(attrs, Atom.to_string(key))
+
+  defp has_attr?(_attrs, _key), do: false
 
   @ship_via ~w(push pull_request)
 

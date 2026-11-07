@@ -89,7 +89,13 @@ defmodule SlipdockWeb.SharedPathsWebTest do
       mcp(ctx.agent, "update_board", %{board: "#{ctx.board.id}", shared_paths: ["docs/manual.md"]})
 
     assert result["isError"] == false
-    assert structured(result)["lanes"] == %{"on" => false, "shared_paths" => ["docs/manual.md"]}
+
+    assert structured(result)["lanes"] == %{
+             "on" => false,
+             "mode" => "off",
+             "shared_paths" => ["docs/manual.md"]
+           }
+
     assert Boards.get_board!(ctx.board.id).shared_paths == ["docs/manual.md"]
 
     got = mcp(ctx.agent, "get_board", %{board: "#{ctx.board.id}"}) |> structured()

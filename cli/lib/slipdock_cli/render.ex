@@ -97,11 +97,27 @@ defmodule SlipdockCLI.Render do
 
   def paused(_), do: :ok
 
-  # The board's shared paths (#1971), when it has any.
+  # The board's lanes, when there is something to say: advisory (#1972),
+  # and its shared paths (#1971).
+  defp lanes_lines(b) do
+    if b["lane_mode"] == "advise", do: IO.puts(dim("lanes: advise (overlaps are told, not held)"))
+    shared_paths_line(b["shared_paths"])
+  end
+
   defp shared_paths_line([_ | _] = globs),
     do: IO.puts(dim("shared paths (hold no lane): " <> Enum.join(globs, ", ")))
 
   defp shared_paths_line(_globs), do: :ok
+
+  # The card in progress its paths overlap (#1972), and what that does.
+  defp lane_overlap_line(%{"card" => id, "title" => title, "mode" => "advise"}),
+    do:
+      IO.puts(indent(dim("overlaps ##{id} “#{title}” in progress, advisory: an agent may start")))
+
+  defp lane_overlap_line(%{"card" => id, "title" => title}),
+    do: IO.puts(indent(dim("overlaps ##{id} “#{title}” in progress: an agent can't start this")))
+
+  defp lane_overlap_line(_overlap), do: :ok
 
   # A card's paths one per line, those shared on the board (#1971) marked.
   defp paths_text(paths, shared) do
@@ -129,7 +145,7 @@ defmodule SlipdockCLI.Render do
 
     if b["owner"], do: IO.puts(dim("owner: " <> owner_name(b)))
 
-    shared_paths_line(b["shared_paths"])
+    lanes_lines(b)
 
     tags = Enum.map(b["tags"], & &1["name"])
     if tags != [], do: IO.puts(dim("tags: " <> Enum.join(tags, ", ")))
@@ -1264,6 +1280,7 @@ defmodule SlipdockCLI.Render do
       IO.puts("")
       IO.puts(bold("Paths"))
       c["paths"] |> paths_text(c["paths_shared"]) |> indent() |> IO.puts()
+      lane_overlap_line(c["lane_overlap"])
     end
 
     if state = c["verify_state"] do

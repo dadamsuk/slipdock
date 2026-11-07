@@ -1805,6 +1805,7 @@ defmodule Slipdock.Runners do
         job.prompt
     end
     |> with_paths(job)
+    |> with_lane_advice(job)
     |> with_rejection(job)
     |> with_shipping(job)
   end
@@ -1845,6 +1846,49 @@ defmodule Slipdock.Runners do
 
       _ ->
         prompt
+    end
+  end
+
+  # Advisory lanes (#1972): on a board whose lane mode is `advise`, the
+  # cards in progress whose paths overlap this card's, and what to do.
+  # Nothing when none do, or in any other mode.
+  defp with_lane_advice(prompt, %Job{card_id: card_id}) do
+    with %Card{} = card <- Repo.one(from(c in Card, where: c.id == ^card_id, preload: :board)),
+         "advise" <- Slipdock.Lanes.mode(card.board),
+         [_ | _] = overlaps <- Slipdock.Lanes.overlaps(card) do
+      (prompt || "") <> "\n\n" <> lane_advice(overlaps)
+    else
+      _ -> prompt
+    end
+  end
+
+  @doc """
+  The *Lanes* block of an advisory lane's prompt (#1972): each card in
+  progress whose paths overlap, from `Slipdock.Lanes.overlaps/1`, with the
+  globs, the job and runner working it, and what to do.
+  """
+  def lane_advice(overlaps) do
+    lines =
+      Enum.map_join(overlaps, "\n", fn %{card: other, paths: mine, theirs: theirs} ->
+        "- ##{other.id} \"#{other.title}\"#{working_on(other)}: your " <>
+          Enum.join(mine, ", ") <> " meets its " <> Enum.join(theirs, ", ")
+      end)
+
+    "Lanes (advisory): this board doesn't hold overlapping work, and these cards in " <>
+      "progress touch some of the same files:\n" <>
+      lines <>
+      "\nBefore editing those files, read that card (slipdock card <id>) and its branch " <>
+      "(card-<id>, if pushed); stay out of them where you can; rebase on the default " <>
+      "branch before pushing, and expect to merge."
+  end
+
+  defp working_on(%Card{} = card) do
+    case Slipdock.Lanes.working_job(card) do
+      %Job{} = job ->
+        " (job ##{job.id}" <> if(job.runner_name, do: " on #{job.runner_name})", else: ")")
+
+      nil ->
+        ""
     end
   end
 

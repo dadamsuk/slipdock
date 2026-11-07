@@ -248,6 +248,7 @@ defmodule Slipdock.Portable.Export do
       handoff_prompt: board.handoff_prompt,
       bar_required: board.bar_required,
       lanes: board.lanes,
+      lane_mode: board.lane_mode,
       profiles: board.profiles,
       profile_tiers: board.profile_tiers,
       shared_paths: board.shared_paths,

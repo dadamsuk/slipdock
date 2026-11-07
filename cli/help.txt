@@ -710,7 +710,7 @@ WRITE
       [--verify-pool POOL] [--verify-rejection-limit N] [--verify-audit N]
       [--findings-propose-at N]
       [--ship-via push|pull-request]
-      [--lanes | --no-lanes] [--shared-paths GLOBS]
+      [--lanes | --no-lanes] [--lane-mode off|hold|advise] [--shared-paths GLOBS]
       [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
       [--profiles on|off] [--profile-tier PROFILE=TIER]...
                                       rename a board, change its code, shortcut key or colour,
@@ -767,6 +767,10 @@ WRITE
                                       card has a runner merge it (needs --verify-work)
                                       --lanes: an agent can't start a card whose --paths
                                       overlap a card in progress (a person can)
+                                      --lane-mode off|hold|advise: what an overlap does:
+                                      hold refuses the start (what --lanes turns on),
+                                      advise lets it start and tells the agent in its
+                                      job's prompt which card is in those files
                                       --shared-paths GLOBS: globs that never count toward
                                       a lane (docs/manual.md,README.md), split on commas or
                                       newlines; "" clears

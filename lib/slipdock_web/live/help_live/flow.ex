@@ -76,8 +76,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
   @settings [
     {"A bar before work starts", "slipdock set-board B --bar-required",
      "Agents write each card's bar before they may start it; it locks then."},
-    {"Lanes", "slipdock set-board B --lanes",
-     "An agent can't start a card whose paths overlap a card in progress."},
+    {"Lanes", "slipdock set-board B --lane-mode hold",
+     "Hold: an agent can't start a card whose paths overlap a card in progress. Advise: it starts, and its prompt names that card."},
     {"Profiles", "slipdock set-board B --profiles on",
      "A card an agent starts gets one word for what kind of change it is; a schema, security or spike card an agent accepts waits for a person before it merges."},
     {"Human tier, by profile", "slipdock set-board B --profile-tier schema=none",
@@ -337,7 +337,9 @@ defmodule SlipdockWeb.HelpLive.Flow do
       On a board with <em>Lanes</em>
       on, give the card its <strong>paths</strong>: the files its work will touch, as globs
       (<code>slipdock edit 12 --paths "lib/billing/**,docs/manual.md"</code>). Two agents can't
-      work cards whose paths overlap at once; the second waits. Files nearly every card edits,
+      work cards whose paths overlap at once; the second waits. Set lanes to <em>Advise</em>
+      (<code>slipdock set-board B --lane-mode advise</code>) and the second starts anyway, its job's
+      prompt naming the card already in those files. Files nearly every card edits,
       such as the manual, go in the board's <strong>shared paths</strong>
       (<code>slipdock set-board B --shared-paths docs/manual.md,README.md</code>): cards can
       declare them without holding each other, and their edits are left to merge.

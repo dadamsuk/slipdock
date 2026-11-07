@@ -15,7 +15,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   alias SlipdockWeb.MCP.{Args, Tools}
 
   @fields ~w(name description color simple default_view handoff_label bar_required
-             evidence_required verify_work verify_pool lanes shared_paths profiles profile_tiers ship_via job_log_hours
+             evidence_required verify_work verify_pool lanes lane_mode shared_paths profiles profile_tiers ship_via job_log_hours
              failure_log_hours findings_propose_at)
 
   @impl true
@@ -28,8 +28,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def description,
     do:
       "Changes a board you own: name, description, color, simple, default_view, handoff_label, " <>
-        "the verified-work switches, lanes, shared_paths, profiles, profile_tiers, " <>
-        "job/failure log hours, findings_propose_at, wait_routes. Only what you send changes."
+        "verified-work switches, lanes (lane_mode, shared_paths), profiles, profile_tiers, " <>
+        "job log hours, findings_propose_at, wait_routes. Only what you send changes."
 
   @impl true
   def input_schema do
@@ -54,7 +54,14 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
         },
         lanes: %{
           type: "boolean",
-          description: "Refuse agents starting cards whose paths overlap."
+          description: "Lanes on (as hold) or off. lane_mode, if sent too, wins."
+        },
+        lane_mode: %{
+          type: "string",
+          enum: Slipdock.Boards.Board.lane_modes(),
+          description:
+            "What an overlap does: off; hold (refuse an agent's start, hold its job); " <>
+              "advise (start it, and tell the agent in its job's prompt)."
         },
         profiles: %{
           type: "boolean",

@@ -773,7 +773,13 @@ files honestly, and an overlap only inside them holds nobody. A path only
 partly inside one still counts. `get_card` and `slipdock card` mark a
 card's shared paths, the job's prompt names them, and the lane-check hook
 lets them through; keep to your own sections of a shared file and rebase
-before pushing.
+before pushing. A board's `lane_mode` is `off`, `hold` (what `lanes: true`
+means: overlapping starts refused, jobs held) or `advise` (`update_board`
+`lane_mode`, `slipdock set-board --lane-mode advise`): under `advise`
+nothing is held, and your job's prompt carries a *Lanes* block naming each
+card in progress whose paths overlap yours. Read that card and its branch
+before editing those files, stay out of them where you can, and rebase on
+the default branch before pushing.
 Only a card a runner job is working on holds a lane: one in progress with
 no open job, dragged there by hand or left behind, holds none. Lanes hold work jobs only, never a verify or merge
 job. See [the manual](manual.md#lanes).

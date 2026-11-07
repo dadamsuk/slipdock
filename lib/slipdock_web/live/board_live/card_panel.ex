@@ -667,6 +667,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     assigns =
       assign(assigns,
         overlap: Slipdock.Lanes.on?(assigns.board) && Slipdock.Lanes.conflict(assigns.card),
+        advisory: Slipdock.Lanes.mode(assigns.board) == "advise",
         shared: shared_paths(assigns.board, assigns.card),
         text: assigns.form[:paths].value |> List.wrap() |> Enum.join("\n")
       )
@@ -696,9 +697,13 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       <p :for={msg <- Enum.map(@form[:paths].errors, &elem(&1, 0))} class="text-sm text-error">
         {msg}
       </p>
-      <p :if={@overlap} id="card-paths-overlap" class="text-xs text-warning">
+      <p :if={@overlap && !@advisory} id="card-paths-overlap" class="text-xs text-warning">
         Overlaps #{@overlap.id} {@overlap.title}, in progress: an agent can't start this card
         while it is. Moving it yourself overrides that.
+      </p>
+      <p :if={@overlap && @advisory} id="card-paths-overlap" class="text-xs text-base-content/60">
+        Overlaps #{@overlap.id} {@overlap.title}, in progress, advisory: an agent can start this
+        card, and its job's prompt tells it which card is in those files.
       </p>
       <p :if={@shared != []} id="card-paths-shared" class="text-xs text-base-content/60">
         Shared on the board, so they hold no lane:

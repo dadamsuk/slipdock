@@ -1131,6 +1131,8 @@ defmodule SlipdockCLI.Boards do
         "ship_via" => o[:ship_via] && String.replace(o[:ship_via], "-", "_"),
         # Lanes (#1628): agents can't start cards whose paths overlap.
         "lanes" => o[:lanes],
+        # What an overlap does (#1972): off, hold or advise; wins over --lanes.
+        "lane_mode" => o[:lane_mode],
         # Profiles (#1951): on infers one when an agent starts a card.
         "profiles" => o[:profiles] && on_off!(o[:profiles], "--profiles"),
         # Globs that never count toward a lane (#1971), comma or newline
@@ -1167,7 +1169,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes, --shared-paths, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes, --lane-mode, --shared-paths, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

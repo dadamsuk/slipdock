@@ -440,6 +440,7 @@ slipdock done <id> --no-code "<why>" --evidence "…"   # a card that changes no
                                        # pushing, and a verifier checks its checks, not the suite again
 slipdock set-board <board> --lanes | --no-lanes           # Lanes, off by default: an agent can't start a card whose --paths overlap one in progress
 slipdock set-board <board> --shared-paths "docs/manual.md,README.md"  # globs that never count toward a lane (the files nearly every card edits); "" clears
+slipdock set-board <board> --lane-mode off|hold|advise   # hold refuses overlapping starts (--lanes); advise lets them start and names the overlap in the job's prompt
 slipdock hook install lane-check                          # in a repository: a pre-commit hook refusing files outside the card's paths (uninstall to remove); only when asked
 slipdock set-board <board> --inbound-senders "ann@example.com,bob@example.com"  # who else may mail the board's card addresses (replaces the list; "" clears); only when asked
 slipdock handoff <id> --delete                            # delete a card's current handoff outright (one left by mistake); --clear keeps it in the history

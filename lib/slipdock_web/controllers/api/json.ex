@@ -125,6 +125,8 @@ defmodule SlipdockWeb.API.JSON do
       bar_required: b.bar_required,
       # Lanes (#1628), off by default.
       lanes: b.lanes,
+      # What an overlap does (#1972): off, hold or advise.
+      lane_mode: b.lane_mode,
       # Profiles inferred when an agent starts a card (#1951), and each
       # profile's human tier on the tree (#1952), nil with profiles off.
       profiles: b.profiles,
@@ -234,6 +236,8 @@ defmodule SlipdockWeb.API.JSON do
       bar_required: b.bar_required,
       # Lanes (#1628), off by default.
       lanes: b.lanes,
+      # What an overlap does (#1972): off, hold or advise.
+      lane_mode: b.lane_mode,
       # Profiles inferred when an agent starts a card (#1951), and each
       # profile's human tier on the tree (#1952), nil with profiles off.
       profiles: b.profiles,
@@ -1186,33 +1190,53 @@ defmodule SlipdockWeb.API.JSON do
     do: %{card: card_stub(c), count: l.count, pinned: l.pinned, raw: l.raw}
 
   @doc """
-  A board's lanes as they hold for it (#1628, #1971): `%{on:, shared_paths:}`,
-  the switch as its tree has it and the globs that never count toward a lane
+  A board's lanes as they hold for it (#1628, #1971, #1972): `%{on:, mode:,
+  shared_paths:}`, the switch and the mode as its tree has them and the globs that never count toward a lane
   there (its root's and its own); nil on a board with neither.
   """
   def board_lanes(%Slipdock.Boards.Board{} = board) do
     on = Slipdock.Lanes.on?(board)
     shared = Slipdock.Lanes.shared_paths(board)
-    if on or shared != [], do: %{on: on, shared_paths: shared}
+
+    if on or shared != [],
+      do: %{on: on, mode: Slipdock.Lanes.mode(board), shared_paths: shared}
   end
 
   @doc """
-  Shared paths (#1971) on a card's JSON, when its board has any:
+  Lanes on a card's JSON. Shared paths (#1971), when its board has any:
   `shared_paths`, the globs that never count toward a lane there (what the
   lane-check hook lets through), and `paths_shared`, those of the card's own
-  paths wholly inside one. Left off on a board with none.
+  paths wholly inside one. And `lane_overlap` (#1972), with lanes on and a
+  card in progress in the way: `%{card:, title:, mode:}`, `mode` saying
+  whether it holds this card (`hold`) or only tells (`advise`). Each is
+  left off when there is nothing to say.
   """
   def put_lanes(map, %Card{} = card) do
     board = Slipdock.Repo.get(Slipdock.Boards.Board, card.board_id)
 
-    case Slipdock.Lanes.shared_paths(board) do
-      [] ->
-        map
+    map
+    |> put_shared(card, Slipdock.Lanes.shared_paths(board))
+    |> put_overlap(board, card)
+  end
 
-      shared ->
-        map
-        |> Map.put(:shared_paths, shared)
-        |> Map.put(:paths_shared, Enum.filter(card.paths, &Slipdock.Lanes.shared?(&1, shared)))
+  defp put_shared(map, _card, []), do: map
+
+  defp put_shared(map, card, shared) do
+    map
+    |> Map.put(:shared_paths, shared)
+    |> Map.put(:paths_shared, Enum.filter(card.paths, &Slipdock.Lanes.shared?(&1, shared)))
+  end
+
+  defp put_overlap(map, board, card) do
+    with true <- board != nil and Slipdock.Lanes.on?(board),
+         %Card{} = other <- Slipdock.Lanes.conflict(card) do
+      Map.put(map, :lane_overlap, %{
+        card: other.id,
+        title: other.title,
+        mode: Slipdock.Lanes.mode(board)
+      })
+    else
+      _ -> map
     end
   end
 

@@ -877,7 +877,8 @@ commit sweeps up another session's half-done change, or two take the same
 migration number. Every part of this is optional and off unless the board
 or the runner has it on; with none of it on, skip this section.
 
-- **The board has lanes on** (its line in the guide says `lanes: on`).
+- **The board has lanes on** (its line in the guide says `lanes: on`, or
+  `lanes: advise`).
   Before the claim's move into the doing list (step 4), write the paths the
   card's work will touch, as globs relative to the repository: `slipdock
   edit <id> --paths "lib/foo/**,test/foo/**,docs/manual.md"`. Keep them as
@@ -896,6 +897,13 @@ or the runner has it on; with none of it on, skip this section.
   both back, and the rework waits for an overlapping card in progress. On a
   pull request board a pending card keeps both until the merge: wait,
   don't build on its unmerged branch.
+- **The board's lanes advise** (`lanes: advise` on its line). Nothing is
+  refused or held: the claim's move goes ahead even when the paths overlap.
+  The job's prompt then carries a *Lanes* block naming each card in
+  progress whose paths overlap this card's, with the globs and the job on
+  it. Before editing those files, read that card (`slipdock card <id>`) and
+  its branch (`card-<id>`, if pushed); stay out of them where you can; and
+  rebase on the default branch before pushing, expecting to merge.
 - **Stage only the card's paths.** On a card with paths, `git add` the
   files under them by name, never `git add -A` or `.`, and check `git
   status` before committing. Anything else in the working tree is somebody
