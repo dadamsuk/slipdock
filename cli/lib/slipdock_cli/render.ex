@@ -902,6 +902,9 @@ defmodule SlipdockCLI.Render do
 
   # How the work ships, on a board that ships by pull request (#1655); a
   # security card's PR is to be neutral (#1794).
+  defp put_labelled(_label, nil), do: :ok
+  defp put_labelled(label, text), do: IO.puts(indent(label <> ": " <> text))
+
   defp shipping_block(sh) do
     neutral = if sh["neutral"], do: " · security: a neutral PR", else: ""
     IO.puts("")
@@ -1239,7 +1242,7 @@ defmodule SlipdockCLI.Render do
     end
 
     if Enum.any?(
-         ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr),
+         ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr evidence_no_code),
          &c[&1]
        ) do
       IO.puts("")
@@ -1248,6 +1251,7 @@ defmodule SlipdockCLI.Render do
       IO.puts(bold("Evidence") <> dim(at <> on))
       if c["evidence"], do: IO.puts(indent(c["evidence"]))
       if pr = c["evidence_pr"], do: IO.puts(indent("pull request: " <> pr))
+      put_labelled("no code", c["evidence_no_code"])
       if s = c["evidence_suite"], do: IO.puts(indent("suite: " <> suite_text(s)))
       for t <- c["evidence_tests"] || [], do: IO.puts(indent("test: " <> t))
     end

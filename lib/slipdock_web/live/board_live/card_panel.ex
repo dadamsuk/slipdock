@@ -536,6 +536,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           {@card.evidence_pr}
         </a>
       </p>
+      <p :if={@card.evidence_no_code} id="card-evidence-no-code" class="text-sm">
+        <span class="font-medium">No code:</span>
+        <span class="whitespace-pre-wrap">{@card.evidence_no_code}</span>
+      </p>
       <p
         :if={@card.evidence_suite}
         id="card-evidence-suite"

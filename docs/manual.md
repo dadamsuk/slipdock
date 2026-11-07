@@ -896,6 +896,19 @@ passed, rather than running the suite. An epic that did work of its own,
 after its subcards, names that pull request with `--pr`, and the
 acceptance merges it as for any card.
 
+**A card that changes no code has no pull request either.** A sweep, a
+handbook reconcile or any card that only reads and files has nothing to
+commit, so no branch and no pull request, and a token one would be noise.
+The agent completes it with the reason instead: `slipdock done 12 --no-code
+"a read-only sweep: filed #40 and #41" --evidence "…"` (`complete_card`
+`no_code`, `evidence_no_code` over the API). The card's **Evidence** shows
+the reason. Naming a pull request as well is refused (`422`), and without
+either the completion is refused as before. The verifier checks the claim
+against what the card asked for (a card that asks for code can't be done
+without any) and looks at what it did instead, without checking out a
+commit or running the suite; accepting it completes it at once, with no
+merge job.
+
 The builder needs no setup to know. On such a board a claimed job's
 prompt ends with what to do (branch `card-<id>`, push it, `gh pr create`
 once, watch the pull request's checks, `done --pr`), and so does the card:

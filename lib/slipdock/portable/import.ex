@@ -666,6 +666,7 @@ defmodule Slipdock.Portable.Import do
           evidence_tests: if(is_list(doc[:evidence_tests]), do: doc[:evidence_tests]),
           evidence_suite: suite(doc[:evidence_suite]),
           evidence_pr: pr_url(doc[:evidence_pr]),
+          evidence_no_code: text_upto(doc[:evidence_no_code], 1000),
           paths: if(is_list(doc[:paths]), do: doc[:paths], else: [])
         },
         named("card", doc[:title])

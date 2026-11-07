@@ -86,6 +86,10 @@ defmodule Slipdock.Boards.Card do
     # The pull request the work is in (#1654), on a board that ships by
     # pull request: an http(s) URL. A merge job merges it once accepted.
     field :evidence_pr, :string
+    # Why the card changes no code (#1938): on a board that ships by pull
+    # request, a card with nothing to commit names this in place of a pull
+    # request, and accepting it merges nothing.
+    field :evidence_no_code, :string
     # Where an agent's completion stands on a board that verifies work
     # (#1633): nil, "pending", "accepted" or "rejected"; the reason given
     # (a rejection's is required), the commit the verifier checked at, who
@@ -460,6 +464,7 @@ defmodule Slipdock.Boards.Card do
       :evidence_tests,
       :evidence_suite,
       :evidence_pr,
+      :evidence_no_code,
       :paths,
       :caused_by_id,
       :missed_by,
@@ -486,6 +491,8 @@ defmodule Slipdock.Boards.Card do
     |> validate_format(:evidence_pr, ~r{\Ahttps?://[^\s/]+/\S+\z},
       message: "must be the pull request's URL (https://…)"
     )
+    |> update_change(:evidence_no_code, &tidy_short_name/1)
+    |> validate_length(:evidence_no_code, max: 1000)
     |> update_change(:evidence_tests, &tidy_tests/1)
     |> validate_length(:evidence_tests, max: 200, message: "lists at most 200 files")
     |> validate_change(:evidence_tests, fn _, tests ->

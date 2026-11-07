@@ -232,7 +232,11 @@ defmodule Slipdock.VerifiedEvidenceTest do
       assert sub.evidence_required
 
       {:ok, _} =
-        Boards.update_card(ctx.card, %{"evidence" => "Ran it", "evidence_commit" => "abc1234"})
+        Boards.update_card(ctx.card, %{
+          "evidence" => "Ran it",
+          "evidence_commit" => "abc1234",
+          "evidence_no_code" => "a sweep (#1938)"
+        })
 
       doc = Portable.export(ctx.owner, boards: [Boards.get_board!(ctx.board.id)])
       [tree] = doc.boards
@@ -243,6 +247,7 @@ defmodule Slipdock.VerifiedEvidenceTest do
       assert imported.evidence_required
       copy = Repo.get_by!(Card, board_id: imported.id, title: "Work")
       assert copy.evidence == "Ran it" and copy.evidence_commit == "abc1234"
+      assert copy.evidence_no_code == "a sweep (#1938)"
     end
   end
 end

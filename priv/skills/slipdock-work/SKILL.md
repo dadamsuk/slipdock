@@ -119,7 +119,9 @@ whole card before touching it.
   the card merges it; don't merge it yourself. An epic names no PR: its
   subcards merged their own, so once they all have, complete it with
   `slipdock done <id> --evidence "…"` and no `--pr`, and accepting it
-  merges nothing. A failed merge sends the
+  merges nothing. A card that changes no code (a sweep, a handbook
+  reconcile) has no PR either, never a token one: complete it with
+  `slipdock done <id> --no-code "<why>" --evidence "…"`. A failed merge sends the
   card back rejected with the reason: rebase the branch and submit again.
 - **Lanes, where they are on** (the board's line in the guide says `lanes:
   on`). Before starting a card, write the paths its work will touch:

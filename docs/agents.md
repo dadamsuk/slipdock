@@ -674,7 +674,10 @@ pull request, never the default branch, and complete with its URL
 (`slipdock done --pr`). An epic there names none of its own: its subcards
 each ship and merge theirs, and once they are all merged the epic completes
 with `slipdock done --evidence "…"` and no `--pr`, and is accepted with
-nothing to merge. The claimed job's prompt and the card itself
+nothing to merge. A card that changes no code (a sweep, a handbook
+reconcile, a read-and-file card) has no pull request either, and never a
+token one: it completes with `slipdock done --no-code "<why>"`
+(`complete_card` `no_code`), and accepting it merges nothing. The claimed job's prompt and the card itself
 (`get_card`'s `shipping`) say so, so a runner needs no setup for it, and
 both runner scripts have a built-in `merge` kind that merges the accepted
 commit's pull request in their own repository (`MERGE=0` turns it off;

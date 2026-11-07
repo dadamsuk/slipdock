@@ -406,7 +406,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
         branch and opens a pull request. That pull request's CI is the one full test run: the
         builder runs only the tests it changed and the pre-push checks first, then watches the checks
         with <code>gh pr checks card-12 --watch --fail-fast</code>, so a failure is seen when it
-        happens.
+        happens. A card that changes no code (a sweep, a handbook reconcile) has no pull request: it
+        completes with <code>slipdock done 12 --no-code "why"</code>, and accepting it merges nothing.
       </li>
     </ul>
     """

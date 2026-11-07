@@ -99,6 +99,8 @@ defmodule SlipdockCLI do
     keep_log: :boolean,
     ship_via: :string,
     pr: :string,
+    # Why a card changes no code (#1938): `done --no-code REASON`.
+    no_code: :string,
     evidence: :string,
     evidence_commit: :string,
     branch: :string,

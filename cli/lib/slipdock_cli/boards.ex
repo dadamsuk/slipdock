@@ -556,7 +556,9 @@ defmodule SlipdockCLI.Boards do
         "evidence_tests" => o[:tests] && split_list(o[:tests]),
         "evidence_suite" => o[:suite] && suite(o[:suite]),
         # The pull request the work is in (#1654).
-        "evidence_pr" => o[:pr]
+        "evidence_pr" => o[:pr],
+        # Or why it changes no code, so has no pull request (#1938).
+        "evidence_no_code" => o[:no_code]
       }
       |> compact()
 

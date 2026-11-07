@@ -58,6 +58,29 @@ defmodule SlipdockCLI.ShipViaTest do
     assert JSON.decode!(body) == %{"completed" => true, "evidence_pr" => url}
   end
 
+  test "done --no-code sends why the card changes no code (#1938)" do
+    serve([{200, @card}])
+
+    capture_io(fn ->
+      Boards.run("done", ["12"], parse(["--no-code", "a sweep", "--evidence", "filed two"]))
+    end)
+
+    assert_received {:request, "PATCH", "/api/cards/12", body}
+
+    assert JSON.decode!(body) == %{
+             "completed" => true,
+             "evidence" => "filed two",
+             "evidence_no_code" => "a sweep"
+           }
+  end
+
+  test "card shows why it changes no code under Evidence (#1938)" do
+    out = capture_io(fn -> Render.card(card(%{"evidence_no_code" => "a sweep"})) end)
+    assert out =~ "Evidence"
+    assert out =~ "no code: a sweep"
+    refute capture_io(fn -> Render.card(card(%{})) end) =~ "no code"
+  end
+
   test "card shows the pull request under Evidence, and nothing without one" do
     url = "https://github.com/acme/app/pull/7"
     out = capture_io(fn -> Render.card(card(%{"evidence_pr" => url})) end)
