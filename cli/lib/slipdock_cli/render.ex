@@ -2889,11 +2889,28 @@ defmodule SlipdockCLI.Render do
          "Handbook line",
          checks["handbook_line"],
          carried_note(notes["handbook_line"], carried["handbook_line"])
-       ))
+       ) ++ defect_parts(checks["defect_review"]) ++ not_verified_part(checks["not_verified"]))
     |> Enum.map(&check_line/1)
   end
 
   defp verify_check_lines(_state, _checks), do: []
+
+  # The defect review of a schema or security card (#1953): each finding by
+  # severity, where it is. Only an important one fails.
+  defp defect_parts(list) when is_list(list) do
+    for d <- list do
+      place = "#{d["file"]}:#{d["line"]}"
+      {"defect", d["severity"], if(d["note"], do: place <> "; " <> d["note"], else: place)}
+    end
+  end
+
+  defp defect_parts(_), do: []
+
+  # A docs card the server accepted with no verify job (#1953).
+  defp not_verified_part(p) when is_binary(p),
+    do: [{"not verified", "unverified", "profile #{p}: no verify job runs for it"}]
+
+  defp not_verified_part(_), do: []
 
   # A part carried from an earlier verdict (#1944): passed at that commit,
   # not judged again.
@@ -2928,8 +2945,8 @@ defmodule SlipdockCLI.Render do
   defp check_line({label, result, note}) do
     mark =
       cond do
-        result == "pre-existing" -> "○"
-        Enum.member?(~w(misses fail broken disputed), result) -> "✗"
+        Enum.member?(~w(pre-existing nit unverified), result) -> "○"
+        Enum.member?(~w(misses fail broken disputed important), result) -> "✗"
         true -> "✓"
       end
 

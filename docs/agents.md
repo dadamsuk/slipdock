@@ -806,6 +806,20 @@ a tier on the root board: `slipdock set-board B --profile-tier
 schema=none`, `update_board` `profile_tiers`. See [the
 manual](manual.md#the-human-tier).
 
+**The verifier's spend.** With profiles on, completing a `docs` card on a
+verifying board queues no verify job: the server accepts it (*Accepted by
+the server*, `verify_checks.not_verified: "docs"`, your evidence's suite as
+the suite) and merges or holds it per its tier, so give CI's result as
+`--suite`. A failing suite sends it back. The bar is still required. As a
+verifier of a `schema` or `security` card, your prompt has a defect
+review: read the diff for bugs, give each finding with its file and line
+(`--check defect:important|nit|pre-existing=<file>:<line>[:why]`), and
+reject on any Important one; a Nit or a Pre-existing finding is reported
+only. A claimed job carries the card's `profile` (MCP `claim_job`, the
+REST claim's `job.profile`, the runner's `x-card-profile` header), and a
+runner's config may set `MODEL_<profile>` to run that profile on another
+model. See [the manual](manual.md#the-verifiers-spend).
+
 ## If you self-host
 
 Two things to get right, both about the address:

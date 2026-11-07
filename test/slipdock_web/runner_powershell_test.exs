@@ -43,6 +43,35 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
     %{url: "http://127.0.0.1:#{port}", dir: dir, card: card, runner: runner, token: token}
   end
 
+  describe "the card's profile (#1953)" do
+    defp profiled(ctx, profiles?) do
+      board = Repo.get!(Slipdock.Boards.Board, ctx.card.board_id)
+      {:ok, _} = Slipdock.Boards.update_board(board, %{"profiles" => profiles?})
+      {:ok, card} = Slipdock.Boards.update_card(ctx.card, %{"profile" => "schema"})
+      card
+    end
+
+    @model_job ~S"""
+    function Job-Model { Write-Output "profile=$env:SLIPDOCK_PROFILE model=$env:SLIPDOCK_MODEL" }
+    """
+
+    test "a job gets its card's profile and this config's $MODEL_<profile> for it", ctx do
+      {:ok, queued} = ctx |> profiled(true) |> queue_job("model")
+      {_out, 0} = run_once(ctx, config(ctx, @model_job <> "$MODEL_schema = 'big-model'"))
+      assert Repo.get!(Job, queued.id).output =~ "profile=schema model=big-model"
+    end
+
+    test "with profiles off there is no profile, and no model", ctx do
+      {:ok, queued} = ctx |> profiled(false) |> queue_job("model")
+      {_out, 0} = run_once(ctx, config(ctx, @model_job <> "$MODEL_schema = 'big-model'"))
+      out = Repo.get!(Job, queued.id).output
+      assert out =~ "profile= model="
+      refute out =~ "big-model"
+    end
+
+    defp queue_job(card, kind), do: Runners.queue(card, %{pool: "dev", kind: kind, prompt: "go"})
+  end
+
   defp config(ctx, extra \\ "") do
     path = Path.join(ctx.dir, "config.ps1")
 
@@ -683,7 +712,13 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
       assert installed(ctx, "AllowedTools") == "mcp__claude_ai_Slipdock,mcp__slipdock"
 
       assert File.read!(Path.join([ctx.dir, "inst", "config.ps1"])) =~
-               "--permission-mode $PermissionMode --allowedTools $AllowedTools\n"
+               "--permission-mode $PermissionMode --allowedTools $AllowedTools @model\n"
+
+      # A model per profile (#1953): passed on only when set, every knob unset.
+      config = File.read!(Path.join([ctx.dir, "inst", "config.ps1"]))
+      assert config =~ "if ($env:SLIPDOCK_MODEL) { $model = @('--model', $env:SLIPDOCK_MODEL) }"
+      assert config =~ "\n# $MODEL_schema = ''\n"
+      refute config =~ ~r/^\$MODEL_/m
 
       {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-McpServers", "my-slipdock"])
       assert installed(ctx, "AllowedTools") == "mcp__my-slipdock"
@@ -691,6 +726,7 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
       {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Agent", "codex"])
       assert installed(ctx, "AllowedTools") == ""
       refute File.read!(Path.join([ctx.dir, "inst", "config.ps1"])) =~ "--allowedTools"
+      assert File.read!(Path.join([ctx.dir, "inst", "config.ps1"])) =~ "& $AgentBin exec @model ("
 
       {out, code} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-McpServers", "a b;c"])
       assert code != 0

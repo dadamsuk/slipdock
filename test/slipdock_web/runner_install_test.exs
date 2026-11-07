@@ -114,8 +114,10 @@ defmodule SlipdockWeb.RunnerInstallTest do
       {_, 0} = install(ctx, @base)
       assert sourced(ctx, "ALLOWED_TOOLS") == "mcp__claude_ai_Slipdock,mcp__slipdock"
 
+      # The model per profile (#1953) is passed on only when one is set.
       assert config_text(ctx) =~
-               ~S(--permission-mode "$PERMISSION_MODE" --allowedTools "$ALLOWED_TOOLS") <> "\n}"
+               ~S(--permission-mode "$PERMISSION_MODE" --allowedTools "$ALLOWED_TOOLS" ${SLIPDOCK_MODEL:+--model "$SLIPDOCK_MODEL"}) <>
+                 "\n}"
     end
 
     test "or for the servers named, or none at all", ctx do

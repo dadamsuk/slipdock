@@ -161,11 +161,11 @@ switch ($Agent) {
     $agentEnv = "`n# Claude Code in print mode (-p) stops background tasks, such as the subagents`n# a pass hands its builds to, 10 minutes after the last turn. 0 waits for them.`n`$env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '0'`n"
     $allow = ''
     if ($allowedTools) { $allow = ' --allowedTools $AllowedTools' }
-    $job = "function $fn {`n  `$where = `$WorkDir; if (`$env:SLIPDOCK_WORKTREE) { `$where = `$env:SLIPDOCK_WORKTREE }`n  Set-Location -LiteralPath `$where`n  & `$AgentBin -p (Protect-Arg `$env:SLIPDOCK_PROMPT) --permission-mode `$PermissionMode$allow`n  exit `$LASTEXITCODE`n}"
+    $job = "function $fn {`n  `$where = `$WorkDir; if (`$env:SLIPDOCK_WORKTREE) { `$where = `$env:SLIPDOCK_WORKTREE }`n  Set-Location -LiteralPath `$where`n  `$model = @(); if (`$env:SLIPDOCK_MODEL) { `$model = @('--model', `$env:SLIPDOCK_MODEL) }`n  & `$AgentBin -p (Protect-Arg `$env:SLIPDOCK_PROMPT) --permission-mode `$PermissionMode$allow @model`n  exit `$LASTEXITCODE`n}"
   }
   'codex' {
     $agentBin = Agent-Path 'codex'
-    $job = "function $fn {`n  `$where = `$WorkDir; if (`$env:SLIPDOCK_WORKTREE) { `$where = `$env:SLIPDOCK_WORKTREE }`n  Set-Location -LiteralPath `$where`n  & `$AgentBin exec (Protect-Arg `$env:SLIPDOCK_PROMPT)`n  exit `$LASTEXITCODE`n}"
+    $job = "function $fn {`n  `$where = `$WorkDir; if (`$env:SLIPDOCK_WORKTREE) { `$where = `$env:SLIPDOCK_WORKTREE }`n  Set-Location -LiteralPath `$where`n  `$model = @(); if (`$env:SLIPDOCK_MODEL) { `$model = @('-m', `$env:SLIPDOCK_MODEL) }`n  & `$AgentBin exec @model (Protect-Arg `$env:SLIPDOCK_PROMPT)`n  exit `$LASTEXITCODE`n}"
   }
   'custom' {
     $job = "function $fn {`n  `$where = `$WorkDir; if (`$env:SLIPDOCK_WORKTREE) { `$where = `$env:SLIPDOCK_WORKTREE }`n  Set-Location -LiteralPath `$where`n  Invoke-Expression `$CustomCommand`n}"
@@ -220,6 +220,17 @@ function Job-Echo {
   Write-Output `$env:SLIPDOCK_PROMPT
 }
 $verify$extra
+# A model per profile: on a board with profiles on, each job says its card's
+# profile (docs, fix, feature, schema, security or spike) as
+# `$env:SLIPDOCK_PROFILE, and `$env:SLIPDOCK_MODEL holds the `$MODEL_<profile>
+# set here for it, for the job above to pass on. All unset, so every job runs
+# on the agent's own default.
+# `$MODEL_docs = ''
+# `$MODEL_fix = ''
+# `$MODEL_feature = ''
+# `$MODEL_schema = ''
+# `$MODEL_security = ''
+# `$MODEL_spike = ''
 "@
 
 # A config already there is kept beside the new one, never lost.

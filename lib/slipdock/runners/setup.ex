@@ -1005,6 +1005,22 @@ defmodule Slipdock.Runners.Setup do
   defp token_flag(%{token: nil, again: true}, _flag), do: []
   defp token_flag(_ctx, flag), do: [flag]
 
+  # What install.sh writes for a model per profile (#1953): every knob
+  # commented out, so nothing changes until the person sets one.
+  @model_config """
+
+  # A model per profile: on a board with profiles on, each job says its card's
+  # profile (docs, fix, feature, schema, security or spike) as SLIPDOCK_PROFILE,
+  # and SLIPDOCK_MODEL holds the MODEL_<profile> set here for it, for the job
+  # above to pass on. All unset, so every job runs on the agent's own default.
+  #MODEL_docs=
+  #MODEL_fix=
+  #MODEL_feature=
+  #MODEL_schema=
+  #MODEL_security=
+  #MODEL_spike=
+  """
+
   @doc """
   The config the shell installer writes for these answers, line for line,
   except for the two things only the machine knows at install time — where
@@ -1020,7 +1036,8 @@ defmodule Slipdock.Runners.Setup do
     # A job of kind K runs the function job_K below (a - in K is an _ here). The
     # server never says what to run: a kind with no function here is refused.
     # Each job gets SLIPDOCK_PROMPT, SLIPDOCK_JOB_ID, SLIPDOCK_JOB_KIND,
-    # SLIPDOCK_CARD and SLIPDOCK_CARD_URL in its environment; pass the prompt on
+    # SLIPDOCK_CARD and SLIPDOCK_CARD_URL in its environment (and SLIPDOCK_PROFILE
+    # and SLIPDOCK_MODEL, below); pass the prompt on
     # only ever as "$SLIPDOCK_PROMPT", in double quotes.
 
     SLIPDOCK_URL=#{sh_q(ctx.base_url)}
@@ -1045,7 +1062,7 @@ defmodule Slipdock.Runners.Setup do
     job_echo() {
       printf '%s\\n' "$SLIPDOCK_PROMPT"
     }
-    #{verify_job(fn_name)}#{config_extra(a)}
+    #{verify_job(fn_name)}#{config_extra(a)}#{@model_config}\
     """
   end
 
@@ -1125,10 +1142,13 @@ defmodule Slipdock.Runners.Setup do
 
   defp agent_line(%{"agent" => "claude"} = a) do
     line = ~S|  "$AGENT_BIN" -p "$SLIPDOCK_PROMPT" --permission-mode "$PERMISSION_MODE"|
-    if allowed_tools(a) == "", do: line, else: line <> ~S| --allowedTools "$ALLOWED_TOOLS"|
+    line = if allowed_tools(a) == "", do: line, else: line <> ~S| --allowedTools "$ALLOWED_TOOLS"|
+    line <> ~S| ${SLIPDOCK_MODEL:+--model "$SLIPDOCK_MODEL"}|
   end
 
-  defp agent_line(%{"agent" => "codex"}), do: ~S|  "$AGENT_BIN" exec "$SLIPDOCK_PROMPT"|
+  defp agent_line(%{"agent" => "codex"}),
+    do: ~S|  "$AGENT_BIN" exec ${SLIPDOCK_MODEL:+-m "$SLIPDOCK_MODEL"} "$SLIPDOCK_PROMPT"|
+
   defp agent_line(%{"agent" => "custom"}), do: ~S|  sh -c "$CUSTOM_COMMAND"|
 
   # A session whose connector was added before the job tools existed has

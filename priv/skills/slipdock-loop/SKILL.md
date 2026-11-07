@@ -787,7 +787,9 @@ With one on, the pass changes like this:
   until then, and the merge completes it). On a board with profiles on, a
   `schema`, `security` or `spike` card an agent accepts is *held* first:
   a person merges it or sends it back, rejected with their reason, which
-  is the next brief like any rejection. **An epic** has no pull
+  is the next brief like any rejection. A `docs` card there gets no
+  verify job: the server accepts it on your evidence's suite (give CI's
+  result as `--suite`), so a failing suite sends it back. **An epic** has no pull
   request of its own: each subcard ships and merges its own. Once they are
   all accepted and merged, complete the epic without `--pr` (`slipdock
   done <id> --evidence "<the subcards' PRs, the last merged build>"`);
@@ -854,7 +856,11 @@ With one on, the pass changes like this:
   didn't change is not the builder's: give it as
   `rule:UX-4=pre-existing:<file>:<line>`, never `broken` and never a
   rejection; it is kept as a `rule` finding on the card, and an
-  acceptance may carry it. You can't decide a card you submitted
+  acceptance may carry it. On a `schema` or `security` card (profiles
+  on) the prompt adds a defect review: read the diff for bugs, not
+  style, and give each finding with its file and line,
+  `defect:important|nit|pre-existing=<file>:<line>[:why]`; an important
+  one is a rejection, a nit or a pre-existing one is reported only. You can't decide a card you submitted
   yourself (`403`). **A resubmission** (the prompt says the card was
   judged before, at a commit) is judged on what changed: the parts that
   failed, and any part the commits since touch (`git diff --name-only

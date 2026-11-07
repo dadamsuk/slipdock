@@ -35,6 +35,19 @@ defmodule Slipdock.Verified.Checks do
       rule:UX-4=pre-existing:lib/card.ex:42:hex colour
                              (broken only in lines the diff didn't change; #1945)
 
+  A defect review (#1953), asked of the verifier on a `schema` or `security`
+  card, is a list of findings, each with its severity and where it is:
+
+      defect:important=lib/foo.ex:42:the lock is never released
+      defect:nit=lib/foo.ex:7:a stray debug line
+      defect:pre-existing=lib/bar.ex:90:an unchecked cast the diff didn't add
+
+  stored as `"defect_review" => [%{"severity" => "important" | "nit" |
+  "pre-existing", "file" => …, "line" => 42, "note" => …}]`. An `important`
+  finding is a failing part (a rejection, never an acceptance); a nit or a
+  pre-existing one is reported only. A card the server accepted unverified
+  (#1953, profile `docs`) carries `"not_verified" => "docs"`.
+
   A `pre-existing` rule part (#1945) carries the `file` and `line` where
   the rule is broken in code the change didn't touch. It isn't a failing
   part: it never makes a rejection, an acceptance may carry it, and the
@@ -49,6 +62,11 @@ defmodule Slipdock.Verified.Checks do
   }
 
   @carried "carried"
+
+  @defect_severities ~w(important nit pre-existing)
+
+  @doc "A defect finding's severities (#1953): only `important` fails."
+  def defect_severities, do: @defect_severities
 
   @doc """
   The parts in `given` (nil, a list of lines or a map in the stored shape),
@@ -90,7 +108,10 @@ defmodule Slipdock.Verified.Checks do
   defp parse_line(line) do
     with [lhs, rhs] <- String.split(line, "=", parts: 2),
          {part, key} <- split_key(String.trim(lhs)) do
-      {result, note} = split_note(String.trim(rhs))
+      # A defect's right-hand side is a place, kept as written (#1953).
+      {result, note} =
+        if part == "defect", do: {String.trim(rhs), nil}, else: split_note(String.trim(rhs))
+
       build(part, key, result, note)
     else
       _ -> {:error, "check `#{line}` should read `part=result`, e.g. `bar:2=fail:why`"}
@@ -175,13 +196,43 @@ defmodule Slipdock.Verified.Checks do
          do: {:ok, {:rule, %{"id" => String.upcase(key), "result" => result, "note" => note}}}
   end
 
+  defp build("defect", key, result, note) do
+    severity = key |> to_string() |> String.trim() |> String.downcase()
+    place = result <> if(note, do: ":" <> note, else: "")
+
+    cond do
+      not Enum.member?(@defect_severities, severity) ->
+        {:error,
+         "check `defect` needs its severity: `defect:<#{Enum.join(@defect_severities, "|")}>=<file>:<line>[:why]`"}
+
+      match = Regex.run(~r/^\s*([^\s:]+):(\d+)(?:\s*[:;,]?\s*(.*))?$/s, place) ->
+        [_, file, line | rest] = match
+
+        {:ok,
+         {:defect,
+          %{
+            "severity" => severity,
+            "file" => file,
+            "line" => String.to_integer(line),
+            "note" => rest |> List.first() |> to_string() |> String.trim() |> blank_nil()
+          }}}
+
+      true ->
+        {:error,
+         "check `defect:#{severity}` needs the file and line it is at, never a guess from a " <>
+           "name: `defect:#{severity}=lib/foo.ex:42[:why]`"}
+    end
+  end
+
   defp build(part, _key, _result, _note) when part in ~w(bar rule),
     do:
       {:error,
        "check `#{part}` needs which one: `#{part}:<#{if part == "bar", do: "n", else: "id"}>=…`"}
 
   defp build(part, _key, _result, _note),
-    do: {:error, "unknown check `#{part}`: use ask, bar:<n>, suite, rule:<id> or handbook_line"}
+    do:
+      {:error,
+       "unknown check `#{part}`: use ask, bar:<n>, suite, rule:<id>, handbook_line or defect:<severity>"}
 
   defp result_ok(part, result) do
     allowed = Map.fetch!(@results, part)
@@ -212,6 +263,18 @@ defmodule Slipdock.Verified.Checks do
   defp from_map("bar", items) when is_list(items), do: list_items("bar", "item", items)
   defp from_map("rules", items) when is_list(items), do: list_items("rule", "id", items)
 
+  defp from_map("defect_review", items) when is_list(items) do
+    Enum.reduce_while(items, {:ok, []}, fn item, {:ok, acc} ->
+      case defect_item(item) do
+        {:ok, built} -> {:cont, {:ok, acc ++ [built]}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  # Set by the server on a card it accepted unverified (#1953).
+  defp from_map("not_verified", _), do: {:ok, []}
+
   defp from_map("from_reason", _), do: {:ok, []}
   # Set by the server, never by the verifier: given back, they are ignored.
   defp from_map(key, _) when key in ~w(judged_at decision carried), do: {:ok, []}
@@ -224,6 +287,19 @@ defmodule Slipdock.Verified.Checks do
   end
 
   defp from_map(key, _), do: {:error, "unknown check `#{key}`, or not in its shape"}
+
+  # A defect finding given in the stored shape (#1953).
+  defp defect_item(item) do
+    item = if is_map(item), do: Map.new(item, fn {k, v} -> {to_string(k), v} end), else: %{}
+    note = if is_binary(item["note"]), do: ":" <> item["note"], else: ""
+
+    build(
+      "defect",
+      to_string(item["severity"] || ""),
+      "#{item["file"]}:#{item["line"]}#{note}",
+      nil
+    )
+  end
 
   defp list_items(part, key_field, items) do
     Enum.reduce_while(items, {:ok, []}, fn item, {:ok, acc} ->
@@ -263,6 +339,12 @@ defmodule Slipdock.Verified.Checks do
 
   defp put_part(acc, {:bar, item}), do: put_item(acc, "bar", "item", item)
   defp put_part(acc, {:rule, item}), do: put_item(acc, "rules", "id", item)
+
+  # Findings add up: two at one place are both kept.
+  defp put_part(acc, {:defect, item}) do
+    item = item |> Enum.reject(fn {_, v} -> is_nil(v) end) |> Map.new()
+    Map.update(acc, "defect_review", [item], &(&1 ++ [item]))
+  end
 
   defp put_note(acc, part, note),
     do: Map.update(acc, "notes", %{part => note}, &Map.put(&1, part, note))
@@ -337,7 +419,11 @@ defmodule Slipdock.Verified.Checks do
       for(%{"result" => "fail", "item" => i} <- checks["bar"] || [], do: "bar #{i}") ++
       failing_suite(checks["suite"]) ++
       for(%{"result" => "broken", "id" => id} <- checks["rules"] || [], do: id) ++
-      failing_line(checks)
+      failing_line(checks) ++
+      for(
+        %{"severity" => "important"} = d <- checks["defect_review"] || [],
+        do: "the defect at #{d["file"]}:#{d["line"]}"
+      )
   end
 
   def failing(_), do: []
@@ -387,10 +473,29 @@ defmodule Slipdock.Verified.Checks do
         "Handbook line",
         checks["handbook_line"],
         carried_note(notes["handbook_line"], carried["handbook_line"])
-      )
+      ) ++
+      for(
+        d <- checks["defect_review"] || [],
+        do: {"defect", d["severity"], defect_note(d)}
+      ) ++
+      not_verified_line(checks["not_verified"])
   end
 
   def lines(_), do: []
+
+  defp defect_note(d) do
+    place = "#{d["file"]}:#{d["line"]}"
+    if d["note"], do: "#{place}; #{d["note"]}", else: place
+  end
+
+  defp not_verified_line(profile) when is_binary(profile),
+    do: [{"verification", "not verified", "profile #{profile}: no verify job runs for it"}]
+
+  defp not_verified_line(_), do: []
+
+  @doc "The defect findings of `checks` (#1953), in the order given."
+  def defects(%{} = checks), do: checks["defect_review"] || []
+  def defects(_), do: []
 
   defp carried_note(note, nil), do: note
   defp carried_note(nil, sha), do: "carried from #{short(sha)}"
@@ -426,7 +531,9 @@ defmodule Slipdock.Verified.Checks do
 
   @doc "Whether `result` (as `lines/1` gives it) is a failing one."
   def failing_result?(result),
-    do: Enum.member?(~w(misses fail broken disputed), result) or result =~ ~r/[1-9]\d* failed$/
+    do:
+      Enum.member?(~w(misses fail broken disputed important), result) or
+        result =~ ~r/[1-9]\d* failed$/
 
   ## Carried parts (#1944) ------------------------------------------------------
 

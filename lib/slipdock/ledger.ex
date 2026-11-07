@@ -22,7 +22,9 @@ defmodule Slipdock.Ledger do
   and deploys. An epic's line rolls up its subcards: how many there are, how
   many are done and how many are on this ledger. A card accepted and held
   for a person before merging (#1952) says who it waits for
-  (`waiting_for`, a name or "anyone"; nil otherwise) until it merges.
+  (`waiting_for`, a name or "anyone"; nil otherwise) until it merges. A
+  card the server accepted with no verify job (#1953, a `docs` card) has
+  no acceptor and says why (`not_verified`, the profile).
 
   Every door reads `since/2`: REST `GET /api/boards/:board/ledger?since=`,
   `slipdock ledger <board> [--since]`, the page at `/boards/:id/ledger` and
@@ -296,6 +298,7 @@ defmodule Slipdock.Ledger do
       at: List.last(events).at,
       events: events |> Enum.map(& &1.kind) |> Enum.uniq() |> Enum.sort_by(&order/1),
       accepted_by: acceptor(card),
+      not_verified: not_verified(card),
       audit: audits[card.id],
       evidence: first_line(card.evidence),
       evidence_commit: card.evidence_commit,
@@ -322,6 +325,8 @@ defmodule Slipdock.Ledger do
   Who accepted a card, from its `verify_by`: `%{kind: "person" | "agent",
   name}`, or nil when nobody did (a board that doesn't verify).
   """
+  def acceptor(%Card{verify_checks: %{"not_verified" => p}}) when is_binary(p), do: nil
+
   def acceptor(%Card{verify_state: state, verify_by: by})
       when state in @accepted and is_map(by) do
     kind = if (by["kind"] || by[:kind]) |> to_string() == "agent", do: "agent", else: "person"
@@ -329,6 +334,14 @@ defmodule Slipdock.Ledger do
   end
 
   def acceptor(_card), do: nil
+
+  @doc """
+  The profile a card was accepted unverified for (#1953): the server took
+  a `docs` card without a verify job. The line reads "not verified (docs)".
+  nil for a card a verifier (or a person) checked.
+  """
+  def not_verified(%Card{verify_checks: %{"not_verified" => p}}) when is_binary(p), do: p
+  def not_verified(_card), do: nil
 
   @doc "The `should` rules a verdict marked broken: `[%{id, note}]`."
   def should_broken(%{"rules" => rules}) when is_list(rules) do

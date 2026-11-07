@@ -515,26 +515,43 @@ defmodule Slipdock.Verified do
   evidence as a comment, by `user` — once: not again when it is accepted.
   """
   def saved(%Card{} = before, %Card{} = updated, user) do
-    finished? =
-      (not before.completed and updated.completed and before.verify_state != "pending") or
-        (before.verify_state != "pending" and updated.verify_state == "pending")
-
-    if before.verify_state != "pending" and updated.verify_state == "pending" do
-      queue_verify_job(updated, user)
-
-      # Shipped by push: it no longer holds up the cards that depend on it.
-      if released?(updated), do: Slipdock.Boards.unblock_dependents(updated, by: user)
-    end
+    unverified? = submitted(before, updated, user)
 
     # Accepted by a person completing it: no job need check it now.
     if before.verify_state == "pending" and updated.verify_state == "accepted",
       do: cancel_verify_jobs(updated, nil)
 
-    if finished? and evidence?(updated) and board(updated).evidence_required,
-      do: Slipdock.Boards.add_comment(updated, evidence_text(updated), by: user)
+    evidence_comment(before, updated, user)
+    if unverified?, do: accept_unverified(updated, user)
 
     :ok
   end
+
+  # The evidence as a comment, once, when the card is completed or submitted.
+  defp evidence_comment(before, updated, user) do
+    finished? =
+      (not before.completed and updated.completed and before.verify_state != "pending") or
+        (before.verify_state != "pending" and updated.verify_state == "pending")
+
+    if finished? and evidence?(updated) and board(updated).evidence_required,
+      do: Slipdock.Boards.add_comment(updated, evidence_text(updated), by: user)
+  end
+
+  # A card just gone pending: queued for a verifier, or (a `docs` card,
+  # #1953) left for the server to accept once its evidence is on the card,
+  # when this answers true.
+  defp submitted(%Card{verify_state: "pending"}, _updated, _user), do: false
+
+  defp submitted(_before, %Card{verify_state: "pending"} = updated, user) do
+    unverified? = not_verified?(updated)
+    if not unverified?, do: queue_verify_job(updated, user)
+
+    # Shipped by push: it no longer holds up the cards that depend on it.
+    if released?(updated), do: Slipdock.Boards.unblock_dependents(updated, by: user)
+    unverified?
+  end
+
+  defp submitted(_before, _updated, _user), do: false
 
   @doc """
   A card's evidence as Markdown (#1632, #1623): what was checked, then the
@@ -1320,7 +1337,96 @@ defmodule Slipdock.Verified do
   a person's look already.
   """
   def hold_for_a_person?(%Card{} = card, actor),
-    do: gated?(actor) and Slipdock.Profiles.tier(card) == "before_merge"
+    do: (gated?(actor) or server?(actor)) and Slipdock.Profiles.tier(card) == "before_merge"
+
+  ## The verifier's spend (#1953) ----------------------------------------------
+
+  @unverified_profiles ~w(docs)
+  @server_agent "the server"
+
+  @doc """
+  Whether a card just submitted for verification goes unverified (#1953):
+  its board has profiles on and its profile (set, else inferred) is one of
+  `unverified_profiles/0`. No verify job is queued; the server accepts it
+  itself (`accept_unverified/2`). The bar is still required and locked.
+  """
+  def not_verified?(%Card{} = card),
+    do:
+      board(card).profiles == true and
+        Enum.member?(@unverified_profiles, Slipdock.Profiles.profile_of(card))
+
+  @doc "The profiles whose cards no verify job checks: `docs`."
+  def unverified_profiles, do: @unverified_profiles
+
+  @doc """
+  The actor the server accepts an unverified card as (#1953): not a person,
+  so a `before_merge` tier still holds it, and not an agent, so no audit
+  samples it.
+  """
+  def server_actor, do: %{Slipdock.Actor.automation() | agent: @server_agent}
+
+  defp server?(actor),
+    do: match?(%{"kind" => "automation", "agent" => @server_agent}, actor_map(actor))
+
+  # The server's acceptance of a card no verifier checks: the suite is CI's
+  # result as the evidence gives it, and a failing one sends it back.
+  defp accept_unverified(%Card{} = card, user) do
+    card = Repo.get!(Card, card.id)
+    profile = Slipdock.Profiles.profile_of(card)
+    suite = suite_part(card.evidence_suite)
+    checks = Map.merge(%{"not_verified" => profile}, suite)
+
+    {decision, reason} =
+      if Slipdock.Verified.Checks.failing(suite) == [],
+        do: {"accept", "profile #{profile}: not verified (no verify job runs for it)"},
+        else:
+          {"reject",
+           "the suite: #{suite["suite"]["failed"]} failed. A #{profile} card is accepted " <>
+             "unverified only on a passing suite: fix it and complete it again"}
+
+    with {:error, _, message} <-
+           apply_decision(
+             card,
+             decision,
+             %{reason: reason, commit: card.evidence_commit || "", checks: checks},
+             server_actor(),
+             user
+           )
+           |> unverified_result() do
+      comment(
+        card,
+        "**Not accepted** (profile #{profile}, not verified): #{message}. A person accepts it " <>
+          "with `slipdock verify #{card.id} accept`.",
+        nil,
+        user
+      )
+    end
+  end
+
+  defp unverified_result({:ok, _}), do: :ok
+  defp unverified_result({:error, %Ecto.Changeset{} = cs}), do: {:error, 422, inspect(cs.errors)}
+  defp unverified_result({:error, status, message}), do: {:error, status, message}
+  defp unverified_result(other), do: {:error, 500, inspect(other)}
+
+  # The evidence's suite (`{result, passed, failed}`) as a verdict's part.
+  defp suite_part(%{} = suite) do
+    passed = suite["passed"] || suite[:passed]
+    failed = suite["failed"] || suite[:failed]
+    result = to_string(suite["result"] || suite[:result])
+
+    cond do
+      is_integer(passed) and is_integer(failed) ->
+        %{"suite" => %{"passed" => passed, "failed" => failed}}
+
+      result == "failed" ->
+        %{"suite" => %{"passed" => 0, "failed" => 1}}
+
+      true ->
+        %{}
+    end
+  end
+
+  defp suite_part(_suite), do: %{}
 
   # Accepted on a board that ships by pull request: merging, or held for a
   # person first when its tier says so.
@@ -2007,7 +2113,7 @@ defmodule Slipdock.Verified do
     #{decide}. Say once whether you agree, and report it as a step first (`deciding: agree` or `deciding: disagree`):
        - `slipdock verify #{card.id} agree --reason "what you checked" --check ask=ok --check bar:1=ok …`
        - `slipdock verify #{card.id} disagree --reason "where the verdict is wrong, specifically" --check bar:2=fail:"why" …`
-    Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
+    Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
     """
   end
 
@@ -2271,7 +2377,7 @@ defmodule Slipdock.Verified do
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
        - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically" --check bar:2=fail:"why" …`
-    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
+    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
     A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
     """
   end
@@ -2364,9 +2470,44 @@ defmodule Slipdock.Verified do
       "The bar. Each item, against the change and the tests it names. A part not met is a rejection naming the item (`bar 2: …`). Step: `judging against the bar`"
     ]
 
-    if handbook,
-      do: [hd(base), bar_with_proposals(handbook) | handbook_steps(card, board, handbook, opts)],
-      else: base
+    steps =
+      if handbook,
+        do: [hd(base), bar_with_proposals(handbook) | handbook_steps(card, board, handbook, opts)],
+        else: base
+
+    steps ++ defect_steps(card, board)
+  end
+
+  @defect_profiles ~w(schema security)
+
+  @doc """
+  Whether a verifier of `card` also reviews its diff for defects (#1953):
+  profiles are on for `board` and the card's profile (set, else inferred)
+  is `schema` or `security`.
+  """
+  def defect_review?(%Card{} = card, %Board{} = board),
+    do:
+      board.profiles == true and
+        Enum.member?(@defect_profiles, Slipdock.Profiles.profile_of(card))
+
+  @doc "The profiles whose verifier reviews the diff for defects."
+  def defect_profiles, do: @defect_profiles
+
+  defp defect_steps(card, board) do
+    if defect_review?(card, board),
+      do: [defect_review_step(Slipdock.Profiles.profile_of(card))],
+      else: []
+  end
+
+  @doc "The defect-review step of a `schema` or `security` card's verify prompt (#1953)."
+  def defect_review_step(profile) do
+    """
+    The defect review. This card's profile is `#{profile}`, so the change gets a pass for defects as well as the checks above. Read the diff for bugs, not style: wrong results, data lost or exposed, a migration that can't run or can't be undone, a missing check on who may do what, a race. On a fix, find the root cause and say whether the change reaches it. Give each finding the file and line it is at, read in the clean tree, never a guess from a name. Tag each one:
+       - Important: a defect this change brings in. It is a rejection, with the finding as its failing part: `--check defect:important=lib/foo.ex:42:"what goes wrong"`.
+       - Nit: worth saying, not worth sending it back. Reported only: `--check defect:nit=lib/foo.ex:7:"why"`.
+       - Pre-existing: a defect in lines the diff didn't change. Reported only: `--check defect:pre-existing=lib/bar.ex:90:"why"`.
+       No findings is a normal answer: say so in the reason. Step: `reviewing for defects`\
+    """
   end
 
   # On a board with a handbook a rule is a person's call, so a bar item that
@@ -2605,7 +2746,7 @@ defmodule Slipdock.Verified do
 
   def who(actor) do
     case actor_map(actor) do
-      %{"kind" => "agent"} ->
+      %{"kind" => kind} when kind in ["agent", "automation"] ->
         who(actor, nil)
 
       %{"user_id" => id} when is_integer(id) ->
@@ -2631,9 +2772,12 @@ defmodule Slipdock.Verified do
     end
   end
 
-  defp who(actor, user) do
-    a = actor_map(actor)
+  defp who(actor, user), do: actor |> actor_map() |> named(user)
 
+  # The server's own acceptance (#1953) names itself.
+  defp named(%{"kind" => "automation", "agent" => agent}, _user) when is_binary(agent), do: agent
+
+  defp named(a, user) do
     cond do
       a["via"] == "runner" and a["agent"] -> "runner #{a["agent"]}"
       a["kind"] == "agent" and a["agent"] -> "agent “#{a["agent"]}”"

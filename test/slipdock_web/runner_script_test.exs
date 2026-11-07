@@ -254,6 +254,40 @@ defmodule SlipdockWeb.RunnerScriptTest do
     _ = ctx
   end
 
+  describe "the card's profile (#1953)" do
+    defp profiled(ctx, profiles?) do
+      board = Repo.get!(Slipdock.Boards.Board, ctx.card.board_id)
+      {:ok, _} = Slipdock.Boards.update_board(board, %{"profiles" => profiles?})
+      {:ok, card} = Slipdock.Boards.update_card(ctx.card, %{"profile" => "schema"})
+      card
+    end
+
+    @model_job ~S"""
+    job_model() { echo "profile=$SLIPDOCK_PROFILE model=$SLIPDOCK_MODEL"; }
+    """
+
+    test "a job gets its card's profile and this config's MODEL_<profile> for it", ctx do
+      {:ok, queued} = ctx |> profiled(true) |> queue("model")
+
+      {_out, 0} =
+        run_once(ctx, config(ctx, @model_job <> "MODEL_schema=big-model\nMODEL_docs=small"))
+
+      assert job(queued).output == "profile=schema model=big-model\n"
+    end
+
+    test "with no MODEL_<profile> set, the model is empty", ctx do
+      {:ok, queued} = ctx |> profiled(true) |> queue("model")
+      {_out, 0} = run_once(ctx, config(ctx, @model_job))
+      assert job(queued).output == "profile=schema model=\n"
+    end
+
+    test "with profiles off there is no profile, and no model even when one is set", ctx do
+      {:ok, queued} = ctx |> profiled(false) |> queue("model")
+      {_out, 0} = run_once(ctx, config(ctx, @model_job <> "MODEL_schema=big-model"))
+      assert job(queued).output == "profile= model=\n"
+    end
+  end
+
   test "what install.sh writes takes and runs a job as it stands", ctx do
     home = Path.join(ctx.dir, "home")
     File.mkdir_p!(home)

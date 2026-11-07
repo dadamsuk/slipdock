@@ -20,6 +20,14 @@
 # $env:SLIPDOCK_EXIT and $env:SLIPDOCK_STATUS: done, failed, cancelled or
 # timeout).
 #
+# Profiles (#1953): on a board with profiles on, each job says its card's
+# profile (docs, fix, feature, schema, security or spike) as
+# $env:SLIPDOCK_PROFILE. When the config sets $MODEL_<profile> ($MODEL_docs,
+# $MODEL_schema, ...; all unset by default), $env:SLIPDOCK_MODEL holds it for
+# that job, for the job's own command to pass on (the installer's claude and
+# codex jobs do, when it is set). The server sends the word only; what it
+# means is this config's.
+#
 # Lanes, off unless the config sets $Worktree = $true: each job runs in a git
 # worktree of its own, on a branch named for its card (card-<id>), so jobs
 # side by side never share a working tree. $WorktreeRepo is the repository
@@ -599,6 +607,13 @@ function Invoke-Job($claim) {
   $env:SLIPDOCK_CARD = $card
   $env:SLIPDOCK_CARD_URL = Get-Header $claim 'X-Card-Url'
   $env:SLIPDOCK_PROMPT = $prompt
+  # The card's profile (#1953), with profiles on: a word, checked against
+  # the fixed list, and this config's $MODEL_<profile> for it, if it sets one.
+  $cardProfile = "$(Get-Header $claim 'X-Card-Profile')"
+  if (@('docs', 'fix', 'feature', 'schema', 'security', 'spike') -cnotcontains $cardProfile) { $cardProfile = '' }
+  $env:SLIPDOCK_PROFILE = $cardProfile
+  $env:SLIPDOCK_MODEL = ''
+  if ($cardProfile) { $env:SLIPDOCK_MODEL = "$(Get-Variable -Name "MODEL_$cardProfile" -ValueOnly -ErrorAction SilentlyContinue)" }
 
   Say "job #${JobId}: $kind for card #$card"
 

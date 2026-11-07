@@ -18,6 +18,13 @@
 # only if it succeeds) and after_job (always, with SLIPDOCK_EXIT and
 # SLIPDOCK_STATUS: done, failed, cancelled or timeout).
 #
+# Profiles (#1953): on a board with profiles on, each job says its card's
+# profile (docs, fix, feature, schema, security or spike) as SLIPDOCK_PROFILE.
+# When the config sets MODEL_<profile> (MODEL_docs, MODEL_schema, …; all unset
+# by default), SLIPDOCK_MODEL holds it for that job, for the job's own
+# command to pass on (the installer's claude and codex jobs do, when it is
+# set). The server sends the word only; what it means is this config's.
+#
 # Lanes, off unless the config sets WORKTREE=1: each job runs in a git
 # worktree of its own, on a branch named for its card (card-<id>), so jobs
 # side by side never share a working tree. WORKTREE_REPO is the repository
@@ -577,6 +584,13 @@ run_job() {
   SLIPDOCK_CARD=$card
   SLIPDOCK_CARD_URL=$(header x-card-url)
   SLIPDOCK_PROMPT=$(cat "$WORK/resp")
+  # The card's profile (#1953), with profiles on: a word, checked against
+  # the fixed list, and this config's MODEL_<profile> for it, if it sets one.
+  SLIPDOCK_PROFILE=$(header x-card-profile)
+  case "$SLIPDOCK_PROFILE" in docs | fix | feature | schema | security | spike) ;; *) SLIPDOCK_PROFILE= ;; esac
+  SLIPDOCK_MODEL=
+  [ -n "$SLIPDOCK_PROFILE" ] && eval "SLIPDOCK_MODEL=\${MODEL_$SLIPDOCK_PROFILE:-}"
+  export SLIPDOCK_PROFILE SLIPDOCK_MODEL
   # A merge job's pull request and accepted commit (data, checked by job_merge).
   SLIPDOCK_MERGE_PR=$(header x-merge-pr)
   SLIPDOCK_MERGE_COMMIT=$(header x-merge-commit)

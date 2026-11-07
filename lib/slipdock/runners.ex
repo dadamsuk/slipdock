@@ -1908,7 +1908,10 @@ defmodule Slipdock.Runners do
   What a claim answers beside the prompt (#1115), for runners that read
   more than the prompt: the wait the job carries on from — the answered
   question that queued it, else the card's open one — and the card's open
-  handoff. Either is nil when there is none.
+  handoff. Either is nil when there is none. With them, `profile`: the
+  card's profile (#1953) when its board has profiles on, else nil, so a
+  runner's own config may pick a model for it (`MODEL_<profile>`). The
+  server sends the word, never a command (ARCH-5).
   """
   def claim_context(%Job{} = job) do
     wait =
@@ -1921,8 +1924,22 @@ defmodule Slipdock.Runners do
         )
       ) || Boards.current_wait(job.card_id)
 
-    %{wait: wait, handoff: Boards.current_handoff(job.card_id)}
+    %{wait: wait, handoff: Boards.current_handoff(job.card_id), profile: job_profile(job)}
   end
+
+  @doc """
+  The profile of a job's card (#1953): the one it has, else the one its
+  paths and tags infer, when the card's board has profiles on; nil when
+  they are off or the job has no card.
+  """
+  def job_profile(%Job{card_id: card_id}) when is_integer(card_id) do
+    case Repo.get(Card, card_id) |> Repo.preload(:board) do
+      %Card{board: %Board{profiles: true}} = card -> Slipdock.Profiles.profile_of(card)
+      _ -> nil
+    end
+  end
+
+  def job_profile(_job), do: nil
 
   @doc "A card's jobs, newest first."
   def list_card_jobs(card_id, limit \\ 20) do

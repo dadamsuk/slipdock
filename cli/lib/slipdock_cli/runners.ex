@@ -220,6 +220,8 @@ defmodule SlipdockCLI.Runners do
           "report with `slipdock job-progress #{j["id"]}` between steps (lease #{r["lease_seconds"]}s); end with `slipdock finish-job #{j["id"]} --status done`"
         )
 
+        # The card's profile (#1953), with profiles on.
+        if p = j["profile"], do: IO.puts("profile: #{p}")
         if w = r["wait"], do: IO.puts("answered: " <> Render.wait_answer(w))
         if h = r["handoff"], do: IO.puts("left off: " <> (h["next_step"] || ""))
 
