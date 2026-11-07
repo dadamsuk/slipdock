@@ -255,6 +255,15 @@ defmodule SlipdockWeb.HelpLive.Guides do
           repeats or dismiss it. A card with open findings says how many, and links there.
         </li>
         <li>
+          <strong>Ledger</strong>: what shipped on a board since 07:00 yesterday, a line per card
+          completed, accepted, merged or deployed, with who accepted it, its evidence, the
+          <em>should</em>
+          rules it missed and where its time went, grouped by day. <em>Ledger</em>
+          beside <em>Findings</em>
+          opens it; <em>Look closer</em>
+          opens a card with its chat. Ten minutes' reading instead of approving each card.
+        </li>
+        <li>
           <strong>Incidents</strong>: when a card broke something that shipped, its <em>Incident</em>
           line, under Dependencies, names the card that shipped it and the check that should
           have caught it (bar, rules, CI, verify, audit or none). The causing card then shows

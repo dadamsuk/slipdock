@@ -587,6 +587,18 @@ beside Health; a card links there when it has open ones), or with
 --into <id>`, `GET /api/boards/:board/findings`; see
 [the manual](manual.md#findings).
 
+**The ledger.** What shipped on a board tree since a time, for a person to
+skim instead of approving each card: each card completed, accepted, merged or
+deployed, with who accepted it (`accepted_by`: a person or an agent; `audit`
+the last audit's verdict), the first line of its `evidence`, the `should`
+rules its verifier marked broken (`should_broken`), its `pr` and `deploys`,
+its `lead_time` by phase, an epic's `subcards` rollup and the card's `url`
+(its panel, at the chat), grouped by day. `slipdock ledger <board> [--since
+S]`, `GET /api/boards/:board/ledger?since=`, MCP `activity` with `view:
+"ledger"`, or the board's Ledger page (`/boards/:id/ledger`). `since` is days,
+a date or an ISO time; without it, 07:00 yesterday in the board's timezone.
+It writes nothing. See [the manual](manual.md#the-ledger).
+
 **Incidents.** When a person tells you a card broke something that shipped,
 file it (or edit it) as an incident: `caused_by`, the card whose shipping
 caused it (any card you can read), and `missed_by`, the check that should

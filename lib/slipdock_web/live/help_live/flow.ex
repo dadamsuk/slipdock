@@ -528,6 +528,13 @@ defmodule SlipdockWeb.HelpLive.Flow do
           and <code>slipdock finding 41 promote --note "…"</code>. A finding seen three times
           (the board's setting) is drafted as a rule on the Tidy-up page for you to apply.
         </li>
+        <li>
+          What shipped is on the board's <strong>Ledger page</strong>
+          (beside <em>Findings</em>), or <code>slipdock ledger B [--since 7]</code>: since 07:00
+          yesterday, each card with who accepted it, its evidence, the <em>should</em>
+          rules it missed and where its time went. Skim it each morning, and open any card's
+          chat from it.
+        </li>
       </ul>
     </.person_note>
     """

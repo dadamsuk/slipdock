@@ -14,6 +14,7 @@ defmodule SlipdockCLI do
     Health,
     Inbound,
     Lanes,
+    Ledger,
     Runners,
     Skills,
     Sync,
@@ -142,7 +143,9 @@ defmodule SlipdockCLI do
     archived: :boolean,
     deps: :string,
     limit: :integer,
-    since: :integer,
+    # `wiki changes --since N` (a cursor) and `ledger --since` (days, a date
+    # or a time) both send it as given.
+    since: :string,
     board: :string,
     title: :string,
     desc: :string,
@@ -374,6 +377,7 @@ defmodule SlipdockCLI do
     Garden,
     Health,
     Findings,
+    Ledger,
     Inbound,
     Automations,
     Runners,

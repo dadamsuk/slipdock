@@ -339,6 +339,8 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/health", HealthLive.Index, :index
       # What passes learned, to triage (W-2310 §Findings, #1940).
       live "/boards/:id/findings", FindingsLive.Index, :index
+      # What shipped since yesterday, with its evidence (#1948).
+      live "/boards/:id/ledger", LedgerLive.Index, :index
       # A board's flow, velocity, runners and delivery on one page (#1185).
       live "/boards/:id/visualise", BoardLive.Visualise, :index
       live "/boards/:id", BoardLive.Show, :show
@@ -810,6 +812,7 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/health", HealthController, :create
     patch "/boards/:board/health/settings", HealthController, :settings
     get "/boards/:board/findings", FindingController, :index
+    get "/boards/:board/ledger", LedgerController, :index
     patch "/findings/:id", FindingController, :update
     post "/cards/:id/snooze", SnoozeController, :create
     delete "/cards/:id/snooze", SnoozeController, :delete
