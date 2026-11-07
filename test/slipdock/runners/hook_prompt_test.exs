@@ -92,6 +92,23 @@ defmodule Slipdock.Runners.HookPromptTest do
       refute script =~ ~r/^[^#\n]*slipdock (move|flag|comment|edit|done)/m
     end
 
+    test "logs with a timestamp BSD date prints too, so its log survives on a Mac (#1974)" do
+      script = File.read!(Path.join(@root, "priv/runner/examples/after-job-hook.sh"))
+
+      code =
+        script
+        |> String.split("\n")
+        |> Enum.reject(&String.starts_with?(String.trim_leading(&1), "#"))
+        |> Enum.join("\n")
+
+      calls = Regex.scan(~r/\$\((date\b[^)]*)\)/, code, capture: :all_but_first)
+      calls = List.flatten(calls)
+
+      assert "date -u +%Y-%m-%dT%H:%M:%SZ" in calls
+      # GNU only: -I/--iso-8601, -d/--date, --rfc-3339; BSD date refuses each.
+      refute Enum.any?(calls, &(&1 =~ ~r/\s(-I|-d\b|--iso|--date|--rfc)/)), inspect(calls)
+    end
+
     @tag :tmp_dir
     test "passes its own test", %{tmp_dir: tmp} do
       bash = System.find_executable("bash")

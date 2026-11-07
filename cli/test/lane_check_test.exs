@@ -14,6 +14,11 @@ defmodule SlipdockCLI.LaneCheckTest do
     home =
       Path.join(System.tmp_dir!(), "slipdock-lanecheck-#{System.unique_integer([:positive])}")
 
+    File.mkdir_p!(home)
+    # Resolved, as git reports paths: macOS's tmp dir is /var/folders/…, a
+    # link to /private/var/folders/… (#1974).
+    {real, 0} = System.cmd("pwd", ["-P"], cd: home)
+    home = String.trim_trailing(real, "\n")
     repo = Path.join(home, "repo")
     File.mkdir_p!(repo)
     saved = Map.new(~w(HOME SLIPDOCK_URL SLIPDOCK_TOKEN KANBAN_TOKEN), &{&1, System.get_env(&1)})
