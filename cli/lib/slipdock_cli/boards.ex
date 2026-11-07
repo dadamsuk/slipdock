@@ -17,8 +17,20 @@ defmodule SlipdockCLI.Boards do
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
 
-  # The server's own instructions for agents; needs no token, but says more with one.
-  def run("guide", [], o), do: HTTP.get("/guide") |> out(o, &IO.puts(&1["guide"]))
+  # The server's own instructions for agents; needs no token, but says more
+  # with one. The short guide by default, as `get_guide` gives it: the whole
+  # guide is tens of thousands of words, read by agents at the start of a
+  # session. `all` is the whole of it, any other word one section by its key
+  # (the short guide ends with them), all cut by the server.
+  def run("guide", args, o) when length(args) <= 1 do
+    section = args |> List.first("short") |> String.downcase()
+
+    case HTTP.get("/guide", section: section) do
+      # An unknown key: the server's message lists the keys there are.
+      {:error, 404, %{"message" => message}} -> fail(message)
+      result -> out(result, o, &IO.puts(&1["guide"]))
+    end
+  end
 
   # My work (#1118): what is waiting on you, oldest first, then the cards
   # assigned to you by when they are due — what the web page shows.

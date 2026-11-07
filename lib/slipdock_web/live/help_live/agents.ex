@@ -879,7 +879,13 @@ defmodule SlipdockWeb.HelpLive.Agents do
           override the saved address and token for a single command, such as one run against
           another server.
         </li>
-        <li><code>slipdock guide</code> prints the agent guide.</li>
+        <li>
+          <code>slipdock guide</code>
+          prints the short agent guide, which ends with the names of its other sections;
+          <code>slipdock guide wiki</code>
+          prints one of them, and <code>slipdock guide all</code>
+          the whole guide, which is long.
+        </li>
         <li>
           <code>slipdock work</code>
           lists what is waiting on you; <code>slipdock wait</code>

@@ -4287,7 +4287,7 @@ job links to it. Keeping it again gives the same page. Anyone who can edit the
 card can keep its log; a running job's log can be kept once it has ended.
 
 The runner protocol and the session endpoints are in the agent guide
-(`slipdock guide`, section *Runners*).
+(`slipdock guide runners`).
 ## Wiki
 
 The board answers *what are we doing*. It cannot answer *how does this work*,
@@ -6395,7 +6395,8 @@ working (claim, comment, flag, complete). The vocabularies and the endpoint
 list in it are generated from the code at request time, and a token earns a
 closing section naming your boards and what each of their lists means.
 `?format=json` returns the same text plus those parts as data, and
-`slipdock guide` prints it. The whole of it is long (tens of thousands of
+`slipdock guide` prints the short guide, `slipdock guide <name>` a section and
+`slipdock guide all` the whole of it. The whole of it is long (tens of thousands of
 words), so `?section=short` gives the part needed to work a board, ending with
 the names of the other sections, and `?section=<name>` one of them, the same
 cuts the MCP `get_guide` tool serves; `?section=all`, like the plain URL, is
@@ -6611,7 +6612,8 @@ slipdock ai-endpoint <url> # point at a local OpenAI-compatible server instead o
 slipdock ai-models        # what that endpoint can run
 slipdock ai-model <id>    # pick one (`--embed <id>` for the search index).
                          # The AI features need a key or an endpoint
-slipdock guide             # the server's instructions for agents (GET /api/guide)
+slipdock guide             # the server's instructions for agents, short: it ends
+                         # with its other sections (`guide wiki`, `guide all`)
 slipdock --help
 ```
 
