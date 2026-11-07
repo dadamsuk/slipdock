@@ -409,6 +409,11 @@ defmodule SlipdockWeb.HelpLive.Flow do
       limit is full (<em>WIP limits hold automated work</em>), another card is in progress, or
       its lane overlaps one.
     </p>
+    <p>
+      While the job is claimed or running, the card's Assignees show the <strong>loop</strong>:
+      the runner and the job's kind (build or verify), linked to the job. It goes when the job
+      ends. The agent doesn't assign the card to anyone, since it signs in with a person's token.
+    </p>
     <.person_note>
       <strong>A pause is yours to lift.</strong>
       Agents may pause runner work (<code>slipdock pause B --reason "…"</code>), and an agent

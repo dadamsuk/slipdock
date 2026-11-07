@@ -1683,6 +1683,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               <.phone_properties
                 board={@board}
                 card={@card}
+                loop={Slipdock.CardState.loop_of(@jobs)}
                 form={@form}
                 target={@target}
                 users={@users}
@@ -1845,6 +1846,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
         <.card_sidebar
           narrow?={@narrow?}
+          loop={Slipdock.CardState.loop_of(@jobs)}
           repeat={@repeat}
           board={@board}
           can_write={@can_write}

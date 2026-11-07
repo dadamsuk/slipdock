@@ -741,9 +741,9 @@ defmodule SlipdockWeb.RunnersLiveTest do
   end
 
   describe "what a job does to the card, in the wizard (#514)" do
-    @toggle_ids ~w(in_progress assign commit push move_done complete percent_100)
+    @toggle_ids ~w(in_progress commit push move_done complete percent_100)
 
-    test "seven checkboxes, unticked, for every scenario, and Nothing written by default", ctx do
+    test "six checkboxes, unticked, for every scenario, and Nothing written by default", ctx do
       view = open(ctx.conn, ctx.board)
 
       for scenario <- ~w(server windows loop cloud chatgpt) do
@@ -761,7 +761,9 @@ defmodule SlipdockWeb.RunnersLiveTest do
       end
 
       assert has_element?(view, "#wizard-toggles", "Move to In Progress when running")
-      assert has_element?(view, "#wizard-toggles", "Assign the card to the session when running")
+      # A job never assigns the card (#2027): no box for it.
+      refute has_element?(view, "#wizard-assign")
+      refute has_element?(view, "#wizard-toggles", "Assign the card")
       assert has_element?(view, "#wizard-toggles", "Mark as 100% when done")
       refute has_element?(view, "#wizard-commit option")
     end
@@ -809,7 +811,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
              )
 
       assert has_element?(view, "#runner-setup", "Mark the card complete when you finish.")
-      assert has_element?(view, "#runner-setup", "Don't assign the card to anyone.")
+      assert has_element?(view, "#runner-setup", "Don't assign the card to anyone:")
       assert has_element?(view, "#runner-setup", "Don't move the card to the done list.")
       assert has_element?(view, "#runner-setup", "Don't comment on the card at all")
     end

@@ -76,7 +76,8 @@ whole card before touching it.
   subcards, descend into it and work those to done before coming back up for the
   next top-level card.
 - **Updating as you go.** Move the card to in progress and assign it to yourself
-  when you start; comment at every decision, surprise or dead end; flag it
+  when you start (not under a runner job: there the card shows the runner as its
+  `loop` while the job holds it, and "me" would name the token's owner); comment at every decision, surprise or dead end; flag it
   (`blocked`, `review`) with a comment saying what you are waiting for; when
   only a person can give what you need, open a wait and stop (`slipdock wait
   <id> "what you need" [--on EMAIL] [--choice X]...`, or `update_card` `wait`;

@@ -259,7 +259,10 @@ defmodule Slipdock.Runners.SetupTest do
 
       prompt = List.last(codes(setup))
       assert prompt =~ "Move the card to the doing list when you start."
-      assert prompt =~ "Assign the card to yourself when you start."
+      # Assigning is never asked of a job, ticked or not (#2027).
+      refute prompt =~ "Assign the card to yourself"
+      refute prompt =~ "--assignee me"
+      assert prompt =~ "Don't assign the card to anyone: while this job holds it"
       assert prompt =~ "Move the card to the done list when you finish."
       assert prompt =~ "Mark the card complete when you finish."
       assert prompt =~ "Set the card's % complete to 100 when you finish."
@@ -331,8 +334,6 @@ defmodule Slipdock.Runners.SetupTest do
       "in_progress" =>
         {"Move the card to the doing list when you start.",
          "Don't move the card to the doing list: leave it where it is."},
-      "assign" =>
-        {"Assign the card to yourself when you start.", "Don't assign the card to anyone."},
       "move_done" =>
         {"Move the card to the done list when you finish.",
          "Don't move the card to the done list."},
@@ -351,6 +352,23 @@ defmodule Slipdock.Runners.SetupTest do
       for {_key, {on, off}} <- @said, do: assert(text =~ off) && refute(text =~ on)
       assert text =~ "Don't commit or push anything."
       refute text =~ "git repository"
+    end
+
+    test "a job never assigns the card, whatever a saved setup's assign says (#2027)",
+         %{board: board} do
+      for scenario <- Setup.scenarios(), assign <- [true, false] do
+        a = answers(%{"scenario" => scenario, "assign" => assign})
+        text = Setup.card_text(a)
+        assert text =~ "Don't assign the card to anyone: while this job holds it", scenario
+        assert text =~ "the card shows this runner as its loop beside the assignees"
+        refute text =~ "Assign the card to yourself", scenario
+      end
+
+      prompt = loop(board, %{"scenario" => "loop", "assign" => "true"})
+      refute prompt =~ "Assign the card to yourself"
+      refute prompt =~ "--assignee me"
+      # The off wording the slipdock-loop skill keys on is still said.
+      assert prompt =~ Setup.off_wording()["assign"]
     end
 
     test "each toggle on its own turns only its own sentence on", %{board: board} do
@@ -416,7 +434,9 @@ defmodule Slipdock.Runners.SetupTest do
 
       assert off =~
                "2. Otherwise the job names a card. Read it with get_card. Don't move the card " <>
-                 "to the doing list: leave it where it is. Don't assign the card to anyone.\n"
+                 "to the doing list: leave it where it is. Don't assign the card to anyone: " <>
+                 "while this job holds it, the card shows this runner as its loop beside the " <>
+                 "assignees.\n"
 
       assert off =~ "4. Run the tests if there are any. Don't commit or push anything."
 
@@ -429,8 +449,9 @@ defmodule Slipdock.Runners.SetupTest do
       on = cloud(board, Map.merge(@all_on, %{"where" => "cloud", "verbosity" => "normal"}))
 
       assert on =~
-               "Read it with get_card. Move the card to the doing list when you start. Assign " <>
-                 "the card to yourself when you start. Comment that you have picked it up"
+               "Read it with get_card. Move the card to the doing list when you start. Don't " <>
+                 "assign the card to anyone: while this job holds it, the card shows this " <>
+                 "runner as its loop beside the assignees. Comment that you have picked it up"
 
       assert on =~ "4. Run the tests if there are any. If the working directory is a git"
       assert on =~ "and push; if it isn't one"

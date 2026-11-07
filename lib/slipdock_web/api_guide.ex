@@ -1529,8 +1529,10 @@ defmodule SlipdockWeb.APIGuide do
     **A card's state**, worked out from what is already recorded and left
     out when there is nothing to say: `state` (one line: "Waiting on Dana ·
     41m", "Held · paused by David: bad deploy", "Running · runner-2 · 7m"),
-    `held` (why its queued job waits), `driver` (`agent` while a runner job
-    holds it, else who last moved it — runner boards only), `in_list_since`
+    `held` (why its queued job waits), `loop` (`{runner, kind, job_id}`
+    while a runner job holds it: shown beside the assignees, never one, so
+    a runner's agent doesn't assign the card), `driver` (`agent` while a
+    runner job holds it, else who last moved it — runner boards only), `in_list_since`
     and `age` (seconds in its list), `usual_stay` (the list's 85th-percentile
     stay), `over_usual` and `stuck` (past it). The `stuck` and `driver`
     filters read the same values.

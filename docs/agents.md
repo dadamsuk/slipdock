@@ -250,8 +250,13 @@ A board whose runner work a person has **paused** says so: `get_board`,
 `list_cards`, `slipdock board` and `slipdock cards` carry `paused` (a
 `PAUSED` line in the CLI). An agent seeing it takes nothing and stops.
 Every card also carries its `state` line, `driver`, `age` in its list and
-`stuck` (past the list's usual stay), and `list_cards` / `slipdock cards`
-filter on `stuck` and `driver`; `slipdock pulse <board>` (`get_board` with
+`stuck` (past the list's usual stay), and while a runner job holds it
+(claimed or running) its `loop`: `{runner, kind, job_id}`, the kind `build`,
+`verify` or `merge`. The card shows the loop beside its assignees, and it
+goes when the job ends; it is never an assignee, so `--assignee me`,
+`--no-assignee` and `assignee=none` still mean people, and a runner's agent
+(signed in with its owner's token) doesn't assign the card at all.
+`list_cards` / `slipdock cards` filter on `stuck` and `driver`; `slipdock pulse <board>` (`get_board` with
 `pulse: true`) gives the board's flow numbers, `slipdock flow <board>`
 (`history: true`, `GET /api/boards/:id/flow?days=`) its flow day by day,
 and `slipdock runner-stats <board>` (`runners: true`,

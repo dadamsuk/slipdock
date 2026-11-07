@@ -385,11 +385,13 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     end
   end
 
-  # The seven things a job may do to the card, in the order a job meets them.
+  # The six things a job may do to the card, in the order a job meets them.
+  # Not assigning it (#2027): while a job holds the card it shows the runner
+  # as its loop, and an assignment made with the owner's token would name
+  # the owner instead.
   defp toggle_labels do
     [
       {"in_progress", "Move to In Progress when running"},
-      {"assign", "Assign the card to the session when running"},
       {"commit", "Git commit when done"},
       {"push", "Git push when done"},
       {"move_done", "Move to Done when done"},
