@@ -178,4 +178,17 @@ defmodule SlipdockWeb.AgenticHubTest do
     assert Runners.online?(%Runner{last_seen_at: now})
     refute Runners.online?(%Runner{last_seen_at: DateTime.add(now, -3600, :second)})
   end
+
+  test "the help pages send people to the tiles, not the Runners panel" do
+    for file <- ~w(guides flow) do
+      text =
+        "lib/slipdock_web/live/help_live/#{file}.ex"
+        |> File.read!()
+        |> String.replace(~r/\s+/, " ")
+
+      refute text =~ "beside <em>Health</em>", file
+      refute text =~ "beside <em>Findings</em>", file
+      assert text =~ "<em>Agentic Building</em>", file
+    end
+  end
 end
