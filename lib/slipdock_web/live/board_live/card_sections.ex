@@ -484,20 +484,22 @@ defmodule SlipdockWeb.BoardLive.CardSections do
       >
         <.input
           field={@incident_form[:caused_by]}
-          placeholder="Caused by #…"
-          aria-label="The card whose shipping caused this incident"
-          class="input input-sm field w-28"
+          label="Caused by"
+          placeholder="#123"
+          title="The card whose shipping caused this incident"
+          class="input field w-28"
           autocomplete="off"
         />
         <.input
           type="select"
           field={@incident_form[:missed_by]}
-          prompt="Missed by…"
+          label="Missed by"
+          prompt="—"
           options={Card.layers()}
-          aria-label="The check that missed it"
-          class="select select-sm field"
+          title="The check that should have caught it"
+          class="select field"
         />
-        <button type="submit" class="btn btn-sm btn-ghost">Save</button>
+        <button type="submit" class="btn btn-sm btn-ghost self-end mb-2">Save</button>
       </.form>
     </section>
     """
