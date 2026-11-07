@@ -15,6 +15,13 @@ defmodule SlipdockWeb.StaleAssetsHook do
   needs it is running the old JavaScript, which knows nothing of new events.
   For the same reason it is styled with classes the app already had.
 
+  A live navigation (`navigate`, as the Ctrl-O finder's rows are) is a new
+  mount too, and the browser reports the same tab's assets for it, so a tab
+  from before a deploy is told again there; an up-to-date one never is: the
+  bar is about the tab, not the navigation (#2019). A patch from an event
+  keeps only the flash that event put, so anything that patches after the
+  mount (`SlipdockWeb.BoardLive.DisplayPrefs.restore/2`) puts it again.
+
   Without a static manifest (dev, test) nothing is ever stale.
   """
 

@@ -18,7 +18,7 @@ defmodule SlipdockWeb.BoardLive.DisplayPrefs do
   never remembered: only the Display menu's part (`Config.display_query/2`).
   """
   import Phoenix.Component, only: [assign: 3]
-  import Phoenix.LiveView, only: [connected?: 1, push_event: 3, push_patch: 2]
+  import Phoenix.LiveView, only: [connected?: 1, push_event: 3, push_patch: 2, put_flash: 3]
   import SlipdockWeb.BoardLive.Paths, only: [mode_path: 2]
   import SlipdockWeb.BoardLive.State, only: [swim_query: 3]
 
@@ -50,20 +50,57 @@ defmodule SlipdockWeb.BoardLive.DisplayPrefs do
   @doc """
   Puts what the browser remembered on the current config and patches the
   URL in place (`replace: true`, so Back doesn't land on the bare URL).
+
+  In place means the address the tab is on (`:current_uri`, which `handle_params`
+  keeps), not the mode's bare one: a card opened by a fresh mount
+  (`/boards/:id/cards/:card_id`, as the Ctrl-O finder's `navigate` does)
+  stays open, and `?page=`, `?at=` and the like stay put (#2019). Only the
+  display and filter part of the query is swapped.
+
+  A patch from an event carries only the flash that event put, so the one
+  the mount put (the stale-assets bar, "That card is archived.") is put
+  again to survive it.
   """
   def restore(%{assigns: assigns} = socket, %{"query" => remembered}) when is_map(remembered) do
     current = assigns.swim
     config = current |> Config.put_display(remembered) |> Config.sanitize(assigns.board)
 
     if remembers?(socket) and config != current do
-      to = mode_path(assigns, swim_query(nil, config, assigns.swim_base))
-      push_patch(socket, to: to, replace: true)
+      socket
+      |> keep_flash()
+      |> push_patch(to: restored_path(assigns, current, config), replace: true)
     else
       socket
     end
   end
 
   def restore(socket, _params), do: socket
+
+  defp restored_path(%{current_uri: uri, swim_base: base} = assigns, current, config)
+       when is_binary(uri) do
+    %URI{path: path, query: query} = URI.parse(uri)
+    stale = nil |> swim_query(current, base) |> Keyword.keys() |> Enum.map(&to_string/1)
+    fresh = Map.new(swim_query(nil, config, base), fn {k, v} -> {to_string(k), v} end)
+
+    params =
+      (query || "")
+      |> URI.decode_query()
+      |> Map.drop(stale)
+      |> Map.merge(fresh)
+
+    if params == %{}, do: path, else: path <> "?" <> URI.encode_query(params)
+  rescue
+    # A URI that won't parse is the mode's own address, as before #2019.
+    _ -> mode_path(assigns, swim_query(nil, config, assigns.swim_base))
+  end
+
+  defp restored_path(assigns, _current, config),
+    do: mode_path(assigns, swim_query(nil, config, assigns.swim_base))
+
+  defp keep_flash(%{assigns: %{flash: flash}} = socket) when map_size(flash) > 0,
+    do: Enum.reduce(flash, socket, fn {key, message}, s -> put_flash(s, key, message) end)
+
+  defp keep_flash(socket), do: socket
 
   defp remembers?(%{assigns: assigns} = socket) do
     connected?(socket) and is_nil(socket.redirected) and is_nil(assigns[:swim_view]) and
