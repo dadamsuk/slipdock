@@ -1847,7 +1847,8 @@ its `Handbook:` line, one item per line, each with its kind:
 The test for one: would a card on a different subject want to know this?
 Never a pointer (`in the evidence`, `recorded on #1819`), an event the board
 records itself, something the card fixed, or a fact about the card's own code
-(`Boards.move_card/4 returns :ok`); `Findings: none` is the usual answer. A line with no known kind is kept whole
+(`Boards.move_card/4 returns :ok`); `Findings: none` is the usual answer. A block that only points elsewhere
+records nothing: the evidence is a comment of its own, and its block is read there. A line with no known kind is kept whole
 as a `gotcha`, so nothing written is lost to a typo. Write the block once, in
 the closing comment (on a board that verifies work, the completion's
 evidence): not again in a wrap-up, a restatement or on the epic. The block is

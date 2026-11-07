@@ -84,6 +84,47 @@ defmodule Slipdock.FindingsTest do
       assert Block.parse("Findings:\n- Note: the size cap is close") ==
                [%{kind: "gotcha", text: "Note: the size cap is close", scope: "board"}]
     end
+
+    test "a block that only points elsewhere is none (#1975)" do
+      for said <- [
+            "in the evidence",
+            "In the evidence.",
+            "in the subcards' evidence (#1958, #1960)",
+            "in the evidence (installed CLI gaps, pg_restore version)",
+            "resolves #75 and #77.",
+            "recorded on #1819 and #1820.",
+            "see card #12 and finding #40",
+            "see W-1950 §Tests",
+            "`in the closing comment`"
+          ] do
+        assert Block.parse("- Handbook: no change\n- Findings: #{said}") == [], said
+        assert Block.parse("Findings:\n- #{said}") == [], said
+      end
+
+      assert Block.parse("Findings:\n- gotcha: in the evidence\n- see #4") == []
+    end
+
+    test "a pointer beside real items is dropped and the rest kept" do
+      text =
+        "Findings:\n- in the evidence\n- gotcha: `mix format` can need two passes\n- resolves #75"
+
+      assert Block.parse(text) == [
+               %{kind: "gotcha", text: "`mix format` can need two passes", scope: "board"}
+             ]
+    end
+
+    test "an item that says something beside an id is not a pointer" do
+      for said <- [
+            "`quality_api_test.exs:82` fails locally on main (#1928)",
+            "in the evidence the CLI crashed on --paths",
+            "resolves #75 by retrying the merge",
+            "the ones in comment #4887 stand, plus a new one",
+            "evidence posted twice on #1958"
+          ] do
+        refute Block.pointer?(said), said
+        assert [%{text: ^said}] = Block.parse("Findings:\n- #{said}")
+      end
+    end
   end
 
   describe "from a comment" do
@@ -109,6 +150,22 @@ defmodule Slipdock.FindingsTest do
       {:ok, _} = Boards.add_comment(card, "- Handbook: no change\n- Findings: none")
       {:ok, _} = Boards.add_comment(card, "Picked up.")
       assert findings(card) == []
+    end
+
+    test "a pointer-only block makes none, on this card or counted on another (#1975)", %{
+      card: card,
+      doing: doing
+    } do
+      other = card_fixture(doing, %{"title" => "Also pointed"})
+      {:ok, _} = Boards.add_comment(card, "- Handbook: no change\n- Findings: in the evidence")
+      {:ok, _} = Boards.add_comment(other, "- Findings: in the evidence")
+      {:ok, _} = Boards.add_comment(other, "Findings:\n- in the subcards' evidence (#1958)")
+
+      assert findings(card) == []
+      assert findings(other) == []
+
+      {:ok, _} = Boards.add_comment(card, "Evidence\n- Findings:\n  - gotcha: the real one")
+      assert [%Finding{text: "the real one", count: 1}] = findings(card)
     end
 
     test "a subcard's findings are kept on the root board", %{card: card, board: board} do

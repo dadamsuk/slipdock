@@ -18,6 +18,13 @@ defmodule Slipdock.Findings.Block do
   ran on (its installed CLI or skills), not the project: its `scope` is
   `runner` (#1941). Every other item, and `(runner)` on any other kind, is
   `board`.
+
+  An item whose only text points elsewhere (`in the evidence`, `in the
+  subcards' evidence (#1958, #1960)`, `resolves #75 and #77`, `recorded on
+  #1819`) is not a finding and is dropped (#1975): the evidence is a comment
+  of its own and its block is read there, and a pointer kept would be counted
+  on every card that writes it, until it looked like a rule. A block of only
+  pointers is `Findings: none`.
   """
 
   alias Slipdock.Findings.Finding
@@ -26,6 +33,17 @@ defmodule Slipdock.Findings.Block do
   @item ~r/^([ \t>]*)[-*+][ \t]+(.*)$/
   @kind ~r/^(?:\*\*|__|`)?([A-Za-z][A-Za-z _-]*?)(?:[ \t]*\(([A-Za-z]+)\))?(?:\*\*|__|`)?[ \t]*:(?:\*\*|__)?[ \t]*(.*)$/s
   @none ~r/^(?:\*\*|__|_)?none\b/i
+  # What an item points at instead of saying: a place (the evidence, a
+  # subcard's evidence, the closing comment) or ids (#75, card #12, W-1950).
+  @place ~S"(?:(?:the|its|their|each|this|that|these)[ \t]+)?(?:(?:card|epic|subcard|child|children)(?:'s|s'|s)?[ \t]+)?(?:evidence|closing[ \t]+comments?|completion(?:[ \t]+comment)?|wrap-?up|subcards?|comments?[ \t]+above|block[ \t]+above)"
+  @ref ~S"(?:(?:cards?|findings?|comments?|subcards?|epics?|jobs?|prs?)[ \t]+)?(?:#\d+|W-\d+(?:[ \t]*§[^,;()]*?)?)"
+  @refs @ref <> ~S"(?:[ \t]*(?:,|&|\+|\band\b)[ \t]*" <> @ref <> ")*"
+  @aside ~S"(?:[ \t]*\(.*\))?"
+  @pointers [
+    ~r/^(?:(?:are|were|all|kept|written|listed|given|recorded)[ \t]+)?(?:see[ \t]+)?(?:in|on|under)[ \t]+#{@place}(?:[ \t]+(?:of[ \t]+|on[ \t]+)?#{@refs})?#{@aside}$/iu,
+    ~r/^(?:see|resolves|resolved[ \t]+by|recorded[ \t]+(?:on|in)|same[ \t]+as|as[ \t]+(?:on|in)|covered[ \t]+(?:by|in|on)|merged[ \t]+into|duplicates?|already[ \t]+(?:recorded[ \t]+)?(?:on|in)|on|in)[ \t]+#{@refs}#{@aside}$/iu
+  ]
+
   @aliases %{
     "rule-candidate" => "rule",
     "handbookwrong" => "handbook-wrong",
@@ -35,7 +53,8 @@ defmodule Slipdock.Findings.Block do
 
   @doc """
   The block's items as `[%{kind: kind, text: text, scope: scope}]`: `[]` for `Findings: none`
-  (or an empty block), nil when the text has no block at all.
+  (or an empty block, or one whose items only point elsewhere), nil when the
+  text has no block at all.
   """
   def parse(text) when is_binary(text) do
     lines = String.split(text, ~r/\r?\n/)
@@ -69,10 +88,30 @@ defmodule Slipdock.Findings.Block do
 
   # `Findings:` with a single `- none` under it is none too.
   defp classify_all([only] = list) do
-    if Regex.match?(@none, only), do: [], else: Enum.map(list, &classify/1)
+    if Regex.match?(@none, only), do: [], else: keep_said(list)
   end
 
-  defp classify_all(list), do: Enum.map(list, &classify/1)
+  defp classify_all(list), do: keep_said(list)
+
+  defp keep_said(list) do
+    list |> Enum.map(&classify/1) |> Enum.reject(&pointer?(&1.text))
+  end
+
+  @doc """
+  Whether an item's text only points elsewhere (the evidence, a subcard, other
+  cards or findings by id) rather than saying anything itself.
+  """
+  def pointer?(text) when is_binary(text) do
+    said =
+      text
+      |> String.replace(~r/\*\*|__|`/, "")
+      |> String.trim()
+      |> String.trim_trailing(".")
+      |> String.trim_trailing(";")
+      |> String.trim()
+
+    Enum.any?(@pointers, &Regex.match?(&1, said))
+  end
 
   # One blank line between `Findings:` and its list is allowed, not after it.
   defp drop_leading_blanks([line | rest], []) do
