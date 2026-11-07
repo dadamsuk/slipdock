@@ -1268,6 +1268,9 @@ defmodule SlipdockWeb.SlipdockComponents do
       # (#1708): high, critical and low are the ones worth a glance.
       priority: on.("priority") and priority_on_face?(card.priority),
       assignee: on.("assignee") and Slipdock.Boards.Card.assignees(card) != [],
+      # The runner loop holding it (#2027, #2030), beside the people: only
+      # while its job is claimed or running, and with the assignee field.
+      loop: loop_on_face?(on, card),
       start_date: on.("start_date") and not is_nil(Slipdock.Boards.Card.effective_start(card)),
       due_date: on.("due_date") and not is_nil(Slipdock.Boards.Card.effective_due(card)),
       percent: on.("percent_complete") and not is_nil(card.percent_complete),
@@ -1437,6 +1440,12 @@ defmodule SlipdockWeb.SlipdockComponents do
           health={Slipdock.Boards.Card.stated_health(@card)}
           with_label={false}
         />
+        <SlipdockWeb.LoopComponents.loop_chip
+          :if={@f.loop}
+          id={"#{@dom_id}-loop"}
+          loop={Slipdock.CardState.loop(@card)}
+          href={SlipdockWeb.LoopComponents.job_href(@card, Slipdock.CardState.loop(@card))}
+        />
         <.assignee_chips :if={@f.assignee} users={Slipdock.Boards.Card.assignees(@card)} size="xs" />
         <.priority_badge :if={@f.priority} priority={@card.priority} />
         <.date_range_badge :if={@f.range} card={@card} />
@@ -1523,6 +1532,12 @@ defmodule SlipdockWeb.SlipdockComponents do
             :if={@f.stated}
             health={Slipdock.Boards.Card.stated_health(@card)}
             with_label={false}
+          />
+          <SlipdockWeb.LoopComponents.loop_chip
+            :if={@f.loop}
+            id={"#{@dom_id}-loop"}
+            loop={Slipdock.CardState.loop(@card)}
+            href={SlipdockWeb.LoopComponents.job_href(@card, Slipdock.CardState.loop(@card))}
           />
           <.assignee_chips :if={@f.assignee} users={Slipdock.Boards.Card.assignees(@card)} size="xs" />
           <.priority_badge :if={@f.priority} priority={@card.priority} />
@@ -1762,6 +1777,12 @@ defmodule SlipdockWeb.SlipdockComponents do
     </span>
     """
   end
+
+  # The runner loop's chip on a card's front (#2030): with the assignee
+  # field, while a job holds the card. Apart from `card/1`, which is
+  # already over credo's complexity limit.
+  defp loop_on_face?(on, card),
+    do: on.("assignee") and not is_nil(Slipdock.CardState.loop(card))
 
   attr :card, :any, required: true
   attr :zone, :string, default: "Etc/UTC"

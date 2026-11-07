@@ -220,6 +220,20 @@ defmodule Slipdock.CardState do
     |> job_loop()
   end
 
+  @doc """
+  The loops holding some cards, by card id, in one query: only the cards a
+  claimed or running job holds are keys. For cards read light, without a
+  state (the outline's, from `Slipdock.Boards.Rollup`).
+  """
+  def loops([]), do: %{}
+
+  def loops(card_ids) do
+    from(j in Job, where: j.card_id in ^card_ids and j.status in ~w(claimed running))
+    |> Repo.all()
+    |> Enum.group_by(& &1.card_id)
+    |> Map.new(fn {card_id, jobs} -> {card_id, loop_of(jobs)} end)
+  end
+
   @doc "The loop as its chip reads: \"Mac Studio · verify\"."
   def loop_label(%{runner: runner, kind: kind}),
     do: join([runner || "a runner", kind])
