@@ -1537,6 +1537,15 @@ defmodule SlipdockWeb.APIGuide do
     stay), `over_usual` and `stuck` (past it). The `stuck` and `driver`
     filters read the same values.
 
+    **Who made a card and who changed it last**, on a single card (`GET
+    /api/cards/:id`, MCP `get_card`, `slipdock card`): `created_by` and
+    `updated_by`, each `{kind, name, user_id}` with `kind` one of `person`,
+    `agent`, `runner` (with `job_id`, named for its loop: "Dev server
+    loop") or `automation` (the rule's name), or null when nobody was
+    recorded; never a guessed name. `updated_at` there is the last change
+    of any kind (comments, checklist, attachments and flags too): the later
+    of the newest activity entry and the card's own `updated_at`.
+
     **A card's timeline**: `GET /api/cards/:id/timeline` (MCP `get_card`
     with `timeline: true`, CLI `slipdock timeline <id>`) gives `stays` (each
     list it sat in, with `how` it got there and who), `waits` and `jobs`,

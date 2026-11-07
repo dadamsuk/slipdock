@@ -156,6 +156,15 @@ defmodule SlipdockWeb.HelpLive.Guides do
         board, and they get an email. Lists can have a colour, a WIP limit, and their own
         sort order or grouping.
       </p>
+      <p id="help-card-authors">
+        Under a card's properties, <strong>Created by</strong>
+        says who made it and <strong>Last changed by</strong>
+        who touched it last (an edit, a move, a comment, a
+        checklist item, an attachment or a flag) and when. That can be a person, a runner
+        loop by its runner's name ("Dev server loop"), an agent by its token's label, or
+        an automation rule by its name. When nobody was recorded, as on cards older than
+        this, only the time is shown.
+      </p>
     </.part>
 
     <.part title="Subcards and epics" id="boards-subcards">

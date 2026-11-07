@@ -6,11 +6,13 @@ defmodule Slipdock.Boards.Activity do
   Who is `actor_kind` — `person`, `agent`, `automation`, `email` or
   `system` — with `user_id` for the person (or the token's owner, for an
   agent) and `actor_name`, a snapshot of the name to show: the person's name
-  at the time, the agent's token label, the rule's name. `user_id` is
+  at the time, the agent's token label (a runner job's, its loop: "Dev server loop",
+  #2028), the rule's name. `user_id` is
   nilified when the user is deleted and the snapshot stays. Rows from before
   #1735 have no actor and read as "Someone".
   """
   use Ecto.Schema
+  import Ecto.Query, only: [from: 2]
 
   alias Slipdock.Accounts.User
   alias Slipdock.{Actor, Repo}
@@ -57,7 +59,7 @@ defmodule Slipdock.Boards.Activity do
     do: person("person", actor)
 
   defp who(%{kind: "agent"} = actor),
-    do: {"agent", actor[:user_id], present(actor[:agent]) || agent_name(actor[:via])}
+    do: {"agent", actor[:user_id], loop_name(actor[:job_id]) || agent_name(actor)}
 
   defp who(_actor), do: {"system", nil, nil}
 
@@ -74,9 +76,25 @@ defmodule Slipdock.Boards.Activity do
     end
   end
 
-  defp agent_name("assistant"), do: "Assistant"
-  defp agent_name("runner"), do: "Runner"
-  defp agent_name(_), do: "Agent"
+  defp agent_name(actor), do: present(actor[:agent]) || via_name(actor[:via])
+
+  defp via_name("assistant"), do: "Assistant"
+  defp via_name("runner"), do: "Runner"
+  defp via_name(_), do: "Agent"
+
+  # A runner job's agent is named for its loop, as the card shows it
+  # (#2028): "Dev server loop", not the token's label. A job id that names
+  # no job, or a job with no runner name, falls back to the label.
+  defp loop_name(job_id) when is_integer(job_id) do
+    Repo.one(from(j in Slipdock.Runners.Job, where: j.id == ^job_id, select: j.runner_name))
+    |> present()
+    |> case do
+      nil -> nil
+      runner -> runner <> " loop"
+    end
+  end
+
+  defp loop_name(_job_id), do: nil
 
   defp present(s) when is_binary(s) and s != "", do: s
   defp present(_), do: nil

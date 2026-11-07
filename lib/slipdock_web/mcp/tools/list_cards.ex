@@ -137,6 +137,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
       |> Map.put(:url, GetCard.url(card, context.base_url))
       |> Map.put(:rejection, Slipdock.Verified.rejection(card))
       |> Map.put(:findings, Map.get(findings, card.id, 0))
+      # Who made it and changed it last (#2028), as get_card has it.
+      |> V.put_authors(card)
     end)
   end
 

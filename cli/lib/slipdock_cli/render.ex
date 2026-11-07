@@ -1336,8 +1336,8 @@ defmodule SlipdockCLI.Render do
 
     findings_field(c)
     if c["archived_at"], do: field("Archived", c["archived_at"])
-    field("Created", c["inserted_at"])
-    field("Updated", c["updated_at"])
+    field("Created", by_line(c["inserted_at"], c["created_by"]))
+    field("Updated", by_line(c["updated_at"], c["updated_by"]))
 
     if c["description"] not in [nil, ""] do
       IO.puts("")
@@ -2926,6 +2926,13 @@ defmodule SlipdockCLI.Render do
   def dim(s), do: if(tty?(), do: IO.ANSI.faint() <> s <> IO.ANSI.reset(), else: s)
   def green(s), do: if(tty?(), do: IO.ANSI.green() <> s <> IO.ANSI.reset(), else: s)
   def red(s), do: if(tty?(), do: IO.ANSI.red() <> s <> IO.ANSI.reset(), else: s)
+
+  # When, and by whom when the server recorded it (#2028): `2026-11-07T10:00:00Z
+  # by Dev server loop`. Nobody recorded, or an older server, is the time alone.
+  defp by_line(at, %{"name" => name}) when is_binary(name) and name != "",
+    do: "#{at} by #{name}"
+
+  defp by_line(at, _who), do: at
 
   # The runner loop holding a card (#2027), under its assignees and not one
   # of them: `Loop: Mac Studio · verify (job #12)`.
