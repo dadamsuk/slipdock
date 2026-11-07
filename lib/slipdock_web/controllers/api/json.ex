@@ -1310,6 +1310,26 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   @doc """
+  Who created a card and who changed it last (#2028), on a single card's
+  JSON (`Slipdock.CardAuthors`): `created_by` and `updated_by`, each
+  `%{kind:, name:, user_id:}` (`kind` one of person, agent, runner,
+  automation; a runner's also has `job_id`) or nil when nobody is
+  recorded, and `updated_at` replaced by the card's last change: the later
+  of its newest activity row and its own `updated_at`.
+  """
+  def put_authors(map, %Card{} = card) do
+    authors = Slipdock.CardAuthors.for_card(card)
+
+    map
+    |> Map.put(:created_by, author_json(authors.created_by))
+    |> Map.put(:updated_by, author_json(authors.updated_by))
+    |> Map.put(:updated_at, authors.updated_at)
+  end
+
+  defp author_json(nil), do: nil
+  defp author_json(%{} = who), do: Map.take(who, [:kind, :name, :user_id, :job_id])
+
+  @doc """
   Lanes on a card's JSON. Shared paths (#1971), when its board has any:
   `shared_paths`, the globs that never count toward a lane there (what the
   lane-check hook lets through), and `paths_shared`, those of the card's own

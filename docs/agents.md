@@ -256,6 +256,15 @@ Every card also carries its `state` line, `driver`, `age` in its list and
 goes when the job ends; it is never an assignee, so `--assignee me`,
 `--no-assignee` and `assignee=none` still mean people, and a runner's agent
 (signed in with its owner's token) doesn't assign the card at all.
+A single card (`slipdock card`, `GET /api/cards/:id`, `get_card`) also
+says who made it and who changed it last: `created_by` and `updated_by`,
+each `{kind, name, user_id}` (`kind` is `person`, `agent`, `runner` or
+`automation`; a runner's carries its `job_id` and is named for its loop,
+"Dev server loop"; an agent by its token's label; a rule by its name) or
+`null` when nobody was recorded, as on cards older than that. There
+`updated_at` is the card's last change of any kind, comments and
+checklist included: the later of its newest activity entry and its own
+`updated_at`.
 `list_cards` / `slipdock cards` filter on `stuck` and `driver`; `slipdock pulse <board>` (`get_board` with
 `pulse: true`) gives the board's flow numbers, `slipdock flow <board>`
 (`history: true`, `GET /api/boards/:id/flow?days=`) its flow day by day,

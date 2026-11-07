@@ -1611,6 +1611,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :board, :any, required: true
   attr :card, Card, required: true
   attr :loop, :map, default: nil, doc: "the runner loop holding the card (#2027)"
+  attr :authors, :map, default: nil, doc: "who created it and changed it last (#2028)"
   attr :form, :any, required: true
   attr :target, :any, required: true
   attr :users, :list, required: true
@@ -1815,13 +1816,64 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           <.precision_row card={@card} />
         </div>
       </div>
+      <.card_authors :if={@authors} authors={@authors} />
     </div>
+    """
+  end
+
+  attr :authors, :map, required: true
+
+  # Who made the card and who changed it last (#2028), read-only, under its
+  # properties: "Created by Robin, 3 days ago", "Last changed by Dev server
+  # loop, 2 minutes ago". Nobody recorded is the time alone, never a guess.
+  defp card_authors(assigns) do
+    ~H"""
+    <div id="card-authors" class="space-y-0.5 px-1 pt-2 text-xs text-base-content/50">
+      <p id="card-created-by">
+        <.author_line
+          verb="Created"
+          who={@authors.created_by}
+          at={@authors.created_at}
+          id="card-created-by-at"
+        />
+      </p>
+      <p id="card-changed-by">
+        <.author_line
+          verb="Last changed"
+          who={@authors.updated_by}
+          at={@authors.updated_at}
+          id="card-changed-by-at"
+        />
+      </p>
+    </div>
+    """
+  end
+
+  attr :verb, :string, required: true
+  attr :who, :map, default: nil
+  attr :at, :any, required: true
+  attr :id, :string, required: true
+
+  defp author_line(%{who: nil} = assigns) do
+    ~H"""
+    {@verb} <.timestamp id={@id} at={@at} />
+    """
+  end
+
+  defp author_line(assigns) do
+    ~H"""
+    {@verb} by <span class="font-medium text-base-content/70" data-author-kind={@who.kind}>{@who.name}</span>,
+    <.timestamp
+      id={@id}
+      at={@at}
+    />
     """
   end
 
   attr :board, :any, required: true
   attr :card, Card, required: true
   attr :loop, :map, default: nil, doc: "the runner loop holding the card (#2027)"
+  attr :authors, :map, default: nil, doc: "who created it and changed it last (#2028)"
   attr :form, :any, required: true
   attr :target, :any, required: true
   attr :users, :list, required: true
@@ -1881,6 +1933,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             card={@card}
             form={@form}
             loop={@loop}
+            authors={@authors}
             target={@target}
             users={@users}
           />
@@ -1895,6 +1948,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :can_comment, :boolean, default: false, doc: "may report a status and vote (#863)"
   attr :card, Card, required: true
   attr :loop, :map, default: nil, doc: "the runner loop holding the card (#2027)"
+  attr :authors, :map, default: nil, doc: "who created it and changed it last (#2028)"
   attr :current_user, :any, default: nil
   attr :form, :any, required: true
   attr :form_key, :integer, required: true
@@ -1926,6 +1980,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             card={@card}
             form={@form}
             loop={@loop}
+            authors={@authors}
             target={@target}
             users={@users}
           />
