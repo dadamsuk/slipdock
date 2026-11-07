@@ -787,6 +787,57 @@ defmodule SlipdockWeb.API.CardControllerTest do
       refute Boards.get_card!(card.id).archived_at
     end
   end
+
+  describe "a card whose text has a path followed by a non-ASCII character (#2019)" do
+    # #2018's description said "priv/repo/migrations/…": the handbook's path
+    # scan kept half of the "…", and the card's JSON could not be encoded (500).
+    setup %{user: user, board: board, todo: todo} do
+      {:ok, _} = Slipdock.Handbook.install(user, board)
+      data = Enum.find(Slipdock.Handbook.find(board).pages, &(&1.title == "Data model"))
+
+      {:ok, _} =
+        Slipdock.Wiki.update_page(data, %{
+          "front_matter" => "---\nhandbook: data-model\ncovers: [priv/repo/**]\n---\n"
+        })
+
+      card =
+        card_fixture(todo, %{
+          "title" => "Add a column",
+          "description" => "Adds a migration under priv/repo/migrations/… → café.ex"
+        })
+
+      %{card: card}
+    end
+
+    test "GET /api/cards/:id is 200 and names the page that covers it", %{user: user, card: card} do
+      body = user |> with_token([]) |> get("/api/cards/#{card.id}") |> json_response(200)
+
+      assert body["card"]["id"] == card.id
+      whys = Enum.map(body["card"]["handbook"]["suggested"], & &1["why"])
+      assert "covers priv/repo/migrations/" in whys
+    end
+
+    test "MCP get_card renders it too", %{user: user, card: card} do
+      result =
+        user
+        |> with_token([])
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/mcp",
+          Jason.encode!(%{
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: %{name: "get_card", arguments: %{"card" => card.id}}
+          })
+        )
+        |> json_response(200)
+
+      got = get_in(result, ["result", "structuredContent"])
+      assert got["id"] == card.id
+      assert "covers priv/repo/migrations/" in Enum.map(got["handbook"]["suggested"], & &1["why"])
+    end
+  end
 end
 
 defmodule SlipdockWeb.API.CardControllerLimitTest do

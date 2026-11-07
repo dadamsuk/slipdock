@@ -847,5 +847,18 @@ defmodule Slipdock.HandbookTest do
       assert "assets/css/" in paths
       refute Enum.any?(paths, &String.contains?(&1, "example.com"))
     end
+
+    test "a path followed by a non-ASCII character comes back whole characters" do
+      paths =
+        Handbook.mentioned_paths(
+          "Touches priv/repo/migrations/… and lib/é.ex → docs/x.md, see https://example.com/é/…"
+        )
+
+      assert "priv/repo/migrations/" in paths
+      assert "lib/é.ex" in paths
+      assert "docs/x.md" in paths
+      assert Enum.all?(paths, &String.valid?/1)
+      refute Enum.any?(paths, &String.contains?(&1, "example.com"))
+    end
   end
 end
