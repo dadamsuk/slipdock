@@ -58,6 +58,23 @@ defmodule SlipdockCLI.ShipViaTest do
     assert JSON.decode!(body) == %{"completed" => true, "evidence_pr" => url}
   end
 
+  test "done --pr --evidence-commit sends the PR with the commit it merges at (#1976)" do
+    serve([{200, @card}])
+    url = "https://github.com/acme/app/pull/7"
+
+    capture_io(fn ->
+      Boards.run("done", ["12"], parse(["--pr", url, "--evidence-commit", "abc1234"]))
+    end)
+
+    assert_received {:request, "PATCH", "/api/cards/12", body}
+
+    assert JSON.decode!(body) == %{
+             "completed" => true,
+             "evidence_pr" => url,
+             "evidence_commit" => "abc1234"
+           }
+  end
+
   test "done --no-code sends why the card changes no code (#1938)" do
     serve([{200, @card}])
 

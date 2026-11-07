@@ -51,10 +51,16 @@ defmodule Slipdock.VerifiedNoCodeTest do
   defp submit(card, attrs, ctx) do
     Boards.update_card(
       fresh(card),
-      Map.merge(%{"completed" => true, "evidence" => "swept lib/, filed two cards"}, attrs),
+      %{"completed" => true, "evidence" => "swept lib/, filed two cards"}
+      |> Map.merge(with_commit(attrs))
+      |> Map.merge(attrs),
       actor: ctx.builder
     )
   end
+
+  # A PR goes with the commit it merges at (#1976).
+  defp with_commit(%{"evidence_pr" => _}), do: %{"evidence_commit" => "abc1234"}
+  defp with_commit(_attrs), do: %{}
 
   defp accept(card, ctx), do: Verified.decide(fresh(card), "accept", %{}, ctx.checker, ctx.owner)
 

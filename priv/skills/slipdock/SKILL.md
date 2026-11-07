@@ -431,7 +431,7 @@ slipdock set-board <board> --bar-required --evidence-required --verify-work --ve
                                        # starts, evidence on completion, a second agent accepts or
                                        # rejects, and submitted cards queued as verify jobs
 slipdock set-board <board> --ship-via pull-request         # needs --verify-work: agents open a PR (card-<id>), never push main; accepting merges it
-slipdock done <id> --pr https://github.com/o/r/pull/7      # on such a board: the pull request the work is in, beside the other evidence
+slipdock done <id> --pr https://github.com/o/r/pull/7 --evidence-commit <head sha>   # on such a board: the pull request the work is in and the commit it merges at (refused without it, a resubmission too)
                                        # an epic names none: its subcards merged their own, so it
                                        # completes with --evidence alone and accepting merges nothing
 slipdock done <id> --no-code "<why>" --evidence "…"   # a card that changes no code (a sweep, a handbook reconcile):

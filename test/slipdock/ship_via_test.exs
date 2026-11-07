@@ -128,8 +128,86 @@ defmodule Slipdock.ShipViaTest do
       assert {:ok, %{verify_state: "pending", evidence_pr: @pr}} =
                Boards.update_card(
                  ctx.card,
+                 %{
+                   "completed" => true,
+                   "evidence" => "mix test",
+                   "evidence_pr" => @pr,
+                   "evidence_commit" => "abc1234"
+                 },
+                 actor: ctx.agent
+               )
+    end
+
+    test "a PR without the commit it merges at is refused, and nothing is stored (#1976)",
+         ctx do
+      pr_board(ctx, %{"evidence_required" => true})
+
+      assert {:error, cs} =
+               Boards.update_card(
+                 ctx.card,
                  %{"completed" => true, "evidence" => "mix test", "evidence_pr" => @pr},
                  actor: ctx.agent
+               )
+
+      assert %{evidence_commit: [message]} = errors_on(cs)
+      assert message =~ "--evidence-commit"
+      assert message =~ "headRefOid"
+      card = Repo.get!(Card, ctx.card.id)
+      refute card.verify_state
+      refute card.completed
+      refute card.evidence_pr
+
+      # A blank commit is no commit.
+      assert {:error, cs} =
+               Boards.update_card(
+                 ctx.card,
+                 %{"completed" => true, "evidence_pr" => @pr, "evidence_commit" => "  "},
+                 actor: ctx.agent
+               )
+
+      assert %{evidence_commit: [_]} = errors_on(cs)
+    end
+
+    test "a resubmission after a rejection names its commit again (#1976)", ctx do
+      pr_board(ctx, %{"evidence_required" => true})
+      submit = %{"completed" => true, "evidence_pr" => @pr, "evidence_commit" => "abc1234"}
+      assert {:ok, card} = Boards.update_card(ctx.card, submit, actor: ctx.agent)
+
+      checker = %{ctx.agent | agent: "checker", via: "api"}
+
+      assert {:ok, card} =
+               Verified.decide(
+                 card,
+                 "reject",
+                 %{"reason" => "bar 1: no test"},
+                 checker,
+                 ctx.owner
+               )
+
+      assert card.verify_state == "rejected"
+      refute card.evidence_commit
+
+      # The PR alone, as `slipdock done --pr URL` sends it, is refused…
+      assert {:error, cs} =
+               Boards.update_card(card, %{"completed" => true, "evidence_pr" => @pr},
+                 actor: ctx.agent
+               )
+
+      assert %{evidence_commit: [_]} = errors_on(cs)
+
+      # …and with the new head it is pending again, at that commit.
+      assert {:ok, %{verify_state: "pending", evidence_commit: "def5678"}} =
+               Boards.update_card(card, %{submit | "evidence_commit" => "def5678"},
+                 actor: ctx.agent
+               )
+    end
+
+    test "a person completing a card with a PR and no commit isn't refused", ctx do
+      pr_board(ctx, %{"evidence_required" => true})
+
+      assert {:ok, %{completed: true}} =
+               Boards.update_card(ctx.card, %{"completed" => true, "evidence_pr" => @pr},
+                 actor: Actor.web(ctx.owner)
                )
     end
 

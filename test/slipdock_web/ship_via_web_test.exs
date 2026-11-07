@@ -104,13 +104,56 @@ defmodule SlipdockWeb.ShipViaWebTest do
     assert [%{"text" => text}] = result["content"]
     assert text =~ "evidence_pr"
 
+    # A PR without the commit it merges at (#1976).
     result = mcp(ctx.agent, "complete_card", %{card: ctx.card.id, evidence: "x", pr: @pr})
+    assert result["isError"] == true
+    assert [%{"text" => text}] = result["content"]
+    assert text =~ "evidence_commit"
+    refute Repo.get!(Card, ctx.card.id).verify_state
+
+    result =
+      mcp(ctx.agent, "complete_card", %{
+        card: ctx.card.id,
+        evidence: "x",
+        pr: @pr,
+        commit: "abc1234"
+      })
+
     assert result["isError"] == false
     card = Repo.get!(Card, ctx.card.id)
     assert card.evidence_pr == @pr and card.verify_state == "pending"
 
     json = ctx.agent |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(200)
     assert json["card"]["evidence_pr"] == @pr
+  end
+
+  test "PATCH /api/cards: a PR without its commit is 422 on evidence_commit (#1976)", ctx do
+    {:ok, _} =
+      Boards.update_board(ctx.board, %{
+        "verify_work" => true,
+        "evidence_required" => true,
+        "ship_via" => "pull_request"
+      })
+
+    body =
+      ctx.agent
+      |> patch(~p"/api/cards/#{ctx.card.id}", %{"completed" => true, "evidence_pr" => @pr})
+      |> json_response(422)
+
+    assert [message] = body["details"]["evidence_commit"]
+    assert message =~ "--evidence-commit"
+    refute Repo.get!(Card, ctx.card.id).verify_state
+
+    ctx.agent
+    |> patch(~p"/api/cards/#{ctx.card.id}", %{
+      "completed" => true,
+      "evidence_pr" => @pr,
+      "evidence_commit" => "abc1234"
+    })
+    |> json_response(200)
+
+    card = Repo.get!(Card, ctx.card.id)
+    assert card.verify_state == "pending" and card.evidence_commit == "abc1234"
   end
 
   test "settings show the choice with verification on, and save it", ctx do

@@ -708,7 +708,8 @@ can check another runner's work. Deciding is `verify_card` or `slipdock
 verify`, and never on a card you submitted yourself. A board can also
 **ship by pull request**: its agents push a `card-<id>` branch and open a
 pull request, never the default branch, and complete with its URL
-(`slipdock done --pr`). An epic there names none of its own: its subcards
+and head commit (`slipdock done --pr URL --evidence-commit SHA`; a PR
+without its commit is refused, on a resubmission too). An epic there names none of its own: its subcards
 each ship and merge theirs, and once they are all merged the epic completes
 with `slipdock done --evidence "…"` and no `--pr`, and is accepted with
 nothing to merge. A card that changes no code (a sweep, a handbook

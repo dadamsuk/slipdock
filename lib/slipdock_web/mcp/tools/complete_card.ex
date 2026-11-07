@@ -33,7 +33,10 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
         branch: %{type: "string", description: "The commit's branch."},
         pr: %{
           type: "string",
-          description: "The pull request's URL, on a board that ships by pull request."
+          description:
+            "The pull request's URL, on a board that ships by pull request. Give commit " <>
+              "with it, the PR's head: the PR is merged at that commit, and a PR without " <>
+              "one is refused, on a resubmission too."
         },
         no_code: %{
           type: "string",
