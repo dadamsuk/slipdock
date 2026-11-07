@@ -77,6 +77,7 @@ test/slipdock_web/transfer_links_docs_test.exs
 test/slipdock_web/verified_docs_test.exs
 test/slipdock_web/verified_merge_docs_test.exs
 test/slipdock_web/verify_by_ci_docs_test.exs
+test/slipdock_web/reproduce_reported_docs_test.exs
 test/slipdock_web/wait_docs_test.exs
 test/slipdock/incidents_docs_test.exs
 test/slipdock/profiles_docs_test.exs

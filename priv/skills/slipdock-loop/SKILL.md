@@ -331,6 +331,26 @@ back (see **Handing a card back**) rather than inventing work on it.
 On a board with lanes on, write the card's paths before the move (see
 **Lanes**).
 
+### A bug: reproduce what was reported
+
+A bug card is fixed when the person who reported it would now see it fixed,
+not when a test you wrote passes. So before building a fix:
+
+- **Post the *Picked up* comment first**, then reproduce, and post the
+  repro as **its own comment** (`**Reproduced.**` or `**Not reproduced.**`):
+  the screen, the size or data, the steps, and what you saw.
+- **Reproduced means the reported symptom, on the reporter's scenario**:
+  the screen, control and size the card names, showing what the card says
+  goes wrong. Something else that fails nearby is not it.
+- **A clean repro that doesn't show it means ask, never make one.** Don't
+  add conditions (a wider element, odd data, another size) until something
+  fails, and never fix a cause you invented. Open a wait (`--kind other`,
+  or `ux` for a screen) that says what you tried and what you saw, and asks
+  for a screenshot or the steps: which screen, which control, which size.
+  Then hand the card back as in **Handing a card back**.
+- **A UI bug with no screenshot or steps**, whose symptom you couldn't see,
+  gets them asked for the same way, before any work starts.
+
 ## 5. Subcards before the parent
 
 `slipdock card <id>` shows `Subcards: board #N · done/total · lists` when the card
@@ -831,7 +851,12 @@ With one on, the pass changes like this:
   decide once:
   1. **The ask:** does the bar cover what the card asks for (its
      description, and any request in the comments)? A bar that leaves part
-     out is a rejection, even when the work meets the bar.
+     out is a rejection, even when the work meets the bar. On a bug, the
+     check is *would the reporter now see it fixed?*: a card or evidence
+     that says the reported symptom or its cause was never seen ("I
+     couldn't tell what…", a cause made up in the test) is a rejection
+     (`the ask: the reported symptom was never seen`), however good the
+     tests.
   2. **The bar,** each part of it.
   3. **The rules** (a board with a handbook): `git diff --name-only
      $(git merge-base origin/<default> <sha>) <sha> | slipdock handbook

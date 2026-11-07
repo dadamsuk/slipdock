@@ -2646,7 +2646,7 @@ defmodule Slipdock.Verified do
   # rules and the Handbook line only on a board with a handbook.
   defp judge_steps(card, board, handbook, opts \\ []) do
     base = [
-      "The ask. Does the bar cover everything the description (and any request in the comments) asks for? A bar that leaves part of the ask out is a rejection (`the ask: the bar misses …`), even when the work meets the bar. Step: `judging the ask`",
+      "The ask. Does the bar cover everything the description (and any request in the comments) asks for? A bar that leaves part of the ask out is a rejection (`the ask: the bar misses …`), even when the work meets the bar. On a bug, the ask is the reported symptom, so the check is would the reporter now see it fixed, not does the work meet the bar: a card or evidence that says the reported symptom or its cause was never seen (\"I couldn't tell what…\", a cause made up in the test, a repro built until something failed) is a rejection (`the ask: the reported symptom was never seen`), however good the tests. Step: `judging the ask`",
       "The bar. Each item, against the change and the tests it names. A part not met is a rejection naming the item (`bar 2: …`). Step: `judging against the bar`"
     ]
 

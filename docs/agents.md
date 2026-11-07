@@ -685,7 +685,15 @@ bar**, and on a board with a handbook **the rules** for the diff's paths
 <board> --paths-from -`; a broken `must` is a rejection) and **the
 `Handbook:` line**, held against the docs gate (`no change` on a diff that
 needed an update is a rejection). A rejection cites the check it fails: a bar
-item, the ask, a rule id or the Handbook line. A rule being a person's call,
+item, the ask, a rule id or the Handbook line. **On a bug, the ask is the
+reported symptom**: the check is would the reporter now see it fixed, not
+does the work meet the bar. The builder reproduces the reported symptom on
+the reporter's scenario and posts the repro as its own comment; a clean repro
+that doesn't show it opens a wait saying what was seen and asking for a
+screenshot or steps (which screen, which control), never conditions built
+until something fails. The verifier rejects (`the ask: …`) a bug card whose
+card or evidence says the reported symptom or its cause was never seen,
+however good the tests. A rule being a person's call,
 a bar item that adds, rewords or drops a handbook rule is met by a matching
 open rule proposal (an `edit_section` step on that page's `## Rules`;
 `slipdock garden <board> --check proposal`): the verifier judges the
