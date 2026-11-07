@@ -122,6 +122,28 @@ defmodule SlipdockCLI.Util do
   def nonempty(""), do: nil
   def nonempty(list), do: list
 
+  # `-` as a text option's value reads the text from stdin, as `--body -`
+  # does (#1966): `done --evidence -`, `page section --append -`. Anything
+  # else is the text itself. Empty stdin is refused rather than sent, so a
+  # pipe that produced nothing doesn't store an empty field.
+  def stdin_arg("-", flag) do
+    case stdin_text(IO.read(:stdio, :eof), flag) do
+      {:ok, text} -> text
+      {:error, why} -> fail(why)
+    end
+  end
+
+  def stdin_arg(value, _flag), do: value
+
+  def stdin_text(text, flag) when is_binary(text) do
+    if String.trim(text) == "",
+      do: {:error, "nothing on stdin for #{flag} -"},
+      else: {:ok, text}
+  end
+
+  def stdin_text(:eof, flag), do: {:error, "nothing on stdin for #{flag} -"}
+  def stdin_text(_, flag), do: {:error, "could not read #{flag} from stdin"}
+
   def fail(msg) do
     IO.puts(:stderr, "error: " <> msg)
     System.halt(1)

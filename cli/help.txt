@@ -285,7 +285,8 @@ WIKI  (Markdown pages on a board: how it works, what was decided and why.
   page section <page> <path>          print one section
   page section <page> <path> --append TEXT | --body TEXT | --file F [--message M]
                                       add to, or replace, one section. Appending cannot
-                                      conflict and needs no hash — the write to prefer
+                                      conflict and needs no hash — the write to prefer.
+                                      --append - and --body - read the text from stdin
   page append <page> --body TEXT|--file F [--message M]   add to the end of the page
   page encrypt <page> [--section S] [--hint H] [--purge-history]
                                       encrypt the page, or one section, in Meld Encrypt's
@@ -620,7 +621,8 @@ WRITE
                                       (--suite passed:38:0) and the pull request the
                                       work is in (--pr, on a board shipping by pull
                                       request; --no-code WHY instead for a card that
-                                      changes no code), when completing; a
+                                      changes no code), when completing
+                                      (--evidence - reads it from stdin); a
                                       board with --evidence-required asks agents for it. On
                                       a board with --verify-work an agent's done submits it
   verify <id> accept|reject|merged [--reason TEXT] [--evidence-commit SHA]
