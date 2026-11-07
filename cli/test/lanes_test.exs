@@ -84,4 +84,45 @@ defmodule SlipdockCLI.LanesTest do
     assert out =~ ~r/Paths\n\s+lib\/a\/\*\*\n\s+test\/a_test.exs/
     refute capture_io(fn -> Render.card(card) end) =~ "Paths"
   end
+
+  test "set-board --shared-paths sends the globs as written, and \"\" to clear them (#1971)" do
+    serve([{200, @board}, {200, @board}])
+
+    capture_io(fn ->
+      Boards.run("set-board", ["docs"], parse(["--shared-paths", "docs/**,README.md"]))
+    end)
+
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"shared_paths" => "docs/**,README.md"}
+
+    capture_io(fn -> Boards.run("set-board", ["docs"], parse(["--shared-paths", ""])) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"shared_paths" => ""}
+  end
+
+  test "card marks the paths shared on the board; board lists its shared paths (#1971)" do
+    card =
+      @card
+      |> JSON.decode!()
+      |> Map.fetch!("card")
+      |> Map.merge(%{
+        "paths" => ["lib/a/**", "docs/manual.md"],
+        "shared_paths" => ["docs/**"],
+        "paths_shared" => ["docs/manual.md"]
+      })
+
+    out = capture_io(fn -> Render.card(card) end)
+    assert out =~ ~r/Paths\n\s+lib\/a\/\*\*\n\s+docs\/manual.md.*shared/
+    refute out =~ ~r/lib\/a\/\*\*.*shared/
+
+    board = %{"id" => 3, "name" => "Docs", "color" => "blue", "tags" => [], "columns" => []}
+
+    assert capture_io(fn ->
+             Render.board(Map.put(board, "shared_paths", ["docs/**", "README.md"]))
+           end) =~
+             "shared paths (hold no lane): docs/**, README.md"
+
+    refute capture_io(fn -> Render.board(Map.put(board, "shared_paths", [])) end) =~
+             "shared paths"
+  end
 end

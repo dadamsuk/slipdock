@@ -250,6 +250,7 @@ defmodule Slipdock.Portable.Export do
       lanes: board.lanes,
       profiles: board.profiles,
       profile_tiers: board.profile_tiers,
+      shared_paths: board.shared_paths,
       evidence_required: board.evidence_required,
       verify_work: board.verify_work,
       verify_pool: board.verify_pool,

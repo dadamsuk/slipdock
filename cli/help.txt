@@ -709,7 +709,8 @@ WRITE
       [--verify-pool POOL] [--verify-rejection-limit N] [--verify-audit N]
       [--findings-propose-at N]
       [--ship-via push|pull-request]
-      [--lanes | --no-lanes] [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
+      [--lanes | --no-lanes] [--shared-paths GLOBS]
+      [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
       [--profiles on|off] [--profile-tier PROFILE=TIER]...
                                       rename a board, change its code, shortcut key or colour,
                                       say what the foot of each list offers, make it a
@@ -765,6 +766,9 @@ WRITE
                                       card has a runner merge it (needs --verify-work)
                                       --lanes: an agent can't start a card whose --paths
                                       overlap a card in progress (a person can)
+                                      --shared-paths GLOBS: globs that never count toward
+                                      a lane (docs/manual.md,README.md), split on commas or
+                                      newlines; "" clears
                                       --route KIND=EMAIL[,EMAIL]: who a wait asking that
                                       kind of question (product, ux, security, release,
                                       other) goes to: the first is who it waits on, the

@@ -129,6 +129,8 @@ defmodule SlipdockWeb.API.JSON do
       # profile's human tier on the tree (#1952), nil with profiles off.
       profiles: b.profiles,
       profile_tiers: if(b.profiles, do: Slipdock.Profiles.board_tiers(b)),
+      # Globs that never count toward a lane (#1971); [] none.
+      shared_paths: b.shared_paths,
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
@@ -236,6 +238,8 @@ defmodule SlipdockWeb.API.JSON do
       # profile's human tier on the tree (#1952), nil with profiles off.
       profiles: b.profiles,
       profile_tiers: if(b.profiles, do: Slipdock.Profiles.board_tiers(b)),
+      # Globs that never count toward a lane (#1971); [] none.
+      shared_paths: b.shared_paths,
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
@@ -1180,6 +1184,37 @@ defmodule SlipdockWeb.API.JSON do
   # Writing on a card is writing: a card that names a page is a backlink too.
   def backlink(%Link{source_card: %Card{} = c} = l),
     do: %{card: card_stub(c), count: l.count, pinned: l.pinned, raw: l.raw}
+
+  @doc """
+  A board's lanes as they hold for it (#1628, #1971): `%{on:, shared_paths:}`,
+  the switch as its tree has it and the globs that never count toward a lane
+  there (its root's and its own); nil on a board with neither.
+  """
+  def board_lanes(%Slipdock.Boards.Board{} = board) do
+    on = Slipdock.Lanes.on?(board)
+    shared = Slipdock.Lanes.shared_paths(board)
+    if on or shared != [], do: %{on: on, shared_paths: shared}
+  end
+
+  @doc """
+  Shared paths (#1971) on a card's JSON, when its board has any:
+  `shared_paths`, the globs that never count toward a lane there (what the
+  lane-check hook lets through), and `paths_shared`, those of the card's own
+  paths wholly inside one. Left off on a board with none.
+  """
+  def put_lanes(map, %Card{} = card) do
+    board = Slipdock.Repo.get(Slipdock.Boards.Board, card.board_id)
+
+    case Slipdock.Lanes.shared_paths(board) do
+      [] ->
+        map
+
+      shared ->
+        map
+        |> Map.put(:shared_paths, shared)
+        |> Map.put(:paths_shared, Enum.filter(card.paths, &Slipdock.Lanes.shared?(&1, shared)))
+    end
+  end
 
   @doc "How many open findings the card has (W-2310 §Findings)."
   def put_findings(map, %Card{} = card),

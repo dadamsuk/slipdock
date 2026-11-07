@@ -859,6 +859,22 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   </span>
                 </span>
               </label>
+              <div class="ml-6 space-y-1">
+                <.input
+                  field={@form[:shared_paths]}
+                  id="board-shared-paths"
+                  type="textarea"
+                  rows="2"
+                  label="Shared paths"
+                  value={globs_text(@form[:shared_paths].value)}
+                  placeholder="docs/manual.md&#10;README.md"
+                  class="textarea field field-mono w-full"
+                />
+                <p class="-mt-1 text-xs text-base-content/50">
+                  One glob per line. Files nearly every card edits, such as the manual: cards
+                  can both declare them without holding each other. Any other overlap still holds.
+                </p>
+              </div>
               <%!-- Profiles (#1951): one word for what kind of change a card is. --%>
               <input type="hidden" name={@form[:profiles].name} value="false" />
               <label class="flex cursor-pointer items-start gap-2 text-sm">
@@ -1499,4 +1515,8 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   # The permitted senders, one per line, as the textarea shows them.
   defp senders_text(senders) when is_list(senders), do: Enum.join(senders, "\n")
   defp senders_text(senders), do: senders
+
+  # The shared paths (#1971), one glob per line, as the textarea shows them.
+  defp globs_text(globs) when is_list(globs), do: Enum.join(globs, "\n")
+  defp globs_text(globs), do: globs
 end

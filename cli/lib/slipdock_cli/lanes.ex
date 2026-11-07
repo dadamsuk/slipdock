@@ -11,7 +11,9 @@ defmodule SlipdockCLI.Lanes do
   `$SLIPDOCK_CARD` (a runner job sets it), else a branch named `card-<id>`
   (the runner's worktree branches) — reads its paths from the board, and
   refuses a commit that stages files outside them, listing the files. A
-  card with no paths, or no card at all, passes. It never blocks on the
+  card with no paths, or no card at all, passes. A staged file under one of
+  the board's shared paths (#1971) goes through either way, and the hook
+  says it let it through as shared. It never blocks on the
   network: a board that can't be reached, or doesn't answer in a few
   seconds, gets a warning and the commit goes ahead.
 
@@ -57,6 +59,9 @@ defmodule SlipdockCLI.Lanes do
     case check(File.cwd!(), o[:card], System.get_env("SLIPDOCK_CARD")) do
       {:pass, nil} ->
         :ok
+
+      {:pass, message} ->
+        IO.puts(:stderr, message)
 
       {:warn, message} ->
         IO.puts(:stderr, "lane-check: " <> message <> "; commit allowed")
@@ -132,7 +137,9 @@ defmodule SlipdockCLI.Lanes do
 
   @doc """
   The check for a commit in the repository at `dir`, the card given as
-  `flag` or in `env` (else read from the branch): `{:pass, nil}`,
+  `flag` or in `env` (else read from the branch): `{:pass, nil}`, `{:pass,
+  message}` (files outside the card's paths let through as shared on the
+  board, #1971),
   `{:warn, message}` (the board couldn't say; the commit goes ahead) or
   `{:refuse, message}` naming the files outside the card's paths.
   """
@@ -145,13 +152,23 @@ defmodule SlipdockCLI.Lanes do
 
   defp check_card(dir, id) do
     case fetch_paths(id) do
-      {:ok, []} ->
+      {:ok, [], _shared} ->
         {:pass, nil}
 
-      {:ok, paths} ->
-        case outside(staged(dir), paths) do
-          [] ->
+      {:ok, paths, shared} ->
+        outside = outside(staged(dir), paths)
+        # Shared paths (#1971) hold no lane: a file under one goes through
+        # whether or not the card declares it.
+        allowed = outside -- outside(outside, shared)
+
+        case outside -- allowed do
+          [] when allowed == [] ->
             {:pass, nil}
+
+          [] ->
+            {:pass,
+             "lane-check: allowed as shared on the board, outside card ##{id}'s paths:\n" <>
+               Enum.map_join(allowed, "\n", &"  #{&1}")}
 
           files ->
             {:refuse,
@@ -193,13 +210,13 @@ defmodule SlipdockCLI.Lanes do
     end
   end
 
-  # The card's paths, giving up after @timeout: a hook never waits long on
+  # The card's paths and its board's shared paths, giving up after @timeout: a hook never waits long on
   # the network.
   defp fetch_paths(id) do
     task = Task.async(fn -> HTTP.get("/cards/#{id}") end)
 
     case Task.yield(task, @timeout) || Task.shutdown(task, :brutal_kill) do
-      {:ok, {:ok, %{"card" => card}}} -> {:ok, card["paths"] || []}
+      {:ok, {:ok, %{"card" => card}}} -> {:ok, card["paths"] || [], card["shared_paths"] || []}
       {:ok, {:error, :connect, reason}} -> {:error, "board unreachable: #{inspect(reason)}"}
       {:ok, {:error, status, _}} -> {:error, "HTTP #{status}"}
       {:ok, _} -> {:error, "an answer it couldn't read"}

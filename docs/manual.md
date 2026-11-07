@@ -1053,6 +1053,27 @@ are never refused: moving the card yourself is the override, and the card's
 *Paths* field says what it overlaps. The server only compares globs: it
 never sees a working tree.
 
+**Shared paths.** Some files nearly every card edits: the manual, the API
+guide, the README. Declared honestly, they make every card overlap every
+other, and lanes would let one agent work at a time. A board's *Shared
+paths* (in its settings under *Lanes*, one glob per line; `slipdock
+set-board slipdock --shared-paths "docs/manual.md,README.md"`, `""` clears
+them; `update_board` `shared_paths`; `PATCH /api/boards/:id
+{"shared_paths": [...]}`) are globs that never count toward a lane. A
+card's path wholly inside one is left out on both sides before the overlap
+is checked, so two cards whose only overlap is the manual don't hold each
+other, while an overlap anywhere else still does. A card's path only partly
+inside one counts in full: `docs/**` still counts when only
+`docs/manual.md` is shared. The root board's list holds for its whole
+tree, and sub-boards made afterwards inherit it. Empty by default, which
+changes nothing. The card's *Paths* field and `slipdock card` mark a path
+that is shared, `slipdock board` and `get_board` list them, a runner job's
+prompt names the card's shared paths and asks the agent to keep to its own
+sections and rebase before pushing, and the lane-check hook lets a staged
+file under one through. Edits to them are expected to merge cleanly; keep
+the expensive collisions (migrations, a schema, a module being refactored)
+out of the list.
+
 **Cards awaiting verification.** On a board that verifies work and ships
 by **push**, a card an agent has submitted has its work on the default
 branch already, and nobody is editing its files. While it waits for
@@ -1078,7 +1099,9 @@ Before each commit it runs `slipdock lane-check`, which finds the card
 being worked — `--card ID`, else `$SLIPDOCK_CARD` (a runner job sets it),
 else a branch named `card-<id>` (the worktree runner's branches) — reads
 its paths, and refuses a commit that stages files outside them, listing
-the files; both sides of a rename count. A card with no paths, or no card,
+the files; both sides of a rename count. A file under one of the board's
+shared paths goes through whether or not the card declares it, and the
+hook says it let it through as shared. A card with no paths, or no card,
 passes. It never blocks on the network: a board it can't reach, or one
 that doesn't answer in five seconds, gets a warning and the commit goes
 ahead, as it does if `slipdock` isn't on the hook's PATH. `git commit

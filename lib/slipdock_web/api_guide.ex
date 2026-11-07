@@ -3687,10 +3687,7 @@ defmodule SlipdockWeb.APIGuide do
             "\n  - ships by pull request: push `card-<id>` and open a PR, never the default branch (see *Verified work*)",
         else: verified
 
-    verified =
-      if full.lanes,
-        do: verified <> "\n  - lanes: on — write a card's paths before starting it (see *Lanes*)",
-        else: verified
+    verified = verified <> lanes_lines(full)
 
     verified =
       if full.profiles,
@@ -3736,6 +3733,17 @@ defmodule SlipdockWeb.APIGuide do
     end
   end
 
+  # The board line's lanes items (#1628): on, and its shared paths (#1971).
+  defp lanes_lines(%{lanes: true} = board) do
+    "\n  - lanes: on — write a card's paths before starting it (see *Lanes*)" <>
+      case Slipdock.Lanes.shared_paths(board) do
+        [] -> ""
+        shared -> "\n  - shared paths (hold no lane): " <> Enum.map_join(shared, ", ", &"`#{&1}`")
+      end
+  end
+
+  defp lanes_lines(_board), do: ""
+
   # Lanes (#1628): described only when one of the reader's boards has it on.
   defp lanes_section(nil, _token), do: ""
 
@@ -3773,6 +3781,20 @@ defmodule SlipdockWeb.APIGuide do
       keeps both until the merge. Stage only files
       under them; with several sessions in one repository, work in a git
       worktree of your own.
+
+      **Shared paths.** A board's `shared_paths` (`shared paths` on its
+      line; `PATCH /api/boards/:id {"shared_paths": ["docs/manual.md"]}`,
+      `update_board` `shared_paths`, `slipdock set-board B --shared-paths
+      "docs/manual.md,README.md"`; `[]` or `""` clears) are globs that never
+      count toward a lane: a card's path wholly inside one is left out on
+      both sides, so an overlap only there holds nobody, while one anywhere
+      else still does. A path only partly inside one (`docs/**` when
+      `docs/manual.md` is shared) counts in full. Declare the shared files
+      you edit honestly: a card's JSON names the board's `shared_paths` and
+      its own `paths_shared`, the job's prompt lists them, and the
+      lane-check hook lets a staged file under one through. Others may be
+      editing them too: keep to your own sections, and rebase on the
+      default branch before pushing.
       """
     else
       ""

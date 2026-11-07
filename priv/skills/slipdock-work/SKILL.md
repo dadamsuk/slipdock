@@ -138,7 +138,9 @@ whole card before touching it.
   that card: narrow the paths, or leave the card blocked by it; only a
   person overrides a lane. On a push board a card awaiting verification
   frees its lane and its dependents; on a pull request board it holds both
-  until the merge. Whether or not the board has lanes, on a card
+  until the merge. Paths the board shares (`shared paths` on its line,
+  marked `shared` in `slipdock card`) hold no lane: declare them honestly,
+  keep to your own sections of those files, and rebase before pushing. Whether or not the board has lanes, on a card
   with paths stage only files under them, by name, and with another
   session active in the same repository work in a git worktree of your own
   (`git worktree add ../<repo>-lanes/card-<id> -b card-<id>`), unless a

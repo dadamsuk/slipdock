@@ -879,7 +879,10 @@ or the runner has it on; with none of it on, skip this section.
   Before the claim's move into the doing list (step 4), write the paths the
   card's work will touch, as globs relative to the repository: `slipdock
   edit <id> --paths "lib/foo/**,test/foo/**,docs/manual.md"`. Keep them as
-  narrow as the brief allows. If the move is refused because they overlap a
+  narrow as the brief allows. Declare the files the board shares too
+  (`shared paths` on its line, such as the manual): they hold no lane, and
+  the job's prompt names them. Others may edit them at the same time, so
+  keep to your own sections and rebase before pushing. If the move is refused because they overlap a
   card in progress, the refusal names that card: don't widen around it.
   Narrow the paths if the work really is apart, or hand the card back as
   **Blocked** by that card (`slipdock blocked-by <id> <other>`), since the

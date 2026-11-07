@@ -15,7 +15,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   alias SlipdockWeb.MCP.{Args, Tools}
 
   @fields ~w(name description color simple default_view handoff_label bar_required
-             evidence_required verify_work verify_pool lanes profiles profile_tiers ship_via job_log_hours
+             evidence_required verify_work verify_pool lanes shared_paths profiles profile_tiers ship_via job_log_hours
              failure_log_hours findings_propose_at)
 
   @impl true
@@ -28,8 +28,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def description,
     do:
       "Changes a board you own: name, description, color, simple, default_view, handoff_label, " <>
-        "the verified-work switches, lanes, profiles, profile_tiers, job/failure log hours, " <>
-        "findings_propose_at, wait_routes. Only what you send changes."
+        "the verified-work switches, lanes, shared_paths, profiles, profile_tiers, " <>
+        "job/failure log hours, findings_propose_at, wait_routes. Only what you send changes."
 
   @impl true
   def input_schema do
@@ -73,6 +73,13 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
               {p, %{type: "string", enum: Slipdock.Profiles.tiers() ++ ["default"]}}
             end),
           additionalProperties: false
+        },
+        shared_paths: %{
+          type: "array",
+          items: %{type: "string"},
+          description:
+            "Globs that never count toward a lane (docs/manual.md, README.md): cards may " <>
+              "both declare them without holding each other. [] clears."
         },
         job_log_hours: %{
           type: "integer",
