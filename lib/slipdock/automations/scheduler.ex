@@ -43,82 +43,57 @@ defmodule Slipdock.Automations.Scheduler do
   @impl true
   def handle_call(:tick, _from, state), do: {:reply, safe_tick(), state}
 
-  # A rule that blows up must not take the scheduler with it. The same clock
-  # takes back runner jobs whose lease has run out (see `Slipdock.Runners`).
+  # A job or rule that blows up must not take the scheduler with it, nor
+  # skip the jobs after it: each runs through `guarded/3` on its own.
   defp safe_tick do
-    beat()
-    sweep_runner_jobs()
-    prune_wiki_changes()
-    prune_autosaves()
-    make_recurring_cards()
-    wake_snoozed_cards()
-    read_documents()
-    check_health()
-    tick()
+    run_jobs(jobs())
+    guarded("Automation scheduler", &tick/0, 0)
+  end
+
+  @doc false
+  # The periodic jobs, in the order they run, before the rules themselves
+  # (`tick/0`). A new one goes here, as `{label, fun}`; `run_jobs/1` logs
+  # "<label> failed: ..." if it raises and carries on with the next.
+  def jobs do
+    [
+      # The scheduler's pulse, for `/healthz` (see `Slipdock.Health.pulse/1`):
+      # every tick, before anything that could fail.
+      {"Scheduler pulse", fn -> Slipdock.Health.Pulse.beat("scheduler") end},
+      # Runner jobs whose lease has run out (see `Slipdock.Runners`), and job
+      # logs past their board's time (#1872).
+      {"Runner job sweep",
+       fn ->
+         Slipdock.Runners.sweep()
+         Slipdock.Runners.TranscriptRetention.sweep()
+       end},
+      # The wiki's change log keeps a window, not everything (see
+      # `Slipdock.Wiki.Changes`); hourly is plenty.
+      {"Wiki change log prune", &Slipdock.Wiki.Changes.prune_hourly/0},
+      # Unsaved wiki work nobody came back for (see `Slipdock.Wiki.Autosaves`).
+      {"Autosave prune", &Slipdock.Wiki.Autosaves.prune/0},
+      # Recurring cards whose next instance is due (see `Slipdock.Recurrence`).
+      {"Recurring cards", &Slipdock.Recurrence.tick/0},
+      # Snoozed cards whose time has come (see `Slipdock.Snooze`).
+      {"Waking snoozed cards", &Slipdock.Snooze.tick/0},
+      # Uploaded files still to be read for text (see `Slipdock.OCR`).
+      {"Document reading sweep", &Slipdock.OCR.sweep/0},
+      # The health monitor runs every few minutes, not every tick (see
+      # `Slipdock.Health`).
+      {"Health monitor", &Slipdock.Health.tick/0}
+    ]
+  end
+
+  @doc false
+  # Runs each `{label, fun}` in turn; one that raises is logged and the rest
+  # still run.
+  def run_jobs(jobs), do: Enum.each(jobs, fn {label, fun} -> guarded(label, fun) end)
+
+  defp guarded(label, fun, fallback \\ nil) do
+    fun.()
   rescue
     exception ->
-      Logger.error("Automation scheduler failed: #{Exception.message(exception)}")
-      0
-  end
-
-  defp sweep_runner_jobs do
-    Slipdock.Runners.sweep()
-    # Job logs past their board's time go (#1872).
-    Slipdock.Runners.TranscriptRetention.sweep()
-  rescue
-    exception -> Logger.error("Runner job sweep failed: #{Exception.message(exception)}")
-  end
-
-  # The wiki's change log keeps a window, not everything (see
-  # `Slipdock.Wiki.Changes`); hourly is plenty.
-  defp prune_wiki_changes do
-    Slipdock.Wiki.Changes.prune_hourly()
-  rescue
-    exception -> Logger.error("Wiki change log prune failed: #{Exception.message(exception)}")
-  end
-
-  # Unsaved wiki work nobody came back for (see `Slipdock.Wiki.Autosaves`).
-  defp prune_autosaves do
-    Slipdock.Wiki.Autosaves.prune()
-  rescue
-    exception -> Logger.error("Autosave prune failed: #{Exception.message(exception)}")
-  end
-
-  # Recurring cards whose next instance is due (see `Slipdock.Recurrence`).
-  defp make_recurring_cards do
-    Slipdock.Recurrence.tick()
-  rescue
-    exception -> Logger.error("Recurring cards failed: #{Exception.message(exception)}")
-  end
-
-  # Snoozed cards whose time has come (see `Slipdock.Snooze`).
-  defp wake_snoozed_cards do
-    Slipdock.Snooze.tick()
-  rescue
-    exception -> Logger.error("Waking snoozed cards failed: #{Exception.message(exception)}")
-  end
-
-  # Uploaded files still to be read for text (see `Slipdock.OCR`).
-  defp read_documents do
-    Slipdock.OCR.sweep()
-  rescue
-    exception -> Logger.error("Document reading sweep failed: #{Exception.message(exception)}")
-  end
-
-  # The scheduler's pulse, for `/healthz` (see `Slipdock.Health.pulse/1`):
-  # every tick, before anything that could fail.
-  defp beat do
-    Slipdock.Health.Pulse.beat("scheduler")
-  rescue
-    exception -> Logger.error("Scheduler pulse failed: #{Exception.message(exception)}")
-  end
-
-  # The health monitor runs every few minutes, not every tick (see
-  # `Slipdock.Health`).
-  defp check_health do
-    Slipdock.Health.tick()
-  rescue
-    exception -> Logger.error("Health monitor failed: #{Exception.message(exception)}")
+      Logger.error("#{label} failed: #{Exception.message(exception)}")
+      fallback
   end
 
   defp interval,
