@@ -586,6 +586,8 @@ defmodule SlipdockCLI.Render do
         # Waiting for a second agent (#1624).
         if(c["verify_state"] == "pending", do: "⏳awaiting verification"),
         if(c["verify_state"] == "merging", do: "⇄merging"),
+        # Held for a person before merging (#1952).
+        held_mark(c["verify_state"]),
         stand_in_text(c["stand_in_for"]),
         if((c["blocks"] || []) != [],
           do: "blocks:" <> Enum.map_join(c["blocks"], ",", &"##{&1["id"]}")
@@ -2901,6 +2903,10 @@ defmodule SlipdockCLI.Render do
     mark <> " " <> label <> shown <> if(note, do: ": " <> note, else: "")
   end
 
+  # A list line's mark for a card held for a person before merging (#1952).
+  defp held_mark("held"), do: "✋held for a person"
+  defp held_mark(_state), do: nil
+
   defp verify_line("pending", c),
     do:
       "pending — submitted by #{actor_name(c["verify_submitter"])}; another agent or a person decides"
@@ -2909,6 +2915,12 @@ defmodule SlipdockCLI.Render do
     do:
       "merging — accepted by #{actor_name(c["verify_by"])}; a runner merges the pull request " <>
         "(or a person: slipdock verify #{c["id"]} merged)"
+
+  defp verify_line("held", c),
+    do:
+      "held — accepted by #{actor_name(c["verify_by"])}; its human tier is before_merge, so a " <>
+        "person merges it or sends it back (answer its wait, or slipdock verify #{c["id"]} " <>
+        "accept / reject --reason …)"
 
   defp verify_line(state, c), do: "#{state} by #{actor_name(c["verify_by"])}"
 

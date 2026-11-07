@@ -782,7 +782,10 @@ With one on, the pass changes like this:
   the checks pass. Complete with
   `slipdock done <id> --pr <url>` beside the other evidence. Don't merge
   it: accepting the card has a runner merge it (the card shows *merging*
-  until then, and the merge completes it). **An epic** has no pull
+  until then, and the merge completes it). On a board with profiles on, a
+  `schema`, `security` or `spike` card an agent accepts is *held* first:
+  a person merges it or sends it back, rejected with their reason, which
+  is the next brief like any rejection. **An epic** has no pull
   request of its own: each subcard ships and merges its own. Once they are
   all accepted and merged, complete the epic without `--pr` (`slipdock
   done <id> --evidence "<the subcards' PRs, the last merged build>"`);

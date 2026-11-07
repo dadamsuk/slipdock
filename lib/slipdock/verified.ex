@@ -309,7 +309,8 @@ defmodule Slipdock.Verified do
   @doc """
   The cards still open on `card`'s sub-board, as `{id, title}` in id order:
   not completed, not archived and not submitted for verification (pending,
-  or accepted and merging, which is the verifier's to finish). A subcard
+  or accepted and merging or held for a person, #1952, which is the
+  verifier's or the person's to finish). A subcard
   that is complete counts as done whatever its own sub-board holds. An
   archived sub-board, or none, has none.
   """
@@ -319,7 +320,8 @@ defmodule Slipdock.Verified do
       on: b.id == c.board_id,
       where:
         b.parent_card_id == ^id and is_nil(b.archived_at) and c.completed == false and
-          is_nil(c.archived_at) and coalesce(c.verify_state, "") not in ["pending", "merging"],
+          is_nil(c.archived_at) and
+          coalesce(c.verify_state, "") not in ["pending", "merging", "held"],
       order_by: c.id,
       select: {c.id, c.title}
     )
@@ -773,6 +775,11 @@ defmodule Slipdock.Verified do
     audit_decision(card, decision, params, reason, in_runner_job(actor, card), user)
   end
 
+  def decide(%Card{verify_state: "held"} = card, decision, params, actor, user)
+      when decision in ~w(accept reject) do
+    held_decision(card, decision, params |> Map.get("reason") |> trim(), actor, user)
+  end
+
   def decide(%Card{} = card, decision, params, actor, user) do
     actor = in_runner_job(actor, card)
     reason = params |> Map.get("reason") |> trim()
@@ -983,7 +990,7 @@ defmodule Slipdock.Verified do
         accept_and_complete(card, note, commit, checks, actor, user, @nothing_to_merge)
 
       true ->
-        accept_to_merge(card, note, commit, checks, actor, user)
+        accept_or_hold(card, note, commit, checks, actor, user)
     end
   end
 
@@ -1033,6 +1040,10 @@ defmodule Slipdock.Verified do
   ## Repeated rejections (#1779) ----------------------------------------------
 
   @limit_purpose "verify_limit"
+  # The human tier's wait (#1952), below.
+  @held_purpose "before_merge"
+  @merge_choice "Merge"
+  @send_back_choice "Send back"
   @rework_choice "Rework as rejected"
   @accept_choice "Accept as is"
 
@@ -1196,6 +1207,9 @@ defmodule Slipdock.Verified do
     :ok
   end
 
+  def wait_closed(%Slipdock.Boards.Wait{purpose: @held_purpose} = wait, actor),
+    do: held_wait_closed(wait, actor)
+
   def wait_closed(_wait, _actor), do: :ok
 
   defp accept_as_is(card, actor, user) do
@@ -1276,6 +1290,196 @@ defmodule Slipdock.Verified do
 
     {:ok, Repo.get!(Card, card.id)}
   end
+
+  ## The human tier (#1952) -----------------------------------------------------
+
+  @doc "The purpose of the wait a held card's acceptance opens (#1952)."
+  def held_purpose, do: @held_purpose
+
+  @doc """
+  Whether an agent's acceptance of `card` waits for a person before its
+  pull request merges (#1952): an agent decided, and the card's human tier
+  (`Slipdock.Profiles.tier/1`) is `before_merge`. A person's acceptance is
+  a person's look already.
+  """
+  def hold_for_a_person?(%Card{} = card, actor),
+    do: gated?(actor) and Slipdock.Profiles.tier(card) == "before_merge"
+
+  # Accepted on a board that ships by pull request: merging, or held for a
+  # person first when its tier says so.
+  defp accept_or_hold(card, note, commit, checks, actor, user) do
+    if hold_for_a_person?(card, actor),
+      do: hold(card, note, commit, checks, actor, user),
+      else: accept_to_merge(card, note, commit, checks, actor, user)
+  end
+
+  # Accepted, held (#1952): no merge job yet, the `review` flag kept (it
+  # behaves as a card awaiting verification), and a wait routed `release`
+  # asking a person to merge it or send it back.
+  defp hold(card, note, commit, checks, actor, user) do
+    changes = [
+      verify_checks: checks,
+      verify_state: "held",
+      verify_by: actor_map(actor),
+      verify_note: blank_to_nil(note),
+      verify_commit: blank_to_nil(commit),
+      verify_at: now()
+    ]
+
+    with {:ok, card} <-
+           Slipdock.Boards.update_card(card, %{}, actor: actor, by: user, verify_changes: changes) do
+      profile = Slipdock.Profiles.profile_of(card)
+
+      comment(
+        card,
+        "**Accepted** by #{who(actor, user)}; held for a person before merging: " <>
+          "its profile is `#{profile}`, whose human tier is `before_merge`.",
+        with_parts(note, checks),
+        user
+      )
+
+      ask_to_merge(card, profile, actor, user)
+      {:ok, Repo.get!(Card, card.id)}
+    end
+    |> api_error()
+  end
+
+  defp ask_to_merge(card, profile, actor, user) do
+    needs =
+      "Card ##{card.id} (profile #{profile}) was accepted by #{who(actor, user)}. Its human " <>
+        "tier is before_merge, so a person decides before " <>
+        "#{card.evidence_pr || "its pull request"} merges: merge it, or send it back " <>
+        "(say why: the reason goes back to the builder)?"
+
+    case Slipdock.Boards.open_wait(card, actor, %{
+           needs: String.slice(needs, 0, 990),
+           choices: [@merge_choice, @send_back_choice],
+           question: "release",
+           purpose: @held_purpose
+         }) do
+      {:ok, _} ->
+        :ok
+
+      {:error, why} ->
+        comment(
+          card,
+          "**No wait opened** for a person to decide: #{inspect_error(why)}. A person merges " <>
+            "it with `slipdock verify #{card.id} accept`, or sends it back with `reject`.",
+          nil,
+          user
+        )
+    end
+  end
+
+  @doc """
+  Whether `actor` may answer or skip `wait` (#1952): a held card's wait is
+  a person's to answer, never an agent's. `:ok` or `{:error, message}`.
+  """
+  def may_close_wait(%Slipdock.Boards.Wait{purpose: @held_purpose, card_id: id}, actor) do
+    if gated?(actor),
+      do:
+        {:error,
+         "a person decides whether card ##{id} merges (its human tier is before_merge): " <>
+           "an agent can't answer this wait"},
+      else: :ok
+  end
+
+  def may_close_wait(_wait, _actor), do: :ok
+
+  # A held card's wait answered (#1952): Merge queues the merge; Send back,
+  # any other answer or a skip sends it back rejected, the answer the reason.
+  defp held_wait_closed(wait, actor) do
+    card = Repo.get!(Card, wait.card_id)
+    user = wait.closed_by_id && Repo.get(Slipdock.Accounts.User, wait.closed_by_id)
+
+    if card.verify_state == "held" and not card.completed do
+      if wait.choice == 1,
+        do: approve_merge(card, actor, user),
+        else: send_back_held(card, wait.answer, actor, user)
+    end
+
+    :ok
+  end
+
+  # A person's decision on a held card with `slipdock verify`, REST, MCP or
+  # the panel: accept merges, reject sends it back. Its open wait, if any,
+  # is withdrawn, as the decision answers it.
+  defp held_decision(card, decision, reason, actor, user) do
+    cond do
+      gated?(actor) ->
+        {:error, :forbidden,
+         "card ##{card.id} is held for a person: its human tier is before_merge, " <>
+           "so a person merges it or sends it back"}
+
+      decision == "reject" and reason == "" ->
+        {:error, :unprocessable_entity, "sending it back needs its reason"}
+
+      true ->
+        withdraw_held_wait(card, actor)
+        card = Repo.get!(Card, card.id)
+
+        if decision == "accept",
+          do: approve_merge(card, actor, user),
+          else: send_back_held(card, reason, actor, user)
+    end
+  end
+
+  defp withdraw_held_wait(card, actor) do
+    case Slipdock.Boards.current_wait(card) do
+      %{purpose: @held_purpose} ->
+        Slipdock.Boards.withdraw_wait(card, actor,
+          note: "Decided on the card, so the wait is closed."
+        )
+
+      _ ->
+        :ok
+    end
+  end
+
+  # Merge: the card is merging and its merge job queued, as an acceptance
+  # without the tier does.
+  defp approve_merge(card, actor, user) do
+    with {:ok, card} <-
+           Slipdock.Boards.update_card(card, %{"flags" => card.flags -- ["review"]},
+             actor: actor,
+             by: user,
+             verify_changes: [verify_state: "merging"]
+           ) do
+      comment(
+        card,
+        "**Merge approved** by #{who(actor, user)}; merging " <>
+          "#{card.evidence_pr || "its pull request"}.",
+        nil,
+        user
+      )
+
+      queue_merge(card, user)
+      {:ok, Repo.get!(Card, card.id)}
+    end
+    |> api_error()
+  end
+
+  # Send back: rejected, the person's reason the failing part (the ask, as
+  # the person judged it), and back to the ready list as any rejection.
+  defp send_back_held(card, reason, actor, user) do
+    reason =
+      case blank_to_nil(reason) do
+        nil -> "sent back before merging by #{who(actor, user)}, with no reason given"
+        why -> why
+      end
+
+    {:ok, checks} = Slipdock.Verified.Checks.parse(["ask=misses:" <> one_line(reason)])
+
+    apply_decision(
+      card,
+      "reject",
+      %{reason: "Sent back before merging: " <> reason, commit: "", checks: checks},
+      actor,
+      user
+    )
+  end
+
+  defp one_line(text), do: text |> String.replace(~r/\s+/, " ") |> String.slice(0, 500)
 
   ## Merging (#1657) ------------------------------------------------------------
 

@@ -4203,6 +4203,7 @@ defmodule Slipdock.Boards do
     answer = attrs |> wait_attr(:answer) |> blank_to_nil()
 
     with :ok <- not_self_answer(wait, actor),
+         :ok <- Slipdock.Verified.may_close_wait(wait, actor),
          {:ok, answers} <- wait_answers(wait, wait_attr(attrs, :answers)),
          # One question: its answer is the answer.
          {answer, answers} = single_answer(wait, answer, answers),
@@ -4233,7 +4234,8 @@ defmodule Slipdock.Boards do
   # Skipping (#1220): nothing is answered, but the card moves on as it
   # would on an answer — the flag off, and a runner's card sent again.
   defp skip_wait(wait, actor) do
-    with :ok <- not_self_answer(wait, actor) do
+    with :ok <- not_self_answer(wait, actor),
+         :ok <- Slipdock.Verified.may_close_wait(wait, actor) do
       Slipdock.Runners.Requeue.quietly(wait, fn ->
         with {:ok, closed} <- close_wait(wait, actor, "skipped", []) do
           card = Repo.get!(Card, wait.card_id)

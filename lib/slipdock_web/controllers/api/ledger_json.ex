@@ -23,7 +23,7 @@ defmodule SlipdockWeb.API.LedgerJSON do
   defp item(board, i) do
     i
     |> Map.take(~w(at events accepted_by audit evidence evidence_commit should_broken pr merge_sha
-                   deploys subcards)a)
+                   deploys subcards waiting_for)a)
     |> Map.merge(%{
       card: Map.put(i.card, :url, card_url(i.card)),
       lead_time: %{

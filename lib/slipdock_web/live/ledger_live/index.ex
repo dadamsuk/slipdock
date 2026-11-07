@@ -119,6 +119,9 @@ defmodule SlipdockWeb.LedgerLive.Index do
         >
           {e}
         </span>
+        <span :if={@item.waiting_for} class="badge badge-sm badge-warning" data-role="waiting-for">
+          waiting for {@item.waiting_for}
+        </span>
         <span :if={@item.subcards} class="badge badge-sm badge-outline" data-role="subcards">
           {@item.subcards.done}/{@item.subcards.total} subcards · {@item.subcards.on_ledger} here
         </span>

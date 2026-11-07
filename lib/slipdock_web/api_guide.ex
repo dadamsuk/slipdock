@@ -3802,7 +3802,20 @@ defmodule SlipdockWeb.APIGuide do
       `update_card`/`create_card` `profile`, `slipdock edit ID --profile
       fix` or `--no-profile`); an unknown name is refused (`422`) with the
       list. It shows in the card's JSON, `get_card`, `list_cards`,
-      `slipdock card` and the ledger's lines (`card.profile`). Nothing acts on a profile yet: it is shown, not read.
+      `slipdock card` and the ledger's lines (`card.profile`).
+
+      Each profile has a human tier (the board's JSON, `profile_tiers`):
+      `none` (`docs`, `fix`) and `ledger` (`feature`) let an agent's
+      acceptance merge; `before_merge` (`schema`, `security`, `spike`) holds
+      it on a board that ships by pull request: the card goes
+      `verify_state: "held"`, no merge job, and a `release` wait asks a
+      person to Merge or Send back. An agent can't answer that wait or
+      decide a held card (`403`); a person's answer queues the merge or
+      returns the card rejected with their reason. A card sent back is
+      rework like any rejection. Change a tier on the root board with
+      `PATCH /api/boards/:id {"profile_tiers": {"schema": "none"}}`
+      (`default` puts one back), `update_board` `profile_tiers` or
+      `slipdock set-board B --profile-tier schema=none`.
       """
     else
       ""

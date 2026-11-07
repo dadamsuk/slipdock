@@ -408,6 +408,16 @@ defmodule Slipdock.Portable.Import do
 
   defp profile(value), do: if(Slipdock.Profiles.name?(value), do: value)
 
+  # A board's human tiers (#1952): kept if they read, else the defaults.
+  defp profile_tiers(tiers) when is_map(tiers) do
+    case Slipdock.Profiles.merge_tiers(%{}, tiers) do
+      {:ok, map} -> map
+      {:error, _} -> %{}
+    end
+  end
+
+  defp profile_tiers(_tiers), do: %{}
+
   # A suite result the card would refuse is dropped rather than the card (#1623).
   defp suite(%{} = suite) do
     suite = Map.new(suite, fn {k, v} -> {to_string(k), v} end)
@@ -489,6 +499,7 @@ defmodule Slipdock.Portable.Import do
           bar_required: bool(doc[:bar_required], false),
           lanes: bool(doc[:lanes], false),
           profiles: bool(doc[:profiles], false),
+          profile_tiers: profile_tiers(doc[:profile_tiers]),
           evidence_required: bool(doc[:evidence_required], false),
           verify_work: bool(doc[:verify_work], false),
           verify_pool: pool(doc[:verify_pool]),

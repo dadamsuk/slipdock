@@ -1,8 +1,9 @@
 defmodule Slipdock.Health.Detectors.OrphanInProgress do
   @moduledoc """
   A card in a doing list, last put there by an agent, with no open job and
-  no activity for `minutes` (default 120), and not pending verification or
-  merging: the job that had it ended and left it. The fix does what
+  no activity for `minutes` (default 120), and not pending verification,
+  merging or held for a person (#1952, a person's to answer, not stuck):
+  the job that had it ended and left it. The fix does what
   `Slipdock.Runners.Recovery` does — back to the top of its list (its last
   job's `list_top` list, else its board's ready list), with a comment —
   once; if it is back in progress and orphaned again, it is flagged.
@@ -37,7 +38,7 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
         where:
           c.board_id in ^ctx.board_ids and c.column_id in ^doing and c.completed == false and
             is_nil(c.archived_at) and is_nil(c.stand_in_for_id) and
-            coalesce(c.verify_state, "") not in ["pending", "merging"],
+            coalesce(c.verify_state, "") not in ["pending", "merging", "held"],
         where:
           not exists(
             from(j in Job,

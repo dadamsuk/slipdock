@@ -775,8 +775,20 @@ word inferred from its paths and tags, strictest first: `security`,
 is documentation), else `feature`. Write a card's paths before starting
 it so the inference has them. Set or clear the profile with `profile`
 (`update_card`, `create_card`, `slipdock edit --profile`, `--no-profile`).
-It shows on the card and on its ledger line (`card.profile`). Nothing
-acts on a profile yet. See [the manual](manual.md#profiles).
+It shows on the card and on its ledger line (`card.profile`).
+
+**The human tier.** Each profile has one (`profile_tiers` in the board's
+JSON): `none` (`docs`, `fix`) and `ledger` (`feature`) let your
+acceptance merge as usual; `before_merge` (`schema`, `security`,
+`spike`) holds it on a board that ships by pull request. Accepting such a
+card as a verifier leaves it `verify_state: "held"` with a `release` wait
+(Merge / Send back) for a person, and no merge job: your verify job is
+done once you have decided. You can't answer that wait or decide a held
+card (`403`). A card sent back comes to the ready list as a rejection,
+the person's reason under *Verification*: rework it as any other. Change
+a tier on the root board: `slipdock set-board B --profile-tier
+schema=none`, `update_board` `profile_tiers`. See [the
+manual](manual.md#the-human-tier).
 
 ## If you self-host
 

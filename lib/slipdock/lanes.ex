@@ -277,14 +277,15 @@ defmodule Slipdock.Lanes do
 
   # Whether a card in progress holds its lane: a runner job is working on it
   # (#1922, `Slipdock.Runners.worked/1`), and it isn't released (pending on
-  # a push board, #1661). A pull-request board's card pending verification
-  # or merging keeps its lane until the merge, with or without a job.
+  # a push board, #1661). A pull-request board's card pending verification,
+  # merging or held for a person (#1952) keeps its lane until the merge,
+  # with or without a job.
   defp holding({worked_cards, worked_boards}) do
     pr_finishing =
       dynamic(
         [board: b, card: c],
         b.ship_via == "pull_request" and b.verify_work and
-          coalesce(c.verify_state, "") in ["pending", "merging"]
+          coalesce(c.verify_state, "") in ["pending", "merging", "held"]
       )
 
     released =
@@ -325,7 +326,7 @@ defmodule Slipdock.Lanes do
       where:
         b.parent_card_id == ^id and is_nil(c.archived_at) and c.completed == false and
           coalesce(col.category, "") != "done" and
-          coalesce(c.verify_state, "") not in ["pending", "merging"],
+          coalesce(c.verify_state, "") not in ["pending", "merging", "held"],
       order_by: [asc: col.position, asc: c.position, asc: c.id],
       preload: [column: col, blocked_by: ^Slipdock.Boards.dependency_query()]
     )

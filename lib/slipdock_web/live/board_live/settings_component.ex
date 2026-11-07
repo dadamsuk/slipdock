@@ -516,6 +516,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     for view <- Board.default_views(), view not in hidden, do: {String.capitalize(view), view}
   end
 
+  # Each profile's tier as the form has it (#1952): the board's changes,
+  # or what was just chosen, over the defaults.
+  defp tiers_shown(form), do: Slipdock.Profiles.tiers_with(form[:profile_tiers].value)
+
   defp route_text(routes, kind),
     do: routes |> Map.get(kind, []) |> Enum.map_join(", ", & &1.email)
 
@@ -871,10 +875,41 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   <span class="block text-xs text-base-content/50">
                     An agent claiming or starting a card with no profile gives it one, inferred
                     from its paths and tags: security, schema, spike, fix, docs or feature. It is
-                    shown on the card; nothing acts on it yet.
+                    shown on the card, and its human tier says what an agent's acceptance does.
                   </span>
                 </span>
               </label>
+              <%!-- The human tier (#1952): kept on the root board, for the tree. --%>
+              <div
+                :if={@board.profiles && is_nil(@board.root_id)}
+                id="board-profile-tiers"
+                class="ml-6 space-y-1"
+              >
+                <span class="text-sm font-medium">Human tier, by profile</span>
+                <p class="text-xs text-base-content/60">
+                  What an agent's acceptance does on a board that ships by pull request:
+                  none and ledger merge it (ledger: the ledger is your look at it),
+                  before_merge waits for a person to merge it or send it back. A person's own
+                  acceptance merges.
+                </p>
+                <.callout
+                  :if={tiers_shown(@form)["security"] == "none"}
+                  id="board-profile-tiers-warning"
+                  kind={:warning}
+                >
+                  Security is set to none: an agent's acceptance merges a security change with no
+                  person looking at it first.
+                </.callout>
+                <.input
+                  :for={profile <- Slipdock.Profiles.names()}
+                  type="select"
+                  id={"board-tier-#{profile}"}
+                  name={"board[profile_tiers][#{profile}]"}
+                  value={tiers_shown(@form)[profile]}
+                  options={Slipdock.Profiles.tiers()}
+                  label={profile}
+                />
+              </div>
               <input type="hidden" name={@form[:evidence_required].name} value="false" />
               <label class="flex cursor-pointer items-start gap-2 text-sm">
                 <input
