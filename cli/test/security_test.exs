@@ -5,7 +5,9 @@ defmodule SlipdockCLI.SecurityTest do
   """
   use ExUnit.Case, async: false
 
-  alias SlipdockCLI.{HTTP, Render}
+  import ExUnit.CaptureIO
+
+  alias SlipdockCLI.{FakeServer, HTTP, Render}
 
   setup do
     home = Path.join(System.tmp_dir!(), "slipdock-test-#{System.unique_integer([:positive])}")
@@ -96,6 +98,82 @@ defmodule SlipdockCLI.SecurityTest do
     test "is not to the internet" do
       for url <- ~w(http://example.com http://8.8.8.8 http://172.32.0.1 http://100.128.0.1),
           do: assert(HTTP.insecure?(url), url)
+    end
+  end
+
+  # `.invalid` never resolves (RFC 2606), so these fail fast without leaving
+  # the machine: the warning is said before the connection is tried.
+  describe "the plain-http warning on download" do
+    @warning "over plain http"
+
+    setup do
+      dest = Path.join(System.tmp_dir!(), "slipdock-dl-#{System.unique_integer([:positive])}")
+      on_exit(fn -> File.rm(dest) end)
+      %{dest: dest}
+    end
+
+    test "is said once, on stderr, when the token goes to a non-local http host", %{dest: dest} do
+      System.put_env("SLIPDOCK_URL", "http://nowhere.invalid")
+      System.put_env("SLIPDOCK_TOKEN", "tok")
+
+      {stdout, err} =
+        with_io(:stderr, fn ->
+          capture_io(fn ->
+            assert {:error, :connect, _} = HTTP.download("/attachments/1", dest)
+            assert {:error, :connect, _} = HTTP.download("/attachments/1", dest)
+          end)
+        end)
+
+      assert stdout == ""
+      assert err =~ "sending your token to http://nowhere.invalid:80 #{@warning}"
+      assert length(String.split(err, @warning)) == 2
+    end
+
+    test "is said once a run, whether a download or a request goes first", %{dest: dest} do
+      System.put_env("SLIPDOCK_URL", "http://nowhere.invalid")
+      System.put_env("SLIPDOCK_TOKEN", "tok")
+
+      err =
+        capture_io(:stderr, fn ->
+          assert {:error, :connect, _} = HTTP.download("/attachments/1", dest)
+          assert {:error, :connect, _} = HTTP.get("/boards")
+        end)
+
+      assert length(String.split(err, @warning)) == 2
+    end
+
+    test "is not said over https", %{dest: dest} do
+      System.put_env("SLIPDOCK_URL", "https://nowhere.invalid")
+      System.put_env("SLIPDOCK_TOKEN", "tok")
+
+      err =
+        capture_io(:stderr, fn ->
+          assert {:error, :connect, _} = HTTP.download("/attachments/1", dest)
+        end)
+
+      refute err =~ @warning
+    end
+
+    test "is not said with no token to send", %{dest: dest} do
+      System.put_env("SLIPDOCK_URL", "http://nowhere.invalid")
+
+      err =
+        capture_io(:stderr, fn ->
+          assert {:error, :connect, _} = HTTP.download("/attachments/1", dest)
+        end)
+
+      refute err =~ @warning
+    end
+
+    test "is not said to a local host, and the token still goes", %{dest: dest} do
+      System.put_env("SLIPDOCK_URL", FakeServer.start([{200, "file bytes"}]))
+      System.put_env("SLIPDOCK_TOKEN", "tok")
+
+      err = capture_io(:stderr, fn -> assert :ok = HTTP.download("/attachments/1", dest) end)
+
+      refute err =~ @warning
+      assert File.read!(dest) == "file bytes"
+      assert_received {:headers, "GET", "/api/attachments/1", %{"authorization" => "Bearer tok"}}
     end
   end
 

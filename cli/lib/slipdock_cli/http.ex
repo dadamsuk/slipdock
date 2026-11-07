@@ -298,15 +298,7 @@ defmodule SlipdockCLI.HTTP do
   or the error a request would give. Ten minutes, as an upload gets.
   """
   def download(path, dest) do
-    Application.ensure_all_started(:inets)
-    Application.ensure_all_started(:ssl)
-    url = String.to_charlist(base_url() <> "/api" <> path)
-
-    headers =
-      case token() do
-        nil -> client_headers()
-        t -> [{~c"authorization", String.to_charlist("Bearer " <> t)} | client_headers()]
-      end
+    {url, headers} = prepare(path, client_headers())
 
     case :httpc.request(:get, {url, headers}, [{:timeout, 600_000}],
            stream: String.to_charlist(dest),
@@ -373,11 +365,13 @@ defmodule SlipdockCLI.HTTP do
     end
   end
 
-  defp request(method, path, body) do
+  # What every request starts with: :httpc running, the API url, and the
+  # token in front of `headers` when there is one — with the plain-http
+  # warning whenever it goes out.
+  defp prepare(path, headers) do
     Application.ensure_all_started(:inets)
     Application.ensure_all_started(:ssl)
-    url = String.to_charlist(base_url() <> "/api" <> path)
-    headers = [{~c"accept", ~c"application/json"} | client_headers()]
+    base = base_url()
 
     headers =
       case token() do
@@ -385,9 +379,16 @@ defmodule SlipdockCLI.HTTP do
           headers
 
         t ->
-          warn_insecure(base_url())
+          warn_insecure(base)
           [{~c"authorization", String.to_charlist("Bearer " <> t)} | headers]
       end
+
+    {String.to_charlist(base <> "/api" <> path), headers}
+  end
+
+  defp request(method, path, body) do
+    {url, headers} =
+      prepare(path, [{~c"accept", ~c"application/json"} | client_headers()])
 
     {req, timeout} =
       case body do
