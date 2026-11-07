@@ -1077,6 +1077,27 @@ file under one through. Edits to them are expected to merge cleanly; keep
 the expensive collisions (migrations, a schema, a module being refactored)
 out of the list.
 
+**Advisory lanes.** A board's *Lanes* setting is one of three modes: *Off*,
+*Hold* (all of the above: an agent's overlapping start is refused and its
+job held) and *Advise*. Under *Advise* nothing is refused or held: an agent
+starts the card, and a claimed job's prompt carries a *Lanes* block naming
+each open card in progress whose paths overlap this card's (shared paths
+left out), the globs that meet, the job and runner working it, and what to
+do: read that card and its branch before editing those files, stay out of
+them where you can, and rebase on the default branch before pushing. No
+overlap, no block. The card's *Paths* field and `slipdock card` say
+*overlaps #N in progress, advisory*; no job waits on a lane, so `slipdock
+jobs` shows none held and the health monitor's *lane held* check has
+nothing to find. Set it in the board's settings, with `slipdock set-board
+slipdock --lane-mode advise` (`off`, `hold`, `advise`), `update_board`
+`lane_mode` or `PATCH /api/boards/:id {"lane_mode": "advise"}`; sub-boards
+made afterwards inherit it, and the root's mode holds for its tree. The
+`lanes` switch still works everywhere: `true` is *Hold* and `false` is
+*Off*, and the board's JSON says both. *Hold* stays the safer choice for
+work whose collisions are costly to find at merge time (migrations, a
+schema, a module being refactored); *Advise* suits a board whose cards
+mostly meet in files a merge resolves.
+
 **Cards awaiting verification.** On a board that verifies work and ships
 by **push**, a card an agent has submitted has its work on the default
 branch already, and nobody is editing its files. While it waits for
@@ -3961,7 +3982,10 @@ job's prompt, a rule's own included, ends with a paragraph saying it runs
 unattended: nobody will answer questions, so choose inputs from the card and
 say what was chosen, or open a [wait](#waiting-on-a-person-waits) saying what is
 needed and stop (the answer starts a fresh job); if the board is paused, finish
-the card and take no other. The
+the card and take no other. A claimed job's prompt then adds what the card
+carries: its bar, its [paths](#lanes) (naming the ones shared on the board) and,
+on a board whose lanes advise, a *Lanes* block naming each card in progress
+whose paths overlap. The
 **Send cards to a runner** preset is the usual rule (it is offered once the
 board has a runner): when a card
 arrives in a list, send it to a pool. It and *Work a list with a runner*

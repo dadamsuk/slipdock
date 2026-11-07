@@ -841,24 +841,24 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   </span>
                 </span>
               </label>
-              <input type="hidden" name={@form[:lanes].name} value="false" />
-              <label class="flex cursor-pointer items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
+              <div>
+                <.input
+                  field={@form[:lane_mode]}
                   id="board-lanes"
-                  name={@form[:lanes].name}
-                  value="true"
-                  checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:lanes].value)}
-                  class="checkbox mt-0.5"
+                  type="select"
+                  label="Lanes"
+                  options={[
+                    {"Off", "off"},
+                    {"Hold: an agent can't start an overlapping card", "hold"},
+                    {"Advise: start it, and tell the agent", "advise"}
+                  ]}
                 />
-                <span>
-                  <span class="font-medium">Lanes</span>
-                  <span class="block text-xs text-base-content/50">
-                    An agent can't start a card whose paths overlap a card in progress, so agents
-                    side by side stay out of each other's files. Moving a card yourself overrides it.
-                  </span>
-                </span>
-              </label>
+                <p class="-mt-1 text-xs text-base-content/60">
+                  Agents side by side stay out of each other's files: a card's paths overlapping a
+                  card in progress hold it, or, advised, start with the agent told which card is
+                  there. Moving a card yourself overrides a hold.
+                </p>
+              </div>
               <div class="ml-6 space-y-1">
                 <.input
                   field={@form[:shared_paths]}

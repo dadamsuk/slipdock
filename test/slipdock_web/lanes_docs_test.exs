@@ -121,4 +121,30 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert read("priv/skills/slipdock-work/SKILL.md") =~ "Paths the board shares"
     assert read("priv/skills/slipdock-loop/SKILL.md") =~ "Declare the files the board shares too"
   end
+
+  test "advisory lanes are described everywhere an agent or a person reads about lanes (#1972)" do
+    manual = read("docs/manual.md")
+    assert manual =~ "**Advisory lanes.**"
+    assert manual =~ ~r/slipdock set-board\s+slipdock --lane-mode advise/
+    assert manual =~ "`true` is *Hold* and `false` is\n*Off*"
+    assert manual =~ "on a board whose lanes advise, a *Lanes* block naming each card in progress"
+
+    assert read("docs/agents.md") =~ "A board's `lane_mode` is `off`, `hold`"
+
+    assert read("README.md") =~
+             "advisory mode starts it and names that card in the job's prompt\n  (`slipdock set-board --lane-mode advise`)"
+
+    guide = read("lib/slipdock_web/api_guide.ex")
+    assert guide =~ "**Advisory lanes.** A board's `lane_mode`"
+    assert guide =~ "lanes: advise — write a card's paths before starting it"
+
+    assert read("lib/slipdock_web/live/help_live/flow.ex") =~
+             "slipdock set-board B --lane-mode advise"
+
+    assert read("priv/skills/slipdock/SKILL.md") =~
+             "slipdock set-board <board> --lane-mode off|hold|advise"
+
+    assert read("priv/skills/slipdock-work/SKILL.md") =~ "On a\n  board whose lanes advise"
+    assert read("priv/skills/slipdock-loop/SKILL.md") =~ "- **The board's lanes advise**"
+  end
 end

@@ -43,6 +43,12 @@ defmodule Slipdock.Lanes do
   whose only overlap is `docs/manual.md` don't hold each other when that is
   shared. A glob only partly inside one still counts in full. The root's
   list holds for its whole tree (`shared_paths/1`). Empty by default.
+
+  A board's `lane_mode` (#1972, `mode/1`) says what an overlap does: `hold`
+  is all of the above, and what `lanes: true` means; `advise` refuses and
+  holds nothing, and the job's prompt names the overlapping cards instead
+  (`overlaps/1`, `Slipdock.Runners.lane_advice/1`). The card panel and the
+  card's JSON still show the overlap, as advisory.
   """
 
   import Ecto.Query
@@ -399,6 +405,14 @@ defmodule Slipdock.Lanes do
   end
 
   defp others_conflict(card, board, paths, shared) do
+    card
+    |> in_progress_others(board)
+    |> Enum.find(&overlap?(paths, counted(&1.paths, shared)))
+  end
+
+  # The open cards in progress on the tree that hold a lane, other than
+  # `card`, its parents and what is below it, in board order.
+  defp in_progress_others(card, board) do
     root = Board.root_id(board)
     {exclude, below} = own_tree(card, board)
 
@@ -416,7 +430,38 @@ defmodule Slipdock.Lanes do
       order_by: [asc: c.board_id, asc: col.position, asc: c.position, asc: c.id]
     )
     |> Repo.all()
-    |> Enum.find(&overlap?(paths, counted(&1.paths, shared)))
+  end
+
+  @doc """
+  Every open card in progress on `card`'s tree whose paths overlap `card`'s
+  own, on a board with lanes on (#1972, for an advisory lane's prompt): a
+  list of `%{card:, paths:, theirs:}`, `paths` being this card's globs that
+  overlap and `theirs` the other's. Shared paths (#1971) don't count; the
+  same cards are left out as for `conflict/2`. `[]` with lanes off, no
+  paths, or nothing in the way.
+  """
+  def overlaps(%Card{} = card) do
+    board = Repo.get(Board, card.board_id)
+    shared = shared_paths(board)
+
+    with true <- board != nil and on?(board),
+         [_ | _] = mine <- counted(tidy(card.paths), shared) do
+      card
+      |> in_progress_others(board)
+      |> Enum.flat_map(&overlap_with(&1, mine, shared))
+    else
+      _ -> []
+    end
+  end
+
+  # One overlap for `overlaps/1`: `[%{card:, paths:, theirs:}]`, or [].
+  defp overlap_with(other, mine, shared) do
+    theirs = counted(other.paths, shared)
+
+    case Enum.filter(mine, &overlap?([&1], theirs)) do
+      [] -> []
+      paths -> [%{card: other, paths: paths, theirs: Enum.filter(theirs, &overlap?(paths, [&1]))}]
+    end
   end
 
   # Whether a card in progress holds its lane: a runner job is working on it
@@ -521,6 +566,7 @@ defmodule Slipdock.Lanes do
   """
   def check_move(%Card{} = card, %Column{} = to, actor) do
     with true <- to.category == "doing" and gated?(actor),
+         true <- hold?(card),
          %Card{} = other <- conflict(card) do
       {:error, message(card, other)}
     else
@@ -538,6 +584,7 @@ defmodule Slipdock.Lanes do
     card = Ecto.Changeset.apply_changes(changeset)
 
     with true <- column.category == "doing" and gated?(actor),
+         true <- hold?(card),
          %Card{} = other <- conflict(card, card.paths) do
       Ecto.Changeset.add_error(changeset, :paths, create_message(column, other))
     else
@@ -563,6 +610,7 @@ defmodule Slipdock.Lanes do
 
     with true <- new != :none and gated?(actor),
          true <- in_doing?(card),
+         true <- hold?(card),
          %Card{} = other <- conflict(card, if(is_list(new), do: new, else: [])) do
       {:error, :paths, message(card, other)}
     else
@@ -601,15 +649,54 @@ defmodule Slipdock.Lanes do
       )
       |> Repo.all()
       |> Enum.reduce(%{}, fn card, acc ->
-        case conflict(card) do
-          nil -> acc
-          other -> Map.put(acc, card.id, other)
+        case hold?(card) && conflict(card) do
+          %Card{} = other -> Map.put(acc, card.id, other)
+          _ -> acc
         end
       end)
     else
       %{}
     end
   end
+
+  @doc """
+  What an overlap does on `board` (#1972): `"hold"` (an agent's start is
+  refused and its job held), `"advise"` (the agent is told in its job's
+  prompt instead) or `"off"`. The root's mode holds for its whole tree, as
+  its switch does; a board under a root with lanes off goes by its own.
+  """
+  def mode(%Board{} = board) do
+    root =
+      board.root_id &&
+        Repo.one(from(b in Board, where: b.id == ^board.root_id, select: b.lane_mode))
+
+    cond do
+      Enum.member?(["hold", "advise"], root) -> root
+      Enum.member?(["hold", "advise"], board.lane_mode) -> board.lane_mode
+      board.lanes -> "hold"
+      true -> "off"
+    end
+  end
+
+  def mode(_board), do: "off"
+
+  @doc """
+  The open runner job working on `card` (#1972): its own, else its epic's,
+  up the tree; a claimed or running one before a queued one. nil when none.
+  """
+  def working_job(%Card{} = card) do
+    ids = [card.id | ancestor_ids(Repo.get(Board, card.board_id))]
+
+    from(j in Job,
+      where: j.card_id in ^ids and j.status in ^Job.open_statuses(),
+      order_by: [desc: j.status in ["claimed", "running"], desc: j.id]
+    )
+    |> Repo.all()
+    |> Enum.min_by(&Enum.find_index(ids, fn id -> id == &1.card_id end), fn -> nil end)
+  end
+
+  @doc "Whether an overlap holds `card` (its board's mode is `hold`), rather than advising."
+  def hold?(%Card{board_id: board_id}), do: mode(Repo.get(Board, board_id)) == "hold"
 
   @doc "Whether lanes are on for `board`: on it, or on the root of its tree."
   def on?(%Board{lanes: true}), do: true

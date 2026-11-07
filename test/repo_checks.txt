@@ -113,3 +113,4 @@ except test/slipdock/lanes_test.exs: its docs/ paths are lane globs held as data
 except test/slipdock/lanes_epic_test.exs: its docs/ paths are lane globs held as data; it reads no file
 except test/slipdock/profiles_test.exs: its docs/ and priv/skills/ paths are card paths held as data for the inference; it reads no file
 except test/slipdock_web/shared_paths_web_test.exs: docs/manual.md there is a glob a board shares, not a file it reads
+except test/slipdock/lanes_advise_test.exs: its docs/manual.md is a lane glob held as data; it reads no file

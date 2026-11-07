@@ -134,7 +134,7 @@ whole card before touching it.
   accepts is *held* for a person, who merges it or sends it back with a
   reason (a rejection like any other).
 - **Lanes, where they are on** (the board's line in the guide says `lanes:
-  on`). Before starting a card, write the paths its work will touch:
+  on` or `lanes: advise`). Before starting a card, write the paths its work will touch:
   `slipdock edit <id> --paths "lib/foo/**,docs/manual.md"`, as narrow as the
   brief allows. A move refused for overlapping a card in progress names
   that card: narrow the paths, or leave the card blocked by it; only a
@@ -142,7 +142,12 @@ whole card before touching it.
   frees its lane and its dependents; on a pull request board it holds both
   until the merge. Paths the board shares (`shared paths` on its line,
   marked `shared` in `slipdock card`) hold no lane: declare them honestly,
-  keep to your own sections of those files, and rebase before pushing. Whether or not the board has lanes, on a card
+  keep to your own sections of those files, and rebase before pushing. On a
+  board whose lanes advise (`lanes: advise` on its line) nothing is held:
+  the job's prompt has a *Lanes* block naming the cards in progress in the
+  same files. Read each (`slipdock card <id>`, its `card-<id>` branch)
+  before editing those files, stay out of them where you can, and rebase
+  on the default branch before pushing. Whether or not the board has lanes, on a card
   with paths stage only files under them, by name, and with another
   session active in the same repository work in a git worktree of your own
   (`git worktree add ../<repo>-lanes/card-<id> -b card-<id>`), unless a

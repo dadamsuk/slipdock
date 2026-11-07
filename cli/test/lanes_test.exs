@@ -125,4 +125,39 @@ defmodule SlipdockCLI.LanesTest do
     refute capture_io(fn -> Render.board(Map.put(board, "shared_paths", [])) end) =~
              "shared paths"
   end
+
+  test "set-board --lane-mode sends the mode (#1972)" do
+    serve([{200, @board}])
+    capture_io(fn -> Boards.run("set-board", ["docs"], parse(["--lane-mode", "advise"])) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"lane_mode" => "advise"}
+  end
+
+  test "card says what its overlap does; board says when lanes advise (#1972)" do
+    card =
+      @card
+      |> JSON.decode!()
+      |> Map.fetch!("card")
+      |> Map.put("paths", ["lib/a/**"])
+
+    advised =
+      Map.put(card, "lane_overlap", %{"card" => 9, "title" => "Other", "mode" => "advise"})
+
+    held = Map.put(card, "lane_overlap", %{"card" => 9, "title" => "Other", "mode" => "hold"})
+
+    assert capture_io(fn -> Render.card(advised) end) =~
+             "overlaps #9 “Other” in progress, advisory: an agent may start"
+
+    assert capture_io(fn -> Render.card(held) end) =~
+             "overlaps #9 “Other” in progress: an agent can't start this"
+
+    refute capture_io(fn -> Render.card(card) end) =~ "overlaps #"
+
+    board = %{"id" => 3, "name" => "Docs", "color" => "blue", "tags" => [], "columns" => []}
+
+    assert capture_io(fn -> Render.board(Map.put(board, "lane_mode", "advise")) end) =~
+             "lanes: advise (overlaps are told, not held)"
+
+    refute capture_io(fn -> Render.board(Map.put(board, "lane_mode", "hold")) end) =~ "advise"
+  end
 end

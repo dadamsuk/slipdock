@@ -828,6 +828,7 @@ defmodule Slipdock.Boards do
                # Verified work's switches (#1620) hold for the subcards too.
                "bar_required" => parent.bar_required,
                "lanes" => parent.lanes,
+               "lane_mode" => parent.lane_mode,
                "profiles" => parent.profiles,
                "shared_paths" => parent.shared_paths,
                "evidence_required" => parent.evidence_required,
