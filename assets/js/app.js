@@ -1650,6 +1650,10 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 // names it (see `scroll_to_list`); getting there is the browser's job. The
 // board's columns are rendered after this fires on the first load, so it
 // waits a frame for the one it wants rather than giving up.
+// A pager's buttons dispatch this on the scroller they page (the outline's
+// Previous / Next), so the new page starts at its top.
+window.addEventListener("slipdock:scroll-top", (e) => { e.target.scrollTop = 0 })
+
 window.addEventListener("phx:scroll-to-list", ({detail: {id}}) => {
   let tries = 0
   const find = () => {

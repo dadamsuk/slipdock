@@ -60,6 +60,60 @@ defmodule SlipdockWeb.OutlineLiveTest do
     refute has_element?(view, "#ol-#{ctx.epic.id}")
   end
 
+  test "the outline pages at 250 top-level cards, tighter rows" do
+    board = board_fixture(%{"name" => "Big"})
+    col = hd(board.columns)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    rows =
+      for n <- 1..251,
+          do: %{
+            title: "Card #{String.pad_leading(to_string(n), 3, "0")}",
+            column_id: col.id,
+            board_id: board.id,
+            position: n,
+            inserted_at: now,
+            updated_at: now
+          }
+
+    Slipdock.Repo.insert_all(Slipdock.Boards.Card, rows)
+
+    [first | _] =
+      cards = board.id |> Boards.get_board!() |> Map.get(:columns) |> hd() |> Map.get(:cards)
+
+    last = List.last(cards)
+
+    conn = build_conn() |> log_in_user(user_fixture())
+    {:ok, view, html} = live(conn, ~p"/boards/#{board}/outline")
+
+    assert has_element?(view, "#outline-page-of", "Page 1 of 2")
+    assert has_element?(view, "#outline-page-range", "1–250 of 251 cards")
+    assert has_element?(view, "#outline-prev[disabled]")
+    assert has_element?(view, "#ol-#{first.id}")
+    refute has_element?(view, "#ol-#{last.id}")
+    # Rows are py-1 now, not py-1.5.
+    refute html =~ "py-1.5 pr-2"
+
+    view |> element("#outline-next") |> render_click()
+    assert has_element?(view, "#outline-page-of", "Page 2 of 2")
+    assert has_element?(view, "#outline-page-range", "251–251 of 251 cards")
+    assert has_element?(view, "#outline-next[disabled]")
+    assert has_element?(view, "#ol-#{last.id}")
+    refute has_element?(view, "#ol-#{first.id}")
+
+    # A page past the end shows the last; one before the start, the first.
+    render_click(view, "outline_page", %{"page" => "9"})
+    assert has_element?(view, "#outline-page-of", "Page 2 of 2")
+    render_click(view, "outline_page", %{"page" => "nonsense"})
+    assert has_element?(view, "#outline-page-of", "Page 1 of 2")
+  end
+
+  test "one page of cards has no pager", ctx do
+    conn = build_conn() |> log_in_user(user_fixture())
+    {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/outline")
+    refute has_element?(view, "#outline-pager")
+  end
+
   test "the timeline opens subcards beneath a bar and moves them", ctx do
     conn = build_conn() |> log_in_user(user_fixture())
     {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/timeline?date=2030-01-15")

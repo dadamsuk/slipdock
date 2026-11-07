@@ -104,7 +104,10 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     assert %{priority: "critical"} = Enum.find(cards(board), &(&1.title == "Hotfix"))
   end
 
-  test "the outline adds top-level cards and subcards", %{conn: conn, board: board} do
+  test "the outline adds top-level cards, and subcards from each row's add icon", %{
+    conn: conn,
+    board: board
+  } do
     [backlog | _] = board.columns
     epic = card_fixture(backlog, %{"title" => "Epic"})
     {:ok, t} = Boards.find_template(nil, "Simple")
@@ -112,15 +115,65 @@ defmodule SlipdockWeb.QuickAddLiveTest do
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/outline")
     assert has_element?(view, "#outline-add")
-    assert has_element?(view, "#outline-add-#{epic.id}")
+    # No add-a-subcard row under an open card until its icon is pressed.
+    refute has_element?(view, "#outline-add-#{epic.id}")
+    assert has_element?(view, "#ol-#{epic.id} #ol-add-sub-#{epic.id}[aria-expanded=false]")
 
     view |> form("#outline-add", %{"title" => "Sibling start: today"}) |> render_submit()
     assert Enum.any?(cards(board), &(&1.title == "Sibling" and &1.start_date == Date.utc_today()))
+
+    view |> element("#ol-add-sub-#{epic.id}") |> render_click()
+    assert has_element?(view, "#ol-add-sub-#{epic.id}[aria-expanded=true]")
+    assert has_element?(view, "#outline-add-#{epic.id} input[name=title][phx-mounted]")
+    # Only that card's row opens.
+    sibling = Enum.find(cards(board), &(&1.title == "Sibling"))
+    refute has_element?(view, "#outline-add-#{sibling.id}")
 
     view |> form("#outline-add-#{epic.id}", %{"title" => "Child task #medium"}) |> render_submit()
     sub = Boards.get_board!(Boards.get_card!(epic.id).sub_board.id)
     assert [%{title: "Child task", priority: "medium"}] = Enum.flat_map(sub.columns, & &1.cards)
     assert render(view) =~ "Child task"
+    # The row stays open for the next one; the icon again closes it.
+    assert has_element?(view, "#outline-add-#{epic.id}")
+    view |> element("#ol-add-sub-#{epic.id}") |> render_click()
+    refute has_element?(view, "#outline-add-#{epic.id}")
+  end
+
+  test "the outline's add icon gives a card with no subcards its subcards board", %{
+    conn: conn,
+    board: board
+  } do
+    [backlog | _] = board.columns
+    leaf = card_fixture(backlog, %{"title" => "Leaf"})
+    refute Boards.get_card!(leaf.id).sub_board
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/outline")
+    view |> element("#ol-add-sub-#{leaf.id}") |> render_click()
+    view |> form("#outline-add-#{leaf.id}", %{"title" => "First child"}) |> render_submit()
+
+    %{sub_board: %{id: sub_id}} = Boards.get_card!(leaf.id)
+    sub = Boards.get_board!(sub_id)
+    assert sub.parent_card_id == leaf.id
+    assert ["First child"] = sub.columns |> Enum.flat_map(& &1.cards) |> Enum.map(& &1.title)
+    assert has_element?(view, "#ol-#{leaf.id} progress")
+  end
+
+  test "the outline refuses a subcard under a card off its tree", %{conn: conn, board: board} do
+    other = board_fixture(%{"name" => "Elsewhere"})
+    stray = card_fixture(hd(other.columns), %{"title" => "Stray"})
+    card_fixture(hd(board.columns), %{"title" => "Mine"})
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/outline")
+
+    html =
+      render_submit(view, "quick_add_card", %{
+        "form" => "outline-add-#{stray.id}",
+        "parent_card" => to_string(stray.id),
+        "title" => "Sneaky"
+      })
+
+    assert html =~ "That card has no subcards board."
+    refute Boards.get_card!(stray.id).sub_board
   end
 
   test "read-only viewers get no add rows", %{conn: conn, board: board} do
@@ -128,5 +181,15 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     {:ok, _} = Slipdock.Access.grant(board, stranger, "read", user_fixture())
     {:ok, view, _} = live(log_in_user(conn, stranger), ~p"/boards/#{board}/table")
     refute has_element?(view, "#table-add")
+  end
+
+  test "read-only viewers get no add icons on the outline", %{conn: conn, board: board} do
+    card = card_fixture(hd(board.columns), %{"title" => "Look only"})
+    stranger = user_fixture("viewer@example.com")
+    {:ok, _} = Slipdock.Access.grant(board, stranger, "read", user_fixture())
+    {:ok, view, _} = live(log_in_user(conn, stranger), ~p"/boards/#{board}/outline")
+    assert has_element?(view, "#ol-#{card.id}")
+    refute has_element?(view, "#ol-add-sub-#{card.id}")
+    refute has_element?(view, "#outline-add")
   end
 end

@@ -67,8 +67,8 @@ defmodule SlipdockWeb.BoardLive.Show do
     start_rename_column cancel_rename_column start_add_card aim_document cancel_add_card
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
-    swim_toggle_row swim_start_add swim_cancel_add toggle_select_mode clear_selection
-    display_restore) ++
+    swim_toggle_row swim_start_add swim_cancel_add outline_add_sub outline_page toggle_select_mode
+    clear_selection display_restore) ++
                  SnoozeEvents.read_events()
 
   # Events only the board owner may perform.
@@ -202,6 +202,9 @@ defmodule SlipdockWeb.BoardLive.Show do
       timeline: nil,
       calendar: nil,
       outline: nil,
+      # The outline's open add-a-subcard row (a card id) and its page.
+      outline_adding: nil,
+      outline_page: 1,
       narrative: nil,
       prioritise: nil,
       cal_expanded: MapSet.new(),
@@ -482,9 +485,10 @@ defmodule SlipdockWeb.BoardLive.Show do
     )
   end
 
-  # Where the card goes: the board itself, or the sub-board of `parent_card`.
-  # The wire sends a string; a caller with the id already in hand sends the
-  # integer.
+  # Where the card goes: the board itself, or the sub-board of `parent_card`,
+  # made from the Simple template when the card has none yet (the outline's
+  # add icon is on every row). The wire sends a string; a caller with the id
+  # already in hand sends the integer.
   defp column_id(id) when is_integer(id), do: id
   defp column_id(id), do: Params.id(id)
 
@@ -494,10 +498,20 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp quick_add_target(board, parent_id) do
     with %Card{} = card <- Boards.get_card(parent_id),
          true <- card.board_id == board.id or card.board_id in tree_board_ids(board),
-         %{id: sub_id} <- card.sub_board do
+         {:ok, sub_id} <- sub_board_id(card) do
       {:ok, Boards.get_board!(sub_id), card}
     else
+      {:error, message} when is_binary(message) -> {:error, message}
       _ -> {:error, "That card has no subcards board."}
+    end
+  end
+
+  defp sub_board_id(%Card{sub_board: %{id: id}}), do: {:ok, id}
+
+  defp sub_board_id(%Card{} = card) do
+    with {:ok, template} <- Boards.find_template(nil, "Simple"),
+         {:ok, sub} <- Boards.create_sub_board(card, template) do
+      {:ok, sub.id}
     end
   end
 
@@ -1265,6 +1279,8 @@ defmodule SlipdockWeb.BoardLive.Show do
             collapsed={@swim_collapsed}
             can_write={@can_write}
             quick_preview={@quick_preview}
+            adding={@outline_adding}
+            page={@outline_page}
           />
           <.prioritise_view
             :if={@mode == :prioritise}

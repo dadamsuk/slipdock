@@ -17,6 +17,7 @@ defmodule Slipdock.Outline do
   alias Slipdock.Swimlanes.Config
 
   @max_depth 9
+  @per_page 250
 
   @type entry :: %{
           card: Slipdock.Boards.Card.t(),
@@ -67,6 +68,38 @@ defmodule Slipdock.Outline do
       depth: depth,
       done: nodes |> Enum.map(& &1.stats.done) |> Enum.sum(),
       total: nodes |> Enum.map(& &1.stats.total) |> Enum.sum()
+    }
+  end
+
+  @doc "How many top-level cards one page of the outline holds."
+  def per_page, do: @per_page
+
+  @doc """
+  One page of an outline's top-level cards, each with its whole subtree, so
+  a subtree is never split across pages. `page` counts from 1 and is held
+  between 1 and the last page, so a page past the end (after a filter
+  narrowed the list) shows the last. Returns:
+
+    * `:nodes` – the top-level cards on this page
+    * `:page` / `:pages` – this page and how many there are (at least 1)
+    * `:from` / `:to` – the 1-based positions of its first and last card
+    * `:count` – top-level cards in all
+  """
+  def page(%{nodes: nodes}, page, per_page \\ @per_page)
+      when is_integer(page) and is_integer(per_page) and per_page > 0 do
+    count = length(nodes)
+    pages = max(div(count + per_page - 1, per_page), 1)
+    page = page |> max(1) |> min(pages)
+    slice = Enum.slice(nodes, (page - 1) * per_page, per_page)
+    from = if slice == [], do: 0, else: (page - 1) * per_page + 1
+
+    %{
+      nodes: slice,
+      page: page,
+      pages: pages,
+      from: from,
+      to: from + max(length(slice) - 1, 0),
+      count: count
     }
   end
 

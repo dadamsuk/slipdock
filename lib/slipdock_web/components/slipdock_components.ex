@@ -2193,6 +2193,7 @@ defmodule SlipdockWeb.SlipdockComponents do
   attr :preview, :any, default: nil, doc: "a Slipdock.QuickAdd result to show as chips"
   attr :class, :any, default: nil
   attr :style, :string, default: nil
+  attr :autofocus, :boolean, default: false, doc: "focus the box when the row appears"
 
   @doc """
   A one-line add-a-card row: type, press Enter, type the next. Commands in
@@ -2218,6 +2219,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         id={"#{@id}-title"}
         phx-hook="QuickAdd"
         phx-debounce="150"
+        phx-mounted={@autofocus && JS.focus()}
         placeholder={@placeholder}
         title={@help}
         class="input field-bare min-w-56 max-w-xl flex-1 px-1"

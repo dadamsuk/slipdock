@@ -97,4 +97,38 @@ defmodule Slipdock.OutlineTest do
     o = Outline.build(board, board.rollup, %{config | q: "zzz"}, @today)
     assert o.nodes == [] and o.hidden == 8
   end
+
+  describe "page/3" do
+    defp outline_of(n), do: %{nodes: Enum.to_list(1..n//1)}
+
+    test "slices top-level cards into pages and counts them" do
+      assert %{nodes: [1, 2], page: 1, pages: 3, from: 1, to: 2, count: 5} =
+               Outline.page(outline_of(5), 1, 2)
+
+      assert %{nodes: [3, 4], page: 2, from: 3, to: 4} = Outline.page(outline_of(5), 2, 2)
+      assert %{nodes: [5], page: 3, from: 5, to: 5} = Outline.page(outline_of(5), 3, 2)
+    end
+
+    test "holds the page to the pages there are" do
+      assert %{nodes: [5], page: 3} = Outline.page(outline_of(5), 99, 2)
+      assert %{nodes: [1, 2], page: 1} = Outline.page(outline_of(5), 0, 2)
+      assert %{nodes: [1, 2], page: 1} = Outline.page(outline_of(5), -4, 2)
+    end
+
+    test "an empty outline is one empty page" do
+      assert %{nodes: [], page: 1, pages: 1, from: 0, to: 0, count: 0} =
+               Outline.page(outline_of(0), 3, 2)
+    end
+
+    test "250 to a page by default, a subtree kept whole", ctx do
+      assert Outline.per_page() == 250
+      assert %{pages: 1} = Outline.page(outline_of(250), 1)
+      assert %{pages: 2, nodes: [251]} = Outline.page(outline_of(251), 2)
+
+      board = Boards.get_board!(ctx.board.id)
+      o = Outline.build(board, board.rollup, Config.defaults("outline"), @today)
+      %{nodes: [epic | _]} = Outline.page(o, 1, 1)
+      assert titles([epic]) == [{"Epic", [{"B", []}, {"C", [{"D", []}, {"E", []}]}]}]
+    end
+  end
 end
