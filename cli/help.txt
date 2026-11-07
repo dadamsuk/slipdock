@@ -4,9 +4,12 @@ USAGE
   slipdock <command> [args] [--json] [--url URL]
 
 START HERE
-  guide                               how to use these boards as a work tracker, from the server
+  guide [section]                     how to use these boards as a work tracker, from the server
                                       itself: epics and subcards, what to pick up next, what to
-                                      write back as you go (also GET /api/guide)
+                                      write back as you go. With no section, the short guide,
+                                      ending with the names of the rest; `guide <name>` one of
+                                      them (`guide wiki`); `guide all` the whole guide, which is
+                                      long (GET /api/guide?section=short|<name>|all)
 
 FIND ANYTHING  (semantic: matched by meaning, so the words you type needn't be
                 the words that were written; covers cards, comments and status updates)
