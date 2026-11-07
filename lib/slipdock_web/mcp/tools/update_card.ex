@@ -11,7 +11,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   alias SlipdockWeb.MCP.{Args, Tools}
 
   @fields ~w(title short_name description priority due_date start_date percent_complete bar paths color border_top
-             border_right border_bottom border_left)
+             border_right border_bottom border_left caused_by missed_by)
   @lists ~w(add_flags remove_flags add_tags remove_tags assignees add_assignees remove_assignees)
   @id_lists ~w(add_blocked_by remove_blocked_by check_items uncheck_items)
 
@@ -25,7 +25,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   def description,
     do:
       "Changes a card: title, description, priority, dates, percent_complete, " <>
-        "colours, flags (blocked, waiting, review), tags, assignees, blockers, " <>
+        "colours, flags (blocked, waiting, review), tags, assignees, blockers, incident, " <>
         "checklist (item ids from get_card), recurrence, snoozed_until. Only what you " <>
         "pass changes."
 
@@ -64,6 +64,21 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
           description:
             "Globs of the files its work touches (lib/x/**); [] clears. On a lanes board an " <>
               "agent can't start a card whose paths overlap one in progress."
+        },
+        # An incident (#1946): what shipped it and which check missed it.
+        caused_by: %{
+          type: ["integer", "null"],
+          description:
+            "This card is an incident: the id of the card whose shipping caused it, on any " <>
+              "board you can read. null clears it."
+        },
+        missed_by: %{
+          type: ["string", "null"],
+          enum: Slipdock.Boards.Card.layers() ++ [nil],
+          description:
+            "The check that should have caught the incident: bar, rules, ci, verify, audit " <>
+              "or none. With caused_by it records a process finding (source incident) on " <>
+              "the causing card. null clears it."
         },
         color: %{
           border

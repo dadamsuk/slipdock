@@ -7,6 +7,9 @@ defmodule Slipdock.Boards.Card do
   # stuck and couldn't fix. Taking it off marks the incident handled.
   @flags ~w(flagged blocked review waiting starred stuck)
   @borders ~w(border_top border_right border_bottom border_left)a
+  # The check that should have caught an incident (#1946); `none` is a person
+  # saying no check could have.
+  @layers ~w(bar rules ci verify audit none)
 
   # The readers below match on *shape* rather than on `%Card{}`, because a
   # wiki page placed on the board carries the same facets under the same names
@@ -172,6 +175,12 @@ defmodule Slipdock.Boards.Card do
     # The deploy this incident card says caused it (#1134), set with
     # `Slipdock.Deployments.Incidents.link/2`, never through the changeset.
     belongs_to :caused_by_deployment, Slipdock.Deployments.Deployment
+    # An incident (#1946): the card whose shipping caused this one, and the
+    # check that should have caught it (`layers/0`). Set by a person, or an
+    # agent told to; `Slipdock.Incidents` checks the cause can be read and
+    # keeps the finding on it.
+    belongs_to :caused_by, __MODULE__
+    field :missed_by, :string
 
     # A recurring card (W-1802): the series this card is an instance of, and
     # the series it is the current instance of (the one the next is copied
@@ -215,6 +224,9 @@ defmodule Slipdock.Boards.Card do
   end
 
   def priorities, do: @priorities
+
+  @doc "The checks an incident can say missed it (#1946)."
+  def layers, do: @layers
 
   @doc "Whether the card is a stand-in for a card sprint planning took away."
   def stand_in?(%{stand_in_for_id: id}) when not is_nil(id), do: true
@@ -449,6 +461,8 @@ defmodule Slipdock.Boards.Card do
       :evidence_suite,
       :evidence_pr,
       :paths,
+      :caused_by_id,
+      :missed_by,
       :board_id,
       # Not `:column_id`: a card changes list only through `Boards.move_card/4`
       # and `move_card_to_board/3`, which record who moved it.
@@ -485,6 +499,10 @@ defmodule Slipdock.Boards.Card do
     |> validate_length(:short_name, max: Slipdock.Boards.ShortNames.max_length())
     |> Slipdock.Boards.ShortNames.put()
     |> validate_inclusion(:priority, @priorities)
+    |> update_change(:missed_by, &tidy_short_name/1)
+    |> validate_inclusion(:missed_by, @layers,
+      message: "must be one of the checks: #{Enum.join(@layers, ", ")}"
+    )
     |> validate_subset(:flags, @flags)
     |> update_change(:date_precision, fn
       "" -> "day"

@@ -3292,8 +3292,25 @@ defmodule SlipdockWeb.APIGuide do
     better knowing this? `Findings: none` is a normal answer; filler isn't.
     A line with no known kind is kept whole as a `gotcha`. The server also
     records its own (source `rejection`, `verification`, `requeue`, `timeout`, `failed`,
-    `lane`, `merge`, `audit`, `health`), counting repeats on a card, on any
+    `lane`, `merge`, `audit`, `health`, `incident`), counting repeats on a card, on any
     board, handbook or not.
+
+    **Incidents** (#1946): a card that broke after something shipped says so
+    with `caused_by` (the card whose shipping caused it, any card you can
+    read) and `missed_by` (the check that should have caught it: `bar`,
+    `rules`, `ci`, `verify`, `audit` or `none`). Set them only when a person
+    says so: `PATCH /api/cards/:id {"caused_by": 123, "missed_by": "ci"}`
+    (null clears; create takes them too), `update_card`/`create_card`
+    `caused_by` and `missed_by`, `slipdock edit ID --caused-by 123
+    --missed-by ci` (`--no-caused-by`, `--no-missed-by`; `add` takes both).
+    An unknown layer, or a card you can't read, is a `422` naming the field
+    in a sentence. `GET /api/cards/:id` and `get_card` show both ends:
+    `caused_by_card` (`{id, hidden: true}` when you can't read it) and
+    `incidents`, the incidents a card caused, each with its `missed_by`.
+    While an incident names both, its cause carries one `process` finding
+    with source `incident` ("#456 (incident) was missed by ci"), changed in
+    place as the fields change and gone when either clears
+    (`slipdock findings <board> --source incident`).
 
     Findings are kept on the tree's root board, `open` until a person
     triages them: `promoted` (into the handbook, said in `note`),

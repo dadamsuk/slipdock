@@ -42,7 +42,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     edit_handoff cancel_handoff leave_handoff clear_handoff delete_handoff restore_handoff draft_handoff
     edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat
     answer_wait withdraw_wait skip_wait wait_change suggest_answer
-    ask_questions ask_change ask_add ask_remove ask_save ask_cancel verify_work)
+    ask_questions ask_change ask_add ask_remove ask_save ask_cancel verify_work
+    save_incident clear_incident)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
@@ -242,12 +243,31 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       # How many questions the card has asked, shown on its open wait (#1114).
       wait_count: if(Card.open_wait(card), do: Boards.wait_count(card), else: 0),
       # The questions asked before, with their answers (#1220).
-      wait_history: card |> Boards.list_waits() |> Enum.reject(&Slipdock.Boards.Wait.open?/1)
+      wait_history: card |> Boards.list_waits() |> Enum.reject(&Slipdock.Boards.Wait.open?/1),
+      # Both ends of an incident (#1946): its cause, and what this card caused.
+      card_incident: incident_view(card, socket.assigns.current_user)
     )
     |> assign_jobs()
   end
 
   defp assign_pages(socket), do: socket
+
+  # The cause it names, `hidden` when the reader can't read it, and the
+  # incidents naming this card that the reader can read.
+  defp incident_view(card, user) do
+    cause =
+      case Slipdock.Incidents.cause(card) do
+        nil ->
+          nil
+
+        cause ->
+          if Slipdock.Incidents.readable?(cause, user),
+            do: cause,
+            else: %{id: cause.id, hidden: true}
+      end
+
+    %{cause: cause, caused: Slipdock.Incidents.caused_readable(card, user)}
+  end
 
   # The jobs rules have sent this card to runners, newest first.
   defp assign_jobs(%{assigns: %{card: %Card{} = card}} = socket),
@@ -274,6 +294,29 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     do: {:ok, Boards.get_card!(id)}
 
   defp writable(_socket), do: :error
+
+  defp save_incident(socket, attrs) do
+    with {:ok, card} <- writable(socket),
+         {:ok, card} <- Boards.update_card(card, attrs, by: socket.assigns.current_user) do
+      {:noreply,
+       socket
+       |> assign(card: fresh(socket, card.id))
+       |> assign(card_incident: incident_view(card, socket.assigns.current_user))}
+    else
+      :error ->
+        {:noreply, flash(socket, :error, "You have read-only access to that card.")}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:noreply, flash(socket, :error, incident_error(cs))}
+    end
+  end
+
+  defp incident_error(cs) do
+    Enum.map_join(cs.errors, " ", fn
+      {:missed_by, {message, _}} -> "Missed by " <> message <> "."
+      {_field, {message, _}} -> message
+    end)
+  end
 
   # Called as each chunk lands; stores the file once the whole upload is in.
   defp handle_upload(name, entry, socket) do
@@ -1122,6 +1165,22 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     end
   end
 
+  # An incident's cause and the check that missed it (#1946): both from the
+  # Incident line's form, blank clearing either.
+  defp event("save_incident", params, socket) do
+    incident = params["incident"] || %{}
+
+    attrs = %{
+      "caused_by" => incident["caused_by"] || "",
+      "missed_by" => incident["missed_by"] || ""
+    }
+
+    save_incident(socket, attrs)
+  end
+
+  defp event("clear_incident", _params, socket),
+    do: save_incident(socket, %{"caused_by" => "", "missed_by" => ""})
+
   defp event("link_search", params, socket) do
     kind =
       if params["kind"] in CardLink.kind_keys(),
@@ -1266,6 +1325,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         editing_description={@editing_description}
         handoff_history={@handoff_history}
         shipped={assigns[:card_shipped] || []}
+        incident={assigns[:card_incident]}
         wait_count={@wait_count}
         wait_history={@wait_history}
         wait_answers={@wait_answers}
@@ -1408,6 +1468,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :editing_description, :boolean, required: true
   attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
   attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`: where it has shipped"
+
+  attr :incident, :map,
+    default: nil,
+    doc: "both ends of an incident (#1946), as the reader may see"
+
   attr :wait_count, :integer, default: 0, doc: "how many waits the card has had (#1114)"
   attr :wait_history, :list, default: [], doc: "the closed waits, newest first (#1220)"
   attr :wait_answers, :map, default: %{}, doc: "what is typed into the answer boxes"
@@ -1676,6 +1741,15 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 dep_query={@dep_query}
                 dep_results={@dep_results}
                 form_key={@form_key}
+                target={@target}
+              />
+
+              <.incident_section
+                board={@board}
+                card={@card}
+                card_link={@card_link}
+                can_write={@can_write}
+                incident={@incident}
                 target={@target}
               />
 
