@@ -18,6 +18,9 @@
 //   FORWARD_TO      optional: where mail for any other address goes, when the
 //                   catch-all is on the main domain. A verified destination.
 
+// The app's address pattern (`Slipdock.Inbound.kinds/0`). A kind added there
+// goes here too, and the Worker redeployed: until then its mail bounces.
+// test/slipdock/inbound_worker_pattern_test.exs fails while they differ.
 const LOCAL_PART = /^(card|page|add|reply)-[a-z0-9]+$/
 
 // The local part, lower-cased, without a +detail.
