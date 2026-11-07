@@ -312,9 +312,11 @@ defmodule SlipdockWeb.BoardLive.Show do
     do: append_query(socket.assigns.paths.close, page: id)
 
   @impl true
-  def handle_params(params, _uri, socket) do
+  def handle_params(params, uri, socket) do
     {mode, panel} = split_action(socket.assigns.live_action)
-    socket = assign(socket, mode: mode, panel: panel)
+    # Where the tab is: `DisplayPrefs.restore/2` patches this address, so a
+    # card a fresh mount opened stays open (#2019).
+    socket = assign(socket, mode: mode, panel: panel, current_uri: uri)
 
     # Leaving the board view, or opening a card, ends whatever the keyboard held.
     socket = if mode == :board and is_nil(panel), do: socket, else: assign(socket, focus: nil)

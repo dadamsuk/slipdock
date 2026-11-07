@@ -839,11 +839,13 @@ defmodule Slipdock.Handbook do
   end
 
   # Paths the card names: anything with a slash, or a file with an extension.
-  @path ~r{(?<![\w@])(?:[\w.\-]+/)+[\w.*\-]*|\b[\w\-]+\.(?:exs?|heex|eex|js|ts|tsx|css|md|json|ya?ml|sh|py|sql|toml)\b}
+  # `u` reads the text as characters: without it `\w` takes the first byte of a
+  # "…" or "é" after a path, and the half character breaks the card's JSON.
+  @path ~r{(?<![\w@])(?:[\w.\-]+/)+[\w.*\-]*|\b[\w\-]+\.(?:exs?|heex|eex|js|ts|tsx|css|md|json|ya?ml|sh|py|sql|toml)\b}u
 
   @doc false
   def mentioned_paths(text) do
-    text = Regex.replace(~r{\w+://\S+}, text || "", " ")
+    text = Regex.replace(~r{\w+://\S+}u, text || "", " ")
 
     @path
     |> Regex.scan(text)
