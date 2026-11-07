@@ -343,6 +343,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <span :if={@rules != []} class="badge badge-ghost badge-xs">{length(@rules)}</span>
       </.menu_link>
     </li>
+    <%!-- Agentic Building (#2011): a page of its own, so always navigated
+          to, and only while the board's switch is on. --%>
+    <li :if={@can_manage and @paths[:agentic]}>
+      <.link navigate={@paths[:agentic]} id={@share_id <> "-agentic"}>
+        <.icon name="hero-wrench-screwdriver" class="size-4" /> Agentic Building
+      </.link>
+    </li>
     <li :if={@can_manage}>
       <.menu_link to={@paths.settings} navigate={@navigate}>
         <.icon name="hero-cog-6-tooth" class="size-4" /> Board settings

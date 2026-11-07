@@ -80,6 +80,11 @@ defmodule Slipdock.Boards.Board do
     # drags only ever see the badge.
     field :automation_wip, :boolean, default: false
 
+    # Agentic Building (#2011): the board menu's Agentic Building item and
+    # its page, which hold every setting below about how agents build here
+    # (see `Slipdock.AgenticBuilding`). Off hides them and changes nothing.
+    field :agentic_building, :boolean, default: false
+
     # How long a finished runner job's live log stays, in hours, and how long
     # one that failed does (#1872). Read from the top board of the job.
     field :job_log_hours, :integer, default: 24
@@ -542,6 +547,7 @@ defmodule Slipdock.Boards.Board do
       :incident_tag,
       :hotfix_window_hours,
       :automation_wip,
+      :agentic_building,
       :job_log_hours,
       :failure_log_hours,
       :handoff_label,

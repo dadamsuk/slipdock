@@ -157,15 +157,15 @@ defmodule SlipdockWeb.ShipViaWebTest do
   end
 
   test "settings show the choice with verification on, and save it", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     refute has_element?(view, "#board-ship-via")
 
     {:ok, _} = Boards.update_board(ctx.board, %{"verify_work" => true})
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     assert has_element?(view, "#board-ship-via option[value=pull_request]")
 
     view
-    |> form("#board-form", board: %{"verify_work" => "true", "ship_via" => "pull_request"})
+    |> form("#agentic-form", board: %{"verify_work" => "true", "ship_via" => "pull_request"})
     |> render_submit()
 
     assert Boards.get_board!(ctx.board.id).ship_via == "pull_request"

@@ -341,6 +341,8 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/findings", FindingsLive.Index, :index
       # What shipped since yesterday, with its evidence (#1948).
       live "/boards/:id/ledger", LedgerLive.Index, :index
+      # How agents build on the board: its agent settings (#2011).
+      live "/boards/:id/agentic", AgenticLive.Index, :index
       # A board's flow, velocity, runners and delivery on one page (#1185).
       live "/boards/:id/visualise", BoardLive.Visualise, :index
       live "/boards/:id", BoardLive.Show, :show

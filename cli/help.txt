@@ -704,6 +704,7 @@ WRITE
       [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
       [--simple | --no-simple] [--page-card-features | --no-page-card-features]
       [--show-pulse | --no-show-pulse] [--automation-wip | --no-automation-wip]
+      [--agentic-building on|off]
       [--job-log-hours N] [--failure-log-hours N]
       [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
       [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
@@ -729,6 +730,10 @@ WRITE
                                       --show-pulse puts the board's pulse over its lists;
                                       --automation-wip makes the first in-progress list's
                                       WIP limit hold runner jobs and list sends;
+                                      --agentic-building on puts an Agentic Building item
+                                      on the board menu in the web app, opening the page
+                                      that holds the agent settings; off hides it and
+                                      changes no setting (a warning names any still set)
                                       --job-log-hours (24) and --failure-log-hours (168):
                                       how long an ended job's live log stays, and a
                                       failed, stuck or rejected one's, unless kept;

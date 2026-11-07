@@ -154,8 +154,8 @@ defmodule SlipdockWeb.VerifiedEvidenceWebTest do
   end
 
   test "settings turn it on, and the card panel shows the evidence and its commit", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
-    view |> form("#board-form", board: %{"evidence_required" => "true"}) |> render_submit()
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
+    view |> form("#agentic-form", board: %{"evidence_required" => "true"}) |> render_submit()
     assert Boards.get_board!(ctx.board.id).evidence_required
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")

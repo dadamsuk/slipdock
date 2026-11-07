@@ -232,23 +232,27 @@ defmodule SlipdockWeb.JobLogLiveTest do
 
   describe "the board's job log times (#1872)" do
     test "are set in the board's settings", ctx do
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+      {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
       assert has_element?(view, "#board-job-logs #board-job-log-hours[value=\"24\"]")
       assert has_element?(view, "#board-job-logs #board-failure-log-hours[value=\"168\"]")
 
       view
-      |> form("#board-form", %{"board" => %{"job_log_hours" => "6", "failure_log_hours" => "72"}})
+      |> form("#agentic-form", %{
+        "board" => %{"job_log_hours" => "6", "failure_log_hours" => "72"}
+      })
       |> render_submit()
 
       board = Slipdock.Boards.get_board!(ctx.board.id)
       assert {board.job_log_hours, board.failure_log_hours} == {6, 72}
     end
 
-    test "a sub-board follows its top board, so offers neither", ctx do
+    test "a sub-board follows its top board: shown read-only, linking to it", ctx do
       {:ok, t} = Slipdock.Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{sub}/settings")
-      refute has_element?(view, "#board-job-logs")
+      {:ok, view, _} = live(ctx.conn, agentic_path(sub))
+      refute has_element?(view, "#board-job-log-hours")
+      assert has_element?(view, "#board-job-logs-read", "24 hours")
+      assert has_element?(view, ~s(#board-job-logs a[href="/boards/#{ctx.board.id}/agentic"]))
     end
   end
 end

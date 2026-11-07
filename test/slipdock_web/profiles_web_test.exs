@@ -86,10 +86,10 @@ defmodule SlipdockWeb.ProfilesWebTest do
     end
 
     test "the settings page shows the switch and saves it", ctx do
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+      {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
       assert has_element?(view, "#board-profiles")
 
-      view |> form("#board-form", board: %{"profiles" => "true"}) |> render_submit()
+      view |> form("#agentic-form", board: %{"profiles" => "true"}) |> render_submit()
       assert Boards.get_board!(ctx.board.id).profiles
     end
   end

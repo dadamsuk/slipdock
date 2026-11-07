@@ -4,6 +4,19 @@ defmodule Slipdock.Fixtures do
   alias Slipdock.{Accounts, BoardKeyClaims, Boards}
 
   @doc """
+  Turns the board's Agentic Building switch on (#2011) and gives its page's
+  path: where the agent settings are changed.
+  """
+  def agentic_path(board) do
+    {:ok, _} =
+      Slipdock.Boards.update_board(Slipdock.Boards.get_board!(board.id), %{
+        "agentic_building" => true
+      })
+
+    "/boards/#{board.id}/agentic"
+  end
+
+  @doc """
   The default test user (the one ConnCase signs in), created on first use.
   Its email is `default_email/0`, different in every test.
   """

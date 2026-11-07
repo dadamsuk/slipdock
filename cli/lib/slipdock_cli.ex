@@ -93,6 +93,8 @@ defmodule SlipdockCLI do
     profile: :string,
     no_profile: :boolean,
     profiles: :string,
+    # The board's Agentic Building item and page in the web app (#2011).
+    agentic_building: :string,
     paths_from: :string,
     evidence_required: :boolean,
     verify_work: :boolean,

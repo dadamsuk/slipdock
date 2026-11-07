@@ -235,7 +235,7 @@ every question the card asked and the answers. **Give a wait its kind**:
 `other` (the default). A board routes each kind to the person whose call it
 is (`wait_routes`: the first is who the wait is on, the rest are told), else
 the wait goes to the board's owner; leave `on` out so the route can pick. The
-owner sets the table in board settings, `slipdock set-board --route
+owner sets the table on the board's Agentic Building page, `slipdock set-board --route
 KIND=EMAIL[,EMAIL]` / `--no-route KIND`, `PATCH /api/boards/:board
 {"wait_routes": {...}}` or `update_board` `wait_routes`; the rejection-limit
 wait asks as `release`, and an audit disagreement is emailed to `release`'s
@@ -639,7 +639,8 @@ one `process` finding with source `incident`, kept in step as they change
 incident is a person's judgement. See [the manual](manual.md#incidents).
 
 **Verified work.** A board can check what its agents finish, with each
-check off until it is turned on in the board's settings: a **bar** written
+check off until it is turned on (the board's Agentic Building page, or
+`update_board`): a **bar** written
 before work starts, which then locks (best written by whoever files the
 card: `create_card` and `slipdock add` take `bar` and `paths`, so a planned
 card is one write, checked as on an update, and best phrased so the builder

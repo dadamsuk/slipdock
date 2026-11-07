@@ -565,7 +565,7 @@ for comfortable cards only, and like the rest of the Display menu it is kept in
 the URL and in a saved view.
 
 A board can call it something else, and tell Auto generate what to write.
-Under **Handoffs** in the board's settings, **Label** replaces *Left off* wherever a person reads it in the web app — the
+Under **Handoffs** on the board's [Agentic Building](#agentic-building) page, **Label** replaces *Left off* wherever a person reads it in the web app — the
 card's panel and its form, the link that adds one, Save, Clear and Delete, the
 card's front and the Display menu (up to 40 characters), and **Instructions for Auto
 generate** replace what the AI model is told about writing the note (up to
@@ -621,7 +621,7 @@ written to the deploy, with who acts at each stage and where it waits for a
 person, is the help page **How work flows** (`/help/agents/flow`).
 
 A board can check what an agent says it finished. Each check is a switch
-under **Verified work** in the board's settings, off by default; with all of
+under **Verified work** on the board's [Agentic Building](#agentic-building) page, off by default; with all of
 them off the board behaves as it always has. The checks apply to agents (MCP,
 a runner job, the API with a token, the CLI under an agent): a person
 completes cards as usual, and the in-app assistant and automations are not
@@ -1026,7 +1026,7 @@ of folders, `{a,b}` is either, and a path covers everything under it
 characters, relative, and without `..`. They are shown on the card and in
 `slipdock card`, and a claimed runner job's prompt lists them.
 
-**The board switch.** With *Lanes* on in the board's settings (`slipdock
+**The board switch.** With *Lanes* on, on the board's [Agentic Building](#agentic-building) page (`slipdock
 set-board slipdock --lanes`, `update_board` `lanes`, `PATCH /api/boards/:id
 {"lanes": true}`; sub-boards made afterwards inherit it, and the root
 board's switch holds for its whole tree), an agent can't start a card whose
@@ -1088,7 +1088,7 @@ them where you can, and rebase on the default branch before pushing. No
 overlap, no block. The card's *Paths* field and `slipdock card` say
 *overlaps #N in progress, advisory*; no job waits on a lane, so `slipdock
 jobs` shows none held and the health monitor's *lane held* check has
-nothing to find. Set it in the board's settings, with `slipdock set-board
+nothing to find. Set it on the board's [Agentic Building](#agentic-building) page, with `slipdock set-board
 slipdock --lane-mode advise` (`off`, `hold`, `advise`), `update_board`
 `lane_mode` or `PATCH /api/boards/:id {"lane_mode": "advise"}`; sub-boards
 made afterwards inherit it, and the root's mode holds for its tree. The
@@ -1142,7 +1142,7 @@ for a person first (below). How much a verifier spends on it is still to
 come.
 
 **The board switch.** Profiles are off until you turn them on: *Profiles*
-in the board's settings, `slipdock set-board slipdock --profiles on` (`off`
+on the board's [Agentic Building](#agentic-building) page, `slipdock set-board slipdock --profiles on` (`off`
 turns them off), `update_board` `profiles`, or `PATCH /api/boards/:id
 {"profiles": true}`. Sub-boards made afterwards inherit the switch, and
 export and import carry it. With it off nothing changes, and a card that
@@ -1229,8 +1229,9 @@ reminds the person after two days); and its line on the ledger says
 *waiting for* the person until it merges.
 
 **Changing a tier.** A tree has one set of tiers, kept on its root board:
-*Human tier, by profile* in the root board's settings (shown with
-profiles on), `slipdock set-board slipdock --profile-tier schema=none`
+*Human tier, by profile* on the root board's Agentic Building page (shown
+with profiles on; a sub-board's page shows it read-only, with a link to the
+root's), `slipdock set-board slipdock --profile-tier schema=none`
 (repeatable; `default` puts one back), `update_board` `profile_tiers`, or
 `PATCH /api/boards/:id {"profile_tiers": {"schema": "none"}}`, merged
 onto what is there. A sub-board's write is refused, naming the root. An
@@ -1342,7 +1343,7 @@ carries the open one as `wait`. Over MCP it is `update_card` with `wait`
 **Who gets asked.** Each wait says what kind of question it is: `product`,
 `ux`, `security`, `release` or `other` (`other` when it doesn't say), shown
 beside the question on the card. A board can route each kind to people of its
-own, in board settings → *Who gets asked*: the first person named for a kind
+own, on the board's [Agentic Building](#agentic-building) page → *Who gets asked*: the first person named for a kind
 is who the wait is on, and the others are told by email. Each must be on the
 board. A wait that names its person (`--on`) goes to them; one with a kind
 goes to the person its kind is routed to, on its own board or the nearest
@@ -1942,8 +1943,8 @@ deleting the comment takes back what it added that nobody has triaged yet.
 
 **Promotion by recurrence.** A lesson nobody triages is still settled once
 it keeps coming back. When an open finding's count reaches the board's
-threshold (*Propose a rule when a finding is seen this many times* in board
-settings, `slipdock set-board B --findings-propose-at N`, `update_board`
+threshold (*Propose a rule when a finding is seen this many times* on
+the board's [Agentic Building](#agentic-building) page, `slipdock set-board B --findings-propose-at N`, `update_board`
 `findings_propose_at`, `PATCH /api/boards/:board`; 3 by default, 0 never),
 the server drafts a rule and files it on the [Tidy-up page](#tidying-up) as
 a proposal for a person to apply or dismiss:
@@ -2959,20 +2960,53 @@ The **avatar menu** is in sections, and marks the page you are on:
 
 A board's **`…` menu** is in three groups: what you do with the board (Share
 this board, Copy board code, Tidy
-up…), how it is set up (Tags, Automations, Board settings), and what it has
+up…), how it is set up (Tags, Automations, Agentic Building while it is on,
+Board settings), and what it has
 done (Activity, Archived cards). **Share** is also a button of its own on the
 board's toolbar: it opens Board settings on the Sharing tab. The board's name
 in the header carries its code and switcher key in its tooltip.
 
 **Board settings** is in tabs: **General** (name, code, shortcut key, hotkey,
 description, default view, votes, sprint and simple board, colour),
-**Features** (pulse, delivery metrics, WIP limits for automated work,
-handoffs, permitted senders, card features on wiki pages), **Planning**
+**Features** (pulse, delivery metrics, the **Agentic Building** switch,
+permitted senders, card features on wiki pages), **Planning**
 (fields, milestones, where sprints are planned from), **Deploys** (Track
 deployments), **Gardening**, **Sharing** and **Manage** (save the lists as a
 template, archive, delete). One Save covers General and Features, and what is
 typed on one is kept while you look at the other. `?tab=gardening` on the
 settings address opens on that tab.
+
+### Agentic Building
+
+A board that coding agents build on has a page for how they do it.
+Turn on **Agentic Building** in Board settings, Features (`slipdock
+set-board <board> --agentic-building on`, `update_board`
+`agentic_building`, `PATCH /api/boards/:board {"agentic_building": true}`)
+and the board menu gains **Agentic Building**, beside Automations, for the
+board's owner. It opens `/boards/<id>/agentic`: a strip of the rules
+that are on, each a jump to its section, then the sections:
+
+- **Verified work**: a bar before work starts, evidence on completion, a
+  second agent verifies, and with it the verify pool, the rejection limit,
+  audits and how accepted work ships.
+- **Lanes**: what an overlap does, and the shared paths.
+- **Profiles**, and the human tier by profile.
+- **Who gets asked**: who each kind of question goes to.
+- **Handoffs**: their label and the instructions for Auto generate.
+- **Findings**: when a finding is promoted to a proposed rule.
+- **Runners**: WIP limits holding automated work, and how long runner job
+  logs stay.
+
+One **Save** at the foot of the page covers them all. Anyone else who can
+read the board sees the page read-only. On a sub-board the settings kept
+for the whole tree (the human tier and the job logs) are shown read-only,
+with a link to the root board's page where they are set.
+
+Turning the switch off hides the menu item and the page. It changes no
+setting, so rules already set go on holding: the switch warns, naming
+them, before you save, and so do the API, the CLI and MCP when it is
+turned off. Boards that had any of these set when the page arrived have it
+turned on, and a card's subcards take their parent board's switch.
 
 ## Favourites
 
@@ -4170,7 +4204,7 @@ wakes the runners and rules at once. Agents can pause (`slipdock pause
 outside an agent).
 
 **WIP limits that hold automated work.** WIP limits only warn people. Turn
-on **WIP limits hold automated work** in the board's settings (`slipdock
+on **WIP limits hold automated work** on the board's [Agentic Building](#agentic-building) page (`slipdock
 set-board <board> --automation-wip`) and, while the first in-progress list
 is at its limit, runner jobs and list sends for cards not already in
 progress wait. Jobs that verify or merge a card don't: they finish work
@@ -4497,8 +4531,9 @@ Over MCP, `job_log` reads it, `from` an earlier call's `next`. Both read
 `GET /api/jobs/:id/log?from=N`.
 
 **Logs evaporate unless kept.** A job's live log is deleted a set time after
-the job ends. Two board settings say how long, under *Runner job logs* in the
-top board's settings (a sub-board's jobs follow its top board), or with
+the job ends. Two board settings say how long, under *Runner job logs* on the
+top board's [Agentic Building](#agentic-building) page (a sub-board's jobs
+follow its top board, and its page shows them read-only), or with
 `slipdock set-board <board> --job-log-hours N --failure-log-hours N`:
 
 - **Keep job logs for** (24 hours by default): a job that ended well.

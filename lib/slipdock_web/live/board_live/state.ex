@@ -78,6 +78,11 @@ defmodule SlipdockWeb.BoardLive.State do
 
   def assign_card_access(socket), do: socket
 
+  @doc "The board's Agentic Building page (#2011), or nil while its switch is off."
+  def agentic_path(board) do
+    if Slipdock.AgenticBuilding.on?(board), do: ~p"/boards/#{board}/agentic"
+  end
+
   def assign_paths(socket) do
     assigns = socket.assigns
 
@@ -88,6 +93,8 @@ defmodule SlipdockWeb.BoardLive.State do
 
     # The Tidy-up page is a page of its own, whatever the view (W-1807).
     paths = Map.put(paths, :tidy, ~p"/boards/#{assigns.board}/tidy")
+    # Agentic Building (#2011): a page of its own too, only while it is on.
+    paths = Map.put(paths, :agentic, agentic_path(assigns.board))
     paths = if assigns[:card_only], do: %{paths | close: ~p"/"}, else: paths
     assign(socket, paths: paths)
   end

@@ -301,6 +301,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     [:tags, :activity, :archive, :settings, :automations]
     |> Map.new(&{&1, SlipdockWeb.BoardLive.Paths.panel_path(base, &1)})
     |> Map.put(:tidy, ~p"/boards/#{board}/tidy")
+    |> Map.put(:agentic, SlipdockWeb.BoardLive.State.agentic_path(board))
   end
 
   defp switch_board(%{assigns: %{board: %{id: id}}} = socket, id, _params), do: {:ok, socket}

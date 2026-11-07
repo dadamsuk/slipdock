@@ -17,15 +17,15 @@ defmodule SlipdockWeb.VerifyRejectionLimitLiveTest do
   end
 
   test "board settings show the limit with verify on, and save it", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     assert has_element?(view, "#board-verify-rejection-limit[value='2']")
     assert render(view) =~ "Rejections before a person decides"
 
-    view |> form("#board-form", board: %{"verify_rejection_limit" => "0"}) |> render_submit()
+    view |> form("#agentic-form", board: %{"verify_rejection_limit" => "0"}) |> render_submit()
     assert Boards.get_board!(ctx.board.id).verify_rejection_limit == 0
 
     {:ok, _} = Boards.update_board(Boards.get_board!(ctx.board.id), %{"verify_work" => false})
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     refute has_element?(view, "#board-verify-rejection-limit")
   end
 

@@ -17,7 +17,7 @@ defmodule SlipdockWeb.AllFieldsTest do
   import Slipdock.Fixtures
   import Slipdock.ToolPackages
 
-  alias Slipdock.{Access, Accounts, Multiboard, Settings, Tools, Wiki}
+  alias Slipdock.{Access, Accounts, Boards, Multiboard, Settings, Tools, Wiki}
   alias Slipdock.Wiki.Files
 
   @sizes ~w(input-xs input-sm input-md input-lg input-xl select-xs select-sm select-md select-lg
@@ -130,6 +130,10 @@ defmodule SlipdockWeb.AllFieldsTest do
 
     {:ok, admin} = Accounts.promote(user_fixture("admin@example.com"))
     board = board_fixture(%{"name" => "Every field"}, owner: admin)
+    # Its Agentic Building page opens only while the switch is on (#2011).
+    {:ok, board} =
+      Boards.update_board(board, %{"agentic_building" => true, "verify_work" => true})
+
     [todo | _] = board.columns
     card = card_fixture(todo, %{"title" => "A card", "due_date" => "2030-01-15"})
     page = page_fixture(board, %{"title" => "A page", "body" => "Words."}, user: admin)
