@@ -274,7 +274,10 @@ defmodule SlipdockWeb.HelpLive.Guides do
           schema, feature, fix, docs or spike), off until Agentic Building → <em>Profiles</em>
           turns them on. An agent starting a card with none gets one from its paths and tags,
           strictest first; the card's front shows it as a chip, and the card panel's <em>Profile</em>
-          select sets or clears it. <em>Human tier, by profile</em>, on the same page, says
+          select sets or clears it. When an agent completes the card, the profile is checked
+          again against what the change touched, and raised, never lowered: a migration or a
+          security path raises even one you set, and more than 400 changed lines makes an
+          agent's or an inferred fix or docs a feature (a fix you set keeps it). <em>Human tier, by profile</em>, on the same page, says
           whether an agent's acceptance merges the card, merges it onto the ledger or holds it
           for a person: by default schema, security and spike changes wait for you.
         </li>

@@ -2029,6 +2029,18 @@ defmodule Slipdock.Boards do
     end
   end
 
+  # The raise `Slipdock.Verified.profile_raise/3` found, as the server's
+  # inference: it is the change, not the writer, that set it.
+  defp raise_profile(changeset, nil), do: changeset
+
+  defp raise_profile(changeset, %{profile: profile}),
+    do: Ecto.Changeset.change(changeset, profile: profile, profile_source: "inferred")
+
+  defp log_raise(_card, nil), do: nil
+
+  defp log_raise(card, raised),
+    do: log(Repo, card.board_id, card.id, "card", Slipdock.Verified.raise_text(raised))
+
   # Into a doing list, the card is started (#1951).
   defp started(card_id, %Column{category: "doing"}, actor),
     do: infer_profile(Repo.get!(Card, card_id), actor)
@@ -2063,8 +2075,15 @@ defmodule Slipdock.Boards do
       end
 
     case checked do
-      {:ok, attrs, changes} ->
-        save_card(card, attrs, changes, opts)
+      {:ok, checked_attrs, changes} ->
+        # An agent's completion with its actual change may raise the profile
+        # (#2017): read from the write as sent, since on a board that
+        # verifies work the checks turn a completion into a submission.
+        raised =
+          if is_nil(opts[:verify_changes]),
+            do: Slipdock.Verified.profile_raise(card, attrs, Slipdock.Actor.resolve(opts))
+
+        save_card(card, checked_attrs, changes, Keyword.put(opts, :profile_raise, raised))
 
       {:error, field, message} ->
         {:error, refused(card, field, message)}
@@ -2084,6 +2103,7 @@ defmodule Slipdock.Boards do
     attrs = Slipdock.TimeTracking.normalize_attrs(card, attrs)
     # Who was on it, read only when this write changes that.
     before = if assignees, do: assignee_ids(card), else: []
+    raised = opts[:profile_raise]
 
     changeset =
       card
@@ -2091,6 +2111,7 @@ defmodule Slipdock.Boards do
       |> Ecto.Changeset.change(verify_changes)
       |> percent_by_hand(opts)
       |> profile_source(opts)
+      |> raise_profile(raised)
 
     titled? = Map.has_key?(changeset.changes, :title)
     named? = titled? or Map.has_key?(changeset.changes, :short_name)
@@ -2100,6 +2121,8 @@ defmodule Slipdock.Boards do
     |> tap_ok(fn updated ->
       (describe_card_changes(card, changeset) ++ describe_assignees(card, before, assignees))
       |> Enum.each(&log(Repo, updated.board_id, updated.id, "card", &1))
+
+      log_raise(updated, raised)
 
       # A sub-board is named after its card.
       if titled? do

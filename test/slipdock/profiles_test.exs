@@ -86,6 +86,62 @@ defmodule Slipdock.ProfilesTest do
     end
   end
 
+  describe "recheck/4: the actual change (#2017)" do
+    test "more than the size limit raises fix and docs to feature, with the count" do
+      limit = Profiles.size_limit()
+
+      assert Profiles.recheck("fix", "inferred", limit + 212, ["lib/x.ex"]) ==
+               {"feature", "#{limit + 212} lines changed"}
+
+      assert Profiles.recheck("docs", "agent", limit + 1, []) ==
+               {"feature", "#{limit + 1} lines changed"}
+
+      assert Profiles.recheck("fix", "rule", limit + 1, []) == {"feature", "401 lines changed"}
+      assert Profiles.recheck("fix", "inferred", limit, ["lib/x.ex"]) == nil
+      assert Profiles.recheck("fix", "inferred", nil, ["lib/x.ex"]) == nil
+    end
+
+    test "a person's fix or docs survives the size" do
+      assert Profiles.recheck("fix", "person", 5000, ["lib/x.ex"]) == nil
+      assert Profiles.recheck("docs", "person", 5000, ["docs/a.md"]) == nil
+    end
+
+    test "a migration raises to schema and a security path to security, whoever set it" do
+      migration = "priv/repo/migrations/20261107_add.exs"
+
+      assert Profiles.recheck("docs", "person", 3, ["docs/a.md", migration]) ==
+               {"schema", "changes #{migration}"}
+
+      assert Profiles.recheck("fix", "person", 3, ["lib/slipdock/access.ex", migration]) ==
+               {"security", "changes lib/slipdock/access.ex"}
+
+      assert Profiles.recheck("spike", "agent", 3, [migration]) ==
+               {"schema", "changes #{migration}"}
+
+      # Strictest first: a migration in a big fix is schema, not feature.
+      assert Profiles.recheck("fix", "inferred", 900, [migration]) ==
+               {"schema", "changes #{migration}"}
+    end
+
+    test "never lower, and nothing raised where the change is no stricter" do
+      assert Profiles.recheck("security", "inferred", 5000, ["priv/repo/migrations/1.exs"]) ==
+               nil
+
+      assert Profiles.recheck("schema", "inferred", 5000, ["docs/a.md"]) == nil
+      assert Profiles.recheck("schema", "inferred", 1, ["priv/repo/migrations/1.exs"]) == nil
+      assert Profiles.recheck("feature", "inferred", 5000, ["docs/a.md"]) == nil
+      assert Profiles.recheck("spike", "inferred", 5000, []) == nil
+      assert Profiles.recheck("docs", "inferred", 2, ["docs/a.md", "", nil]) == nil
+    end
+
+    test "rank orders them strictest last, no profile below them all" do
+      assert Enum.sort_by(Profiles.names(), &Profiles.rank/1) ==
+               ~w(docs fix feature spike schema security)
+
+      assert Profiles.rank(nil) < Profiles.rank("docs")
+    end
+  end
+
   setup do
     owner = user_fixture("owner@example.com")
     board = board_fixture(%{"name" => "Profiled", "code" => unique_code()}, owner: owner)

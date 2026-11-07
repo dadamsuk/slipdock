@@ -223,7 +223,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   gets one inferred from its paths and tags, strictest first: `security`, then
   `schema`, then `spike` only by tag, `fix` by the `bug` tag, `docs` when every
   path is a doc, else `feature`. Or you set it
-  (`slipdock edit 12 --profile fix`). Its [human tier](docs/manual.md#the-human-tier)
+  (`slipdock edit 12 --profile fix`). When an agent completes the card, its
+  profile is checked again against the change itself, and raised, never lowered:
+  a migration or a security path raises even a profile you set, and more than
+  400 changed lines raises an agent's or an inferred `fix` or `docs` to
+  `feature` (a `fix` you set keeps it). Its [human tier](docs/manual.md#the-human-tier)
   says whether an agent's acceptance merges, merges onto the ledger or waits
   for a person: by default `schema`, `security` and `spike` wait
   (`slipdock set-board --profile-tier schema=none` changes one). Shown as a chip

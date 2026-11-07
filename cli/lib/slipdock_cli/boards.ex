@@ -577,6 +577,7 @@ defmodule SlipdockCLI.Boards do
         # Or why it changes no code, so has no pull request (#1938).
         "evidence_no_code" => o[:no_code]
       }
+      |> Map.merge(change(o))
       |> compact()
 
     each(ids, o, &HTTP.patch("/cards/#{enc(&1)}", body), "completed")
@@ -1981,6 +1982,58 @@ defmodule SlipdockCLI.Boards do
       name = if link["board"], do: link["board"]["name"], else: "your wiki"
       IO.puts("pinned #{name} to the header as #{link["icon"]}")
     end)
+  end
+
+  # The change a completion carries (#2017): `--diff-base REF` counts it
+  # from git, between REF and the evidence's commit (else HEAD);
+  # `--changed-lines` and `--changed-files` give it by hand, and win.
+  defp change(o) do
+    counted =
+      case o[:diff_base] do
+        nil -> %{}
+        base -> git_change(base, o[:evidence_commit] || "HEAD")
+      end
+
+    Map.merge(
+      counted,
+      compact(%{
+        "changed_lines" => o[:changed_lines],
+        "changed_files" => o[:changed_files] && split_list(o[:changed_files])
+      })
+    )
+  end
+
+  defp git_change(base, commit) do
+    case System.cmd("git", ["diff", "--numstat", "--no-renames", "#{base}...#{commit}"],
+           stderr_to_stdout: true
+         ) do
+      {out, 0} -> numstat(out)
+      {out, _} -> fail("--diff-base #{base}: git diff failed: #{String.trim(out)}")
+    end
+  end
+
+  @doc """
+  `git diff --numstat` output as the change a completion carries:
+  `changed_lines` (added plus removed; a binary file counts none) and
+  `changed_files`.
+  """
+  def numstat(out) do
+    rows =
+      for line <- String.split(out, "\n", trim: true),
+          [added, removed, path] <- [String.split(line, "\t", parts: 3)],
+          do: {count(added) + count(removed), path}
+
+    %{
+      "changed_lines" => rows |> Enum.map(&elem(&1, 0)) |> Enum.sum(),
+      "changed_files" => Enum.map(rows, &elem(&1, 1))
+    }
+  end
+
+  defp count(text) do
+    case Integer.parse(text) do
+      {n, ""} -> n
+      _ -> 0
+    end
   end
 
   defp split_list(text),

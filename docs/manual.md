@@ -1169,9 +1169,25 @@ migration and a docs file is `schema`:
    a `.md` file.
 6. `feature`: anything else, including a card with no paths.
 
-A `fix` or `docs` change over 400 changed lines counts as a `feature`.
-The server only sees a diff's size when it is given one, so for now the
-size rule applies only where a size is passed to `Slipdock.Profiles.infer/3`.
+**Checked again at completion.** At the claim there is no diff yet, so
+inference reads the paths the card declares. When an agent completes the
+card it gives the change it actually made: `slipdock done --diff-base
+origin/main` counts the changed lines and files from git (or give them as
+`--changed-lines N --changed-files a,b`; `complete_card` and `PATCH
+/api/cards/:id` take `changed_lines` and `changed_files`). The profile is
+then raised, never lowered, and the card's activity says why (*profile
+raised: fix → feature, 612 lines changed*):
+
+- a changed file on a security path raises it to `security`, and a
+  migration or schema file to `schema`, even when a person set it;
+- a `fix` or `docs` change over 400 changed lines (added plus removed) is
+  raised to `feature`, unless a person set the profile: their call on the
+  card stands against its size.
+
+On a board that verifies work the raise lands with the submission, so a
+`docs` card whose change adds a migration is verified and held like any
+`schema` card. A person completing a card raises nothing; nor does a
+board with profiles off.
 
 **Setting it yourself.** Anyone who can edit a card can set or clear its
 profile: the *Profile* select in the card panel (shown on a board with

@@ -110,6 +110,10 @@ defmodule SlipdockCLI do
     pr: :string,
     # Why a card changes no code (#1938): `done --no-code REASON`.
     no_code: :string,
+    # The actual change (#2017): `done --diff-base REF`, or given by hand.
+    diff_base: :string,
+    changed_lines: :integer,
+    changed_files: :string,
     evidence: :string,
     evidence_commit: :string,
     branch: :string,

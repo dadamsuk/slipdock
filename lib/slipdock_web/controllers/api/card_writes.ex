@@ -124,8 +124,12 @@ defmodule SlipdockWeb.API.CardWrites do
 
   def maybe_set_fields(_, _, _), do: {:error, :unprocessable_entity, "fields must be an object"}
 
+  # The change a completion reports (#2017), read by
+  # `Slipdock.Verified.profile_raise/3` and never stored on the card.
+  @change_fields ~w(changed_lines changed_files)
+
   def card_attrs(%Card{} = card, params) do
-    attrs = Map.take(params, @card_fields)
+    attrs = Map.take(params, @card_fields ++ @change_fields)
 
     flags =
       card.flags

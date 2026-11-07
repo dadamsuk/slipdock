@@ -789,7 +789,11 @@ With one on, the pass changes like this:
   a person merges it or sends it back, rejected with their reason, which
   is the next brief like any rejection. A `docs` card there gets no
   verify job: the server accepts it on your evidence's suite (give CI's
-  result as `--suite`), so a failing suite sends it back. **An epic** has no pull
+  result as `--suite`), so a failing suite sends it back. Give the change
+  with the completion there (`--diff-base origin/<default branch>`, or
+  `complete_card` `changed_lines` and `changed_files`): a migration, a
+  security path or a large diff raises the card's profile, never lowers
+  it. **An epic** has no pull
   request of its own: each subcard ships and merges its own. Once they are
   all accepted and merged, complete the epic without `--pr` (`slipdock
   done <id> --evidence "<the subcards' PRs, the last merged build>"`);

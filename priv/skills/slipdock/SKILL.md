@@ -335,6 +335,9 @@ slipdock edit <id> --paths "lib/foo/**,docs/x.md"   # the files its work touches
 slipdock edit <id> --profile fix | --no-profile   # what kind of change it is: security, schema,
                                        # feature, fix, docs or spike; inferred when an agent starts a
                                        # card on a board with --profiles on
+slipdock done <id> --diff-base origin/main  # with profiles on: the change's lines and files from git
+                                       # (or --changed-lines N --changed-files a,b); raises the profile,
+                                       # never lowers it
 slipdock set-board <board> --profile-tier schema=none   # a profile's human tier (none, ledger,
                                        # before_merge, or default) on the root board
 slipdock copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
