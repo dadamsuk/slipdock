@@ -151,6 +151,14 @@ defmodule SlipdockWeb.DeploymentAPITest do
     assert Repo.get!(Deployment, theirs.id).status == "started"
   end
 
+  test "a token pasted with spaces around it still records (#1931)", %{token: token} do
+    assert %{"deployment" => %{"status" => "started"}} =
+             start(token <> " ", %{"sha" => @sha}) |> json_response(201)
+
+    assert start(" " <> token <> "  ", %{"sha" => @sha2}) |> json_response(201)
+    assert start("sdd_nope ", %{"sha" => @sha2}) |> json_response(401)
+  end
+
   test "the deploy token can't read or write anything else", %{
     token: token,
     board: board,

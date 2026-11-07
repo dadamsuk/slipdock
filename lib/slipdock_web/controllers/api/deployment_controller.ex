@@ -68,11 +68,7 @@ defmodule SlipdockWeb.API.DeploymentController do
   end
 
   defp fetch_deploy_board(conn, _opts) do
-    token =
-      case get_req_header(conn, "authorization") do
-        ["Bearer " <> token] -> String.trim(token)
-        _ -> nil
-      end
+    token = SlipdockWeb.UserAuth.bearer_token(conn)
 
     case Deployments.authenticate(token) do
       nil ->
