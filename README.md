@@ -715,6 +715,10 @@ below are written into the settings the first time the server starts, and are
 ignored from then on.
 
 ```sh
+# On/off variables all take the same words, in any case and trimmed:
+#   on:  1, true, yes, on        off: 0, false, no, off, none
+# A value left blank (or only spaces) is the same as unset. A limit takes a
+# positive number or an off word, and a number that isn't one stops the boot.
 SLIPDOCK_ADMIN_EMAIL=you@example.com   # setting this skips the setup wizard entirely
 SLIPDOCK_SIGNUP_MODE=allowlist         # open | allowlist | approval | closed
 SLIPDOCK_SIGNUP_ALLOW=you@example.com,example.org   # seeds the allowlist

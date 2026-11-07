@@ -6003,6 +6003,15 @@ Worker) to turn it on; with either unset the endpoint answers 404 and nothing
 inbound is shown. `SLIPDOCK_INBOUND_SECRET_PREVIOUS` is accepted as well while
 the secret is rotated.
 
+**On/off variables all take the same words.** A switch such as
+`SLIPDOCK_LOGIN_FALLBACK` or `SLIPDOCK_WELCOME_BOARD` is on for `1`, `true`,
+`yes` or `on`, and off for `0`, `false`, `no`, `off` or `none`, in any case and
+with spaces around it trimmed. A value left blank, or only spaces, is the same
+as leaving the variable unset, so its default applies. A limit such as
+`SLIPDOCK_BOARD_LIMIT` takes a positive number or one of the off words, and a
+number that isn't one stops the server at boot, naming the variable, rather
+than being quietly ignored. `.env.example` lists every variable.
+
 ### Signing an agent in
 
 An agent cannot read your email, so it cannot follow a magic link. It gets a
