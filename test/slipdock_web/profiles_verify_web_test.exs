@@ -168,7 +168,7 @@ defmodule SlipdockWeb.ProfilesVerifyWebTest do
 
     test "the Ledger page reads not verified (docs)", %{conn: conn} = ctx do
       {:ok, view, _html} = live(conn, ~p"/boards/#{ctx.board.id}/ledger")
-      assert view |> element("[data-role=acceptor]") |> render() =~ "not verified (docs)"
+      assert view |> element("[data-role=acceptor]") |> render() =~ "Not verified (docs)"
     end
   end
 

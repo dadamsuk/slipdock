@@ -1,0 +1,170 @@
+/* The Ledger (#2013) -------------------------------------------------------- */
+
+/* Phase colours: the dataviz skill's categorical slots, in the order a bar
+   draws them (build, CI, waiting on a person, verify, rework, merge,
+   deploy), checked with its validator against the light and the dark
+   surface (adjacent CVD ΔE ≥ 8.4, normal vision ≥ 19.3). A waiting phase
+   wears the hue of the work it waits for, hatched; the light run's
+   sub-3:1 slots are relieved by the legend and each segment's tooltip. */
+.ledger {
+  --ph-blue: #2a78d6;
+  --ph-orange: #eb6834;
+  --ph-violet: #6250d6;
+  --ph-aqua: #1baf7a;
+  --ph-yellow: #eda100;
+  --ph-magenta: #e87ba4;
+  --ph-green: #008300;
+  --ph-gray: #898781;
+  --ph-quiet: #e1e0d9;
+  --ph-gap: var(--color-base-100);
+}
+[data-theme="dark"] .ledger {
+  --ph-blue: #3987e5;
+  --ph-orange: #d95926;
+  --ph-violet: #9085e9;
+  --ph-aqua: #199e70;
+  --ph-yellow: #c98500;
+  --ph-magenta: #d55181;
+  --ph-green: #008300;
+  --ph-gray: #898781;
+  --ph-quiet: #383835;
+}
+
+.ledger-phase-build { --ph: var(--ph-blue); }
+.ledger-phase-waiting_for_runner { --ph: var(--ph-blue); }
+.ledger-phase-ci { --ph: var(--ph-orange); }
+.ledger-phase-waiting_on_person { --ph: var(--ph-violet); }
+.ledger-phase-verification_wait { --ph: var(--ph-aqua); }
+.ledger-phase-verify { --ph: var(--ph-aqua); }
+.ledger-phase-rework { --ph: var(--ph-yellow); }
+.ledger-phase-merge { --ph: var(--ph-magenta); }
+.ledger-phase-deploy { --ph: var(--ph-green); }
+.ledger-phase-backlog { --ph: var(--ph-gray); }
+.ledger-phase-unexplained { --ph: var(--ph-quiet); }
+
+.ledger-seg, .ledger-swatch { background: var(--ph); }
+/* Waiting is hatched at 45°: the hue at full strength, then a third of it. */
+:is(.ledger-phase-backlog, .ledger-phase-waiting_for_runner, .ledger-phase-waiting_on_person,
+    .ledger-phase-verification_wait):is(.ledger-seg, .ledger-swatch) {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--ph) 0 2px,
+    color-mix(in oklab, var(--ph) 30%, transparent) 2px 5px
+  );
+}
+
+.ledger-swatch {
+  display: inline-block;
+  width: 0.875rem;
+  height: 0.625rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* A bar on its track: a hairline track the width of the line, faint marks
+   at 1 h, 1 day and 1 week (so every bar on the page reads on one scale),
+   and the bar's phases with a 2px gap between them, its ends rounded. */
+.ledger-track {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 0.75rem;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--color-base-content) 5%, transparent);
+}
+.ledger-tick {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: color-mix(in oklab, var(--color-base-content) 14%, transparent);
+}
+.ledger-bar {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  height: 100%;
+}
+.ledger-seg {
+  position: relative;
+  min-width: 3px;
+  flex-basis: 0;
+  height: 100%;
+  cursor: default;
+  outline-offset: 2px;
+}
+.ledger-seg:first-child { border-radius: 4px 0 0 4px; }
+.ledger-seg:last-child { border-radius: 0 4px 4px 0; }
+.ledger-seg:only-child { border-radius: 4px; }
+
+/* The exact time, on hover and on focus (a tap focuses it on a phone).
+   Drawn only while shown, so a hidden one never widens the page; one in a
+   bar's second half opens leftwards (`data-align="end"`). */
+.ledger-seg::after {
+  content: attr(data-tip);
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--color-base-100);
+  background: var(--color-base-content);
+  pointer-events: none;
+}
+.ledger-seg[data-align="end"]::after { left: auto; right: 0; }
+.ledger-seg:is(:hover, :focus)::after { display: block; }
+
+/* A day: its heading set off by a rule and room above, then its lines. */
+.ledger-day + .ledger-day { padding-top: 2rem; border-top: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent); }
+.ledger-day-head { margin-bottom: 1rem; }
+.ledger-lines { display: flex; flex-direction: column; gap: 1rem; }
+
+.ledger-line {
+  padding: 1.25rem;
+  border-radius: var(--radius-box);
+  background: var(--color-base-100);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-base-content) 10%, transparent);
+}
+@media (max-width: 639px) { .ledger-line { padding: 1rem; } }
+
+/* What happened to it, in small quiet words, not badges. */
+.ledger-event {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.ledger-event::before {
+  content: "";
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--color-base-content) 35%, transparent);
+}
+.ledger-event[data-event="deployed"]::before { background: var(--color-success); }
+
+/* The details: a label column and a value column, aligned line to line. */
+.ledger-details {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  column-gap: 1rem;
+  row-gap: 0.375rem;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+}
+.ledger-details dt { color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
+.ledger-details dd { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  .ledger-details { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
+  .ledger-details dt { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.5rem; }
+}
+
+/* On a phone a segment's tooltip hangs from its track's edge, not the
+   segment's, so the widest one stays on the screen. */
+@media (max-width: 639px) {
+  .ledger-bar, .ledger-seg { position: static; }
+}

@@ -2096,6 +2096,27 @@ beside *Health* and *Findings* in the Runners part of the board's Automations
 panel. Its **Since** box takes the same window, kept in the URL
 (`?since=7`). Anyone who can read the board can look.
 
+Each day opens with a heading that says how many cards shipped that day,
+their median lead time, and one bar of where the day's time went. Each
+card's line reads top to bottom: its title, then its number, time and what
+happened to it (completed, accepted, merged, deployed), then the first line
+of its evidence as a sentence, then a bar of its lead time with the total
+beside it, then the details in two aligned columns: who verified it (and an
+audit's verdict, or who a held card waits for), its profile and human tier,
+the pull request, the merge and each deploy with its environment and short
+SHA (linked to the commit when the pull request names the repository), an
+epic's subcards, and any *should* rules it missed.
+
+The bar splits the card's lead time into the phases
+card chat's `card_lead_time` names. Work (build, CI, verify,
+rework, merge, deploy) is solid; waiting (backlog, waiting for a runner, on
+a person, for verification) is hatched, in the colour of what it waits for,
+so time lost to waiting stands out. Hover over a piece, or tap it, for its
+exact time and share. A bar's length is the lead time on a log scale from a
+minute to 30 days, with faint marks at an hour, a day and a week, so a
+ten-minute fix and a three-day feature both read on one page. The key above
+the first day says which colour is which.
+
 ```sh
 slipdock ledger slipdock                      # since 07:00 yesterday
 slipdock ledger slipdock --since 7            # the last week; also a date or an ISO time
