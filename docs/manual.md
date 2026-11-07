@@ -5963,7 +5963,10 @@ server (`SLIPDOCK_LOGIN_FALLBACK_PATH`, mode `0600`) and to the log, so a fresh
 install can be used at all. Anyone who can read either can sign in as anybody,
 so it switches itself off once mail works, and `SLIPDOCK_LOGIN_FALLBACK=false`
 forbids it in a way the application cannot undo. Set that on anything other
-people can reach.
+people can reach. Any off word does the same (`0`, `false`, `no`, `off` or
+`none`, in any case), and a value that is neither an off word nor an on word
+(`1`, `true`, `yes`, `on`) is named in a warning at boot and turns the file off
+too.
 
 A refused address is told exactly what an accepted one is told — "if that
 address can sign in here, a link is on its way" — and in the same time, because
@@ -6077,8 +6080,10 @@ scanner that prefetches links cannot use one up. The link works once and expires
 in 15 minutes, as usual; the file is left behind for the agent to delete.
 
 It is on in `dev` and `test`. In production it is off unless the server runs
-with `SLIPDOCK_AGENTIC_LOGIN=true` (and optionally `SLIPDOCK_AGENTIC_LOGIN_DIR`
-to change the directory). Anyone who can reach the sign-in page can create these
+with `SLIPDOCK_AGENTIC_LOGIN=true` (or another on word: `1`, `yes`, `on`, in any
+case; and optionally `SLIPDOCK_AGENTIC_LOGIN_DIR` to change the directory). A
+value that is neither an on word nor an off word is named in a warning at boot
+and leaves it off. Anyone who can reach the sign-in page can create these
 files, so only enable it on machines used for automated testing.
 
 **Groups** (`/groups`) are named sets of people you can share with at once.
