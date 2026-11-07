@@ -10,15 +10,19 @@ happened goes. **The server documents its own conventions — read them first,
 once per session, before choosing or updating anything:**
 
 ```sh
-slipdock guide                    # markdown, from GET /api/guide
+slipdock guide                    # the short guide, from GET /api/guide?section=short
 ```
 
 Without the CLI on this machine — which is the usual case, since the CLI needs Elixir:
 
 ```sh
 B="${SLIPDOCK_URL:-$(cat ~/.config/slipdock/url 2>/dev/null)}"   # ask the user if neither is set
-curl -s -H "Authorization: Bearer $SLIPDOCK_TOKEN" "$B/api/guide"
+curl -s -H "Authorization: Bearer $SLIPDOCK_TOKEN" "$B/api/guide?section=short"
 ```
+
+That is the short guide: enough to work a board, ending with the names of its
+other sections. Then fetch a section by its name when the task needs it: `wiki` before writing a page, `runners` before touching jobs, `automations` before a rule, `recipes` for a call you can't place (`slipdock guide wiki`, or `?section=wiki`). The whole
+guide is long; don't read it at the start of a session.
 
 The server's address comes from `$SLIPDOCK_URL`, else `~/.config/slipdock/url` (written by
 `slipdock url` or by the server's `/install.sh`). If you have neither, **ask the user for the

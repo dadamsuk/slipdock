@@ -16,6 +16,8 @@ Run `slipdock --help` for the full reference.
 **If you are about to work *from* the board — pick up the next task, work through an epic, keep
 cards updated while doing the work — run `slipdock guide` first** (the server's own instructions
 for agents: epics and subcards, how to choose the next card, what to write back) and follow it.
+That is the short guide; it ends with the names of its other sections, and `slipdock guide <name>`
+fetches one: read one when the task needs it, `wiki` before writing a page, `runners` before touching jobs, `automations` before a rule, `recipes` for a call you can't place.
 This file is the command reference; the guide is the workflow.
 
 ## If Slipdock's MCP tools are connected
@@ -81,13 +83,16 @@ B="${SLIPDOCK_URL:-$(cat ~/.config/slipdock/url 2>/dev/null)}"
 T="$(cat ~/.config/slipdock/token 2>/dev/null)"
 H="Authorization: Bearer ${SLIPDOCK_TOKEN:-$T}"
 
-curl -s "$B/api/guide"                 # no token needed; the whole API, with curl for each call
+curl -s -H "$H" "$B/api/guide?section=short"    # no token needed; the short guide, naming the rest
+curl -s -H "$H" "$B/api/guide?section=recipes"  # one section of it: here, a curl for each call
 curl -s -H "$H" "$B/api/me"            # who the token is
 ```
 
-**`GET /api/guide` is the complete reference** — every endpoint, with a `curl` line for it, plus
+**The guide is the complete reference** — every endpoint, with a `curl` line for it, plus
 the user's own boards and lists when a token is passed. Read it rather than inferring paths from
-this file.
+this file, a section at a time: the short guide names them (`?section=recipes`,
+`?section=endpoints`, …). The whole guide (`?section=all`, or `/api/guide` with no section) is
+long, tens of thousands of words; fetch the section a task needs instead.
 
 Signing in needs no CLI either; it is the same device flow, two calls (the guide spells them
 out). Ask for a code, show the user the URL and the code, poll until they approve, then write
@@ -196,7 +201,8 @@ means exactly that, whether or not they have an account — share the board with
 
 Read:
 ```
-slipdock guide                          # the server's instructions for agents (GET /api/guide)
+slipdock guide [section]                # the server's instructions for agents: the short guide,
+                                        # naming its sections; `guide wiki` one, `guide all` all
 slipdock boards [--archived|--all] [--sort manual|name|active|newest|oldest|cards]
 slipdock board <board>                  # full board: every column and card
 slipdock cards <board> [--column C] [--tag T] [--priority P] [--flag F] [--search Q] [--open|--done] [--archived]

@@ -13,7 +13,7 @@ Start, once per session, with the server's own conventions — they come from
 the running app and so cannot be out of date:
 
 ```sh
-slipdock guide            # its wiki section is the shape of what follows
+slipdock guide wiki       # the guide's wiki section: the shape of what follows
 ```
 
 ## Before you write anything: look

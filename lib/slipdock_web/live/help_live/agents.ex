@@ -586,11 +586,18 @@ defmodule SlipdockWeb.HelpLive.Agents do
     ~H"""
     <.part title="How it works">
       <p>
-        <a href={~p"/api/guide"} class="link">{@base_url}/api/guide</a>
+        <a href={~p"/api/guide?section=short"} class="link">{@base_url}/api/guide?section=short</a>
         is written for agents rather than people. It explains how these boards are used
         (top-level cards are epics and their subcards are the tasks), how to choose
-        what to do next, what to write back while working, and gives a <code>curl</code>
-        line for every call. The running server generates it, so it always matches the API.
+        what to do next and what to write back while working, then names the guide's
+        other sections (the wiki, runners, automations, a <code>curl</code>
+        line for every call…), each one request away with <code>?section=</code>
+        and its name. The running server generates it, so it always matches the API.
+      </p>
+      <p>
+        The whole guide, <code>{@base_url}/api/guide</code>
+        with no section (or <code>?section=all</code>), is long: tens of thousands of
+        words, a large share of an agent's context before it has read a card.
       </p>
       <p>
         The guide is the only thing on the server an agent can read without signing in.
@@ -602,7 +609,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <p>Paste this at the start of a session:</p>
       <.snippet
         id="help-guide-prompt"
-        text={"Work from my Slipdock board at #{@base_url}. Read #{@base_url}/api/guide and follow it. Nothing about my boards is readable until you sign in, so start with the device flow the guide describes and tell me the code to approve."}
+        text={"Work from my Slipdock board at #{@base_url}. Read #{@base_url}/api/guide?section=short and follow it, fetching a section it names when the task needs one. Nothing about my boards is readable until you sign in, so start with the device flow the guide describes and tell me the code to approve."}
       />
       <p>
         The agent asks the server for a short code and shows it to you. You open

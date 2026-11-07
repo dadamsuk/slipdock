@@ -337,7 +337,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   installs the CLI from your own server), plus
   [agent skills](docs/manual.md#skills) the server ships (for ChatGPT too,
   as zips that use the MCP connector instead of the CLI) and a
-  `/api/guide` that describes *your* boards to whatever is driving them.
+  `/api/guide` that describes *your* boards to whatever is driving them
+  (`?section=short` to start, then one section at a time; the whole of it is long).
 - **An MCP server** at `/mcp`, so claude.ai, the Claude apps, Claude Code
   and other MCP clients get the board as a small set of tools: reading,
   searching, and adding, moving, commenting on, completing and archiving
