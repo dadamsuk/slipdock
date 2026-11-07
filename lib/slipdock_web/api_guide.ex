@@ -1336,6 +1336,15 @@ defmodule SlipdockWeb.APIGuide do
     # audits agreed and disagreed. slipdock quality --rules lists every rule
     curl -s -H "$H" "B/api/boards/1/quality?days=30"
 
+    # the ledger: what shipped on the tree since ?since= (days, a date or an
+    # ISO time; 07:00 yesterday in the board's timezone by default), by day:
+    # each card completed, accepted, merged or deployed, with accepted_by
+    # (person or agent), audit, the evidence's first line, should_broken
+    # rules, pr, deploys, lead_time phases, an epic's subcards and the card's
+    # url (its panel, at the chat). CLI: slipdock ledger <board> [--since S];
+    # MCP: activity view: "ledger"
+    curl -s -H "$H" "B/api/boards/1/ledger?since=1"
+
     # cards past their list's usual stay, and who holds them (driver=all|agent|human)
     curl -s -H "$H" "B/api/boards/1/cards?stuck=true&driver=agent"
 

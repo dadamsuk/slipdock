@@ -597,6 +597,10 @@ WRITE
   finding <id> dismiss|promote|reopen [--note TEXT]
                                       triage one (promote: say what it became, W-1950 §Tests)
   finding <id> merge --into ID        fold a repeat into another finding, adding its count
+  ledger <board> [--since S]          what shipped on the board tree since 07:00 yesterday (S:
+                                      days, a date or an ISO time): each card completed,
+                                      accepted, merged or deployed, with who accepted it, its
+                                      evidence, the should rules it missed and its lead time
   copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
                                       a copy of the card as it is now: checklist unticked,
                                       subcards reopened; no comments, dates or attachments.

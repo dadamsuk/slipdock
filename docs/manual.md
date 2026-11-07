@@ -53,6 +53,9 @@ way in: what it is, the pictures, and how to get it running.
 - Findings: what each card taught that the code doesn't show, written by the
   pass in its closing comment or recorded by the server when work goes wrong,
   kept on the board to triage into the handbook — [Findings](#findings)
+- The ledger: what shipped since yesterday, a line per card with who accepted
+  it, its evidence, the `should` rules it missed and where its time went, to
+  read in ten minutes instead of approving each card — [The ledger](#the-ledger)
 - Incidents: a card that broke after something shipped names the card that
   shipped it and the check that should have caught it — [Incidents](#incidents)
 - Time tracking: a start/stop timer on each card, time spent and an estimate
@@ -1775,6 +1778,56 @@ slipdock finding 43 dismiss
 GET   /api/boards/:board/findings?status=&kind=&source=&card=&since=&scope=   (since: a date, a time or days; scope: board, runner or all)
 PATCH /api/findings/:id {action: dismiss|promote|merge|reopen, note?, into?}
 ```
+
+## The ledger
+
+"One human in the loop" needn't mean a person approves every card. Ten to
+thirty merges a day is a list a person can read in ten minutes, if each line
+carries its evidence. The ledger is that list: everything that shipped on a
+board and the boards beneath it since a time, one line per card.
+
+A card is on it when, in the window, it was **completed**, **accepted** (by a
+verifier or a person), **merged** (a merge job finished, or a person said
+*Merged it myself*) or **deployed** (a succeeded deploy named it, on a board
+with [delivery metrics](#delivery-metrics-deploys-and-dora)). It sits at its
+latest such moment, under that day, newest day first. Each line says:
+
+- what happened to it (`completed`, `accepted`, `merged`, `deployed`);
+- who accepted it: a person, or an agent by its token's label or runner, or
+  *not verified* on a board that doesn't verify work; and the last audit's
+  verdict when it was audited (*audit agrees* or *disagrees*);
+- the first line of its evidence, and the `should` rules its verifier marked
+  broken (a broken `must` would have been a rejection);
+- its pull request and the deploys that shipped it;
+- where its time went: its lead time and the three biggest phases (build, CI,
+  waiting for a person, verification…);
+- on an epic, its subcards: how many are done of how many, and how many are
+  on this ledger (they have lines of their own);
+- **Look closer**, which opens the card's panel at its *Ask AI about this
+  card* chat.
+
+The window starts at 07:00 yesterday, in the board's timezone (its owner's),
+unless you give one: a number of days back, a date (`2026-11-01`, from its
+midnight) or an ISO 8601 time. The ledger reads only what the server already
+keeps (completions, verification decisions, merge jobs, deploys) and writes
+nothing: there is nothing to set up.
+
+**The Ledger page.** Each board has one at `/boards/:id/ledger`, linked
+beside *Health* and *Findings* in the Runners part of the board's Automations
+panel. Its **Since** box takes the same window, kept in the URL
+(`?since=7`). Anyone who can read the board can look.
+
+```sh
+slipdock ledger slipdock                      # since 07:00 yesterday
+slipdock ledger slipdock --since 7            # the last week; also a date or an ISO time
+```
+
+```
+GET /api/boards/:board/ledger?since=   (since: days, a date or an ISO time; 07:00 yesterday by default)
+```
+
+Over MCP it is a view of `activity`: `activity` with `view: "ledger"` and an
+optional `since`.
 
 ## The health monitor
 
@@ -7045,7 +7098,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `page_info` | Finding the way round a wiki, by `what`: `links` (a page's outgoing, unresolved and incoming links), `sections` (its heading paths, as `write_page`'s section modes take them), `wanted` (a board's linked-to pages nobody has written) and `resolve` (is there a page for this `title`, and the `[[link]]` to write). Drafts stay out of sight of readers who cannot edit them. |
 | `page_history` | A page's revisions, newest first (`limit`, default 20): who saved each, how (`web`, `cli`, `mcp`…), the message and when. With `rev`, that revision's body and the diff it made against the one before, or with `against` (another revision id) the diff from that version instead; `diff: true` alone gives the latest save's diff. Long unchanged stretches come back as `skip` with a count, so a one-line edit does not return the whole page. |
 | `wiki_info` | Your one [wiki](#your-wiki), with its boards and Knowledge Base; with `path`, which board that path lands in and what is left of the path below it; with `link`, the page a `[[link]]` finds; with `changes_since`, what changed after a cursor. |
-| `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. |
+| `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. `view: "ledger"` (with `since`) gives the [ledger](#the-ledger) instead: what shipped since 07:00 yesterday. |
 | `download_file` | A file attached to a card or a page, by its `attachment` id (`get_card` and `read_page` list them, `read_page` under `attachments`). The attachment's details come first; then a text file's contents as `text` (cut at 100,000 characters, with `truncated`), an image as an MCP image block, or anything else up to 5 MB as an embedded resource in base64. A bigger file is refused with its link in the web app. Checked as reading the card or page is: a file the token can't reach is not found. **`text: true`** (#1527) sends the words read from a PDF or an image instead (`status`, `error`, `pages`, `truncated`, `text`). **`link: true`** (#1147) sends no bytes: it answers with the attachment's details and a `download_url` that works once, for 10 minutes, with no token (`curl -fsSo cv.docx <download_url>`), so a file of any size reaches a shell without passing through the model. A read-only token may have one. The link is checked again as that token when it is used; a used, expired or unknown one is `410 link_gone`. |
 | `list_automations` | A board's [automation rules](#automations-and-alerts), as `GET /api/boards/:board/automations` gives them: each one's name, trigger, `spec`, `scope`, whether it is `enabled`, and how often it has run; `rule` (an id or name) gives one. `vocabulary: true` adds every trigger, condition and action a spec may use and the ready-made presets, so a client can write one without guessing. Only the board's owner, on a write token, may read them, as over HTTP. |
 | `list_tools` | The [Tools](#tools) the caller can install — their own, the ones shared with them, the ones listed for everyone — each with its `kind` and the board their install made (`installed.board`), which is how a Tool's skill finds its board. With `tool` (and optionally `version`), that Tool in full: its README, board blueprint, skills with shas and download links, files, and, for its owner, where listing stands. With `tool` and `file` (a path in the package, like `skills/<skill>/SKILL.md`), that file's text from the latest version, or from `version` (text up to 200 KB; anything else names the API URL to fetch). With `skill`, that skill's `SKILL.md`, or with `file` a path in its folder. With `link: true`, a single-use `download_url` (10 minutes, no token) for the file, the skill's claude.ai zip, or the skills tarball. Read-only. |

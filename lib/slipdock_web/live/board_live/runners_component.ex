@@ -449,6 +449,15 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           >
             <.icon name="hero-light-bulb" class="size-4" /> Findings
           </.link>
+          <%!-- What shipped since yesterday, with its evidence (#1948). --%>
+          <.link
+            navigate={~p"/boards/#{@board}/ledger"}
+            class="btn btn-ghost btn-sm"
+            id="runners-ledger"
+            title="What shipped since yesterday: who accepted it, its evidence, where its time went"
+          >
+            <.icon name="hero-document-check" class="size-4" /> Ledger
+          </.link>
           <%!-- The whole tree's brake (#1116); a pool's is on its row. --%>
           <button
             :if={@can_manage and is_nil(@tree_pause)}
