@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.CardWrites do
   alias Slipdock.Boards
   alias Slipdock.Boards.{Board, Card}
 
-  @card_fields ~w(title short_name description priority flags start_date due_date date_precision completed percent_complete time_spent time_estimate time_unit log_time color border_top border_right border_bottom border_left bar evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr evidence_no_code paths caused_by missed_by)
+  @card_fields ~w(title short_name description priority flags start_date due_date date_precision completed percent_complete time_spent time_estimate time_unit log_time color border_top border_right border_bottom border_left bar evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr evidence_no_code profile paths caused_by missed_by)
 
   @doc "The card fields a create or update takes as they are."
   def card_fields, do: @card_fields

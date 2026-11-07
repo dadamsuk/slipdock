@@ -108,6 +108,10 @@ defmodule SlipdockWeb.LedgerLive.Index do
       <div class="flex flex-wrap items-center gap-2 text-sm">
         <span class="text-base-content/50">#{@item.card.id}</span>
         <span class="font-medium" data-role="title">{@item.card.title}</span>
+        <SlipdockWeb.SlipdockComponents.profile_chip
+          :if={@item.card.profile}
+          profile={@item.card.profile}
+        />
         <span
           :for={e <- @item.events}
           class={["badge badge-sm", event_class(e)]}

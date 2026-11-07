@@ -695,6 +695,21 @@ defmodule SlipdockWeb.SlipdockComponents do
     """
   end
 
+  attr :profile, :string, required: true
+
+  @doc "A card's profile (#1951): what kind of change it is, as one word."
+  def profile_chip(assigns) do
+    ~H"""
+    <span
+      class="chip chip-line text-base-content/70"
+      data-role="profile"
+      title={"Profile: #{@profile}"}
+    >
+      {@profile}
+    </span>
+    """
+  end
+
   attr :percent, :integer, required: true
 
   @doc "A card's stated % complete, as a chip with a small bar."
@@ -1249,6 +1264,8 @@ defmodule SlipdockWeb.SlipdockComponents do
       handoff: not is_nil(handoff),
       # Waiting on a person (#1114): always shown, with what it needs.
       wait: not is_nil(wait),
+      # What kind of change it is (#1951): always shown when it has one.
+      profile: not is_nil(Map.get(card, :profile)),
       # A recurring card (W-1802): always marked, like the handoff.
       recurrence: not is_nil(recurrence),
       # Snoozed (W-1803): only seen where snoozed cards are shown, and then
@@ -1407,6 +1424,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.start_badge :if={@f.start_date and not @f.range} card={@card} />
         <.schedule_badges :if={@f.due_date} card={@card} due={not @f.range} />
         <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
+        <.profile_chip :if={@f.profile} profile={@card.profile} />
         <.time_badge :if={@f.time} card={@card} />
         <.handoff_mark :if={@f.handoff} handoff={@handoff} label={@handoff_label} class="size-3" />
         <.wait_mark :if={@f.wait} wait={@wait} class="size-3" compact />
@@ -1489,6 +1507,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           <.start_badge :if={@f.start_date and not @f.range} card={@card} />
           <.schedule_badges :if={@f.due_date} card={@card} due={not @f.range} />
           <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
+          <.profile_chip :if={@f.profile} profile={@card.profile} />
           <.time_badge :if={@f.time} card={@card} />
           <span
             :if={@f.checklist}

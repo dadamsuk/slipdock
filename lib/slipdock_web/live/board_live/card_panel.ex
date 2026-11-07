@@ -1538,6 +1538,25 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </option>
         </select>
       </.prop_row>
+      <%!-- What kind of change it is (#1951): on a board with profiles on,
+            or a card that has one. --%>
+      <.prop_row
+        :if={@board.profiles or not is_nil(@card.profile)}
+        name="profile"
+        label="Profile"
+        for="card-profile"
+      >
+        <select name="card[profile]" id="card-profile" class="select field-bare w-full">
+          <option value="" selected={is_nil(@card.profile)}>None</option>
+          <option
+            :for={name <- Slipdock.Profiles.names()}
+            value={name}
+            selected={name == @card.profile}
+          >
+            {name}
+          </option>
+        </select>
+      </.prop_row>
       <%!-- A simple board is a to-do list: % complete, Start, Precision
             and Health are project tracking, and stay out of its way
             (`Board.simple?/1`). --%>

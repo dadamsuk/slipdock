@@ -99,6 +99,10 @@ defmodule Slipdock.Boards.Board do
     # Lanes (#1628): an agent can't start a card whose `paths` overlap a
     # card in progress on the tree (see `Slipdock.Lanes`). Off by default.
     field :lanes, :boolean, default: false
+    # Profiles (#1951): a card an agent claims or starts with no profile gets
+    # one inferred (see `Slipdock.Profiles`). Off by default; nothing acts on
+    # a profile yet.
+    field :profiles, :boolean, default: false
     # `evidence_required` (#1632): an agent completing a card says what it
     # checked (and at which commit).
     field :evidence_required, :boolean, default: false
@@ -531,6 +535,7 @@ defmodule Slipdock.Boards.Board do
       :handoff_prompt,
       :bar_required,
       :lanes,
+      :profiles,
       :evidence_required,
       :verify_work,
       :verify_pool,

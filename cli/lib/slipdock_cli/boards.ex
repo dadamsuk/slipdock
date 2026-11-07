@@ -360,6 +360,8 @@ defmodule SlipdockCLI.Boards do
         # is one write: the server checks both as it does on an update.
         "bar" => o[:bar],
         "paths" => o[:paths],
+        # What kind of change it is (#1951): docs, fix, feature, schema…
+        "profile" => o[:profile],
         # An incident (#1946): the card that shipped it, the check that missed it.
         "caused_by" => o[:caused_by],
         "missed_by" => o[:missed_by],
@@ -389,6 +391,8 @@ defmodule SlipdockCLI.Boards do
         "bar" => o[:bar],
         # The files its work touches (#1628): globs, split by the server.
         "paths" => o[:paths],
+        # Its profile (#1951); --no-profile (or "") clears it.
+        "profile" => profile_arg(o),
         "caused_by" => o[:caused_by],
         "missed_by" => o[:missed_by],
         "time_spent" => o[:spent],
@@ -1127,6 +1131,8 @@ defmodule SlipdockCLI.Boards do
         "ship_via" => o[:ship_via] && String.replace(o[:ship_via], "-", "_"),
         # Lanes (#1628): agents can't start cards whose paths overlap.
         "lanes" => o[:lanes],
+        # Profiles (#1951): on infers one when an agent starts a card.
+        "profiles" => o[:profiles] && on_off!(o[:profiles], "--profiles"),
         # Deploys and DORA metrics (#1134).
         "delivery_metrics" => o[:delivery_metrics],
         "incident_tag" => o[:incident_tag],
@@ -1155,7 +1161,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes or --route KIND=EMAIL / --no-route KIND"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes, --profiles on|off or --route KIND=EMAIL / --no-route KIND"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.
@@ -2032,6 +2038,25 @@ defmodule SlipdockCLI.Boards do
 
   # The verdict in parts (#1778): each `--check`, then `--checks-file`'s
   # lines, or its JSON map of parts as it is. nil when none are given.
+  # `--profile P`, or `--no-profile` as the "" that clears it (#1951).
+  defp profile_arg(o), do: if(o[:no_profile], do: "", else: o[:profile])
+
+  @doc "`--profiles on|off` (#1951) as the boolean the server takes, or `:error`."
+  def on_off(value) do
+    case String.downcase(String.trim(value)) do
+      v when v in ["on", "true", "yes"] -> true
+      v when v in ["off", "false", "no"] -> false
+      _ -> :error
+    end
+  end
+
+  defp on_off!(value, flag) do
+    case on_off(value) do
+      :error -> fail("#{flag} takes on or off, not #{inspect(value)}")
+      bool -> bool
+    end
+  end
+
   # `--no-caused-by` and `--no-missed-by` (#1946): a null clears each.
   defp incident_clears(body, o) do
     Enum.reduce([no_caused_by: "caused_by", no_missed_by: "missed_by"], body, fn {flag, key}, b ->

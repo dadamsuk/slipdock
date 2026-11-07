@@ -1085,6 +1085,61 @@ ahead, as it does if `slipdock` isn't on the hook's PATH. `git commit
 --no-verify` skips it for one commit; `slipdock hook uninstall lane-check`
 removes it.
 
+## Profiles
+
+A card's **profile** is one word for what kind of change it is:
+`security`, `schema`, `feature`, `fix`, `docs` or `spike`. The six are
+fixed, not a board setting. Today it is shown, and nothing acts on it.
+Later cards use it to decide how much checking a change gets: whether
+accepting it waits for a person, and how much a verifier spends on it.
+
+**The board switch.** Profiles are off until you turn them on: *Profiles*
+in the board's settings, `slipdock set-board slipdock --profiles on` (`off`
+turns them off), `update_board` `profiles`, or `PATCH /api/boards/:id
+{"profiles": true}`. Sub-boards made afterwards inherit the switch, and
+export and import carry it. With it off nothing changes, and a card that
+has no profile shows none.
+
+**Inferred when an agent starts a card.** With profiles on, a card with
+no profile gets one inferred and stored when an agent claims or starts it:
+it moves the card into an in-progress list, creates it in one, or a runner
+takes the card's job (a verify or merge job doesn't count). A person, the
+in-app assistant or an automation rule starting a card infers nothing,
+and a profile already set is kept. The card's activity records it
+(*profile inferred: schema*). The inference reads the card's paths and
+tags, and takes the first of these that matches, so a card touching a
+migration and a docs file is `schema`:
+
+1. `security`: tagged `security`, or any path in an auth, access, token,
+   OAuth or egress module (a path segment such as `access.ex`,
+   `user_auth.ex` or `user_token.ex`).
+2. `schema`: any migration (`…/migrations/…`) or schema file
+   (`structure.sql`, `schema.ex`, `schema.rb`).
+3. `spike`: tagged `spike`. A spike is only ever said by tag.
+4. `fix`: tagged `bug`.
+5. `docs`: it has paths, and every one is under `docs/`, a `README.md` or
+   a `.md` file.
+6. `feature`: anything else, including a card with no paths.
+
+A `fix` or `docs` change over 400 changed lines counts as a `feature`.
+The server only sees a diff's size when it is given one, so for now the
+size rule applies only where a size is passed to `Slipdock.Profiles.infer/3`.
+
+**Setting it yourself.** Anyone who can edit a card can set or clear its
+profile: the *Profile* select in the card panel (shown on a board with
+profiles on, or on a card that has one), `slipdock add` or `edit
+--profile fix` (`--no-profile` clears it), `PATCH /api/cards/:id
+{"profile": "fix"}` (`""` clears it), and `create_card` or `update_card`
+`profile`. An unknown name is refused with the list.
+
+**Where it shows.** A chip with the word on the card's front, the card
+panel, `slipdock card` (*Profile:*), the `profile:fix` mark in `slipdock
+cards`, the card's JSON (`profile`, left out when there is none),
+`get_card` and `list_cards`, and the card's line on the ledger (a chip on
+the *Ledger* page, `profile:fix` in `slipdock ledger`, `card.profile` in
+`GET /api/boards/:id/ledger` and the `activity` tool's ledger view).
+Nothing acts on a profile yet: it is shown, not read.
+
 ## Waiting on a person (waits)
 
 A card that can't go on until somebody answers something — a decision, a

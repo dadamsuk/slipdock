@@ -125,6 +125,8 @@ defmodule SlipdockWeb.API.JSON do
       bar_required: b.bar_required,
       # Lanes (#1628), off by default.
       lanes: b.lanes,
+      # Profiles inferred when an agent starts a card (#1951).
+      profiles: b.profiles,
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
@@ -228,6 +230,8 @@ defmodule SlipdockWeb.API.JSON do
       bar_required: b.bar_required,
       # Lanes (#1628), off by default.
       lanes: b.lanes,
+      # Profiles inferred when an agent starts a card (#1951).
+      profiles: b.profiles,
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
@@ -509,6 +513,8 @@ defmodule SlipdockWeb.API.JSON do
       evidence_suite: c.evidence_suite,
       evidence_pr: c.evidence_pr,
       evidence_no_code: c.evidence_no_code,
+      # What kind of change it is (#1951): one word, or nil.
+      profile: c.profile,
       # Where an agent's completion stands, on a board that verifies (#1633).
       verify_state: c.verify_state,
       verify_note: c.verify_note,

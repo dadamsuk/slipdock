@@ -90,6 +90,10 @@ defmodule Slipdock.Boards.Card do
     # request, a card with nothing to commit names this in place of a pull
     # request, and accepting it merges nothing.
     field :evidence_no_code, :string
+    # What kind of change it is (#1951): one of `Slipdock.Profiles.names/0`,
+    # or nil. Inferred when an agent claims or starts it on a board with
+    # `profiles` on (`Boards.infer_profile/2`), and set at every door.
+    field :profile, :string
     # Where an agent's completion stands on a board that verifies work
     # (#1633): nil, "pending", "accepted" or "rejected"; the reason given
     # (a rejection's is required), the commit the verifier checked at, who
@@ -465,6 +469,7 @@ defmodule Slipdock.Boards.Card do
       :evidence_suite,
       :evidence_pr,
       :evidence_no_code,
+      :profile,
       :paths,
       :caused_by_id,
       :missed_by,
@@ -478,6 +483,12 @@ defmodule Slipdock.Boards.Card do
     |> update_change(:bar, &tidy_short_name/1)
     |> validate_length(:bar, max: @bar_length)
     |> Slipdock.Lanes.validate_paths()
+    |> update_change(:profile, &tidy_profile/1)
+    |> validate_change(:profile, fn _, profile ->
+      if Slipdock.Profiles.name?(profile),
+        do: [],
+        else: [profile: Slipdock.Profiles.unknown_message()]
+    end)
     |> update_change(:evidence, &tidy_short_name/1)
     |> validate_length(:evidence, max: @bar_length)
     |> update_change(:evidence_commit, &tidy_short_name/1)
@@ -593,6 +604,12 @@ defmodule Slipdock.Boards.Card do
       name -> name
     end
   end
+
+  # A profile is one lower-case word; blank clears it (#1951).
+  defp tidy_profile(profile) when is_binary(profile),
+    do: profile |> tidy_short_name() |> then(&(&1 && String.downcase(&1)))
+
+  defp tidy_profile(profile), do: profile
 
   defp validate_borders(changeset) do
     Enum.reduce(@borders, changeset, fn field, cs ->

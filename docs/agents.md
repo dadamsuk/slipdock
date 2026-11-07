@@ -768,6 +768,16 @@ Only a card a runner job is working on holds a lane: one in progress with
 no open job, dragged there by hand or left behind, holds none. Lanes hold work jobs only, never a verify or merge
 job. See [the manual](manual.md#lanes).
 
+**Profiles.** On a board with `profiles` on (`profiles: on` on its line
+in the guide), a card an agent claims or starts with no profile gets one
+word inferred from its paths and tags, strictest first: `security`,
+`schema`, `spike` (by tag only), `fix` (tagged `bug`), `docs` (every path
+is documentation), else `feature`. Write a card's paths before starting
+it so the inference has them. Set or clear the profile with `profile`
+(`update_card`, `create_card`, `slipdock edit --profile`, `--no-profile`).
+It shows on the card and on its ledger line (`card.profile`). Nothing
+acts on a profile yet. See [the manual](manual.md#profiles).
+
 ## If you self-host
 
 Two things to get right, both about the address:

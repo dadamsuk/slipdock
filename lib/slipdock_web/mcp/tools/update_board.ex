@@ -14,7 +14,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   alias SlipdockWeb.MCP.{Args, Tools}
 
   @fields ~w(name description color simple default_view handoff_label bar_required
-             evidence_required verify_work verify_pool lanes ship_via job_log_hours
+             evidence_required verify_work verify_pool lanes profiles ship_via job_log_hours
              failure_log_hours findings_propose_at)
 
   @impl true
@@ -27,7 +27,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def description,
     do:
       "Changes a board you own: name, description, color, simple, default_view, handoff_label, " <>
-        "the verified-work switches, lanes, job/failure log hours, findings_propose_at, " <>
+        "the verified-work switches, lanes, profiles, job/failure log hours, findings_propose_at, " <>
         "wait_routes. Only what you send changes."
 
   @impl true
@@ -54,6 +54,12 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
         lanes: %{
           type: "boolean",
           description: "Refuse agents starting cards whose paths overlap."
+        },
+        profiles: %{
+          type: "boolean",
+          description:
+            "Give a card an agent claims or starts a profile (docs, fix, feature, schema, " <>
+              "security, spike) when it has none. Nothing acts on it yet."
         },
         job_log_hours: %{
           type: "integer",

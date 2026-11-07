@@ -523,6 +523,7 @@ WRITE
       --percent N (0-100)  --border C, --border-top/-right/-bottom/-left C   (see edit)
       --spent T  --estimate T  --unit minutes|hours|days|weeks|months   (time tracking; see edit)
       --bar TEXT  --paths "G1,G2"  its bar and the globs its work touches (see edit)
+      --profile P                 what kind of change it is (see edit)
       --caused-by N  --missed-by L  file it as an incident (see edit)
       --archived                  archive it as soon as it is made (a record of finished work)
   edit <id> [opts]                    change fields on a card
@@ -541,6 +542,10 @@ WRITE
       --paths "G1,G2"              the files its work touches, as globs (lib/x/**), split
                                    on commas or newlines; "" clears. On a --lanes board an
                                    agent can't start it while they overlap a card in progress
+      --profile P | --no-profile   what kind of change it is: security, schema, feature,
+                                   fix, docs or spike. On a board with --profiles on, an
+                                   agent claiming or starting a card with none gets one
+                                   inferred; nothing acts on it yet
       --spent T | --no-spent  --estimate T | --no-estimate   time spent and the estimate.
                                    A bare number is in the card's unit; or say 90m, 1.5h,
                                    2d, 1w, 1mo, "1h 30m" (a day is 8h, a week 5d, a month 4w)
@@ -704,6 +709,7 @@ WRITE
       [--findings-propose-at N]
       [--ship-via push|pull-request]
       [--lanes | --no-lanes] [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
+      [--profiles on|off]
                                       rename a board, change its code, shortcut key or colour,
                                       say what the foot of each list offers, make it a
                                       sprint board (every card a sprint), or a simple one (a
@@ -764,6 +770,10 @@ WRITE
                                       rest are told; each must be on the board.
                                       --no-route KIND takes the route off: waits go to the
                                       board's owner again
+                                      --profiles on: an agent claiming or starting a card
+                                      with no profile gives it one, inferred from its paths
+                                      and tags (security, schema, spike, fix, docs, else
+                                      feature); shown, not acted on yet
   sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                       start the next sprint on a sprint board: a dated card
                                       ("Sprint 4", following on from the last, 14 days unless

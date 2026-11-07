@@ -193,7 +193,7 @@ defmodule SlipdockWeb.API.BoardController do
                   incident_tag hotfix_window_hours automation_wip job_log_hours
                   failure_log_hours handoff_label
                   handoff_prompt inbound_senders bar_required
-                  evidence_required verify_work verify_pool verify_rejection_limit verify_audit lanes ship_via findings_propose_at)
+                  evidence_required verify_work verify_pool verify_rejection_limit verify_audit lanes profiles ship_via findings_propose_at)
              )
            ) do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})

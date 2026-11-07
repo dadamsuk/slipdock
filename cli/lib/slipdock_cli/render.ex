@@ -546,6 +546,13 @@ defmodule SlipdockCLI.Render do
       else: Enum.each(cards, &IO.puts(card_line(&1, true)))
   end
 
+  # A card's profile (#1951): a mark in its line, a field on the card.
+  defp profile_mark(%{"profile" => p}) when is_binary(p), do: "profile:#{p}"
+  defp profile_mark(_c), do: nil
+
+  defp profile_field(%{"profile" => p}) when is_binary(p), do: field("Profile", p)
+  defp profile_field(_c), do: nil
+
   def card_line(c, with_column?) do
     done = if c["completed"], do: "✓ ", else: ""
     title = if c["completed"], do: dim(c["title"]), else: c["title"]
@@ -556,6 +563,8 @@ defmodule SlipdockCLI.Render do
         if(c["priority"] != "none", do: "prio:#{c["priority"]}"),
         flags(c["flags"]),
         if(c["tags"] != [], do: "tags:" <> Enum.join(c["tags"], ",")),
+        # Its profile (#1951), one word.
+        profile_mark(c),
         if(c["start_date"], do: "start:#{c["start_date"]}"),
         if(c["due_date"], do: "due:#{c["due_date"]}"),
         if(c["percent_complete"], do: "#{c["percent_complete"]}%"),
@@ -1130,6 +1139,8 @@ defmodule SlipdockCLI.Render do
     field("Priority", c["priority"])
     field("Flags", if(c["flags"] == [], do: "-", else: Enum.join(c["flags"], ", ")))
     field("Tags", if(c["tags"] == [], do: "-", else: Enum.join(c["tags"], ", ")))
+    # What kind of change it is (#1951), when it has a profile.
+    profile_field(c)
     field("Start", c["start_date"] || "-")
     field("Due", c["due_date"] || "-")
     field("% complete", if(p = c["percent_complete"], do: "#{p}%", else: "-"))
