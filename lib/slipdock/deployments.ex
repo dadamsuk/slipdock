@@ -82,8 +82,11 @@ defmodule Slipdock.Deployments do
   end
 
   # A deploy that succeeded is a line on each epic it ships cards of (#1881).
-  defp post_shipped({:ok, %Deployment{status: "succeeded"} = deployment}),
-    do: Slipdock.EpicLog.shipped(deployment)
+  # Each card it names gets the step `Shipped to <environment>` (#2022).
+  defp post_shipped({:ok, %Deployment{status: "succeeded"} = deployment}) do
+    Slipdock.EpicLog.shipped(deployment)
+    Slipdock.StepStatus.shipped(deployment)
+  end
 
   defp post_shipped(_result), do: :ok
 
@@ -378,12 +381,27 @@ defmodule Slipdock.Deployments do
     )
   end
 
-  @doc "A shipped line in words: `Shipped to production · 1a2b3c4 · 19 Oct`, and a rollback past it."
-  def shipped_text(%{} = s) do
+  @doc """
+  A shipped line in words: `Shipped to production · 1a2b3c4 · 19 Oct 14:32`,
+  and a rollback past it. The time is in `zone` (the reader's, where there
+  is one, #2022), UTC by default.
+  """
+  def shipped_text(%{} = s, zone \\ "Etc/UTC") do
     "Shipped to #{s.environment} · #{String.slice(s.sha, 0, 7)}" <>
       if(s.tag, do: " (#{s.tag})", else: "") <>
-      " · #{Calendar.strftime(s.at, "%-d %b")}" <>
+      " · #{time_text(s.at, zone)}" <>
       if(s.rolled_back, do: " · rolled back since", else: "")
+  end
+
+  @doc "A moment as `6 Nov 14:32` in `zone` (UTC when it isn't a zone this server knows)."
+  def time_text(%DateTime{} = at, zone) do
+    local =
+      case DateTime.shift_zone(at, zone || "Etc/UTC") do
+        {:ok, local} -> local
+        {:error, _} -> at
+      end
+
+    Calendar.strftime(local, "%-d %b %H:%M")
   end
 
   @doc "Where a board's deploys are announced (the setup wizard waits on it)."

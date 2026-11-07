@@ -682,6 +682,11 @@ Judgement, which matters more here than the commands do:
   genuinely new.
 - **A page or a comment?** Durable and re-read → a page. About one card and about *now* → a
   comment or status update on the card. Never both.
+- **Status updates for steps are the server's.** It posts an *On track* one by *Slipdock* at
+  each step an agent-worked card goes through (*Writing code*, *Waiting for human*,
+  *Verifying*, *Verify failed; queued for rework*, *Accepted; merging*, *Merged*, *Done*,
+  *Shipped to production*), quietly and never twice in a row. Post one yourself
+  (`slipdock status <id> <health> "…"`) only for what it can't know, such as a risk.
 - **Append to a `## Log` section** for dated notes rather than rewriting the document.
 - **Don't rewrite a section you did not author** without saying so in `--message`.
 - A `--draft` page is visible only to people who could edit the board — the right home for a

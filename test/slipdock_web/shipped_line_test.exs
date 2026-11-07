@@ -4,10 +4,12 @@ defmodule SlipdockWeb.ShippedLineTest do
   failed one; one per environment, latest first; marked when a rollback
   goes back past it; nothing with delivery metrics off; a card on a
   sub-board. Through `Slipdock.Deployments.shipped/1`, the card's API JSON,
-  MCP get_card and the card panel.
+  MCP get_card and the card panel, each with the date and time in the
+  reader's zone (#2022), and a finished card's outcome.
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -60,7 +62,7 @@ defmodule SlipdockWeb.ShippedLineTest do
     refute line.rolled_back
 
     assert Deployments.shipped_text(line) ==
-             "Shipped to production · #{String.slice(d.sha, 0, 7)} (v3) · 19 Oct"
+             "Shipped to production · #{String.slice(d.sha, 0, 7)} (v3) · 19 Oct 09:00"
   end
 
   test "one line per environment, latest first", %{board: board, card: card} do
@@ -148,6 +150,101 @@ defmodule SlipdockWeb.ShippedLineTest do
 
     assert [%{"text" => ^text}] = mcp["shipped"]
     assert mcp["incident_of"] == d.id
+  end
+
+  # #2022: the time with the date, in the reader's zone, in every door.
+  test "the line gives date and time, in the reader's zone", %{
+    conn: conn,
+    json: json,
+    board: board,
+    card: card,
+    user: user
+  } do
+    at = ~U[2026-11-06 14:32:00.000000Z]
+    d = deploy!(board, card, at)
+    [line] = Deployments.shipped(card)
+    short = String.slice(d.sha, 0, 7)
+
+    assert Deployments.shipped_text(line) == "Shipped to production · #{short} · 6 Nov 14:32"
+
+    assert Deployments.shipped_text(line, "America/New_York") ==
+             "Shipped to production · #{short} · 6 Nov 09:32"
+
+    user = Slipdock.Accounts.adopt_browser_timezone(user, "Asia/Tokyo")
+    assert user.timezone == "Asia/Tokyo"
+    expected = "Shipped to production · #{short} · 6 Nov 23:32"
+
+    body = json |> get(~p"/api/cards/#{card.id}") |> json_response(200)
+    assert [%{"text" => ^expected}] = body["card"]["shipped"]
+
+    assert [%{"text" => ^expected}] = mcp_card(conn, card)["shipped"]
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+    assert has_element?(view, "#card-shipped", expected)
+  end
+
+  test "a finished card's API JSON and get_card carry its outcome, the old handoff folded", %{
+    conn: conn,
+    json: json,
+    card: card
+  } do
+    {:ok, _} =
+      Boards.leave_handoff(card, nil, %{next_step: "Accepting will merge it", via: "runner"})
+
+    Slipdock.Repo.update_all(
+      from(c in Slipdock.Boards.Card, where: c.id == ^card.id),
+      set: [
+        completed: true,
+        completed_at: DateTime.add(DateTime.utc_now(:second), 60),
+        verify_state: "accepted",
+        verify_by: %{"kind" => "agent", "via" => "runner", "agent" => "verifier"},
+        evidence_pr: "https://github.com/acme/app/pull/215",
+        merge_sha: "def5678aa"
+      ]
+    )
+
+    body = json |> get(~p"/api/cards/#{card.id}") |> json_response(200)
+    outcome = body["card"]["outcome"]
+
+    assert outcome["text"] =~
+             ~r/^Done \d+ \w+ \d\d:\d\d · accepted by runner verifier · merged PR #215 \(def5678\)$/
+
+    assert outcome["merge_sha"] == "def5678aa"
+    assert body["card"]["handoff"] == nil
+
+    assert %{"next_step" => "Accepting will merge it", "before_finish" => true} =
+             body["card"]["last_handoff"]
+
+    mcp = mcp_card(conn, card)
+    assert mcp["outcome"]["text"] == outcome["text"]
+    assert mcp["handoff"] == nil
+    assert mcp["last_handoff"]["before_finish"]
+  end
+
+  test "an open card has no outcome, and keeps its handoff", %{json: json, card: card} do
+    {:ok, _} = Boards.leave_handoff(card, nil, %{next_step: "Write the tests", via: "runner"})
+    body = json |> get(~p"/api/cards/#{card.id}") |> json_response(200)
+    refute Map.has_key?(body["card"], "outcome")
+    assert body["card"]["handoff"]["next_step"] == "Write the tests"
+  end
+
+  defp mcp_card(conn, card) do
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post(
+      "/mcp",
+      Jason.encode!(%{
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: %{name: "get_card", arguments: %{card: card.id}}
+      })
+    )
+    |> json_response(200)
+    |> get_in(["result", "content"])
+    |> hd()
+    |> Map.fetch!("text")
+    |> Jason.decode!()
   end
 
   test "the card panel shows it", %{conn: conn, board: board, card: card} do

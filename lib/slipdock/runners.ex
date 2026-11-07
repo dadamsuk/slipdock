@@ -1129,6 +1129,7 @@ defmodule Slipdock.Runners do
       )
 
       claimed_profile(claimed, runner)
+      Slipdock.StepStatus.claimed(claimed)
       claimed |> changed() |> Repo.preload(:card)
     end
   end
@@ -1465,12 +1466,15 @@ defmodule Slipdock.Runners do
 
   # A job that ends with its card still open leaves its summary as the
   # card's handoff (W-1804), unless the agent wrote one itself during the
-  # job: that one knows more, and is not to be overwritten.
+  # job: that one knows more, and is not to be overwritten. Nor on a card
+  # already accepted (merging, held or accepted, #2022): its work is judged,
+  # and a verifier's summary isn't the next step.
   defp leave_handoff(%Job{} = job, runner, status) do
     since = job.claimed_at || job.inserted_at
 
     case Repo.get(Slipdock.Boards.Card, job.card_id) do
-      %{completed: false} = card ->
+      %{completed: false, verify_state: state} = card
+      when state not in ["merging", "held", "accepted"] ->
         unless Boards.handoff_written_since?(card.id, since) do
           Boards.leave_handoff(card, nil, handoff_attrs(job, runner, status))
         end

@@ -883,7 +883,14 @@ defmodule SlipdockWeb.APIGuide do
 
     `sub_board` and `rollup` are `null` on a leaf card — that is how you tell a
     task from an epic. `handoff` is where the card was left (`null` if
-    nobody left one): read it before the comments.
+    nobody left one): read it before the comments. A finished card read on
+    its own (`GET /api/cards/:id`, `get_card`) carries `outcome` instead:
+    its `text` (*Done 6 Nov 14:32 · accepted by runner verifier · merged PR
+    #215 (def5678)*, in your time zone), `done_at`, `accepted_by`, `pr`,
+    `merge_sha` and `commit`. The handoff written before it finished is
+    history then: it moves to `last_handoff` (`before_finish: true`) and
+    `handoff` is `null`. One left after it finished, for what is still to
+    do, stays the `handoff`.
     """
   end
 
@@ -1600,6 +1607,22 @@ defmodule SlipdockWeb.APIGuide do
     first in `status_updates` and `stated_health` set from it; any other
     `health` is a `422`. Over MCP it is the `status_update` tool.
 
+    **Step statuses.** The server posts the routine ones itself, as an
+    `on_track` update with no user (`user_id: null`, shown as *Slipdock*),
+    at each step an agent-worked card goes through: a build job claimed
+    (`Writing code`, or `Reworking after verify failed` after a
+    rejection), a wait opened (`Waiting for human`), submitted (`Verifying`
+    with a verify pool, else `Waiting for human to accept`), rejected
+    (`Verify failed; queued for rework`), over the rejection limit
+    (`Waiting for human (rejection limit)`), held for a person (`Waiting
+    for human (held before merge)`), accepted on a pull-request board
+    (`Accepted; merging`), merged (`Merged`), completed (`Done`), reopened
+    (`Reopened`) and deployed (`Shipped to production`). The same text is
+    never posted twice in a row, and these tell no watcher: they write no
+    activity line. Don't post them yourself; post one only to add what the
+    server can't know (a risk, a slip), and a person's update tells
+    watchers as it always did.
+
     ```sh
     curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/status \\
          -d '{"health": "at_risk", "body": "Waiting on finance"}'
@@ -1623,7 +1646,8 @@ defmodule SlipdockWeb.APIGuide do
     was cleared), and `GET` gives it with every earlier one as `history`,
     newest first. A runner job that ends with its card open writes its
     summary as one (`via: "runner"`) unless the agent wrote one during the
-    job. `DELETE /api/cards/:id/handoff` deletes the current one outright
+    job, or the card is already accepted (merging, held or accepted): a
+    verifier's summary isn't the next step. `DELETE /api/cards/:id/handoff` deletes the current one outright
     (its author, or anyone who can edit the card): it answers `deleted` and
     the `handoff` now current, the one before it or `null`. Over MCP it is
     the `leave_handoff` tool (`delete: true` deletes). A board can call it
@@ -2004,7 +2028,9 @@ defmodule SlipdockWeb.APIGuide do
     `PATCH /api/deployments/:id` only. Commits name
     cards as `#123` (or the board's `card_ref_pattern`); a card a succeeded
     deploy names gets a **Shipped to production** line (`shipped` on
-    `get_card`).
+    `get_card`, each with its `text`: *Shipped to production · 1a2b3c4 · 6
+    Nov 14:32*, the time in your time zone) and the step status *Shipped
+    to production*.
 
     Incidents are ordinary cards tagged `incident` (the board's `incident_tag`),
     optionally linked to the deploy that caused them: `POST

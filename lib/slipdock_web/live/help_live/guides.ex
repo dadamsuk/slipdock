@@ -289,7 +289,10 @@ defmodule SlipdockWeb.HelpLive.Guides do
         </li>
         <li>
           <strong>Status updates</strong>: on track, at risk or off track, with a note, shown
-          beside the health the board works out for itself.
+          beside the health the board works out for itself. On a card agents work, the board
+          posts each step itself (Writing code, Verifying, Merged, Shipped to production…),
+          quietly, at the top of the card; a finished card shows there how it ended (done when,
+          accepted by whom, what merged and shipped) instead of a next step.
         </li>
         <li>
           <strong>Custom fields</strong>

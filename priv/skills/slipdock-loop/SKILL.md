@@ -398,6 +398,13 @@ The card is the running log, not the final report:
   opened and answered, shipped, each with the done count. Don't repeat
   those. Comment on the epic only what the server can't know: a decision,
   a surprise, a dead end, a change of plan;
+- the card's status updates follow its steps by themselves: the server
+  posts an *On track* one at each (`Writing code` when the job is
+  claimed, `Waiting for human`, `Verifying`, `Verify failed; queued for
+  rework`, `Accepted; merging`, `Merged`, `Done`, `Shipped to
+  production`), quietly and never twice in a row. Don't post those; add
+  your own (`slipdock status <id> at_risk "…"`, MCP `status_update`) only
+  for what the server can't know, such as a risk;
 - in a runner's job (`$SLIPDOCK_JOB_ID` is set), each milestone as the job's
   step: `slipdock job-progress --step "…"` (no id: it takes the job from
   `$SLIPDOCK_JOB_ID`) for the plan made, each subcard as it starts, is
