@@ -56,8 +56,9 @@ defmodule Slipdock.Handbook do
 
   # Principles and Playbook (1.5.0, #2040): how this project decides between
   # two right ways, and how an idea becomes cards. A board makes them its own
-  # by editing them.
-  @principles """
+  # by editing them. These are the skeletons #2040 shipped: a page still
+  # holding one is replaced by the seed below on the next install (#2041).
+  @principles_skeleton """
   ## Principles
 
   _The tie-breakers between two right ways: where a card could reasonably go either way, which way this project goes. One short paragraph each, the two ways and why this one, with a matching item in `## Rules` (`- **PRIN-n** should · judgement · …`) so a verifier weighs it like any other rule. Adding, rewording or dropping one is a rule change, so a person's call. The one below is a worked example: edit it or delete it._
@@ -65,11 +66,11 @@ defmodule Slipdock.Handbook do
   **One date helper.** A date can be formatted where it is shown, or through one shared helper. This project formats every date through the one helper, so a format changes in one place and two screens never disagree.
   """
 
-  @principles_rules """
+  @principles_rules_skeleton """
   - **PRIN-1** should · judgement · Every date is formatted through the one shared helper, never where it is shown.
   """
 
-  @playbook """
+  @playbook_skeleton """
   ## When this applies
 
   _Read by an agent asked to plan, or to put a plan on the board (the `slipdock-plan` skill); never by the server when a card is made. Sizing comes first, and a card-sized ask gets one card, shaped as Card shape says, and nothing else._
@@ -89,6 +90,120 @@ defmodule Slipdock.Handbook do
   ## Defaults
 
   _The page holding the person's own defaults (stack, hosting), as `defaults: W-123`. The decide stage proposes each, with its rationale, and asks; with none named it asks from scratch. A default is never imposed._
+  """
+
+  # The baseline seed (#2041): what an agent reads before planning on a board
+  # whose owner has changed nothing. Kept short, since it is read alongside a
+  # card: the aim is that every agent plans the same way, not a textbook.
+  @principles """
+  ## How to write one
+
+  A principle settles a choice between two right ways, where a card could reasonably go either way. Write a short paragraph: the two ways, the one this project takes, and why. Then add the matching item to `## Rules`, the next unused number: `- **PRIN-n** should · judgement · <the rule, in one line>`. A verifier weighs it like any other rule. Adding, rewording or dropping one is a rule change, so a person's call: an agent proposes it, a person applies it.
+
+  The three below are a baseline that suits most projects: edit them or delete them.
+
+  ## Baseline
+
+  **One place for each concern.** A helper can be written where it is needed, or the existing one found and reused. This project keeps one place for each concern (one date helper, one HTTP client, one validation) and reuses it, so a change is made once and two screens never disagree. (PRIN-1)
+
+  **The obvious reading.** An ambiguous ask can be stopped on, or built. This project builds the obvious reading and notes the other one on the card, and asks only when the two differ materially. (PRIN-2)
+
+  **Extend before adding.** A new page, module or component can be written, or an existing one extended. This project extends what is there, and starts a new one only when the old one would stop being about one thing. (PRIN-3)
+  """
+
+  @principles_rules """
+  - **PRIN-1** should · judgement · Each concern (a date format, an HTTP client, a validation) has one place, and new code reuses it rather than writing its own.
+  - **PRIN-2** should · judgement · An ambiguous ask is built to its obvious reading, with the other reading noted on the card; asking is for readings that differ materially.
+  - **PRIN-3** should · judgement · An existing page, module or component is extended before a new one is written beside it.
+  """
+
+  @card_shape """
+  ## Card shape
+
+  _The agent guide's Card shape, until this board edits it here._
+
+  - **One card** when the ask fits one sitting, one agent and one PR and
+    was said in a sentence; an epic with subcards only when it doesn't.
+    Never an epic with one subcard, nor subcards the person didn't imply.
+  - **Where:** under the epic it serves if there is one (search first);
+    otherwise top level, without making an epic to hold it.
+  - **Three things in the description**, each in proportion: what, in the
+    person's words; where, if known; and a **done-when** line, the stop
+    condition the evidence answers. One or two lines; no Given/When/Then
+    unless the board's Playbook asks for it.
+  - **Don't add** an estimate, priority, tags, a due date or an assignee
+    unless the person said so or the board's convention does.
+  - **Don't repeat the repo's rules** (tests, every door, the handbook
+    line): whoever builds it reads those from the handbook and the repo.
+  - **Two readings:** write the obvious one and note the other in the
+    description; ask only when they differ materially, once, before filing.
+  - **Dependencies:** `blocked_by` means *can't start until*, not *should
+    come after*: set it where a card builds on another's code, schema or
+    decision, and use list position for mere preference. A chain is right
+    when each card extends the one before, wrong when they are
+    independent. A one-card ask gets none unless the person said "after
+    X". None on a simple board.
+  """
+
+  @playbook """
+  ## When this applies
+
+  An agent reads this page when it is asked to plan: "plan this", "I want to build…", "break this into cards", "spec this out", "where do we start" (the `slipdock-plan` skill). Never when a card is simply asked for, and never by the server. Sizing comes first. A card-sized ask gets one card, shaped as Card shape says, and nothing else: no grill, no spec, no epic.
+
+  Each stage below says what it asks, the skill it uses, what it produces and where it writes. A stage whose output already exists on the board (a Decision, the spec on the epic) is skipped, and the agent says so. A board changes how it plans by editing this page.
+
+  ## Sizing
+
+  Check the sizes in this order and take the first whose trigger matches:
+
+  - **System**: a new deployable or service, a new repository, or a board with no code yet. Stages: Grill, Decide, Principles, Spec, Cards.
+  - **Feature**: a new user-facing surface (a page, a command, an API resource), a new external integration, a change to the data model, or more than one sitting's work. Stages: Grill, Spec, Cards.
+  - **Card**: anything else. One sitting, one agent, one PR, said in a sentence. Make the card, as Card shape says. No stages.
+
+  Between two sizes, take the smaller and say so. If the grill turns up more, grow it.
+
+  ## Grill
+
+  - **Asks:** one question at a time, until the agent can say back what is built, for whom, what done looks like and what is out of scope. It doesn't ask what the board already answers (the handbook, earlier Decisions).
+  - **Skill:** the plan skill's Grill. To use an installed skill instead, add `skill: <its name>` here.
+  - **Produces:** a brief: the problem, who it is for, done-when, out of scope, open questions.
+  - **Writes to:** the epic's description, making the epic if there is none.
+
+  ## Decide
+
+  - **Asks:** each choice the work needs before code: stack, hosting, deployment, data store, auth. When Defaults names a page, the agent proposes each default with its rationale, and asks.
+  - **Skill:** the plan skill's Decide.
+  - **Produces:** one Decision per choice: the context, the choice, the alternatives and why not, and where it was decided.
+  - **Writes to:** a new page in `Handbook/Decisions` titled `Decision: <what was chosen>`, named on the epic.
+
+  ## Principles
+
+  - **Asks:** where two right ways exist (naming, errors, how deep tests go, one place for each concern), which one this project takes.
+  - **Skill:** the plan skill's Principles.
+  - **Produces:** for each, a short paragraph and a `PRIN-n should · judgement` item.
+  - **Writes to:** the Principles page, appended when the person agreed it in the conversation. Unattended, it goes in as a proposal (`slipdock garden propose`), because a rule is a person's call.
+
+  ## Spec
+
+  - **Asks:** what each part does for the person using it, its rules and edge cases, and what is out of scope.
+  - **Skill:** the plan skill's Spec.
+  - **Produces:** goals, non-goals, behaviour part by part, and done-when for the whole.
+  - **Writes to:** a wiki page on the epic, named in its Docs. For a system, also the first sections of the Specification page.
+
+  ## Cards
+
+  - **Asks:** nothing new. It turns the spec into cards.
+  - **Skill:** the plan skill's Cards.
+  - **Produces:** subcards under the epic in build order, each shaped as Card shape says, with a bar where the board verifies work and `blocked_by` where one card builds on another's output.
+  - **Writes to:** the epic's sub-board.
+
+  #{String.trim_trailing(@card_shape)}
+
+  ## Defaults
+
+  defaults: none
+
+  _Replace `none` with the page holding the person's own defaults (stack, hosting), as `defaults: W-123`: their Knowledge Base. Decide reads it, proposes each default with its rationale, asks, and records the outcome as a Decision on this project. A default is never imposed. With none named, it asks from scratch._
   """
 
   @sections [
@@ -246,6 +361,25 @@ defmodule Slipdock.Handbook do
   def seed_rules("principles"), do: rules_skeleton("principles") <> "\n" <> @principles_rules
   def seed_rules(key), do: rules_skeleton(key)
 
+  # A Principles or Playbook page exactly as 1.5.0 first made it (#2040),
+  # which the seed replaces (#2041).
+  defp skeleton("principles"),
+    do: {@principles_skeleton, rules_skeleton("principles") <> "\n" <> @principles_rules_skeleton}
+
+  defp skeleton("playbook"), do: {@playbook_skeleton, rules_skeleton("playbook")}
+  defp skeleton(_), do: nil
+
+  @doc false
+  # The body a Principles or Playbook page had as 1.5.0 first made it, for
+  # the upgrade's tests.
+  def skeleton_body(key) do
+    {title, _key, summary, _, _} = Enum.find(@sections, &(elem(&1, 1) == key))
+    {body, rules} = skeleton(key)
+    page_body(title, summary, body, rules)
+  end
+
+  defp page_body(title, summary, body, rules), do: "# #{title}\n\n#{summary}\n\n#{body}\n#{rules}"
+
   @doc "The `handbook:` key of each built-in section page, in the handbook's order."
   def section_keys, do: for({_title, key, _, _, _} <- @sections, do: key)
 
@@ -273,7 +407,7 @@ defmodule Slipdock.Handbook do
           "folder" => @folder,
           "summary" => summary,
           "front_matter" => "handbook: #{key}\nread_when: #{read_when}\ncovers: []",
-          "body" => "# #{title}\n\n#{summary}\n\n#{body}\n#{seed_rules(key)}"
+          "body" => page_body(title, summary, body, seed_rules(key))
         }
       end
 
@@ -322,6 +456,7 @@ defmodule Slipdock.Handbook do
           report = add_before_you_push(root, user, report)
           report = add_rules_sections(root, user, report)
           report = add_triage_log(root, user, report)
+          report = seed_skeletons(root, user, report)
           {report, upgraded} = upgrade_reconcile(root, user, report)
 
           {:ok,
@@ -370,6 +505,62 @@ defmodule Slipdock.Handbook do
   end
 
   defp rules_section?(page), do: has_heading?(page, "rules")
+
+  # A Principles or Playbook page still holding the 1.5.0 skeleton gets the
+  # seed in its place (#2041): nobody has written on it, so nothing is lost.
+  # One somebody edited is the board's own and is left alone. Reported as
+  # "<title> (seed added)" among the added pages, and as "<title> (edited:
+  # left alone)" among the skipped ones.
+  defp seed_skeletons(root, user, report) do
+    case find(root) do
+      nil ->
+        report
+
+      handbook ->
+        # In the handbook's order, so the report reads the same every time.
+        handbook.pages
+        |> Enum.sort_by(&Enum.find_index(section_keys(), fn key -> key == key(&1) end))
+        |> Enum.reduce(report, &seed_skeleton(&1, user, &2))
+    end
+  end
+
+  defp seed_skeleton(page, user, report) do
+    with {title, _key, summary, _, seed} <- Enum.find(@sections, &(elem(&1, 1) == key(page))),
+         {skeleton, skeleton_rules} <- skeleton(key(page)) do
+      body = String.trim(page.body || "")
+      seeded = page_body(title, summary, seed, seed_rules(key(page)))
+
+      cond do
+        body == String.trim(seeded) ->
+          report
+
+        body == String.trim(page_body(title, summary, skeleton, skeleton_rules)) ->
+          put_seed(page, seeded, user, report)
+
+        true ->
+          update_in(report, [:skipped, "pages"], &mark_edited(&1, page.title))
+      end
+    else
+      _ -> report
+    end
+  end
+
+  defp put_seed(page, seeded, user, report) do
+    opts = [user: user, message: "seed added by the Handbook Tool, #{@version}"]
+
+    case Wiki.update_page(page, %{"body" => seeded}, opts) do
+      {:ok, _} -> update_in(report, [:added, "pages"], &(&1 ++ [page.title <> " (seed added)"]))
+      _ -> report
+    end
+  end
+
+  defp mark_edited(skipped, title) do
+    note = title <> " (edited: left alone)"
+
+    if Enum.member?(skipped, title),
+      do: Enum.map(skipped, &if(&1 == title, do: note, else: &1)),
+      else: skipped ++ [note]
+  end
 
   @doc "The `## Before you push` section a Testing & tooling page starts with (#1878)."
   def before_you_push_skeleton, do: @before_you_push
