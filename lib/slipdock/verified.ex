@@ -116,7 +116,8 @@ defmodule Slipdock.Verified do
     with :ok <- check_reopen(card, attrs, actor),
          :ok <- check_bar_edit(card, attrs, actor),
          :ok <- check_subcards(card, attrs, actor),
-         :ok <- check_evidence(card, attrs, actor) do
+         :ok <- check_evidence(card, attrs, actor),
+         :ok <- check_change(attrs) do
       {attrs, changes} = card |> clear_evidence(attrs) |> verification(card, actor)
       {:ok, attrs, changes}
     end
@@ -590,6 +591,97 @@ defmodule Slipdock.Verified do
     if counts == "", do: suite["result"], else: "#{suite["result"]} (#{counts})"
   end
 
+  @doc """
+  The raise an agent's completion of `card` with `attrs` makes to its
+  profile (#2017): `%{profile: raised, from: before, why: reason}`, or nil.
+  Only on a board with profiles on, when the completion carries the actual
+  change (`changed_lines`, the lines it adds and removes, and
+  `changed_files`, the paths it touches), read by
+  `Slipdock.Profiles.recheck/4` against the card's profile: the one the
+  write sets, else the card's, else the one its paths and tags infer.
+  Never lower. A person, a rule or the assistant completing it raises
+  nothing.
+  """
+  def profile_raise(%Card{} = card, attrs, actor) do
+    lines = changed_lines(fetch(attrs, :changed_lines))
+    files = with :invalid <- changed_files(fetch(attrs, :changed_files)), do: []
+
+    if completes?(card, attrs) and gated?(actor) and (is_integer(lines) or files != []) and
+         board(card).profiles do
+      {profile, source} = current_profile(card, attrs)
+
+      case Slipdock.Profiles.recheck(profile, source, lines, files) do
+        {raised, why} -> %{profile: raised, from: profile, why: why}
+        nil -> nil
+      end
+    end
+  end
+
+  @doc "The activity line for a raise from `profile_raise/3`."
+  def raise_text(%{profile: raised, from: from, why: why}),
+    do: "profile raised: #{from} → #{raised}, #{why}"
+
+  # The profile the change is judged against, and who set it: the one this
+  # write sets (by the agent writing), else the card's, else inferred.
+  defp current_profile(card, attrs) do
+    case fetch(attrs, :profile) do
+      profile when is_binary(profile) and profile != "" ->
+        {profile |> String.trim() |> String.downcase(), "agent"}
+
+      _ when is_binary(card.profile) ->
+        {card.profile, card.profile_source}
+
+      _ ->
+        {card |> Repo.preload(:tags) |> Slipdock.Profiles.profile_of(), "inferred"}
+    end
+  end
+
+  @max_changed_files 5000
+
+  # The change a completion reports (#2017): a whole number of lines, 0 or
+  # more, and a list of paths (or one comma-separated string).
+  defp check_change(attrs) do
+    lines = fetch(attrs, :changed_lines)
+    files = fetch(attrs, :changed_files)
+
+    cond do
+      changed_lines(lines) == :invalid ->
+        {:error, :changed_lines,
+         "must be a whole number, 0 or more: the lines the change adds and removes"}
+
+      changed_files(files) == :invalid ->
+        {:error, :changed_files,
+         "must be a list of the paths the change touches (at most #{@max_changed_files})"}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp changed_lines(n) when is_integer(n) and n >= 0, do: n
+  defp changed_lines(none) when none in [:none, nil, ""], do: nil
+
+  defp changed_lines(text) when is_binary(text) do
+    case Integer.parse(String.trim(text)) do
+      {n, ""} when n >= 0 -> n
+      _ -> :invalid
+    end
+  end
+
+  defp changed_lines(_), do: :invalid
+
+  defp changed_files(text) when is_binary(text),
+    do: text |> String.split(",", trim: true) |> Enum.map(&String.trim/1) |> changed_files()
+
+  defp changed_files(paths) when is_list(paths) do
+    if length(paths) <= @max_changed_files and Enum.all?(paths, &is_binary/1),
+      do: Enum.reject(paths, &(String.trim(&1) == "")),
+      else: :invalid
+  end
+
+  defp changed_files(none) when none in [:none, nil], do: []
+  defp changed_files(_), do: :invalid
+
   defp completes?(%Card{completed: false}, attrs), do: fetch(attrs, :completed) in [true, "true"]
   defp completes?(_card, _attrs), do: false
 
@@ -672,11 +764,23 @@ defmodule Slipdock.Verified do
       #{if neutral, do: neutral_note() <> "\n", else: ""}- Before pushing, run the tests you added or changed and the project's own pre-push checks, not the whole suite: the pull request's CI runs it. #{pre_push_checks(card)}
       - The build to watch is the pull request's (`gh pr checks #{branch} --watch --fail-fast`, so a failed check stops the watch when it fails). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
       - Complete the card with its URL and its head commit: `slipdock done #{card.id} --pr <url> --evidence-commit <sha>` (complete_card `pr` and `commit`; the sha is `gh pr view card-#{card.id} --json headRefOid -q .headRefOid`, and a PR without one is refused, on a resubmission too), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
-      #{no_code_note(card)}
+      #{profiles_note(card)}#{no_code_note(card)}
       #{if epic?(card), do: epic_note(card), else: ""}
       """
       |> String.trim_trailing()
     end
+  end
+
+  @doc """
+  The ship instructions' line on a board with profiles on (#2017): give the
+  change with the completion, so the profile is checked against it. Empty
+  (no line) with profiles off.
+  """
+  def profiles_note(%Card{} = card) do
+    if board(card).profiles,
+      do:
+        "- Give the change with it: `--diff-base origin/<default branch>` counts its changed lines and files from git (complete_card `changed_lines` and `changed_files`), and a change bigger or stricter than the card's profile raises it.\n",
+      else: ""
   end
 
   @doc """

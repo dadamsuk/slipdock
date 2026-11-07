@@ -3861,7 +3861,12 @@ defmodule SlipdockWeb.APIGuide do
       in an auth, access, token or egress module; `schema` for a migration
       or schema file; `spike` if tagged so; `fix` if tagged `bug`; `docs` if
       every path is documentation; else `feature`. Write the card's paths
-      before starting it so the inference has them. Set or clear it
+      before starting it so the inference has them. When you complete it,
+      give the change you made (`changed_lines`, added plus removed, and
+      `changed_files`: `complete_card`, `PATCH /api/cards/:id`, `slipdock
+      done --diff-base origin/main`): a migration raises the profile to
+      `schema`, a security path to `security`, and over 400 lines a `fix` or
+      `docs` card to `feature` unless a person set it; never lower. Set or clear it
       yourself with `profile` (`PATCH /api/cards/:id {"profile": "fix"}`,
       `update_card`/`create_card` `profile`, `slipdock edit ID --profile
       fix` or `--no-profile`); an unknown name is refused (`422`) with the

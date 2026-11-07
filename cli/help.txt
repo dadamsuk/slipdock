@@ -632,6 +632,12 @@ WRITE
                                       (--evidence - reads it from stdin); a
                                       board with --evidence-required asks agents for it. On
                                       a board with --verify-work an agent's done submits it
+      [--diff-base REF] [--changed-lines N] [--changed-files F,F]
+                                      the change itself, on a board with profiles on:
+                                      --diff-base origin/main counts its changed lines
+                                      and files from git (REF...the evidence commit,
+                                      else HEAD); a bigger or stricter change than the
+                                      card's profile raises it, never lowers it
   verify <id> accept|reject|merged [--reason TEXT] [--evidence-commit SHA]
                                       decide a card waiting for verification: accept
                                       completes it (on a pull request board, queues the

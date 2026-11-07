@@ -6,9 +6,9 @@ defmodule Slipdock.Profiles do
   There are six, fixed here rather than in a board setting: `docs`, `fix`,
   `feature`, `schema`, `security` and `spike`. A board turns them on with
   `Board.profiles` (off by default). With it on, a card an agent claims or
-  starts with no profile gets one inferred from its paths, tags and (when
-  one is known) diff size, stored on the card (`Card.profile`); anyone can
-  set or clear it at every door.
+  starts with no profile gets one inferred from its paths and tags, stored
+  on the card (`Card.profile`); anyone can set or clear it at every door.
+  Completed with its actual change, it is checked again against that.
 
   ## The human tier (#1952)
 
@@ -42,8 +42,25 @@ defmodule Slipdock.Profiles do
        a `.md` file.
     6. `feature`: anything else, a card with no paths included.
 
-  A `fix` or `docs` card whose diff changes more than `size_limit/0` lines
-  is a `feature`: a big change is not a small one whatever it is tagged.
+  `infer/3` reads the paths a card declares, at claim or start, when there
+  is no diff yet. Given `:diff_lines`, a `fix` or `docs` card whose diff
+  changes more than `size_limit/0` lines is a `feature`; nothing infers
+  with it, since a claim has no diff.
+
+  ## The actual change (#2017)
+
+  When an agent completes a card with the change it made (`changed_lines`,
+  `changed_files`), `recheck/4` reads that change, and the card's profile
+  is raised, never lowered (`Slipdock.Verified.profile_raise/3`):
+
+    * a changed file on a security path raises it to `security`, and one
+      that is a migration or schema file to `schema`, whoever set it, since
+      that is what those tiers exist to catch;
+    * more than `size_limit/0` changed lines raise a `fix` or `docs` card
+      to `feature`, unless a person set it: a person's profile is a call
+      about that card, and survives the size.
+
+  The order of strictness is `rank/1`'s.
   """
 
   @names ~w(docs fix feature schema security spike)
@@ -293,6 +310,47 @@ defmodule Slipdock.Profiles do
   end
 
   defp bump(profile, _lines), do: profile
+
+  # How strict each profile is, for raising and never lowering (#2017): the
+  # inference order, with `spike` (before merge by default) above `feature`.
+  @rank %{"docs" => 0, "fix" => 1, "feature" => 2, "spike" => 3, "schema" => 4, "security" => 5}
+
+  @doc "How strict `profile` is: higher is stricter; nil (no profile) is below them all."
+  def rank(profile), do: Map.get(@rank, profile, -1)
+
+  @doc """
+  What a card's actual change says about its profile (#2017): `profile` is
+  the card's (set, else inferred), `source` who set it (`"person"`,
+  `"agent"`, `"rule"`, `"inferred"` or nil), `lines` the change's changed
+  lines (added plus removed; nil when not known) and `files` its changed
+  files. `{raised, why}` when the change says stricter, else nil: a
+  security path (`security`), then a migration or schema file (`schema`),
+  then, for a `fix` or `docs` card a person didn't set, more than
+  `size_limit/0` lines (`feature`). Never lower.
+  """
+  def recheck(profile, source, lines, files) do
+    files = Enum.reject(files || [], &(is_nil(&1) or &1 == ""))
+
+    case change_says(profile, source, lines, files) do
+      {raised, _why} = raise -> if rank(raised) > rank(profile), do: raise
+      nil -> nil
+    end
+  end
+
+  # The strictest thing the change says, strict first.
+  defp change_says(profile, source, lines, files) do
+    cond do
+      path = Enum.find(files, &security_path?/1) -> {"security", "changes #{path}"}
+      path = Enum.find(files, &schema_path?/1) -> {"schema", "changes #{path}"}
+      oversized?(profile, source, lines) -> {"feature", "#{lines} lines changed"}
+      true -> nil
+    end
+  end
+
+  defp oversized?(profile, source, lines),
+    do:
+      Enum.member?(["fix", "docs"], profile) and source != "person" and is_integer(lines) and
+        lines > @size_limit
 
   @doc "Whether `path` (a path or glob) is in an auth, access, token, OAuth or egress module."
   def security_path?(path) do

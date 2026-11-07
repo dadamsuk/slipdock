@@ -464,8 +464,12 @@ defmodule SlipdockWeb.HelpLive.Flow do
       profiles on, a <code>docs</code>
       card gets no verifier (the server accepts it on its suite), and a <code>schema</code>
       or <code>security</code>
-      card's verifier also reviews the diff for defects, rejecting on an Important one. Then
-      <code>slipdock verify 12 accept</code>
+      card's verifier also reviews the diff for defects, rejecting on an Important one. The
+      profile is checked against the change the agent completes with
+      (<code>slipdock done 12 --diff-base origin/main</code>): a migration makes it <code>schema</code>, a security path <code>security</code>, and over 400 changed lines a
+      <code>fix</code>
+      or <code>docs</code>
+      card a <code>feature</code>, never lower. Then <code>slipdock verify 12 accept</code>
       or <code>slipdock verify 12 reject --reason "bar 2: …"</code>.
     </p>
     <ul class="list-disc space-y-1 pl-5">

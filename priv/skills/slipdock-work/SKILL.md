@@ -132,7 +132,9 @@ whole card before touching it.
   card back rejected with the reason: rebase the branch and submit again.
   With profiles on, a `schema`, `security` or `spike` card an agent
   accepts is *held* for a person, who merges it or sends it back with a
-  reason (a rejection like any other).
+  reason (a rejection like any other), and the completion gives the change
+  (`--diff-base origin/<default branch>`), which raises the profile if it
+  is bigger or stricter than the card said.
 - **Lanes, where they are on** (the board's line in the guide says `lanes:
   on` or `lanes: advise`). Before starting a card, write the paths its work will touch:
   `slipdock edit <id> --paths "lib/foo/**,docs/manual.md"`, as narrow as the

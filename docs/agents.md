@@ -800,7 +800,13 @@ It shows on the card and on its ledger line (`card.profile`), with where
 it came from beside it (`card.profile_source`): `inferred`, or who set it,
 `person`, `agent` or `rule` (nil with no profile, or on a card older than
 the field). The web panel shows a card with none what it would be inferred
-as, for a person to take or override before an agent starts it.
+as, for a person to take or override before an agent starts it. When you
+complete the card, give the change you made: `slipdock done
+--diff-base origin/main` (or `--changed-lines N --changed-files a,b`;
+`complete_card` `changed_lines` and `changed_files`). A migration raises
+the profile to `schema`, a security path to `security`, and more than 400
+changed lines a `fix` or `docs` card to `feature` (unless a person set
+it); never lower, with the reason in the card's activity.
 
 **The human tier.** Each profile has one (`profile_tiers` in the board's
 JSON): `none` (`docs`, `fix`) and `ledger` (`feature`) let your

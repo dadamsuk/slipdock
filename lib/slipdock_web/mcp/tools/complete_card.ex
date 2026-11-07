@@ -45,6 +45,20 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
               "card): on a board that ships by pull request, given in place of pr, and " <>
               "accepting it merges nothing. Not with pr."
         },
+        changed_lines: %{
+          type: "integer",
+          minimum: 0,
+          description:
+            "The change's changed lines, added plus removed (`git diff --numstat`). With " <>
+              "profiles on, a fix or docs card over 400 is raised to feature."
+        },
+        changed_files: %{
+          type: "array",
+          items: %{type: "string"},
+          description:
+            "The files the change touches. With profiles on, a migration raises the card's " <>
+              "profile to schema and a security path to security; never lowered."
+        },
         tests: %{
           type: "array",
           items: %{type: "string"},
@@ -97,7 +111,10 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
              "evidence_pr" => pr,
              "evidence_no_code" => no_code,
              "evidence_tests" => args["tests"],
-             "evidence_suite" => args["suite"]
+             "evidence_suite" => args["suite"],
+             # The actual change, for the profile (#2017).
+             "changed_lines" => args["changed_lines"],
+             "changed_files" => args["changed_files"]
            }
            |> Map.reject(fn {_, v} -> is_nil(v) end)
            |> then(&if(done, do: Map.put(&1, "column", done.id), else: &1)),
