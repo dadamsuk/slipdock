@@ -71,10 +71,23 @@ defmodule Slipdock.Runners do
   Whether `runner` is idle: seen within three of its leases, and holding no
   job now. A merge goes to an idle runner first (#1754).
   """
-  def idle?(%Runner{current_job_id: nil, last_seen_at: %DateTime{} = seen} = runner),
-    do: DateTime.diff(DateTime.utc_now(), seen) <= 3 * lease_for(runner)
+  def idle?(%Runner{last_seen_at: %DateTime{} = seen} = runner),
+    do: DateTime.diff(DateTime.utc_now(), seen) <= 3 * lease_for(runner) and not busy?(runner)
 
   def idle?(%Runner{}), do: false
+
+  @doc """
+  Whether `runner` holds an open job: one claimed or running under it.
+
+  One token can be claimed through by several processes, or by a session,
+  so the runner's `current_job_id` is only its last claim: that one ending
+  leaves the others open, and it can be cleared while they run (#1965).
+  """
+  def busy?(%Runner{id: id}),
+    do:
+      Repo.exists?(
+        from(j in Job, where: j.runner_id == ^id and j.status in ["claimed", "running"])
+      )
 
   ## PubSub -------------------------------------------------------------------
 

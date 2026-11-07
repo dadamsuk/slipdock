@@ -295,8 +295,12 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
       r = runner(ctx.board, "box", "loop", 0)
       {rule, ready} = quiet_feed(ctx, 20)
 
-      Repo.update_all(from(x in Runner, where: x.id == ^r.id), set: [current_job_id: 1])
+      # Busy is an open job under the runner, not its current_job_id (#1965).
+      held = job(ctx.card, pool: "other", status: "running", runner_id: r.id)
       assert detect(IdleFeed, ctx.board) == []
+      Repo.update_all(from(x in Job, where: x.id == ^held.id), set: [status: "done"])
+      Repo.update_all(from(x in Runner, where: x.id == ^r.id), set: [current_job_id: held.id])
+      assert detect(IdleFeed, ctx.board) != []
       Repo.update_all(from(x in Runner, where: x.id == ^r.id), set: [current_job_id: nil])
 
       Repo.update_all(from(x in Rule, where: x.id == ^rule.id), set: [updated_at: ago(5)])

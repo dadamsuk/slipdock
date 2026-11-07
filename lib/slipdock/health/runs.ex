@@ -20,9 +20,8 @@ defmodule Slipdock.Health.Runs do
   def online?(%Runner{last_seen_at: seen} = runner, now),
     do: DateTime.diff(now, seen) <= 3 * Runners.lease_for(runner)
 
-  @doc "Whether `runner` is online and holds no job."
-  def idle?(%Runner{current_job_id: nil} = runner, now), do: online?(runner, now)
-  def idle?(_runner, _now), do: false
+  @doc "Whether `runner` is online and holds no open job (`Runners.busy?/1`)."
+  def idle?(%Runner{} = runner, now), do: online?(runner, now) and not Runners.busy?(runner)
 
   @doc "The tree's claimed and running jobs whose lease is still current."
   def live_jobs(root_id, now, kinds \\ nil) do
