@@ -28,7 +28,6 @@ defmodule SlipdockWeb.MCP.Plug do
 
   import Plug.Conn
 
-  alias Slipdock.Accounts
   alias SlipdockWeb.MCP.{Completions, Prompts, Resources, Tools}
 
   @versions ["2025-11-25", "2025-06-18", "2025-03-26"]
@@ -95,14 +94,13 @@ defmodule SlipdockWeb.MCP.Plug do
   end
 
   defp authenticate(conn) do
-    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
-         {%Accounts.User{} = user, api_token} <-
-           Accounts.get_api_token(String.trim(token), ip: SlipdockWeb.ClientIP.from_conn(conn)) do
-      # An agent's writes, for the activity log (#1735).
-      Slipdock.Actor.put(Slipdock.Actor.mcp(%{user: user, token: api_token}))
-      {:ok, conn |> assign(:current_user, user) |> assign(:api_token, api_token)}
-    else
-      _ ->
+    case SlipdockWeb.UserAuth.api_user_from_bearer(conn) do
+      {user, api_token} ->
+        # An agent's writes, for the activity log (#1735).
+        Slipdock.Actor.put(Slipdock.Actor.mcp(%{user: user, token: api_token}))
+        {:ok, conn |> assign(:current_user, user) |> assign(:api_token, api_token)}
+
+      nil ->
         conn =
           put_resp_header(conn, "www-authenticate", challenge(conn))
 

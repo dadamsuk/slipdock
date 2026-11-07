@@ -177,11 +177,7 @@ defmodule SlipdockWeb.API.RunnerController do
   defp merge_headers(conn, nil), do: conn
 
   defp fetch_runner(conn, _opts) do
-    token =
-      case get_req_header(conn, "authorization") do
-        ["Bearer " <> token] -> token
-        _ -> nil
-      end
+    token = SlipdockWeb.UserAuth.bearer_token(conn)
 
     case Runners.authenticate(token) do
       nil ->

@@ -53,17 +53,43 @@ defmodule SlipdockWeb.UserAuth do
   end
 
   @doc """
+  The token in a request's `Authorization: Bearer` header, trimmed, or nil when
+  there is none. Every bearer-authenticated door reads its token here (#1931):
+  API and MCP tokens, runner tokens and deploy tokens alike.
+  """
+  def bearer_token(conn) do
+    case get_req_header(conn, "authorization") do
+      ["Bearer " <> token] -> String.trim(token)
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The user and API token behind a request's `Authorization: Bearer` header, as
+  `{user, api_token}`, or nil when there is no header or the token isn't a live
+  API token (or is refused from the client's address).
+  """
+  def api_user_from_bearer(conn) do
+    with token when is_binary(token) <- bearer_token(conn),
+         {%Accounts.User{} = user, api_token} <-
+           Accounts.get_api_token(token, ip: SlipdockWeb.ClientIP.from_conn(conn)) do
+      {user, api_token}
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
   Plug: loads the current user from an `Authorization: Bearer` API token if one
   is there, and carries on regardless. For endpoints that are readable without
   a token but say more with one.
   """
   def maybe_fetch_api_user(conn, _opts) do
-    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
-         {%Accounts.User{} = user, api_token} <-
-           Accounts.get_api_token(String.trim(token), ip: SlipdockWeb.ClientIP.from_conn(conn)) do
-      conn |> assign(:current_user, user) |> assign(:api_token, api_token) |> assign_actor()
-    else
-      _ ->
+    case api_user_from_bearer(conn) do
+      {user, api_token} ->
+        conn |> assign(:current_user, user) |> assign(:api_token, api_token) |> assign_actor()
+
+      nil ->
         Slipdock.Actor.put(nil)
         conn |> assign(:current_user, nil) |> assign(:api_token, nil)
     end
@@ -83,12 +109,11 @@ defmodule SlipdockWeb.UserAuth do
 
   @doc "Plug: loads the current user from an `Authorization: Bearer` API token, else 401."
   def fetch_api_user(conn, _opts) do
-    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
-         {%Accounts.User{} = user, api_token} <-
-           Accounts.get_api_token(String.trim(token), ip: SlipdockWeb.ClientIP.from_conn(conn)) do
-      conn |> assign(:current_user, user) |> assign(:api_token, api_token) |> assign_actor()
-    else
-      _ ->
+    case api_user_from_bearer(conn) do
+      {user, api_token} ->
+        conn |> assign(:current_user, user) |> assign(:api_token, api_token) |> assign_actor()
+
+      nil ->
         conn
         |> put_status(:unauthorized)
         |> json(%{

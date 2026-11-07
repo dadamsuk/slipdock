@@ -59,6 +59,20 @@ defmodule SlipdockWeb.API.JobTranscriptTest do
     assert body == ~s({"t":"[redacted]"}\n)
   end
 
+  test "a token sent with a trailing space is still taken out (#1931)", ctx do
+    conn =
+      post(
+        runner_conn(ctx.token <> " "),
+        "/api/runner/jobs/#{ctx.job.id}/transcript?from=0",
+        ~s({"t":"#{ctx.token}"}\n)
+      )
+
+    assert conn.status == 200
+    body = get(ctx.conn, "/api/jobs/#{ctx.job.id}/transcript").resp_body
+    refute body =~ ctx.token
+    assert body == ~s({"t":"[redacted]"}\n)
+  end
+
   test "a gap is a 409 naming where to send from", ctx do
     assert send_lines(ctx, 0, ~s({"a":1}\n)).resp_body == "ok 1\n"
     conn = send_lines(ctx, 4, ~s({"e":5}\n))

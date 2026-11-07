@@ -75,6 +75,12 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert conn.resp_body =~ "runner token"
     end
 
+    test "a token pasted with spaces around it still works (#1931)", ctx do
+      assert post(runner_conn(ctx.token <> " "), "/api/runner/claim?wait=0").status == 204
+      assert post(runner_conn(" " <> ctx.token <> "  "), "/api/runner/claim?wait=0").status == 204
+      assert post(runner_conn("sdr_nope "), "/api/runner/claim?wait=0").status == 401
+    end
+
     test "a revoked runner's token stops working", ctx do
       {:ok, _} = Runners.delete_runner(ctx.runner)
       assert post(runner_conn(ctx.token), "/api/runner/claim?wait=0").status == 401
