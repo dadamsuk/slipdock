@@ -562,7 +562,8 @@ defmodule SlipdockCLI.Boards do
     body =
       %{
         "completed" => true,
-        "evidence" => o[:evidence],
+        # `--evidence -` reads it from stdin, once for every id (#1966).
+        "evidence" => stdin_arg(o[:evidence], "--evidence"),
         "evidence_commit" => o[:evidence_commit],
         "evidence_branch" => o[:branch],
         "evidence_tests" => o[:tests] && split_list(o[:tests]),

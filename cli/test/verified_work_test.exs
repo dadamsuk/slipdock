@@ -162,6 +162,56 @@ defmodule SlipdockCLI.VerifiedWorkTest do
     assert JSON.decode!(body) == %{"completed" => true}
   end
 
+  describe "done --evidence - (#1966)" do
+    test "reads the evidence from stdin, line breaks and all, not a literal -" do
+      serve([{200, @card}])
+      evidence = "**Checked.**\n\n- CI green\n- Handbook: no change\n"
+
+      capture_io([input: evidence], fn ->
+        Boards.run("done", ["12"], parse(["--evidence", "-", "--pr", "https://example.com/pr/1"]))
+      end)
+
+      assert_received {:request, "PATCH", "/api/cards/12", body}
+      sent = JSON.decode!(body)
+      assert sent["evidence"] == evidence
+      assert sent["evidence_pr"] == "https://example.com/pr/1"
+    end
+
+    test "reads stdin once and sends the same evidence with every id" do
+      serve([{200, @card}, {200, @card}])
+
+      capture_io([input: "one run"], fn ->
+        Boards.run("done", ["12", "13"], parse(["--evidence", "-"]))
+      end)
+
+      assert_received {:request, "PATCH", "/api/cards/12", first}
+      assert_received {:request, "PATCH", "/api/cards/13", second}
+      assert JSON.decode!(first)["evidence"] == "one run"
+      assert JSON.decode!(second)["evidence"] == "one run"
+    end
+
+    test "evidence that only starts with - is sent as written" do
+      serve([{200, @card}])
+      capture_io(fn -> Boards.run("done", ["12"], parse(["--evidence", "- CI green"])) end)
+      assert_received {:request, "PATCH", "/api/cards/12", body}
+      assert JSON.decode!(body)["evidence"] == "- CI green"
+    end
+
+    test "empty or unreadable stdin is refused, naming the flag" do
+      alias SlipdockCLI.Util
+
+      assert Util.stdin_text(:eof, "--evidence") == {:error, "nothing on stdin for --evidence -"}
+
+      assert Util.stdin_text("  \n", "--evidence") ==
+               {:error, "nothing on stdin for --evidence -"}
+
+      assert Util.stdin_text({:error, :terminated}, "--evidence") ==
+               {:error, "could not read --evidence from stdin"}
+
+      assert Util.stdin_text("ok\n", "--evidence") == {:ok, "ok\n"}
+    end
+  end
+
   test "done --branch --tests --suite send the structured evidence (#1623)" do
     serve([{200, @card}])
 

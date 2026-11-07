@@ -64,4 +64,31 @@ defmodule SlipdockCLI.PageSectionTest do
     assert out =~ "appended to Log of W-9 Keys"
     refute out =~ "("
   end
+
+  describe "--append - (#1966)" do
+    test "reads the text from stdin rather than appending a literal -" do
+      System.put_env("SLIPDOCK_URL", FakeServer.start([{200, saved(nil)}]))
+      text = "- one\n- two\n"
+
+      out =
+        capture_io([input: text], fn ->
+          Wiki.run("page", ["section", "W-9", "Log"], append: "-", message: "#1966 log")
+        end)
+
+      assert_receive {:request, "POST", "/api/pages/W-9/section/Log", body}, 2_000
+      assert :json.decode(body) == %{"body" => text, "message" => "#1966 log"}
+      assert out =~ "appended to Log of W-9 Keys"
+    end
+
+    test "--body - still reads the replacement from stdin" do
+      System.put_env("SLIPDOCK_URL", FakeServer.start([{200, saved(nil)}]))
+
+      capture_io([input: "Piped keys."], fn ->
+        Wiki.run("page", ["section", "W-9", "Keyboard"], body: "-")
+      end)
+
+      assert_receive {:request, "PUT", "/api/pages/W-9/section/Keyboard", body}, 2_000
+      assert :json.decode(body)["body"] == "Piped keys."
+    end
+  end
 end

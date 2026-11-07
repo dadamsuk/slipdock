@@ -337,7 +337,7 @@ defmodule SlipdockCLI.Wiki do
         HTTP.post(
           "/pages/#{enc(ref)}/section/#{path}",
           compact(%{
-            "body" => o[:append],
+            "body" => stdin_arg(o[:append], "--append"),
             "message" => o[:message]
           })
         )

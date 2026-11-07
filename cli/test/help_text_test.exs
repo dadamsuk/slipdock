@@ -41,4 +41,9 @@ defmodule SlipdockCLI.HelpTextTest do
     assert Enum.any?(lines, &String.starts_with?(&1, "auth <token>  "))
     assert Enum.any?(lines, &String.starts_with?(&1, "  search <words...>  "))
   end
+
+  test "help says - reads stdin for done --evidence and page section --append (#1966)" do
+    assert @file_text =~ "(--evidence - reads it from stdin)"
+    assert @file_text =~ "--append - and --body - read the text from stdin"
+  end
 end
