@@ -18,7 +18,9 @@ defmodule Slipdock.Ledger do
   newest first. A line carries who accepted it (`accepted_by`: a person or
   an agent, by `Verified.who/1`) and the last audit's verdict on it, the
   first line of its evidence, the `should` rules its verifier marked broken,
-  its lead time by phase (`Slipdock.LeadTime.for_card/2`), its pull request
+  its lead time by phase (`Slipdock.LeadTime.for_card/2`) with what its
+  jobs spent beside it (`cost`, #1954: model and tool seconds, and tokens
+  when the logs carried them), its pull request
   and deploys. An epic's line rolls up its subcards: how many there are, how
   many are done and how many are on this ledger. A card accepted and held
   for a person before merging (#1952) says who it waits for
@@ -306,7 +308,9 @@ defmodule Slipdock.Ledger do
       lead_time: %{
         seconds: lead.seconds,
         ends: lead.ends,
-        phases: for({phase, s} <- lead.totals, s > 0, into: %{}, do: {phase, s})
+        phases: for({phase, s} <- lead.totals, s > 0, into: %{}, do: {phase, s}),
+        # What its jobs spent (#1954): nil when none sent a log.
+        cost: lead.cost && lead.cost.total
       },
       pr: card.evidence_pr,
       merge_sha: card.merge_sha,

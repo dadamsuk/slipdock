@@ -75,6 +75,9 @@ defmodule Slipdock.Runners.TranscriptRetention do
     if ids == [] do
       0
     else
+      # What each log spent is kept on its job before the log goes (#1954).
+      Slipdock.Runners.JobCost.count_all(ids)
+
       Repo.transaction(fn ->
         Repo.delete_all(from(c in TranscriptChunk, where: c.job_id in ^ids))
 

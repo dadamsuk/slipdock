@@ -44,7 +44,15 @@ defmodule Slipdock.AI.CardRecord do
   alias Slipdock.Accounts.User
   alias Slipdock.AI.Context
   alias Slipdock.Boards.{Activity, Board, Card, CardLink, Comment, Handoff}
-  alias Slipdock.Runners.{Job, Transcript, TranscriptRetention, TranscriptSummary, TranscriptView}
+
+  alias Slipdock.Runners.{
+    Job,
+    JobCost,
+    Transcript,
+    TranscriptRetention,
+    TranscriptSummary,
+    TranscriptView
+  }
 
   @comments_per_page 25
   @comment_cap 3_000
@@ -101,7 +109,8 @@ defmodule Slipdock.AI.CardRecord do
        "completion, or now), by phase — backlog, waiting for a runner (and which jobs held " <>
        "the pool), build, CI, waiting on a person, verification wait, verify, rework, merge, " <>
        "deploy, and time the record can't explain — with each span in order and what it " <>
-       "came from. On an epic, each subcard's too, and the subcards added up. Quote its " <>
+       "came from, and what its jobs spent (model and tool time, tokens where the logs " <>
+       "carried them) by phase. On an epic, each subcard's too, and the subcards added up. Quote its " <>
        "numbers rather than adding them up yourself.", %{}},
     {"job_log_summary",
      "A runner job's log summed up (by its id, from card_jobs): what its agent said step by " <>
@@ -463,6 +472,7 @@ defmodule Slipdock.AI.CardRecord do
       "Lead time of #{label(card)}: #{dur(lt.seconds)}, #{lead_span(lt)}.",
       "By phase:",
       phase_lines(lt.totals, lt.seconds),
+      cost_lines(lt.cost),
       opt(segments?, ["", "In order (#{length(lt.segments)} spans):" | segment_lines(lt)]),
       opt(
         segments? and lt.jobs == 0,
@@ -535,15 +545,37 @@ defmodule Slipdock.AI.CardRecord do
       Enum.map(subs, fn {sub, lt} ->
         [
           "",
-          "Lead time of #{label(sub)}: #{dur(lt.seconds)}, #{lead_span(lt)}."
-          | phase_lines(lt.totals, lt.seconds)
+          "Lead time of #{label(sub)}: #{dur(lt.seconds)}, #{lead_span(lt)}.",
+          phase_lines(lt.totals, lt.seconds),
+          cost_lines(lt.cost)
         ]
       end),
       "",
       "The subcards added up: #{dur(total.seconds)}.",
-      phase_lines(total.totals, total.seconds)
+      phase_lines(total.totals, total.seconds),
+      cost_lines(total.cost, "Spent on the subcards and the epic's own jobs together")
     ]
   end
+
+  # What the jobs spent, from their logs (#1954): no prices, and tokens only
+  # where a log carried them.
+  defp cost_lines(cost, heading \\ "Spent by its jobs (from their logs)")
+
+  defp cost_lines(nil, _heading),
+    do: "Spent: not known (no job on it sent a log)."
+
+  defp cost_lines(%{total: total, phases: phases}, heading) do
+    [
+      "#{heading}: #{JobCost.text(total)}#{cost_jobs(total)}.",
+      LeadTime.phases()
+      |> Enum.filter(&Map.has_key?(phases, &1))
+      |> Enum.map(&"- #{@phase_names[&1]}: #{JobCost.text(phases[&1])}#{cost_jobs(phases[&1])}"),
+      opt(is_nil(total.tokens), "No log carried token usage, so tokens aren't known.")
+    ]
+  end
+
+  defp cost_jobs(%{jobs: 1}), do: " (1 job)"
+  defp cost_jobs(%{jobs: n}), do: " (#{n} jobs)"
 
   ## Job logs ------------------------------------------------------------------
 
@@ -578,6 +610,13 @@ defmodule Slipdock.AI.CardRecord do
     end
   end
 
+  defp tokens_line(nil), do: "Tokens: not in the log (no line carried usage)."
+
+  defp tokens_line(t),
+    do:
+      "Tokens (summed once per message): #{t.input} input, #{t.output} output, " <>
+        "#{t.cache_read} cache read, #{t.cache_write} cache write."
+
   defp summary_text(sum, job) do
     [
       "Log of job ##{job.id} (#{job.kind} on ##{job.card_id}): #{sum.lines} lines" <>
@@ -589,6 +628,7 @@ defmodule Slipdock.AI.CardRecord do
       "- model (thinking and writing): #{dur(sum.model_seconds)}#{share(sum.model_seconds, sum.seconds)}",
       "- tools: #{dur(sum.tool_seconds)}#{share(sum.tool_seconds, sum.seconds)}",
       tool_kind_lines(sum),
+      tokens_line(sum.tokens),
       "",
       "Longest calls:",
       if(sum.longest == [], do: "- none", else: Enum.map(sum.longest, &call_line/1)),

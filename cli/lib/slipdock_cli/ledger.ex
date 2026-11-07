@@ -102,17 +102,40 @@ defmodule SlipdockCLI.Ledger do
     end
   end
 
-  defp time(%{"seconds" => s, "phases" => phases}) when is_integer(s) and map_size(phases) > 0 do
+  defp time(%{"seconds" => s, "phases" => phases} = t)
+       when is_integer(s) and map_size(phases) > 0 do
     top =
       phases
       |> Enum.sort_by(&elem(&1, 1), :desc)
       |> Enum.take(3)
       |> Enum.map_join(", ", fn {phase, secs} -> "#{phase} #{duration(secs)}" end)
 
-    ["    lead time #{duration(s)}: #{top}"]
+    ["    lead time #{duration(s)}: #{top}" <> spent(t["cost"])]
   end
 
   defp time(_), do: []
+
+  @doc """
+  What a card's jobs spent (#1954), after its lead time: `" · spent model
+  12m, tools 40m, 1.2M tokens"`, the tokens left out when they aren't
+  known, and nothing at all with no cost.
+  """
+  def spent(%{"model_seconds" => m, "tool_seconds" => t} = cost) do
+    tokens =
+      case cost["tokens"] do
+        %{"total" => n} -> ", #{tokens_text(n)} tokens"
+        _ -> ""
+      end
+
+    " · spent model #{duration(m)}, tools #{duration(t)}#{tokens}"
+  end
+
+  def spent(_), do: ""
+
+  @doc "A token count, short: `950`, `12.3k`, `1.2M`."
+  def tokens_text(n) when n < 1000, do: to_string(n)
+  def tokens_text(n) when n < 1_000_000, do: "#{Float.round(n / 1000, 1)}k"
+  def tokens_text(n), do: "#{Float.round(n / 1_000_000, 1)}M"
 
   @doc false
   def duration(s) when s < 60, do: "#{s}s"

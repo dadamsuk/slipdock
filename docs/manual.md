@@ -1435,6 +1435,40 @@ lists* lists the same stays as text. Over the API it is
 `from`, `to`, `seconds` and `open`), over MCP `get_card` with
 `timeline: true`, and on the command line `slipdock timeline <id>`.
 
+### Its lead time and cost
+
+A card a runner has worked, and an epic, has a **Lead time** line in its
+panel, under its runner jobs: how long it took (from creation to its first
+deploy, or to done, or to now while it is open), its three longest phases,
+and what its jobs spent. That comes from their logs:
+
+- the **model's time** and the **tools' time**, split the way a job's log
+  summary splits them (each stretch between two lines goes to the tool call
+  waiting for its answer, else to the model);
+- **tokens**: input, output, cache read and cache write, summed once per
+  message from the `usage` the Claude Code log carries. A log with no
+  `usage` has no tokens. They are left out, never shown as 0.
+
+There are no prices and no currency. Tokens and seconds are facts, and what
+they cost is your own arithmetic. Each job's cost goes to the phase its run
+is in: build, rework, verify (audits too) or merge. CI watched inside a build
+job counts as building. Below the total, the line splits the cost by those
+phases. On an epic it adds its subcards: their lead times added up, and what
+was spent on them and on the epic's own jobs.
+
+The cost is counted when it is read, and kept on the job. It is counted
+again only when the log has grown. A log is counted before the retention
+sweep deletes it, so the cost outlives the log. A job whose runner sent no
+log has no cost.
+
+The same is on `slipdock card` (`Lead time:` and, on an epic, `Subcards:`),
+on `GET /api/cards/:id` and MCP `get_card` as `lead_time` (`seconds`, `ends`,
+`phases`, `cost` with `total` and `phases`, each with `model_seconds`,
+`tool_seconds`, `jobs` and `tokens` only when known, and `rollup` on an
+epic; left out on a card no job was sent on that isn't an epic), on
+[the ledger](#the-ledger) line (`lead_time.cost`), and in the card
+chat's `card_lead_time`.
+
 ## Visualise: flow, velocity, runners and delivery
 
 **Visualise**, in the board's view menu beside Timeline and Prioritise (left
@@ -2044,7 +2078,8 @@ latest such moment, under that day, newest day first. Each line says:
   broken (a broken `must` would have been a rejection);
 - its pull request and the deploys that shipped it;
 - where its time went: its lead time and the three biggest phases (build, CI,
-  waiting for a person, verification…);
+  waiting for a person, verification…), and what its jobs spent (see
+  [Its lead time and cost](#its-lead-time-and-cost));
 - on an epic, its subcards: how many are done of how many, and how many are
   on this ledger (they have lines of their own);
 - **Look closer**, which opens the card's panel at its *Ask AI about this
@@ -3814,7 +3849,9 @@ is ever sent to a model unless you ask.
     writes and from steps that mention CI. Time the record holds nothing
     for is *unexplained*, a phase of its own. On an epic it gives each
     subcard's breakdown too, a subcard's build credited to the epic's job
-    that ran while it was in progress, and the subcards added up. Ask
+    that ran while it was in progress, and the subcards added up. Beside
+    each, what the jobs spent by phase, from their logs: model and tool
+    time, and tokens where a log carried them. Ask
     *where did this card's time go?* or *why did #1856 take 78 minutes?*;
   - `job_log_summary` and `job_log`: a job's live log, while the job
     runs, once it has finished, or kept with *Keep this log*. The

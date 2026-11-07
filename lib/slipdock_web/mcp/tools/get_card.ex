@@ -62,6 +62,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> Map.put(:url, url(card, context.base_url))
        |> Map.put(:rejection, Slipdock.Verified.rejection(card))
        |> V.put_delivery(card)
+       |> V.put_lead_time(card)
        |> V.put_shipping(card)
        |> V.put_findings(card)
        |> V.put_lanes(card)

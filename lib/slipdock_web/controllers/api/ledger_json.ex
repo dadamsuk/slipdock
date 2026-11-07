@@ -29,7 +29,8 @@ defmodule SlipdockWeb.API.LedgerJSON do
       lead_time: %{
         seconds: i.lead_time.seconds,
         ends: i.lead_time.ends,
-        phases: i.lead_time.phases
+        phases: i.lead_time.phases,
+        cost: Slipdock.Runners.JobCost.json(i.lead_time[:cost])
       },
       on_board: i.card.board_id == board.id
     })

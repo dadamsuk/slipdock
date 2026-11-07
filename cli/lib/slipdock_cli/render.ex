@@ -1,6 +1,8 @@
 defmodule SlipdockCLI.Render do
   @moduledoc "Human-readable output for API responses."
 
+  alias SlipdockCLI.Ledger
+
   @flag_glyphs %{
     "flagged" => "⚑",
     "blocked" => "⛔",
@@ -1137,6 +1139,41 @@ defmodule SlipdockCLI.Render do
     if c["caused_by"] || c["missed_by"], do: incident_line(c)
   end
 
+  @doc """
+  A card's lead time for `slipdock card` (#1954): how long, how it ended,
+  its three longest phases and what its jobs spent (tokens only when the
+  logs carried them). Nil when the card says nothing about it.
+  """
+  def lead_time_text(%{"seconds" => s} = lt) when is_integer(s) do
+    top =
+      (lt["phases"] || %{})
+      |> Enum.sort_by(&elem(&1, 1), :desc)
+      |> Enum.take(3)
+      |> Enum.map_join(", ", fn {phase, secs} -> "#{phase} #{Ledger.duration(secs)}" end)
+
+    "#{Ledger.duration(s)} (#{lt["ends"]})" <>
+      if(top == "", do: "", else: ": #{top}") <> Ledger.spent(get_in(lt, ["cost", "total"]))
+  end
+
+  def lead_time_text(_), do: nil
+
+  # Its lead time, and what its jobs spent beside it (#1954).
+  defp lead_time_fields(lt) do
+    if text = lead_time_text(lt), do: field("Lead time", text)
+    if r = rollup_text(lt), do: field("Subcards", r)
+  end
+
+  @doc """
+  An epic's subcards rolled up beside its lead time (#1954): their lead
+  times added up and what was spent on them and on the epic's own jobs.
+  Nil on a card with no subcards.
+  """
+  def rollup_text(%{"rollup" => %{"subcards" => n, "seconds" => s} = r}) do
+    "#{n} added up, #{Ledger.duration(s)}" <> Ledger.spent(get_in(r, ["cost", "total"]))
+  end
+
+  def rollup_text(_), do: nil
+
   defp incident_line(c) do
     cause =
       case {c["caused_by"], c["caused_by_card"]} do
@@ -1170,6 +1207,7 @@ defmodule SlipdockCLI.Render do
     )
 
     if i = c["incident_of"], do: field("Incident of", "deploy ##{i}")
+    lead_time_fields(c["lead_time"])
 
     field("Priority", c["priority"])
     field("Flags", if(c["flags"] == [], do: "-", else: Enum.join(c["flags"], ", ")))
