@@ -23,11 +23,15 @@ defmodule SlipdockWeb.OutlineComponents do
   attr :page, :integer, default: 1, doc: "the page of rows shown"
 
   def outline_view(assigns) do
+    show = Config.shown(assigns.config)
+    paged = Outline.page(assigns.outline, assigns.page, collapsed: assigns.collapsed)
+
     assigns =
       assign(assigns,
         compact?: assigns.config.density == "compact",
-        show: Config.shown(assigns.config),
-        paged: Outline.page(assigns.outline, assigns.page, collapsed: assigns.collapsed)
+        show: show,
+        paged: paged,
+        loops: page_loops(paged.nodes, show, assigns.collapsed)
       )
 
     ~H"""
@@ -76,6 +80,7 @@ defmodule SlipdockWeb.OutlineComponents do
           show={@show}
           quick_preview={@quick_preview}
           adding={@adding}
+          loops={@loops}
         />
         <.quick_add_row
           :if={@can_write and @board.columns != []}
@@ -105,6 +110,7 @@ defmodule SlipdockWeb.OutlineComponents do
   attr :show, :any, required: true, doc: "MapSet of facet keys to render on each row"
   attr :quick_preview, :map, default: %{}
   attr :adding, :any, default: nil
+  attr :loops, :map, default: %{}, doc: "the runner loop holding each row's card, by id"
 
   defp outline_rows(assigns) do
     ~H"""
@@ -238,6 +244,13 @@ defmodule SlipdockWeb.OutlineComponents do
             :if={MapSet.member?(@show, "priority") and priority_on_face?(node.card.priority)}
             priority={node.card.priority}
           />
+          <%!-- The runner loop holding the card (#2027, #2030), beside the people. --%>
+          <SlipdockWeb.LoopComponents.loop_chip
+            :if={MapSet.member?(@show, "assignee")}
+            id={"ol-loop-#{node.card.id}"}
+            loop={@loops[node.card.id]}
+            href={SlipdockWeb.LoopComponents.job_href(node.card, @loops[node.card.id])}
+          />
           <.assignee_chips
             :if={MapSet.member?(@show, "assignee")}
             users={Slipdock.Boards.Card.assignees(node.card)}
@@ -305,6 +318,7 @@ defmodule SlipdockWeb.OutlineComponents do
         show={@show}
         quick_preview={@quick_preview}
         adding={@adding}
+        loops={@loops}
       />
     <% end %>
     """
@@ -401,6 +415,26 @@ defmodule SlipdockWeb.OutlineComponents do
       class="inline-flex items-center gap-0.5 rounded-md bg-warning/20 px-1 py-0.5 text-2xs font-medium text-warning-content dark:text-warning"
     />
     """
+  end
+
+  # The loops holding the cards on this page (#2030), in one query, only
+  # when the assignee field is shown. The outline's cards come from the
+  # rollup without a state, so `CardState.loop/1` has nothing to read.
+  defp page_loops(nodes, show, collapsed) do
+    if MapSet.member?(show, "assignee"),
+      do: nodes |> shown_ids(collapsed) |> Slipdock.CardState.loops(),
+      else: %{}
+  end
+
+  defp shown_ids(nodes, collapsed) do
+    Enum.flat_map(nodes, fn node ->
+      beneath =
+        if MapSet.member?(collapsed, "card-#{node.card.id}"),
+          do: [],
+          else: shown_ids(node.children, collapsed)
+
+      [node.card.id | beneath]
+    end)
   end
 
   defp fmt(%Date{} = d), do: Dates.short(d)

@@ -101,6 +101,13 @@ way in: what it is, the pictures, and how to get it running.
   the card, so share the board before assigning someone new — with an assignee
   swimlane axis that puts a shared card in each person's lane, and **My work** (`/work`) lists everything assigned to you across all
   boards and levels, each with its path in the tree
+- The **loop chip**: while a runner job is claimed or running on a card, a
+  chip with a CPU icon, the runner's name and the job's kind ("Mac Studio ·
+  build", or verify, merge) sits beside its assignees — on the board tile, in
+  the outline row, the table's assignee cell and the card's Assignees — linked
+  to the job in the card's Runner jobs. It shows with the assignee field and
+  goes when the job ends; the loop is never an assignee, so assignee filters
+  and My work still mean people
 - **Multiboard** (`/multiboard`, from the home page's toolbar): pick lists
   from any of your boards under **Lists** and see the top N cards of each
   (5 unless you say, up to 50), in the list's own order, archived and
