@@ -33,6 +33,16 @@ defmodule Slipdock.Search.Indexer do
   # import turns into a series of ordinary batches rather than one huge one.
   @max_per_flush 40
 
+  @zero %{embedded: 0, unchanged: 0, removed: 0}
+
+  # How each kind in the queue is loaded, forgotten (when it has gone since it
+  # was queued) and indexed. A new kind is one line here and an `enqueue_*`.
+  @kinds [
+    card: {&Search.load_cards/1, &Search.forget_card/1, &Search.index_cards/1},
+    page: {&Search.load_pages/1, &Search.forget_page/1, &Search.index_pages/1},
+    file: {&Search.load_files/1, &Search.forget_file/1, &Search.index_files/1}
+  ]
+
   ## Client -------------------------------------------------------------------
 
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -45,43 +55,28 @@ defmodule Slipdock.Search.Indexer do
   def enqueue(nil), do: :ok
   def enqueue(%{id: id}), do: enqueue(id)
 
-  def enqueue(card_id) when is_integer(card_id) do
-    if enabled?() do
-      GenServer.cast(__MODULE__, {:enqueue, {:card, card_id}})
-    else
-      :ok
-    end
-  catch
-    # The indexer is not essential; never let its absence break a save.
-    :exit, _ -> :ok
-  end
+  def enqueue(card_id) when is_integer(card_id), do: cast(:card, card_id)
 
   @doc "Queues a wiki page for re-embedding. Same contract as `enqueue/1`."
   @spec enqueue_page(integer | Slipdock.Wiki.Page.t() | nil) :: :ok
   def enqueue_page(nil), do: :ok
   def enqueue_page(%{id: id}), do: enqueue_page(id)
-
-  def enqueue_page(page_id) when is_integer(page_id) do
-    if enabled?() do
-      GenServer.cast(__MODULE__, {:enqueue, {:page, page_id}})
-    else
-      :ok
-    end
-  catch
-    :exit, _ -> :ok
-  end
+  def enqueue_page(page_id) when is_integer(page_id), do: cast(:page, page_id)
 
   @doc "Queues a wiki file for re-embedding. Same contract as `enqueue/1`."
   @spec enqueue_file(integer | nil) :: :ok
   def enqueue_file(nil), do: :ok
+  def enqueue_file(file_id) when is_integer(file_id), do: cast(:file, file_id)
 
-  def enqueue_file(file_id) when is_integer(file_id) do
+  # The one way onto the queue, for every kind: it never blocks and never fails.
+  defp cast(kind, id) do
     if enabled?() do
-      GenServer.cast(__MODULE__, {:enqueue, {:file, file_id}})
+      GenServer.cast(__MODULE__, {:enqueue, {kind, id}})
     else
       :ok
     end
   catch
+    # The indexer is not essential; never let its absence break a save.
     :exit, _ -> :ok
   end
 
@@ -184,7 +179,7 @@ defmodule Slipdock.Search.Indexer do
 
   defp do_flush(%{queue: queue} = state) do
     if MapSet.size(queue) == 0 do
-      {{:ok, %{embedded: 0, unchanged: 0, removed: 0}}, state}
+      {{:ok, @zero}, state}
     else
       {batch, rest} = queue |> Enum.to_list() |> Enum.split(@max_per_flush)
       state = %{state | queue: MapSet.new(rest)}
@@ -197,28 +192,22 @@ defmodule Slipdock.Search.Indexer do
   end
 
   # One queue, three kinds of thing in it: cards, pages and files embed the
-  # same way and are merely loaded and swept differently.
+  # same way and are merely loaded and swept differently (`@kinds`).
   defp embed(entries) do
-    card_ids = for {:card, id} <- entries, do: id
-    page_ids = for {:page, id} <- entries, do: id
-    file_ids = for {:file, id} <- entries, do: id
+    ids = for {kind, _} <- @kinds, into: %{}, do: {kind, for({^kind, id} <- entries, do: id)}
 
-    with {:ok, cards} <- embed_cards(card_ids),
-         {:ok, pages} <- embed_pages(page_ids),
-         {:ok, files} <- embed_files(file_ids) do
-      sum = fn _k, a, b -> a + b end
-      counts = cards |> Map.merge(pages, sum) |> Map.merge(files, sum)
+    case embed_kinds(ids) do
+      {:ok, counts} ->
+        if counts.embedded > 0 or counts.removed > 0 do
+          Logger.info(
+            "Search index: #{counts.embedded} embedded, #{counts.unchanged} unchanged, " <>
+              "#{counts.removed} removed across #{length(ids.card)} cards, " <>
+              "#{length(ids.page)} pages and #{length(ids.file)} files"
+          )
+        end
 
-      if counts.embedded > 0 or counts.removed > 0 do
-        Logger.info(
-          "Search index: #{counts.embedded} embedded, #{counts.unchanged} unchanged, " <>
-            "#{counts.removed} removed across #{length(card_ids)} cards, " <>
-            "#{length(page_ids)} pages and #{length(file_ids)} files"
-        )
-      end
+        {:ok, counts}
 
-      {:ok, counts}
-    else
       {:error, reason} = error ->
         Logger.warning("Search index update failed: #{reason}")
         error
@@ -229,29 +218,23 @@ defmodule Slipdock.Search.Indexer do
       {:error, Exception.message(exception)}
   end
 
-  defp embed_cards([]), do: {:ok, %{embedded: 0, unchanged: 0, removed: 0}}
-
-  defp embed_cards(card_ids) do
-    cards = Search.load_cards(card_ids)
-    # Cards that have gone since they were queued take their chunks with them.
-    Enum.each(card_ids -- Enum.map(cards, & &1.id), &Search.forget_card/1)
-    Search.index_cards(cards)
+  # Each kind in turn, summing the counts; the first error stops the rest.
+  defp embed_kinds(ids) do
+    Enum.reduce_while(@kinds, {:ok, @zero}, fn {kind, funs}, {:ok, acc} ->
+      case embed_kind(Map.fetch!(ids, kind), funs) do
+        {:ok, counts} -> {:cont, {:ok, Map.merge(acc, counts, fn _k, a, b -> a + b end)}}
+        error -> {:halt, error}
+      end
+    end)
   end
 
-  defp embed_pages([]), do: {:ok, %{embedded: 0, unchanged: 0, removed: 0}}
+  defp embed_kind([], _funs), do: {:ok, @zero}
 
-  defp embed_pages(page_ids) do
-    pages = Search.load_pages(page_ids)
-    Enum.each(page_ids -- Enum.map(pages, & &1.id), &Search.forget_page/1)
-    Search.index_pages(pages)
-  end
-
-  defp embed_files([]), do: {:ok, %{embedded: 0, unchanged: 0, removed: 0}}
-
-  defp embed_files(file_ids) do
-    files = Search.load_files(file_ids)
-    Enum.each(file_ids -- Enum.map(files, & &1.id), &Search.forget_file/1)
-    Search.index_files(files)
+  defp embed_kind(ids, {load, forget, index}) do
+    loaded = load.(ids)
+    # Whatever has gone since it was queued takes its chunks with it.
+    Enum.each(ids -- Enum.map(loaded, & &1.id), forget)
+    index.(loaded)
   end
 
   defp schedule(%{timer: nil} = state) do

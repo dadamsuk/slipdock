@@ -12,9 +12,10 @@ defmodule Slipdock.Search.EmbeddingTest do
   import ExUnit.CaptureLog
   import Slipdock.Fixtures
 
-  alias Slipdock.{AI, AIStub, Boards, Search}
+  alias Slipdock.{AI, AIStub, Boards, OCR, Search, TestConfig}
   alias Slipdock.AI.Embeddings
   alias Slipdock.Search.{Embedding, Indexer, Vector}
+  alias Slipdock.Wiki.Files
 
   setup do
     AIStub.share()
@@ -30,6 +31,22 @@ defmodule Slipdock.Search.EmbeddingTest do
     do: Repo.all(from(e in Embedding, where: e.card_id == ^card_id, order_by: e.kind))
 
   defp page_rows(page_id), do: Repo.all(from(e in Embedding, where: e.page_id == ^page_id))
+
+  defp file_rows(file_id), do: Repo.all(from(e in Embedding, where: e.file_id == ^file_id))
+
+  # A wiki file with text read from it and that text indexed, as OCR leaves it.
+  defp indexed_wiki_file(%{board: board, owner: owner}) do
+    TestConfig.own_uploads_dir()
+    TestConfig.put(:ocr, run: fn _, _ -> {"a scanned delivery note", 0} end)
+    source = Path.join(System.tmp_dir!(), "idx-#{System.unique_integer([:positive])}")
+    File.write!(source, <<0x89, "PNG", 0, 0, 0, 0>>)
+    on_exit(fn -> File.rm(source) end)
+
+    {:ok, file} = Files.create(board, %{name: "note.png"}, source, owner)
+    assert OCR.run_next() == :ok
+    {:ok, _} = Indexer.flush()
+    file
+  end
 
   # Answers every embedding call with `fun.(decoded_body)` as the JSON reply.
   defp stub_embedding_reply(fun) do
@@ -441,6 +458,7 @@ defmodule Slipdock.Search.EmbeddingTest do
     test "nil and missing ids are no-ops, never failures" do
       assert Indexer.enqueue(nil) == :ok
       assert Indexer.enqueue_page(nil) == :ok
+      assert Indexer.enqueue_file(nil) == :ok
       assert Indexer.forget(nil) == :ok
       assert Indexer.forget_page(nil) == :ok
       assert Indexer.pending() == 0
@@ -476,6 +494,56 @@ defmodule Slipdock.Search.EmbeddingTest do
       assert {:ok, %{embedded: 0}} = Indexer.flush()
       assert rows_for(card.id) == []
       assert page_rows(page.id) == []
+    end
+
+    test "a wiki file that has gone since it was queued takes its rows with it", ctx do
+      file = indexed_wiki_file(ctx)
+      assert file_rows(file.id) != []
+      Indexer.reset()
+
+      Indexer.enqueue_file(file.id)
+      Repo.delete!(file)
+
+      assert {:ok, %{embedded: 0}} = Indexer.flush()
+      assert file_rows(file.id) == []
+    end
+
+    test "each kind is loaded and indexed as itself, gone ones beside live ones", ctx do
+      # First: making the file flushes the queue, and the rest must be new to it.
+      file = indexed_wiki_file(ctx)
+      card = card_fixture(ctx.column, %{"title" => "Live card"})
+      page = page_fixture(ctx.board, %{"title" => "Live page", "body" => "Words."})
+      gone_card = card_fixture(ctx.column, %{"title" => "Gone card"})
+      gone_page = page_fixture(ctx.board, %{"title" => "Gone page", "body" => "Text."})
+      Repo.delete_all(from(e in Embedding, where: e.file_id == ^file.id))
+      Indexer.reset()
+
+      Indexer.enqueue(card)
+      Indexer.enqueue(gone_card)
+      Indexer.enqueue_page(page)
+      Indexer.enqueue_page(gone_page)
+      Indexer.enqueue_file(file.id)
+      Repo.delete_all(from(c in Boards.Card, where: c.id == ^gone_card.id))
+      Repo.delete!(gone_page)
+
+      assert {:ok, %{embedded: n, removed: 0}} = Indexer.flush()
+      assert n == 3
+      assert [%{kind: "card"}] = rows_for(card.id)
+      assert [%{kind: "page"}] = page_rows(page.id)
+      assert [%{kind: "file_document"}] = file_rows(file.id)
+      assert rows_for(gone_card.id) == []
+      assert page_rows(gone_page.id) == []
+    end
+
+    test "a failing kind fails the flush, and the queue moves on", ctx do
+      card_fixture(ctx.column, %{"title" => "Fine"})
+      page_fixture(ctx.board, %{"title" => "Also fine", "body" => "Words."})
+      AIStub.fail_with(503, "upstream down")
+
+      log = capture_log(fn -> assert {:error, _} = Indexer.flush() end)
+
+      assert log =~ "Search index update failed"
+      assert Indexer.pending() == 0
     end
 
     test "a timer tick flushes the queue, and stray messages are ignored", ctx do
