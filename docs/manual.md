@@ -7600,6 +7600,19 @@ CI, which a chat can't.
 - **`slipdock-docs`** — the harder half: what belongs in a document and where.
   A page or a comment? Search before writing. Pin it to the card. Append to
   `## Log`, don't rewrite.
+- **`slipdock-plan`** — planning, when an agent is asked to plan ("plan
+  this", "I want to build…", "break this into cards", "spec this out"), not
+  when asked for a card. It finds the board's handbook, offering to install
+  one where there is none. It reads the Playbook and sizes the ask by its
+  `## Sizing`: a card-sized ask becomes one card and stops there. Otherwise
+  it runs the stages that size takes (grill, decide, principles, spec,
+  cards), each with the skill its section names when that skill is
+  installed, else its own text. It writes Decision pages into
+  `Handbook/Decisions` and principles onto the Principles page (as a garden
+  proposal unless the person agreed them). The spec becomes a page on the
+  epic, and the subcards go on in build order. It proposes the person's
+  `defaults:` page and asks, never imposes. Run unattended, it puts its
+  questions in a wait.
 - **`slipdock-loop`** — working the ready list unattended: one pass, one card,
   its subcards included, claimed before the work and closed out with a
   wrap-up comment and the commit id. Where the work lands in a GitHub repo it

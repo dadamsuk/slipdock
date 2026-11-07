@@ -58,6 +58,7 @@ test/slipdock_web/guide_short_docs_test.exs
 test/slipdock_web/generated_names_docs_test.exs
 test/slipdock_web/handbook_docs_test.exs
 test/slipdock_web/handbook_help_test.exs
+test/slipdock_web/plan_skill_docs_test.exs
 test/slipdock_web/handoff_docs_test.exs
 test/slipdock_web/health_docs_test.exs
 test/slipdock_web/job_logs_docs_test.exs

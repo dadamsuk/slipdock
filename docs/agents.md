@@ -139,6 +139,7 @@ What you get:
 | `slipdock-work` | Working *from* a board: epics and subcards, what to pick up next, what to write back. |
 | `slipdock-wiki` | The wiki: finding, reading, writing, linking, section writes. |
 | `slipdock-docs` | The harder half of the wiki — what is worth writing down, and where it goes. |
+| `slipdock-plan` | Planning: an idea becomes a plan the way the board's handbook Playbook says — sized as a card, a feature or a system, then the stages that size takes, written into the handbook and onto cards. |
 | `slipdock-loop` | Working the ready list unattended, one card per pass, for `/loop` or a cron — watching the GitHub build after each push and never closing a card on a red one. |
 
 ### In ChatGPT
@@ -483,6 +484,40 @@ A board's handbook can override these: the `## Card shape` section of
 its Playbook page wins wherever it says otherwise. It isn't a gate: one
 sentence is the person's judgement that one sentence was enough, and
 this only makes every agent's judgement the same.
+
+## Planning an idea: the `slipdock-plan` skill
+
+Asked to *plan* ("plan this", "I want to build…", "break this into cards",
+"spec this out", "where do we start"), an agent with the `slipdock-plan`
+skill follows the board's handbook **Playbook**. It is not used for "add a
+card…".
+
+1. It finds the handbook. Where there is none, it offers to install one
+   (`install_tool` with `tool: "handbook"`) and works from the baseline seed
+   it carries.
+2. It reads the Playbook and sizes the ask by its `## Sizing`. A card-sized
+   ask gets one card, shaped by `## Card shape`, and the skill stops there.
+3. It runs the stages the size takes, in order: Grill, Decide, Principles,
+   Spec, Cards for a system, and Grill, Spec, Cards for a feature. Each stage
+   uses the skill its section names when that skill is installed, otherwise
+   the stage's own text in `slipdock-plan`. A stage whose output is already
+   on the board is skipped.
+4. It writes where the Playbook says:
+   - Decision pages go in `Handbook/Decisions`, each with its context, the
+     choice, the alternatives and why not, and where it was decided.
+   - Principles are appended only when the person agreed to them; otherwise
+     they go in as a garden proposal.
+   - The spec is a page on the epic.
+   - The subcards are made in build order, with `blocked_by` where one card
+     builds on another.
+5. When the Playbook's `## Defaults` names a page of the person's own
+   defaults, the decide stage proposes each default and asks. A default is
+   never imposed.
+
+The skill adds no tools of its own: it uses the CLI or the MCP tools
+(`read_page`, `write_page`, `create_card`). It never asks the server to plan.
+Run unattended, it puts its questions in a wait instead of answering them
+itself.
 
 ## The handbook's rules
 
