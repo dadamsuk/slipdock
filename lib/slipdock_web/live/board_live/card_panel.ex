@@ -1610,6 +1610,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
 
   attr :board, :any, required: true
   attr :card, Card, required: true
+  attr :loop, :map, default: nil, doc: "the runner loop holding the card (#2027)"
   attr :form, :any, required: true
   attr :target, :any, required: true
   attr :users, :list, required: true
@@ -1626,6 +1627,13 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     <div id="card-props" class="space-y-0.5">
       <.prop_row name="assignees" label="Assignees" id="card-assignees">
         <div class="flex min-w-0 flex-wrap items-center gap-1">
+          <%!-- The runner loop holding the card (#2027): beside the people,
+                never one of them, and gone when its job ends. --%>
+          <SlipdockWeb.LoopComponents.loop_chip
+            id="card-assignee-loop"
+            loop={@loop}
+            href={@loop && "#card-job-#{@loop.job_id}"}
+          />
           <span
             :for={u <- Card.assignees(@card)}
             id={"card-assignee-#{u.id}"}
@@ -1813,6 +1821,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
 
   attr :board, :any, required: true
   attr :card, Card, required: true
+  attr :loop, :map, default: nil, doc: "the runner loop holding the card (#2027)"
   attr :form, :any, required: true
   attr :target, :any, required: true
   attr :users, :list, required: true
@@ -1867,7 +1876,14 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           phx-change="card_change"
           phx-target={@target}
         >
-          <.card_props board={@board} card={@card} form={@form} target={@target} users={@users} />
+          <.card_props
+            board={@board}
+            card={@card}
+            form={@form}
+            loop={@loop}
+            target={@target}
+            users={@users}
+          />
         </.form>
       </div>
     </div>
@@ -1878,6 +1894,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :can_write, :boolean, required: true
   attr :can_comment, :boolean, default: false, doc: "may report a status and vote (#863)"
   attr :card, Card, required: true
+  attr :loop, :map, default: nil, doc: "the runner loop holding the card (#2027)"
   attr :current_user, :any, default: nil
   attr :form, :any, required: true
   attr :form_key, :integer, required: true
@@ -1908,6 +1925,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             board={@board}
             card={@card}
             form={@form}
+            loop={@loop}
             target={@target}
             users={@users}
           />

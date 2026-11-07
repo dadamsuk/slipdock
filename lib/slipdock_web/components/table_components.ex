@@ -399,7 +399,13 @@ defmodule SlipdockWeb.TableComponents do
 
   defp cell(%{field: "assignee"} = assigns) do
     ~H"""
-    <div class="flex min-w-0 max-w-48 flex-nowrap">
+    <div class="flex min-w-0 max-w-48 flex-nowrap items-center gap-1">
+      <%!-- The runner loop holding the card (#2027), beside the people. --%>
+      <SlipdockWeb.LoopComponents.loop_chip
+        id={"table-loop-#{@card.id}"}
+        loop={Slipdock.CardState.loop(@card)}
+        href={SlipdockWeb.LoopComponents.job_href(@card, Slipdock.CardState.loop(@card))}
+      />
       <.assignee_chips users={Slipdock.Boards.Card.assignees(@card)} size="xs" with_name />
     </div>
     """

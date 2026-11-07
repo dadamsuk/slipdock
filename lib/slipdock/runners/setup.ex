@@ -34,6 +34,8 @@ defmodule Slipdock.Runners.Setup do
 
   # What a pass does to the card and the repository, each on or off and all
   # off unless ticked: whether any of it is wanted depends on the board.
+  # `assign` is still read from a saved setup but no longer asked or obeyed:
+  # a job never assigns the card (#2027, `assign_text/1`).
   @toggles ~w(in_progress assign commit push move_done complete percent_100)
 
   # Ready-written paragraphs for how much to write on the card.
@@ -1185,12 +1187,19 @@ defmodule Slipdock.Runners.Setup do
         do: "Move the card to the doing list when you start.",
         else: "Don't move the card to the doing list: leave it where it is."
       ),
-      if(a["assign"],
-        do: "Assign the card to yourself when you start.",
-        else: "Don't assign the card to anyone."
-      )
+      assign_text(a)
     ]
   end
+
+  # A job's agent signs in with its owner's token, so assigning "me" would
+  # name that person, not the runner (#2027). While its job holds the card,
+  # the card shows the runner as its loop beside its assignees, so a job
+  # never assigns, whatever an older setup's `assign` answer says; the
+  # answer is still taken so a saved setup reads as it did.
+  defp assign_text(_a),
+    do:
+      "Don't assign the card to anyone: while this job holds it, the card shows this " <>
+        "runner as its loop beside the assignees."
 
   defp finish_text(a) do
     [

@@ -640,6 +640,7 @@ defmodule SlipdockCLI.Render do
         if(c["comments"] != [], do: "💬#{length(c["comments"])}"),
         if(c["recurrence"], do: "↻"),
         if(c["snoozed_until"], do: "💤" <> String.slice(to_string(c["snoozed_until"]), 0, 10)),
+        loop_mark(c["loop"]),
         driver_text(c["driver"]),
         age_text(c),
         if(c["archived_at"], do: "(archived)")
@@ -652,6 +653,14 @@ defmodule SlipdockCLI.Render do
     "#" <>
       String.pad_trailing(to_string(c["id"]), 4) <> done <> title <> "  " <> dim(meta) <> state
   end
+
+  # The runner loop holding the card (#2027), beside its assignees but not
+  # one of them: `⟳Mac Studio·verify`.
+  defp loop_mark(%{} = loop), do: "⟳" <> loop_text(loop, "·")
+  defp loop_mark(_), do: nil
+
+  defp loop_text(loop, sep),
+    do: "#{loop["runner"] || "a runner"}#{sep}#{loop["kind"]}"
 
   # Who is driving the card (#1117): only on a tree where agents work.
   defp driver_text("agent"), do: "🤖agent"
@@ -1246,6 +1255,7 @@ defmodule SlipdockCLI.Render do
     field("% complete", if(p = c["percent_complete"], do: "#{p}%", else: "-"))
     field("Time", time_text(c, true) || "-")
     field("Assignee", assignees(c, &"#{&1["name"]} <#{&1["email"]}>") || "-")
+    loop_field(c["loop"])
     field("Cover", c["color"] || "-")
     if borders = borders_line(c), do: field("Borders", borders)
     field("Blocked by", dependency_list(c["blocked_by"], c["board_id"]))
@@ -2916,6 +2926,13 @@ defmodule SlipdockCLI.Render do
   def dim(s), do: if(tty?(), do: IO.ANSI.faint() <> s <> IO.ANSI.reset(), else: s)
   def green(s), do: if(tty?(), do: IO.ANSI.green() <> s <> IO.ANSI.reset(), else: s)
   def red(s), do: if(tty?(), do: IO.ANSI.red() <> s <> IO.ANSI.reset(), else: s)
+
+  # The runner loop holding a card (#2027), under its assignees and not one
+  # of them: `Loop: Mac Studio · verify (job #12)`.
+  defp loop_field(%{} = loop),
+    do: field("Loop", loop_text(loop, " · ") <> " (job ##{loop["job_id"]})")
+
+  defp loop_field(_), do: :ok
 
   # Everybody on a card, lead first, each as `fun` draws them; nil for nobody.
   # A server from before cards had several sends only `assignee`.

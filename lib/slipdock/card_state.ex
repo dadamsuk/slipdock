@@ -15,6 +15,13 @@ defmodule Slipdock.CardState do
       "waiting", "held", "queued", "claimed", "running", "failed" or
       "timeout" (#1132); nil with no line;
     * `held` — the held reason of a queued job (`Slipdock.Runners.held_reason/1`);
+    * `loop` — the runner loop holding the card (#2027): `%{runner: name,
+      kind: "build" | "verify" | "merge", job_id: id}` while its job is
+      claimed or running, else nil. It shows beside the card's assignees but
+      is not one: assignees stay people, and every assignee filter, the Work
+      page and the rules' `unassigned` trigger ignore it. It goes when the job
+      ends, however it ends (done, parked, failed, cancelled, timed out or
+      requeued), since it is read off the job and nothing is stored;
     * `driver` — "agent" while a runner's job holds the card, else the kind
       of whoever last put it in a list ("agent" or "human"), else nil. Only
       worked out on a tree with a runner rule, or for a card that has had a
@@ -43,6 +50,7 @@ defmodule Slipdock.CardState do
   defstruct line: nil,
             kind: nil,
             held: nil,
+            loop: nil,
             driver: nil,
             in_list_since: nil,
             age: nil,
@@ -163,6 +171,7 @@ defmodule Slipdock.CardState do
       line: line,
       kind: kind,
       held: held,
+      loop: job_loop(job),
       driver: if(ctx.runner_tree or job, do: driver(job, entry)),
       in_list_since: since,
       age: age,
@@ -178,6 +187,42 @@ defmodule Slipdock.CardState do
 
   defp quiet?(%Column{category: category}), do: category in @quiet
   defp quiet?(_), do: false
+
+  defp job_loop(%Job{status: status} = job) when status in ~w(claimed running),
+    do: %{runner: job.runner_name, kind: loop_kind(job.kind), job_id: job.id}
+
+  defp job_loop(_job), do: nil
+
+  # A job's kind is what its runner runs (`claude`, `codex`, a name of the
+  # runner's own): only verify and merge jobs are told apart, and every
+  # other kind builds.
+  defp loop_kind(kind) when kind in ~w(verify merge), do: kind
+  defp loop_kind(_kind), do: "build"
+
+  @doc """
+  The runner loop holding a card while its job is claimed or running
+  (`%{runner:, kind:, job_id:}`), or nil: nil too for a card nobody worked
+  a state out for.
+  """
+  def loop(%{state: %__MODULE__{loop: loop}}), do: loop
+  def loop(_card), do: nil
+
+  @doc """
+  The loop holding a card, from its jobs (any order): its running job's,
+  else its claimed one's, as `put/3` picks; nil with neither. For a card
+  read with its jobs rather than its state (the card panel).
+  """
+  def loop_of(jobs) do
+    jobs
+    |> Enum.filter(&Enum.member?(~w(claimed running), &1.status))
+    |> Enum.sort_by(&{&1.status == "running", &1.id}, :desc)
+    |> List.first()
+    |> job_loop()
+  end
+
+  @doc "The loop as its chip reads: \"Mac Studio · verify\"."
+  def loop_label(%{runner: runner, kind: kind}),
+    do: join([runner || "a runner", kind])
 
   defp driver(%Job{status: status}, _entry) when status in ~w(claimed running), do: "agent"
   defp driver(_job, %{actor_kind: kind}) when kind in ~w(agent human), do: kind
@@ -254,6 +299,7 @@ defmodule Slipdock.CardState do
     [
       state: s.line,
       held: s.held,
+      loop: s.loop,
       driver: s.driver,
       in_list_since: if(s.known, do: s.in_list_since),
       age: s.age,

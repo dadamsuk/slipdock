@@ -96,7 +96,7 @@ pass, not just at the end:
 | The invocation says | Then |
 |---|---|
 | "Don't move the card to the doing list" | step 4: no move; the card stays where it is |
-| "Don't assign the card to anyone" | step 4: no `--assignee me`; leave the assignee alone |
+| "Don't assign the card to anyone" | step 4: no `--assignee me`; leave the assignee alone (always, under a runner job) |
 | "Don't set the card's % complete at all" | no `--percent`, at the claim, as you go or at the end |
 | "Don't commit or push anything" | step 7: no steps 2 to 4; `Commit: none` |
 | "commit … but don't push" | step 7: commit, skip the push and the build watch |
@@ -324,6 +324,14 @@ and a percentage they cannot see is noise in the record.
 
 Leave out whatever the invocation rules out (see **What the invocation says
 wins**): the move, the assignee, the percentage, the comment.
+
+**Under a runner job, never assign.** When the pass holds a job
+(`$SLIPDOCK_JOB_ID` is set, or step 2b claimed one), leave out `--assignee
+me` whatever the invocation says: the token is the runner's owner's, so "me"
+names that person, not the loop. While the job is claimed or running the
+card already shows the runner beside its assignees (`loop` in the card's
+JSON: its name and the job's kind, build or verify), and it goes when the
+job ends. The job is the lock, not the assignee; assignees stay people.
 
 If what the card asks for is genuinely unclear, do not guess a scope: hand it
 back (see **Handing a card back**) rather than inventing work on it.

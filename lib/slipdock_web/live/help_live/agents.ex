@@ -1189,6 +1189,16 @@ defmodule SlipdockWeb.HelpLive.Agents do
           or <code>--stuck</code>, and on <code>driver</code>.
         </li>
         <li>
+          <strong>The loop on a card.</strong>
+          While a runner's job holds a card (claimed or running), its Assignees show the
+          runner and the job's kind, build or verify, linked to the job: <code>loop</code>
+          in REST, <code>get_card</code>
+          and <code>list_cards</code>, a <code>Loop:</code>
+          line in <code>slipdock card</code>. It goes when the job ends. It is not an
+          assignee: a runner's agent signs in with a person's token, so it leaves the
+          assignees alone, and every assignee filter still means people.
+        </li>
+        <li>
           <strong>Timeline.</strong>
           How long a card sat in each list, who moved it, and its waits
           and jobs: <code>get_card</code>
