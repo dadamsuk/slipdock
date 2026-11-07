@@ -48,6 +48,7 @@ defmodule Slipdock.Verified do
 
   alias Slipdock.Boards.{Board, Card, CardMove, Column}
   alias Slipdock.Repo
+  alias Slipdock.Verified.Circling
 
   @doc "Whether the checks apply to a change made by `actor`."
   def gated?(%{kind: "agent", via: via}) when via != "assistant", do: true
@@ -1232,7 +1233,7 @@ defmodule Slipdock.Verified do
     with {:ok, card} <-
            Slipdock.Boards.update_card(
              card,
-             Map.put(attrs, "flags", card.flags -- ["review"]),
+             Map.put(attrs, "flags", rejected_flags(card.flags, count)),
              actor: actor,
              by: user,
              verify_changes: changes
@@ -1242,10 +1243,19 @@ defmodule Slipdock.Verified do
       Slipdock.Runners.TranscriptRetention.card_failed(card)
       comment(card, "**Rejected** by #{by}.", with_parts(reason, checks), user)
       Slipdock.Findings.Signals.rejected(card, reason, checks, actor)
+      Circling.after_rejection(card, count, rejection_comments(card), user)
       if over, do: ask_a_person(card, count, limit, actor, user)
       send_back(card, "Rework: rejected by #{by}, reason under Verification", actor, user)
     end
     |> api_error()
+  end
+
+  # A rejection takes the `review` flag off, except from a card going round
+  # in circles (#2047): from the second on, it stays until it is accepted.
+  defp rejected_flags(flags, count) do
+    if count >= Circling.threshold(),
+      do: Enum.uniq(flags ++ ["review"]),
+      else: flags -- ["review"]
   end
 
   ## Repeated rejections (#1779) ----------------------------------------------

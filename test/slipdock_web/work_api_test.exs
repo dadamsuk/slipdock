@@ -88,6 +88,39 @@ defmodule SlipdockWeb.WorkAPITest do
     assert mine["path"] == ["Ops"]
   end
 
+  test "a card going round in circles heads REST's list and counts in whoami (#2047)", ctx do
+    [oldest, middle, newest] = three(ctx)
+    circling = card_fixture(ctx.todo, %{"title" => "Circling"})
+
+    from(c in Slipdock.Boards.Card, where: c.id == ^circling.id)
+    |> Repo.update_all(
+      set: [
+        verify_rejections: 2,
+        verify_state: "rejected",
+        verify_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        flags: ["review"]
+      ]
+    )
+
+    conn = with_token(ctx.user)
+    body = conn |> get("/api/work") |> json_response(200)
+
+    assert Enum.map(body["waiting"], & &1["card"]["id"]) ==
+             [circling.id, oldest.id, middle.id, newest.id]
+
+    assert hd(body["waiting"])["reason"] == "circling"
+    assert hd(body["waiting"])["text"] == "Going round in circles: rejected 2 times"
+    assert body["waiting_count"] == 4
+    assert (conn |> get("/api/me") |> json_response(200))["waiting_on_you"] == 4
+
+    whoami =
+      conn
+      |> mcp("tools/call", %{name: "whoami", arguments: %{}})
+      |> then(fn %{"content" => [%{"text" => text}]} -> Jason.decode!(text) end)
+
+    assert whoami["waiting_on_you"] == 4
+  end
+
   test "?board keeps to that tree; an unknown board is a 404", ctx do
     [_oldest, middle, _newest] = three(ctx)
     conn = with_token(ctx.user)

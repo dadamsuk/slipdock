@@ -553,6 +553,13 @@ defmodule SlipdockWeb.HelpLive.Flow do
           on the card, or <code>slipdock accept 12</code>. It is in My work's <em>Waiting on you</em>.
         </li>
         <li>
+          A second rejection, or one for a rule an earlier rejection named, says the card is
+          going round in circles: it stays flagged <strong>review</strong>
+          until it is accepted, a comment lists the rounds and what failed in each, an alert goes up
+          and you are emailed, and it heads My work's <em>Waiting on you</em>. The runners still
+          rework it; look at whether it needs a different approach or a reworded bar.
+        </li>
+        <li>
           After <em>Rejections before a person decides</em>
           (2 by default), the next rejection opens a wait on the board's owner: rework it as
           rejected, or accept it as is. It lists what failed each time, and asks whether the
