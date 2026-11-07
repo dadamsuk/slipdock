@@ -37,7 +37,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     add_dependency remove_dependency create_sub_board remove_assignee delete_sub_board
     quick_add_subcard toggle_subcard edit_description stop_editing_description
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe read_text add_link remove_link write_up
-    toggle_pin_doc doc_search doc_focus attach_doc detach_doc card_timer log_time dep_direction
+    toggle_pin_doc doc_search doc_focus attach_doc detach_doc card_timer accept_profile log_time dep_direction
     dep_search link_search pick_template comment_change share revoke_grant cancel_job
     edit_handoff cancel_handoff leave_handoff clear_handoff delete_handoff restore_handoff draft_handoff
     edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat
@@ -546,6 +546,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       :error -> {:noreply, notice(socket, :error, "That person can't be put on this card.")}
     end
   end
+
+  # The inferred profile, accepted from the panel's hint (#2018): a person
+  # setting it, like choosing it in the select.
+  defp event("accept_profile", %{"profile" => profile}, socket),
+    do: event("card_change", %{"card" => %{"profile" => profile}}, socket)
 
   defp event("card_timer", %{"action" => action}, socket) do
     with {:ok, card} <- writable(socket),
@@ -1708,6 +1713,16 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 tags_path={@tags_path}
                 target={@target}
                 uploads={@uploads}
+              />
+
+              <%!-- The agent work (#2018): profile, bar, paths and evidence
+                    together, apart from the general fields. --%>
+              <.profile_section
+                :if={@board.profiles || @card.profile}
+                board={@board}
+                card={@card}
+                form={@form}
+                target={@target}
               />
 
               <.bar_section

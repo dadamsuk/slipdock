@@ -1926,6 +1926,7 @@ defmodule Slipdock.Boards do
 
     card
     |> Card.changeset(Map.put(attrs, "board_id", column.board_id))
+    |> profile_source(opts)
     # The free tier's limit, enforced here rather than in the board UI: the
     # same card can be made from quick add, the CLI, the JSON API, an
     # automation rule and the model, and all of them come through this
@@ -1987,7 +1988,11 @@ defmodule Slipdock.Boards do
     if board && board.profiles && Slipdock.Verified.gated?(actor) do
       profile = card |> Repo.preload(:tags) |> Slipdock.Profiles.infer_card()
 
-      {:ok, updated} = card |> Ecto.Changeset.change(profile: profile) |> Repo.update()
+      {:ok, updated} =
+        card
+        |> Ecto.Changeset.change(profile: profile, profile_source: "inferred")
+        |> Repo.update()
+
       log(Repo, updated.board_id, updated.id, "card", "profile inferred: #{profile}")
       broadcast(updated.board_id)
       updated
@@ -1997,6 +2002,32 @@ defmodule Slipdock.Boards do
   end
 
   def infer_profile(%Card{} = card, _actor), do: card
+
+  # Where a profile a write sets came from (#2018): who wrote it, read from
+  # `opts` and else from the process (`Slipdock.Actor.current/0`). Cleared
+  # with the profile; a write that leaves the profile alone keeps it.
+  defp profile_source(changeset, opts) do
+    case Ecto.Changeset.fetch_change(changeset, :profile) do
+      {:ok, nil} -> Ecto.Changeset.put_change(changeset, :profile_source, nil)
+      {:ok, _} -> Ecto.Changeset.put_change(changeset, :profile_source, source_of(opts))
+      :error -> changeset
+    end
+  end
+
+  defp source_of(opts) do
+    actor =
+      case Slipdock.Actor.resolve(opts) do
+        %{kind: nil} -> Slipdock.Actor.current()
+        actor -> actor
+      end
+
+    case actor.kind do
+      "human" -> "person"
+      "agent" -> "agent"
+      "automation" -> "rule"
+      _ -> nil
+    end
+  end
 
   # Into a doing list, the card is started (#1951).
   defp started(card_id, %Column{category: "doing"}, actor),
@@ -2059,6 +2090,7 @@ defmodule Slipdock.Boards do
       |> Card.changeset(attrs)
       |> Ecto.Changeset.change(verify_changes)
       |> percent_by_hand(opts)
+      |> profile_source(opts)
 
     titled? = Map.has_key?(changeset.changes, :title)
     named? = titled? or Map.has_key?(changeset.changes, :short_name)

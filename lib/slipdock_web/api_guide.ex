@@ -3866,7 +3866,9 @@ defmodule SlipdockWeb.APIGuide do
       `update_card`/`create_card` `profile`, `slipdock edit ID --profile
       fix` or `--no-profile`); an unknown name is refused (`422`) with the
       list. It shows in the card's JSON, `get_card`, `list_cards`,
-      `slipdock card` and the ledger's lines (`card.profile`).
+      `slipdock card` and the ledger's lines (`card.profile`). Beside it,
+      `profile_source` says where it came from: `inferred`, or set by a
+      `person`, an `agent` or a `rule` (nil with no profile, or unrecorded).
 
       Each profile has a human tier (the board's JSON, `profile_tiers`):
       `none` (`docs`, `fix`) and `ledger` (`feature`) let an agent's

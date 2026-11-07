@@ -585,8 +585,15 @@ defmodule SlipdockCLI.Render do
   defp profile_mark(%{"profile" => p}) when is_binary(p), do: "profile:#{p}"
   defp profile_mark(_c), do: nil
 
+  # Where it came from (#2018), beside it: "feature · inferred".
+  defp profile_field(%{"profile" => p, "profile_source" => s}) when is_binary(p) and is_binary(s),
+    do: field("Profile", "#{p} · #{profile_source_text(s)}")
+
   defp profile_field(%{"profile" => p}) when is_binary(p), do: field("Profile", p)
   defp profile_field(_c), do: nil
+
+  defp profile_source_text("inferred"), do: "inferred"
+  defp profile_source_text(source), do: "set by #{source}"
 
   def card_line(c, with_column?) do
     done = if c["completed"], do: "✓ ", else: ""

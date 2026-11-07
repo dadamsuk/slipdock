@@ -249,6 +249,31 @@ defmodule Slipdock.Profiles do
     infer(paths, tag_names(tags), opts)
   end
 
+  @doc """
+  What `infer_card/1` would give `card` now, and why, for a person to see
+  before an agent starts it (#2018): `{profile, reason}`, the reason one
+  short phrase ("from priv/repo/migrations/…", "from the bug tag").
+  """
+  def explain_card(%{paths: paths, tags: tags}) do
+    paths = Enum.reject(paths || [], &(is_nil(&1) or &1 == ""))
+    tags = Enum.map(tag_names(tags), &String.downcase/1)
+    profile = by_rules(paths, tags)
+    {profile, reason(profile, paths, tags)}
+  end
+
+  defp reason("security", paths, tags) do
+    if Enum.member?(tags, "security"),
+      do: "from the security tag",
+      else: "from " <> Enum.find(paths, &security_path?/1)
+  end
+
+  defp reason("schema", paths, _tags), do: "from " <> Enum.find(paths, &schema_path?/1)
+  defp reason("spike", _paths, _tags), do: "from the spike tag"
+  defp reason("fix", _paths, _tags), do: "from the bug tag"
+  defp reason("docs", _paths, _tags), do: "from its paths, all docs"
+  defp reason(_feature, [], _tags), do: "the default: it has no paths yet"
+  defp reason(_feature, _paths, _tags), do: "the default for its paths"
+
   defp tag_names(%Ecto.Association.NotLoaded{}), do: []
   defp tag_names(tags), do: Enum.map(tags || [], & &1.name)
 
