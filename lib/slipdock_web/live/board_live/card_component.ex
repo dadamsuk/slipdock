@@ -75,6 +75,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        card: nil,
        given: nil,
        card_form: nil,
+       panel_notice: nil,
+       notice_for: nil,
        narrow?: false,
        form_key: 0,
        share_key: 0,
@@ -205,7 +207,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             wait_answers: %{},
             wait_suggest: %{},
             asking: nil,
-            repeat: nil
+            repeat: nil,
+            # A notice meant for the card the panel moves to (Duplicate's
+            # "Duplicated as #N") is kept; any other is the last card's.
+            panel_notice:
+              if(socket.assigns.notice_for == given.id, do: socket.assigns.panel_notice),
+            notice_for: nil
           )
 
     if readable do
@@ -352,23 +359,23 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   @impl true
   def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
+    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
 
   def handle_event(_event, _params, %{assigns: %{card: nil}} = socket), do: {:noreply, socket}
 
   def handle_event(event, _params, %{assigns: %{can_share: false}} = socket)
       when event in @share_events,
-      do: {:noreply, flash(socket, :error, "You can't share that.")}
+      do: {:noreply, notice(socket, :error, "You can't share that.")}
 
   def handle_event(event, params, %{assigns: %{can_comment: true}} = socket)
       when event in @comment_events,
-      do: dispatch(event, params, socket)
+      do: dispatch(event, params, clear_notice(socket))
 
   def handle_event(event, _params, %{assigns: %{can_write: false}} = socket)
       when event not in @read_events and event not in @share_events,
-      do: {:noreply, flash(socket, :error, read_only_message(socket))}
+      do: {:noreply, notice(socket, :error, read_only_message(socket))}
 
-  def handle_event(event, params, socket), do: dispatch(event, params, socket)
+  def handle_event(event, params, socket), do: dispatch(event, params, clear_notice(socket))
 
   # Auto generate's draft (#1099), into the form if it is still open.
   @impl true
@@ -455,9 +462,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           do: "Job ##{job.id} cancelled.",
           else: "Asked the runner to stop job ##{job.id}."
 
-      {:noreply, socket |> assign_jobs() |> flash(:info, message)}
+      {:noreply, socket |> assign_jobs() |> notice(:info, message)}
     else
-      {:error, message} -> {:noreply, socket |> assign_jobs() |> flash(:error, message)}
+      {:error, message} -> {:noreply, socket |> assign_jobs() |> notice(:error, message)}
       nil -> {:noreply, assign_jobs(socket)}
     end
   end
@@ -471,7 +478,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         {:noreply, socket |> update(:share_key, &(&1 + 1)) |> assign_pages()}
 
       {:error, message} ->
-        {:noreply, flash(socket, :error, message)}
+        {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -482,7 +489,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         {:noreply, assign_pages(socket)}
 
       _ ->
-        {:noreply, flash(socket, :error, "Couldn't remove that access.")}
+        {:noreply, notice(socket, :error, "Couldn't remove that access.")}
     end
   end
 
@@ -532,7 +539,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           {:noreply, assign(socket, card_form: to_form(cs))}
       end
     else
-      :error -> {:noreply, flash(socket, :error, "That person can't be put on this card.")}
+      :error -> {:noreply, notice(socket, :error, "That person can't be put on this card.")}
     end
   end
 
@@ -542,7 +549,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
            if(action == "stop", do: Boards.stop_timer(card), else: Boards.start_timer(card)) do
       {:noreply, assign(socket, card: fresh(socket, card.id))}
     else
-      _ -> {:noreply, flash(socket, :error, "You have read-only access to that card.")}
+      _ -> {:noreply, notice(socket, :error, "You have read-only access to that card.")}
     end
   end
 
@@ -557,10 +564,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
         {:error, _} ->
           {:noreply,
-           flash(socket, :error, "Couldn't read “#{amount}” as a time — try 45m, 1.5h or 2d.")}
+           notice(socket, :error, "Couldn't read “#{amount}” as a time — try 45m, 1.5h or 2d.")}
       end
     else
-      _ -> {:noreply, flash(socket, :error, "You have read-only access to that card.")}
+      _ -> {:noreply, notice(socket, :error, "You have read-only access to that card.")}
     end
   end
 
@@ -577,7 +584,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
          |> push_navigate(to: ~p"/boards/#{page.board_id}/wiki/#{page.slug}/edit")}
 
       _ ->
-        {:noreply, flash(socket, :error, "That page couldn't be started.")}
+        {:noreply, notice(socket, :error, "That page couldn't be started.")}
     end
   end
 
@@ -601,11 +608,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
          {:ok, _} <- Wiki.pin(page, {:card, card}) do
       {:noreply,
        socket
-       |> flash(:info, "Attached #{page.code} to this card.")
+       |> notice(:info, "Attached #{page.code} to this card.")
        |> assign(doc_query: "", doc_results: [], doc_pool: nil)
        |> assign_pages()}
     else
-      _ -> {:noreply, flash(socket, :error, "That page couldn't be attached.")}
+      _ -> {:noreply, notice(socket, :error, "That page couldn't be attached.")}
     end
   end
 
@@ -616,7 +623,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
          {:ok, _} <- Wiki.unlink(page, {:card, card}) do
       {:noreply, assign_pages(socket)}
     else
-      _ -> {:noreply, flash(socket, :error, "That page couldn't be detached.")}
+      _ -> {:noreply, notice(socket, :error, "That page couldn't be detached.")}
     end
   end
 
@@ -628,7 +635,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
          {:ok, _} <- Wiki.pin(page, {:card, card}, not (link && link.pinned)) do
       {:noreply, assign_pages(socket)}
     else
-      _ -> {:noreply, flash(socket, :error, "That page couldn't be pinned.")}
+      _ -> {:noreply, notice(socket, :error, "That page couldn't be pinned.")}
     end
   end
 
@@ -676,7 +683,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
           {:error, changeset} ->
             {field, {msg, _}} = hd(changeset.errors)
-            {:noreply, flash(socket, :error, "Tag not made: #{field} #{msg}.")}
+            {:noreply, notice(socket, :error, "Tag not made: #{field} #{msg}.")}
         end
     end
   end
@@ -708,12 +715,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       {:ok, copy} ->
         {:noreply,
          socket
-         |> flash(:info, "Duplicated as ##{copy.id}.")
+         |> notice(:info, "Duplicated as ##{copy.id}.")
+         |> assign(notice_for: copy.id)
          |> push_patch(to: Paths.card_path(socket.assigns, copy.id))}
 
       {:error, refused} ->
         message = Slipdock.Quota.refusal_message(refused) || "Couldn't duplicate the card."
-        {:noreply, flash(socket, :error, message)}
+        {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -765,10 +773,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       {:noreply, assign(socket, card: fresh(socket, card.id))}
     else
       {:error, _status, message} ->
-        {:noreply, flash(socket, :error, String.capitalize(message) <> ".")}
+        {:noreply, notice(socket, :error, String.capitalize(message) <> ".")}
 
       _ ->
-        {:noreply, flash(socket, :error, "You have read-only access to that card.")}
+        {:noreply, notice(socket, :error, "You have read-only access to that card.")}
     end
   end
 
@@ -858,10 +866,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
-         socket |> assign(asking: asking) |> flash(:error, changeset_message(changeset))}
+         socket |> assign(asking: asking) |> notice(:error, changeset_message(changeset))}
 
       {:error, message} ->
-        {:noreply, socket |> assign(asking: asking) |> flash(:error, message)}
+        {:noreply, socket |> assign(asking: asking) |> notice(:error, message)}
     end
   end
 
@@ -989,7 +997,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp event("skip_repeat", _, socket) do
     case Slipdock.Recurrence.skip(socket.assigns.card) do
       {:ok, _} -> {:noreply, reload(socket)}
-      {:error, message} when is_binary(message) -> {:noreply, flash(socket, :error, message)}
+      {:error, message} when is_binary(message) -> {:noreply, notice(socket, :error, message)}
       _ -> {:noreply, socket}
     end
   end
@@ -1028,7 +1036,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       {:noreply,
        socket |> assign(editing_handoff: false, handoff_form: nil) |> reload() |> assign_pages()}
     else
-      _ -> {:noreply, flash(socket, :error, "That one can't be restored.")}
+      _ -> {:noreply, notice(socket, :error, "That one can't be restored.")}
     end
   end
 
@@ -1052,7 +1060,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
            |> assign_pages()}
         else
           {:noreply,
-           flash(
+           notice(
              socket,
              :error,
              "Only its author or someone who can edit the card can delete it."
@@ -1164,7 +1172,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
          socket |> assign(dep_query: "", dep_results: []) |> update(:form_key, &(&1 + 1))}
 
       {:error, message} ->
-        {:noreply, flash(socket, :error, message)}
+        {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -1207,7 +1215,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        |> assign(link_query: "", link_results: [], card: fresh(socket, card.id))
        |> update(:form_key, &(&1 + 1))}
     else
-      {:error, message} -> {:noreply, flash(socket, :error, message)}
+      {:error, message} -> {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -1238,15 +1246,15 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
          {:ok, _} <- Boards.create_sub_board(socket.assigns.card, template) do
       {:noreply, assign(socket, picking_template: false)}
     else
-      {:error, :not_found} -> {:noreply, flash(socket, :error, "That template has gone.")}
-      {:error, message} -> {:noreply, flash(socket, :error, message)}
+      {:error, :not_found} -> {:noreply, notice(socket, :error, "That template has gone.")}
+      {:error, message} -> {:noreply, notice(socket, :error, message)}
     end
   end
 
   defp event("delete_sub_board", _, socket) do
     case Boards.delete_sub_board(socket.assigns.card) do
       {:ok, _} -> {:noreply, socket}
-      {:error, message} -> {:noreply, flash(socket, :error, message)}
+      {:error, message} -> {:noreply, notice(socket, :error, message)}
     end
   end
 
@@ -1330,6 +1338,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         shipped={assigns[:card_shipped] || []}
         incident={assigns[:card_incident]}
         incident_error={assigns[:incident_error]}
+        panel_notice={@panel_notice}
         wait_count={@wait_count}
         wait_history={@wait_history}
         wait_answers={@wait_answers}
@@ -1360,7 +1369,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     {field, {msg, _}} = List.first(changeset.errors) || {:file, {"could not be stored", []}}
 
     socket
-    |> flash(:error, "Upload failed: #{field} #{msg}.")
+    |> notice(:error, "Upload failed: #{field} #{msg}.")
     |> image_failed(name)
   end
 
@@ -1477,6 +1486,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     default: nil,
     doc: "both ends of an incident (#1946), as the reader may see"
 
+  attr :panel_notice, :any,
+    default: nil,
+    doc: "what the panel's last action said, `{kind, message}`, at its top (UX-29)"
+
   attr :incident_error, :string,
     default: nil,
     doc: "why the Incident line refused its last change, shown in it (UX-29)"
@@ -1564,6 +1577,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           do: "You can comment on this card, but not change it.",
           else: "You have read-only access to this card."}
       </p>
+      <.panel_notice notice={@panel_notice} class="mx-6 mt-2" />
       <div
         :if={@parent}
         id="card-parent"
@@ -1931,9 +1945,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        |> assign_pages()}
 
   defp waited({:error, %Ecto.Changeset{} = changeset}, socket),
-    do: {:noreply, flash(socket, :error, changeset_message(changeset))}
+    do: {:noreply, notice(socket, :error, changeset_message(changeset))}
 
-  defp waited({:error, message}, socket), do: {:noreply, flash(socket, :error, message)}
+  defp waited({:error, message}, socket), do: {:noreply, notice(socket, :error, message)}
 
   # The ask form's questions, in order, as typed.
   defp asked(params) do

@@ -65,7 +65,7 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
         {:noreply, socket |> update(:form_key, &(&1 + 1)) |> reload.()}
 
       {:error, _} ->
-        {:noreply, flash(socket, :error, "Pick a health to report.")}
+        {:noreply, notice(socket, :error, "Pick a health to report.")}
     end
   end
 
@@ -105,7 +105,7 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
         {:noreply, socket |> reload.() |> update(:form_key, &(&1 + 1))}
 
       {:error, changeset} ->
-        {:noreply, flash(socket, :error, "That link #{url_error(changeset)}.")}
+        {:noreply, notice(socket, :error, "That link #{url_error(changeset)}.")}
     end
   end
 
@@ -128,7 +128,7 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
       field ->
         case Fields.set_value(socket.assigns.item, field, value) do
           {:ok, _} -> {:noreply, reload.(socket)}
-          {:error, message} -> {:noreply, flash(socket, :error, message)}
+          {:error, message} -> {:noreply, notice(socket, :error, message)}
         end
     end
   end
@@ -144,7 +144,7 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
           {:noreply, reload.(socket)}
         else
           nil -> {:noreply, socket}
-          {:error, message} -> {:noreply, flash(socket, :error, message)}
+          {:error, message} -> {:noreply, notice(socket, :error, message)}
         end
     end
   end

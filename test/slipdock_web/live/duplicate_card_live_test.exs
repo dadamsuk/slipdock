@@ -44,7 +44,9 @@ defmodule SlipdockWeb.DuplicateCardLiveTest do
     # refused on the server.
     refute has_element?(view, "#duplicate-card")
     view |> with_target("#board-card") |> render_click("duplicate_card", %{})
-    assert view |> element("#flash-error") |> render() =~ "read-only"
+
+    assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
+             "read-only"
 
     assert length(Boards.active_items(ctx.column.id)) == 2
   end
@@ -57,6 +59,8 @@ defmodule SlipdockWeb.DuplicateCardLiveTest do
     view |> element("#duplicate-card") |> render_click()
 
     assert length(Boards.active_items(ctx.column.id)) == 2
-    assert view |> element("#flash-error") |> render() =~ "has used all 2 of their cards"
+
+    assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
+             "has used all 2 of their cards"
   end
 end
