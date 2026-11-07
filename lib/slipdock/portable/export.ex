@@ -351,6 +351,7 @@ defmodule Slipdock.Portable.Export do
       evidence_pr: card.evidence_pr,
       evidence_no_code: card.evidence_no_code,
       profile: card.profile,
+      profile_source: card.profile_source,
       paths: card.paths,
       # Minutes, whatever the unit; a running timer's time isn't spent yet.
       time_spent: card.time_spent,
