@@ -46,7 +46,7 @@ defmodule Slipdock.Verified do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Slipdock.Boards.{Board, Card, Column}
+  alias Slipdock.Boards.{Board, Card, CardMove, Column}
   alias Slipdock.Repo
 
   @doc "Whether the checks apply to a change made by `actor`."
@@ -115,6 +115,7 @@ defmodule Slipdock.Verified do
   def check_update(%Card{} = card, attrs, actor) do
     with :ok <- check_reopen(card, attrs, actor),
          :ok <- check_bar_edit(card, attrs, actor),
+         :ok <- check_profile_edit(card, attrs, actor),
          :ok <- check_subcards(card, attrs, actor),
          :ok <- check_evidence(card, attrs, actor),
          :ok <- check_change(attrs) do
@@ -142,6 +143,78 @@ defmodule Slipdock.Verified do
         {:error, :bar,
          "is locked: it was set before work started and only a person can change it now"}
     end
+  end
+
+  ## The profile (#2016) -------------------------------------------------------
+
+  @doc """
+  The message an agent gets setting `card`'s profile to `new` (nil or ""
+  clears it), or nil when it may. On a board with profiles on, once the card
+  has been started or a person set its profile, an agent may keep the
+  profile or raise it to a stricter one (`Slipdock.Profiles.rank/1`), never
+  lower or clear it: the profile decides how the work is checked and who
+  must look before it merges. A person can do either.
+  """
+  def profile_message(%Card{} = card, new, actor) do
+    new = if blank?(new), do: nil, else: String.downcase(trim(new))
+
+    if gated?(actor) and new != card.profile and profile_locked?(card),
+      do: lowering_message(card, new)
+  end
+
+  defp lowering_message(%Card{profile: nil}, nil), do: nil
+
+  defp lowering_message(%Card{} = card, nil) do
+    "card ##{card.id}'s profile (#{card.profile}) can't be cleared by an agent once work has " <>
+      "started: only a person can lower or clear it"
+  end
+
+  # An unknown name is the changeset's to refuse, with the list.
+  defp lowering_message(%Card{} = card, new) do
+    was = card.profile || Slipdock.Profiles.profile_of(card)
+
+    if Slipdock.Profiles.name?(new) and Slipdock.Profiles.rank(new) < Slipdock.Profiles.rank(was),
+      do:
+        "card ##{card.id}'s profile can only be raised by an agent once work has started " <>
+          "(#{was} to #{new} lowers it): only a person can lower or clear it"
+  end
+
+  defp check_profile_edit(card, attrs, actor) do
+    with new when new != :none <- fetch(attrs, :profile),
+         message when is_binary(message) <- profile_message(card, new, actor) do
+      {:error, :profile, "is refused: " <> message}
+    else
+      _ -> :ok
+    end
+  end
+
+  # Whether an agent's profile edits are held to raising (#2016): on a board
+  # with profiles on, once a person set it or work on the card has started
+  # (in a doing list now or ever before, its bar locked, inferred at an
+  # agent's start or claim, completed, or submitted for verification). Once
+  # started, a card stays started.
+  defp profile_locked?(%Card{} = card) do
+    board(card).profiles == true and
+      (Enum.member?(["person", "inferred"], card.profile_source) or started?(card))
+  end
+
+  defp started?(%Card{} = card) do
+    card.completed == true or not is_nil(card.bar_locked_at) or
+      not is_nil(card.verify_state) or
+      doing?(Repo.get(Column, card.column_id)) or
+      entered_doing?(card)
+  end
+
+  # Whether the move ledger has the card entering a doing list (created in
+  # one, moved or restored into one). The ledger snapshots the list's
+  # category, so a list renamed or recategorised since still counts.
+  defp entered_doing?(%Card{id: id}) do
+    Repo.exists?(
+      from m in CardMove,
+        where:
+          m.card_id == ^id and m.to_category == "doing" and
+            m.kind in ^CardMove.entry_kinds()
+    )
   end
 
   @doc """

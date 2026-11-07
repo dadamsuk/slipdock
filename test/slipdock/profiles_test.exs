@@ -155,6 +155,15 @@ defmodule Slipdock.ProfilesTest do
     board
   end
 
+  describe "rank/1" do
+    test "orders the profiles by strictness, spike above feature, nil below them all" do
+      ranked = Enum.sort_by(Profiles.names(), &Profiles.rank/1)
+      assert ranked == ~w(docs fix feature spike schema security)
+      assert Profiles.rank(nil) < Profiles.rank("docs")
+      assert Profiles.rank("chore") == Profiles.rank(nil)
+    end
+  end
+
   describe "the setting and the card's field" do
     test "profiles is off by default, and turns on and off", ctx do
       refute ctx.board.profiles

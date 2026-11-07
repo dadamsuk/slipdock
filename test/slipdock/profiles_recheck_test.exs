@@ -127,7 +127,9 @@ defmodule Slipdock.ProfilesRecheckTest do
   end
 
   test "a profile the completing write sets is the one judged", ctx do
-    card = started(ctx, %{"paths" => "lib/x.ex"})
+    # Not started, so the agent may lower it (#2016): once started, it may only raise it.
+    card =
+      card_fixture(ctx.todo, %{"title" => "Work", "paths" => "lib/x.ex", "profile" => "feature"})
 
     {:ok, _} =
       complete(card, %{"profile" => "docs", "changed_lines" => 401}, ctx.agent)
