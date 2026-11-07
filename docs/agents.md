@@ -487,7 +487,9 @@ this only makes every agent's judgement the same.
 ## The handbook's rules
 
 On a board that keeps a handbook (`slipdock handbook <board>`), each
-section page lists its rules in a `## Rules` section, one item each:
+section page (Specification, Architecture, UX & UI, Components, Data model,
+Shared modules, Testing & tooling, Operations, Principles, Playbook) lists
+its rules in a `## Rules` section, one item each:
 `- **UX-4** must · test/app_web/design_tokens_test.exs · No colour literals
 in templates.` That is an id (the page's prefix and a number), `must` or
 `should`, an optional `scope <globs>` (otherwise the page's `covers:`), the

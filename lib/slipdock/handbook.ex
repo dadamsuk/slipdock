@@ -249,6 +249,23 @@ defmodule Slipdock.Handbook do
   @doc "The `handbook:` key of each built-in section page, in the handbook's order."
   def section_keys, do: for({_title, key, _, _, _} <- @sections, do: key)
 
+  # How running prose names a section page where its title won't do
+  # ("pages for the specification, UX, testing, …"); the rest are the title
+  # in lower case.
+  @prose_names %{"ux" => "UX", "testing" => "testing"}
+
+  @doc """
+  The built-in section pages, in the handbook's order: each one's `title`,
+  its `handbook:` `key` and the `name` running prose gives it (#2045).
+  Every list of the handbook's pages is built from this or held to it
+  (`test/slipdock/handbook_page_lists_test.exs`).
+  """
+  def sections do
+    for {title, key, _, _, _} <- @sections do
+      %{title: title, key: key, name: Map.get(@prose_names, key, String.downcase(title))}
+    end
+  end
+
   def seed_title, do: @seed_title
   def reconcile_title, do: @reconcile_title
   def triage_title, do: @triage_title
