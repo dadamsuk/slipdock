@@ -107,6 +107,9 @@ defmodule SlipdockWeb.LanesDocsTest do
 
     assert read("docs/agents.md") =~ "A board's `shared_paths`"
 
+    assert read("README.md") =~
+             ~s(board's shared paths that never count toward a lane, for the files nearly\n  every card edits (`slipdock set-board --shared-paths "docs/manual.md,README.md"`\))
+
     guide = read("lib/slipdock_web/api_guide.ex")
     assert guide =~ "**Shared paths.** A board's `shared_paths`"
     assert guide =~ "shared paths (hold no lane): "

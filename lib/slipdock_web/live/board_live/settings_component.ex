@@ -870,7 +870,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   placeholder="docs/manual.md&#10;README.md"
                   class="textarea field field-mono w-full"
                 />
-                <p class="-mt-1 text-xs text-base-content/50">
+                <p class="-mt-1 text-xs text-base-content/60">
                   One glob per line. Files nearly every card edits, such as the manual: cards
                   can both declare them without holding each other. Any other overlap still holds.
                 </p>

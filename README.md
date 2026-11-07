@@ -96,8 +96,10 @@ Briefly, with the detail in [the manual](docs/manual.md):
   all optional and off by default: a card's paths (`slipdock edit 12 --paths
   "lib/runners/**"`), a board switch that refuses an agent starting a card
   whose paths overlap one in progress (`slipdock set-board --lanes`), a git
-  worktree per runner job (`--worktree`) and a pre-commit hook that keeps a
-  commit inside its card's paths (`slipdock hook install lane-check`).
+  worktree per runner job (`--worktree`), a pre-commit hook that keeps a
+  commit inside its card's paths (`slipdock hook install lane-check`), and a
+  board's shared paths that never count toward a lane, for the files nearly
+  every card edits (`slipdock set-board --shared-paths "docs/manual.md,README.md"`).
 - **Waiting on a person** — [a wait on a card](docs/manual.md#waiting-on-a-person-waits):
   what it needs, from whom (or anyone), since when, and optional answer
   choices. It flags the card `waiting`; answering it on the card, in My work,
