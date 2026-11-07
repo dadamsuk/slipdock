@@ -76,6 +76,17 @@ defmodule Slipdock.Handbook.RulesDocsTest do
              "Installing 1.5.0 over an older handbook adds the two pages and changes no other page"
   end
 
+  test "README and slipdock-docs, in every copy, name Principles and Playbook (#2040)" do
+    readme = Path.join(@root, "README.md") |> File.read!() |> String.replace(~r/\s+/, " ")
+    assert readme =~ "principles (the tie-breakers, each a `PRIN` rule) and the playbook"
+
+    for path <- copies("slipdock-docs") do
+      text = path |> File.read!() |> String.replace(~r/\s+/, " ")
+      assert text =~ "Testing & tooling, Operations, Principles, Playbook)", path
+      assert text =~ "Principles and the Playbook are a person's call", path
+    end
+  end
+
   test "docs/agents.md and the manual describe rules" do
     agents = File.read!(Path.join(@root, "docs/agents.md"))
     assert agents =~ "## The handbook's rules"
