@@ -124,7 +124,12 @@ defmodule Slipdock.MixProject do
   with the same arguments, for running before a push (`mix pre_push`).
   `test/slipdock/ci_workflow_test.exs` fails when CI runs one this doesn't.
 
-  After the compile and format checks it runs the tests in
+  After the compile and format checks it compiles the CLI (`cli/`, its own Mix
+  project) with `--warnings-as-errors`, as CI's `cli` job does, so a CLI
+  warning fails here rather than in the pull request (#1964). A step with
+  `cd:` runs in that directory, in its own environment (`pre_push_env/1`).
+
+  Then it runs the tests in
   `test/repo_checks.txt` (`repo_checks/0`): the ones that hold the repo's own
   files, docs and skills to a rule, which a builder running only its own
   tests would otherwise first see fail in the pull request's CI.
@@ -141,6 +146,7 @@ defmodule Slipdock.MixProject do
     [
       {"compile", ["--force", "--warnings-as-errors"]},
       {"format", ["--check-formatted"]},
+      {"compile", ["--warnings-as-errors"], cd: "cli"},
       {"test", repo_checks()},
       {"hex.audit", []},
       {"deps.audit", []},
@@ -152,17 +158,19 @@ defmodule Slipdock.MixProject do
   @doc """
   Runs `pre_push_steps/1` in turn, each as its own `mix` process (as CI's
   steps are) in `pre_push_build_root/0`, and stops at the first that exits
-  non-zero, with each one's time.
+  non-zero, with each one's time. `run` is given each step's task, arguments
+  and options (`cd:`), and answers with its exit status.
   """
-  def pre_push(args, run \\ &run_mix/2) do
+  def pre_push(args, run \\ &pre_push_run/3) do
     started = System.monotonic_time(:millisecond)
 
-    for {task, argv} <- pre_push_steps(args) do
-      line = step_line(task, argv)
+    for step <- pre_push_steps(args) do
+      {task, argv, opts} = step_parts(step)
+      line = step_line(task, argv, opts)
       Mix.shell().info([:cyan, "==> pre_push: mix #{line}", :reset])
       step_started = System.monotonic_time(:millisecond)
 
-      case run.(task, argv) do
+      case run.(task, argv, opts) do
         0 -> Mix.shell().info("    #{seconds(step_started)} s")
         status -> Mix.raise("pre_push: mix #{line} failed (exit #{status})", exit_status: status)
       end
@@ -217,7 +225,16 @@ defmodule Slipdock.MixProject do
   it too: the partition is part of the test config, and a step with another
   would recompile what reads it.
   """
-  def pre_push_env do
+  def pre_push_env(opts \\ [])
+
+  # The CLI is its own project: it builds in its own `_build` in its default
+  # environment, as CI's cli job does, not in the app's test partition.
+  def pre_push_env(cd: _dir) do
+    for name <- ~w(MIX_ENV MIX_BUILD_ROOT MIX_BUILD_PATH MIX_TEST_PARTITION MIX_EXS),
+        do: {name, nil}
+  end
+
+  def pre_push_env([]) do
     [
       {"MIX_ENV", to_string(Mix.env())},
       {"MIX_BUILD_ROOT", pre_push_build_root()},
@@ -225,15 +242,26 @@ defmodule Slipdock.MixProject do
     ]
   end
 
-  defp step_line("test", files), do: "test (the #{length(files)} files in test/repo_checks.txt)"
-  defp step_line(task, argv), do: Enum.join([task | argv], " ")
+  defp step_parts({task, argv}), do: {task, argv, []}
+  defp step_parts({task, argv, opts}), do: {task, argv, opts}
 
-  defp run_mix(task, argv) do
+  defp step_line("test", files, []),
+    do: "test (the #{length(files)} files in test/repo_checks.txt)"
+
+  defp step_line(task, argv, cd: dir), do: Enum.join([task | argv], " ") <> " (in #{dir}/)"
+  defp step_line(task, argv, []), do: Enum.join([task | argv], " ")
+
+  @doc """
+  Runs one step as its own `mix` process and answers with its exit status. A
+  `cd:` directory is relative to the project root.
+  """
+  def pre_push_run(task, argv, opts) do
     {_, status} =
       System.cmd("mix", [task | argv],
         into: IO.stream(),
         stderr_to_stdout: true,
-        env: pre_push_env()
+        cd: Path.expand(Keyword.get(opts, :cd, "."), __DIR__),
+        env: pre_push_env(opts)
       )
 
     status

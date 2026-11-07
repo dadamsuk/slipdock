@@ -240,6 +240,14 @@ defmodule Slipdock.CiWorkflowTest do
                "mix format --check-formatted" | _
              ] = pre_push_commands()
     end
+
+    test "compiles cli/ as the cli job does, with warnings as errors (#1964)" do
+      assert "mix compile --warnings-as-errors" in mix_runs(job("cli"))
+      assert has?(job("cli"), "working-directory: cli")
+
+      # The step is the cli job's compile line, run in cli/.
+      assert {"compile", ["--warnings-as-errors"], cd: "cli"} in Mix.Project.get!().pre_push_steps()
+    end
   end
 
   # The build cache and the partition split (#1858).

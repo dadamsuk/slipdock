@@ -17,7 +17,7 @@ defmodule Slipdock.PrePushAliasTest do
   defp recorder(statuses \\ %{}) do
     me = self()
 
-    fn task, argv ->
+    fn task, argv, _opts ->
       send(me, {:ran, task, argv})
       Map.get(statuses, task, 0)
     end
@@ -42,6 +42,7 @@ defmodule Slipdock.PrePushAliasTest do
     assert project().pre_push_steps() == [
              {"compile", ["--force", "--warnings-as-errors"]},
              {"format", ["--check-formatted"]},
+             {"compile", ["--warnings-as-errors"], cd: "cli"},
              {"test", project().repo_checks()},
              {"hex.audit", []},
              {"deps.audit", []},
@@ -82,7 +83,17 @@ defmodule Slipdock.PrePushAliasTest do
   test "runs every step in turn and says how long it took" do
     out = capture_io(fn -> project().pre_push([], recorder()) end)
 
-    assert ran() == ["compile", "format", "test", "hex.audit", "deps.audit", "sobelow", "credo"]
+    assert ran() == [
+             "compile",
+             "format",
+             "compile",
+             "test",
+             "hex.audit",
+             "deps.audit",
+             "sobelow",
+             "credo"
+           ]
+
     assert out =~ "==> pre_push: mix compile --force --warnings-as-errors"
     n = length(project().repo_checks())
     assert out =~ "==> pre_push: mix test (the #{n} files in test/repo_checks.txt)\n"
@@ -101,7 +112,7 @@ defmodule Slipdock.PrePushAliasTest do
       assert error.message == "pre_push: mix hex.audit failed (exit 3)"
     end)
 
-    assert ran() == ["compile", "format", "test", "hex.audit"]
+    assert ran() == ["compile", "format", "compile", "test", "hex.audit"]
   end
 
   test "a failing repo check stops the run before the audits (#1867)" do
@@ -113,14 +124,14 @@ defmodule Slipdock.PrePushAliasTest do
                    end
     end)
 
-    assert ran() == ["compile", "format", "test"]
+    assert ran() == ["compile", "format", "compile", "test"]
   end
 
-  test "runs the repo checks after compile and format, before the slower audits (#1867)" do
+  test "runs the repo checks after the compiles and format, before the slower audits (#1867)" do
     tasks = Enum.map(project().pre_push_steps(), &elem(&1, 0))
-    assert Enum.take(tasks, 3) == ["compile", "format", "test"]
+    assert Enum.take(tasks, 4) == ["compile", "format", "compile", "test"]
 
-    {"test", files} = Enum.at(project().pre_push_steps(), 2)
+    {"test", files} = Enum.at(project().pre_push_steps(), 3)
     assert "test/slipdock/nothing_personal_test.exs" in files
     assert Enum.all?(files, &File.regular?(Path.join(@root, &1)))
   end
@@ -142,7 +153,88 @@ defmodule Slipdock.PrePushAliasTest do
         end
       end)
 
-    assert length(ran()) == 7
+    assert length(ran()) == 8
     refute out =~ "all checks passed"
+  end
+
+  describe "the CLI's compile (#1964)" do
+    test "compiles cli/ with warnings as errors, after the app's compile and format" do
+      assert Enum.at(project().pre_push_steps(), 2) ==
+               {"compile", ["--warnings-as-errors"], cd: "cli"}
+
+      assert File.regular?(Path.join([@root, "cli", "mix.exs"]))
+    end
+
+    test "is passed its directory, and says where it runs" do
+      me = self()
+
+      out =
+        capture_io(fn ->
+          project().pre_push([], fn task, argv, opts ->
+            send(me, {:step, task, argv, opts})
+            0
+          end)
+        end)
+
+      assert_received {:step, "compile", ["--warnings-as-errors"], [cd: "cli"]}
+      assert_received {:step, "compile", ["--force", "--warnings-as-errors"], []}
+      assert out =~ "==> pre_push: mix compile --warnings-as-errors (in cli/)\n"
+    end
+
+    test "a CLI warning stops the run before the repo checks" do
+      capture_io(fn ->
+        error =
+          assert_raise Mix.Error, fn ->
+            project().pre_push([], fn
+              "compile", _argv, [cd: "cli"] -> 1
+              task, argv, _opts -> recorder().(task, argv, [])
+            end)
+          end
+
+        assert error.mix == 1
+
+        assert error.message ==
+                 "pre_push: mix compile --warnings-as-errors (in cli/) failed (exit 1)"
+      end)
+
+      assert ran() == ["compile", "format"]
+    end
+
+    test "builds as CI's cli job does, not in the app's test partition" do
+      env = project().pre_push_env(cd: "cli")
+
+      for name <- ~w(MIX_ENV MIX_BUILD_ROOT MIX_TEST_PARTITION),
+          do: assert({name, nil} in env)
+    end
+
+    @tag :tmp_dir
+    test "really fails on a warning in the CLI, and passes without one", %{tmp_dir: dir} do
+      # A copy of cli/ without its build, so the real step runs on it.
+      cli = Path.join(@root, "cli")
+
+      for entry <- File.ls!(cli),
+          entry not in ["_build", "deps"],
+          do: File.cp_r!(Path.join(cli, entry), Path.join(dir, entry))
+
+      {"compile", argv, _opts} = Enum.at(project().pre_push_steps(), 2)
+
+      {0, out} = with_io(fn -> project().pre_push_run("compile", argv, cd: dir) end)
+      refute out =~ "warning:"
+
+      File.write!(Path.join([dir, "lib", "pre_push_warning.ex"]), """
+      defmodule PrePushWarning do
+        def unused(x), do: :ok
+      end
+      """)
+
+      {status, out} = with_io(fn -> project().pre_push_run("compile", argv, cd: dir) end)
+      assert status != 0
+      assert out =~ "variable \"x\" is unused"
+
+      # Unforced, as CI's: a second run rebuilds nothing and still fails.
+      {status, out} = with_io(fn -> project().pre_push_run("compile", argv, cd: dir) end)
+      assert status != 0
+      assert out =~ "variable \"x\" is unused"
+    end
   end
 end
