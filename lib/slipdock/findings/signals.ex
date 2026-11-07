@@ -8,7 +8,6 @@ defmodule Slipdock.Findings.Signals do
       `handbook-wrong`, anything else `process`
     * a runner job **times out** or **fails** (`job_ended/1`)
     * its card is **requeued** or given up on (`requeued/3`, `gave_up/2`)
-    * a **lane** refuses an agent's move (`lane_refused/3`)
     * a **merge** job fails (`merge_failed/3`)
     * an **audit** disagrees (`audit_disagreed/3`)
     * a verdict reports a rule broken in code the change didn't touch
@@ -17,6 +16,9 @@ defmodule Slipdock.Findings.Signals do
     * a card names the card that caused it and the check that missed it
       (`incident/2`, source `incident`, #1946): one finding per incident,
       on the causing card, changed in place as the incident's fields change
+
+  A **lane** refusing an agent's move is not one (#1968): it is the lanes
+  working, and the refusal, the job's log and its held reason already say so.
 
   Each records its source, card and job; a repeat on the same card and cause
   adds to the count (`Slipdock.Findings.record/1`), and the same job never
@@ -155,20 +157,6 @@ defmodule Slipdock.Findings.Signals do
         job_id: job_id(actor)
       })
     end)
-  end
-
-  @doc "A lane refused an agent moving `card`, or changing its paths, because of `other`."
-  def lane_refused(%Card{} = card, %Card{} = other, actor) do
-    record(%{
-      card: card,
-      source: "lane",
-      kind: "process",
-      cause: "lane ##{other.id}",
-      text:
-        "A lane refused ##{card.id}: its paths (#{Enum.join(card.paths, ", ")}) overlap " <>
-          "##{other.id} \"#{other.title}\" (#{Enum.join(other.paths, ", ")}).",
-      job_id: job_id(actor)
-    })
   end
 
   @doc "A merge job for `card` failed, saying `said`."

@@ -1775,10 +1775,13 @@ two rules to the open ones as merges a person can reopen
 
 **Recorded by the server.** The system notes its own signals without asking:
 a verifier's rejection, a job that times out or fails, a card requeued or
-given up on, a lane refusing a move, a merge that fails, an audit that
-disagrees, a health-monitor incident, a verifier reporting a rule broken in
-code the change didn't touch (sources `rejection`, `verification`, `timeout`,
-`failed`, `requeue`, `lane`, `merge`, `audit`, `health`). Each has its source,
+given up on, a merge that fails, an audit that disagrees, a health-monitor
+incident, a verifier reporting a rule broken in code the change didn't touch
+(sources `rejection`, `verification`, `timeout`, `failed`, `requeue`,
+`merge`, `audit`, `health`). A lane refusing a move is not one: it is the
+lanes working, and the refusal, the job's log and its held reason already
+say so (findings with source `lane` from before this are kept as they
+were). Each has its source,
 card and job, and a repeat on the same card for the same cause adds to its
 count rather than making another: a card that times out three times is one
 finding counted three times. A rejection's kind comes from the part that

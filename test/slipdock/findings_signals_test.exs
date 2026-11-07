@@ -173,7 +173,9 @@ defmodule Slipdock.FindingsSignalsTest do
   end
 
   describe "a lane refusal" do
-    test "an agent moving into a lane in use is a finding, naming the other card", ctx do
+    # A refusal is the lanes working, not a stumble (#1968): it is still
+    # refused, with its words, and nothing is recorded.
+    test "an agent moving into a lane in use is refused, and is no finding", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
       {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
       # Only a card a runner job is working on holds its lane (#1922).
@@ -181,19 +183,19 @@ defmodule Slipdock.FindingsSignalsTest do
       mine = card_fixture(ctx.todo, %{"title" => "Mine"})
       {:ok, mine} = Boards.update_card(mine, %{"paths" => ["lib/a/b.ex"]})
 
-      assert {:error, :unprocessable_entity, _} =
+      assert {:error, :unprocessable_entity, message} =
                Boards.move_card(mine.id, ctx.doing.id, nil, actor: ctx.agent)
 
-      assert [%Finding{source: "lane", cause: cause, text: text}] = findings(mine)
-      assert cause == "lane ##{ctx.card.id}"
-      assert text =~ "lib/a/b.ex"
-
-      # A person is never refused, so nothing is recorded for them.
-      :ok = Boards.move_card(mine.id, ctx.doing.id, nil, actor: Actor.web(ctx.owner))
-      assert [_] = findings(mine)
+      assert message =~ "this board keeps agents in lanes"
+      assert message =~ "##{ctx.card.id}"
+      assert Repo.reload!(mine).column_id == ctx.todo.id
+      assert findings(mine) == []
+      assert findings(ctx.card) == []
+      refute Repo.exists?(from f in Finding, where: f.source == "lane")
     end
 
-    test "an agent widening its paths onto another card's is one too", ctx do
+    test "an agent widening its paths onto another card's is refused, and is no finding",
+         ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
       {:ok, _} = Boards.update_card(ctx.card, %{"paths" => ["lib/a/**"]})
       # Only a card a runner job is working on holds its lane (#1922).
@@ -203,8 +205,20 @@ defmodule Slipdock.FindingsSignalsTest do
       assert {:error, _} =
                Boards.update_card(mine, %{"paths" => ["lib/a/c.ex"]}, actor: ctx.agent)
 
-      assert [%Finding{source: "lane", text: text}] = findings(mine)
-      assert text =~ "lib/a/c.ex"
+      assert Repo.reload!(mine).paths == []
+      assert findings(mine) == []
+      refute Repo.exists?(from f in Finding, where: f.source == "lane")
+    end
+
+    test "the API guide no longer lists lane among the sources the server records" do
+      guide = SlipdockWeb.APIGuide.markdown() |> String.replace(~r/\s+/, " ")
+
+      [_, sources] = Regex.run(~r/The server also records its own \(([^)]*)\)/, guide)
+      assert sources =~ "`rejection`"
+      assert sources =~ "`health`"
+      refute sources =~ "`lane`"
+      assert guide =~ "A lane refusal is not one (#1968)"
+      assert guide =~ "Findings with source `lane` from before then are kept."
     end
   end
 
@@ -313,9 +327,9 @@ defmodule Slipdock.FindingsSignalsTest do
 
     log =
       ExUnit.CaptureLog.capture_log(fn ->
-        assert :ok == Signals.lane_refused(gone, ctx.card, nil)
+        assert :ok == Signals.audit_disagreed(gone, "wrong", nil)
       end)
 
-    assert log =~ "finding not recorded (lane)"
+    assert log =~ "finding not recorded (audit)"
   end
 end

@@ -377,7 +377,6 @@ defmodule Slipdock.Lanes do
   def check_move(%Card{} = card, %Column{} = to, actor) do
     with true <- to.category == "doing" and gated?(actor),
          %Card{} = other <- conflict(card) do
-      Slipdock.Findings.Signals.lane_refused(card, other, actor)
       {:error, message(card, other)}
     else
       _ -> :ok
@@ -420,12 +419,6 @@ defmodule Slipdock.Lanes do
     with true <- new != :none and gated?(actor),
          true <- in_doing?(card),
          %Card{} = other <- conflict(card, if(is_list(new), do: new, else: [])) do
-      Slipdock.Findings.Signals.lane_refused(
-        %{card | paths: if(is_list(new), do: new, else: card.paths)},
-        other,
-        actor
-      )
-
       {:error, :paths, message(card, other)}
     else
       _ -> :ok
