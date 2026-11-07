@@ -222,13 +222,18 @@ defmodule SlipdockWeb.APIGuide do
   The guide cut at its `##` headings: `{key, title, markdown}` in document
   order, the text before the first heading under the key `"intro"`. The
   `### Over MCP` part of *Getting in* is offered on its own as well, as `"mcp"`.
-  Takes the same options as `markdown/1`.
+  Takes the same options as `markdown/1`, and `:markdown` to cut that text
+  instead of the generated guide.
+
+  A heading line inside a fenced code block (the wiki section's example
+  meeting page has `## Recording` in one) is part of the example, not a
+  section: only lines outside a fence are cut on (see `split_at_headings/2`).
   """
   def sections(opts \\ []) do
     [{_, _, intro} | rest] =
       opts
-      |> markdown()
-      |> String.split(~r/^(?=## )/m)
+      |> Keyword.get_lazy(:markdown, fn -> markdown(opts) end)
+      |> split_at_headings(["## "])
       |> Enum.map(&cut/1)
 
     mcp =
@@ -246,9 +251,57 @@ defmodule SlipdockWeb.APIGuide do
   defp cut(text), do: {"intro", nil, text}
 
   defp over_mcp(text) do
-    case Regex.run(~r/^### Over MCP\n.*?(?=^###? |\z)/ms, text) do
-      [part] -> {"mcp", "Over MCP", String.replace_prefix(part, "###", "##")}
+    text
+    |> split_at_headings(["## ", "### "])
+    |> Enum.find_value(fn
+      "### Over MCP\n" <> _ = part ->
+        {"mcp", "Over MCP", String.replace_prefix(part, "###", "##")}
+
+      _ ->
+        nil
+    end)
+  end
+
+  @doc """
+  Cuts `text` before every line that starts with one of `marks` (`"## "`, say)
+  and is outside a fenced code block, keeping every character: the pieces
+  join back to `text`. The first piece is what comes before the first such
+  line, `""` when `text` starts with one. A fence opens on a line of three or more backticks or
+  tildes (indented at most three spaces) and closes on a line of the same
+  character, at least as many, and nothing else; one never closed runs to the
+  end, so nothing after it is cut.
+  """
+  def split_at_headings(text, marks) do
+    {pieces, current, _fence} =
+      text
+      |> String.split(~r/(?<=\n)/)
+      |> Enum.reduce({[], [], nil}, fn line, {pieces, current, fence} ->
+        cond do
+          fence -> {pieces, [line | current], close_fence(fence, line)}
+          String.starts_with?(line, marks) -> {[current | pieces], [line], nil}
+          true -> {pieces, [line | current], open_fence(line)}
+        end
+      end)
+
+    [current | pieces]
+    |> Enum.reverse()
+    |> Enum.map(&(&1 |> Enum.reverse() |> IO.iodata_to_binary()))
+  end
+
+  defp open_fence(line) do
+    case Regex.run(~r/^ {0,3}(`{3,}|~{3,})/, line) do
+      [_, run] -> run
       nil -> nil
+    end
+  end
+
+  # Still inside the fence (`fence`, the run that opened it) after `line`?
+  defp close_fence(fence, line) do
+    <<char::binary-size(1), _::binary>> = fence
+
+    case Regex.run(~r/^ {0,3}(#{Regex.escape(char)}+)[ \t]*\r?\n?$/, line) do
+      [_, run] when byte_size(run) >= byte_size(fence) -> nil
+      _ -> fence
     end
   end
 
