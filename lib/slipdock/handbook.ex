@@ -648,27 +648,53 @@ defmodule Slipdock.Handbook do
   order. What a reconcile reads for a range of commits (#1787). A page with
   no `covers:` claims nothing, so it is never listed.
   """
-  def pages_for(nil, _paths), do: []
+  def pages_for(handbook, paths), do: handbook |> pages_for_each([paths]) |> hd()
 
-  def pages_for(handbook, paths) do
-    paths = clean_paths(paths)
+  @doc """
+  `pages_for/2` for each of `path_lists`, in order. Each distinct path is
+  matched against the pages' `covers:` once, however many lists hold it
+  (#1977: a quality report reads hundreds of cards that touch the same
+  files).
+  """
+  def pages_for_each(nil, path_lists), do: Enum.map(path_lists, fn _ -> [] end)
 
-    handbook.pages
-    |> Enum.reject(&(&1.id == handbook.index.id))
-    |> Enum.with_index()
-    |> Enum.map(fn {page, order} -> {order, page, covered_count(page, paths)} end)
-    |> Enum.filter(fn {_order, _page, n} -> n > 0 end)
-    |> Enum.sort_by(fn {order, _page, n} -> {-n, order} end)
-    |> Enum.map(fn {_order, page, n} -> %{code: page.code, title: page.title, paths: n} end)
+  def pages_for_each(handbook, path_lists) do
+    path_lists = Enum.map(path_lists, &clean_paths/1)
+
+    pages =
+      handbook.pages
+      |> Enum.reject(&(&1.id == handbook.index.id))
+      |> Enum.with_index()
+      |> Enum.map(fn {page, order} -> {order, page, covers(page)} end)
+      |> Enum.reject(fn {_order, _page, globs} -> globs == [] end)
+
+    # Each path: the orders of the pages covering it.
+    covering =
+      path_lists
+      |> Enum.concat()
+      |> Enum.uniq()
+      |> Map.new(fn path ->
+        {path, for({order, _, globs} <- pages, Slipdock.Lanes.overlap?(globs, [path]), do: order)}
+      end)
+
+    Enum.map(path_lists, &ranked_pages(pages, &1, covering))
   end
 
-  # How many of `paths` the page's `covers:` take in; none without covers.
-  defp covered_count(page, paths) do
-    case page |> field("covers") |> List.wrap() |> Enum.filter(&is_binary/1) do
-      [] -> 0
-      globs -> Enum.count(paths, &Slipdock.Lanes.overlap?(globs, [&1]))
-    end
+  # The pages covering any of `paths`, with how many: most first, then in
+  # the handbook's order.
+  defp ranked_pages(pages, paths, covering) do
+    counts = paths |> Enum.flat_map(&covering[&1]) |> Enum.frequencies()
+
+    pages
+    |> Enum.filter(fn {order, _page, _globs} -> Map.has_key?(counts, order) end)
+    |> Enum.sort_by(fn {order, _page, _globs} -> {-counts[order], order} end)
+    |> Enum.map(fn {order, page, _globs} ->
+      %{code: page.code, title: page.title, paths: counts[order]}
+    end)
   end
+
+  # The page's `covers:` globs; none claims nothing.
+  defp covers(page), do: page |> field("covers") |> List.wrap() |> Enum.filter(&is_binary/1)
 
   defp clean_paths(paths) do
     paths

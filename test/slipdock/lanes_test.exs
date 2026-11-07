@@ -71,6 +71,19 @@ defmodule Slipdock.LanesTest do
       assert Lanes.glob_overlap?("a/**/z", "a/b/**")
     end
 
+    test "plain names are compared whole, wildcards by character (#1977)" do
+      assert Lanes.glob_overlap?("lib/a/b/c/d/e.ex", "lib/a/b/c/d/e.ex")
+      refute Lanes.glob_overlap?("lib/a/b/c/d/e.ex", "lib/a/b/c/d/f.ex")
+      refute Lanes.glob_overlap?("lib/a/b/c/d/e.ex", "test/a/b/c/d/e.ex")
+      assert Lanes.glob_overlap?("lib/**/e.ex", "lib/a/b/c/d/e.ex")
+      refute Lanes.glob_overlap?("lib/**/e.ex", "test/a/b/c/d/e.ex")
+      assert Lanes.glob_overlap?("lib/a/*/c/[de].ex", "lib/a/b/c/x.ex")
+      assert Lanes.glob_overlap?("lib/a/?/c.ex", "lib/a/b/c.ex")
+      refute Lanes.glob_overlap?("lib/a/?/c.ex", "lib/a/bb/c.ex")
+      # The same wildcard segment on both sides overlaps.
+      assert Lanes.glob_overlap?("lib/*_test.exs", "lib/*_test.exs")
+    end
+
     test "{a,b} is either, and [..] is taken as any one character" do
       assert Lanes.glob_overlap?("docs/{manual,agents}.md", "docs/agents.md")
       refute Lanes.glob_overlap?("docs/{manual,agents}.md", "docs/readme.md")

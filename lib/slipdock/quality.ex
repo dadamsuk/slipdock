@@ -156,9 +156,11 @@ defmodule Slipdock.Quality do
   # paths, or unmapped.
   defp areas(board, cards, reopened) do
     handbook = Slipdock.Handbook.find(board)
+    areas = area_each(handbook, cards)
 
     cards
-    |> Enum.group_by(&area(handbook, &1.paths))
+    |> Enum.zip(areas)
+    |> Enum.group_by(fn {_card, area} -> area end, fn {card, _area} -> card end)
     |> Enum.map(fn {area, cards} ->
       v = verified(cards, reopened)
 
@@ -175,14 +177,17 @@ defmodule Slipdock.Quality do
 
   @unmapped %{code: nil, title: "unmapped"}
 
-  defp area(nil, _paths), do: @unmapped
-  defp area(_handbook, paths) when paths in [nil, []], do: @unmapped
+  # Each card's area, in order. The handbook matches every distinct path
+  # once for all the cards (#1977).
+  defp area_each(nil, cards), do: Enum.map(cards, fn _ -> @unmapped end)
 
-  defp area(handbook, paths) do
-    case Slipdock.Handbook.pages_for(handbook, paths) do
+  defp area_each(handbook, cards) do
+    handbook
+    |> Slipdock.Handbook.pages_for_each(Enum.map(cards, &(&1.paths || [])))
+    |> Enum.map(fn
       [%{code: code, title: title} | _] -> %{code: code, title: title}
       [] -> @unmapped
-    end
+    end)
   end
 
   # -- Jobs ------------------------------------------------------------------------
