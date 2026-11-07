@@ -26,7 +26,7 @@ defmodule SlipdockWeb.ItemComponents do
   alias SlipdockWeb.Dates
 
   import SlipdockWeb.CoreComponents
-  import SlipdockWeb.SlipdockComponents, only: [keyed_label: 1, relative_time: 1, stated_pill: 1]
+  import SlipdockWeb.SlipdockComponents, only: [keyed_label: 1, stated_pill: 1, timestamp: 1]
 
   alias Slipdock.Boards.{CardUrl, FieldDefinition}
   alias Slipdock.Boards.StatusUpdate
@@ -356,7 +356,7 @@ defmodule SlipdockWeb.ItemComponents do
                 <span :if={comment_author(comment)} class="font-semibold text-base-content/70">
                   {comment_author(comment)}
                 </span>
-                {relative_time(comment.inserted_at)}
+                <.timestamp at={comment.inserted_at} id={"comment-#{comment.id}-at"} />
               </span>
               <button
                 :if={@can_write or (@can_comment and own?(comment, @current_user))}
@@ -434,9 +434,11 @@ defmodule SlipdockWeb.ItemComponents do
         >
           <div class="flex items-center gap-1.5">
             <.stated_pill health={u.health} />
-            <span class="text-base-content/50" title={DateTime.to_iso8601(u.inserted_at)}>
-              {relative_time(u.inserted_at)}
-            </span>
+            <.timestamp
+              at={u.inserted_at}
+              id={"status-update-#{u.id}-at"}
+              class="text-base-content/50"
+            />
             <button
               :if={@can_write}
               phx-target={@target}

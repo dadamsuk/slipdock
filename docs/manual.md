@@ -194,7 +194,9 @@ way in: what it is, the pictures, and how to get it running.
   contradict the dependency; any view can be **coloured by** list, priority,
   health, reported health, assignee or tag, with a legend
 - **Status updates**: on track / at risk / off track with a note, shown
-  beside the health the roll-up computes
+  beside the health the roll-up computes. Their times ("18 min ago"), the
+  status line at the top of the card and the comments' times keep up with
+  the clock in the browser, without a reload
 - **Custom fields** per board tree (number, rating, choice with weights,
   date, text) and **formula fields** with RICE, ICE and value/effort
   presets, usable as table columns, sorts and swimlane axes (a rating ×

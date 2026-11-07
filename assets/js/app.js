@@ -35,6 +35,7 @@ import {WikiTree} from "./wiki_tree"
 import {EditorPrefs, WikiFileOpen, WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthToggle} from "./wiki_pane"
 import {TimelineLabelResize, linkPath} from "./timeline_labels"
 import {installMeld} from "./meld_view"
+import {installRelativeTime, refreshIncoming} from "./relative_time"
 import {MeldEditor} from "./meld_editor"
 import {ExcalidrawEditor} from "./excalidraw_editor"
 import {MarkdownEditor} from "./markdown_editor"
@@ -1635,6 +1636,13 @@ const liveSocket = new LiveSocket("/live", Socket, {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   }),
   hooks: {...colocatedHooks, ...Hooks},
+  // A re-render carries the server's "18 min ago" from when it rendered; the
+  // relative-time ticker gives it the time now before it is patched in (#2025).
+  dom: {
+    onBeforeElUpdated(from, to) {
+      refreshIncoming(from, to)
+    },
+  },
 })
 
 // Show progress bar on live navigation and form submits, in the theme's
@@ -1686,6 +1694,7 @@ window.addEventListener("phx:scroll-to-anchor", ({detail: {id}}) => {
 // data-confirm asks with the app's own dialog rather than the browser's.
 installConfirm(window)
 installMeld(window)
+installRelativeTime(window)
 
 // Product analytics, only if this server has a PostHog key configured.
 installPosthog(window, document)
