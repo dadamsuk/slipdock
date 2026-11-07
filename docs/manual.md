@@ -1240,6 +1240,48 @@ unknown profile or tier is refused with the lists. Setting `security` to
 JSON shows every profile's tier as `profile_tiers` (nil with profiles
 off); export and import carry the changes.
 
+### The verifier's spend
+
+A profile also sets how much checking a card gets. Like the rest of
+profiles, this is off until profiles are on.
+
+**`docs` goes unverified.** On a board that verifies work, an agent
+completing a `docs` card (its profile, or the one its paths infer) queues
+no verify job. The server accepts it itself, right after the evidence is
+posted: *Accepted by the server*, with `verify_checks` saying
+`not_verified: "docs"` and the evidence's suite as its `suite` part (CI's
+result, on a board that ships by pull request). Then the human tier
+applies as for any acceptance, so a `docs` card merges by default, and is
+held for a person if you set `docs` to `before_merge`. The bar is still
+required and locks as usual, because a person may have asked for
+something specific. A suite the evidence reports as failing is sent back
+instead (`the suite: N failed`). On the ledger the line reads *not
+verified (docs)* (`not_verified` in the REST and MCP ledger), and
+`slipdock card` shows `○ not verified`.
+
+**`schema` and `security` get a defect review.** A verify job (or an
+audit) on such a card has an extra step: read the diff for bugs, not
+style; on a fix, find the root cause; give each finding the file and line
+it is at, never a guess from a name; and tag it Important, Nit or
+Pre-existing. The verifier gives each finding as a check,
+`defect:important=lib/foo.ex:42:why` (or `defect:nit=…`,
+`defect:pre-existing=…`), kept in `verify_checks` as `defect_review` (a
+list of `severity`, `file`, `line`, `note`). An Important finding is a
+failing part: it is a rejection, and an acceptance can't carry one. A Nit
+or a Pre-existing finding is reported only. The card panel and `slipdock
+card` list each finding.
+
+**A model per profile.** A claimed job carries its card's profile (with
+profiles on): the runner's `x-card-profile` header, `job.profile` in
+`POST /api/boards/:board/jobs/claim`, `profile` in MCP `claim_job`, and a
+`profile:` line from `slipdock claim-job`. Both runner scripts put it in
+`SLIPDOCK_PROFILE`, and set `SLIPDOCK_MODEL` from the config's
+`MODEL_<profile>` (`MODEL_docs`, `MODEL_schema`, …; `$MODEL_docs` and so on
+in the PowerShell config). The installers write these knobs commented out,
+so nothing changes until you set one. The `claude` and `codex` jobs they
+write pass `--model` (or `-m`) only when `SLIPDOCK_MODEL` is set. The
+server sends only the word: what model it means is your runner's config.
+
 ## Waiting on a person (waits)
 
 A card that can't go on until somebody answers something — a decision, a

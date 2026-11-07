@@ -66,13 +66,15 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
         job ->
           # The answered question it carries on from, and the handoff, as
           # data beside the prompt that already says them (#1115).
-          %{wait: wait, handoff: handoff} = Runners.claim_context(job)
+          %{wait: wait, handoff: handoff, profile: profile} = Runners.claim_context(job)
 
           {:ok,
            %{
              job: job.id,
              kind: job.kind,
              card: job.card_id,
+             # The card's profile (#1953), nil with profiles off.
+             profile: profile,
              card_url: context.base_url <> "/boards/#{job.board_id}/cards/#{job.card_id}",
              lease_seconds: Runners.lease_for(runner),
              # With the card's bar, when it has one (#1622).

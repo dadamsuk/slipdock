@@ -68,7 +68,7 @@ defmodule SlipdockCLI.Ledger do
     accepted =
       case i["accepted_by"] do
         %{"name" => name} -> "accepted by #{name}"
-        _ -> "not verified"
+        _ -> "not verified" <> not_verified(i["not_verified"])
       end
 
     case i["audit"] do
@@ -76,6 +76,10 @@ defmodule SlipdockCLI.Ledger do
       _ -> accepted
     end
   end
+
+  # A docs card the server took without a verify job (#1953).
+  defp not_verified(p) when is_binary(p), do: " (#{p})"
+  defp not_verified(_), do: ""
 
   defp evidence(%{"evidence" => e}) when is_binary(e) and e != "", do: ["    evidence: " <> e]
   defp evidence(_), do: []

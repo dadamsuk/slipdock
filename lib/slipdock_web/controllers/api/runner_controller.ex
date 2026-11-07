@@ -143,10 +143,13 @@ defmodule SlipdockWeb.API.RunnerController do
   end
 
   defp context_headers(conn, job) do
-    %{wait: wait, handoff: handoff} = Runners.claim_context(job)
+    %{wait: wait, handoff: handoff, profile: profile} = Runners.claim_context(job)
 
     conn
     |> merge_headers(Runners.merge_target(job))
+    # The card's profile (#1953): a word the runner's own config may pick a
+    # model by (`MODEL_<profile>`); the server never says what to run.
+    |> then(&if(profile, do: put_resp_header(&1, "x-card-profile", profile), else: &1))
     |> then(&if(wait, do: put_resp_header(&1, "x-wait-id", to_string(wait.id)), else: &1))
     |> then(
       &if(handoff, do: put_resp_header(&1, "x-handoff-id", to_string(handoff.id)), else: &1)

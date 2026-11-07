@@ -193,7 +193,9 @@ defmodule Slipdock.ProfilesTierTest do
 
   describe "acceptance by tier" do
     test "none and ledger merge, as without profiles", ctx do
-      for profile <- ~w(docs fix feature) do
+      # A docs card is accepted by the server with no verifier (#1953):
+      # test/slipdock/profiles_verify_test.exs.
+      for profile <- ~w(fix feature) do
         card = ctx |> card(profile) |> submit(ctx)
         {:ok, accepted} = accept(card, ctx.checker, ctx)
         assert accepted.verify_state == "merging", profile

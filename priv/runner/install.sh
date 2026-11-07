@@ -224,7 +224,7 @@ export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
     [ -z "$ALLOWED_TOOLS" ] || ALLOW=' --allowedTools "$ALLOWED_TOOLS"'
     JOB="$FN() {
   cd \"\${SLIPDOCK_WORKTREE:-\$WORKDIR}\" || exit 1
-  \"\$AGENT_BIN\" -p \"\$SLIPDOCK_PROMPT\" --permission-mode \"\$PERMISSION_MODE\"$ALLOW
+  \"\$AGENT_BIN\" -p \"\$SLIPDOCK_PROMPT\" --permission-mode \"\$PERMISSION_MODE\"$ALLOW \${SLIPDOCK_MODEL:+--model \"\$SLIPDOCK_MODEL\"}
 }"
     ;;
   codex)
@@ -232,7 +232,7 @@ export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
     AGENT_BIN=$(agent_bin codex)
     JOB="$FN() {
   cd \"\${SLIPDOCK_WORKTREE:-\$WORKDIR}\" || exit 1
-  \"\$AGENT_BIN\" exec \"\$SLIPDOCK_PROMPT\"
+  \"\$AGENT_BIN\" exec \${SLIPDOCK_MODEL:+-m \"\$SLIPDOCK_MODEL\"} \"\$SLIPDOCK_PROMPT\"
 }"
     ;;
   custom)
@@ -324,7 +324,8 @@ cat >"$CONFIG.tmp" <<EOF
 # A job of kind K runs the function job_K below (a - in K is an _ here). The
 # server never says what to run: a kind with no function here is refused.
 # Each job gets SLIPDOCK_PROMPT, SLIPDOCK_JOB_ID, SLIPDOCK_JOB_KIND,
-# SLIPDOCK_CARD and SLIPDOCK_CARD_URL in its environment; pass the prompt on
+# SLIPDOCK_CARD and SLIPDOCK_CARD_URL in its environment (and SLIPDOCK_PROFILE
+# and SLIPDOCK_MODEL, below); pass the prompt on
 # only ever as "\$SLIPDOCK_PROMPT", in double quotes.
 
 SLIPDOCK_URL=$(q "$URL")
@@ -347,6 +348,16 @@ job_echo() {
   printf '%s\n' "\$SLIPDOCK_PROMPT"
 }
 $VERIFY$EXTRA
+# A model per profile: on a board with profiles on, each job says its card's
+# profile (docs, fix, feature, schema, security or spike) as SLIPDOCK_PROFILE,
+# and SLIPDOCK_MODEL holds the MODEL_<profile> set here for it, for the job
+# above to pass on. All unset, so every job runs on the agent's own default.
+#MODEL_docs=
+#MODEL_fix=
+#MODEL_feature=
+#MODEL_schema=
+#MODEL_security=
+#MODEL_spike=
 EOF
 chmod 600 "$CONFIG.tmp"
 mv "$CONFIG.tmp" "$CONFIG"

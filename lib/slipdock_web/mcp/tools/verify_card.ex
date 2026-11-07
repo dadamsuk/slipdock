@@ -53,6 +53,8 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
               "suite=412:0, rule:UX-4=ok|broken|n/a[:why], handbook_line=ok|disputed; " <>
               "rule:UX-4=pre-existing:<file>:<line> for a rule broken only in unchanged lines " <>
               "(never a rejection); " <>
+              "defect:important|nit|pre-existing=<file>:<line>[:why] for a schema or " <>
+              "security card's defect review (only important fails); " <>
               "on a resubmission, =carried for a part passed before."
         }
       },

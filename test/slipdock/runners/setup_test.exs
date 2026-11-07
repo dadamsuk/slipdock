@@ -117,7 +117,13 @@ defmodule Slipdock.Runners.SetupTest do
       assert config =~ "SLIPDOCK_RUNNER_TOKEN='sdr_tok'"
       assert config =~ "POOL='dev'"
       assert config =~ "job_codex() {"
-      assert config =~ ~S("$AGENT_BIN" exec "$SLIPDOCK_PROMPT")
+
+      assert config =~
+               ~S("$AGENT_BIN" exec ${SLIPDOCK_MODEL:+-m "$SLIPDOCK_MODEL"} "$SLIPDOCK_PROMPT")
+
+      # The per-profile models (#1953) are written unset.
+      assert config =~ "\n#MODEL_docs=\n"
+      refute config =~ ~r/^MODEL_/m
     end
 
     test "says no rule sends it anything yet, or which one does", %{board: board} do

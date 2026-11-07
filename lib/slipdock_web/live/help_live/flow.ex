@@ -79,7 +79,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     {"Lanes", "slipdock set-board B --lane-mode hold",
      "Hold: an agent can't start a card whose paths overlap a card in progress. Advise: it starts, and its prompt names that card."},
     {"Profiles", "slipdock set-board B --profiles on",
-     "A card an agent starts gets one word for what kind of change it is; a schema, security or spike card an agent accepts waits for a person before it merges."},
+     "A card an agent starts gets one word for what kind of change it is; a schema, security or spike card an agent accepts waits for a person before it merges. A docs card gets no verify job, and a schema or security card's verifier also reviews it for defects."},
     {"Human tier, by profile", "slipdock set-board B --profile-tier schema=none",
      "Change what an agent's acceptance of a profile does: none, ledger or before_merge."},
     {"Shared paths", "slipdock set-board B --shared-paths docs/manual.md,README.md",
@@ -457,7 +457,11 @@ defmodule SlipdockWeb.HelpLive.Flow do
       is each part of the bar met; did the suite pass (on a pull request board, the pull
       request's checks); are the rules kept (<code>must</code>
       and <code>should</code>; a rule broken only in code the change didn't touch is reported as
-      pre-existing and kept as a finding, never a rejection); and is the Handbook line honest. Then
+      pre-existing and kept as a finding, never a rejection); and is the Handbook line honest. With
+      profiles on, a <code>docs</code>
+      card gets no verifier (the server accepts it on its suite), and a <code>schema</code>
+      or <code>security</code>
+      card's verifier also reviews the diff for defects, rejecting on an Important one. Then
       <code>slipdock verify 12 accept</code>
       or <code>slipdock verify 12 reject --reason "bar 2: …"</code>.
     </p>

@@ -3861,6 +3861,20 @@ defmodule SlipdockWeb.APIGuide do
       `PATCH /api/boards/:id {"profile_tiers": {"schema": "none"}}`
       (`default` puts one back), `update_board` `profile_tiers` or
       `slipdock set-board B --profile-tier schema=none`.
+
+      A profile also sets the verifier's spend. Completing a `docs` card
+      on a verifying board queues no verify job: the server accepts it
+      (*Accepted by the server*, `verify_checks.not_verified: "docs"`, the
+      evidence's suite as the suite part, so give CI's result as `suite`)
+      and its tier decides the merge; a failing suite sends it back. The
+      bar is still required. A verify job on a `schema` or `security` card
+      adds a defect review: findings as `defect:important|nit|pre-existing=<file>:<line>[:why]`
+      checks (`verify_checks.defect_review`); an Important one is a
+      rejection, a Nit or a Pre-existing one is reported only. A claimed
+      job carries its card's `profile` (MCP `claim_job` `profile`, the REST
+      claim's `job.profile`, the runner's `x-card-profile` header); a
+      runner's own config may pick a model by it (`MODEL_<profile>`), and
+      the server never names one.
       """
     else
       ""

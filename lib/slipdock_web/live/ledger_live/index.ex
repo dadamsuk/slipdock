@@ -91,9 +91,10 @@ defmodule SlipdockWeb.LedgerLive.Index do
   defp event_class("accepted"), do: "badge-primary"
   defp event_class(_), do: "badge-ghost"
 
-  defp acceptor_text(nil), do: "not verified"
-  defp acceptor_text(%{kind: "person", name: name}), do: "accepted by #{name}"
-  defp acceptor_text(%{kind: _, name: name}), do: "accepted by #{name}"
+  # A docs card the server took without a verify job (#1953) says so.
+  defp acceptor_text(nil, profile) when is_binary(profile), do: "not verified (#{profile})"
+  defp acceptor_text(nil, _), do: "not verified"
+  defp acceptor_text(%{name: name}, _), do: "accepted by #{name}"
 
   attr :item, :map, required: true
   attr :board, :map, required: true
@@ -136,7 +137,7 @@ defmodule SlipdockWeb.LedgerLive.Index do
         </a>
       </div>
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/70">
-        <span data-role="acceptor">{acceptor_text(@item.accepted_by)}</span>
+        <span data-role="acceptor">{acceptor_text(@item.accepted_by, @item[:not_verified])}</span>
         <span
           :if={@item.audit}
           class={if @item.audit.verdict == "agrees", do: "text-success", else: "text-error"}

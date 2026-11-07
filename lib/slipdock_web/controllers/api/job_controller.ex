@@ -358,7 +358,12 @@ defmodule SlipdockWeb.API.JobController do
             Map.merge(
               # The prompt with the card's bar, when it has one (#1622).
               %{
-                job: V.job(%{job | prompt: Runners.claimed_prompt(job)}),
+                job:
+                  job
+                  |> Map.put(:prompt, Runners.claimed_prompt(job))
+                  |> V.job()
+                  # The card's profile (#1953), nil with profiles off.
+                  |> Map.put(:profile, Runners.job_profile(job)),
                 lease_seconds: Runners.lease_for(runner)
               },
               context(job)

@@ -322,7 +322,9 @@ slipdock verify <id> reject --reason "bar 2: …" --check bar:1=ok --check bar:2
                                        # rule:<id>=ok|broken|n/a, handbook_line=ok|disputed; a reject
                                        # names a failing part, an accept carries no broken must rule;
                                        # rule:<id>=pre-existing:<file>:<line> for a rule broken only in
-                                       # lines the diff didn't change: never a rejection, kept as a finding
+                                       # lines the diff didn't change: never a rejection, kept as a finding;
+                                       # defect:important|nit|pre-existing=<file>:<line>[:why] for a schema or
+                                       # security card's defect review (only important is a rejection)
 slipdock verify <id> agree|disagree --reason TEXT [--check …]   # an audit job's say on an
                                        # accepted card: a comment; disagree alerts the board's owner
 slipdock verify <id> merged [--evidence-commit SHA]   # a person only: a merging card's PR was merged by hand
