@@ -16,6 +16,45 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
+
+# Every variable below is read through these, so each one takes the same words
+# (#1932). A switch is on for 1, true, yes or on, and off for 0, false, no, off
+# or none, in any case. A value that is blank or only spaces counts as unset,
+# and values are trimmed. A number that isn't one stops the boot and names the
+# variable, rather than being ignored.
+env_value = fn name ->
+  case System.get_env(name) do
+    nil -> nil
+    value -> if String.trim(value) == "", do: nil, else: String.trim(value)
+  end
+end
+
+env_switch = fn name ->
+  word = env_value.(name) && String.downcase(env_value.(name))
+
+  cond do
+    word in ["1", "true", "yes", "on"] -> true
+    word in ["0", "false", "no", "off", "none"] -> false
+    true -> nil
+  end
+end
+
+env_on? = fn name -> env_switch.(name) == true end
+env_off? = fn name -> env_switch.(name) == false end
+
+env_int = fn name, default ->
+  case env_value.(name) do
+    nil ->
+      default
+
+    value ->
+      case Integer.parse(value) do
+        {n, ""} -> n
+        _ -> raise "#{name} must be a whole number, not #{inspect(value)}"
+      end
+  end
+end
+
 # The project was renamed from Kanban to Slipdock and its variables went with
 # it. Every old `KANBAN_*` name still works: it fills in the `SLIPDOCK_*` one
 # if that is unset, so an existing .env keeps a server booting. Run on both
@@ -87,22 +126,21 @@ end
 # nor an old KANBAN_SMTP_HOST fills it back in.
 smtp_host =
   if config_env() != :test do
-    case System.get_env("SLIPDOCK_SMTP_HOST") do
-      nil -> nil
-      host -> if String.trim(host) == "", do: nil, else: host
-    end
+    env_value.("SLIPDOCK_SMTP_HOST")
   end
 
 # The relay's certificate is verified unless this says not to — which a relay
 # with a self-signed certificate needs. Applies to mail configured in the admin
 # UI as well (see `Slipdock.Mailer.tls_options/1`).
-smtp_tls_verify = System.get_env("SLIPDOCK_SMTP_TLS_VERIFY") not in ["0", "false"]
+smtp_tls_verify = not env_off?.("SLIPDOCK_SMTP_TLS_VERIFY")
 
 if config_env() != :test do
   config :slipdock, :smtp_tls_verify, smtp_tls_verify
 end
 
 if host = smtp_host do
+  smtp_port = env_int.("SLIPDOCK_SMTP_PORT", 587)
+
   # Credentials are optional: an IP-authorised relay (e.g. Gmail's
   # smtp-relay.gmail.com) needs none.
   auth =
@@ -119,7 +157,7 @@ if host = smtp_host do
          [
            adapter: Swoosh.Adapters.SMTP,
            relay: host,
-           port: String.to_integer(System.get_env("SLIPDOCK_SMTP_PORT") || "587"),
+           port: smtp_port,
            tls: :if_available,
            tls_options:
              if(smtp_tls_verify,
@@ -143,7 +181,7 @@ if host = smtp_host do
   # happens once: after that the row wins and these are ignored.
   config :slipdock, :seed_smtp,
     host: host,
-    port: String.to_integer(System.get_env("SLIPDOCK_SMTP_PORT") || "587"),
+    port: smtp_port,
     username: System.get_env("SLIPDOCK_SMTP_USER"),
     password: System.get_env("SLIPDOCK_SMTP_PASSWORD"),
     from_email: System.get_env("SLIPDOCK_SMTP_FROM") || System.get_env("SLIPDOCK_MAIL_FROM"),
@@ -163,7 +201,7 @@ end
 # later. This keeps it for admins; everybody else brings their own key or gets
 # no AI features. Off by default: the card limit already bounds how much any one
 # account can index, and AI working out of the box is a reason to subscribe.
-if System.get_env("SLIPDOCK_SHARED_AI_KEY_ADMINS_ONLY") in ["1", "true"] do
+if env_on?.("SLIPDOCK_SHARED_AI_KEY_ADMINS_ONLY") do
   config :slipdock, :ai, shared_key_for_admins_only: true
 end
 
@@ -173,7 +211,9 @@ end
 # and domains ("you@example.com,example.org"); SLIPDOCK_OPEN_SIGNUP=true lets
 # anybody in. Without either, only people who already have an account can sign
 # in — and the first address to use an empty instance claims it.
-if System.get_env("SLIPDOCK_OPEN_SIGNUP") in ["1", "true"] do
+open_signup = env_on?.("SLIPDOCK_OPEN_SIGNUP")
+
+if open_signup do
   config :slipdock, :signups, open: true
 end
 
@@ -185,24 +225,32 @@ end
 # All of these seed *once*. Changing one on a server that has already been set
 # up has no effect — edit it in the admin UI instead.
 
-# A limit variable carries a number, or `0`/`off` to turn that limit off. These
-# two read the same variable from either end: the number, and the switch.
+# A limit variable carries a number, or an off word (`0`, `off`, `none`…) to
+# turn that limit off. These two read the same variable from either end: the
+# number, and the switch.
+# The number is read by env_int, so a limit that is neither a number nor a
+# switch word (`1000abc`, `-5`, `maybe`) stops the boot like any other number
+# would. An on word that isn't a number (`yes`, `on`, `true`) keeps the
+# limit on at its default.
 positive_env = fn name ->
-  case System.get_env(name) do
-    nil -> nil
-    "" -> nil
-    value -> with {n, _} when n > 0 <- Integer.parse(value), do: n, else: (_ -> nil)
+  value = env_value.(name)
+
+  cond do
+    is_nil(value) or env_off?.(name) ->
+      nil
+
+    env_on?.(name) and Integer.parse(value) == :error ->
+      nil
+
+    true ->
+      case env_int.(name, nil) do
+        n when n > 0 -> n
+        _ -> raise "#{name} must be a positive whole number or an off word, not #{inspect(value)}"
+      end
   end
 end
 
-switch_env = fn name ->
-  case System.get_env(name) do
-    nil -> nil
-    "" -> nil
-    value when value in ["0", "off", "false", "none"] -> false
-    _ -> true
-  end
-end
+switch_env = fn name -> if env_value.(name), do: not env_off?.(name) end
 
 settings_env =
   [
@@ -211,26 +259,16 @@ settings_env =
         mode when mode in ["open", "allowlist", "approval", "closed"] -> String.to_atom(mode)
         _ -> nil
       end,
-    free_card_limit:
-      case System.get_env("SLIPDOCK_FREE_CARD_LIMIT") do
-        nil -> nil
-        "" -> nil
-        value -> String.to_integer(value)
-      end,
+    free_card_limit: env_int.("SLIPDOCK_FREE_CARD_LIMIT", nil),
     user_directory:
       case System.get_env("SLIPDOCK_USER_DIRECTORY") do
         directory when directory in ["instance", "shared_only"] -> String.to_atom(directory)
         _ -> nil
       end,
-    invites_create_accounts:
-      case System.get_env("SLIPDOCK_INVITES_CREATE_ACCOUNTS") do
-        value when value in ["1", "true"] -> true
-        value when value in ["0", "false"] -> false
-        _ -> nil
-      end,
+    invites_create_accounts: env_switch.("SLIPDOCK_INVITES_CREATE_ACCOUNTS"),
     admin_email: System.get_env("SLIPDOCK_ADMIN_EMAIL"),
     # The free trial, and the ceilings every install has. A number seeds the
-    # limit; `0` or `off` switches that limit off altogether. Leaving one unset
+    # limit; an off word (`0`, `off`, `none`…) switches that limit off altogether. Leaving one unset
     # keeps the default (1,000 boards / 250,000 items / 10 GB, trial off).
     trial_days: positive_env.("SLIPDOCK_TRIAL_DAYS"),
     trial_enabled: switch_env.("SLIPDOCK_TRIAL_DAYS"),
@@ -250,7 +288,7 @@ end
 # Writing sign-in codes to a file is how a server with no working mail lets
 # anybody in at all — and a back door for anyone who can read that file. This
 # turns it off for good, whatever the admin UI says: set it on a public host.
-if System.get_env("SLIPDOCK_LOGIN_FALLBACK") in ["0", "false"] do
+if env_off?.("SLIPDOCK_LOGIN_FALLBACK") do
   config :slipdock, :login_fallback, false
 end
 
@@ -263,7 +301,7 @@ end
 
 if allow = System.get_env("SLIPDOCK_SIGNUP_ALLOW") do
   config :slipdock, :signups,
-    open: System.get_env("SLIPDOCK_OPEN_SIGNUP") in ["1", "true"],
+    open: open_signup,
     allow: allow |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
 end
 
@@ -382,8 +420,8 @@ if model = System.get_env("SLIPDOCK_AI_EMBED_MODEL") do
   config :slipdock, :ai, embed_model: model
 end
 
-if dims = System.get_env("SLIPDOCK_AI_EMBED_DIMENSIONS") do
-  config :slipdock, :ai, embed_dimensions: String.to_integer(dims)
+if dims = env_int.("SLIPDOCK_AI_EMBED_DIMENSIONS", nil) do
+  config :slipdock, :ai, embed_dimensions: dims
 end
 
 if langs = System.get_env("SLIPDOCK_OCR_LANGS") do
@@ -405,18 +443,11 @@ end
 # /api/inbound/email. Both the domain and a secret are needed, or the feature
 # is off. SLIPDOCK_INBOUND_SECRET_PREVIOUS is still accepted while a new secret
 # is rolled out to the Worker.
-inbound_env = fn name ->
-  case System.get_env(name) do
-    nil -> nil
-    value -> if String.trim(value) == "", do: nil, else: String.trim(value)
-  end
-end
-
 config :slipdock, :inbound,
-  domain: inbound_env.("SLIPDOCK_INBOUND_DOMAIN"),
+  domain: env_value.("SLIPDOCK_INBOUND_DOMAIN"),
   secrets:
     Enum.reject(
-      [inbound_env.("SLIPDOCK_INBOUND_SECRET"), inbound_env.("SLIPDOCK_INBOUND_SECRET_PREVIOUS")],
+      [env_value.("SLIPDOCK_INBOUND_SECRET"), env_value.("SLIPDOCK_INBOUND_SECRET_PREVIOUS")],
       &is_nil/1
     )
 
@@ -428,7 +459,7 @@ end
 # the app (see `Slipdock.Onboarding`). SLIPDOCK_WELCOME_BOARD=0 turns that off
 # for a server whose people arrive already knowing what they are doing;
 # `mix slipdock.welcome` and `slipdock welcome` keep working either way.
-if System.get_env("SLIPDOCK_WELCOME_BOARD") in ["0", "false", "no"] do
+if env_off?.("SLIPDOCK_WELCOME_BOARD") do
   config :slipdock, :welcome_board, false
 end
 
@@ -437,7 +468,7 @@ end
 # a private slipdock-agentic-login directory under the system temp dir, mode
 # 0600) instead of emailing it. Anyone who can reach the page can create such
 # files, so only enable it on machines used for automated testing.
-if System.get_env("SLIPDOCK_AGENTIC_LOGIN") in ["1", "true"] do
+if env_on?.("SLIPDOCK_AGENTIC_LOGIN") do
   config :slipdock, agentic_login: true
 end
 
@@ -445,12 +476,11 @@ if (dir = System.get_env("SLIPDOCK_AGENTIC_LOGIN_DIR")) && config_env() != :test
   config :slipdock, agentic_login_dir: dir
 end
 
-if System.get_env("PHX_SERVER") do
+if env_value.("PHX_SERVER") && not env_off?.("PHX_SERVER") do
   config :slipdock, SlipdockWeb.Endpoint, server: true
 end
 
-config :slipdock, SlipdockWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+config :slipdock, SlipdockWeb.Endpoint, http: [port: env_int.("PORT", 4000)]
 
 if config_env() == :dev do
   # Reload browser tabs when matching files change.
@@ -483,9 +513,9 @@ if config_env() == :prod do
   # which is what a provider using its own CA needs (Fly, some Supabase
   # configurations) short of giving us a CA bundle to trust.
   maybe_ssl =
-    if System.get_env("DATABASE_SSL") in ~w(1 true) do
+    if env_on?.("DATABASE_SSL") do
       verify =
-        if System.get_env("DATABASE_SSL_VERIFY") in ~w(0 false),
+        if env_off?.("DATABASE_SSL_VERIFY"),
           do: :verify_none,
           else: :verify_peer
 
@@ -515,13 +545,13 @@ if config_env() == :prod do
 
   # ECTO_IPV6 for a host that only resolves to an AAAA record — fly.io's
   # internal DNS, for one.
-  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(1 true), do: [:inet6], else: []
+  maybe_ipv6 = if env_on?.("ECTO_IPV6"), do: [:inet6], else: []
 
   config :slipdock,
          Slipdock.Repo,
          [
            url: database_url,
-           pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+           pool_size: env_int.("POOL_SIZE", 10),
            socket_options: maybe_ipv6
          ] ++ maybe_ssl
 
@@ -547,9 +577,7 @@ if config_env() == :prod do
   url_scheme = System.get_env("SLIPDOCK_URL_SCHEME") || "https"
 
   url_port =
-    String.to_integer(
-      System.get_env("SLIPDOCK_URL_PORT") || if(url_scheme == "https", do: "443", else: "80")
-    )
+    env_int.("SLIPDOCK_URL_PORT", if(url_scheme == "https", do: 443, else: 80))
 
   config :slipdock, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
@@ -568,7 +596,7 @@ if config_env() == :prod do
          [host | SlipdockWeb.Origin.parse(System.get_env("SLIPDOCK_CHECK_ORIGIN"))]
 
   check_origin =
-    if System.get_env("SLIPDOCK_CHECK_ORIGIN") == "false",
+    if env_off?.("SLIPDOCK_CHECK_ORIGIN"),
       do: false,
       else: {SlipdockWeb.Origin, :allowed?, []}
 
