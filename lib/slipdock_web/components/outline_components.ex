@@ -9,6 +9,7 @@ defmodule SlipdockWeb.OutlineComponents do
 
   import SlipdockWeb.SlipdockComponents
   alias Slipdock.Boards.Card
+  alias Slipdock.Outline
   alias Slipdock.Palette
   alias Slipdock.Swimlanes.Config
 
@@ -18,12 +19,15 @@ defmodule SlipdockWeb.OutlineComponents do
   attr :collapsed, :any, required: true, doc: "MapSet of collapsed keys (card-<id>)"
   attr :can_write, :boolean, default: true
   attr :quick_preview, :map, default: %{}, doc: "quick-add previews by form id"
+  attr :adding, :any, default: nil, doc: "the card whose add-a-subcard row is open"
+  attr :page, :integer, default: 1, doc: "the page of rows shown"
 
   def outline_view(assigns) do
     assigns =
       assign(assigns,
         compact?: assigns.config.density == "compact",
-        show: Config.shown(assigns.config)
+        show: Config.shown(assigns.config),
+        paged: Outline.page(assigns.outline, assigns.page, collapsed: assigns.collapsed)
       )
 
     ~H"""
@@ -51,26 +55,27 @@ defmodule SlipdockWeb.OutlineComponents do
         class={["min-w-0 sm:min-w-[60rem]", if(@compact?, do: "text-2xs", else: "text-xs")]}
       >
         <div class="ol-row ol-head sticky top-0 z-10 border-b border-base-300 bg-base-100 section-label">
-          <div class="flex items-center gap-2 px-3 py-2">
+          <div class="flex items-center gap-2 px-3 py-1.5">
             Card
             <span class="badge badge-ghost badge-sm font-mono normal-case tracking-normal">
               {@outline.done}/{@outline.total} done
             </span>
           </div>
-          <div class="px-2 py-2">List</div>
-          <div class="px-2 py-2">Progress</div>
-          <div class="px-2 py-2">Schedule</div>
-          <div class="px-2 py-2">Health</div>
+          <div class="px-2 py-1.5">List</div>
+          <div class="px-2 py-1.5">Progress</div>
+          <div class="px-2 py-1.5">Schedule</div>
+          <div class="px-2 py-1.5">Health</div>
           <div></div>
         </div>
         <.outline_rows
-          nodes={@outline.nodes}
+          nodes={@paged.nodes}
           board={@board}
           collapsed={@collapsed}
           can_write={@can_write}
           compact={@compact?}
           show={@show}
           quick_preview={@quick_preview}
+          adding={@adding}
         />
         <.quick_add_row
           :if={@can_write and @board.columns != []}
@@ -79,6 +84,7 @@ defmodule SlipdockWeb.OutlineComponents do
           preview={@quick_preview["outline-add"]}
           class="border-b border-base-300/60 py-1 pl-3 pr-2 text-sm"
         />
+        <.outline_pager :if={@paged.pages > 1} paged={@paged} />
       </div>
       <.quick_add_row
         :if={@outline.nodes == [] and @can_write and @board.columns != []}
@@ -98,6 +104,7 @@ defmodule SlipdockWeb.OutlineComponents do
   attr :compact, :boolean, required: true
   attr :show, :any, required: true, doc: "MapSet of facet keys to render on each row"
   attr :quick_preview, :map, default: %{}
+  attr :adding, :any, default: nil
 
   defp outline_rows(assigns) do
     ~H"""
@@ -115,7 +122,7 @@ defmodule SlipdockWeb.OutlineComponents do
         data-level={node.level}
       >
         <div
-          class="flex min-w-0 items-center gap-1.5 py-1.5 pr-2"
+          class="flex min-w-0 items-center gap-1.5 py-1 pr-2"
           style={"padding-left: #{0.5 + node.level * 1.5}rem"}
         >
           <button
@@ -189,6 +196,33 @@ defmodule SlipdockWeb.OutlineComponents do
             {node.card.title}
           </span>
           <span
+            :if={Map.get(node, :continued)}
+            class="badge badge-ghost badge-xs shrink-0"
+            title="Carried on from the page before"
+          >
+            continued
+          </span>
+          <button
+            :if={@can_write}
+            type="button"
+            id={"ol-add-sub-#{node.card.id}"}
+            class={[
+              "btn btn-ghost btn-xs btn-square shrink-0 transition",
+              if(@adding == node.card.id,
+                do: "btn-active",
+                else:
+                  "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 no-hover:opacity-100"
+              )
+            ]}
+            phx-click="outline_add_sub"
+            phx-value-id={node.card.id}
+            title={"Add a subcard to #{node.card.title}"}
+            aria-label={"Add a subcard to #{node.card.title}"}
+            aria-expanded={to_string(@adding == node.card.id)}
+          >
+            <.icon name="hero-plus" class="size-3.5 text-base-content/60" />
+          </button>
+          <span
             :if={node.card.tags != [] and MapSet.member?(@show, "tags")}
             class="flex shrink-0 items-center gap-1"
           >
@@ -251,6 +285,16 @@ defmodule SlipdockWeb.OutlineComponents do
           </.link>
         </div>
       </div>
+      <.quick_add_row
+        :if={@can_write and @adding == node.card.id}
+        id={"outline-add-#{node.card.id}"}
+        params={%{"parent_card" => node.card.id}}
+        placeholder={"Add a subcard to #{node.card.title}…"}
+        preview={@quick_preview["outline-add-#{node.card.id}"]}
+        class="border-b border-base-300/60 py-0.5 pr-2 text-xs"
+        style={"padding-left: #{0.5 + (node.level + 1) * 1.5}rem"}
+        autofocus
+      />
       <.outline_rows
         :if={node.children != [] and not collapsed}
         nodes={node.children}
@@ -260,17 +304,55 @@ defmodule SlipdockWeb.OutlineComponents do
         compact={@compact}
         show={@show}
         quick_preview={@quick_preview}
-      />
-      <.quick_add_row
-        :if={@can_write and not is_nil(node.sub_board_id) and not collapsed}
-        id={"outline-add-#{node.card.id}"}
-        params={%{"parent_card" => node.card.id}}
-        placeholder={"Add a subcard to #{node.card.title}…"}
-        preview={@quick_preview["outline-add-#{node.card.id}"]}
-        class="border-b border-base-300/60 py-0.5 pr-2 text-xs"
-        style={"padding-left: #{0.5 + (node.level + 1) * 1.5}rem"}
+        adding={@adding}
       />
     <% end %>
+    """
+  end
+
+  attr :paged, :map, required: true, doc: "from Slipdock.Outline.page/3"
+
+  # Previous / next under the list, once it runs past one page.
+  defp outline_pager(assigns) do
+    ~H"""
+    <nav
+      id="outline-pager"
+      aria-label="Outline pages"
+      class="flex items-center justify-between gap-3 px-3 py-2 text-xs text-base-content/70"
+    >
+      <span id="outline-page-range" class="tabular-nums">
+        {@paged.from}–{@paged.to} of {@paged.count} rows
+      </span>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          id="outline-prev"
+          class="btn btn-ghost btn-xs"
+          phx-click={
+            JS.push("outline_page", value: %{page: @paged.page - 1})
+            |> JS.dispatch("slipdock:scroll-top", to: "#outline-scroll")
+          }
+          disabled={@paged.page <= 1}
+        >
+          <.icon name="hero-chevron-left" class="size-3.5" /> Previous
+        </button>
+        <span id="outline-page-of" class="tabular-nums">
+          Page {@paged.page} of {@paged.pages}
+        </span>
+        <button
+          type="button"
+          id="outline-next"
+          class="btn btn-ghost btn-xs"
+          phx-click={
+            JS.push("outline_page", value: %{page: @paged.page + 1})
+            |> JS.dispatch("slipdock:scroll-top", to: "#outline-scroll")
+          }
+          disabled={@paged.page >= @paged.pages}
+        >
+          Next <.icon name="hero-chevron-right" class="size-3.5" />
+        </button>
+      </div>
+    </nav>
     """
   end
 

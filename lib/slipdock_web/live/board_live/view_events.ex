@@ -27,7 +27,8 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
   @events ~w(swim_config swim_set swim_clear_filters table_sort table_update prio_field prio_vote
     timeline_move timeline_schedule cal_move cal_quick_add cal_toggle_day swim_toggle_row
     swim_move swim_start_add swim_cancel_add swim_quick_add swim_save_view swim_update_view
-    swim_rename_view swim_publish_view swim_unpublish_view swim_delete_view)
+    swim_rename_view swim_publish_view swim_unpublish_view swim_delete_view outline_add_sub
+    outline_page)
 
   @doc "The events handled here."
   def events, do: @events
@@ -213,6 +214,26 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
         else: MapSet.put(collapsed, key)
 
     {:noreply, assign(socket, swim_collapsed: collapsed)}
+  end
+
+  # The outline's add icon: opens that card's add-a-subcard row, or closes
+  # it when it is already open. Only state here; the add itself goes through
+  # `quick_add_card`, which checks the card is on this board's tree.
+  def handle_event("outline_add_sub", %{"id" => id}, socket) do
+    id = Params.id(id)
+    adding = if socket.assigns.outline_adding == id, do: nil, else: id
+    {:noreply, assign(socket, outline_adding: adding)}
+  end
+
+  # Held to the outline's pages by `Slipdock.Outline.page/3` when drawn.
+  def handle_event("outline_page", %{"page" => page}, socket) do
+    page =
+      case Integer.parse(to_string(page)) do
+        {n, ""} -> max(n, 1)
+        _ -> 1
+      end
+
+    {:noreply, assign(socket, outline_page: page)}
   end
 
   # `from` is the cell the tab drew the item in, and the move is worked out

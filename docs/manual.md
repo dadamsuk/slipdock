@@ -2558,7 +2558,14 @@ row. The **levels** control limits the depth: one level is the roadmap, all
 levels the task list; rows on deeper boards link into those boards, and the
 *more* button on a cut-off row opens the board beneath it. Filters, search and
 sort work as in the other views; a card that fails a filter is kept, muted,
-when something beneath it matches. The same levels control on the
+when something beneath it matches. The **+** beside a card's title (shown on
+hover, always on a touch screen) opens a row under it for adding subcards; a
+card with none yet gets its subcards board, from the *Simple* template, with
+the first one. A long outline is paged at 250 rows (a collapsed card counts
+as one), with Previous, Next and the page count under the list. A card stays
+on one page with all of its subcards where they fit, so a page ends between
+top-level cards; only a card with more than a page beneath it is split, and
+the next page starts with the cards above again, marked *continued*. The same levels control on the
 **Timeline** nests subcards under a card's bar (see above). On swimlanes and
 tables, the *Due (rolled up)* axis groups cards by their effective due date,
 and the table has *Assignee* and *Health* columns.
@@ -3541,8 +3548,8 @@ line are recognised as you type and shown as chips:
   works in a list's own "Add a card" box and in the header's quick add too
 
 Anything not recognised stays in the title. In a grouped table each group
-has its own row and new cards take the group's value; in the outline a
-card with a sub-board gets an "Add a subcard" row beneath it.
+has its own row and new cards take the group's value; in the outline the
+**+** beside a card opens an "Add a subcard" row beneath it.
 
 ### From the header, in plain English
 

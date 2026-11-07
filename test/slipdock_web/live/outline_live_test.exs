@@ -60,6 +60,114 @@ defmodule SlipdockWeb.OutlineLiveTest do
     refute has_element?(view, "#ol-#{ctx.epic.id}")
   end
 
+  test "the outline pages at 250 rows, keeps epics whole, splits only a big one" do
+    board = board_fixture(%{"name" => "Big"})
+    {:ok, t} = Boards.find_template(nil, "Simple")
+    # Two top-level cards and 402 rows: 100 subcards under one, 300 under the other.
+    small = card_fixture(hd(board.columns), %{"title" => "Small epic"})
+    big = card_fixture(hd(board.columns), %{"title" => "Big epic"})
+    small_kids = subcards(small, t, 100)
+    big_kids = subcards(big, t, 300)
+
+    conn = build_conn() |> log_in_user(user_fixture())
+    {:ok, view, html} = live(conn, ~p"/boards/#{board}/outline")
+
+    # Page 1: the small epic whole; the big one doesn't fit what is left.
+    assert has_element?(view, "#outline-page-of", "Page 1 of 3")
+    assert has_element?(view, "#outline-page-range", "1–101 of 402 rows")
+    assert has_element?(view, "#outline-prev[disabled]")
+    assert has_element?(view, "#ol-#{List.last(small_kids).id}")
+    refute has_element?(view, "#ol-#{big.id}")
+    # Rows are py-1 now, not py-1.5.
+    refute html =~ "py-1.5 pr-2"
+
+    # Page 2: the big epic and its first 249 subcards, 250 rows.
+    view |> element("#outline-next") |> render_click()
+    assert has_element?(view, "#outline-page-of", "Page 2 of 3")
+    assert has_element?(view, "#outline-page-range", "102–351 of 402 rows")
+    assert has_element?(view, ".ol-row:not(.ol-head)", "Big epic")
+    refute has_element?(view, "#ol-#{big.id}", "continued")
+    assert has_element?(view, "#ol-#{Enum.at(big_kids, 248).id}")
+    refute has_element?(view, "#ol-#{Enum.at(big_kids, 249).id}")
+    refute has_element?(view, "#ol-#{small.id}")
+
+    # Page 3: the big epic again, marked as carried on, then the rest.
+    view |> element("#outline-next") |> render_click()
+    assert has_element?(view, "#outline-page-of", "Page 3 of 3")
+    assert has_element?(view, "#outline-page-range", "352–402 of 402 rows")
+    assert has_element?(view, "#ol-#{big.id}", "continued")
+    assert has_element?(view, "#ol-#{Enum.at(big_kids, 249).id}")
+    assert has_element?(view, "#outline-next[disabled]")
+
+    # Collapsing the big epic leaves two rows: one page, no pager.
+    view
+    |> element("#ol-#{big.id} button[phx-value-key='card-#{big.id}']")
+    |> render_click()
+
+    refute has_element?(view, "#outline-pager")
+    assert has_element?(view, "#ol-#{small.id}")
+  end
+
+  test "pages past the end clamp to the last, before the start to the first" do
+    board = board_fixture(%{"name" => "Many"})
+    col = hd(board.columns)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Slipdock.Repo.insert_all(
+      Slipdock.Boards.Card,
+      for(
+        n <- 1..251,
+        do: %{
+          title: "Card #{n}",
+          column_id: col.id,
+          board_id: board.id,
+          position: n,
+          inserted_at: now,
+          updated_at: now
+        }
+      )
+    )
+
+    conn = build_conn() |> log_in_user(user_fixture())
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/outline")
+    assert has_element?(view, "#outline-page-range", "1–250 of 251 rows")
+    render_click(view, "outline_page", %{"page" => "9"})
+    assert has_element?(view, "#outline-page-of", "Page 2 of 2")
+    assert has_element?(view, "#outline-page-range", "251–251 of 251 rows")
+    render_click(view, "outline_page", %{"page" => "nonsense"})
+    assert has_element?(view, "#outline-page-of", "Page 1 of 2")
+  end
+
+  # `n` subcards under `card`, in order, on a new sub-board.
+  defp subcards(card, template, n) do
+    {:ok, sub} = Boards.create_sub_board(card, template, code: unique_code())
+    col = hd(Boards.get_board!(sub.id).columns)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Slipdock.Repo.insert_all(
+      Slipdock.Boards.Card,
+      for(
+        i <- 1..n,
+        do: %{
+          title: "#{card.title} #{String.pad_leading(to_string(i), 3, "0")}",
+          column_id: col.id,
+          board_id: sub.id,
+          position: i,
+          inserted_at: now,
+          updated_at: now
+        }
+      )
+    )
+
+    Boards.get_board!(sub.id).columns |> hd() |> Map.get(:cards) |> Enum.sort_by(& &1.position)
+  end
+
+  test "one page of cards has no pager", ctx do
+    conn = build_conn() |> log_in_user(user_fixture())
+    {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/outline")
+    refute has_element?(view, "#outline-pager")
+  end
+
   test "the timeline opens subcards beneath a bar and moves them", ctx do
     conn = build_conn() |> log_in_user(user_fixture())
     {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/timeline?date=2030-01-15")
