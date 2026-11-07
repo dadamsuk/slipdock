@@ -5,6 +5,8 @@ defmodule SlipdockCLI.ProfilesVerifyTest do
   important one marked as failing) and a docs card accepted unverified,
   and the ledger line reads "not verified (docs)".
   """
+  # Sync: sets HOME and the SLIPDOCK_* variables, which are one environment
+  # for the whole VM.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO

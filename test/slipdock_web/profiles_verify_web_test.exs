@@ -7,7 +7,7 @@ defmodule SlipdockWeb.ProfilesVerifyWebTest do
   (docs)" for a docs card the server accepted; `verify_card` takes a
   defect review's findings.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

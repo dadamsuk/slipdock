@@ -8,7 +8,7 @@ defmodule Slipdock.ProfilesVerifyTest do
   (`defect_review`), and an Important finding is a rejection. A claimed job
   carries its card's profile. With profiles off nothing changes.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures
