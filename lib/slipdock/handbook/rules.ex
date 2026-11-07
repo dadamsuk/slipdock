@@ -42,7 +42,9 @@ defmodule Slipdock.Handbook.Rules do
     "data-model" => "DATA",
     "shared-modules" => "MOD",
     "testing" => "TEST",
-    "operations" => "OPS"
+    "operations" => "OPS",
+    "principles" => "PRIN",
+    "playbook" => "PLAY"
   }
 
   @severities ~w(must should)

@@ -1089,8 +1089,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         (or <code>install_tool</code>
         with <code>board</code>) gives a board's root a <code>Handbook/</code>
         folder: pages for the specification, architecture, UX, components, data model,
-        shared modules, testing and operations, one page per decision, and an Index that
-        lists them, plus a card that drafts them from the code and a weekly one that
+        shared modules, testing, operations, principles (the tie-breakers, each a <code>PRIN</code>
+        rule) and the playbook (how an idea becomes cards on the board), one page per
+        decision, and an Index that lists them, plus a card that drafts them from the code and a weekly one that
         catches drift.
       </p>
       <p>

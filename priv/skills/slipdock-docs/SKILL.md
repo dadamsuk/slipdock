@@ -56,9 +56,11 @@ card is closed?** If yes, it is a page.
 `slipdock handbook <board>` says) puts durable answers there first: what the
 project is, in the section page that covers it (Specification, Architecture,
 UX & UI, Components, Data model, Shared modules, Testing & tooling,
-Operations), by section, and each decision as its own page in
+Operations, Principles, Playbook), by section, and each decision as its own page in
 `Handbook/Decisions`. A page somewhere else is for what the handbook has no
-place for: a meeting, an investigation, a one-off report.
+place for: a meeting, an investigation, a one-off report. Principles and
+the Playbook are a person's call: a new principle, or a change to how the
+board plans, goes in as a proposal for them, not a quiet edit.
 
 A **rule** (something a change must or should keep to) goes in its page's
 `## Rules` section, once, as one list item, and the prose can cite it by

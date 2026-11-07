@@ -79,7 +79,7 @@ defmodule SlipdockWeb.HandbookAPITest do
     got = user |> token_conn() |> get("/api/boards/#{board.code}/handbook") |> json_response(200)
 
     assert got["handbook"]["index_page"] == Handbook.find(board).index.code
-    assert length(got["handbook"]["index"]) == 8
+    assert length(got["handbook"]["index"]) == 10
     assert got["handbook"]["decisions"] == []
   end
 end

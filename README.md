@@ -1029,8 +1029,10 @@ reaches everyone without a reinstall
 - **The handbook.** One Tool is built in: `handbook` puts a `Handbook/`
   folder on an existing board's root (`slipdock tools install-board handbook
   --board B`, or `install_tool` with `board`): pages for the specification,
-  architecture, UX, components, data model, shared modules, testing and
-  operations, one page per decision, and an Index that lists them. On that
+  architecture, UX, components, data model, shared modules, testing,
+  operations, principles (the tie-breakers, each a `PRIN` rule) and the
+  playbook (how an idea becomes cards on the board), one page per decision,
+  and an Index that lists them. On that
   board `slipdock card`, `get_card` and `GET /api/cards/:id` hand each card
   the sections to read before building (`slipdock handbook <board|card>`),
   and the loop closes each card through a docs gate, with a `Handbook:`

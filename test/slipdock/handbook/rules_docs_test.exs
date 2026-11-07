@@ -36,7 +36,12 @@ defmodule Slipdock.Handbook.RulesDocsTest do
     {:ok, guide} = SlipdockWeb.APIGuide.section("handbook", [])
 
     assert guide =~ "**Rules.** Each section page keeps its rules in a `## Rules` section"
-    assert guide =~ "`SPEC ARCH UX COMP DATA MOD TEST OPS`"
+    assert guide =~ "`SPEC ARCH UX COMP DATA MOD TEST OPS PRIN PLAY`"
+
+    # Every built-in page's prefix, Principles and Playbook (1.5.0) included.
+    for key <- Slipdock.Handbook.section_keys(),
+        do: assert(guide =~ ~r/`[A-Z ]*\b#{Rules.prefix(key)}\b[A-Z ]*`/, key)
+
     assert guide =~ "`judgement`"
     assert guide =~ "keep its rules as they are"
 
@@ -48,6 +53,38 @@ defmodule Slipdock.Handbook.RulesDocsTest do
 
     assert %{id: "DATA-2", severity: "should", scope: ["priv/repo/migrations/**"]} =
              parses!(data, "data-model")
+  end
+
+  test "the guide, docs/agents.md and the manual name Principles and Playbook (#2040)" do
+    {:ok, guide} = SlipdockWeb.APIGuide.section("handbook", [])
+    guide = String.replace(guide, ~r/\s+/, " ")
+    assert guide =~ "Testing & tooling, Operations, Principles, Playbook)"
+    assert guide =~ "**Principles and Playbook** (Handbook Tool 1.5.0)"
+
+    assert guide =~
+             "Installing 1.5.0 over an older handbook adds the two pages and changes no other."
+
+    agents = Path.join(@root, "docs/agents.md") |> File.read!() |> String.replace(~r/\s+/, " ")
+    assert agents =~ "**Principles** are the tie-breakers between two right ways"
+    assert agents =~ "The **Playbook** is how an idea becomes cards"
+
+    manual = Path.join(@root, "docs/manual.md") |> File.read!() |> String.replace(~r/\s+/, " ")
+    assert manual =~ "**Principles and Playbook** (1.5.0)"
+    assert manual =~ "tooling, Operations, Principles and Playbook (below)"
+
+    assert manual =~
+             "Installing 1.5.0 over an older handbook adds the two pages and changes no other page"
+  end
+
+  test "README and slipdock-docs, in every copy, name Principles and Playbook (#2040)" do
+    readme = Path.join(@root, "README.md") |> File.read!() |> String.replace(~r/\s+/, " ")
+    assert readme =~ "principles (the tie-breakers, each a `PRIN` rule) and the playbook"
+
+    for path <- copies("slipdock-docs") do
+      text = path |> File.read!() |> String.replace(~r/\s+/, " ")
+      assert text =~ "Testing & tooling, Operations, Principles, Playbook)", path
+      assert text =~ "Principles and the Playbook are a person's call", path
+    end
   end
 
   test "docs/agents.md and the manual describe rules" do
