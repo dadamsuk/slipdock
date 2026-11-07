@@ -132,6 +132,8 @@ defmodule SlipdockWeb.API.JSON do
       verify_audit: b.verify_audit,
       # A finding seen this many times is drafted as a proposal (#1942); 0 off.
       findings_propose_at: b.findings_propose_at,
+      # Who each kind of question goes to (#1949): kind => people, first is on.
+      wait_routes: wait_routes(b),
       ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
@@ -233,6 +235,8 @@ defmodule SlipdockWeb.API.JSON do
       verify_audit: b.verify_audit,
       # A finding seen this many times is drafted as a proposal (#1942); 0 off.
       findings_propose_at: b.findings_propose_at,
+      # Who each kind of question goes to (#1949): kind => people, first is on.
+      wait_routes: wait_routes(b),
       ship_via: b.ship_via,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
@@ -553,7 +557,9 @@ defmodule SlipdockWeb.API.JSON do
       on: wait_person(w.on_user),
       choices: w.choices,
       opened_by: wait_person(w.opened_by),
+      # The opener's actor kind; `question` is the kind of question (#1949).
       kind: w.kind,
+      question: w.question,
       via: w.via,
       agent: w.agent,
       job_id: w.job_id,
@@ -630,6 +636,13 @@ defmodule SlipdockWeb.API.JSON do
 
   defp person_ref(u),
     do: %{id: u.id, email: u.email, name: Slipdock.Accounts.User.display_name(u)}
+
+  @doc "A board's wait routes (#1949): each kind of question => its people, in order."
+  def wait_routes(%Board{} = b) do
+    b
+    |> Slipdock.WaitRoutes.routes()
+    |> Map.new(fn {k, users} -> {k, Enum.map(users, &person_ref/1)} end)
+  end
 
   # What the card's subcards roll up to (see Slipdock.Rollup); nil for a leaf.
   defp rollup(%Card{rollup: %{children: n} = r}) when n > 0 do

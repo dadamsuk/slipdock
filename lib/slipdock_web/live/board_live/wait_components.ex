@@ -38,6 +38,15 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
           <span class="text-base-content/60">Waiting on {Wait.on_name(@wait)}:</span>
           <span class="font-medium" id="wait-needs">{@wait.needs}</span>
         </span>
+        <%!-- The kind of question (#1949), which picked who it went to. --%>
+        <span
+          :if={@wait.question}
+          id="wait-question"
+          class="badge badge-ghost badge-sm shrink-0"
+          title="The kind of question: the board's routes send each kind to a person"
+        >
+          {@wait.question}
+        </span>
       </p>
       <p class="text-2xs text-base-content/50" id="wait-byline">
         {wait_byline(@wait)} · {relative_time(@wait.inserted_at)}

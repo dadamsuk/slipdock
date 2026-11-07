@@ -37,7 +37,11 @@ defmodule Slipdock.Boards.Wait do
     field :choices, {:array, :string}, default: []
     field :questions, {:array, :string}, default: []
     field :answers, {:array, :string}, default: []
+    # The opener's actor kind (`human`, `agent`, `automation`).
     field :kind, :string
+    # What kind of question it is (#1949): product, ux, security, release or
+    # other, which picks who it goes to (`Slipdock.WaitRoutes`).
+    field :question, :string
     field :via, :string
     field :agent, :string
     field :set_flag, :boolean, default: false
@@ -68,7 +72,11 @@ defmodule Slipdock.Boards.Wait do
 
   def changeset(wait, attrs) do
     wait
-    |> cast(attrs, [:needs, :choices, :questions, :on_user_id, :job_id])
+    |> cast(attrs, [:needs, :choices, :questions, :on_user_id, :job_id, :question])
+    |> update_change(:question, &(&1 |> String.trim() |> String.downcase()))
+    |> validate_inclusion(:question, Slipdock.WaitRoutes.kinds(),
+      message: "is product, ux, security, release or other"
+    )
     |> update_change(:needs, &String.trim/1)
     |> update_change(:choices, &clean_choices/1)
     |> update_change(:questions, &clean_choices/1)

@@ -756,8 +756,13 @@ defmodule SlipdockCLI.Render do
             dim(list |> Enum.with_index(1) |> Enum.map_join("  ", fn {c, n} -> "#{n}. #{c}" end))
       end
 
-    "waits on #{person(w["on"]) || "anyone"}: #{w["needs"]}" <> choices <> questions(w)
+    "waits on #{person(w["on"]) || "anyone"}#{question_kind(w)}: #{w["needs"]}" <>
+      choices <> questions(w)
   end
+
+  # The kind of question it asks (#1949), which picked who it went to.
+  defp question_kind(%{"question" => q}) when is_binary(q) and q != "", do: " (#{q})"
+  defp question_kind(_w), do: ""
 
   # A series (#1220): each question on its own numbered line.
   defp questions(w) do

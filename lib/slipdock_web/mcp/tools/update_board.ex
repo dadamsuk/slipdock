@@ -3,7 +3,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   Changes a board's settings, as `PATCH /api/boards/:board` does, for the
   ones an agent is asked to set (#1620): its name, description, colour,
   simple mode, default view, handoff label, the Verified work switches, and
-  how long runner job logs stay (#1872).
+  how long runner job logs stay (#1872), and who each kind of question an
+  agent asks goes to (`wait_routes`, #1949, `Slipdock.WaitRoutes`).
   Only the board's owner may.
   """
   @behaviour SlipdockWeb.MCP.Tool
@@ -26,8 +27,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def description,
     do:
       "Changes a board you own: name, description, color, simple, default_view, handoff_label, " <>
-        "bar_required, evidence_required, verify_work, verify_pool, ship_via, lanes, " <>
-        "job_log_hours, failure_log_hours, findings_propose_at. Only what you send changes."
+        "the verified-work switches, lanes, job/failure log hours, findings_propose_at, " <>
+        "wait_routes. Only what you send changes."
 
   @impl true
   def input_schema do
@@ -66,6 +67,17 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
           type: "integer",
           description:
             "A finding seen this many times gets a handbook rule proposal drafted (3 by default; 0 off)."
+        },
+        wait_routes: %{
+          type: "object",
+          description:
+            "Who each kind of question goes to: kind => emails of the board's users, the first " <>
+              "is who it waits on, the rest are told; [] takes a kind's route off.",
+          properties:
+            Map.new(Slipdock.WaitRoutes.kinds(), fn kind ->
+              {kind, %{type: "array", items: %{type: "string"}}}
+            end),
+          additionalProperties: false
         }
       },
       required: ["board"],
@@ -80,12 +92,23 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def call(args, %{user: user} = context) do
     auth = Args.auth(context)
     changes = Map.take(args, @fields)
+    routes = Map.get(args, "wait_routes")
 
     with {:ok, ref} <- Args.required(args, "board"),
-         :ok <- if(changes == %{}, do: {:error, "nothing to change: send a setting"}, else: :ok),
+         :ok <- something(changes, routes),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :owner)),
+         {:ok, board} <- routes(board, routes),
          {:ok, board} <- Args.refusal(Boards.update_board(board, changes)) do
-      {:ok, Tools.ListBoards.summary(board, user)}
+      summary = Tools.ListBoards.summary(board, user)
+      {:ok, Map.put(summary, :wait_routes, SlipdockWeb.API.JSON.wait_routes(board))}
     end
   end
+
+  defp something(changes, nil) when changes == %{},
+    do: {:error, "nothing to change: send a setting"}
+
+  defp something(_changes, _routes), do: :ok
+
+  defp routes(board, nil), do: {:ok, board}
+  defp routes(board, routes), do: Args.refusal(Slipdock.WaitRoutes.set(board, routes))
 end

@@ -90,7 +90,10 @@ defmodule Slipdock.Automations.RunnerActionTest do
       # Nobody is there to answer: it says so, last.
       assert String.ends_with?(job.prompt, "It 500s\n\n" <> Runner.unattended())
       assert Runner.unattended() =~ "nobody will answer questions"
-      assert Runner.unattended() =~ "open a wait (`slipdock wait <card> …` or update_card `wait`)"
+
+      assert Runner.unattended() =~
+               "open a wait (`slipdock wait <card> … --kind K` or update_card `wait` with `question`)"
+
       refute Runner.unattended() =~ "flag the card waiting and stop"
       # It shows it is alive as job steps, an epic's subcards included (#1853).
       assert Runner.unattended() =~ ~s(`slipdock job-progress --step "…"`, or job_progress `step`)

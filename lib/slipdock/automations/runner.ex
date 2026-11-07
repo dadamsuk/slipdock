@@ -307,14 +307,16 @@ defmodule Slipdock.Automations.Runner do
   # After every runner job's prompt, the rule's own included: a job runs with
   # nobody watching, and an agent that stops to ask waits for ever.
   # A question goes in a wait (#1115): the job parks, and the answer starts a
-  # fresh one. Steps (#1853) are what show the job alive: the health monitor
+  # fresh one. Its kind (#1949) picks who is asked (`Slipdock.WaitRoutes`). Steps (#1853) are what show the job alive: the health monitor
   # reads them, and an epic's pass otherwise writes only on its subcards.
   # The epic's progress lines are the server's (#1881): the agent adds what
   # only it knows.
   @unattended "You are running unattended: nobody will answer questions while you work. " <>
                 "Choose any inputs from the card, say what you chose in a comment, and carry " <>
                 "on. If you need something only a person can give, open a wait (`slipdock " <>
-                "wait <card> …` or update_card `wait`), say what you need, and stop: the " <>
+                "wait <card> … --kind K` or update_card `wait` with `question`), say what you " <>
+                "need and what kind of question it is (product, ux, security, release or " <>
+                "other: the board sends each kind to its person), and stop: the " <>
                 "answer starts a fresh job. " <>
                 "If the board answers `paused`, finish this card and take no other. " <>
                 "Report each milestone as the job's step (`slipdock job-progress --step " <>

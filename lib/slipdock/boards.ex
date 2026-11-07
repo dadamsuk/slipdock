@@ -168,7 +168,8 @@ defmodule Slipdock.Boards do
     :ok
   end
 
-  defp ancestor_board_ids(board_id) do
+  @doc "`board_id` and the ids of the boards above it, the root last."
+  def ancestor_board_ids(board_id) do
     case Repo.one(
            from(b in Board,
              left_join: c in Card,
@@ -1027,6 +1028,17 @@ defmodule Slipdock.Boards do
       if renamed?, do: Changes.record(updated.id, "board", updated.id)
       broadcast(updated.id)
     end)
+  end
+
+  @doc """
+  Saves `board`'s wait routes (#1949), already checked by
+  `Slipdock.WaitRoutes.set/2`: a question kind => user ids.
+  """
+  def set_wait_routes(%Board{} = board, routes) do
+    board
+    |> Board.wait_routes_changeset(routes)
+    |> Repo.update()
+    |> tap_ok(&broadcast(&1.id))
   end
 
   def delete_board(%Board{} = board) do
@@ -3942,6 +3954,7 @@ defmodule Slipdock.Boards do
   def open_wait(%Card{} = card, actor, attrs) do
     card = Repo.get!(Card, card.id)
     user = actor_user(actor)
+    {attrs, told} = route_wait(card, attrs)
 
     with :ok <- no_open_wait(card),
          :ok <- check_wait_job(card, attrs[:job_id] || attrs["job_id"]),
@@ -3975,9 +3988,65 @@ defmodule Slipdock.Boards do
       {:ok, _} = add_comment(card, opened_text(wait), by: user)
       Slipdock.EpicLog.wait_opened(card, wait)
       Slipdock.Boards.WaitEmail.opened(wait, card)
+      Slipdock.Boards.WaitEmail.told(wait, card, told)
       broadcast(card.board_id)
       {:ok, wait}
     end
+  end
+
+  # Who the wait goes to (#1949, `Slipdock.WaitRoutes`): a named person
+  # stands; otherwise the route for its kind (`other` when it has none), and
+  # with no route, a wait given a kind is on the tree's owner while one given
+  # none waits on anyone, as before. Returns the attrs, with `question` and
+  # `on_user_id` filled in, and the people the route says to tell.
+  defp route_wait(card, attrs) do
+    given = blank_nil(attrs[:question] || attrs["question"])
+    question = given || Slipdock.WaitRoutes.default_kind()
+    attrs = put_wait_attr(attrs, :question, question)
+    named? = not is_nil(attrs[:on_user_id] || attrs["on_user_id"])
+    kind = String.downcase(question)
+
+    if named? or not Enum.member?(Slipdock.WaitRoutes.kinds(), kind),
+      do: {attrs, []},
+      else: routed(card, attrs, kind, given)
+  end
+
+  defp routed(card, attrs, kind, given) do
+    case Slipdock.WaitRoutes.place(card, kind) do
+      {%{id: id}, told} -> {on(attrs, id), told}
+      {nil, _} when is_nil(given) -> {attrs, []}
+      {nil, _} -> {on(attrs, Board.root_owner_id(Repo.get!(Board, card.board_id))), []}
+    end
+  end
+
+  defp on(attrs, id), do: put_wait_attr(attrs, :on_user_id, id)
+
+  # Callers give attrs with string keys (requests) or atom keys (the
+  # server's own waits); a changeset takes one kind, so keep theirs.
+  defp put_wait_attr(attrs, key, value) do
+    if Enum.any?(Map.keys(attrs), &is_atom/1),
+      do: attrs |> Map.delete(to_string(key)) |> Map.put(key, value),
+      else: attrs |> Map.delete(key) |> Map.put(to_string(key), value)
+  end
+
+  defp blank_nil(v) when v in [nil, ""], do: nil
+  defp blank_nil(v), do: v
+
+  @doc """
+  Puts an open wait on somebody else (#1949): `to_user_id`, with `why` said
+  in a comment on the card. Used when a routed user leaves the board.
+  """
+  def move_wait(%Wait{} = wait, to_user_id, why) do
+    card = Repo.get!(Card, wait.card_id)
+
+    {:ok, moved} =
+      wait |> Ecto.Changeset.change(on_user_id: to_user_id) |> Repo.update()
+
+    moved = Repo.preload(moved, wait_preloads(), force: true)
+    {:ok, _} = add_comment(card, "**Wait moved** to #{Wait.on_name(moved)}: #{why}.", by: nil)
+    Slipdock.Boards.WaitEmail.opened(moved, card)
+    broadcast(card.board_id)
+    {:ok, moved}
   end
 
   defp no_open_wait(card) do

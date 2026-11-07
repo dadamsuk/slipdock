@@ -901,9 +901,11 @@ next pass:
   wrong: open a wait and stop. `slipdock wait <id> "the question" [--on EMAIL]
   [--choice A --choice B]` asks it *specifically* (the question is the
   deliverable; "unclear" is not); several go as `--question Q --question Q`
-  (`questions` over MCP), one each and numbered, never one block. It flags
-  the card `waiting` and starts the
-  clock; then back to the bottom of the ready list, unassigned. In a runner
+  (`questions` over MCP), one each and numbered, never one block. Give it
+  its kind, `--kind product|ux|security|release|other` (`question` over
+  MCP; `other` if you give none): the board routes each kind to the person
+  whose call it is, else to its owner. It flags the card `waiting` and
+  starts the clock; then back to the bottom of the ready list, unassigned. In a runner
   job the wait parks the job, and the answer sends the card again with the
   answer on top of the prompt. A question about a subcard goes on the
   subcard, even in the epic's job: it parks that job, and the answer sends

@@ -77,7 +77,8 @@ whole card before touching it.
   only a person can give what you need, open a wait and stop (`slipdock wait
   <id> "what you need" [--on EMAIL] [--choice X]...`, or `update_card` `wait`;
   several questions go as `--question Q --question Q` / `questions`, one each,
-  never one block):
+  never one block; give its kind, `--kind product|ux|security|release|other` /
+  `question`, so the board routes it to the person whose call it is):
   it flags the card `waiting`, and answering it (`slipdock answer`) gets the work
   going again — or, when what it waits for has a date, snooze it instead (`slipdock
   snooze <id> <date> --note "…"`): it leaves the lists and comes back on the
@@ -248,7 +249,8 @@ whole card before touching it.
   and it renews the job's lease — never leave 20 minutes between them), stop
   if it answers `cancel`, and end with `slipdock finish-job <job> --status
   done|failed --summary "…"` once the card is closed or handed back. Need a
-  person? Open a wait (`slipdock wait <card> "…"`) and stop: the job is parked,
+  person? Open a wait (`slipdock wait <card> "…" --kind K`, K one of product,
+  ux, security, release, other) and stop: the job is parked,
   and the answer starts a fresh one. The card may be a subcard of the job's
   card: ask on the subcard itself.
 - "What is waiting on me?", "what needs me?" → `slipdock work`: waits on you,

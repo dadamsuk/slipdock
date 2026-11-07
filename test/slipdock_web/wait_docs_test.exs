@@ -63,8 +63,15 @@ defmodule SlipdockWeb.WaitDocsTest do
 
   test "the runner prompt says to open a wait and stop, and to take nothing more when paused" do
     text = Slipdock.Automations.Runner.unattended()
-    assert text =~ "open a wait (`slipdock wait <card> …` or update_card `wait`)"
+
+    assert text =~
+             "open a wait (`slipdock wait <card> … --kind K` or update_card `wait` with `question`)"
+
     assert text =~ "the answer starts a fresh job"
+    # Its kind picks who is asked (#1949).
+    assert text =~
+             "(product, ux, security, release or other: the board sends each kind to its person)"
+
     assert text =~ "If the board answers `paused`, finish this card and take no other."
   end
 
@@ -137,7 +144,8 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert work =~ "open a wait and stop (`slipdock wait"
       assert work =~ "If the\n  board answers `PAUSED`"
       assert work =~ "`slipdock work`: waits on you"
-      assert work =~ "Open a wait (`slipdock wait <card> \"…\"`) and stop: the job is parked"
+      assert work =~ "Open a wait (`slipdock wait <card> \"…\" --kind K`"
+      assert work =~ "ux, security, release, other) and stop: the job is parked"
     end
 
     test "the slipdock skill lists the wait, answer and work commands and the pause" do
@@ -210,6 +218,49 @@ defmodule SlipdockWeb.WaitDocsTest do
       {:ok, _view, html} = live(conn, ~p"/help/agents/cli")
       assert html =~ "<code>--question</code>"
       assert html =~ "<code>slipdock waits</code>"
+    end
+  end
+
+  describe "who gets asked (#1949)" do
+    defp flat(path), do: path |> read() |> String.replace(~r/\s+/, " ")
+
+    test "the manual describes the routes, the fallback and every door" do
+      manual = flat("docs/manual.md")
+      assert manual =~ "**Who gets asked.** Each wait says what kind of question it is"
+      assert manual =~ "else to the board's owner"
+      assert manual =~ "the [rejection limit](#verified-work)'s wait asks as `release`"
+      assert manual =~ "comes off its routes, and the open waits on them go to the owner"
+      assert manual =~ "slipdock set-board slipdock --route product=dana@example.com"
+      assert manual =~ "slipdock wait 12 \"Which pricing tier ships first?\" --kind product"
+      assert manual =~ "`PATCH /api/boards/:board` with `wait_routes`"
+      assert manual =~ "`update_board` `wait_routes` and `update_card` `wait` `question`"
+    end
+
+    test "docs/agents.md, the README and the API guide tell an agent to give its kind" do
+      assert flat("docs/agents.md") =~ "**Give a wait its kind**: `question` (`--kind K`)"
+      assert flat("README.md") =~ "**Who gets asked**: a wait says its kind of question"
+      guide = SlipdockWeb.APIGuide.markdown()
+      assert guide =~ ~s|"question": "product"|
+      assert guide =~ ~s|{"wait_routes": {"product": ["dana@example.com"], "release": []}}|
+    end
+
+    test "both skills tell an agent to give its wait a kind, and list the kinds" do
+      loop = flat("priv/skills/slipdock-loop/SKILL.md")
+      assert loop =~ "Give it its kind, `--kind product|ux|security|release|other`"
+      work = flat("priv/skills/slipdock-work/SKILL.md")
+      assert work =~ "give its kind, `--kind product|ux|security|release|other`"
+      assert work =~ "K one of product, ux, security, release, other"
+    end
+
+    test "the CLI's help and the in-app help name --route and --kind", %{conn: conn} do
+      help = read("cli/help.txt")
+      assert help =~ "--route KIND=EMAIL[,EMAIL]: who a wait asking that"
+      assert help =~ "[--kind K]"
+
+      {:ok, _view, html} = Phoenix.LiveViewTest.live(conn, "/help/boards")
+      assert html =~ "Who gets asked"
+      {:ok, _view, cli} = Phoenix.LiveViewTest.live(conn, "/help/agents/cli")
+      assert cli =~ "<code>--kind</code>"
     end
   end
 end

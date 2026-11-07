@@ -264,6 +264,12 @@ defmodule SlipdockWeb.HelpLive.Guides do
           opens a card with its chat. Ten minutes' reading instead of approving each card.
         </li>
         <li>
+          <strong>Who gets asked</strong>: board settings → <em>Who gets asked</em>
+          names a person for each kind of question an agent asks (product, UX, security,
+          release, anything else). Their waits go to that person, and to the board's owner
+          when nobody is named.
+        </li>
+        <li>
           <strong>Incidents</strong>: when a card broke something that shipped, its <em>Incident</em>
           line, under Dependencies, names the card that shipped it and the check that should
           have caught it (bar, rules, CI, verify, audit or none). The causing card then shows

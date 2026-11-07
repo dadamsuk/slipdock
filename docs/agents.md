@@ -208,8 +208,8 @@ first, and an agent reads it before starting and leaves one (`leave_handoff`,
 
 When an agent needs something only a person can give, it **opens a wait**
 and stops, rather than flagging the card and hoping: `update_card` with
-`wait` (`{"needs": "…", "on": "email", "choices": […]}`), `POST
-/api/cards/:id/wait` or `slipdock wait <id> "…" [--on EMAIL] [--choice X]`.
+`wait` (`{"needs": "…", "question": "product", "choices": […]}`), `POST
+/api/cards/:id/wait` or `slipdock wait <id> "…" [--kind K] [--on EMAIL] [--choice X]`.
 The wait flags the card `waiting` and asks on it; somebody answers on the
 card, in My work's **Waiting on you**, with `slipdock answer <id>` or
 `answer_wait`, and the answer is a comment on the card. Several questions go
@@ -218,7 +218,16 @@ each gets its own numbered answer box, and the answers come back one per
 question (`answers`). A person may also **skip** them (`skip: true`,
 `slipdock answer <id> --skip`): the card moves on unanswered and you use
 your own judgement. `slipdock waits <id>` (`get_card` `waits: true`) shows
-every question the card asked and the answers. An agent can't
+every question the card asked and the answers. **Give a wait its kind**:
+`question` (`--kind K`), one of `product`, `ux`, `security`, `release` or
+`other` (the default). A board routes each kind to the person whose call it
+is (`wait_routes`: the first is who the wait is on, the rest are told), else
+the wait goes to the board's owner; leave `on` out so the route can pick. The
+owner sets the table in board settings, `slipdock set-board --route
+KIND=EMAIL[,EMAIL]` / `--no-route KIND`, `PATCH /api/boards/:board
+{"wait_routes": {...}}` or `update_board` `wait_routes`; the rejection-limit
+wait asks as `release`, and an audit disagreement is emailed to `release`'s
+people. An agent can't
 answer a wait it opened. A runner job may wait on its own card or any card
 beneath it: an epic's pass asks about a subcard on the subcard, the job
 parks, and the answer sends the epic again with the subcard named. `slipdock work` (`GET /api/work`) lists what is

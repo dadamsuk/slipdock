@@ -33,6 +33,30 @@ defmodule Slipdock.Boards.WaitEmail do
 
   def opened(_wait, _card), do: :ok
 
+  @doc """
+  Tells the others a wait's route names (#1949, `Slipdock.WaitRoutes`) that
+  it was asked, and of whom: they may answer it too. Nobody is told twice,
+  nor the person it is on, nor the asker.
+  """
+  def told(_wait, _card, []), do: :ok
+
+  def told(%Wait{} = wait, %Card{} = card, people) do
+    for %User{} = person <- Enum.uniq_by(people, & &1.id),
+        person.id != wait.on_user_id and person.id != wait.opened_by_id,
+        person |> Access.card_permission(card) |> Access.can_read?() do
+      Slipdock.Deferred.defer(fn ->
+        Notifier.deliver(
+          [person.email],
+          "#{who(wait.opened_by)} asked #{Wait.on_name(wait)} (#{wait.question}): “#{card.title}”",
+          "You are told about #{wait.question} questions on this board.\n\n" <> body(wait, card),
+          card: card
+        )
+      end)
+    end
+
+    :ok
+  end
+
   defp subject(wait, card),
     do: "#{who(wait.opened_by)} is waiting on you: “#{card.title}”"
 
