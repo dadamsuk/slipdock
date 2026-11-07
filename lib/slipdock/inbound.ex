@@ -25,7 +25,21 @@ defmodule Slipdock.Inbound do
   @sender_limit 60
   @window :timer.hours(1)
 
-  @local_part ~r/^(card|page|add|reply)-([a-z0-9]+)$/
+  # The address kinds, `<kind>-<token>@…`. The Worker keeps its own copy of
+  # this pattern (`LOCAL_PART` in cloudflare/inbound-email/worker.js) and
+  # bounces anything outside it, so a kind added here goes there too:
+  # test/slipdock/inbound_worker_pattern_test.exs holds the two together.
+  @kinds ~w(card page add reply)
+  @token_class "[a-z0-9]"
+  @local_part Regex.compile!("^(#{Enum.join(@kinds, "|")})-(#{@token_class}+)$")
+
+  @doc "The kinds of inbound address, the prefix before the token: `card` in `card-abc@…`."
+  @spec kinds() :: [String.t()]
+  def kinds, do: @kinds
+
+  @doc "The character class an address's token is made of, as regex source."
+  @spec token_class() :: String.t()
+  def token_class, do: @token_class
 
   @doc "Whether inbound mail is configured: a domain and at least one secret."
   @spec enabled?() :: boolean()
