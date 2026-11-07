@@ -25,6 +25,18 @@ defmodule SlipdockWeb.BoardLive.Helpers do
     socket
   end
 
+  @doc """
+  What a panel action says (a refusal, a result), for the panel that ran it
+  to show at its top as a `<.callout>` (`SlipdockWeb.ItemComponents.panel_notice/1`),
+  never a flash: a toast's dismissal reads as a click-away and closes the
+  modal (UX-29). The card and page panels clear it at the next event.
+  """
+  def notice(socket, kind, message) when kind in [:info, :error],
+    do: Phoenix.Component.assign(socket, panel_notice: {kind, message})
+
+  @doc "Takes the last action's notice off the panel, before the next action runs."
+  def clear_notice(socket), do: Phoenix.Component.assign(socket, panel_notice: nil)
+
   # The marker the PasteImage hook leaves while an image is still uploading;
   # never worth keeping if the text is saved before the upload finishes.
   @upload_placeholder "![Uploading image…]()"

@@ -148,7 +148,9 @@ defmodule SlipdockWeb.CardTagsLiveTest do
       |> render_submit("create_tag", %{"name" => String.duplicate("x", 31)})
 
       assert Boards.list_tags(ctx.board.id) == []
-      assert view |> element("#flash-error") |> render() =~ "Tag not made"
+
+      assert view |> element("#card-modal #panel-notice[data-callout=error]") |> render() =~
+               "Tag not made"
     end
 
     test "with nothing typed, the picker's New tag opens the tag manager", ctx do

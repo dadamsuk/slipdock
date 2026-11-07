@@ -36,7 +36,8 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
   def events, do: @events
 
   @impl true
-  def mount(socket), do: {:ok, assign(socket, item: nil, form: nil, form_key: 0)}
+  def mount(socket),
+    do: {:ok, assign(socket, item: nil, form: nil, form_key: 0, panel_notice: nil)}
 
   @impl true
   def update(assigns, socket) do
@@ -49,6 +50,9 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
         page_id: page_id,
         users: assigns.users,
         close_path: assigns.close_path,
+        # Another page starts its panel without the last one's notice.
+        panel_notice:
+          if(page_id == socket.assigns[:page_id], do: socket.assigns.panel_notice, else: nil),
         board_can_write: Access.can_write?(Access.board_permission(user, board))
       )
 
@@ -90,20 +94,20 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
 
   @impl true
   def handle_event(event, _params, socket) when event not in @events,
-    do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
+    do: {:noreply, notice(socket, :error, "That isn't something this page can do.")}
 
   def handle_event(event, _params, %{assigns: %{item: nil}} = socket) when event != "close_page",
     do: {:noreply, socket}
 
   def handle_event(event, params, %{assigns: %{can_comment: true}} = socket)
       when event in @comment_events,
-      do: dispatch(event, params, socket)
+      do: dispatch(event, params, clear_notice(socket))
 
   def handle_event(event, _params, %{assigns: %{can_write: false}} = socket)
       when event not in @read_events,
-      do: {:noreply, flash(socket, :error, "You have read-only access to that page.")}
+      do: {:noreply, notice(socket, :error, "You have read-only access to that page.")}
 
-  def handle_event(event, params, socket), do: dispatch(event, params, socket)
+  def handle_event(event, params, socket), do: dispatch(event, params, clear_notice(socket))
 
   defp dispatch(event, params, socket) do
     if event in @own_events,
@@ -139,7 +143,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
         {:noreply, changed(socket)}
       else
         :error ->
-          {:noreply, flash(socket, :error, "That person can't be put on this page.")}
+          {:noreply, notice(socket, :error, "That person can't be put on this page.")}
 
         {:error, %Ecto.Changeset{} = changeset} ->
           # A rejected facet has to say so: silently keeping the old value is
@@ -147,13 +151,13 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
           {:noreply,
            socket
            |> assign(form: to_form(changeset, action: :validate))
-           |> flash(:error, changeset_message(changeset))}
+           |> notice(:error, changeset_message(changeset))}
 
         _ ->
           {:noreply, socket}
       end
     else
-      _ -> {:noreply, flash(socket, :error, "You have read-only access to that page.")}
+      _ -> {:noreply, notice(socket, :error, "You have read-only access to that page.")}
     end
   end
 
@@ -171,7 +175,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
 
       {:noreply, changed(socket)}
     else
-      _ -> {:noreply, flash(socket, :error, "You have read-only access to that page.")}
+      _ -> {:noreply, notice(socket, :error, "You have read-only access to that page.")}
     end
   end
 
@@ -201,10 +205,10 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
          {:ok, _} <- Wiki.unplace(page) do
       {:noreply,
        socket
-       |> flash(:info, "Took “#{page.title}” off the board. It is still in the wiki.")
+       |> notice(:info, "Took “#{page.title}” off the board. It is still in the wiki.")
        |> changed()}
     else
-      _ -> {:noreply, flash(socket, :error, "That page couldn't be taken off the board.")}
+      _ -> {:noreply, notice(socket, :error, "That page couldn't be taken off the board.")}
     end
   end
 
@@ -222,6 +226,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
         can_comment={@can_comment}
         current_user={@current_user}
         form_key={@form_key}
+        notice={@panel_notice}
         target={@myself}
       />
     </div>
@@ -236,6 +241,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
   attr :can_comment, :boolean, default: false
   attr :current_user, :any, default: nil
   attr :form_key, :integer, default: 0
+  attr :notice, :any, default: nil, doc: "what the last action said (UX-29)"
   attr :target, :any, required: true
 
   # A page's panel is the card's panel without the card's *body*: the
@@ -248,6 +254,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
     ~H"""
     <.modal id="page-panel" on_close={JS.push("close_page", target: @target)} size="md">
       <div class="space-y-4 p-4 sm:p-6">
+        <.panel_notice notice={@notice} />
         <div class="flex items-start gap-3">
           <.icon name="hero-document-text" class="mt-1 size-5 shrink-0 text-primary/70" />
           <div class="min-w-0 flex-1">

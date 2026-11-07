@@ -34,6 +34,27 @@ defmodule SlipdockWeb.ItemComponents do
   alias Slipdock.{Boards, Votes}
   alias SlipdockWeb.RichText
 
+  attr :notice, :any,
+    required: true,
+    doc: "`{kind, message}` from `BoardLive.Helpers.notice/3`, or nil"
+
+  attr :class, :any, default: nil
+
+  @doc """
+  What the panel's last action said (a refusal, a result), at the panel's
+  top. A callout, never a flash: the toast's dismissal reads as a click-away
+  and closes the modal (UX-29).
+  """
+  def panel_notice(%{notice: {kind, message}} = assigns) do
+    assigns = assign(assigns, kind: kind, message: message)
+
+    ~H"""
+    <.callout id="panel-notice" kind={@kind} class={@class}>{@message}</.callout>
+    """
+  end
+
+  def panel_notice(assigns), do: ~H""
+
   attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
   attr :can_write, :boolean, required: true
