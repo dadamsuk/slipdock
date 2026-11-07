@@ -48,7 +48,9 @@ defmodule Slipdock.HandbookTest do
                "Data model",
                "Shared modules",
                "Testing & tooling",
-               "Operations"
+               "Operations",
+               "Principles",
+               "Playbook"
              ]
 
       ux = Enum.find(pages, &(&1.title == "UX & UI"))
@@ -61,7 +63,7 @@ defmodule Slipdock.HandbookTest do
       found = Handbook.find(board)
       assert found.index.title == "Index"
       assert hd(found.pages).title == "Index"
-      assert length(found.pages) == 9
+      assert length(found.pages) == 11
     end
 
     test "installing again duplicates nothing and leaves edited pages alone",
@@ -74,7 +76,7 @@ defmodule Slipdock.HandbookTest do
       refute again.created
       # The edited page keeps its text and gets back only the Rules it lost (#1773).
       assert again.report.added["pages"] == ["Architecture (Rules section added)"]
-      assert length(handbook_pages(board)) == 9
+      assert length(handbook_pages(board)) == 11
       body = Repo.get!(Page, arch.id).body
       assert body =~ "Ours now."
       assert body =~ "## Rules"
@@ -298,7 +300,7 @@ defmodule Slipdock.HandbookTest do
       assert Enum.all?(reading.index, &(String.length(&1.summary || "") <= 80))
     end
 
-    test "the eight sections always fit, however long their fields (#1283)",
+    test "the ten sections always fit, however long their fields (#1283)",
          %{user: user, board: board, col: col} do
       for page <- tl(Handbook.find(board).pages) do
         {:ok, _} =
@@ -310,7 +312,7 @@ defmodule Slipdock.HandbookTest do
       end
 
       reading = Handbook.for_card(card_fixture(col, %{"title" => "Anything"}), user)
-      assert length(reading.index) == 8
+      assert length(reading.index) == 10
       assert reading.more == 0
     end
 
@@ -328,7 +330,7 @@ defmodule Slipdock.HandbookTest do
         Wiki.create_page(board, %{"title" => "Decision: soft gate", "folder_id" => dec.id})
 
       reading = Handbook.for_board(board, user)
-      assert length(reading.index) == 8
+      assert length(reading.index) == 10
       assert Enum.map(reading.decisions, & &1.title) == ["Decision: soft gate"]
     end
   end
@@ -597,7 +599,9 @@ defmodule Slipdock.HandbookTest do
         assert {:ok, rules} = Wiki.Section.read(page.body, "#{page.title}/Rules"), page.title
         prefix = Handbook.Rules.prefix(Handbook.key(page))
         assert rules =~ "**#{prefix}-1** must", page.title
-        assert Handbook.Rules.parse_page(page) == {[], []}, page.title
+        # Principles alone starts with a rule: its worked example (1.5.0).
+        unless page.title == "Principles",
+          do: assert(Handbook.Rules.parse_page(page) == {[], []}, page.title)
       end
 
       # UX & UI had a Rules section of its own in 1.0.0: only one now.
@@ -652,7 +656,8 @@ defmodule Slipdock.HandbookTest do
     test "for_board counts the rules and lists what didn't parse",
          %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
-      assert Handbook.for_board(board, user).rules == %{count: 0, must: 0, problems: []}
+      # The Principles page's worked example (1.5.0), a `should`.
+      assert Handbook.for_board(board, user).rules == %{count: 1, must: 0, problems: []}
 
       data = Enum.find(handbook_pages(board), &(&1.title == "Data model"))
 
@@ -664,7 +669,7 @@ defmodule Slipdock.HandbookTest do
               "- **DATA-3** must · Appended to, never edited.\n"
         })
 
-      assert %{count: 2, must: 1, problems: [problem]} = Handbook.for_board(board, user).rules
+      assert %{count: 3, must: 1, problems: [problem]} = Handbook.for_board(board, user).rules
       assert problem.page == data.code
       assert problem.line == 7
       assert problem.problem =~ "no check"
@@ -791,6 +796,144 @@ defmodule Slipdock.HandbookTest do
       {:ok, third} = Handbook.install(user, board)
       refute "Testing & tooling (Before you push added)" in third.report.added["pages"]
       assert Repo.get!(Page, page.id).body =~ ~r/\A#{Regex.escape(ours)}/
+    end
+  end
+
+  describe "Principles and Playbook (#2040)" do
+    defp page_titled(board, title), do: Enum.find(handbook_pages(board), &(&1.title == title))
+
+    test "a fresh install has both, listed by the Index, with their keys and prefixes",
+         %{user: user, board: board} do
+      {:ok, result} = Handbook.install(user, board)
+      assert result.version.version == "1.5.0"
+
+      for {title, key, prefix} <- [
+            {"Principles", "principles", "PRIN"},
+            {"Playbook", "playbook", "PLAY"}
+          ] do
+        page = page_titled(board, title)
+        assert Handbook.key(page) == key, title
+        assert Handbook.Rules.prefix(key) == prefix, title
+        assert Handbook.field(page, "covers") == [], title
+        assert Handbook.field(page, "read_when") =~ "planning", title
+      end
+
+      assert Handbook.section_keys() |> Enum.take(-2) == ["principles", "playbook"]
+
+      # The Index lists the folder by itself: both pages are in its query's answer.
+      index = Handbook.find(board).index
+      html = Renderer.to_markdown(index.body, board: board, as: user, page: index)
+
+      assert html =~ "Principles"
+      assert html =~ "Playbook"
+    end
+
+    test "the Principles skeleton says how to write one, and its worked example is a rule",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      page = page_titled(board, "Principles")
+
+      assert {:ok, prose} = Wiki.Section.read(page.body, "Principles/Principles")
+      assert prose =~ "The tie-breakers between two right ways"
+      assert prose =~ "the two ways and why this one"
+      assert prose =~ "`- **PRIN-n** should · judgement · …`"
+      assert prose =~ "a person's call"
+      assert prose =~ "**One date helper.**"
+
+      assert {[rule], []} = Handbook.Rules.parse_page(page)
+      assert %{id: "PRIN-1", severity: "should", check: "judgement", scope: ["**"]} = rule
+      assert rule.section == "Principles/Rules"
+      assert rule.text =~ "one shared helper"
+
+      # Counted like any other page's rules, and given for any path.
+      assert Handbook.for_board(board, user).rules == %{count: 1, must: 0, problems: []}
+      assert [%{id: "PRIN-1"}] = Handbook.rules_for(Handbook.find(board), ["README.md"])
+    end
+
+    test "the Playbook skeleton has its sections, each a hint", %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      page = page_titled(board, "Playbook")
+
+      for section <- ["When this applies", "Sizing", "Stages", "Card shape", "Defaults", "Rules"] do
+        assert {:ok, text} = Wiki.Section.read(page.body, "Playbook/#{section}"), section
+        assert text =~ ~r/^_.+_$/m, section
+      end
+
+      assert Handbook.Rules.parse_page(page) == {[], []}
+      {:ok, applies} = Wiki.Section.read(page.body, "Playbook/When this applies")
+      assert applies =~ "never by the server when a card is made"
+      {:ok, stages} = Wiki.Section.read(page.body, "Playbook/Stages")
+      assert stages =~ "One `###` per stage"
+      {:ok, shape} = Wiki.Section.read(page.body, "Playbook/Card shape")
+      assert shape =~ "overrides the agent guide's Card shape"
+      {:ok, defaults} = Wiki.Section.read(page.body, "Playbook/Defaults")
+      assert defaults =~ "`defaults: W-123`"
+      assert defaults =~ "never imposed"
+    end
+
+    test "the seed card leaves them to a person", %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      seed = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Seed the handbook")
+      assert seed.description =~ "Principles and Playbook say how this project decides and plans"
+      assert seed.description =~ "leave them as they are"
+    end
+
+    test "installing over 1.4.0 adds only the two pages, and a third install adds nothing",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+
+      # As 1.4.0 left it: no Principles, no Playbook, and a page written by us.
+      for title <- ["Principles", "Playbook"],
+          do: {:ok, _} = Wiki.delete_page(page_titled(board, title))
+
+      arch = page_titled(board, "Architecture")
+      {:ok, _} = Wiki.update_page(arch, %{"body" => arch.body <> "\nOurs now.\n"})
+      before = Map.new(handbook_pages(board), &{&1.id, {&1.body, &1.updated_at}})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.version.version == "1.5.0"
+      # The report names what it added.
+      assert again.report.added["pages"] == ["Principles", "Playbook"]
+      assert again.report.added["cards"] == []
+
+      for page <- handbook_pages(board),
+          Map.has_key?(before, page.id),
+          do: assert({page.body, page.updated_at} == before[page.id], page.title)
+
+      assert length(handbook_pages(board)) == 11
+      assert {[%{id: "PRIN-1"}], []} = Handbook.Rules.parse_page(page_titled(board, "Principles"))
+
+      {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["pages"] == []
+      assert third.report.added["cards"] == []
+      assert length(handbook_pages(board)) == 11
+    end
+
+    test "an edited Principles or Playbook is the board's own: installing again leaves it",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      prin = page_titled(board, "Principles")
+      play = page_titled(board, "Playbook")
+
+      ours =
+        "# Principles\n\n## Principles\n\n**Boring tech.** Postgres first.\n\n## Rules\n\n" <>
+          "- **PRIN-1** should · judgement · Postgres before another store.\n"
+
+      {:ok, _} = Wiki.update_page(prin, %{"body" => ours})
+
+      {:ok, _} =
+        Wiki.update_page(play, %{"body" => "# Playbook\n\n## Sizing\n\nEverything is a card.\n"})
+
+      {:ok, again} = Handbook.install(user, board)
+      # A page that lost its Rules gets them back, as every section page does (#1773).
+      assert again.report.added["pages"] == ["Playbook (Rules section added)"]
+      assert Repo.get!(Page, prin.id).body == ours
+
+      assert Repo.get!(Page, play.id).body =~
+               ~r/\A# Playbook\n\n## Sizing\n\nEverything is a card.\n/
+
+      assert [%{id: "PRIN-1", text: "Postgres before another store."}] =
+               Handbook.Rules.rules(Handbook.find(board))
     end
   end
 

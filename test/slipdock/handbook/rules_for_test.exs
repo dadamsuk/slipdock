@@ -32,6 +32,10 @@ defmodule Slipdock.Handbook.RulesForTest do
     - **OPS-1** must · judgement · Nothing personal in the repository.
     """)
 
+    # The Principles page's worked example (1.5.0) is everywhere's too: kept out of
+    # these, which are about scope. Handbook's own tests cover them.
+    write(pages["Principles"], "principles", "[]", "")
+
     %{user: user, board: board, handbook: Handbook.find(board)}
   end
 

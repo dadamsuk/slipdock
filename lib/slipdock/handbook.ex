@@ -30,7 +30,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.4.0"
+  @version "1.5.0"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -51,6 +51,43 @@ defmodule Slipdock.Handbook do
   ## Before you push
 
   _The one command that runs locally what CI enforces on a pull request, in CI's order with CI's arguments, and how long it takes. Then any CI check with no local equivalent (a Windows runner, a hosted scan), each with why. Builders run this before every push._
+  """
+
+  # Principles and Playbook (1.5.0, #2040): how this project decides between
+  # two right ways, and how an idea becomes cards. A board makes them its own
+  # by editing them.
+  @principles """
+  ## Principles
+
+  _The tie-breakers between two right ways: where a card could reasonably go either way, which way this project goes. One short paragraph each, the two ways and why this one, with a matching item in `## Rules` (`- **PRIN-n** should · judgement · …`) so a verifier weighs it like any other rule. Adding, rewording or dropping one is a rule change, so a person's call. The one below is a worked example: edit it or delete it._
+
+  **One date helper.** A date can be formatted where it is shown, or through one shared helper. This project formats every date through the one helper, so a format changes in one place and two screens never disagree.
+  """
+
+  @principles_rules """
+  - **PRIN-1** should · judgement · Every date is formatted through the one shared helper, never where it is shown.
+  """
+
+  @playbook """
+  ## When this applies
+
+  _Read by an agent asked to plan, or to put a plan on the board (the `slipdock-plan` skill); never by the server when a card is made. Sizing comes first, and a card-sized ask gets one card, shaped as Card shape says, and nothing else._
+
+  ## Sizing
+
+  _The sizes (card, feature, system), the triggers for each, written so an agent applies them the same way twice, and the stages each size takes._
+
+  ## Stages
+
+  _One `###` per stage: what it asks, the skill it uses (the plan skill's own text, or a named skill when that is installed), what it produces, and the handbook page or card it writes to._
+
+  ## Card shape
+
+  _How a one-sentence ask becomes a card on this board. It overrides the agent guide's Card shape._
+
+  ## Defaults
+
+  _The page holding the person's own defaults (stack, hosting), as `defaults: W-123`. The decide stage proposes each, with its rationale, and asks; with none named it asks from scratch. A default is never imposed._
   """
 
   @sections [
@@ -79,7 +116,11 @@ defmodule Slipdock.Handbook do
        @before_you_push <> "\n## Local setup\n\n_From a clean checkout to a running app._\n"},
     {"Operations", "operations", "Deploys, configuration and runbooks.",
      "changing deploys, configuration, secrets or anything run in production",
-     "## Deploy\n\n_How a change reaches production._\n\n## Configuration\n\n_Settings and where they come from._\n\n## Runbooks\n\n_What to do when something breaks._\n"}
+     "## Deploy\n\n_How a change reaches production._\n\n## Configuration\n\n_Settings and where they come from._\n\n## Runbooks\n\n_What to do when something breaks._\n"},
+    {"Principles", "principles", "The tie-breakers: which of two right ways this project takes.",
+     "making a choice the card leaves open, or planning a feature or a system", @principles},
+    {"Playbook", "playbook", "How an idea becomes cards here: sizing, then the stages.",
+     "planning: turning an idea, a feature or a new system into an epic and cards", @playbook}
   ]
 
   @triage_log """
@@ -135,13 +176,14 @@ defmodule Slipdock.Handbook do
 
   1. Read the codebase this board's work lands in: the README, CLAUDE.md / AGENTS.md, the top-level layout, the main modules, the schemas and migrations, the tests and CI config, the deploy scripts.
   2. Read what the board already knows: `slipdock page ls <board>` for specs, design records and decision notes, and the last few dozen done cards for recurring patterns.
-  3. For each section page (Specification, Architecture, UX & UI, Components, Data model, Shared modules, Testing & tooling, Operations):
+  3. For each section page (Specification, Architecture, UX & UI, Components, Data model, Shared modules, Testing & tooling, Operations; Principles and Playbook as the last bullet says):
      - write the body as the project is **now**, by `##` section, one subject per section, short, linking to code paths in backticks. Not history: decisions go in their own pages;
      - set the front matter: `read_when:` (the kinds of card that should read it, in a line) and `covers:` (the path globs whose changes should touch it, like `[lib/app/accounts/**, priv/repo/migrations/**]`);
      - keep the page's summary to one line;
      - keep `covers:` narrow: the files whose change would make this page wrong, not whole trees. A glob like `lib/**` matches nearly every card and pushes better suggestions out;
      - keep each `##` section short (under about 1,500 characters): suggestions point at sections, and a longer one is split in parts for search;
      - put the page's rules in its `## Rules` section, one list item each and nowhere else: `- **UX-1** must · test/app_web/tokens_test.exs · No colour literals in templates.` (id with the page's prefix, `must` or `should`, an optional `scope <globs>` part, then the check: the test that enforces it, or `judgement`). A rule with an obvious mechanical check and no test yet is `judgement`: list it in the closing comment as a candidate test. Prose elsewhere can cite a rule by its id. `slipdock handbook <board>` counts the rules and lists any item that doesn't parse, with its page and line.
+     - Principles and Playbook say how this project decides and plans, which is a person's call: leave them as they are, and suggest in the closing comment any principle the code plainly keeps (one place for dates, say), for a person to add.
 
      Write the body with `slipdock page edit <page> --file F --summary S --message "#<this card> seed"`, and the front matter with `slipdock page props <page> --file F` (the YAML alone: `handbook:`, `read_when:`, `covers:`). Drafting pages in parallel and reviewing each before writing works well.
   4. Before you push: for every check CI runs on a pull request (each job and step the workflows run for one), write on Testing & tooling's `## Before you push` how to run it locally, and gather them into the one command that runs them all, in CI's order with CI's arguments. A check with no local equivalent (a Windows runner, a hosted service) is named there, with why. Where the repo has no such command, don't add one unasked: list the separate commands there meanwhile, and propose the one command (an alias, a make target or a script, with the steps it would run) in the closing comment.
@@ -196,6 +238,16 @@ defmodule Slipdock.Handbook do
     """
   end
 
+  @doc """
+  The `## Rules` section a new page with `handbook: key` starts with: the
+  skeleton, and on Principles its worked example after it (1.5.0).
+  """
+  def seed_rules("principles"), do: rules_skeleton("principles") <> "\n" <> @principles_rules
+  def seed_rules(key), do: rules_skeleton(key)
+
+  @doc "The `handbook:` key of each built-in section page, in the handbook's order."
+  def section_keys, do: for({_title, key, _, _, _} <- @sections, do: key)
+
   def seed_title, do: @seed_title
   def reconcile_title, do: @reconcile_title
   def triage_title, do: @triage_title
@@ -220,7 +272,7 @@ defmodule Slipdock.Handbook do
           "folder" => @folder,
           "summary" => summary,
           "front_matter" => "handbook: #{key}\nread_when: #{read_when}\ncovers: []",
-          "body" => "# #{title}\n\n#{summary}\n\n#{body}\n#{rules_skeleton(key)}"
+          "body" => "# #{title}\n\n#{summary}\n\n#{body}\n#{seed_rules(key)}"
         }
       end
 
@@ -528,7 +580,8 @@ defmodule Slipdock.Handbook do
 
   ## What a pass should read (#1264) -----------------------------------------------
 
-  @index_cap 2048
+  # The ten built-in pages always fit, however long their fields (#1283, #2040).
+  @index_cap 2560
   @field_chars 80
   @suggestions 5
   # So one long page can't fill every slot (#1281).

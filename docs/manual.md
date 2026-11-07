@@ -7300,8 +7300,8 @@ root (one handbook per tree) and needs write access there. It makes the
 `Handbook` and `Handbook/Decisions` folders; an Index page whose live
 `pages: Handbook` query lists the folder; skeleton pages for Specification,
 Architecture, UX & UI, Components, Data model, Shared modules, Testing &
-tooling and Operations, each with `handbook:`, `read_when:` and `covers:`
-front matter; and three cards: **Seed the handbook** (the procedure for
+tooling, Operations, Principles and Playbook (below), each with
+`handbook:`, `read_when:` and `covers:` front matter; and three cards: **Seed the handbook** (the procedure for
 drafting every page from the codebase), **Reconcile the handbook**
 (nightly, waiting on the seed) and **Triage findings** (nightly, waiting on
 the seed: it merges duplicate findings, dismisses one-offs, and promotes
@@ -7336,6 +7336,24 @@ page changes, and a page that already has the section is left alone. Then
 write the project's command into it (`slipdock page section <code> "Testing
 & tooling/Before you push" --body …`), or leave it to the next reconcile
 that touches the CI config.
+
+**Principles and Playbook** (1.5.0): two pages that say how the project
+decides and plans. **Principles** (prefix `PRIN`) are the tie-breakers
+between two right ways: a short paragraph each (the two ways, and why this
+one) and a matching `PRIN-n should · judgement` item in the page's `##
+Rules`. The page covers no paths, so its rules apply to every change and
+a verifier weighs them like any `should` rule. It starts with a worked
+example (one date helper) to edit or delete; adding, rewording or dropping
+one is a rule change, so it goes in as a proposal. The **Playbook**
+(prefix `PLAY`) is how an idea becomes cards: when it applies (an agent
+asked to plan; never the server when a card is made), the sizes and their
+triggers, the stages each size takes, the card shape, which overrides the
+guide's, and the page holding the person's own defaults (`defaults:`).
+A board makes both its own by editing them. Installing 1.5.0 over an older
+handbook adds the two pages and changes no other page; installing again
+adds nothing, and an edited page is left as it is. The seed card leaves
+them to a person, suggesting any principle the code plainly keeps. A
+card's handbook block lists every page, held to 2.5 KB.
 
 **The code sweep** is the other built-in Tool that goes onto a board that
 exists (#1793): `install_tool` with `tool: "sweep"` and `board`, `POST
@@ -7401,7 +7419,7 @@ one's id, severity, page, section, check and text, held to 2 KB with
 
 On a handbook board a card's JSON (`get_card`, `GET /api/cards/:id`) has a
 `handbook` key: `board`, `index_page`, `index` (each page's code, title,
-summary and `read_when`, held to 2 KB) with `more`, and `suggested`: up
+summary and `read_when`, held to 2.5 KB) with `more`, and `suggested`: up
 to five `{page, title, section, why}`, ranked by `covers:` globs matching
 paths the card names, then semantic search, then shared words. `slipdock
 card` prints them as a **Handbook** block; `slipdock handbook <board>`

@@ -48,6 +48,11 @@ defmodule SlipdockWeb.HandbookRulesAPITest do
             "- **DATA-2** must · test/app/migrations_test.exs · Never edit a run migration.\n"
       })
 
+    # The Principles page's worked example (1.5.0) applies to every path: kept out of
+    # these, which are about the paths. Slipdock.HandbookTest covers them.
+    prin = Enum.find(Handbook.find(board).pages, &(&1.title == "Principles"))
+    {:ok, _} = Wiki.update_page(prin, %{"body" => "# Principles\n\n## Rules\n"})
+
     [col | _] = board.columns
     %{board: board, col: col}
   end

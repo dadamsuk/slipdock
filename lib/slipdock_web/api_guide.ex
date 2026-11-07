@@ -3357,9 +3357,20 @@ defmodule SlipdockWeb.APIGuide do
     A board can keep a **handbook**: wiki pages in its root board's
     `Handbook/` folder describing the project as it is now (Specification,
     Architecture, UX & UI, Components, Data model, Shared modules, Testing &
-    tooling, Operations), one page per decision in `Handbook/Decisions`, and
-    an Index that lists them. Each page's front matter says when to read it
-    (`read_when:`) and which paths it covers (`covers:`).
+    tooling, Operations, Principles, Playbook), one page per decision in
+    `Handbook/Decisions`, and an Index that lists them. Each page's front
+    matter says when to read it (`read_when:`) and which paths it covers
+    (`covers:`).
+
+    **Principles and Playbook** (Handbook Tool 1.5.0) say how the project
+    decides and plans. Principles are the tie-breakers between two right
+    ways: a short paragraph each and a `PRIN-n should · judgement` rule in
+    its `## Rules`, which covers every path, so a verifier weighs them like
+    any other rule. The Playbook is how an idea becomes cards (when it
+    applies, sizing, the stages, card shape, the person's defaults), read
+    only by an agent asked to plan, never when a card is made. A board
+    makes both its own by editing them. Installing 1.5.0 over an older
+    handbook adds the two pages and changes no other.
 
     ```sh
     slipdock tools install-board handbook --board <board>   # or install_tool {tool: "handbook", board}
@@ -3381,8 +3392,9 @@ defmodule SlipdockWeb.APIGuide do
     - **DATA-2** should · scope priv/repo/migrations/** · judgement · Never edit a migration that has run.
     ```
 
-    The id is the page's prefix (`SPEC ARCH UX COMP DATA MOD TEST OPS`)
-    and a number, never reused; `must` means a verifier rejects work that
+    The id is the page's prefix
+    (`SPEC ARCH UX COMP DATA MOD TEST OPS PRIN PLAY`) and a number, never
+    reused; `must` means a verifier rejects work that
     breaks it, `should` that it is noted. The optional `scope` globs
     narrow it (default: the page's `covers:`, or everywhere when that is
     empty). The check is the test that enforces it, or `judgement`. Cite a

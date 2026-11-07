@@ -496,6 +496,14 @@ keeps to the rules that cover the files it touches, a reviewer cites them
 by id, and an agent tidying a page leaves them as they are.
 `slipdock handbook <board>` lists any item that doesn't read as a rule.
 
+Two of the pages say how the project decides and plans (Handbook Tool
+1.5.0). **Principles** are the tie-breakers between two right ways, each a
+short paragraph and a `PRIN-n should · judgement` rule that covers every
+path, so they come with the rules for any change. The **Playbook** is how
+an idea becomes cards: when it applies, sizing, the stages, card shape and
+the person's defaults. Only an agent asked to plan reads it; the server
+never does when a card is made. A board makes both its own by editing them.
+
 To get the rules for a change, ask with its paths:
 
 ```sh
