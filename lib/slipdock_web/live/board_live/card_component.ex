@@ -1627,12 +1627,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 target={@target}
               />
             </fieldset>
-            <%!-- Where it was left (W-1804), just beneath the title, only once
-                there is one or it is being written: most cards never get one,
-                so until then it is a link on the meta line. Its own fieldset,
+            <%!-- At a glance (#2022), just beneath the title: the step it is
+                at, where it was left (W-1804) or, once finished, how it
+                ended, where it has shipped, then the note. Only once there
+                is something to say or the note is being written: until
+                then the meta line's link opens the form. Its own fieldset,
                 since a commenter may write it. --%>
             <fieldset
-              :if={current_handoff(@card) || @editing_handoff}
+              :if={glance?(@card, @shipped) || @editing_handoff}
               disabled={!@can_comment}
               class="min-w-0"
             >
@@ -1648,26 +1650,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 can_comment={@can_comment}
                 can_write={@can_write}
                 current_user={@current_user}
+                users={@users}
+                shipped={@shipped}
                 target={@target}
               />
             </fieldset>
-            <%!-- Where the card has shipped (#1134): one line per
-                  environment, latest first. Only with delivery metrics on. --%>
-            <ul :if={@shipped != []} id="card-shipped" class="ml-1 space-y-0.5 text-xs">
-              <li
-                :for={s <- @shipped}
-                class={[
-                  "flex items-center gap-1.5",
-                  if(s.rolled_back, do: "text-warning", else: "text-success")
-                ]}
-              >
-                <.icon
-                  name={if s.rolled_back, do: "hero-arrow-uturn-left", else: "hero-rocket-launch"}
-                  class="size-3.5 shrink-0"
-                />
-                <span>{Slipdock.Deployments.shipped_text(s)}</span>
-              </li>
-            </ul>
             <%!-- Waiting on a person (#1114): only while it is, its
                   questions numbered with a box each (#1220). Otherwise
                   the Ask questions form, while it is open. --%>
@@ -2000,6 +1987,15 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   defp current_handoff(_), do: nil
 
+  # Whether the glance block has anything to show: a handoff, a step
+  # status, a shipped line, or a finished card's outcome.
+  defp glance?(card, shipped) do
+    current_handoff(card) != nil or latest_step(card) != nil or shipped != [] or card.completed
+  end
+
+  defp latest_step(%Card{status_updates: [latest | _]}), do: latest
+  defp latest_step(_card), do: nil
+
   attr :card, :any, required: true
   attr :label, :string, default: "Left off", doc: "what the board calls it (#1212)"
   attr :history, :list, required: true
@@ -2010,45 +2006,129 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :can_comment, :boolean, required: true
   attr :can_write, :boolean, default: false
   attr :current_user, :any, default: nil
+  attr :users, :list, default: [], doc: "the board's people, to name who stated a status"
+  attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`"
   attr :board, :any, default: nil
   attr :target, :any, required: true
 
-  # "Where it was left", beneath the title: the next step, the note, who,
-  # when and how, with Update and the history on the byline; or, while it is
-  # being written, the form, with the history under it. Shown only once there
-  # is one or it is being written: the meta line's link opens the form.
+  # At a glance, beneath the title (#2022), in this order: the status row
+  # (health, the latest step, when, who), the next step (an open card) or
+  # the outcome (a finished one), the shipped lines, then the note,
+  # collapsed past a few lines, with its byline last and quieter. A
+  # finished card folds the handoff written before it finished away as
+  # history; one left after it is what is still to do. While being written,
+  # the form, with the history under it.
   defp handoff_panel(assigns) do
-    current = current_handoff(assigns.card)
+    handoff = current_handoff(assigns.card)
+    zone = Slipdock.Timezones.of(assigns.current_user)
+    outcome = Slipdock.CardOutcome.of(assigns.card)
+    folded? = handoff != nil and Slipdock.CardOutcome.before_finish?(assigns.card, handoff)
+    current = if folded?, do: nil, else: handoff
+    body = handoff_prose(current && current.body)
 
     assigns =
       assign(assigns,
         current: current,
+        folded: if(folded?, do: handoff),
+        step: latest_step(assigns.card),
+        zone: zone,
+        outcome: Slipdock.CardOutcome.text(outcome, zone),
+        body: body,
+        long_body: long_note?(body),
         can_delete:
           assigns.can_comment && current != nil &&
             Boards.may_delete_handoff?(current, assigns.current_user, assigns.can_write)
       )
 
     ~H"""
-    <section id="card-handoff" class="ml-1 space-y-1.5 border-l-2 border-info/40 pl-3">
-      <div :if={@current && !@editing} id="handoff-current" class="space-y-1">
-        <p class="flex items-start gap-1.5 text-sm">
+    <section id="card-handoff" class="ml-1 min-w-0 space-y-1.5 border-l-2 border-info/40 pl-3">
+      <p
+        :if={@step && !@editing}
+        id="glance-status"
+        class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-base-content/60"
+      >
+        <.stated_pill health={@step.health} />
+        <span :if={@step.body} id="glance-step" class="min-w-0 break-words text-base-content/80">
+          {@step.body}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span title={DateTime.to_iso8601(@step.inserted_at)}>
+          {relative_time(@step.inserted_at)}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span id="glance-step-by">{step_by(@step, @users)}</span>
+      </p>
+      <%!-- `handoff-current` while there is a current note, as before. --%>
+      <div
+        :if={!@editing}
+        id={if @current, do: "handoff-current", else: "glance-main"}
+        class="space-y-1"
+      >
+        <p :if={@outcome} id="card-outcome" class="flex items-start gap-1.5 text-sm">
+          <.icon name="hero-check-circle" class="mt-0.5 size-3.5 shrink-0 text-success" />
+          <span class="min-w-0 break-words font-medium">{@outcome}</span>
+        </p>
+        <p :if={@current} id="handoff-line" class="flex items-start gap-1.5 text-sm">
           <.icon name="hero-arrow-uturn-left" class="mt-0.5 size-3.5 shrink-0 text-info" />
-          <span>
-            <span class="text-base-content/60" id="handoff-label">{@label} — next:</span>
+          <span class="min-w-0 break-words">
+            <span class="text-base-content/60" id="handoff-label">
+              {@label} — {if @outcome, do: "still to do:", else: "next:"}
+            </span>
             <span class="font-medium" id="handoff-next">{@current.next_step}</span>
           </span>
         </p>
+        <%!-- Where the card has shipped (#1134): one line per
+              environment, latest first, with the time (#2022). --%>
+        <ul :if={@shipped != []} id="card-shipped" class="space-y-0.5 text-xs">
+          <li
+            :for={s <- @shipped}
+            class={[
+              "flex items-start gap-1.5",
+              if(s.rolled_back, do: "text-warning", else: "text-success")
+            ]}
+          >
+            <.icon
+              name={if s.rolled_back, do: "hero-arrow-uturn-left", else: "hero-rocket-launch"}
+              class="mt-px size-3.5 shrink-0"
+            />
+            <span class="min-w-0 break-words">{Slipdock.Deployments.shipped_text(s, @zone)}</span>
+          </li>
+        </ul>
         <%!-- Markdown, as a comment is (#1214): agents write it as bullets,
-              and a single newline is still a line break for the template. --%>
+              and a single newline is still a line break for the template.
+              Past a few lines it folds, with Show more. --%>
+        <div :if={@current && @body} class="min-w-0">
+          <input
+            :if={@long_body}
+            type="checkbox"
+            id="handoff-more"
+            class="peer sr-only"
+            aria-label="Show the whole note"
+          />
+          <div
+            id="handoff-body"
+            class={[
+              "card-prose break-words text-xs text-base-content/70",
+              @long_body && "max-h-[5.5rem] overflow-hidden peer-checked:max-h-none"
+            ]}
+            phx-no-format
+          >{SlipdockWeb.RichText.markdown(@body, board: @board, as: @current_user)}</div>
+          <label
+            :if={@long_body}
+            for="handoff-more"
+            id="handoff-more-toggle"
+            class="link link-hover cursor-pointer text-2xs text-base-content/60 peer-checked:[&>.more]:hidden [&>.less]:hidden peer-checked:[&>.less]:inline"
+          >
+            <span class="more">Show more</span><span class="less">Show less</span>
+          </label>
+        </div>
         <div
-          :if={@current.body}
-          id="handoff-body"
-          class="card-prose break-words text-xs text-base-content/70"
-          phx-no-format
-        >{SlipdockWeb.RichText.markdown(@current.body, board: @board, as: @current_user)}</div>
-        <div class="flex flex-wrap items-center gap-x-1.5 text-2xs text-base-content/50">
-          <span>{handoff_byline(@current)}</span>
-          <span :if={@can_comment}>·</span>
+          :if={@current || @folded}
+          id="handoff-byline"
+          class="flex flex-wrap items-center gap-x-1.5 text-2xs text-base-content/50"
+        >
+          <span :if={@current}>{handoff_byline(@current)}</span>
+          <span :if={@current && @can_comment}>·</span>
           <button
             :if={@can_comment}
             id="handoff-edit"
@@ -2057,7 +2137,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             phx-click="edit_handoff"
             phx-target={@target}
           >
-            Update
+            {if @current, do: "Update", else: "Leave “#{@label}”"}
           </button>
           <span :if={@can_delete}>·</span>
           <button
@@ -2072,6 +2152,19 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             Delete
           </button>
         </div>
+        <details :if={@folded} id="handoff-before-finish" class="text-xs">
+          <summary class="cursor-pointer text-base-content/50">
+            Last note before it finished · {handoff_byline(@folded)}
+          </summary>
+          <div class="mt-1 space-y-1 rounded bg-base-200/60 p-1.5">
+            <p class="font-medium">{@folded.next_step}</p>
+            <div
+              :if={handoff_prose(@folded.body)}
+              class="card-prose break-words text-base-content/70"
+              phx-no-format
+            >{SlipdockWeb.RichText.markdown(handoff_prose(@folded.body), board: @board, as: @current_user)}</div>
+          </div>
+        </details>
         <.handoff_history
           :if={length(@history) > 1}
           history={@history}
@@ -2234,6 +2327,41 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     job = if h.job_id, do: " · job ##{h.job_id}", else: ""
     "#{who} · #{relative_time(h.inserted_at)} · #{h.via}#{job}"
   end
+
+  # Who stated a status: a person by name, the server's own steps (#2022)
+  # as Slipdock.
+  defp step_by(%{user_id: nil}, _users), do: "Slipdock"
+
+  defp step_by(%{user_id: id}, users) do
+    case Enum.find(users || [], &(&1.id == id)) do
+      nil -> "someone"
+      user -> Slipdock.Accounts.User.display_name(user)
+    end
+  end
+
+  # The note without the runner's own lines (#2022): the transcript it sent
+  # and how the job ended are the byline's and the job link's, not prose.
+  @machine_lines [
+    ~r/^\s*slipdock-runner: sending the transcript\b.*$/m,
+    ~r/^\s*Job #\d+ on .+ ended \w+(?: \(exit -?\d+\))?\.?\s*$/m
+  ]
+
+  @doc false
+  def handoff_prose(nil), do: nil
+
+  def handoff_prose(body) when is_binary(body) do
+    @machine_lines
+    |> Enum.reduce(body, &Regex.replace(&1, &2, ""))
+    |> String.replace(~r/\n{3,}/, "\n\n")
+    |> String.trim()
+    |> then(&if(&1 == "", do: nil, else: &1))
+  end
+
+  # A note long enough to fold: more than four lines, or a long paragraph.
+  defp long_note?(nil), do: false
+
+  defp long_note?(body),
+    do: length(String.split(body, ~r/\R/)) > 4 or String.length(body) > 320
 
   defp border_fields("all"), do: Slipdock.Boards.Card.borders()
 

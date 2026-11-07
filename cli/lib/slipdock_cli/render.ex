@@ -779,10 +779,30 @@ defmodule SlipdockCLI.Render do
     end)
   end
 
-  # A card's handoff, first of its fields: read before anything else.
-  defp handoff_fields(h) do
-    field("Left off", bold(h["next_step"]) <> "  " <> dim(handoff_by(h)))
+  # A card's handoff, first of its fields: read before anything else. On a
+  # finished card (#2022) its outcome comes first instead, and a handoff
+  # left after it finished is what is still to do.
+  defp handoff_fields(h, label \\ "Left off") do
+    field(label, bold(h["next_step"]) <> "  " <> dim(handoff_by(h)))
     if h["body"], do: IO.puts(indent(h["body"], "              "))
+  end
+
+  # A finished card's outcome first, else its handoff, else nothing.
+  defp standing(%{"outcome" => %{}} = c), do: {:outcome, c}
+  defp standing(%{"handoff" => %{} = h}), do: {:handoff, h}
+  defp standing(_c), do: nil
+
+  defp where_it_stands({:outcome, c}), do: outcome_fields(c)
+  defp where_it_stands({:handoff, h}), do: handoff_fields(h)
+
+  # A finished card's outcome, and the note written before it finished,
+  # folded to its first line: history, not where it stands.
+  defp outcome_fields(c) do
+    field("Outcome", bold(c["outcome"]["text"]))
+    if h = c["handoff"], do: handoff_fields(h, "Still to do")
+
+    if h = c["last_handoff"],
+      do: field("Last note", dim("before it finished: #{h["next_step"]} · #{handoff_by(h)}"))
   end
 
   defp handoff_by(h) do
@@ -1202,7 +1222,7 @@ defmodule SlipdockCLI.Render do
       "board ##{c["board_id"]} · #{c["column"]} (column ##{c["column_id"]}, position #{c["position"]})"
     )
 
-    if h = c["handoff"], do: handoff_fields(h)
+    if stands = standing(c), do: where_it_stands(stands)
     if w = c["wait"], do: wait_fields(w)
     if s = c["state"], do: field("State", s)
     if d = c["driver"], do: field("Driver", d)

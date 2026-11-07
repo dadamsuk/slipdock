@@ -71,7 +71,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   the one before it is current again; any earlier one can be restored from the
   history. The note is Markdown, as comments are. A board can rename *Left off*
   and give Auto generate its own instructions (settings → Handoffs,
-  `slipdock set-board --handoff-label / --handoff-prompt-file`).
+  `slipdock set-board --handoff-label / --handoff-prompt-file`). Above it the
+  card's latest step (*Verifying*, *Merged*, *Shipped to production*), which the
+  server posts as a quiet status update; once the card is finished, its
+  outcome (done when, accepted by whom, the merged PR, shipped with the time)
+  takes the next step's place, and the note from before it finished is folded away.
 - **Verified work** — [optional checks per board](docs/manual.md#verified-work)
   on what an agent says it finished, all off by default: a bar (what done
   means) written before work starts, locked once it does

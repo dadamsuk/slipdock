@@ -166,6 +166,17 @@ whole card before touching it.
   check or know (a deploy, a reinstall, a question, a caveat) as `--next`,
   with where things stand in a few bullets. Nothing left for them: leave it
   blank, and `slipdock handoff <id> --clear` one left from earlier.
+  Once the card is finished, `slipdock card` shows its **Outcome** (done
+  when, accepted by whom, the merged PR) where *Left off* was, and a
+  handoff written before it finished as *Last note* (`last_handoff` in its
+  JSON): history, not a next step.
+- **The step statuses are the server's.** A card's status updates follow
+  its steps by themselves: *Writing code* when its job is claimed, *Waiting
+  for human* on a wait, *Verifying*, *Verify failed; queued for rework*,
+  *Accepted; merging*, *Merged*, *Done* and *Shipped to production*, each
+  *On track* by *Slipdock*, quietly and never twice in a row. Don't post
+  those; add one yourself (`slipdock status <id> at_risk "…"`, MCP
+  `status_update`) only for what the server can't know, such as a risk.
 - **Re-read the card before you push, and its comments after.** Once the work
   is checked, `slipdock card <id>` again: a changed description or a comment
   newer than your claim is still this card — do it before committing. Once the

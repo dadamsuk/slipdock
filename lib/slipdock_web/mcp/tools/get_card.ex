@@ -16,9 +16,9 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
   @impl true
   def description,
     do:
-      "A card in full: its handoff (where it was left: read it first, before the comments), " <>
-        "description (the brief), checklist, comments (often the real constraint), " <>
-        "dependencies, subcards, wiki pages, wait (on a person) and rejection (the rework's brief)."
+      "A card in full: its handoff (where it was left: read it first; when finished, its outcome), " <>
+        "description, checklist, comments, dependencies, subcards, wiki pages, wait (on a " <>
+        "person) and rejection (the rework's brief)."
 
   @impl true
   def input_schema do
@@ -51,6 +51,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
          {:ok, card} <- fetch(id),
          :ok <- Args.refusal(Authorize.card(auth, card, :read)) do
       docs = card |> Slipdock.Wiki.pages_for_card(context.user) |> Enum.map(&doc/1)
+      zone = Slipdock.Timezones.of(context.user)
 
       {:ok,
        auth
@@ -61,7 +62,8 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> Map.put(:last_wait, V.wait(Boards.last_wait(card)))
        |> Map.put(:url, url(card, context.base_url))
        |> Map.put(:rejection, Slipdock.Verified.rejection(card))
-       |> V.put_delivery(card)
+       |> V.put_delivery(card, zone)
+       |> V.put_outcome(card, zone)
        |> V.put_lead_time(card)
        |> V.put_shipping(card)
        |> V.put_findings(card)

@@ -273,11 +273,27 @@ A board with **delivery metrics** on records its project's deploys from CI
 token in `SLIPDOCK_DEPLOY_TOKEN`) and reports the DORA numbers and idea to
 production: `get_board` with `dora: true`, `GET /api/boards/:id/dora` or
 `slipdock dora <board>`. A card a deploy named carries `shipped` (*Shipped to
-production · 1a2b3c4*). An outage is an incident card tagged `incident`;
+production · 1a2b3c4 · 6 Nov 14:32*, the time in your time zone). An outage is an incident card tagged `incident`;
 `slipdock incident-of <card> <deploy>` (or `POST /api/cards/:id/incident-of`)
 names the deploy that caused it. To wire a repository up, `get_guide` with
 `section: "deployments"` is the whole brief. See
 [the manual](manual.md#delivery-metrics-deploys-and-dora).
+
+**Step statuses.** The server posts a card's routine steps as its status
+updates, so you needn't: an *On track* update with no user (shown as
+*Slipdock*) when a build job is claimed (*Writing code*, or *Reworking after
+verify failed* after a rejection), a wait opens (*Waiting for human*, or
+*(rejection limit)* / *(held before merge)* for the server's own), the card is
+submitted (*Verifying* with a verify pool, else *Waiting for human to
+accept*), rejected (*Verify failed; queued for rework*), accepted on a
+pull-request board (*Accepted; merging*), merged (*Merged*), completed
+(*Done*), reopened (*Reopened*) and deployed (*Shipped to production*). The
+same text is never posted twice in a row, and these notify nobody. Add your
+own with `status_update` (MCP), `slipdock status <id> <health> "…"` or `POST
+/api/cards/:id/status` only for what the server can't know, such as a risk.
+A finished card's `get_card` and `slipdock card` show its **outcome** (done
+when, accepted by whom, the merged PR) where the handoff was, and the handoff
+written before it finished as `last_handoff`.
 
 A card that repeats carries `recurrence` (its rule in words and when the next
 is made). An agent sets one only when the person asked for repeating work:

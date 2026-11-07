@@ -83,6 +83,9 @@ defmodule SlipdockWeb.API.CardController do
           }
         )
 
+      # Times in words are the reader's (#2022).
+      zone = Slipdock.Timezones.of(conn.assigns.current_user)
+
       json(conn, %{
         card:
           conn
@@ -91,7 +94,8 @@ defmodule SlipdockWeb.API.CardController do
           |> Map.put(:docs, docs)
           |> Map.put(:wait, V.wait(Boards.current_wait(card)))
           |> Map.put(:last_wait, V.wait(Boards.last_wait(card)))
-          |> V.put_delivery(card)
+          |> V.put_delivery(card, zone)
+          |> V.put_outcome(card, zone)
           |> V.put_lead_time(card)
           |> V.put_shipping(card)
           |> V.put_findings(card)
