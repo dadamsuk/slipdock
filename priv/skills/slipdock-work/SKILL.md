@@ -194,7 +194,14 @@ whole card before touching it.
   skills; or `Findings: none`). Write it **in the closing comment, once** (on
   a board that verifies work, the completion's evidence): never repeated in a
   wrap-up, a restatement or on the epic, because the board records every
-  comment's block. `slipdock-loop` has the bar for one.
+  comment's block. The test for one: *would a card on a different subject
+  want to know this?* Never a pointer (`in the evidence`, `recorded on
+  #1819`), an event the board records itself (a rejection, a timeout, a
+  lane refusal), something this card fixed, or a fact about this card's
+  code (`Boards.move_card/4 returns :ok`). A finding reads like `gotcha:
+  mix format can need two passes` or `tooling: the release image lacks
+  pwsh`. `Findings: none` is the usual answer. `slipdock-loop` has the
+  examples side by side.
 - **Token cost in the write-up.** The closing comment on a card ends with a
   line giving the tokens the work used, e.g. `Token cost: ~135k tokens
   (context budget 15.00M → 14.86M, claim to close)`. Take a reading of the

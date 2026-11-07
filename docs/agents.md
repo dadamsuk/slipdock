@@ -599,8 +599,11 @@ repeated in a wrap-up or on the epic), beside the `Handbook:` line, one
 with the runner), or `Findings: none`. A lesson said again is counted on the
 finding it repeats, on this card or another (`rule` and `handbook-wrong`
 excepted across cards). The test
-for one: would the next pass, on a different card, have done better knowing
-this? Settled knowledge goes straight into the handbook. The server records
+for one: would a card on a different subject want to know this? Never a
+pointer (`in the evidence`, `recorded on #1819`), an event the board records
+itself, something the card fixed, or a fact about the card's own code
+(`Boards.move_card/4 returns :ok`); `Findings: none` is the usual answer.
+Settled knowledge goes straight into the handbook. The server records
 its own (rejections, timeouts, requeues, lane refusals, failed merges), and a
 person triages them on the board's Findings page (`/boards/:id/findings`,
 beside Health; a card links there when it has open ones), or with

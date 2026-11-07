@@ -534,11 +534,26 @@ anybody reads later:
    one is flagged. On a board with no handbook, leave the line out.
 
    **Then the findings**, on every board: what this card taught that the
-   code, the tests and the handbook don't show. The bar for one: *would the
-   next pass, on a different card, have done better knowing this?* Settled
+   code, the tests and the handbook don't show. The test for one: *would a
+   card on a different subject want to know this?* If only this card, or
+   one touching the same code, would care, it is not a finding. Settled
    knowledge goes straight into the handbook, as above; a finding is for the
    rest: what is uncertain, cuts across cards, or shows the handbook was
-   wrong. One item per line, each with its kind, after the `Handbook:` line,
+   wrong. Four things are never findings:
+
+   - **a pointer**: `in the evidence`, `recorded on #1819`, `see W-31`;
+   - **an event the board records itself**: a rejection, a timeout, a
+     requeue, a lane refusal, a failed merge;
+   - **something this card fixed**: once fixed, nobody else trips on it;
+   - **a fact about this card's code**: `Boards.move_card/4 returns :ok`,
+     the new column's default; the code and its tests already say so.
+
+   | A finding | Not a finding |
+   |---|---|
+   | `gotcha: mix format can need two passes; run the check after it` | `gotcha: Boards.move_card/4 returns :ok` (this card's code) |
+   | `tooling: the release image lacks pwsh, so the runner tests skip` | `process: the details are in the evidence` (a pointer) |
+
+   One item per line, each with its kind, after the `Handbook:` line,
    **in the closing comment, once** (on a board that verifies work, that is
    the completion's evidence): never again in the wrap-up, a restatement or
    on the epic, since every comment's block is recorded:
@@ -558,7 +573,9 @@ anybody reads later:
    A lesson already on the board is counted, not kept twice, so write it
    as it comes rather than checking the list first.
 
-   `Findings: none` is a normal answer; filler isn't. The board keeps each
+   `Findings: none` is the usual answer: most cards teach nothing a card
+   on another subject needs, and filler costs a person a dismissal each.
+   The board keeps each
    one (`slipdock findings <board>`) for a person to promote into the
    handbook, merge or dismiss, and records rejections, timeouts, requeues,
    lane refusals and failed merges by itself, so don't write those up again.

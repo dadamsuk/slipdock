@@ -3369,8 +3369,11 @@ defmodule SlipdockWeb.APIGuide do
     shows that one with every card it was said on (`cards`). `rule` and
     `handbook-wrong` items are never merged across cards.
 
-    The test for one: would the next pass, on a different card, have done
-    better knowing this? `Findings: none` is a normal answer; filler isn't.
+    The test for one: would a card on a different subject want to know
+    this? Never a pointer (`in the evidence`, `recorded on #1819`), an event
+    the board records itself (below), something the card fixed, or a fact
+    about the card's own code (`Boards.move_card/4 returns :ok`).
+    `Findings: none` is the usual answer; filler isn't.
     A line with no known kind is kept whole as a `gotcha`. The server also
     records its own (source `rejection`, `verification`, `requeue`, `timeout`, `failed`,
     `lane`, `merge`, `audit`, `health`, `incident`), counting repeats on a card, on any
