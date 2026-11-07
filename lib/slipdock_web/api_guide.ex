@@ -679,7 +679,8 @@ defmodule SlipdockWeb.APIGuide do
       --group flag`. It only changes the drawing: a card's `position` is still
       where it was put, and *top of the list* still means lowest `position`.
       `show_age: false` leaves the age chip off the list's cards (`--no-show-age`),
-      and `show_images: false` their front image (`--no-show-images`).
+      and `show_images: false` their front image (`--no-show-images`),
+      whatever anyone's card views say.
     - **Card** — one unit of work: title, description, `priority`, `flags`,
       `tags`, `start_date`, `due_date`, `completed`, `percent_complete` (0–100,
       or null when nobody has said), `assignees` (everybody it is assigned to,
@@ -806,6 +807,22 @@ defmodule SlipdockWeb.APIGuide do
       `{"wiki": true, "icon": …}`),
       `PATCH /api/header-links/:id {"move": "left"}`, `DELETE` to unpin.
       Pin only when asked.
+    - **Card views** — what the token holder sees of a card in the web app:
+      each element of its front (`tags`, `due_date`, `handoff_note`…), of the
+      opened card (`open.*`) and of its sidebar (`side.*`), by global, board
+      and list, each level stating only what it changes. They are personal,
+      and your own output never follows them. `GET /api/card-views` lists the
+      named ones and every element; `POST` and `PATCH /api/card-views/:id`
+      take `name` and `show`, `hide`, `inherit` (lists) or `elements`
+      (`{"comments": false}`, `null` to inherit); `DELETE` answers with
+      `levels_now_inheriting`, the levels that applied it. A level is `GET`, `PUT` or
+      `DELETE /api/card-views/level?board=ops&list=Done` (no `list` for the
+      board's, neither for global); `PUT` also takes `card_view` (a named
+      view to apply, `null` for none) and, on a board, `show_all`. `GET
+      /api/card-views/applied?board=ops&list=Done&view=Sprint` is what a card
+      there shows, each element with the level that decided it. Change them
+      only when the person asks. CLI: `slipdock card-views`, `slipdock
+      card-view set --board B --hide comments`; MCP: `card_views`.
     - **Passkeys** — `GET /api/me/passkeys` lists the token holder's own
       passkeys (`id`, `name`, `created_at`, `last_used_at`; never the key), and
       `DELETE /api/me/passkeys/:id` removes one so it can no longer sign in.
@@ -983,7 +1000,8 @@ defmodule SlipdockWeb.APIGuide do
     --simple`; a new sub-board takes it from its parent). The web app hides
     % complete, start dates, health, time tracking, votes and dependencies
     on its cards, and leaves Timeline and Prioritise out of its views; a
-    board's JSON lists the hidden card fields as `hidden_facets`. The API
+    board's JSON lists the hidden card fields as `hidden_facets`, which no
+    person's card views bring back. The API
     still reads and writes all of them — nothing is deleted — but on a
     simple board, keep to what the person can see: do not set `--percent`,
     start dates, estimates or dependencies there unless asked to.

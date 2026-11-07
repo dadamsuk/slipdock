@@ -411,6 +411,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :adding_column, :boolean, required: true
   attr :uploads, :map, required: true
   attr :select_mode, :boolean, default: false
+  attr :card_view_names, :list, default: [], doc: "the reader's named card views (#2031)"
   attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone"
   attr :pulse, :map, default: nil, doc: "`Slipdock.Pulse.for_board/2`, when the strip is on"
   attr :pauses, :list, default: [], doc: "`State.board_pauses/1`: the tree's runner pauses"
@@ -447,6 +448,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         share_key={@share_key}
         marks={@favourites}
         select_mode={@select_mode}
+        card_view_names={@card_view_names}
       >
         {render_slot(@toolbar_actions)}
       </.board_toolbar>
@@ -704,6 +706,14 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                       {if favourite?, do: "Remove from favourites", else: "Favourite this list"}
                     </button>
                   </li>
+                  <li>
+                    <.link
+                      id={"card-view-list-#{column.id}"}
+                      navigate={~p"/card-views?#{[board: column.board_id, list: column.id]}"}
+                    >
+                      <.icon name="hero-rectangle-stack" class="size-4" /> Card view…
+                    </.link>
+                  </li>
                   <li :if={@can_write}>
                     <button
                       phx-click="edit_column"
@@ -766,7 +776,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   card={item}
                   compact={@swim.density == "compact"}
                   show={list_show(@swim, column)}
-                  handoff_note={@swim.handoff}
                   handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                   focus={@focus && card_focus(@focus, item)}
                   dismiss={@can_write}
@@ -799,7 +808,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   id={"snoozed-card-#{item.id}"}
                   compact={@swim.density == "compact"}
                   show={list_show(@swim, column)}
-                  handoff_note={@swim.handoff}
                   handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                   selected={@select_mode && card_selected?(@selected, item)}
                   marks={@favourites}
@@ -1139,15 +1147,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   # up because it happens to share a card's number.
   # The display's facets for one list's cards: without the age chip or the
   # front image when the list's settings turn them off.
+  # The reader's card views for the list (#2031) already have them off
+  # (`State.assign_swim_state/4`); a config without them still drops them.
   defp list_show(swim, column) do
     swim
-    |> Config.shown()
-    |> drop_unless(Map.get(column, :show_age) != false, "age")
-    |> drop_unless(Map.get(column, :show_images) != false, "images")
+    |> Config.shown(column.id)
+    |> MapSet.difference(MapSet.new(Slipdock.CardViews.list_hidden(column)))
   end
-
-  defp drop_unless(shown, true, _facet), do: shown
-  defp drop_unless(shown, false, facet), do: MapSet.delete(shown, facet)
 
   defp card_focus(_focus, %Slipdock.Wiki.Page{}), do: nil
 
@@ -1313,6 +1319,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :share_key, :integer, default: 0
   attr :marks, :any, default: nil, doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
   attr :select_mode, :boolean, default: false
+  attr :card_view_names, :list, default: []
   slot :inner_block, doc: "the board's own buttons, last, right of Views"
 
   # Board view's toolbar: the same `view_toolbar/1` as every other view
@@ -1351,7 +1358,12 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       </:filter>
       <:display>
         <form id="swim-config" phx-change="swim_config" phx-submit="swim_config" class="contents">
-          <.display_menu mode={:board} config={@config} board={@board} />
+          <.display_menu
+            mode={:board}
+            config={@config}
+            board={@board}
+            card_view_names={@card_view_names}
+          />
         </form>
       </:display>
       <:select :if={@can_write}>

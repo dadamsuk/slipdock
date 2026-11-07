@@ -292,7 +292,15 @@ defmodule SlipdockWeb.CalendarLiveTest do
       long: long,
       title: title
     } do
-      {:ok, view, _} = live(conn, ~p"/boards/#{board}/calendar?date=2030-01-15&show=status")
+      {:ok, view, _} =
+        Slipdock.CardViewHelpers.live_showing(
+          conn,
+          Slipdock.Fixtures.user_fixture(),
+          board,
+          ~p"/boards/#{board}/calendar?date=2030-01-15",
+          ~w(status)
+        )
+
       chip = "#cal-2030-01-16-#{long.id}"
       refute has_element?(view, "#{chip} .cal-deco-1")
       assert has_element?(view, "#{chip} .cal-deco-2 button")
@@ -300,6 +308,8 @@ defmodule SlipdockWeb.CalendarLiveTest do
       # The tooltip keeps the metadata the chip no longer shows.
       assert view |> element(chip) |> render() |> tooltip() =~ "Priority: Critical"
 
+      # Back to the defaults: the card view, not the URL, held the choice.
+      {:ok, _} = Slipdock.CardViews.clear_level(Slipdock.Fixtures.user_fixture(), {:board, board})
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/calendar?date=2030-01-15&density=compact")
       assert has_element?(view, "#{chip} > .cal-chip-title:first-child", title)
       assert has_element?(view, "#{chip} .cal-deco-1 [title='Flagged']")

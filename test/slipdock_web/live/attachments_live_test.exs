@@ -24,7 +24,15 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     card: card
   } do
     # The paperclip count is off the card face by default (#1708).
-    {:ok, view, html} = live(conn, ~p"/boards/#{board}/cards/#{card.id}?show=attachments")
+    {:ok, view, html} =
+      Slipdock.CardViewHelpers.live_showing(
+        conn,
+        Slipdock.Fixtures.user_fixture(),
+        board,
+        ~p"/boards/#{board}/cards/#{card.id}",
+        ~w(attachments)
+      )
+
     assert html =~ "Drop files here"
 
     input =

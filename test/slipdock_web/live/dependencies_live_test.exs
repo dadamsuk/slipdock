@@ -20,7 +20,8 @@ defmodule SlipdockWeb.DependenciesLiveTest do
     b: b
   } do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{a.id}")
-    assert render(view) =~ "Dependencies"
+    # The modal's Dependencies section (its label is keyed, so the word is split).
+    assert has_element?(view, "#card-modal section[data-section-key=p]")
 
     view |> form("form[phx-change=dep_search]", %{"q" => "tests"}) |> render_change()
 

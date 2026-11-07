@@ -72,12 +72,29 @@ defmodule SlipdockWeb.SimpleBoardTest do
     card: card
   } do
     # % complete is off by default (#1708), so the Display menu turns it on.
-    {:ok, view, _} = live(conn, ~p"/boards/#{board}?show=percent_complete")
+    {:ok, view, _} =
+      Slipdock.CardViewHelpers.live_showing(
+        conn,
+        Slipdock.Fixtures.user_fixture(),
+        board,
+        ~p"/boards/#{board}",
+        ~w(percent_complete)
+      )
+
     assert has_element?(view, ~s|#card-#{card.id} [title="40% complete"]|)
     assert has_element?(view, ~s|#view-menu a[href="/boards/#{board.id}/timeline"]|)
 
     simple!(board)
-    {:ok, view, _} = live(conn, ~p"/boards/#{board}?show=percent_complete")
+
+    {:ok, view, _} =
+      Slipdock.CardViewHelpers.live_showing(
+        conn,
+        Slipdock.Fixtures.user_fixture(),
+        board,
+        ~p"/boards/#{board}",
+        ~w(percent_complete)
+      )
+
     refute has_element?(view, ~s|#card-#{card.id} [title="40% complete"]|)
     refute has_element?(view, ~s|#view-menu a[href="/boards/#{board.id}/timeline"]|)
     refute has_element?(view, ~s|#view-menu a[href="/boards/#{board.id}/prioritise"]|)

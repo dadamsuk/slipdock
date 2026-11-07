@@ -1166,8 +1166,52 @@ defmodule SlipdockWeb.SlipdockComponents do
     end
   end
 
+  # The marks a card's front always drew until card views (#2031), and
+  # still does by default (`Config.marks_on/0`): each shown when its element
+  # is on and there is something to mark.
+  defp card_marks(on, card, note_mode) do
+    handoff = Slipdock.Boards.Card.open_handoff(card)
+    state = Map.get(card, :state)
+
+    %{
+      # Where it was left (W-1804), while the card is open.
+      handoff: on.("handoff") and not is_nil(handoff),
+      handoff_note: not is_nil(handoff) and note_shown?(note_mode),
+      # Waiting on a person (#1114), with what it needs.
+      wait: on.("wait") and not is_nil(Slipdock.Boards.Card.open_wait(card)),
+      # What kind of change it is (#1951), when it has one.
+      profile: on.("profile") and not is_nil(Map.get(card, :profile)),
+      # A recurring card (W-1802).
+      recurrence: on.("recurrence") and not is_nil(Slipdock.Boards.Card.recurrence(card)),
+      # Snoozed (W-1803): only seen where snoozed cards are shown, with the
+      # day it wakes.
+      snoozed: on.("snoozed") and Slipdock.Boards.Card.snoozed?(card),
+      # What is happening to it and who drives it (#1117), when there is
+      # something to say.
+      state_line:
+        on.("state_line") and match?(%Slipdock.CardState{line: line} when is_binary(line), state),
+      driver: on.("driver") and match?(%Slipdock.CardState{driver: d} when is_binary(d), state)
+    }
+  end
+
+  # The heart (#2031): an element like the marks.
+  defp favourite_shown?(on, marks, card), do: on.("favourite") and favourite_mark?(marks, card)
+
+  defp note_shown?(mode) when mode in ~w(short full), do: true
+  defp note_shown?(_mode), do: false
+
+  # How much of a handoff note the front shows (#2031): the card view's
+  # elements when it states them, else what the caller asked.
+  defp handoff_note_mode(show, asked) do
+    cond do
+      MapSet.member?(show, "handoff_full") -> "full"
+      MapSet.member?(show, "handoff_note") -> "short"
+      true -> asked
+    end
+  end
+
   @doc "The facets to show as a MapSet; `nil` means every facet."
-  def show_set(nil), do: MapSet.new(Config.facet_keys())
+  def show_set(nil), do: MapSet.new(Config.facet_keys() ++ Config.marks_on())
   def show_set(%MapSet{} = set), do: set
   def show_set(list) when is_list(list), do: MapSet.new(list)
 
@@ -1283,11 +1327,13 @@ defmodule SlipdockWeb.SlipdockComponents do
     recurrence = Slipdock.Boards.Card.recurrence(card)
     snoozed = Slipdock.Boards.Card.snoozed?(card)
     state = Map.get(card, :state)
+    note_mode = handoff_note_mode(show, assigns.handoff_note)
 
     facets = %{
       cover: on.("cover") and not is_nil(cover),
       # Its own colour on each edge (#1209), shown with the cover colour.
-      borders: on.("cover") and Enum.any?(Slipdock.Boards.Card.borders(), &Map.get(card, &1)),
+      # A card element of its own since card views (#2031).
+      borders: on.("borders") and Enum.any?(Slipdock.Boards.Card.borders(), &Map.get(card, &1)),
       image: not is_nil(image),
       stated: on.("status") and not is_nil(Slipdock.Boards.Card.stated_health(card)),
       status: on.("status"),
@@ -1310,28 +1356,13 @@ defmodule SlipdockWeb.SlipdockComponents do
       description: on.("description") and (card.description || "") != "",
       comments: on.("comments") and card.comments != [],
       attachments: on.("attachments") and loaded_attachments(card) != [],
-      # Where it was left (W-1804): always shown while the card is open, since
-      # it is what the next person needs before anything else on it.
-      handoff: not is_nil(handoff),
-      # Waiting on a person (#1114): always shown, with what it needs.
-      wait: not is_nil(wait),
-      # What kind of change it is (#1951): always shown when it has one.
-      profile: not is_nil(Map.get(card, :profile)),
-      # A recurring card (W-1802): always marked, like the handoff.
-      recurrence: not is_nil(recurrence),
-      # Snoozed (W-1803): only seen where snoozed cards are shown, and then
-      # always marked, with the day it wakes.
-      snoozed: snoozed,
-      # What is happening to it and who drives it (#1117): always shown when
-      # there is something to say. How long it has sat in its list is a
-      # facet like the rest, so a board can leave it off.
-      state_line: match?(%Slipdock.CardState{line: line} when is_binary(line), state),
-      driver: match?(%Slipdock.CardState{driver: d} when is_binary(d), state),
       age: on.("age") and match?(%Slipdock.CardState{age: age} when is_integer(age), state),
       # The card's number (#1856); a wiki page on the board has none, which
       # the template checks.
       id: on.("id")
     }
+
+    facets = Map.merge(facets, card_marks(on, card, note_mode))
 
     # Start and due, both shown and both set, draw as one range (#1708).
     facets =
@@ -1339,7 +1370,7 @@ defmodule SlipdockWeb.SlipdockComponents do
 
     meta? =
       facets
-      |> Map.drop([:cover, :borders, :image, :status, :tags, :id])
+      |> Map.drop([:cover, :borders, :image, :status, :tags, :id, :handoff_note])
       |> Map.values()
       |> Enum.any?()
 
@@ -1352,7 +1383,8 @@ defmodule SlipdockWeb.SlipdockComponents do
         cover_color: cover,
         image: image,
         page?: page?,
-        favourite?: favourite_mark?(assigns.marks, card),
+        favourite?: favourite_shown?(on, assigns.marks, card),
+        handoff_note: note_mode,
         handoff: handoff,
         wait: wait,
         recurrence: recurrence,
@@ -1618,7 +1650,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           </span>
         </div>
         <.handoff_note
-          :if={@f.handoff and @handoff_note in ~w(short full)}
+          :if={@f.handoff_note}
           handoff={@handoff}
           label={@handoff_label}
           mode={@handoff_note}

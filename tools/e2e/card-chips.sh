@@ -29,6 +29,8 @@ ids=$(mix run -e '
   {:ok, _} = Boards.add_dependency(blocked, blocker)
   {:ok, waiting} = Boards.create_card(doing, %{"title" => "Pick a colour"})
   {:ok, _} = Boards.open_wait(waiting, Actor.web(user), %{"needs" => "Which green?"})
+  # What the old ?show= did, as a named card view the URL names (#2031).
+  {:ok, _} = Slipdock.CardViews.create(Slipdock.Repo.get_by!(Slipdock.Accounts.User, email: "e2e@example.com"), %{"name" => "e2e-range", "elements" => Map.new(Slipdock.Swimlanes.Config.facet_keys(), &{&1, &1 in ~w(tags priority start_date due_date)})})
   IO.puts("IDS #{full.id} #{late.id} #{soon.id} #{blocked.id} #{waiting.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 read -r FULL LATE SOON BLOCKED WAITING <<<"$ids"

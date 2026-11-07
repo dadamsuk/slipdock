@@ -305,6 +305,8 @@ defmodule SlipdockWeb.Router do
       live "/tools", ToolLive.Index, :index
       live "/tools/:slug", ToolLive.Show, :show
       live "/favourites", FavouriteLive.Index, :index
+      # What a card shows, per person: global, board and list (#2031).
+      live "/card-views", CardViewLive.Index, :index
       # The top cards of lists picked from any board, on one page (#1479).
       live "/multiboard", MultiboardLive.Index, :index
       live "/multiboard/:id", MultiboardLive.Index, :show
@@ -571,6 +573,18 @@ defmodule SlipdockWeb.Router do
     get "/favourites", FavouriteController, :index
     post "/favourites", FavouriteController, :create
     delete "/favourites/:kind/:id", FavouriteController, :delete
+    # The caller's own card views (#2031, see `Slipdock.CardViews`): the
+    # named ones, each level's, and the view that applies.
+    get "/card-views", CardViewController, :index
+    post "/card-views", CardViewController, :create
+    get "/card-views/applied", CardViewController, :applied
+    get "/card-views/level", CardViewController, :show_level
+    put "/card-views/level", CardViewController, :update_level
+    patch "/card-views/level", CardViewController, :update_level
+    delete "/card-views/level", CardViewController, :clear_level
+    get "/card-views/:id", CardViewController, :show
+    patch "/card-views/:id", CardViewController, :update
+    delete "/card-views/:id", CardViewController, :delete
     # The caller's own board hotkeys, Ctrl+Shift+a digit (see `Slipdock.Hotkeys`).
     get "/hotkeys", HotkeyController, :index
     put "/boards/:board/hotkey", HotkeyController, :update

@@ -93,12 +93,23 @@ defmodule SlipdockWeb.BoardDisplayPrefsTest do
       assert_push_event(view, "display-prefs", %{restore: true})
 
       render_hook(view, "display_restore", %{
-        "query" => %{"density" => "compact", "show_compact" => "tags,id", "q" => "ignored"}
+        "query" => %{"density" => "compact", "width" => "wide", "q" => "ignored"}
       })
 
-      assert_patch(view, ~p"/boards/#{ctx.board}?density=compact&q=card&show_compact=tags%2Cid")
+      assert_patch(view, ~p"/boards/#{ctx.board}?density=compact&q=card&width=wide")
       assert_push_event(view, "display-prefs", %{query: query, restore: false})
-      assert query == %{"density" => "compact", "show_compact" => "tags,id"}
+      assert query == %{"density" => "compact", "width" => "wide"}
+    end
+
+    test "drops a card front remembered before card views (#2031)", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      assert_push_event(view, "display-prefs", %{restore: true})
+
+      render_hook(view, "display_restore", %{
+        "query" => %{"show_compact" => "tags,id", "handoff" => "full"}
+      })
+
+      refute_push_event(view, "display-prefs", %{})
     end
 
     test "junk, or nothing new, patches nothing", ctx do

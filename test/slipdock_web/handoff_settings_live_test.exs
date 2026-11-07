@@ -56,7 +56,10 @@ defmodule SlipdockWeb.HandoffSettingsLiveTest do
   test "the card's front and its panel use the board's name for it", ctx do
     name(ctx, "Parked")
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?handoff=full")
+    {:ok, _} =
+      Slipdock.CardViews.update_level(ctx.owner, {:board, ctx.board}, %{"show" => "handoff_full"})
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
     assert has_element?(
              view,
@@ -67,7 +70,13 @@ defmodule SlipdockWeb.HandoffSettingsLiveTest do
     assert html =~ "Parked:</span> Write the tests"
     refute html =~ "Left off"
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/swimlanes?handoff=short")
+    {:ok, _} =
+      Slipdock.CardViews.update_level(ctx.owner, {:board, ctx.board}, %{
+        "show" => "handoff_note",
+        "inherit" => "handoff_full"
+      })
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/swimlanes")
     assert has_element?(view, "[data-role=handoff-note]", "Parked:")
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
@@ -96,12 +105,11 @@ defmodule SlipdockWeb.HandoffSettingsLiveTest do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
     assert has_element?(view, ~s(#card-toolbar #handoff-edit[aria-label="Add “Parked”"]))
 
-    # And the Display menu, on the board and in swimlanes.
-    for path <- [~p"/boards/#{ctx.board}", ~p"/boards/#{ctx.board}/swimlanes"] do
-      {:ok, view, _} = live(ctx.conn, path)
-      assert view |> element("#display-handoff p", "Parked") |> has_element?()
-      refute view |> element("#display-handoff") |> render() =~ "Handoff note"
-    end
+    # And the board's card views (#2031), where the note is two elements.
+    {:ok, view, _} = live(ctx.conn, ~p"/card-views?board=#{ctx.board.id}")
+    assert has_element?(view, "#element-handoff_note", "Parked note (2 lines)")
+    assert has_element?(view, "#element-handoff", "Parked mark")
+    refute view |> element("#card-view-editor") |> render() =~ "Handoff"
   end
 
   test "without one, it is still Left off in the panel", ctx do

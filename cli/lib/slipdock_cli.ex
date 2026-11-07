@@ -8,6 +8,7 @@ defmodule SlipdockCLI do
     Auth,
     Automations,
     Boards,
+    CardViews,
     Deploy,
     Findings,
     Garden,
@@ -335,6 +336,15 @@ defmodule SlipdockCLI do
     # `slipdock sync`.
     vault: :string,
     watch: :boolean,
+    # Card views (#2031): `card-view set --show a,b --hide c --inherit d
+    # --reset --apply VIEW --show-all on|off`, `card-views --elements`.
+    show: :string,
+    hide: :string,
+    inherit: :string,
+    reset: :boolean,
+    apply: :string,
+    show_all: :string,
+    elements: :boolean,
     interval: :integer,
     help: :boolean
   ]
@@ -391,6 +401,7 @@ defmodule SlipdockCLI do
     Auth,
     Admin,
     Boards,
+    CardViews,
     Garden,
     Health,
     Findings,

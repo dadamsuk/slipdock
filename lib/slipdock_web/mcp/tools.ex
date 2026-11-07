@@ -57,6 +57,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.Share,
     Tools.RevertPage,
     Tools.ManageWiki,
+    Tools.CardViews,
     Tools.ManageAutomation,
     Tools.InstallTool,
     Tools.ClaimJob,

@@ -137,6 +137,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
   attr :board, :any, required: true
   attr :config, Config, required: true
   attr :view, :any, default: nil, doc: "the saved view currently loaded, if any"
+  attr :card_view_names, :list, default: [], doc: "the reader's named card views (#2031)"
   attr :dirty, :boolean, default: false, doc: "config differs from the loaded saved view"
   attr :grid, :map, required: true
   attr :form_key, :integer, required: true
@@ -627,7 +628,12 @@ defmodule SlipdockWeb.SwimlaneComponents do
         </div>
       </:own>
       <:display :if={!@view_only}>
-        <.display_menu mode={@mode} config={@config} board={@board} />
+        <.display_menu
+          mode={@mode}
+          config={@config}
+          board={@board}
+          card_view_names={@card_view_names}
+        />
       </:display>
       <:views>
         <.view_controls
@@ -742,6 +748,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
   so the chooser edits the one currently in use.
   """
   attr :board, :any, default: %{}
+  attr :card_view_names, :list, default: [], doc: "the reader's named card views (#2031)"
 
   def display_menu(assigns) do
     compact? = assigns.config.density == "compact"
@@ -751,9 +758,6 @@ defmodule SlipdockWeb.SwimlaneComponents do
         section_title: @section_title,
         compact?: compact?,
         size_label: if(compact?, do: "compact", else: "comfortable"),
-        facets:
-          Enum.reject(Config.facets(assigns.mode), fn {k, _} -> k in assigns.config.hidden end),
-        shown: Config.shown(assigns.config),
         table_fields: Config.table_fields(assigns.config)
       )
 
@@ -803,24 +807,6 @@ defmodule SlipdockWeb.SwimlaneComponents do
               <span class="btn btn-xs btn-ghost peer-checked:btn-primary">{label}</span>
             </label>
           </div>
-        </div>
-        <div :if={@mode in [:board, :swimlanes]} id="display-handoff">
-          <p class={["mb-1.5", @section_title]}>{Slipdock.Boards.Board.handoff_label(@board)}</p>
-          <div class="flex flex-wrap gap-1">
-            <label :for={{value, label} <- Config.handoffs()} class="cursor-pointer">
-              <input
-                type="radio"
-                name="handoff"
-                value={value}
-                checked={@config.handoff == value}
-                class="peer sr-only"
-              />
-              <span class="btn btn-xs btn-ghost peer-checked:btn-primary">{label}</span>
-            </label>
-          </div>
-          <p class="mt-1 text-xs text-base-content/60">
-            Where an open card was left, on its front. Comfortable cards only.
-          </p>
         </div>
         <div :if={@mode == :calendar}>
           <p class={["mb-1.5", @section_title]}>Place cards on</p>
@@ -917,27 +903,56 @@ defmodule SlipdockWeb.SwimlaneComponents do
             </label>
           </div>
         </div>
-        <div :if={not Enum.member?([:table, :narrative], @mode)} id={"display-show-#{@size_label}"}>
-          <p class={["mb-1.5", @section_title]}>Show on cards · {@size_label}</p>
-          <input type="hidden" name={if @compact?, do: "show_compact[]", else: "show[]"} value="" />
-          <div class="grid grid-cols-2 gap-x-2 gap-y-1">
-            <label
-              :for={{key, label} <- @facets}
-              class="flex cursor-pointer items-center gap-2 text-sm"
+        <%!-- What a card shows is the reader's card views (#2031), kept on
+              the server per board and list; the menu keeps the quick switch. --%>
+        <div :if={not Enum.member?([:table, :narrative], @mode)} id="display-card-view">
+          <p class={["mb-1.5", @section_title]}>Show on cards</p>
+          <div class="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              id="toggle-show-all"
+              phx-click="toggle_show_all"
+              class={[
+                "btn btn-xs",
+                if(Config.show_all?(@config), do: "btn-primary", else: "btn-ghost")
+              ]}
+              aria-pressed={to_string(Config.show_all?(@config))}
+              title="Show every element on the cards' fronts, whatever your card views say"
             >
-              <input
-                type="checkbox"
-                name={if @compact?, do: "show_compact[]", else: "show[]"}
-                value={key}
-                checked={MapSet.member?(@shown, key)}
-                class="checkbox"
-              />
-              {label}
-            </label>
+              <.icon
+                name={if Config.show_all?(@config), do: "hero-eye", else: "hero-eye-slash"}
+                class="size-3.5"
+              /> Show all
+            </button>
+            <.link
+              :if={is_integer(Map.get(@board, :id))}
+              navigate={~p"/card-views?#{[board: @board.id]}"}
+              id="edit-card-views"
+              class="btn btn-ghost btn-xs gap-1"
+            >
+              <.icon name="hero-rectangle-stack" class="size-3.5" /> Card views…
+            </.link>
           </div>
-          <p class="mt-1.5 text-xs text-base-content/60">
-            Comfortable and compact cards each keep their own set.
+          <p class="mt-1 text-xs text-base-content/60">
+            Choose what cards show, for every board, this board or one list.
           </p>
+          <label
+            :if={@card_view_names != [] or Config.card_view(@config)}
+            id="display-view-card-view"
+            class="mt-2 block"
+          >
+            <span class="field-label">Card view for this view</span>
+            <select name="card_view" class="select field mt-1 w-full">
+              <option value="">None: your levels decide</option>
+              <option
+                :for={name <- Enum.uniq(@card_view_names ++ List.wrap(Config.card_view(@config)))}
+                value={name}
+                selected={Config.card_view(@config) == name}
+              >
+                {name}
+              </option>
+            </select>
+          </label>
         </div>
         <label
           :if={not Enum.member?([:board, :calendar, :outline], @mode)}
@@ -1359,8 +1374,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 card={card}
                 id={"swim-#{ri}-#{ci}-card-#{card.id}"}
                 compact={@config.density == "compact"}
-                show={@show}
-                handoff_note={@config.handoff}
+                show={Config.shown(@config, card.column_id)}
                 handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                 cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
                 marks={@favourites}
@@ -1517,8 +1531,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                     card={card}
                     id={"swim-#{ri}-#{ci}-card-#{card.id}"}
                     compact={@config.density == "compact"}
-                    show={@show}
-                    handoff_note={@config.handoff}
+                    show={Config.shown(@config, card.column_id)}
                     handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                     cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
                     marks={@favourites}

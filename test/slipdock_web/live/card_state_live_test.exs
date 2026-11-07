@@ -106,7 +106,14 @@ defmodule SlipdockWeb.CardStateLiveTest do
     {:ok, _} = Boards.leave_handoff(card, nil, %{next_step: "Look", via: "ui"})
     flagged = card_fixture(ctx.doing, %{"flags" => ["review"]})
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=age")
+    {:ok, view, _} =
+      Slipdock.CardViewHelpers.live_showing(
+        ctx.conn,
+        ctx.user,
+        ctx.board,
+        ~p"/boards/#{ctx.board}",
+        ~w(age)
+      )
 
     for c <- [card, flagged] do
       assert has_element?(view, "#card-#{c.id} [data-role=age-chip][data-stuck=false]")
@@ -168,7 +175,14 @@ defmodule SlipdockWeb.CardStateLiveTest do
       set: [inserted_at: DateTime.add(DateTime.utc_now(), -30 * 86_400)]
     )
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=age")
+    {:ok, view, _} =
+      Slipdock.CardViewHelpers.live_showing(
+        ctx.conn,
+        ctx.user,
+        ctx.board,
+        ~p"/boards/#{ctx.board}",
+        ~w(age)
+      )
 
     assert has_element?(
              view,

@@ -119,14 +119,15 @@ defmodule SlipdockWeb.Components.CardChipsTest do
       assert count(node, "[data-role=date-range]") == 0
     end
 
-    test "a saved view that ticked more still shows it", ctx do
+    test "a saved view naming a card view that shows more still shows it", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Talked about"})
       {:ok, _} = Boards.add_comment(card, "First", by: ctx.user)
+      {:ok, _} = Slipdock.CardViews.create(ctx.user, %{"name" => "Busy", "show" => "comments"})
 
       {:ok, saved} =
         Boards.create_saved_view(ctx.board, %{
           "name" => "Busy",
-          "config" => Config.to_map(%{Config.defaults("board") | show: Config.facet_keys()})
+          "config" => Config.to_map(Config.put_card_view(Config.defaults("board"), "Busy"))
         })
 
       {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?view=#{saved.id}")
@@ -189,7 +190,15 @@ defmodule SlipdockWeb.Components.CardChipsTest do
           "description" => "Words"
         })
 
-      {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=due_date,description")
+      {:ok, _view, html} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(due_date description)
+        )
+
       node = card_node(html, card)
 
       assert "card-meta" in classes(node, "[data-role=card-meta]")
@@ -247,7 +256,15 @@ defmodule SlipdockWeb.Components.CardChipsTest do
           "due_date" => "2030-01-20"
         })
 
-      {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=start_date,due_date")
+      {:ok, _view, html} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(start_date due_date)
+        )
+
       node = card_node(html, card)
 
       range = LazyHTML.query(node, "[data-role=date-range]")
@@ -262,7 +279,13 @@ defmodule SlipdockWeb.Components.CardChipsTest do
 
       # Compact cards draw the same range.
       {:ok, _view, html} =
-        live(ctx.conn, ~p"/boards/#{ctx.board}?density=compact&show_compact=start_date,due_date")
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}?density=compact",
+          ~w(start_date due_date)
+        )
 
       assert count(card_node(html, card), "[data-role=date-range]") == 1
     end
@@ -272,17 +295,41 @@ defmodule SlipdockWeb.Components.CardChipsTest do
       start_only = card_fixture(ctx.todo, %{"start_date" => days(5)})
       due_only = card_fixture(ctx.todo, %{"due_date" => days(9)})
 
-      {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=start_date,due_date")
+      {:ok, _view, html} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(start_date due_date)
+        )
+
       assert count(card_node(html, start_only), "[data-role=date-range]") == 0
       assert count(card_node(html, start_only), "[title^='Starts']") == 1
       assert count(card_node(html, due_only), "[data-role=date-range]") == 0
       assert count(card_node(html, due_only), "[title^='Due']") == 1
 
-      {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=due_date")
+      {:ok, _view, html} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(due_date)
+        )
+
       assert count(card_node(html, both), "[data-role=date-range]") == 0
       assert count(card_node(html, both), "[title^='Due']") == 1
 
-      {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=start_date")
+      {:ok, _view, html} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(start_date)
+        )
+
       assert count(card_node(html, both), "[data-role=date-range]") == 0
       assert count(card_node(html, both), "[title^='Starts']") == 1
     end
@@ -298,7 +345,14 @@ defmodule SlipdockWeb.Components.CardChipsTest do
           "completed" => true
         })
 
-      {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=start_date,due_date")
+      {:ok, _view, html} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(start_date due_date)
+        )
 
       assert "bg-error/15" in classes(card_node(html, late), "[data-role=date-range]")
       assert "bg-amber-500/15" in classes(card_node(html, soon), "[data-role=date-range]")

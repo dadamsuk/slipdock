@@ -83,7 +83,13 @@ defmodule SlipdockWeb.ListShowImagesTest do
     {:ok, _} = Boards.update_column(ctx.todo, %{"show_images" => false})
 
     {:ok, view, _} =
-      live(ctx.conn, ~p"/boards/#{ctx.board}?#{[density: "compact", show_compact: "images"]}")
+      Slipdock.CardViewHelpers.live_showing(
+        ctx.conn,
+        ctx.user,
+        ctx.board,
+        ~p"/boards/#{ctx.board}?#{[density: "compact"]}",
+        ~w(images)
+      )
 
     refute has_element?(view, thumb(ctx.a))
     assert has_element?(view, thumb(ctx.b))
@@ -99,8 +105,17 @@ defmodule SlipdockWeb.ListShowImagesTest do
   end
 
   test "the Display menu's Images off still turns them off on every list", ctx do
-    without = Enum.join(Config.facet_keys() -- ["images"], ",")
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[show: without]}")
+    without = Config.facet_keys() -- ["images"]
+
+    {:ok, view, _} =
+      Slipdock.CardViewHelpers.live_showing(
+        ctx.conn,
+        ctx.user,
+        ctx.board,
+        ~p"/boards/#{ctx.board}",
+        without
+      )
+
     refute has_element?(view, "[data-role=card-image]")
   end
 

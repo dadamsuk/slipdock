@@ -87,9 +87,6 @@ defmodule Slipdock.Swimlanes.Config do
   @densities [{"normal", "Comfortable"}, {"compact", "Compact"}]
   # How wide a list (a board's list, a swimlane column) is drawn.
   @widths [{"narrow", "Narrow"}, {"normal", "Normal"}, {"wide", "Wide"}, {"wider", "Extra wide"}]
-  # Whether a card's front shows its handoff note (#1171): not at all (the
-  # ↩ mark alone), cut to two lines, or in full. Comfortable cards only.
-  @handoffs [{"hide", "Off"}, {"short", "2 lines"}, {"full", "Full"}]
   # Which date a calendar puts a card on.
   @places [{"due", "Due date"}, {"start", "Start date"}]
 
@@ -126,6 +123,24 @@ defmodule Slipdock.Swimlanes.Config do
   # whatever it stored. Compact cards leave the front image out, as before.
   @default_show ~w(cover images status tags priority flags assignee due_date dependencies subcards checklist)
   @default_show_compact @default_show -- ["images"]
+  # What else a card's front can show (#2031): marks the tile drew whatever
+  # the Display menu said, and the handoff note, which had a menu of its own.
+  # Card views (`Slipdock.CardViews`) switch them like the facets; each is
+  # `{key, label, on until a card view says otherwise}`.
+  @card_marks [
+    {"borders", "Borders", true},
+    {"handoff", "Handoff mark", true},
+    {"handoff_note", "Handoff note (2 lines)", false},
+    {"handoff_full", "Handoff note in full", false},
+    {"wait", "Waiting on a person", true},
+    {"state_line", "State line", true},
+    {"driver", "Who drives it", true},
+    {"profile", "Profile", true},
+    {"recurrence", "Repeats", true},
+    {"snoozed", "Snoozed", true},
+    {"favourite", "Favourite heart", true}
+  ]
+  @marks_on for {k, _, true} <- @card_marks, do: k
   # Views that render less than a full card only offer the facets they can show.
   @mode_facets %{
     "outline" => ~w(cover status tags priority flags assignee),
@@ -164,7 +179,7 @@ defmodule Slipdock.Swimlanes.Config do
   @default_tell @tell_keys -- ["summary"]
 
   @modes ~w(board swimlanes table timeline calendar outline narrative prioritise)
-  @scalar_fields ~w(mode rows cols unit depth sort dir q due done deps empty snoozed density width handoff date place color_by span from to)a
+  @scalar_fields ~w(mode rows cols unit depth sort dir q due done deps empty snoozed density width date place color_by span from to card_view)a
   # Per-visit state that a saved view must not pin: the timeline/calendar
   # anchor date, and a narrative's explicit range (its span is kept, so a
   # saved narrative stays relative to today).
@@ -178,7 +193,10 @@ defmodule Slipdock.Swimlanes.Config do
   @filter_fields ~w(q due done deps kinds tags priorities flags columns colors)a
   # What the Display menu sets (#1879): the part of a config the browser
   # remembers per board and view, so leaving the board and coming back keeps it.
-  @display_fields ~w(density width handoff place color_by show show_compact fields fields_compact tell)a
+  # What a card's front shows is not among them: card views decide it (#2031).
+  @display_fields ~w(density width place color_by fields fields_compact tell)a
+  # A saved view's card view (#2031) is by name, and only a saved view or a
+  # link sets it: the browser never remembers it.
   @display_keys Enum.map(@display_fields, &Atom.to_string/1)
 
   defstruct mode: "swimlanes",
@@ -197,7 +215,6 @@ defmodule Slipdock.Swimlanes.Config do
             snoozed: "hide",
             density: "normal",
             width: "normal",
-            handoff: "hide",
             date: nil,
             place: "due",
             color_by: "cover",
@@ -219,7 +236,15 @@ defmodule Slipdock.Swimlanes.Config do
             # technical ones, see `Slipdock.Boards.Board.hidden_facets/1`).
             # Set from the board when a view is drawn, never stored or put in
             # a URL, and left alone by `show`, so a saved view keeps them.
-            hidden: []
+            hidden: [],
+            # The reader's card views on this view (#2031). `view`: the name
+            # of one of their card views to put above the list level while
+            # this view is open (`card_view=` in a URL, `"card_view"` in a
+            # saved view), nil for none. `lists`: what each list's cards show
+            # on their front, `%{nil => board's, column_id => list's}`, with
+            # `hidden` taken off, and `show_all`, their Show all switch: both
+            # put on when a view is drawn (`put_front/3`), never stored.
+            cards: %{view: nil, lists: nil, show_all: false}
 
   @type t :: %__MODULE__{}
 
@@ -263,7 +288,6 @@ defmodule Slipdock.Swimlanes.Config do
   def drivers, do: @drivers
   def densities, do: @densities
   def widths, do: @widths
-  def handoffs, do: @handoffs
   def places, do: @places
   def colorings, do: @colorings
   def coloring_label(key), do: label(@colorings, key)
@@ -291,11 +315,59 @@ defmodule Slipdock.Swimlanes.Config do
   @doc "Whether the narrative config includes `key` (see `tell_events/0` and `tell_sections/0`)."
   def tells?(%__MODULE__{tell: tell}, key), do: key in tell
 
-  @doc "The facets shown at the config's density, as a MapSet."
-  def shown(%__MODULE__{density: "compact", show_compact: keys, hidden: hidden}),
-    do: MapSet.new(keys -- hidden)
+  @doc "The card front's marks (#2031), as `{key, label, on by default}`."
+  def card_marks, do: @card_marks
 
-  def shown(%__MODULE__{show: keys, hidden: hidden}), do: MapSet.new(keys -- hidden)
+  @doc "The marks on until a card view turns them off."
+  def marks_on, do: @marks_on
+
+  @doc """
+  The facets and marks a card's front shows, as a MapSet: the reader's card
+  views (`put_front/2`) when put on, else the config's own `show` at its
+  density and the marks on by default. With a column id, that list's.
+  """
+  def shown(config, column_id \\ nil)
+
+  def shown(%__MODULE__{cards: %{lists: %{} = lists}}, column_id),
+    do: Map.get(lists, column_id) || Map.get(lists, nil, MapSet.new())
+
+  def shown(%__MODULE__{density: "compact", show_compact: keys, hidden: hidden}, _),
+    do: MapSet.new((keys ++ @marks_on) -- hidden)
+
+  def shown(%__MODULE__{show: keys, hidden: hidden}, _),
+    do: MapSet.new((keys ++ @marks_on) -- hidden)
+
+  @doc """
+  Puts what each list's cards show on their front (#2031), as
+  `%{nil => MapSet, column_id => MapSet}`. The board's hidden facets are
+  taken off here, so a card view never brings one back.
+  """
+  def put_front(config, front, show_all \\ false)
+
+  def put_front(%__MODULE__{hidden: hidden} = config, %{} = front, show_all) do
+    hidden = MapSet.new(hidden)
+    lists = Map.new(front, fn {k, set} -> {k, MapSet.difference(set, hidden)} end)
+    %{config | cards: %{config.cards | lists: lists, show_all: show_all}}
+  end
+
+  def put_front(%__MODULE__{} = config, nil, _show_all),
+    do: %{config | cards: %{config.cards | lists: nil, show_all: false}}
+
+  @doc "Whether the reader's Show all switch is on for the board (#2031)."
+  def show_all?(%__MODULE__{cards: %{show_all: on?}}), do: on?
+
+  @doc "The card view (a name) the view puts above the list level (#2031), or nil."
+  def card_view(%__MODULE__{cards: %{view: name}}), do: name
+
+  @doc "Names the card view the view puts above the list level (#2031); nil for none."
+  def put_card_view(%__MODULE__{} = config, name), do: put_field(config, :card_view, name)
+
+  # `card_view` is a query key and a stored one, but it lives in `cards`.
+  defp field(%__MODULE__{cards: %{view: name}}, :card_view), do: name
+  defp field(config, field), do: Map.fetch!(config, field)
+
+  defp put_field(config, :card_view, name), do: %{config | cards: %{config.cards | view: name}}
+  defp put_field(config, field, value), do: Map.put(config, field, value)
 
   @doc "Sets the facets the board hides (see the `hidden` field)."
   def hide(%__MODULE__{} = config, keys), do: %{config | hidden: keys}
@@ -377,7 +449,7 @@ defmodule Slipdock.Swimlanes.Config do
   def from_query(params, %__MODULE__{} = base \\ %__MODULE__{}) when is_map(params) do
     Enum.reduce(@scalar_fields ++ @list_fields, base, fn field, acc ->
       case Map.fetch(params, Atom.to_string(field)) do
-        {:ok, raw} -> Map.put(acc, field, cast(field, raw, Map.fetch!(base, field)))
+        {:ok, raw} -> put_field(acc, field, cast(field, raw, field(base, field)))
         :error -> acc
       end
     end)
@@ -445,7 +517,8 @@ defmodule Slipdock.Swimlanes.Config do
   def to_map(%__MODULE__{} = config) do
     config
     |> Map.from_struct()
-    |> Map.drop([:hidden | @transient_fields])
+    |> Map.drop([:hidden, :cards | @transient_fields])
+    |> Map.put(:card_view, card_view(config))
     |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
   end
 
@@ -459,8 +532,8 @@ defmodule Slipdock.Swimlanes.Config do
   """
   def to_query(%__MODULE__{} = config, %__MODULE__{} = base \\ %__MODULE__{}) do
     for field <- @scalar_fields ++ @list_fields,
-        value = Map.fetch!(config, field),
-        value != Map.fetch!(base, field) do
+        value = field(config, field),
+        value != field(base, field) do
       {field, encode(value)}
     end
   end
@@ -521,12 +594,20 @@ defmodule Slipdock.Swimlanes.Config do
   defp cast(:snoozed, v, d), do: pick(v, @empties, d)
   defp cast(:density, v, d), do: pick(v, Enum.map(@densities, &elem(&1, 0)), d)
   defp cast(:width, v, d), do: pick(v, Enum.map(@widths, &elem(&1, 0)), d)
-  defp cast(:handoff, v, d), do: pick(v, Enum.map(@handoffs, &elem(&1, 0)), d)
   defp cast(:place, v, d), do: pick(v, Enum.map(@places, &elem(&1, 0)), d)
   defp cast(:color_by, v, d), do: pick(v, Enum.map(@colorings, &elem(&1, 0)), d)
   defp cast(:span, v, d), do: pick(v, @spans, d)
   defp cast(:from, v, d), do: cast(:date, v, d)
   defp cast(:to, v, d), do: cast(:date, v, d)
+
+  defp cast(:card_view, v, _) when is_binary(v) do
+    case String.trim(v) do
+      "" -> nil
+      name -> String.slice(name, 0, 60)
+    end
+  end
+
+  defp cast(:card_view, _, d), do: d
   defp cast(:q, v, _) when is_binary(v), do: String.trim(v)
   defp cast(:q, _, d), do: d
   defp cast(:date, "", _), do: nil

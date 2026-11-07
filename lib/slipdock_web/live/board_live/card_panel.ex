@@ -807,6 +807,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :tags_path, :string, required: true
   attr :target, :any, required: true
   attr :uploads, :map, required: true
+  attr :description?, :boolean, default: true, doc: "the reader's card view shows it (#2031)"
 
   @doc "The rest of the panel's top, under the title: flags, tags and the description."
   def card_header_form(assigns) do
@@ -1032,7 +1033,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       phx-submit="card_change"
       class="space-y-3"
     >
-      <div class="space-y-1.5 px-1" data-section-key="d">
+      <div :if={@description?} class="space-y-1.5 px-1" data-section-key="d">
         <div class="flex items-center justify-between">
           <label
             for="card-description"
@@ -1958,8 +1959,15 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
 
   attr :narrow?, :boolean, default: false, doc: "a phone: the properties are under the title"
 
+  attr :panel, :any,
+    default: nil,
+    doc: "the groups the reader's card view shows (#2031), a MapSet; nil shows them all"
+
   @doc "The panel's sidebar: the properties (assignees, priority, dates, health), time, fields, votes, cover, borders, repeat and snooze."
   def card_sidebar(assigns) do
+    panel = assigns.panel || MapSet.new(Slipdock.CardViews.Elements.panel_keys())
+    assigns = assign(assigns, :panel, panel)
+
     ~H"""
     <aside class="min-w-0 space-y-5 rounded-b-2xl bg-base-200/60 p-5 md:rounded-bl-none">
       <%!-- The card's own fields need write; status updates and votes are
@@ -2028,14 +2036,18 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </p>
         </.form>
         <.time_section
-          :if={not @board.simple}
+          :if={not @board.simple and MapSet.member?(@panel, "side.time")}
           target={@target}
           card={@card}
           can_write={@can_write}
           form_key={@form_key}
         />
       </fieldset>
-      <fieldset :if={not @board.simple} disabled={!@can_comment} class="min-w-0">
+      <fieldset
+        :if={not @board.simple and MapSet.member?(@panel, "side.status")}
+        disabled={!@can_comment}
+        class="min-w-0"
+      >
         <.status_section
           target={@target}
           item={@card}
@@ -2045,10 +2057,18 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           stated={Card.stated_health(@card)}
         />
       </fieldset>
-      <fieldset :if={@board.fields != []} disabled={!@can_write} class="min-w-0">
+      <fieldset
+        :if={@board.fields != [] and MapSet.member?(@panel, "side.fields")}
+        disabled={!@can_write}
+        class="min-w-0"
+      >
         <.fields_section target={@target} item={@card} board={@board} can_write={@can_write} />
       </fieldset>
-      <fieldset :if={not @board.simple} disabled={!@can_comment} class="min-w-0">
+      <fieldset
+        :if={not @board.simple and MapSet.member?(@panel, "side.votes")}
+        disabled={!@can_comment}
+        class="min-w-0"
+      >
         <.vote_box
           target={@target}
           item={@card}
@@ -2059,7 +2079,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         />
       </fieldset>
       <fieldset disabled={!@can_write} class="min-w-0 space-y-5">
-        <div class="space-y-1.5">
+        <div :if={MapSet.member?(@panel, "side.cover")} class="space-y-1.5">
           <span class="section-label">Cover</span>
           <div class="flex flex-wrap gap-1.5">
             <button
@@ -2086,11 +2106,21 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </div>
         </div>
 
-        <.borders_section card={@card} target={@target} />
+        <.borders_section :if={MapSet.member?(@panel, "side.borders")} card={@card} target={@target} />
 
-        <.repeat_section card={@card} repeat={@repeat} target={@target} />
+        <.repeat_section
+          :if={MapSet.member?(@panel, "side.repeat")}
+          card={@card}
+          repeat={@repeat}
+          target={@target}
+        />
 
-        <.snooze_section card={@card} can_write={@can_write} current_user={@current_user} />
+        <.snooze_section
+          :if={MapSet.member?(@panel, "side.snooze")}
+          card={@card}
+          can_write={@can_write}
+          current_user={@current_user}
+        />
       </fieldset>
     </aside>
     """

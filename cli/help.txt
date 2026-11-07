@@ -211,6 +211,25 @@ FAVOURITES  (yours alone; in the web app they are the phone's Favourites tab,
                                       pin one (again: change its icon); up to 8
   header rm <id>                      unpin one
   header move <id> left|right         move one a place along
+  card-views [--elements]             your card views: which elements of a card you see
+                                      (--elements: every element a view can set, and its default)
+  card-view show <view>               one card view (its id or name): what it shows and hides
+  card-view new <name> [--show a,b] [--hide c,d]
+                                      save a named card view
+  card-view edit <view> [--name N] [--show ..] [--hide ..] [--inherit ..] [--reset]
+                                      rename it or change its elements (--inherit: stop stating)
+  card-view rm <view>                 delete one; the levels that applied it keep their own
+  card-view level [--board B] [--list L]
+                                      what you state at a level: global with no --board, a
+                                      board's with --board, a list's with both
+  card-view set [--board B] [--list L] [--apply VIEW|none] [--show ..] [--hide ..] [--inherit ..] [--reset] [--show-all on|off]
+                                      change a level (--show-all: a board's, shows every element)
+  card-view clear [--board B] [--list L]
+                                      clear a level, so it inherits everything
+  card-view applied [--board B] [--list L] [--view SAVEDVIEW]
+                                      each element shown or hidden on a card there, and why
+                                      (default, global, board, list, saved view, show all,
+                                      board setting). Agents' output never follows card views
 
 WIKI  (Markdown pages on a board: how it works, what was decided and why.
        A page answers to its code — W-31 — its slug, or board/slug.)

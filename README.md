@@ -273,6 +273,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   [outline](docs/manual.md#roll-ups-the-outline-and-my-work) and
   [prioritise](docs/manual.md#prioritise) — each with filters, display
   options and saved views that can be shared or published.
+- **Card views** — [choose what you see of a card](docs/manual.md#card-views),
+  on its front and opened, for every board, one board or one list, each
+  level changing only what it names; named views to apply anywhere, a saved
+  view that brings its own, and **Show all** for a moment. Yours alone, kept
+  on the server, so every browser shows the same.
 - **Planning** — [dependencies with cycle detection, list categories and
   horizons, milestones, custom and formula fields (RICE, ICE, value/effort),
   budget voting, typed links and goals](docs/manual.md#roadmapping).
@@ -1077,7 +1082,7 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 53 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 54 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
@@ -1092,7 +1097,8 @@ its home), `share` (share a wiki page or folder with a person or group, or take 
 back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_wiki` (set your wiki's keys or recordings folder, move a folder to another board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, `job_log` to read a job's live log while it runs and
-`keep_job_log` to keep one as a page before it expires
+`keep_job_log` to keep one as a page before it expires, and `card_views`
+to read or change what the person sees of a card (only when asked)
 — each checked exactly as the API
 checks the same token, so a read-only or board-scoped token stays that way.
 The deletes need an explicit confirmation. claude.ai connects from
