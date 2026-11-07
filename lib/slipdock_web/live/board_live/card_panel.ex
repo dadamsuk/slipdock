@@ -641,7 +641,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <label for="card-profile">Profile</label>
       </p>
       <div class="flex flex-wrap items-center gap-2">
-        <select name={@form[:profile].name} id="card-profile" class="select select-sm field w-auto">
+        <select name={@form[:profile].name} id="card-profile" class="select field w-auto">
           <option value="" selected={is_nil(@card.profile)}>None</option>
           <option
             :for={name <- Slipdock.Profiles.names()}
