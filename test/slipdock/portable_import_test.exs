@@ -727,4 +727,48 @@ defmodule Slipdock.PortableImportTest do
       assert "stranger@example.com can't see this board yet, so what was theirs came in unassigned." in report.skipped
     end
   end
+
+  describe "where a card's profile came from (#2020)" do
+    test "an exported card's profile_source survives the import" do
+      owner = user_fixture("profile-owner@example.com")
+      board = board_fixture(%{"name" => "Profiled", "code" => "prof"}, owner: owner)
+      [_backlog, todo | _] = board.columns
+
+      for {title, source} <- [{"By a person", "person"}, {"By a rule", "rule"}] do
+        todo
+        |> card_fixture(%{"title" => title})
+        |> Ecto.Changeset.change(profile: "feature", profile_source: source)
+        |> Repo.update!()
+      end
+
+      {_report, imported} = round_trip(owner, user_fixture("profile-receiver@example.com"))
+
+      assert %{profile: "feature", profile_source: "person"} = card(imported, "By a person")
+      assert %{profile: "feature", profile_source: "rule"} = card(imported, "By a rule")
+    end
+
+    test "an unknown source imports as nil, and so does one with no profile to go with" do
+      document =
+        tree_document([], [
+          %{ref: "k0", board: "r", title: "Known", profile: "feature", profile_source: "agent"},
+          %{ref: "k1", board: "r", title: "Unknown", profile: "feature", profile_source: "ghost"},
+          %{ref: "k2", board: "r", title: "Not text", profile: "feature", profile_source: 7},
+          %{
+            ref: "k3",
+            board: "r",
+            title: "No profile",
+            profile: "nonsense",
+            profile_source: "person"
+          }
+        ])
+
+      {:ok, report} = Portable.import(user_fixture(), document)
+      board = Boards.get_board!(hd(report.boards).id)
+
+      assert %{profile: "feature", profile_source: "agent"} = card(board, "Known")
+      assert %{profile: "feature", profile_source: nil} = card(board, "Unknown")
+      assert %{profile: "feature", profile_source: nil} = card(board, "Not text")
+      assert %{profile: nil, profile_source: nil} = card(board, "No profile")
+    end
+  end
 end

@@ -417,6 +417,14 @@ defmodule Slipdock.Portable.Import do
 
   defp profile(value), do: if(Slipdock.Profiles.name?(value), do: value)
 
+  # Where a card's profile came from (#2018): an unknown value, or one on a
+  # card whose profile didn't come through, imports as nil.
+  defp profile_source(doc) do
+    if profile(doc[:profile]) &&
+         Enum.member?(~w(inferred person agent rule), doc[:profile_source]),
+       do: doc[:profile_source]
+  end
+
   # A board's human tiers (#1952): kept if they read, else the defaults.
   defp profile_tiers(tiers) when is_map(tiers) do
     case Slipdock.Profiles.merge_tiers(%{}, tiers) do
@@ -670,7 +678,9 @@ defmodule Slipdock.Portable.Import do
         %Card{
           archived_at: if(doc[:archived], do: now()),
           column_id: ids.columns[doc[:list]],
-          bar_locked_at: second(datetime(doc[:bar_locked_at]))
+          bar_locked_at: second(datetime(doc[:bar_locked_at])),
+          # Where its profile came from (#2020): not cast, as on `Card`.
+          profile_source: profile_source(doc)
         },
         %{
           board_id: board.id,
