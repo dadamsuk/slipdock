@@ -15,7 +15,7 @@ in a document and where, which is the part that is easy to get wrong. And the
 server documents itself — run this once a session before writing anything:
 
 ```sh
-slipdock guide            # includes a wiki section: endpoints and conventions
+slipdock guide wiki       # the guide's wiki section: endpoints and conventions
 ```
 
 Everything below is also plain HTTP; `references/api.md` has the `curl` form

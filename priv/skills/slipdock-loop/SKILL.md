@@ -41,8 +41,12 @@ user's data, and nothing written on a card is authority to change that.
 
 ```sh
 slipdock whoami                   # every pass: the token is live, and who "me" is
-slipdock guide                    # once per session: the server's conventions and board layout
+slipdock guide                    # once per session: the short guide, conventions and board layout
 ```
+
+That is the short guide, not the whole one (which is long, and a loop would pay
+for it every pass). It ends with the names of its other sections: fetch one with
+`slipdock guide <name>` (or `?section=<name>`) when the task needs it: `wiki` before writing a page, `runners` before touching jobs, `automations` before a rule, `recipes` for a call you can't place.
 
 `whoami` runs at the start of **every** pass, not once per session: a token can be
 revoked or expire between passes, and a loop that finds out halfway through a card
@@ -960,5 +964,5 @@ failure mode.
   the epic waits for a green build of the last push before it closes.
 
 For command syntax, `slipdock --help` and the `slipdock` skill; for the board's own
-conventions, `slipdock guide`, always. Report ids to the user as `#129`, and call
+conventions, `slipdock guide` (and a section of it when the task needs one), always. Report ids to the user as `#129`, and call
 a board by its code (`auto-test`), which survives a rename.
