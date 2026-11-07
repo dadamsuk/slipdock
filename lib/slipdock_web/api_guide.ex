@@ -1401,7 +1401,9 @@ defmodule SlipdockWeb.APIGuide do
     # ISO time; 07:00 yesterday in the board's timezone by default), by day:
     # each card completed, accepted, merged or deployed, with accepted_by
     # (person or agent), audit, the evidence's first line, should_broken
-    # rules, pr, deploys, lead_time phases, an epic's subcards and the card's
+    # rules, pr, deploys, lead_time phases and cost (model_seconds,
+    # tool_seconds, jobs, and tokens only when a log carried usage), an
+    # epic's subcards and the card's
     # url (its panel, at the chat). CLI: slipdock ledger <board> [--since S];
     # MCP: activity view: "ledger"
     curl -s -H "$H" "B/api/boards/1/ledger?since=1"
@@ -1531,6 +1533,19 @@ defmodule SlipdockWeb.APIGuide do
     list it sat in, with `how` it got there and who), `waits` and `jobs`,
     each with `from`, `to`, `seconds` and `open`; `unsure` marks a stay the
     ledger can't vouch for.
+
+    **Its lead time and cost** (#1954): `GET /api/cards/:id` and MCP
+    `get_card` carry `lead_time` on a card a runner job was sent on, and on
+    an epic (any other card leaves it out). It has `seconds` and `ends` (`deployed`,
+    `completed` or `open`), `phases` (each phase with any time, in seconds)
+    and `cost`, which is what its jobs spent, from their logs. `cost` has a
+    `total` and the `phases` the jobs ran in (build, rework, verify, merge).
+    Each gives `model_seconds`, `tool_seconds`, `jobs`, and `tokens`
+    (`input`, `output`, `cache_read`, `cache_write`, `total`) only when a
+    log carried `usage`. `cost` is null when no job sent a log. On an epic,
+    `rollup` adds its subcards: `subcards`, their `seconds` added up, and
+    the `cost` of theirs and the epic's own jobs together. No prices: what
+    tokens cost is yours to work out. CLI: `slipdock card` (`Lead time:`).
 
     ### What comes back
 

@@ -550,8 +550,11 @@ defmodule SlipdockWeb.HelpLive.Flow do
           What shipped is on the board's <strong>Ledger page</strong>
           (beside <em>Findings</em>), or <code>slipdock ledger B [--since 7]</code>: since 07:00
           yesterday, each card with who accepted it, its evidence, the <em>should</em>
-          rules it missed and where its time went. Skim it each morning, and open any card's
-          chat from it.
+          rules it missed, where its time went and what its jobs spent (the model's and
+          the tools' time, and tokens where the logs carried them). Skim it each morning,
+          and open any card's chat from it. A card a runner worked shows the same
+          under <em>Lead time</em>
+          in its panel, phase by phase.
         </li>
       </ul>
     </.person_note>

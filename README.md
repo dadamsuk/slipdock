@@ -217,6 +217,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   accepted it, its evidence, the `should` rules it missed, where its time went
   and a *Look closer* into its card chat; the board's Ledger page,
   `slipdock ledger <board> [--since S]` or `GET /api/boards/:board/ledger?since=`.
+- **Cost on the card** — [what its jobs spent, beside its lead time](docs/manual.md#its-lead-time-and-cost):
+  the model's and the tools' time from each job's log, and tokens where the log
+  carried them (never a made-up 0), by phase and rolled up for an epic. No
+  prices. On the card panel, `slipdock card`, `get_card`, `GET /api/cards/:id`
+  and the ledger line.
 - **Incidents** — [what broke after it shipped, and which check missed it](docs/manual.md#incidents):
   a card names the card that caused it (`caused_by`) and the check that should
   have caught it (`missed_by`: bar, rules, ci, verify, audit or none), and the

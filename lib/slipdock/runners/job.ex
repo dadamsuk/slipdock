@@ -88,6 +88,14 @@ defmodule Slipdock.Runners.Job do
     field :transcript_failed_at, :utc_datetime
     field :transcript_deleted_at, :utc_datetime
     belongs_to :transcript_page, Slipdock.Wiki.Page
+    # What its log says it spent (#1954, `Slipdock.Runners.JobCost`): model
+    # and tool seconds, and tokens (input, output, cache_read, cache_write)
+    # when the log's lines carried `usage`, else nil. `cost_lines` is how
+    # many lines were counted, so the cost outlives a deleted log.
+    field :model_seconds, :integer
+    field :tool_seconds, :integer
+    field :tokens, :map
+    field :cost_lines, :integer, default: 0
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :root_board, Slipdock.Boards.Board

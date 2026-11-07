@@ -154,6 +154,9 @@ defmodule SlipdockWeb.LedgerLive.Index do
         <span :if={phases_text(@item.lead_time)} data-role="lead-time">
           {duration(@item.lead_time.seconds)}: {phases_text(@item.lead_time)}
         </span>
+        <span :if={cost = Slipdock.Runners.JobCost.text(@item.lead_time[:cost])} data-role="cost">
+          spent {cost}
+        </span>
       </div>
       <p :if={@item.evidence} class="text-sm" data-role="evidence">{@item.evidence}</p>
       <p :if={@item.should_broken != []} class="text-xs text-warning" data-role="should">

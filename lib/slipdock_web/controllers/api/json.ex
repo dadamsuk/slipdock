@@ -70,6 +70,48 @@ defmodule SlipdockWeb.API.JSON do
     end)
   end
 
+  @doc """
+  A card's lead time with what its jobs spent beside it (#1954), for a card
+  read on its own: `lead_time` (`Slipdock.LeadTime.brief/2`) with `seconds`,
+  `ends`, `phases`, `cost` (`total` and `phases`, each with
+  `model_seconds`, `tool_seconds`, `jobs` and `tokens` only when known; nil
+  when no job sent a log) and, on an epic, `rollup` (its subcards added
+  in). Only on a card a runner job was sent on, or an epic
+  (`Slipdock.LeadTime.worked_brief/2`), so any other card answers as it
+  always did.
+  """
+  def put_lead_time(map, card) do
+    case Slipdock.LeadTime.worked_brief(card) do
+      nil -> map
+      lt -> Map.put(map, :lead_time, lead_time(lt))
+    end
+  end
+
+  defp lead_time(lt) do
+    %{
+      seconds: lt.seconds,
+      ends: lt.ends,
+      phases: lt.phases,
+      cost: lead_cost(lt.cost),
+      rollup:
+        lt.rollup &&
+          %{
+            subcards: lt.rollup.subcards,
+            seconds: lt.rollup.seconds,
+            cost: lead_cost(lt.rollup.cost)
+          }
+    }
+  end
+
+  defp lead_cost(nil), do: nil
+
+  defp lead_cost(%{total: total, phases: phases}) do
+    %{
+      total: Slipdock.Runners.JobCost.json(total),
+      phases: Map.new(phases, fn {phase, c} -> {phase, Slipdock.Runners.JobCost.json(c)} end)
+    }
+  end
+
   @doc "A deploy from the ledger (#1134), its commits included."
   def deployment(%Slipdock.Deployments.Deployment{} = d) do
     %{

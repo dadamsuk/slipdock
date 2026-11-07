@@ -13,7 +13,12 @@ defmodule Slipdock.Runners.TranscriptSummary do
       when none was, to the model (`model_seconds`);
     * `longest` — the longest tool calls, each with its line, so the chat
       can fetch that stretch of the log in full;
-    * `failed` — the calls that failed, with the first of what they said.
+    * `failed` — the calls that failed, with the first of what they said;
+    * `tokens` — the token usage its lines carried (#1954): `input`,
+      `output`, `cache_read` and `cache_write`, summed once per assistant
+      message (Claude Code repeats a message's `usage` on each of its
+      content lines, so the last line of each message counts), or nil when
+      no line carried any. Nothing is guessed for a log without it.
 
   A tool call's kind comes from what it was: a shell command by what it
   runs (`tests`, `checks` for compile, format and lint, `ci` for watching a
@@ -37,7 +42,15 @@ defmodule Slipdock.Runners.TranscriptSummary do
           tools: %{atom() => %{seconds: non_neg_integer(), calls: non_neg_integer()}},
           messages: [map()],
           longest: [map()],
-          failed: [map()]
+          failed: [map()],
+          tokens: tokens() | nil
+        }
+
+  @type tokens :: %{
+          input: non_neg_integer(),
+          output: non_neg_integer(),
+          cache_read: non_neg_integer(),
+          cache_write: non_neg_integer()
         }
 
   @doc "The kinds a tool call is put under, in the order they are shown."
@@ -51,8 +64,8 @@ defmodule Slipdock.Runners.TranscriptSummary do
   def summarise(text, opts \\ []) when is_binary(text) do
     lines = parse(text)
     calls = calls(lines)
-    stamps = lines |> Enum.map(& &1.at) |> Enum.reject(&is_nil/1)
     {model_ms, by_call} = split_time(lines, calls)
+    time = time(lines, model_ms)
 
     tools =
       Map.new(@kinds, fn kind ->
@@ -61,20 +74,10 @@ defmodule Slipdock.Runners.TranscriptSummary do
         {kind, %{calls: length(mine), seconds: round(ms / 1000)}}
       end)
 
-    from = List.first(stamps)
-    to = List.last(stamps)
-    seconds = if from && to, do: round(DateTime.diff(to, from, :millisecond) / 1000), else: 0
-    model = min(round(model_ms / 1000), seconds)
-
-    %{
+    Map.merge(time, %{
       lines: length(lines),
-      from: from,
-      to: to,
-      seconds: seconds,
-      # The two parts make up the whole: rounding goes to the tools.
-      model_seconds: model,
-      tool_seconds: seconds - model,
       tools: tools,
+      tokens: tokens(lines),
       messages: messages(text),
       longest:
         calls
@@ -82,7 +85,44 @@ defmodule Slipdock.Runners.TranscriptSummary do
         |> Enum.sort_by(&(-&1.seconds))
         |> Enum.take(Keyword.get(opts, :longest, 5)),
       failed: Enum.filter(calls, & &1.error)
+    })
+  end
+
+  @doc """
+  What `text` says it spent (#1954), without the rest of the summary:
+  `lines`, `model_seconds`, `tool_seconds` (as in `summarise/2`) and
+  `tokens` (nil when no line carried `usage`).
+  """
+  @spec cost(String.t()) :: %{
+          lines: non_neg_integer(),
+          model_seconds: non_neg_integer(),
+          tool_seconds: non_neg_integer(),
+          tokens: tokens() | nil
+        }
+  def cost(text) when is_binary(text) do
+    lines = parse(text)
+    {model_ms, _by_call} = split_time(lines, calls(lines))
+    time = time(lines, model_ms)
+
+    %{
+      lines: length(lines),
+      model_seconds: time.model_seconds,
+      tool_seconds: time.tool_seconds,
+      tokens: tokens(lines)
     }
+  end
+
+  # From the first timestamped line to the last, split between the model
+  # and the tools. The two parts make up the whole: rounding goes to the
+  # tools.
+  defp time(lines, model_ms) do
+    stamps = lines |> Enum.map(& &1.at) |> Enum.reject(&is_nil/1)
+    from = List.first(stamps)
+    to = List.last(stamps)
+    seconds = if from && to, do: round(DateTime.diff(to, from, :millisecond) / 1000), else: 0
+    model = min(round(model_ms / 1000), seconds)
+
+    %{from: from, to: to, seconds: seconds, model_seconds: model, tool_seconds: seconds - model}
   end
 
   ## The lines -------------------------------------------------------------------
@@ -96,8 +136,11 @@ defmodule Slipdock.Runners.TranscriptSummary do
     |> Enum.with_index()
     |> Enum.flat_map(fn {raw, n} ->
       case Jason.decode(raw) do
-        {:ok, %{} = line} -> [%{n: n, at: at(line), uses: uses(line), results: results(line)}]
-        _ -> []
+        {:ok, %{} = line} ->
+          [%{n: n, at: at(line), uses: uses(line), results: results(line), usage: usage(line, n)}]
+
+        _ ->
+          []
       end
     end)
   end
@@ -110,6 +153,39 @@ defmodule Slipdock.Runners.TranscriptSummary do
   end
 
   defp at(_), do: nil
+
+  # The usage an assistant line carries, keyed by its message (or, with no
+  # message id, by the line).
+  defp usage(%{"type" => "assistant", "message" => %{"usage" => %{} = u} = message}, n) do
+    counts = %{
+      input: count(u["input_tokens"]),
+      output: count(u["output_tokens"]),
+      cache_read: count(u["cache_read_input_tokens"]),
+      cache_write: count(u["cache_creation_input_tokens"])
+    }
+
+    if Enum.any?(Map.values(counts), &(&1 > 0)), do: {message["id"] || {:line, n}, counts}
+  end
+
+  defp usage(_line, _n), do: nil
+
+  defp count(n) when is_integer(n) and n > 0, do: n
+  defp count(_), do: 0
+
+  # The last usage of each message, summed; nil when no line had any.
+  defp tokens(lines) do
+    by_message = for %{usage: {id, counts}} <- lines, into: %{}, do: {id, counts}
+
+    if by_message == %{} do
+      nil
+    else
+      Enum.reduce(
+        Map.values(by_message),
+        %{input: 0, output: 0, cache_read: 0, cache_write: 0},
+        &Map.merge(&2, &1, fn _k, a, b -> a + b end)
+      )
+    end
+  end
 
   defp uses(%{"type" => "assistant", "message" => %{"content" => content}})
        when is_list(content) do

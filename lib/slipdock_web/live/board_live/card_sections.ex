@@ -10,7 +10,8 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.BoardLive.Helpers
 
-  alias Slipdock.Palette
+  alias Slipdock.{LeadTime, Palette, Pulse}
+  alias Slipdock.Runners.JobCost
   alias Slipdock.Boards.{Board, Card, CardLink}
 
   attr :board, :any, required: true
@@ -748,6 +749,64 @@ defmodule SlipdockWeb.BoardLive.CardSections do
     </section>
     """
   end
+
+  attr :lead_time, :map, required: true, doc: "`Slipdock.LeadTime.brief/2`"
+
+  @doc """
+  Its lead time and what its jobs spent beside it (#1954): how long, how it
+  ended, its longest phases, then the model's and the tools' time and the
+  tokens (left out, never 0, when the logs carried none), in total and by
+  phase. An epic adds its subcards rolled up.
+  """
+  def lead_time_line(assigns) do
+    lt = assigns.lead_time
+
+    assigns =
+      assign(assigns,
+        top:
+          lt.phases
+          |> Enum.sort_by(&elem(&1, 1), :desc)
+          |> Enum.take(3)
+          |> Enum.map_join(" · ", fn {p, s} -> "#{phase_label(p)} #{Pulse.duration(s)}" end),
+        by_phase: cost_phases(lt.cost),
+        rollup: rollup_text(lt.rollup)
+      )
+
+    ~H"""
+    <section class="space-y-1 px-1 text-xs" id="card-lead-time">
+      <h3 class="flex items-center gap-1.5 section-label">
+        <.icon name="hero-clock" class="size-3.5" /> Lead time
+        <span class="font-normal normal-case tracking-normal text-base-content/60">
+          {Pulse.duration(@lead_time.seconds)} ({@lead_time.ends})
+        </span>
+      </h3>
+      <p :if={@top != ""} class="text-base-content/70" data-role="phases">{@top}</p>
+      <p :if={@lead_time.cost} data-role="cost">
+        Spent: {JobCost.text(@lead_time.cost.total)}
+      </p>
+      <ul :if={length(@by_phase) > 1} class="text-base-content/60" data-role="cost-phases">
+        <li :for={{phase, cost} <- @by_phase}>{phase_label(phase)}: {JobCost.text(cost)}</li>
+      </ul>
+      <p :if={@rollup} class="text-base-content/70" data-role="rollup">{@rollup}</p>
+    </section>
+    """
+  end
+
+  defp cost_phases(nil), do: []
+
+  defp cost_phases(cost),
+    do: Enum.sort_by(cost.phases, fn {p, _} -> Enum.find_index(LeadTime.phases(), &(&1 == p)) end)
+
+  # An epic's subcards, rolled up: their lead times added, and what was
+  # spent on them and on the epic's own jobs.
+  defp rollup_text(nil), do: nil
+
+  defp rollup_text(r) do
+    spent = if r.cost, do: "; spent with the epic's own jobs: #{JobCost.text(r.cost.total)}"
+    "Its #{r.subcards} subcards: #{Pulse.duration(r.seconds)} added up#{spent}"
+  end
+
+  defp phase_label(phase), do: phase |> to_string() |> String.replace("_", " ")
 
   defp job_badge("done"), do: "badge-success"
   defp job_badge(status) when status in ~w(failed timeout), do: "badge-error"

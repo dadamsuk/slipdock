@@ -85,6 +85,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        card_jobs: [],
        card_findings: 0,
        card_timeline: nil,
+       card_lead_time: nil,
        doc_query: "",
        doc_results: [],
        doc_pool: nil,
@@ -279,15 +280,18 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   # The jobs rules have sent this card to runners, newest first.
-  defp assign_jobs(%{assigns: %{card: %Card{} = card}} = socket),
-    do:
-      assign(socket,
-        card_jobs: Runners.list_card_jobs(card.id, 5),
-        # How many open findings it has (W-2310 §Findings, #1940).
-        card_findings: Slipdock.Findings.open_count(card),
-        # The lists, waits and jobs it has been through, on one axis (#1131).
-        card_timeline: Slipdock.CardTimeline.for_card(card)
-      )
+  defp assign_jobs(%{assigns: %{card: %Card{} = card}} = socket) do
+    assign(socket,
+      card_jobs: Runners.list_card_jobs(card.id, 5),
+      # Its lead time and what its jobs spent (#1954), on a card a runner
+      # has worked or an epic.
+      card_lead_time: Slipdock.LeadTime.worked_brief(card),
+      # How many open findings it has (W-2310 §Findings, #1940).
+      card_findings: Slipdock.Findings.open_count(card),
+      # The lists, waits and jobs it has been through, on one axis (#1131).
+      card_timeline: Slipdock.CardTimeline.for_card(card)
+    )
+  end
 
   defp assign_jobs(socket), do: socket
 
@@ -1328,6 +1332,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         jobs={@card_jobs}
         findings={@card_findings}
         timeline={@card_timeline}
+        lead_time={@card_lead_time}
         doc_query={@doc_query}
         doc_results={@doc_results}
         groups={@groups}
@@ -1473,6 +1478,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :jobs, :list, default: [], doc: "the card's latest runner jobs"
   attr :findings, :integer, default: 0, doc: "how many open findings the card has"
   attr :timeline, :any, default: nil, doc: "the card's timeline (#1131)"
+  attr :lead_time, :any, default: nil, doc: "its lead time and cost (#1954)"
   attr :doc_query, :string, default: "", doc: "what is typed into the Docs picker"
   attr :doc_results, :list, default: [], doc: "pages the Docs picker is offering"
   attr :groups, :list, required: true
@@ -1794,6 +1800,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 target={@target}
                 user={@current_user}
               />
+
+              <.lead_time_line :if={@lead_time} lead_time={@lead_time} />
 
               <.links_section
                 board={@board}

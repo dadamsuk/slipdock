@@ -24,7 +24,14 @@ defmodule Slipdock.LeadTime do
     10. `:backlog` — any other list that isn't doing, done or dropped
 
   Time nothing covers is `:unexplained`, a phase of its own rather than
-  spread over the others. The numbers are worked out here so the card chat
+  spread over the others.
+
+  Beside the time, `cost` (#1954): what the card's jobs spent, from their
+  logs (`Slipdock.Runners.JobCost`), in total and by phase. A job's cost
+  goes to the phase its run is in: `:build`, `:rework`, `:verify` (audits
+  too) or `:merge`, so CI watched inside a build job counts as building.
+  Each is `model_seconds`, `tool_seconds`, `tokens` (nil when no log
+  carried usage) and `jobs`; `cost` is nil when no job sent a log. The numbers are worked out here so the card chat
   quotes them rather than doing sums (`card_lead_time`).
   """
 
@@ -33,7 +40,7 @@ defmodule Slipdock.LeadTime do
   alias Slipdock.{Boards, CardTimeline, Repo, Verified}
   alias Slipdock.Boards.{Board, Card, Column, Comment}
   alias Slipdock.Deployments.Deployment
-  alias Slipdock.Runners.Job
+  alias Slipdock.Runners.{Job, JobCost}
   alias SlipdockWeb.APIGuide
 
   @phases [
@@ -76,8 +83,8 @@ defmodule Slipdock.LeadTime do
   Returns a map: `from`, `to`, `ends` (`:deployed`, `:completed` or
   `:open`), `done_at`, `deployed_at`, `seconds`, `done_seconds` (to `done_at`), `totals` (phase =>
   seconds, every phase present), `segments` (in order: `phase`, `from`,
-  `to`, `seconds`, `note`, `refs`, and on waiting segments `held_by`) and
-  `jobs` (how many were sent on it).
+  `to`, `seconds`, `note`, `refs`, and on waiting segments `held_by`),
+  `jobs` (how many were sent on it) and `cost` (see above).
   """
   def for_card(%Card{} = card, opts \\ []) do
     now = opts |> Keyword.get(:now, DateTime.utc_now()) |> sec()
@@ -85,13 +92,14 @@ defmodule Slipdock.LeadTime do
     jobs = jobs(card)
     parent_jobs = card |> ancestor_ids() |> work_jobs_on()
     comments = comments(card)
+    rejected_at = rejected_at(comments)
     done_at = done_at(card, jobs)
     deployed_at = deployed_at(card, done_at)
     from = sec(card.inserted_at)
     to = deployed_at || done_at || now
 
     intervals =
-      job_intervals(jobs, rejected_at(comments), now) ++
+      job_intervals(jobs, rejected_at, now) ++
         ci_intervals(comments, jobs, to) ++
         wait_intervals(timeline.waits) ++
         stay_intervals(timeline.stays, jobs, parent_jobs) ++
@@ -113,14 +121,17 @@ defmodule Slipdock.LeadTime do
       done_seconds: done_at && max(DateTime.diff(done_at, from), 0),
       totals: totals(segments),
       segments: segments,
-      jobs: length(jobs)
+      jobs: length(jobs),
+      cost: cost(jobs, rejected_at)
     }
   end
 
   @doc """
   An epic's lead time: its own (`card`), each subcard's (`subcards`, in
   board order) and the subcards' phases added up (`total`, with `seconds`
-  and `totals`). A card with no subcards has `subcards: []`.
+  and `totals`). A card with no subcards has `subcards: []`. The total's
+  `cost` adds the epic's own jobs (which often build its subcards) to its
+  subcards' costs.
   """
   def for_epic(%Card{} = card, opts \\ []) do
     own = for_card(card, opts)
@@ -131,10 +142,89 @@ defmodule Slipdock.LeadTime do
       totals:
         Enum.reduce(subs, Map.new(@phases, &{&1, 0}), fn {_card, lt}, acc ->
           Map.merge(acc, lt.totals, fn _k, a, b -> a + b end)
-        end)
+        end),
+      cost: sum_costs([own.cost | Enum.map(subs, &elem(&1, 1).cost)])
     }
 
     %{card: own, subcards: subs, total: total}
+  end
+
+  @doc """
+  The short form every door shows beside a card (#1954): `seconds`, `ends`,
+  `phases` (the phases with any time, phase => seconds) and `cost` (as in
+  `for_card/2`, nil when no job sent a log). On an epic, `rollup` adds its
+  subcards: how many (`subcards`), their lead times added up (`seconds`)
+  and the cost of the epic's own jobs and theirs together (`cost`); nil on
+  a card with no subcards.
+  """
+  def brief(%Card{} = card, opts \\ []) do
+    %{card: own, subcards: subs, total: total} = for_epic(card, opts)
+
+    %{
+      seconds: own.seconds,
+      ends: own.ends,
+      phases: for({phase, s} <- own.totals, s > 0, into: %{}, do: {phase, s}),
+      cost: own.cost,
+      rollup:
+        if(subs != [], do: %{subcards: length(subs), seconds: total.seconds, cost: total.cost})
+    }
+  end
+
+  @doc """
+  `brief/2` for a card a runner has worked (a job was sent on it) or an
+  epic (it has subcards); nil for any other card, which has no cost to
+  show (the card panel's lead-time line, #1954).
+  """
+  def worked_brief(%Card{id: id} = card, opts \\ []) do
+    worked? =
+      Repo.exists?(from j in Job, where: j.card_id == ^id) or
+        Repo.exists?(from b in Board, where: b.parent_card_id == ^id)
+
+    if worked?, do: brief(card, opts)
+  end
+
+  ## Cost ------------------------------------------------------------------------
+
+  # What the jobs spent, in total and by the phase of each one's run.
+  defp cost(jobs, rejected_at) do
+    by_job = for job <- jobs, c = JobCost.of(job), do: {cost_phase(job, rejected_at), c}
+
+    phases =
+      by_job
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+      |> Map.new(fn {phase, costs} -> {phase, JobCost.sum(costs)} end)
+
+    case JobCost.sum(Enum.map(by_job, &elem(&1, 1))) do
+      nil -> nil
+      total -> %{total: total, phases: phases}
+    end
+  end
+
+  defp cost_phase(%Job{kind: "verify"}, _rejected_at), do: :verify
+
+  defp cost_phase(%Job{} = job, rejected_at) do
+    cond do
+      job.kind == Verified.merge_kind() -> :merge
+      job.claimed_at && rework?(job.claimed_at, rejected_at) -> :rework
+      true -> :build
+    end
+  end
+
+  # Several cards' costs as one: totals added, phases added phase by phase.
+  defp sum_costs(costs) do
+    case Enum.reject(costs, &is_nil/1) do
+      [] ->
+        nil
+
+      known ->
+        phases =
+          known
+          |> Enum.flat_map(&Map.to_list(&1.phases))
+          |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+          |> Map.new(fn {phase, cs} -> {phase, JobCost.sum(cs)} end)
+
+        %{total: JobCost.sum(Enum.map(known, & &1.total)), phases: phases}
+    end
   end
 
   ## What the record holds ------------------------------------------------------
