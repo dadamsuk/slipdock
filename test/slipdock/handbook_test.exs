@@ -333,6 +333,74 @@ defmodule Slipdock.HandbookTest do
     end
   end
 
+  describe "pages_for/2 and pages_for_each/2 (#1977)" do
+    setup %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      pages = Handbook.find(board).pages
+      data = Enum.find(pages, &(&1.title == "Data model"))
+      ux = Enum.find(pages, &(&1.title == "UX & UI"))
+
+      {:ok, data} =
+        Wiki.update_page(data, %{
+          "front_matter" =>
+            "---\nhandbook: data-model\ncovers: [priv/repo/**, lib/app/*.ex]\n---\n"
+        })
+
+      {:ok, ux} =
+        Wiki.update_page(ux, %{
+          "front_matter" => "---\nhandbook: ux\ncovers: [lib/app_web/**, lib/app/*.ex]\n---\n"
+        })
+
+      %{handbook: Handbook.find(board), data: data, ux: ux}
+    end
+
+    test "the pages covering most of the paths come first, each with its count", ctx do
+      %{handbook: handbook, data: data, ux: ux} = ctx
+
+      assert [%{code: d, title: "Data model", paths: 2}, %{code: u, title: "UX & UI", paths: 1}] =
+               Handbook.pages_for(handbook, [
+                 "priv/repo/migrations/1.exs",
+                 "lib/app/user.ex",
+                 " ",
+                 "lib/app/user.ex"
+               ])
+
+      assert {d, u} == {data.code, ux.code}
+
+      # A tie goes in the handbook's order; nothing covered is no page.
+      assert [%{title: first}, %{title: second}] = Handbook.pages_for(handbook, ["lib/app/a.ex"])
+
+      order = Enum.map(handbook.pages, & &1.title)
+
+      assert Enum.find_index(order, &(&1 == first)) <
+               Enum.find_index(order, &(&1 == second))
+
+      assert Handbook.pages_for(handbook, ["somewhere/else.txt"]) == []
+      assert Handbook.pages_for(handbook, []) == []
+      assert Handbook.pages_for(handbook, nil) == []
+      assert Handbook.pages_for(nil, ["lib/app/a.ex"]) == []
+    end
+
+    test "each list gets what pages_for/2 gives it, in order", %{handbook: handbook} do
+      lists = [
+        ["lib/app_web/live/x.ex"],
+        [],
+        ["priv/repo/a.exs", "lib/app_web/y.ex", "priv/repo/b.exs"],
+        nil,
+        ["lib/app_web/live/x.ex", "nowhere.md"]
+      ]
+
+      assert Handbook.pages_for_each(handbook, lists) ==
+               Enum.map(lists, &Handbook.pages_for(handbook, &1))
+
+      assert [[%{title: "UX & UI", paths: 1}], [], [%{title: "Data model", paths: 2} | _], [], _] =
+               Handbook.pages_for_each(handbook, lists)
+
+      assert Handbook.pages_for_each(handbook, []) == []
+      assert Handbook.pages_for_each(nil, [["a"], []]) == [[], []]
+    end
+  end
+
   describe "the Triage findings card (#1789)" do
     defp card_titled(board, title),
       do: Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: title)

@@ -308,8 +308,18 @@ defmodule Slipdock.Lanes do
   end
 
   # Two segments overlap when some name matches both. A `**` inside a
-  # segment is a `*`; a `[...]` class is any one character.
-  defp segment_overlap?(a, b), do: intersect?(chars(a), chars(b), "*", &char_overlap?/2)
+  # segment is a `*`; a `[...]` class is any one character. Equal segments,
+  # and two with no wildcard in them, are decided without the character
+  # table (#1977: most pairs are plain names).
+  defp segment_overlap?(same, same), do: true
+
+  defp segment_overlap?(a, b) do
+    if wild?(a) or wild?(b),
+      do: intersect?(chars(a), chars(b), "*", &char_overlap?/2),
+      else: false
+  end
+
+  defp wild?(segment), do: String.contains?(segment, ["*", "?", "["])
 
   defp chars(segment) do
     segment
@@ -341,7 +351,8 @@ defmodule Slipdock.Lanes do
               x == star -> dp[{i + 1, j}] or (j < m and dp[{i, j + 1}])
               y == star -> dp[{i, j + 1}] or (i < n and dp[{i + 1, j}])
               i == n or j == m -> false
-              true -> compat?.(x, y) and dp[{i + 1, j + 1}]
+              # The cell first: comparing two elements costs more (#1977).
+              true -> dp[{i + 1, j + 1}] and compat?.(x, y)
             end
 
           Map.put(dp, {i, j}, value)
