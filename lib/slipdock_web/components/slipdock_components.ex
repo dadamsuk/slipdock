@@ -587,22 +587,51 @@ defmodule SlipdockWeb.SlipdockComponents do
   `datetime` and the exact time in `title` (#1719): "5 min ago" that says
   "4 Nov 2026, 11:43 UTC" on hover. `format` picks another
   `SlipdockWeb.Dates` style for the text.
+
+  A relative moment (not a bare date) carries `data-relative` (`past` or
+  `future`, against the server's clock) and `data-zone`, the timezone it was
+  written in, so `assets/js/relative_time.js` keeps its words up to date in
+  the browser without a re-render (#2025).
   """
   def timestamp(assigns) do
-    opts = if assigns.zone, do: [zone: assigns.zone], else: []
+    zone = assigns.zone || Dates.zone()
+    opts = [zone: zone]
     at = assigns.at
 
     assigns =
       assign(assigns,
         text: at && apply(Dates, assigns.format, [at, opts]),
         title: at && Dates.exact(at, opts),
-        iso: at && iso8601(at)
+        iso: at && iso8601(at),
+        relative: relative_mark(at, assigns.format),
+        tick_zone: zone
       )
 
     ~H"""
-    <time :if={@at} id={@id} class={@class} datetime={@iso} title={@title} data-role="timestamp">{@text}</time>
+    <time
+      :if={@at}
+      id={@id}
+      class={@class}
+      datetime={@iso}
+      title={@title}
+      data-role="timestamp"
+      data-relative={@relative}
+      data-zone={@relative && @tick_zone}
+    >{@text}</time>
     """
   end
+
+  # Which side of the server's clock a ticking moment is on; nil for one that
+  # doesn't tick (another format, or a bare date, which has no time to count).
+  defp relative_mark(%Date{}, _format), do: nil
+  defp relative_mark(nil, _format), do: nil
+
+  defp relative_mark(at, :relative) do
+    at = if is_struct(at, NaiveDateTime), do: DateTime.from_naive!(at, "Etc/UTC"), else: at
+    if DateTime.compare(at, DateTime.utc_now()) == :gt, do: "future", else: "past"
+  end
+
+  defp relative_mark(_at, _format), do: nil
 
   defp iso8601(%DateTime{} = at), do: DateTime.to_iso8601(at)
   defp iso8601(%NaiveDateTime{} = at), do: NaiveDateTime.to_iso8601(at) <> "Z"

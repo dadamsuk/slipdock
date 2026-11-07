@@ -2062,9 +2062,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           {@step.body}
         </span>
         <span aria-hidden="true">·</span>
-        <span title={DateTime.to_iso8601(@step.inserted_at)}>
-          {relative_time(@step.inserted_at)}
-        </span>
+        <.timestamp at={@step.inserted_at} id="glance-step-at" zone={@zone} />
         <span aria-hidden="true">·</span>
         <span id="glance-step-by">{step_by(@step, @users)}</span>
       </p>

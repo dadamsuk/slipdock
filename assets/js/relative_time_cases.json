@@ -1,0 +1,31 @@
+{
+  "about": "SlipdockWeb.Dates.relative/2 and relative_time.js's relativeText/3 are both held to these cases (#2025): relative_time.test.js and test/slipdock_web/components/relative_time_parity_test.exs",
+  "cases": [
+    {"at": "2026-11-18T11:59:30Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "just now"},
+    {"at": "2026-11-18T11:59:01Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "just now"},
+    {"at": "2026-11-18T11:59:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "1 min ago"},
+    {"at": "2026-11-18T11:42:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "18 min ago"},
+    {"at": "2026-11-18T11:00:01Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "59 min ago"},
+    {"at": "2026-11-18T11:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "1 h ago"},
+    {"at": "2026-11-18T08:30:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "3 h ago"},
+    {"at": "2026-11-18T00:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "12 h ago"},
+    {"at": "2026-11-17T23:50:00Z", "now": "2026-11-18T00:10:00Z", "zone": "Etc/UTC", "says": "yesterday"},
+    {"at": "2026-11-17T23:50:00Z", "now": "2026-11-18T00:10:00Z", "zone": "Pacific/Auckland", "says": "20 min ago"},
+    {"at": "2026-11-18T03:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "America/New_York", "says": "yesterday"},
+    {"at": "2026-11-18T03:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "9 h ago"},
+    {"at": "2026-11-16T12:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "2 days ago"},
+    {"at": "2026-11-12T12:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "6 days ago"},
+    {"at": "2026-11-11T12:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "11 Nov"},
+    {"at": "2026-01-02T12:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "2 Jan"},
+    {"at": "2025-11-11T12:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "11 Nov 2025"},
+    {"at": "2025-12-31T23:30:00Z", "now": "2026-01-01T00:10:00Z", "zone": "Etc/UTC", "says": "yesterday"},
+    {"at": "2026-11-18T12:00:00.500Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "in 1 min"},
+    {"at": "2026-11-18T12:00:30Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "in 1 min"},
+    {"at": "2026-11-18T12:05:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "in 5 min"},
+    {"at": "2026-11-18T15:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "in 3 h"},
+    {"at": "2026-11-19T12:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "tomorrow"},
+    {"at": "2026-11-21T12:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "in 3 days"},
+    {"at": "2026-11-26T12:00:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Etc/UTC", "says": "26 Nov"},
+    {"at": "2026-11-18T11:42:00Z", "now": "2026-11-18T12:00:00Z", "zone": "Nowhere/Land", "says": "18 min ago"}
+  ]
+}

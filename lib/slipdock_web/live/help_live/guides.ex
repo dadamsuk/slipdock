@@ -301,7 +301,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
           beside the health the board works out for itself. On a card agents work, the board
           posts each step itself (Writing code, Verifying, Merged, Shipped to production…),
           quietly, at the top of the card; a finished card shows there how it ended (done when,
-          accepted by whom, what merged and shipped) instead of a next step.
+          accepted by whom, what merged and shipped) instead of a next step. How long ago each
+          one was ("18 min ago") keeps up with the clock while the card is open.
         </li>
         <li>
           <strong>Custom fields</strong>
