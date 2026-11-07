@@ -6,6 +6,7 @@ defmodule SlipdockWeb.API.GuideController do
 
   No token is needed to read it (there is nothing private in the prose), but a
   token earns the reader a closing section listing their own boards and lists.
+  `?section=short|all|<key>` serves one cut of it (`APIGuide.section/2`).
   """
   use SlipdockWeb, :controller
 
@@ -18,13 +19,44 @@ defmodule SlipdockWeb.API.GuideController do
       token: conn.assigns[:api_token]
     ]
 
+    case params["section"] do
+      key when key in [nil, "", "all"] -> whole(conn, params, opts)
+      key -> section(conn, params, opts, String.downcase(key))
+    end
+  end
+
+  # No `section` (or `all`): the whole guide, exactly as it has always been
+  # served, since the plain URL is quoted in prompts and docs.
+  defp whole(conn, params, opts) do
     if json?(conn, params) do
       json(conn, APIGuide.json(opts))
     else
-      conn
-      |> put_resp_content_type("text/markdown")
-      |> send_resp(200, APIGuide.markdown(opts))
+      markdown(conn, 200, APIGuide.markdown(opts))
     end
+  end
+
+  # `?section=short` or a key: the text `APIGuide.section/2` gives, the same
+  # cut `get_guide` serves. An unknown key is a 404 whose message lists them.
+  defp section(conn, params, opts, key) do
+    case {APIGuide.section(key, opts), json?(conn, params)} do
+      {{:ok, text}, true} ->
+        json(conn, opts |> APIGuide.json() |> Map.merge(%{section: key, guide: text}))
+
+      {{:ok, text}, false} ->
+        markdown(conn, 200, text)
+
+      {{:error, message}, true} ->
+        conn |> put_status(404) |> json(%{error: "unknown_section", message: message})
+
+      {{:error, message}, false} ->
+        markdown(conn, 404, message <> "\n")
+    end
+  end
+
+  defp markdown(conn, status, text) do
+    conn
+    |> put_resp_content_type("text/markdown")
+    |> send_resp(status, text)
   end
 
   # Markdown by default — `curl` and agents read it as it is. `?format=json`,

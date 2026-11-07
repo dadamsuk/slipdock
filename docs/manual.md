@@ -6342,7 +6342,11 @@ working (claim, comment, flag, complete). The vocabularies and the endpoint
 list in it are generated from the code at request time, and a token earns a
 closing section naming your boards and what each of their lists means.
 `?format=json` returns the same text plus those parts as data, and
-`slipdock guide` prints it. Point an agent at it before letting it near a board. Permissions match the UI:
+`slipdock guide` prints it. The whole of it is long (tens of thousands of
+words), so `?section=short` gives the part needed to work a board, ending with
+the names of the other sections, and `?section=<name>` one of them, the same
+cuts the MCP `get_guide` tool serves; `?section=all`, like the plain URL, is
+the whole guide, and an unknown name is a `404` listing the names there are. Point an agent at it before letting it near a board. Permissions match the UI:
 reading needs read access, changing needs edit access, and renaming or
 deleting a board needs its owner. Boards and columns can be referenced by id
 or name, and a board by its code as well — `/api/boards/qvm-v1-rem`.
