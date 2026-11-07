@@ -404,13 +404,6 @@ defmodule SlipdockCLI.Boards do
     HTTP.patch("/cards/#{enc(id)}", body) |> out(o, &card_ok("updated", &1))
   end
 
-  # `--no-caused-by` and `--no-missed-by` (#1946): a null clears each.
-  defp incident_clears(body, o) do
-    Enum.reduce([no_caused_by: "caused_by", no_missed_by: "missed_by"], body, fn {flag, key}, b ->
-      if o[flag], do: Map.put(b, key, nil), else: b
-    end)
-  end
-
   def run("set", [id | pairs], o) when pairs != [] do
     fields =
       Map.new(pairs, fn pair ->
@@ -1999,6 +1992,13 @@ defmodule SlipdockCLI.Boards do
 
   # The verdict in parts (#1778): each `--check`, then `--checks-file`'s
   # lines, or its JSON map of parts as it is. nil when none are given.
+  # `--no-caused-by` and `--no-missed-by` (#1946): a null clears each.
+  defp incident_clears(body, o) do
+    Enum.reduce([no_caused_by: "caused_by", no_missed_by: "missed_by"], body, fn {flag, key}, b ->
+      if o[flag], do: Map.put(b, key, nil), else: b
+    end)
+  end
+
   defp verify_checks(o) do
     given = Keyword.get_values(o, :check)
 
