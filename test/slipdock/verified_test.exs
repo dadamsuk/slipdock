@@ -195,9 +195,75 @@ defmodule Slipdock.VerifiedTest do
 
       assert {:error, _} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
     end
+
+    test "an agent's own raise, then a move back out of the doing list, still holds it", ctx do
+      refute ctx.board.bar_required
+
+      card =
+        card_fixture(ctx.todo, %{"title" => "Migrate", "paths" => ["priv/repo/migrations/x.exs"]})
+
+      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.agent)
+      card = Repo.get!(Card, card.id)
+      assert {card.profile, card.profile_source} == {"schema", "inferred"}
+
+      {:ok, card} = Boards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
+      assert card.profile_source == "agent"
+
+      :ok = Boards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
+      card = Repo.get!(Card, card.id)
+      assert card.column_id == ctx.todo.id
+
+      message =
+        refused_message(Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent))
+
+      assert message =~ "##{card.id}"
+      assert message =~ "security to docs"
+      assert {:error, _} = Boards.update_card(card, %{"profile" => ""}, actor: ctx.agent)
+      assert profile(card) == "security"
+    end
+
+    test "a person's start with nothing stored stays held after an agent moves it back", ctx do
+      card =
+        card_fixture(ctx.todo, %{"title" => "Migrate", "paths" => ["priv/repo/migrations/x.exs"]})
+
+      :ok = Boards.move_card(card.id, ctx.doing.id, nil, actor: ctx.person)
+      :ok = Boards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
+      card = Repo.get!(Card, card.id)
+      assert {card.profile, card.column_id} == {nil, ctx.todo.id}
+
+      message =
+        refused_message(Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent))
+
+      assert message =~ "schema to docs"
+      assert profile(card) == nil
+
+      {:ok, card} = Boards.update_card(card, %{"profile" => "security"}, actor: ctx.agent)
+      assert card.profile == "security"
+    end
+
+    test "a card created straight into the doing list is started", ctx do
+      card = card_fixture(ctx.doing, %{"title" => "Work", "profile" => "schema"})
+      :ok = Boards.move_card(card.id, ctx.todo.id, nil, actor: ctx.agent)
+      card = Repo.get!(Card, card.id)
+
+      assert {:error, _} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+      assert profile(card) == "schema"
+    end
   end
 
   describe "before work starts" do
+    test "a card moved between lists that aren't doing ones isn't started", ctx do
+      board = profiles_on(ctx)
+      [backlog, todo, _doing, _done] = board.columns
+      card = card_fixture(backlog, %{"title" => "Work"})
+      {:ok, card} = Boards.update_card(card, %{"profile" => "schema"}, actor: ctx.agent)
+      :ok = Boards.move_card(card.id, todo.id, nil, actor: ctx.agent)
+      card = Repo.get!(Card, card.id)
+
+      {:ok, card} = Boards.update_card(card, %{"profile" => "docs"}, actor: ctx.agent)
+      assert card.profile == "docs"
+    end
+
     setup ctx, do: %{board: profiles_on(ctx)}
 
     test "an agent may lower or clear a card's profile it set itself", ctx do

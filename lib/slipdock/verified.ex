@@ -46,7 +46,7 @@ defmodule Slipdock.Verified do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Slipdock.Boards.{Board, Card, Column}
+  alias Slipdock.Boards.{Board, Card, CardMove, Column}
   alias Slipdock.Repo
 
   @doc "Whether the checks apply to a change made by `actor`."
@@ -190,8 +190,9 @@ defmodule Slipdock.Verified do
 
   # Whether an agent's profile edits are held to raising (#2016): on a board
   # with profiles on, once a person set it or work on the card has started
-  # (in a doing list, its bar locked, inferred at an agent's start or claim,
-  # completed, or submitted for verification).
+  # (in a doing list now or ever before, its bar locked, inferred at an
+  # agent's start or claim, completed, or submitted for verification). Once
+  # started, a card stays started.
   defp profile_locked?(%Card{} = card) do
     board(card).profiles == true and
       (Enum.member?(["person", "inferred"], card.profile_source) or started?(card))
@@ -200,7 +201,20 @@ defmodule Slipdock.Verified do
   defp started?(%Card{} = card) do
     card.completed == true or not is_nil(card.bar_locked_at) or
       not is_nil(card.verify_state) or
-      doing?(Repo.get(Column, card.column_id))
+      doing?(Repo.get(Column, card.column_id)) or
+      entered_doing?(card)
+  end
+
+  # Whether the move ledger has the card entering a doing list (created in
+  # one, moved or restored into one). The ledger snapshots the list's
+  # category, so a list renamed or recategorised since still counts.
+  defp entered_doing?(%Card{id: id}) do
+    Repo.exists?(
+      from m in CardMove,
+        where:
+          m.card_id == ^id and m.to_category == "doing" and
+            m.kind in ^CardMove.entry_kinds()
+    )
   end
 
   @doc """
