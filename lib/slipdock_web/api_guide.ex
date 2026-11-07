@@ -3376,8 +3376,10 @@ defmodule SlipdockWeb.APIGuide do
     `Findings: none` is the usual answer; filler isn't.
     A line with no known kind is kept whole as a `gotcha`. The server also
     records its own (source `rejection`, `verification`, `requeue`, `timeout`, `failed`,
-    `lane`, `merge`, `audit`, `health`, `incident`), counting repeats on a card, on any
-    board, handbook or not.
+    `merge`, `audit`, `health`, `incident`), counting repeats on a card, on any
+    board, handbook or not. A lane refusal is not one (#1968): the refusal, the
+    job's log and its held reason already say so. Findings with source `lane`
+    from before then are kept.
 
     **Incidents** (#1946): a card that broke after something shipped says so
     with `caused_by` (the card whose shipping caused it, any card you can

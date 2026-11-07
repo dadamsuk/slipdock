@@ -209,6 +209,17 @@ defmodule Slipdock.FindingsSignalsTest do
       assert findings(mine) == []
       refute Repo.exists?(from f in Finding, where: f.source == "lane")
     end
+
+    test "the API guide no longer lists lane among the sources the server records" do
+      guide = SlipdockWeb.APIGuide.markdown() |> String.replace(~r/\s+/, " ")
+
+      [_, sources] = Regex.run(~r/The server also records its own \(([^)]*)\)/, guide)
+      assert sources =~ "`rejection`"
+      assert sources =~ "`health`"
+      refute sources =~ "`lane`"
+      assert guide =~ "A lane refusal is not one (#1968)"
+      assert guide =~ "Findings with source `lane` from before then are kept."
+    end
   end
 
   describe "a failed merge" do
