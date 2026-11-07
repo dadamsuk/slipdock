@@ -429,6 +429,40 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           Merged it myself
         </button>
       </div>
+      <div :if={@card.verify_state == "held"} id="card-held" class="space-y-2">
+        <p class="text-sm">
+          Its human tier is <code>before_merge</code>: a person merges it or sends it back,
+          by answering its wait or here.
+        </p>
+        <div :if={@can_write} class="space-y-2">
+          <button
+            type="button"
+            id="held-merge"
+            phx-click="verify_work"
+            phx-value-decision="accept"
+            phx-target={@target}
+            class="btn btn-success btn-sm"
+          >
+            Merge
+          </button>
+          <form
+            id="held-send-back"
+            phx-submit="verify_work"
+            phx-target={@target}
+            class="flex items-start gap-2"
+          >
+            <input type="hidden" name="decision" value="reject" />
+            <textarea
+              name="reason"
+              rows="1"
+              required
+              placeholder="Why it goes back"
+              class="textarea field min-w-0 flex-1"
+            ></textarea>
+            <button type="submit" class="btn btn-ghost btn-sm">Send back</button>
+          </form>
+        </div>
+      </div>
       <div :if={@card.verify_state == "pending" && @can_write} class="space-y-2">
         <button
           type="button"
@@ -475,11 +509,13 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
 
   defp verify_icon("pending"), do: "hero-clock"
   defp verify_icon("merging"), do: "hero-arrow-path"
+  defp verify_icon("held"), do: "hero-hand-raised"
   defp verify_icon("accepted"), do: "hero-check-badge"
   defp verify_icon(_), do: "hero-x-circle"
 
   defp verify_title("pending"), do: "Awaiting verification"
   defp verify_title("merging"), do: "Accepted, merging"
+  defp verify_title("held"), do: "Accepted, held for a person"
   defp verify_title("accepted"), do: "Accepted"
   defp verify_title(_), do: "Rejected"
 

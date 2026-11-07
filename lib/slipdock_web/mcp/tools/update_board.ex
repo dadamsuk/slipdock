@@ -4,7 +4,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   ones an agent is asked to set (#1620): its name, description, colour,
   simple mode, default view, handoff label, the Verified work switches, and
   how long runner job logs stay (#1872), and who each kind of question an
-  agent asks goes to (`wait_routes`, #1949, `Slipdock.WaitRoutes`).
+  agent asks goes to (`wait_routes`, #1949, `Slipdock.WaitRoutes`), and
+  each profile's human tier (`profile_tiers`, #1952).
   Only the board's owner may.
   """
   @behaviour SlipdockWeb.MCP.Tool
@@ -14,7 +15,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   alias SlipdockWeb.MCP.{Args, Tools}
 
   @fields ~w(name description color simple default_view handoff_label bar_required
-             evidence_required verify_work verify_pool lanes profiles ship_via job_log_hours
+             evidence_required verify_work verify_pool lanes profiles profile_tiers ship_via job_log_hours
              failure_log_hours findings_propose_at)
 
   @impl true
@@ -27,8 +28,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def description,
     do:
       "Changes a board you own: name, description, color, simple, default_view, handoff_label, " <>
-        "the verified-work switches, lanes, profiles, job/failure log hours, findings_propose_at, " <>
-        "wait_routes. Only what you send changes."
+        "the verified-work switches, lanes, profiles, profile_tiers, job/failure log hours, " <>
+        "findings_propose_at, wait_routes. Only what you send changes."
 
   @impl true
   def input_schema do
@@ -59,7 +60,19 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
           type: "boolean",
           description:
             "Give a card an agent claims or starts a profile (docs, fix, feature, schema, " <>
-              "security, spike) when it has none. Nothing acts on it yet."
+              "security, spike) when it has none."
+        },
+        profile_tiers: %{
+          type: "object",
+          description:
+            "Each profile's human tier on the tree (root board only): none or ledger (acceptance " <>
+              "merges), before_merge (a person decides first); default puts one back. Defaults: " <>
+              "docs/fix none, feature ledger, schema/security/spike before_merge.",
+          properties:
+            Map.new(Slipdock.Profiles.names(), fn p ->
+              {p, %{type: "string", enum: Slipdock.Profiles.tiers() ++ ["default"]}}
+            end),
+          additionalProperties: false
         },
         job_log_hours: %{
           type: "integer",
@@ -103,10 +116,15 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
     with {:ok, ref} <- Args.required(args, "board"),
          :ok <- something(changes, routes),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :owner)),
+         {:ok, changes} <- Slipdock.Profiles.put_tiers(board, changes),
          {:ok, board} <- routes(board, routes),
          {:ok, board} <- Args.refusal(Boards.update_board(board, changes)) do
-      summary = Tools.ListBoards.summary(board, user)
-      {:ok, Map.put(summary, :wait_routes, SlipdockWeb.API.JSON.wait_routes(board))}
+      summary =
+        board
+        |> Tools.ListBoards.summary(user)
+        |> Map.put(:wait_routes, SlipdockWeb.API.JSON.wait_routes(board))
+
+      {:ok, put_tiers(summary, board)}
     end
   end
 
@@ -114,6 +132,19 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
     do: {:error, "nothing to change: send a setting"}
 
   defp something(_changes, _routes), do: :ok
+
+  # The tree's tiers (#1952) with profiles on, and a loud warning for
+  # security set to none.
+  defp put_tiers(summary, %{profiles: true} = board) do
+    tiers = Slipdock.Profiles.board_tiers(board)
+
+    case Slipdock.Profiles.tier_warnings(tiers) do
+      [] -> Map.put(summary, :profile_tiers, tiers)
+      warnings -> Map.merge(summary, %{profile_tiers: tiers, warnings: warnings})
+    end
+  end
+
+  defp put_tiers(summary, _board), do: summary
 
   defp routes(board, nil), do: {:ok, board}
   defp routes(board, routes), do: Args.refusal(Slipdock.WaitRoutes.set(board, routes))

@@ -128,6 +128,9 @@ whole card before touching it.
   reconcile) has no PR either, never a token one: complete it with
   `slipdock done <id> --no-code "<why>" --evidence "…"`. A failed merge sends the
   card back rejected with the reason: rebase the branch and submit again.
+  With profiles on, a `schema`, `security` or `spike` card an agent
+  accepts is *held* for a person, who merges it or sends it back with a
+  reason (a rejection like any other).
 - **Lanes, where they are on** (the board's line in the guide says `lanes:
   on`). Before starting a card, write the paths its work will touch:
   `slipdock edit <id> --paths "lib/foo/**,docs/manual.md"`, as narrow as the

@@ -219,6 +219,8 @@ defmodule SlipdockCLI do
     # Who each kind of question goes to (#1949): set-board --route K=EMAIL.
     route: :keep,
     no_route: :keep,
+    # Each profile's human tier (#1952): set-board --profile-tier P=TIER.
+    profile_tier: :keep,
     label: :string,
     hide_on_card: :boolean,
     replace: :boolean,

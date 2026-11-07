@@ -45,7 +45,7 @@ defmodule SlipdockCLI.Ledger do
 
     head =
       "##{card["id"]} #{card["title"]}  [#{Enum.join(i["events"] || [], ", ")}]" <>
-        profile(card["profile"]) <> subcards(i["subcards"])
+        profile(card["profile"]) <> waiting_for(i["waiting_for"]) <> subcards(i["subcards"])
 
     [head, "    " <> who(i)] ++
       evidence(i) ++ should(i) ++ links(i) ++ time(i["lead_time"])
@@ -54,6 +54,10 @@ defmodule SlipdockCLI.Ledger do
   # The card's profile (#1951), one word, when it has one.
   defp profile(p) when is_binary(p), do: "  profile:#{p}"
   defp profile(_), do: ""
+
+  # Held for a person before merging (#1952): who it waits for.
+  defp waiting_for(who) when is_binary(who), do: "  waiting for #{who}"
+  defp waiting_for(_), do: ""
 
   defp subcards(%{"total" => t, "done" => d, "on_ledger" => n}),
     do: "  #{d}/#{t} subcards, #{n} here"

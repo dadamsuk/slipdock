@@ -12,9 +12,9 @@ defmodule Slipdock.Runners.Recovery do
   the runner waits until somebody moves or closes it.
 
   A card left awaiting verification (`verify_state: "pending"`, #1659), or
-  accepted and waiting for its pull request to merge (`"merging"`, #1850),
-  is not stuck: the job finished it, and it waits for the verifier or the
-  merge. The check is made with the card's row locked, so a merge finishing
+  accepted and waiting for its pull request to merge (`"merging"`, #1850)
+  or for a person to say it may (`"held"`, #1952), is not stuck: the job
+  finished it, and it waits for the verifier, the person or the merge. The check is made with the card's row locked, so a merge finishing
   meanwhile is never undone.
 
   Only the job's own card is touched, and only by a job that was handed out
@@ -182,7 +182,7 @@ defmodule Slipdock.Runners.Recovery do
         where:
           c.id == ^job.card_id and col.category == "doing" and is_nil(c.archived_at) and
             c.completed == false and
-            coalesce(c.verify_state, "") not in ["pending", "merging"]
+            coalesce(c.verify_state, "") not in ["pending", "merging", "held"]
       )
     )
   end

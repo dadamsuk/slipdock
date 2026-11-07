@@ -545,7 +545,8 @@ WRITE
       --profile P | --no-profile   what kind of change it is: security, schema, feature,
                                    fix, docs or spike. On a board with --profiles on, an
                                    agent claiming or starting a card with none gets one
-                                   inferred; nothing acts on it yet
+                                   inferred; its human tier says whether an agent's
+                                   acceptance merges or waits for a person
       --spent T | --no-spent  --estimate T | --no-estimate   time spent and the estimate.
                                    A bare number is in the card's unit; or say 90m, 1.5h,
                                    2d, 1w, 1mo, "1h 30m" (a day is 8h, a week 5d, a month 4w)
@@ -709,7 +710,7 @@ WRITE
       [--findings-propose-at N]
       [--ship-via push|pull-request]
       [--lanes | --no-lanes] [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
-      [--profiles on|off]
+      [--profiles on|off] [--profile-tier PROFILE=TIER]...
                                       rename a board, change its code, shortcut key or colour,
                                       say what the foot of each list offers, make it a
                                       sprint board (every card a sprint), or a simple one (a
@@ -773,7 +774,13 @@ WRITE
                                       --profiles on: an agent claiming or starting a card
                                       with no profile gives it one, inferred from its paths
                                       and tags (security, schema, spike, fix, docs, else
-                                      feature); shown, not acted on yet
+                                      feature)
+                                      --profile-tier PROFILE=TIER: what an agent's acceptance
+                                      of that profile does on a pull-request board (root
+                                      board only): none or ledger merge it, before_merge
+                                      waits for a person to merge it or send it back;
+                                      default puts it back (docs/fix none, feature ledger,
+                                      schema/security/spike before_merge)
   sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                       start the next sprint on a sprint board: a dated card
                                       ("Sprint 4", following on from the last, 14 days unless

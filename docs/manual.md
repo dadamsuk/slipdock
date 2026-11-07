@@ -1089,9 +1089,10 @@ removes it.
 
 A card's **profile** is one word for what kind of change it is:
 `security`, `schema`, `feature`, `fix`, `docs` or `spike`. The six are
-fixed, not a board setting. Today it is shown, and nothing acts on it.
-Later cards use it to decide how much checking a change gets: whether
-accepting it waits for a person, and how much a verifier spends on it.
+fixed, not a board setting. It decides how much checking a change gets:
+its **human tier** says whether an agent's acceptance merges it or waits
+for a person first (below). How much a verifier spends on it is still to
+come.
 
 **The board switch.** Profiles are off until you turn them on: *Profiles*
 in the board's settings, `slipdock set-board slipdock --profiles on` (`off`
@@ -1138,7 +1139,59 @@ cards`, the card's JSON (`profile`, left out when there is none),
 `get_card` and `list_cards`, and the card's line on the ledger (a chip on
 the *Ledger* page, `profile:fix` in `slipdock ledger`, `card.profile` in
 `GET /api/boards/:id/ledger` and the `activity` tool's ledger view).
-Nothing acts on a profile yet: it is shown, not read.
+
+### The human tier
+
+Each profile has a **human tier**: what an agent's acceptance does on a
+board that ships by pull request. The defaults are the strict ones:
+
+| Tier | Profiles | An agent's acceptance |
+|---|---|---|
+| `none` | `docs`, `fix` | merges, as without profiles |
+| `ledger` | `feature` | merges; the card's line on the ledger is your look at it (it behaves as `none`, and is there so you can raise it) |
+| `before_merge` | `schema`, `security`, `spike` | holds the card and asks a person first |
+
+A card with no profile is judged by the one its paths and tags infer, so
+an unprofiled migration still waits. A person's own acceptance (the card
+panel's *Accept*, `slipdock verify`, completing a pending card) is a
+person's look already, and merges whatever the tier. On a board that
+ships by push the work is already on the default branch, so there is no
+merge to hold and the tiers change nothing. With profiles off every tier
+is `none`.
+
+**Held for a person.** An agent accepting a `before_merge` card leaves it
+in progress as *Accepted, held for a person* (`verify_state: held`), its
+`review` flag still on and no merge job queued, and opens one wait, a
+`release` question (so it goes to whoever the board routes `release` to,
+else the board's owner), with two choices:
+
+- **Merge** queues the merge, as an acceptance does without the tier.
+- **Send back** returns the card rejected, your answer the reason (kept
+  as the failing part, *the ask*), to the top of the ready list for
+  rework. Skipping the wait sends it back too.
+
+Only a person may answer it: an agent's answer or skip is refused. You
+can also decide on the card itself: the panel's *Merge* and *Send back*,
+`slipdock verify ID accept` or `reject --reason …`, `verify_card`, or
+`POST /api/cards/:id/verify`, which close the wait. Withdrawing the wait
+leaves the card held, and nothing merges until a person decides. While
+held, the card keeps its lane and its dependents wait, as a card awaiting
+verification does on a pull request board; the health monitor doesn't
+count it as stuck or as missing its merge (only *Question unanswered*
+reminds the person after two days); and its line on the ledger says
+*waiting for* the person until it merges.
+
+**Changing a tier.** A tree has one set of tiers, kept on its root board:
+*Human tier, by profile* in the root board's settings (shown with
+profiles on), `slipdock set-board slipdock --profile-tier schema=none`
+(repeatable; `default` puts one back), `update_board` `profile_tiers`, or
+`PATCH /api/boards/:id {"profile_tiers": {"schema": "none"}}`, merged
+onto what is there. A sub-board's write is refused, naming the root. An
+unknown profile or tier is refused with the lists. Setting `security` to
+`none` is allowed, and said loudly: a warning in the settings, on
+`set-board`'s stderr, and in `update_board`'s `warnings`. The board's
+JSON shows every profile's tier as `profile_tiers` (nil with profiles
+off); export and import carry the changes.
 
 ## Waiting on a person (waits)
 

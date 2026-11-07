@@ -665,7 +665,7 @@ defmodule Slipdock.Automations do
       where:
         c.column_id == ^column.id and is_nil(c.archived_at) and c.completed == false and
           is_nil(c.stand_in_for_id) and
-          coalesce(c.verify_state, "") not in ["pending", "merging"] and
+          coalesce(c.verify_state, "") not in ["pending", "merging", "held"] and
           c.id not in subquery(open_job_cards()),
       order_by: [asc: c.position, asc: c.id]
     )

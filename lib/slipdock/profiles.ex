@@ -10,8 +10,23 @@ defmodule Slipdock.Profiles do
   one is known) diff size, stored on the card (`Card.profile`); anyone can
   set or clear it at every door.
 
-  **Nothing acts on the profile yet.** It is shown, not read: the human tier
-  (#1952) and the verifier's spend (#1953) are the cards that will.
+  ## The human tier (#1952)
+
+  Each profile has a human tier, saying what an agent's acceptance does on
+  a board that ships by pull request (`tier/1`):
+
+    * `none` (`docs`, `fix`): acceptance merges, as without profiles;
+    * `ledger` (`feature`): acceptance merges, and the card's line on the
+      ledger (`Slipdock.Ledger`) is the person's look at it; it behaves as
+      `none`, and exists so a board can raise it;
+    * `before_merge` (`schema`, `security`, `spike`): acceptance opens a
+      wait routed `release` (Merge / Send back) instead of queueing the
+      merge, and the card is `held` until a person answers
+      (`Slipdock.Verified`).
+
+  A board's root holds any changes to the defaults (`Board.profile_tiers`,
+  only the ones that differ); with profiles off on the card's board every
+  tier is `none`. The verifier's spend (#1953) is still to come.
 
   ## Inference
 
@@ -42,6 +57,18 @@ defmodule Slipdock.Profiles do
   # or `docs` card to `feature`.
   @size_limit 400
 
+  @tiers ~w(none ledger before_merge)
+
+  # The strict defaults (#1952).
+  @default_tiers %{
+    "docs" => "none",
+    "fix" => "none",
+    "feature" => "ledger",
+    "schema" => "before_merge",
+    "security" => "before_merge",
+    "spike" => "before_merge"
+  }
+
   @doc "The profiles, strictest first."
   def names, do: ~w(security schema feature fix docs spike)
 
@@ -50,6 +77,155 @@ defmodule Slipdock.Profiles do
 
   @doc "The number of changed lines over which a `fix` or `docs` card is a `feature`."
   def size_limit, do: @size_limit
+
+  @doc "The human tiers, least checking first."
+  def tiers, do: @tiers
+
+  @doc "Each profile's default human tier: the strict ones."
+  def default_tiers, do: @default_tiers
+
+  @doc """
+  Each profile's tier on a board whose root has `overrides`
+  (`Board.profile_tiers`): the defaults with the overrides on top.
+  """
+  def tiers_with(overrides) when is_map(overrides), do: Map.merge(@default_tiers, overrides)
+  def tiers_with(_overrides), do: @default_tiers
+
+  @doc """
+  The changes a board keeps: only the profiles whose tier differs from the
+  default. Unknown keys are kept, for the changeset to refuse.
+  """
+  def overrides(tiers) when is_map(tiers) do
+    for {profile, tier} <- tiers,
+        profile = to_string(profile),
+        tier = tier |> to_string() |> String.trim(),
+        not Enum.member?(["", "default"], tier),
+        Map.get(@default_tiers, profile) != tier,
+        into: %{},
+        do: {profile, tier}
+  end
+
+  def overrides(tiers), do: tiers
+
+  @doc """
+  `changes` (profile => tier, `"default"` or blank putting a profile back to
+  its default) applied to a board's `current` overrides: `{:ok, overrides}`
+  or `{:error, message}`, naming what is wrong.
+  """
+  def merge_tiers(current, changes) when is_map(changes) do
+    current = current || %{}
+
+    Enum.reduce_while(changes, {:ok, current}, fn {profile, tier}, {:ok, acc} ->
+      profile = to_string(profile)
+      tier = if is_nil(tier), do: "", else: tier |> to_string() |> String.trim()
+
+      cond do
+        not name?(profile) ->
+          {:halt, {:error, "profile_tiers: #{inspect(profile)} #{unknown_message()}"}}
+
+        Enum.member?(["", "default"], tier) ->
+          {:cont, {:ok, Map.delete(acc, profile)}}
+
+        Enum.member?(@tiers, tier) ->
+          {:cont, {:ok, Map.put(acc, profile, tier)}}
+
+        true ->
+          {:halt, {:error, "profile_tiers: #{profile}'s tier #{tier_message()}"}}
+      end
+    end)
+    |> case do
+      {:ok, map} -> {:ok, overrides(map)}
+      error -> error
+    end
+  end
+
+  def merge_tiers(_current, _changes),
+    do: {:error, "profile_tiers is an object of profile => tier (#{Enum.join(@tiers, ", ")})"}
+
+  @doc "The message an unknown tier is refused with."
+  def tier_message,
+    do: "must be one of #{Enum.join(@tiers, ", ")}, or default"
+
+  @doc "An error for each wrong entry of a board's `profile_tiers`, as `[{field, message}]`."
+  def tier_errors(tiers) when is_map(tiers) do
+    Enum.flat_map(tiers, fn {profile, tier} ->
+      cond do
+        not name?(profile) -> [profile_tiers: "#{inspect(profile)} #{unknown_message()}"]
+        not Enum.member?(@tiers, tier) -> [profile_tiers: "#{profile}'s tier #{tier_message()}"]
+        true -> []
+      end
+    end)
+  end
+
+  def tier_errors(_tiers), do: [profile_tiers: "must be an object of profile => tier"]
+
+  @doc """
+  What a board's tiers say loudly (#1952): `security` set to `none`, so an
+  agent's acceptance merges a security change with no person looking.
+  """
+  def tier_warnings(overrides) do
+    if tiers_with(overrides)["security"] == "none",
+      do: [
+        "security is set to none: an agent's acceptance merges a security change " <>
+          "with no person looking at it first"
+      ],
+      else: []
+  end
+
+  @doc """
+  A card's human tier (#1952): `none` when its board has profiles off,
+  else its profile's tier on its tree (the root board's `profile_tiers`
+  over the defaults). A card with no profile is judged by the one its paths
+  and tags infer, so an unprofiled schema change still waits. `card` needs
+  its board; its tags are loaded if they aren't.
+  """
+  def tier(%{board: %{profiles: true} = board} = card) do
+    tiers_with(root_overrides(board))[profile_of(card)] || "none"
+  end
+
+  def tier(%{board: %Ecto.Association.NotLoaded{}} = card),
+    do: card |> Slipdock.Repo.preload(:board) |> tier()
+
+  def tier(_card), do: "none"
+
+  @doc "The card's profile, or the one its paths and tags infer when it has none."
+  def profile_of(%{profile: profile}) when is_binary(profile), do: profile
+
+  def profile_of(card), do: card |> Slipdock.Repo.preload(:tags) |> infer_card()
+
+  @doc """
+  Each profile's tier on `board`'s tree (#1952), the root's changes over the
+  defaults; the doors show this, and `tier_warnings/1` reads it.
+  """
+  def board_tiers(board), do: tiers_with(root_overrides(board))
+
+  @doc """
+  A board write's `profile_tiers` (`params`, string keys) applied to the
+  root's (`board`'s tree's) current ones, for `Boards.update_board/2`: the
+  params with the merged map, or `{:error, message}`. Params without it
+  pass through. Only a root board keeps tiers: a sub-board's write is
+  refused, naming the root.
+  """
+  def put_tiers(board, %{"profile_tiers" => changes} = params) do
+    if board.root_id do
+      {:error,
+       "profile_tiers are kept on the tree's root board (##{board.root_id}): set them there"}
+    else
+      with {:ok, merged} <- merge_tiers(board.profile_tiers, changes),
+           do: {:ok, Map.put(params, "profile_tiers", merged)}
+    end
+  end
+
+  def put_tiers(_board, params), do: {:ok, params}
+
+  defp root_overrides(%{root_id: nil, profile_tiers: tiers}), do: tiers
+
+  defp root_overrides(%{root_id: root_id}) do
+    case Slipdock.Repo.get(Slipdock.Boards.Board, root_id) do
+      nil -> %{}
+      root -> root.profile_tiers
+    end
+  end
 
   @doc "The message an unknown profile is refused with."
   def unknown_message,

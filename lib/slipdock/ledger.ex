@@ -20,7 +20,9 @@ defmodule Slipdock.Ledger do
   first line of its evidence, the `should` rules its verifier marked broken,
   its lead time by phase (`Slipdock.LeadTime.for_card/2`), its pull request
   and deploys. An epic's line rolls up its subcards: how many there are, how
-  many are done and how many are on this ledger.
+  many are done and how many are on this ledger. A card accepted and held
+  for a person before merging (#1952) says who it waits for
+  (`waiting_for`, a name or "anyone"; nil otherwise) until it merges.
 
   Every door reads `since/2`: REST `GET /api/boards/:board/ledger?since=`,
   `slipdock ledger <board> [--since]`, the page at `/boards/:id/ledger` and
@@ -34,7 +36,7 @@ defmodule Slipdock.Ledger do
   alias Slipdock.Deployments.Deployment
   alias Slipdock.Runners.Job
 
-  @accepted ~w(accepted merging)
+  @accepted ~w(accepted merging held)
   @day_starts ~T[07:00:00]
   @since_error "since is a date (2026-11-01), a time (ISO 8601) or a number of days"
 
@@ -118,11 +120,14 @@ defmodule Slipdock.Ledger do
     cards = cards(Map.keys(by_card))
     epics = epics(Map.keys(cards), Map.keys(by_card))
     audits = audits(Map.keys(cards))
+    held = held(cards |> Map.values() |> Enum.filter(&(&1.verify_state == "held")))
 
     cards
     |> Map.values()
     |> Enum.map(fn card ->
-      line(card, Enum.sort_by(by_card[card.id], & &1.at, DateTime), epics, audits)
+      card
+      |> line(Enum.sort_by(by_card[card.id], & &1.at, DateTime), epics, audits)
+      |> Map.put(:waiting_for, held[card.id])
     end)
     |> Enum.sort_by(&{&1.at, &1.card.id}, :desc)
   end
@@ -239,6 +244,27 @@ defmodule Slipdock.Ledger do
          done: Enum.count(subs, &elem(&1, 2)),
          on_ledger: Enum.count(subs, &MapSet.member?(on_ledger, elem(&1, 1)))
        }}
+    end)
+  end
+
+  # Each card held for a person before merging (#1952): who its open wait
+  # is on, by name, or "anyone" when it names nobody. Until it merges, its
+  # line says it waits for them.
+  defp held([]), do: %{}
+
+  defp held(cards) do
+    ids = Enum.map(cards, & &1.id)
+    purpose = Slipdock.Verified.held_purpose()
+
+    Repo.all(
+      from w in Slipdock.Boards.Wait,
+        left_join: u in assoc(w, :on_user),
+        where: w.card_id in ^ids and is_nil(w.closed_at) and w.purpose == ^purpose,
+        select: {w.card_id, u}
+    )
+    |> Map.new(fn
+      {id, nil} -> {id, "anyone"}
+      {id, user} -> {id, Slipdock.Accounts.User.display_name(user)}
     end)
   end
 

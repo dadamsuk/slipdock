@@ -1149,6 +1149,9 @@ defmodule SlipdockCLI.Boards do
         # Who each kind of question goes to (#1949): --route KIND=EMAIL[,EMAIL]
         # and --no-route KIND, each repeatable.
         "wait_routes" => wait_routes(o),
+        # Each profile's human tier (#1952): --profile-tier PROFILE=TIER,
+        # repeatable; TIER default puts one back.
+        "profile_tiers" => profile_tiers(o),
         "kind" =>
           case o[:sprints] do
             true -> "sprints"
@@ -1161,7 +1164,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes, --profiles on|off or --route KIND=EMAIL / --no-route KIND"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.
@@ -1169,7 +1172,10 @@ defmodule SlipdockCLI.Boards do
       if o[:wiki_sort], do: HTTP.patch("/boards/#{enc(ref)}/tree", %{"sort" => o[:wiki_sort]})
 
     if(body == %{}, do: sorted, else: HTTP.patch("/boards/#{enc(ref)}", body))
-    |> out(o, fn r -> IO.puts("updated board ##{r["board"]["id"]}: #{r["board"]["name"]}") end)
+    |> out(o, fn r ->
+      IO.puts("updated board ##{r["board"]["id"]}: #{r["board"]["name"]}")
+      tier_warning(r["board"])
+    end)
   end
 
   def run("sprint", [ref], o) do
@@ -1903,6 +1909,39 @@ defmodule SlipdockCLI.Boards do
     HTTP.post("/cards/#{enc(id)}/wait", body)
     |> out(o, fn r -> IO.puts("##{id} " <> Render.wait_line(r["wait"])) end)
   end
+
+  @doc false
+  # `--profile-tier schema=none --profile-tier spike=default` → the tiers
+  # to change (#1952); nil when none was given.
+  def profile_tiers(o) do
+    case Keyword.get_values(o, :profile_tier) do
+      [] ->
+        nil
+
+      given ->
+        Map.new(given, &profile_tier/1)
+    end
+  end
+
+  defp profile_tier(pair) do
+    case String.split(pair, "=", parts: 2) do
+      [profile, tier] when profile != "" -> {String.trim(profile), String.trim(tier)}
+      _ -> fail("--profile-tier takes PROFILE=TIER, e.g. --profile-tier schema=before_merge")
+    end
+  end
+
+  # Said loudly (#1952): security set to none merges a security change on
+  # an agent's word alone.
+  @doc false
+  def tier_warning(%{"profile_tiers" => %{"security" => "none"}}),
+    do:
+      IO.puts(
+        :stderr,
+        "warning: security is set to none: an agent's acceptance merges a security change " <>
+          "with no person looking at it first"
+      )
+
+  def tier_warning(_board), do: :ok
 
   @doc false
   # `--route product=a@example.com,b@example.com --no-route ux` → the

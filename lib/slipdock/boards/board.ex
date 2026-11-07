@@ -100,9 +100,13 @@ defmodule Slipdock.Boards.Board do
     # card in progress on the tree (see `Slipdock.Lanes`). Off by default.
     field :lanes, :boolean, default: false
     # Profiles (#1951): a card an agent claims or starts with no profile gets
-    # one inferred (see `Slipdock.Profiles`). Off by default; nothing acts on
-    # a profile yet.
+    # one inferred (see `Slipdock.Profiles`). Off by default; its human tier
+    # (#1952) reads it.
     field :profiles, :boolean, default: false
+    # The human tier's changes to the defaults (#1952), profile => tier, only
+    # the ones that differ (see `Slipdock.Profiles.tier/1`). Read from the
+    # root board, so a tree has one set.
+    field :profile_tiers, :map, default: %{}
     # `evidence_required` (#1632): an agent completing a card says what it
     # checked (and at which commit).
     field :evidence_required, :boolean, default: false
@@ -536,6 +540,7 @@ defmodule Slipdock.Boards.Board do
       :bar_required,
       :lanes,
       :profiles,
+      :profile_tiers,
       :evidence_required,
       :verify_work,
       :verify_pool,
@@ -578,6 +583,8 @@ defmodule Slipdock.Boards.Board do
       message:
         "must be 0 (never) or how many times a finding is seen before it is proposed (at most 100)"
     )
+    |> update_change(:profile_tiers, &Slipdock.Profiles.overrides/1)
+    |> validate_change(:profile_tiers, fn _, tiers -> Slipdock.Profiles.tier_errors(tiers) end)
     |> put_ship_via()
     |> update_change(:handoff_label, &trim_to_nil/1)
     |> update_change(:handoff_prompt, &trim_to_nil/1)

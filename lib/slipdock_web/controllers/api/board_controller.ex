@@ -181,6 +181,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   def update(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),
+         {:ok, params} <- profile_tiers(board, params),
          {:ok, board} <- wait_routes(board, params),
          {:ok, board} <-
            Boards.update_board(
@@ -193,7 +194,7 @@ defmodule SlipdockWeb.API.BoardController do
                   incident_tag hotfix_window_hours automation_wip job_log_hours
                   failure_log_hours handoff_label
                   handoff_prompt inbound_senders bar_required
-                  evidence_required verify_work verify_pool verify_rejection_limit verify_audit lanes profiles ship_via findings_propose_at)
+                  evidence_required verify_work verify_pool verify_rejection_limit verify_audit lanes profiles profile_tiers ship_via findings_propose_at)
              )
            ) do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
@@ -210,6 +211,15 @@ defmodule SlipdockWeb.API.BoardController do
   end
 
   defp wait_routes(board, _params), do: {:ok, board}
+
+  # `profile_tiers` (#1952): `{profile: tier}` merged onto the root's, a
+  # blank or `default` putting one back.
+  defp profile_tiers(board, params) do
+    case Slipdock.Profiles.put_tiers(board, params) do
+      {:ok, _} = ok -> ok
+      {:error, message} -> {:error, :unprocessable_entity, message}
+    end
+  end
 
   # The board's delivery performance (#1134, `Slipdock.Dora`) for one
   # environment over `days`. While the board's delivery metrics are off it

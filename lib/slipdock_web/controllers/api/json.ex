@@ -125,8 +125,10 @@ defmodule SlipdockWeb.API.JSON do
       bar_required: b.bar_required,
       # Lanes (#1628), off by default.
       lanes: b.lanes,
-      # Profiles inferred when an agent starts a card (#1951).
+      # Profiles inferred when an agent starts a card (#1951), and each
+      # profile's human tier on the tree (#1952), nil with profiles off.
       profiles: b.profiles,
+      profile_tiers: if(b.profiles, do: Slipdock.Profiles.board_tiers(b)),
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,
@@ -230,8 +232,10 @@ defmodule SlipdockWeb.API.JSON do
       bar_required: b.bar_required,
       # Lanes (#1628), off by default.
       lanes: b.lanes,
-      # Profiles inferred when an agent starts a card (#1951).
+      # Profiles inferred when an agent starts a card (#1951), and each
+      # profile's human tier on the tree (#1952), nil with profiles off.
       profiles: b.profiles,
+      profile_tiers: if(b.profiles, do: Slipdock.Profiles.board_tiers(b)),
       evidence_required: b.evidence_required,
       verify_work: b.verify_work,
       verify_pool: b.verify_pool,

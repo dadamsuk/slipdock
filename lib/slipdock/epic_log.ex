@@ -95,6 +95,15 @@ defmodule Slipdock.EpicLog do
   defp event(_before, %{verify_state: "rejected"} = card),
     do: {:own, "**Rejected**", first_line(card.verify_note)}
 
+  # The human tier (#1952): accepted and held for a person, then let merge.
+  defp event(_before, %{verify_state: "held"} = card),
+    do:
+      {:own, "**Accepted**, held for a person before merging",
+       pr_and_sha(card, card.verify_commit || card.evidence_commit)}
+
+  defp event(%{verify_state: "held"}, %{verify_state: "merging"} = card),
+    do: {:own, "**Merge approved**", pr_and_sha(card, card.verify_commit || card.evidence_commit)}
+
   defp event(_before, %{verify_state: "merging"} = card),
     do: {:own, "**Accepted**", pr_and_sha(card, card.verify_commit || card.evidence_commit)}
 
