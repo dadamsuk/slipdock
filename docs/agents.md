@@ -611,7 +611,7 @@ Settled knowledge goes straight into the handbook. The server records
 its own (rejections, timeouts, requeues, failed merges; a lane refusal is
 not one), and a
 person triages them on the board's Findings page (`/boards/:id/findings`,
-beside Health; a card links there when it has open ones), or with
+from the board's Agentic Building page; a card links there when it has open ones), or with
 `slipdock findings <board>`, `slipdock finding <id> promote|dismiss|merge
 --into <id>`, `GET /api/boards/:board/findings`; see
 [the manual](manual.md#findings).

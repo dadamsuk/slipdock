@@ -431,33 +431,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           </p>
         </div>
         <div class="flex shrink-0 items-center gap-1">
-          <%!-- What the health monitor found stuck (W-2310). --%>
-          <.link
-            navigate={~p"/boards/#{@board}/health"}
-            class="btn btn-ghost btn-sm"
-            id="runners-health"
-            title="Work the health monitor found stuck, fixed or flagged"
-          >
-            <.icon name="hero-lifebuoy" class="size-4" /> Health
-          </.link>
-          <%!-- What passes learned, to triage (W-2310 §Findings, #1940). --%>
-          <.link
-            navigate={~p"/boards/#{@board}/findings"}
-            class="btn btn-ghost btn-sm"
-            id="runners-findings"
-            title="What passes learned and the system saw go wrong, to promote, merge or dismiss"
-          >
-            <.icon name="hero-light-bulb" class="size-4" /> Findings
-          </.link>
-          <%!-- What shipped since yesterday, with its evidence (#1948). --%>
-          <.link
-            navigate={~p"/boards/#{@board}/ledger"}
-            class="btn btn-ghost btn-sm"
-            id="runners-ledger"
-            title="What shipped since yesterday: who accepted it, its evidence, where its time went"
-          >
-            <.icon name="hero-document-check" class="size-4" /> Ledger
-          </.link>
+          <%!-- Health, Findings and the Ledger are reached from the board's
+                Agentic Building page (#2012), not from here. --%>
           <%!-- The whole tree's brake (#1116); a pool's is on its row. --%>
           <button
             :if={@can_manage and is_nil(@tree_pause)}

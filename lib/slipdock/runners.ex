@@ -779,6 +779,12 @@ defmodule Slipdock.Runners do
     )
   end
 
+  @doc "Whether `runner` is online: seen within three of its leases."
+  def online?(%Runner{last_seen_at: nil}), do: false
+
+  def online?(%Runner{} = runner),
+    do: DateTime.diff(DateTime.utc_now(), runner.last_seen_at) <= 3 * lease_for(runner)
+
   # Online: seen within three of its leases.
   defp runner_online?(root_id, pool) do
     now = DateTime.utc_now()

@@ -4,8 +4,8 @@ defmodule SlipdockWeb.LedgerLiveTest do
   day, with each line's events, acceptor, audit, evidence, missed `should`
   rules, PR, deploy, lead time and an epic's rollup; `since` is kept in the
   URL and a bad one is said in a callout; "Look closer" opens the card at its
-  chat; a reader may look, a stranger is sent away; the Runners panel links
-  to it beside Health and Findings.
+  chat; a reader may look, a stranger is sent away. How it is reached (the
+  Agentic Building page's tile) is `agentic_hub_test.exs`.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -139,19 +139,6 @@ defmodule SlipdockWeb.LedgerLiveTest do
 
     stranger = user_fixture("ledger-live-stranger@example.com")
     assert {:error, {_, %{to: "/"}}} = live(conn_as(stranger), ~p"/boards/#{ctx.board}/ledger")
-  end
-
-  test "the board's Runners panel links to it beside Health and Findings", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/automations")
-
-    assert has_element?(
-             view,
-             ~s(#runners-ledger[href="/boards/#{ctx.board.id}/ledger"]),
-             "Ledger"
-           )
-
-    assert has_element?(view, "#runners-findings")
-    assert has_element?(view, "#runners-health")
   end
 
   test "durations read short" do

@@ -540,15 +540,14 @@ defmodule SlipdockWeb.HelpLive.Flow do
         <li>
           Findings wait for you to promote, merge or dismiss on the board's
           <strong>Findings page</strong>
-          (beside <em>Health</em>
-          in the Runners panel; a card with open findings links to it), or with
-          <code>slipdock findings B</code>
+          (a tile on the board's <em>Agentic Building</em>
+          page; a card with open findings links to it), or with <code>slipdock findings B</code>
           and <code>slipdock finding 41 promote --note "…"</code>. A finding seen three times
           (the board's setting) is drafted as a rule on the Tidy-up page for you to apply.
         </li>
         <li>
           What shipped is on the board's <strong>Ledger page</strong>
-          (beside <em>Findings</em>), or <code>slipdock ledger B [--since 7]</code>: since 07:00
+          (a tile on <em>Agentic Building</em>), or <code>slipdock ledger B [--since 7]</code>: since 07:00
           yesterday, each card with who accepted it, its evidence, the <em>should</em>
           rules it missed, where its time went and what its jobs spent (the model's and
           the tools' time, and tokens where the logs carried them). Skim it each morning,
