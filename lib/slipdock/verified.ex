@@ -23,7 +23,9 @@ defmodule Slipdock.Verified do
       top of the ready list with its rejection counted, next for the feed. A person completing a pending card accepts it.
     * **Shipping by pull request** (`Board.ship_via`, #1654): the builder
       opens a pull request instead of pushing the default branch, and names
-      it in `evidence_pr`, which a board asking for evidence requires.
+      it in `evidence_pr`, which a board asking for evidence requires. A
+      card that changes no code names why in `evidence_no_code` instead
+      (#1938), and accepting it merges nothing.
     * **Verify jobs** (`Board.verify_pool`, #1634): with a pool named, a
       card going pending is queued for that runner pool as a `verify` job,
       its prompt saying what to check and how to decide. A decision cancels
@@ -85,10 +87,14 @@ defmodule Slipdock.Verified do
                       "({result: passed|failed, passed, failed}) or evidence_pr (the pull " <>
                       "request's URL) was given"
 
+  @both_message "can't go with evidence_pr: a card either changes no code or names the " <>
+                  "pull request its code is in, not both"
+
   @pr_message "is required: this board ships by pull request, so an agent completing a " <>
                 "card names the pull request its work is in (evidence_pr, `slipdock done " <>
                 "--pr URL`); push the card's branch and open one, never the default branch " <>
-                "(an epic, whose subcards ship their own, needs none)"
+                "(an epic, whose subcards ship their own, needs none; a card that changes no " <>
+                "code says why instead: evidence_no_code, `slipdock done --no-code REASON`)"
 
   @doc """
   `{:ok, attrs, changes}` — `attrs` as they are to be cast, and `changes` to
@@ -372,8 +378,19 @@ defmodule Slipdock.Verified do
   push board; an epic naming a pull request of its own still merges it.
   """
   def nothing_to_merge?(%Card{} = card) do
-    epic?(card) and (blank?(card.evidence_pr) or subcard_merged?(card, card.evidence_pr))
+    no_code?(card) or
+      (epic?(card) and (blank?(card.evidence_pr) or subcard_merged?(card, card.evidence_pr)))
   end
+
+  @doc """
+  Whether `card`'s evidence says it changes no code (#1938): it gives a
+  reason in `evidence_no_code` and names no pull request. A sweep, a
+  handbook reconcile or any read-and-file card has no branch and no pull
+  request, so on a board that ships by pull request it completes without
+  one, and accepting it merges nothing.
+  """
+  def no_code?(%Card{} = card),
+    do: not blank?(card.evidence_no_code) and blank?(card.evidence_pr)
 
   defp subcard_merged?(%Card{id: id}, pr) do
     pr = pr_key(pr)
@@ -401,11 +418,12 @@ defmodule Slipdock.Verified do
       |> String.downcase()
 
   @nothing_to_merge "an epic whose subcards merged their own pull requests: nothing to merge"
+  @no_code_accepted "a card that changes no code: nothing to merge"
 
   ## Evidence -----------------------------------------------------------------
 
   # The fields evidence is made of (#1632, #1623): any one of them is some.
-  @evidence_fields ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr)a
+  @evidence_fields ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr evidence_no_code)a
 
   defp check_evidence(%Card{} = card, attrs, actor) do
     cond do
@@ -415,12 +433,24 @@ defmodule Slipdock.Verified do
       not evidence?(card, attrs) ->
         {:error, :evidence, @evidence_message}
 
-      Board.ships_by_pr?(board(card)) and
-        not present?(given(attrs, :evidence_pr, card.evidence_pr)) and not epic?(card) ->
-        {:error, :evidence_pr, @pr_message}
+      Board.ships_by_pr?(board(card)) ->
+        check_pr(card, attrs)
 
       true ->
         :ok
+    end
+  end
+
+  # On a board that ships by pull request: a pull request, or a reason the
+  # card changes no code (#1938), or an epic, whose subcards ship their own.
+  defp check_pr(card, attrs) do
+    pr? = present?(given(attrs, :evidence_pr, card.evidence_pr))
+    no_code? = present?(given(attrs, :evidence_no_code, card.evidence_no_code))
+
+    cond do
+      pr? and no_code? -> {:error, :evidence_no_code, @both_message}
+      pr? or no_code? or epic?(card) -> :ok
+      true -> {:error, :evidence_pr, @pr_message}
     end
   end
 
@@ -501,7 +531,8 @@ defmodule Slipdock.Verified do
         "Commit: `#{card.evidence_commit}`" <>
           if(card.evidence_branch, do: " on `#{card.evidence_branch}`", else: ""),
       is_nil(card.evidence_commit) && card.evidence_branch && "Branch: `#{card.evidence_branch}`",
-      card.evidence_pr && "Pull request: #{card.evidence_pr}",
+      labelled("Pull request", card.evidence_pr),
+      labelled("No code", card.evidence_no_code),
       suite && "Suite: #{suite_text(suite)}",
       card.evidence_tests not in [nil, []] &&
         "Tests:\n" <> Enum.map_join(card.evidence_tests, "\n", &"- `#{&1}`")
@@ -509,6 +540,9 @@ defmodule Slipdock.Verified do
     |> Enum.filter(&(is_binary(&1) and &1 != ""))
     |> Enum.join("\n\n")
   end
+
+  defp labelled(_label, nil), do: nil
+  defp labelled(label, text), do: "#{label}: #{text}"
 
   @doc "A suite's result in words: `passed (38 passed, 0 failed)`."
   def suite_text(%{} = suite) do
@@ -602,6 +636,7 @@ defmodule Slipdock.Verified do
       #{if neutral, do: neutral_note() <> "\n", else: ""}- Before pushing, run the tests you added or changed and the project's own pre-push checks, not the whole suite: the pull request's CI runs it. #{pre_push_checks(card)}
       - The build to watch is the pull request's (`gh pr checks #{branch} --watch --fail-fast`, so a failed check stops the watch when it fails). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
       - Complete the card with its URL: `slipdock done #{card.id} --pr <url>` (complete_card `pr`), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
+      #{no_code_note(card)}
       #{if epic?(card), do: epic_note(card), else: ""}
       """
       |> String.trim_trailing()
@@ -627,6 +662,17 @@ defmodule Slipdock.Verified do
           "often one command that runs what CI checks; " <>
           "if it lists none, formatting and a compile that fails on warnings."
     end
+  end
+
+  @doc """
+  What the builder on a pull request board is told about a card that
+  changes no code (#1938): no branch, no pull request, never a token one;
+  complete it with the reason instead, and accepting it merges nothing.
+  """
+  def no_code_note(%Card{id: id}) do
+    "- If the card changes no code (a sweep, a handbook reconcile, a card that only reads and files), there is no branch and no pull request, and never a token one: " <>
+      "complete it with why instead, `slipdock done #{id} --no-code \"<why>\" --evidence \"<what you did>\"` (complete_card `no_code`). " <>
+      "Accepting it then completes it with nothing to merge."
   end
 
   @doc """
@@ -927,6 +973,10 @@ defmodule Slipdock.Verified do
     cond do
       not Board.ships_by_pr?(board(card)) ->
         accept_and_complete(card, note, commit, checks, actor, user)
+
+      no_code?(card) ->
+        # Nothing was committed, so there is nothing to merge (#1938).
+        accept_and_complete(card, note, commit, checks, actor, user, @no_code_accepted)
 
       nothing_to_merge?(card) ->
         # An epic whose subcards merged their own pull requests (#1917).
@@ -2195,6 +2245,7 @@ defmodule Slipdock.Verified do
 
     cond do
       Board.ships_by_pr?(board) and not blank?(pr) -> pr_check_step(tree, commit, pr)
+      Board.ships_by_pr?(board) and no_code?(card) -> no_code_check_step(card)
       Board.ships_by_pr?(board) and epic?(card) -> epic_check_step(tree)
       true -> suite_check_step(tree, commit)
     end
@@ -2210,6 +2261,20 @@ defmodule Slipdock.Verified do
        Steps to report:
        - `subcards: <n> merged`
        - `CI: default branch passed at <sha>` (or `CI failed: <check>`)\
+    """
+  end
+
+  # A card on a pull request board whose evidence says it changes no code
+  # (#1938): there is nothing to check out or test, so the verifier judges
+  # the claim itself, and what the card left on the board instead.
+  defp no_code_check_step(%Card{} = card) do
+    """
+    2. The builder says this card changes no code: "#{card.evidence_no_code}". There is no pull request, commit or suite to check, so don't check one out or run the suite.
+       - Judge the claim against the ask: a card whose description asks for a change to code, tests or the repository's docs can't be finished without code, and is a rejection (`the ask: changes no code, but the card asks for …`).
+       - Check what it did instead, where the evidence says: the cards it filed, the pages or sections it edited (`slipdock page history <page>`), the comments it left.
+       Steps to report:
+       - `no code: <the reason, in a few words>`
+       - `checked: <what you looked at instead>`\
     """
   end
 

@@ -3697,7 +3697,14 @@ defmodule SlipdockWeb.APIGuide do
     last merged build>"`), and accepting it completes it with nothing to
     merge (so does one naming a pull request a subcard already merged).
     Only work done on the epic itself goes on its own branch, with a pull
-    request named by `--pr`, which the acceptance merges. The build to watch is the
+    request named by `--pr`, which the acceptance merges. **A card that
+    changes no code** (a sweep, a handbook reconcile, a card that only
+    reads and files) has no branch and no pull request, and never a token
+    one: complete it with why in `evidence_no_code` (`slipdock done ID
+    --no-code "<why>" --evidence "<what you did>"`, `complete_card`
+    `no_code`), never beside `--pr` (`422`). The verifier judges the claim
+    against the card's ask instead of checking out a commit, and accepting
+    it completes it with nothing to merge. The build to watch is the
     pull request's (`gh pr checks <branch> --watch --fail-fast`), and it is
     the full test run: before pushing, run the tests you added or changed
     and the project's own pre-push checks (what its `CLAUDE.md`,

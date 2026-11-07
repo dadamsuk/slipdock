@@ -84,7 +84,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   `slipdock done 12 --pr URL`): accepting it has a runner merge the pull
   request with its built-in merge kind, in its own repository wherever it
   was started, and the merge completes the card (an epic, whose subcards
-  each merged their own, completes without a pull request of its own)
+  each merged their own, or a card that changes no code, `slipdock done 12
+  --no-code "<why>"`, completes without a pull request of its own)
   (`slipdock verify 12 merged` when you merged it yourself). On a board that
   ships by push, a card awaiting verification frees its lane and its
   dependents. Runners say which script they run, and new installs keep

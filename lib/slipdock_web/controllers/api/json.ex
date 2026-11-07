@@ -504,6 +504,7 @@ defmodule SlipdockWeb.API.JSON do
       evidence_tests: c.evidence_tests,
       evidence_suite: c.evidence_suite,
       evidence_pr: c.evidence_pr,
+      evidence_no_code: c.evidence_no_code,
       # Where an agent's completion stands, on a board that verifies (#1633).
       verify_state: c.verify_state,
       verify_note: c.verify_note,

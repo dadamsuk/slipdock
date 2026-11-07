@@ -607,12 +607,13 @@ WRITE
                                        where that board has the same one
   done <id>...  |  undone <id>...     mark complete / incomplete
       [--evidence TEXT] [--evidence-commit SHA] [--branch B] [--tests F,F]
-      [--suite passed|failed[:PASSED[:FAILED]]] [--pr URL]
+      [--suite passed|failed[:PASSED[:FAILED]]] [--pr URL] [--no-code WHY]
                                       what you checked, the commit and branch, the test
                                       files added or changed, the suite's result
                                       (--suite passed:38:0) and the pull request the
                                       work is in (--pr, on a board shipping by pull
-                                      request), when completing; a
+                                      request; --no-code WHY instead for a card that
+                                      changes no code), when completing; a
                                       board with --evidence-required asks agents for it. On
                                       a board with --verify-work an agent's done submits it
   verify <id> accept|reject|merged [--reason TEXT] [--evidence-commit SHA]

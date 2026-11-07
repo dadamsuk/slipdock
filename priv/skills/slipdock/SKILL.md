@@ -423,6 +423,8 @@ slipdock set-board <board> --ship-via pull-request         # needs --verify-work
 slipdock done <id> --pr https://github.com/o/r/pull/7      # on such a board: the pull request the work is in, beside the other evidence
                                        # an epic names none: its subcards merged their own, so it
                                        # completes with --evidence alone and accepting merges nothing
+slipdock done <id> --no-code "<why>" --evidence "…"   # a card that changes no code (a sweep, a handbook reconcile):
+                                       # no PR, never a token one; accepting merges nothing
                                        # its CI is the full test run: run only your own tests before
                                        # pushing, and a verifier checks its checks, not the suite again
 slipdock set-board <board> --lanes | --no-lanes           # Lanes, off by default: an agent can't start a card whose --paths overlap one in progress

@@ -35,6 +35,13 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
           type: "string",
           description: "The pull request's URL, on a board that ships by pull request."
         },
+        no_code: %{
+          type: "string",
+          description:
+            "Why the card changes no code (a sweep, a handbook reconcile, a read-and-file " <>
+              "card): on a board that ships by pull request, given in place of pr, and " <>
+              "accepting it merges nothing. Not with pr."
+        },
         tests: %{
           type: "array",
           items: %{type: "string"},
@@ -70,6 +77,7 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
          {:ok, commit} <- Args.optional(args, "commit"),
          {:ok, branch} <- Args.optional(args, "branch"),
          {:ok, pr} <- Args.optional(args, "pr"),
+         {:ok, no_code} <- Args.optional(args, "no_code"),
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          :ok <- comment(card, note, context.user),
@@ -84,6 +92,7 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
              "evidence_commit" => commit,
              "evidence_branch" => branch,
              "evidence_pr" => pr,
+             "evidence_no_code" => no_code,
              "evidence_tests" => args["tests"],
              "evidence_suite" => args["suite"]
            }

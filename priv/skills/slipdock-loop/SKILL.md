@@ -767,7 +767,12 @@ With one on, the pass changes like this:
   done <id> --evidence "<the subcards' PRs, the last merged build>"`);
   accepting it completes it with nothing to merge. Never name a subcard's
   merged PR, and never open a token PR to have one: only work done on the
-  epic itself gets `card-<id>` and a `--pr`. A merge that fails sends the
+  epic itself gets `card-<id>` and a `--pr`. **A card that changes no
+  code** (a sweep, a handbook reconcile, a card that only reads and
+  files) has no branch and no PR either, and never a token one: complete
+  it with `slipdock done <id> --no-code "<why>" --evidence "<what you
+  did>"` (`complete_card` `no_code`), and accepting it merges nothing.
+  A merge that fails sends the
   card back rejected, the merge's reason as the rejection: rebase
   `card-<id>` on the default branch, push, and complete it again.
   **A card tagged `security`** ships a neutral pull request, because the
