@@ -465,6 +465,18 @@ defmodule Slipdock.Portable.Import do
   defp named(kind, name) when is_binary(name) and name != "", do: "The #{kind} “#{name}”"
   defp named(kind, _), do: "A #{kind}"
 
+  # Agentic Building (#2011) as exported; an export from before it is on
+  # where any of its settings is set, as the migration did.
+  defp put_agentic(attrs, doc) do
+    on =
+      case doc[:agentic_building] do
+        on when is_boolean(on) -> on
+        _ -> Slipdock.AgenticBuilding.live_rules(struct(Board, attrs)) != []
+      end
+
+    Map.put(attrs, :agentic_building, on)
+  end
+
   defp insert_board(user, doc, parent_card_id, root_id, opts) do
     wanted = doc[:code]
     code = free_code(wanted, doc[:name])
@@ -521,7 +533,8 @@ defmodule Slipdock.Portable.Import do
               else: "push"
             ),
           kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
-        },
+        }
+        |> put_agentic(doc),
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")
       )
 
