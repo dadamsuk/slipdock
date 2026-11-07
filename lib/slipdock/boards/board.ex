@@ -117,6 +117,10 @@ defmodule Slipdock.Boards.Board do
     # A finding counted this many times gets a garden proposal drafted for
     # it (#1942, `Slipdock.Findings.Promote`). 0 is off.
     field :findings_propose_at, :integer, default: 3
+    # Who a question goes to (#1949, `Slipdock.WaitRoutes`): a question kind
+    # => the ids of the board's users it goes to, the first being who the
+    # wait is on. Set through `WaitRoutes.set/3`, never cast.
+    field :wait_routes, :map, default: %{}
     # How the board's verified work reaches the default branch (#1654):
     # "push" (the builder pushes it) or "pull_request" (the builder opens a
     # pull request, and accepting the card queues a merge job). pull_request
@@ -497,6 +501,9 @@ defmodule Slipdock.Boards.Board do
   # form, and an owner who could set it could hand the board (and its quota)
   # to somebody else. The owner is fixed when the board is created (see
   # `Slipdock.Boards.create_board/2`) and moves only on account deletion.
+  @doc "The wait routes (#1949), checked by `Slipdock.WaitRoutes.set/2` first."
+  def wait_routes_changeset(board, routes), do: change(board, wait_routes: routes)
+
   def changeset(board, attrs) do
     board
     |> cast(attrs, [

@@ -966,6 +966,10 @@ defmodule Slipdock.Access do
       Slipdock.Wiki.SharedPlacements.cleanup(grant)
       # Their inbound addresses for it stop working with the share (#1244).
       if match?(%Board{}, resource), do: Slipdock.Inbound.Tokens.prune_board(resource)
+      # A routed user who left: off the routes, their open waits to the owner (#1949).
+      if match?(%Board{}, resource),
+        do: Slipdock.WaitRoutes.user_left(resource, subject_user_ids(grant))
+
       broadcast_resource(resource)
       Boards.notify_users_boards_changed(subject_user_ids(grant))
       notify_shares(resource, subject_user_ids(grant))

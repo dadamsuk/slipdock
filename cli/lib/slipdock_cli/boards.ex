@@ -1127,6 +1127,9 @@ defmodule SlipdockCLI.Boards do
         # Who else may mail the board's card addresses (#1289): the whole
         # list, comma-separated; "" clears it.
         "inbound_senders" => o[:inbound_senders],
+        # Who each kind of question goes to (#1949): --route KIND=EMAIL[,EMAIL]
+        # and --no-route KIND, each repeatable.
+        "wait_routes" => wait_routes(o),
         "kind" =>
           case o[:sprints] do
             true -> "sprints"
@@ -1139,7 +1142,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via or --[no-]lanes"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes or --route KIND=EMAIL / --no-route KIND"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.
@@ -1873,11 +1876,33 @@ defmodule SlipdockCLI.Boards do
         "questions" => nonempty(Keyword.get_values(o, :question)),
         "on" => o[:wait_on],
         "choices" => nonempty(Keyword.get_values(o, :choice)),
-        "job_id" => o[:job] || job_from_env()
+        "job_id" => o[:job] || job_from_env(),
+        # The kind of question (#1949), which picks who it goes to.
+        "question" => o |> Keyword.get_values(:kind) |> List.last()
       })
 
     HTTP.post("/cards/#{enc(id)}/wait", body)
     |> out(o, fn r -> IO.puts("##{id} " <> Render.wait_line(r["wait"])) end)
+  end
+
+  @doc false
+  # `--route product=a@example.com,b@example.com --no-route ux` → the
+  # routes to change; nil when neither was given.
+  def wait_routes(o) do
+    set =
+      for route <- Keyword.get_values(o, :route) do
+        case String.split(route, "=", parts: 2) do
+          [kind, emails] when kind != "" -> {String.trim(kind), split_list(emails)}
+          _ -> fail("--route takes KIND=EMAIL[,EMAIL], e.g. --route product=pat@example.com")
+        end
+      end
+
+    off = for kind <- Keyword.get_values(o, :no_route), do: {String.trim(kind), []}
+
+    case set ++ off do
+      [] -> nil
+      routes -> Map.new(routes)
+    end
   end
 
   # A board, or your wiki, pinned to the header (#1205).

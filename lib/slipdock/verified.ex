@@ -1067,12 +1067,12 @@ defmodule Slipdock.Verified do
       user
     )
 
-    owner = card |> board() |> Slipdock.Handbook.root() |> Map.get(:owner_id)
-
+    # A release question (#1949): on the first person the tree routes
+    # `release` to, else on the owner (`Slipdock.WaitRoutes`).
     case Slipdock.Boards.open_wait(card, actor, %{
            needs: limit_question(card, count, limit, rejections),
            choices: [@rework_choice, @accept_choice],
-           on_user_id: owner,
+           question: "release",
            purpose: @limit_purpose
          }) do
       {:ok, _} ->
@@ -1879,15 +1879,22 @@ defmodule Slipdock.Verified do
       Slipdock.Findings.Signals.audit_disagreed(card, reason, actor)
       root = card |> board() |> Slipdock.Handbook.root()
 
+      title = "An audit disagrees with the acceptance of ##{card.id}"
+
+      body =
+        "#{by} audited “#{card.title}”, accepted by #{who(card.verify_by)}: " <>
+          String.slice(reason, 0, 500)
+
       Slipdock.Automations.raise_alert(%{
         "board_id" => root.id,
         "card_id" => card.id,
         "severity" => "warning",
-        "title" => "An audit disagrees with the acceptance of ##{card.id}",
-        "body" =>
-          "#{by} audited “#{card.title}”, accepted by #{who(card.verify_by)}: " <>
-            String.slice(reason, 0, 500)
+        "title" => title,
+        "body" => body
       })
+
+      # The people the tree routes release questions to hear of it (#1949).
+      Slipdock.WaitRoutes.tell(card, "release", title, body)
     end
 
     {:ok, Repo.get!(Card, card.id)}

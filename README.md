@@ -109,7 +109,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   (`--question`, `questions`), each with its own answer box, a ✨ button that
   suggests an answer from the card, and **Skip** to move on without answers;
   **Ask questions** asks them from the card, and the card keeps every
-  question asked before with its answers (`slipdock waits 12`). **Waiting on you** opens My work with everything that
+  question asked before with its answers (`slipdock waits 12`). **Who gets
+  asked**: a wait says its kind of question (`product`, `ux`, `security`,
+  `release`, `other`; `--kind`, `question`), and a board routes each kind to
+  the person whose call it is (`slipdock set-board --route product=EMAIL`,
+  `wait_routes`), else to its owner. **Waiting on you** opens My work with everything that
   needs you, oldest first (waits, `review` and `waiting` flags on your cards,
   runner trouble, cards in progress with nobody on them), and the header counts
   it on every page; `slipdock work` and `GET /api/work` list the same.

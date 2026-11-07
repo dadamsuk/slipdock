@@ -181,6 +181,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   def update(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),
+         {:ok, board} <- wait_routes(board, params),
          {:ok, board} <-
            Boards.update_board(
              board,
@@ -198,6 +199,17 @@ defmodule SlipdockWeb.API.BoardController do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
     end
   end
+
+  # `wait_routes` (#1949): `{kind: [email, ...]}`, a blank or empty list
+  # taking a kind's route off. Refused whole if any of it is wrong.
+  defp wait_routes(board, %{"wait_routes" => routes}) do
+    case Slipdock.WaitRoutes.set(board, routes) do
+      {:ok, _} = ok -> ok
+      {:error, message} -> {:error, :unprocessable_entity, message}
+    end
+  end
+
+  defp wait_routes(board, _params), do: {:ok, board}
 
   # The board's delivery performance (#1134, `Slipdock.Dora`) for one
   # environment over `days`. While the board's delivery metrics are off it

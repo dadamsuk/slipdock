@@ -212,6 +212,9 @@ defmodule SlipdockCLI do
     wip: :integer,
     category: :string,
     kind: :keep,
+    # Who each kind of question goes to (#1949): set-board --route K=EMAIL.
+    route: :keep,
+    no_route: :keep,
     label: :string,
     hide_on_card: :boolean,
     replace: :boolean,

@@ -138,7 +138,13 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
               ),
             on: %{
               type: "string",
-              description: "Who it waits on: email or \"me\"; omit for anyone."
+              description: "Who it waits on: email or \"me\"; omit to route it by question."
+            },
+            question: %{
+              type: "string",
+              enum: Slipdock.WaitRoutes.kinds(),
+              description:
+                "What kind of question: the board routes each kind to a person (default other)."
             },
             choices: Map.put(list, :description, "Answers to pick from, if it is a choice."),
             job_id: %{type: "integer", description: "Your runner job on this card, if any."}

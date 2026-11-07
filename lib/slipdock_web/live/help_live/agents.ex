@@ -887,7 +887,8 @@ defmodule SlipdockWeb.HelpLive.Agents do
           open and answer a wait on a person (<code>--question</code>
           once per question, <code>--answer</code>
           once per answer, <code>--skip</code>
-          to move on without them; <code>slipdock waits</code>
+          to move on without them, <code>--kind</code>
+          the kind of question, which the board routes to its person; <code>slipdock waits</code>
           lists the ones asked before); <code>slipdock pulse</code>
           gives a board's flow numbers; <code>slipdock pause</code>
           and <code>slipdock resume</code>

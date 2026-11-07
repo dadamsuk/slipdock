@@ -698,7 +698,7 @@ WRITE
       [--verify-pool POOL] [--verify-rejection-limit N] [--verify-audit N]
       [--findings-propose-at N]
       [--ship-via push|pull-request]
-      [--lanes | --no-lanes]
+      [--lanes | --no-lanes] [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
                                       rename a board, change its code, shortcut key or colour,
                                       say what the foot of each list offers, make it a
                                       sprint board (every card a sprint), or a simple one (a
@@ -753,6 +753,12 @@ WRITE
                                       card has a runner merge it (needs --verify-work)
                                       --lanes: an agent can't start a card whose --paths
                                       overlap a card in progress (a person can)
+                                      --route KIND=EMAIL[,EMAIL]: who a wait asking that
+                                      kind of question (product, ux, security, release,
+                                      other) goes to: the first is who it waits on, the
+                                      rest are told; each must be on the board.
+                                      --no-route KIND takes the route off: waits go to the
+                                      board's owner again
   sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                       start the next sprint on a sprint board: a dated card
                                       ("Sprint 4", following on from the last, 14 days unless
@@ -803,10 +809,13 @@ WRITE
                                       is current again (its author, or anyone who can edit)
   timeline <id>                       the lists a card sat in, its waits and its jobs:
                                       when, for how long and who moved it
-  wait <id> "what you need" [--on EMAIL] [--choice X]... [--job ID]
+  wait <id> "what you need" [--on EMAIL] [--choice X]... [--job ID] [--kind K]
                                       wait on a person: flags the card waiting and asks on
-                                      it (on anyone without --on); the job is
-                                      $SLIPDOCK_JOB_ID unless --job names one
+                                      it; the job is $SLIPDOCK_JOB_ID unless --job names
+                                      one. --kind is what kind of question it is (product,
+                                      ux, security, release, other; other by default): it
+                                      goes to the person the board routes that kind to,
+                                      else the owner (on anyone without --on or a kind)
   wait <id> ["intro"] --question Q --question Q ...
                                       ask several questions at once: numbered, each
                                       answered on its own (use this, not one block)

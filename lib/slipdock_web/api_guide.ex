@@ -1426,6 +1426,18 @@ defmodule SlipdockWeb.APIGuide do
          -d '{"skip": true}'
     curl -s -H "$H" B/api/cards/57/waits
 
+    # who gets asked (#1949): give a wait its question kind (product, ux,
+    # security, release, other; other by default) and leave "on" out: it goes
+    # to the first person the board routes that kind to (the rest are told),
+    # else the owner. The owner sets wait_routes, each a list of the board's
+    # users ([] takes one off). CLI: slipdock wait 57 "…" --kind product;
+    # slipdock set-board 1 --route product=dana@example.com --no-route ux.
+    # MCP: update_card wait question; update_board wait_routes
+    curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/wait \
+         -d '{"needs": "Which pricing tier ships first?", "question": "product"}'
+    curl -s -X PATCH -H "$H" -H 'content-type: application/json' B/api/boards/1 \
+         -d '{"wait_routes": {"product": ["dana@example.com"], "release": []}}'
+
     # what is waiting on you, oldest first, then your cards by due (?board=1, ?done=true)
     curl -s -H "$H" B/api/work
 

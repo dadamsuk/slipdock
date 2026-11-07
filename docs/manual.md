@@ -1142,14 +1142,40 @@ carries the open one as `wait`. Over MCP it is `update_card` with `wait`
 (`questions` for several; `null` withdraws) or `answer_wait` (`answers`,
 `skip`), and `get_card` with `waits: true` for the history.
 
-Agents are told to open a wait, say what they need and stop, rather than
-flag the card and hope. A wait opened from a [runner](#runners) job
+**Who gets asked.** Each wait says what kind of question it is: `product`,
+`ux`, `security`, `release` or `other` (`other` when it doesn't say), shown
+beside the question on the card. A board can route each kind to people of its
+own, in board settings → *Who gets asked*: the first person named for a kind
+is who the wait is on, and the others are told by email. Each must be on the
+board. A wait that names its person (`--on`) goes to them; one with a kind
+goes to the person its kind is routed to, on its own board or the nearest
+board above it, else to the board's owner. A wait with no kind and no route
+for `other` waits on anyone, as before. The server's own questions route the
+same way: the [rejection limit](#verified-work)'s wait asks as `release`, and
+an audit that disagrees is emailed to `release`'s people beside its alert.
+Someone routed who leaves the board comes off its routes, and the open waits
+on them go to the owner, with a comment on each card. The table starts empty:
+nothing to set up.
+
+```sh
+slipdock set-board slipdock --route product=dana@example.com --route release=lee@example.com,sam@example.com
+slipdock set-board slipdock --no-route product     # back to the owner
+slipdock wait 12 "Which pricing tier ships first?" --kind product
+```
+
+Over the API, `PATCH /api/boards/:board` with `wait_routes` (`{"product":
+["dana@example.com"], "ux": []}`, an empty list taking a route off; a board's
+JSON carries them as people) and `question` on `POST /api/cards/:id/wait`;
+over MCP, `update_board` `wait_routes` and `update_card` `wait` `question`.
+
+Agents are told to open a wait, say what they need and what kind of question
+it is, and stop, rather than flag the card and hope. A wait opened from a [runner](#runners) job
 **parks** the job, and answering it sends the card to the same rule again
 with the question and the answer on top of the prompt.
 
 **Waiting on you.** My work opens with everything that needs you, oldest
-first, each with why and for how long: open waits on you, and on anyone on
-cards you own or are assigned; your cards flagged `review` or `waiting`;
+first, each with why and for how long: open waits on you (a routed question
+among them), and on anyone on cards you own or are assigned; your cards flagged `review` or `waiting`;
 cards the runner gave up on, or whose newest job failed, on boards you own;
 and, for a board's owner, cards in an in-progress list for over an hour with
 nobody on them. A wait's choices and answer box are right there. The header
@@ -7137,7 +7163,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `create_tag` | A tag on a board (on its root, so the whole tree shares it), with an optional colour. A tag of that name already there comes back with `created: false` rather than a second one. |
 | `delete_list` | Deletes an empty list; one holding cards only with `with_cards: true`. |
 | `create_board` | A board of your own, with a template's lists (Backlog, To Do, In Progress, Done by default), or `lists` of its own that `save_template` can keep as a new template. |
-| `update_board` | Changes settings on a board you own, as `PATCH /api/boards/:board` does: `name`, `description`, `color`, `simple`, `default_view`, `handoff_label`, and [Verified work](#verified-work)'s `bar_required`, `evidence_required`, `verify_work`, `verify_pool` and `ship_via`, and `lanes`. Only what you send changes. |
+| `update_board` | Changes settings on a board you own, as `PATCH /api/boards/:board` does: `name`, `description`, `color`, `simple`, `default_view`, `handoff_label`, and [Verified work](#verified-work)'s `bar_required`, `evidence_required`, `verify_work`, `verify_pool` and `ship_via`, and `lanes`, and `wait_routes` ([who gets asked](#waiting-on-a-person-waits) each kind of question). Only what you send changes. |
 | `archive_board` | Archives a board you own, or with `restore: true` brings it back. |
 | `delete_board` | Deletes a board you own and everything on it. `confirm` must repeat the board's code. |
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |

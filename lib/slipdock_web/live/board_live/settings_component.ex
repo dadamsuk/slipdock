@@ -269,10 +269,12 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   defp event("save_board", %{"board" => params} = all, socket) do
     %{board: board, current_user: user} = socket.assigns
 
-    with {:ok, _} <- Boards.update_board(board, params),
+    with {:ok, board} <- save_routes(board, params["wait_routes"]),
+         {:ok, _} <- Boards.update_board(board, Map.delete(params, "wait_routes")),
          {:ok, _} <- put_hotkey(user, board, all) do
       {:noreply, push_patch(socket, to: socket.assigns.close_path)}
     else
+      {:error, :routes, message} -> {:noreply, assign(socket, routes_error: message)}
       {:error, %Ecto.Changeset{} = cs} -> {:noreply, assign(socket, board_form: to_form(cs))}
       {:error, message} -> {:noreply, flash(socket, :error, "Hotkey #{message}.")}
     end
@@ -428,6 +430,9 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         groups={@groups}
         share_key={@share_key}
         source_choices={@source_choices}
+        can_manage={@can_manage}
+        routes={Slipdock.WaitRoutes.routes(@board)}
+        routes_error={assigns[:routes_error]}
         hotkey={@hotkey}
         hotkeys={@hotkeys}
         deploy_setup={@deploy_setup}
@@ -439,6 +444,17 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     </div>
     """
   end
+
+  # Who each kind of question goes to (#1949), from the five rows; only the
+  # owner sees them, and a refusal is said above them (UX-29).
+  defp save_routes(board, %{} = routes) do
+    case Slipdock.WaitRoutes.set(board, routes) do
+      {:ok, board} -> {:ok, board}
+      {:error, message} -> {:error, :routes, message}
+    end
+  end
+
+  defp save_routes(board, _routes), do: {:ok, board}
 
   defp put_hotkey(user, board, %{"hotkey" => value}) when is_nil(board.parent_card_id),
     do: Hotkeys.put(user, board, value)
@@ -481,6 +497,9 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   attr :share_key, :integer, required: true
 
   attr :form_key, :integer, default: 0
+  attr :can_manage, :boolean, default: false
+  attr :routes, :map, default: %{}, doc: "the board's wait routes, as people (#1949)"
+  attr :routes_error, :string, default: nil
   attr :source_choices, :list, default: []
   attr :hotkey, :integer, default: nil
   attr :hotkeys, :list, default: []
@@ -496,6 +515,15 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     hidden = Enum.map(Board.hidden_views(board), &Atom.to_string/1)
     for view <- Board.default_views(), view not in hidden, do: {String.capitalize(view), view}
   end
+
+  defp route_text(routes, kind),
+    do: routes |> Map.get(kind, []) |> Enum.map_join(", ", & &1.email)
+
+  defp route_label("product"), do: "Product questions"
+  defp route_label("ux"), do: "UX questions"
+  defp route_label("security"), do: "Security questions"
+  defp route_label("release"), do: "Release questions (and audits that disagree)"
+  defp route_label("other"), do: "Any other question"
 
   defp settings_modal(assigns) do
     ~H"""
@@ -935,6 +963,26 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 On a board with a handbook, the lesson is drafted as a rule on the Tidy-up page for
                 you to apply or dismiss. 0 never proposes.
               </p>
+            </div>
+            <%!-- Who each kind of question goes to (#1949, `Slipdock.WaitRoutes`). --%>
+            <div :if={@can_manage} id="board-wait-routes" class="space-y-1">
+              <span class="text-sm font-medium">Who gets asked</span>
+              <p class="text-xs text-base-content/60">
+                A wait an agent opens with a kind of question goes to the first person named for
+                it; the others are told. Emails of people on the board, comma-separated. Blank
+                sends it to the board's owner.
+              </p>
+              <.callout :if={@routes_error} id="board-wait-routes-error" kind={:error}>
+                {@routes_error}
+              </.callout>
+              <.input
+                :for={kind <- Slipdock.WaitRoutes.kinds()}
+                id={"board-route-#{kind}"}
+                name={"board[wait_routes][#{kind}]"}
+                value={route_text(@routes, kind)}
+                label={route_label(kind)}
+                placeholder="the board's owner"
+              />
             </div>
             <%!-- What a card's handoff is called on this board, and what the
                 AI is told when it drafts one (#1212). Blank is the default. --%>

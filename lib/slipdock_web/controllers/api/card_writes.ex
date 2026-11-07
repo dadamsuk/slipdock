@@ -206,7 +206,10 @@ defmodule SlipdockWeb.API.CardWrites do
   Opens a wait on `card` from a request's params, as the API and MCP both
   take them (#1114): `needs`, `questions` (a numbered series, #1220:
   `needs` may then be left out), `on` (a person — id, email or "me" — or
-  nothing for anyone), `choices` and `job_id`. Needs write on the card.
+  nothing for anyone), `choices`, `job_id` and `question`, the kind of
+  question (#1949: product, ux, security, release or other), which picks
+  who it goes to when `on` names nobody (`Slipdock.WaitRoutes`). Needs
+  write on the card.
 
   With no `job_id`, a wait opened on the token of a session runner that is
   working on this card now is asked from that job (KTD4).
@@ -232,7 +235,8 @@ defmodule SlipdockWeb.API.CardWrites do
         "choices" => choices,
         "questions" => questions,
         "on_user_id" => on,
-        "job_id" => job_id
+        "job_id" => job_id,
+        "question" => params["question"]
       })
       |> wait_result()
     end
