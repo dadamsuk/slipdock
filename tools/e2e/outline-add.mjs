@@ -15,7 +15,7 @@ await page.goto(`${base}/boards/${board}/outline`, { waitUntil: 'load' })
 await page.waitForSelector('.phx-connected')
 
 if (await page.locator('form[id^=outline-add-]').count()) fail('an add-a-subcard row shows before any + is pressed')
-if (await page.locator('#outline > .ol-row:not(.ol-head)').count() !== 251) fail('page 1 is not 250 cards and one child')
+if (await page.locator('#outline > .ol-row:not(.ol-head)').count() !== 250) fail('page 1 is not 250 rows')
 if ((await page.locator('#outline-page-of').innerText()).trim() !== 'Page 1 of 2') fail('no "Page 1 of 2"')
 
 // Rows are tighter: a plain row under 36px (37 with py-1.5, 33 with py-1).
@@ -48,6 +48,6 @@ await page.locator('#outline-next').click()
 await page.locator('#outline-page-of', { hasText: 'Page 2 of 2' }).waitFor()
 const top = await scroller.evaluate((el) => el.scrollTop)
 if (top !== 0) fail(`page 2 starts scrolled to ${top}`)
-if (!(await page.locator('#outline .ol-row', { hasText: 'Card 251' }).count())) fail('Card 251 not on page 2')
+if (!(await page.locator('#outline .ol-row', { hasText: 'Card 260' }).count())) fail('Card 260 not on page 2')
 console.log(`ok: row ${rowH}px, + on hover, subcard added, page 2 at top`)
 await browser.close()

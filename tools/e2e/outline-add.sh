@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # End to end in a real browser: the outline's add icon and pages (#2024).
 # No "Add a subcard" row under open cards; the + beside a card opens one,
-# focused, and Enter adds the subcard under it; 260 top-level cards make two
-# pages, and Next starts the second at its top; rows are under 36px (37 before).
+# focused, and Enter adds the subcard under it; 260 top-level cards (261 rows)
+# make two pages of at most 250 rows, and Next starts the second at its top;
+# rows are under 36px (37 before).
 #
 #   tools/e2e/outline-add.sh
 #

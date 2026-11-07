@@ -20,14 +20,14 @@ defmodule SlipdockWeb.OutlineComponents do
   attr :can_write, :boolean, default: true
   attr :quick_preview, :map, default: %{}, doc: "quick-add previews by form id"
   attr :adding, :any, default: nil, doc: "the card whose add-a-subcard row is open"
-  attr :page, :integer, default: 1, doc: "the page of top-level cards shown"
+  attr :page, :integer, default: 1, doc: "the page of rows shown"
 
   def outline_view(assigns) do
     assigns =
       assign(assigns,
         compact?: assigns.config.density == "compact",
         show: Config.shown(assigns.config),
-        paged: Outline.page(assigns.outline, assigns.page)
+        paged: Outline.page(assigns.outline, assigns.page, collapsed: assigns.collapsed)
       )
 
     ~H"""
@@ -195,6 +195,13 @@ defmodule SlipdockWeb.OutlineComponents do
           >
             {node.card.title}
           </span>
+          <span
+            :if={Map.get(node, :continued)}
+            class="badge badge-ghost badge-xs shrink-0"
+            title="Carried on from the page before"
+          >
+            continued
+          </span>
           <button
             :if={@can_write}
             type="button"
@@ -314,7 +321,7 @@ defmodule SlipdockWeb.OutlineComponents do
       class="flex items-center justify-between gap-3 px-3 py-2 text-xs text-base-content/70"
     >
       <span id="outline-page-range" class="tabular-nums">
-        {@paged.from}–{@paged.to} of {@paged.count} cards
+        {@paged.from}–{@paged.to} of {@paged.count} rows
       </span>
       <div class="flex items-center gap-2">
         <button
