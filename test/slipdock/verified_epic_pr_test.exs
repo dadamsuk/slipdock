@@ -66,10 +66,16 @@ defmodule Slipdock.VerifiedEpicPrTest do
   defp submit(card, attrs, ctx) do
     Boards.update_card(
       fresh(card),
-      Map.merge(%{"completed" => true, "evidence" => "every subcard merged"}, attrs),
+      %{"completed" => true, "evidence" => "every subcard merged"}
+      |> Map.merge(with_commit(attrs))
+      |> Map.merge(attrs),
       actor: ctx.builder
     )
   end
+
+  # A PR goes with the commit it merges at (#1976).
+  defp with_commit(%{"evidence_pr" => _}), do: %{"evidence_commit" => "abc1234"}
+  defp with_commit(_attrs), do: %{}
 
   defp accept(card, ctx), do: Verified.decide(fresh(card), "accept", %{}, ctx.checker, ctx.owner)
 
@@ -167,6 +173,20 @@ defmodule Slipdock.VerifiedEpicPrTest do
       assert card.completed
       assert card.verify_state == "accepted"
       assert merge_jobs(card) == []
+    end
+
+    test "naming a PR a subcard merged needs no commit; naming its own does (#1976)", ctx do
+      merged(ctx.sub_card)
+
+      assert {:error, cs} =
+               submit(ctx.epic, %{"evidence_pr" => @own_pr, "evidence_commit" => nil}, ctx)
+
+      assert %{evidence_commit: [_]} = errors_on(cs)
+
+      assert {:ok, %{verify_state: "pending"}} =
+               submit(ctx.epic, %{"evidence_pr" => @sub_pr, "evidence_commit" => nil}, ctx)
+
+      assert {:ok, %{completed: true}} = accept(ctx.epic, ctx)
     end
 
     test "naming a PR of its own still merges it", ctx do

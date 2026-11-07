@@ -3850,9 +3850,11 @@ defmodule SlipdockWeb.APIGuide do
     board's line). Never push the default branch: push a branch named
     `card-<id>` and open a pull request from it (`gh pr create`, the card id
     in its title), and complete the card with the pull request's URL in
-    `evidence_pr` (`slipdock done ID --pr URL`, `complete_card` `pr`): the
-    merge needs it, and a board asking for evidence refuses the completion
-    without it (`422`). **An epic** (a card whose sub-board holds cards)
+    `evidence_pr` and its head commit in `evidence_commit` (`slipdock done
+    ID --pr URL --evidence-commit SHA`, `complete_card` `pr` and `commit`):
+    the merge needs both, so a board asking for evidence refuses the
+    completion without the PR, and a PR without its commit, a resubmission
+    after a rejection too (`422`). **An epic** (a card whose sub-board holds cards)
     has no pull request of its own to name: each subcard ships and merges
     its own. Once they are all accepted and merged, complete the epic
     without `--pr` (`slipdock done ID --evidence "<the subcards' PRs, the

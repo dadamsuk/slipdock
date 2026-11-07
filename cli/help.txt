@@ -626,7 +626,8 @@ WRITE
                                       files added or changed, the suite's result
                                       (--suite passed:38:0) and the pull request the
                                       work is in (--pr, on a board shipping by pull
-                                      request; --no-code WHY instead for a card that
+                                      request, with --evidence-commit its head, every
+                                      time; --no-code WHY instead for a card that
                                       changes no code), when completing
                                       (--evidence - reads it from stdin); a
                                       board with --evidence-required asks agents for it. On

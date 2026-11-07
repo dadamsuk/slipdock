@@ -96,6 +96,11 @@ defmodule Slipdock.Verified do
                 "(an epic, whose subcards ship their own, needs none; a card that changes no " <>
                 "code says why instead: evidence_no_code, `slipdock done --no-code REASON`)"
 
+  @pr_commit_message "is required with evidence_pr: the pull request is merged at the commit " <>
+                       "the card names, so give its head (evidence_commit, `slipdock done " <>
+                       "--pr URL --evidence-commit SHA`, the sha `gh pr view URL --json " <>
+                       "headRefOid -q .headRefOid` shows), on a resubmission too"
+
   @doc """
   `{:ok, attrs, changes}` — `attrs` as they are to be cast, and `changes` to
   put on the card besides (the verification fields, which are never cast) —
@@ -443,17 +448,29 @@ defmodule Slipdock.Verified do
     end
   end
 
-  # On a board that ships by pull request: a pull request, or a reason the
-  # card changes no code (#1938), or an epic, whose subcards ship their own.
+  # On a board that ships by pull request: a pull request and the commit it
+  # is to merge at (#1976), or a reason the card changes no code (#1938), or
+  # an epic, whose subcards ship their own.
   defp check_pr(card, attrs) do
     pr? = present?(given(attrs, :evidence_pr, card.evidence_pr))
     no_code? = present?(given(attrs, :evidence_no_code, card.evidence_no_code))
 
     cond do
       pr? and no_code? -> {:error, :evidence_no_code, @both_message}
+      pr? and missing_commit?(card, attrs) -> {:error, :evidence_commit, @pr_commit_message}
       pr? or no_code? or epic?(card) -> :ok
       true -> {:error, :evidence_pr, @pr_message}
     end
+  end
+
+  # A pull request is merged at the card's commit (#1976), so one named
+  # without a commit leaves the accepted card nothing to merge at. An epic
+  # naming a PR its subcard already merged has nothing to merge (#1917).
+  defp missing_commit?(card, attrs) do
+    pr = given(attrs, :evidence_pr, card.evidence_pr)
+
+    not present?(given(attrs, :evidence_commit, card.evidence_commit)) and
+      not (epic?(card) and subcard_merged?(card, pr))
   end
 
   @doc "Whether `card` carries any evidence (or would, with `attrs`)."
@@ -637,7 +654,7 @@ defmodule Slipdock.Verified do
       - Open the pull request once: `gh pr view #{branch}` shows one already open, which the push has updated; otherwise #{create}.
       #{if neutral, do: neutral_note() <> "\n", else: ""}- Before pushing, run the tests you added or changed and the project's own pre-push checks, not the whole suite: the pull request's CI runs it. #{pre_push_checks(card)}
       - The build to watch is the pull request's (`gh pr checks #{branch} --watch --fail-fast`, so a failed check stops the watch when it fails). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
-      - Complete the card with its URL: `slipdock done #{card.id} --pr <url>` (complete_card `pr`), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
+      - Complete the card with its URL and its head commit: `slipdock done #{card.id} --pr <url> --evidence-commit <sha>` (complete_card `pr` and `commit`; the sha is `gh pr view card-#{card.id} --json headRefOid -q .headRefOid`, and a PR without one is refused, on a resubmission too), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
       #{no_code_note(card)}
       #{if epic?(card), do: epic_note(card), else: ""}
       """

@@ -81,7 +81,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   rejecting it with the reason (`slipdock verify 12 accept|reject`). Work
   can ship by pull request instead of a push to the default branch
   (`slipdock set-board --ship-via pull-request`; the agent names it with
-  `slipdock done 12 --pr URL`): accepting it has a runner merge the pull
+  `slipdock done 12 --pr URL --evidence-commit SHA`, its head): accepting it has a runner merge the pull
   request with its built-in merge kind, in its own repository wherever it
   was started, and the merge completes the card (an epic, whose subcards
   each merged their own, or a card that changes no code, `slipdock done 12

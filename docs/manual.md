@@ -882,10 +882,13 @@ work reaches the default branch, and so the deploy:
   Nothing else on this page changes.
 - **Pull request**: the agent never pushes the default branch. It pushes a
   `card-<id>` branch, opens a pull request, and completes the card with the
-  pull request's URL (`slipdock done 12 --pr URL`, `complete_card` `pr`,
-  `evidence_pr` over the API). The card's **Evidence** links it. On a board
-  that also asks for evidence, an agent's completion without it is refused
-  (`422`).
+  pull request's URL and its head commit (`slipdock done 12 --pr URL
+  --evidence-commit SHA`, `complete_card` `pr` and `commit`, `evidence_pr`
+  and `evidence_commit` over the API). The card's **Evidence** links it. On
+  a board that also asks for evidence, an agent's completion without the
+  pull request is refused (`422`), and so is one naming a pull request
+  without its commit, a resubmission after a rejection included: the merge
+  is made at that commit.
 
 **Epics have no pull request of their own.** Each subcard of an epic
 ships and merges its own pull request, so by the time the epic is

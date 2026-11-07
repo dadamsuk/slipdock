@@ -120,7 +120,9 @@ whole card before touching it.
   test run: before pushing, run only the tests you added or changed and
   the project's own pre-push checks, which its `CLAUDE.md`, contributing
   guide or handbook lists, else formatting and a compile that fails on
-  warnings), and complete with `slipdock done <id> --pr <url>`. Accepting
+  warnings), and complete with `slipdock done <id> --pr <url>
+  --evidence-commit <PR head sha>` (refused without the commit, on a
+  resubmission too: the PR merges at it). Accepting
   the card merges it; don't merge it yourself. An epic names no PR: its
   subcards merged their own, so once they all have, complete it with
   `slipdock done <id> --evidence "…"` and no `--pr`, and accepting it

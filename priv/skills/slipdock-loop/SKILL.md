@@ -780,7 +780,9 @@ With one on, the pass changes like this:
   CI checks; with none listed, formatting and a compile that fails on
   warnings), never the whole suite as well, and complete the card once
   the checks pass. Complete with
-  `slipdock done <id> --pr <url>` beside the other evidence. Don't merge
+  `slipdock done <id> --pr <url> --evidence-commit <PR head sha>` beside
+  the other evidence: the PR merges at that commit, so one without it is
+  refused, a resubmission after a rejection too. Don't merge
   it: accepting the card has a runner merge it (the card shows *merging*
   until then, and the merge completes it). On a board with profiles on, a
   `schema`, `security` or `spike` card an agent accepts is *held* first:
