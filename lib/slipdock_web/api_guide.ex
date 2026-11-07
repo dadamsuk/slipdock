@@ -29,6 +29,7 @@ defmodule SlipdockWeb.APIGuide do
       getting_in(base, user),
       model(),
       epics(),
+      sprints(),
       choosing(base),
       finding(base),
       working(),
@@ -186,6 +187,7 @@ defmodule SlipdockWeb.APIGuide do
     "Getting in" => "getting-in",
     "The model" => "model",
     "Epics and subcards" => "epics",
+    "Sprints" => "sprints",
     "Choosing what to do next" => "choosing",
     "Finding something nobody can name" => "finding",
     "Working a card" => "working",
@@ -942,6 +944,34 @@ defmodule SlipdockWeb.APIGuide do
       programme, which is fine — sub-boards nest as deep as you like. Four
       usually means the tree is being used as a to-do list and wants flattening.
 
+    **Card shape.** How a one-sentence ask becomes a card, the same way
+    whichever agent writes it:
+
+    - **One card** when the ask fits one sitting, one agent and one PR and
+      was said in a sentence; an epic with subcards only when it doesn't.
+      Never an epic with one subcard, nor subcards the person didn't imply.
+    - **Where:** under the epic it serves if there is one (search first);
+      otherwise top level, without making an epic to hold it.
+    - **Three things in the description**, each in proportion: what, in the
+      person's words; where, if known; and a **done-when** line, the stop
+      condition the evidence answers. One or two lines; no Given/When/Then
+      unless the board's Playbook asks for it.
+    - **Don't add** an estimate, priority, tags, a due date or an assignee
+      unless the person said so or the board's convention does.
+    - **Don't repeat the repo's rules** (tests, every door, the handbook
+      line): whoever builds it reads those from the handbook and the repo.
+    - **Two readings:** write the obvious one and note the other in the
+      description; ask only when they differ materially, once, before filing.
+    - **Dependencies:** `blocked_by` means *can't start until*, not *should
+      come after*: set it where a card builds on another's code, schema or
+      decision, and use list position for mere preference. A chain is right
+      when each card extends the one before, wrong when they are
+      independent. A one-card ask gets none unless the person said "after
+      X". None on a simple board.
+
+    A board's handbook can override these: the `## Card shape` section of
+    its Playbook page wins wherever it says otherwise.
+
     Give an epic its subcards, then fill them:
 
         POST /api/cards/42/subboard        {"template": "Simple"}
@@ -959,7 +989,48 @@ defmodule SlipdockWeb.APIGuide do
     `id` is what you add cards to. `DELETE /api/cards/42/subboard` removes the
     sub-board **and every card on it**, so treat it as a delete.
 
-    **Sprints.** A board whose `kind` is `"sprints"` (made from the "Sprint
+    **Stand-ins.** A card whose `stand_in_for` is set marks where a card
+    went into a sprint. It is not work: do not pick it up, edit it or count
+    it, act on the card it names. Sprints are their own section
+    (`sprints`).
+
+    **Simple boards.** A board with `"simple": true` is a plain to-do list
+    (`PATCH /api/boards/:board {"simple": true}`, `slipdock set-board B
+    --simple`; a new sub-board takes it from its parent). The web app hides
+    % complete, start dates, health, time tracking, votes and dependencies
+    on its cards, and leaves Timeline and Prioritise out of its views; a
+    board's JSON lists the hidden card fields as `hidden_facets`, which no
+    person's card views bring back. The API
+    still reads and writes all of them — nothing is deleted — but on a
+    simple board, keep to what the person can see: do not set `--percent`,
+    start dates, estimates or dependencies there unless asked to.
+
+
+    Tags live on the root board and are shared by the whole tree, so a tag made
+    anywhere below it is available everywhere — but a tag must exist before a
+    card can wear it (`POST /api/boards/:board/tags`, `slipdock new-tag`, or the MCP
+    tool `create_tag`). Renaming an epic renames
+    its sub-board (a board name is at most 80 characters, so a longer title is
+    cut short with an ellipsis).
+
+    **Where new work goes.** Work you discover mid-task belongs under the epic
+    it serves, as a subcard — not as a new top-level card, and not silently
+    folded into the card you are on. Open a new epic only for a genuinely new
+    outcome, and give it a sub-board immediately so it cannot become a task in
+    disguise. If the new work blocks what you are doing, add the dependency
+    (`POST /api/cards/:id/dependencies {"blocked_by": <new id>}`) rather than
+    just leaving a comment about it.
+    """
+  end
+
+  # Moved out of *Epics and subcards* (#2042) to keep the short guide, which
+  # carries that section whole, under its budget.
+  defp sprints do
+    """
+
+    ## Sprints
+
+    A board whose `kind` is `"sprints"` (made from the "Sprint
     planning" template, or `PATCH /api/boards/:board {"kind": "sprints"}`) has
     a sprint on every card, and the sprint's work as its subcards. `POST
     /api/boards/:board/sprints` makes the next one — `name`, `start`, `days`
@@ -994,33 +1065,6 @@ defmodule SlipdockWeb.APIGuide do
     with the average of the finished ones — read them when asked how a sprint
     is going rather than counting cards yourself. Every card carries
     `completed_at`, the moment it was last completed.
-
-    **Simple boards.** A board with `"simple": true` is a plain to-do list
-    (`PATCH /api/boards/:board {"simple": true}`, `slipdock set-board B
-    --simple`; a new sub-board takes it from its parent). The web app hides
-    % complete, start dates, health, time tracking, votes and dependencies
-    on its cards, and leaves Timeline and Prioritise out of its views; a
-    board's JSON lists the hidden card fields as `hidden_facets`, which no
-    person's card views bring back. The API
-    still reads and writes all of them — nothing is deleted — but on a
-    simple board, keep to what the person can see: do not set `--percent`,
-    start dates, estimates or dependencies there unless asked to.
-
-
-    Tags live on the root board and are shared by the whole tree, so a tag made
-    anywhere below it is available everywhere — but a tag must exist before a
-    card can wear it (`POST /api/boards/:board/tags`, `slipdock new-tag`, or the MCP
-    tool `create_tag`). Renaming an epic renames
-    its sub-board (a board name is at most 80 characters, so a longer title is
-    cut short with an ellipsis).
-
-    **Where new work goes.** Work you discover mid-task belongs under the epic
-    it serves, as a subcard — not as a new top-level card, and not silently
-    folded into the card you are on. Open a new epic only for a genuinely new
-    outcome, and give it a sub-board immediately so it cannot become a task in
-    disguise. If the new work blocks what you are doing, add the dependency
-    (`POST /api/cards/:id/dependencies {"blocked_by": <new id>}`) rather than
-    just leaving a comment about it.
     """
   end
 
