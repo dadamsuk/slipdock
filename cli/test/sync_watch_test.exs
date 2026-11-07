@@ -392,8 +392,11 @@ defmodule SlipdockCLI.SyncWatchTest do
       State.save(root, State.new("http://x", "h"))
       out = capture_io(fn -> Sync.run("sync", ["service", "print", root], []) end)
 
-      assert out =~ "sync --watch"
-      assert out =~ "then:"
+      # What every OS's plan prints: a systemd unit has `sync --watch` on one
+      # line, but a launchd plist gives each word its own <string> (#1974).
+      assert out =~ "--watch"
+      assert out =~ root
+      assert out =~ "# then:"
     end
   end
 end

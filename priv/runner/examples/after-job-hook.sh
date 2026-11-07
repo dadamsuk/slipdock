@@ -60,7 +60,8 @@ STATUS=${SLIPDOCK_STATUS:-}
 RC=${SLIPDOCK_EXIT:-}
 
 mkdir -p "$STATE" "$(dirname "$LOG")" 2>/dev/null
-log() { echo "=== $(date -Is) $*" >>"$LOG" 2>/dev/null; }
+# A timestamp both GNU and BSD (macOS) date print: `date -Is` is GNU only.
+log() { echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) $*" >>"$LOG" 2>/dev/null; }
 # limit SECONDS COMMAND… — the runner reports the job only once this hook
 # returns, so nothing in it may hang. (macOS has no `timeout`: run it plain.)
 limit() {
