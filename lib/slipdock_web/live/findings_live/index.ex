@@ -17,7 +17,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
   alias Slipdock.{Access, Boards, Findings}
   alias Slipdock.Boards.Board
   alias Slipdock.Findings.Finding
-  alias Slipdock.{Palette, Repo}
+  alias Slipdock.Repo
   alias SlipdockWeb.Params
 
   import SlipdockWeb.SlipdockComponents, only: [modal: 1]
@@ -300,15 +300,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
       page_jumps={@page_jumps}
     >
       <:subnav>
-        <nav class="flex min-w-0 items-center gap-1 text-sm">
-          <.link
-            navigate={~p"/boards/#{@board}"}
-            class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 hover:bg-base-200"
-          >
-            <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(@board.color)]}></span>
-            <span class="truncate font-semibold">{@board.name}</span>
-          </.link>
-        </nav>
+        <SlipdockWeb.AgenticLive.Nav.subnav board={@board} />
       </:subnav>
 
       <div id="findings-shell" class="kanban-scroll h-full overflow-y-auto">

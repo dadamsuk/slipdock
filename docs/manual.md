@@ -2030,8 +2030,9 @@ finding of the same tree, which takes its count. *Reopen* undoes any of them.
 Anyone who can read the board can list them, and a card shows how many open
 ones it has.
 
-**The Findings page.** Each board has one at `/boards/:id/findings`, linked
-beside *Health* in the Runners part of the board's Automations panel;
+**The Findings page.** Each board has one at `/boards/:id/findings`, a tile
+on the board's [Agentic Building](#agentic-building) page (the card panel's
+Findings link opens it too);
 on a sub-board it lists the whole tree's, as the API does. It shows the open
 findings, newest first, each with its kind, source, count, card, who recorded
 it and its text, and filters them as the API does: status (open, promoted,
@@ -2091,9 +2092,8 @@ midnight) or an ISO 8601 time. The ledger reads only what the server already
 keeps (completions, verification decisions, merge jobs, deploys) and writes
 nothing: there is nothing to set up.
 
-**The Ledger page.** Each board has one at `/boards/:id/ledger`, linked
-beside *Health* and *Findings* in the Runners part of the board's Automations
-panel. Its **Since** box takes the same window, kept in the URL
+**The Ledger page.** Each board has one at `/boards/:id/ledger`, a tile
+on the board's [Agentic Building](#agentic-building) page. Its **Since** box takes the same window, kept in the URL
 (`?since=7`). Anyone who can read the board can look.
 
 Each day opens with a heading that says how many cards shipped that day,
@@ -2165,8 +2165,8 @@ incident is marked **handled**, and the same state isn't flagged again — only 
 changed one. A flag the monitor put on comes off by itself when the incident
 clears.
 
-**Where to look.** The board's **Health** page (`/boards/:id/health`, the
-*Health* button in Automations → Runners) lists what is stuck now — *open*
+**Where to look.** The board's **Health** page (`/boards/:id/health`, its
+tile on the board's [Agentic Building](#agentic-building) page) lists what is stuck now — *open*
 while fixes are tried, *flagged* once it needs a person — and what was lately
 fixed, cleared or handled, each with its log, and when the monitor last ran.
 Anyone who can read the board can look; *Look it over now* needs write access.
@@ -3039,7 +3039,16 @@ Turn on **Agentic Building** in Board settings, Features (`slipdock
 set-board <board> --agentic-building on`, `update_board`
 `agentic_building`, `PATCH /api/boards/:board {"agentic_building": true}`)
 and the board menu gains **Agentic Building**, beside Automations, for the
-board's owner. It opens `/boards/<id>/agentic`: a strip of the rules
+board's owner. It opens `/boards/<id>/agentic`. At its top are four tiles, the places
+you look every day, each with a count that says whether it needs a look
+(read again every half minute): **Runners** (online of all, jobs running
+and queued; it opens Automations, where the Runners panel is),
+**Findings** (open), **Ledger** (shipped since 07:00 yesterday) and
+**Health** (stuck, and how many need a person). A tile that needs a look
+has a dot; one with no runner online while work is queued, or with work
+flagged for a person, is ringed. Findings, Ledger and Health each lead
+back to Agentic Building beside the board's name. With the switch off they
+still open by their addresses. Under the tiles is a strip of the rules
 that are on, each a jump to its section, then the sections:
 
 - **Verified work**: a bar before work starts, evidence on completion, a

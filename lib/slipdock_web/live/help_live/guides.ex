@@ -248,9 +248,9 @@ defmodule SlipdockWeb.HelpLive.Guides do
         </li>
         <li>
           <strong>Findings</strong>: what agents' passes learned on a board, and what went wrong
-          (a rejection, a job that timed out), kept for you to triage. <em>Findings</em>
-          in the board's <em>Automations</em>
-          panel, beside <em>Health</em>, opens the board's Findings page: filter by
+          (a rejection, a job that timed out), kept for you to triage. Its tile on the board's
+          <em>Agentic Building</em>
+          page opens the board's Findings page (a card's Findings link opens it too): filter by
           status, kind, source, card or date, and promote a finding into the handbook, merge
           repeats or dismiss it. A card with open findings says how many, and links there.
         </li>
@@ -258,10 +258,9 @@ defmodule SlipdockWeb.HelpLive.Guides do
           <strong>Ledger</strong>: what shipped on a board since 07:00 yesterday, a line per card
           completed, accepted, merged or deployed, with who accepted it, its evidence, the
           <em>should</em>
-          rules it missed, where its time went and what its jobs spent, grouped by day.
-          <em>Ledger</em>
-          beside <em>Findings</em>
-          opens it; <em>Look closer</em>
+          rules it missed, where its time went and what its jobs spent, grouped by day. Its
+          tile on the board's <em>Agentic Building</em>
+          page opens it; <em>Look closer</em>
           opens a card with its chat. Ten minutes' reading instead of approving each card.
         </li>
         <li>

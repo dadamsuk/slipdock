@@ -43,7 +43,10 @@ defmodule SlipdockWeb.LedgerDocsTest do
     assert manual =~ "[The ledger](#the-ledger)"
     assert manual =~ "slipdock ledger slipdock --since 7"
     assert manual =~ "GET /api/boards/:board/ledger?since="
-    assert manual =~ "beside *Health* and *Findings*"
+
+    assert manual =~
+             "**The Ledger page.** Each board has one at `/boards/:id/ledger`, a tile\non the board's [Agentic Building](#agentic-building) page."
+
     assert manual =~ ~s|`view: "ledger"` (with `since`) gives the [ledger](#the-ledger)|
 
     assert flat("docs/manual.md") =~

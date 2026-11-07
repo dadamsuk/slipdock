@@ -80,9 +80,4 @@ defmodule SlipdockWeb.HealthLive.IndexTest do
     assert html =~ "hero-lifebuoy"
     assert html =~ ~s(title="Stuck")
   end
-
-  test "the Runners panel links the Health page", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/automations")
-    assert has_element?(view, ~s(#runners-health[href="/boards/#{ctx.board.id}/health"]))
-  end
 end

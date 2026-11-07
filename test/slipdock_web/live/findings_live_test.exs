@@ -116,18 +116,6 @@ defmodule SlipdockWeb.FindingsLiveTest do
       assert {:error, {_, %{to: "/"}}} =
                live(conn_as(stranger), ~p"/boards/#{ctx.board}/findings")
     end
-
-    test "the board's Runners panel links to it beside Health", ctx do
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/automations")
-
-      assert has_element?(
-               view,
-               ~s(#runners-findings[href="/boards/#{ctx.board.id}/findings"]),
-               "Findings"
-             )
-
-      assert has_element?(view, "#runners-health")
-    end
   end
 
   describe "filters" do

@@ -10,7 +10,6 @@ defmodule SlipdockWeb.HealthLive.Index do
   use SlipdockWeb, :live_view
 
   alias Slipdock.{Access, Boards, Health}
-  alias Slipdock.Palette
   alias SlipdockWeb.Dates
 
   @impl true
@@ -131,15 +130,7 @@ defmodule SlipdockWeb.HealthLive.Index do
       page_jumps={@page_jumps}
     >
       <:subnav>
-        <nav class="flex min-w-0 items-center gap-1 text-sm">
-          <.link
-            navigate={~p"/boards/#{@board}"}
-            class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 hover:bg-base-200"
-          >
-            <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(@board.color)]}></span>
-            <span class="truncate font-semibold">{@board.name}</span>
-          </.link>
-        </nav>
+        <SlipdockWeb.AgenticLive.Nav.subnav board={@board} />
       </:subnav>
       <:subactions>
         <button

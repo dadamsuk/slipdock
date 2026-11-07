@@ -15,8 +15,9 @@ defmodule SlipdockWeb.AgenticLive.Index do
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Access, AgenticBuilding, Boards, Palette, Profiles, WaitRoutes}
+  alias Slipdock.{Access, AgenticBuilding, Boards, Profiles, WaitRoutes}
   alias Slipdock.Boards.Board
+  alias SlipdockWeb.AgenticLive.Hub
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -36,7 +37,8 @@ defmodule SlipdockWeb.AgenticLive.Index do
            page_title: "Agentic Building · #{board.name}",
            page_jumps: []
          )
-         |> reset_form(board)}
+         |> reset_form(board)
+         |> load_hub()}
       else
         {:ok, switched_off(socket, board, perm)}
       end
@@ -61,6 +63,19 @@ defmodule SlipdockWeb.AgenticLive.Index do
     |> put_flash(:info, "This board doesn't use Agentic Building.")
     |> push_navigate(to: ~p"/boards/#{board}")
   end
+
+  # The four tiles' counts (#2012), read again every half minute so they
+  # stay live while the page is open.
+  @hub_every 30_000
+
+  defp load_hub(socket) do
+    if connected?(socket), do: Process.send_after(self(), :hub, @hub_every)
+    assign(socket, hub: Hub.counts(socket.assigns.board))
+  end
+
+  @impl true
+  def handle_info(:hub, socket), do: {:noreply, load_hub(socket)}
+  def handle_info(_message, socket), do: {:noreply, socket}
 
   defp root(%Board{root_id: nil}), do: nil
   defp root(%Board{root_id: id}), do: Boards.get_board(id)
@@ -272,16 +287,7 @@ defmodule SlipdockWeb.AgenticLive.Index do
       page_jumps={@page_jumps}
     >
       <:subnav>
-        <nav class="flex min-w-0 items-center gap-1 text-sm">
-          <.link
-            navigate={~p"/boards/#{@board}"}
-            id="agentic-board-link"
-            class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 hover:bg-base-200"
-          >
-            <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(@board.color)]}></span>
-            <span class="truncate font-semibold">{@board.name}</span>
-          </.link>
-        </nav>
+        <SlipdockWeb.AgenticLive.Nav.subnav board={@board} back={false} />
       </:subnav>
 
       <div id="agentic-shell" class="kanban-scroll h-full overflow-y-auto">
@@ -301,6 +307,51 @@ defmodule SlipdockWeb.AgenticLive.Index do
               </.link>
             </:actions>
           </.page_header>
+
+          <%!-- The developer's daily start (#2012): where each place stands,
+                each tile opening it. --%>
+          <nav id="agentic-hub" aria-label="Runners, Findings, Ledger and Health">
+            <ul class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <li :for={tile <- Hub.tiles(@board, @hub)}>
+                <.link
+                  navigate={tile.path}
+                  id={"agentic-tile-#{tile.key}"}
+                  data-attention={tile.attention && to_string(tile.attention)}
+                  class={[
+                    "agentic-tile group flex h-full flex-col gap-1 rounded-box bg-base-100 p-4 ring-1 transition hover:shadow-md focus-visible:outline-2",
+                    tile.attention == :warning && "ring-warning/60 bg-warning/5",
+                    tile.attention != :warning && "ring-base-content/10 hover:ring-base-content/20"
+                  ]}
+                >
+                  <span class="flex items-center justify-between gap-2 text-sm font-medium">
+                    <span class="flex items-center gap-2">
+                      <.icon name={tile.icon} class="size-4 text-primary" />
+                      {tile.title}
+                    </span>
+                    <span
+                      :if={tile.attention}
+                      class={[
+                        "size-2 rounded-full",
+                        if(tile.attention == :warning, do: "bg-warning", else: "bg-info")
+                      ]}
+                      aria-hidden="true"
+                    ></span>
+                    <.icon
+                      :if={!tile.attention}
+                      name="hero-arrow-right"
+                      class="size-4 text-base-content/60 transition group-hover:translate-x-0.5"
+                    />
+                  </span>
+                  <span class="mt-1 flex items-baseline gap-1.5">
+                    <span class="text-2xl font-semibold" data-role="tile-number">{tile.number}</span>
+                    <span class="text-sm text-base-content/70">{tile.unit}</span>
+                  </span>
+                  <span class="text-xs text-base-content/70" data-role="tile-line">{tile.line}</span>
+                  <span :if={tile.attention == :warning} class="sr-only">Needs a look.</span>
+                </.link>
+              </li>
+            </ul>
+          </nav>
 
           <%!-- At a glance: which rules hold, each a jump to its section. --%>
           <nav id="agentic-summary" aria-label="Rules on this board">
