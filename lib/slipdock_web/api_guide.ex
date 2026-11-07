@@ -330,9 +330,9 @@ defmodule SlipdockWeb.APIGuide do
 
       ## The rest of the guide
 
-      Each section below is one `get_guide` call away, with `section` set to
-      its name (`section: "all"` gives the whole guide, as `GET /api/guide`
-      does):
+      Each section below is one call away: `get_guide` with `section` set to
+      its name, or `GET /api/guide?section=<name>` (`all`, or the plain URL,
+      is the whole guide):
 
       #{others}
       """
@@ -340,16 +340,18 @@ defmodule SlipdockWeb.APIGuide do
 
   @doc """
   One section of the guide by key (see `sections/1`), `"all"` for the whole
-  thing. `{:error, message}` names the keys there are when `key` is not one.
+  thing, `"short"` for `short/1`. `{:error, message}` names the keys there
+  are, `short` and `all` with them, when `key` is not one.
   """
   def section("all", opts), do: {:ok, markdown(opts)}
+  def section("short", opts), do: {:ok, short(opts)}
 
   def section(key, opts) do
     all = sections(opts)
 
     case Enum.find_value(all, fn {k, _, text} -> k == key && text end) do
       nil ->
-        keys = all |> Enum.map(&elem(&1, 0)) |> Enum.uniq() |> Kernel.++(["all"])
+        keys = all |> Enum.map(&elem(&1, 0)) |> Enum.uniq() |> Kernel.++(["short", "all"])
         {:error, "no section #{inspect(key)} in the guide; there are: #{Enum.join(keys, ", ")}"}
 
       text ->
@@ -429,6 +431,11 @@ defmodule SlipdockWeb.APIGuide do
     """
 
     ## Getting in
+
+    This guide is long. `GET #{base}/api/guide?section=short` is the part
+    needed to work a board, ending with the names of the rest, and
+    `?section=<name>` is one of those (`all`, or no `section`, the whole
+    guide; an unknown name is a `404` listing them).
 
     Every endpoint but this one needs an API token:
 
@@ -3515,6 +3522,10 @@ defmodule SlipdockWeb.APIGuide do
     ```
     #{endpoints() |> Enum.map_join("\n    ", fn {verb, path} -> String.pad_trailing(verb, 7) <> path end)}
     ```
+
+    `GET /api/guide` takes `?section=short|all|<name>`: the short guide, the
+    whole one (as with no `section`), or one section by the name the short
+    guide lists; `?format=json` carries the chosen text in `guide`.
 
     `:board` accepts an id, a board's `code`, or a name. Bodies are documented by the recipes
     above; the fields a card accepts on create and update are `title`,
