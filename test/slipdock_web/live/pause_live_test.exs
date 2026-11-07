@@ -114,11 +114,11 @@ defmodule SlipdockWeb.PauseLiveTest do
 
   test "the automation WIP setting is off by default and the owner can turn it on",
        %{conn: conn, board: board} do
-    {:ok, settings, _} = live(conn, ~p"/boards/#{board}/settings")
+    {:ok, settings, _} = live(conn, agentic_path(board))
     assert has_element?(settings, "#board-automation-wip")
     refute has_element?(settings, "#board-automation-wip[checked]")
 
-    settings |> form("#board-form", board: %{"automation_wip" => "true"}) |> render_submit()
+    settings |> form("#agentic-form", board: %{"automation_wip" => "true"}) |> render_submit()
     assert Boards.get_board!(board.id).automation_wip
   end
 end

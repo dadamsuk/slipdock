@@ -1173,7 +1173,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
           person can resume, and an agent that sees <code>paused</code>
           takes nothing and stops.
           Held jobs say why: paused, WIP full (with <strong>WIP limits hold automated work</strong>
-          on in the board's settings), waiting on a card in progress, or no runner online.
+          on, on the board's Agentic Building page), waiting on a card in progress, or no runner online.
         </li>
         <li>
           <strong>State line and age.</strong>

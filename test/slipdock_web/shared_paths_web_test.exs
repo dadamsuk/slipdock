@@ -157,20 +157,20 @@ defmodule SlipdockWeb.SharedPathsWebTest do
   end
 
   test "board settings set them one per line, and the card panel marks the shared ones", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     assert has_element?(view, "#board-shared-paths")
 
     view
-    |> form("#board-form", board: %{"shared_paths" => "docs/manual.md\nREADME.md"})
+    |> form("#agentic-form", board: %{"shared_paths" => "docs/manual.md\nREADME.md"})
     |> render_submit()
 
     assert Boards.get_board!(ctx.board.id).shared_paths == ["docs/manual.md", "README.md"]
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     assert view |> element("#board-shared-paths") |> render() =~ "docs/manual.md\nREADME.md"
 
     view
-    |> form("#board-form", board: %{"shared_paths" => "../outside"})
+    |> form("#agentic-form", board: %{"shared_paths" => "../outside"})
     |> render_submit()
 
     assert render(view) =~ "stay inside the repository"

@@ -22,15 +22,15 @@ defmodule SlipdockWeb.VerifyAuditLiveTest do
   defp api(conn), do: put_req_header(conn, "accept", "application/json")
 
   test "board settings show it with verify on, and save it", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     assert has_element?(view, "#board-verify-audit[value='0']")
     assert render(view) =~ "Audit 1 in N accepted cards"
 
-    view |> form("#board-form", board: %{"verify_audit" => "10"}) |> render_submit()
+    view |> form("#agentic-form", board: %{"verify_audit" => "10"}) |> render_submit()
     assert Boards.get_board!(ctx.board.id).verify_audit == 10
 
     {:ok, _} = Boards.update_board(Boards.get_board!(ctx.board.id), %{"verify_work" => false})
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     refute has_element?(view, "#board-verify-audit")
   end
 

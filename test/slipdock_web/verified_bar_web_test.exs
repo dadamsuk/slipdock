@@ -173,10 +173,10 @@ defmodule SlipdockWeb.VerifiedBarWebTest do
   end
 
   test "board settings turn it on, and the card panel shows the bar and its lock", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     refute has_element?(view, "#board-bar-required[checked]")
 
-    view |> form("#board-form", board: %{"bar_required" => "true"}) |> render_submit()
+    view |> form("#agentic-form", board: %{"bar_required" => "true"}) |> render_submit()
     assert Boards.get_board!(ctx.board.id).bar_required
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")

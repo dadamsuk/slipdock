@@ -135,18 +135,18 @@ defmodule SlipdockWeb.ProfilesTierWebTest do
     end
 
     test "the settings page shows a select per profile, warns on security none, and saves", ctx do
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+      {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
       assert has_element?(view, "#board-tier-schema option[value=before_merge][selected]")
       refute has_element?(view, "#board-profile-tiers-warning")
 
       view
-      |> form("#board-form", board: %{"profile_tiers" => %{"security" => "none"}})
+      |> form("#agentic-form", board: %{"profile_tiers" => %{"security" => "none"}})
       |> render_change()
 
       assert has_element?(view, "#board-profile-tiers-warning")
 
       view
-      |> form("#board-form", board: %{"profile_tiers" => %{"security" => "none"}})
+      |> form("#agentic-form", board: %{"profile_tiers" => %{"security" => "none"}})
       |> render_submit()
 
       assert Boards.get_board!(ctx.board.id).profile_tiers == %{"security" => "none"}
@@ -154,7 +154,7 @@ defmodule SlipdockWeb.ProfilesTierWebTest do
 
     test "the settings page has no tiers with profiles off", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"profiles" => false})
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+      {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
       refute has_element?(view, "#board-profile-tiers")
     end
   end

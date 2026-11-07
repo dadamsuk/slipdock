@@ -2148,7 +2148,7 @@ defmodule SlipdockWeb.APIGuide do
     progress`) only ever names a card a runner job is working on: one with
     a job queued, claimed or running on it or its epic. A card in progress
     with no open job holds nothing back. WIP full applies when the owner turns on `automation_wip`
-    (settings, `PATCH /api/boards/:board`, `slipdock set-board
+    (the Agentic Building page, `PATCH /api/boards/:board`, `slipdock set-board
     --automation-wip`): while the first in-progress list is at its WIP
     limit, jobs and list_top sends for cards not already in progress wait.
     People can still drag cards in.
@@ -2268,6 +2268,10 @@ defmodule SlipdockWeb.APIGuide do
     `update_board` changes a board you own (its name, description, colour,
     simple mode, default view, handoff label and the Verified work
     switches), as `PATCH /api/boards/:board` and `slipdock set-board` do.
+    `agentic_building` (`--agentic-building on|off`) shows or hides the web
+    app's Agentic Building page, where a person sets these switches; it
+    changes none of them, and turning it off with any still set answers
+    with `warnings` naming them.
     On a board that verifies work, `verify_card` (`slipdock verify`) is how a
     second agent accepts or rejects a card another one submitted: see
     *Verified work*, which appears when one of your boards has it on. With

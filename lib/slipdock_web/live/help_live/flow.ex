@@ -8,7 +8,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
   person*, *Tidying up*, *Findings*), `docs/agents.md` and the API guide;
   this page joins them up and links out rather than repeating every option.
   Every `slipdock …` command it shows is checked against `cli/help.txt`, and
-  every setting in `settings/0` against the board's settings form, by
+  every setting in `settings/0` against the board's Agentic Building page, by
   `SlipdockWeb.HelpLive.FlowTest`, so a rename breaks a test, not the page.
   """
   use SlipdockWeb, :html
@@ -71,8 +71,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
     }
   ]
 
-  # The board settings this page names: the label on the board's settings,
-  # and the CLI that sets it. FlowTest checks both still exist.
+  # The board settings this page names: the label on the board's Agentic
+  # Building page (#2011), and the CLI that sets it. FlowTest checks both still exist.
   @settings [
     {"A bar before work starts", "slipdock set-board B --bar-required",
      "Agents write each card's bar before they may start it; it locks then."},
@@ -138,7 +138,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
 
       <.part id="flow-settings" title="The settings, in one place">
         <p>
-          Each is in the board's settings, and set from a terminal with <code>slipdock set-board</code>. A card's subcards take their parent board's choices.
+          Each is on the board's <strong>Agentic Building</strong>
+          page: turn on Agentic Building in Board settings, Features, then open it from the board menu. From a terminal,
+          <code>slipdock set-board</code>
+          sets each. A card's subcards take their parent board's choices.
         </p>
         <dl class="divide-y divide-base-content/10">
           <div :for={{label, cli, what} <- @settings} class="py-2">

@@ -58,6 +58,8 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
       name: full.name,
       owner: if(full.owner_id != user.id, do: "shared with you", else: "yours"),
       simple: full.simple,
+      # Agentic Building (#2011): the web app's page for the agent settings.
+      agentic_building: full.agentic_building,
       archived: not is_nil(full.archived_at),
       lists:
         Enum.map(full.columns, fn col ->

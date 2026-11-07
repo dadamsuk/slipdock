@@ -428,6 +428,7 @@ slipdock set-board <board> --default-view wiki            # what opening the boa
 slipdock set-board <board> --wiki-sort modified           # how the top of the wiki's tree is sorted, and the folders following it (manual, name, modified, created)
 slipdock set-board <board> --no-page-card-features        # the board's wiki pages hide status, checklist, links, fields, votes, comments
 slipdock set-board <board> --handoff-label Parked --handoff-prompt-file p.txt  # rename "Left off" in the web app, and Auto generate's instructions ("" = default)
+slipdock set-board <board> --agentic-building on|off     # the web app's Agentic Building page for these settings; off hides it, changes none
 slipdock set-board <board> --bar-required --evidence-required --verify-work --verify-pool checkers
                                        # Verified work, each off by default: a bar before work
                                        # starts, evidence on completion, a second agent accepts or

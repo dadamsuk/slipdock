@@ -269,12 +269,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   defp event("save_board", %{"board" => params} = all, socket) do
     %{board: board, current_user: user} = socket.assigns
 
-    with {:ok, board} <- save_routes(board, params["wait_routes"]),
-         {:ok, _} <- Boards.update_board(board, Map.delete(params, "wait_routes")),
+    with {:ok, _} <- Boards.update_board(board, params),
          {:ok, _} <- put_hotkey(user, board, all) do
       {:noreply, push_patch(socket, to: socket.assigns.close_path)}
     else
-      {:error, :routes, message} -> {:noreply, assign(socket, routes_error: message)}
       {:error, %Ecto.Changeset{} = cs} -> {:noreply, assign(socket, board_form: to_form(cs))}
       {:error, message} -> {:noreply, flash(socket, :error, "Hotkey #{message}.")}
     end
@@ -431,8 +429,6 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         share_key={@share_key}
         source_choices={@source_choices}
         can_manage={@can_manage}
-        routes={Slipdock.WaitRoutes.routes(@board)}
-        routes_error={assigns[:routes_error]}
         hotkey={@hotkey}
         hotkeys={@hotkeys}
         deploy_setup={@deploy_setup}
@@ -444,17 +440,6 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     </div>
     """
   end
-
-  # Who each kind of question goes to (#1949), from the five rows; only the
-  # owner sees them, and a refusal is said above them (UX-29).
-  defp save_routes(board, %{} = routes) do
-    case Slipdock.WaitRoutes.set(board, routes) do
-      {:ok, board} -> {:ok, board}
-      {:error, message} -> {:error, :routes, message}
-    end
-  end
-
-  defp save_routes(board, _routes), do: {:ok, board}
 
   defp put_hotkey(user, board, %{"hotkey" => value}) when is_nil(board.parent_card_id),
     do: Hotkeys.put(user, board, value)
@@ -498,8 +483,6 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
   attr :form_key, :integer, default: 0
   attr :can_manage, :boolean, default: false
-  attr :routes, :map, default: %{}, doc: "the board's wait routes, as people (#1949)"
-  attr :routes_error, :string, default: nil
   attr :source_choices, :list, default: []
   attr :hotkey, :integer, default: nil
   attr :hotkeys, :list, default: []
@@ -516,18 +499,13 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     for view <- Board.default_views(), view not in hidden, do: {String.capitalize(view), view}
   end
 
-  # Each profile's tier as the form has it (#1952): the board's changes,
-  # or what was just chosen, over the defaults.
-  defp tiers_shown(form), do: Slipdock.Profiles.tiers_with(form[:profile_tiers].value)
-
-  defp route_text(routes, kind),
-    do: routes |> Map.get(kind, []) |> Enum.map_join(", ", & &1.email)
-
-  defp route_label("product"), do: "Product questions"
-  defp route_label("ux"), do: "UX questions"
-  defp route_label("security"), do: "Security questions"
-  defp route_label("release"), do: "Release questions (and audits that disagree)"
-  defp route_label("other"), do: "Any other question"
+  # The agent rules still set while the form turns Agentic Building off
+  # (#2011): they hold on, so they are named before it is saved.
+  defp agentic_off_warning(form, board) do
+    if Phoenix.HTML.Form.normalize_value("checkbox", form[:agentic_building].value),
+      do: [],
+      else: Slipdock.AgenticBuilding.live_rules(board)
+  end
 
   defp settings_modal(assigns) do
     ~H"""
@@ -762,327 +740,49 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 />
               </div>
             </div>
-            <%!-- WIP limits holding automated work (#1116, KTD11). Off by
-                default: people's drags only ever see the badge. --%>
-            <div class="space-y-1">
-              <input type="hidden" name={@form[:automation_wip].name} value="false" />
+            <%!-- Agentic Building (#2011): one switch for the board menu's
+                item and page that hold every agent setting. Off hides them
+                and changes no setting, so a rule still set is named. --%>
+            <div id="board-agentic" class="space-y-2">
+              <input type="hidden" name={@form[:agentic_building].name} value="false" />
               <label class="flex cursor-pointer items-start gap-2 text-sm">
                 <input
                   type="checkbox"
-                  id="board-automation-wip"
-                  name={@form[:automation_wip].name}
+                  id="board-agentic-building"
+                  name={@form[:agentic_building].name}
                   value="true"
                   checked={
-                    Phoenix.HTML.Form.normalize_value("checkbox", @form[:automation_wip].value)
+                    Phoenix.HTML.Form.normalize_value("checkbox", @form[:agentic_building].value)
                   }
                   class="checkbox mt-0.5"
                 />
                 <span>
-                  <span class="font-medium">WIP limits hold automated work</span>
+                  <span class="font-medium">Agentic Building</span>
                   <span class="block text-xs text-base-content/50">
-                    While the first in-progress list is at its WIP limit, runner jobs and lists
-                    that send cards wait, unless the card is in progress already. People can
-                    still drag cards in.
+                    For a board coding agents work on. Adds Agentic Building to the board menu: one
+                    page for verified work, lanes, profiles, who gets asked, handoffs, findings and
+                    runner settings.
                   </span>
                 </span>
               </label>
-            </div>
-            <%!-- How long runner job logs stay (#1872). Set on the top
-                board: a sub-board's jobs follow it. --%>
-            <div :if={is_nil(@board.root_id)} id="board-job-logs" class="space-y-1">
-              <span class="text-sm font-medium">Runner job logs</span>
-              <p class="text-xs text-base-content/50">
-                A job's live log is deleted this long after the job ends, unless someone keeps it
-                as a page. Failed, cancelled, stuck or rejected work keeps the second time.
-              </p>
-              <div class="settings-pair">
-                <.input
-                  field={@form[:job_log_hours]}
-                  id="board-job-log-hours"
-                  type="number"
-                  min="1"
-                  max="8760"
-                  label="Keep job logs for (hours)"
-                  class="input field w-24"
-                />
-                <.input
-                  field={@form[:failure_log_hours]}
-                  id="board-failure-log-hours"
-                  type="number"
-                  min="1"
-                  max="8760"
-                  label="Keep failure logs for (hours)"
-                  class="input field w-24"
-                />
-              </div>
-            </div>
-            <%!-- Verified work (#1620): optional checks on what agents say
-                they finished. Every switch is off by default. --%>
-            <div id="board-verified-work" class="space-y-1">
-              <span class="text-sm font-medium">Verified work</span>
-              <p class="text-xs text-base-content/50">
-                Checks on agents' work. People complete cards as usual whichever is on.
-              </p>
-              <input type="hidden" name={@form[:bar_required].name} value="false" />
-              <label class="flex cursor-pointer items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  id="board-bar-required"
-                  name={@form[:bar_required].name}
-                  value="true"
-                  checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:bar_required].value)}
-                  class="checkbox mt-0.5"
-                />
-                <span>
-                  <span class="font-medium">A bar before work starts</span>
-                  <span class="block text-xs text-base-content/50">
-                    An agent writes what done means on the card before moving it into an
-                    in-progress list, and the bar locks then: only a person can change it after.
-                  </span>
-                </span>
-              </label>
-              <div>
-                <.input
-                  field={@form[:lane_mode]}
-                  id="board-lanes"
-                  type="select"
-                  label="Lanes"
-                  options={[
-                    {"Off", "off"},
-                    {"Hold: an agent can't start an overlapping card", "hold"},
-                    {"Advise: start it, and tell the agent", "advise"}
-                  ]}
-                />
-                <p class="-mt-1 text-xs text-base-content/60">
-                  Agents side by side stay out of each other's files: a card's paths overlapping a
-                  card in progress hold it, or, advised, start with the agent told which card is
-                  there. Moving a card yourself overrides a hold.
-                </p>
-              </div>
-              <div class="ml-6 space-y-1">
-                <.input
-                  field={@form[:shared_paths]}
-                  id="board-shared-paths"
-                  type="textarea"
-                  rows="2"
-                  label="Shared paths"
-                  value={globs_text(@form[:shared_paths].value)}
-                  placeholder="docs/manual.md&#10;README.md"
-                  class="textarea field field-mono w-full"
-                />
-                <p class="-mt-1 text-xs text-base-content/60">
-                  One glob per line. Files nearly every card edits, such as the manual: cards
-                  can both declare them without holding each other. Any other overlap still holds.
-                </p>
-              </div>
-              <%!-- Profiles (#1951): one word for what kind of change a card is. --%>
-              <input type="hidden" name={@form[:profiles].name} value="false" />
-              <label class="flex cursor-pointer items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  id="board-profiles"
-                  name={@form[:profiles].name}
-                  value="true"
-                  checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:profiles].value)}
-                  class="checkbox mt-0.5"
-                />
-                <span>
-                  <span class="font-medium">Profiles</span>
-                  <span class="block text-xs text-base-content/50">
-                    An agent claiming or starting a card with no profile gives it one, inferred
-                    from its paths and tags: security, schema, spike, fix, docs or feature. It is
-                    shown on the card, and its human tier says what an agent's acceptance does.
-                  </span>
-                </span>
-              </label>
-              <%!-- The human tier (#1952): kept on the root board, for the tree. --%>
-              <div
-                :if={@board.profiles && is_nil(@board.root_id)}
-                id="board-profile-tiers"
-                class="ml-6 space-y-1"
+              <.link
+                :if={@board.agentic_building}
+                navigate={~p"/boards/#{@board}/agentic"}
+                id="board-agentic-open"
+                class="link ml-6 text-sm"
               >
-                <span class="text-sm font-medium">Human tier, by profile</span>
-                <p class="text-xs text-base-content/60">
-                  What an agent's acceptance does on a board that ships by pull request:
-                  none and ledger merge it (ledger: the ledger is your look at it),
-                  before_merge waits for a person to merge it or send it back. A person's own
-                  acceptance merges.
-                </p>
-                <.callout
-                  :if={tiers_shown(@form)["security"] == "none"}
-                  id="board-profile-tiers-warning"
-                  kind={:warning}
-                >
-                  Security is set to none: an agent's acceptance merges a security change with no
-                  person looking at it first.
-                </.callout>
-                <.input
-                  :for={profile <- Slipdock.Profiles.names()}
-                  type="select"
-                  id={"board-tier-#{profile}"}
-                  name={"board[profile_tiers][#{profile}]"}
-                  value={tiers_shown(@form)[profile]}
-                  options={Slipdock.Profiles.tiers()}
-                  label={profile}
-                />
-              </div>
-              <input type="hidden" name={@form[:evidence_required].name} value="false" />
-              <label class="flex cursor-pointer items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  id="board-evidence-required"
-                  name={@form[:evidence_required].name}
-                  value="true"
-                  checked={
-                    Phoenix.HTML.Form.normalize_value("checkbox", @form[:evidence_required].value)
-                  }
-                  class="checkbox mt-0.5"
-                />
-                <span>
-                  <span class="font-medium">Evidence on completion</span>
-                  <span class="block text-xs text-base-content/50">
-                    An agent completing a card says what it checked, and the commit it checked
-                    at. The evidence is kept on the card and as a comment.
-                  </span>
-                </span>
-              </label>
-              <input type="hidden" name={@form[:verify_work].name} value="false" />
-              <label class="flex cursor-pointer items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  id="board-verify-work"
-                  name={@form[:verify_work].name}
-                  value="true"
-                  checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:verify_work].value)}
-                  class="checkbox mt-0.5"
-                />
-                <span>
-                  <span class="font-medium">A second agent verifies</span>
-                  <span class="block text-xs text-base-content/50">
-                    An agent completing a card submits it: it waits, flagged for review, until a
-                    different agent or a person accepts it (it is then done) or rejects it with
-                    the reason.
-                  </span>
-                </span>
-              </label>
-              <div :if={@board.verify_work} class="pl-6">
-                <.input
-                  field={@form[:verify_pool]}
-                  id="board-verify-pool"
-                  label="Runner pool for verify jobs"
-                  placeholder="none: verify by hand"
-                />
-                <p class="-mt-1 text-xs text-base-content/50">
-                  Each submitted card is queued for this pool as a job of kind <code>verify</code>. Blank queues nothing.
-                </p>
-                <%!-- Repeated rejections go to a person (#1779). --%>
-                <.input
-                  field={@form[:verify_rejection_limit]}
-                  id="board-verify-rejection-limit"
-                  type="number"
-                  min="0"
-                  max="50"
-                  label="Rejections before a person decides"
-                />
-                <p class="-mt-1 text-xs text-base-content/50">
-                  The rejection after this many opens a wait on the board's owner: rework the
-                  card as rejected, or accept it as is. 0 never asks.
-                </p>
-                <%!-- Spot-checks of accepted work (#1780). --%>
-                <.input
-                  field={@form[:verify_audit]}
-                  id="board-verify-audit"
-                  type="number"
-                  min="0"
-                  max="1000"
-                  label="Audit 1 in N accepted cards"
-                />
-                <p class="-mt-1 text-xs text-base-content/50">
-                  About one card in N that an agent accepted is checked again by another runner
-                  in the pool. An audit only comments; one that disagrees alerts you. 0 audits none.
-                </p>
-                <%!-- How accepted work reaches the default branch (#1654). --%>
-                <.input
-                  field={@form[:ship_via]}
-                  id="board-ship-via"
-                  type="select"
-                  label="Ship accepted work by"
-                  options={[
-                    {"Push: the agent pushes the default branch", "push"},
-                    {"Pull request: accepting it merges the agent's pull request", "pull_request"}
-                  ]}
-                />
-                <p class="-mt-1 text-xs text-base-content/50">
-                  With pull request, an agent pushes a <code>card-&lt;id&gt;</code>
-                  branch and opens a pull request, never the default branch. Accepting the card
-                  sends a runner a merge job, and the merge deploys.
-                </p>
-              </div>
-            </div>
-            <%!-- Promotion by recurrence (#1942, `Slipdock.Findings.Promote`). --%>
-            <div class="space-y-1">
-              <span class="text-sm font-medium">Findings</span>
-              <.input
-                field={@form[:findings_propose_at]}
-                id="board-findings-propose-at"
-                type="number"
-                min="0"
-                max="100"
-                label="Propose a rule when a finding is seen this many times"
-              />
-              <p class="-mt-1 text-xs text-base-content/50">
-                On a board with a handbook, the lesson is drafted as a rule on the Tidy-up page for
-                you to apply or dismiss. 0 never proposes.
-              </p>
-            </div>
-            <%!-- Who each kind of question goes to (#1949, `Slipdock.WaitRoutes`). --%>
-            <div :if={@can_manage} id="board-wait-routes" class="space-y-1">
-              <span class="text-sm font-medium">Who gets asked</span>
-              <p class="text-xs text-base-content/60">
-                A wait an agent opens with a kind of question goes to the first person named for
-                it; the others are told. Emails of people on the board, comma-separated. Blank
-                sends it to the board's owner.
-              </p>
-              <.callout :if={@routes_error} id="board-wait-routes-error" kind={:error}>
-                {@routes_error}
+                Open Agentic Building
+              </.link>
+              <.callout
+                :if={agentic_off_warning(@form, @board) != []}
+                id="board-agentic-warning"
+                kind={:warning}
+              >
+                These rules still hold with it off, out of sight: {Enum.join(
+                  agentic_off_warning(@form, @board),
+                  ", "
+                )}. Turn them off on its page first to stop them.
               </.callout>
-              <.input
-                :for={kind <- Slipdock.WaitRoutes.kinds()}
-                id={"board-route-#{kind}"}
-                name={"board[wait_routes][#{kind}]"}
-                value={route_text(@routes, kind)}
-                label={route_label(kind)}
-                placeholder="the board's owner"
-              />
-            </div>
-            <%!-- What a card's handoff is called on this board, and what the
-                AI is told when it drafts one (#1212). Blank is the default. --%>
-            <div class="space-y-1">
-              <span class="text-sm font-medium">Handoffs</span>
-              <p class="text-xs text-base-content/50">
-                Where a card was left, for whoever picks it up next. Leave these blank for the
-                defaults.
-              </p>
-              <.input
-                field={@form[:handoff_label]}
-                id="board-handoff-label"
-                label="Label"
-                placeholder={Board.default_handoff_label()}
-                maxlength={Board.handoff_limits().label}
-              />
-              <.input
-                field={@form[:handoff_prompt]}
-                id="board-handoff-prompt"
-                type="textarea"
-                rows="6"
-                label="Instructions for Auto generate"
-                placeholder={Slipdock.AI.HandoffDrafter.default_instructions()}
-                maxlength={Board.handoff_limits().prompt}
-              />
-              <p class="-mt-1 text-xs text-base-content/50">
-                What the AI model is told when it drafts a handoff from the card. It is always
-                asked to answer with a next step and a note, whatever this says.
-              </p>
             </div>
             <%!-- Who else may mail the board's card addresses (#1289,
                 `Board.permitted_sender?/2`). Only while the server takes mail. --%>
@@ -1515,8 +1215,4 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   # The permitted senders, one per line, as the textarea shows them.
   defp senders_text(senders) when is_list(senders), do: Enum.join(senders, "\n")
   defp senders_text(senders), do: senders
-
-  # The shared paths (#1971), one glob per line, as the textarea shows them.
-  defp globs_text(globs) when is_list(globs), do: Enum.join(globs, "\n")
-  defp globs_text(globs), do: globs
 end

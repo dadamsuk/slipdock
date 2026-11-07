@@ -128,12 +128,12 @@ defmodule SlipdockWeb.LanesAdviseWebTest do
   end
 
   test "board settings choose the mode; the card panel calls the overlap advisory", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
-    view |> form("#board-form", board: %{"lane_mode" => "advise"}) |> render_submit()
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
+    view |> form("#agentic-form", board: %{"lane_mode" => "advise"}) |> render_submit()
     assert Boards.get_board!(ctx.board.id).lane_mode == "advise"
     assert Boards.get_board!(ctx.board.id).lanes
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     assert has_element?(view, "#board-lanes option[value=advise][selected]")
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")

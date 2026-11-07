@@ -1112,6 +1112,8 @@ defmodule SlipdockCLI.Boards do
         "show_pulse" => o[:show_pulse],
         # WIP limits holding runner jobs and list_top sends (#1116).
         "automation_wip" => o[:automation_wip],
+        # The web app's Agentic Building item and page (#2011): on|off.
+        "agentic_building" => agentic_building(o),
         # How long runner job logs stay, in hours (#1872).
         "job_log_hours" => o[:job_log_hours],
         "failure_log_hours" => o[:failure_log_hours],
@@ -1169,7 +1171,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes, --lane-mode, --shared-paths, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --agentic-building on|off, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes, --lane-mode, --shared-paths, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.
@@ -1180,6 +1182,7 @@ defmodule SlipdockCLI.Boards do
     |> out(o, fn r ->
       IO.puts("updated board ##{r["board"]["id"]}: #{r["board"]["name"]}")
       tier_warning(r["board"])
+      Enum.each(r["warnings"] || [], &IO.puts(:stderr, "warning: " <> &1))
     end)
   end
 
@@ -2093,6 +2096,13 @@ defmodule SlipdockCLI.Boards do
       _ -> :error
     end
   end
+
+  # `--agentic-building on|off` (#2011), nil when not given.
+  defp agentic_building(%{agentic_building: value}) when is_binary(value),
+    do: on_off!(value, "--agentic-building")
+
+  defp agentic_building(o) when is_list(o), do: agentic_building(Map.new(o))
+  defp agentic_building(_o), do: nil
 
   defp on_off!(value, flag) do
     case on_off(value) do

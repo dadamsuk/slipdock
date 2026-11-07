@@ -3,7 +3,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   Changes a board's settings, as `PATCH /api/boards/:board` does, for the
   ones an agent is asked to set (#1620): its name, description, colour,
   simple mode, default view, handoff label, the Verified work switches, and
-  how long runner job logs stay (#1872), and who each kind of question an
+  how long runner job logs stay (#1872), the Agentic Building switch
+  (#2011), and who each kind of question an
   agent asks goes to (`wait_routes`, #1949, `Slipdock.WaitRoutes`), and
   each profile's human tier (`profile_tiers`, #1952).
   Only the board's owner may.
@@ -14,7 +15,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.MCP.{Args, Tools}
 
-  @fields ~w(name description color simple default_view handoff_label bar_required
+  @fields ~w(name description color simple default_view agentic_building handoff_label bar_required
              evidence_required verify_work verify_pool lanes lane_mode shared_paths profiles profile_tiers ship_via job_log_hours
              failure_log_hours findings_propose_at)
 
@@ -27,8 +28,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   @impl true
   def description,
     do:
-      "Changes a board you own: name, description, color, simple, default_view, handoff_label, " <>
-        "verified-work switches, lanes (lane_mode, shared_paths), profiles, profile_tiers, " <>
+      "Changes a board you own: name, description, color, simple, default_view, handoff_label, agentic_building, " <>
+        "verified-work switches, lanes, profiles, profile_tiers, " <>
         "job log hours, findings_propose_at, wait_routes. Only what you send changes."
 
   @impl true
@@ -42,6 +43,11 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
         color: %{type: "string", description: "A palette colour."},
         simple: %{type: "boolean", description: "A plain to-do list."},
         default_view: %{type: "string", description: "What opening the board shows: board, wiki…"},
+        agentic_building: %{
+          type: "boolean",
+          description:
+            "Show the Agentic Building item and page in the web app. Off changes no setting."
+        },
         handoff_label: %{type: "string", description: "What a handoff is called; \"\" default."},
         bar_required: %{type: "boolean", description: "Agents write a card's bar before work."},
         evidence_required: %{type: "boolean", description: "Agents give evidence to complete."},
@@ -138,7 +144,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
         |> Tools.ListBoards.summary(user)
         |> Map.put(:wait_routes, SlipdockWeb.API.JSON.wait_routes(board))
 
-      {:ok, put_tiers(summary, board)}
+      {:ok, summary |> put_tiers(board) |> put_agentic_warning(board, changes)}
     end
   end
 
@@ -159,6 +165,17 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   end
 
   defp put_tiers(summary, _board), do: summary
+
+  # Turning Agentic Building off with rules set (#2011): they go on holding,
+  # out of sight in the web app, so say which.
+  defp put_agentic_warning(summary, board, %{"agentic_building" => false}) do
+    case SlipdockWeb.API.JSON.agentic_warning(board) do
+      nil -> summary
+      warning -> Map.update(summary, :warnings, [warning], &(&1 ++ [warning]))
+    end
+  end
+
+  defp put_agentic_warning(summary, _board, _changes), do: summary
 
   defp routes(board, nil), do: {:ok, board}
   defp routes(board, routes), do: Args.refusal(Slipdock.WaitRoutes.set(board, routes))

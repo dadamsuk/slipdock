@@ -118,6 +118,9 @@ defmodule SlipdockWeb.API.JSON do
       hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
+      # Agentic Building (#2011): the board menu's item and page for these
+      # settings. Off hides them; the settings below hold either way.
+      agentic_building: b.agentic_building,
       # How long runner job logs stay, in hours (#1872).
       job_log_hours: b.job_log_hours,
       failure_log_hours: b.failure_log_hours,
@@ -229,6 +232,9 @@ defmodule SlipdockWeb.API.JSON do
       hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
+      # Agentic Building (#2011): the board menu's item and page for these
+      # settings. Off hides them; the settings below hold either way.
+      agentic_building: b.agentic_building,
       # How long runner job logs stay, in hours (#1872).
       job_log_hours: b.job_log_hours,
       failure_log_hours: b.failure_log_hours,
@@ -654,6 +660,24 @@ defmodule SlipdockWeb.API.JSON do
 
   defp person_ref(u),
     do: %{id: u.id, email: u.email, name: Slipdock.Accounts.User.display_name(u)}
+
+  @doc """
+  What turning Agentic Building off says (#2011) when the board still has
+  agent rules set: they go on holding, out of sight in the web app. nil
+  when nothing is set, or the switch is on.
+  """
+  def agentic_warning(%Board{agentic_building: true}), do: nil
+
+  def agentic_warning(%Board{} = b) do
+    case Slipdock.AgenticBuilding.live_rules(b) do
+      [] ->
+        nil
+
+      rules ->
+        "Agentic Building is off, but these still hold: " <>
+          Enum.join(rules, ", ") <> ". Turn it on again to see or change them in the web app."
+    end
+  end
 
   @doc "A board's wait routes (#1949): each kind of question => its people, in order."
   def wait_routes(%Board{} = b) do

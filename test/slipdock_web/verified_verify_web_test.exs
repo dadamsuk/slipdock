@@ -258,8 +258,8 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
     refute has_element?(view, "#card-verify")
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
-    view |> form("#board-form", board: %{"verify_work" => "true"}) |> render_submit()
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
+    view |> form("#agentic-form", board: %{"verify_work" => "true"}) |> render_submit()
     assert Boards.get_board!(ctx.board.id).verify_work
   end
 
@@ -281,13 +281,13 @@ defmodule SlipdockWeb.VerifiedVerifyWebTest do
 
     assert Repo.get!(Card, ctx.card.id).completed
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     assert has_element?(view, "#board-verify-pool[value='checkers']")
-    view |> form("#board-form", board: %{"verify_pool" => ""}) |> render_submit()
+    view |> form("#agentic-form", board: %{"verify_pool" => ""}) |> render_submit()
     assert Boards.get_board!(ctx.board.id).verify_pool == nil
 
     {:ok, _} = Boards.update_board(Boards.get_board!(ctx.board.id), %{"verify_work" => false})
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     refute has_element?(view, "#board-verify-pool")
   end
 

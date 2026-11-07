@@ -191,15 +191,33 @@ defmodule SlipdockWeb.API.BoardController do
                ~w(name code shortcut description color vote_budget vote_max
                   add_card add_page add_document page_card_features simple kind
                   default_view show_pulse delivery_metrics card_ref_pattern
-                  incident_tag hotfix_window_hours automation_wip job_log_hours
+                  incident_tag hotfix_window_hours automation_wip agentic_building job_log_hours
                   failure_log_hours handoff_label
                   handoff_prompt inbound_senders bar_required
                   evidence_required verify_work verify_pool verify_rejection_limit verify_audit lanes lane_mode shared_paths profiles profile_tiers ship_via findings_propose_at)
              )
            ) do
-      json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
+      json(
+        conn,
+        agentic_warning(
+          %{board: V.board_summary(board, conn.assigns.current_user)},
+          board,
+          params
+        )
+      )
     end
   end
+
+  # Agentic Building turned off with rules still set (#2011): they hold on,
+  # so the answer says which.
+  defp agentic_warning(body, board, %{"agentic_building" => off}) when off in [false, "false"] do
+    case V.agentic_warning(board) do
+      nil -> body
+      warning -> Map.put(body, :warnings, [warning])
+    end
+  end
+
+  defp agentic_warning(body, _board, _params), do: body
 
   # `wait_routes` (#1949): `{kind: [email, ...]}`, a blank or empty list
   # taking a kind's route off. Refused whole if any of it is wrong.

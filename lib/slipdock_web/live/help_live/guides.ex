@@ -264,7 +264,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
           opens a card with its chat. Ten minutes' reading instead of approving each card.
         </li>
         <li>
-          <strong>Who gets asked</strong>: board settings → <em>Who gets asked</em>
+          <strong>Who gets asked</strong>: Agentic Building → <em>Who gets asked</em>
           names a person for each kind of question an agent asks (product, UX, security,
           release, anything else). Their waits go to that person, and to the board's owner
           when nobody is named.

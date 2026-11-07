@@ -165,9 +165,9 @@ defmodule SlipdockWeb.LanesWebTest do
   end
 
   test "board settings turn it on, and the card panel shows the paths and the overlap", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     assert has_element?(view, "#board-lanes option[value=off][selected]")
-    view |> form("#board-form", board: %{"lane_mode" => "hold"}) |> render_submit()
+    view |> form("#agentic-form", board: %{"lane_mode" => "hold"}) |> render_submit()
     assert Boards.get_board!(ctx.board.id).lanes
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")

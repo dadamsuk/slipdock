@@ -31,20 +31,20 @@ defmodule SlipdockWeb.HandoffSettingsLiveTest do
 
   test "the settings form sets both, shows the defaults as placeholders, and refuses too long",
        ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
 
     assert has_element?(view, "#board-handoff-label[placeholder='Left off']")
     assert has_element?(view, "#board-handoff-prompt[placeholder*='Gotchas:']")
 
     view
-    |> form("#board-form", board: %{"handoff_label" => String.duplicate("x", 41)})
+    |> form("#agentic-form", board: %{"handoff_label" => String.duplicate("x", 41)})
     |> render_submit()
 
     assert render(view) =~ "should be at most 40 character"
     assert Boards.get_board!(ctx.board.id).handoff_label == nil
 
     view
-    |> form("#board-form",
+    |> form("#agentic-form",
       board: %{"handoff_label" => "Parked", "handoff_prompt" => "Be brief."}
     )
     |> render_submit()

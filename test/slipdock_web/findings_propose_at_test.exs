@@ -67,10 +67,10 @@ defmodule SlipdockWeb.FindingsProposeAtTest do
   end
 
   test "board settings show it and save it", ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+    {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
     assert has_element?(view, "#board-findings-propose-at[value='3']")
 
-    view |> form("#board-form", board: %{"findings_propose_at" => "4"}) |> render_submit()
+    view |> form("#agentic-form", board: %{"findings_propose_at" => "4"}) |> render_submit()
     assert Boards.get_board!(ctx.board.id).findings_propose_at == 4
   end
 

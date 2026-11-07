@@ -825,7 +825,9 @@ defmodule Slipdock.Boards do
                "simple" => parent.simple,
                "handoff_label" => parent.handoff_label,
                "handoff_prompt" => parent.handoff_prompt,
-               # Verified work's switches (#1620) hold for the subcards too.
+               # Verified work's switches (#1620) hold for the subcards too,
+               # and so does the page they are set on (#2011).
+               "agentic_building" => parent.agentic_building,
                "bar_required" => parent.bar_required,
                "lanes" => parent.lanes,
                "lane_mode" => parent.lane_mode,

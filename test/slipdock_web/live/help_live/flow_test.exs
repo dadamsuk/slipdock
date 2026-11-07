@@ -6,7 +6,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
   hub all lead to it; it has the seven stages in order, each saying who acts;
   every place a person must act is marked; and every `slipdock …` command
   and board setting it names still exists, checked against the CLI's own
-  help (`cli/help.txt`) and the board's settings form, so a rename breaks
+  help (`cli/help.txt`) and the board's Agentic Building page, so a rename breaks
   this test rather than leaving the page wrong.
   """
   use SlipdockWeb.ConnCase, async: true
@@ -205,13 +205,15 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
                :ok
     end
 
-    test "every board setting it names is on the board's settings form and in set-board's help" do
-      form = File.read!("lib/slipdock_web/live/board_live/settings_component.ex")
+    test "every board setting it names is on the Agentic Building page and in set-board's help" do
+      form = File.read!("lib/slipdock_web/live/agentic_live/index.ex")
       entries = help_entries()
 
       for {label, cli, _what} <- Flow.settings() do
-        assert form =~ ~s{label="#{label}"} or form =~ ~s{>#{label}</span>},
-               "#{label} isn't on the board's settings form"
+        # A field's label, a switch's, or a section's heading.
+        assert form =~ ~s{label="#{label}"} or form =~ ~s{>#{label}</span>} or
+                 form =~ ~s{title="#{label}"},
+               "#{label} isn't on the board's Agentic Building page"
 
         assert String.starts_with?(cli, "slipdock set-board B --")
         assert check_command(cli, entries) == :ok, cli

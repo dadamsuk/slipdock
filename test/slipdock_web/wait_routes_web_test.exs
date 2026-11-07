@@ -55,14 +55,14 @@ defmodule SlipdockWeb.WaitRoutesWebTest do
 
   describe "board settings" do
     test "the owner sets each kind's people, and blanks one to take it off", ctx do
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
-      assert has_element?(view, "#board-wait-routes", "Who gets asked")
+      {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
+      assert has_element?(view, "#agentic-questions", "Who gets asked")
 
       for kind <- Slipdock.WaitRoutes.kinds(),
           do: assert(has_element?(view, "#board-route-#{kind}"))
 
       view
-      |> form("#board-form",
+      |> form("#agentic-form",
         board: %{
           "wait_routes" => %{
             "product" => "#{ctx.pm.email}, #{ctx.rel.email}",
@@ -77,7 +77,7 @@ defmodule SlipdockWeb.WaitRoutesWebTest do
                "release" => [ctx.rel.id]
              }
 
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+      {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
 
       assert has_element?(
                view,
@@ -85,18 +85,18 @@ defmodule SlipdockWeb.WaitRoutesWebTest do
              )
 
       view
-      |> form("#board-form", board: %{"wait_routes" => %{"product" => ""}})
+      |> form("#agentic-form", board: %{"wait_routes" => %{"product" => ""}})
       |> render_submit()
 
       assert routes(ctx.board) == %{"release" => [ctx.rel.id]}
     end
 
     test "someone not on the board is refused in a callout, and nothing is saved", ctx do
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+      {:ok, view, _} = live(ctx.conn, agentic_path(ctx.board))
 
       html =
         view
-        |> form("#board-form", board: %{"wait_routes" => %{"ux" => ctx.stranger.email}})
+        |> form("#agentic-form", board: %{"wait_routes" => %{"ux" => ctx.stranger.email}})
         |> render_submit()
 
       assert html =~ "isn&#39;t a user of this board"
@@ -104,9 +104,13 @@ defmodule SlipdockWeb.WaitRoutesWebTest do
       assert routes(ctx.board) == %{}
     end
 
-    test "a writer who isn't the owner doesn't see the rows", ctx do
-      {:ok, view, _} = live(conn_as(ctx.pm), ~p"/boards/#{ctx.board}/settings")
-      refute has_element?(view, "#board-wait-routes")
+    test "a writer who isn't the owner sees the rows read-only, and can't save them", ctx do
+      {:ok, view, _} = live(conn_as(ctx.pm), agentic_path(ctx.board))
+      assert has_element?(view, "fieldset[disabled] #board-route-product")
+      refute has_element?(view, "#agentic-save")
+
+      render_submit(view, "save", %{"board" => %{"wait_routes" => %{"ux" => ctx.pm.email}}})
+      assert routes(ctx.board) == %{}
     end
   end
 
