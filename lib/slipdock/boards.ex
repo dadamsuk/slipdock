@@ -2166,6 +2166,9 @@ defmodule Slipdock.Boards do
       # The epic's comments and % complete (#1881).
       Slipdock.EpicLog.saved(card, updated)
 
+      # The step it is at, as a status update (#2022).
+      Slipdock.StepStatus.saved(card, updated, Slipdock.Actor.resolve(opts))
+
       automate_card_changes(card, updated, changeset, {before, assignees || before})
       wait_hooks(card, updated, changeset, opts)
     end)
@@ -3850,25 +3853,36 @@ defmodule Slipdock.Boards do
   @doc """
   Records what `user` believes about the health of a card or a wiki page,
   with an optional note. A spec can be off track as surely as the work can.
+
+  `quiet: true` is for the server's own step statuses (#2022,
+  `Slipdock.StepStatus`): the update is kept and open views refresh, but it
+  writes no activity line and isn't indexed, so nobody following the card
+  hears of a routine step. A person's update is never quiet.
   """
-  def add_status_update(owner, user, attrs) do
+  def add_status_update(owner, user, attrs, opts \\ []) do
+    quiet? = Keyword.get(opts, :quiet, false)
+
     %StatusUpdate{user_id: user && user.id}
     |> struct!(owned_by(owner))
     |> StatusUpdate.changeset(attrs)
     |> Repo.insert()
     |> tap_ok(fn u ->
       Slipdock.Wiki.Links.reconcile_status(u)
-      note = if u.body, do: ": #{String.slice(u.body, 0, 120)}", else: ""
-
-      log_owned(
-        owner,
-        "status",
-        "reported “#{owner.title}” #{String.downcase(StatusUpdate.health_label(u.health))}#{note}"
-      )
-
       broadcast_tree(root_of(owner.board_id))
-      notify_owned(owner)
+      if quiet?, do: broadcast(owner.board_id), else: status_reported(owner, u)
     end)
+  end
+
+  defp status_reported(owner, u) do
+    note = if u.body, do: ": #{String.slice(u.body, 0, 120)}", else: ""
+
+    log_owned(
+      owner,
+      "status",
+      "reported “#{owner.title}” #{String.downcase(StatusUpdate.health_label(u.health))}#{note}"
+    )
+
+    notify_owned(owner)
   end
 
   def delete_status_update(id) do
@@ -4081,6 +4095,7 @@ defmodule Slipdock.Boards do
       log(Repo, card.board_id, card.id, "wait", "waits on #{Wait.on_name(wait)}: #{wait.needs}")
       {:ok, _} = add_comment(card, opened_text(wait), by: user)
       Slipdock.EpicLog.wait_opened(card, wait)
+      Slipdock.StepStatus.wait_opened(card, wait)
       Slipdock.Boards.WaitEmail.opened(wait, card)
       Slipdock.Boards.WaitEmail.told(wait, card, told)
       broadcast(card.board_id)

@@ -584,13 +584,29 @@ Anyone who can comment on a card can leave its handoff, since it is a kind of
 comment; a reader sees it but can't write one. Each one is a line in the
 board's activity.
 
+**At a glance.** The block under a card's title says where it stands, in
+order: the status row (the health, the latest step, when, and who: a person
+or *Slipdock*), the next step, the shipped lines with their time, then the
+note, folded past a few lines (**Show more**) with its byline last. The
+runner's own lines (the transcript it sent, how the job ended) are left out
+of the note: the byline names the job. Once the card is **finished** there is
+no next step: the block shows its **outcome** instead — *Done 6 Nov 14:32 ·
+accepted by runner verifier · merged PR #215 (def5678)* — and folds the
+handoff written before it finished away as *Last note before it finished*,
+so a stale "accepting will merge it" never reads as current. A handoff left
+after it finished, for what is still to do, shows as *still to do*.
+Reopening the card brings the handoff back as it was; nothing is rewritten.
+`slipdock card` and `get_card` do the same: *Outcome* in place of *Left
+off*, the earlier note as `last_handoff`.
+
 Comments stay the running log and status updates the stated health; the
 handoff is the *now*. Write one whenever you stop with a card unfinished.
 Agents are told the same: the guide says to read a card's handoff before
 starting it and to leave one when stopping, `get_card` puts it first, and the
 `slipdock-work` and `slipdock-loop` skills do both. A [runner](#runners) job
 that ends with its card still open leaves its summary as the handoff (its first
-line is the next step), unless the agent left one itself during the job.
+line is the next step), unless the agent left one itself during the job or the
+card is already accepted (merging, held or accepted).
 
 ```sh
 slipdock handoff 12 --next "Write the rounding test" --body "State: fix is in, untested"
@@ -1640,9 +1656,9 @@ medium, red low); `slipdock dora <board> [--env E] [--days N]`, `GET
 /api/boards/:id/dora` and MCP `get_board` with `dora: true` give it all.
 
 **Shipped lines.** A card a succeeded deploy names shows *Shipped to production
-· 1a2b3c4 · 19 Oct* — one line per environment, and *rolled back since* when a
-rollback went past it — in its panel, in `slipdock card` and as `shipped` in
-its JSON.
+· 1a2b3c4 · 19 Oct 14:32* — one line per environment, the time in your time
+zone, and *rolled back since* when a rollback went past it — in its panel, in
+`slipdock card` and as `shipped` in its JSON (and `get_card`).
 
 ## Recurring cards
 
@@ -2592,6 +2608,18 @@ subcards; its owner can also *report* one — on track, at risk, off track —
 with a note. The latest report is shown beside the computed health on
 cards, in the table, outline and timeline, and the history is kept on the
 card. Reports are logged, so they appear in the narrative.
+
+**Step statuses.** On a card agents work, the server reports the step it is at
+itself, as an *On track* update by *Slipdock*: *Writing code* when a runner
+takes its build job (*Reworking after verify failed* after a rejection),
+*Waiting for human* when a wait opens (*(rejection limit)* or *(held before
+merge)* for the server's own), *Verifying* when it is submitted to a verify
+pool (*Waiting for human to accept* with none), *Verify failed; queued for
+rework*, *Accepted; merging*, *Merged*, *Done*, *Reopened* and *Shipped to
+production*. The same step twice in a row is posted once. They are routine,
+so they are quiet: no activity line, nothing in the narrative, nothing to
+anyone following the card. A report a person writes is logged and shown as
+before.
 
 **Published views.** From the Views menu the board's owner can give a saved
 view a public link (`/p/<token>`): anyone with it sees the board through

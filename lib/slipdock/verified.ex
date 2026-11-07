@@ -1507,6 +1507,9 @@ defmodule Slipdock.Verified do
   @doc "The purpose of the wait a held card's acceptance opens (#1952)."
   def held_purpose, do: @held_purpose
 
+  @doc "The `purpose` of the wait a card over its rejection limit opens."
+  def limit_purpose, do: @limit_purpose
+
   @doc """
   Whether an agent's acceptance of `card` waits for a person before its
   pull request merges (#1952): an agent decided, and the card's human tier

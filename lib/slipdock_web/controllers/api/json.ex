@@ -45,9 +45,10 @@ defmodule SlipdockWeb.API.JSON do
   A card's delivery lines (#1134), for a card read on its own: `shipped`
   (`Slipdock.Deployments.shipped/1`) and `incident_of`, the deploy it says
   caused it. Each only when there is one, so a board with delivery metrics
-  off answers as it always did.
+  off answers as it always did. Each line's `text` gives its date and time
+  in `zone`, the reader's (#2022).
   """
-  def put_delivery(map, card) do
+  def put_delivery(map, card, zone \\ "Etc/UTC") do
     map
     |> then(fn m ->
       case Slipdock.Deployments.shipped(card) do
@@ -58,7 +59,7 @@ defmodule SlipdockWeb.API.JSON do
           Map.put(
             m,
             :shipped,
-            Enum.map(lines, &Map.put(&1, :text, Slipdock.Deployments.shipped_text(&1)))
+            Enum.map(lines, &Map.put(&1, :text, Slipdock.Deployments.shipped_text(&1, zone)))
           )
       end
     end)
@@ -69,6 +70,43 @@ defmodule SlipdockWeb.API.JSON do
       end
     end)
   end
+
+  @doc """
+  A finished card's outcome (#2022, `Slipdock.CardOutcome`), for a card
+  read on its own: `outcome` (`text`, its time in `zone`, `done_at`,
+  `accepted_by`, `pr`, `merge_sha`, `commit`). The handoff written before
+  it finished is no longer where it stands: it moves to `last_handoff`
+  (with `before_finish: true`) and `handoff` is nil. One left after it
+  finished, for what is still to do, stays the `handoff`. An open card
+  answers as it always did.
+  """
+  def put_outcome(map, %Card{} = card, zone \\ "Etc/UTC") do
+    case Slipdock.CardOutcome.of(card) do
+      nil ->
+        map
+
+      outcome ->
+        map
+        |> Map.put(
+          :outcome,
+          Map.put(
+            Map.delete(outcome, :pr_number),
+            :text,
+            Slipdock.CardOutcome.text(outcome, zone)
+          )
+        )
+        |> fold_handoff(card)
+    end
+  end
+
+  defp fold_handoff(%{handoff: %{at: _} = h} = map, card) do
+    if Slipdock.CardOutcome.before_finish?(card, %{inserted_at: h.at}),
+      do:
+        map |> Map.put(:handoff, nil) |> Map.put(:last_handoff, Map.put(h, :before_finish, true)),
+      else: map
+  end
+
+  defp fold_handoff(map, _card), do: map
 
   @doc """
   A card's lead time with what its jobs spent beside it (#1954), for a card

@@ -18,10 +18,13 @@ defmodule SlipdockWeb.HelpLive.Flow do
   alias SlipdockWeb.HelpLive.Agents
 
   # The stages, in order: the diagram and the sections below are both drawn
-  # from this. `person` is true where a person has to act at that stage.
+  # from this. `person` is true where a person has to act at that stage;
+  # `steps` are the step statuses the server posts there (#2022,
+  # `Slipdock.StepStatus`).
   @stages [
     %{
       id: "writing",
+      steps: [],
       title: "Writing the card",
       actors: [:person],
       person: true,
@@ -29,6 +32,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     },
     %{
       id: "claimed",
+      steps: ["Writing code", "Reworking after verify failed"],
       title: "Queued and claimed",
       actors: [:board, :builder],
       person: false,
@@ -36,6 +40,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     },
     %{
       id: "building",
+      steps: ["Waiting for human"],
       title: "Building",
       actors: [:builder],
       person: true,
@@ -43,6 +48,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     },
     %{
       id: "shipping",
+      steps: [],
       title: "Shipping",
       actors: [:builder, :ci],
       person: false,
@@ -50,6 +56,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     },
     %{
       id: "submitting",
+      steps: ["Verifying", "Waiting for human to accept"],
       title: "Submitting",
       actors: [:builder],
       person: false,
@@ -57,6 +64,14 @@ defmodule SlipdockWeb.HelpLive.Flow do
     },
     %{
       id: "verifying",
+      steps: [
+        "Verify failed; queued for rework",
+        "Waiting for human (rejection limit)",
+        "Waiting for human (held before merge)",
+        "Accepted; merging",
+        "Merged",
+        "Done"
+      ],
       title: "Verifying",
       actors: [:verifier, :person],
       person: true,
@@ -64,6 +79,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     },
     %{
       id: "afterwards",
+      steps: ["Shipped to production", "Reopened"],
       title: "Afterwards",
       actors: [:ci, :person],
       person: true,
@@ -127,12 +143,21 @@ defmodule SlipdockWeb.HelpLive.Flow do
           connected. Each check below is a board setting, off until you turn it on; with them
           all off, an agent's <em>done</em> is simply done.
         </p>
+        <p id="flow-step-statuses" class="mt-2 text-sm text-base-content/70">
+          At each stage the board posts the card's <strong>step status</strong>
+          itself, as an <em>On track</em>
+          status update by Slipdock: it shows at the top of the card and in its Status updates, and,
+          being routine, tells nobody following the card. Agents needn't post these; a person's own
+          update (at risk, off track) still tells them. A finished card shows its outcome there
+          instead of a next step: done when, accepted by whom, merged and shipped.
+        </p>
       </header>
 
       <.diagram stages={@stages} />
 
       <.part :for={s <- @stages} id={"flow-#{s.id}"} title={stage_heading(s, @stages)}>
         <.actors actors={s.actors} />
+        <.steps id={s.id} steps={s.steps} />
         <.stage id={s.id} />
       </.part>
 
@@ -294,6 +319,20 @@ defmodule SlipdockWeb.HelpLive.Flow do
       <span class="font-medium text-base-content">Who acts:</span>
       <span :for={a <- @actors} class={["badge badge-sm", actor_class(a)]}>{actor_label(a)}</span>
     </p>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :steps, :list, required: true
+
+  # The step statuses the server posts at a stage (#2022): On track, by
+  # Slipdock, on the card's status updates and at the top of the card.
+  defp steps(assigns) do
+    ~H"""
+    <div :if={@steps != []} id={"flow-#{@id}-steps"} class="flex flex-wrap items-center gap-1.5">
+      <span class="font-medium text-base-content">Step status:</span>
+      <span :for={step <- @steps} class="badge badge-sm badge-success badge-soft">{step}</span>
+    </div>
     """
   end
 
