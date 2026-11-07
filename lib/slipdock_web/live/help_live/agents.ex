@@ -997,6 +997,14 @@ defmodule SlipdockWeb.HelpLive.Agents do
         <li><code>slipdock-wiki</code>: finding, reading, writing and linking wiki pages.</li>
         <li><code>slipdock-docs</code>: what's worth writing down, and where it belongs.</li>
         <li>
+          <code>slipdock-plan</code>: planning. Asked to plan ("I want to build…", "break this
+          into cards"), it follows the board's handbook Playbook: it sizes the ask as a card,
+          a feature or a system, then runs the stages that size takes (grill, decide,
+          principles, spec, cards) and writes Decisions, Principles, the spec on the epic and
+          the cards. A one-sentence ask stays one card, and a board with no handbook is
+          offered one.
+        </li>
+        <li>
           <code>slipdock-loop</code>: working the To Do list unattended, one card per pass, from
           <code>/loop</code>
           or a schedule. It watches the build after each push and never closes a card while the build is red.

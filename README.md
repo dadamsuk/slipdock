@@ -1038,6 +1038,13 @@ reaches everyone without a reinstall
   and the loop closes each card through a docs gate, with a `Handbook:`
   line. A Seed card drafts the pages from the code, and a weekly Reconcile
   card catches drift.
+- **Planning.** The `slipdock-plan` skill runs when an agent is asked to plan
+  ("I want to build…", "break this into cards"). It reads the board's
+  Playbook and sizes the ask as a card, a feature or a system. It then runs
+  the stages that size takes (grill, decide, principles, spec, cards) and
+  writes the answers into the handbook's Decisions and Principles, a spec on
+  the epic, and its cards. A one-sentence ask stays one card. Where a board
+  has no handbook, it offers to install one.
 - **Every client.** A Tool's page at `/tools/<name>` walks through installing
   it from claude.ai (a skill zip to upload), Claude Code
   (`slipdock tools install <name>`) and ChatGPT (a zip that names the
