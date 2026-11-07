@@ -2,7 +2,8 @@ defmodule Slipdock.Handbook do
   @moduledoc """
   A board's handbook (#1261, spec W-1934): wiki pages that describe the
   project as it is now — specification, architecture, UX, components, data
-  model, shared modules, testing, operations and decisions — that every
+  model, shared modules, testing, operations, principles, the playbook and
+  decisions — that every
   coding-loop pass reads before it builds and updates before it closes a
   card.
 
