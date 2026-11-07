@@ -49,4 +49,26 @@ defmodule Slipdock.ProfilesDocsTest do
 
     for name <- Profiles.names(), do: assert(help =~ name, name)
   end
+
+  # #2017: both say the profile is checked again when an agent completes the
+  # card, raised and never lowered, and that a fix a person set keeps its size.
+  test "README and the in-app help say the profile is raised at completion" do
+    readme = read("README.md")
+    [_, bullet] = String.split(readme, "- **Profiles and the human tier**", parts: 2)
+    [bullet | _] = String.split(bullet, "\n- **", parts: 2)
+    bullet = String.replace(bullet, ~r/\s+/, " ")
+
+    help =
+      read("lib/slipdock_web/live/help_live/guides.ex") |> String.replace(~r/\s+/, " ")
+
+    for text <- [bullet, help],
+        part <- [
+          "completes the card",
+          "never lowered",
+          "a migration or a security path",
+          "400 changed lines",
+          "keeps it"
+        ],
+        do: assert(text =~ part, inspect(part))
+  end
 end
