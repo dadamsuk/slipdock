@@ -76,4 +76,16 @@ defmodule SlipdockWeb.ReproduceReportedDocsTest do
       assert text =~ "however good the tests", path
     end
   end
+
+  test "the manual's verify jobs paragraph lists the ask on a bug" do
+    manual = flat("docs/manual.md")
+    [_, verify] = String.split(manual, "### Verify jobs", parts: 2)
+    [paragraph | _] = String.split(verify, "A rejection cites what it fails", parts: 2)
+
+    assert paragraph =~
+             "On a bug, the check is would the reporter now see it fixed, not does the work meet the bar"
+
+    assert paragraph =~
+             "says the reported symptom or its cause was never seen (a cause made up in the test) is a rejection on the ask, however good the tests"
+  end
 end
