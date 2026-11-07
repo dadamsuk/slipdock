@@ -3349,15 +3349,16 @@ defmodule SlipdockWeb.APIGuide do
 
   # The handbook (#1261, W-1934): what a pass reads before building and
   # updates before closing, on boards that keep one.
+  # The section pages' titles, from the Tool itself (#2045).
+  defp handbook_titles, do: Enum.map_join(Slipdock.Handbook.sections(), ", ", & &1.title)
+
   defp handbook do
     """
 
     ## The handbook
 
     A board can keep a **handbook**: wiki pages in its root board's
-    `Handbook/` folder describing the project as it is now (Specification,
-    Architecture, UX & UI, Components, Data model, Shared modules, Testing &
-    tooling, Operations, Principles, Playbook), one page per decision in
+    `Handbook/` folder describing the project as it is now (#{handbook_titles()}), one page per decision in
     `Handbook/Decisions`, and an Index that lists them. Each page's front
     matter says when to read it (`read_when:`) and which paths it covers
     (`covers:`).

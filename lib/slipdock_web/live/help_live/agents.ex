@@ -1088,9 +1088,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
         One Tool is built in. <code>slipdock tools install-board handbook --board B</code>
         (or <code>install_tool</code>
         with <code>board</code>) gives a board's root a <code>Handbook/</code>
-        folder: pages for the specification, architecture, UX, components, data model,
-        shared modules, testing, operations, principles (the tie-breakers, each a <code>PRIN</code>
-        rule) and the playbook (how an idea becomes cards on the board), one page per
+        folder: pages for {handbook_pages()}, one page per
         decision, and an Index that lists them, plus a card that drafts them from the code and a weekly one that
         catches drift.
       </p>
@@ -1326,5 +1324,26 @@ defmodule SlipdockWeb.HelpLive.Agents do
       </ul>
     </.part>
     """
+  end
+
+  # The handbook's section pages as the help gives them, built from the Tool
+  # (#2045): "the specification, architecture, …, principles (…) and the
+  # playbook (…)", a note after the pages that need one.
+  @handbook_notes %{
+    "principles" => {:safe, "the tie-breakers, each a <code>PRIN</code> rule"},
+    "playbook" => "how an idea becomes cards on the board"
+  }
+
+  defp handbook_pages do
+    names =
+      for %{key: key, name: name} <- Slipdock.Handbook.sections() do
+        case @handbook_notes do
+          %{^key => note} -> [name, " (", note, ")"]
+          _ -> name
+        end
+      end
+
+    {names, [last]} = Enum.split(names, -1)
+    ["the ", Enum.intersperse(names, ", "), " and the ", last]
   end
 end

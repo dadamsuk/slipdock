@@ -43,6 +43,7 @@ test/slipdock_web/handbook_skills_test.exs
 test/slipdock/handbook/rules_docs_test.exs
 test/slipdock/handbook/seed_docs_test.exs
 test/slipdock/handbook/rules_for_docs_test.exs
+test/slipdock/handbook_page_lists_test.exs
 test/slipdock/tool_packages_doc_test.exs
 test/slipdock_web/board_views_docs_test.exs
 test/slipdock_web/card_face_docs_test.exs
