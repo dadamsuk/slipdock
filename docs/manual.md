@@ -25,6 +25,9 @@ way in: what it is, the pictures, and how to get it running.
   The board's **Archived cards** panel has a search box: a piece of a title,
   or a card's id (`#123`) or link, finds the archived card to restore. An
   archived card's own link opens that panel on it rather than a dead end.
+- Card views: choose what you see of a card, on its front and opened, for
+  every board, one board or one list; yours alone, and the same in every
+  browser — see [Card views](#card-views)
 - Handoffs: one short note on a card saying where it was left — the next
   step, the state, the gotchas — read first by whoever picks it up next. See
   [Where it was left](#where-it-was-left-handoffs)
@@ -239,7 +242,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 53 tools, signing in
+  other MCP clients get the boards and the wiki as 54 tools, signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
@@ -314,25 +317,28 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   priorities, flags, lists, due (overdue / today / next 7 days / next 30 days /
   has a date / no date), status (all / hide completed / only completed), cover
   colour.
-- **Display** — what a card shows, comfortable or compact cards; show empty groups (which also
+- **Display** — comfortable or compact cards; show empty groups (which also
   fills gaps between date buckets); **List width** — narrow, normal, wide or
   extra wide. The board view's Display menu has the same *List width*, which
   sets how wide every list is drawn (on a phone a list still fills the
   screen). Like the rest of the Display menu it is kept in the URL and in a
-  saved view.
+  saved view. What a card shows is not in the menu: it is your
+  [card views](#card-views), which **Card views…** opens. **Show all** beside it
+  shows every element on the cards' fronts while it is on.
 
   Your browser also remembers the Display options you last chose for each
   board and each view (board, table, timeline and so on), so leaving the
   board and coming back to its plain address brings them back. They are kept
   in this browser only: another browser or device starts from the defaults.
   A link that names its own display options, and a saved view, use theirs
-  instead. Filters are not remembered.
+  instead. Filters are not remembered, and nor is what a card shows: your
+  card views are kept on the server, so they follow you to every browser.
 
   Until you choose otherwise, a card shows only what you need at a glance:
   its tags, title, assignee, due date, priority (high, critical and low;
   medium is the unremarkable middle and stays off the front), flags,
   subcard and checklist progress, and what blocks it, plus its cover and
-  image. Tick the rest in **Display** (start date, % complete, time
+  image. Show the rest in your card views (start date, % complete, time
   tracked, a description mark, comments, attachments, time in list, ID). A card
   showing both dates draws them as one range, *31 Oct → 5 Nov*. **ID** puts
   the card's number (*#1856*) in the top-right corner of its front, in a
@@ -344,8 +350,8 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   *Starts in 11 days* or *Started 11 days late* (when the subcards began
   after it), and the card's panel says the same under *Start*. Plain facts
   are plain text; only what needs attention is tinted: overdue, due soon,
-  blocked, flagged, waiting on someone. A saved view keeps the facets it
-  was saved with.
+  blocked, flagged, waiting on someone. A saved view can name a card view
+  of yours (Display → *Card view for this view*), which applies while it is open.
 - **Drag and drop** between cells changes the card to match the target cell:
   its list, priority, status, colour or due date (set to the start of the
   bucket), or swaps the source tag/flag for the target one. Created / updated
@@ -365,6 +371,65 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   be renamed and deleted from the same menu.
 
 The grid and saved views are also available over the API and CLI (`slipdock swimlanes`, below).
+
+## Card views
+
+A card view is what you see of a card: each element of its front (cover,
+tags, due date, the handoff note and the rest), each section of the opened
+card, and each group of its sidebar. Card views are yours alone, and kept on
+the server, so they follow you to every browser; nobody else's cards change.
+
+They come in three levels, each above the one before: **global** (every
+board), a **board**, and one **list** on it. Below them all are the built-in
+defaults. A level states only the elements it changes, each one *Inherit*,
+*Show* or *Hide*, and everything else comes from the level below. So hide
+comments globally, show them on one board, and hide them again on that
+board's Done list.
+
+A **named card view** is a set of elements you can apply at any level (the
+level's **Apply** select), with the level's own choices on top. **Save**
+makes one from what the level shows now; a named view can be renamed and
+deleted, and a level that applied a deleted one keeps its own choices. A
+saved view can name one of yours too (Display → *Card view for this view*,
+or `card_view=NAME` in the URL); while that view is open it sits above the
+list level. Saved views are shared and card views are not, so someone
+without a card view of that name sees their own levels.
+
+Open the editor from the Display menu's **Card views…** (the board's level),
+**Card view…** in a list's `⋯` menu (that list's), or **Edit card views** in
+your account settings, or go to `/card-views` for the global level
+(`?board=B`, `?board=B&list=L`, `?view=ID` for a named one). Its two tabs are
+the **Card front** and the **Opened card** (its sections and sidebar groups).
+Each element says whether it is shown and which level decided it; a sample
+card shows the front, and the opened card's sections are marked on or off.
+**Inherit all** clears a level. Deleting a named view says how many levels
+applied it; they inherit instead.
+
+A hidden section that needs you doesn't vanish without a word: when your
+card view hides a rejected verification or a question waiting on a person,
+the opened card says so at the top, and **Show them** shows the hidden
+sections on that card.
+
+The list level applies on the board and swimlanes views; the timeline,
+calendar and outline use the board's level. The board's own settings always
+win: a [simple board](#simple-boards)'s hidden fields and a list's own *time
+in list* and *front image* switches stay off whatever a card view says, so a
+card view can only hide more. **Show all**, in the Display menu, is yours
+for one board: while it is on, every element of the card front shows there
+(not the ones the board hides), and off again puts your card views back.
+
+The handoff note is two elements: *Handoff note (2 lines)* puts the next step
+and the start of the note on an open card's front, *Handoff note in full* all
+of it. Both are off until you show them. Agents' output (the API, MCP, the
+CLI) never follows card views.
+
+From the command line, `slipdock card-views` lists yours (`--elements` lists
+every element and its default), `slipdock card-view new|show|edit|rm` works
+the named ones, `slipdock card-view level|set|clear [--board B] [--list L]`
+a level (`set --apply VIEW|none --show a,b --hide c --inherit d --reset
+--show-all on|off`), and `slipdock card-view applied --board B [--list L]
+[--view SAVEDVIEW]` says what applies and why. Over the API they are
+`/api/card-views` (below); over MCP, the `card_views` tool.
 
 ## Table
 
@@ -510,9 +575,8 @@ dates:
   the estimate it fills and a tick marks where the estimate fell, and the text
   says by how much it ran over.
 
-On the board, **Time tracked** is a card facet (shown on the full card face
-of a new view; tick it under display options in a view saved before): a clock
-chip, `1.5h/4h` with a small bar in the same colours, pulsing while a timer
+On the board, **Time tracked** is a card element (show it in your
+[card views](#card-views)): a clock chip, `1.5h/4h` with a small bar in the same colours, pulsing while a timer
 runs. The table has a **Time** column. Every change — set, logged, timer
 started and stopped — goes in the board's activity, and exports carry time
 spent, the estimate and the unit.
@@ -567,16 +631,15 @@ behind them. The draft goes into the form's fields, replacing what was there;
 nothing is written until you change what needs changing and press **Save
 “Left off”**. While the card is open its front carries a ↩ mark with the next step as
 its tooltip; a completed card keeps its note but loses the mark. To read the notes
-without opening the cards, set **Left off** (or the board's own name for it) in the board or swimlane view's
-Display menu: *2 lines* puts the next step and the start of the note on each open
-card's front (the whole of it in the tooltip), *Full* puts all of it there. It is
-for comfortable cards only, and like the rest of the Display menu it is kept in
-the URL and in a saved view.
+without opening the cards, show one of two elements in your [card views](#card-views):
+*Handoff note (2 lines)* puts the next step and the start of the note on each open
+card's front (the whole of it in the tooltip), *Handoff note in full* puts all of it
+there. It is for comfortable cards only, on the board and swimlanes views.
 
 A board can call it something else, and tell Auto generate what to write.
 Under **Handoffs** on the board's [Agentic Building](#agentic-building) page, **Label** replaces *Left off* wherever a person reads it in the web app — the
 card's panel and its form, the link that adds one, Save, Clear and Delete, the
-card's front and the Display menu (up to 40 characters), and **Instructions for Auto
+card's front (up to 40 characters), and **Instructions for Auto
 generate** replace what the AI model is told about writing the note (up to
 4000 characters) — keep it shorter, ask for a different shape, write in
 another language. Whatever they say, the model is still asked for a next step
@@ -1452,9 +1515,10 @@ whether an agent or a person holds it.
 amber, with how far over, once that is past the list's usual stay (the time
 85 in 100 cards spent there). Never on a done or dropped list, a card with an
 open wait (the person is the hold-up), or where there is too little history.
-It is off until you ask for it: tick **Time in list** in the board's
-**Display** menu (every list), and untick **Time in list** to leave it off
-again. A list can keep it off its own cards whatever the menu says: untick
+It is off until you ask for it: show **Time in list** in your
+[card views](#card-views) (every board, one board or one list), and hide it
+there to leave it off again. A list can keep it off its own cards whatever
+your card views say: untick
 *Show how long each card has been in this list* in its settings (that list
 only; `slipdock set-column <board> <list> --no-show-age`, or
 `show_age: false` on the list over the API).
@@ -2720,16 +2784,15 @@ box; tick it and the next image takes its place, or the card shows none.
 Only PNG, JPEG, GIF and WebP images of 10 MB or less qualify: the front shows
 the original file, and every reader of the board would download a larger one.
 
-The **Display** menu's **Images** turns thumbnails off for the view. It is on
+**Images**, in your [card views](#card-views), turns thumbnails off. It is on
 for comfortable cards and off for compact ones, where it shows a small square
-in the row instead. A saved view made before thumbnails existed keeps the
-facets it was saved with, so tick Images there and save it to get them.
+in the row instead.
 
 A list can keep images off its own cards: untick *Show images on the front
 of this list's cards* in its settings (`slipdock set-column <board> <list>
 --no-show-images`, or `show_images: false` on the list over the API). It is
-on for a new list; off, that list's cards show no thumbnail whatever the
-Display menu says, and the other lists are unchanged.
+on for a new list; off, that list's cards show no thumbnail whatever your
+card views say, and the other lists are unchanged.
 
 On the API, `hide_on_card` is on each attachment: `PATCH
 /api/cards/:id/attachments/:attachment_id {"hide_on_card": true}` sets it, and
@@ -6862,6 +6925,13 @@ GET    /api/boards/:board/views            POST   /api/boards/:board/views   {na
 GET    /api/boards/:board/views/:id        PATCH  /api/boards/:board/views/:id   DELETE /api/boards/:board/views/:id
 GET    /api/favourites                     POST   /api/favourites   {kind: board|column|card|view|page, id}
 DELETE /api/favourites/:kind/:id           (yours alone; both writes are idempotent)
+GET    /api/card-views                     your named card views, and every element   POST {name, show, hide}
+GET    /api/card-views/:id                 PATCH  /api/card-views/:id {name, elements, show, hide, inherit, reset}
+DELETE /api/card-views/:id                 (by id or name; yours alone)
+GET    /api/card-views/level  ?board= &list=      a level: neither is global, board alone the board's
+PUT    /api/card-views/level  ?board= &list=      {card_view, elements, show, hide, inherit, reset, show_all}
+DELETE /api/card-views/level  ?board= &list=      clears it, so it inherits everything (PATCH as PUT)
+GET    /api/card-views/applied ?board= &list= &view=   what applies, each element with the level that decided it
 GET    /api/cards/:id                      PATCH  /api/cards/:id       DELETE /api/cards/:id
 POST   /api/cards/:id/move   {column, index: "top"|"bottom"|N}
 POST   /api/cards/:id/move   {board, column}   to another board, with its subcards; answers
@@ -7186,6 +7256,10 @@ slipdock wiki get jobs Tool/cv.docx           # one of them, saved here (--out F
 slipdock favourites                            # what you keep going back to, with the URL of each
 slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board> | fav page W-31
 slipdock hotkey slipdock 1                     # Ctrl+Shift+1 opens it in the web app; `slipdock hotkeys` lists yours
+slipdock card-views                            # your named card views (--elements: every element and its default)
+slipdock card-view set --board slipdock --hide comments,attachments   # a level; --list L for one list, neither for global
+slipdock card-view set --board slipdock --apply Calm --show-all off   # apply a named view (none for no view)
+slipdock card-view applied --board slipdock --list Done   # what a card there shows, and which level decided it
 slipdock unfav list qvm-v1-rem "In Progress"   # or `fav ... --off`
 ```
 ## Tools
@@ -7574,6 +7648,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `share` | Shares a wiki page (`page`, a code) or folder (`folder`, with `board`) with a person (`with`, an email) or a group of yours (`group`), `level` read, comment or write; a folder shares everything at home in it. `off: true` takes it back; neither `with` nor `group` lists who has it. Only the board's writers share; somebody it was shared with gets `shared_no_reshare`. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
 | `manage_wiki` | Changes your [wiki](#your-wiki), by `action`: `set` (`shortcut`, `recordings_folder`), and `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board. |
+| `card_views` | Your own [card views](#card-views), what you see of a card, by `action`: `list` (your named ones, and every element), `get`, `create`, `update` and `delete` a named one; `level`, `set_level` and `clear_level` for a level (`board`, and `list`, for the board's or the list's; neither for global); `applied`, what applies on a `board` (and `list`, and a saved `view`) and which level decided each element. Elements take `show`, `hide` and `inherit`. They are a display preference: agents' own output never follows them, so change them only when the person asks. |
 | `manage_automation` | Changes a board's [automation rules](#automations-and-alerts), by `action`, as the API does and for its owner only: `create` from a `spec` (exact, no model), a `preset` with its `params`, or `text` (a sentence the server's model turns into a spec, on the AI key), with optional `name` and `scope` (`board`, or `tree` for its sub-boards too); `update` a `rule` (id or name) with any of `name`, `scope`, `enabled` and `spec`, or `text` to have the model rewrite it; `delete` a `rule` with `confirm: true` — `enabled: false` turns it off without losing it. A spec that doesn't validate is refused with the reason. |
 | `install_tool` | Builds the board a [Tool](#tools) comes with, for the caller: the lists, folders, tags, page skeletons and rules from its `board.json`, and its board files in a `Tool` folder, by `tool` (its name), with optional `version` and `board_name`. Answers with the board's code and url and what was added. Installing again answers with the board already made, and makes nothing. `tool: "handbook"` with `board` puts the built-in handbook on that board's root instead; `tool: "sweep"` with `board` puts the code sweep there (its Sweeps page, a Triage list and the daily card). |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |

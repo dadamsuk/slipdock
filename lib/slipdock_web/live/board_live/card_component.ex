@@ -43,11 +43,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat
     answer_wait withdraw_wait skip_wait wait_change suggest_answer
     ask_questions ask_change ask_add ask_remove ask_save ask_cancel verify_work
-    save_incident clear_incident)
+    save_incident clear_incident reveal_sections)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
-  @read_events ~w(stop_editing_description dep_direction dep_search link_search pick_template)
+  @read_events ~w(stop_editing_description dep_direction dep_search link_search pick_template
+    reveal_sections)
   # What a commenter (#863) may do besides: join the discussion, and nothing
   # that changes the card itself. Deleting a comment is only their own
   # (`ItemEvents`).
@@ -78,6 +79,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        panel_notice: nil,
        notice_for: nil,
        narrow?: false,
+       # The sections the reader's card view hides, shown on this card
+       # anyway after the hint's Show them (#2031).
+       reveal_sections: false,
        form_key: 0,
        share_key: 0,
        card_pages: [],
@@ -164,7 +168,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         at: assigns[:at],
         narrow?: assigns[:narrow?] || false,
         parent: assigns.parent,
-        close_navigate: assigns.close_navigate
+        close_navigate: assigns.close_navigate,
+        # The reader's card views (#2031): which sections the panel draws.
+        card_view: assigns[:card_view]
       )
 
     {:ok, if(given != socket.assigns.given, do: take(socket, given), else: socket)}
@@ -202,6 +208,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             doc_results: [],
             doc_pool: nil,
             picking_template: false,
+            reveal_sections: false,
             editing_description: false,
             editing_handoff: false,
             handoff_form: nil,
@@ -1085,6 +1092,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp event("edit_description", _, socket),
     do: {:noreply, assign(socket, editing_description: true)}
 
+  defp event("reveal_sections", _, socket), do: {:noreply, assign(socket, reveal_sections: true)}
+
   defp event("stop_editing_description", _, socket),
     do: {:noreply, assign(socket, editing_description: false)}
 
@@ -1365,6 +1374,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         repeat={@repeat}
         parent={@parent}
         favourites={@favourites}
+        card_view={if @reveal_sections, do: nil, else: assigns[:card_view]}
+        hidden_by_view={hidden_attention(@card, assigns[:card_view], @reveal_sections)}
         target={@myself}
       />
     </div>
@@ -1536,9 +1547,20 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     default: nil,
     doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
 
+  attr :hidden_by_view, :list,
+    default: [],
+    doc: "sections the card view hides that need attention on this card (#2031)"
+
+  attr :card_view, :any,
+    default: nil,
+    doc: "the reader's resolved card views (#2031); nil shows every section"
+
   defp card_modal(assigns) do
     {done, total, pct} = checklist_progress(assigns.card.checklist_items)
-    assigns = assign(assigns, done: done, total: total, pct: pct)
+    # Which sections and sidebar groups the reader's card view keeps (#2031).
+    # The board's own conditions on each still apply: a card view only hides.
+    panel = Slipdock.CardViews.panel_shown(assigns.card_view, assigns.card.column_id)
+    assigns = assign(assigns, done: done, total: total, pct: pct, panel: panel)
 
     ~H"""
     <.modal
@@ -1595,6 +1617,24 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           else: "You have read-only access to this card."}
       </p>
       <.panel_notice notice={@panel_notice} class="mx-6 mt-2" />
+      <%!-- A hidden section that needs attention stays findable (#2031). --%>
+      <.callout
+        :if={@hidden_by_view != []}
+        kind={:warning}
+        id="card-view-hidden-attention"
+        class="mx-6 mt-2"
+      >
+        Your card view hides {Enum.join(@hidden_by_view, " and ")} on this card.
+        <button
+          type="button"
+          id="reveal-hidden-sections"
+          class="btn btn-ghost btn-xs"
+          phx-click="reveal_sections"
+          phx-target={@target}
+        >
+          Show them
+        </button>
+      </.callout>
       <div
         :if={@parent}
         id="card-parent"
@@ -1640,7 +1680,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 then the meta line's link opens the form. Its own fieldset,
                 since a commenter may write it. --%>
             <fieldset
-              :if={glance?(@card, @shipped) || @editing_handoff}
+              :if={(glance?(@card, @shipped) and on?(@panel, "open.glance")) || @editing_handoff}
               disabled={!@can_comment}
               class="min-w-0"
             >
@@ -1664,7 +1704,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             <%!-- Waiting on a person (#1114): only while it is, its
                   questions numbered with a box each (#1220). Otherwise
                   the Ask questions form, while it is open. --%>
-            <fieldset :if={Card.open_wait(@card)} disabled={!@can_write} class="min-w-0">
+            <fieldset
+              :if={Card.open_wait(@card) && on?(@panel, "open.wait")}
+              disabled={!@can_write}
+              class="min-w-0"
+            >
               <.wait_panel
                 wait={Card.open_wait(@card)}
                 count={@wait_count}
@@ -1708,12 +1752,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 tags_path={@tags_path}
                 target={@target}
                 uploads={@uploads}
+                description?={on?(@panel, "open.description")}
               />
 
               <%!-- The agent work (#2018): profile, bar, paths and evidence
                     together, apart from the general fields. --%>
               <.profile_section
-                :if={@board.profiles || @card.profile}
+                :if={(@board.profiles || @card.profile) && on?(@panel, "open.profile")}
                 board={@board}
                 card={@card}
                 form={@form}
@@ -1721,24 +1766,27 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               />
 
               <.bar_section
-                :if={@board.bar_required || @card.bar}
+                :if={(@board.bar_required || @card.bar) && on?(@panel, "open.bar")}
                 card={@card}
                 form={@form}
                 target={@target}
               />
 
               <.paths_section
-                :if={@card.paths != [] || Slipdock.Lanes.on?(@board)}
+                :if={(@card.paths != [] || Slipdock.Lanes.on?(@board)) && on?(@panel, "open.paths")}
                 board={@board}
                 card={@card}
                 form={@form}
                 target={@target}
               />
 
-              <.evidence_section :if={Slipdock.Verified.evidence?(@card)} card={@card} />
+              <.evidence_section
+                :if={Slipdock.Verified.evidence?(@card) && on?(@panel, "open.evidence")}
+                card={@card}
+              />
 
               <.verify_section
-                :if={@card.verify_state}
+                :if={@card.verify_state && on?(@panel, "open.verification")}
                 card={@card}
                 can_write={@can_write}
                 target={@target}
@@ -1746,6 +1794,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               />
 
               <.attachments_section
+                :if={on?(@panel, "open.attachments")}
                 at={@at}
                 can_write={@can_write}
                 transcribe={Slipdock.Transcription.available_to?(@current_user)}
@@ -1755,6 +1804,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               />
 
               <.checklist_section
+                :if={on?(@panel, "open.checklist")}
                 target={@target}
                 item={@card}
                 can_write={@can_write}
@@ -1762,6 +1812,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 section_key="e"
               />
               <.subcards_section
+                :if={on?(@panel, "open.subcards")}
                 board={@board}
                 can_write={@can_write}
                 card={@card}
@@ -1772,6 +1823,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               />
 
               <.dependencies_section
+                :if={on?(@panel, "open.dependencies")}
                 board={@board}
                 card={@card}
                 card_link={@card_link}
@@ -1783,6 +1835,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               />
 
               <.incident_section
+                :if={on?(@panel, "open.incident")}
                 board={@board}
                 card={@card}
                 card_link={@card_link}
@@ -1793,6 +1846,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               />
 
               <.docs_section
+                :if={on?(@panel, "open.docs")}
                 board={@board}
                 can_write={@can_write}
                 doc_query={@doc_query}
@@ -1801,19 +1855,28 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 target={@target}
               />
 
-              <.findings_line :if={@findings > 0} board={@board} card={@card} count={@findings} />
+              <.findings_line
+                :if={@findings > 0 && on?(@panel, "open.findings")}
+                board={@board}
+                card={@card}
+                count={@findings}
+              />
 
               <.jobs_section
-                :if={@jobs != []}
+                :if={@jobs != [] && on?(@panel, "open.jobs")}
                 can_write={@can_write}
                 jobs={@jobs}
                 target={@target}
                 user={@current_user}
               />
 
-              <.lead_time_line :if={@lead_time} lead_time={@lead_time} />
+              <.lead_time_line
+                :if={@lead_time && on?(@panel, "open.lead_time")}
+                lead_time={@lead_time}
+              />
 
               <.links_section
+                :if={on?(@panel, "open.links")}
                 board={@board}
                 can_write={@can_write}
                 card={@card}
@@ -1825,6 +1888,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               />
 
               <.urls_section
+                :if={on?(@panel, "open.urls")}
                 target={@target}
                 item={@card}
                 can_write={@can_write}
@@ -1834,7 +1898,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             </fieldset>
           </div>
 
-          <fieldset disabled={!@can_comment} class="min-w-0">
+          <fieldset :if={on?(@panel, "open.comments")} disabled={!@can_comment} class="min-w-0">
             <%!-- Pasting an image attaches it to the card, so that is a writer's. --%>
             <.comments_section
               target={@target}
@@ -1865,10 +1929,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           form_key={@form_key}
           target={@target}
           users={@users}
+          panel={@panel}
         />
       </div>
       <div
-        :if={@timeline && not Slipdock.CardTimeline.empty?(@timeline)}
+        :if={@timeline && not Slipdock.CardTimeline.empty?(@timeline) && on?(@panel, "open.timeline")}
         class="border-t border-base-content/10 px-6 py-4"
       >
         <.timeline_section
@@ -1876,7 +1941,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           zone={Slipdock.Timezones.of(@current_user)}
         />
       </div>
-      <div :if={@can_share} class="border-t border-base-content/10 px-6 py-4">
+      <div
+        :if={@can_share && on?(@panel, "open.sharing")}
+        class="border-t border-base-content/10 px-6 py-4"
+      >
         <p class="mb-2 section-label">
           Sharing this card
         </p>
@@ -1891,7 +1959,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         />
       </div>
       <.live_component
-        :if={@ai?}
+        :if={@ai? && on?(@panel, "open.ai")}
         module={SlipdockWeb.AIChatComponent}
         id={"card-ai-#{@card.id}"}
         layout="inline"
@@ -1903,6 +1971,24 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       />
     </.modal>
     """
+  end
+
+  defp on?(panel, key), do: MapSet.member?(panel, key)
+
+  # The hidden sections with something waiting on the reader (#2031): a
+  # rejected verification, an open wait. Hiding them is a display choice,
+  # but these shouldn't vanish without a word.
+  defp hidden_attention(_card, _view, true), do: []
+
+  defp hidden_attention(card, view, false) do
+    panel = Slipdock.CardViews.panel_shown(view, card.column_id)
+
+    [
+      {"open.verification", card.verify_state == "rejected", "a rejected verification"},
+      {"open.wait", not is_nil(Card.open_wait(card)), "a question waiting on a person"}
+    ]
+    |> Enum.filter(fn {key, attention?, _} -> attention? and not MapSet.member?(panel, key) end)
+    |> Enum.map(&elem(&1, 2))
   end
 
   # The Repeat… form's state: what was typed, and what it would do.

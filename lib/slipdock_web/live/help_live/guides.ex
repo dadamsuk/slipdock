@@ -21,6 +21,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
         {"boards-basics", "Boards, lists and cards"},
         {"boards-subcards", "Subcards and epics"},
         {"boards-views", "Views"},
+        {"boards-card-views", "Card views"},
         {"boards-planning", "Planning"},
         {"boards-fast", "Getting around fast"},
         {"boards-moving", "Templates, moving and archiving"}
@@ -213,6 +214,44 @@ defmodule SlipdockWeb.HelpLive.Guides do
       <p>
         The filter bar narrows any view by text, tag, priority, flag and due date. A view
         with its filters can be saved, shared, or published as a public link.
+      </p>
+    </.part>
+
+    <.part title="Card views" id="boards-card-views">
+      <p>
+        Choose what you see of a card: each part of its front, each section of the opened card
+        and each group of its sidebar. Card views are yours alone and kept on the server, so
+        they follow you to every browser. Nobody else's cards change.
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          <strong>Levels</strong>: global, then a board, then one list on it. Each states only
+          what it changes, <em>Show</em> or <em>Hide</em>, and inherits the rest from the level below.
+        </li>
+        <li>
+          <strong>Named card views</strong>: save a set under a name and apply it at any level,
+          with that level's own choices on top. A saved view can name one too, under
+          Display → <em>Card view for this view</em>.
+        </li>
+        <li>
+          <strong>Show all</strong>: a switch in the Display menu that shows every part of the
+          card front on this board while it is on.
+        </li>
+        <li>
+          <strong>The handoff note</strong>: show <em>Handoff note (2 lines)</em>
+          or <em>Handoff note in full</em>
+          to read where a card was left without opening it.
+        </li>
+      </ul>
+      <p>
+        Open them from the Display menu's <strong>Card views…</strong>, from
+        <strong>Card view…</strong>
+        in a list's ⋯ menu, or at <.app_link
+          current_user={@current_user}
+          to={~p"/card-views"}
+        >Card views</.app_link>. The board's own settings always win: a card view never brings back
+        what a simple board or a list hides. The list level applies on the board and swimlanes;
+        the timeline, calendar and outline use the board's.
       </p>
     </.part>
 

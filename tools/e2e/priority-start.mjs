@@ -49,7 +49,7 @@ const page = await ctx.newPage()
 await signIn(page)
 
 // The card face: bars with a tooltip, medium left off, start chip in words.
-await open(page, `/boards/${board}?show=tags,priority,flags,start_date`)
+await open(page, `/boards/${board}?card_view=e2e-start`)
 for (const [p, id, label, level] of prios) {
   const sel = `#card-${id} [data-role=priority]`
   if (p === 'medium') {
@@ -81,7 +81,7 @@ if (shots) await page.screenshot({ path: `${shots}/filter.png`, clip: { x: 0, y:
 await page.keyboard.press('Escape')
 
 // The start overrun chip says it in words too.
-await open(page, `/boards/${board}?show=priority,due_date`)
+await open(page, `/boards/${board}?card_view=e2e-due`)
 const slip = await title(page, `#card-${crit} [data-role=start-slip]`)
 check((slip || '').startsWith('Started 11 days late.'), `slip chip: ${slip}`)
 

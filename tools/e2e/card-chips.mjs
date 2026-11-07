@@ -79,7 +79,7 @@ for (const [what, sel] of [
 }
 
 // Start and due as one range.
-await open(page, `/boards/${board}?show=tags,priority,start_date,due_date`)
+await open(page, `/boards/${board}?card_view=e2e-range`)
 const range = await look(page, `${f} [data-role=date-range]`)
 check(range && range.text.includes('→'), `range: ${range ? range.text : 'missing'}`)
 check(!(await has(page, `${f} [title^='Due']`)), 'a separate due chip beside the range')

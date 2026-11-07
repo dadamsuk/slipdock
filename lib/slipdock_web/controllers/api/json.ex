@@ -17,6 +17,40 @@ defmodule SlipdockWeb.API.JSON do
   alias Slipdock.Swimlanes.Config
   alias Slipdock.Wiki.{Link, Page, Revision}
 
+  @doc "A named card view (#2031), as REST and MCP give it."
+  def card_view(%Slipdock.CardViews.CardView{} = view),
+    do: %{id: view.id, name: view.name, elements: view.elements}
+
+  @doc """
+  One level of a person's card views (#2031): which level, its board and
+  list, the named view it applies, what it states and, on a board, Show all.
+  `place` is `{board_or_nil, column_or_nil}`.
+  """
+  def card_view_level({board, column}, %Slipdock.CardViews.Level{} = level) do
+    %{
+      level:
+        cond do
+          column -> "list"
+          board -> "board"
+          true -> "global"
+        end,
+      board: board && %{id: board.id, code: board.code, name: board.name},
+      list: column && %{id: column.id, name: column.name},
+      card_view: level.card_view && %{id: level.card_view.id, name: level.card_view.name},
+      elements: level.elements,
+      show_all: level.show_all
+    }
+  end
+
+  @doc "Every element a card view can set (#2031), with its group and default."
+  def card_view_elements do
+    alias Slipdock.CardViews.Elements
+
+    for {group, _title, elements} <- Elements.groups(),
+        {key, label} <- elements,
+        do: %{key: key, label: label, group: group, default: Elements.default?(key)}
+  end
+
   @doc """
   A board's DORA report (#1134) as the API and MCP give it: the numbers, or
   — while the board's delivery metrics are off — that they are, and how to

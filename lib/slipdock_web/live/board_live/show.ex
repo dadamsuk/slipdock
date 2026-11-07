@@ -59,7 +59,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # on is not the open board or the open card: a card named by id, a page,
   # another board, a sprint picked from several boards.
   @self_checked_events ~w(share revoke_grant toggle_complete table_update prio_field prio_vote timeline_move
-    timeline_schedule cal_move toggle_favourite dismiss_stand_in)
+    timeline_schedule cal_move toggle_favourite dismiss_stand_in toggle_show_all)
   # Events that change nothing stored: filters, panels opening and closing,
   # forms being typed into, the keyboard's place on the board.
   @read_events ~w(search filter_tag filter_kind filter_priority filter_flag filter_due
@@ -129,6 +129,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       Slipdock.Runners.subscribe_board(board.id)
       # A deploy arriving moves the delivery strip (#1134).
       Phoenix.PubSub.subscribe(Slipdock.PubSub, Slipdock.Deployments.topic(board))
+      # The reader's card views (#2031), changed here or anywhere else.
+      Slipdock.CardViews.subscribe(user)
     end
 
     {:ok,
@@ -148,7 +150,8 @@ defmodule SlipdockWeb.BoardLive.Show do
        view_grants: [],
        share_key: 0
      )
-     |> mount_assigns(board)}
+     |> mount_assigns(board)
+     |> assign_card_views()}
   end
 
   defp mount_assigns(socket, board) do
@@ -632,6 +635,11 @@ defmodule SlipdockWeb.BoardLive.Show do
     {:noreply, assign(socket, dora: board_dora(socket.assigns.board))}
   end
 
+  # The reader changed a card view, here or in another tab (#2031).
+  def handle_info({:card_views_changed, _user_id}, socket) do
+    {:noreply, socket |> assign_card_views() |> refresh_swimlanes()}
+  end
+
   def handle_info({:board_changed, _id}, socket) do
     # A burst of writes (an import, an automation, a bulk move) queues one of
     # these per write; one reload answers all that have already arrived.
@@ -724,6 +732,23 @@ defmodule SlipdockWeb.BoardLive.Show do
   # they get here only past the guards above.
   def handle_event(event, params, socket) when event in @view_events,
     do: ViewEvents.handle_event(event, params, socket)
+
+  # The reader's own Show all switch for the board (#2031): theirs, not the
+  # board's, so read access is enough; nobody signed in has none to keep.
+  def handle_event("toggle_show_all", _params, %{assigns: assigns} = socket) do
+    case assigns do
+      %{current_user: %Slipdock.Accounts.User{} = user, card_only: false, board: board} ->
+        on? = not Slipdock.Swimlanes.Config.show_all?(assigns.swim)
+
+        case Slipdock.CardViews.put_show_all(user, board, on?) do
+          {:ok, _} -> {:noreply, socket |> assign_card_views() |> refresh_swimlanes()}
+          {:error, _} -> {:noreply, put_flash(socket, :error, "Couldn't change Show all.")}
+        end
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Sign in to keep your own card views.")}
+    end
+  end
 
   # What the browser remembered of this board's Display options (#1879).
   def handle_event("display_restore", params, socket),
@@ -1221,6 +1246,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           groups={@groups}
           share_key={@share_key}
           favourites={@favourites}
+          card_view_names={@card_view_names}
         >
           <:leading>
             <.view_tabs
@@ -1340,6 +1366,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
       <.kanban
         :if={@mode == :board and !@card_only}
+        card_view_names={@card_view_names}
         board={@board}
         pulse={@pulse}
         dora={@dora}
@@ -1445,6 +1472,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         module={SlipdockWeb.BoardLive.CardComponent}
         id="card-panel"
         card={@card}
+        card_view={assigns[:card_view]}
         board={@board}
         current_user={@current_user}
         swim={@swim}

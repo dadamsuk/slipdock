@@ -29,6 +29,7 @@ defmodule SlipdockWeb.BoardLive.State do
   }
 
   alias Slipdock.Boards.{Board, Card}
+  alias Slipdock.CardViews
   alias Slipdock.Swimlanes.Config
 
   # Recomputes the user's permissions after the board reloads (grants may
@@ -124,9 +125,18 @@ defmodule SlipdockWeb.BoardLive.State do
     # The board's own hidden facets go on both, so they never make a view dirty.
     hidden = Board.hidden_facets(socket.assigns.board)
     {base, config} = {Config.hide(base, hidden), Config.hide(config, hidden)}
+    # What the reader's card views put on each list's cards (#2031), on both,
+    # so a card view never makes a saved view dirty either.
+    card_view = card_view(socket, config)
+    front = card_front(card_view, socket.assigns.board, config.density)
+    show_all = card_view.show_all
+
+    {base, config} =
+      {Config.put_front(base, front, show_all), Config.put_front(config, front, show_all)}
 
     socket
     |> assign(
+      card_view: card_view,
       swim_view: view,
       swim_base: base,
       swim: config,
@@ -136,6 +146,41 @@ defmodule SlipdockWeb.BoardLive.State do
       view_grants: if(view && socket.assigns.can_manage, do: Access.list_grants(view), else: [])
     )
     |> assign_grid()
+  end
+
+  @doc """
+  Resolves the reader's card views on the board into `:card_views` (#2031),
+  at mount and whenever they change. The saved view's own card view goes on
+  top in `assign_swim_state/4`.
+  """
+  def assign_card_views(%{assigns: assigns} = socket) do
+    assign(socket,
+      card_views: CardViews.resolve(assigns.current_user, assigns.board),
+      card_view_names: Enum.map(CardViews.list(assigns.current_user), & &1.name)
+    )
+  end
+
+  # The resolved card views, with the card view an open saved view (or the
+  # URL's `card_view=`) names on top.
+  defp card_view(%{assigns: assigns}, config) do
+    resolved = assigns[:card_views] || CardViews.resolve(assigns.current_user, assigns.board)
+
+    case Config.card_view(config) do
+      name when is_binary(name) -> CardViews.with_saved_view(resolved, assigns.current_user, name)
+      nil -> resolved
+    end
+  end
+
+  # Each list's card front, and the board's (`nil`) for cards drawn apart
+  # from a list. A list's own settings (no age chip, no front image) win.
+  defp card_front(resolved, board, density) do
+    lists =
+      for column <- board.columns, into: %{} do
+        shown = CardViews.front_shown(resolved, column.id, density)
+        {column.id, MapSet.difference(shown, MapSet.new(CardViews.list_hidden(column)))}
+      end
+
+    Map.put(lists, nil, CardViews.front_shown(resolved, nil, density))
   end
 
   def swim_query(view, config, base) do

@@ -166,6 +166,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Read and change what a person sees of a card (their card views)",
+     [
+       {:yes, "/api/card-views"},
+       {:yes, "card_views"},
+       {:yes, "slipdock card-view"},
+       {:yes, "through the CLI or MCP, when asked"},
+       {:yes, "through the CLI or MCP, when asked"},
+       {:no, "one way only"}
+     ]},
     {"Wait on a person, and answer a wait",
      [
        {:yes, "POST /api/cards/:id/wait"},

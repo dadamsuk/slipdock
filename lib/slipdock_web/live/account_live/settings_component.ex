@@ -388,6 +388,21 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
         </form>
       </section>
 
+      <%!-- What a card shows (#2031): the editor is a page of its own. --%>
+      <section
+        id="card-views-settings"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="section-title">Card views</h2>
+        <p class="text-sm text-base-content/60">
+          What you see of a card, on its front and opened: for every board, one board or one
+          list. Yours alone, the same in every browser.
+        </p>
+        <.link navigate={~p"/card-views"} id="card-views-settings-link" class="btn btn-sm mt-4">
+          <.icon name="hero-rectangle-stack" class="size-4" /> Edit card views
+        </.link>
+      </section>
+
       <section
         id="header-links-settings"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"

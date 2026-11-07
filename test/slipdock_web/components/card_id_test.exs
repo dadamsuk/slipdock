@@ -48,13 +48,13 @@ defmodule SlipdockWeb.Components.CardIdTest do
     end)
   end
 
-  test "is offered in the Display menu and off by default", ctx do
+  test "is a card view element, off by default", ctx do
     assert {"id", "ID"} in Config.facets()
     refute "id" in %Config{}.show
     refute "id" in %Config{}.show_compact
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
-    assert has_element?(view, "#display-menu", "ID")
+    assert {"id", "ID"} in Slipdock.CardViews.Elements.front()
     refute has_element?(view, "[data-role=card-id]")
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[density: "compact"]}")
@@ -62,7 +62,14 @@ defmodule SlipdockWeb.Components.CardIdTest do
   end
 
   test "ticked, every card shows its number, quieter than the title", ctx do
-    {:ok, view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[show: "tags,id"]}")
+    {:ok, view, html} =
+      Slipdock.CardViewHelpers.live_showing(
+        ctx.conn,
+        ctx.user,
+        ctx.board,
+        ~p"/boards/#{ctx.board}",
+        ~w(tags id)
+      )
 
     assert has_element?(view, id_mark(ctx.plain), "##{ctx.plain.id}")
     assert has_element?(view, id_mark(ctx.tagged), "##{ctx.tagged.id}")
@@ -75,7 +82,14 @@ defmodule SlipdockWeb.Components.CardIdTest do
   end
 
   test "sits at the right of the top row: the tags when shown, else the title", ctx do
-    {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[show: "tags,status,id"]}")
+    {:ok, _view, html} =
+      Slipdock.CardViewHelpers.live_showing(
+        ctx.conn,
+        ctx.user,
+        ctx.board,
+        ~p"/boards/#{ctx.board}",
+        ~w(tags status id)
+      )
 
     # With tags: the tags' row, after the tags, above the title.
     tagged = card_node(html, ctx.tagged)
@@ -88,21 +102,34 @@ defmodule SlipdockWeb.Components.CardIdTest do
     assert Enum.take(row_of_id(plain), 3) == ["card-title", "card-id", "complete-toggle"]
 
     # Tags turned off: the tagged card's number moves to its title row too.
-    {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[show: "id"]}")
+    {:ok, _view, html} =
+      Slipdock.CardViewHelpers.live_showing(
+        ctx.conn,
+        ctx.user,
+        ctx.board,
+        ~p"/boards/#{ctx.board}",
+        ~w(id)
+      )
+
     assert Enum.take(row_of_id(card_node(html, ctx.tagged)), 2) == ["card-title", "card-id"]
   end
 
   test "a compact card shows it after the title", ctx do
     {:ok, view, html} =
-      live(ctx.conn, ~p"/boards/#{ctx.board}?#{[density: "compact", show_compact: "id"]}")
+      Slipdock.CardViewHelpers.live_showing(
+        ctx.conn,
+        ctx.user,
+        ctx.board,
+        ~p"/boards/#{ctx.board}?#{[density: "compact"]}",
+        ~w(id)
+      )
 
     assert has_element?(view, id_mark(ctx.plain), "##{ctx.plain.id}")
     assert row_of_id(card_node(html, ctx.plain)) |> Enum.take(2) == ["card-title", "card-id"]
 
-    # Ticked for comfortable cards only, compact cards leave it off.
-    {:ok, view, _} =
-      live(ctx.conn, ~p"/boards/#{ctx.board}?#{[density: "compact", show: "id"]}")
-
+    # One card view for both sizes (#2031): hidden, it is off on compact cards too.
+    Slipdock.CardViewHelpers.show_on_cards(ctx.user, ctx.board, ~w(tags))
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[density: "compact"]}")
     refute has_element?(view, "[data-role=card-id]")
   end
 
@@ -110,7 +137,15 @@ defmodule SlipdockWeb.Components.CardIdTest do
     page = page_fixture(ctx.board, %{"title" => "Runbook"}, user: ctx.user)
     {:ok, _} = Slipdock.Wiki.place(page, ctx.todo)
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[show: "id"]}")
+    {:ok, view, _} =
+      Slipdock.CardViewHelpers.live_showing(
+        ctx.conn,
+        ctx.user,
+        ctx.board,
+        ~p"/boards/#{ctx.board}",
+        ~w(id)
+      )
+
     assert has_element?(view, "#page-#{page.id}")
     refute has_element?(view, "#page-#{page.id} [data-role=card-id]")
     assert has_element?(view, id_mark(ctx.plain))

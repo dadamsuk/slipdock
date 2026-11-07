@@ -202,7 +202,7 @@ that connects gets a small set of tools rather than the whole API:
 
 | Reading | Writing |
 |---|---|
-| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `wiki_info`, `activity`, `download_file`, `list_automations`, `list_tools`, `garden`, `page_tool`, `job_log` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `garden_decide`, `upload_file`, `delete_attachment`, `complete_card`, `verify_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board`, `archive_board`, `delete_board`, `write_page`, `quick_note`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_wiki`, `manage_automation`, `install_tool`, `claim_job`, `job_progress`, `finish_job`, `keep_job_log` |
+| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `wiki_info`, `activity`, `download_file`, `list_automations`, `list_tools`, `garden`, `page_tool`, `job_log` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `garden_decide`, `upload_file`, `delete_attachment`, `complete_card`, `verify_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board`, `archive_board`, `delete_board`, `write_page`, `quick_note`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_wiki`, `card_views`, `manage_automation`, `install_tool`, `claim_job`, `job_progress`, `finish_job`, `keep_job_log` |
 
 Files move without passing through the model: with a shell, `upload_file`
 with `card` (or `page`) and `link: true` answers with a single-use
@@ -326,6 +326,16 @@ for has one, snooze it rather than flag it `waiting`: `update_card` with
 `snoozed_until: "2026-11-02"` (and `snooze_note`), `slipdock snooze <id>
 <date> --note "…"`, or `POST /api/cards/:id/snooze`. See
 [the manual](manual.md#snoozing-cards).
+
+A person's **card views** say what they see of a card in the web app: each
+element of its front and of the opened card, by global, board and list. They
+are theirs alone, and your own output never follows them: `get_card`,
+`list_cards` and the CLI give the whole card whatever they say. Change them only
+when the person asks: `card_views` (MCP, by `action`), `slipdock card-view set
+[--board B] [--list L] --show a --hide b`, or `PUT /api/card-views/level`.
+`slipdock card-view applied --board B` (`GET /api/card-views/applied`) says
+what a card there shows and which level decided it. See
+[the manual](manual.md#card-views).
 
 The board gardener finds rot — epics done but open, cards stuck in progress,
 duplicates, orphaned pages, mistyped links, and on a handbook board long

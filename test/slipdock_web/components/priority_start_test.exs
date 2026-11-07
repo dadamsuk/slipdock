@@ -419,17 +419,41 @@ defmodule SlipdockWeb.Components.PriorityStartTest do
           "due_date" => iso(20)
         })
 
-      {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=start_date,due_date")
+      {:ok, _view, html} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(start_date due_date)
+        )
+
       face = doc(html) |> q("#card-#{card.id}")
       # Both shown, so the face draws them as one range, with the start's words.
       assert [range_title] = attr(face, "[data-role=date-range]", "title")
       assert range_title =~ "Starts"
 
-      {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=start_date")
+      {:ok, _view, html} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(start_date)
+        )
+
       face = doc(html) |> q("#card-#{card.id}")
       assert count(face, "[data-role=start] .#{SlipdockComponents.start_icon()}") == 1
 
-      {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}?show=due_date")
+      {:ok, _view, html} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(due_date)
+        )
+
       face = doc(html) |> q("#card-#{card.id}")
       assert count(face, "[title^='Due'] .#{SlipdockComponents.due_icon()}") == 1
 

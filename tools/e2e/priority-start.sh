@@ -24,6 +24,9 @@ ids=$(mix run -e '
   {:ok, sub} = Boards.create_sub_board(crit, t, code: "roofe2e")
   [sub_todo | _] = Boards.get_board!(sub.id).columns
   {:ok, _} = Boards.create_card(sub_todo, %{"title" => "Buy slates", "start_date" => day.(-3), "due_date" => day.(0)})
+  # What the old ?show= did, as named card views the URL names (#2031).
+  {:ok, _} = Slipdock.CardViews.create(Slipdock.Repo.get_by!(Slipdock.Accounts.User, email: "e2e@example.com"), %{"name" => "e2e-start", "elements" => Map.new(Slipdock.Swimlanes.Config.facet_keys(), &{&1, &1 in ~w(tags priority flags start_date)})})
+  {:ok, _} = Slipdock.CardViews.create(Slipdock.Repo.get_by!(Slipdock.Accounts.User, email: "e2e@example.com"), %{"name" => "e2e-due", "elements" => Map.new(Slipdock.Swimlanes.Config.facet_keys(), &{&1, &1 in ~w(priority due_date)})})
   IO.puts("IDS #{low.id} #{med.id} #{high.id} #{crit.id}")
 ' | grep '^IDS' | cut -d' ' -f2-)
 read -r LOW MED HIGH CRIT <<<"$ids"

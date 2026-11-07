@@ -122,7 +122,16 @@ defmodule SlipdockWeb.CardThumbnailTest do
     attach(card, "first.png")
 
     without = Config.facet_keys() -- ["images"]
-    {:ok, view, _} = live(conn, ~p"/boards/#{board}?#{[show: Enum.join(without, ",")]}")
+
+    {:ok, view, _} =
+      Slipdock.CardViewHelpers.live_showing(
+        conn,
+        Slipdock.Fixtures.user_fixture(),
+        board,
+        ~p"/boards/#{board}",
+        without
+      )
+
     refute has_element?(view, thumb(card))
 
     # Compact leaves images out unless asked, and shows a small one when asked.
@@ -130,14 +139,20 @@ defmodule SlipdockWeb.CardThumbnailTest do
     refute has_element?(view, thumb(card))
 
     {:ok, view, _} =
-      live(conn, ~p"/boards/#{board}?#{[density: "compact", show_compact: "images"]}")
+      Slipdock.CardViewHelpers.live_showing(
+        conn,
+        Slipdock.Fixtures.user_fixture(),
+        board,
+        ~p"/boards/#{board}?#{[density: "compact"]}",
+        ~w(images)
+      )
 
     assert has_element?(view, "#card-#{card.id} img[data-role=card-image].size-5")
   end
 
-  test "the Display menu offers Images", %{conn: conn, board: board} do
-    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
-    assert has_element?(view, "#display-menu input[name='show[]'][value=images]")
+  test "card views offer Images", %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/card-views?board=#{board.id}")
+    assert has_element?(view, "#element-images", "Images")
   end
 
   describe "the card panel's tick box" do

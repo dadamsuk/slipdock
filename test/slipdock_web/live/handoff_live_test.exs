@@ -541,43 +541,39 @@ defmodule SlipdockWeb.HandoffLiveTest do
   describe "the note on the card's front (#1171)" do
     alias Slipdock.Swimlanes.Config
 
-    test "is a Display setting: off by default, two lines or full, kept in the URL" do
-      assert %Config{}.handoff == "hide"
-      assert Enum.map(Config.handoffs(), &elem(&1, 0)) == ~w(hide short full)
-      assert Config.from_query(%{"handoff" => "full"}).handoff == "full"
-      assert Config.from_query(%{"handoff" => "everything"}).handoff == "hide"
-      # A setting the menu does not send leaves it alone.
-      assert Config.from_form(%{"density" => "compact"}, %Config{handoff: "short"}).handoff ==
-               "short"
-
-      assert Config.to_query(%Config{handoff: "short"}) == [handoff: "short"]
-      assert Config.from_map(Config.to_map(%Config{handoff: "full"})).handoff == "full"
-      assert Config.from_map(%{"density" => "compact"}).handoff == "hide"
+    test "is a card view element now, not a Display setting in the URL (#2031)" do
+      refute Map.has_key?(%Config{}, :handoff)
+      assert Config.to_query(Config.from_query(%{"handoff" => "full"})) == []
+      assert {"handoff_note", "Handoff note (2 lines)", false} in Config.card_marks()
+      assert {"handoff_full", "Handoff note in full", false} in Config.card_marks()
     end
 
     test "off by default: the mark alone", ctx do
       leave(ctx, "Pick up the tests", "State: half done")
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
-      assert has_element?(view, "#display-handoff input[name=handoff][value=hide][checked]")
+      refute has_element?(view, "#display-handoff")
       assert has_element?(view, "#card-#{ctx.card.id} [data-role=handoff-mark]")
       refute has_element?(view, "[data-role=handoff-note]")
     end
 
-    test "the menu shows it cut to two lines, or in full", ctx do
-      leave(ctx, "Pick up the tests", "State: half done\nGotchas: the seed")
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+    # The Display menu's choice moved into card views (#2031): two elements.
+    defp note(ctx, element) do
+      {:ok, _} =
+        Slipdock.CardViews.update_level(ctx.owner, {:board, ctx.board}, %{"show" => [element]})
+    end
 
-      view |> form("#swim-config", %{"handoff" => "short"}) |> render_change()
-      assert_patch(view, ~p"/boards/#{ctx.board}?handoff=short")
+    test "a card view shows it cut to two lines, or in full", ctx do
+      leave(ctx, "Pick up the tests", "State: half done\nGotchas: the seed")
+      note(ctx, "handoff_note")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
       note = "#card-#{ctx.card.id} [data-role=handoff-note][data-mode=short]"
       assert has_element?(view, note <> " p.line-clamp-2", "Pick up the tests")
       assert has_element?(view, note <> "[title*='Gotchas: the seed']")
 
-      view |> form("#swim-config", %{"handoff" => "full"}) |> render_change()
-      assert_patch(view, ~p"/boards/#{ctx.board}?handoff=full")
-
+      # The board follows a change made elsewhere, without a reload.
+      note(ctx, "handoff_full")
       html = view |> element("#card-#{ctx.card.id} [data-role=handoff-note]") |> render()
       assert html =~ ~s(data-mode="full")
       refute html =~ "line-clamp-2"
@@ -586,9 +582,24 @@ defmodule SlipdockWeb.HandoffLiveTest do
       assert html =~ "Pick up the tests\nState: half done\nGotchas: the seed"
     end
 
+    test "the handoff mark and the note are separate elements", ctx do
+      leave(ctx, "Pick up the tests")
+
+      {:ok, _} =
+        Slipdock.CardViews.update_level(ctx.owner, {:board, ctx.board}, %{
+          "hide" => ["handoff"],
+          "show" => ["handoff_note"]
+        })
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      refute has_element?(view, "#card-#{ctx.card.id} [data-role=handoff-mark]")
+      assert has_element?(view, "#card-#{ctx.card.id} [data-role=handoff-note]")
+    end
+
     test "a note with no body shows the next step alone", ctx do
       leave(ctx, "Only a next step")
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?handoff=full")
+      note(ctx, "handoff_full")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
       html = view |> element("#card-#{ctx.card.id} [data-role=handoff-note]") |> render()
       assert html =~ "Left off:</span> Only a next step</p>"
@@ -603,8 +614,9 @@ defmodule SlipdockWeb.HandoffLiveTest do
       {:ok, _} = Boards.clear_handoff(other, ctx.owner, %{via: "ui"})
       {:ok, _} = Boards.leave_handoff(open_one, ctx.owner, %{next_step: "Go on", via: "ui"})
       {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+      note(ctx, "handoff_full")
 
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?handoff=full")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
       for card <- [ctx.card, other, plain] do
         refute has_element?(view, "#card-#{card.id} [data-role=handoff-note]")
@@ -612,24 +624,17 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       assert has_element?(view, "#card-#{open_one.id} [data-role=handoff-note]", "Go on")
 
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?handoff=full&density=compact")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?density=compact")
       refute has_element?(view, "[data-role=handoff-note]")
       assert has_element?(view, "#card-#{open_one.id} [data-role=handoff-mark]")
     end
 
-    test "swimlanes show it too; views without card fronts don't offer it", ctx do
+    test "swimlanes show it too", ctx do
       leave(ctx, "Lane step")
+      note(ctx, "handoff_note")
 
-      {:ok, view, _} =
-        live(ctx.conn, ~p"/boards/#{ctx.board}/swimlanes?handoff=short")
-
-      assert has_element?(view, "#display-handoff")
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/swimlanes")
       assert has_element?(view, "[data-role=handoff-note][data-mode=short]", "Lane step")
-
-      for mode <- ~w(table timeline calendar outline) do
-        {:ok, view, _} = live(ctx.conn, "/boards/#{ctx.board.id}/#{mode}")
-        refute has_element?(view, "#display-handoff")
-      end
     end
   end
 end

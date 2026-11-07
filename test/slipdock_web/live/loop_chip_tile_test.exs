@@ -81,7 +81,13 @@ defmodule SlipdockWeb.LoopChipTileTest do
       %Job{kind: "verify"} = verify = Runners.claim(ctx.runner)
 
       {:ok, view, _} =
-        live(ctx.conn, ~p"/boards/#{ctx.board}?#{[density: "compact", show_compact: "assignee"]}")
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}?#{[density: "compact"]}",
+          ~w(assignee)
+        )
 
       assert has_element?(
                view,
@@ -91,13 +97,26 @@ defmodule SlipdockWeb.LoopChipTileTest do
     end
 
     test "is left off with the assignee field", ctx do
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}?#{[show: "tags,status"]}")
+      {:ok, view, _} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}",
+          ~w(tags status)
+        )
 
       assert has_element?(view, "#card-#{ctx.card.id}")
       refute has_element?(view, "#card-#{ctx.card.id}-loop")
 
       {:ok, view, _} =
-        live(ctx.conn, ~p"/boards/#{ctx.board}?#{[density: "compact", show_compact: "tags"]}")
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}?#{[density: "compact"]}",
+          ~w(tags)
+        )
 
       refute has_element?(view, "#card-#{ctx.card.id}-loop")
     end
@@ -160,7 +179,14 @@ defmodule SlipdockWeb.LoopChipTileTest do
     end
 
     test "is left off with the assignee field", ctx do
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/outline?#{[show: "tags,priority"]}")
+      {:ok, view, _} =
+        Slipdock.CardViewHelpers.live_showing(
+          ctx.conn,
+          ctx.user,
+          ctx.board,
+          ~p"/boards/#{ctx.board}/outline",
+          ~w(tags priority)
+        )
 
       assert has_element?(view, "#ol-#{ctx.card.id}")
       refute has_element?(view, "#ol-loop-#{ctx.card.id}")

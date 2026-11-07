@@ -22,7 +22,8 @@ defmodule SlipdockWeb.DisplayLiveTest do
   end
 
   test "each density keeps its own set of facets" do
-    assert Config.shown(%Config{}) == MapSet.new(Config.default_show())
+    # Without card views put on: the config's own set, and the marks (#2031).
+    assert Config.shown(%Config{}) == MapSet.new(Config.default_show() ++ Config.marks_on())
     compact = Config.shown(%Config{density: "compact"})
     assert MapSet.member?(compact, "priority")
     refute MapSet.member?(compact, "comments")
@@ -47,53 +48,75 @@ defmodule SlipdockWeb.DisplayLiveTest do
     assert Enum.map(Config.facets(:timeline), &elem(&1, 0)) == ~w(cover priority flags subcards)
   end
 
-  test "board view honours the chosen facets, and saves them in a view", %{
+  test "the board follows the reader's card views, not the URL's show (#2031)", %{
     conn: conn,
     board: board,
-    card: card
+    card: card,
+    user: user
   } do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     assert has_element?(view, "#card-#{card.id} [title^='Priority']")
     assert has_element?(view, "#card-#{card.id} [title^='Due']")
     # The start date is off by default (#1708).
     refute has_element?(view, "#card-#{card.id} [title^='Starts']")
+    # The menu no longer chooses facets: it links to the editor.
+    refute has_element?(view, "#display-show-comfortable")
+    assert has_element?(view, ~s(#edit-card-views[href="/card-views?board=#{board.id}"]))
 
-    view |> form("#swim-config", %{"show" => ["priority"]}) |> render_change()
-    assert_patch(view, ~p"/boards/#{board}?show=priority")
+    Slipdock.CardViewHelpers.show_on_cards(user, board, ~w(priority start_date))
     assert has_element?(view, "#card-#{card.id} [title^='Priority']")
     refute has_element?(view, "#card-#{card.id} [title^='Due']")
-    refute has_element?(view, "#card-#{card.id} [title^='Starts']")
 
-    # Switching to compact cards uses the compact set, which is unchanged.
-    view |> form("#swim-config", %{"density" => "compact"}) |> render_change()
-    assert_patch(view, ~p"/boards/#{board}?density=compact&show=priority")
+    # An old link's show= no longer decides: the card view does.
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}?show=due_date")
+    refute has_element?(view, "#card-#{card.id} [title^='Due']")
+    assert has_element?(view, "#card-#{card.id} [title^='Priority']")
+
+    # Compact cards follow the same card view.
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}?density=compact")
+    assert has_element?(view, "#card-#{card.id} [title^='Priority']")
+    refute has_element?(view, "#card-#{card.id} [title^='Due']")
+  end
+
+  test "a saved view names a card view, which sits above the list while it is open", %{
+    conn: conn,
+    board: board,
+    card: card,
+    user: user
+  } do
+    {:ok, _} = Slipdock.CardViews.create(user, %{"name" => "Dates", "show" => "due_date"})
+    Slipdock.CardViewHelpers.show_on_cards(user, board, ["priority"], list: hd(board.columns))
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    refute has_element?(view, "#card-#{card.id} [title^='Due']")
+    assert has_element?(view, "#display-view-card-view option[value='Dates']")
+
+    view |> form("#swim-config", %{"card_view" => "Dates"}) |> render_change()
+    assert_patch(view, ~p"/boards/#{board}?card_view=Dates")
     assert has_element?(view, "#card-#{card.id} [title^='Due']")
-    view |> form("#swim-config", %{"show_compact" => ["due_date"]}) |> render_change()
 
-    assert_patch(
-      view,
-      ~p"/boards/#{board}?density=compact&show=priority&show_compact=due_date"
-    )
-
-    refute has_element?(view, "#card-#{card.id} [title^='Priority']")
-    assert has_element?(view, "#card-#{card.id} [title^='Due']")
-
-    # Opening a card keeps the display settings in the URL.
-    view |> element("#card-#{card.id}") |> render_click()
-
-    assert_patch(
-      view,
-      ~p"/boards/#{board}/cards/#{card.id}?density=compact&show=priority&show_compact=due_date"
-    )
-
-    # Both sets travel with a saved view of the board.
-    view |> form("form[phx-submit=swim_save_view]", %{"name" => "Slim"}) |> render_submit()
+    view |> form("form[phx-submit=swim_save_view]", %{"name" => "With dates"}) |> render_submit()
     [saved] = Boards.list_saved_views(board.id)
-    assert saved.config["mode"] == "board" and saved.config["density"] == "compact"
-    assert saved.config["show"] == ["priority"]
-    assert saved.config["show_compact"] == ["due_date"]
-    assert_patch(view, ~p"/boards/#{board}?view=#{saved.id}")
-    refute has_element?(view, "#card-#{card.id} [title^='Priority']")
+    assert saved.config["card_view"] == "Dates"
+    # The card front itself is never stored in the view any more.
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}?view=#{saved.id}")
+    assert has_element?(view, "#card-#{card.id} [title^='Due']")
+
+    # Without the saved view, the list's own level decides again.
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    refute has_element?(view, "#card-#{card.id} [title^='Due']")
+
+    # Somebody without a card view of that name sees their own levels.
+    other =
+      Slipdock.Fixtures.user_fixture("other-#{System.unique_integer([:positive])}@example.com")
+
+    {:ok, _} = Slipdock.Access.grant(board, other, "read", user)
+    conn2 = log_in_user(build_conn(), other)
+    {:ok, view, _} = live(conn2, ~p"/boards/#{board}?view=#{saved.id}")
+    assert has_element?(view, "#card-#{card.id} [title^='Due']")
+    {:ok, _} = Slipdock.CardViews.update_level(other, {:board, board}, %{"hide" => "due_date"})
+    {:ok, view, _} = live(conn2, ~p"/boards/#{board}?view=#{saved.id}")
+    refute has_element?(view, "#card-#{card.id} [title^='Due']")
   end
 
   test "a table keeps separate columns per density", %{conn: conn, board: board, card: card} do

@@ -457,12 +457,15 @@ slipdock hotkeys | slipdock hotkey <board> <0-9|none>     # Ctrl+Shift+digit ope
 slipdock wiki set --shortcut K --hotkey <0-9|none>   # the wiki's key in the b switcher, and its digit
 slipdock header | header add board <ref> --icon NAME | header add wiki --icon NAME  # pinned as icons left of quick add
 slipdock header move <id> left|right | header rm <id>
+slipdock card-views [--elements] | card-view applied --board B [--list L]   # what the person sees of a card, and which level decided it
+slipdock card-view set [--board B] [--list L] --hide comments --show due_date   # a level (neither: global); --apply VIEW|none, --inherit, --reset
 ```
 
 Favourites are **personal** — the token holder's own, never anyone else's, and favouriting
 something changes nothing about it (read access is enough). **Don't favourite on the user's
 behalf unless they asked**; it is their shortlist, not a place to file your working set. Hotkeys
-and header links are personal the same way: set one only when asked.
+and header links are personal the same way: set one only when asked. So are card views (what
+the person sees of a card in the web app); your own output never follows them.
 
 Automations — rules the server runs by itself, long after you have gone:
 ```

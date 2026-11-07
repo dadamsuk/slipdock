@@ -18,20 +18,21 @@ defmodule Slipdock.Swimlanes.ConfigDisplayTest do
         base
         | density: "compact",
           width: "wide",
-          show_compact: ["tags", "id"],
+          fields: [],
           q: "not remembered"
       }
 
       assert Config.display_query(config, base) == %{
                "density" => "compact",
                "width" => "wide",
-               "show_compact" => "tags,id"
+               "fields" => ""
              }
     end
 
-    test "an emptied facet set is kept as an empty value, not dropped" do
+    test "never carries what a card's front shows: card views decide it (#2031)" do
       base = Config.defaults("board")
-      assert Config.display_query(%{base | show: []}, base) == %{"show" => ""}
+      config = Config.put_card_view(%{base | show: [], show_compact: ["id"]}, "Mine")
+      assert Config.display_query(config, base) == %{}
     end
   end
 
@@ -43,22 +44,25 @@ defmodule Slipdock.Swimlanes.ConfigDisplayTest do
         Config.put_display(config, %{
           "density" => "compact",
           "show_compact" => "id,tags",
+          "fields" => "title,id",
           "q" => "ignored",
           "rows" => "assignee"
         })
 
       assert put.density == "compact"
-      assert put.show_compact == ["tags", "id"]
+      assert put.fields == ["title", "id"]
+      # What a browser remembered of the card front before #2031 is dropped.
+      assert put.show_compact == config.show_compact
       assert put.q == "kept"
       assert put.rows == config.rows
     end
 
     test "drops non-string values and casts unknown ones back to what was there" do
       config = Config.defaults("board")
-      put = Config.put_display(config, %{"density" => 3, "width" => "huge", "handoff" => "full"})
+      put = Config.put_display(config, %{"density" => 3, "width" => "huge", "place" => "start"})
       assert put.density == config.density
       assert put.width == config.width
-      assert put.handoff == "full"
+      assert put.place == "start"
     end
 
     test "round-trips display_query/2" do
@@ -75,7 +79,7 @@ defmodule Slipdock.Swimlanes.ConfigDisplayTest do
 
     test "display_keys/0 are the Display menu's" do
       assert Enum.sort(Config.display_keys()) ==
-               ~w(color_by density fields fields_compact handoff place show show_compact tell width)
+               ~w(color_by density fields fields_compact place tell width)
     end
   end
 end
