@@ -670,6 +670,53 @@ defmodule SlipdockWeb.HelpLive.Agents do
         </li>
       </ul>
     </.part>
+
+    <.part title="How an ask becomes a card" id="help-card-shape">
+      <p>
+        Every agent on a board writes a one-sentence ask up the same way, whichever model it is.
+        The guide's <strong>Card shape</strong> says:
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          <strong>One card</strong>
+          when the ask fits one sitting, one agent and one PR and was said in
+          a sentence; an epic with subcards only when it doesn't. Never an epic with one subcard, nor
+          subcards the person didn't imply.
+        </li>
+        <li>
+          <strong>Where:</strong> under the epic it serves if there is one (search first); otherwise
+          top level, without making an epic to hold it.
+        </li>
+        <li>
+          <strong>Three things in the description</strong>, each in proportion: what, in the person's
+          words; where, if known; and a <strong>done-when</strong> line, the stop condition the
+          evidence answers.
+        </li>
+        <li>
+          <strong>Don't add</strong> an estimate, priority, tags, a due date or an assignee unless the
+          person said so or the board's convention does.
+        </li>
+        <li>
+          <strong>Don't repeat the repo's rules</strong>
+          (tests, every door, the handbook line): whoever
+          builds it reads those from the handbook and the repo.
+        </li>
+        <li>
+          <strong>Two readings:</strong> write the obvious one and note the other in the description;
+          ask only when they differ materially, once, before filing.
+        </li>
+        <li>
+          <strong>Dependencies:</strong>
+          blocked-by means <em>can't start until</em>, not <em>should come after</em>:
+          set it where a card builds on another's code, schema or decision, and use list position for
+          mere preference.
+        </li>
+      </ul>
+      <p>
+        A board's handbook can override these: the Card shape section of its Playbook page wins
+        wherever it says otherwise.
+      </p>
+    </.part>
     """
   end
 

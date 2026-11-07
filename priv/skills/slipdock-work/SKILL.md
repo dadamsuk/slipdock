@@ -273,7 +273,11 @@ whole card before touching it.
   backlog", "next task" → fetch the guide, then pick by its rules and say which
   card you took and why.
 - "Put this plan on the board", "break this into tasks" → epics with subcards,
-  per the guide's shape.
+  per the guide's shape. A one-sentence ask becomes a card as the guide's
+  **Card shape** says (`slipdock guide epics`): one card unless it fails one
+  sitting, one agent, one PR; what, where and a done-when line; nothing the
+  person didn't say; `blocked_by` only for *can't start until*. A board's
+  handbook Playbook `## Card shape` overrides it.
 - You are already mid-task on something that came off the board → the card is
   where progress, decisions and blockers get written, as they happen rather than
   in one dump at the end.

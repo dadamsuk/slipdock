@@ -452,6 +452,38 @@ claude.ai connects from Anthropic's servers, not from your browser, so a
 connector only works with a server reachable from the internet over
 https. If you self-host behind an allowlist, let in `160.79.104.0/21`.
 
+## How an ask becomes a card
+
+Every agent on a board writes a one-sentence ask up the same way, as the
+guide's *Epics and subcards* says under **Card shape**:
+
+- **One card** when the ask fits one sitting, one agent and one PR and
+  was said in a sentence; an epic with subcards only when it doesn't.
+  Never an epic with one subcard, nor subcards the person didn't imply.
+- **Where:** under the epic it serves if there is one (search first);
+  otherwise top level, without making an epic to hold it.
+- **Three things in the description**, each in proportion: what, in the
+  person's words; where, if known; and a **done-when** line, the stop
+  condition the evidence answers. One or two lines; no Given/When/Then
+  unless the board's Playbook asks for it.
+- **Don't add** an estimate, priority, tags, a due date or an assignee
+  unless the person said so or the board's convention does.
+- **Don't repeat the repo's rules** (tests, every door, the handbook
+  line): whoever builds it reads those from the handbook and the repo.
+- **Two readings:** write the obvious one and note the other in the
+  description; ask only when they differ materially, once, before filing.
+- **Dependencies:** `blocked_by` means *can't start until*, not *should
+  come after*: set it where a card builds on another's code, schema or
+  decision, and use list position for mere preference. A chain is right
+  when each card extends the one before, wrong when they are
+  independent. A one-card ask gets none unless the person said "after
+  X". None on a simple board.
+
+A board's handbook can override these: the `## Card shape` section of
+its Playbook page wins wherever it says otherwise. It isn't a gate: one
+sentence is the person's judgement that one sentence was enough, and
+this only makes every agent's judgement the same.
+
 ## The handbook's rules
 
 On a board that keeps a handbook (`slipdock handbook <board>`), each
