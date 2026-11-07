@@ -92,7 +92,6 @@ defmodule SlipdockWeb.LedgerLive.Index do
 
   # Times are the board's, as its days are (`Ledger` groups by them).
   defp when_text(at, zone), do: Dates.datetime(at, zone: zone)
-  defp time_text(at, zone), do: Dates.time(at, zone: zone)
   defp day_text(date), do: Dates.weekday(date)
 
   @doc false
@@ -264,7 +263,7 @@ defmodule SlipdockWeb.LedgerLive.Index do
           <p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-base-content/60">
             <span class="tabular-nums">#{@item.card.id}</span>
             <span aria-hidden="true">·</span>
-            <time datetime={DateTime.to_iso8601(@item.at)}>{time_text(@item.at, @zone)}</time>
+            <SlipdockWeb.SlipdockComponents.timestamp at={@item.at} zone={@zone} format={:time} />
             <span :for={e <- @item.events} class="ledger-event" data-role="event" data-event={e}>
               {e}
             </span>
@@ -285,7 +284,7 @@ defmodule SlipdockWeb.LedgerLive.Index do
       <p :if={@item.evidence} class="mt-2 text-sm leading-relaxed" data-role="evidence">
         {@item.evidence}
       </p>
-      <p :if={!@item.evidence} class="mt-2 text-sm text-base-content/50" data-role="no-evidence">
+      <p :if={!@item.evidence} class="mt-2 text-sm text-base-content/60" data-role="no-evidence">
         No evidence given.
       </p>
 
@@ -300,7 +299,7 @@ defmodule SlipdockWeb.LedgerLive.Index do
           {duration(@item.lead_time.seconds)}
         </span>
       </div>
-      <p :if={@segments == []} class="mt-3 text-xs text-base-content/50" data-role="no-timings">
+      <p :if={@segments == []} class="mt-3 text-xs text-base-content/60" data-role="no-timings">
         No timings recorded.
       </p>
 
@@ -502,7 +501,7 @@ defmodule SlipdockWeb.LedgerLive.Index do
       <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2
           id={"ledger-day-#{Date.to_iso8601(@day.date)}-title"}
-          class="text-lg font-semibold tracking-tight"
+          class="section-title"
         >
           {day_text(@day.date)}
         </h2>

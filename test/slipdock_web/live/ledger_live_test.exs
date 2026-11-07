@@ -276,5 +276,13 @@ defmodule SlipdockWeb.LedgerLiveTest do
                "fedcba9"
              )
     end
+
+    test "a day's heading is a section title, and a line's time is a timestamp", ctx do
+      card = shipped!(ctx.done, %{"title" => "Titled"}, [])
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/ledger")
+
+      assert has_element?(view, ".ledger-day-head h2.section-title")
+      assert has_element?(view, "#ledger-#{card.id} time[datetime][title]")
+    end
   end
 end
