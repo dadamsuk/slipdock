@@ -3,8 +3,9 @@ defmodule Slipdock.RepoChecksTest do
   `test/repo_checks.txt` (#1867): the tests that hold the repository's own
   files, docs and skills to a rule or to the server, which `mix pre_push`
   runs. This keeps the list honest: a test file that reads `docs/` or
-  `priv/skills/`, or wildcards over `lib/` or `test/`, is either on the list
-  or among its exceptions, each with its reason.
+  `priv/skills/`, wildcards over `lib/` or `test/`, or reads the compiler's
+  cross-reference graph (`mix xref`), is either on the list or among its
+  exceptions, each with its reason.
   """
   use ExUnit.Case, async: true
 
@@ -12,13 +13,15 @@ defmodule Slipdock.RepoChecksTest do
   @list_file Path.join(@root, "test/repo_checks.txt")
 
   # The ones the card that made the list named: each failed a pull request's
-  # first CI run because the builder hadn't run it.
+  # first CI run because the builder hadn't run it. The boundaries test
+  # (#1963) did the same on four cards: a context calling SlipdockWeb.
   @required ~w(
     test/slipdock_web/fonts_test.exs
     test/slipdock_web/controllers/api/skills_test.exs
     test/slipdock/tool_packages_doc_test.exs
     test/slipdock/fixtures_test.exs
     test/slipdock/nothing_personal_test.exs
+    test/slipdock/boundaries_test.exs
   )
 
   defp parsed, do: Mix.Project.get!().parse_repo_checks(File.read!(@list_file))
@@ -42,7 +45,8 @@ defmodule Slipdock.RepoChecksTest do
       docs != [] && "reads #{Enum.uniq(docs) |> Enum.join(", ")}",
       source =~ ~r{priv/skills|"priv",\s*"skills"} && "reads priv/skills/",
       (source =~ "Path.wildcard" and source =~ ~r{"(\.\./)*(lib|test)(/[^"]*)?"}) &&
-        "wildcards over lib/ or test/"
+        "wildcards over lib/ or test/",
+      source =~ ~r{\[\s*"xref"} && "reads mix xref"
     ]
     |> Enum.filter(& &1)
   end
@@ -155,6 +159,16 @@ defmodule Slipdock.RepoChecksTest do
 
       assert reasons(~S|Path.wildcard(Path.join(dir, "*.bak.*"))|, &exists?/1) == []
       assert reasons(~S|card(column, "A", "lib/**")|, &exists?/1) == []
+    end
+
+    test "running mix xref, but not the word xref in prose" do
+      assert reasons(~S|System.cmd("mix", ["xref", "graph", "--no-compile"])|, &exists?/1) ==
+               ["reads mix xref"]
+
+      assert reasons(~S{System.cmd("mix", [ "xref" | args])}, &exists?/1) == ["reads mix xref"]
+
+      assert reasons(~S|# read from the compiler's xref data (`mix xref graph`)|, &exists?/1) ==
+               []
     end
   end
 end

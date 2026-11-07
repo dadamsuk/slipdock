@@ -6,6 +6,8 @@
 # What qualifies (W-1950 §Tests):
 # - source conventions: a rule read off lib/ (fonts, buttons, controls,
 #   design tokens, date inputs and the like);
+# - the boundaries read off the compiler's cross-reference graph (`mix xref
+#   graph`): a context calling SlipdockWeb, compile-connected cycles (#1963);
 # - docs and skills held to the server: docs/, README.md and priv/skills/
 #   against the guide, the tools, the CLI or each other;
 # - fixture uniqueness, and nothing personal.
@@ -15,8 +17,11 @@
 # is an exception below, with its reason.
 #
 # `test/slipdock/repo_checks_test.exs` fails when a test file reads docs/ or
-# priv/skills/, or wildcards over lib/ or test/, and is neither listed here
-# nor an `except <path>: <reason>` line.
+# priv/skills/, wildcards over lib/ or test/, or reads `mix xref`, and is
+# neither listed here nor an `except <path>: <reason>` line.
+
+# The boundaries, from `mix xref graph` (W-1945 §Boundaries)
+test/slipdock/boundaries_test.exs
 
 # Source conventions
 test/slipdock_web/fonts_test.exs
