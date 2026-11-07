@@ -394,6 +394,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   attr :card_link, :any, required: true
   attr :can_write, :boolean, required: true
   attr :incident, :map, default: nil
+  attr :error, :string, default: nil, doc: "why the last change was refused (UX-29)"
   attr :target, :any, required: true
 
   @doc """
@@ -419,13 +420,17 @@ defmodule SlipdockWeb.BoardLive.CardSections do
 
     ~H"""
     <section
-      :if={@incident && (@set? or @caused != [] or (@can_write and not @board.simple))}
+      :if={
+        @incident &&
+          (@set? or @caused != [] or @error != nil or (@can_write and not @board.simple))
+      }
       id="card-incident"
       class="space-y-1.5 px-1"
     >
       <h3 class="flex items-center gap-1.5 section-label">
         <.icon name="hero-fire" class="size-3.5" /> Incident
       </h3>
+      <.callout :if={@error} id="incident-error" kind={:error}>{@error}</.callout>
       <p :if={@set?} id="incident-cause" class="flex flex-wrap items-center gap-1 text-sm">
         <span :if={@cause} class="text-base-content/60">Caused by</span>
         <span :if={@cause && Map.get(@cause, :hidden)} class="italic text-base-content/50">

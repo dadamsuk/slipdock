@@ -422,10 +422,28 @@ defmodule Slipdock.IncidentsTest do
       assert [_] = findings()
 
       view |> form(form, %{"incident" => %{"caused_by" => "#{ctx.hidden.id}"}}) |> render_submit()
-      assert render(view) =~ "There is no card ##{ctx.hidden.id} you can read"
+
+      assert has_element?(
+               view,
+               "#card-incident #incident-error",
+               "There is no card ##{ctx.hidden.id} you can read"
+             )
+
       assert Repo.get!(Card, ctx.incident.id).caused_by_id == ctx.cause.id
 
+      # Not one of the select's options, so sent as a crafted event would be.
+      view
+      |> element(form)
+      |> render_submit(%{
+        "incident" => %{"caused_by" => "##{ctx.cause.id}", "missed_by" => "luck"}
+      })
+
+      assert has_element?(view, "#card-incident #incident-error", "Missed by")
+      assert Repo.get!(Card, ctx.incident.id).missed_by == "rules"
+
       view |> element("#incident-cause button", "Clear") |> render_click()
+      refute has_element?(view, "#incident-error")
+
       card = Repo.get!(Card, ctx.incident.id)
       assert {card.caused_by_id, card.missed_by} == {nil, nil}
       assert findings() == []

@@ -245,7 +245,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       # The questions asked before, with their answers (#1220).
       wait_history: card |> Boards.list_waits() |> Enum.reject(&Slipdock.Boards.Wait.open?/1),
       # Both ends of an incident (#1946): its cause, and what this card caused.
-      card_incident: incident_view(card, socket.assigns.current_user)
+      card_incident: incident_view(card, socket.assigns.current_user),
+      # A refusal from the Incident line, shown in it rather than as a toast (UX-29).
+      incident_error: nil
     )
     |> assign_jobs()
   end
@@ -301,13 +303,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       {:noreply,
        socket
        |> assign(card: fresh(socket, card.id))
-       |> assign(card_incident: incident_view(card, socket.assigns.current_user))}
+       |> assign(card_incident: incident_view(card, socket.assigns.current_user))
+       |> assign(incident_error: nil)}
     else
       :error ->
-        {:noreply, flash(socket, :error, "You have read-only access to that card.")}
+        {:noreply, assign(socket, incident_error: "You have read-only access to that card.")}
 
       {:error, %Ecto.Changeset{} = cs} ->
-        {:noreply, flash(socket, :error, incident_error(cs))}
+        {:noreply, assign(socket, incident_error: incident_error(cs))}
     end
   end
 
@@ -1326,6 +1329,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         handoff_history={@handoff_history}
         shipped={assigns[:card_shipped] || []}
         incident={assigns[:card_incident]}
+        incident_error={assigns[:incident_error]}
         wait_count={@wait_count}
         wait_history={@wait_history}
         wait_answers={@wait_answers}
@@ -1472,6 +1476,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :incident, :map,
     default: nil,
     doc: "both ends of an incident (#1946), as the reader may see"
+
+  attr :incident_error, :string,
+    default: nil,
+    doc: "why the Incident line refused its last change, shown in it (UX-29)"
 
   attr :wait_count, :integer, default: 0, doc: "how many waits the card has had (#1114)"
   attr :wait_history, :list, default: [], doc: "the closed waits, newest first (#1220)"
@@ -1750,6 +1758,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 card_link={@card_link}
                 can_write={@can_write}
                 incident={@incident}
+                error={@incident_error}
                 target={@target}
               />
 
