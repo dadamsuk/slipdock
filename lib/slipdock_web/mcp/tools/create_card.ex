@@ -51,6 +51,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
         # card is one write. The bar isn't locked yet: that is when work starts.
         bar: update_card_property(:bar),
         paths: update_card_property(:paths),
+        profile: update_card_property(:profile),
         # An incident (#1946), as update_card takes it.
         caused_by: update_card_property(:caused_by),
         missed_by: update_card_property(:missed_by),
@@ -95,7 +96,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
   defp params(args, title, column, tags, assignees) do
     args
     |> Map.take(
-      ~w(short_name description priority start_date due_date bar paths caused_by missed_by)
+      ~w(short_name description priority start_date due_date bar paths profile caused_by missed_by)
     )
     |> Map.merge(%{"title" => title, "column" => column})
     |> then(&if(tags, do: Map.put(&1, "tags", tags), else: &1))

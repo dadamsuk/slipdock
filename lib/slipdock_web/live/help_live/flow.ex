@@ -78,6 +78,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
      "Agents write each card's bar before they may start it; it locks then."},
     {"Lanes", "slipdock set-board B --lanes",
      "An agent can't start a card whose paths overlap a card in progress."},
+    {"Profiles", "slipdock set-board B --profiles on",
+     "A card an agent starts gets one word for what kind of change it is. Nothing acts on it yet."},
     {"WIP limits hold automated work", "slipdock set-board B --automation-wip",
      "A full first in-progress list holds runner jobs too."},
     {"Evidence on completion", "slipdock set-board B --evidence-required",

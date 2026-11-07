@@ -42,6 +42,7 @@ defmodule SlipdockWeb.APIGuide do
       findings_section(),
       verified_work(user, Keyword.get(opts, :token)),
       lanes_section(user, Keyword.get(opts, :token)),
+      profiles_section(user, Keyword.get(opts, :token)),
       portable(),
       vocabulary_section(),
       endpoints_section(),
@@ -1619,7 +1620,8 @@ defmodule SlipdockWeb.APIGuide do
     A board's *Verified work* switches (`bar_required`,
     `evidence_required`, `verify_work`, `verify_pool`, `ship_via`) are set the same
     way; the *Verified work* section describes them when one of your boards
-    has one on.
+    has one on. So is `profiles` (`true` gives each card an agent starts one
+    word of profile, #1951); the *Profiles* section describes it then.
 
     ```sh
     curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/handoff \\
@@ -3688,6 +3690,11 @@ defmodule SlipdockWeb.APIGuide do
         do: verified <> "\n  - lanes: on — write a card's paths before starting it (see *Lanes*)",
         else: verified
 
+    verified =
+      if full.profiles,
+        do: verified <> "\n  - profiles: on — a card an agent starts gets one (see *Profiles*)",
+        else: verified
+
     """
     - **##{board.id} #{board.name}** (`#{board.code}`) — #{length(board.cards)} top-level cards, #{Enum.count(board.cards, & &1.completed)} done#{if epics > 0, do: ", #{epics} of them epics with subcards"}#{shared_note(board, viewer)}
       - lists: #{lists}
@@ -3764,6 +3771,36 @@ defmodule SlipdockWeb.APIGuide do
       keeps both until the merge. Stage only files
       under them; with several sessions in one repository, work in a git
       worktree of your own.
+      """
+    else
+      ""
+    end
+  end
+
+  # Profiles (#1951): described only when one of the reader's boards has them on.
+  defp profiles_section(nil, _token), do: ""
+
+  defp profiles_section(user, token) do
+    if user |> Access.list_boards(token: token) |> Enum.any?(& &1.profiles) do
+      """
+
+      ## Profiles
+
+      Some of your boards give each card a profile, one word for what kind
+      of change it is (`profiles: on` on the board's line): `security`,
+      `schema`, `feature`, `fix`, `docs` or `spike`. When an agent claims or
+      starts a card with none (moves it into an in-progress list, creates it
+      in one, or a runner takes its job), the board infers one from its
+      paths and tags, strictest first: `security` if tagged so or a path is
+      in an auth, access, token or egress module; `schema` for a migration
+      or schema file; `spike` if tagged so; `fix` if tagged `bug`; `docs` if
+      every path is documentation; else `feature`. Write the card's paths
+      before starting it so the inference has them. Set or clear it
+      yourself with `profile` (`PATCH /api/cards/:id {"profile": "fix"}`,
+      `update_card`/`create_card` `profile`, `slipdock edit ID --profile
+      fix` or `--no-profile`); an unknown name is refused (`422`) with the
+      list. It shows in the card's JSON, `get_card`, `list_cards`,
+      `slipdock card` and the ledger's lines (`card.profile`). Nothing acts on a profile yet: it is shown, not read.
       """
     else
       ""

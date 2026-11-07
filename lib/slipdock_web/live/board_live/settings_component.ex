@@ -855,6 +855,26 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   </span>
                 </span>
               </label>
+              <%!-- Profiles (#1951): one word for what kind of change a card is. --%>
+              <input type="hidden" name={@form[:profiles].name} value="false" />
+              <label class="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  id="board-profiles"
+                  name={@form[:profiles].name}
+                  value="true"
+                  checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:profiles].value)}
+                  class="checkbox mt-0.5"
+                />
+                <span>
+                  <span class="font-medium">Profiles</span>
+                  <span class="block text-xs text-base-content/50">
+                    An agent claiming or starting a card with no profile gives it one, inferred
+                    from its paths and tags: security, schema, spike, fix, docs or feature. It is
+                    shown on the card; nothing acts on it yet.
+                  </span>
+                </span>
+              </label>
               <input type="hidden" name={@form[:evidence_required].name} value="false" />
               <label class="flex cursor-pointer items-start gap-2 text-sm">
                 <input

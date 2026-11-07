@@ -1122,9 +1122,30 @@ defmodule Slipdock.Runners do
         "#{runner.name} took job ##{claimed.id}"
       )
 
+      claimed_profile(claimed, runner)
       claimed |> changed() |> Repo.preload(:card)
     end
   end
+
+  # A runner taking a card's job claims the card (#1951): on a board with
+  # profiles on, one with no profile gets one. Checking it isn't claiming it.
+  defp claimed_profile(%Job{card_id: card_id, kind: kind} = job, runner)
+       when is_integer(card_id) do
+    if not Enum.member?(Slipdock.Verified.finishing_kinds(), kind) do
+      case Repo.get(Card, card_id) do
+        nil ->
+          :ok
+
+        card ->
+          Boards.infer_profile(
+            card,
+            Slipdock.Actor.runner(runner.created_by_id, job.id, runner.name)
+          )
+      end
+    end
+  end
+
+  defp claimed_profile(_job, _runner), do: :ok
 
   ## Job kinds and merge jobs (#1656) -----------------------------------------
 

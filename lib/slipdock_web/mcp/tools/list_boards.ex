@@ -74,6 +74,8 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
       done: name_of(roles.done)
     }
     |> put_verified(full)
+    # Profiles (#1951), only on a board with them on.
+    |> then(&if(full.profiles, do: Map.put(&1, :profiles, true), else: &1))
   end
 
   # Verified work's switches (#1620), only on a board with one on.

@@ -828,6 +828,7 @@ defmodule Slipdock.Boards do
                # Verified work's switches (#1620) hold for the subcards too.
                "bar_required" => parent.bar_required,
                "lanes" => parent.lanes,
+               "profiles" => parent.profiles,
                "evidence_required" => parent.evidence_required,
                "verify_work" => parent.verify_work,
                "verify_pool" => parent.verify_pool,
@@ -1934,6 +1935,8 @@ defmodule Slipdock.Boards do
     |> tap_ok(fn card ->
       log(Repo, card.board_id, card.id, "card", "added “#{card.title}” to #{column.name}")
       record_move(card, "created", nil, column, creator(opts))
+      # Created straight into a doing list by an agent, it is started (#1951).
+      started(card.id, column, Slipdock.Actor.resolve(opts))
       broadcast(card.board_id)
       Indexer.enqueue(card)
       if ShortNames.stale?(nil, card), do: ShortNames.refine_later(card)
@@ -1966,6 +1969,36 @@ defmodule Slipdock.Boards do
 
   defp refused(card, field, message),
     do: card |> Ecto.Changeset.change() |> Ecto.Changeset.add_error(field, message)
+
+  @doc """
+  Gives `card` a profile (#1951) when `actor`, an agent, claims or starts it
+  on a board with `profiles` on and it has none: inferred from its paths and
+  tags by `Slipdock.Profiles.infer_card/2`, stored, logged and broadcast. A
+  person, a rule or the assistant starting it infers nothing, and a profile
+  already set is kept. Returns the card, with its profile if it got one.
+  """
+  def infer_profile(%Card{profile: nil} = card, actor) do
+    board = Repo.get(Board, card.board_id)
+
+    if board && board.profiles && Slipdock.Verified.gated?(actor) do
+      profile = card |> Repo.preload(:tags) |> Slipdock.Profiles.infer_card()
+
+      {:ok, updated} = card |> Ecto.Changeset.change(profile: profile) |> Repo.update()
+      log(Repo, updated.board_id, updated.id, "card", "profile inferred: #{profile}")
+      broadcast(updated.board_id)
+      updated
+    else
+      card
+    end
+  end
+
+  def infer_profile(%Card{} = card, _actor), do: card
+
+  # Into a doing list, the card is started (#1951).
+  defp started(card_id, %Column{category: "doing"}, actor),
+    do: infer_profile(Repo.get!(Card, card_id), actor)
+
+  defp started(_card_id, _column, _actor), do: nil
 
   @doc "Changes a card. `opts[:by]` as for `create_card/3`."
   def update_card(card, attrs, opts \\ [])
@@ -2575,6 +2608,8 @@ defmodule Slipdock.Boards do
       record_move(card, "moved", from_column, to_column, actor)
       apply_column_semantics(Repo.get!(Card, card.id), from_column, to_column)
       Slipdock.Verified.moved(Repo.get!(Card, card.id), to_column)
+      # An agent starting it gives it a profile (#1951).
+      started(card.id, to_column, actor)
       follow_stand_ins(card, from_column, to_column)
       moved(card, from_column, to_column, actor)
       Slipdock.EpicLog.moved(Repo.get!(Card, card.id), from_column, to_column, actor)

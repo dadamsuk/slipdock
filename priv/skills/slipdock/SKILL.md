@@ -330,6 +330,9 @@ slipdock edit <id> --bar "what done means"   # the card's bar; locks when work s
                                        # that asks for one
 slipdock edit <id> --paths "lib/foo/**,docs/x.md"   # the files its work touches (globs; "" clears);
                                        # write them before starting a card on a lanes board
+slipdock edit <id> --profile fix | --no-profile   # what kind of change it is: security, schema,
+                                       # feature, fix, docs or spike; inferred when an agent starts a
+                                       # card on a board with --profiles on
 slipdock copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
                                        # a copy as it is now (checklist unticked, subcards reopened;
                                        # no comments, dates or files), straight after it by default

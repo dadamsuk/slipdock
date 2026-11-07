@@ -45,11 +45,15 @@ defmodule SlipdockCLI.Ledger do
 
     head =
       "##{card["id"]} #{card["title"]}  [#{Enum.join(i["events"] || [], ", ")}]" <>
-        subcards(i["subcards"])
+        profile(card["profile"]) <> subcards(i["subcards"])
 
     [head, "    " <> who(i)] ++
       evidence(i) ++ should(i) ++ links(i) ++ time(i["lead_time"])
   end
+
+  # The card's profile (#1951), one word, when it has one.
+  defp profile(p) when is_binary(p), do: "  profile:#{p}"
+  defp profile(_), do: ""
 
   defp subcards(%{"total" => t, "done" => d, "on_ledger" => n}),
     do: "  #{d}/#{t} subcards, #{n} here"

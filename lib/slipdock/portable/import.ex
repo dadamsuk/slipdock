@@ -406,6 +406,8 @@ defmodule Slipdock.Portable.Import do
 
   defp pr_url(_value), do: nil
 
+  defp profile(value), do: if(Slipdock.Profiles.name?(value), do: value)
+
   # A suite result the card would refuse is dropped rather than the card (#1623).
   defp suite(%{} = suite) do
     suite = Map.new(suite, fn {k, v} -> {to_string(k), v} end)
@@ -486,6 +488,7 @@ defmodule Slipdock.Portable.Import do
           handoff_prompt: text_upto(doc[:handoff_prompt], Board.handoff_limits().prompt),
           bar_required: bool(doc[:bar_required], false),
           lanes: bool(doc[:lanes], false),
+          profiles: bool(doc[:profiles], false),
           evidence_required: bool(doc[:evidence_required], false),
           verify_work: bool(doc[:verify_work], false),
           verify_pool: pool(doc[:verify_pool]),
@@ -667,6 +670,8 @@ defmodule Slipdock.Portable.Import do
           evidence_suite: suite(doc[:evidence_suite]),
           evidence_pr: pr_url(doc[:evidence_pr]),
           evidence_no_code: text_upto(doc[:evidence_no_code], 1000),
+          # A profile the card would refuse is dropped rather than the card.
+          profile: profile(doc[:profile]),
           paths: if(is_list(doc[:paths]), do: doc[:paths], else: [])
         },
         named("card", doc[:title])

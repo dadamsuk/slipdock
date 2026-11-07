@@ -266,7 +266,7 @@ defmodule Slipdock.Ledger do
     lead = LeadTime.for_card(card)
 
     %{
-      card: %{id: card.id, title: card.title, board_id: card.board_id},
+      card: %{id: card.id, title: card.title, board_id: card.board_id, profile: card.profile},
       at: List.last(events).at,
       events: events |> Enum.map(& &1.kind) |> Enum.uniq() |> Enum.sort_by(&order/1),
       accepted_by: acceptor(card),
