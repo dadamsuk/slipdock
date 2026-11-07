@@ -271,6 +271,15 @@ defmodule SlipdockWeb.HelpLive.Guides do
           when nobody is named.
         </li>
         <li>
+          <strong>Profiles</strong>: one word for what kind of change a card is (security,
+          schema, feature, fix, docs or spike), off until Agentic Building → <em>Profiles</em>
+          turns them on. An agent starting a card with none gets one from its paths and tags,
+          strictest first; the card's front shows it as a chip, and the card panel's <em>Profile</em>
+          select sets or clears it. <em>Human tier, by profile</em>, on the same page, says
+          whether an agent's acceptance merges the card, merges it onto the ledger or holds it
+          for a person: by default schema, security and spike changes wait for you.
+        </li>
+        <li>
           <strong>Incidents</strong>: when a card broke something that shipped, its <em>Incident</em>
           line, under Dependencies, names the card that shipped it and the check that should
           have caught it (bar, rules, CI, verify, audit or none). The causing card then shows
