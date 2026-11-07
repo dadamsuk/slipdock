@@ -511,6 +511,14 @@ defmodule SlipdockWeb.HelpLive.Flow do
       card a <code>feature</code>, never lower. Then <code>slipdock verify 12 accept</code>
       or <code>slipdock verify 12 reject --reason "bar 2: …"</code>.
     </p>
+    <p>
+      <strong>On a bug, the ask is the reported symptom</strong>: the check is would the reporter
+      now see it fixed, not does the work meet the bar. The builder reproduces the reported symptom
+      on the reporter's scenario and posts the repro as its own comment; a clean repro that doesn't
+      show it opens a wait saying what was seen and asking for a screenshot or steps (which screen,
+      which control), never conditions built until something fails. The verifier rejects (<code>the ask: …</code>) a bug card whose card or evidence says the reported symptom or its cause
+      was never seen, however good the tests.
+    </p>
     <ul class="list-disc space-y-1 pl-5">
       <li>
         <strong>Accepted</strong>

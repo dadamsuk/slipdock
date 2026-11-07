@@ -4046,7 +4046,15 @@ defmodule SlipdockWeb.APIGuide do
     evidence's commit and judge, in order, the ask (does the bar cover what
     the card asks for?), the bar, and on a board with a handbook the rules
     for the diff's paths (`slipdock handbook B --paths-from -`) and the
-    closing `Handbook:` line against the docs gate. A bar item that adds,
+    closing `Handbook:` line against the docs gate. On a bug, the ask is
+    the reported symptom: the check is would the reporter now see it fixed,
+    not does the work meet the bar. The builder reproduces the reported
+    symptom on the reporter's scenario and posts the repro as its own
+    comment; a clean repro that doesn't show it opens a wait saying what was
+    seen and asking for a screenshot or steps (which screen, which control),
+    never conditions built until something fails. A bug card whose card or
+    evidence says the reported symptom or its cause was never seen is a
+    rejection (`the ask: …`), however good the tests. A bar item that adds,
     rewords or drops a handbook rule is met by a matching open rule proposal
     (an `edit_section` step on that page's `## Rules`; `slipdock garden B
     --check proposal`): judge the proposal's content, not the live rules,

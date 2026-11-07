@@ -844,7 +844,10 @@ judges four things in order: whether the bar covers what the card asks for
 with a handbook (its `Handbook/` wiki pages) the rules for the paths the change touches
 (`git diff --name-only` from the merge base, piped to `slipdock handbook B
 --paths-from -`: a broken `must` rule is a rejection) and the closing
-`Handbook:` line against the docs gate. A rejection cites what it fails: a
+`Handbook:` line against the docs gate. On a bug, the check is would the
+reporter now see it fixed, not does the work meet the bar: a card or evidence
+that says the reported symptom or its cause was never seen (a cause made up in
+the test) is a rejection on the ask, however good the tests. A rejection cites what it fails: a
 bar item, the ask, a rule id or the Handbook line. Since a rule is a person's
 call, a bar item that adds, rewords or drops a handbook rule is met by a
 matching open rule proposal (an `edit_section` on that page's `## Rules`,
