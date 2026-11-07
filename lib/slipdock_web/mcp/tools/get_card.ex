@@ -64,6 +64,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> V.put_delivery(card)
        |> V.put_shipping(card)
        |> V.put_findings(card)
+       |> V.put_lanes(card)
        |> V.put_incidents(card, context.user, context[:token])
        |> V.put_handbook(card, context.user, context[:token])
        |> put_timeline(card, args["timeline"] == true)

@@ -82,6 +82,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
      "A card an agent starts gets one word for what kind of change it is; a schema, security or spike card an agent accepts waits for a person before it merges."},
     {"Human tier, by profile", "slipdock set-board B --profile-tier schema=none",
      "Change what an agent's acceptance of a profile does: none, ledger or before_merge."},
+    {"Shared paths", "slipdock set-board B --shared-paths docs/manual.md,README.md",
+     "Files nearly every card edits: an overlap there never holds a card or a job."},
     {"WIP limits hold automated work", "slipdock set-board B --automation-wip",
      "A full first in-progress list holds runner jobs too."},
     {"Evidence on completion", "slipdock set-board B --evidence-required",
@@ -335,7 +337,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
       On a board with <em>Lanes</em>
       on, give the card its <strong>paths</strong>: the files its work will touch, as globs
       (<code>slipdock edit 12 --paths "lib/billing/**,docs/manual.md"</code>). Two agents can't
-      work cards whose paths overlap at once; the second waits.
+      work cards whose paths overlap at once; the second waits. Files nearly every card edits,
+      such as the manual, go in the board's <strong>shared paths</strong>
+      (<code>slipdock set-board B --shared-paths docs/manual.md,README.md</code>): cards can
+      declare them without holding each other, and their edits are left to merge.
     </p>
     <p>
       On a board with a <strong>handbook</strong>

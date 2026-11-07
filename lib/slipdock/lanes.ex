@@ -37,6 +37,12 @@ defmodule Slipdock.Lanes do
   is either, and `[...]` is taken as any one character (so it errs towards
   overlapping). A path covers everything under it: `lib/foo` overlaps
   `lib/foo/bar.ex`. A card with no paths overlaps nothing.
+
+  A board's `shared_paths` (#1971) never count toward a lane: a card's glob
+  wholly inside one is left out on both sides before comparing, so two cards
+  whose only overlap is `docs/manual.md` don't hold each other when that is
+  shared. A glob only partly inside one still counts in full. The root's
+  list holds for its whole tree (`shared_paths/1`). Empty by default.
   """
 
   import Ecto.Query
@@ -55,12 +61,14 @@ defmodule Slipdock.Lanes do
   ## Writing paths ------------------------------------------------------------
 
   @doc """
-  `attrs` with a `paths` given as one string split into a list: one glob per
-  line or comma (a comma inside `{…}` is part of the glob). A list, or no
-  `paths`, is left alone.
+  `attrs` with a `paths` (or `field`, such as a board's `shared_paths`)
+  given as one string split into a list: one glob per line or comma (a comma
+  inside `{…}` is part of the glob). A list, or no such key, is left alone.
   """
-  def split_paths(%{} = attrs) do
-    Enum.reduce(["paths", :paths], attrs, fn key, acc ->
+  def split_paths(attrs, field \\ :paths)
+
+  def split_paths(%{} = attrs, field) do
+    Enum.reduce([to_string(field), field], attrs, fn key, acc ->
       case acc do
         %{^key => value} when is_binary(value) -> Map.put(acc, key, split(value))
         _ -> acc
@@ -68,7 +76,7 @@ defmodule Slipdock.Lanes do
     end)
   end
 
-  def split_paths(attrs), do: attrs
+  def split_paths(attrs, _field), do: attrs
 
   @doc "One string of globs as a list: split on newlines, and on commas outside `{…}`."
   def split(text) when is_binary(text) do
@@ -86,31 +94,56 @@ defmodule Slipdock.Lanes do
     Enum.reverse([current | parts])
   end
 
-  @doc "Tidies and checks a changeset's `paths`."
-  def validate_paths(%Ecto.Changeset{} = changeset) do
+  @doc """
+  Tidies and checks a changeset's `paths`, or another field of globs (a
+  board's `shared_paths`, #1971), with the same rules.
+  """
+  def validate_paths(%Ecto.Changeset{} = changeset, field \\ :paths) do
     changeset
-    |> Ecto.Changeset.update_change(:paths, &tidy/1)
-    |> Ecto.Changeset.validate_change(:paths, fn :paths, paths ->
-      cond do
-        length(paths) > @max_paths ->
-          [paths: "lists at most #{@max_paths} paths"]
-
-        bad = Enum.find(paths, &(String.length(&1) > @max_length)) ->
-          [paths: "has a path over #{@max_length} characters: #{String.slice(bad, 0, 40)}…"]
-
-        bad = Enum.find(paths, &absolute?/1) ->
-          [paths: "are relative to the repository: #{bad} isn't"]
-
-        bad = Enum.find(paths, &(".." in String.split(&1, "/"))) ->
-          [paths: "stay inside the repository: #{bad} has a .."]
-
-        bad = Enum.find(paths, &(not balanced?(&1))) ->
-          [paths: "has unbalanced braces: #{bad}"]
-
-        true ->
-          []
+    |> Ecto.Changeset.update_change(field, &tidy/1)
+    |> Ecto.Changeset.validate_change(field, fn ^field, paths ->
+      case path_error(paths) do
+        nil -> []
+        message -> [{field, message}]
       end
     end)
+  end
+
+  @doc """
+  The globs of `paths` that would pass `validate_paths/2`, tidied, at most
+  as many as it allows: for a list read from somewhere else, such as an
+  import, where one bad glob shouldn't lose the rest.
+  """
+  def keep_valid(paths) when is_list(paths) do
+    paths
+    |> Enum.filter(&is_binary/1)
+    |> tidy()
+    |> Enum.filter(&is_nil(path_error([&1])))
+    |> Enum.take(@max_paths)
+  end
+
+  def keep_valid(_paths), do: []
+
+  defp path_error(paths) do
+    cond do
+      length(paths) > @max_paths ->
+        "lists at most #{@max_paths} paths"
+
+      bad = Enum.find(paths, &(String.length(&1) > @max_length)) ->
+        "has a path over #{@max_length} characters: #{String.slice(bad, 0, 40)}…"
+
+      bad = Enum.find(paths, &absolute?/1) ->
+        "are relative to the repository: #{bad} isn't"
+
+      bad = Enum.find(paths, &Enum.member?(String.split(&1, "/"), "..")) ->
+        "stay inside the repository: #{bad} has a .."
+
+      bad = Enum.find(paths, &(not balanced?(&1))) ->
+        "has unbalanced braces: #{bad}"
+
+      true ->
+        nil
+    end
   end
 
   @doc "A list of globs, tidied: trimmed, `./` dropped, blanks and repeats left out."
@@ -136,6 +169,99 @@ defmodule Slipdock.Lanes do
       _, d -> {:cont, d}
     end)
     |> Kernel.==(0)
+  end
+
+  ## Shared paths (#1971) -----------------------------------------------------
+
+  @doc """
+  The globs that never count toward a lane on `board`'s tree: the root
+  board's `shared_paths`, and the board's own (a sub-board made from a
+  board inherits its list). `[]` when none are set.
+  """
+  def shared_paths(%Board{} = board) do
+    root =
+      case board.root_id do
+        nil -> []
+        id -> Repo.one(from(b in Board, where: b.id == ^id, select: b.shared_paths)) || []
+      end
+
+    tidy(root ++ (board.shared_paths || []))
+  end
+
+  def shared_paths(_board), do: []
+
+  @doc """
+  `paths` without the globs wholly inside a shared glob: the ones a lane
+  counts. A glob only partly inside one (`docs/**` when `docs/manual.md` is
+  shared) counts in full; globs are never subtracted.
+  """
+  def counted(paths, []), do: paths
+  def counted(paths, shared), do: Enum.reject(paths, &shared?(&1, shared))
+
+  @doc "Whether `glob` is wholly inside one of the `shared` globs."
+  def shared?(glob, shared), do: Enum.any?(shared, &within?(glob, &1))
+
+  @doc """
+  Whether every path `glob` could match (and everything under it) is matched
+  by `outer`. It errs towards no: a `[...]` class in `outer` covers only the
+  same class in `glob`, and a wildcard in `glob` only a wildcard as wide in
+  `outer`.
+  """
+  def within?(glob, outer) do
+    outers = expand(outer)
+
+    Enum.all?(expand(glob), fn g ->
+      Enum.any?(
+        outers,
+        &covers?(segments(&1), segments(g), "**", fn o, x -> segment_within?(x, o) end)
+      )
+    end)
+  end
+
+  defp segment_within?("**", _outer), do: false
+
+  defp segment_within?(segment, outer),
+    do: covers?(class_tokens(outer), class_tokens(segment), "*", &char_within?/2)
+
+  # `?` covers any one character but a run; anything else covers only itself.
+  defp char_within?("?", x), do: x != "*"
+  defp char_within?(o, x), do: o == x
+
+  # A segment's characters, with `*` runs as one `*` and each `[...]` class
+  # kept whole as one token.
+  defp class_tokens(segment) do
+    ~r/\[[^\]]*\]|\*+|./u
+    |> Regex.scan(segment)
+    |> Enum.map(fn [token] -> if String.starts_with?(token, "*"), do: "*", else: token end)
+  end
+
+  # Whether pattern `ps` (where `star` is any run) matches every string of
+  # `xs`, `elem?.(p, x)` saying whether one pattern element covers one of
+  # `xs`'s. Dynamic programming from the ends, as `intersect?/4`.
+  defp covers?(ps, xs, star, elem?) do
+    ps = List.to_tuple(ps)
+    xs = List.to_tuple(xs)
+    n = tuple_size(ps)
+    m = tuple_size(xs)
+
+    table =
+      for i <- n..0//-1, j <- m..0//-1, reduce: %{} do
+        dp -> Map.put(dp, {i, j}, covers_cell(dp, {i, j}, {ps, xs, n, m}, {star, elem?}))
+      end
+
+    table[{0, 0}]
+  end
+
+  defp covers_cell(_dp, {n, j}, {_ps, _xs, n, m}, _how), do: j == m
+
+  defp covers_cell(dp, {i, j}, {ps, xs, _n, m}, {star, elem?}) do
+    p = elem(ps, i)
+
+    cond do
+      p == star -> dp[{i + 1, j}] or (j < m and dp[{i, j + 1}])
+      j == m -> false
+      true -> elem?.(p, elem(xs, j)) and dp[{i + 1, j + 1}]
+    end
   end
 
   ## Overlap ------------------------------------------------------------------
@@ -252,9 +378,16 @@ defmodule Slipdock.Lanes do
     end
   end
 
-  defp paths_conflict(_card, _board, []), do: nil
-
   defp paths_conflict(card, board, paths) do
+    shared = shared_paths(board)
+
+    case counted(paths, shared) do
+      [] -> nil
+      counted -> others_conflict(card, board, counted, shared)
+    end
+  end
+
+  defp others_conflict(card, board, paths, shared) do
     root = Board.root_id(board)
     {exclude, below} = own_tree(card, board)
 
@@ -272,7 +405,7 @@ defmodule Slipdock.Lanes do
       order_by: [asc: c.board_id, asc: col.position, asc: c.position, asc: c.id]
     )
     |> Repo.all()
-    |> Enum.find(&overlap?(paths, &1.paths))
+    |> Enum.find(&overlap?(paths, counted(&1.paths, shared)))
   end
 
   # Whether a card in progress holds its lane: a runner job is working on it

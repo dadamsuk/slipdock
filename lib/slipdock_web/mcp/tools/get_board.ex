@@ -148,6 +148,7 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
            }
          end)
      }
+     |> Tools.ListBoards.put_lanes(board)
      |> Map.merge(SlipdockWeb.API.JSON.paused(board))}
   end
 

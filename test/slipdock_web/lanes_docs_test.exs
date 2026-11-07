@@ -97,4 +97,28 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert File.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex")) =~
              "Verify and merge\n      jobs are never held, by lanes or the WIP limit"
   end
+
+  test "shared paths are described everywhere an agent or a person reads about lanes (#1971)" do
+    manual = read("docs/manual.md")
+    assert manual =~ "**Shared paths.**"
+    assert manual =~ ~s(set-board slipdock --shared-paths "docs/manual.md,README.md")
+    assert manual =~ "counts in full"
+    assert manual =~ "hook says it let it through as shared"
+
+    assert read("docs/agents.md") =~ "A board's `shared_paths`"
+
+    assert read("README.md") =~
+             ~s(board's shared paths that never count toward a lane, for the files nearly\n  every card edits (`slipdock set-board --shared-paths "docs/manual.md,README.md"`\))
+
+    guide = read("lib/slipdock_web/api_guide.ex")
+    assert guide =~ "**Shared paths.** A board's `shared_paths`"
+    assert guide =~ "shared paths (hold no lane): "
+
+    assert read("lib/slipdock_web/live/help_live/flow.ex") =~
+             "slipdock set-board B --shared-paths docs/manual.md,README.md"
+
+    assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock set-board <board> --shared-paths"
+    assert read("priv/skills/slipdock-work/SKILL.md") =~ "Paths the board shares"
+    assert read("priv/skills/slipdock-loop/SKILL.md") =~ "Declare the files the board shares too"
+  end
 end

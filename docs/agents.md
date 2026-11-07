@@ -764,6 +764,13 @@ ships by push, a card awaiting verification frees its lane and stops
 blocking its dependents until a rejection; on a pull request board it keeps
 both until the merge. An epic's lane is its subcards': in progress it holds
 none of its own, and it waits only when none of its subcards could start.
+A board's `shared_paths` (`update_board` `shared_paths`, `slipdock set-board
+--shared-paths`) are globs that never count toward a lane: declare those
+files honestly, and an overlap only inside them holds nobody. A path only
+partly inside one still counts. `get_card` and `slipdock card` mark a
+card's shared paths, the job's prompt names them, and the lane-check hook
+lets them through; keep to your own sections of a shared file and rebase
+before pushing.
 Only a card a runner job is working on holds a lane: one in progress with
 no open job, dragged there by hand or left behind, holds none. Lanes hold work jobs only, never a verify or merge
 job. See [the manual](manual.md#lanes).

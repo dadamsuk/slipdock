@@ -97,6 +97,21 @@ defmodule SlipdockCLI.Render do
 
   def paused(_), do: :ok
 
+  # The board's shared paths (#1971), when it has any.
+  defp shared_paths_line([_ | _] = globs),
+    do: IO.puts(dim("shared paths (hold no lane): " <> Enum.join(globs, ", ")))
+
+  defp shared_paths_line(_globs), do: :ok
+
+  # A card's paths one per line, those shared on the board (#1971) marked.
+  defp paths_text(paths, shared) do
+    shared = shared || []
+
+    Enum.map_join(paths, "\n", fn path ->
+      if Enum.member?(shared, path), do: path <> dim("  shared"), else: path
+    end)
+  end
+
   def board(b) do
     IO.puts(
       bold("#{b["name"]}") <>
@@ -113,6 +128,8 @@ defmodule SlipdockCLI.Render do
       do: IO.puts(dim("sprint board: each card is a sprint — slipdock sprint / sprint-add"))
 
     if b["owner"], do: IO.puts(dim("owner: " <> owner_name(b)))
+
+    shared_paths_line(b["shared_paths"])
 
     tags = Enum.map(b["tags"], & &1["name"])
     if tags != [], do: IO.puts(dim("tags: " <> Enum.join(tags, ", ")))
@@ -1246,7 +1263,7 @@ defmodule SlipdockCLI.Render do
     if c["paths"] not in [nil, []] do
       IO.puts("")
       IO.puts(bold("Paths"))
-      IO.puts(indent(Enum.join(c["paths"], "\n")))
+      c["paths"] |> paths_text(c["paths_shared"]) |> indent() |> IO.puts()
     end
 
     if state = c["verify_state"] do

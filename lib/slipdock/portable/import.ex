@@ -500,6 +500,7 @@ defmodule Slipdock.Portable.Import do
           lanes: bool(doc[:lanes], false),
           profiles: bool(doc[:profiles], false),
           profile_tiers: profile_tiers(doc[:profile_tiers]),
+          shared_paths: Slipdock.Lanes.keep_valid(doc[:shared_paths]),
           evidence_required: bool(doc[:evidence_required], false),
           verify_work: bool(doc[:verify_work], false),
           verify_pool: pool(doc[:verify_pool]),

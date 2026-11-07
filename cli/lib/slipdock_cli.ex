@@ -86,6 +86,7 @@ defmodule SlipdockCLI do
     bar_required: :boolean,
     bar: :string,
     lanes: :boolean,
+    shared_paths: :string,
     paths: :string,
     # A card's profile (#1951), and whether a board infers them.
     profile: :string,

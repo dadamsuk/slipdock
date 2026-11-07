@@ -829,6 +829,7 @@ defmodule Slipdock.Boards do
                "bar_required" => parent.bar_required,
                "lanes" => parent.lanes,
                "profiles" => parent.profiles,
+               "shared_paths" => parent.shared_paths,
                "evidence_required" => parent.evidence_required,
                "verify_work" => parent.verify_work,
                "verify_pool" => parent.verify_pool,

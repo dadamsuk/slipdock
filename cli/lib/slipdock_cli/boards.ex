@@ -1133,6 +1133,9 @@ defmodule SlipdockCLI.Boards do
         "lanes" => o[:lanes],
         # Profiles (#1951): on infers one when an agent starts a card.
         "profiles" => o[:profiles] && on_off!(o[:profiles], "--profiles"),
+        # Globs that never count toward a lane (#1971), comma or newline
+        # separated; "" clears them.
+        "shared_paths" => o[:shared_paths],
         # Deploys and DORA metrics (#1134).
         "delivery_metrics" => o[:delivery_metrics],
         "incident_tag" => o[:incident_tag],
@@ -1164,7 +1167,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label, --handoff-prompt(-file), --inbound-senders, --wiki-sort, --[no-]bar-required, --[no-]evidence-required, --[no-]verify-work, --verify-pool, --ship-via, --[no-]lanes, --shared-paths, --profiles on|off, --profile-tier PROFILE=TIER or --route KIND=EMAIL / --no-route KIND"
         )
 
     # The wiki's sort has its own route: a writer may set it, not only the owner.

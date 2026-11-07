@@ -107,6 +107,10 @@ defmodule Slipdock.Boards.Board do
     # the ones that differ (see `Slipdock.Profiles.tier/1`). Read from the
     # root board, so a tree has one set.
     field :profile_tiers, :map, default: %{}
+    # Shared paths (#1971): globs that never count toward a lane, so cards
+    # can declare files nearly every card edits without holding each other.
+    # The root board's hold for its whole tree (see `Slipdock.Lanes`).
+    field :shared_paths, {:array, :string}, default: []
     # `evidence_required` (#1632): an agent completing a card says what it
     # checked (and at which commit).
     field :evidence_required, :boolean, default: false
@@ -514,7 +518,7 @@ defmodule Slipdock.Boards.Board do
 
   def changeset(board, attrs) do
     board
-    |> cast(attrs, [
+    |> cast(Slipdock.Lanes.split_paths(attrs, :shared_paths), [
       :name,
       :code,
       :shortcut,
@@ -541,6 +545,7 @@ defmodule Slipdock.Boards.Board do
       :lanes,
       :profiles,
       :profile_tiers,
+      :shared_paths,
       :evidence_required,
       :verify_work,
       :verify_pool,
@@ -553,6 +558,7 @@ defmodule Slipdock.Boards.Board do
     ])
     |> put_senders(attrs)
     |> validate_senders()
+    |> Slipdock.Lanes.validate_paths(:shared_paths)
     |> update_change(:verify_pool, &pool_name/1)
     |> validate_format(:verify_pool, Slipdock.Runners.Runner.name_format(),
       message: "must be a runner pool's name: lower case letters, digits, - or _"

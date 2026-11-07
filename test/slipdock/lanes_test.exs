@@ -299,4 +299,136 @@ defmodule Slipdock.LanesTest do
       assert Runners.claimed_prompt(Repo.reload!(job)) == "go"
     end
   end
+
+  describe "shared paths (#1971)" do
+    defp share(board, globs) do
+      {:ok, board} = Boards.update_board(board, %{"shared_paths" => globs})
+      board
+    end
+
+    test "a glob is within another when everything it matches is" do
+      assert Lanes.within?("docs/manual.md", "docs/manual.md")
+      assert Lanes.within?("docs/manual.md", "docs/**")
+      assert Lanes.within?("docs/a/b.md", "docs/*/b.md")
+      assert Lanes.within?("docs/{manual,agents}.md", "docs/*.md")
+      assert Lanes.within?("docs/a?.md", "docs/a*.md")
+      assert Lanes.within?("README.md", "{README.md,docs/**}")
+
+      # Wider than the shared glob, or only partly inside it: not within.
+      refute Lanes.within?("docs/**", "docs/manual.md")
+      refute Lanes.within?("docs/*.md", "docs/manual.md")
+      refute Lanes.within?("docs/{manual,x}.md", "docs/manual.md")
+      refute Lanes.within?("docs/a*.md", "docs/a?.md")
+      refute Lanes.within?("lib/a.ex", "docs/**")
+      # A class covers only the same class.
+      assert Lanes.within?("docs/[ab].md", "docs/[ab].md")
+      refute Lanes.within?("docs/x.md", "docs/[ab].md")
+    end
+
+    test "counted/2 drops the wholly shared globs and keeps the rest" do
+      shared = ["docs/manual.md", "README.md"]
+
+      assert Lanes.counted(["docs/manual.md", "lib/a.ex", "docs/**"], shared) == [
+               "lib/a.ex",
+               "docs/**"
+             ]
+
+      assert Lanes.counted(["lib/a.ex"], []) == ["lib/a.ex"]
+    end
+
+    test "the board takes them as a string or a list, tidied and checked like paths", ctx do
+      board = share(ctx.board, "docs/manual.md, README.md\n./docs/agents.md")
+      assert board.shared_paths == ["docs/manual.md", "README.md", "docs/agents.md"]
+      assert share(board, "").shared_paths == []
+
+      assert {:error, changeset} = Boards.update_board(board, %{"shared_paths" => ["/etc/x"]})
+      assert %{shared_paths: [message]} = errors_on(changeset)
+      assert message =~ "relative to the repository"
+
+      assert {:error, changeset} = Boards.update_board(board, %{"shared_paths" => ["../x"]})
+      assert errors_on(changeset).shared_paths != []
+    end
+
+    test "overlap only inside a shared path holds no lane; any other overlap still does", ctx do
+      board = ctx |> on() |> share(["docs/manual.md", "README.md"])
+      running = card(ctx.doing, "Running", "lib/a/**,docs/manual.md,README.md,docs/agents.md")
+      working_job_fixture(running)
+
+      docs_too = card(ctx.todo, "Docs too", "lib/b/**,docs/manual.md")
+      assert Lanes.conflict(docs_too) == nil
+      assert :ok = Boards.move_card(docs_too.id, ctx.doing.id, nil, actor: ctx.agent)
+
+      code_too = card(ctx.todo, "Code too", "lib/a/x.ex,README.md")
+      assert %Card{id: id} = Lanes.conflict(code_too)
+      assert id == running.id
+
+      # Partly inside a shared path counts in full: docs/** meets docs/agents.md.
+      wide = card(ctx.todo, "Wide", "docs/**")
+      assert %Card{id: ^id} = Lanes.conflict(wide)
+
+      # Off again: the shared files hold as before.
+      share(board, [])
+      assert %Card{} = Lanes.conflict(card(ctx.todo, "Docs again", "docs/manual.md"))
+    end
+
+    test "a card in progress whose paths are all shared holds nothing", ctx do
+      ctx |> on() |> share(["docs/**"])
+      running = card(ctx.doing, "Docs only", "docs/manual.md")
+      working_job_fixture(running)
+      assert Lanes.conflict(card(ctx.todo, "Next", "docs/manual.md,lib/x.ex")) == nil
+    end
+
+    test "a queued job held only by a shared path isn't held", ctx do
+      board = ctx |> on() |> share(["docs/manual.md"])
+      {:ok, runner, _token} = Runners.create_runner(board, %{"name" => "r", "pool" => "dev"})
+      running = card(ctx.doing, "Running", "lib/a/**,docs/manual.md")
+      working_job_fixture(running)
+      next = card(ctx.todo, "Next", "lib/b/**,docs/manual.md")
+      held = card(ctx.todo, "Held", "lib/a/b.ex")
+      {:ok, job} = Runners.queue(next, %{pool: "dev", kind: "claude", prompt: "go"})
+      {:ok, held_job} = Runners.queue(held, %{pool: "dev", kind: "claude", prompt: "go"})
+
+      assert Map.keys(Lanes.held_cards(board.id)) == [held.id]
+      assert Runners.held_reason(Repo.reload!(job), claimant: true) == nil
+      assert Runners.held_reason(Repo.reload!(held_job), claimant: true) =~ "Lane: overlaps"
+      assert %{id: id} = Runners.claim(runner)
+      assert id == job.id
+    end
+
+    test "the claimed prompt names the card's shared paths", ctx do
+      board = share(ctx.board, ["docs/**"])
+      card = card(ctx.todo, "Pathed", "lib/a/**,docs/manual.md")
+      {:ok, job} = Runners.queue(card, %{pool: "dev", kind: "claude", prompt: "go"})
+      prompt = Runners.claimed_prompt(Repo.reload!(job))
+      assert prompt =~ "lib/a/**\ndocs/manual.md"
+      assert prompt =~ "Shared on the board, so they hold no lane"
+      assert prompt =~ ~r/rebase on the default branch before pushing:\ndocs\/manual.md\z/
+
+      share(board, [])
+
+      {:ok, job} =
+        Runners.queue(card(ctx.todo, "Plain", "docs/manual.md"), %{
+          pool: "dev",
+          kind: "claude",
+          prompt: "go"
+        })
+
+      refute Runners.claimed_prompt(Repo.reload!(job)) =~ "Shared on the board"
+    end
+
+    test "the root's list holds for its tree, and sub-boards made afterwards inherit it", ctx do
+      ctx |> on() |> share(["docs/manual.md"])
+      epic = card_fixture(ctx.todo, %{"title" => "Epic"})
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(epic, t)
+      assert sub.shared_paths == ["docs/manual.md"]
+      assert sub.lanes
+
+      # The root's list counts even where the sub-board's own is cleared.
+      {:ok, sub} = Boards.update_board(sub, %{"shared_paths" => []})
+      assert Lanes.shared_paths(sub) == ["docs/manual.md"]
+      {:ok, sub} = Boards.update_board(sub, %{"shared_paths" => ["README.md"]})
+      assert Lanes.shared_paths(sub) == ["docs/manual.md", "README.md"]
+    end
+  end
 end

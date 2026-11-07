@@ -156,6 +156,36 @@ defmodule SlipdockCLI.LaneCheckTest do
       assert message =~ "--no-verify"
     end
 
+    test "a file under a shared path goes through, said so; any other is still refused",
+         ctx do
+      shared = fn ->
+        {200,
+         JSON.encode!(%{
+           "card" => %{
+             "id" => 12,
+             "paths" => ["lib/**"],
+             "shared_paths" => ["docs/**", "README.md"]
+           }
+         })}
+      end
+
+      serve([shared.(), shared.(), shared.()])
+      stage(ctx.repo, ["lib/a.ex", "docs/manual.md"])
+      assert {:pass, message} = Lanes.check(ctx.repo, "12", nil)
+
+      assert message =~
+               "allowed as shared on the board, outside card #12's paths:\n  docs/manual.md"
+
+      stage(ctx.repo, ["mix.exs"])
+      assert {:refuse, message} = Lanes.check(ctx.repo, "12", nil)
+      assert message =~ "  mix.exs"
+      refute message =~ "  docs/manual.md"
+
+      # Only inside the card's paths: nothing to say.
+      {_, 0} = git(ctx.repo, ["restore", "--staged", "mix.exs", "docs/manual.md"])
+      assert Lanes.check(ctx.repo, "12", nil) == {:pass, nil}
+    end
+
     test "a deleted or renamed file counts on both sides", ctx do
       stage(ctx.repo, ["other/old.ex"])
       {_, 0} = git(ctx.repo, ["commit", "-q", "-m", "old"])

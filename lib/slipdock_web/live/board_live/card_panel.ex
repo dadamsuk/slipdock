@@ -18,6 +18,18 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   alias Slipdock.OCR.Text, as: OCRText
   alias SlipdockWeb.RichText
 
+  # The card's paths that are shared on its board (#1971): they hold no lane.
+  defp shared_paths(board, card) do
+    case card.paths do
+      [_ | _] = paths ->
+        shared = Slipdock.Lanes.shared_paths(board)
+        Enum.filter(paths, &Slipdock.Lanes.shared?(&1, shared))
+
+      _ ->
+        []
+    end
+  end
+
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :card, Card, required: true
@@ -655,6 +667,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     assigns =
       assign(assigns,
         overlap: Slipdock.Lanes.on?(assigns.board) && Slipdock.Lanes.conflict(assigns.card),
+        shared: shared_paths(assigns.board, assigns.card),
         text: assigns.form[:paths].value |> List.wrap() |> Enum.join("\n")
       )
 
@@ -686,6 +699,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       <p :if={@overlap} id="card-paths-overlap" class="text-xs text-warning">
         Overlaps #{@overlap.id} {@overlap.title}, in progress: an agent can't start this card
         while it is. Moving it yourself overrides that.
+      </p>
+      <p :if={@shared != []} id="card-paths-shared" class="text-xs text-base-content/60">
+        Shared on the board, so they hold no lane:
+        <span class="font-mono">{Enum.join(@shared, ", ")}</span>
       </p>
     </.form>
     """

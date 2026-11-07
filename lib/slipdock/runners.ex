@@ -1833,16 +1833,30 @@ defmodule Slipdock.Runners do
     end
   end
 
-  # The card's lane (#1628): the paths it declared, to stay inside.
+  # The card's lane (#1628): the paths it declared, to stay inside, and
+  # which of them are shared on the board (#1971).
   defp with_paths(prompt, %Job{card_id: card_id}) do
-    case Repo.one(from(c in Card, where: c.id == ^card_id, select: c.paths)) do
-      [_ | _] = paths ->
+    case Repo.one(from(c in Card, where: c.id == ^card_id, preload: :board)) do
+      %Card{paths: [_ | _] = paths, board: board} ->
         (prompt || "") <>
           "\n\nThe card's paths (its lane): touch and stage only files under these, " <>
-          "or widen them on the card first:\n" <> Enum.join(paths, "\n")
+          "or widen them on the card first:\n" <>
+          Enum.join(paths, "\n") <> shared_note(paths, Slipdock.Lanes.shared_paths(board))
 
       _ ->
         prompt
+    end
+  end
+
+  defp shared_note(paths, shared) do
+    case Enum.filter(paths, &Slipdock.Lanes.shared?(&1, shared)) do
+      [] ->
+        ""
+
+      mine ->
+        "\n\nShared on the board, so they hold no lane and other cards in progress may " <>
+          "edit them too: keep to your own sections, and rebase on the default branch " <>
+          "before pushing:\n" <> Enum.join(mine, "\n")
     end
   end
 
