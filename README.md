@@ -217,6 +217,18 @@ Briefly, with the detail in [the manual](docs/manual.md):
   accepted it, its evidence, the `should` rules it missed, where its time went
   and a *Look closer* into its card chat; the board's Ledger page,
   `slipdock ledger <board> [--since S]` or `GET /api/boards/:board/ledger?since=`.
+- **Profiles and the human tier** — [one word for what kind of change a card is](docs/manual.md#profiles),
+  off until `slipdock set-board --profiles on`: `security`, `schema`, `feature`,
+  `fix`, `docs` or `spike`, fixed in code. An agent starting a card with none
+  gets one inferred from its paths and tags, strictest first: `security`, then
+  `schema`, then `spike` only by tag, `fix` by the `bug` tag, `docs` when every
+  path is a doc, else `feature`. Or you set it
+  (`slipdock edit 12 --profile fix`). Its [human tier](docs/manual.md#the-human-tier)
+  says whether an agent's acceptance merges, merges onto the ledger or waits
+  for a person: by default `schema`, `security` and `spike` wait
+  (`slipdock set-board --profile-tier schema=none` changes one). Shown as a chip
+  on the card, in `slipdock card`, `get_card` and the card's JSON, and on its
+  ledger line.
 - **Cost on the card** — [what its jobs spent, beside its lead time](docs/manual.md#its-lead-time-and-cost):
   the model's and the tools' time from each job's log, and tokens where the log
   carried them (never a made-up 0), by phase and rolled up for an epic. No
