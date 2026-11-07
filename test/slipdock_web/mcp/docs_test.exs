@@ -154,10 +154,8 @@ defmodule SlipdockWeb.MCP.DocsTest do
       for kind <- ~w(gotcha rule handbook-wrong tooling process),
           do: assert(gate =~ "- #{kind}:")
 
-      assert gate =~
-               "would the\n   next pass, on a different card, have done better knowing this?"
-
-      assert gate =~ "`Findings: none` is a normal answer; filler isn't."
+      assert gate =~ "*would a\n   card on a different subject want to know this?*"
+      assert gate =~ "`Findings: none` is the usual answer"
       assert loop =~ ~r/- Handbook: updated W-3.*\n   - Findings:/
       assert loop =~ "and the `Findings:` block with it: the evidence is the closing comment"
       assert loop =~ "each as a finding in a `Findings:` block there"
@@ -174,12 +172,51 @@ defmodule SlipdockWeb.MCP.DocsTest do
       end
     end
 
+    # #1969: triage dismissed most findings as pointers, events, fixes and
+    # notes on the card's own code, so the skills name those four and show
+    # two of each side.
+    test "the loop skill names the four things that are not findings, with examples" do
+      loop = read("priv/skills/slipdock-loop/SKILL.md")
+      [_, gate] = String.split(loop, "**Then the findings**", parts: 2)
+      [gate, _] = String.split(gate, "2. **Commit**", parts: 2)
+
+      for never <- [
+            "- **a pointer**: `in the evidence`, `recorded on #1819`",
+            "- **an event the board records itself**",
+            "- **something this card fixed**",
+            "- **a fact about this card's code**: `Boards.move_card/4 returns :ok`"
+          ],
+          do: assert(gate =~ never)
+
+      assert gate =~ "| A finding | Not a finding |"
+      rows = Regex.scan(~r/^   \| `(gotcha|tooling|process):[^|]*\| `[^|]*\|$/m, gate)
+      assert length(rows) == 2
+      refute gate =~ "is a normal answer"
+    end
+
+    test "the work and docs skills, the guide, docs/agents.md and the manual say the same test" do
+      for path <- ~w(priv/skills/slipdock-work/SKILL.md priv/skills/slipdock-docs/SKILL.md
+                     docs/agents.md lib/slipdock_web/api_guide.ex docs/manual.md) do
+        text = read(path) |> String.replace(~r/\s+/, " ")
+        assert text =~ "a card on a different subject want to know this?", path
+        assert text =~ "Never a pointer", path
+        assert text =~ "something th", path
+        assert text =~ "`Findings: none` is the usual answer", path
+        refute text =~ "next pass, on a different card", path
+        refute text =~ "is a normal answer", path
+      end
+
+      work = read("priv/skills/slipdock-work/SKILL.md") |> String.replace(~r/\s+/, " ")
+      assert work =~ "`Boards.move_card/4 returns :ok`"
+      assert work =~ "`gotcha: mix format can need two passes`"
+    end
+
     test "the docs skill says where each kind of knowledge goes" do
       docs = read("priv/skills/slipdock-docs/SKILL.md")
       assert docs =~ "### What you learned: the handbook, a finding, or your memory"
       assert docs =~ "your own **agent memory**"
       assert docs =~ "Project facts never live only in agent memory"
-      assert docs =~ "would the next pass, on a different card, have done better knowing this?"
+      assert docs =~ "would a card on a different subject want to know this?"
     end
 
     test "the slipdock skill names the findings commands (#1781)" do
@@ -192,10 +229,8 @@ defmodule SlipdockWeb.MCP.DocsTest do
     test "the guide and docs/agents.md describe the block and its bar" do
       guide = read("lib/slipdock_web/api_guide.ex")
       assert guide =~ "## Findings"
-      assert guide =~ "would the next pass, on a different card, have done"
-
-      assert read("docs/agents.md") =~
-               "would the next pass, on a different card, have done better"
+      assert guide =~ "would a card on a different subject want to know"
+      assert read("docs/agents.md") =~ "would a card on a different subject want to know this?"
     end
   end
 end

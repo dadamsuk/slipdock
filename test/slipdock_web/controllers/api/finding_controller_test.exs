@@ -178,7 +178,8 @@ defmodule SlipdockWeb.API.FindingControllerTest do
       for kind <- ~w(gotcha rule handbook-wrong tooling process),
           do: assert(section =~ "- #{kind}:")
 
-      assert section =~ "would the next pass, on a different card, have done"
+      assert section =~ "would a card on a different subject want to know"
+      assert section =~ "`Findings: none` is the usual answer"
       assert section =~ "GET /api/boards/:board/findings"
       assert section =~ "PATCH /api/findings/:id"
       assert SlipdockWeb.APIGuide.short() =~ "`findings`"

@@ -82,8 +82,11 @@ Project facts never live only in agent memory: the verifier, other runners
 and other machines can't read it, and a copy kept there as well as in the
 handbook drifts. A finding gets a second look before it becomes a rule
 (`slipdock findings <board>`, then `slipdock finding <id> promote --note
-"W-12 §Tests TEST-9"` once it is in the handbook). The bar for writing one:
-*would the next pass, on a different card, have done better knowing this?*
+"W-12 §Tests TEST-9"` once it is in the handbook). The test for writing
+one: *would a card on a different subject want to know this?* Never a
+pointer, an event the board records itself, something the card fixed, or a
+fact about the card's own code; `Findings: none` is the usual answer
+(`slipdock-loop` has examples of each side).
 
 ### Pages and folders
 
