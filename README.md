@@ -750,6 +750,10 @@ ignored, because it is. Change it in the app instead.
 Two exceptions, which are overrides rather than seeds and win every time:
 `SLIPDOCK_LOGIN_FALLBACK=false`, so a public host can forbid writing sign-in
 codes to a file whatever the settings say, and `SLIPDOCK_AGENTIC_LOGIN`.
+Both take the same words as every other switch: on is `1`, `true`, `yes` or
+`on`, off is `0`, `false`, `no`, `off` or `none`, in any case. Any other value
+is named in a warning at boot and read as off: no sign-in codes in a file, and
+no Agentic Login.
 
 ### Receiving email
 

@@ -288,7 +288,28 @@ end
 # Writing sign-in codes to a file is how a server with no working mail lets
 # anybody in at all — and a back door for anyone who can read that file. This
 # turns it off for good, whatever the admin UI says: set it on a public host.
-if env_off?.("SLIPDOCK_LOGIN_FALLBACK") do
+# A switch that guards sign-in takes only the words above. Anything else is
+# named in a warning at boot and leaves the switch where it is safe: the
+# sign-in-code file off, agentic login off.
+unrecognised_switch = fn name, safe ->
+  if env_value.(name) && is_nil(env_switch.(name)) do
+    IO.puts(
+      :stderr,
+      "warning: #{name}=#{inspect(env_value.(name))} is not an on word (1, true, yes, on) " <>
+        "or an off word (0, false, no, off, none), so it is read as #{safe}."
+    )
+
+    true
+  else
+    false
+  end
+end
+
+if env_off?.("SLIPDOCK_LOGIN_FALLBACK") or
+     unrecognised_switch.(
+       "SLIPDOCK_LOGIN_FALLBACK",
+       "off: no sign-in codes are written to a file"
+     ) do
   config :slipdock, :login_fallback, false
 end
 
@@ -468,6 +489,8 @@ end
 # a private slipdock-agentic-login directory under the system temp dir, mode
 # 0600) instead of emailing it. Anyone who can reach the page can create such
 # files, so only enable it on machines used for automated testing.
+unrecognised_switch.("SLIPDOCK_AGENTIC_LOGIN", "off")
+
 if env_on?.("SLIPDOCK_AGENTIC_LOGIN") do
   config :slipdock, agentic_login: true
 end
