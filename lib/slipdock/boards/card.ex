@@ -94,6 +94,10 @@ defmodule Slipdock.Boards.Card do
     # or nil. Inferred when an agent claims or starts it on a board with
     # `profiles` on (`Boards.infer_profile/2`), and set at every door.
     field :profile, :string
+    # Where it came from (#2018): "inferred", or set by a "person", an
+    # "agent" or a "rule"; nil without a profile, or where nobody recorded
+    # it. Not cast: `Boards` sets it with the profile, from who wrote it.
+    field :profile_source, :string
     # Where an agent's completion stands on a board that verifies work
     # (#1633): nil, "pending", "accepted" or "rejected"; the reason given
     # (a rejection's is required), the commit the verifier checked at, who

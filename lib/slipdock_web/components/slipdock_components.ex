@@ -696,19 +696,38 @@ defmodule SlipdockWeb.SlipdockComponents do
   end
 
   attr :profile, :string, required: true
+  attr :source, :string, default: nil
 
-  @doc "A card's profile (#1951): what kind of change it is, as one word."
+  @doc """
+  A card's profile (#1951): what kind of change it is, as one word. An
+  inferred one is lighter and dashed (#2018), so it reads as a guess beside
+  one a person or agent chose; its title says which.
+  """
   def profile_chip(assigns) do
     ~H"""
     <span
-      class="chip chip-line text-base-content/70"
+      class={[
+        "chip chip-line",
+        if(@source == "inferred",
+          do: "border-dashed text-base-content/45",
+          else: "text-base-content/70"
+        )
+      ]}
       data-role="profile"
-      title={"Profile: #{@profile}"}
+      data-source={@source}
+      title={profile_title(@profile, @source)}
     >
       {@profile}
     </span>
     """
   end
+
+  defp profile_title(profile, "inferred"), do: "Profile: #{profile}, inferred"
+
+  defp profile_title(profile, source) when source in ~w(person agent rule),
+    do: "Profile: #{profile}, set by #{source}"
+
+  defp profile_title(profile, _source), do: "Profile: #{profile}"
 
   attr :percent, :integer, required: true
 
@@ -1424,7 +1443,11 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.start_badge :if={@f.start_date and not @f.range} card={@card} />
         <.schedule_badges :if={@f.due_date} card={@card} due={not @f.range} />
         <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
-        <.profile_chip :if={@f.profile} profile={@card.profile} />
+        <.profile_chip
+          :if={@f.profile}
+          profile={@card.profile}
+          source={Map.get(@card, :profile_source)}
+        />
         <.time_badge :if={@f.time} card={@card} />
         <.handoff_mark :if={@f.handoff} handoff={@handoff} label={@handoff_label} class="size-3" />
         <.wait_mark :if={@f.wait} wait={@wait} class="size-3" compact />
@@ -1507,7 +1530,11 @@ defmodule SlipdockWeb.SlipdockComponents do
           <.start_badge :if={@f.start_date and not @f.range} card={@card} />
           <.schedule_badges :if={@f.due_date} card={@card} due={not @f.range} />
           <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
-          <.profile_chip :if={@f.profile} profile={@card.profile} />
+          <.profile_chip
+            :if={@f.profile}
+            profile={@card.profile}
+            source={Map.get(@card, :profile_source)}
+          />
           <.time_badge :if={@f.time} card={@card} />
           <span
             :if={@f.checklist}

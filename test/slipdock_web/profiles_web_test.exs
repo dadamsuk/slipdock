@@ -226,7 +226,7 @@ defmodule SlipdockWeb.ProfilesWebTest do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
       assert has_element?(view, "#card-profile option[value=spike]")
 
-      view |> form("#card-meta-form", card: %{"profile" => "spike"}) |> render_change()
+      view |> form("#card-profile-form", card: %{"profile" => "spike"}) |> render_change()
 
       assert Repo.get!(Card, ctx.card.id).profile == "spike"
       assert has_element?(view, "#card-profile option[value=spike][selected]")

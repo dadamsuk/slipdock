@@ -796,7 +796,11 @@ word inferred from its paths and tags, strictest first: `security`,
 is documentation), else `feature`. Write a card's paths before starting
 it so the inference has them. Set or clear the profile with `profile`
 (`update_card`, `create_card`, `slipdock edit --profile`, `--no-profile`).
-It shows on the card and on its ledger line (`card.profile`).
+It shows on the card and on its ledger line (`card.profile`), with where
+it came from beside it (`card.profile_source`): `inferred`, or who set it,
+`person`, `agent` or `rule` (nil with no profile, or on a card older than
+the field). The web panel shows a card with none what it would be inferred
+as, for a person to take or override before an agent starts it.
 
 **The human tier.** Each profile has one (`profile_tiers` in the board's
 JSON): `none` (`docs`, `fix`) and `ledger` (`feature`) let your

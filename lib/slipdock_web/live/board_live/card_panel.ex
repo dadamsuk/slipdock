@@ -605,6 +605,90 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     """
   end
 
+  attr :board, :any, required: true
+  attr :card, Card, required: true
+  attr :form, :any, required: true
+  attr :target, :any, required: true
+
+  @doc """
+  What kind of change the card is (#1951), with the agent work it decides
+  (#2018): on a board with profiles on, or a card that has one. Beside a
+  profile, where it came from ("inferred", "set by a person"); beside none,
+  on a profiles board, what an agent starting it would be given and why, for
+  a person to accept or override before work starts.
+  """
+  def profile_section(assigns) do
+    assigns =
+      assign(assigns,
+        source: profile_source_text(assigns.card.profile_source),
+        preview:
+          if(is_nil(assigns.card.profile) and assigns.board.profiles,
+            do: Slipdock.Profiles.explain_card(assigns.card)
+          )
+      )
+
+    ~H"""
+    <.form
+      phx-target={@target}
+      for={@form}
+      id="card-profile-form"
+      phx-change="card_change"
+      phx-submit="card_change"
+      class="space-y-1.5 px-1"
+    >
+      <p class="flex items-center gap-1.5 section-label">
+        <.icon name="hero-tag" class="size-3.5" />
+        <label for="card-profile">Profile</label>
+      </p>
+      <div class="flex flex-wrap items-center gap-2">
+        <select name={@form[:profile].name} id="card-profile" class="select select-sm field w-auto">
+          <option value="" selected={is_nil(@card.profile)}>None</option>
+          <option
+            :for={name <- Slipdock.Profiles.names()}
+            value={name}
+            selected={name == @card.profile}
+          >
+            {name}
+          </option>
+        </select>
+        <span
+          :if={@card.profile && @source}
+          id="card-profile-source"
+          data-source={@card.profile_source}
+          class="text-xs text-base-content/60"
+        >
+          · {@source}
+        </span>
+        <span :if={@preview} id="card-profile-preview" class="text-xs text-base-content/60">
+          would be inferred: <span class="font-medium">{elem(@preview, 0)}</span>, {elem(
+            @preview,
+            1
+          )}
+        </span>
+        <button
+          :if={@preview}
+          type="button"
+          id="card-profile-accept"
+          phx-click="accept_profile"
+          phx-value-profile={elem(@preview, 0)}
+          phx-target={@target}
+          class="btn btn-ghost btn-xs"
+        >
+          Use it
+        </button>
+      </div>
+      <p :for={msg <- Enum.map(@form[:profile].errors, &elem(&1, 0))} class="text-sm text-error">
+        {msg}
+      </p>
+    </.form>
+    """
+  end
+
+  @doc "Where a card's profile came from, as the panel and tile say it (#2018)."
+  def profile_source_text("inferred"), do: "inferred"
+  def profile_source_text(source) when source in ~w(person agent rule), do: "set by #{source}"
+  def profile_source_text(_source), do: nil
+
   attr :card, Card, required: true
   attr :form, :any, required: true
   attr :target, :any, required: true
@@ -1593,25 +1677,6 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             selected={value == @card.priority}
           >
             {label}
-          </option>
-        </select>
-      </.prop_row>
-      <%!-- What kind of change it is (#1951): on a board with profiles on,
-            or a card that has one. --%>
-      <.prop_row
-        :if={@board.profiles or not is_nil(@card.profile)}
-        name="profile"
-        label="Profile"
-        for="card-profile"
-      >
-        <select name="card[profile]" id="card-profile" class="select field-bare w-full">
-          <option value="" selected={is_nil(@card.profile)}>None</option>
-          <option
-            :for={name <- Slipdock.Profiles.names()}
-            value={name}
-            selected={name == @card.profile}
-          >
-            {name}
           </option>
         </select>
       </.prop_row>
