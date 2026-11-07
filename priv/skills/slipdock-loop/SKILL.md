@@ -668,7 +668,7 @@ anybody reads later:
    - Commit: `abc1234` (master) — https://github.com/owner/repo/commit/abc1234
    - CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", "started — … (checked before the epic closes)" on a subcard, or "no CI")
    - Handbook: updated W-3 §Contexts, new W-41   (or "no change (<why>)"; only on a handbook board)
-   - Findings:   (or "Findings: none"; "Findings: in the evidence" when the evidence carried them)
+   - Findings:   (or "Findings: none"; "Findings: in the evidence" when the evidence carried them: a pointer records nothing, the evidence's own block is read)
      - gotcha: <what the next pass should know>
    - Follow-ups: <anything deliberately not done, and where it went — card #141, W-31, or "none">
    - Token cost: ~135k tokens (context budget 15.00M → 14.86M, claim to close)

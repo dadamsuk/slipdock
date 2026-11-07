@@ -3375,7 +3375,9 @@ defmodule SlipdockWeb.APIGuide do
     this? Never a pointer (`in the evidence`, `recorded on #1819`), an event
     the board records itself (below), something the card fixed, or a fact
     about the card's own code (`Boards.move_card/4 returns :ok`).
-    `Findings: none` is the usual answer; filler isn't.
+    `Findings: none` is the usual answer; filler isn't. A block that only
+    points elsewhere records nothing: the evidence is a comment of its own,
+    and its block is read there.
     A line with no known kind is kept whole as a `gotcha`. The server also
     records its own (source `rejection`, `verification`, `requeue`, `timeout`, `failed`,
     `merge`, `audit`, `health`, `incident`), counting repeats on a card, on any
