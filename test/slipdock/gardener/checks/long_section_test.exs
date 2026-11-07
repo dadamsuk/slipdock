@@ -201,6 +201,8 @@ defmodule Slipdock.Gardener.Checks.LongSectionTest do
   test "chars is a setting; off is off; a dismissal lasts until the section changes",
        %{user: user, board: board} do
     install(user, board)
+    # The seeded Playbook's Card shape (#2041) is over 800 too: out of the way.
+    set_body(page(board, "Playbook"), "## Sizing\n\nEverything is a card.\n", user)
     set_body(page(board, "Operations"), "## Deploy\n\n#{prose(1000)}\n", user)
 
     assert find(LongSection, board) == []

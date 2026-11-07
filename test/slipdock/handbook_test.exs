@@ -656,8 +656,8 @@ defmodule Slipdock.HandbookTest do
     test "for_board counts the rules and lists what didn't parse",
          %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
-      # The Principles page's worked example (1.5.0), a `should`.
-      assert Handbook.for_board(board, user).rules == %{count: 1, must: 0, problems: []}
+      # The Principles page's three baseline principles (#2041), `should`s.
+      assert Handbook.for_board(board, user).rules == %{count: 3, must: 0, problems: []}
 
       data = Enum.find(handbook_pages(board), &(&1.title == "Data model"))
 
@@ -669,7 +669,7 @@ defmodule Slipdock.HandbookTest do
               "- **DATA-3** must · Appended to, never edited.\n"
         })
 
-      assert %{count: 3, must: 1, problems: [problem]} = Handbook.for_board(board, user).rules
+      assert %{count: 5, must: 1, problems: [problem]} = Handbook.for_board(board, user).rules
       assert problem.page == data.code
       assert problem.line == 7
       assert problem.problem =~ "no check"
@@ -828,47 +828,140 @@ defmodule Slipdock.HandbookTest do
       assert html =~ "Playbook"
     end
 
-    test "the Principles skeleton says how to write one, and its worked example is a rule",
+    test "the Principles seed says how to write one, and its baseline items are rules (#2041)",
          %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
       page = page_titled(board, "Principles")
 
-      assert {:ok, prose} = Wiki.Section.read(page.body, "Principles/Principles")
-      assert prose =~ "The tie-breakers between two right ways"
-      assert prose =~ "the two ways and why this one"
-      assert prose =~ "`- **PRIN-n** should · judgement · …`"
-      assert prose =~ "a person's call"
-      assert prose =~ "**One date helper.**"
+      assert {:ok, how} = Wiki.Section.read(page.body, "Principles/How to write one")
+      assert how =~ "the two ways, the one this project takes, and why"
+      assert how =~ "`- **PRIN-n** should · judgement · <the rule, in one line>`"
+      assert how =~ "a person's call"
+      assert how =~ "edit them or delete them"
 
-      assert {[rule], []} = Handbook.Rules.parse_page(page)
-      assert %{id: "PRIN-1", severity: "should", check: "judgement", scope: ["**"]} = rule
-      assert rule.section == "Principles/Rules"
-      assert rule.text =~ "one shared helper"
+      assert {:ok, baseline} = Wiki.Section.read(page.body, "Principles/Baseline")
 
-      # Counted like any other page's rules, and given for any path.
-      assert Handbook.for_board(board, user).rules == %{count: 1, must: 0, problems: []}
-      assert [%{id: "PRIN-1"}] = Handbook.rules_for(Handbook.find(board), ["README.md"])
-    end
+      for name <- ["One place for each concern", "The obvious reading", "Extend before adding"],
+          do: assert(baseline =~ "**#{name}.**", name)
 
-    test "the Playbook skeleton has its sections, each a hint", %{user: user, board: board} do
-      {:ok, _} = Handbook.install(user, board)
-      page = page_titled(board, "Playbook")
+      assert {rules, []} = Handbook.Rules.parse_page(page)
+      assert Enum.map(rules, & &1.id) == ["PRIN-1", "PRIN-2", "PRIN-3"]
 
-      for section <- ["When this applies", "Sizing", "Stages", "Card shape", "Defaults", "Rules"] do
-        assert {:ok, text} = Wiki.Section.read(page.body, "Playbook/#{section}"), section
-        assert text =~ ~r/^_.+_$/m, section
+      for rule <- rules do
+        assert %{severity: "should", check: "judgement", scope: ["**"]} = rule
+        assert rule.section == "Principles/Rules"
       end
 
+      # Counted like any other page's rules, and given for any path.
+      assert Handbook.for_board(board, user).rules == %{count: 3, must: 0, problems: []}
+
+      assert ["PRIN-1", "PRIN-2", "PRIN-3"] =
+               Handbook.find(board) |> Handbook.rules_for(["README.md"]) |> Enum.map(& &1.id)
+    end
+
+    test "the Playbook seed sizes, then gives each stage its skill, output and page (#2041)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      page = page_titled(board, "Playbook")
+      read = fn section -> elem(Wiki.Section.read(page.body, "Playbook/#{section}"), 1) end
+
+      applies = read.("When this applies")
+      assert applies =~ "never by the server"
+      assert applies =~ "A card-sized ask gets one card"
+
+      sizing = read.("Sizing")
+
+      for {size, stages} <- [
+            {"System", "Grill, Decide, Principles, Spec, Cards."},
+            {"Feature", "Grill, Spec, Cards."},
+            {"Card", "No stages."}
+          ],
+          do: assert(sizing =~ ~r/\*\*#{size}\*\*:.*#{Regex.escape(stages)}/, size)
+
+      assert sizing =~
+               "a new deployable or service, a new repository, or a board with no code yet"
+
+      assert sizing =~ "a change to the data model"
+
+      for stage <- ["Grill", "Decide", "Principles", "Spec", "Cards"] do
+        text = read.(stage)
+
+        for part <- [
+              "**Asks:**",
+              "**Skill:** the plan skill's #{stage}",
+              "**Produces:**",
+              "**Writes to:**"
+            ],
+            do: assert(text =~ part, "#{stage}: #{part}")
+      end
+
+      assert read.("Grill") =~ "add `skill: <its name>` here"
+      assert read.("Decide") =~ "`Handbook/Decisions` titled `Decision: <what was chosen>`"
+      assert read.("Principles") =~ "Unattended, it goes in as a proposal"
+      assert read.("Spec") =~ "a wiki page on the epic"
+      assert read.("Card shape") =~ "until this board edits it here"
+      assert read.("Defaults") =~ "defaults: none"
+      assert read.("Defaults") =~ "A default is never imposed"
+
+      # Hints for a rule only: the Playbook seeds no rules.
       assert Handbook.Rules.parse_page(page) == {[], []}
-      {:ok, applies} = Wiki.Section.read(page.body, "Playbook/When this applies")
-      assert applies =~ "never by the server when a card is made"
-      {:ok, stages} = Wiki.Section.read(page.body, "Playbook/Stages")
-      assert stages =~ "One `###` per stage"
-      {:ok, shape} = Wiki.Section.read(page.body, "Playbook/Card shape")
-      assert shape =~ "overrides the agent guide's Card shape"
-      {:ok, defaults} = Wiki.Section.read(page.body, "Playbook/Defaults")
-      assert defaults =~ "`defaults: W-123`"
-      assert defaults =~ "never imposed"
+    end
+
+    test "the seeds fit the gardener's section limit (#2041)", %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+
+      for title <- ["Principles", "Playbook"] do
+        page = page_titled(board, title)
+        lines = String.split(page.body, "\n")
+        heads = Wiki.Section.headings(page.body) |> Enum.filter(&(&1.level == 2))
+        stops = Enum.map(tl(heads), & &1.line) ++ [length(lines)]
+
+        for {h, stop} <- Enum.zip(heads, stops), h.title != "Rules" do
+          text = lines |> Enum.slice(h.line..(stop - 1)//1) |> Enum.join("\n") |> String.trim()
+          assert String.length(text) < 1500, "#{title}/#{h.title}: #{String.length(text)}"
+        end
+      end
+    end
+
+    test "installing over a 1.5.0 skeleton puts the seed in its place (#2041)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      prin = page_titled(board, "Principles")
+      play = page_titled(board, "Playbook")
+      seeded = {prin.body, play.body}
+
+      # As 1.5.0 first left them: the skeletons, nobody's words on either.
+      for {page, key} <- [{prin, "principles"}, {play, "playbook"}],
+          do: {:ok, _} = Wiki.update_page(page, %{"body" => Handbook.skeleton_body(key)})
+
+      assert {[%{id: "PRIN-1", text: "Every date is formatted" <> _}], []} =
+               Handbook.Rules.parse_page(Repo.get!(Page, prin.id))
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["pages"] == ["Principles (seed added)", "Playbook (seed added)"]
+      assert {Repo.get!(Page, prin.id).body, Repo.get!(Page, play.id).body} == seeded
+
+      # Seeded now: a third install has nothing to do.
+      {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["pages"] == []
+      refute Enum.any?(third.report.skipped["pages"], &(&1 =~ "edited"))
+    end
+
+    test "an edited 1.5.0 page is left alone, and the report says so (#2041)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      prin = page_titled(board, "Principles")
+      play = page_titled(board, "Playbook")
+
+      {:ok, _} = Wiki.update_page(play, %{"body" => Handbook.skeleton_body("playbook")})
+      ours = Handbook.skeleton_body("principles") <> "\n**Boring tech.** Postgres first.\n"
+      {:ok, _} = Wiki.update_page(prin, %{"body" => ours})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["pages"] == ["Playbook (seed added)"]
+      assert "Principles (edited: left alone)" in again.report.skipped["pages"]
+      refute "Principles" in again.report.skipped["pages"]
+      assert Repo.get!(Page, prin.id).body == ours
     end
 
     test "the seed card leaves them to a person", %{user: user, board: board} do
@@ -901,7 +994,9 @@ defmodule Slipdock.HandbookTest do
           do: assert({page.body, page.updated_at} == before[page.id], page.title)
 
       assert length(handbook_pages(board)) == 11
-      assert {[%{id: "PRIN-1"}], []} = Handbook.Rules.parse_page(page_titled(board, "Principles"))
+
+      assert {[%{id: "PRIN-1"}, %{id: "PRIN-2"}, %{id: "PRIN-3"}], []} =
+               Handbook.Rules.parse_page(page_titled(board, "Principles"))
 
       {:ok, third} = Handbook.install(user, board)
       assert third.report.added["pages"] == []

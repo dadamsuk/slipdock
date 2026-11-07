@@ -41,6 +41,7 @@ test/slipdock_web/panel_no_flash_test.exs
 test/slipdock_web/controllers/api/skills_test.exs
 test/slipdock_web/handbook_skills_test.exs
 test/slipdock/handbook/rules_docs_test.exs
+test/slipdock/handbook/seed_docs_test.exs
 test/slipdock/handbook/rules_for_docs_test.exs
 test/slipdock/tool_packages_doc_test.exs
 test/slipdock_web/board_views_docs_test.exs

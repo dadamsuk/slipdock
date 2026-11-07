@@ -7342,16 +7342,39 @@ decides and plans. **Principles** (prefix `PRIN`) are the tie-breakers
 between two right ways: a short paragraph each (the two ways, and why this
 one) and a matching `PRIN-n should · judgement` item in the page's `##
 Rules`. The page covers no paths, so its rules apply to every change and
-a verifier weighs them like any `should` rule. It starts with a worked
-example (one date helper) to edit or delete; adding, rewording or dropping
-one is a rule change, so it goes in as a proposal. The **Playbook**
-(prefix `PLAY`) is how an idea becomes cards: when it applies (an agent
-asked to plan; never the server when a card is made), the sizes and their
-triggers, the stages each size takes, the card shape, which overrides the
-guide's, and the page holding the person's own defaults (`defaults:`).
-A board makes both its own by editing them. Installing 1.5.0 over an older
-handbook adds the two pages and changes no other page; installing again
-adds nothing, and an edited page is left as it is. The seed card leaves
+a verifier weighs them like any `should` rule. It starts with how to write
+one and a baseline of three, to edit or delete: one place for each
+concern (`PRIN-1`), the obvious reading of an ambiguous ask, the other
+noted on the card (`PRIN-2`), and extending what is there before adding
+beside it (`PRIN-3`). Adding, rewording or dropping one is a rule change,
+so it goes in as a proposal. The **Playbook** (prefix `PLAY`) is how an
+idea becomes cards, read by an agent asked to plan (the `slipdock-plan`
+skill) and never by the server when a card is made:
+
+- **Sizing**, checked in order: a *system* (a new deployable, a new
+  repository, or a board with no code yet) takes grill, decide,
+  principles, spec and cards; a *feature* (a new user-facing surface, an
+  external integration, a data model change, or more than one sitting)
+  takes grill, spec and cards; anything else is a *card*, made as Card
+  shape says, with no stages.
+- **One section per stage** (Grill, Decide, Principles, Spec, Cards), each
+  saying what it asks, the skill it uses (the plan skill's own text, or
+  an installed skill named with `skill:`), what it produces and where it
+  writes: the epic's description, a `Decision:` page in
+  `Handbook/Decisions`, the Principles page (as a proposal when nobody is
+  there to agree it), a spec page on the epic, the epic's subcards. A
+  stage whose output is already on the board is skipped.
+- **Card shape**, the agent guide's until the board edits it here.
+- **Defaults**: `defaults: none`, or the page holding the person's own
+  stack and hosting choices, which the decide stage proposes and asks
+  about, never imposes.
+
+Editing these two pages is how a board changes how it decides and plans.
+Installing 1.5.0 over an older handbook adds the two pages and changes no
+other page; installing again adds nothing, and an edited page is left as
+it is. A Principles or Playbook page that still holds the first, empty
+skeleton (#2040) gets the seed in its place, reported as `(seed added)`;
+one somebody edited is reported as `(edited: left alone)`. The seed card leaves
 them to a person, suggesting any principle the code plainly keeps. A
 card's handbook block lists every page, held to 2.5 KB.
 

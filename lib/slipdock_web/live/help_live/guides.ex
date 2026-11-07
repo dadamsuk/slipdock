@@ -903,6 +903,33 @@ defmodule SlipdockWeb.HelpLive.Guides do
       </p>
     </.part>
 
+    <.part title="How your board plans: Principles and Playbook" id="tools-playbook">
+      <p>
+        The built-in handbook Tool gives a board two pages that say how its work is
+        decided and planned. <strong>Principles</strong>
+        are the tie-breakers: where a change could go two right ways, which one this
+        project takes. Each is a short paragraph and a matching <code>PRIN</code>
+        rule, which agents keep to and a verifier checks. It starts with three
+        that suit most projects (one place for each concern, the obvious reading of an
+        ambiguous ask, extend before adding).
+      </p>
+      <p>
+        The <strong>Playbook</strong>
+        is what an agent follows when you ask it to plan ("I want to build…", "break
+        this into cards"): it sizes the ask as a card, a feature or a system, then runs
+        the stages that size takes (grill, decide, principles, spec, cards), each
+        writing to a handbook page or to cards. A one-sentence ask stays one card.
+        Its Defaults line can name a page of your own stack and hosting choices;
+        those are proposed and asked about, never imposed.
+      </p>
+      <p>
+        Editing these two pages is how a board changes its process: an agent reads
+        them as they are now. A new principle is a rule, so an agent proposes it and
+        you decide. Installing the Tool again replaces a page that still holds the
+        first, empty version with this baseline, and never touches one you've edited.
+      </p>
+    </.part>
+
     <.part title="Publishing your own" id="tools-publish">
       <p>
         Put the Tool in a folder (see the next part) and publish it with the <.link

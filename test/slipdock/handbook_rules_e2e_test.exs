@@ -68,12 +68,12 @@ defmodule Slipdock.HandbookRulesE2ETest do
     conn = token_conn(user)
 
     # A new handbook: every section page has a Rules section, empty but on
-    # Principles, whose worked example (1.5.0) is a `should` that applies
-    # everywhere; nothing to report.
+    # Principles, whose three baseline principles (#2041) are `should`s that
+    # apply everywhere; nothing to report.
     assert [_ | _] = sections = Handbook.find(board).pages
     assert Enum.all?(sections, &(&1.body =~ "## Rules"))
-    assert %{"count" => 1, "must" => 0, "problems" => []} = handbook(conn, board)["rules"]
-    prin = ["PRIN-1"]
+    assert %{"count" => 3, "must" => 0, "problems" => []} = handbook(conn, board)["rules"]
+    prin = ["PRIN-1", "PRIN-2", "PRIN-3"]
 
     data = page(board, "Data model")
     pre = Rules.prefix(key(data))
@@ -86,7 +86,7 @@ defmodule Slipdock.HandbookRulesE2ETest do
 
     # Written: two rules count, and the third is reported where it is.
     summary = handbook(conn, board)["rules"]
-    assert summary["count"] == 3
+    assert summary["count"] == 5
     assert summary["must"] == 1
     assert [%{"page" => code, "line" => line, "item" => item}] = summary["problems"]
     assert code == data.code
@@ -132,7 +132,7 @@ defmodule Slipdock.HandbookRulesE2ETest do
           )
       })
 
-    assert %{"count" => 4, "must" => 2, "problems" => []} = handbook(conn, board)["rules"]
+    assert %{"count" => 6, "must" => 2, "problems" => []} = handbook(conn, board)["rules"]
     assert ids.("priv/repo/migrations/1_add.exs") == ["#{pre}-1", "#{pre}-3" | prin]
   end
 end
