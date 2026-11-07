@@ -40,6 +40,8 @@ defmodule Slipdock.RuntimeEnvSwitchesTest do
           [:trial_enabled, :board_limit_enabled, :item_limit_enabled, :storage_limit_enabled],
           &settings[&1]
         ),
+      limit_values:
+        Enum.map([:trial_days, :board_limit, :item_limit, :storage_limit_mb], &settings[&1]),
       server: s[SlipdockWeb.Endpoint][:server],
       ssl: repo[:ssl] && repo[:ssl][:verify],
       ipv6: repo[:socket_options],
@@ -136,13 +138,57 @@ defmodule Slipdock.RuntimeEnvSwitchesTest do
     end
   end
 
+  @limits ~w(SLIPDOCK_TRIAL_DAYS SLIPDOCK_BOARD_LIMIT SLIPDOCK_ITEM_LIMIT SLIPDOCK_STORAGE_LIMIT_MB)
+
   test "a word in neither list leaves an on-switch off and an off-switch on" do
-    assert {:ok, config} = read_runtime(all_switches("maybe"))
+    env = for {name, _} = pair <- all_switches("maybe"), name not in @limits, do: pair
+    assert {:ok, config} = read_runtime(env)
     assert config.agentic_login == nil
     assert config.open_signup == false
     assert config.welcome_board == nil
     assert config.smtp_tls_verify == true
     assert config.invites == nil
+  end
+
+  describe "the limit variables" do
+    test "a number seeds the limit and turns it on, trimmed" do
+      env = Enum.map(@limits, &{&1, " 30 "})
+      assert {:ok, config} = read_runtime(env)
+      assert config.limit_values == [30, 30, 30, 30]
+      assert config.limits == [true, true, true, true]
+    end
+
+    test "an on word that isn't a number keeps the limit on at its default" do
+      assert {:ok, config} = read_runtime(Enum.map(@limits, &{&1, "yes"}))
+      assert config.limit_values == [nil, nil, nil, nil]
+      assert config.limits == [true, true, true, true]
+    end
+
+    test "an off word seeds no number and turns the limit off" do
+      assert {:ok, config} = read_runtime(Enum.map(@limits, &{&1, "none"}))
+      assert config.limit_values == [nil, nil, nil, nil]
+      assert config.limits == [false, false, false, false]
+    end
+
+    for limit <-
+          ~w(SLIPDOCK_TRIAL_DAYS SLIPDOCK_BOARD_LIMIT SLIPDOCK_ITEM_LIMIT SLIPDOCK_STORAGE_LIMIT_MB),
+        value <- ["1000abc", "maybe"] do
+      test "#{limit}=#{inspect(value)} isn't a number: it stops the boot and names the variable" do
+        assert {:error, status, out} = read_runtime([{unquote(limit), unquote(value)}])
+        assert status != 0
+        assert out =~ ~s(#{unquote(limit)} must be a whole number, not #{inspect(unquote(value))})
+      end
+    end
+
+    for value <- ["-5", " -1 "] do
+      test "a negative limit (#{inspect(value)}) stops the boot rather than being dropped" do
+        assert {:error, status, out} = read_runtime([{"SLIPDOCK_BOARD_LIMIT", unquote(value)}])
+        assert status != 0
+
+        assert out =~
+                 ~s(SLIPDOCK_BOARD_LIMIT must be a positive whole number or an off word, not "#{String.trim(unquote(value))}")
+      end
+    end
   end
 
   describe "SLIPDOCK_SMTP_PORT" do

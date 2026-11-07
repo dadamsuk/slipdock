@@ -228,10 +228,25 @@ end
 # A limit variable carries a number, or an off word (`0`, `off`, `none`…) to
 # turn that limit off. These two read the same variable from either end: the
 # number, and the switch.
+# The number is read by env_int, so a limit that is neither a number nor a
+# switch word (`1000abc`, `-5`, `maybe`) stops the boot like any other number
+# would. An on word that isn't a number (`yes`, `on`, `true`) keeps the
+# limit on at its default.
 positive_env = fn name ->
-  case env_value.(name) do
-    nil -> nil
-    value -> with {n, _} when n > 0 <- Integer.parse(value), do: n, else: (_ -> nil)
+  value = env_value.(name)
+
+  cond do
+    is_nil(value) or env_off?.(name) ->
+      nil
+
+    env_on?.(name) and Integer.parse(value) == :error ->
+      nil
+
+    true ->
+      case env_int.(name, nil) do
+        n when n > 0 -> n
+        _ -> raise "#{name} must be a positive whole number or an off word, not #{inspect(value)}"
+      end
   end
 end
 
