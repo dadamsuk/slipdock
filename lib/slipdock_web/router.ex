@@ -604,6 +604,8 @@ defmodule SlipdockWeb.Router do
     delete "/skill-sources/:id", SkillRegistryController, :delete
     get "/skill-entries/:id", SkillRegistryController, :entry
     get "/skill-stages", SkillRegistryController, :stages
+    # What the board's agents get (#2063): its enabled skills, pinned text and all.
+    get "/boards/:board/skills", SkillRegistryController, :board
     post "/boards/:board/skills", SkillRegistryController, :enable
     patch "/boards/:board/skills/:name", SkillRegistryController, :repin
     delete "/boards/:board/skills/:name", SkillRegistryController, :disable

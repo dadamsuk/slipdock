@@ -1103,6 +1103,10 @@ reaches everyone without a reinstall
   flags one whose skill nothing provides.
   The same over REST (`/api/skill-sources`, `/api/boards/:board/skills`), the
   CLI (`slipdock registry`) and MCP (`skill_registry`).
+  A board's agents get its enabled skills, pinned text and all, from `GET
+  /api/boards/:board/skills`, `slipdock skills board <board> [<name>]` or
+  `get_guide` with `board`, and `slipdock-plan` uses one for a Playbook stage
+  that names it before an installed skill or its own text.
 
 `slipdock tools publish <folder>` publishes one, or upload its `.tar.gz` under
 **Publish a Tool** on the Tools page (a Tool's own page takes its next

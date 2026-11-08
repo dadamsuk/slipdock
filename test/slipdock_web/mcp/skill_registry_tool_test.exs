@@ -46,6 +46,22 @@ defmodule SlipdockWeb.MCP.SkillRegistryToolTest do
     |> Map.fetch!("result")
   end
 
+  defp guide(conn, args) do
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post(
+      "/mcp",
+      Jason.encode!(%{
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: %{name: "get_guide", arguments: args}
+      })
+    )
+    |> json_response(200)
+    |> Map.fetch!("result")
+  end
+
   defp ok!(result) do
     assert result["isError"] == false, inspect(result["content"])
     result["structuredContent"]
@@ -228,5 +244,60 @@ defmodule SlipdockWeb.MCP.SkillRegistryToolTest do
            ) =~ "read-only"
 
     assert SkillRegistry.enabled(board) == []
+  end
+
+  describe "get_guide's board: the board's skills, served to its agents (#2063)" do
+    test "a reader gets the enabled skills with their pinned text beside the guide", %{
+      user: user,
+      board: board
+    } do
+      reader = user_fixture("mcp-registry-served@example.com")
+      {:ok, _} = Access.grant(board, reader, "read", user)
+      reader_conn = token_conn(reader, "read")
+
+      assert %{"skills" => [], "guide" => guide} =
+               ok!(guide(reader_conn, %{board: to_string(board.id)}))
+
+      assert is_binary(guide)
+
+      {:ok, %{entries: [entry]} = source} = SkillRegistry.add_source(user, @repo)
+      {:ok, _} = SkillRegistry.enable(user, board, entry.id, entry.content_hash)
+
+      assert %{"skills" => [skill], "board" => %{"code" => code}} =
+               ok!(guide(reader_conn, %{board: board.code, section: "skills"}))
+
+      assert code == board.code
+      assert skill["name"] == "grilling"
+      assert skill["status"] == "current"
+      assert skill["pinned_hash"] == entry.content_hash
+      assert skill["text"] =~ "Ask one question at a time."
+
+      # Changed upstream: the pinned text still, marked changed.
+      serve("Ask them all at once.")
+      {:ok, _, _} = SkillRegistry.refresh_source(user, source)
+
+      assert %{"skills" => [%{"status" => "changed", "text" => text}]} =
+               ok!(guide(reader_conn, %{board: board.code}))
+
+      refute text =~ "all at once"
+    end
+
+    test "without board there is no skills part; a board out of reach is refused", %{
+      user: user,
+      board: board
+    } do
+      {:ok, %{entries: [entry]}} = SkillRegistry.add_source(user, @repo)
+      {:ok, _} = SkillRegistry.enable(user, board, entry.id, entry.content_hash)
+
+      refute Map.has_key?(ok!(guide(token_conn(user), %{})), "skills")
+
+      outsider = token_conn(user_fixture("mcp-registry-served-out@example.com"))
+      text = error!(guide(outsider, %{board: to_string(board.id)}))
+      assert text =~ "no board you can see"
+      refute text =~ "Ask one question"
+
+      assert error!(guide(outsider, %{board: 12})) =~ "no board you can see"
+      assert error!(guide(token_conn(user), %{board: ["x"]})) == "board must be a string"
+    end
   end
 end

@@ -53,12 +53,21 @@ For each stage the size takes, in the Playbook's order, read the stage's
 `##` section: what it **asks**, the **skill** it uses, what it **produces**
 and where it **writes to**. Then:
 
-- **The skill.** When the section names one (`skill: <name>`) and that
-  skill is installed here (it is in your list of available skills), invoke
-  it for the stage, then bring what it produced back to this stage's
-  *Produces* and *Writes to*. Otherwise, or when the named skill isn't
-  installed, use this file's text for the stage (**Stage texts** below).
-  Say which you used.
+- **The skill.** When the section names one (`skill: <name>`), take the
+  first of these that has it, and say which you used ("Grill: `grilling`,
+  enabled on this board from mattpocock/skills"):
+  1. **Enabled on the board.** `slipdock skills board <board> <name>`
+     prints its pinned text (MCP: `get_guide` with `board`, the `skills`
+     entry of that name, its `text`). Follow that text for the stage. It is
+     the version a board writer read and pinned; a `changed` status means
+     upstream moved on and the pinned text is still the one to use.
+  2. **Installed here.** It is in your list of available skills: invoke it.
+  3. **Neither:** use this file's text for the stage (**Stage texts**
+     below).
+
+  Either way, bring what the skill produced back to this stage's
+  *Produces* and *Writes to*: the writing is this skill's. A board with no
+  skills enabled answers with none, which is the usual case.
 - **Already done:** a stage whose output is already on the board (a
   Decision that covers the choice, a spec page on the epic) is skipped.
   Say so, and name what was there.
@@ -119,8 +128,8 @@ is never imposed. With `defaults: none`, ask from scratch.
 
 ## Stage texts
 
-The built-in text for each stage, used when the Playbook names no installed
-skill for it.
+The built-in text for each stage, used when the Playbook names no skill for
+it, or names one that is neither enabled on the board nor installed here.
 
 ### Grill
 

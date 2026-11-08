@@ -89,6 +89,18 @@ defmodule SlipdockWeb.API.SkillRegistryJSON do
     |> put_if(opts[:diff] && status == :changed, :diff, diff(e))
   end
 
+  @doc """
+  The skills enabled on `board` (its root's, for a sub-board), each with its
+  pinned text: what the REST door, the CLI and `get_guide`'s `board` give
+  the board's agents (#2063).
+  """
+  def board_skills(board) do
+    %{
+      board: board(board),
+      skills: Enum.map(SkillRegistry.enabled(board), &enablement(&1, text: true))
+    }
+  end
+
   @doc "The Playbook stages naming a skill, per board, as `SkillRegistry.naming/1` gives them."
   def stages(naming) do
     Enum.map(naming, fn %{board: b, stages: stages} ->

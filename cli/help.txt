@@ -509,6 +509,9 @@ SKILLS  (the agent instructions this server ships, versioned with its API)
   skills install [--dir D]            write them to ~/.claude/skills (or D)
   skills check                        say whether the local copies are behind
   skills chatgpt [--dir D]            save ChatGPT's versions, one zip per skill, here (or D)
+  skills board <board> [<name>]       the registry skills enabled on a board: what its agents
+                                      get. With a name, that one's pinned text (the plan skill
+                                      uses it for a Playbook stage naming it); --json for all
 
 REGISTRY  (skills fetched from outside Slipdock, such as a GitHub repo of SKILL.md files)
   registry                            your skill sources and the seeds, with a count each

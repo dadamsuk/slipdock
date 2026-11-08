@@ -844,7 +844,14 @@ defmodule SlipdockWeb.APIGuide do
       takes it off with `DELETE`. `GET /api/skill-stages` lists every Playbook
       stage you can read that names a skill and what it gets (`flagged` when
       nothing does). Only when the person asks. CLI: `slipdock registry`; MCP:
-      `skill_registry`.
+      `skill_registry`. What the board's agents get is `GET
+      /api/boards/:board/skills` (a reader is enough; a board you can't read
+      is a 404): each enabled skill's `name`, `source_name`, `licence`,
+      `pinned_hash`, `status` (`current`, `changed`, `removed`) and its pinned
+      `text`, never newer. CLI: `slipdock skills board <board> [<name>]`; MCP:
+      `get_guide` with `board`, whose answer adds the same list as `skills`.
+      `slipdock-plan` uses it for a Playbook stage that names a skill: enabled
+      on the board, else installed, else its own text.
     - **Passkeys** — `GET /api/me/passkeys` lists the token holder's own
       passkeys (`id`, `name`, `created_at`, `last_used_at`; never the key), and
       `DELETE /api/me/passkeys/:id` removes one so it can no longer sign in.

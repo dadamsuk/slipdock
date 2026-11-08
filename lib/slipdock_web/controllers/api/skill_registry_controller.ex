@@ -8,7 +8,8 @@ defmodule SlipdockWeb.API.SkillRegistryController do
     admin, for a seed) refreshes or removes it. A fetch's refusal is its sentence, as a 422.
   - An entry (`/skill-entries/:id`) is the whole file, its hash, where it
     is enabled and which Playbook stages name it.
-  - A board's skills (`/boards/:board/skills`): a writer enables an entry
+  - A board's skills (`/boards/:board/skills`): a reader gets the skills
+    enabled there with their pinned text, what its agents use (#2063); a writer enables an entry
     pinned to the `hash` they read, re-pins one by name after reading its
     diff, or disables it. The pinned text is what the board's agents get.
   - `/skill-stages`: every Playbook stage the caller can read that names a
@@ -81,6 +82,16 @@ defmodule SlipdockWeb.API.SkillRegistryController do
   @doc "The Playbook stages naming a skill on every board the caller reads."
   def stages(conn, _params),
     do: json(conn, %{boards: JSON.stages(SkillRegistry.naming(conn.assigns.current_user))})
+
+  @doc """
+  The skills enabled on the board, each with its pinned text: what the
+  board's agents (the plan skill) use for a Playbook stage that names one.
+  A caller who can't read the board gets a 404, never the list.
+  """
+  def board(conn, %{"board" => ref}) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read),
+         do: json(conn, JSON.board_skills(board))
+  end
 
   @doc "Enables `entry` (an id) on the board, pinned to `hash`, the text the caller read."
   def enable(conn, %{"board" => ref} = params) do
