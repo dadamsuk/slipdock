@@ -349,9 +349,10 @@ defmodule Slipdock.Handbook do
      - a new or changed **rule**, or a decision: don't edit it. File it as a proposal for a person to apply (`slipdock garden propose <board> <file.json>`, an `edit_section` step on the page's `## Rules`, the findings' ids as `findings`);
      - a rule whose check could be a test: file a card for the test instead (`slipdock add <board> "Test for <rule id>: …"`), and say so on the finding;
      - then `slipdock finding <id> promote --note "<what it became: W-12 §Tests, proposal #34, card #56>"`.
-  4. Read the numbers: `slipdock quality <board> --rules` (the last 30 days) gives the rejections by part and by rule id, each rule with its page, the disputed `Handbook:` lines and rework by area. A rule that keeps being broken needs clearer wording or a test, as a proposal or a card. Disputed lines point at a page the docs gate keeps missing, and an area with a lot of rework at a section to read again. Say which rules you acted on in the log line.
-  5. Log it: append to the Index's `## Triage` a line `- <date>: <n> read, <n> merged, <n> dismissed, <n> promoted; proposals <ids or none>`.
-  6. Close the card with a `Handbook:` line naming what was written, and the proposals filed. The next one comes by itself tomorrow.
+  4. Decide every leftover. A finding that was already open at the last triage (older than the last line of the Index's `## Triage`) has had its night: it must be decided now, never left open a second time. It becomes a card (`slipdock add <board> "…" --desc "…" --column Backlog`, then `promote --note "card #<id>"`), a proposal or a promotion as in step 3, or it is dismissed with the reason (`dismiss --note "left open on <date>; <why it isn't worth keeping>"`). Only a finding that arrived since the last triage may stay open, and only with a reason in the log line.
+  5. Read the numbers: `slipdock quality <board> --rules` (the last 30 days) gives the rejections by part and by rule id, each rule with its page, the disputed `Handbook:` lines and rework by area. A rule that keeps being broken needs clearer wording or a test, as a proposal or a card. Disputed lines point at a page the docs gate keeps missing, and an area with a lot of rework at a section to read again. Say which rules you acted on in the log line.
+  6. Log it: append to the Index's `## Triage` a line `- <date>: <n> read, <n> merged, <n> dismissed, <n> promoted, <n> filed as cards; <n> leftovers decided; <n> left open (<ids>: why); proposals <ids or none>`.
+  7. Close the card with a `Handbook:` line naming what was written, and the proposals filed. The next one comes by itself tomorrow.
   """
 
   @doc """
