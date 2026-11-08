@@ -29,6 +29,9 @@ defmodule SlipdockWeb.API.MeController do
   def show(conn, _params) do
     user = conn.assigns.current_user
 
+    {waiting, overseer} =
+      Slipdock.Work.waiting_summary(user, roots: roots(conn.assigns[:api_token]))
+
     json(conn, %{
       # `timezone` is what recurring cards and snooze use for this person.
       user: %{
@@ -51,7 +54,9 @@ defmodule SlipdockWeb.API.MeController do
       cards: Slipdock.Quota.status(user),
       limits: Slipdock.Quota.report(user),
       # How many things wait on them (#1118); `GET /api/work` lists them.
-      waiting_on_you: Slipdock.Work.waiting_count(user, roots: roots(conn.assigns[:api_token]))
+      waiting_on_you: waiting,
+      # The overseer's open conditions among them (#2068), first.
+      overseer: Enum.map(overseer, &SlipdockWeb.API.OverseerJSON.condition/1)
     })
   end
 

@@ -839,6 +839,8 @@ defmodule SlipdockWeb.Router do
     put "/cards/:id/recurrence", RecurrenceController, :update
     delete "/cards/:id/recurrence", RecurrenceController, :delete
     post "/cards/:id/recurrence/skip", RecurrenceController, :skip
+    get "/boards/:board/overseer", OverseerController, :show
+    patch "/boards/:board/overseer", OverseerController, :update
     get "/boards/:board/garden", GardenController, :index
     post "/boards/:board/garden", GardenController, :create
     patch "/boards/:board/garden/settings", GardenController, :settings

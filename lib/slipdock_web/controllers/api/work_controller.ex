@@ -130,7 +130,8 @@ defmodule SlipdockWeb.API.WorkController do
       card: card(i.card),
       path: i.path,
       wait: i.wait && wait(i.wait),
-      job: i.job && %{id: i.job.id, status: i.job.status, pool: i.job.pool}
+      job: i.job && %{id: i.job.id, status: i.job.status, pool: i.job.pool},
+      condition: i[:condition] && SlipdockWeb.API.OverseerJSON.condition(i.condition)
     }
   end
 

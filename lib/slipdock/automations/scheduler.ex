@@ -71,6 +71,9 @@ defmodule Slipdock.Automations.Scheduler do
       {"Wiki change log prune", &Slipdock.Wiki.Changes.prune_hourly/0},
       # Unsaved wiki work nobody came back for (see `Slipdock.Wiki.Autosaves`).
       {"Autosave prune", &Slipdock.Wiki.Autosaves.prune/0},
+      # The overseer's watch checks, and its passes when due (#2068, see
+      # `Slipdock.Overseer`): every tick, on boards that turned it on.
+      {"Overseer", &Slipdock.Overseer.tick/0},
       # Recurring cards whose next instance is due (see `Slipdock.Recurrence`).
       {"Recurring cards", &Slipdock.Recurrence.tick/0},
       # Snoozed cards whose time has come (see `Slipdock.Snooze`).

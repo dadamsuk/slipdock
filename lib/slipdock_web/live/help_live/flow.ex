@@ -177,6 +177,26 @@ defmodule SlipdockWeb.HelpLive.Flow do
         </dl>
       </.part>
 
+      <.part id="flow-overseer" title="The overseer: when to look">
+        <p>
+          The board's owner can turn on an eye on outcomes, in the board's Automations panel
+          under <strong>Overseer</strong>, or with <code>slipdock overseer B --on</code>.
+          Every minute the server checks the tree for work going round (a second rejection, a
+          third runner pass), something waiting on you while nothing runs, a card past the
+          board's P85 or a job on one step for 30 minutes, idle runners beside a full ready
+          list or jobs queued behind one lane, and an epic whose open subcards are all blocked.
+        </p>
+        <p>
+          Each fires once: an alert, an email, and the top of My work's <em>Waiting on you</em>,
+          saying why and what to do. It clears itself when the condition ends. A cheap model on
+          one of your runners (a <code>job_overseer</code>
+          in its config) reads only those and the pulse, never a card or a log, and writes a
+          digest on the board's <em>Overseer</em>
+          card: every 10 minutes while cards are active, longer when little or nothing is in
+          flight. It flags; it never acts.
+        </p>
+      </.part>
+
       <.part id="flow-more" title="More detail">
         <ul class="list-disc space-y-1 pl-5">
           <li>
@@ -196,8 +216,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
           </li>
           <li>
             The manual (<code>docs/manual.md</code>
-            in the source): <em>Verified work</em>, <em>Lanes</em>, <em>Waiting on a person</em>,
-            <em>Tidying up</em>
+            in the source): <em>Verified work</em>, <em>Lanes</em>, <em>Waiting on a person</em>, <em>Tidying up</em>,
+            <em>The overseer</em>
             and <em>Findings</em>,
             and <code>docs/agents.md</code>
             on the handbook's rules and runners.

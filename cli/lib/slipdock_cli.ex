@@ -16,6 +16,7 @@ defmodule SlipdockCLI do
     Inbound,
     Lanes,
     Ledger,
+    Overseer,
     Registry,
     Runners,
     Skills,
@@ -133,6 +134,11 @@ defmodule SlipdockCLI do
     rules: :boolean,
     # `slipdock garden <board> --run --check K`, `garden apply <id> --keep N --choice C`.
     run: :boolean,
+    # `slipdock overseer <board>` (#2068): its pacing bounds and email.
+    min_minutes: :integer,
+    max_minutes: :integer,
+    idle_minutes: :integer,
+    email: :boolean,
     # Also `verify <id> … --check bar:2=fail:why`, repeated (#1778).
     check: :keep,
     checks_file: :string,
@@ -413,6 +419,7 @@ defmodule SlipdockCLI do
     CardViews,
     Registry,
     Garden,
+    Overseer,
     Health,
     Findings,
     Ledger,

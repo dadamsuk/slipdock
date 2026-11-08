@@ -266,6 +266,7 @@ defmodule SlipdockCLI.Render do
       c = i["card"]
       IO.puts("  ##{c["id"]} #{c["title"]}  " <> dim(since(i["since"])))
       IO.puts("      #{i["text"]}" <> choices(i["wait"]))
+      todo(i["condition"])
       IO.puts(dim("      #{Enum.join(i["path"] || [], " › ")} · #{c["column"]}"))
     end)
   end
@@ -324,6 +325,10 @@ defmodule SlipdockCLI.Render do
 
   def work_muted(%{"unmuted" => b}),
     do: IO.puts("unmuted #{b["name"]}: its tree is back on your Waiting on you")
+
+  # An overseer condition's what to do (#2068), under its item.
+  defp todo(%{"todo" => todo}) when is_binary(todo), do: IO.puts("      What to do: #{todo}")
+  defp todo(_), do: :ok
 
   @doc """
   `slipdock multiboard`: each section's heading (none for the grid), then its

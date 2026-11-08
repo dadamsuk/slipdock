@@ -296,7 +296,8 @@ whole card before touching it.
   card: ask on the subcard itself.
 - "What is waiting on me?", "what needs me?" → `slipdock work`: waits on you,
   review and waiting flags on your cards, runner trouble, cards in progress
-  with nobody on them, oldest first. Answer one with `slipdock answer <id>
+  with nobody on them, oldest first, after the overseer's alerts (each with
+  what to do). Answer one with `slipdock answer <id>
   "…"` (or `--choice N`) — only with the user's own answer. The user can take
   an item off their own list (`slipdock work --dismiss <card>`, until its cause
   changes) or mute a board's tree (`--mute <board>`); do either only when they
