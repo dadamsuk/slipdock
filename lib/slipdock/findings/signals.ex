@@ -17,6 +17,12 @@ defmodule Slipdock.Findings.Signals do
       (`incident/2`, source `incident`, #1946): one finding per incident,
       on the causing card, changed in place as the incident's fields change
 
+  A rejection is dealt with once its rework is accepted (#2119): `accepted/1`
+  dismisses the card's open `rejection` findings, each with a note saying
+  so. The per-rule tally `Slipdock.Quality` gives triage is read from the
+  verdicts, not from findings, so it is unchanged. A `verification` finding
+  is about code the change didn't touch, so it stays open for triage.
+
   A **lane** refusing an agent's move is not one (#1968): it is the lanes
   working, and the refusal, the job's log and its held reason already say so.
 
@@ -53,6 +59,30 @@ defmodule Slipdock.Findings.Signals do
       text: "Rejected (#{part}): " <> to_string(reason),
       job_id: job_id(actor)
     })
+  end
+
+  @doc """
+  `card` was accepted: its open `rejection` findings are dealt with, so each
+  is dismissed with a note saying when (#2119). One recorded after this, by a
+  later rejection, stays open until the next acceptance. Returns how many.
+  """
+  def accepted(%Card{id: id}) do
+    at = DateTime.utc_now(:second)
+    note = "the rework was accepted at #{Calendar.strftime(at, "%Y-%m-%d %H:%M")} UTC"
+
+    {n, _} =
+      Repo.update_all(
+        from(f in Finding,
+          where: f.card_id == ^id and f.source == "rejection" and f.status == "open"
+        ),
+        set: [status: "dismissed", note: note, updated_at: at]
+      )
+
+    n
+  rescue
+    e ->
+      Logger.warning("Couldn't close card ##{id}'s rejection findings: #{Exception.message(e)}")
+      0
   end
 
   @doc false

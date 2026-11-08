@@ -2381,7 +2381,12 @@ incident, a verifier reporting a rule broken in code the change didn't touch
 `merge`, `audit`, `health`). A lane refusing a move is not one: it is the
 lanes working, and the refusal, the job's log and its held reason already
 say so (findings with source `lane` from before this are kept as they
-were). Each has its source,
+were). A card's rejections are dismissed by themselves once it is accepted
+(or merging, on a board that ships by pull request), each with a note saying
+the rework was accepted and when, since the rejection has been dealt with. The
+per-rule tally stays in `slipdock quality --rules`, which reads the verdicts.
+A verifier's note about code the change didn't touch (`verification`) stays
+open. Each has its source,
 card and job, and a repeat on the same card for the same cause adds to its
 count rather than making another: a card that times out three times is one
 finding counted three times. A rejection's kind comes from the part that

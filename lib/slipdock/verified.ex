@@ -626,11 +626,18 @@ defmodule Slipdock.Verified do
     if before.verify_state == "pending" and updated.verify_state == "accepted",
       do: cancel_verify_jobs(updated, nil)
 
+    # Accepted, or merging on a board that ships by pull request: its
+    # rejections have been dealt with (#2119).
+    if accepted?(updated) and not accepted?(before),
+      do: Slipdock.Findings.Signals.accepted(updated)
+
     evidence_comment(before, updated, user)
     if unverified?, do: accept_unverified(updated, user)
 
     :ok
   end
+
+  defp accepted?(%Card{verify_state: state}), do: Enum.member?(~w(accepted merging), state)
 
   # The evidence as a comment, once, when the card is completed or submitted.
   defp evidence_comment(before, updated, user) do
