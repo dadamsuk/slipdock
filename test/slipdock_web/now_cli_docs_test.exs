@@ -16,8 +16,13 @@ defmodule SlipdockWeb.NowCliDocsTest do
 
   test "the CLI's help lists `now <board>` and what it shows" do
     help = flat(read("cli/help.txt"))
-    assert help =~ "now <board> right now on the board's tree: each runner and its jobs' steps"
+
+    assert help =~
+             "now <board> right now on the board's tree: each runner at work and its jobs' steps"
+
     assert help =~ "the cards in progress with where they sit and what holds them"
+    # The idle runners come last, as on the page (#2113).
+    assert help =~ "and the idle runners last"
   end
 
   test "the slipdock skill names `slipdock now` in its commands and for the question" do

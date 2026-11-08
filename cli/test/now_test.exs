@@ -158,8 +158,37 @@ defmodule SlipdockCLI.NowTest do
     assert out =~ "job #12 build running  #45 Fix login  — Running the tests · 3m"
     # A job with no step yet says so, and how long since it was claimed.
     assert out =~ "job #14 verify claimed  #50 Check it  — no step yet · 2m"
-    # A runner holding nothing is idle; a Claude session is marked as one.
-    assert out =~ "laptop (loop) offline · session · idle"
+  end
+
+  test "now lists the idle runners last, after the queue, not among the working ones" do
+    serve(snapshot())
+    out = capture_io(fn -> SlipdockCLI.main(["now", "slipdock"]) end)
+
+    [runners, rest] = String.split(out, "IN PROGRESS")
+    assert runners =~ "box (default) online"
+    refute runners =~ "laptop"
+
+    [_queued, idle] = String.split(rest, "IDLE RUNNERS")
+    assert rest =~ ~r/QUEUED.*IDLE RUNNERS/s
+    # A Claude session is marked as one.
+    assert idle =~ "laptop (loop) offline · session"
+    refute idle =~ "box"
+  end
+
+  test "with every runner idle, RUNNERS says none is working" do
+    serve(
+      JSON.encode!(%{
+        runners: [%{id: 2, name: "laptop", pool: "loop", online: true, session: false, jobs: []}],
+        in_progress: [],
+        queued: [],
+        counts: %{runners: 1, online: 1, working: 0, in_progress: 0, queued: 0}
+      })
+    )
+
+    out = capture_io(fn -> SlipdockCLI.main(["now", "slipdock"]) end)
+
+    assert out =~ ~r/RUNNERS\n\s+none working/
+    assert out =~ ~r/IDLE RUNNERS\n\s+laptop \(loop\) online/
   end
 
   test "now prints the cards in progress, where they sit and what holds them" do
@@ -200,6 +229,7 @@ defmodule SlipdockCLI.NowTest do
     assert out =~ "no runners"
     assert out =~ "nothing in progress"
     assert out =~ "nothing queued"
+    refute out =~ "IDLE RUNNERS"
   end
 
   test "--json prints the server's JSON as it is" do
