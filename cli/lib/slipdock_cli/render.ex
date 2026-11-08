@@ -1386,6 +1386,8 @@ defmodule SlipdockCLI.Render do
       true -> :ok
     end
 
+    copied_from_field(c["copied_from"])
+
     if sb = c["sub_board"] do
       lists = Enum.map_join(sb["columns"], ", ", &"#{&1["name"]} (#{&1["cards"]})")
       field("Subcards", "board ##{sb["id"]} · #{sb["completed"]}/#{sb["total"]} done · #{lists}")
@@ -2942,6 +2944,13 @@ defmodule SlipdockCLI.Render do
 
   def flags([]), do: nil
   def flags(flags), do: Enum.map_join(flags, "", &Map.get(@flag_glyphs, &1, "?"))
+
+  # Which instance this one was copied from (#2081): one look to see why it
+  # came out the way it did.
+  defp copied_from_field(%{"id" => id, "title" => title}),
+    do: field("Copied from", "##{id} #{title}")
+
+  defp copied_from_field(_), do: :ok
 
   defp field(name, value), do: IO.puts(String.pad_trailing(name <> ":", 14) <> to_string(value))
 

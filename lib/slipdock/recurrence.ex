@@ -21,6 +21,19 @@ defmodule Slipdock.Recurrence do
   A server that was down for a while catches up to the latest occurrence
   whose time has come, once, rather than making one per missed occurrence.
 
+  **A clean start.** The next instance is the work, not the last one's
+  state of it (#2081). `copy_card` already leaves behind percent complete,
+  dates, time spent, comments, attachments, links, dependencies and field
+  values, and, since the copy is a new card, its handoff, waits, evidence,
+  verification and bar lock; it drops the `blocked` and `waiting` flags.
+  The recurrence adds: no assignees (a runner that worked the last one
+  assigned it to its token's owner, and the runners' feed rules take only
+  unassigned cards) and no flags at all; and it carries the bar's text, the
+  paths and the profile, which a plain copy doesn't. Title, description,
+  tags, priority, colour, the estimate and the checklist (unticked) come
+  with the copy; the due date is the schedule's. `copied_from/1` names the
+  instance a card was made from.
+
   **After done.** An after-done series waits for its current instance to be
   completed (`completion_changed/1`, called by `Boards.update_card/3`): the
   next is due that long after the local day it was done.
@@ -623,6 +636,7 @@ defmodule Slipdock.Recurrence do
       current
       |> dated(series.next_on)
       |> Map.put("short_name", ShortNames.occurrence(current, series.next_on))
+      |> Map.merge(clean_start(current))
 
     case Boards.copy_card(current, column, at: :top, attrs: attrs) do
       {:ok, copy} ->
@@ -639,6 +653,36 @@ defmodule Slipdock.Recurrence do
       {:error, reason} ->
         Repo.rollback(reason)
     end
+  end
+
+  # What the next instance takes over `copy_card`'s defaults (#2081): none
+  # of the last one's work state (a runner that worked it assigned itself,
+  # and an assigned card is one the runners' feed rules skip), and what
+  # defines the work that a plain copy leaves behind.
+  defp clean_start(current) do
+    %{
+      "assignee_ids" => [],
+      "flags" => [],
+      "bar" => current.bar,
+      "paths" => current.paths,
+      "profile" => current.profile
+    }
+  end
+
+  @doc """
+  The instance `card` was copied from (#2081): the one its series made, or
+  started from, just before it. Nil for a card no series made, and for the
+  card a series started on.
+  """
+  def copied_from(%Card{series_id: nil}), do: nil
+
+  def copied_from(%Card{series_id: series_id, id: id}) do
+    from(c in Card,
+      where: c.series_id == ^series_id and c.id < ^id,
+      order_by: [desc: c.id],
+      limit: 1
+    )
+    |> Repo.one()
   end
 
   # Due on the occurrence; a start date keeps its distance from the due date.

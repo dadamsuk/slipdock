@@ -1364,6 +1364,17 @@ defmodule SlipdockWeb.API.JSON do
   defp author_json(%{} = who), do: Map.take(who, [:kind, :name, :user_id, :job_id])
 
   @doc """
+  The instance of a series `card` was copied from (#2081), as `copied_from`
+  (`%{id, title}`): left off for a card no series made, and for the first.
+  """
+  def put_copied_from(map, %Card{} = card) do
+    case Slipdock.Recurrence.copied_from(card) do
+      nil -> map
+      from -> Map.put(map, :copied_from, %{id: from.id, title: from.title})
+    end
+  end
+
+  @doc """
   Lanes on a card's JSON. Shared paths (#1971), when its board has any:
   `shared_paths`, the globs that never count toward a lane there (what the
   lane-check hook lets through), and `paths_shared`, those of the card's own

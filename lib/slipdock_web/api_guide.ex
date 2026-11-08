@@ -872,9 +872,12 @@ defmodule SlipdockWeb.APIGuide do
     - **Recurring cards** — a card can repeat ("every Monday: review
       invoices"). Its `recurrence` says how (`rule`, `summary`, `next_on`,
       `next_at`, the next three in `upcoming`); `null` when it doesn't.
-      `series_id` marks every instance a series made. The next instance is a
-      copy of the current one made on the server's clock, in the board's
-      ready list; one still open when the next is due has its due date moved
+      `series_id` marks every instance a series made, and a single card's
+      read (`GET /api/cards/:id`, `get_card`) names the one it was copied
+      from as `copied_from` (`{id, title}`). The next instance is a copy of
+      the current one made on the server's clock, in the board's ready
+      list, starting clean: no assignees, flags, percent, handoff, waits,
+      evidence or bar lock from the last one; one still open when the next is due has its due date moved
       on rather than a second made. Set it with
       `PUT /api/cards/:id/recurrence` (Recipes, below) or `update_card`'s
       `recurrence`, and never on a card the person didn't ask to repeat.

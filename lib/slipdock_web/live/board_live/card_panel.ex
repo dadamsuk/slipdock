@@ -2247,7 +2247,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   # early, what a missed one does and when it ends — with what it would do
   # (in words, and the next three dates) before it is saved.
   defp repeat_section(assigns) do
-    assigns = assign(assigns, series: Card.recurrence(assigns.card))
+    assigns =
+      assign(assigns,
+        series: Card.recurrence(assigns.card),
+        # The instance this one was copied from (#2081), for "why is it like this?".
+        copied_from: Slipdock.Recurrence.copied_from(assigns.card)
+      )
 
     ~H"""
     <div id="card-repeat" class="space-y-2 border-t border-base-content/10 pt-4">
@@ -2301,6 +2306,17 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </button>
         </div>
       </div>
+
+      <p :if={@copied_from && !@repeat} id="repeat-copied-from" class="text-xs text-base-content/60">
+        Copied from
+        <.link
+          navigate={~p"/boards/#{@copied_from.board_id}/cards/#{@copied_from.id}"}
+          class="link"
+        >
+          #{@copied_from.id}
+        </.link>
+        {@copied_from.title}
+      </p>
 
       <p :if={!@series && !@repeat && @card.series_id} class="text-xs text-base-content/50">
         An earlier instance of a recurring card: the series has moved on to a newer one.
