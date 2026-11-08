@@ -23,6 +23,16 @@ defmodule SlipdockWeb.WaitingOnMeDocsTest do
     assert manual =~ "*Past the rejection limit*"
   end
 
+  test "the manual says an epic's subcard list marks the rows waiting on you (#2128)" do
+    manual = flat("docs/manual.md")
+
+    assert manual =~
+             "Open the epic and its subcard list marks the same rows: each one waiting on you carries a badge with its reason (*to verify*, *a question*)"
+
+    assert manual =~ "one waiting on someone else a quieter mark naming who it waits on"
+    assert manual =~ "the line's #ids above the list jump to their rows"
+  end
+
   test "docs/agents.md names the field and the CLI line" do
     agents = flat("docs/agents.md")
     assert agents =~ "**What in an epic's tree waits on you.**"
