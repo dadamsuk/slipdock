@@ -129,8 +129,10 @@ defmodule Slipdock.MixProject do
   warning fails here rather than in the pull request (#1964). A step with
   `cd:` runs in that directory, in its own environment (`pre_push_env/1`).
 
-  Then it runs the tests in
-  `test/repo_checks.txt` (`repo_checks/0`): the ones that hold the repo's own
+  Then it drops this checkout's own test database (`pre_push_partition/0`),
+  so a schema left by another branch's migrations can't carry over (#2115),
+  and runs the tests in
+  `test/repo_checks.txt` (`repo_checks/0`), which create and migrate it again: the ones that hold the repo's own
   files, docs and skills to a rule, which a builder running only its own
   tests would otherwise first see fail in the pull request's CI.
 
@@ -147,6 +149,7 @@ defmodule Slipdock.MixProject do
       {"compile", ["--force", "--warnings-as-errors"]},
       {"format", ["--check-formatted"]},
       {"compile", ["--warnings-as-errors"], cd: "cli"},
+      {"ecto.drop", ["--quiet"]},
       {"test", repo_checks()},
       {"hex.audit", []},
       {"deps.audit", []},
@@ -220,26 +223,68 @@ defmodule Slipdock.MixProject do
 
   @doc """
   The environment every step runs in. The repo checks use a test database of
-  their own (`MIX_TEST_PARTITION`), so they don't wait for the
-  `Slipdock.TestRunLock` of a `mix test` running beside them. The compile gets
-  it too: the partition is part of the test config, and a step with another
-  would recompile what reads it.
+  their own (`MIX_TEST_PARTITION`, `pre_push_partition/1`), so they don't wait
+  for the `Slipdock.TestRunLock` of a `mix test` running beside them, and one
+  per checkout, so another worktree's migrations can't break them (#2115). The
+  compile gets it too: the partition is part of the test config, and a step
+  with another would recompile what reads it.
+
+  `TEST_DATABASE_URL` overrides the partition in `config/test.exs`, so when
+  it is set the steps get it with the partition on its database's name
+  (`pre_push_database_url/2`) rather than the shared database it names.
   """
-  def pre_push_env(opts \\ [])
+  def pre_push_env(opts \\ [], test_database_url \\ System.get_env("TEST_DATABASE_URL"))
 
   # The CLI is its own project: it builds in its own `_build` in its default
   # environment, as CI's cli job does, not in the app's test partition.
-  def pre_push_env(cd: _dir) do
+  def pre_push_env([cd: _dir], _test_database_url) do
     for name <- ~w(MIX_ENV MIX_BUILD_ROOT MIX_BUILD_PATH MIX_TEST_PARTITION MIX_EXS),
         do: {name, nil}
   end
 
-  def pre_push_env([]) do
+  def pre_push_env([], test_database_url) do
+    partition = pre_push_partition()
+
     [
       {"MIX_ENV", to_string(Mix.env())},
       {"MIX_BUILD_ROOT", pre_push_build_root()},
-      {"MIX_TEST_PARTITION", "_pre_push"}
-    ]
+      {"MIX_TEST_PARTITION", partition}
+    ] ++ pre_push_database_env(test_database_url, partition)
+  end
+
+  defp pre_push_database_env(url, _partition) when url in [nil, ""], do: []
+
+  defp pre_push_database_env(url, partition),
+    do: [{"TEST_DATABASE_URL", pre_push_database_url(url, partition)}]
+
+  @doc """
+  The repo checks' test database partition for the checkout at `root`:
+  `_pre_push_` and the first 8 hex digits of the SHA-256 of its path. Two
+  worktrees get two databases; one checkout always gets the same one, so
+  the steps share it and nothing recompiles.
+  """
+  def pre_push_partition(root \\ __DIR__) do
+    hash = :crypto.hash(:sha256, Path.expand(root)) |> Base.encode16(case: :lower)
+    "_pre_push_" <> binary_part(hash, 0, 8)
+  end
+
+  @doc """
+  `url` with `partition` added to its database's name, as `config/test.exs`
+  adds `MIX_TEST_PARTITION` to its default: `postgres://h/slipdock_test` with
+  `_pre_push_ab12cd34` is `postgres://h/slipdock_test_pre_push_ab12cd34`. A
+  URL already ending in the partition is left as it is.
+  """
+  def pre_push_database_url(url, partition) do
+    uri = URI.parse(url)
+
+    name =
+      case uri.path do
+        path when path in [nil, "", "/"] -> "slipdock_test"
+        "/" <> path -> path
+      end
+
+    name = if String.ends_with?(name, partition), do: name, else: name <> partition
+    URI.to_string(%{uri | path: "/" <> name})
   end
 
   defp step_parts({task, argv}), do: {task, argv, []}

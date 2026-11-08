@@ -43,6 +43,7 @@ defmodule Slipdock.PrePushAliasTest do
              {"compile", ["--force", "--warnings-as-errors"]},
              {"format", ["--check-formatted"]},
              {"compile", ["--warnings-as-errors"], cd: "cli"},
+             {"ecto.drop", ["--quiet"]},
              {"test", project().repo_checks()},
              {"hex.audit", []},
              {"deps.audit", []},
@@ -87,6 +88,7 @@ defmodule Slipdock.PrePushAliasTest do
              "compile",
              "format",
              "compile",
+             "ecto.drop",
              "test",
              "hex.audit",
              "deps.audit",
@@ -112,7 +114,7 @@ defmodule Slipdock.PrePushAliasTest do
       assert error.message == "pre_push: mix hex.audit failed (exit 3)"
     end)
 
-    assert ran() == ["compile", "format", "compile", "test", "hex.audit"]
+    assert ran() == ["compile", "format", "compile", "ecto.drop", "test", "hex.audit"]
   end
 
   test "a failing repo check stops the run before the audits (#1867)" do
@@ -124,14 +126,14 @@ defmodule Slipdock.PrePushAliasTest do
                    end
     end)
 
-    assert ran() == ["compile", "format", "compile", "test"]
+    assert ran() == ["compile", "format", "compile", "ecto.drop", "test"]
   end
 
   test "runs the repo checks after the compiles and format, before the slower audits (#1867)" do
     tasks = Enum.map(project().pre_push_steps(), &elem(&1, 0))
-    assert Enum.take(tasks, 4) == ["compile", "format", "compile", "test"]
+    assert Enum.take(tasks, 5) == ["compile", "format", "compile", "ecto.drop", "test"]
 
-    {"test", files} = Enum.at(project().pre_push_steps(), 3)
+    {"test", files} = Enum.at(project().pre_push_steps(), 4)
     assert "test/slipdock/nothing_personal_test.exs" in files
     assert Enum.all?(files, &File.regular?(Path.join(@root, &1)))
   end
@@ -139,10 +141,95 @@ defmodule Slipdock.PrePushAliasTest do
   test "every step runs with the repo checks' own test database (#1867)" do
     # Its own, so a `mix test` beside it doesn't hold it up; every step's, so
     # the test step doesn't recompile what reads the partition from config.
-    env = project().pre_push_env()
-    assert {"MIX_TEST_PARTITION", "_pre_push"} in env
+    env = project().pre_push_env([], nil)
+    assert {"MIX_TEST_PARTITION", project().pre_push_partition()} in env
     assert {"MIX_BUILD_ROOT", project().pre_push_build_root()} in env
     assert {"MIX_ENV", "test"} in env
+    refute List.keymember?(env, "TEST_DATABASE_URL", 0)
+  end
+
+  describe "a test database per checkout (#2115)" do
+    test "the partition is derived from the checkout's path" do
+      partition = project().pre_push_partition()
+      assert partition =~ ~r/^_pre_push_[0-9a-f]{8}$/
+      assert partition == project().pre_push_partition(@root)
+      # The same checkout always gets the same one, however its path is written.
+      assert partition == project().pre_push_partition(Path.join(@root, "test/.."))
+    end
+
+    test "two worktrees get two databases" do
+      a = project().pre_push_partition("/work/slipdock-lanes/card-1")
+      b = project().pre_push_partition("/work/slipdock-lanes/card-2")
+      assert a != b
+      assert a == project().pre_push_partition("/work/slipdock-lanes/card-1")
+      refute a == "_pre_push"
+    end
+
+    test "every step but the CLI's gets this checkout's partition" do
+      assert {"MIX_TEST_PARTITION", project().pre_push_partition()} in project().pre_push_env()
+      assert {"MIX_TEST_PARTITION", nil} in project().pre_push_env([cd: "cli"], nil)
+    end
+
+    test "drops this checkout's database just before the repo checks, so no stale schema carries over" do
+      steps = project().pre_push_steps()
+      i = Enum.find_index(steps, &(&1 == {"ecto.drop", ["--quiet"]}))
+      assert {"test", _} = Enum.at(steps, i + 1)
+
+      # The test alias creates and migrates it again before the tests run.
+      assert ["ecto.create --quiet", "ecto.migrate --quiet", "test"] =
+               Mix.Project.config()[:aliases][:test]
+    end
+
+    test "a failed drop stops the run before the repo checks" do
+      capture_io(fn ->
+        assert_raise Mix.Error, "pre_push: mix ecto.drop --quiet failed (exit 1)", fn ->
+          project().pre_push([], recorder(%{"ecto.drop" => 1}))
+        end
+      end)
+
+      assert ran() == ["compile", "format", "compile", "ecto.drop"]
+    end
+
+    test "TEST_DATABASE_URL, which overrides the partition, gets it on its database's name" do
+      partition = project().pre_push_partition()
+
+      env =
+        project().pre_push_env([], "postgres://postgres:postgres@localhost:5433/slipdock_test")
+
+      assert {"TEST_DATABASE_URL",
+              "postgres://postgres:postgres@localhost:5433/slipdock_test#{partition}"} in env
+
+      assert {"MIX_TEST_PARTITION", partition} in env
+    end
+
+    test "an empty TEST_DATABASE_URL is left alone, as config/test.exs would ignore it" do
+      refute List.keymember?(project().pre_push_env([], ""), "TEST_DATABASE_URL", 0)
+    end
+
+    test "the CLI's compile doesn't take TEST_DATABASE_URL" do
+      env = project().pre_push_env([cd: "cli"], "postgres://localhost/slipdock_test")
+      refute List.keymember?(env, "TEST_DATABASE_URL", 0)
+    end
+
+    test "pre_push_database_url/2 keeps the rest of the URL, and doesn't add the partition twice" do
+      url = &project().pre_push_database_url(&1, "_pre_push_ab12cd34")
+
+      assert url.("postgres://localhost/slipdock_test") ==
+               "postgres://localhost/slipdock_test_pre_push_ab12cd34"
+
+      assert url.("ecto://postgres:postgres@localhost:5434/other_db?ssl=true") ==
+               "ecto://postgres:postgres@localhost:5434/other_db_pre_push_ab12cd34?ssl=true"
+
+      assert url.("postgres://localhost/slipdock_test_pre_push_ab12cd34") ==
+               "postgres://localhost/slipdock_test_pre_push_ab12cd34"
+
+      # No database named: the default one's name, as config/test.exs uses.
+      assert url.("postgres://localhost") ==
+               "postgres://localhost/slipdock_test_pre_push_ab12cd34"
+
+      assert url.("postgres://localhost/") ==
+               "postgres://localhost/slipdock_test_pre_push_ab12cd34"
+    end
   end
 
   test "a credo finding (exit 8) fails the run, after every other check" do
@@ -153,7 +240,7 @@ defmodule Slipdock.PrePushAliasTest do
         end
       end)
 
-    assert length(ran()) == 8
+    assert length(ran()) == 9
     refute out =~ "all checks passed"
   end
 
