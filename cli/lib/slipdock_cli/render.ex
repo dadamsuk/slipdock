@@ -175,7 +175,8 @@ defmodule SlipdockCLI.Render do
          Enum.map(pages, &{&1["board_position"], 1, {:page, &1}}))
       |> Enum.sort()
       |> Enum.each(fn
-        {_, _, {:card, card}} -> board_card(card)
+        {_, _, {:card, card}} ->
+          board_card(card)
 
         {_, _, {:page, page}} ->
           IO.puts("  " <> page_line(page))
