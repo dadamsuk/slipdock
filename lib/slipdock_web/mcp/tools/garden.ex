@@ -27,9 +27,9 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
   @impl true
   def description,
     do:
-      "The board gardener's open tidy-up suggestions (epics done but open, stuck or " <>
-        "stale cards, likely duplicates, orphaned pages, broken [[links]]), each with " <>
-        "why and its steps. run: true looks again first (a write). Show the person, then " <>
+      "The gardener's open tidy-up suggestions (done epics, stale cards, duplicates, " <>
+        "orphaned pages, broken [[links]]) with why and steps; check: proposal is the " <>
+        "rules drafted from findings. run: true looks again first (a write). Then " <>
         "garden_decide."
 
   @impl true

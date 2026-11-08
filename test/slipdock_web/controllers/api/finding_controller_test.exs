@@ -35,6 +35,19 @@ defmodule SlipdockWeb.API.FindingControllerTest do
     }
   end
 
+  # A rule drafted from findings, waiting on a person (#2123).
+  defp proposal(board, finding_ids, attrs \\ []) do
+    %Slipdock.Gardener.Suggestion{
+      board_id: board.id,
+      check: "proposal",
+      fingerprint: "p#{System.unique_integer([:positive])}",
+      explanation: "Finding seen 3 times: add a rule",
+      subject: if(finding_ids == [], do: %{}, else: %{"findings" => finding_ids})
+    }
+    |> struct(attrs)
+    |> Repo.insert!()
+  end
+
   defp as(user), do: user |> conn_as() |> put_req_header("accept", "application/json")
 
   defp read_only(user) do
@@ -56,6 +69,19 @@ defmodule SlipdockWeb.API.FindingControllerTest do
     assert one["status"] == "open" and one["count"] == 1
     assert one["card"] == %{"id" => ctx.card.id, "title" => "Taught", "board_id" => ctx.board.id}
     assert two["kind"] == "rule"
+  end
+
+  test "the proposals drafted from them come first, as awaiting (#2123)", ctx do
+    assert %{"awaiting" => []} = list(ctx.reader, ctx.board)
+
+    p = proposal(ctx.board, [ctx.one.id])
+    proposal(ctx.board, [ctx.one.id], state: "applied")
+    proposal(ctx.board, [])
+
+    assert %{"awaiting" => [listed], "findings" => [_, _]} = list(ctx.reader, ctx.board)
+    assert %{"id" => id, "check" => "proposal", "state" => "open", "findings" => [one]} = listed
+    assert id == p.id and one == ctx.one.id
+    assert listed["explanation"] == "Finding seen 3 times: add a rule"
   end
 
   test "filters by kind and status, and a bad since is a 422", ctx do

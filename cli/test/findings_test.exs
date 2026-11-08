@@ -69,6 +69,35 @@ defmodule SlipdockCLI.FindingsTest do
     assert out =~ "#5 [merged] process (timeout #12) ×3: job #9 timed out → #4 — same cause"
   end
 
+  # #2123: what waits on the person comes first.
+  test "findings <board> leads with the proposals that await you" do
+    awaiting = [
+      %{"id" => 123, "findings" => [4], "explanation" => "Seen 3 times: add UX-4"},
+      %{"id" => 124, "findings" => [5, 6], "explanation" => "Seen 4 times: add TEST-9"}
+    ]
+
+    serve([{200, JSON.encode!(%{"awaiting" => awaiting, "findings" => [@open]})}])
+    out = capture_io(fn -> Findings.run("findings", ["slipdock"], []) end)
+
+    assert out =~ "2 proposals await you:\n"
+    assert out =~ "  proposal #123 (from #4): Seen 3 times: add UX-4\n"
+    assert out =~ "  proposal #124 (from #5, #6): Seen 4 times: add TEST-9\n"
+    assert out =~ "  Apply or dismiss: slipdock garden slipdock --check proposal\n"
+    [before, _] = String.split(out, "#4 gotcha")
+    assert before =~ "proposal #124"
+
+    serve([{200, JSON.encode!(%{"awaiting" => [hd(awaiting)], "findings" => []})}])
+    out = capture_io(fn -> Findings.run("findings", ["slipdock"], []) end)
+    assert out =~ "1 proposal awaits you:"
+    assert out =~ "No open findings."
+
+    # None waiting, or a server from before #2123: just the findings.
+    serve([{200, JSON.encode!(%{"findings" => [@open]})}])
+    out = capture_io(fn -> Findings.run("findings", ["slipdock"], []) end)
+    refute out =~ "await"
+    assert out =~ "#4 gotcha"
+  end
+
   # #1941: one row per lesson, with the other cards it was said on, and a
   # runner's tooling only with --scope.
   test "--scope goes in the query; a row names the other cards and the runner" do

@@ -307,6 +307,34 @@ defmodule SlipdockWeb.GardenAPITest do
                |> json_response(200)
     end
 
+    test "MCP garden's proposals are what the findings page leads with, findings named (#2123)",
+         ctx do
+      {:ok, _} =
+        Slipdock.Boards.add_comment(
+          card_fixture(hd(ctx.board.columns), %{"title" => "Taught"}),
+          "- Findings:\n  - gotcha: screens must not flash on load",
+          by: ctx.owner
+        )
+
+      [f] = Slipdock.Repo.all(Slipdock.Findings.Finding)
+
+      {:ok, s, :new} =
+        Gardener.propose(ctx.board, ctx.owner, Map.put(proposal(ctx.page), "findings", [f.id]))
+
+      assert %{"suggestions" => [listed]} =
+               as(ctx.owner)
+               |> mcp_call("garden", %{board: ctx.board.code, check: "proposal"})
+               |> Map.fetch!("structuredContent")
+
+      assert %{"awaiting" => [awaiting]} =
+               as(ctx.owner)
+               |> get("/api/boards/#{ctx.board.code}/findings")
+               |> json_response(200)
+
+      assert listed["id"] == s.id and awaiting["id"] == s.id
+      assert listed["findings"] == [f.id] and awaiting["findings"] == [f.id]
+    end
+
     test "MCP garden lists proposals by check, and garden_decide applies one with confirm", ctx do
       {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
 

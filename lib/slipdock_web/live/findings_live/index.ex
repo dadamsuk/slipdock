@@ -11,12 +11,17 @@ defmodule SlipdockWeb.FindingsLive.Index do
   finding of the tree or reopened, through `Slipdock.Findings.triage/3` as
   `PATCH /api/findings/:id` does. Promote and merge are a panel opened at
   `?triage=<id>`, so it survives a reload (UX-5).
+
+  It leads with what waits on a person (#2123): the open garden proposals
+  drafted from findings (`Slipdock.Findings.Awaiting`), each linking the
+  Tidy-up page where it is applied or dismissed. Triage and the server
+  handle the findings themselves, so their list comes after, as reference.
   """
   use SlipdockWeb, :live_view
 
   alias Slipdock.{Access, Boards, Findings}
   alias Slipdock.Boards.Board
-  alias Slipdock.Findings.Finding
+  alias Slipdock.Findings.{Awaiting, Finding}
   alias Slipdock.Repo
   alias SlipdockWeb.Params
 
@@ -74,6 +79,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
     triage = socket.assigns.triage_id && triage_finding(root, socket.assigns.triage_id)
 
     assign(socket,
+      awaiting: Awaiting.proposals(root),
       findings: findings,
       filter_error: error,
       filter_form: to_form(filters, as: :filters),
@@ -317,6 +323,46 @@ defmodule SlipdockWeb.FindingsLive.Index do
             </:meta>
           </.page_header>
 
+          <section id="findings-awaiting" class="space-y-2">
+            <h2 class="section-title">
+              Waiting on you
+              <span class="badge badge-ghost badge-sm" data-role="awaiting-count">
+                {length(@awaiting)}
+              </span>
+            </h2>
+            <.empty_state
+              :if={@awaiting == []}
+              id="findings-awaiting-empty"
+              icon="hero-check-circle"
+              title="Nothing to decide"
+              compact
+            >
+              When a finding recurs, a rule is drafted from it as a proposal, and it waits here for you to apply or dismiss.
+            </.empty_state>
+            <ul :if={@awaiting != []} class="space-y-2">
+              <li
+                :for={s <- @awaiting}
+                id={"findings-proposal-#{s.id}"}
+                class="space-y-1 rounded-xl bg-base-100 p-3 shadow-sm ring-1 ring-base-content/10"
+              >
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                  <span class="badge badge-sm badge-outline">proposal #{s.id}</span>
+                  <span class="text-base-content/60" data-role="from">
+                    from {Enum.map_join(Awaiting.findings(s), ", ", &"##{&1}")}
+                  </span>
+                  <.link
+                    navigate={~p"/boards/#{@root}/tidy"}
+                    class="btn btn-ghost btn-xs ml-auto"
+                    data-role="decide"
+                  >
+                    Apply or dismiss…
+                  </.link>
+                </div>
+                <p class="whitespace-pre-wrap text-sm" data-role="explanation">{s.explanation}</p>
+              </li>
+            </ul>
+          </section>
+
           <.form
             for={@filter_form}
             id="findings-filters"
@@ -385,6 +431,9 @@ defmodule SlipdockWeb.FindingsLive.Index do
             <h2 class="section-title">
               Findings <span class="badge badge-ghost badge-sm">{length(@findings)}</span>
             </h2>
+            <p class="text-xs text-base-content/60" data-role="reference">
+              For reference: triage and the server merge, promote and dismiss these, and draft a proposal above when one recurs.
+            </p>
             <ul class="space-y-2">
               <.finding_row
                 :for={f <- @findings}

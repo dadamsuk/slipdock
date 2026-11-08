@@ -17,7 +17,8 @@ defmodule SlipdockCLI.Findings do
   def commands, do: @commands
 
   def run("findings", [ref], o) do
-    HTTP.get("/boards/#{enc(ref)}/findings", query(o)) |> out(o, &listing(&1, o))
+    HTTP.get("/boards/#{enc(ref)}/findings", query(o))
+    |> out(o, &listing(&1, Map.put(Map.new(o), :board, ref)))
   end
 
   def run("findings", _args, _o) do
@@ -61,16 +62,38 @@ defmodule SlipdockCLI.Findings do
 
   def body(action, o), do: {:ok, %{"action" => action, "note" => o[:note]}}
 
+  # First what waits on the person (#2123): the proposals drafted from the
+  # findings. The findings after it are being handled, and are reference.
   @doc false
-  def listing(%{"findings" => []}, o) do
+  def listing(data, o) do
+    Enum.each(awaiting(Map.get(data, "awaiting", []), o[:board]), &IO.puts/1)
+    findings(data["findings"], o)
+  end
+
+  defp findings([], o) do
     IO.puts(
       if Enum.member?([nil, "open"], o[:status]), do: "No open findings.", else: "No findings."
     )
   end
 
-  def listing(%{"findings" => findings}, _o) do
-    Enum.each(findings, &IO.puts(line(&1)))
+  defp findings(findings, _o), do: Enum.each(findings, &IO.puts(line(&1)))
+
+  @doc false
+  def awaiting([], _board), do: []
+
+  def awaiting(proposals, board) do
+    n = length(proposals)
+
+    each =
+      Enum.map(proposals, &"  proposal ##{&1["id"]} (from #{from(&1)}): #{&1["explanation"]}")
+
+    decide = "  Apply or dismiss: slipdock garden #{board || "<board>"} --check proposal"
+
+    ["#{n} #{if n == 1, do: "proposal awaits", else: "proposals await"} you:" | each] ++
+      [decide, ""]
   end
+
+  defp from(p), do: p |> Map.get("findings", []) |> Enum.map_join(", ", &"##{&1}")
 
   @doc false
   def line(f, now \\ DateTime.utc_now()) do

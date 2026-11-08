@@ -3708,6 +3708,14 @@ defmodule SlipdockWeb.APIGuide do
     write access) triages one. A card's `findings` (in `get_card` and
     `GET /api/cards/:id`) counts its open ones.
 
+    What the findings leave for a person is the proposals drafted from them,
+    not the open list, which triage and the server handle: the listing
+    leads with `awaiting`, the open garden proposals whose subject names
+    findings (as the garden lists them, each with its `findings`), and
+    `slipdock findings` prints "N proposals await you" before the list. MCP
+    `garden` with `check: proposal` lists the same; `garden_decide` (or
+    `slipdock garden apply|dismiss <id>`) decides one.
+
     A finding counted to the board's `findings_propose_at` (3 by default, 0
     off; `update_board`, `PATCH /api/boards/:board`, `slipdock set-board
     --findings-propose-at N`) is drafted by the server as a garden proposal

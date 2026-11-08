@@ -260,6 +260,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   requeues and failed merges by itself, and someone triages them
   into the handbook on the board's Findings page (a card says how many open
   ones it has), `slipdock findings <board>` or `GET /api/boards/:board/findings`.
+  What waits on a person is the rules drafted from them, so the Findings tile
+  and page lead with those proposals and keep the findings as reference.
 - **Ledger** — [what shipped since yesterday, to skim](docs/manual.md#the-ledger):
   one line per card completed, accepted, merged or deployed, with who or what
   accepted it, its evidence, the `should` rules it missed, where its time went

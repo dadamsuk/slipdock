@@ -380,11 +380,14 @@ defmodule SlipdockWeb.HelpLive.Guides do
         </li>
         <li>
           <strong>Findings</strong>: what agents' passes learned on a board, and what went wrong
-          (a rejection, a job that timed out), kept for you to triage. Its tile on the board's
+          (a rejection, a job that timed out). Triage and the server handle them; what waits on
+          you is a rule drafted from one that recurs. Its tile on the board's
           <em>Agentic Building</em>
-          page opens the board's Findings page (a card's Findings link opens it too): filter by
-          status, kind, source, card or date, and promote a finding into the handbook, merge
-          repeats or dismiss it. A card with open findings says how many, and links there.
+          page counts those proposals and opens the board's Findings page (a card's Findings link opens it too),
+          which leads with them, each linking the Tidy-up page to apply or dismiss. Below, for
+          reference, the findings: filter by status, kind, source, card or date, and promote a
+          finding into the handbook, merge repeats or dismiss it. A card with open findings
+          says how many, and links there.
         </li>
         <li>
           <strong>Ledger</strong>: what shipped on a board since 07:00 yesterday, a line per card
