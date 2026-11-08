@@ -280,6 +280,17 @@ A **handoff** (`Left off:`, first under the title) is where whoever had it last
 left it — the one next step and their note: read it first and start there.
 `slipdock handoff <id>` shows it with the ones before it.
 
+**An open wait: check it is still live, before anything else.** A card (or
+its epic) sent to you with an open wait (`slipdock card` shows `waits on
+…`) may be waiting for nothing: the question answered elsewhere (a
+comment, another card), the bar or description edited since, the cited
+rule or decision now in place, the card rejected or accepted since. A
+moot wait is withdrawn, by whichever agent finds it, not only the one
+that opened it, with a comment saying why: `slipdock wait <id> --withdraw
+--reason "…"` (over MCP, `update_card` `wait: null` with `wait_reason`;
+another agent's wait is refused without the reason). Then carry on to the
+obvious reading. A wait that is still live is left alone.
+
 **The handbook.** On a board that keeps one, `slipdock card` (over MCP,
 `get_card`'s `handbook`) shows a **Handbook** block: up to five sections
 picked for this card, each with the command that reads it (`slipdock page
@@ -775,6 +786,13 @@ With one on, the pass changes like this:
   and leave the conflict to the verifier. A bar you write yourself is one
   that can be met: a rule change is "proposed as a garden proposal (rule
   id, wording)", never "W-x has rule Y".
+- **A bar item made moot is read the obvious way, not waited on.** A
+  locked bar item that a later decision or rule has made moot (a
+  `Decision:` page, a card, a rule id: cited) is read the obvious way. Say
+  so on the card (what you read, why, the citation) and leave the
+  judgement to the verifier, who accepts a noted reading and rejects one
+  that wasn't noted. Not a wait: the same as the guide's Card shape says
+  of two readings of a description.
 - **The verifier's checks, first.** Before submitting, run the four
   checks a verifier will (see **A verify job** below) on your own work: the
   bar covers the ask, each part of the bar is met, no `must` rule for the
@@ -1010,6 +1028,20 @@ next pass:
   answer on top of the prompt. A question about a subcard goes on the
   subcard, even in the epic's job: it parks that job, and the answer sends
   the epic again, naming the subcard. Over MCP it is `update_card` `wait`.
+
+  **What a wait is for:** readings that differ materially in cost or in
+  what the person sees; decisions the Playbook or the board routes to a
+  person (product, ux, security, release); and anything a rule says is a
+  person's step (merging, changing a handbook rule, deploying). Not a
+  reading you have already settled yourself: a question with a proposed
+  answer and a yes/no is an approval, and should be rare. One that offers
+  choices **names the default you would take**, `--default N` (`wait`
+  `default` over MCP), so the answer can be one click. On a board with
+  `wait_default_after` set, an approval (kind `other`, with choices and a
+  default) left unanswered that long goes ahead with its default: the
+  card says so, the person asked is told, and the card comes back to you.
+  Product, ux, security and release questions, and a wait with no
+  default, never do.
 - **Bigger than a card.** Break it up where it stands: `slipdock check` for steps
   inside one sitting's work, subcards under it for anything larger (`slipdock
   subboard <id> --template T`, then `slipdock add N ...`). Then work the first one

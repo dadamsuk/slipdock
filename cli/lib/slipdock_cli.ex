@@ -105,6 +105,10 @@ defmodule SlipdockCLI do
     verify_rejection_limit: :integer,
     verify_audit: :integer,
     findings_propose_at: :integer,
+    # An approval wait's proposal stands after this long (#2096): 4h, off.
+    wait_default_after: :string,
+    # `wait <id> "…" --choice X --choice Y --default 2`: the proposed choice (#2096).
+    default: :integer,
     # How long runner job logs stay (#1872), and `job <id> --keep`.
     job_log_hours: :integer,
     failure_log_hours: :integer,

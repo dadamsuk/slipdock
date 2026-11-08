@@ -76,6 +76,9 @@ defmodule Slipdock.Automations.Scheduler do
       {"Overseer", &Slipdock.Overseer.tick/0},
       # Recurring cards whose next instance is due (see `Slipdock.Recurrence`).
       {"Recurring cards", &Slipdock.Recurrence.tick/0},
+      # Approval waits past their board's `wait_default_after`, resolved to
+      # their proposal (#2096, see `Slipdock.WaitDefaults`).
+      {"Wait defaults", fn -> Slipdock.WaitDefaults.tick() end},
       # Snoozed cards whose time has come (see `Slipdock.Snooze`).
       {"Waking snoozed cards", &Slipdock.Snooze.tick/0},
       # Uploaded files still to be read for text (see `Slipdock.OCR`).

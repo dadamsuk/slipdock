@@ -30,6 +30,7 @@ defmodule Slipdock.AgenticBuilding do
     {:profile_tiers, %{}, "A human tier"},
     {:findings_propose_at, 3, "Findings promotion"},
     {:wait_routes, %{}, "Who gets asked"},
+    {:wait_default_after, nil, "Approval waits default"},
     {:handoff_label, nil, "A handoff label"},
     {:handoff_prompt, nil, "Handoff instructions"},
     {:automation_wip, false, "WIP limits holding automated work"},

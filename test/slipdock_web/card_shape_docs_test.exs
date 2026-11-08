@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.CardShapeDocsTest do
   @moduledoc """
-  How a one-sentence ask becomes a card (#2042): seven bullets in the
+  How a one-sentence ask becomes a card (#2042): eight bullets in the
   guide's *Epics and subcards*, and the line saying a handbook's Playbook
   overrides them, said the same in `docs/agents.md`, on the agents help
   page and in `slipdock-work`. Sprints moved to a section of
@@ -37,9 +37,9 @@ defmodule SlipdockWeb.CardShapeDocsTest do
     epics
   end
 
-  test "the guide's Epics and subcards carries the seven bullets" do
+  test "the guide's Epics and subcards carries the eight bullets" do
     items = bullets(epics())
-    assert length(items) == 7
+    assert length(items) == 8
 
     for {start, item} <-
           Enum.zip(
@@ -50,6 +50,8 @@ defmodule SlipdockWeb.CardShapeDocsTest do
               "**Don't add** an estimate, priority, tags, a due date or an assignee",
               "**Don't repeat the repo's rules**",
               "**Two readings:** write the obvious one",
+              # The same, applied to a locked bar (#2096).
+              "**A bar item made moot** by a later, cited decision or rule",
               "**Dependencies:** `blocked_by` means *can't start until*"
             ],
             items

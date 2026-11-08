@@ -382,9 +382,11 @@ slipdock finding <id> promote|dismiss|reopen [--note "W-12 §Tests"]   # triage 
 slipdock finding <id> merge --into ID    # fold a repeat into another, adding its count
 slipdock flag <id> <flag>... [--off]     # flags: flagged blocked review waiting starred stuck
                                        # (stuck is the health monitor's: leave it for a person)
-slipdock wait <id> "what you need" [--on EMAIL] [--choice X]...   # wait on a person: flags it waiting,
-                                       # asks on the card; in a runner job it parks the job
-slipdock wait <id> --withdraw            # withdraw the open wait (or take the waiting flag off)
+slipdock wait <id> "what you need" [--on EMAIL] [--choice X]... [--default N] [--kind K]   # wait on a person:
+                                       # flags it waiting, asks on the card; in a runner job it parks the job;
+                                       # --default N names the choice you propose (the one-click answer)
+slipdock wait <id> --withdraw [--reason "why"]   # withdraw the open wait (or take the waiting flag off);
+                                       # an agent withdrawing one it didn't open (a moot wait) must give the reason
 slipdock answer <id> ["text"] [--choice N]   # answer it: a comment from you; a parked job's card is sent again
 slipdock wait <id> ["intro"] --question Q --question Q   # several questions: numbered, an answer box each
                                        # (never one block of questions in the text)
@@ -443,6 +445,7 @@ slipdock set-board <board> --wiki-sort modified           # how the top of the w
 slipdock set-board <board> --no-page-card-features        # the board's wiki pages hide status, checklist, links, fields, votes, comments
 slipdock set-board <board> --handoff-label Parked --handoff-prompt-file p.txt  # rename "Left off" in the web app, and Auto generate's instructions ("" = default)
 slipdock set-board <board> --agentic-building on|off     # the web app's Agentic Building page for these settings; off hides it, changes none
+slipdock set-board <board> --wait-default-after 4h       # an unanswered approval (kind other, with choices and a --default) goes ahead with its default after that long, the person asked told (90m, 2d; off, the default); never other kinds
 slipdock set-board <board> --bar-required --evidence-required --verify-work --verify-pool checkers
                                        # Verified work, each off by default: a bar before work
                                        # starts, evidence on completion, a second agent accepts or

@@ -257,6 +257,8 @@ defmodule SlipdockWeb.API.JSON do
       verify_audit: b.verify_audit,
       # A finding seen this many times is drafted as a proposal (#1942); 0 off.
       findings_propose_at: b.findings_propose_at,
+      # An approval wait's proposal stands after this long (#2096): "4h"; nil off.
+      wait_default_after: Slipdock.WaitDefaults.format(b.wait_default_after),
       # Who each kind of question goes to (#1949): kind => people, first is on.
       wait_routes: wait_routes(b),
       ship_via: b.ship_via,
@@ -371,6 +373,8 @@ defmodule SlipdockWeb.API.JSON do
       verify_audit: b.verify_audit,
       # A finding seen this many times is drafted as a proposal (#1942); 0 off.
       findings_propose_at: b.findings_propose_at,
+      # An approval wait's proposal stands after this long (#2096): "4h"; nil off.
+      wait_default_after: Slipdock.WaitDefaults.format(b.wait_default_after),
       # Who each kind of question goes to (#1949): kind => people, first is on.
       wait_routes: wait_routes(b),
       ship_via: b.ship_via,
@@ -714,6 +718,8 @@ defmodule SlipdockWeb.API.JSON do
       answers: w.answers,
       choice: w.choice,
       choice_text: Slipdock.Boards.Wait.choice_text(w, w.choice),
+      # The choice the asker proposes (#2096), from 1; nil when none.
+      default_choice: w.default_choice,
       requeue_state: w.requeue_state,
       requeue_note: w.requeue_note
     }

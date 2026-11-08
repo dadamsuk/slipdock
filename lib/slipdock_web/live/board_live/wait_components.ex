@@ -59,12 +59,13 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
           :for={{text, n} <- Enum.with_index(@wait.choices, 1)}
           id={"wait-choice-#{n}"}
           type="button"
-          class="btn btn-xs"
+          class={["btn btn-xs", n == @wait.default_choice && "btn-primary"]}
           phx-click="answer_wait"
           phx-value-choice={n}
           phx-target={@target}
+          title={n == @wait.default_choice && "The answer the asker proposes"}
         >
-          {text}
+          {text}<span :if={n == @wait.default_choice} class="opacity-70"> (proposed)</span>
         </button>
       </div>
       <ol :if={!@can_write and Wait.series?(@wait)} id="wait-questions" class="space-y-1 text-sm">

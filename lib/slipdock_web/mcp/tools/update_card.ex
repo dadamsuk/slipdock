@@ -133,7 +133,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
           description:
             "Opens a wait: the card needs something only a person can give. It flags the " <>
               "card waiting and comments the question; answering it clears the flag. null " <>
-              "withdraws the open wait. A runner job's session links its job by itself.",
+              "withdraws the open wait (a moot one: with wait_reason, which another agent's " <>
+              "wait needs). A runner job's session links its job by itself.",
           properties: %{
             needs: %{
               type: "string",
@@ -157,9 +158,22 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
                 "What kind of question: the board routes each kind to a person (default other)."
             },
             choices: Map.put(list, :description, "Answers to pick from, if it is a choice."),
+            default: %{
+              type: "integer",
+              minimum: 1,
+              description:
+                "The choice you propose, by number: the one-click answer, and what stands " <>
+                  "after the board's wait_default_after on an approval (kind other) wait."
+            },
             job_id: %{type: "integer", description: "Your runner job on this card, if any."}
           },
           additionalProperties: false
+        },
+        wait_reason: %{
+          type: "string",
+          description:
+            "With wait: null, why the wait is withdrawn (moot: answered elsewhere, the bar " <>
+              "or description edited, the cited rule in place). Needed for a wait you didn't open."
         },
         answer_wait: %{
           type: "object",
@@ -292,7 +306,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
         {:error, "pass wait or answer_wait, not both"}
 
       {{:ok, nil}, :error} ->
-        {:ok, :withdraw}
+        with {:ok, reason} <- Args.optional(args, "wait_reason"),
+             do: {:ok, {:withdraw, reason}}
 
       {{:ok, %{} = wait}, :error} ->
         {:ok, {:open, wait}}
@@ -313,8 +328,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
 
   defp write_wait(_auth, _card, :untouched), do: {:ok, nil}
 
-  defp write_wait(auth, card, :withdraw),
-    do: Args.refusal(CardWrites.withdraw_wait(auth, card))
+  defp write_wait(auth, card, {:withdraw, reason}),
+    do: Args.refusal(CardWrites.withdraw_wait(auth, card, %{"reason" => reason}))
 
   defp write_wait(auth, card, {:open, wait}),
     do: Args.refusal(CardWrites.open_wait(auth, card, wait))

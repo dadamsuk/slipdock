@@ -51,7 +51,7 @@ defmodule Slipdock.Handbook.SeedDocsTest do
 
     {:ok, ours} = Slipdock.Wiki.Section.read(seeded("Playbook").body, "Playbook/Card shape")
 
-    assert length(bullets(guide)) == 7
+    assert length(bullets(guide)) == 8
     assert bullets(ours) == bullets(guide)
   end
 

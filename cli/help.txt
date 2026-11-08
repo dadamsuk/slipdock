@@ -778,7 +778,7 @@ WRITE
       [--wiki-sort manual|name|modified|created] [--bar-required | --no-bar-required]
       [--evidence-required | --no-evidence-required] [--verify-work | --no-verify-work]
       [--verify-pool POOL] [--verify-rejection-limit N] [--verify-audit N]
-      [--findings-propose-at N]
+      [--findings-propose-at N] [--wait-default-after TIME|off]
       [--ship-via push|pull-request]
       [--lanes | --no-lanes] [--lane-mode off|hold|advise] [--shared-paths GLOBS]
       [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
@@ -836,6 +836,11 @@ WRITE
                                       --findings-propose-at N: a finding seen N times
                                       gets a handbook rule drafted as a Tidy-up
                                       proposal for a person (default 3; 0 never)
+                                      --wait-default-after 4h: an approval wait (kind
+                                      other, with choices and a --default) unanswered
+                                      that long goes ahead with its default, and the
+                                      person asked is told (90m, 4h, 2d; off, the
+                                      default, never; never other kinds)
                                       --ship-via pull-request: agents open a pull request,
                                       never push the default branch, and accepting the
                                       card has a runner merge it (needs --verify-work)
@@ -916,17 +921,21 @@ WRITE
                                       is current again (its author, or anyone who can edit)
   timeline <id>                       the lists a card sat in, its waits and its jobs:
                                       when, for how long and who moved it
-  wait <id> "what you need" [--on EMAIL] [--choice X]... [--job ID] [--kind K]
+  wait <id> "what you need" [--on EMAIL] [--choice X]... [--default N] [--job ID] [--kind K]
                                       wait on a person: flags the card waiting and asks on
                                       it; the job is $SLIPDOCK_JOB_ID unless --job names
                                       one. --kind is what kind of question it is (product,
                                       ux, security, release, other; other by default): it
                                       goes to the person the board routes that kind to,
-                                      else the owner (on anyone without --on or a kind)
+                                      else the owner (on anyone without --on or a kind).
+                                      --default N names the choice you propose: the
+                                      one-click answer
   wait <id> ["intro"] --question Q --question Q ...
                                       ask several questions at once: numbered, each
                                       answered on its own (use this, not one block)
-  wait <id> --withdraw                withdraw the card's open wait
+  wait <id> --withdraw [--reason WHY] withdraw the card's open wait; an agent
+                                      withdrawing one it didn't open (a moot wait)
+                                      gives the reason, posted on the card
   answer <id> ["text"] [--choice N]   answer the card's open wait, in words or by choice
   answer <id> --answer A --answer A   answer its questions one by one, in order
                                       ("" leaves one unanswered)

@@ -137,12 +137,12 @@ defmodule Slipdock.Handbook do
     line): whoever builds it reads those from the handbook and the repo.
   - **Two readings:** write the obvious one and note the other in the
     description; ask only when they differ materially, once, before filing.
+  - **A bar item made moot** by a later, cited decision or rule: read it
+    the obvious way and say so. Not a wait.
   - **Dependencies:** `blocked_by` means *can't start until*, not *should
     come after*: set it where a card builds on another's code, schema or
-    decision, and use list position for mere preference. A chain is right
-    when each card extends the one before, wrong when they are
-    independent. A one-card ask gets none unless the person said "after
-    X". None on a simple board.
+    decision, and use list position for mere preference. A one-card ask
+    gets none unless the person said "after X". None on a simple board.
   """
 
   @playbook """

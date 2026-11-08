@@ -2687,7 +2687,7 @@ defmodule Slipdock.Verified do
   defp judge_steps(card, board, handbook, opts \\ []) do
     base = [
       "The ask. Does the bar cover everything the description (and any request in the comments) asks for? A bar that leaves part of the ask out is a rejection (`the ask: the bar misses …`), even when the work meets the bar. On a bug, the ask is the reported symptom, so the check is would the reporter now see it fixed, not does the work meet the bar: a card or evidence that says the reported symptom or its cause was never seen (\"I couldn't tell what…\", a cause made up in the test, a repro built until something failed) is a rejection (`the ask: the reported symptom was never seen`), however good the tests. Step: `judging the ask`",
-      "The bar. Each item, against the change and the tests it names. A part not met is a rejection naming the item (`bar 2: …`). Step: `judging against the bar`"
+      "The bar. Each item, against the change and the tests it names. A part not met is a rejection naming the item (`bar 2: …`). #{moot_bar_sentence()} Step: `judging against the bar`"
     ]
 
     steps =
@@ -2739,8 +2739,20 @@ defmodule Slipdock.Verified do
     """
     The bar. Each item, against the change and the tests it names. A part not met is a rejection naming the item (`bar 2: …`).
        #{rule_proposal_sentence()} List them with `slipdock garden #{code} --check proposal --json` and judge the proposal's content, not the live Rules list: name its id in the accept reason (`bar 3: met by proposal #5`).
+       #{moot_bar_sentence()}
        #{rule_rejection_sentence()} Step: `judging against the bar`\
     """
+  end
+
+  @doc """
+  What a verifier does with a bar item a later decision or rule made moot
+  (#2096): the builder reads it the obvious way and says so on the card,
+  rather than waiting on a person, and the verifier judges that reading.
+  Noted, it is accepted on its merits; read another way without a note, it
+  is a rejection.
+  """
+  def moot_bar_sentence do
+    "A bar item made moot by a later decision or rule (locked before it, and cited) is met by its obvious reading when the card or the evidence says so: what was read, why, and the decision or rule cited (`W-…`, `#…`). Judge that reading, and accept it if the citation holds. An item read another way without such a note is a rejection (`bar 2: read differently from its words, and not noted on the card`)."
   end
 
   @doc """

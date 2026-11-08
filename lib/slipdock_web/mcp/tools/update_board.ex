@@ -17,7 +17,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
 
   @fields ~w(name description color simple default_view agentic_building handoff_label bar_required
              evidence_required verify_work verify_pool lanes lane_mode shared_paths profiles profile_tiers ship_via job_log_hours
-             failure_log_hours findings_propose_at)
+             failure_log_hours findings_propose_at wait_default_after)
 
   @impl true
   def name, do: "update_board"
@@ -108,6 +108,13 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
           type: "integer",
           description:
             "A finding seen this many times gets a handbook rule proposal drafted (3 by default; 0 off)."
+        },
+        wait_default_after: %{
+          type: ["string", "integer", "null"],
+          description:
+            "How long an approval wait (kind other, with choices and a default) goes " <>
+              "unanswered before its proposal stands: 4h, 90m, 2d or minutes; off or null " <>
+              "turns it off (the default). Never for product, ux, security or release waits."
         },
         overseer: %{
           type: "object",

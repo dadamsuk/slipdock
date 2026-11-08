@@ -593,10 +593,10 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
-  @doc "Withdraws the card's open wait."
-  def withdraw_wait(conn, %{"id" => id}) do
+  @doc "Withdraws the card's open wait; `reason` (#2096) says why."
+  def withdraw_wait(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
-         {:ok, wait} <- CardWrites.withdraw_wait(conn, card) do
+         {:ok, wait} <- CardWrites.withdraw_wait(conn, card, params) do
       json(conn, %{card: card.id, wait: V.wait(wait)})
     end
   end

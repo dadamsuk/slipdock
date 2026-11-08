@@ -88,7 +88,7 @@ defmodule Slipdock.Boards.WaitEmail do
 
     choices =
       if wait.choices != [],
-        do: "\nChoices:\n" <> numbered(wait.choices) <> "\n",
+        do: "\nChoices:\n" <> choices(wait) <> "\n",
         else: ""
 
     """
@@ -113,6 +113,58 @@ defmodule Slipdock.Boards.WaitEmail do
       true ->
         "Reply to this email to answer."
     end
+  end
+
+  @doc """
+  Tells the person a wait was on that its proposal stood (#2096,
+  `Slipdock.WaitDefaults`): nobody answered within `after_text`, so the
+  card went on with the default. A wait on anyone tells the tree's owner.
+  """
+  def defaulted(%Wait{} = wait, %Card{} = card, after_text) do
+    wait = Slipdock.Repo.preload(wait, [:on_user])
+
+    case wait.on_user || tree_owner(card) do
+      %User{} = person ->
+        if person |> Access.card_permission(card) |> Access.can_read?() do
+          choice = Wait.choice_text(wait, wait.choice)
+
+          Notify.person(person, card,
+            kind: "wait_defaulted",
+            subject: "The proposal stood on “#{card.title}”: #{choice}",
+            body: """
+            Nobody answered “#{wait.needs}” on card ##{card.id}, “#{card.title}”, within #{after_text}, so its proposal stands: #{choice}.
+
+            The card has gone on with it. If it shouldn't, say so on the card:
+            #{Runner.base_url()}/boards/#{card.board_id}/cards/#{card.id}
+            """,
+            title: "The proposal stood: #{choice}",
+            text: "#{card.title}: #{wait.needs}"
+          )
+        end
+
+      _ ->
+        :ok
+    end
+
+    :ok
+  end
+
+  defp tree_owner(card) do
+    root = Slipdock.Boards.root_of_board(card.board_id)
+
+    case Slipdock.Repo.get(Slipdock.Boards.Board, root) do
+      %{owner_id: id} when is_integer(id) -> Slipdock.Repo.get(User, id)
+      _ -> nil
+    end
+  end
+
+  # The choices, numbered, the proposed one marked (#2096).
+  defp choices(wait) do
+    wait.choices
+    |> Enum.with_index(1)
+    |> Enum.map_join("\n", fn {t, n} ->
+      if n == wait.default_choice, do: "#{n}. #{t} (proposed)", else: "#{n}. #{t}"
+    end)
   end
 
   defp numbered(items),

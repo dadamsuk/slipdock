@@ -240,7 +240,9 @@ defmodule SlipdockWeb.API.CardWrites do
         "questions" => questions,
         "on_user_id" => on,
         "job_id" => job_id,
-        "question" => params["question"]
+        "question" => params["question"],
+        # The choice it proposes (#2096), from 1: one click to agree.
+        "default_choice" => params["default"]
       })
       |> wait_result()
     end
@@ -303,16 +305,19 @@ defmodule SlipdockWeb.API.CardWrites do
 
   @doc """
   Withdraws `card`'s open wait: whoever may change the card may, and so may
-  whoever opened it.
+  whoever opened it. `reason` says why: an agent withdrawing a wait it didn't
+  open must give one (#2096), and the comment carries it.
   """
-  def withdraw_wait(auth, card) do
+  def withdraw_wait(auth, card, params \\ %{}) do
     user = auth.assigns.current_user
     wait = Boards.current_wait(card)
     opener? = wait != nil and user != nil and wait.opened_by_id == user.id
 
     with :ok <-
            SlipdockWeb.API.Authorize.card(auth, card, if(opener?, do: :read, else: :write)) do
-      card |> Boards.withdraw_wait(Slipdock.Actor.from_conn(auth)) |> wait_result()
+      card
+      |> Boards.withdraw_wait(Slipdock.Actor.from_conn(auth), reason: params["reason"])
+      |> wait_result()
     end
   end
 

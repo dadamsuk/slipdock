@@ -113,7 +113,9 @@ defmodule SlipdockWeb.HelpLive.Flow do
     {"Rejections before a person decides", "slipdock set-board B --verify-rejection-limit 2",
      "The rejection after this many opens a wait on the board's owner (2; 0 never)."},
     {"Audit 1 in N accepted cards", "slipdock set-board B --verify-audit 10",
-     "Another runner rechecks about one accepted card in N (0, the default, none)."}
+     "Another runner rechecks about one accepted card in N (0, the default, none)."},
+    {"An approval's proposal stands after", "slipdock set-board B --wait-default-after 4h",
+     "An unanswered approval wait (kind other, with a proposed choice) goes ahead with its proposal (off by default)."}
   ]
 
   def stages, do: @stages
@@ -472,6 +474,15 @@ defmodule SlipdockWeb.HelpLive.Flow do
       card, in My work's <em>Waiting on you</em>
       (<code>slipdock work</code>), or with <code>slipdock answer 12 "…"</code>, and the card is
       sent again with your answer at the top of its prompt.
+      A wait is for what is yours to decide: readings that differ in cost or in what you see,
+      product, UX, security and release calls, and your steps (merging, a handbook rule, a
+      deploy). A bar item a later decision made moot isn't one: the agent reads it the obvious
+      way, says so on the card with the citation, and the verifier judges it. A wait that offers
+      choices names the one the agent proposes, so your answer can be one click; with
+      <em>An approval's proposal stands after</em>
+      set, an unanswered one of kind other goes ahead with it and you are told. A wait that has
+      gone moot (answered elsewhere, the bar edited) is withdrawn by the next agent to find it,
+      with a comment saying why.
     </.person_note>
     """
   end

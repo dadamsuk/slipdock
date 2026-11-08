@@ -139,6 +139,10 @@ defmodule Slipdock.Boards.Board do
     # A finding counted this many times gets a garden proposal drafted for
     # it (#1942, `Slipdock.Findings.Promote`). 0 is off.
     field :findings_propose_at, :integer, default: 3
+    # How long an approval wait goes unanswered before its proposal stands
+    # (#2096, `Slipdock.WaitDefaults`), in minutes; nil is off. Given as
+    # `4h`, `90m`, `2d` or minutes at every door.
+    field :wait_default_after, :integer
     # Who a question goes to (#1949, `Slipdock.WaitRoutes`): a question kind
     # => the ids of the board's users it goes to, the first being who the
     # wait is on. Set through `WaitRoutes.set/3`, never cast.
@@ -523,12 +527,32 @@ defmodule Slipdock.Boards.Board do
   # form, and an owner who could set it could hand the board (and its quota)
   # to somebody else. The owner is fixed when the board is created (see
   # `Slipdock.Boards.create_board/2`) and moves only on account deletion.
+  # `wait_default_after` (#2096) arrives as `4h`, `90m`, `2d`, minutes or
+  # off; one that reads as none of them is kept as -1, which the changeset
+  # refuses with the forms it takes.
+  defp wait_default_minutes(attrs) when is_map(attrs) do
+    key =
+      cond do
+        Map.has_key?(attrs, "wait_default_after") -> "wait_default_after"
+        Map.has_key?(attrs, :wait_default_after) -> :wait_default_after
+        true -> nil
+      end
+
+    case key && Slipdock.WaitDefaults.parse(attrs[key]) do
+      nil -> attrs
+      {:ok, minutes} -> Map.put(attrs, key, minutes)
+      :error -> Map.put(attrs, key, -1)
+    end
+  end
+
+  defp wait_default_minutes(attrs), do: attrs
+
   @doc "The wait routes (#1949), checked by `Slipdock.WaitRoutes.set/2` first."
   def wait_routes_changeset(board, routes), do: change(board, wait_routes: routes)
 
   def changeset(board, attrs) do
     board
-    |> cast(Slipdock.Lanes.split_paths(attrs, :shared_paths), [
+    |> cast(attrs |> Slipdock.Lanes.split_paths(:shared_paths) |> wait_default_minutes(), [
       :name,
       :code,
       :shortcut,
@@ -564,6 +588,7 @@ defmodule Slipdock.Boards.Board do
       :verify_rejection_limit,
       :verify_audit,
       :findings_propose_at,
+      :wait_default_after,
       :ship_via,
       :kind,
       :default_view
@@ -601,6 +626,11 @@ defmodule Slipdock.Boards.Board do
       less_than_or_equal_to: 100,
       message:
         "must be 0 (never) or how many times a finding is seen before it is proposed (at most 100)"
+    )
+    |> validate_number(:wait_default_after,
+      greater_than: 0,
+      less_than_or_equal_to: Slipdock.WaitDefaults.max_minutes(),
+      message: "must be a time like 4h, 90m or 2d (at most 30d), or off"
     )
     |> update_change(:profile_tiers, &Slipdock.Profiles.overrides/1)
     |> validate_change(:profile_tiers, fn _, tiers -> Slipdock.Profiles.tier_errors(tiers) end)

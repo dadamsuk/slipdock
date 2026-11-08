@@ -931,12 +931,20 @@ defmodule SlipdockCLI.Render do
 
         list ->
           "  " <>
-            dim(list |> Enum.with_index(1) |> Enum.map_join("  ", fn {c, n} -> "#{n}. #{c}" end))
+            dim(
+              list
+              |> Enum.with_index(1)
+              |> Enum.map_join("  ", &choice_item(&1, w["default_choice"]))
+            )
       end
 
     "waits on #{person(w["on"]) || "anyone"}#{question_kind(w)}: #{w["needs"]}" <>
       choices <> questions(w)
   end
+
+  # A choice, numbered; the proposed one (#2096) marked.
+  defp choice_item({c, n}, n), do: "#{n}. #{c} (proposed)"
+  defp choice_item({c, n}, _default), do: "#{n}. #{c}"
 
   # The kind of question it asks (#1949), which picked who it went to.
   defp question_kind(%{"question" => q}) when is_binary(q) and q != "", do: " (#{q})"

@@ -992,12 +992,12 @@ defmodule SlipdockWeb.APIGuide do
       line): whoever builds it reads those from the handbook and the repo.
     - **Two readings:** write the obvious one and note the other in the
       description; ask only when they differ materially, once, before filing.
+    - **A bar item made moot** by a later, cited decision or rule: read it
+      the obvious way and say so. Not a wait.
     - **Dependencies:** `blocked_by` means *can't start until*, not *should
       come after*: set it where a card builds on another's code, schema or
-      decision, and use list position for mere preference. A chain is right
-      when each card extends the one before, wrong when they are
-      independent. A one-card ask gets none unless the person said "after
-      X". None on a simple board.
+      decision, and use list position for mere preference. A one-card ask
+      gets none unless the person said "after X". None on a simple board.
 
     A board's handbook can override these: the `## Card shape` section of
     its Playbook page wins wherever it says otherwise.
@@ -1600,6 +1600,35 @@ defmodule SlipdockWeb.APIGuide do
     closes it. A wait opened from a runner job parks the job, and the answer
     sends the card to its rule again (see Runners). Prefer a wait to a bare
     `waiting` flag: the flag has no clock, no owner and no way back.
+
+    **When to wait, and when not.** A wait is for readings that differ
+    materially in cost or in what the person sees, for decisions the
+    Playbook or the board routes to a person (product, ux, security,
+    release), and for anything a rule says is a person's step (merging,
+    changing a handbook rule, deploying). A locked bar item that a later,
+    cited decision or rule has made moot is not one: read it the obvious
+    way, say so on the card (what you read, why, the citation) and leave
+    the judgement to the verifier, who accepts a noted reading and rejects
+    one that wasn't noted. A wait offering choices and a proposed answer is
+    an approval and should be rare; when raised, it names the default you
+    would take as `default` (the choice's number, from 1; CLI `--default
+    N`), so the answer can be one click.
+
+    **A moot wait clears itself.** Sent a card (or its epic) with an open
+    wait, check first that it is still live: the question answered
+    elsewhere, the bar or description edited since, the cited rule or
+    decision now in place, the card rejected or accepted since. Withdraw a
+    moot one with why, `DELETE /api/cards/:id/wait?reason=…` (MCP
+    `update_card` `wait: null` with `wait_reason`; CLI `slipdock wait <id>
+    --withdraw --reason "…"`), and carry on to the obvious reading. Any
+    agent may, not only the one that opened it, but an agent withdrawing a
+    wait it didn't open is refused (422) without a reason; the comment
+    carries it. A board's `wait_default_after` (off unless set: `4h`,
+    `90m`, `2d`) lets an approval wait, of kind `other` with choices and a
+    `default`, go unanswered that long and then resolve to its default:
+    the card says so, the person asked is told, and the card moves on as
+    on an answer. Never for a product, ux, security or release question,
+    nor a wait with no default.
 
     **Several questions** go in one wait as `questions` (at most 20), never
     as one block in `needs`: each is shown numbered with its own answer box,
