@@ -444,6 +444,81 @@ defmodule Slipdock.FindingsLessonsTest do
     end
   end
 
+  describe "dedupe/2, in other words across cards (#2117)" do
+    setup ctx do
+      [{_, first}, {_, second}, {_, third} | _] = @pre_push
+      three = card_fixture(ctx.doing, %{"title" => "Three"})
+      comment = fn card -> say(card, ctx.owner, "a comment").id end
+      %{first: first, second: second, third: third, three: three, comment: comment}
+    end
+
+    test "a gotcha and a tooling item in other words fold into the oldest", ctx do
+      gotcha = insert(ctx.board, ctx.one, "gotcha", ctx.first, ctx.comment.(ctx.one))
+      tooling = insert(ctx.board, ctx.two, "tooling", ctx.second, ctx.comment.(ctx.two))
+
+      assert [{repeat, into}] = Findings.dedupe(ctx.board, dry_run: true)
+      assert {repeat.id, into.id} == {tooling.id, gotcha.id}
+      assert Repo.get!(Finding, tooling.id).status == "open"
+
+      assert [_] = Findings.dedupe(ctx.board)
+      assert %{count: 2, status: "open"} = Repo.get!(Finding, gotcha.id)
+
+      assert %{status: "merged", merged_into_id: id, cause: "same-lesson", note: note} =
+               Repo.get!(Finding, tooling.id)
+
+      assert id == gotcha.id and note =~ "dedupe"
+    end
+
+    test "two of one card stay apart; a third on another card folds into the oldest", ctx do
+      # Kinds apart, so the card's own pass leaves them; alike across, but one card.
+      gotcha = insert(ctx.board, ctx.one, "gotcha", ctx.first, ctx.comment.(ctx.one))
+      tooling = insert(ctx.board, ctx.one, "tooling", ctx.second, ctx.comment.(ctx.one))
+      other = insert(ctx.board, ctx.two, "gotcha", ctx.second, ctx.comment.(ctx.two))
+
+      assert ctx.board |> Findings.dedupe() |> Enum.map(fn {r, i} -> {r.id, i.id} end) ==
+               [{other.id, gotcha.id}]
+
+      assert Repo.get!(Finding, tooling.id).status == "open"
+      assert Repo.get!(Finding, gotcha.id).count == 2
+    end
+
+    test "one alike only to a repeat already folded in folds into the kept one", ctx do
+      refute Lesson.alike?(ctx.first, ctx.third)
+      assert Lesson.alike?(ctx.second, ctx.third)
+
+      kept = insert(ctx.board, ctx.one, "tooling", ctx.first, ctx.comment.(ctx.one))
+      second = insert(ctx.board, ctx.two, "tooling", ctx.second, ctx.comment.(ctx.two))
+      third = insert(ctx.board, ctx.three, "tooling", ctx.third, ctx.comment.(ctx.three))
+
+      assert ctx.board |> Findings.dedupe() |> Enum.map(fn {r, i} -> {r.id, i.id} end) ==
+               [{second.id, kept.id}, {third.id, kept.id}]
+
+      assert [%{id: id, count: 3}] = open(ctx.board)
+      assert id == kept.id
+    end
+
+    test "findings that share some words but are other lessons stay apart", ctx do
+      insert(
+        ctx.board,
+        ctx.one,
+        "gotcha",
+        "run mix format twice before pushing",
+        ctx.comment.(ctx.one)
+      )
+
+      insert(
+        ctx.board,
+        ctx.two,
+        "gotcha",
+        "mix test needs its own partition before you push",
+        ctx.comment.(ctx.two)
+      )
+
+      assert Findings.dedupe(ctx.board) == []
+      assert length(open(ctx.board)) == 2
+    end
+  end
+
   describe "dedupe/2" do
     # Findings kept before #1941: one row per comment, as `insert/3` makes here.
     defp insert(board, card, kind, text, comment_id) do
