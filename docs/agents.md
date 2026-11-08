@@ -824,7 +824,8 @@ runner and the job and step it is on, every card in progress with its board,
 list, parent epic and what holds it, and the jobs queued with why each is
 held — is the board's Right now page (`/boards/:id/now`, one click from the
 board page's delivery line, or its own line with Agentic Building on),
-`GET /api/boards/:board/now` and MCP `get_board` `now: true`; see
+`slipdock now <board>` (`--json` for the JSON), `GET /api/boards/:board/now`
+and MCP `get_board` `now: true`; see
 [the manual](manual.md#right-now).
 
 **The overseer.** A board's owner can turn on an eye on outcomes

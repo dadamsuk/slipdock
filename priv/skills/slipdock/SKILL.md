@@ -218,6 +218,7 @@ slipdock columns <board> | slipdock tags <board> | slipdock activity <board> [--
 slipdock pulse <board>                  # flow numbers: in progress, waiting, done this week, time to done, list in/out
 slipdock flow <board> [--days 7|30|90]  # flow day by day: backlog/ready/doing/done, completed, added, open; P50/P85 cycle
 slipdock runner-stats <board> [--days N]  # runners: status, current job, outcomes, queue wait, success, waits, recent jobs
+slipdock now <board> [--json]             # right now: runners and their jobs' steps, cards in progress (where, what holds them), the queue
 slipdock dora <board> [--env E] [--days N]   # delivery (DORA) numbers from recorded deploys, when the board's delivery metrics are on
 slipdock deploy run --env E -- <cmd…>   # in CI, with SLIPDOCK_DEPLOY_TOKEN: record a deploy around the deploy command
 slipdock deploy setup <board> [--prompt]   # owner: turn delivery metrics on, issue the deploy token, print the CI step
@@ -775,8 +776,8 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
 - "Have my laptop work cards that land in Doing" → `slipdock runner new 1 laptop --pool dev
   --agent claude --cwd ~/src/app --column Doing`, then give the user the printed steps (the
   token is in them and shown once)
-- "What are the runners doing right now?" → MCP `get_board` with `now: true`, or
-  `GET /api/boards/<board>/now`: each runner and its job's step, every card in progress
+- "What are the runners doing right now?" → `slipdock now <board>` (`--json` for the JSON),
+  MCP `get_board` with `now: true`, or `GET /api/boards/<board>/now`: each runner and its job's step, every card in progress
   and where it sits, the queue; for a person, the board's Right now page (`/boards/<id>/now`)
 - "What is the agent doing with #129?" → `slipdock jobs --card 129`, then `slipdock job <id>`,
   or `slipdock job <id> --follow` to watch it live
