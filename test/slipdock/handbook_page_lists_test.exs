@@ -7,7 +7,7 @@ defmodule Slipdock.HandbookPageListsTest do
 
   A copy is found by a phrase that starts its list, and read from there to
   the end of its paragraph (a blank line, or the next item of a Markdown
-  list). A page counts as named by its title ("UX & UI") or by the name
+  list, indented or not). A page counts as named by its title ("UX & UI") or by the name
   running prose gives it ("UX"). A section added to the Tool fails here
   once for each copy that doesn't name it yet, with the file and the title.
   """
@@ -26,7 +26,8 @@ defmodule Slipdock.HandbookPageListsTest do
       {"docs/manual.md", "skeleton pages for"},
       {"docs/agents.md", "section page (Specification"},
       {"priv/skills/slipdock-docs/SKILL.md", "in the section page that covers it"},
-      {"the Slipdock.Handbook moduledoc", "wiki pages that describe the"}
+      {"the Slipdock.Handbook moduledoc", "wiki pages that describe the"},
+      {"the seed card's procedure", "For each section page ("}
     ]
   end
 
@@ -42,6 +43,24 @@ defmodule Slipdock.HandbookPageListsTest do
     assert missing == for({where, _} <- copies(), do: {where, "Glossary"})
     assert describe(missing) =~ ~s|docs/manual.md doesn't name "Glossary"|
     assert describe(missing) =~ ~s|the Slipdock.Handbook moduledoc doesn't name "Glossary"|
+  end
+
+  test "the seed card's procedure fails, naming the page, when one is left out of it" do
+    seed = seed_description()
+    [list] = Regex.run(~r/For each section page \(.*\):/, seed)
+    assert names_in(seed, "For each section page (") =~ list
+
+    for section <- Handbook.sections() do
+      without =
+        String.replace(list, ~r/(?<!\w)#{Regex.escape(section.title)}(?!\w)/, "", global: false)
+
+      refute named?(names_in(without, "For each section page ("), section), section.title
+    end
+  end
+
+  test "a list stops at the next item, indented or not" do
+    text = "pages for Components:\n   - Data model, below\nmore"
+    assert names_in(text, "pages for") == "pages for Components:"
   end
 
   test "a copy whose list has gone fails on its phrase, not silently" do
@@ -109,6 +128,8 @@ defmodule Slipdock.HandbookPageListsTest do
     doc
   end
 
+  defp text("the seed card's procedure"), do: seed_description()
+
   defp text(path), do: File.read!(Path.expand(path, @root))
 
   # The list's paragraph, from its phrase to a blank line or the next item.
@@ -117,14 +138,22 @@ defmodule Slipdock.HandbookPageListsTest do
       [_, rest] ->
         [first | lines] = String.split(rest, "\n")
 
-        more =
-          Enum.take_while(lines, &(String.trim(&1) != "" and not String.starts_with?(&1, "- ")))
+        more = Enum.take_while(lines, &(String.trim(&1) != "" and not item?(&1)))
 
         Enum.join([phrase <> first | more], " ")
 
       [_] ->
         :no_list
     end
+  end
+
+  defp item?(line), do: line |> String.trim_leading() |> String.starts_with?("- ")
+
+  defp seed_description do
+    %{"cards" => cards} = Handbook.blueprint()
+    seed_title = Handbook.seed_title()
+    [description] = for %{"title" => ^seed_title} = card <- cards, do: card["description"]
+    description
   end
 
   defp named?(list, %{title: title, name: name}) do
