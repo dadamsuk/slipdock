@@ -8,15 +8,16 @@ defmodule Slipdock.Mentions do
   `Slipdock.Wiki.Links`), so `@stranger` stays plain text rather than
   reaching somebody the board was never shared with.
 
-  Whoever is mentioned gets an email: for a comment, every time; for a
-  description, only when the edit is what put them there, so re-saving a
-  description does not mention everybody in it again. The person writing is
+  Whoever is mentioned is told (`Slipdock.Notify`: an email, and a desktop
+  toast in any Slipdock tab they have open with toasts on): for a comment,
+  every time; for a description, only when the edit is what put them there,
+  so re-saving a description does not mention everybody in it again. The person writing is
   never told about their own mention.
   """
 
-  alias Slipdock.Access
+  alias Slipdock.{Access, Notify}
   alias Slipdock.Accounts.User
-  alias Slipdock.Automations.{Notifier, Runner}
+  alias Slipdock.Automations.Runner
   alias Slipdock.Boards.{Board, Card}
   alias Slipdock.Repo
   alias Slipdock.Wiki.Links
@@ -103,12 +104,16 @@ defmodule Slipdock.Mentions do
     |> Enum.reject(&(by && &1.id == by.id))
     |> Enum.filter(&Access.can_read?(Access.card_permission(&1, card)))
     |> Enum.each(fn person ->
-      # Held back inside a write that may yet roll back (`Slipdock.Deferred`).
-      Slipdock.Deferred.defer(fn ->
-        Notifier.deliver([person.email], subject(card, board, by), body(card, by, where, text),
-          card: card
-        )
-      end)
+      # Held back inside a write that may yet roll back (`Slipdock.Deferred`):
+      # an email and a browser toast (`Slipdock.Notify`).
+      Notify.person(person, card,
+        kind: "mention",
+        by: by,
+        subject: subject(card, board, by),
+        body: body(card, by, where, text),
+        title: "#{who(by)} mentioned you on “#{card.title}”",
+        text: String.trim(text)
+      )
     end)
   end
 

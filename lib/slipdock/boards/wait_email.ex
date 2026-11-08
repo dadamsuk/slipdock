@@ -8,11 +8,14 @@ defmodule Slipdock.Boards.WaitEmail do
   Sent only to a named person who isn't the one asking, since a wait on
   anyone has nobody in particular to tell and nobody needs telling what
   they asked themselves.
+
+  It goes through `Slipdock.Notify`, which also shows it as a desktop toast
+  in any Slipdock tab the person has open with toasts on (#2101).
   """
 
-  alias Slipdock.Access
+  alias Slipdock.{Access, Notify}
   alias Slipdock.Accounts.User
-  alias Slipdock.Automations.{Notifier, Runner}
+  alias Slipdock.Automations.Runner
   alias Slipdock.Boards.{Card, Wait}
 
   @doc "Tells the person `wait` is on, if there is one to tell."
@@ -20,12 +23,15 @@ defmodule Slipdock.Boards.WaitEmail do
   def opened(%Wait{on_user: %User{} = person} = wait, %Card{} = card) do
     if person.id != wait.opened_by_id and
          person |> Access.card_permission(card) |> Access.can_read?() do
-      Slipdock.Deferred.defer(fn ->
-        Notifier.deliver([person.email], subject(wait, card), body(wait, card),
-          card: card,
-          footer: footer(wait)
-        )
-      end)
+      Notify.person(person, card,
+        kind: "wait",
+        by: wait.opened_by_id,
+        subject: subject(wait, card),
+        body: body(wait, card),
+        email: [footer: footer(wait)],
+        title: "#{who(wait.opened_by)} is waiting on you",
+        text: "#{card.title}: #{wait.needs}"
+      )
     end
 
     :ok
@@ -44,14 +50,16 @@ defmodule Slipdock.Boards.WaitEmail do
     for %User{} = person <- Enum.uniq_by(people, & &1.id),
         person.id != wait.on_user_id and person.id != wait.opened_by_id,
         person |> Access.card_permission(card) |> Access.can_read?() do
-      Slipdock.Deferred.defer(fn ->
-        Notifier.deliver(
-          [person.email],
+      Notify.person(person, card,
+        kind: "wait_routed",
+        by: wait.opened_by_id,
+        subject:
           "#{who(wait.opened_by)} asked #{Wait.on_name(wait)} (#{wait.question}): “#{card.title}”",
+        body:
           "You are told about #{wait.question} questions on this board.\n\n" <> body(wait, card),
-          card: card
-        )
-      end)
+        title: "#{who(wait.opened_by)} asked #{Wait.on_name(wait)} (#{wait.question})",
+        text: "#{card.title}: #{wait.needs}"
+      )
     end
 
     :ok

@@ -21,6 +21,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
         {"boards-basics", "Boards, lists and cards"},
         {"boards-subcards", "Subcards and epics"},
         {"boards-waiting", "Waiting on you"},
+        {"boards-desktop-notifications", "Desktop notifications"},
         {"boards-views", "Views"},
         {"boards-card-views", "Card views"},
         {"boards-planning", "Planning"},
@@ -156,7 +157,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
       </ul>
       <p>
         <code>@name</code> in a description or comment mentions someone who can see the
-        board, and they get an email. Lists can have a colour, a WIP limit, and their own
+        board, and they get an email (and a desktop notification, if they have those on). Lists can have a colour, a WIP limit, and their own
         sort order or grouping.
       </p>
       <p id="help-card-authors">
@@ -214,6 +215,30 @@ defmodule SlipdockWeb.HelpLive.Guides do
         and <strong>Unmute</strong>. From the CLI it is <code>slipdock work --dismiss</code>, <code>--dismissed</code>, <code>--undismiss</code>,
         <code>--mute</code>
         and <code>--unmute</code>.
+      </p>
+    </.part>
+
+    <.part title="Desktop notifications" id="boards-desktop-notifications">
+      <p>
+        Slipdock can show a notification on your computer when a card starts waiting on you,
+        a question is routed to you, or somebody <code>@</code>mentions you: the same things
+        that email you, which they still do. Turn on
+        <strong>Desktop notifications on this browser</strong>
+        under <.app_link current_user={@current_user} to={~p"/account/settings"}>Account → Preferences</.app_link>;
+        the browser asks whether to allow them. It is off until you do.
+      </p>
+      <p>
+        They come through a Slipdock tab you have open, in the background too, and with
+        several tabs open you get one, not one each. With no tab open nothing shows, on
+        purpose: Slipdock doesn't reach you when you have closed it. Clicking one brings the
+        tab forward and opens the card. You get none for what you did yourself, nor while
+        you are looking at that card.
+      </p>
+      <p>
+        The setting is kept in this browser, because the browser's permission is too: turn it
+        on in each one you use. If notifications are blocked for the site, or the browser
+        can't show them, the toggle says so; unblock them in the browser's site settings.
+        Only the web app shows them; the API, the CLI and agents have nothing to set.
       </p>
     </.part>
 

@@ -317,6 +317,17 @@ defmodule SlipdockWeb.Layouts do
 
       <div id="viewport" phx-hook="Viewport" data-width={@viewport} class="hidden"></div>
 
+      <%!-- Desktop toasts (#2101): `SlipdockWeb.NotifyHook` pushes them, and
+            the hook shows one only with this browser's toggle on. --%>
+      <div
+        :if={@current_user}
+        id="desktop-notify"
+        phx-hook="DesktopNotify"
+        data-user-id={@current_user.id}
+        class="hidden"
+      >
+      </div>
+
       <div
         :if={@shortcuts}
         id="keys"

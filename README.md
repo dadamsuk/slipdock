@@ -55,7 +55,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Boards, lists and cards** — drag and drop, priorities, five flags, due
   dates, tags, checklists (dragged into a new order by their handle, or
   `slipdock move-check`), comments with `@mentions` that email the person
-  named, attachments (uploaded in the browser, or over the API and CLI —
+  named (and, with desktop notifications on in their browser, show a toast
+  in any Slipdock tab they have open, as a wait on them does), attachments (uploaded in the browser, or over the API and CLI —
   `slipdock attach 12 shot.png`, and back with `slipdock download 5`), image thumbnails on card fronts, recordings that
   play in place and transcribe on a transcription server of your own
   (Configuration → Server → Transcription server; [what it must speak](docs/manual.md#what-a-transcription-server-must-speak)), which can be taught the voices you name in transcripts, cover colours and a colour for each edge of a card (which the AI chat and automations can set too), archive and restore (the archive searchable by title, `#id` or a card's link), [PDFs and images read for text](docs/manual.md#reading-text-from-files) so search finds what is in them, and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
