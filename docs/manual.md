@@ -84,6 +84,10 @@ way in: what it is, the pictures, and how to get it running.
   is told about mentioning themselves, `@` anybody without access to the board
   stays plain text, and comments on wiki pages notify nobody. The email goes
   through the configured mail transport, so without SMTP nobody hears.
+- Desktop notifications: the things that email a person (a wait opened on
+  them or routed to them, an @mention of them) can also show as a toast from
+  their computer, through any Slipdock tab they have open — see [Desktop
+  notifications](#desktop-notifications)
 - Dependencies between cards ("blocked by" / "blocks"), with cycle detection,
   a blocked badge on cards, and a swimlane axis/filter for blocked work
 - Subcards: any card can become a board of its own, with lists chosen from a
@@ -1566,6 +1570,28 @@ unmutes. Over MCP, `update_card` takes `waiting_list: "undismiss"` and
 `update_board` takes `waiting_list: "unmute"`. Read access to the card or
 board is enough, and `waiting_list` goes on its own in the call. Dismissing
 by rule is the board's own switches, and nothing is ever dismissed for you.
+
+### Desktop notifications
+
+A wait opened on you, a wait routed to you and an @mention of you each email
+you, and can also show a desktop notification, through the browser's
+Notification API. It is **off by default**, and set per browser: **Account →
+Preferences → Desktop notifications on this browser** turns it on, which asks
+the browser for permission, and the choice is kept in that browser's local
+storage (the browser's permission is per browser too). Blocked for the site,
+or a browser without notifications, and the toggle says so.
+
+They arrive through a Slipdock tab that is open, in the background too: every
+signed-in page listens on the person's own topic (`Slipdock.Notify`, which
+also sends the email). With no tab open nothing shows, on purpose: there is no
+Web Push and no service worker. Each one carries its own id as the
+notification's tag, so several open tabs show one between them. Clicking it
+brings the tab forward and opens the card. Nobody gets one for their own
+doing, nor for a card they can't read, and a tab in front that is already
+showing the card stays quiet. Email is unchanged.
+
+Only the web app has this. The REST API, the CLI and the MCP tools have
+nothing to set: a toast needs a browser, and the setting lives in it.
 
 ## Flow: the pulse, a card's state and its age
 

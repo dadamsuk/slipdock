@@ -589,6 +589,35 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
         </.form>
       </section>
 
+      <section
+        id="desktop-notifications"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="section-title">Desktop notifications</h2>
+        <p class="text-sm text-base-content/60">
+          A toast from your computer when a card starts waiting on you, a wait is routed to you
+          or somebody @mentions you: the same things that email you, which they still do.
+          They come through a Slipdock tab you have open, in the background too; with none open,
+          nothing shows. Kept in this browser only, so turn it on in each one you use.
+        </p>
+        <%!-- Drawn and kept by the browser (`assets/js/desktop_notify.js`):
+              the server never knows whether it is on. --%>
+        <div
+          id="desktop-notify-toggle"
+          phx-hook="DesktopNotifyToggle"
+          phx-update="ignore"
+          class="mt-4 space-y-1"
+        >
+          <label for="desktop-notify-input">
+            <span class="label">
+              <input id="desktop-notify-input" type="checkbox" class="toggle" />
+              Desktop notifications on this browser
+            </span>
+          </label>
+          <p data-role="status" class="text-xs text-base-content/60">Off in this browser.</p>
+        </div>
+      </section>
+
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
         <h2 class="section-title">AI model</h2>
         <p class="text-sm text-base-content/60">

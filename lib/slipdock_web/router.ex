@@ -107,7 +107,8 @@ defmodule SlipdockWeb.Router do
       on_mount: [
         {SlipdockWeb.UserAuth, :mount_current_user},
         {SlipdockWeb.ViewportHook, :default},
-        {SlipdockWeb.StaleAssetsHook, :default}
+        {SlipdockWeb.StaleAssetsHook, :default},
+        {SlipdockWeb.NotifyHook, :default}
       ] do
       live "/help", HelpLive.Index, :index
       live "/help/agents", HelpLive.Index, :agents
@@ -253,7 +254,8 @@ defmodule SlipdockWeb.Router do
         {SlipdockWeb.AlertsHook, :default},
         {SlipdockWeb.QuickAddHook, :default},
         {SlipdockWeb.ShortcutsHook, :default},
-        {SlipdockWeb.PageLinkHook, :default}
+        {SlipdockWeb.PageLinkHook, :default},
+        {SlipdockWeb.NotifyHook, :default}
       ] do
       live "/users", UsersLive.Index, :index
       live "/users/signups", UsersLive.Index, :signups
@@ -273,7 +275,8 @@ defmodule SlipdockWeb.Router do
         {SlipdockWeb.AlertsHook, :default},
         {SlipdockWeb.QuickAddHook, :default},
         {SlipdockWeb.ShortcutsHook, :default},
-        {SlipdockWeb.PageLinkHook, :default}
+        {SlipdockWeb.PageLinkHook, :default},
+        {SlipdockWeb.NotifyHook, :default}
       ] do
       live "/", BoardLive.Index, :index
       live "/work", WorkLive.Index, :index
