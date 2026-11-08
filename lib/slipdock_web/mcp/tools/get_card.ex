@@ -18,8 +18,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
     do:
       "A card in full: its handoff (where it was left: read it first; when finished, its outcome), " <>
         "description, checklist, comments, dependencies, subcards, wiki pages, wait (on a " <>
-        "person), rejection (the rework's brief) and waiting_on_me (what in its subcards' tree " <>
-        "waits on you, with reasons)."
+        "person), rejection (the rework's brief) and waiting_on_me."
 
   @impl true
   def input_schema do
