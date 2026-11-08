@@ -118,6 +118,10 @@ defmodule Slipdock.Work do
   `%{card:, path:, reason:, text:, since:, wait:, job:}`, where `reason` is
   the first of these that applies:
 
+    * `"circling"` — a card going round in circles (#2047): rejected twice
+      or more and still flagged `review`, not yet accepted, in a tree
+      `user` owns (`Slipdock.Verified.Circling`). These come first,
+      whatever their age;
     * `"wait"` — an open wait on `user`;
     * `"wait_anyone"` — an open wait on anyone, on a card in a tree `user`
       owns or a card assigned to them (not one they asked themselves);
@@ -132,7 +136,7 @@ defmodule Slipdock.Work do
     * `"needs_owner"` — in a tree `user` owns, an open card in a doing list
       for over an hour with nobody on it, no open job and no open wait.
 
-  `since` is when it started needing them: the wait's opening, the newest
+  `since` is when it started needing them: the newest rejection, the wait's opening, the newest
   run of the flag (from the activity log), the job's end, the card's entry
   into its list. Only cards `user` may read come back; completed and
   archived ones never do, and snoozed ones only for a wait.
@@ -147,7 +151,8 @@ defmodule Slipdock.Work do
     assigned = assigned_ids(user)
 
     candidates =
-      waits_on(user, owned, assigned) ++
+      circling(owned) ++
+        waits_on(user, owned, assigned) ++
         awaiting(owned) ++ flagged(user, now) ++ job_trouble(owned) ++ unowned(owned, now)
 
     cards =
@@ -179,23 +184,28 @@ defmodule Slipdock.Work do
         job: first[:job]
       }
     end)
-    |> Enum.sort_by(&{&1.since, &1.card.id}, fn {a, i}, {b, j} ->
-      case DateTime.compare(a, b) do
-        :eq -> i <= j
-        order -> order == :lt
-      end
-    end)
+    |> Enum.sort_by(&{&1.reason != "circling", &1.since, &1.card.id}, &older_first/2)
   end
+
+  # Circling cards first (#2047), then oldest first, then by id.
+  defp older_first({c, a, i}, {c, b, j}), do: order(DateTime.compare(a, b), i, j)
+  defp older_first({not_circling, _, _}, _), do: not not_circling
+
+  defp order(:eq, i, j), do: i <= j
+  defp order(cmp, _i, _j), do: cmp == :lt
 
   @doc "How many things are waiting on `user`: the length of `waiting_on_me/2`."
   def waiting_count(%User{} = user, opts \\ []),
     do: user |> waiting_on_me(Keyword.put(opts, :paths, false)) |> length()
 
-  @reasons ~w(wait wait_anyone verify review waiting gave_up failed needs_owner)
+  @reasons ~w(circling wait wait_anyone verify review waiting gave_up failed needs_owner)
   defp rank(%{reason: reason}), do: Enum.find_index(@reasons, &(&1 == reason))
 
   @doc "The reasons an item can have, in the order one card's are chosen from."
   def reasons, do: @reasons
+
+  defp reason_text(%{reason: "circling", rejections: n}),
+    do: "Going round in circles: rejected #{n} times"
 
   defp reason_text(%{reason: "wait", wait: w}), do: "Waiting on you: #{w.needs}"
   defp reason_text(%{reason: "wait_anyone", wait: w}), do: "Waiting on anyone: #{w.needs}"
@@ -279,6 +289,26 @@ defmodule Slipdock.Work do
         not waited? -> [%{card_id: id, reason: "waiting"}]
         true -> []
       end
+    end)
+  end
+
+  # Cards going round in circles (#2047): rejected twice or more, still
+  # flagged review and not yet accepted. The same test as
+  # `Slipdock.Verified.Circling.circling?/1`.
+  defp circling([]), do: []
+
+  defp circling(owned) do
+    from(c in Card,
+      where: c.verify_rejections >= ^Slipdock.Verified.Circling.threshold(),
+      where: c.verify_state in ["rejected", "pending"],
+      where: fragment("? = ANY(?)", "review", c.flags),
+      select: {c.id, c.verify_rejections, c.verify_at}
+    )
+    |> in_trees(owned)
+    |> live()
+    |> Repo.all()
+    |> Enum.map(fn {id, n, at} ->
+      %{card_id: id, reason: "circling", rejections: n, since: at}
     end)
   end
 

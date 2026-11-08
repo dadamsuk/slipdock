@@ -860,6 +860,19 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   changed since the last rejection. So the builder's new evidence names the
   rejected commit and what changed since. An audit judges every part and
   carries nothing.
+- **A card going round in circles is yours to look at.** A card's second
+  rejection, or a rejection for a rule id an earlier one named (`UX-4`
+  failing again), fires on the spot, not on the gardener's schedule: the
+  card stays flagged **review** until it is accepted (a rejection otherwise
+  takes the flag off), a *Going round in circles* comment lists how many
+  rounds it has had and the parts each failed, a warning alert goes up on
+  the board, and you (and the people `release` questions go to) are
+  emailed. It comes first in My work's *Waiting on you* and in `slipdock
+  work`, whatever its age, and counts in `slipdock whoami`'s waiting. The
+  runners still take it for rework: the flag asks you to look at whether
+  the card needs a different approach or a reworded bar. Taking the flag
+  off says you've seen it. A failed merge counts towards the two; only a
+  verifier's rejection fires it.
 - **Too many rejections go to a person.** **Rejections before a person
   decides** (`slipdock set-board B --verify-rejection-limit 2`, `PATCH
   /api/boards/:board {"verify_rejection_limit": 2}`; 2 by default, 0 never)

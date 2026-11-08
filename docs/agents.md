@@ -819,7 +819,15 @@ the verifier judges the parts that failed and any part the commits since touch
 judged again (`--check bar:1=carried`, or left out) is carried, shown as
 *carried from <sha>*. A failed part can't be carried; an audit carries
 nothing. The builder's resubmission evidence names the rejected commit and
-what changed since. A board's `verify_rejection_limit` (2 by default, 0 never;
+what changed since. A card's second rejection, or one for a rule id an earlier
+rejection named, marks it as going round in circles: it stays flagged `review`
+(a rejection otherwise takes the flag off) until it is accepted, a *Going
+round in circles* comment lists the rounds and the parts each failed, a
+warning alert goes up on the root board and the board's owner (and whoever
+`release` questions go to) is emailed, and it heads the owner's `slipdock
+work` (reason `circling`) and counts in `whoami`'s waiting. The runners still
+send it for rework; the flag isn't a stop. A failed merge counts towards the
+two, but only a verifier's rejection fires it. A board's `verify_rejection_limit` (2 by default, 0 never;
 `slipdock set-board --verify-rejection-limit`) sends the rejection after that
 many to a person: a wait on the board's owner, *Rework as rejected* or
 *Accept as is*, with the card flagged `waiting` so runners pass it over. The
