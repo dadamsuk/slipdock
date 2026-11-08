@@ -220,6 +220,8 @@ slipdock deploy run --env E -- <cmd…>   # in CI, with SLIPDOCK_DEPLOY_TOKEN: r
 slipdock deploy setup <board> [--prompt]   # owner: turn delivery metrics on, issue the deploy token, print the CI step
 slipdock incident-of <card> <deploy-id>    # an incident card names the deploy that caused it (--clear to undo)
 slipdock work [--board B] [--done]      # what is waiting on you (waits, review/waiting flags, runner trouble), then your cards
+slipdock work --dismiss <card> | --undismiss <card> | --dismissed   # take an item off your own list until its cause changes; list and undo
+slipdock work --mute <board> | --unmute <board>   # nothing from a board's tree on your list (not archiving: the board works as before)
 slipdock multiboard [--list 12 --list "ops/To Do"] [--limit N] [--by board|list|grid]  # top N cards of lists across boards (no --list: the saved view)
 slipdock save-multiboard "Ops queue" --list "ops/To Do" --color rose  # save a view by name: a tile on the home page
 slipdock multiboards; slipdock multiboard <saved>      # saved ones; one with its cards (id or name)

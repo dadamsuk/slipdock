@@ -193,6 +193,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Dismiss an item, or mute a board, on your Waiting on you",
+     [
+       {:yes, "POST /api/work/dismissed, POST /api/work/muted"},
+       {:yes, "update_card's and update_board's waiting_list"},
+       {:yes, "slipdock work --dismiss, --mute"},
+       {:yes, "through the CLI or MCP, when asked"},
+       {:yes, "through the CLI or MCP, when asked"},
+       {:no, "one way only"}
+     ]},
     {"See the top cards of lists from several boards (Multiboard)",
      [
        {:yes, "GET /api/multiboard"},

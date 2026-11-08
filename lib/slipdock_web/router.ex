@@ -512,6 +512,12 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/inbound/rotate", InboundController, :rotate_board
     # The caller's own work: waiting on them, then assigned by due (#1118).
     get "/work", WorkController, :index
+    # Taking things off one's own Waiting on you (#2069).
+    get "/work/dismissed", WorkController, :dismissed
+    post "/work/dismissed", WorkController, :dismiss
+    delete "/work/dismissed/:card", WorkController, :undismiss
+    post "/work/muted", WorkController, :mute
+    delete "/work/muted/:board", WorkController, :unmute
     # The multiboard overview (#1479): the top cards of lists from any board.
     get "/multiboard", MultiboardController, :index
     # Saved multiboards (#1482): named views, on the caller's home page.

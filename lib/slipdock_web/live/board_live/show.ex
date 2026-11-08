@@ -59,7 +59,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # on is not the open board or the open card: a card named by id, a page,
   # another board, a sprint picked from several boards.
   @self_checked_events ~w(share revoke_grant toggle_complete table_update prio_field prio_vote timeline_move
-    timeline_schedule cal_move toggle_favourite dismiss_stand_in toggle_show_all)
+    timeline_schedule cal_move toggle_favourite dismiss_stand_in toggle_show_all mute_waiting unmute_waiting)
   # Events that change nothing stored: filters, panels opening and closing,
   # forms being typed into, the keyboard's place on the board.
   @read_events ~w(search filter_tag filter_kind filter_priority filter_flag filter_due
@@ -167,6 +167,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       dora: board_dora(board),
       # The tree's open runner pauses, for the banner (#1116).
       pauses: board_pauses(board),
+      # The mute keeping this tree off my Waiting on you, if any (#2069).
+      waiting_muted: waiting_muted(socket.assigns.current_user, board),
       # Who `@` offers in a description or a comment: the board's members.
       mention_people: SlipdockWeb.Mention.people(board),
       filters: @empty_filters,
@@ -762,6 +764,37 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   ## Events: sharing -------------------------------------------------------------
 
+  # Mine alone (#2069): this board's tree off, or back on, my Waiting on you.
+  def handle_event("mute_waiting", _params, socket) do
+    %{board: board, current_user: user} = socket.assigns
+    {:ok, _} = Slipdock.Work.mute(user, board)
+
+    {:noreply,
+     socket
+     |> assign(waiting_muted: waiting_muted(user, board))
+     |> SlipdockWeb.AlertsHook.refresh_waiting()
+     |> put_flash(:info, "Muted: nothing from #{board.name} shows on your Waiting on you.")}
+  end
+
+  def handle_event("unmute_waiting", %{"board" => id}, socket) do
+    %{board: board, current_user: user} = socket.assigns
+    muting = socket.assigns.waiting_muted
+
+    # Only the mute the board shows: the board itself or one above it.
+    if muting && to_string(muting.id) == to_string(id) do
+      Slipdock.Work.unmute(user, muting)
+    end
+
+    {:noreply,
+     socket
+     |> assign(waiting_muted: waiting_muted(user, board))
+     |> SlipdockWeb.AlertsHook.refresh_waiting()
+     |> put_flash(
+       :info,
+       "Unmuted: #{(muting && muting.name) || board.name} is back on your Waiting on you."
+     )}
+  end
+
   # The banner's Resume (#1116): exactly the pause it names, the whole
   # tree's when it names no pool.
   def handle_event("resume_pause", params, socket) do
@@ -1224,6 +1257,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           ai?={@ai?}
           rules={@rules}
           inbound={@inbound}
+          waiting_muted={if @current_user, do: @waiting_muted, else: :none}
         />
       </:menu>
 
@@ -1275,6 +1309,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           </:trailing>
         </.swim_toolbar>
         <.pause_banner pauses={@pauses} can_manage={@can_manage} />
+        <.muted_banner waiting_muted={@waiting_muted} board_id={@board.id} />
         <div class="min-h-0 flex-1">
           <.table_view
             :if={@mode == :table}
@@ -1371,6 +1406,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         pulse={@pulse}
         dora={@dora}
         pauses={@pauses}
+        waiting_muted={@waiting_muted}
         columns={@columns}
         filters={@filters}
         filtering={@filtering}
@@ -1409,6 +1445,7 @@ defmodule SlipdockWeb.BoardLive.Show do
             ai?={@ai?}
             rules={@rules}
             inbound={@inbound}
+            waiting_muted={if @current_user, do: @waiting_muted, else: :none}
           />
         </:toolbar_actions>
       </.kanban>
@@ -1584,4 +1621,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       _ -> {:noreply, socket}
     end
   end
+
+  defp waiting_muted(nil, _board), do: nil
+  defp waiting_muted(user, board), do: Slipdock.Work.muted_by(user, board)
 end

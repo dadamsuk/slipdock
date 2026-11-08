@@ -160,6 +160,12 @@ defmodule SlipdockCLI do
     # or a time) both send it as given.
     since: :string,
     board: :string,
+    # `work --dismiss/--undismiss CARD`, `--dismissed`, `--mute/--unmute BOARD` (#2069).
+    dismiss: :string,
+    undismiss: :string,
+    dismissed: :boolean,
+    mute: :string,
+    unmute: :string,
     title: :string,
     desc: :string,
     short_name: :string,

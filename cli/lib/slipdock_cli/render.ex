@@ -237,17 +237,9 @@ defmodule SlipdockCLI.Render do
   first), each with why and for how long, a wait's choices numbered for
   `slipdock answer --choice N`; then the assigned cards by section.
   """
-  def work(%{"waiting" => waiting, "sections" => sections}) do
-    if waiting != [] do
-      IO.puts(bold("Waiting on you (#{length(waiting)})"))
-
-      Enum.each(waiting, fn i ->
-        c = i["card"]
-        IO.puts("  ##{c["id"]} #{c["title"]}  " <> dim(since(i["since"])))
-        IO.puts("      #{i["text"]}" <> choices(i["wait"]))
-        IO.puts(dim("      #{Enum.join(i["path"] || [], " › ")} · #{c["column"]}"))
-      end)
-    end
+  def work(%{"waiting" => waiting, "sections" => sections} = r) do
+    hidden = hidden_line(r)
+    if waiting != [] or hidden, do: waiting_section(waiting, hidden)
 
     Enum.each(sections, fn s ->
       IO.puts(bold("#{s["label"]} (#{length(s["cards"])})"))
@@ -262,9 +254,76 @@ defmodule SlipdockCLI.Render do
       end)
     end)
 
-    if waiting == [] and sections == [],
+    if waiting == [] and sections == [] and is_nil(hidden),
       do: IO.puts(dim("nothing waiting on you, nothing assigned"))
   end
+
+  defp waiting_section(waiting, hidden) do
+    IO.puts(bold("Waiting on you (#{length(waiting)})"))
+    if hidden, do: IO.puts(dim("  " <> hidden))
+
+    Enum.each(waiting, fn i ->
+      c = i["card"]
+      IO.puts("  ##{c["id"]} #{c["title"]}  " <> dim(since(i["since"])))
+      IO.puts("      #{i["text"]}" <> choices(i["wait"]))
+      IO.puts(dim("      #{Enum.join(i["path"] || [], " › ")} · #{c["column"]}"))
+    end)
+  end
+
+  # "3 waiting · 2 dismissed · 1 board muted" (#2069), so the hiding is never
+  # silent; nil when nothing is hidden.
+  defp hidden_line(r) do
+    dismissed = r["dismissed_count"] || 0
+    boards = length(r["muted_boards"] || [])
+    muted = r["muted_count"] || 0
+
+    if dismissed + boards > 0 do
+      [
+        "#{length(r["waiting"])} waiting",
+        dismissed > 0 && "#{dismissed} dismissed (slipdock work --dismissed)",
+        boards > 0 &&
+          "#{boards} #{if boards == 1, do: "board", else: "boards"} muted " <>
+            "(#{Enum.map_join(r["muted_boards"], ", ", & &1["name"])}; #{muted} hidden)"
+      ]
+      |> Enum.filter(& &1)
+      |> Enum.join(" · ")
+    end
+  end
+
+  @doc "`slipdock work --dismiss`: what came off the list, and for which cause."
+  def work_dismissed(%{"dismissed" => i}) do
+    c = i["card"]
+    IO.puts("dismissed ##{c["id"]} #{c["title"]}: #{i["text"]}")
+    IO.puts(dim("  a new cause shows it again; undo: slipdock work --undismiss #{c["id"]}"))
+  end
+
+  @doc "`slipdock work --undismiss`."
+  def work_undismissed(%{"undismissed" => %{"card_id" => id}}),
+    do: IO.puts("##{id} is back on your list while its cause stands")
+
+  @doc "`slipdock work --dismissed`: what you dismissed whose cause still stands."
+  def work_dismissed_list(%{"dismissed" => []}),
+    do: IO.puts(dim("nothing dismissed"))
+
+  def work_dismissed_list(%{"dismissed" => items}) do
+    IO.puts(bold("Dismissed (#{length(items)})"))
+
+    Enum.each(items, fn i ->
+      c = i["card"]
+      IO.puts("  ##{c["id"]} #{c["title"]}  " <> dim(since(i["since"])))
+      IO.puts("      #{i["text"]}")
+      IO.puts(dim("      #{Enum.join(i["path"] || [], " › ")} · #{c["column"]}"))
+    end)
+
+    IO.puts(dim("undo one: slipdock work --undismiss <card>"))
+  end
+
+  @doc "`slipdock work --mute` / `--unmute`."
+  def work_muted(%{"muted" => b}),
+    do: IO.puts("muted #{b["name"]}: its tree stays off your Waiting on you (undo: --unmute)")
+
+  def work_muted(%{"unmuted" => b}),
+    do: IO.puts("unmuted #{b["name"]}: its tree is back on your Waiting on you")
 
   @doc """
   `slipdock multiboard`: each section's heading (none for the grid), then its

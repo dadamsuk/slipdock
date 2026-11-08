@@ -123,6 +123,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
 
   attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
 
+  attr :waiting_muted, :any,
+    default: :none,
+    doc:
+      "the board whose mute keeps this one off my Waiting on you, nil if none; :none hides the menu item (#2069)"
+
   @doc "The board's own buttons, at the end of its toolbar: sprints, the chat and the board's menu, sharing among it."
   def board_actions(assigns) do
     ~H"""
@@ -203,6 +208,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         can_manage={@can_manage}
         rules={@rules}
         inbound={@inbound}
+        waiting_muted={@waiting_muted}
       />
     </div>
     """
@@ -217,6 +223,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :navigate, :boolean,
     default: false,
     doc: "the menu's panels by navigating, from a LiveView that isn't the board's (the wiki)"
+
+  attr :waiting_muted, :any,
+    default: :none,
+    doc:
+      "the board whose mute keeps this one off my Waiting on you, nil if none; :none hides the menu item (#2069)"
 
   @doc "The board's `…` menu on a wide screen: the board's toolbar, and the wiki's."
   def board_more_menu(assigns) do
@@ -237,6 +248,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           rules={@rules}
           inbound={@inbound}
           navigate={@navigate}
+          waiting_muted={@waiting_muted}
         />
       </ul>
     </div>
@@ -255,6 +267,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :navigate, :boolean,
     default: false,
     doc: "the menu's panels by navigating, from a LiveView that isn't the board's (the wiki)"
+
+  attr :waiting_muted, :any,
+    default: :none,
+    doc:
+      "the board whose mute keeps this one off my Waiting on you, nil if none; :none hides the menu item (#2069)"
 
   @doc """
   The board's entries in the phone's navigation Menu: what the header's
@@ -277,6 +294,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       rules={@rules}
       inbound={@inbound}
       navigate={@navigate}
+      waiting_muted={@waiting_muted}
     />
     """
   end
@@ -291,6 +309,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :navigate, :boolean,
     default: false,
     doc: "the menu's panels by navigating, from a LiveView that isn't the board's (the wiki)"
+
+  attr :waiting_muted, :any,
+    default: :none,
+    doc:
+      "the board whose mute keeps this one off my Waiting on you, nil if none; :none hides the menu item (#2069)"
 
   # The board's own menu, wherever it is drawn: the toolbar's `…` or the
   # phone's Menu, each with its own id on the share link. Three groups:
@@ -365,6 +388,28 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <.icon name="hero-archive-box" class="size-4" /> Archived cards
       </.menu_link>
     </li>
+    <%!-- Mine alone (#2069): nothing from this board's tree on my Waiting
+          on you. The board works as before, for everyone. --%>
+    <li :if={@waiting_muted != :none} class="mt-1 border-t border-base-300/60 pt-1">
+      <button
+        :if={is_nil(@waiting_muted)}
+        type="button"
+        id={@share_id <> "-mute-waiting"}
+        phx-click="mute_waiting"
+        title="Nothing from this board on my Waiting on you. The board works as before for everyone."
+      >
+        <.icon name="hero-bell-slash" class="size-4" /> Mute on my Waiting on you
+      </button>
+      <button
+        :if={@waiting_muted}
+        type="button"
+        id={@share_id <> "-unmute-waiting"}
+        phx-click="unmute_waiting"
+        phx-value-board={@waiting_muted.id}
+      >
+        <.icon name="hero-bell" class="size-4" /> Unmute {@waiting_muted.name} on my Waiting on you
+      </button>
+    </li>
     """
   end
 
@@ -415,6 +460,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone"
   attr :pulse, :map, default: nil, doc: "`Slipdock.Pulse.for_board/2`, when the strip is on"
   attr :pauses, :list, default: [], doc: "`State.board_pauses/1`: the tree's runner pauses"
+  attr :waiting_muted, :any, default: nil, doc: "the board whose mute covers this one (#2069)"
   attr :dora, :map, default: nil, doc: "`Slipdock.Dora.for_board/2`, when delivery metrics are on"
 
   attr :revealed_snoozed, :any,
@@ -453,6 +499,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         {render_slot(@toolbar_actions)}
       </.board_toolbar>
       <.pause_banner pauses={@pauses} can_manage={@can_manage} />
+      <.muted_banner waiting_muted={@waiting_muted} board_id={@board.id} />
       <%!-- The board's pulse in plain words (#1113): only when the owner
             turned it on in settings (`show_pulse`). It opens the visualise
             view (#1650), which a view-only share can't open, so for them it
@@ -1011,6 +1058,36 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         Resume
       </button>
     </div>
+    """
+  end
+
+  attr :waiting_muted, :any, default: nil, doc: "the board whose mute covers this one (#2069)"
+  attr :board_id, :integer, required: true
+
+  @doc """
+  This board is muted on my Waiting on you (#2069), so I know why it is
+  quiet there: by itself or by a board above it, with Unmute. Only I see it.
+  """
+  def muted_banner(assigns) do
+    ~H"""
+    <.callout
+      :if={is_map(@waiting_muted)}
+      id="waiting-muted-banner"
+      kind={:info}
+      class="rounded-none border-l-2 py-1.5 text-xs"
+    >
+      Muted on your Waiting on you<span :if={@waiting_muted.id != @board_id}> by {@waiting_muted.name}</span>:
+      nothing from here shows there for you. The board works as before, for everyone.
+      <button
+        type="button"
+        id="waiting-muted-unmute"
+        class="btn btn-ghost btn-xs ml-1"
+        phx-click="unmute_waiting"
+        phx-value-board={@waiting_muted.id}
+      >
+        Unmute
+      </button>
+    </.callout>
     """
   end
 

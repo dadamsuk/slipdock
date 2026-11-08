@@ -6,6 +6,11 @@ defmodule SlipdockWeb.WorkLive.Index do
   It opens with "Waiting on you" (#1118): everything that needs this person,
   oldest first (`Slipdock.Work.waiting_on_me/2`), with a wait's answers
   right there. The header's count is the length of that section.
+
+  What the person took off it is never silent (#2069): a line counts the
+  items dismissed and the boards muted, the × on a row dismisses it (held
+  on its cause), and the dismissed items and muted boards open below with
+  Undo and Unmute.
   """
   use SlipdockWeb, :live_view
 
@@ -21,6 +26,7 @@ defmodule SlipdockWeb.WorkLive.Index do
      |> assign(
        page_title: "My work",
        show_done: false,
+       show_hidden: false,
        ai?: Slipdock.AI.configured?(socket.assigns.current_user)
      )
      |> load()}
@@ -31,10 +37,13 @@ defmodule SlipdockWeb.WorkLive.Index do
     cards = Work.assigned(user)
     open = Enum.reject(cards, &(&1.section == :done))
 
-    waiting = Work.waiting_on_me(user)
+    %{items: waiting} = found = Work.waiting(user)
 
     assign(socket,
       waiting: waiting,
+      dismissed: found.dismissed,
+      muted_count: found.muted,
+      muted_boards: Work.muted_boards(user),
       # The header's number is this section's length, never a second count.
       waiting_count: length(waiting),
       now: DateTime.utc_now(),
@@ -70,6 +79,38 @@ defmodule SlipdockWeb.WorkLive.Index do
     end
   end
 
+  # Off my own list (#2069): held on the item's cause, so a new one shows.
+  def handle_event("dismiss_waiting", %{"card" => id}, socket) do
+    case Work.dismiss(socket.assigns.current_user, Boards.get_card!(id)) do
+      {:ok, item} ->
+        {:noreply,
+         socket
+         |> load()
+         |> put_flash(:info, "Dismissed “#{item.card.title}”. A new reason brings it back.")}
+
+      {:error, :not_waiting} ->
+        {:noreply, load(socket)}
+    end
+  end
+
+  def handle_event("undismiss_waiting", %{"card" => id}, socket) do
+    Work.undismiss(socket.assigns.current_user, Boards.get_card!(id))
+    {:noreply, load(socket)}
+  end
+
+  def handle_event("unmute_waiting", %{"board" => id}, socket) do
+    user = socket.assigns.current_user
+
+    socket.assigns.muted_boards
+    |> Enum.filter(&(to_string(&1.id) == id))
+    |> Enum.each(&Work.unmute(user, &1))
+
+    {:noreply, load(socket)}
+  end
+
+  def handle_event("toggle_hidden", _, socket),
+    do: {:noreply, assign(socket, show_hidden: not socket.assigns.show_hidden)}
+
   # A wait answered from here: by choice button or in words.
   def handle_event("answer_wait", %{"card" => id} = params, socket) do
     user = socket.assigns.current_user
@@ -89,6 +130,19 @@ defmodule SlipdockWeb.WorkLive.Index do
       {:error, message} when is_binary(message) -> {:noreply, put_flash(socket, :error, message)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "That answer couldn't be saved.")}
     end
+  end
+
+  # "3 waiting · 2 dismissed · 1 board muted" (#2069).
+  defp hidden_line(waiting, dismissed, boards) do
+    n = length(boards)
+
+    [
+      "#{length(waiting)} waiting",
+      dismissed != [] && "#{length(dismissed)} dismissed",
+      n > 0 && "#{n} #{if n == 1, do: "board", else: "boards"} muted"
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.join(" · ")
   end
 
   defp since(item, now), do: Pulse.duration(max(DateTime.diff(now, item.since), 0))
@@ -151,12 +205,96 @@ defmodule SlipdockWeb.WorkLive.Index do
             </:actions>
           </.page_header>
 
-          <section :if={@waiting != []} id="work-waiting" class="mb-8">
+          <section
+            :if={@waiting != [] or @dismissed != [] or @muted_boards != []}
+            id="work-waiting"
+            class="mb-8"
+          >
             <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-warning">
               Waiting on you
               <span class="badge badge-ghost badge-sm font-mono">{length(@waiting)}</span>
             </h2>
-            <ul class="divide-y divide-base-300/60 overflow-hidden rounded-2xl bg-base-100 shadow-sm ring-1 ring-base-content/10">
+            <%!-- The hiding is never silent (#2069). --%>
+            <p
+              :if={@dismissed != [] or @muted_boards != []}
+              id="work-waiting-hidden"
+              class="mb-2 flex flex-wrap items-center gap-x-1 text-xs text-base-content/60"
+            >
+              {hidden_line(@waiting, @dismissed, @muted_boards)}
+              <button
+                type="button"
+                id="work-waiting-hidden-toggle"
+                class="link link-hover ml-1"
+                phx-click="toggle_hidden"
+              >
+                {if @show_hidden, do: "Hide", else: "Show"}
+              </button>
+            </p>
+            <div :if={@show_hidden} id="work-waiting-hidden-list" class="mb-3 space-y-2 text-sm">
+              <ul
+                :if={@dismissed != []}
+                id="work-dismissed"
+                class="divide-y divide-base-300/60 overflow-hidden rounded-2xl bg-base-200/40 ring-1 ring-base-content/10"
+              >
+                <li
+                  :for={item <- @dismissed}
+                  id={"dismissed-card-#{item.card.id}"}
+                  class="flex items-center gap-3 px-4 py-2"
+                >
+                  <div class="min-w-0 flex-1">
+                    <.link
+                      navigate={~p"/boards/#{item.card.board_id}/cards/#{item.card.id}"}
+                      class="block truncate hover:underline"
+                    >
+                      {item.card.title}
+                    </.link>
+                    <p class="truncate text-xs text-base-content/50">
+                      Dismissed · {item.text} · {Enum.join(item.path, " › ")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    phx-click="undismiss_waiting"
+                    phx-value-card={item.card.id}
+                  >
+                    Undo
+                  </button>
+                </li>
+              </ul>
+              <ul
+                :if={@muted_boards != []}
+                id="work-muted"
+                class="divide-y divide-base-300/60 overflow-hidden rounded-2xl bg-base-200/40 ring-1 ring-base-content/10"
+              >
+                <li
+                  :for={board <- @muted_boards}
+                  id={"muted-board-#{board.id}"}
+                  class="flex items-center gap-3 px-4 py-2"
+                >
+                  <.icon name="hero-bell-slash" class="size-4 shrink-0 text-base-content/50" />
+                  <.link
+                    navigate={~p"/boards/#{board.id}"}
+                    class="min-w-0 flex-1 truncate hover:underline"
+                  >
+                    {board.name}
+                  </.link>
+                  <span class="text-xs text-base-content/50">muted, its tree with it</span>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    phx-click="unmute_waiting"
+                    phx-value-board={board.id}
+                  >
+                    Unmute
+                  </button>
+                </li>
+              </ul>
+            </div>
+            <ul
+              :if={@waiting != []}
+              class="divide-y divide-base-300/60 overflow-hidden rounded-2xl bg-base-100 shadow-sm ring-1 ring-base-content/10"
+            >
               <li
                 :for={item <- @waiting}
                 id={"waiting-card-#{item.card.id}"}
@@ -181,6 +319,17 @@ defmodule SlipdockWeb.WorkLive.Index do
                   <span class="shrink-0 font-mono text-xs text-base-content/60">
                     {since(item, @now)}
                   </span>
+                  <button
+                    type="button"
+                    id={"dismiss-waiting-#{item.card.id}"}
+                    class="btn btn-ghost btn-xs btn-square shrink-0"
+                    phx-click="dismiss_waiting"
+                    phx-value-card={item.card.id}
+                    title="Dismiss: off my list until the reason changes"
+                    aria-label={"Dismiss #{item.card.title} from Waiting on you"}
+                  >
+                    <.icon name="hero-x-mark" class="size-4" />
+                  </button>
                 </div>
                 <p class="mt-1 pl-8 text-sm text-base-content/80">{item.text}</p>
                 <div :if={item.wait} class="mt-2 flex flex-wrap items-center gap-2 pl-8">

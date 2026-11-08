@@ -20,6 +20,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
       parts: [
         {"boards-basics", "Boards, lists and cards"},
         {"boards-subcards", "Subcards and epics"},
+        {"boards-waiting", "Waiting on you"},
         {"boards-views", "Views"},
         {"boards-card-views", "Card views"},
         {"boards-planning", "Planning"},
@@ -184,6 +185,33 @@ defmodule SlipdockWeb.HelpLive.Guides do
         Cards can also <strong>depend</strong>
         on each other ("blocked by" and "blocks"). A card waiting on unfinished work shows a
         blocked badge.
+      </p>
+    </.part>
+
+    <.part title="Waiting on you" id="boards-waiting">
+      <p>
+        <.app_link current_user={@current_user} to={~p"/work"}>My work</.app_link>
+        opens with everything that needs you, oldest first: questions waiting on you, cards
+        flagged for your review, failed runner jobs and cards in progress with nobody on them,
+        on the boards you own. The header counts them on every page.
+      </p>
+      <p>
+        Some of them you won't act on. The <strong>×</strong>
+        on a row dismisses it from your own list. It stays off for that reason only: a second
+        failed job, a new question or the flag put on again brings the card back. To keep a
+        whole board quiet, choose <strong>Mute on my Waiting on you</strong>
+        in the board's <strong>…</strong>
+        menu. Nothing from that board or any board under it shows on your list, and a strip on
+        the board says it is muted. Muting is not archiving: the board works as before, for
+        you and everyone else.
+      </p>
+      <p>
+        Both are yours alone. Nobody else's list changes. The list always says what it is
+        hiding (<em>3 waiting · 2 dismissed · 1 board muted</em>), and <strong>Show</strong>
+        lists them with <strong>Undo</strong>
+        and <strong>Unmute</strong>. From the CLI it is <code>slipdock work --dismiss</code>, <code>--dismissed</code>, <code>--undismiss</code>,
+        <code>--mute</code>
+        and <code>--unmute</code>.
       </p>
     </.part>
 

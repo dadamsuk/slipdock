@@ -18,6 +18,7 @@ defmodule Slipdock.Work do
   alias Slipdock.{Access, Boards, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Activity, Board, Card, CardMove, Column, Wait}
+  alias Slipdock.Work.{Dismissal, Mute}
   alias Slipdock.Runners.Job
 
   @sections [
@@ -115,7 +116,7 @@ defmodule Slipdock.Work do
 
   @doc """
   Everything that needs `user` (#1118, R14), oldest first: one item per card,
-  `%{card:, path:, reason:, text:, since:, wait:, job:}`, where `reason` is
+  `%{card:, path:, reason:, text:, since:, cause:, wait:, job:}`, where `reason` is
   the first of these that applies:
 
     * `"circling"` — a card going round in circles (#2047): rejected twice
@@ -145,7 +146,20 @@ defmodule Slipdock.Work do
   root boards (a token's scope), `:paths` false skips working out each
   card's path (for the count), `:now` for tests.
   """
-  def waiting_on_me(%User{} = user, opts \\ []) do
+  def waiting_on_me(%User{} = user, opts \\ []), do: waiting(user, opts).items
+
+  @doc """
+  `waiting_on_me/2` with what its person hid from it (#2069): `%{items:,
+  dismissed:, muted:, muted_boards:}`. `items` is the list; `dismissed` the
+  items they dismissed whose cause still stands, in the same shape and
+  order; `muted` how many cards their muted boards keep off; `muted_boards`
+  how many boards they have muted. Each item carries its `cause`, the key a
+  dismissal is held on: the same cause stays dismissed, a new one shows.
+
+  A card whose top reason is dismissed shows for its next reason, if it
+  has one: that is a different cause.
+  """
+  def waiting(%User{} = user, opts \\ []) do
     now = Keyword.get_lazy(opts, :now, &DateTime.utc_now/0)
     owned = owned_roots(user, opts[:roots])
     assigned = assigned_ids(user)
@@ -164,26 +178,74 @@ defmodule Slipdock.Work do
     readable = user |> Access.filter_readable_cards(Map.values(cards)) |> MapSet.new(& &1.id)
 
     flag_since =
-      flag_since(for %{reason: r, card_id: id} <- candidates, r in ~w(review waiting), do: id)
+      flag_since(
+        for %{reason: r, card_id: id} <- candidates,
+            Enum.member?(~w(review waiting), r),
+            do: id
+      )
 
-    candidates
-    |> Enum.filter(&(MapSet.member?(readable, &1.card_id) and in_scope?(cards[&1.card_id], opts)))
-    |> Enum.group_by(& &1.card_id)
-    |> Enum.map(fn {id, found} ->
-      first = Enum.min_by(found, &rank/1)
-      card = cards[id]
-      since = first[:since] || flag_since[{id, first.reason}] || card.inserted_at
+    muted = muted_board_ids(user)
 
-      %{
-        card: card,
-        path: if(opts[:paths] == false, do: nil, else: path(card)),
-        reason: first.reason,
-        text: reason_text(first),
-        since: DateTime.truncate(since, :second),
-        wait: first[:wait],
-        job: first[:job]
-      }
-    end)
+    {muted_cards, found} =
+      candidates
+      |> Enum.filter(
+        &(MapSet.member?(readable, &1.card_id) and in_scope?(cards[&1.card_id], opts))
+      )
+      |> Enum.map(&candidate_item(&1, cards[&1.card_id], flag_since))
+      |> Enum.group_by(& &1.card.id)
+      |> Enum.split_with(fn {_id, [i | _]} -> muted?(i.card, muted) end)
+
+    {shown, dismissed} = found |> Enum.map(&pick(&1, dismissed_causes(user))) |> split_picked()
+
+    %{
+      items: finish(shown, opts),
+      dismissed: finish(dismissed, opts),
+      muted: length(muted_cards),
+      muted_boards: MapSet.size(muted)
+    }
+  end
+
+  defp candidate_item(found, card, flag_since) do
+    since = found[:since] || flag_since[{card.id, found.reason}] || card.inserted_at
+    since = DateTime.truncate(since, :second)
+
+    %{
+      card: card,
+      reason: found.reason,
+      text: reason_text(found),
+      since: since,
+      cause: cause(found, since),
+      wait: found[:wait],
+      job: found[:job]
+    }
+  end
+
+  # What a dismissal is held on: the thing that put the card on the list.
+  defp cause(%{reason: "circling", rejections: n}, _since), do: "circling:#{n}"
+  defp cause(%{reason: "wait" <> _, wait: w}, _since), do: "wait:#{w.id}"
+  defp cause(%{reason: r, job: %{id: id}}, _since) when r in ~w(gave_up failed), do: "job:#{id}"
+  defp cause(%{reason: r}, since) when r in ~w(review waiting), do: "flag:#{r}:#{unix(since)}"
+  defp cause(%{reason: r}, since), do: "#{r}:#{unix(since)}"
+
+  defp unix(at), do: DateTime.to_unix(at)
+
+  # One card's reasons: the first not dismissed, or the first if all are.
+  defp pick({_id, items}, dismissed) do
+    items = Enum.sort_by(items, &rank/1)
+
+    case Enum.reject(items, &MapSet.member?(dismissed, {&1.card.id, &1.cause})) do
+      [first | _] -> {:shown, first}
+      [] -> {:dismissed, hd(items)}
+    end
+  end
+
+  defp split_picked(picked) do
+    {for({:shown, i} <- picked, do: i), for({:dismissed, i} <- picked, do: i)}
+  end
+
+  defp finish(items, opts) do
+    items
+    |> Enum.map(&Map.put(&1, :path, if(opts[:paths] == false, do: nil, else: path(&1.card))))
     |> Enum.sort_by(&{&1.reason != "circling", &1.since, &1.card.id}, &older_first/2)
   end
 
@@ -447,5 +509,108 @@ defmodule Slipdock.Work do
   # ancestors' — the same test the board page's rollup makes.
   defp in_tree?(%Card{board: board}, board_id) do
     board.id == board_id or Enum.any?(Boards.ancestry(board), &(&1.board.id == board_id))
+  end
+
+  ## Dismissing and muting (#2069)
+
+  @doc """
+  Takes the card's item off `user`'s own Waiting on you, held on its cause:
+  `{:ok, item}`, or `{:error, :not_waiting}` when the card isn't on their
+  list. Nobody else's list changes.
+  """
+  def dismiss(%User{} = user, %Card{} = card) do
+    case Enum.find(waiting(user, board_id: card.board_id).items, &(&1.card.id == card.id)) do
+      nil ->
+        {:error, :not_waiting}
+
+      item ->
+        %Dismissal{user_id: user.id, card_id: card.id, reason: item.reason, cause: item.cause}
+        |> Repo.insert!(on_conflict: :nothing, conflict_target: [:user_id, :card_id, :cause])
+
+        {:ok, item}
+    end
+  end
+
+  @doc """
+  Undoes `user`'s dismissals of the card: `{:ok, count}`, or
+  `{:error, :not_dismissed}` when they had none.
+  """
+  def undismiss(%User{} = user, %Card{} = card) do
+    case Repo.delete_all(
+           from(d in Dismissal, where: d.user_id == ^user.id and d.card_id == ^card.id)
+         ) do
+      {0, _} -> {:error, :not_dismissed}
+      {n, _} -> {:ok, n}
+    end
+  end
+
+  @doc "The items `user` dismissed whose cause still stands, as `waiting/2` gives them."
+  def dismissed(%User{} = user, opts \\ []), do: waiting(user, opts).dismissed
+
+  @doc """
+  Keeps the board's tree off `user`'s own Waiting on you: `{:ok, board}`.
+  Muting again is a no-op.
+  """
+  def mute(%User{} = user, %Board{} = board) do
+    %Mute{user_id: user.id, board_id: board.id}
+    |> Repo.insert!(on_conflict: :nothing, conflict_target: [:user_id, :board_id])
+
+    {:ok, board}
+  end
+
+  @doc "Lifts `user`'s mute of the board: `{:ok, board}` or `{:error, :not_muted}`."
+  def unmute(%User{} = user, %Board{} = board) do
+    case Repo.delete_all(
+           from(m in Mute, where: m.user_id == ^user.id and m.board_id == ^board.id)
+         ) do
+      {0, _} -> {:error, :not_muted}
+      _ -> {:ok, board}
+    end
+  end
+
+  @doc "The boards `user` has muted, by name."
+  def muted_boards(%User{} = user) do
+    from(b in Board,
+      join: m in Mute,
+      on: m.board_id == b.id and m.user_id == ^user.id,
+      order_by: [asc: b.name, asc: b.id]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  The board whose mute keeps this board off `user`'s list: the board itself
+  or one above it, nearest first, or `nil` when it isn't muted for them.
+  """
+  def muted_by(%User{} = user, %Board{} = board) do
+    muted = muted_board_ids(user)
+
+    cond do
+      MapSet.size(muted) == 0 -> nil
+      MapSet.member?(muted, board.id) -> board
+      true -> board |> Boards.ancestry() |> Enum.reverse() |> find_muted(muted)
+    end
+  end
+
+  defp find_muted(chain, muted) do
+    Enum.find_value(chain, fn %{board: b} -> if MapSet.member?(muted, b.id), do: b end)
+  end
+
+  defp muted_board_ids(user) do
+    from(m in Mute, where: m.user_id == ^user.id, select: m.board_id)
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  defp dismissed_causes(user) do
+    from(d in Dismissal, where: d.user_id == ^user.id, select: {d.card_id, d.cause})
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  defp muted?(%Card{board: board}, muted) do
+    MapSet.size(muted) > 0 and
+      (MapSet.member?(muted, board.id) or MapSet.member?(muted, Board.root_id(board)) or
+         Enum.any?(Boards.ancestry(board), &MapSet.member?(muted, &1.board.id)))
   end
 end

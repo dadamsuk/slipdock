@@ -259,6 +259,19 @@ parks, and the answer sends the epic again with the subcard named. `slipdock wor
 waiting on you, and `whoami` counts it (`waiting_on_you`). See
 [the manual](manual.md#waiting-on-a-person-waits).
 
+**Off a person's own list.** A person can take an item off their own
+Waiting on you, and nobody else's: `slipdock work --dismiss <card>`,
+`POST /api/work/dismissed` (`card`), or MCP `update_card` with
+`waiting_list: "dismiss"`. A dismissal holds on the card and its `cause`
+(the failed job, the wait, the flag's run), so a new cause (a second failed
+job, a new wait) shows the card again. A person can also mute a board's tree:
+`slipdock work --mute <board>`, `POST /api/work/muted`, or `update_board` with
+`waiting_list: "mute"`. The board works as before. `--dismissed`,
+`--undismiss` and `--unmute` (`"undismiss"`, `"unmute"`) undo them, and
+`GET /api/work` and `whoami` count what is hidden (`dismissed_count`,
+`muted_boards`, `waiting_hidden`). Never dismiss or mute for a person on
+your own judgement: it hides what needs them. Do it only when they ask.
+
 A board whose runner work a person has **paused** says so: `get_board`,
 `list_cards`, `slipdock board` and `slipdock cards` carry `paused` (a
 `PAUSED` line in the CLI). An agent seeing it takes nothing and stops.

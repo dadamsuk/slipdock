@@ -119,6 +119,88 @@ defmodule SlipdockCLI.WorkTest do
     assert JSON.decode!(out) == answer
   end
 
+  describe "dismissing and muting (#2069)" do
+    test "the list says how many are dismissed and muted" do
+      serve(
+        JSON.encode!(
+          Map.merge(work(), %{
+            "dismissed_count" => 2,
+            "muted_count" => 4,
+            "muted_boards" => [%{"id" => 3, "name" => "Old", "code" => "old"}]
+          })
+        )
+      )
+
+      out = capture_io(fn -> Boards.run("work", [], []) end)
+      assert out =~ "Waiting on you (2)\n  2 waiting · 2 dismissed (slipdock work --dismissed)"
+      assert out =~ "1 board muted (Old; 4 hidden)"
+    end
+
+    test "nothing hidden adds no line; everything hidden still says so" do
+      serve(JSON.encode!(Map.merge(work(), %{"dismissed_count" => 0, "muted_boards" => []})))
+      out = capture_io(fn -> Boards.run("work", [], []) end)
+      refute out =~ "dismissed"
+
+      serve(
+        JSON.encode!(%{
+          "waiting" => [],
+          "sections" => [],
+          "dismissed_count" => 1,
+          "muted_count" => 0,
+          "muted_boards" => []
+        })
+      )
+
+      out = capture_io(fn -> Boards.run("work", [], []) end)
+      assert out =~ "Waiting on you (0)\n  0 waiting · 1 dismissed"
+      refute out =~ "nothing waiting on you"
+    end
+
+    test "--dismiss posts the card and says how to undo it" do
+      item = hd(work()["waiting"])
+      serve(JSON.encode!(%{"dismissed" => item}))
+
+      out = capture_io(fn -> Boards.run("work", [], dismiss: "#31") end)
+
+      assert_received {:request, "POST", "/api/work/dismissed", body}
+      assert JSON.decode!(body) == %{"card" => "#31"}
+      assert out =~ "dismissed #31 Stuck one: In progress with nobody on it"
+      assert out =~ "slipdock work --undismiss 31"
+    end
+
+    test "--undismiss deletes the dismissal" do
+      serve(JSON.encode!(%{"undismissed" => %{"card_id" => 31, "count" => 1}}))
+      out = capture_io(fn -> Boards.run("work", [], undismiss: "#31") end)
+      assert_received {:request, "DELETE", "/api/work/dismissed/31", _}
+      assert out =~ "#31 is back on your list"
+    end
+
+    test "--dismissed lists them with the undo, or says there are none" do
+      serve(JSON.encode!(%{"dismissed" => work()["waiting"]}))
+      out = capture_io(fn -> Boards.run("work", [], dismissed: true) end)
+      assert_received {:request, "GET", "/api/work/dismissed", _}
+      assert out =~ "Dismissed (2)"
+      assert out =~ "#7 Deploy"
+      assert out =~ "slipdock work --undismiss <card>"
+
+      serve(JSON.encode!(%{"dismissed" => []}))
+      assert capture_io(fn -> Boards.run("work", [], dismissed: true) end) =~ "nothing dismissed"
+    end
+
+    test "--mute and --unmute name the board" do
+      serve(JSON.encode!(%{"muted" => %{"id" => 3, "name" => "Old", "code" => "old"}}))
+      out = capture_io(fn -> Boards.run("work", [], mute: "old") end)
+      assert_received {:request, "POST", "/api/work/muted", body}
+      assert JSON.decode!(body) == %{"board" => "old"}
+      assert out =~ "muted Old"
+
+      serve(JSON.encode!(%{"unmuted" => %{"id" => 3, "name" => "Old", "code" => "old"}}))
+      out = capture_io(fn -> Boards.run("work", [], unmute: "old") end)
+      assert_received {:request, "DELETE", "/api/work/muted/old", _}
+      assert out =~ "unmuted Old"
+    end
+  end
+
   describe "whoami" do
     @me %{
       "user" => %{"email" => "da@example.com", "name" => "David"},
