@@ -1074,6 +1074,10 @@ defmodule SlipdockWeb.HelpLive.Guides do
           Your sources are yours alone. The ones listed under <em>On this server</em>
           are there for everyone, and only an admin changes them.
         </li>
+        <li id="tools-skills-seeds">
+          A new server starts with one, <code>mattpocock/skills</code>, enabled on no board.
+          An admin adds another by ticking <em>For everyone on this server</em> when adding it.
+        </li>
       </ul>
       <p id="tools-skills-enable">
         To give a skill to a board's agents, open it and <strong>Enable this text</strong>

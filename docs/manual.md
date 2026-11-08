@@ -7643,8 +7643,16 @@ keeps the ones a person points the server at (#2059, spec W-2513).
   changed and removed. A failed refresh leaves the source as it was.
   **Remove** deletes the source and its skills.
 - **Whose.** A source is its adder's alone, who alone refreshes or removes it.
-  The ones listed under *On this server* are seeds an admin added, seen by
-  everyone and changed only by an admin.
+  The ones listed under *On this server* are seeds, seen by everyone and
+  changed only by an admin. An admin adds one by ticking *For everyone on this
+  server* under **Add a source** (`seed: true` over REST and MCP, `slipdock
+  registry add <url> --seed`).
+- **Seeds a new server starts with.** At boot the server adds
+  [`mattpocock/skills`](https://github.com/mattpocock/skills) (MIT) as a seed,
+  enabled on no board (#2075). Each seed is added once: one an admin removes
+  stays removed, and one whose fetch failed (the server offline, say) is tried
+  again at the next boot. `config :slipdock, :skill_registry, seeds: [...]`
+  changes the list, and `seeds: []` seeds nothing.
 - **Enable it on a board.** On a skill's page, somebody who can write to a
   board picks it under **Enable on** and presses **Enable this text**. The
   board keeps a copy of exactly that text (and its hash): that copy is what

@@ -3,7 +3,8 @@ defmodule SlipdockCLI.Registry do
 
   # The skills registry (#2072): skills fetched from outside Slipdock.
   #
-  # `registry` lists your sources and the seeds; `registry add <url>`,
+  # `registry` lists your sources and the seeds; `registry add <url>`
+  # (`--seed`: for everyone, admins only, #2075),
   # `registry source|refresh|rm <id>` handle one; `registry entry <id>`
   # prints one skill in full with the hash a pin is made against;
   # `registry enable <entry> --board B --hash H`, `registry repin <name>
@@ -40,8 +41,10 @@ defmodule SlipdockCLI.Registry do
   def plan("registry", [], _o), do: {:ok, {:sources, {:get, "/skill-sources", []}}}
   def plan("registry", ["sources"], _o), do: {:ok, {:sources, {:get, "/skill-sources", []}}}
 
-  def plan("registry", ["add", url], _o),
-    do: {:ok, {:added, {:post, "/skill-sources", %{"url" => url}}}}
+  def plan("registry", ["add", url], o) do
+    body = if o[:seed], do: %{"url" => url, "seed" => true}, else: %{"url" => url}
+    {:ok, {:added, {:post, "/skill-sources", body}}}
+  end
 
   def plan("registry", ["source", id], _o),
     do: {:ok, {:source, {:get, "/skill-sources/#{enc(id)}", []}}}

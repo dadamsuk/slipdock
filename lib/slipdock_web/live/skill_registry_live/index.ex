@@ -4,7 +4,8 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
   skill sources somebody has added and the seeds everybody sees, each with
   its entries and their metadata. Adding a source by URL fetches it
   (`Slipdock.SkillRegistry.add_source/2`); a source's owner (an admin, for a
-  seed) refreshes or removes it. `/skills/entries/:id` shows one entry's
+  seed) refreshes or removes it, and an admin can add a seed (#2075).
+  `/skills/entries/:id` shows one entry's
   full text, as fetched, before anybody lets an agent follow it.
 
   The fetch runs off the LiveView process (`start_async/3`), so the page
@@ -50,13 +51,14 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
     do: {:noreply, socket |> assign(entry: nil, page_title: "Skills") |> load()}
 
   @impl true
-  def handle_event("add", %{"url" => url}, socket) do
+  def handle_event("add", %{"url" => url} = params, socket) do
     user = socket.assigns.current_user
+    seed = params["seed"] == "true"
 
     {:noreply,
      socket
      |> assign(form: url_form(url), add_error: nil, notice: nil, busy: :add)
-     |> start_async(:add, fn -> SkillRegistry.add_source(user, url) end)}
+     |> start_async(:add, fn -> SkillRegistry.add_source(user, url, seed: seed) end)}
   end
 
   def handle_event("refresh", %{"id" => id}, socket) do
@@ -362,6 +364,20 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
               <.button class="btn btn-primary btn-sm" disabled={@busy == :add}>
                 {if @busy == :add, do: "Fetching…", else: "Add"}
               </.button>
+              <label
+                :if={Slipdock.Accounts.admin?(@current_user)}
+                class="flex basis-full items-center gap-2 text-sm"
+              >
+                <input type="hidden" name="seed" value="false" />
+                <input
+                  type="checkbox"
+                  id="skills-add-seed"
+                  name="seed"
+                  value="true"
+                  class="checkbox"
+                  disabled={@busy == :add}
+                /> For everyone on this server (a seed, which only admins change)
+              </label>
             </.form>
             <.callout :if={@add_error} id="skills-add-error" kind={:error} class="mt-2">
               {@add_error}

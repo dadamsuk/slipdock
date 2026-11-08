@@ -308,6 +308,46 @@ defmodule SlipdockWeb.SkillRegistryLiveTest do
     end
   end
 
+  describe "adding a seed (#2075)" do
+    test "an admin ticks the box and the source is everyone's", %{user: user} do
+      SkillRegistryStub.start(%{
+        "octo/skills" => octo(%{"grilling/SKILL.md" => skill("grilling")})
+      })
+
+      admin = user_fixture("skills-seed-admin@example.com")
+      {:ok, admin} = admin |> Ecto.Changeset.change(admin: true) |> Repo.update()
+
+      {:ok, view, _html} = live(log_in_user(build_conn(), admin), ~p"/skills")
+      assert has_element?(view, "#skills-add-seed")
+
+      view |> form("#skills-add-form", %{url: @repo, seed: "true"}) |> render_submit()
+      render_async(view)
+
+      assert [%Source{owner_id: nil} = seed] = SkillRegistry.list_sources(user)
+      assert has_element?(view, "#skills-seeds #skill-source-#{seed.id}")
+    end
+
+    test "nobody else sees the box, and a forged one is refused", %{conn: conn, user: user} do
+      SkillRegistryStub.start(%{
+        "octo/skills" => octo(%{"grilling/SKILL.md" => skill("grilling")})
+      })
+
+      {:ok, view, _html} = live(conn, ~p"/skills")
+      refute has_element?(view, "#skills-add-seed")
+
+      render_submit(view, "add", %{"url" => @repo, "seed" => "true"})
+      render_async(view)
+
+      assert has_element?(
+               view,
+               "#skills-add-error",
+               "Only an admin can add a source for everyone."
+             )
+
+      assert SkillRegistry.list_sources(user) == []
+    end
+  end
+
   describe "the notices" do
     test "count and list in words" do
       assert Index.added(%{name: "x", entries: [1]}) == "Added x: 1 skill."
@@ -325,6 +365,8 @@ defmodule SlipdockWeb.SkillRegistryLiveTest do
       assert has_element?(view, "#tools-skills a[href='/skills']", "Skills")
       assert has_element?(view, "#tools-skills", "Refresh")
       assert has_element?(view, "#tools-skills", "Only public addresses are fetched")
+      assert has_element?(view, "#tools-skills-seeds", "mattpocock/skills")
+      assert has_element?(view, "#tools-skills-seeds", "For everyone on this server")
     end
   end
 end

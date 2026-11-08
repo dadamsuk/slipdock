@@ -343,8 +343,10 @@ defmodule SlipdockCLI do
     # `slipdock sync`.
     vault: :string,
     watch: :boolean,
-    # The skills registry (#2072): `registry enable <entry> --hash H`.
+    # The skills registry (#2072): `registry enable <entry> --hash H`;
+    # `registry add <url> --seed` (#2075, admins).
     hash: :string,
+    seed: :boolean,
     # Card views (#2031): `card-view set --show a,b --hide c --inherit d
     # --reset --apply VIEW --show-all on|off`, `card-views --elements`.
     show: :string,

@@ -4,8 +4,8 @@ defmodule SlipdockWeb.API.SkillRegistryController do
   (`/skills`) does, with the page's permissions.
 
   - Sources (`/skill-sources`) are the caller's own and the seeds. Adding
-    one fetches it; its owner (an admin, for a seed) refreshes or removes
-    it. A fetch's refusal is its sentence, as a 422.
+    one fetches it (with `seed: true`, an admin adds a seed); its owner (an
+    admin, for a seed) refreshes or removes it. A fetch's refusal is its sentence, as a 422.
   - An entry (`/skill-entries/:id`) is the whole file, its hash, where it
     is enabled and which Playbook stages name it.
   - A board's skills (`/boards/:board/skills`): a writer enables an entry
@@ -34,11 +34,16 @@ defmodule SlipdockWeb.API.SkillRegistryController do
          do: json(conn, %{source: JSON.source(source, conn.assigns.current_user)})
   end
 
-  @doc "Adds the source at `url`: fetches it and keeps its entries."
+  @doc """
+  Adds the source at `url`: fetches it and keeps its entries. `seed: true`
+  adds it for everyone instead, which only an admin may.
+  """
   def create(conn, params) do
     user = conn.assigns.current_user
+    seed = Enum.member?([true, "true"], params["seed"])
 
-    with {:ok, source} <- user |> SkillRegistry.add_source(params["url"]) |> refused() do
+    with {:ok, source} <-
+           user |> SkillRegistry.add_source(params["url"], seed: seed) |> refused() do
       conn |> put_status(:created) |> json(%{source: JSON.source(source, user)})
     end
   end

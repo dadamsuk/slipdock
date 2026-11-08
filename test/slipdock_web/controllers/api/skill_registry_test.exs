@@ -122,6 +122,29 @@ defmodule SlipdockWeb.API.SkillRegistryTest do
     end
   end
 
+  describe "a seed (#2075)" do
+    test "an admin adds one with seed: true; anyone else is refused", %{conn: conn, user: user} do
+      assert %{"error" => "forbidden: Only an admin can add a source for everyone."} =
+               conn
+               |> post(~p"/api/skill-sources", %{url: @repo, seed: true})
+               |> json_response(403)
+
+      assert SkillRegistry.list_sources(user) == []
+
+      admin = user_fixture("registry-api-admin@example.com")
+      {:ok, admin} = admin |> Ecto.Changeset.change(admin: true) |> Slipdock.Repo.update()
+
+      assert %{"source" => %{"seed" => true, "can_manage" => true}} =
+               admin
+               |> token_conn()
+               |> post(~p"/api/skill-sources", %{url: @repo, seed: true})
+               |> json_response(201)
+
+      assert %{"sources" => [%{"seed" => true, "can_manage" => false}]} =
+               conn |> get(~p"/api/skill-sources") |> json_response(200)
+    end
+  end
+
   describe "an entry" do
     test "is the whole file, where it is enabled and the diff when changed", %{
       conn: conn,

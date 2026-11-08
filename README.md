@@ -1080,7 +1080,8 @@ reaches everyone without a reinstall
   description, version, licence and when it was fetched. Each skill's page
   shows the whole file; **Refresh** fetches the source again and says what was
   added, changed and removed, and **Remove** deletes it. A person's sources
-  are their own; the ones an admin adds are seen by everyone.
+  are their own; the ones an admin adds are seen by everyone, and a new server
+  starts with one, `mattpocock/skills`, enabled on no board.
   Somebody who can write to a board enables a skill there, pinned to the text
   they read: a refresh that changes it shows *Changed upstream* with the lines
   that differ, and the board keeps the pinned text until a writer re-pins it.
