@@ -1563,6 +1563,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         favourites={@favourites}
         ai?={@ai?}
         parent={List.last(@ancestry)}
+        waiting={Slipdock.Work.Tree.of(@waiting_tree, @card.id)}
         close_navigate={@card_only}
         at={@card_at}
         narrow?={@narrow?}
