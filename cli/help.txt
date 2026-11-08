@@ -693,6 +693,9 @@ WRITE
                                       bar:2=ok|fail, suite=412:0, rule:UX-4=ok|broken|n/a,
                                       handbook_line=ok|disputed. A reject names a failing
                                       part; an accept can't carry a broken must rule.
+                                      A rule broken in several places: one
+                                      rule:UX-4=broken:lib/x.ex:42 per instance, every
+                                      one found, all in this reject (listed under the rule).
                                       rule:UX-4=pre-existing:lib/x.ex:42 is a rule broken
                                       only in lines the diff didn't change: never a
                                       rejection, kept as a finding.
