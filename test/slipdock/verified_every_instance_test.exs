@@ -262,4 +262,18 @@ defmodule Slipdock.VerifiedEveryInstanceTest do
       refute prompt =~ "not every instance"
     end
   end
+
+  describe "the API guide" do
+    test "says a rejection names every instance, each as its own broken line under one rule",
+         ctx do
+      # Verified work is described only to a reader with a board that has it on.
+      guide = SlipdockWeb.APIGuide.markdown(user: ctx.owner)
+      text = String.replace(guide, ~r/\s+/, " ")
+
+      assert text =~ "A rejection names every instance found"
+      assert text =~ "looks for every other instance of the same break"
+      assert text =~ "each as its own `rule:<id>=broken:<file>:<line>` check under the one rule"
+      assert text =~ "says in the reason that it looked"
+    end
+  end
 end
