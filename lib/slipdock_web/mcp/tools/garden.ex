@@ -28,9 +28,8 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
   def description,
     do:
       "The gardener's open tidy-up suggestions (done epics, stale cards, duplicates, " <>
-        "orphaned pages, broken [[links]]) with why and steps; check: proposal is the " <>
-        "rules drafted from findings. run: true looks again first (a write). Then " <>
-        "garden_decide."
+        "orphaned pages, broken [[links]]) with why and steps. findings: true is what the " <>
+        "findings leave a person. run: true looks again first (a write). Then garden_decide."
 
   @impl true
   def input_schema do
@@ -46,6 +45,12 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
           type: "string",
           enum: Gardener.suggestion_keys(),
           description: "Only this check's suggestions (and only this check, with run)."
+        },
+        findings: %{
+          type: "boolean",
+          description:
+            "Only the open proposals drafted from findings, read from the tree's root " <>
+              "board: what the Findings page, its tile and slipdock findings lead with (#2123)."
         }
       },
       required: ["board"],
@@ -66,15 +71,11 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, run} <- Args.boolean(args, "run", false),
          {:ok, check} <- check(args["check"]),
+         {:ok, findings?} <- Args.boolean(args, "findings", false),
          {:ok, board} <-
-           Args.refusal(Authorize.fetch_board(auth, ref, if(run, do: :write, else: :read))) do
-      if run,
-        do:
-          {:ok, _} =
-            Gardener.run(board, trigger: "mcp", user: context.user, only: check && [check])
-
-      suggestions = Gardener.list_open(board, check: check)
-
+           Args.refusal(Authorize.fetch_board(auth, ref, if(run, do: :write, else: :read))),
+         :ok <- maybe_run(run, board, context.user, check),
+         {:ok, suggestions} <- listed(auth, board, findings?, check) do
       {:ok,
        %{
          board_id: board.id,
@@ -91,6 +92,28 @@ defmodule SlipdockWeb.MCP.Tools.Garden do
        }}
     end
   end
+
+  defp maybe_run(false, _board, _user, _check), do: :ok
+
+  defp maybe_run(true, board, user, check) do
+    {:ok, _} = Gardener.run(board, trigger: "mcp", user: user, only: check && [check])
+    :ok
+  end
+
+  # What it lists: the board's open suggestions (of one check), or with
+  # `findings` the proposals drafted from findings on the tree's root, as
+  # `GET /api/boards/:board/findings` gives them in `awaiting`.
+  defp listed(_auth, board, false, check), do: {:ok, Gardener.list_open(board, check: check)}
+
+  defp listed(auth, board, true, _check) do
+    root = if board.root_id, do: Repo.get!(Board, board.root_id), else: board
+
+    with {:ok, _} <- Args.refusal(Authorize.board(auth, root, :read) |> ok_board(root)),
+         do: {:ok, Slipdock.Findings.Awaiting.proposals(root)}
+  end
+
+  defp ok_board(:ok, board), do: {:ok, board}
+  defp ok_board(refused, _board), do: refused
 
   defp check(nil), do: {:ok, nil}
 

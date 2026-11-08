@@ -3712,9 +3712,11 @@ defmodule SlipdockWeb.APIGuide do
     not the open list, which triage and the server handle: the listing
     leads with `awaiting`, the open garden proposals whose subject names
     findings (as the garden lists them, each with its `findings`), and
-    `slipdock findings` prints "N proposals await you" before the list. MCP
-    `garden` with `check: proposal` lists the same; `garden_decide` (or
-    `slipdock garden apply|dismiss <id>`) decides one.
+    `slipdock findings` prints "N proposals await you" before the list, each
+    by id. MCP `garden` with `findings: true` lists the same, from the
+    tree's root (`check: proposal` alone is every open proposal on the board
+    given); `garden_decide` (or `slipdock garden apply|dismiss <id>`)
+    decides one.
 
     A finding counted to the board's `findings_propose_at` (3 by default, 0
     off; `update_board`, `PATCH /api/boards/:board`, `slipdock set-board

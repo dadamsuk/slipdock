@@ -377,8 +377,9 @@ slipdock health settings <board> [<detector> key=value...]   # detectors on/off,
 slipdock overseer <board> [--on|--off] [--pool P] [--min-minutes N] [--max-minutes N]   # the overseer: open
                                        # conditions (looping, waiting while idle, slow, idle capacity, no way
                                        # forward) with why and what to do, its last digest, next pass; owner sets it
-slipdock findings <board> [--status S] [--kind K] [--days N] [--card ID]   # what cards taught and the
-                                       # system saw go wrong (Findings: blocks, rejections, timeouts…), open first
+slipdock findings <board> [--status S] [--kind K] [--days N] [--card ID]   # first the proposals drafted
+                                       # from findings that await a person (decide with garden apply|dismiss <id>),
+                                       # then what cards taught and the system saw go wrong, open first
 slipdock finding <id> promote|dismiss|reopen [--note "W-12 §Tests"]   # triage one; promote once it is in the handbook
 slipdock finding <id> merge --into ID    # fold a repeat into another, adding its count
 slipdock flag <id> <flag>... [--off]     # flags: flagged blocked review waiting starred stuck

@@ -257,11 +257,12 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Findings** — [what each card taught, kept on the board](docs/manual.md#findings):
   a pass writes a `Findings:` block (gotcha, rule, handbook-wrong, tooling,
   process) in its closing comment, the server records rejections, timeouts,
-  requeues and failed merges by itself, and someone triages them
-  into the handbook on the board's Findings page (a card says how many open
-  ones it has), `slipdock findings <board>` or `GET /api/boards/:board/findings`.
-  What waits on a person is the rules drafted from them, so the Findings tile
-  and page lead with those proposals and keep the findings as reference.
+  requeues and failed merges by itself, and the daily triage and the server
+  handle them: merged, promoted into the handbook, dismissed, or drafted into
+  a rule when one recurs. Those drafted rules are what wait on a person, so
+  the board's Findings page and its tile lead with the proposals and keep the
+  findings as reference (a card says how many open ones it has), as do
+  `slipdock findings <board>` and `GET /api/boards/:board/findings`.
 - **Ledger** — [what shipped since yesterday, to skim](docs/manual.md#the-ledger):
   one line per card completed, accepted, merged or deployed, with who or what
   accepted it, its evidence, the `should` rules it missed, where its time went

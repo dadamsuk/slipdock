@@ -18,7 +18,7 @@ defmodule SlipdockCLI.Findings do
 
   def run("findings", [ref], o) do
     HTTP.get("/boards/#{enc(ref)}/findings", query(o))
-    |> out(o, &listing(&1, Map.put(Map.new(o), :board, ref)))
+    |> out(o, &listing(&1, o))
   end
 
   def run("findings", _args, _o) do
@@ -66,7 +66,7 @@ defmodule SlipdockCLI.Findings do
   # findings. The findings after it are being handled, and are reference.
   @doc false
   def listing(data, o) do
-    Enum.each(awaiting(Map.get(data, "awaiting", []), o[:board]), &IO.puts/1)
+    Enum.each(awaiting(Map.get(data, "awaiting", [])), &IO.puts/1)
     findings(data["findings"], o)
   end
 
@@ -79,15 +79,17 @@ defmodule SlipdockCLI.Findings do
   defp findings(findings, _o), do: Enum.each(findings, &IO.puts(line(&1)))
 
   @doc false
-  def awaiting([], _board), do: []
+  def awaiting([]), do: []
 
-  def awaiting(proposals, board) do
+  # Each by id, so what to decide is exactly these: on a sub-board they are
+  # the root's, and other proposals on the board are not among them.
+  def awaiting(proposals) do
     n = length(proposals)
 
     each =
       Enum.map(proposals, &"  proposal ##{&1["id"]} (from #{from(&1)}): #{&1["explanation"]}")
 
-    decide = "  Apply or dismiss: slipdock garden #{board || "<board>"} --check proposal"
+    decide = "  Apply or dismiss one: slipdock garden apply|dismiss <id>"
 
     ["#{n} #{if n == 1, do: "proposal awaits", else: "proposals await"} you:" | each] ++
       [decide, ""]

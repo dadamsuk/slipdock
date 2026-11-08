@@ -867,9 +867,14 @@ A block that only points elsewhere records nothing: the evidence is a comment
 of its own, and its block is read there.
 Settled knowledge goes straight into the handbook. The server records
 its own (rejections, timeouts, requeues, failed merges; a lane refusal is
-not one), and a
-person triages them on the board's Findings page (`/boards/:id/findings`,
-from the board's Agentic Building page; a card links there when it has open ones), or with
+not one), and the daily triage and the server handle them: they merge,
+promote and dismiss findings, and draft a rule as a garden proposal when one
+recurs. Those proposals are what wait on a person, so the board's Findings
+page (`/boards/:id/findings`, from the board's Agentic Building page, whose
+tile counts them; a card links there when it has open ones) leads with them,
+as `slipdock findings` (each by id), `awaiting` in
+`GET /api/boards/:board/findings` and MCP `garden` with `findings: true` do.
+The findings below them are reference, triaged by hand when wanted with
 `slipdock findings <board>`, `slipdock finding <id> promote|dismiss|merge
 --into <id>`, `GET /api/boards/:board/findings`; see
 [the manual](manual.md#findings).

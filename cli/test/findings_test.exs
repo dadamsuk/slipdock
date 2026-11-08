@@ -82,7 +82,7 @@ defmodule SlipdockCLI.FindingsTest do
     assert out =~ "2 proposals await you:\n"
     assert out =~ "  proposal #123 (from #4): Seen 3 times: add UX-4\n"
     assert out =~ "  proposal #124 (from #5, #6): Seen 4 times: add TEST-9\n"
-    assert out =~ "  Apply or dismiss: slipdock garden slipdock --check proposal\n"
+    assert out =~ "  Apply or dismiss one: slipdock garden apply|dismiss <id>\n"
     [before, _] = String.split(out, "#4 gotcha")
     assert before =~ "proposal #124"
 

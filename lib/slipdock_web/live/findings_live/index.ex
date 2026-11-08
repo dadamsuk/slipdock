@@ -2,7 +2,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
   @moduledoc """
   A board tree's Findings page (W-2310 §Findings, see `Slipdock.Findings`):
   what passes learned and what the system saw go wrong, kept on the tree's
-  root board for a person to triage.
+  root board, where triage and the server handle them.
 
   It lists what `GET /api/boards/:board/findings` lists, with the same
   filters (`status`, open by default; `kind`, `source`, `card`, `since`),
@@ -319,7 +319,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
         <.page width="standard" class="space-y-6">
           <.page_header id="findings-title" title="Findings">
             <:meta>
-              What passes learned on this board and the boards beneath it, and what the system saw go wrong: promote what should become a handbook rule, merge repeats, dismiss the rest.
+              What passes learned on this board and the boards beneath it, and what the system saw go wrong. Triage and the server handle them; what waits on you is the rules drafted from them.
             </:meta>
           </.page_header>
 

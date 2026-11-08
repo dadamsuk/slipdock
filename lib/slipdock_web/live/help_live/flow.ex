@@ -524,7 +524,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     </p>
     <p>
       On a board with a handbook, the closing comment has a <strong><code>Handbook:</code> line</strong>, the sections it updated or why none needed it, and a <strong><code>Findings:</code> block</strong>: what the card taught that the code and
-      handbook don't show, for a person to triage later. An item already dealt with says where
+      handbook don't show, for the daily triage to handle. An item already dealt with says where
       and is kept promoted, not open: <code>[done: W-1950 §Local setup]</code>
       after its kind, or <code>→ #2087</code>
       at its end for a card filed for it.

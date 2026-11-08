@@ -664,7 +664,10 @@ WRITE
                                       saw go wrong, on the tree's root board; open by default
                                       (S: open|promoted|dismissed|merged|all). One row per lesson,
                                       with the other cards it was said on ("also #12"). --scope
-                                      runner: the tooling (runner) items kept with a runner
+                                      runner: the tooling (runner) items kept with a runner.
+                                      First, what waits on you: the proposals drafted from
+                                      findings ("2 proposals await you"), each by id, to
+                                      decide with garden apply|dismiss <id>
   finding <id> dismiss|promote|reopen [--note TEXT]
                                       triage one (promote: say what it became, W-1950 §Tests)
   finding <id> merge --into ID        fold a repeat into another finding, adding its count
