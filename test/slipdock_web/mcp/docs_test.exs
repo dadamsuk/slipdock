@@ -214,7 +214,8 @@ defmodule SlipdockWeb.MCP.DocsTest do
     test "everywhere the block is taught, a fix is a card, not a finding (#2121)" do
       for path <- ~w(priv/skills/slipdock-loop/SKILL.md priv/skills/slipdock-work/SKILL.md
                      priv/skills/slipdock-docs/SKILL.md docs/agents.md docs/manual.md
-                     lib/slipdock_web/api_guide.ex lib/slipdock_web/live/help_live/flow.ex) do
+                     lib/slipdock_web/api_guide.ex lib/slipdock_web/live/help_live/flow.ex
+                     lib/slipdock/sweep.ex) do
         text = read(path) |> String.replace(~r/\s+/, " ")
 
         assert text =~ "a fix is a card, not a finding" or

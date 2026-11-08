@@ -2324,8 +2324,9 @@ only for what is uncertain, cuts across cards, or shows the handbook wrong:
 |---|---|
 | no test pins `slipdock done`'s exit codes | `mix format` can need two passes; run the check after it |
 | a stale moduledoc or doc entry | the shared `_pre_push` database can hold another branch's migration |
-| `page section --append -` writes a literal `-` | W-1950 §Tests says async is safe, but the fixture is one user | Write the block once, in
-the closing comment (on a board that verifies work, the completion's
+| `page section --append -` writes a literal `-` | W-1950 §Tests says async is safe, but the fixture is one user |
+
+Write the block once, in the closing comment (on a board that verifies work, the completion's
 evidence): not again in a wrap-up, a restatement or on the epic. The block is
 read when the comment is posted (the evidence of a completion too), and
 deleting the comment takes back what it added that nobody has triaged yet.
