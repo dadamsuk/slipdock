@@ -378,8 +378,15 @@ changes it marks it *changed upstream* and leaves the pinned text in place
 until a writer reads the diff and re-pins it (`registry repin <name> --board B
 --hash H`, `PATCH /api/boards/:board/skills/:name`). `slipdock registry
 stages` (`GET /api/skill-stages`) lists the Playbook stages that name a skill
-(`skill: <name>`) and what each gets. See
-[the manual](manual.md#skills-from-elsewhere).
+(`skill: <name>`) and what each gets. What a board's agents get is
+`GET /api/boards/:board/skills`, for anyone who reads the board: each enabled
+skill with its name, source, licence, pinned hash, `status` (`current`,
+`changed` upstream, or `removed` from its source) and its pinned `text`, never
+newer. The CLI's door is `slipdock skills board <board>` (with a name, that
+one's pinned text), and MCP's is `get_guide` with `board`, which adds the same
+list as `skills`. `slipdock-plan` uses it: for a stage that names a skill, the
+one enabled on the board, else one installed locally, else its own text, and
+it says which. See [the manual](manual.md#skills-from-elsewhere).
 
 The board gardener finds rot — epics done but open, cards stuck in progress,
 duplicates, orphaned pages, mistyped links, and on a handbook board long
@@ -541,10 +548,12 @@ card…".
 2. It reads the Playbook and sizes the ask by its `## Sizing`. A card-sized
    ask gets one card, shaped by `## Card shape`, and the skill stops there.
 3. It runs the stages the size takes, in order: Grill, Decide, Principles,
-   Spec, Cards for a system, and Grill, Spec, Cards for a feature. Each stage
-   uses the skill its section names when that skill is installed, otherwise
-   the stage's own text in `slipdock-plan`. A stage whose output is already
-   on the board is skipped.
+   Spec, Cards for a system, and Grill, Spec, Cards for a feature. For a
+   stage whose section names a skill (`skill: <name>`) it uses, in order: the
+   one enabled on the board from the skills registry (its pinned text, from
+   `slipdock skills board <board> <name>` or `get_guide` with `board`), else
+   one installed locally, else the stage's own text in `slipdock-plan`, and
+   says which. A stage whose output is already on the board is skipped.
 4. It writes where the Playbook says:
    - Decision pages go in `Handbook/Decisions`, each with its context, the
      choice, the alternatives and why not, and where it was decided.

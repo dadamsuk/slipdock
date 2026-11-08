@@ -309,6 +309,77 @@ defmodule SlipdockWeb.API.SkillRegistryTest do
     end
   end
 
+  describe "a board's skills, served to its agents (#2063)" do
+    test "a reader gets the enabled skills with their pinned text, never newer", %{
+      conn: conn,
+      user: user,
+      board: board
+    } do
+      path = ~p"/api/boards/#{board.id}/skills"
+      reader = user_fixture("registry-api-served@example.com")
+      {:ok, _} = Access.grant(board, reader, "read", user)
+      reader_conn = token_conn(reader, "read")
+
+      assert %{"skills" => [], "board" => %{"id" => board_id}} =
+               reader_conn |> get(path) |> json_response(200)
+
+      assert board_id == board.id
+
+      %{"id" => source_id, "entries" => [%{"id" => id, "content_hash" => hash}]} = add!(conn)
+      conn |> post(path, %{entry: id, hash: hash}) |> json_response(201)
+
+      assert %{"skills" => [skill]} = reader_conn |> get(path) |> json_response(200)
+      assert skill["name"] == "grilling"
+      assert skill["source_name"] == "octo/skills"
+      assert skill["licence"] == "MIT"
+      assert skill["pinned_hash"] == hash
+      assert skill["status"] == "current"
+      assert skill["text"] =~ "Ask one question at a time."
+
+      # A refresh that changes it upstream: still the pinned text, marked changed.
+      serve("Ask them all at once.")
+      conn |> post(~p"/api/skill-sources/#{source_id}/refresh") |> json_response(200)
+
+      assert %{"skills" => [changed]} = reader_conn |> get(path) |> json_response(200)
+      assert changed["status"] == "changed"
+      assert changed["pinned_hash"] == hash
+      assert changed["text"] =~ "Ask one question at a time."
+      refute changed["text"] =~ "all at once"
+
+      # The board by its code reads the same.
+      assert %{"skills" => [_]} =
+               reader_conn |> get(~p"/api/boards/#{board.code}/skills") |> json_response(200)
+    end
+
+    test "a board's sub-board serves its root's skills", %{conn: conn, user: user, board: board} do
+      {:ok, %{entries: [entry]}} = SkillRegistry.add_source(user, @repo)
+      {:ok, _} = SkillRegistry.enable(user, board, entry.id, entry.content_hash)
+      board = Slipdock.Boards.get_board!(board.id)
+      epic = card_fixture(hd(board.columns), %{"title" => "Epic"})
+      {:ok, template} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(epic, template)
+
+      assert %{"skills" => [%{"name" => "grilling"}]} =
+               conn |> get(~p"/api/boards/#{sub.id}/skills") |> json_response(200)
+    end
+
+    test "a caller without access, or no board at all, gets nothing", %{
+      user: user,
+      board: board
+    } do
+      {:ok, %{entries: [entry]}} = SkillRegistry.add_source(user, @repo)
+      {:ok, _} = SkillRegistry.enable(user, board, entry.id, entry.content_hash)
+      outsider_conn = token_conn(user_fixture("registry-api-served-out@example.com"))
+
+      body = outsider_conn |> get(~p"/api/boards/#{board.id}/skills") |> json_response(404)
+      refute Map.has_key?(body, "skills")
+      refute inspect(body) =~ "Ask one question"
+
+      assert outsider_conn |> get(~p"/api/boards/no-such-board/skills") |> json_response(404)
+      assert build_conn() |> get(~p"/api/boards/#{board.id}/skills") |> json_response(401)
+    end
+  end
+
   test "the stages naming a skill, flagged when nothing provides it", %{
     conn: conn,
     user: user,

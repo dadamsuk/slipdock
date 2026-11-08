@@ -70,9 +70,21 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
     # The card-sized stop.
     assert flat =~ "**Card-sized:** make the card as the Playbook's `## Card shape` says"
     assert flat =~ "and **stop**"
-    # An external skill only when it is installed.
-    assert flat =~ "When the section names one (`skill: <name>`) and that skill is installed here"
-    assert flat =~ "when the named skill isn't installed, use this file's text for the stage"
+    # A named skill: enabled on the board, else installed, else the built-in
+    # text, in that order, saying which (#2063).
+    assert flat =~ "When the section names one (`skill: <name>`), take the first of these"
+    assert flat =~ "and say which you used"
+    step = section(text, "## 3. Run the stages") |> flat()
+
+    enabled =
+      :binary.match(step, "1. **Enabled on the board.** `slipdock skills board <board> <name>`")
+
+    installed = :binary.match(step, "2. **Installed here.**")
+    neither = :binary.match(step, "3. **Neither:** use this file's text for the stage")
+    assert [enabled, installed, neither] |> Enum.all?(&(&1 != :nomatch))
+    assert elem(enabled, 0) < elem(installed, 0) and elem(installed, 0) < elem(neither, 0)
+    assert step =~ "MCP: `get_guide` with `board`"
+    assert step =~ "a `changed` status means upstream moved on and the pinned text is still"
     # The Decision page's shape.
     assert flat =~ "titled `Decision: <what was chosen>`, with four parts: **Context**"
     assert flat =~ "**The choice**, **Alternatives** (each, and why not), **Where decided**"
@@ -140,5 +152,48 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
     text = html |> Floki.parse_document!() |> Floki.text() |> flat()
     assert text =~ "slipdock-plan: planning. Asked to plan"
     assert text =~ "A one-sentence ask stays one card"
+  end
+
+  describe "a board's enabled skills, served to its agents (#2063)" do
+    test "docs/agents.md and the guide name each door and the plan skill's order" do
+      agents = flat(File.read!(Path.join(@root, "docs/agents.md")))
+      assert agents =~ "`GET /api/boards/:board/skills`, for anyone who reads the board"
+      assert agents =~ "`slipdock skills board <board>`"
+      assert agents =~ "MCP's is `get_guide` with `board`, which adds the same list as `skills`"
+      assert agents =~ "the one enabled on the board from the skills registry"
+      assert agents =~ "else one installed locally, else the stage's own text"
+      refute agents =~ "uses the skill its section names when that skill is installed"
+
+      guide = flat(SlipdockWeb.APIGuide.markdown())
+      assert guide =~ "What the board's agents get is `GET /api/boards/:board/skills`"
+      assert guide =~ "CLI: `slipdock skills board <board> [<name>]`"
+      assert guide =~ "`get_guide` with `board`, whose answer adds the same list as `skills`"
+
+      help = File.read!(Path.join(@root, "cli/help.txt"))
+      assert help =~ "skills board <board> [<name>]"
+
+      manual = flat(File.read!(Path.join(@root, "docs/manual.md")))
+      assert manual =~ "**What the board's agents get.** `GET /api/boards/:board/skills`"
+      assert manual =~ "the one enabled on the board first, else one installed on the machine"
+      refute manual =~ "an installed skill named with `skill:`"
+
+      readme = flat(File.read!(Path.join(@root, "README.md")))
+      assert readme =~ "`slipdock skills board <board> [<name>]`"
+      assert readme =~ "`slipdock-plan` uses one for a Playbook stage that names it"
+    end
+
+    test "the agents help page has the doors' row and the plan skill's order", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/help/agents")
+      text = html |> Floki.parse_document!() |> Floki.text() |> flat()
+      assert text =~ "Get the skills enabled on a board, each with its pinned text"
+      assert text =~ "GET /api/boards/:board/skills"
+      assert text =~ "get_guide's board"
+      assert text =~ "slipdock skills board"
+
+      {:ok, _view, html} = live(conn, ~p"/help/agents/skills")
+      text = html |> Floki.parse_document!() |> Floki.text() |> flat()
+      assert text =~ "it uses the one enabled on the board from the skills registry"
+      assert text =~ "else one installed on the machine, else its own text, and says which"
+    end
   end
 end

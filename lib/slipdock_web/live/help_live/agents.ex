@@ -184,6 +184,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP, when asked"},
        {:no, "one way only"}
      ]},
+    {"Get the skills enabled on a board, each with its pinned text",
+     [
+       {:yes, "GET /api/boards/:board/skills"},
+       {:yes, "get_guide's board"},
+       {:yes, "slipdock skills board"},
+       {:yes, "through the CLI or MCP, when planning"},
+       {:yes, "through the CLI or MCP, when planning"},
+       {:no, "one way only"}
+     ]},
     {"Wait on a person, and answer a wait",
      [
        {:yes, "POST /api/cards/:id/wait"},
@@ -1029,7 +1038,11 @@ defmodule SlipdockWeb.HelpLive.Agents do
           a feature or a system, then runs the stages that size takes (grill, decide,
           principles, spec, cards) and writes Decisions, Principles, the spec on the epic and
           the cards. A one-sentence ask stays one card, and a board with no handbook is
-          offered one.
+          offered one. For a stage whose Playbook section names a skill
+          (<code>skill: grilling</code>), it uses the one enabled on the board from the
+          <.link navigate={~p"/skills"} class="link">skills registry</.link>
+          (its pinned text, from <code>slipdock skills board</code>), else one installed
+          on the machine, else its own text, and says which.
         </li>
         <li>
           <code>slipdock-loop</code>: working the To Do list unattended, one card per pass, from

@@ -7526,8 +7526,9 @@ skill) and never by the server when a card is made:
   takes grill, spec and cards; anything else is a *card*, made as Card
   shape says, with no stages.
 - **One section per stage** (Grill, Decide, Principles, Spec, Cards), each
-  saying what it asks, the skill it uses (the plan skill's own text, or
-  an installed skill named with `skill:`), what it produces and where it
+  saying what it asks, the skill it uses (one named with `skill:`, which
+  the plan skill takes from the board's enabled skills, else an installed
+  one, else its own text), what it produces and where it
   writes: the epic's description, a `Decision:` page in
   `Handbook/Decisions`, the Principles page (as a proposal when nobody is
   there to agree it), a spec page on the epic, the epic's subcards. A
@@ -7783,6 +7784,17 @@ keeps the ones a person points the server at (#2059, spec W-2513).
   (`skill_registry`, by `action`). Enabling and re-pinning take the
   `content_hash` of the text read, from `registry entry` or the entry's
   `content_hash`, and refuse any other.
+- **What the board's agents get.** `GET /api/boards/:board/skills`, for
+  anyone who can read the board, lists the skills enabled there, each with
+  its name, source, licence, pinned hash, status (`current`, `changed`
+  upstream, `removed` from its source) and its pinned text, never newer; a
+  board you can't read is a 404. The CLI's door is `slipdock skills board
+  <board>`, and `slipdock skills board <board> <name>` prints one skill's
+  pinned text; MCP's is `get_guide` with `board`, which adds the same list
+  as `skills`. The `slipdock-plan` skill uses it for a Playbook stage that
+  names a skill: the one enabled on the board first, else one installed on
+  the machine, else its own text, and it says which (#2063). So a board
+  plans with a skill nobody installed.
 
 ## Skills
 
