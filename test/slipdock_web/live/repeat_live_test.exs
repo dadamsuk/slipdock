@@ -191,6 +191,27 @@ defmodule SlipdockWeb.RepeatLiveTest do
     assert render(view) =~ "An earlier instance of a recurring card"
   end
 
+  test "a later instance says which it was copied from, linked (#2081)", ctx do
+    {:ok, series} = Recurrence.set(ctx.card, %{"rule" => "tue"}, ctx.owner)
+    {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+    Recurrence.tick(~U[2027-01-19 07:00:00Z])
+    new = Slipdock.Repo.get!(Slipdock.Recurrence.Series, series.id).card_id
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{new}")
+    line = view |> element("#repeat-copied-from") |> render()
+    assert line =~ "Copied from"
+    assert line =~ "Review invoices"
+
+    assert has_element?(
+             view,
+             ~s|#repeat-copied-from a[href="/boards/#{ctx.board.id}/cards/#{ctx.card.id}"]|
+           )
+
+    # The first of the series wasn't copied from anything.
+    {:ok, first, _} = open(ctx.conn, ctx)
+    refute has_element?(first, "#repeat-copied-from")
+  end
+
   test "the front of a recurring card carries ↻, with the rule as its tooltip", ctx do
     plain = card_fixture(ctx.backlog, %{"title" => "One-off"})
     {:ok, _} = Recurrence.set(ctx.card, %{"rule" => "tue"}, ctx.owner)

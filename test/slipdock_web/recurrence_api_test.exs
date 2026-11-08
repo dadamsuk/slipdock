@@ -83,6 +83,26 @@ defmodule SlipdockWeb.RecurrenceAPITest do
                as(ctx.owner) |> get("/api/cards/#{ctx.card.id}") |> json_response(200)
     end
 
+    test "the card says which instance it was copied from (#2081)", ctx do
+      {:ok, series} = Recurrence.set(ctx.card, %{"rule" => "mon"}, ctx.owner)
+      {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+      assert Recurrence.tick(~U[2030-01-14 07:00:00Z]) == 1
+      new = Repo.get!(Slipdock.Recurrence.Series, series.id).card_id
+      first = ctx.card.id
+
+      assert %{"card" => %{"copied_from" => %{"id" => ^first, "title" => "Review invoices"}}} =
+               as(ctx.owner) |> get("/api/cards/#{new}") |> json_response(200)
+
+      # The first of the series was copied from nothing.
+      refute Map.has_key?(
+               as(ctx.owner)
+               |> get("/api/cards/#{first}")
+               |> json_response(200)
+               |> Map.get("card"),
+               "copied_from"
+             )
+    end
+
     test "a card that doesn't repeat", ctx do
       assert %{"recurrence" => nil, "current" => false} =
                as(ctx.owner) |> get("/api/cards/#{ctx.card.id}/recurrence") |> json_response(200)
@@ -226,6 +246,22 @@ defmodule SlipdockWeb.RecurrenceAPITest do
                }
              } =
                as(ctx.owner) |> call("get_card", %{card: ctx.card.id}) |> ok!()
+    end
+
+    test "get_card says which instance it was copied from (#2081)", ctx do
+      {:ok, series} = Recurrence.set(ctx.card, %{"rule" => "mon"}, ctx.owner)
+      {:ok, _} = Boards.update_card(ctx.card, %{"completed" => true})
+      assert Recurrence.tick(~U[2030-01-14 07:00:00Z]) == 1
+      new = Repo.get!(Slipdock.Recurrence.Series, series.id).card_id
+      first = ctx.card.id
+
+      assert %{"copied_from" => %{"id" => ^first}} =
+               as(ctx.owner) |> call("get_card", %{card: new}) |> ok!()
+
+      refute Map.has_key?(
+               as(ctx.owner) |> call("get_card", %{card: first}) |> ok!(),
+               "copied_from"
+             )
     end
 
     test "skip: true, and null stops it", ctx do

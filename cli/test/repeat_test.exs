@@ -185,5 +185,11 @@ defmodule SlipdockCLI.RepeatTest do
     older = card |> Map.delete("recurrence") |> Map.put("series_id", 3)
     assert capture_io(fn -> Render.card(older) end) =~ "an earlier instance of series #3"
     refute Render.card_line(older, true) =~ "↻"
+
+    # A recurring instance says which it was copied from (#2081); a card no
+    # series made says nothing of it.
+    copied = Map.put(card, "copied_from", %{"id" => 5, "title" => "Review invoices"})
+    assert capture_io(fn -> Render.card(copied) end) =~ ~r/Copied from:\s+#5 Review invoices/
+    refute out =~ "Copied from"
   end
 end

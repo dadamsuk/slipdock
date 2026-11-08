@@ -1868,12 +1868,21 @@ being skipped.
 series' timezone, on the day it is due (or the days early you set), copied to
 the top of the board's ready list (or the list you named):
 
-- title, description, priority, cover, tags, assignees, the estimate and flags
-  come along, except *blocked* and *waiting*, which were about the last one;
+- title, description, priority, cover, tags, the estimate, and on a board
+  that verifies work the bar's text, the paths and the profile come along;
 - the checklist comes along unticked, and subcards are copied into a new
   sub-board, every one reopened in its ready list;
+- the next instance **starts clean**: none of the last one's work state comes
+  with it — no assignees, no flags, no % complete, no handoff, no waits, no
+  evidence and no bar lock. A runner that worked the last one assigned it to
+  itself, and the runners' rules take only unassigned cards, so a copy that
+  kept it would sit unworked;
 - comments, dates other than the new due date, time spent, attachments, links
   and dependencies don't.
+
+Each later instance says which it was copied from — **Copied from #N** under
+**Repeat**, `Copied from:` in `slipdock card`, `copied_from` in the card's
+JSON — so a surprise in one is one click from where it came from.
 
 **Not stacking up.** If the last one is still open when the next is due, the
 default (*Move its due date on*, `bump`) moves its due date to the new
