@@ -751,6 +751,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
           ask only when they differ materially, once, before filing.
         </li>
         <li>
+          <strong>A bar item made moot</strong>
+          by a later, cited decision or rule: read it the obvious way and say so. Not a wait.
+        </li>
+        <li>
           <strong>Dependencies:</strong>
           blocked-by means <em>can't start until</em>, not <em>should come after</em>:
           set it where a card builds on another's code, schema or decision, and use list position for

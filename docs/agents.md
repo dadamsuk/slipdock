@@ -269,6 +269,35 @@ is the whole tree's, and each epic in the lists carries its own. `slipdock
 card <epic>` and `slipdock board` print a `Waiting on you:` line. An epic
 whose tree is all waiting on a person has nothing workable: leave it to them.
 
+**When to wait, and when not.** A wait is for readings that differ
+materially in cost or in what the person sees, for decisions the Playbook
+or the board routes to a person (product, ux, security, release), and for
+anything a rule says is a person's step (merging, changing a handbook rule,
+deploying). A locked bar item that a later, cited decision or rule has made
+moot is not one: read it the obvious way, say so on the card (what you
+read, why, the citation) and leave the judgement to the verifier, who
+accepts a noted reading and rejects one that wasn't noted. A wait offering
+choices and a proposed answer is an approval and should be rare; when
+raised, it names the default you would take (`default`, the choice's
+number; `slipdock wait <id> "…" --choice A --choice B --default 1`), so the
+answer can be one click.
+
+**A moot wait clears itself.** Sent a card (or its epic) with an open wait,
+an agent first checks it is still live: the question answered elsewhere,
+the bar or description edited since, the cited rule or decision now in
+place, the card rejected or accepted since. A moot wait is withdrawn with
+why, by whichever agent finds it: `slipdock wait <id> --withdraw --reason
+"…"`, `DELETE /api/cards/:id/wait?reason=…` or `update_card` `wait: null`
+with `wait_reason`. An agent withdrawing a wait it didn't open is refused
+without the reason; the comment carries it. A board's `wait_default_after`
+(off unless set; `slipdock set-board <board> --wait-default-after 4h`,
+`PATCH /api/boards/:board {"wait_default_after": "4h"}`, `update_board`, or
+the Agentic Building page) lets an approval wait, of kind `other` with
+choices and a `default`, resolve to its default once it has gone that long
+unanswered: the card says so, the person asked is told, and the card moves
+on as on an answer. Never for a product, ux, security or release question,
+nor a wait with no default.
+
 **Off a person's own list.** A person can take an item off their own
 Waiting on you, and nobody else's: `slipdock work --dismiss <card>`,
 `POST /api/work/dismissed` (`card`), or MCP `update_card` with
@@ -547,12 +576,12 @@ guide's *Epics and subcards* says under **Card shape**:
   line): whoever builds it reads those from the handbook and the repo.
 - **Two readings:** write the obvious one and note the other in the
   description; ask only when they differ materially, once, before filing.
+- **A bar item made moot** by a later, cited decision or rule: read it
+  the obvious way and say so. Not a wait.
 - **Dependencies:** `blocked_by` means *can't start until*, not *should
   come after*: set it where a card builds on another's code, schema or
-  decision, and use list position for mere preference. A chain is right
-  when each card extends the one before, wrong when they are
-  independent. A one-card ask gets none unless the person said "after
-  X". None on a simple board.
+  decision, and use list position for mere preference. A one-card ask
+  gets none unless the person said "after X". None on a simple board.
 
 A board's handbook can override these: the `## Card shape` section of
 its Playbook page wins wherever it says otherwise. It isn't a gate: one

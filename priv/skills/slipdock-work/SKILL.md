@@ -86,6 +86,16 @@ whole card before touching it.
   several questions go as `--question Q --question Q` / `questions`, one each,
   never one block; give its kind, `--kind product|ux|security|release|other` /
   `question`, so the board routes it to the person whose call it is):
+  **what a wait is for** is readings that differ materially in cost or in
+  what the person sees, decisions the Playbook or the board routes to a
+  person (product, ux, security, release), and anything a rule says is a
+  person's step (merging, changing a handbook rule, deploying), never a
+  reading you have already settled; one that offers choices and a
+  proposed answer is an approval, rare, and **names the default you would
+  take**, `--default N` (`wait` `default`), so the answer can be one click
+  (on a board with `wait_default_after` set, an unanswered approval of
+  kind `other` goes ahead with it after that long; never another kind, or
+  one with no default);
   it flags the card `waiting`, and answering it (`slipdock answer`) gets the work
   going again — or, when what it waits for has a date, snooze it instead (`slipdock
   snooze <id> <date> --note "…"`): it leaves the lists and comes back on the
@@ -102,6 +112,12 @@ whole card before touching it.
   the conflict to the verifier. Write bars that can be met: a rule change
   is "proposed as a garden proposal (rule id, wording)", never "W-x has
   rule Y".
+  **A bar item made moot is read the obvious way, not waited on:** a
+  locked bar item that a later decision or rule has made moot (cited: a
+  `Decision:` page, a card, a rule id) is read the obvious way. Say so on
+  the card (what you read, why, the citation) and leave the judgement to
+  the verifier, who accepts a noted reading and rejects one that wasn't
+  noted.
   Complete it with what you checked (`slipdock done <id> --evidence-commit
   <sha> --tests a,b --suite passed:38:0 --evidence "…"`). On a board
   where a second agent verifies, `done` submits the card and leaves it
@@ -173,6 +189,15 @@ whole card before touching it.
   when, accepted by whom, the merged PR) where *Left off* was, and a
   handoff written before it finished as *Last note* (`last_handoff` in its
   JSON): history, not a next step.
+- **An open wait: check it is still live, before anything else.** A card
+  (or its epic) sent to you with an open wait may be waiting for nothing:
+  the question answered elsewhere, the bar or description edited since,
+  the cited rule or decision now in place, the card rejected or accepted
+  since. A moot wait is withdrawn, by whichever agent finds it, not only
+  the one that opened it, with a comment saying why: `slipdock wait <id>
+  --withdraw --reason "…"` (over MCP, `update_card` `wait: null` with
+  `wait_reason`; another agent's wait is refused without the reason). Then
+  carry on to the obvious reading.
 - **The step statuses are the server's.** A card's status updates follow
   its steps by themselves: *Writing code* when its job is claimed, *Waiting
   for human* on a wait, *Verifying*, *Verify failed; queued for rework*,

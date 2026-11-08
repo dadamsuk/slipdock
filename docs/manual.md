@@ -1519,6 +1519,45 @@ Over the API, `PATCH /api/boards/:board` with `wait_routes` (`{"product":
 JSON carries them as people) and `question` on `POST /api/cards/:id/wait`;
 over MCP, `update_board` `wait_routes` and `update_card` `wait` `question`.
 
+**When an agent waits, and when it carries on.** A wait is for readings
+that differ materially in cost or in what you see, for the decisions your
+Playbook or board routes to a person (product, UX, security, release), and
+for anything a rule says is a person's step (merging, changing a handbook
+rule, deploying). A locked bar item that a later decision or rule has made
+moot is not one: the agent reads it the obvious way, says so on the card
+(what it read, why, and the decision or rule it cites) and the verifier
+judges that reading, accepting it when it was noted and rejecting it when
+it wasn't. A wait that offers choices and a proposed answer is an approval
+and should be rare; it names the choice the agent proposes (`--default N`,
+`default` over the API and MCP), shown as *(proposed)* on its button, so your
+answer can be one click.
+
+**A moot wait clears itself.** An agent sent a card with an open wait first
+checks it is still live: answered elsewhere, the bar or description edited
+since, the cited rule or decision now in place, the card decided since. A
+moot one is withdrawn by whichever agent finds it, with a comment saying
+why (`slipdock wait 12 --withdraw --reason "…"`, `DELETE
+/api/cards/:id/wait?reason=…`, `update_card` `wait: null` with
+`wait_reason`). An agent withdrawing a wait it didn't open is refused
+without the reason.
+
+**An approval's proposal stands after** a time you choose, if you want it
+to: on the board's [Agentic Building](#agentic-building) page under *Who
+gets asked*, `slipdock set-board slipdock --wait-default-after 4h` (`90m`,
+`2d`; `off`), `PATCH /api/boards/:board {"wait_default_after": "4h"}` or
+`update_board` `wait_default_after`. It is off until set. Once on, a wait of
+kind `other` that offers choices and proposes one, unanswered for that long,
+is answered with its proposal by the server: the card says so, the person it
+was on (or the owner, for a wait on anyone) is told, and the card moves on as
+it would on your answer. A product, UX, security or release question, and a
+wait that proposes nothing, always waits for a person, however long it takes.
+
+```sh
+slipdock wait 12 "Read bar 2 as the one copy W-31 settled on?" --choice Yes --choice No --default 1
+slipdock wait 12 --withdraw --reason "Answered on #40: the bar was edited since"
+slipdock set-board slipdock --wait-default-after 4h
+```
+
 Agents are told to open a wait, say what they need and what kind of question
 it is, and stop, rather than flag the card and hope. A wait opened from a [runner](#runners) job
 **parks** the job, and answering it sends the card to the same rule again

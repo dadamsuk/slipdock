@@ -152,10 +152,20 @@ defmodule SlipdockWeb.AgenticLive.Index do
       {"profiles", "profiles", "Profiles", b.profiles, nil},
       {"routes", "questions", "Questions routed", routed > 0,
        routed > 0 && "#{routed} of #{length(WaitRoutes.kinds())}"},
+      {"defaults", "questions", "Approvals default", b.wait_default_after != nil,
+       b.wait_default_after && "after #{Slipdock.WaitDefaults.format(b.wait_default_after)}"},
       {"findings", "findings", "Findings promoted", b.findings_propose_at > 0,
        b.findings_propose_at > 0 && "at #{b.findings_propose_at}"},
       {"wip", "runners", "WIP holds automation", b.automation_wip, nil}
     ]
+  end
+
+  # `wait_default_after` (#2096) as typed, else the saved minutes as `4h`.
+  defp wait_default_text(form) do
+    case form.params do
+      %{"wait_default_after" => typed} -> typed
+      _ -> Slipdock.WaitDefaults.format(form.data.wait_default_after)
+    end
   end
 
   defp route_text(routes, kind),
@@ -611,6 +621,22 @@ defmodule SlipdockWeb.AgenticLive.Index do
                   />
                   <p class="text-xs text-base-content/60">
                     Emails of people on the board, comma-separated.
+                  </p>
+                </div>
+                <div>
+                  <.input
+                    field={@form[:wait_default_after]}
+                    id="board-wait-default-after"
+                    value={wait_default_text(@form)}
+                    label="An approval's proposal stands after"
+                    placeholder="off"
+                    class="input field w-24"
+                  />
+                  <p class="-mt-1 text-xs text-base-content/60">
+                    A question of kind other that offers choices and proposes one, unanswered this
+                    long (4h, 90m, 2d), goes ahead with the proposal: the card says so and the
+                    person asked is told. Product, UX, security and release questions always wait
+                    for a person. Blank or off never does.
                   </p>
                 </div>
               </.section>

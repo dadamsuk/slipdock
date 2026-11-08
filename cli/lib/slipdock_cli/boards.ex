@@ -919,11 +919,12 @@ defmodule SlipdockCLI.Boards do
   # Waiting on a person (#1114): `wait <id> "what you need"` opens one (on
   # anyone, or `--on` a person, with a `--choice` per answer to pick from),
   # asked from the runner job in `$SLIPDOCK_JOB_ID` unless `--job` names
-  # one; `wait <id> --withdraw` withdraws it.
+  # one; `wait <id> --withdraw [--reason WHY]` withdraws it (an agent
+  # withdrawing a wait it didn't open gives the reason, #2096).
   def run("wait", [id], o) do
     cond do
       o[:withdraw] ->
-        HTTP.delete("/cards/#{enc(id)}/wait")
+        HTTP.delete("/cards/#{enc(id)}/wait", if(o[:reason], do: [reason: o[:reason]], else: []))
         |> out(o, fn r -> IO.puts("withdrew the wait on ##{id}: #{r["wait"]["needs"]}") end)
 
       Keyword.has_key?(o, :question) ->
@@ -1153,6 +1154,8 @@ defmodule SlipdockCLI.Boards do
         "verify_audit" => o[:verify_audit],
         # A finding seen N times is drafted as a proposal (#1942); 0 never.
         "findings_propose_at" => o[:findings_propose_at],
+        # An approval wait's proposal stands after this long (#2096): 4h; off.
+        "wait_default_after" => o[:wait_default_after],
         # How accepted work ships (#1654): push, or pull-request.
         "ship_via" => o[:ship_via] && String.replace(o[:ship_via], "-", "_"),
         # Lanes (#1628): agents can't start cards whose paths overlap.
@@ -1935,7 +1938,9 @@ defmodule SlipdockCLI.Boards do
         "choices" => nonempty(Keyword.get_values(o, :choice)),
         "job_id" => o[:job] || job_from_env(),
         # The kind of question (#1949), which picks who it goes to.
-        "question" => o |> Keyword.get_values(:kind) |> List.last()
+        "question" => o |> Keyword.get_values(:kind) |> List.last(),
+        # The choice it proposes (#2096): the one-click answer.
+        "default" => o[:default]
       })
 
     HTTP.post("/cards/#{enc(id)}/wait", body)

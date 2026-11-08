@@ -4349,7 +4349,7 @@ defmodule Slipdock.Boards do
       else: answer_open_wait(wait, actor, attrs)
   end
 
-  defp answer_open_wait(wait, actor, attrs) do
+  defp answer_open_wait(wait, actor, attrs, opts \\ []) do
     answer = attrs |> wait_attr(:answer) |> blank_to_nil()
 
     with :ok <- not_self_answer(wait, actor),
@@ -4371,7 +4371,7 @@ defmodule Slipdock.Boards do
                  answers: answers
                ) do
           card = Repo.get!(Card, wait.card_id)
-          {:ok, _} = add_comment(card, answered_text(closed), by: actor_user(actor))
+          {:ok, _} = add_comment(card, answer_comment(closed, opts), by: actor_user(actor))
           Slipdock.EpicLog.wait_closed(card, "answered", actor)
           Slipdock.Runners.Requeue.after_answer(closed)
           Slipdock.Verified.wait_closed(closed, actor)
@@ -4472,16 +4472,20 @@ defmodule Slipdock.Boards do
     end
   end
 
-  defp not_self_answer(%Wait{kind: "agent"} = wait, %{kind: "agent"} = actor) do
-    same_job = wait.job_id != nil and wait.job_id == actor[:job_id]
-    same_token = wait.opened_by_id == actor[:user_id] and wait.agent == actor[:agent]
-
-    if same_job or same_token,
+  defp not_self_answer(wait, actor) do
+    if own_wait?(wait, actor),
       do: {:error, "an agent can't answer the wait it opened itself: a person has to answer it"},
       else: :ok
   end
 
-  defp not_self_answer(_wait, _actor), do: :ok
+  # An agent's own wait: both agents, sharing a job or a token and label.
+  defp own_wait?(%Wait{kind: "agent"} = wait, %{kind: "agent"} = actor) do
+    same_job = wait.job_id != nil and wait.job_id == actor[:job_id]
+    same_token = wait.opened_by_id == actor[:user_id] and wait.agent == actor[:agent]
+    same_job or same_token
+  end
+
+  defp own_wait?(_wait, _actor), do: false
 
   defp wait_choice(_wait, nil), do: {:ok, nil}
   defp wait_choice(_wait, ""), do: {:ok, nil}
@@ -4513,6 +4517,15 @@ defmodule Slipdock.Boards do
 
   defp answer_length(_), do: :ok
 
+  # The answer's comment: the caller's own (a proposal standing, #2096), else
+  # the answer as given.
+  defp answer_comment(closed, opts) do
+    case opts[:comment] do
+      nil -> answered_text(closed)
+      text_for -> text_for.(closed)
+    end
+  end
+
   defp answered_text(wait) do
     if Wait.series?(wait),
       do: "Answered “#{wait.needs}”:\n\n#{Wait.answered_text(wait)}",
@@ -4523,6 +4536,13 @@ defmodule Slipdock.Boards do
   Withdraws `card`'s open wait for `actor`: nobody needs the answer any
   more. The `waiting` flag comes off if the wait put it there. Who may is
   the caller's to check: anyone who may change the card, or who opened it.
+
+  A moot wait clears itself (#2096): any agent that finds one may withdraw
+  it, not only the one that opened it, but an agent withdrawing a wait it
+  didn't open (another job, token or agent, or a person's) gives a
+  `reason`, which the comment carries. The opener, and a person, may give
+  one or not. A wait a person decides (`Verified.may_close_wait/2`) stays
+  theirs.
   """
   def withdraw_wait(%Card{} = card, actor, opts \\ []) do
     case current_wait(card) do
@@ -4530,16 +4550,66 @@ defmodule Slipdock.Boards do
         {:error, "card ##{card.id} has no open wait"}
 
       wait ->
-        with {:ok, closed} <- close_wait(wait, actor, "withdrawn", opts) do
+        reason = opts |> Keyword.get(:reason) |> blank_to_nil()
+
+        with :ok <- withdraw_reason(wait, actor, reason),
+             :ok <- reason_length(reason),
+             :ok <- Slipdock.Verified.may_close_wait(wait, actor),
+             {:ok, closed} <- close_wait(wait, actor, "withdrawn", opts) do
           {:ok, _} =
             add_comment(
               Repo.get!(Card, card.id),
-              opts[:note] || "#{actor_name(actor)} withdrew the wait “#{closed.needs}”",
+              opts[:note] || withdrawn_text(actor, closed, reason),
               by: actor_user(actor)
             )
 
           {:ok, closed}
         end
+    end
+  end
+
+  defp withdraw_reason(wait, %{kind: "agent"} = actor, nil) do
+    if own_wait?(wait, actor),
+      do: :ok,
+      else:
+        {:error,
+         "an agent withdrawing a wait it didn't open says why: give a reason " <>
+           "(what made it moot: answered elsewhere, the bar or description edited, " <>
+           "the cited rule or decision in place, the card decided since)"}
+  end
+
+  defp withdraw_reason(_wait, _actor, _reason), do: :ok
+
+  defp reason_length(reason) when is_binary(reason) and byte_size(reason) > 2000,
+    do: {:error, "the reason is too long: at most 2000 characters"}
+
+  defp reason_length(_), do: :ok
+
+  defp withdrawn_text(actor, wait, nil),
+    do: "#{actor_name(actor)} withdrew the wait “#{wait.needs}”"
+
+  defp withdrawn_text(actor, wait, reason),
+    do: "#{actor_name(actor)} withdrew the wait “#{wait.needs}”: #{reason}"
+
+  @doc """
+  An approval wait's proposal stands (#2096, `Slipdock.WaitDefaults`):
+  `wait` (`Wait.approval?/1`) is answered with its `default_choice` by the
+  server, the card says so (`after_text`, e.g. "4h"), and the card moves on
+  as it would on a person's answer. Anything else is refused.
+  """
+  def default_wait(%Wait{} = wait, after_text) do
+    wait = Repo.preload(wait, wait_preloads())
+
+    if Wait.approval?(wait) and is_nil(wait.closed_at) do
+      answer_open_wait(wait, Slipdock.Actor.automation(), %{choice: wait.default_choice},
+        comment: fn closed ->
+          "No answer after #{after_text}, so the proposal stands: " <>
+            "“#{Wait.choice_text(closed, closed.choice)}” " <>
+            "(the default for “#{closed.needs}”). Answer again on a new wait if it shouldn't."
+        end
+      )
+    else
+      {:error, "only an open approval wait (kind other, with choices and a default) defaults"}
     end
   end
 

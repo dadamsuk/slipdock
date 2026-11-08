@@ -59,6 +59,7 @@ defmodule Slipdock.Automations.SchedulerTest do
              "Autosave prune",
              "Overseer",
              "Recurring cards",
+             "Wait defaults",
              "Waking snoozed cards",
              "Document reading sweep",
              "Health monitor"

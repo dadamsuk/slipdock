@@ -49,6 +49,10 @@ defmodule Slipdock.Boards.Wait do
     field :close_reason, :string
     field :answer, :string
     field :choice, :integer
+    # The choice the asker proposes (#2096), counted from 1: the one-click
+    # answer, and what stands when the board's `wait_default_after` passes
+    # on an approval wait (`Slipdock.WaitDefaults`).
+    field :default_choice, :integer
     field :requeue_state, :string, default: "none"
     field :requeue_note, :string
     # What the wait is for, when the server opened it: "verify_limit" is a
@@ -72,7 +76,15 @@ defmodule Slipdock.Boards.Wait do
 
   def changeset(wait, attrs) do
     wait
-    |> cast(attrs, [:needs, :choices, :questions, :on_user_id, :job_id, :question])
+    |> cast(attrs, [
+      :needs,
+      :choices,
+      :questions,
+      :on_user_id,
+      :job_id,
+      :question,
+      :default_choice
+    ])
     |> update_change(:question, &(&1 |> String.trim() |> String.downcase()))
     |> validate_inclusion(:question, Slipdock.WaitRoutes.kinds(),
       message: "is product, ux, security, release or other"
@@ -95,10 +107,35 @@ defmodule Slipdock.Boards.Wait do
         do: [questions: "must each be at most 1000 characters"],
         else: []
     end)
+    |> validate_default_choice()
     |> unique_constraint(:card_id,
       name: :card_waits_one_open,
       message: "already has an open wait"
     )
+  end
+
+  # The proposed answer is one of the choices, by number (#2096).
+  defp validate_default_choice(changeset) do
+    case get_field(changeset, :default_choice) do
+      nil ->
+        changeset
+
+      n ->
+        choices = get_field(changeset, :choices) || []
+
+        cond do
+          choices == [] ->
+            add_error(changeset, :default_choice, "needs choices: propose one of them by number")
+
+          Enum.member?(1..length(choices)//1, n) ->
+            changeset
+
+          true ->
+            add_error(changeset, :default_choice, "must be a choice's number, 1 to %{count}",
+              count: length(choices)
+            )
+        end
+    end
   end
 
   # Questions given: `needs` is what was said in front of them, or made up
@@ -214,6 +251,25 @@ defmodule Slipdock.Boards.Wait do
     do: Enum.at(choices, n - 1)
 
   def choice_text(_, _), do: nil
+
+  @doc """
+  Whether it is an approval wait (#2096): a question of kind `other`, the
+  agent's own (no server `purpose`), offering choices with one proposed.
+  Only these may resolve to their proposal when the board's
+  `wait_default_after` passes (`Slipdock.WaitDefaults`); product, ux,
+  security and release questions, and a wait with no proposal, are a
+  person's however long they take.
+  """
+  def approval?(%__MODULE__{
+        question: "other",
+        purpose: nil,
+        choices: [_ | _],
+        default_choice: n
+      })
+      when is_integer(n),
+      do: true
+
+  def approval?(_), do: false
 
   @doc "Who it waits on, in words: their name, or anyone."
   def on_name(%__MODULE__{on_user: %Slipdock.Accounts.User{} = u}),
