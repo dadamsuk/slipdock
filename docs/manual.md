@@ -2337,6 +2337,13 @@ deleting the comment takes back what it added that nobody has triaged yet.
   person can reopen a merge they disagree with. `rule` and `handbook-wrong`
   items are never merged across cards: a rule candidate is judged on its own
   card.
+- **What the words don't catch**, a model does: a new finding that matched
+  nothing goes to one AI call with the tree's open findings it could repeat
+  (other cards', the same scope, the newest 40). If the model says it repeats
+  one, it is merged into it, the note giving the model's reason (*same lesson
+  as #N, by the model: …*), and a person can reopen it. With AI off, or a call
+  that fails, it stays as it is. It is one call per finding, never one per
+  pair, and none when there is nothing to compare it with.
 - **A tooling item about the machine, not the project** is written
   `- tooling (runner): …` (the installed CLI or skills lag the repo, say). It
   is kept with the runner whose job the pass ran in (its card's job, or its

@@ -49,8 +49,11 @@ config :slipdock, :board_key_claims, Slipdock.BoardKeyClaims
 # Tests send the editor its `:autosave` tick themselves.
 config :slipdock, :wiki_autosave_after_ms, :timer.hours(1)
 
-# Draft a finding's proposal inline, so a test sees it filed (#1942).
-config :slipdock, :findings, async: false
+# Draft a finding's proposal inline, so a test sees it filed (#1942). The
+# model's grouping of findings (#2118) is off unless a test turns it on
+# (`Slipdock.Config.override(:findings, ...)`), so no other test's scripted
+# AI answers are spent on it.
+config :slipdock, :findings, async: false, group: false
 
 config :slipdock, :automations,
   enabled: true,
