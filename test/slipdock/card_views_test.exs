@@ -302,6 +302,17 @@ defmodule Slipdock.CardViewsTest do
     assert Enum.all?(~w(handoff handoff_note handoff_full state_line wait), &Elements.known?/1)
     assert "open.description" in Elements.panel_keys()
     assert "side.snooze" in Elements.panel_keys()
+    # Every property in the sidebar can be hidden too (#2070), drawn first.
+    side = Enum.map(Elements.side(), &elem(&1, 0))
+
+    for key <-
+          ~w(side.assignees side.priority side.percent side.start side.due side.health side.precision side.authors side.rollup) do
+      assert key in side
+      assert Elements.default?(key)
+    end
+
+    assert hd(side) == "side.assignees"
+    assert Elements.label("side.percent") == "% complete"
     refute Elements.known?("bogus")
     assert Elements.label("open.comments") == "Comments and activity"
     assert Elements.label("nope") == "nope"

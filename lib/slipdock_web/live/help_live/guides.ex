@@ -249,7 +249,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
     <.part title="Card views" id="boards-card-views">
       <p>
         Choose what you see of a card: each part of its front, each section of the opened card
-        and each group of its sidebar. Card views are yours alone and kept on the server, so
+        and each property and group of its sidebar, assignees and dates included. Card views are yours alone and kept on the server, so
         they follow you to every browser. Nobody else's cards change.
       </p>
       <ul class="list-disc space-y-1 pl-5">

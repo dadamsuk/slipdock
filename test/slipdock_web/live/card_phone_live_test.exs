@@ -32,6 +32,22 @@ defmodule SlipdockWeb.CardPhoneLiveTest do
       assert has_element?(view, "#card-phone-summary [data-summary=priority]", "No priority")
     end
 
+    test "a property the card view hides leaves the summary and the rows (#2070)", ctx do
+      {:ok, _} =
+        Slipdock.CardViews.update_level(ctx.owner, {:board, ctx.board}, %{
+          "hide" => "side.due,side.priority"
+        })
+
+      {:ok, view, _} = open(phone(ctx.conn), ctx)
+
+      refute has_element?(view, "#card-phone-summary [data-summary=due]")
+      refute has_element?(view, "#card-phone-summary [data-summary=priority]")
+      refute has_element?(view, "#card-phone-props [data-prop=due]")
+      refute has_element?(view, "#card-phone-props [data-prop=priority]")
+      assert has_element?(view, "#card-phone-summary [data-summary=assignee]")
+      assert has_element?(view, "#card-phone-props [data-prop=assignees]")
+    end
+
     test "the summary reads who, when it is due and how urgent", ctx do
       {:ok, _} =
         Boards.update_card(ctx.card, %{

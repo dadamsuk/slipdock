@@ -811,7 +811,8 @@ defmodule SlipdockWeb.APIGuide do
       Pin only when asked.
     - **Card views** — what the token holder sees of a card in the web app:
       each element of its front (`tags`, `due_date`, `handoff_note`…), of the
-      opened card (`open.*`) and of its sidebar (`side.*`), by global, board
+      opened card (`open.*`) and of its sidebar, properties included
+      (`side.*`: `side.assignees`, `side.due`…), by global, board
       and list, each level stating only what it changes. They are personal,
       and your own output never follows them. `GET /api/card-views` lists the
       named ones and every element; `POST` and `PATCH /api/card-views/:id`

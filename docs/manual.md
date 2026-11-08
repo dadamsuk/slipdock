@@ -376,7 +376,9 @@ The grid and saved views are also available over the API and CLI (`slipdock swim
 
 A card view is what you see of a card: each element of its front (cover,
 tags, due date, the handoff note and the rest), each section of the opened
-card, and each group of its sidebar. Card views are yours alone, and kept on
+card, and each property and group of its sidebar (assignees, priority, the
+dates, health, who created and last changed it, time, votes and the rest).
+Card views are yours alone, and kept on
 the server, so they follow you to every browser; nobody else's cards change.
 
 They come in three levels, each above the one before: **global** (every
@@ -399,7 +401,8 @@ Open the editor from the Display menu's **Card views…** (the board's level),
 **Card view…** in a list's `⋯` menu (that list's), or **Edit card views** in
 your account settings, or go to `/card-views` for the global level
 (`?board=B`, `?board=B&list=L`, `?view=ID` for a named one). Its two tabs are
-the **Card front** and the **Opened card** (its sections and sidebar groups).
+the **Card front** and the **Opened card** (its sections, and its sidebar's
+properties and groups).
 Each element says whether it is shown and which level decided it; a sample
 card shows the front, and the opened card's sections are marked on or off.
 **Inherit all** clears a level. Deleting a named view says how many levels
