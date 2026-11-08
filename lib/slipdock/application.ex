@@ -58,9 +58,6 @@ defmodule Slipdock.Application do
     end
   end
 
-  # Files stored before attachments kept their SHA-256 (#1015) get one, in
-  # the background so a big uploads directory never holds up the boot. The
-  # test environment opts out, for the same sandbox reason as the settings.
   # The skills registry's seeds (#2075): fetched from GitHub, so in a task,
   # and once per URL, so a seed an admin removed stays removed.
   defp seed_skill_sources do
@@ -79,6 +76,9 @@ defmodule Slipdock.Application do
     :ok
   end
 
+  # Files stored before attachments kept their SHA-256 (#1015) get one, in
+  # the background so a big uploads directory never holds up the boot. The
+  # test environment opts out, for the same sandbox reason as the settings.
   defp backfill_attachment_hashes do
     if Application.get_env(:slipdock, :backfill_attachment_hashes, true) do
       Task.Supervisor.start_child(Slipdock.TaskSupervisor, fn ->

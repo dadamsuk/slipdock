@@ -123,6 +123,27 @@ defmodule SlipdockWeb.MCP.SkillRegistryToolTest do
     assert [%{owner_id: nil}] = SkillRegistry.list_sources(user)
   end
 
+  test "seed: \"true\" (what CLI-built clients send) is a seed; junk is refused", %{
+    conn: conn,
+    user: user
+  } do
+    assert conn |> call(%{action: "add", url: @repo, seed: "true"}) |> error!() =~
+             "Only an admin can add a source for everyone."
+
+    assert conn |> call(%{action: "add", url: @repo, seed: "yes"}) |> error!() ==
+             "seed must be true or false"
+
+    assert SkillRegistry.list_sources(user) == []
+
+    admin = user_fixture("registry-mcp-admin-str@example.com")
+    {:ok, admin} = admin |> Ecto.Changeset.change(admin: true) |> Slipdock.Repo.update()
+
+    assert %{"source" => %{"seed" => true}} =
+             admin |> token_conn() |> call(%{action: "add", url: @repo, seed: "true"}) |> ok!()
+
+    assert [%{owner_id: nil}] = SkillRegistry.list_sources(user)
+  end
+
   test "enable pinned to the hash read, re-pin after a change, disable", %{
     conn: conn,
     board: board

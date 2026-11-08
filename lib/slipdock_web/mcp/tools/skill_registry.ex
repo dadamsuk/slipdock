@@ -98,9 +98,8 @@ defmodule SlipdockWeb.MCP.Tools.SkillRegistry do
   end
 
   defp act("add", args, user, _context) do
-    seed = args["seed"] == true
-
     with {:ok, url} <- Args.required(args, "url"),
+         {:ok, seed} <- Args.boolean(args, "seed", false),
          {:ok, source} <- Args.refusal(SkillRegistry.add_source(user, url, seed: seed)),
          do: {:ok, %{source: JSON.source(source, user)}}
   end
