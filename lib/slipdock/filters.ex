@@ -58,7 +58,7 @@ defmodule Slipdock.Filters do
 
     Slipdock.Kinds.matches?(item, filters.kinds) and
       (q == "" or
-         code_of(item) == String.trim(q) or
+         named?(item, q) or
          String.contains?(String.downcase(item.title), q) or
          String.contains?(String.downcase(text_of(item)), q) or
          Enum.any?(tags, &String.contains?(String.downcase(&1.name), q))) and
@@ -81,6 +81,20 @@ defmodule Slipdock.Filters do
   # finds that page and no other.
   defp code_of(%{code: code}) when is_binary(code), do: String.downcase(code)
   defp code_of(_), do: nil
+
+  # Typed whole, a page's code names that page and a card's id that card.
+  defp named?(item, q), do: code_of(item) == String.trim(q) or names_card?(item, q)
+
+  @doc """
+  Whether `q` names `item` by its id (`123`, `#123`) or its link
+  (`Slipdock.Boards.card_ref/1`). A card answers to its id as well as its
+  words, so the search box finds a card by the number it is known by (#2097).
+  Only a card: a page is named by its code, and its id is nobody's to type.
+  """
+  def names_card?(%Slipdock.Boards.Card{id: id}, q) when is_integer(id),
+    do: Slipdock.Boards.card_ref(q) == id
+
+  def names_card?(_item, _q), do: false
 
   defp tags_of(%{tags: tags}) when is_list(tags), do: tags
   defp tags_of(_), do: []

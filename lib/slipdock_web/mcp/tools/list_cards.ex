@@ -65,7 +65,11 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
         },
         due: %{type: "string", enum: keys(Config.dues())},
         tag: %{type: "string"},
-        q: %{type: "string", description: "Words in the title or description."},
+        q: %{
+          type: "string",
+          description:
+            "Words in the title or description; a card's id (123, #123) or link finds that card too."
+        },
         stuck: %{type: "boolean", description: "Only cards past their list's usual stay."},
         driver: %{
           type: "string",

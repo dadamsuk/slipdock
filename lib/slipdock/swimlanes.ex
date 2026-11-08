@@ -115,7 +115,7 @@ defmodule Slipdock.Swimlanes do
     q = String.downcase(config.q)
 
     (q == "" or
-       String.contains?(String.downcase(card.title), q) or
+       id_or_title?(card, q) or
        String.contains?(String.downcase(card.description || ""), q) or
        Enum.any?(card.tags, &String.contains?(String.downcase(&1.name), q))) and
       Slipdock.Kinds.matches?(card, config.kinds) and
@@ -128,6 +128,10 @@ defmodule Slipdock.Swimlanes do
       done_matches?(config.done, card) and
       deps_matches?(config.deps, card)
   end
+
+  # A card's id (`#123`) names it, as a piece of its title finds it (#2097).
+  defp id_or_title?(card, q),
+    do: Slipdock.Filters.names_card?(card, q) or String.contains?(String.downcase(card.title), q)
 
   @doc """
   Whether `card` passes one of `Slipdock.Swimlanes.Config.deps/0`'s buckets:

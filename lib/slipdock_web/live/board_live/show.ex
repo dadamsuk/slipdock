@@ -174,6 +174,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       filters: @empty_filters,
       # The wiki page whose code is in the search box, if any.
       page_hit: nil,
+      card_hit: nil,
       adding_to: nil,
       # The list a document dropped on the board belongs to: set the moment
       # the file picker opens, because the upload itself carries no column.
@@ -840,9 +841,14 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   # A page's code typed into the search box (`W-31`) names that page, which
   # need not be on the board at all, so the strip under the toolbar offers it.
+  # A card's id (`123`, `#123`) finds that card on the board (the filter
+  # matches it), and the strip offers it when it is elsewhere in the board's
+  # tree, such as a subcard on an epic's board (#2097).
   def handle_event("search", %{"q" => q}, socket) do
-    page_hit = Slipdock.Wiki.page_by_code_for(socket.assigns.current_user, q)
-    {:noreply, socket |> assign(page_hit: page_hit) |> put_filter(:q, q)}
+    %{current_user: user, board: board} = socket.assigns
+    page_hit = Slipdock.Wiki.page_by_code_for(user, q)
+    card_hit = Boards.card_elsewhere_in_tree(user, board, q)
+    {:noreply, socket |> assign(page_hit: page_hit, card_hit: card_hit) |> put_filter(:q, q)}
   end
 
   def handle_event("filter_tag", %{"id" => id}, socket) do
@@ -891,7 +897,8 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("clear_filters", _, socket) do
-    {:noreply, socket |> assign(filters: @empty_filters, page_hit: nil) |> assign_columns()}
+    {:noreply,
+     socket |> assign(filters: @empty_filters, page_hit: nil, card_hit: nil) |> assign_columns()}
   end
 
   ## Events: columns ---------------------------------------------------------
@@ -1411,6 +1418,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         filters={@filters}
         filtering={@filtering}
         page_hit={@page_hit}
+        card_hit={@card_hit}
         swim={@swim}
         swim_view={@swim_view}
         swim_dirty={@swim_dirty}

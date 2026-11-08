@@ -248,7 +248,8 @@ Favourites say where the user works; saved queries say what they keep wanting to
 personal and neither is derivable from the boards.
 
 **`--search Q` on `slipdock cards` and `slipdock search` are not the same thing.** The first
-filters one board's cards by substring — right when you know a word in the title. The second
+filters one board's cards by substring — right when you know a word in the title — and a card's
+id (`123`, `#123`) or link finds that card too. The second
 matches by **meaning**, across every board at once, and covers comments and status updates as
 well as cards: `slipdock search what did we decide about refunds` finds the card whose comment
 said "finance want the rounding fixed", with no word in common. Reach for it when the user
