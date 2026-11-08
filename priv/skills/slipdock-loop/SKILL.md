@@ -886,7 +886,15 @@ With one on, the pass changes like this:
   --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
   <id> reject --reason "<the check>: <what falls short, specifically>"`.
   A rejection cites the check it fails: a bar item (`bar 2: …`), the ask
-  (`the ask: …`), a rule id (`UX-4: …`) or the Handbook line. A bar item
+  (`the ask: …`), a rule id (`UX-4: …`) or the Handbook line. **Once a
+  rule is broken, name every instance**: look for every other place the
+  card could have missed the same break (the same list, the same string,
+  the same door; a page list copied across the README, a skill and a help
+  page is the usual one) and give each as its own `--check
+  rule:UX-4=broken:<file>:<line>[:why]` under the one rule, in this one
+  rejection, saying in the reason that you looked (`Every instance:
+  searched <where> for <what>; found these N.`). One instance named now
+  and the next in another round costs the card a whole rework. A bar item
   that adds, rewords or drops a handbook rule is met by a matching open rule
   proposal (an `edit_section` on that page's `## Rules`; `slipdock garden
   <board> --check proposal`): judge its content, not the live rules, and
@@ -911,7 +919,7 @@ With one on, the pass changes like this:
   <that commit> <this one>`). A part that passed then and nothing since
   touches is carried (`--check bar:1=carried`, or left out), recorded as
   *carried from <sha>*. Never raise again a part that passed or was fixed;
-  flag a class of problem once; a rejection names what changed since the
+  flag a class of problem once, with every instance of it you find; a rejection names what changed since the
   last. An audit carries nothing.
 - **An audit** (a verify job with `audit: true`, on a card already
   accepted) checks the checker. Judge the work as a verify job does,

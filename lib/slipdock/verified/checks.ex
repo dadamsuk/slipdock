@@ -48,6 +48,15 @@ defmodule Slipdock.Verified.Checks do
   pre-existing one is reported only. A card the server accepted unverified
   (#1953, profile `docs`) carries `"not_verified" => "docs"`.
 
+  A rule broken in several places (#2046) is one part with its instances:
+  each `broken` line for the same rule adds one, its note leading with the
+  file and line, and they are stored as `"instances" => [%{"file" => …,
+  "line" => 12, "note" => …}]` (`"file"` and `"line"` only when the note
+  leads with them). A single `broken` line keeps the plain shape above.
+
+      rule:SPEC-10=broken:README.md:40:the page list lacks Playbook
+      rule:SPEC-10=broken:priv/skills/slipdock-docs/SKILL.md:12:the same list
+
   A `pre-existing` rule part (#1945) carries the `file` and `line` where
   the rule is broken in code the change didn't touch. It isn't a failing
   part: it never makes a rejection, an acceptance may carry it, and the
@@ -261,7 +270,9 @@ defmodule Slipdock.Verified.Checks do
   end
 
   defp from_map("bar", items) when is_list(items), do: list_items("bar", "item", items)
-  defp from_map("rules", items) when is_list(items), do: list_items("rule", "id", items)
+
+  defp from_map("rules", items) when is_list(items),
+    do: list_items("rule", "id", Enum.flat_map(items, &rule_instances/1))
 
   defp from_map("defect_review", items) when is_list(items) do
     Enum.reduce_while(items, {:ok, []}, fn item, {:ok, acc} ->
@@ -301,6 +312,36 @@ defmodule Slipdock.Verified.Checks do
     )
   end
 
+  # A broken rule given as a map with its instances (#2046): one item per
+  # instance, which `put_part/2` adds up again.
+  defp rule_instances(%{} = item) do
+    item = Map.new(item, fn {k, v} -> {to_string(k), v} end)
+
+    case item["instances"] do
+      [_ | _] = instances ->
+        Enum.map(instances, &instance_item(item, &1))
+
+      _ ->
+        [item]
+    end
+  end
+
+  defp rule_instances(item), do: [item]
+
+  defp instance_item(item, instance) do
+    instance =
+      if is_map(instance), do: Map.new(instance, fn {k, v} -> {to_string(k), v} end), else: %{}
+
+    %{"id" => item["id"], "result" => item["result"], "note" => place_note(instance)}
+  end
+
+  defp place_note(%{"file" => file} = instance) when is_binary(file) and file != "" do
+    "#{file}:#{instance["line"]}" <>
+      if(is_binary(instance["note"]), do: ":" <> instance["note"], else: "")
+  end
+
+  defp place_note(instance), do: instance["note"]
+
   defp list_items(part, key_field, items) do
     Enum.reduce_while(items, {:ok, []}, fn item, {:ok, acc} ->
       case list_item(part, key_field, item) do
@@ -338,6 +379,16 @@ defmodule Slipdock.Verified.Checks do
   defp put_part(acc, {:note, part, note}), do: put_note(acc, part, note)
 
   defp put_part(acc, {:bar, item}), do: put_item(acc, "bar", "item", item)
+
+  defp put_part(acc, {:rule, %{"result" => "broken"} = item}) do
+    list = Map.get(acc, "rules", [])
+
+    case Enum.find(list, &(&1["id"] == item["id"] and &1["result"] == "broken")) do
+      nil -> put_item(acc, "rules", "id", item)
+      earlier -> put_item(acc, "rules", "id", add_instance(earlier, item))
+    end
+  end
+
   defp put_part(acc, {:rule, item}), do: put_item(acc, "rules", "id", item)
 
   # Findings add up: two at one place are both kept.
@@ -345,6 +396,78 @@ defmodule Slipdock.Verified.Checks do
     item = item |> Enum.reject(fn {_, v} -> is_nil(v) end) |> Map.new()
     Map.update(acc, "defect_review", [item], &(&1 ++ [item]))
   end
+
+  # A second `broken` line for a rule (#2046): the rule keeps every place
+  # it was found broken, the first one's included.
+  defp add_instance(earlier, item) do
+    instances = Map.get_lazy(earlier, "instances", fn -> [instance(earlier["note"])] end)
+
+    earlier
+    |> Map.delete("note")
+    |> Map.put("instances", instances ++ [instance(item["note"])])
+  end
+
+  defp instance(note) do
+    case Regex.run(~r/^\s*([^\s:]+):(\d+)(?:\s*[:;,]?\s*(.*))?$/s, note || "") do
+      [_, file, line | rest] ->
+        %{"file" => file, "line" => String.to_integer(line)}
+        |> put_present(
+          "note",
+          rest |> List.first() |> to_string() |> String.trim() |> blank_nil()
+        )
+
+      nil ->
+        put_present(%{}, "note", note)
+    end
+  end
+
+  defp put_present(map, _key, nil), do: map
+  defp put_present(map, key, value), do: Map.put(map, key, value)
+
+  @doc """
+  A broken rule's instances (#2046), as `{place, note}` with `place` the
+  `file:line` (nil when not given): one for a rule found broken once.
+  """
+  def instances(%{"instances" => [_ | _] = instances}),
+    do: Enum.map(instances, &{instance_place(&1), &1["note"]})
+
+  def instances(%{"result" => "broken"} = rule), do: [{nil, rule["note"]}]
+  def instances(_rule), do: []
+
+  defp instance_place(%{"file" => file, "line" => line}), do: "#{file}:#{line}"
+  defp instance_place(_), do: nil
+
+  @doc """
+  The parts as Markdown for a decision's comment (#2046): one bullet each,
+  as `lines/1` gives them, with a rule broken in several places followed by
+  a sub-list of every instance.
+  """
+  def markdown(%{} = checks) do
+    rules = for r <- checks["rules"] || [], into: %{}, do: {rule_label(r), r}
+
+    checks
+    |> lines()
+    |> Enum.map_join("\n", fn {label, result, why} ->
+      case rules[label] do
+        %{"instances" => [_ | _] = instances} = r ->
+          head = "- #{label}: #{result} — #{length(instances)} instances"
+          Enum.join([head | Enum.map(instances(r), &instance_bullet/1)], "\n")
+
+        _ ->
+          bullet(label, result, why)
+      end
+    end)
+  end
+
+  def markdown(_), do: ""
+
+  defp bullet(label, result, nil), do: "- #{label}: #{result}"
+  defp bullet(label, result, why), do: "- #{label}: #{result} — #{why}"
+
+  defp instance_bullet({nil, nil}), do: "  - (no place given)"
+  defp instance_bullet({nil, note}), do: "  - #{note}"
+  defp instance_bullet({place, nil}), do: "  - `#{place}`"
+  defp instance_bullet({place, note}), do: "  - `#{place}` — #{note}"
 
   defp put_note(acc, part, note),
     do: Map.update(acc, "notes", %{part => note}, &Map.put(&1, part, note))
@@ -517,6 +640,16 @@ defmodule Slipdock.Verified.Checks do
   defp rule_note(%{"result" => "pre-existing", "file" => file} = r) do
     place = "#{file}:#{r["line"]}"
     if r["note"], do: "#{place}; #{r["note"]}", else: place
+  end
+
+  defp rule_note(%{"instances" => [_ | _]} = r) do
+    r
+    |> instances()
+    |> Enum.map_join("; ", fn
+      {nil, note} -> note
+      {place, nil} -> place
+      {place, note} -> "#{place} #{note}"
+    end)
   end
 
   defp rule_note(r), do: r["note"]

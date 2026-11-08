@@ -504,7 +504,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
       is each part of the bar met; did the suite pass (on a pull request board, the pull
       request's checks); are the rules kept (<code>must</code>
       and <code>should</code>; a rule broken only in code the change didn't touch is reported as
-      pre-existing and kept as a finding, never a rejection); and is the Handbook line honest. With
+      pre-existing and kept as a finding, never a rejection); and is the Handbook line honest. A
+      rejection names every instance found: once a rule is broken, the verifier looks for every
+      other instance of the same break (the same list, the same string, the same door) and lists
+      them all under that one rule, each with its file and line, so one round fixes them all. With
       profiles on, a <code>docs</code>
       card gets no verifier (the server accepts it on its suite), and a <code>schema</code>
       or <code>security</code>

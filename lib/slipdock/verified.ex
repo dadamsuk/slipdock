@@ -2611,7 +2611,7 @@ defmodule Slipdock.Verified do
     - List what the commits since touched: `git diff --name-only #{sha} #{now}` (on a rebased branch, `git fetch origin #{sha}` first; if that commit can't be found, judge every part).
     - Judge every part that failed, and any part whose files, or what it is about, the commits since touch. Run the suite or check CI as below, whatever changed.
     - Carry the rest: a part that passed at #{Checks.short(sha)} and that nothing since touches stands. Don't judge it again; give it as `--check bar:1=carried` (or leave it out) and it is recorded as carried from #{Checks.short(sha)}.#{carry_list(passed)}
-    - Never raise again a part that passed or that the new commits fixed. Flag a class of problem once, with an example or two, not every instance.
+    - Never raise again a part that passed or that the new commits fixed. Flag a class of problem once: under one part, with every instance of it you find (file and line each), never one now and the next in another round.
     - If you reject, name what changed since the last rejection, and say why the fix falls short, so the next round converges.
     """
   end
@@ -2758,12 +2758,25 @@ defmodule Slipdock.Verified do
   defp rules_judging(true),
     do:
       "Judge every rule it lists, `should` rules as well as `must`: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. Name each one you find broken by its id (`ARCH-3: …`). " <>
-        pre_existing_sentence()
+        every_instance_sentence() <> " " <> pre_existing_sentence()
 
   defp rules_judging(_),
     do:
       "Judge every `must` rule it lists: a rule whose check is a test is kept when that test passes; a `judgement` rule, by reading the change. A broken `must` is a rejection citing its id (`ARCH-3: …`). List any `should` rule missed in the accept reason, each as a finding in a `Findings:` block there (`- rule: ARCH-6 missed: <how>`), so the board keeps it. " <>
-        pre_existing_sentence()
+        every_instance_sentence() <> " " <> pre_existing_sentence()
+
+  @doc """
+  What the verify and audit prompts say once a rule is found broken (#2046):
+  look for every other instance of the same break and name them all in one
+  rejection, each with its file and line, since every round of rejection
+  and rework costs the card the same whatever the fix's size.
+  """
+  def every_instance_sentence,
+    do:
+      "Once you find a rule broken, look for every other instance of the same break the card could reasonably have missed (the same list, the same string, the same door) and name them all in this one rejection, never the first and leave the rest for the next round: each round costs the card a rework and a verify whatever the fix's size. " <>
+        "For example, a page list copied across docs (the README, a skill, a help page) that the card updated in one place: `rg` the list's words across the repo, and give each stale copy as its own line under the one rule, file and line each: " <>
+        "`--check rule:SPEC-10=broken:README.md:40:lacks Playbook --check rule:SPEC-10=broken:priv/skills/slipdock-docs/SKILL.md:12:the same list`. " <>
+        "Say in the reason that you did (`Every instance: searched <where> for <what>; found these N.`)."
 
   @doc """
   What the verify and audit prompts say about a rule broken only in code
@@ -2885,13 +2898,7 @@ defmodule Slipdock.Verified do
   defp with_parts(note, %{"from_reason" => true}), do: note
 
   defp with_parts(note, checks) do
-    parts =
-      checks
-      |> Slipdock.Verified.Checks.lines()
-      |> Enum.map_join("\n", fn
-        {label, result, nil} -> "- #{label}: #{result}"
-        {label, result, why} -> "- #{label}: #{result} — #{why}"
-      end)
+    parts = Slipdock.Verified.Checks.markdown(checks)
 
     [note, "Checks:\n\n" <> parts]
     |> Enum.reject(&Enum.member?([nil, ""], &1))

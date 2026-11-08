@@ -4158,7 +4158,14 @@ defmodule SlipdockWeb.APIGuide do
     the diff didn't change, never a rejection and kept as a `rule` finding,
     `suite=412:0`, `rule:UX-4=broken`, `handbook_line=ok|disputed`; kept as
     `verify_checks`, and refused without a failing part, or on an accept
-    with a broken `must` rule). A card resubmitted after a rejection is
+    with a broken `must` rule). A rejection names every instance found:
+    once a rule is found broken, the verifier looks for every other
+    instance of the same break the card could have missed (the same list,
+    the same string, the same door) and names them all in one rejection,
+    each as its own `rule:<id>=broken:<file>:<line>` check under the one
+    rule, and says in the reason that it looked; a rule broken in several
+    places is one failing part, its instances listed under it in the
+    rejection's comment. A card resubmitted after a rejection is
     judged on what changed: its verify prompt carries the last verdict and
     the commit it judged, the verifier judges the parts that failed and any
     part the commits since touch, and a part that passed then and isn't
