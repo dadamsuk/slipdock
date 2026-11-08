@@ -1571,7 +1571,12 @@ among them), and on anyone on cards you own or are assigned; your cards flagged 
 cards the runner gave up on, or whose newest job failed, on boards you own;
 and, for a board's owner, cards in an in-progress list for over an hour with
 nobody on them, and cards still in a [Scheduled](#recurring-cards) list after
-the end of their due day. A wait's choices and answer box are right there. The header
+the end of their due day. A card awaiting verification on a board you own
+is on you only when no runner will verify it: while a verify job for it is
+claimed or running, or for 15 minutes after its submission while one is
+queued or a runner of the board's verify pool is online, it stays off, and
+it comes back if no verify job has started by then. With no verifier it is
+on you at once, and you can accept or reject it by hand whenever you like. A wait's choices and answer box are right there. The header
 shows how many on every page (refreshed within a minute; on a laptop the count
 is in the alerts bell's, and its panel's first row comes here), `slipdock whoami`
 and `GET /api/me` carry it as `waiting_on_you`, and `slipdock work`, `GET

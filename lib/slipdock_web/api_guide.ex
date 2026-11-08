@@ -1649,7 +1649,13 @@ defmodule SlipdockWeb.APIGuide do
     `waiting`, cards the runner gave up on or whose newest job failed on
     boards you own, cards in a doing list for over an hour with nobody
     on them, and cards still in a Scheduled list after the end of their due
-    day (`scheduled_missed`) — then `sections`, your cards by when they are due. The
+    day (`scheduled_missed`) — then `sections`, your cards by when they are due.
+    A card awaiting verification on a tree you own (reason `verify`) is on
+    you only when no runner has it in hand: not while a verify job for it
+    is claimed or running, nor, for 15 minutes after it was submitted, while
+    one is queued or a runner of its board's verify pool is online. Past
+    that with no verify job started it comes back; with no verifier it is
+    on you at once. You can accept or reject it by hand either way. The
     overseer's open conditions (reason `overseer`, each with its
     `condition`: `check`, `why`, `todo`) come first; cards on a *Getting
     Started* tour board never come at all. `GET /api/me` and `whoami` carry
