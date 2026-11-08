@@ -14,7 +14,9 @@ defmodule Slipdock.SkillRegistry do
 
   A source belongs to the user who added it, who alone refreshes or removes
   it. One with no owner is a seed: every user sees it, and only an admin
-  changes it. Nothing here runs a skill: an entry is text.
+  changes it (`add_seed/2`). A new server starts with a few seeds
+  (`Slipdock.SkillRegistry.Seeds`). Nothing here runs a skill: an entry is
+  text.
 
   Caps, under `config :slipdock, :skill_registry`: `max_file_bytes` (256 KB)
   for each file, `max_entries` (50) for each source.
@@ -82,10 +84,16 @@ defmodule Slipdock.SkillRegistry do
   @doc """
   Adds the source at `url` for `user` (nil for a seed): fetches it and stores
   its entries. `{:error, sentence}` when it can't be fetched, holds no skill
-  that can be read, or is already one of the user's sources.
+  that can be read, or is already one of the user's sources. With `seed:
+  true` it is a seed instead, and only an admin may (`add_seed/2`).
   """
-  @spec add_source(User.t() | nil, String.t()) :: {:ok, Source.t()} | {:error, String.t()}
-  def add_source(user, url) when is_binary(url) do
+  @spec add_source(User.t() | nil, String.t(), keyword()) ::
+          {:ok, Source.t()} | {:error, String.t()}
+  def add_source(user, url, opts \\ []) do
+    if opts[:seed], do: add_seed(user, url), else: add_own(user, url)
+  end
+
+  defp add_own(user, url) when is_binary(url) do
     url = String.trim(url)
     owner_id = user && user.id
 
@@ -96,7 +104,22 @@ defmodule Slipdock.SkillRegistry do
     end
   end
 
-  def add_source(_user, _url), do: {:error, "A source needs a URL."}
+  defp add_own(_user, _url), do: {:error, "A source needs a URL."}
+
+  @doc """
+  Adds the source at `url` as a seed (#2075): owned by no one, seen by every
+  user, enabled nowhere. Only an admin may; `add_source(user, url, seed:
+  true)` comes here. The seeds a new server starts with are
+  `Slipdock.SkillRegistry.Seeds`.
+  """
+  @spec add_seed(User.t(), String.t()) :: {:ok, Source.t()} | {:error, String.t()}
+  def add_seed(%User{} = user, url) do
+    if Accounts.admin?(user),
+      do: add_own(nil, url),
+      else: {:error, "Only an admin can add a source for everyone."}
+  end
+
+  def add_seed(_user, _url), do: {:error, "Only an admin can add a source for everyone."}
 
   defp store(owner_id, url, fetched) do
     Repo.transaction(fn ->

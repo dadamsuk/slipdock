@@ -134,6 +134,7 @@ config :slipdock, :settings, signup_mode: :open, setup_completed: true
 # tests call `Slipdock.Settings.seed/0` themselves.
 config :slipdock, :seed_settings, false
 config :slipdock, :backfill_attachment_hashes, false
+config :slipdock, :seed_skill_sources, false
 
 # The settings row is cached in :persistent_term, which outlives the sandbox
 # transaction a test writes it in — so one test's settings would leak into the

@@ -371,7 +371,9 @@ and enable it on a board only when the person asks: `skill_registry` (MCP, by
 whole file and its `content_hash`), and `slipdock registry enable <entry>
 --board B --hash H`, or `/api/skill-sources`, `/api/skill-entries/:id` and
 `POST /api/boards/:board/skills`. Enabling pins the text you read, so give the
-`content_hash` the entry showed you; any other is refused. A refresh that
+`content_hash` the entry showed you; any other is refused. A source an admin
+adds with `seed: true` (`registry add <url> --seed`) is everyone's; a new
+server starts with `mattpocock/skills` as one, enabled nowhere. A refresh that
 changes it marks it *changed upstream* and leaves the pinned text in place
 until a writer reads the diff and re-pins it (`registry repin <name> --board B
 --hash H`, `PATCH /api/boards/:board/skills/:name`). `slipdock registry

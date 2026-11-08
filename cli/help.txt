@@ -512,8 +512,9 @@ SKILLS  (the agent instructions this server ships, versioned with its API)
 
 REGISTRY  (skills fetched from outside Slipdock, such as a GitHub repo of SKILL.md files)
   registry                            your skill sources and the seeds, with a count each
-  registry add <url>                  fetch a source: a GitHub repo, a folder or file in
-                                      one, or a SKILL.md at an https URL
+  registry add <url> [--seed]         fetch a source: a GitHub repo, a folder or file in
+                                      one, or a SKILL.md at an https URL; --seed adds it
+                                      for everyone on the server (admins only)
   registry source <id>                one source: its skills, and what the fetch left out
   registry refresh <id>               fetch it again: which skills were added, changed, removed
   registry rm <id>                    remove a source and its skills

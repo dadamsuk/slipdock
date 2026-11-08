@@ -466,7 +466,7 @@ slipdock header | header add board <ref> --icon NAME | header add wiki --icon NA
 slipdock header move <id> left|right | header rm <id>
 slipdock card-views [--elements] | card-view applied --board B [--list L]   # what the person sees of a card, and which level decided it
 slipdock card-view set [--board B] [--list L] --hide comments --show due_date   # a level (neither: global); --apply VIEW|none, --inherit, --reset
-slipdock registry | registry add <url> | registry entry <id>   # skills fetched from elsewhere; entry: the whole file and its content_hash
+slipdock registry | registry add <url> [--seed] | registry entry <id>   # skills fetched from elsewhere (--seed: everyone's, admins only); entry: the whole file and its content_hash
 slipdock registry enable <entry> --board B --hash H       # pin it on a board (writer); repin <name> / disable <name> --board B; only when asked
 ```
 

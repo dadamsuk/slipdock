@@ -78,6 +78,21 @@ defmodule SlipdockCLI.RegistryTest do
       assert out =~ "left out: big/SKILL.md is larger than 256 KB"
     end
 
+    test "add --seed asks for a seed, which the server refuses unless an admin" do
+      assert {:ok, {:added, {:post, "/skill-sources", %{"url" => "u", "seed" => true}}}} =
+               Registry.plan("registry", ["add", "u"], seed: true)
+
+      assert {:ok, {:added, {:post, "/skill-sources", %{"url" => "u"} = body}}} =
+               Registry.plan("registry", ["add", "u"], [])
+
+      refute Map.has_key?(body, "seed")
+
+      message = "forbidden: Only an admin can add a source for everyone."
+      serve([{403, JSON.encode!(%{error: message})}])
+      {:ok, {:added, request}} = Registry.plan("registry", ["add", "u"], seed: true)
+      assert Registry.send_request(request) == {:error, 403, %{"error" => message}}
+    end
+
     test "a refused fetch is the server's 422 and its sentence" do
       message = "https://intranet.test/SKILL.md is not a public address."
       serve([{422, JSON.encode!(%{error: message})}])

@@ -831,7 +831,8 @@ defmodule SlipdockWeb.APIGuide do
       with each skill's metadata and `content_hash`; `POST /api/skill-sources
       {"url": "https://github.com/owner/repo"}` fetches one (a refusal, such as
       an address that isn't public or a file over the cap, is a 422 with its
-      sentence); `GET /api/skill-sources/:id`, `POST
+      sentence), and `"seed": true` makes it everyone's (admins only, else a
+      403; a new server seeds `mattpocock/skills`); `GET /api/skill-sources/:id`, `POST
       /api/skill-sources/:id/refresh` (answers with `changes`: added, changed,
       removed) and `DELETE` are for its owner, an admin for a seed. `GET
       /api/skill-entries/:id` is one skill in full (`body`), where it is

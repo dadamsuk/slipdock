@@ -5,7 +5,7 @@ defmodule SlipdockWeb.MCP.Tools.SkillRegistry do
   with an `action`, because each tool costs every session context.
 
   - `sources`, `source`, `add`, `refresh`, `remove`: the caller's skill
-    sources and the seeds. Adding or refreshing fetches from the web, so
+    sources and the seeds (an admin adds one with `seed`). Adding or refreshing fetches from the web, so
     those two are the only actions that leave the server.
   - `entry`: one skill in full, its `content_hash`, where it is enabled and
     which Playbook stages name it. Read it before enabling it.
@@ -49,6 +49,10 @@ defmodule SlipdockWeb.MCP.Tools.SkillRegistry do
           type: "string",
           description:
             "add: a GitHub repository, a folder or file in one, or a SKILL.md at an https URL."
+        },
+        seed: %{
+          type: "boolean",
+          description: "add: for everyone on the server (a seed); admins only."
         },
         source: %{type: "integer", description: "source, refresh, remove: the source's id."},
         entry: %{
@@ -95,7 +99,8 @@ defmodule SlipdockWeb.MCP.Tools.SkillRegistry do
 
   defp act("add", args, user, _context) do
     with {:ok, url} <- Args.required(args, "url"),
-         {:ok, source} <- Args.refusal(SkillRegistry.add_source(user, url)),
+         {:ok, seed} <- Args.boolean(args, "seed", false),
+         {:ok, source} <- Args.refusal(SkillRegistry.add_source(user, url, seed: seed)),
          do: {:ok, %{source: JSON.source(source, user)}}
   end
 

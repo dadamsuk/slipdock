@@ -51,10 +51,29 @@ defmodule Slipdock.Application do
 
     with {:ok, pid} <- Supervisor.start_link(children, opts) do
       prepare_settings()
+      seed_skill_sources()
       backfill_attachment_hashes()
       attach_error_tracking()
       {:ok, pid}
     end
+  end
+
+  # The skills registry's seeds (#2075): fetched from GitHub, so in a task,
+  # and once per URL, so a seed an admin removed stays removed.
+  defp seed_skill_sources do
+    if Application.get_env(:slipdock, :seed_skill_sources, true) do
+      Task.Supervisor.start_child(Slipdock.TaskSupervisor, fn ->
+        require Logger
+
+        try do
+          Slipdock.SkillRegistry.Seeds.run()
+        rescue
+          e -> Logger.warning("Seeding the skills registry failed: #{Exception.message(e)}")
+        end
+      end)
+    end
+
+    :ok
   end
 
   # Files stored before attachments kept their SHA-256 (#1015) get one, in
