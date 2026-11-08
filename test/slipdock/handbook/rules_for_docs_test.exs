@@ -9,7 +9,6 @@ defmodule Slipdock.Handbook.RulesForDocsTest do
   use Slipdock.DataCase, async: true
 
   @root Path.expand("../../..", __DIR__)
-  @installed Path.expand("~/.claude/skills/slipdock-loop/SKILL.md")
 
   test "the guide's handbook section says how to ask, and what get_card carries" do
     {:ok, guide} = SlipdockWeb.APIGuide.section("handbook", [])
@@ -28,14 +27,10 @@ defmodule Slipdock.Handbook.RulesForDocsTest do
     end
   end
 
-  test "slipdock-loop checks the diff against the rules before submitting, in every copy" do
-    copies = [Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")]
-    copies = if File.exists?(@installed), do: copies ++ [@installed], else: copies
-
-    for path <- copies do
-      text = File.read!(path)
-      assert text =~ "**Before\nsubmitting, check the diff against them**", path
-      assert text =~ "slipdock handbook <board> --paths-from -", path
-    end
+  test "slipdock-loop checks the diff against the rules before submitting" do
+    path = Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")
+    text = File.read!(path)
+    assert text =~ "**Before\nsubmitting, check the diff against them**", path
+    assert text =~ "slipdock handbook <board> --paths-from -", path
   end
 end

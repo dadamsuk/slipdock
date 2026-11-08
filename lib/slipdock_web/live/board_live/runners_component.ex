@@ -555,7 +555,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               :if={match?({:drifted, _}, drift(runner).skills)}
               id={"runner-#{runner.id}-skills"}
               class="badge badge-warning badge-xs shrink-0"
-              title={"Its installed skills differ from this server's: #{Drift.describe(drift(runner).skills)}. Edit them by hand; they are never copied over"}
+              title={"Its installed skills differ from this server's: #{Drift.describe(drift(runner).skills)}. A runner that keeps itself current installs this server's before its next job"}
             >
               skills drifted
             </span>

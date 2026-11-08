@@ -6,6 +6,11 @@ defmodule Slipdock.RepoChecksTest do
   `priv/skills/`, wildcards over `lib/` or `test/`, or reads the compiler's
   cross-reference graph (`mix xref`), is either on the list or among its
   exceptions, each with its reason.
+
+  It also keeps the skills to one source (#2048): no test reads an installed
+  copy of a skill (`~/.claude/skills/`), only the packaged one in
+  `priv/skills/`. A runner installs the server's skills before each job, so
+  a copy on one machine is never a second thing for the checks to hold.
   """
   use ExUnit.Case, async: true
 
@@ -49,6 +54,23 @@ defmodule Slipdock.RepoChecksTest do
       source =~ ~r{\[\s*"xref"} && "reads mix xref"
     ]
     |> Enum.filter(& &1)
+  end
+
+  @doc false
+  # Why a test file's source reads this machine's installed skills, or nil:
+  # the home directory's `.claude`, by `~` or by `System.user_home`. A
+  # `.claude` under a temporary HOME the test made is not that.
+  def installed_read(source) do
+    cond do
+      source =~ ~r{Path\.expand\(\s*"~/\.claude} ->
+        "expands ~/.claude"
+
+      source =~ ~r{System\.user_home} and source =~ ".claude" ->
+        "joins System.user_home and .claude"
+
+      true ->
+        nil
+    end
   end
 
   defp flagged do
@@ -100,6 +122,41 @@ defmodule Slipdock.RepoChecksTest do
     test "has no stale exception: each still reads docs, skills or the code" do
       stale = Map.keys(exceptions()) -- Map.keys(flagged())
       assert stale == [], "No longer needed in repo_checks.txt: #{Enum.join(stale, ", ")}"
+    end
+  end
+
+  describe "one source for each skill (#2048)" do
+    test "no test reads the installed copies under ~/.claude/skills" do
+      reading =
+        for path <- test_files(),
+            path != "test/slipdock/repo_checks_test.exs",
+            why = installed_read(File.read!(Path.join(@root, path))),
+            do: "#{path} (#{why})"
+
+      assert reading == [], """
+      These tests read this machine's installed skills. The one source is
+      priv/skills/ (W-1950 §Tests, #2048): read the packaged copy instead.
+
+      #{Enum.join(reading, "\n")}
+      """
+    end
+
+    test "an installed copy read by ~ or by the home directory is caught" do
+      assert installed_read(~S|Path.expand("~/.claude/skills/slipdock/SKILL.md")|) ==
+               "expands ~/.claude"
+
+      assert installed_read(~S|@installed Path.expand( "~/.claude/skills")|) ==
+               "expands ~/.claude"
+
+      assert installed_read(~S|Path.join([System.user_home!(), ".claude", "skills"])|) ==
+               "joins System.user_home and .claude"
+    end
+
+    test "the packaged copy, or a .claude under a temporary HOME, is not" do
+      assert installed_read(~S|Path.join(@root, "priv/skills/slipdock/SKILL.md")|) == nil
+      assert installed_read(~S|File.cp_r!(skills, Path.join([home, ".claude", "skills"]))|) == nil
+      assert installed_read(~S|System.user_home!() <> "/notes"|) == nil
+      assert installed_read(~S|Path.expand("~/notes")|) == nil
     end
   end
 

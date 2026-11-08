@@ -2,7 +2,7 @@ defmodule SlipdockWeb.InboundDocsTest do
   @moduledoc """
   Emailing your board as the docs describe it (#1250): the manual's section
   and what links to it, the README, docs/agents.md, the API guide, the agents
-  page, and both copies of the slipdock skill's commands.
+  page, and the slipdock skill's commands.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -79,18 +79,13 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert page =~ "slipdock inbound <board>, inbound me"
   end
 
-  test "both copies of the slipdock skill list the inbound commands" do
-    installed = Path.expand("~/.claude/skills/slipdock/SKILL.md")
-
-    for path <- [Path.join(@root, "priv/skills/slipdock/SKILL.md"), installed],
-        File.exists?(path) do
-      skill = File.read!(path)
-      assert skill =~ "slipdock inbound <board> [--rotate]"
-      assert skill =~ ~s("+ Title" appends a dated section)
-      assert skill =~ "slipdock inbound me [--rotate] [--ack on|off]"
-      assert skill =~ "slipdock inbound log"
-      assert skill =~ "slipdock inbound <board> --folder F [--rotate]"
-    end
+  test "the slipdock skill lists the inbound commands" do
+    skill = File.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md"))
+    assert skill =~ "slipdock inbound <board> [--rotate]"
+    assert skill =~ ~s("+ Title" appends a dated section)
+    assert skill =~ "slipdock inbound me [--rotate] [--ack on|off]"
+    assert skill =~ "slipdock inbound log"
+    assert skill =~ "slipdock inbound <board> --folder F [--rotate]"
   end
 
   test "the manual, README, guide, agents page and skills cover [#42] to a card address (#1272)" do
@@ -102,11 +97,7 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert read("docs/agents.md") =~ "A `[#42] …` subject to a card address comments on card 42"
     assert read("lib/slipdock_web/api_guide.ex") =~ "whose subject starts `[#42]`, on card 42"
 
-    installed = Path.expand("~/.claude/skills/slipdock/SKILL.md")
-
-    for path <- [Path.join(@root, "priv/skills/slipdock/SKILL.md"), installed],
-        File.exists?(path) do
-      assert File.read!(path) =~ ~s(card-: "[#42] …" comments on card 42 instead)
-    end
+    assert File.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~
+             ~s(card-: "[#42] …" comments on card 42 instead)
   end
 end

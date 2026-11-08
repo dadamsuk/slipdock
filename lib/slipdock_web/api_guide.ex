@@ -2405,8 +2405,10 @@ defmodule SlipdockWeb.APIGuide do
     each runner's `drift` compares them with what this server serves:
     `skills` current, drifted (`drifted_skills` names them) or unknown,
     `cli` current, old, none or unknown. A drifted runner raises one
-    alert, cleared once it is current. The server only reports: installed
-    skills are edited by hand, never copied over.
+    alert, cleared once it is current. A runner that keeps itself current
+    also installs this server's skills (`/api/skills.tar.gz`) before each
+    job but a merge (`SKILLS_UPDATE=0` keeps them): a skill's one source is
+    the server, never a hand-edited copy.
 
     **The server keeps an epic's record.** As each subcard starts, is
     submitted, rejected, accepted, merged, fails a build, waits on a person

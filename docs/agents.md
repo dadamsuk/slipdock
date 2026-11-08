@@ -131,6 +131,18 @@ It signs nothing in. If you would rather read a script before running it,
 available as [a tarball](https://app.slipdock.us/api/skills.tar.gz) and as
 [a JSON listing](https://app.slipdock.us/api/skills) of every file with a sha.
 
+**One source for each skill.** A skill's text lives in one place: the server
+that serves it (in Slipdock's repository, `priv/skills/`). The copy on your
+machine is installed from there, never edited by hand: to change a skill,
+change it in `priv/skills/`, and once that is deployed run the one-liner
+again. A runner does that by itself: with *Keep the runner current* on (the
+default for new installs) it puts the server's skills in its skills
+directory before every job but a merge (`SKILLS_UPDATE=0` /
+`$SkillsUpdate = $false` in its config keeps the script current but the
+skills as they are; `SKILLS_UPDATE=1` / `$SkillsUpdate = $true` turns it on
+alone). A skill folder that is a symlink is left alone. Slipdock's own
+tests read only `priv/skills/`, never `~/.claude/skills`.
+
 What you get:
 
 | Skill | For |
@@ -627,7 +639,9 @@ slipdock skill's `SKILL.md` and of the `slipdock` CLI, which the server
 compares with what it serves. `slipdock runners` (SKILLS · CLI), the Runners
 panel and the runner's `drift` in the API say current, drifted (naming the
 skills), old or unknown, and a drifted runner raises one alert until it is
-current again. Nothing is changed for you: edit the installed copies by hand.
+current again. A runner that keeps itself current installs the server's
+skills before each job (see *One source for each skill* under §3 above),
+so it doesn't stay drifted; anywhere else, run the install one-liner again.
 
 **A job runs with nobody watching**, so two things are set up for it. A
 Claude runner may use the Slipdock MCP tools without asking (`--allowedTools`

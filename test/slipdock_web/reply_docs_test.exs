@@ -1,8 +1,8 @@
 defmodule SlipdockWeb.ReplyDocsTest do
   @moduledoc """
   Replying to a notification as the docs describe it (#1260): the manual's
-  section, the README, docs/agents.md, the API guide and both copies of the
-  slipdock skill.
+  section, the README, docs/agents.md, the API guide and the slipdock
+  skill.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -36,12 +36,8 @@ defmodule SlipdockWeb.ReplyDocsTest do
              "Emails about a card (mentions, waits, rule emails) can be replied to"
   end
 
-  test "both copies of the slipdock skill explain kind reply in the log" do
-    installed = Path.expand("~/.claude/skills/slipdock/SKILL.md")
-
-    for path <- [Path.join(@root, "priv/skills/slipdock/SKILL.md"), installed],
-        File.exists?(path) do
-      assert File.read!(path) =~ ~s(kind "reply" = a reply to a notification email)
-    end
+  test "the slipdock skill explains kind reply in the log" do
+    assert File.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~
+             ~s(kind "reply" = a reply to a notification email)
   end
 end

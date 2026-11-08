@@ -5,20 +5,18 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
   the loop skill has a pass wait for the subagents it started and never leave
   a subcard it moved in sitting in progress with nothing working on it, and
   the manual's runner section says so, with the variable a Claude runner's
-  config exports. The installed copy of the skill, where this machine has
-  one, says the same.
+  config exports. The skill is read from `priv/skills/` only: that is its one
+  source (#2048).
   """
   use ExUnit.Case, async: true
 
   @root Path.expand("../..", __DIR__)
-  @installed Path.expand("~/.claude/skills/slipdock-loop/SKILL.md")
 
   defp read(path), do: File.read!(Path.join(@root, path))
   defp flat(text), do: String.replace(text, ~r/\s+/, " ")
 
   defp copies do
-    priv = Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")
-    [priv | if(File.exists?(@installed), do: [@installed], else: [])]
+    [Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")]
   end
 
   test "the loop skill waits for its subagents, and leaves no subcard stranded" do

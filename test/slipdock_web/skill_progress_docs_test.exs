@@ -4,8 +4,8 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
   look: the slipdock-loop skill has a runner's pass report milestones as job
   steps, and fixes a build a closed subcard broke on a new subcard instead of
   reopening it (#1850); the manual says what the health monitor counts as a
-  sign of work. The epic's progress lines are the server's (#1881): the skill,
-  in both copies, leaves them to it and asks for what only the agent knows,
+  sign of work. The epic's progress lines are the server's (#1881): the skill
+  leaves them to it and asks for what only the agent knows,
   and the manual describes them.
   """
   use ExUnit.Case, async: true
@@ -25,24 +25,18 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
     assert loop =~ "The runner holds that job, so don't claim or finish it."
   end
 
-  test "the loop leaves an epic's progress lines to the server, in both copies (#1881)" do
-    installed = Path.expand("~/.claude/skills/slipdock-loop/SKILL.md")
+  test "the loop leaves an epic's progress lines to the server (#1881)" do
+    path = Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")
+    loop = path |> File.read!() |> String.replace(~r/\s+/, " ")
 
-    copies =
-      [@root |> Path.join("priv/skills/slipdock-loop/SKILL.md")] ++
-        if File.exists?(installed), do: [installed], else: []
+    refute loop =~ "a one-line comment on the epic itself as each subcard closes", path
+    assert loop =~ "the server posts each subcard's progress on the epic itself", path
+    assert loop =~ "Don't repeat those.", path
 
-    for path <- copies do
-      loop = path |> File.read!() |> String.replace(~r/\s+/, " ")
-      refute loop =~ "a one-line comment on the epic itself as each subcard closes", path
-      assert loop =~ "the server posts each subcard's progress on the epic itself", path
-      assert loop =~ "Don't repeat those.", path
-
-      assert loop =~
-               "Comment on the epic only what the server can't know: a decision, a surprise, " <>
-                 "a dead end, a change of plan",
-             path
-    end
+    assert loop =~
+             "Comment on the epic only what the server can't know: a decision, a surprise, " <>
+               "a dead end, a change of plan",
+           path
   end
 
   test "the manual describes an epic's comments (#1881)" do

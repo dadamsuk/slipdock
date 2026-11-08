@@ -73,8 +73,17 @@
 # Drift (#1795): every claim also says the SHA-256 of each slipdock skill
 # installed under $SkillsDir (default ~\.claude\skills) and of the slipdock
 # CLI ($SlipdockCli, else the escript beside the slipdock on the PATH), and
-# the runners list shows any that differ from the server's. Nothing is
-# changed on this machine.
+# the runners list shows any that differ from the server's.
+#
+# Skills from the server (#2048), on with $SelfUpdate unless the config sets
+# $SkillsUpdate = $false (or on alone with $SkillsUpdate = $true): before
+# each job but a merge, the runner fetches the server's skills
+# (/api/skills.tar.gz) and puts each slipdock skill in $SkillsDir in place of
+# the copy there, so the agent reads the skills of the server it talks to.
+# The packaged skills in the server's priv/skills/ are the one source: a copy
+# here is never edited by hand. An archive with any entry outside a slipdock*
+# folder is refused, and a skill folder that is a link is left alone. A
+# failed fetch keeps the copies there, says so in the log, and the job runs.
 param(
   [string]$Config = '',
   [switch]$Once,
@@ -617,6 +626,9 @@ function Invoke-Job($claim) {
 
   Say "job #${JobId}: $kind for card #$card"
 
+  # The server's skills, for the agent this job starts (#2048).
+  if ($kind -ne 'merge') { Update-Skills }
+
   # A merge runs in the repository itself: its card's branch is the pull
   # request's, and nothing is built. That is the runner's repository wherever
   # the runner was started (a service starts it elsewhere, #1666).
@@ -793,6 +805,54 @@ function Update-ClaimHeaders {
   $KindsHeader['X-Runner-Skills'] = Get-InstalledSkills
   $cli = Get-InstalledCli
   if ($cli) { $KindsHeader['X-Runner-CLI'] = $cli } else { $KindsHeader.Remove('X-Runner-CLI') }
+}
+
+# Before a job, with $SkillsUpdate on (or unset and $SelfUpdate on): replace
+# each slipdock skill under $SkillsDir with the server's (#2048).
+function Update-Skills {
+  $on = $SkillsUpdate
+  if ($null -eq $on -or "$on" -eq '') { $on = $SelfUpdate }
+  if (-not $on -or ("$on" -in @('0', 'no', 'false', 'off', 'False'))) { return }
+  $archive = Join-Path $Work 'skills.tgz'
+  $new = Join-Path $Work 'skills-new'
+  Remove-Item -LiteralPath $new -Recurse -Force -ErrorAction SilentlyContinue
+  try {
+    [IO.File]::WriteAllBytes($archive, (Get-Remote "$SlipdockUrl/api/skills.tar.gz"))
+  } catch {
+    Say "skills: could not fetch the server's skills: $($_.Exception.Message); keeping the ones in $SkillsDir"
+    return
+  }
+  $entries = @(& tar -tzf $archive 2>$null)
+  $bad = $entries | Where-Object { $_ -notmatch '^slipdock[A-Za-z0-9_-]*/[A-Za-z0-9_./-]*$' -or $_ -match '(^|/)\.\.(/|$)' } | Select-Object -First 1
+  if ($LASTEXITCODE -ne 0 -or $entries.Count -eq 0 -or $bad) {
+    $what = if ($bad) { $bad } else { 'empty' }
+    Say "skills: the server's archive has an entry outside a slipdock skill ($what); keeping the ones in $SkillsDir"
+    return
+  }
+  New-Item -ItemType Directory -Force -Path $new, $SkillsDir | Out-Null
+  & tar -xzf $archive -C $new 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    Say "skills: could not unpack the server's skills; keeping the ones in $SkillsDir"
+    return
+  }
+  $put = @()
+  foreach ($dir in (Get-ChildItem -LiteralPath $new -Directory -Filter 'slipdock*' | Sort-Object Name)) {
+    $target = Join-Path $SkillsDir $dir.Name
+    $item = Get-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue
+    if ($item -and $item.LinkType) {
+      Say "skills: $target is a link; left alone"
+      continue
+    }
+    try {
+      if ($item) { Remove-Item -LiteralPath $target -Recurse -Force }
+      Move-Item -LiteralPath $dir.FullName -Destination $target
+      $put += $dir.Name
+    } catch {
+      Say "skills: could not put $($dir.Name) in ${SkillsDir}: $($_.Exception.Message)"
+    }
+  }
+  Remove-Item -LiteralPath $new, $archive -Recurse -Force -ErrorAction SilentlyContinue
+  if ($put.Count -gt 0) { Say "skills: installed the server's $($put -join ' ') in $SkillsDir" }
 }
 
 # Bytes from the server, or from a file:// URL.

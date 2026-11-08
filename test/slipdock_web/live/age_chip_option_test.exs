@@ -167,7 +167,7 @@ defmodule SlipdockWeb.AgeChipOptionTest do
     end
   end
 
-  test "the manual, API guide and both copies of the skill say how to turn it off" do
+  test "the manual, API guide and the skill say how to turn it off" do
     root = Path.expand("../../..", __DIR__)
     manual = File.read!(Path.join(root, "docs/manual.md"))
     # A card view element now (#2031), and still the list's own switch.
@@ -176,12 +176,7 @@ defmodule SlipdockWeb.AgeChipOptionTest do
     refute manual =~ "untick **Time in list**"
     assert File.read!(Path.join(root, "lib/slipdock_web/api_guide.ex")) =~ "`show_age: false`"
 
-    for path <- [
-          Path.join(root, "priv/skills/slipdock/SKILL.md"),
-          Path.expand("~/.claude/skills/slipdock/SKILL.md")
-        ],
-        File.exists?(path) do
-      assert File.read!(path) =~ "set-column <board> <column> --no-show-age"
-    end
+    assert File.read!(Path.join(root, "priv/skills/slipdock/SKILL.md")) =~
+             "set-column <board> <column> --no-show-age"
   end
 end

@@ -3,7 +3,7 @@ defmodule SlipdockWeb.CardShapeDocsTest do
   How a one-sentence ask becomes a card (#2042): seven bullets in the
   guide's *Epics and subcards*, and the line saying a handbook's Playbook
   overrides them, said the same in `docs/agents.md`, on the agents help
-  page and in both copies of `slipdock-work`. Sprints moved to a section of
+  page and in `slipdock-work`. Sprints moved to a section of
   their own so the short guide, which carries Epics whole, keeps its caps.
   """
   # The guide reads the settings, so this needs the database.
@@ -14,15 +14,12 @@ defmodule SlipdockWeb.CardShapeDocsTest do
   alias SlipdockWeb.APIGuide
 
   @root Path.expand("../..", __DIR__)
-  @installed Path.expand("~/.claude/skills")
 
   # Line breaks folded, for prose that is rewrapped as it changes.
   defp flat(text), do: String.replace(text, ~r/\s+/, " ")
 
   defp copies(skill) do
-    priv = Path.join([@root, "priv/skills", skill, "SKILL.md"])
-    installed = Path.join([@installed, skill, "SKILL.md"])
-    [priv | if(File.exists?(installed), do: [installed], else: [])]
+    [Path.join([@root, "priv/skills", skill, "SKILL.md"])]
   end
 
   # The bullets after the first "Card shape" up to the override line, flattened.
@@ -80,7 +77,7 @@ defmodule SlipdockWeb.CardShapeDocsTest do
              "the `## Card shape` section of its Playbook page wins wherever it says otherwise"
   end
 
-  test "both copies of slipdock-work point at it", %{} do
+  test "slipdock-work points at it", %{} do
     for path <- copies("slipdock-work") do
       text = flat(File.read!(path))
       assert text =~ "A one-sentence ask becomes a card as the guide's **Card shape** says", path
