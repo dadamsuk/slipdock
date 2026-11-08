@@ -1546,6 +1546,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   defp edge_colour(_card, nil, same), do: if(same == :mixed, do: :mixed, else: same)
   defp edge_colour(card, field, _same), do: Map.get(card, field)
 
+  # Whether the reader's card view shows a sidebar property (#2070): nil, a
+  # panel drawn with no card view, shows them all.
+  defp side?(nil, _key), do: true
+  defp side?(panel, key), do: MapSet.member?(panel, key)
+
   attr :name, :string, required: true, doc: "`data-prop`, for tests and the e2e script"
   attr :label, :string, required: true
   attr :for, :string, default: nil, doc: "the id of the value's own input, if it has one"
@@ -1617,6 +1622,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :target, :any, required: true
   attr :users, :list, required: true
 
+  attr :panel, :any,
+    default: nil,
+    doc: "the properties the reader's card view shows (#2070), a MapSet; nil shows them all"
+
   @doc """
   The card's properties (#1726) as label/value rows, the value bare until it
   is pointed at or focused. The list and Completed are not here: the meta
@@ -1627,7 +1636,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   def card_props(assigns) do
     ~H"""
     <div id="card-props" class="space-y-0.5">
-      <.prop_row name="assignees" label="Assignees" id="card-assignees">
+      <.prop_row
+        :if={side?(@panel, "side.assignees")}
+        name="assignees"
+        label="Assignees"
+        id="card-assignees"
+      >
         <div class="flex min-w-0 flex-wrap items-center gap-1">
           <%!-- The runner loop holding the card (#2027): beside the people,
                 never one of them, and gone when its job ends. --%>
@@ -1675,7 +1689,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </select>
         </div>
       </.prop_row>
-      <.prop_row name="priority" label="Priority" for="card-priority">
+      <.prop_row
+        :if={side?(@panel, "side.priority")}
+        name="priority"
+        label="Priority"
+        for="card-priority"
+      >
         <select
           name="card[priority]"
           id="card-priority"
@@ -1694,7 +1713,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             and Health are project tracking, and stay out of its way
             (`Board.simple?/1`). --%>
       <.prop_row
-        :if={not @board.simple}
+        :if={not @board.simple and side?(@panel, "side.percent")}
         name="percent"
         label="% complete"
         for="card-percent-complete"
@@ -1729,7 +1748,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       <p :if={@form[:percent_complete].errors != []} class="text-xs text-error">
         Use a whole number from 0 to 100.
       </p>
-      <.prop_row :if={not @board.simple} name="start" label="Start" icon={start_icon()}>
+      <.prop_row
+        :if={not @board.simple and side?(@panel, "side.start")}
+        name="start"
+        label="Start"
+        icon={start_icon()}
+      >
         <.date_field
           id={"card-start-date-#{@card.id}"}
           name="card[start_date]"
@@ -1743,13 +1767,16 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       <%!-- The start in words (#1709): "Starts in 11 days", "Started 11
             days late". --%>
       <p
-        :if={(not @board.simple and @card.start_date) && start_words(@card)}
+        :if={
+          (not @board.simple and side?(@panel, "side.start") and @card.start_date) &&
+            start_words(@card)
+        }
         class="pl-24 text-xs text-base-content/60"
         data-role="start-words"
       >
         {start_words(@card)}
       </p>
-      <.prop_row name="due" label="Due" icon={due_icon()}>
+      <.prop_row :if={side?(@panel, "side.due")} name="due" label="Due" icon={due_icon()}>
         <div class="flex min-w-0 flex-wrap items-center gap-1">
           <.date_field
             id={"card-due-date-#{@card.id}"}
@@ -1775,10 +1802,18 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       <%!-- Precision matters only once it isn't "day": until then it is
             under More (a toggle the client keeps across patches). --%>
       <.precision_row
-        :if={not @board.simple and (@card.date_precision || "day") != "day"}
+        :if={
+          not @board.simple and side?(@panel, "side.precision") and
+            (@card.date_precision || "day") != "day"
+        }
         card={@card}
       />
-      <.prop_row :if={not @board.simple} name="health" label="Health" id="card-status">
+      <.prop_row
+        :if={not @board.simple and side?(@panel, "side.health")}
+        name="health"
+        label="Health"
+        id="card-status"
+      >
         <div
           class="flex flex-wrap items-center gap-1.5"
           aria-describedby="card-health-about"
@@ -1799,7 +1834,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </span>
         </div>
       </.prop_row>
-      <div :if={not @board.simple and (@card.date_precision || "day") == "day"}>
+      <div :if={
+        not @board.simple and side?(@panel, "side.precision") and
+          (@card.date_precision || "day") == "day"
+      }>
         <button
           type="button"
           id="card-props-more-toggle"
@@ -1817,7 +1855,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           <.precision_row card={@card} />
         </div>
       </div>
-      <.card_authors :if={@authors} authors={@authors} />
+      <.card_authors :if={@authors && side?(@panel, "side.authors")} authors={@authors} />
     </div>
     """
   end
@@ -1879,6 +1917,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :target, :any, required: true
   attr :users, :list, required: true
 
+  attr :panel, :any,
+    default: nil,
+    doc: "the properties the reader's card view shows (#2070), a MapSet; nil shows them all"
+
   @doc """
   On a phone (#1729), the card's properties come straight after its title:
   a one-line summary (who, when it is due, how urgent; the list is on the
@@ -1899,7 +1941,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         }
         class="flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-base-200/60 px-3 py-2 text-left text-sm text-base-content/80"
       >
-        <span data-summary="assignee" class="inline-flex min-w-0 items-center gap-1">
+        <span
+          :if={side?(@panel, "side.assignees")}
+          data-summary="assignee"
+          class="inline-flex min-w-0 items-center gap-1"
+        >
           <.icon name="hero-user" class="size-4 shrink-0 text-base-content/50" />
           <span class="truncate">
             {case Card.assignees(@card) do
@@ -1908,13 +1954,21 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             end}
           </span>
         </span>
-        <span data-summary="due" class="inline-flex items-center gap-1">
+        <span
+          :if={side?(@panel, "side.due")}
+          data-summary="due"
+          class="inline-flex items-center gap-1"
+        >
           <.icon name="hero-calendar" class="size-4 shrink-0 text-base-content/50" />
           {if @card.due_date,
             do: "Due #{SlipdockWeb.Dates.short(@card.due_date)}",
             else: "No due date"}
         </span>
-        <span data-summary="priority" class="inline-flex items-center gap-1">
+        <span
+          :if={side?(@panel, "side.priority")}
+          data-summary="priority"
+          class="inline-flex items-center gap-1"
+        >
           <.icon name="hero-signal" class="size-4 shrink-0 text-base-content/50" />
           {if @card.priority in [nil, "none"],
             do: "No priority",
@@ -1937,6 +1991,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             authors={@authors}
             target={@target}
             users={@users}
+            panel={@panel}
           />
         </.form>
       </div>
@@ -1991,11 +2046,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             authors={@authors}
             target={@target}
             users={@users}
+            panel={@panel}
           />
           <div
             :if={
-              (not @board.simple and @card.rollup) && @card.rollup.children > 0 &&
-                @card.rollup.derived_due
+              (not @board.simple and MapSet.member?(@panel, "side.rollup") and @card.rollup) &&
+                @card.rollup.children > 0 && @card.rollup.derived_due
             }
             class="space-y-1 rounded-lg bg-base-200/60 p-2 text-xs"
             id="card-rollup-dates"
@@ -2027,7 +2083,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             </p>
           </div>
           <p
-            :if={Card.days_past_due(@card) > 0}
+            :if={MapSet.member?(@panel, "side.due") and Card.days_past_due(@card) > 0}
             class="flex items-center gap-1 rounded-lg bg-error/10 p-2 text-xs text-error"
             id="card-past-due"
           >

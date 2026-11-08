@@ -1738,6 +1738,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 form={@form}
                 target={@target}
                 users={@users}
+                panel={@panel}
               />
             </fieldset>
             <fieldset disabled={!@can_write} class="min-w-0 space-y-7">

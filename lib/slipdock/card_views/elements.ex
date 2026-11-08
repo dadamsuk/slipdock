@@ -2,7 +2,7 @@ defmodule Slipdock.CardViews.Elements do
   @moduledoc """
   What a card view can switch on or off (#2031): every element of a card's
   front, then each section of the opened card's main panel (`open.`) and
-  each group of its sidebar (`side.`).
+  each property and group of its sidebar (`side.`, #2070).
 
   The front's keys are the Display facets (`Slipdock.Swimlanes.Config.facets/1`)
   and the marks the tile used to show whatever was chosen. An element's
@@ -39,7 +39,18 @@ defmodule Slipdock.CardViews.Elements do
     {"open.ai", "Ask AI"}
   ]
 
+  # The sidebar's properties first, in the order they are drawn (#2070),
+  # then its sections.
   @side [
+    {"side.assignees", "Assignees and runner"},
+    {"side.priority", "Priority"},
+    {"side.percent", "% complete"},
+    {"side.start", "Start"},
+    {"side.due", "Due"},
+    {"side.health", "Health"},
+    {"side.precision", "Precision"},
+    {"side.authors", "Created and changed by"},
+    {"side.rollup", "Dates from subcards"},
     {"side.time", "Time"},
     {"side.status", "Status updates"},
     {"side.fields", "Fields"},

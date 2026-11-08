@@ -236,12 +236,63 @@ defmodule SlipdockWeb.CardViewsLiveTest do
       refute has_element?(view, "#card-modal [data-section-key=d]")
       refute has_element?(view, "#card-modal [data-section-key=c]")
       refute has_element?(view, "#card-modal aside", "Cover")
-      # The title and the properties are the card itself: always there.
+      # Properties not hidden stay: the title and the sidebar itself remain.
       assert has_element?(view, "#card-modal aside")
+      assert has_element?(view, "#card-modal [data-prop=priority]")
 
       # Another list's card keeps them.
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.other.id}")
       assert has_element?(view, "#card-modal [data-section-key=d]")
+    end
+  end
+
+  describe "the opened card's properties (#2070)" do
+    @props ~w(assignees priority percent start due health)
+
+    test "each is shown by default, and the card view can hide every one", ctx do
+      past = Date.add(Date.utc_today(), -3)
+
+      {:ok, card} =
+        Boards.update_card(ctx.card, %{"start_date" => Date.add(past, -2), "due_date" => past})
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card.id}")
+      for p <- @props, do: assert(has_element?(view, "#card-modal [data-prop=#{p}]"), p)
+      assert has_element?(view, "#card-props-more-toggle")
+      assert has_element?(view, "#card-authors")
+      assert has_element?(view, "#card-past-due")
+      assert has_element?(view, "#card-modal [data-role=start-words]")
+
+      hide = Enum.map_join(Slipdock.CardViews.Elements.side(), ",", &elem(&1, 0))
+      {:ok, _} = CardViews.update_level(ctx.user, {:board, ctx.board}, %{"hide" => hide})
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card.id}")
+
+      for p <- @props ++ ["precision"],
+          do: refute(has_element?(view, "#card-modal [data-prop=#{p}]"), p)
+
+      refute has_element?(view, "#card-props-more-toggle")
+      refute has_element?(view, "#card-authors")
+      refute has_element?(view, "#card-past-due")
+      refute has_element?(view, "#card-modal [data-role=start-words]")
+      refute has_element?(view, "#card-assignee-loop")
+    end
+
+    test "a precision other than day is hidden with the rest, one property at a time", ctx do
+      {:ok, card} = Boards.update_card(ctx.card, %{"date_precision" => "month"})
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card.id}")
+      assert has_element?(view, "#card-modal [data-prop=precision]")
+
+      {:ok, _} =
+        CardViews.update_level(ctx.user, {:board, ctx.board}, %{
+          "hide" => "side.precision,side.priority"
+        })
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card.id}")
+      refute has_element?(view, "#card-modal [data-prop=precision]")
+      refute has_element?(view, "#card-modal [data-prop=priority]")
+      # Only what was hidden goes.
+      assert has_element?(view, "#card-modal [data-prop=due]")
+      assert has_element?(view, "#card-modal [data-prop=assignees]")
     end
   end
 

@@ -29,6 +29,10 @@ defmodule SlipdockWeb.API.CardViewsTest do
     assert %{"group" => "front", "default" => true} = keys["tags"]
     assert %{"group" => "open", "default" => true} = keys["open.description"]
     assert %{"group" => "side"} = keys["side.time"]
+    # The sidebar's properties are elements too (#2070).
+    assert %{"group" => "side", "label" => "Assignees and runner", "default" => true} =
+             keys["side.assignees"]
+
     assert %{"default" => false} = keys["handoff_note"]
   end
 
