@@ -45,6 +45,13 @@ auth <token>                        save an API token directly (create one at /a
   work [--board B] [--done]           my work: what is waiting on you (waits, review and
                                       waiting flags, runner trouble, cards in progress with
                                       nobody on them), oldest first, then my cards by due date
+  work --dismiss <card> | --undismiss <card> | --dismissed
+                                      take an item off my own list, held on its cause (a
+                                      second failed job or a new wait shows again); undo
+                                      it; list what I dismissed
+  work --mute <board> | --unmute <board>
+                                      keep a board's tree off my own list; the board works
+                                      as before for everyone
   multiboard [--list L]... [--limit N] [--by board|list|grid]
                                       the top N cards (default 5) of lists from several
                                       boards; L is a list id or board/list ("ops/To Do").

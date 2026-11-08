@@ -34,9 +34,32 @@ defmodule SlipdockCLI.Boards do
 
   # My work (#1118): what is waiting on you, oldest first, then the cards
   # assigned to you by when they are due — what the web page shows.
+  #
+  # Taking things off your own list (#2069): `--dismiss CARD` (held on its
+  # cause, so a new one shows again), `--undismiss CARD`, `--dismissed` to
+  # list them, `--mute BOARD` / `--unmute BOARD` for a board's tree.
   def run("work", [], o) do
-    HTTP.get("/work", board: o[:board], done: if(o[:done], do: "true"))
-    |> out(o, &Render.work/1)
+    cond do
+      card = o[:dismiss] ->
+        HTTP.post("/work/dismissed", %{card: card}) |> out(o, &Render.work_dismissed/1)
+
+      card = o[:undismiss] ->
+        HTTP.delete("/work/dismissed/#{enc(String.trim_leading(card, "#"))}")
+        |> out(o, &Render.work_undismissed/1)
+
+      o[:dismissed] ->
+        HTTP.get("/work/dismissed", board: o[:board]) |> out(o, &Render.work_dismissed_list/1)
+
+      board = o[:mute] ->
+        HTTP.post("/work/muted", %{board: board}) |> out(o, &Render.work_muted/1)
+
+      board = o[:unmute] ->
+        HTTP.delete("/work/muted/#{enc(board)}") |> out(o, &Render.work_muted/1)
+
+      true ->
+        HTTP.get("/work", board: o[:board], done: if(o[:done], do: "true"))
+        |> out(o, &Render.work/1)
+    end
   end
 
   # The multiboard overview (#1479): the top cards of lists from several

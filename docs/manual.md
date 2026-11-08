@@ -1449,6 +1449,7 @@ slipdock answer 12 --answer eu --answer 12     # one per question, in order ("" 
 slipdock answer 12 --skip                      # skip the questions: the card moves on
 slipdock waits 12                              # every question the card has asked, and the answers
 slipdock work                                  # what is waiting on you, oldest first
+slipdock work --dismiss 12                     # off my own list until the reason changes
 ```
 
 Over the API, `POST /api/cards/:id/wait` (`needs`, `questions`, `on`,
@@ -1501,6 +1502,49 @@ shows how many on every page (refreshed within a minute; on a laptop the count
 is in the alerts bell's, and its panel's first row comes here), `slipdock whoami`
 and `GET /api/me` carry it as `waiting_on_you`, and `slipdock work`, `GET
 /api/work` and the `plan-my-day` prompt list them.
+
+**Taking things off your list.** Some items are things you don't mean to
+act on: a failed job on a card you'll never pick up, or a board you are one
+step short of archiving. Two ways off, both yours alone. Nobody else's list
+changes, and nothing on the card or board changes either.
+
+- **Dismiss an item**: the × on its row in My work, `slipdock work --dismiss
+  <card>`, `POST /api/work/dismissed` (`card`), or MCP `update_card` with
+  `waiting_list: "dismiss"`. A dismissal holds on the card *and* what put it
+  there: the failed job, the wait, the flag's run, the submission, the time it
+  went into the list unowned. So the same cause stays off, and a new one
+  brings the card back: a second failed job, a new wait, the flag taken off
+  and put on again. If the card has another reason too, it shows for that one.
+- **Mute a board**: *Mute on my Waiting on you* in the board's `…` menu,
+  `slipdock work --mute <board>`, `POST /api/work/muted` (`board`), or MCP
+  `update_board` with `waiting_list: "mute"`. Nothing from the board or any
+  board under it shows on your list. Muting is not archiving: the board
+  works as before, for you and everyone else. A strip on the board (and on
+  each one under it) tells you it is muted and why it is quiet, with
+  Unmute. Only you see it.
+
+The hiding is never silent. My work's section says `3 waiting · 2 dismissed
+· 1 board muted` under its heading, and *Show* opens what you dismissed
+(each with **Undo**) and the boards you muted (each with **Unmute**).
+`slipdock work` prints the same line. `GET /api/work` carries
+`dismissed_count`, `muted_count` (cards a mute keeps off) and
+`muted_boards`, and `whoami` carries `waiting_hidden`. Only a dismissal whose
+cause still stands is counted.
+
+```sh
+slipdock work --dismiss 684            # off my list, for this cause
+slipdock work --dismissed              # what I dismissed, still standing
+slipdock work --undismiss 684          # back on
+slipdock work --mute old-ops           # the board's tree off my list
+slipdock work --unmute old-ops
+```
+
+Over the API, `GET /api/work/dismissed` lists the dismissed items and
+`DELETE /api/work/dismissed/:card` undoes one. `DELETE /api/work/muted/:board`
+unmutes. Over MCP, `update_card` takes `waiting_list: "undismiss"` and
+`update_board` takes `waiting_list: "unmute"`. Read access to the card or
+board is enough, and `waiting_list` goes on its own in the call. Dismissing
+by rule is the board's own switches, and nothing is ever dismissed for you.
 
 ## Flow: the pulse, a card's state and its age
 

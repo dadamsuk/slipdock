@@ -54,6 +54,7 @@ test/slipdock_web/live/help_live/cli_help_test.exs
 test/slipdock_web/live/help_live/flow_test.exs
 test/slipdock_web/delivery_docs_test.exs
 test/slipdock_web/garden_docs_test.exs
+test/slipdock_web/work_dismiss_docs_test.exs
 test/slipdock_web/guide_short_docs_test.exs
 test/slipdock_web/generated_names_docs_test.exs
 test/slipdock_web/handbook_docs_test.exs

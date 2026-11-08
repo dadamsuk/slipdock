@@ -1512,6 +1512,15 @@ defmodule SlipdockWeb.APIGuide do
 
     # what is waiting on you, oldest first, then your cards by due (?board=1, ?done=true)
     curl -s -H "$H" B/api/work
+    # off your own Waiting on you (#2069): dismiss one item, held on its cause
+    # (a new cause shows again), list and undo; mute a board's tree, unmute.
+    # CLI: slipdock work --dismiss 57 / --dismissed / --undismiss 57 / --mute ops / --unmute ops
+    # MCP: update_card waiting_list dismiss|undismiss; update_board waiting_list mute|unmute
+    curl -s -H "$H" -H 'content-type: application/json' B/api/work/dismissed -d '{"card": 57}'
+    curl -s -H "$H" B/api/work/dismissed
+    curl -s -X DELETE -H "$H" B/api/work/dismissed/57
+    curl -s -H "$H" -H 'content-type: application/json' B/api/work/muted -d '{"board": "ops"}'
+    curl -s -X DELETE -H "$H" B/api/work/muted/ops
 
     # the top 5 cards of lists from several boards, by board, list or grid
     # (lists: ids or board/list; none: the view saved on the Multiboard page)
@@ -1582,6 +1591,21 @@ defmodule SlipdockWeb.APIGuide do
     boards you own, and cards in a doing list for over an hour with nobody
     on them — then `sections`, your cards by when they are due. `GET
     /api/me` and `whoami` carry the count as `waiting_on_you`.
+
+    **Off your own list.** Each item has a `cause` (`job:812`, `wait:40`,
+    `flag:review:<unix time>`, …). `POST /api/work/dismissed` (`card`) takes the
+    card off your list for that cause only: a new cause (a second failed job,
+    a new wait) shows it again, and a card with another reason shows for
+    that one. `POST /api/work/muted` (`board`) keeps a board's whole tree off
+    it. The board works as before for everyone. Both are yours alone and
+    need only read access. `GET /api/work` says what is hidden:
+    `dismissed_count`, `muted_count` (cards a mute keeps off) and
+    `muted_boards`. `GET /api/work/dismissed` lists the dismissed items,
+    `DELETE /api/work/dismissed/:card` undoes one and `DELETE
+    /api/work/muted/:board` unmutes. Over MCP, `update_card` and
+    `update_board` take `waiting_list` on its own, and `whoami` carries
+    `waiting_hidden`. Never dismiss for a person what they haven't asked
+    you to.
 
     **A pause.** While a board tree or one of its runner pools is paused,
     `GET` of the board and its cards, `get_board` and `list_cards` carry

@@ -13,7 +13,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
 
   alias Slipdock.Boards
   alias SlipdockWeb.API.Authorize
-  alias SlipdockWeb.MCP.{Args, Tools}
+  alias SlipdockWeb.MCP.{Args, Tools, WaitingList}
 
   @fields ~w(name description color simple default_view agentic_building handoff_label bar_required
              evidence_required verify_work verify_pool lanes lane_mode shared_paths profiles profile_tiers ship_via job_log_hours
@@ -38,6 +38,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
       type: "object",
       properties: %{
         board: %{type: "string", description: "Board id, code or name."},
+        # The caller's own Waiting on you (#2069).
+        waiting_list: WaitingList.property(board: true),
         name: %{type: "string"},
         description: %{type: "string"},
         color: %{type: "string", description: "A palette colour."},
@@ -128,7 +130,21 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   def read_only?, do: false
 
   @impl true
-  def call(args, %{user: user} = context) do
+  def call(args, context) do
+    case WaitingList.action(args, "board") do
+      :no ->
+        update(args, context)
+
+      {:ok, action} ->
+        with {:ok, ref} <- Args.required(args, "board"),
+             do: WaitingList.board(Args.auth(context), ref, action)
+
+      error ->
+        error
+    end
+  end
+
+  defp update(args, %{user: user} = context) do
     auth = Args.auth(context)
     changes = Map.take(args, @fields)
     routes = Map.get(args, "wait_routes")

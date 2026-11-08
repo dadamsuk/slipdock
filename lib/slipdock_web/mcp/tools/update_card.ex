@@ -8,7 +8,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   alias Slipdock.{Boards, Repo}
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
-  alias SlipdockWeb.MCP.{Args, Tools}
+  alias SlipdockWeb.MCP.{Args, Tools, WaitingList}
 
   @fields ~w(title short_name description priority due_date start_date percent_complete bar paths profile color border_top
              border_right border_bottom border_left caused_by missed_by)
@@ -58,6 +58,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
           type: "string",
           description: "What done means for it; locks when work starts, where the board asks."
         },
+        # The caller's own Waiting on you (#2069).
+        waiting_list: WaitingList.property(card: true),
         paths: %{
           type: "array",
           items: %{type: "string"},
@@ -231,6 +233,20 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
 
   @impl true
   def call(args, context) do
+    case WaitingList.action(args, "card") do
+      :no ->
+        update(args, context)
+
+      {:ok, action} ->
+        with {:ok, id} <- Args.id(args, "card"),
+             do: WaitingList.card(Args.auth(context), id, action)
+
+      error ->
+        error
+    end
+  end
+
+  defp update(args, context) do
     auth = Args.auth(context)
 
     with {:ok, id} <- Args.id(args, "card"),

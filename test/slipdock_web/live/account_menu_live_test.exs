@@ -246,16 +246,23 @@ defmodule SlipdockWeb.AccountMenuLiveTest do
             "Automations",
             "Board settings",
             "Activity",
-            "Archived cards"
+            "Archived cards",
+            "Mute on my Waiting on you"
           ],
           &position(html, &1)
         )
 
       assert order == Enum.sort(order)
-      # A rule above Tags and above Activity: three groups.
+      # A rule above Tags, above Activity and above what is mine alone (#2069):
+      # four groups.
       assert view |> element("#board-actions .dropdown li.border-t", "Tags") |> has_element?()
       assert view |> element("#board-actions .dropdown li.border-t", "Activity") |> has_element?()
-      assert length(Regex.scan(~r/class="mt-1 border-t/, html)) == 2
+
+      assert view
+             |> element("#board-actions .dropdown li.border-t", "Mute on my Waiting on you")
+             |> has_element?()
+
+      assert length(Regex.scan(~r/class="mt-1 border-t/, html)) == 3
     end
 
     test "is headed This board in the phone's Menu", %{conn: conn, board: board} do

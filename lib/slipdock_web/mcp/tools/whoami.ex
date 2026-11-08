@@ -13,7 +13,7 @@ defmodule SlipdockWeb.MCP.Tools.Whoami do
     do:
       "Who this connection is signed in as, the token's scope (read or write), " <>
         "how much of the account's item limit is used, and waiting_on_you: how many " <>
-        "things need this person (the plan-my-day prompt lists them)."
+        "things need this person, and waiting_hidden: how many they dismissed or muted."
 
   @impl true
   def input_schema, do: %{type: "object", properties: %{}, additionalProperties: false}
@@ -23,13 +23,20 @@ defmodule SlipdockWeb.MCP.Tools.Whoami do
 
   @impl true
   def call(_args, %{user: user, token: token, base_url: base_url}) do
+    waiting = Slipdock.Work.waiting(user, roots: roots(token), paths: false)
+
     {:ok,
      %{
        user: %{id: user.id, email: user.email, name: user.name},
        token: %{label: token.label, scope: token.scope, boards: token.scope_boards || []},
        server: base_url,
        limits: Slipdock.Quota.report(user),
-       waiting_on_you: Slipdock.Work.waiting_count(user, roots: roots(token))
+       waiting_on_you: length(waiting.items),
+       waiting_hidden: %{
+         dismissed: length(waiting.dismissed),
+         muted: waiting.muted,
+         muted_boards: waiting.muted_boards
+       }
      }}
   end
 
