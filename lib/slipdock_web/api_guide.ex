@@ -3643,10 +3643,12 @@ defmodule SlipdockWeb.APIGuide do
     One record per lesson: an item repeating an open finding on the same
     card (after normalising case, whitespace, backticks, trailing
     punctuation, `#id`s and shas, or most of its words in common) adds to
-    its `count`; one with the same normalised text as an open finding on
-    another card of the tree is recorded `merged` into it, and the listing
-    shows that one with every card it was said on (`cards`). `rule` and
-    `handbook-wrong` items are never merged across cards.
+    its `count`; one that restates an open finding on another card of the
+    tree (the same normalised text, or mostly the same telling words, any of
+    `gotcha`, `tooling` and `process`) is recorded `merged` into it with a
+    `note` saying why, and the listing shows that one with every card it
+    was said on (`cards`). `rule` and `handbook-wrong` items are never
+    merged across cards.
 
     The test for one: would a card on a different subject want to know
     this? Never a pointer (`in the evidence`, `recorded on #1819`), an event

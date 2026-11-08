@@ -13,6 +13,27 @@ defmodule Slipdock.FindingsLessonsTest do
   alias Slipdock.{Boards, Findings, Repo, Runners}
   alias Slipdock.Findings.{Block, Finding, Lesson}
 
+  # The eight write-ups of one bug (#2115) on 2026-11-08, findings #400 #404
+  # #407 #413 #418 #424 #430 #437, in the order they came.
+  @pre_push [
+    {"gotcha",
+     "`mix pre_push` hardcodes `MIX_TEST_PARTITION=_pre_push`, and that database is shared by every worktree on the machine. A worktree whose branch has different migrations fails it with `duplicate_table`. Run the steps by hand with a partition of your own."},
+    {"tooling",
+     "the shared `_pre_push` test database can hold another branch's migration (`overseer_settings` already exists), which fails `mix pre_push`'s repo-check step before any test runs. Run those files with your own `MIX_TEST_PARTITION` instead."},
+    {"tooling",
+     "every worktree on a host shares the `_pre_push` test database. A branch with another version of a migration leaves it failing with \"relation already exists\". `MIX_TEST_PARTITION=_pre_push MIX_BUILD_PATH=_build/pre_push/test mix ecto.drop` mends it."},
+    {"gotcha",
+     "`mix pre_push` always tests in the `_pre_push` database, which every worktree shares. One whose migrations differ fails with `duplicate_table`. Run its repo-check step with `MIX_TEST_PARTITION=_<own>` instead."},
+    {"tooling",
+     "`TEST_DATABASE_URL` overrides `MIX_TEST_PARTITION`, and every worktree shares `mix pre_push`'s `_pre_push` test database. A migration another branch ran there (`overseer_settings` exists) fails the repo-checks step with `duplicate_table`. `TEST_DATABASE_URL=…/slipdock_test_<own> mix pre_push` gets around it."},
+    {"gotcha",
+     "the `_pre_push` test database is shared by every worktree on a machine. A branch whose migration later changed its version (`overseer_settings`) leaves a table that makes `mix pre_push`'s repo checks fail with `42P07 duplicate_table`. `dropdb slipdock_test_pre_push` (port 5434) fixes it, and so does `slipdock_test<partition>` for `mix test`."},
+    {"tooling",
+     "a shared `MIX_TEST_PARTITION=_pre_push` database that has run a migration later re-dated on main (#2095) fails `mix pre_push` with a duplicate column: `MIX_TEST_PARTITION=_pre_push MIX_ENV=test mix ecto.drop` fixes it"},
+    {"tooling",
+     "a lane worktree's default test database (no `MIX_TEST_PARTITION`) can carry another branch's migrations (`overseer_settings already exists`); a partition of its own (`MIX_TEST_PARTITION=_cNNNN mix ecto.reset`) runs clean"}
+  ]
+
   setup do
     owner = user_fixture()
     board = Boards.get_board!(board_fixture(%{"name" => "Lessons"}, owner: owner).id)
@@ -62,6 +83,45 @@ defmodule Slipdock.FindingsLessonsTest do
       refute Lesson.same?(a, b)
       refute Lesson.near?(a, "running mix pre_push beside mix test timed out a Task.await")
       assert Lesson.overlap("", "") == 0.0
+    end
+
+    test "similarity: telling words only, a code word weighing three" do
+      # The common words count for nothing, so two texts of only those are not alike.
+      assert Lesson.similarity("it is run when it is done", "what is run, and when") == 0.0
+      assert Lesson.similarity("", nil) == 0.0
+      assert Lesson.similarity("the installed CLI lags", "the installed CLI lags") == 1.0
+
+      # One shared code word (3 of 3 + 3 + 1 + 1) outweighs one shared plain word.
+      code = Lesson.similarity("`mix_audit` fails offline", "`mix_audit` flakes nightly")
+      plain = Lesson.similarity("audit fails offline", "audit flakes nightly")
+      assert_in_delta code, 6 / 10, 0.001
+      assert_in_delta plain, 2 / 6, 0.001
+
+      # "worktrees" meets "worktree", and "branch's" meets "branch".
+      assert Lesson.similarity(
+               "worktrees share a branch's database",
+               "a worktree shares the branch database"
+             ) ==
+               1.0
+    end
+
+    test "alike?: a rewording across cards, but not another lesson in shared words" do
+      # Findings #206 and #217, two cards' write-ups of one macOS failure.
+      a =
+        "`hook_prompt_test.exs` fails on macOS because `after-job-hook.sh` uses GNU `date -Is`, so `mix pre_push` stops there on a Mac"
+
+      b =
+        "`test/slipdock/runners/hook_prompt_test.exs` fails under macOS's BSD `date` (`date -Is`), so `mix pre_push` stops at the repo checks on a Mac; CI's Linux passes it"
+
+      assert Lesson.alike?(a, b)
+
+      refute Lesson.alike?(
+               "`mix pre_push` stops at the first step that fails, so a red format check hides the rest",
+               "`mix pre_push` takes about 2½ minutes; start it alongside the tests you changed"
+             )
+
+      assert Lesson.alike?("Keep it once.", "keep it once")
+      refute Lesson.alike?("", "keep it once")
     end
   end
 
@@ -159,10 +219,76 @@ defmodule Slipdock.FindingsLessonsTest do
       assert Enum.map(Findings.get(kept.id).cards, & &1.id) == [ctx.one.id, ctx.two.id]
     end
 
-    test "only on the same text: a restatement in other words is its own finding", ctx do
+    test "a restatement in other words is merged too, its note saying how alike", ctx do
+      say(ctx.one, ctx.owner, block(["gotcha: the fixture is always the same user (#12)"]))
+      say(ctx.two, ctx.owner, block(["gotcha: The fixture is always the same user (#34)."]))
+      [kept, same] = all(ctx.board)
+      assert same.note == "same lesson as ##{kept.id}, in the same words"
+
+      three = card_fixture(ctx.doing, %{"title" => "Three"})
+
+      say(
+        three,
+        ctx.owner,
+        block(["tooling: the user fixture always returns the same user"])
+      )
+
+      [_, _, reworded] = all(ctx.board)
+      assert %{status: "merged", merged_into_id: into, cause: "same-lesson"} = reworded
+      assert into == kept.id
+      assert reworded.note =~ ~r/^same lesson as ##{kept.id}, reworded \(\d+% alike\)$/
+      assert Repo.get!(Finding, kept.id).count == 3
+    end
+
+    test "findings that share some words but are other lessons stay apart", ctx do
       say(ctx.one, ctx.owner, block(["gotcha: run mix format twice before pushing"]))
-      say(ctx.two, ctx.owner, block(["gotcha: mix format needs two runs before you push"]))
-      assert length(open(ctx.board)) == 2
+      say(ctx.two, ctx.owner, block(["gotcha: mix test needs its own partition before you push"]))
+
+      three = card_fixture(ctx.doing, %{"title" => "Three"})
+
+      say(
+        three,
+        ctx.owner,
+        block(["gotcha: `mix pre_push` stops at the first step that fails, so run the tests too"])
+      )
+
+      assert length(open(ctx.board)) == 3
+    end
+
+    test "the eight write-ups of the _pre_push bug fold mostly into one", ctx do
+      for {{kind, text}, i} <- Enum.with_index(@pre_push) do
+        card = card_fixture(ctx.doing, %{"title" => "Card #{i}"})
+        say(card, ctx.owner, block(["#{kind}: #{text}"]))
+      end
+
+      [first | _] = all(ctx.board)
+
+      assert [{kept, 6} | rest] =
+               ctx.board |> open() |> Enum.map(&{&1.id, &1.count})
+
+      assert kept == first.id
+      # The two left are for the model to group (#2118).
+      assert Enum.map(rest, &elem(&1, 1)) == [1, 1]
+
+      merged = Enum.filter(all(ctx.board), &(&1.status == "merged"))
+      assert length(merged) == 5
+      assert Enum.all?(merged, &(&1.merged_into_id == first.id and &1.note =~ "reworded"))
+      # A gotcha and a tooling item are one lesson across cards.
+      assert merged |> Enum.map(& &1.kind) |> Enum.uniq() |> Enum.sort() == ["gotcha", "tooling"]
+    end
+
+    test "a match on a repeat already merged counts on the open finding", ctx do
+      [{_, first}, {_, second}, {_, third} | _] = @pre_push
+      # The third matches the second (merged into the first) better than the first.
+      assert Lesson.similarity(third, second) >= Lesson.alike_at()
+      refute Lesson.similarity(third, first) >= Lesson.alike_at()
+
+      for {text, i} <- Enum.with_index([first, second, third]) do
+        card = card_fixture(ctx.doing, %{"title" => "Card #{i}"})
+        say(card, ctx.owner, block(["tooling: #{text}"]))
+      end
+
+      assert [%{count: 3}] = open(ctx.board)
     end
 
     test "a sub-board's card merges into its root's", ctx do
@@ -183,7 +309,23 @@ defmodule Slipdock.FindingsLessonsTest do
       say(ctx.one, ctx.owner, block(items))
       say(ctx.two, ctx.owner, block(items))
 
-      assert ctx.board |> open() |> Enum.map(& &1.count) == [1, 1, 1, 1]
+      reworded = [
+        "rule: each MCP tool gets a docs test",
+        "handbook-wrong: W-1950 says it is async"
+      ]
+
+      say(card_fixture(ctx.doing, %{"title" => "Three"}), ctx.owner, block(reworded))
+
+      assert ctx.board |> open() |> Enum.map(& &1.count) == [1, 1, 1, 1, 1, 1]
+
+      # Nor does an agent's gotcha fold into a rule candidate in the same words.
+      say(
+        card_fixture(ctx.doing, %{"title" => "Four"}),
+        ctx.owner,
+        block(["gotcha: every MCP tool gets a docs test"])
+      )
+
+      assert length(open(ctx.board)) == 7
     end
 
     test "nor into one a person has triaged", ctx do
@@ -299,6 +441,81 @@ defmodule Slipdock.FindingsLessonsTest do
       say(four, ctx.owner, block(["tooling (runner): the CLI lags"]))
 
       assert length(open(ctx.board)) == 3
+    end
+  end
+
+  describe "dedupe/2, in other words across cards (#2117)" do
+    setup ctx do
+      [{_, first}, {_, second}, {_, third} | _] = @pre_push
+      three = card_fixture(ctx.doing, %{"title" => "Three"})
+      comment = fn card -> say(card, ctx.owner, "a comment").id end
+      %{first: first, second: second, third: third, three: three, comment: comment}
+    end
+
+    test "a gotcha and a tooling item in other words fold into the oldest", ctx do
+      gotcha = insert(ctx.board, ctx.one, "gotcha", ctx.first, ctx.comment.(ctx.one))
+      tooling = insert(ctx.board, ctx.two, "tooling", ctx.second, ctx.comment.(ctx.two))
+
+      assert [{repeat, into}] = Findings.dedupe(ctx.board, dry_run: true)
+      assert {repeat.id, into.id} == {tooling.id, gotcha.id}
+      assert Repo.get!(Finding, tooling.id).status == "open"
+
+      assert [_] = Findings.dedupe(ctx.board)
+      assert %{count: 2, status: "open"} = Repo.get!(Finding, gotcha.id)
+
+      assert %{status: "merged", merged_into_id: id, cause: "same-lesson", note: note} =
+               Repo.get!(Finding, tooling.id)
+
+      assert id == gotcha.id and note =~ "dedupe"
+    end
+
+    test "two of one card stay apart; a third on another card folds into the oldest", ctx do
+      # Kinds apart, so the card's own pass leaves them; alike across, but one card.
+      gotcha = insert(ctx.board, ctx.one, "gotcha", ctx.first, ctx.comment.(ctx.one))
+      tooling = insert(ctx.board, ctx.one, "tooling", ctx.second, ctx.comment.(ctx.one))
+      other = insert(ctx.board, ctx.two, "gotcha", ctx.second, ctx.comment.(ctx.two))
+
+      assert ctx.board |> Findings.dedupe() |> Enum.map(fn {r, i} -> {r.id, i.id} end) ==
+               [{other.id, gotcha.id}]
+
+      assert Repo.get!(Finding, tooling.id).status == "open"
+      assert Repo.get!(Finding, gotcha.id).count == 2
+    end
+
+    test "one alike only to a repeat already folded in folds into the kept one", ctx do
+      refute Lesson.alike?(ctx.first, ctx.third)
+      assert Lesson.alike?(ctx.second, ctx.third)
+
+      kept = insert(ctx.board, ctx.one, "tooling", ctx.first, ctx.comment.(ctx.one))
+      second = insert(ctx.board, ctx.two, "tooling", ctx.second, ctx.comment.(ctx.two))
+      third = insert(ctx.board, ctx.three, "tooling", ctx.third, ctx.comment.(ctx.three))
+
+      assert ctx.board |> Findings.dedupe() |> Enum.map(fn {r, i} -> {r.id, i.id} end) ==
+               [{second.id, kept.id}, {third.id, kept.id}]
+
+      assert [%{id: id, count: 3}] = open(ctx.board)
+      assert id == kept.id
+    end
+
+    test "findings that share some words but are other lessons stay apart", ctx do
+      insert(
+        ctx.board,
+        ctx.one,
+        "gotcha",
+        "run mix format twice before pushing",
+        ctx.comment.(ctx.one)
+      )
+
+      insert(
+        ctx.board,
+        ctx.two,
+        "gotcha",
+        "mix test needs its own partition before you push",
+        ctx.comment.(ctx.two)
+      )
+
+      assert Findings.dedupe(ctx.board) == []
+      assert length(open(ctx.board)) == 2
     end
   end
 

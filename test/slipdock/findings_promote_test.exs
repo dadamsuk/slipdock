@@ -112,6 +112,28 @@ defmodule Slipdock.FindingsPromoteTest do
       assert length(proposals(ctx.board)) == 1
     end
 
+    test "reworded repeats on other cards reach it too (#2117)", ctx do
+      AIStub.fail_with(503, "down")
+
+      said = [
+        "gotcha: `mix pre_push` always tests in the `_pre_push` database, which every worktree shares, so a branch with other migrations fails with `duplicate_table`",
+        "tooling: every worktree shares `mix pre_push`'s `_pre_push` test database, and a branch's other migrations fail it with `duplicate_table`",
+        "gotcha: the `_pre_push` database is shared by every worktree; another branch's migrations make `mix pre_push` fail with `duplicate_table`"
+      ]
+
+      for {item, i} <- Enum.with_index(said) do
+        card = card_fixture(ctx.doing, %{"title" => "Card #{i}"})
+        {:ok, _} = Boards.add_comment(card, "- Findings:\n  - " <> item, by: ctx.owner)
+      end
+
+      assert [%Finding{count: 3, proposal_id: id}] =
+               Repo.all(
+                 from f in Finding, where: f.board_id == ^ctx.board.id and f.status == "open"
+               )
+
+      assert [%Suggestion{id: ^id}] = proposals(ctx.board)
+    end
+
     test "a board without a handbook files nothing", ctx do
       other = board_fixture(%{"name" => "No handbook"}, owner: ctx.owner)
       card = card_fixture(hd(other.columns), %{"title" => "x"})

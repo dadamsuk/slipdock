@@ -15,9 +15,11 @@ defmodule Slipdock.Findings do
   One record per lesson (#1941): a lesson said again on the same card counts on
   the open finding it repeats (`Slipdock.Findings.Lesson.near?/2`), and one
   said on another card of the tree is recorded `merged` into the open finding
-  with the same normalised text (`Lesson.same?/2`), which counts it. `rule`
-  and `handbook-wrong` items are never merged across cards: a rule candidate
-  is judged on its own card. A `tooling (runner)` item is kept with the
+  it restates (`Lesson.alike?/2`, against that finding and the repeats already
+  merged into it, #2117), which counts it, with a note saying why. Across
+  cards the kind is the writer's label, so a `gotcha`, a `tooling` and a
+  `process` item can be one lesson. `rule` and `handbook-wrong` items are
+  never merged across cards: a rule candidate is judged on its own card. A `tooling (runner)` item is kept with the
   runner (`scope: "runner"`) and out of the board's default list.
   """
   import Ecto.Query
@@ -30,6 +32,8 @@ defmodule Slipdock.Findings do
 
   # Kinds judged per card: never merged into another card's finding.
   @per_card ~w(rule handbook-wrong)
+  # Kinds that can be one lesson across cards, whichever the writer chose.
+  @across_kinds ~w(gotcha tooling process)
   # What an automatic merge into another card's finding is marked with.
   @same_lesson "same-lesson"
 
@@ -38,9 +42,10 @@ defmodule Slipdock.Findings do
   again (after an edit) first takes back what it added before. An item that
   repeats an open finding on the card (`Lesson.near?/2`, same kind) adds this
   comment to its count rather than making another; one already triaged on the
-  card is not made again. An item matching an open finding on another card of
-  the tree (`Lesson.same?/2`, same kind and scope, not `rule` or
-  `handbook-wrong`) is recorded merged into it, which counts it. A comment on
+  card is not made again. An item restating an open finding on another card of
+  the tree (`Lesson.alike?/2` with it or a repeat merged into it, same scope,
+  not `rule` or `handbook-wrong`) is recorded merged into it, which counts it,
+  its note saying how alike they were. A comment on
   a page, or with no block, makes none. Returns the findings it made or counted.
   """
   def from_comment(comment, opts \\ [])
@@ -118,12 +123,12 @@ defmodule Slipdock.Findings do
     runner = if item.scope == "runner", do: runner_job(at.card)
 
     case not Enum.member?(@per_card, item.kind) && same_lesson(item, at, runner) do
-      %Finding{} = target ->
+      {%Finding{} = target, note} ->
         target |> Ecto.Changeset.change(count: target.count + 1) |> Repo.update!()
 
         item
         |> new_finding(at, runner)
-        |> Finding.triage_changeset(%{status: "merged"}, target.id)
+        |> Finding.triage_changeset(%{status: "merged", note: note}, target.id)
         |> Ecto.Changeset.put_change(:cause, @same_lesson)
         |> Repo.insert!()
         |> List.wrap()
@@ -133,21 +138,55 @@ defmodule Slipdock.Findings do
     end
   end
 
-  # The open finding on another card of the tree with the same lesson, kind,
-  # scope (and runner, for a runner's), oldest first.
+  # The open finding on another card of the tree (same scope, and runner for
+  # a runner's) with this lesson, and the note the repeat is merged with: one
+  # of the same kind in the same words first, else the one it is most alike,
+  # read with the repeats already merged into it (oldest on a tie).
   defp same_lesson(item, at, runner) do
-    runner_id = runner && runner.runner_id
+    open = open_elsewhere(item, at, runner)
+    key = Lesson.normalise(item.text)
 
+    case Enum.find(open, &(&1.kind == item.kind and &1.lesson == key)) do
+      %Finding{} = f -> {f, "same lesson as ##{f.id}, in the same words"}
+      nil -> alike_lesson(open, item.text)
+    end
+  end
+
+  defp open_elsewhere(item, at, runner) do
     from(f in Finding,
       where:
-        f.board_id == ^at.root and f.status == "open" and f.kind == ^item.kind and
-          f.scope == ^item.scope and f.lesson == ^Lesson.normalise(item.text) and
-          (is_nil(f.card_id) or f.card_id != ^at.card.id),
-      order_by: f.id,
-      limit: 1
+        f.board_id == ^at.root and f.status == "open" and f.kind in @across_kinds and
+          f.scope == ^item.scope and (is_nil(f.card_id) or f.card_id != ^at.card.id),
+      order_by: f.id
     )
-    |> same_runner(item.scope, runner_id)
-    |> Repo.one()
+    |> same_runner(item.scope, runner && runner.runner_id)
+    |> Repo.all()
+  end
+
+  defp alike_lesson([], _text), do: nil
+
+  defp alike_lesson(open, text) do
+    repeats =
+      from(f in Finding,
+        where: f.status == "merged" and f.merged_into_id in ^Enum.map(open, & &1.id),
+        select: {f.merged_into_id, f.text}
+      )
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    open
+    |> Enum.map(fn f ->
+      {f,
+       [f.text | Map.get(repeats, f.id, [])]
+       |> Enum.map(&Lesson.similarity(&1, text))
+       |> Enum.max()}
+    end)
+    |> Enum.filter(fn {_f, score} -> score >= Lesson.alike_at() end)
+    |> Enum.max_by(fn {_f, score} -> score end, &>=/2, fn -> nil end)
+    |> case do
+      nil -> nil
+      {f, score} -> {f, "same lesson as ##{f.id}, reworded (#{round(score * 100)}% alike)"}
+    end
   end
 
   defp same_runner(q, "runner", nil), do: where(q, [f], is_nil(f.runner_id))
@@ -439,8 +478,9 @@ defmodule Slipdock.Findings do
   Collapses a tree's open agent findings into one per lesson, as `from_comment/2`
   would have recorded them (#1941): first each card's repeats
   (`Lesson.near?/2`, same kind) into the card's oldest, then each lesson
-  across cards (`Lesson.same?/2`, same kind and scope, not `rule` or
-  `handbook-wrong`) into the tree's oldest. Each repeat is merged, so its
+  across cards (`Lesson.alike?/2` with the finding or a repeat already folded
+  into it, same scope and runner, not `rule` or `handbook-wrong`, never two of
+  one card) into the tree's oldest. Each repeat is merged, so its
   count moves and a person can reopen it. `dry_run: true` changes nothing.
   Returns `[{repeat, into}]`, oldest first.
   """
@@ -456,16 +496,19 @@ defmodule Slipdock.Findings do
       )
     end
 
-    same_card = pairs(open.(), &{&1.card_id, &1.kind}, &Lesson.near?(&1.text, &2.text))
+    same_card =
+      pairs(open.(), &{&1.card_id, &1.kind}, fn _into, said, f ->
+        Lesson.near?(said, f.text)
+      end)
+
     folded = MapSet.new(same_card, fn {repeat, _} -> repeat.id end)
     unless dry?, do: Enum.each(same_card, &fold(&1, :card))
 
     across =
       open.()
       |> Enum.reject(&(Enum.member?(@per_card, &1.kind) or MapSet.member?(folded, &1.id)))
-      |> pairs(&{&1.kind, &1.scope, &1.runner_id, &1.lesson || Lesson.normalise(&1.text)}, fn _,
-                                                                                              _ ->
-        true
+      |> pairs(&{&1.scope, &1.runner_id}, fn into, said, f ->
+        (is_nil(into.card_id) or into.card_id != f.card_id) and Lesson.alike?(said, f.text)
       end)
 
     unless dry?, do: Enum.each(across, &fold(&1, :tree))
@@ -496,8 +539,10 @@ defmodule Slipdock.Findings do
     end
   end
 
-  # Within each group, every finding that matches an earlier one is a repeat
-  # of the first it matches.
+  # Within each group, every finding that matches an earlier one, or a repeat
+  # already folded into it, is a repeat of the first it matches.
+  # `match?.(into, said, finding)`: `said` is the text of `into` or of one of
+  # its repeats.
   defp pairs(findings, group, match?) do
     findings
     |> Enum.group_by(group)
@@ -514,9 +559,13 @@ defmodule Slipdock.Findings do
   end
 
   defp repeat_of(f, {kept, pairs}, match?) do
-    case Enum.find(kept, &match?.(&1, f)) do
-      nil -> {kept ++ [f], pairs}
-      into -> {kept, [{f, into} | pairs]}
+    case Enum.find_index(kept, fn {into, said} -> Enum.any?(said, &match?.(into, &1, f)) end) do
+      nil ->
+        {kept ++ [{f, [f.text]}], pairs}
+
+      i ->
+        {into, said} = Enum.at(kept, i)
+        {List.replace_at(kept, i, {into, said ++ [f.text]}), [{f, into} | pairs]}
     end
   end
 
