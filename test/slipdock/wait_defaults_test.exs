@@ -137,6 +137,11 @@ defmodule Slipdock.WaitDefaultsTest do
                )
     end
 
+    test "a person's own token withdraws the wait they opened without one", ctx do
+      {:ok, _} = Boards.open_wait(ctx.card, Actor.web(ctx.dana), %{"needs" => "Mine?"})
+      assert {:ok, _} = Boards.withdraw_wait(ctx.card, agent(ctx.dana, "dana's token"))
+    end
+
     test "a reason over 2000 characters is refused", ctx do
       approval!(ctx)
 

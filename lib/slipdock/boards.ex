@@ -4539,9 +4539,9 @@ defmodule Slipdock.Boards do
 
   A moot wait clears itself (#2096): any agent that finds one may withdraw
   it, not only the one that opened it, but an agent withdrawing a wait it
-  didn't open (another job, token or agent, or a person's) gives a
-  `reason`, which the comment carries. The opener, and a person, may give
-  one or not. A wait a person decides (`Verified.may_close_wait/2`) stays
+  didn't open (another job, token or agent, or another person's) gives a
+  `reason`, which the comment carries. The opener, a person, and a
+  person's own token on the wait they opened, may give one or not. A wait a person decides (`Verified.may_close_wait/2`) stays
   theirs.
   """
   def withdraw_wait(%Card{} = card, actor, opts \\ []) do
@@ -4569,7 +4569,7 @@ defmodule Slipdock.Boards do
   end
 
   defp withdraw_reason(wait, %{kind: "agent"} = actor, nil) do
-    if own_wait?(wait, actor),
+    if own_wait?(wait, actor) or persons_own?(wait, actor),
       do: :ok,
       else:
         {:error,
@@ -4579,6 +4579,10 @@ defmodule Slipdock.Boards do
   end
 
   defp withdraw_reason(_wait, _actor, _reason), do: :ok
+
+  # A person may always withdraw their own wait, through a token too.
+  defp persons_own?(%Wait{kind: kind, opened_by_id: id}, actor),
+    do: kind != "agent" and id != nil and id == actor[:user_id]
 
   defp reason_length(reason) when is_binary(reason) and byte_size(reason) > 2000,
     do: {:error, "the reason is too long: at most 2000 characters"}
