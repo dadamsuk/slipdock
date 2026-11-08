@@ -41,7 +41,7 @@ defmodule SlipdockWeb.Layouts do
   attr :nav_active, :atom,
     default: nil,
     doc:
-      "which place in the navigation this page is, marked in the avatar menu: :boards, :work, :favourites, :wiki, :vaults, :search, :ask, :templates, :groups, :tools, :agent, :account, or an admin page (:overview, :users, :tool_listings, :config)"
+      "which place in the navigation this page is, marked in the avatar menu: :boards, :work, :favourites, :wiki, :vaults, :search, :ask, :templates, :groups, :tools, :skills, :agent, :account, or an admin page (:overview, :users, :tool_listings, :config)"
 
   attr :wordmark, :boolean,
     default: false,
@@ -704,6 +704,9 @@ defmodule SlipdockWeb.Layouts do
     </.menu_link>
     <.menu_link navigate={~p"/tools"} icon="hero-puzzle-piece" on={@active == :tools}>
       Tools
+    </.menu_link>
+    <.menu_link navigate={~p"/skills"} icon="hero-book-open" on={@active == :skills}>
+      Skills
     </.menu_link>
     <%!-- Reachable from the menu rather than buried in the account
         tabs: somebody who has heard their board can be worked by an

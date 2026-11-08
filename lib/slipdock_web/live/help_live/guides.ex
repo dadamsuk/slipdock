@@ -106,7 +106,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
         {"tools-upgrade", "New versions"},
         {"tools-publish", "Publishing your own"},
         {"tools-format", "The package"},
-        {"tools-listing", "Sharing and listing"}
+        {"tools-listing", "Sharing and listing"},
+        {"tools-skills", "Skills from elsewhere"}
       ]
     },
     %{
@@ -1045,6 +1046,35 @@ defmodule SlipdockWeb.HelpLive.Guides do
         version at a time, under <strong>Tool listings</strong>, so each new version is
         approved before it reaches anyone you haven't shared it with.
       </p>
+    </.part>
+
+    <.part title="Skills from elsewhere" id="tools-skills">
+      <p>
+        Skills are also published outside Slipdock, often as a GitHub repository of
+        <code>SKILL.md</code>
+        files. Under <.link navigate={~p"/skills"} class="link">Skills</.link>
+        in the menu, add one by its URL: a repository, a folder or one file in one, or a
+        <code>SKILL.md</code>
+        at any https address. Slipdock fetches each skill in it (or the README, when there
+        are none) and keeps it with its name, description, version, licence and when it
+        was fetched. Open a skill to read the whole file before anything follows it.
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          Only public addresses are fetched, redirects aren't followed, and a file over the
+          size limit is left out. What was left out, and why, shows under the source.
+        </li>
+        <li>
+          <strong>Refresh</strong>
+          fetches the source again and says which skills were added, changed or removed;
+          <strong>Remove</strong>
+          deletes it and its skills.
+        </li>
+        <li>
+          Your sources are yours alone. The ones listed under <em>On this server</em>
+          are there for everyone, and only an admin changes them.
+        </li>
+      </ul>
     </.part>
     """
   end

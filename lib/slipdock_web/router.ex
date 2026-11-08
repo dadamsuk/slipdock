@@ -304,6 +304,9 @@ defmodule SlipdockWeb.Router do
       # Tools (#958): packaged docs, a board and skills people share here.
       live "/tools", ToolLive.Index, :index
       live "/tools/:slug", ToolLive.Show, :show
+      # Skills from elsewhere (#2059): sources a user adds by URL, fetched and kept.
+      live "/skills", SkillRegistryLive.Index, :index
+      live "/skills/entries/:id", SkillRegistryLive.Index, :entry
       live "/favourites", FavouriteLive.Index, :index
       # What a card shows, per person: global, board and list (#2031).
       live "/card-views", CardViewLive.Index, :index
