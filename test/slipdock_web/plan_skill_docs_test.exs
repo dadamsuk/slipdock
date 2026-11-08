@@ -87,6 +87,20 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
     assert flat =~ "A default is never imposed."
   end
 
+  test "its section writes are ones the CLI takes (#2039 trial)" do
+    text = flat(skill())
+    help = File.read!(Path.join(@root, "cli/help.txt"))
+
+    # `page section … --append` takes the text (or `-` for stdin), not a further `--body`.
+    assert help =~ "page section <page> <path> --append TEXT"
+    refute text =~ "--append --body"
+    assert text =~ ~s{"Principles/Baseline" --append -`}
+
+    # A new Specification section is appended to an existing one: `page section` can't make one.
+    assert text =~ ~s{"Specification/Features" --append -`}
+    refute text =~ "Specification/<feature>"
+  end
+
   test "its stage texts are the seed's stages, each short, and the file stays small" do
     text = skill()
     assert byte_size(text) < 12_000
