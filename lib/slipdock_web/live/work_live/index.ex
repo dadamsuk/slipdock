@@ -11,6 +11,11 @@ defmodule SlipdockWeb.WorkLive.Index do
   items dismissed and the boards muted, the × on a row dismisses it (held
   on its cause), and the dismissed items and muted boards open below with
   Undo and Unmute.
+
+  Open cards with no due date aren't listed (#2099): the page is for what is
+  coming due. The header says how many there are, so none is hidden
+  silently, and a completed one still shows under Show completed. The AI
+  chat's source keeps every section, as do the API, CLI and MCP.
   """
   use SlipdockWeb, :live_view
 
@@ -61,6 +66,7 @@ defmodule SlipdockWeb.WorkLive.Index do
     opts = if b = socket.assigns.board, do: [board_id: b.id], else: []
     cards = Work.assigned(user, nil, opts)
     open = Enum.reject(cards, &(&1.section == :done))
+    sections = Work.group(cards, socket.assigns.show_done)
 
     %{items: waiting} = found = Work.waiting(user, opts)
 
@@ -73,7 +79,10 @@ defmodule SlipdockWeb.WorkLive.Index do
       # kept to a board, the header still counts everything.
       waiting_count: if(opts == [], do: length(waiting), else: Work.waiting_count(user)),
       now: DateTime.utc_now(),
-      sections: Work.group(cards, socket.assigns.show_done),
+      # The chat reads every section; the page leaves out :none (#2099).
+      sections: sections,
+      listed: Enum.reject(sections, &(&1.key == :none)),
+      undated_count: Enum.count(open, &(&1.section == :none)),
       open_count: length(open),
       done_count: length(cards) - length(open)
     )
@@ -171,6 +180,9 @@ defmodule SlipdockWeb.WorkLive.Index do
     |> Enum.join(" · ")
   end
 
+  defp undated_line(1), do: "1 has no due date and isn't listed."
+  defp undated_line(n), do: "#{n} have no due date and aren't listed."
+
   defp since(item, now), do: Pulse.duration(max(DateTime.diff(now, item.since), 0))
 
   @impl true
@@ -215,6 +227,9 @@ defmodule SlipdockWeb.WorkLive.Index do
           <.page_header title="My work">
             <:meta>
               {@open_count} open {if @open_count == 1, do: "card", else: "cards"} assigned to you, across every board and level.
+              <span :if={@undated_count > 0} id="work-undated">
+                {undated_line(@undated_count)}
+              </span>
             </:meta>
             <:actions>
               <label class="flex cursor-pointer items-center gap-2 text-sm">
@@ -398,19 +413,26 @@ defmodule SlipdockWeb.WorkLive.Index do
           </section>
 
           <div
-            :if={@sections == []}
+            :if={@listed == []}
+            id="work-empty"
             class="rounded-2xl border-2 border-dashed border-base-content/15 p-16 text-center"
           >
             <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <.icon name="hero-check-badge" class="size-7" />
             </div>
-            <h2 class="section-title">Nothing assigned to you</h2>
+            <%!-- Only undated cards assigned: say so, never "nothing" (#2099). --%>
+            <h2 class="section-title">
+              {if @undated_count > 0, do: "Nothing with a due date", else: "Nothing assigned to you"}
+            </h2>
             <p class="mt-1 text-sm text-base-content/60">
-              Cards you are assigned to, on any board, show up here.
+              {if @undated_count > 0,
+                do:
+                  "Every open card assigned to you has no due date, so none is listed. Give one a due date and it shows up here.",
+                else: "Cards you are assigned to, on any board, show up here."}
             </p>
           </div>
 
-          <section :for={section <- @sections} id={"work-#{section.key}"} class="mb-8">
+          <section :for={section <- @listed} id={"work-#{section.key}"} class="mb-8">
             <h2 class={[
               "mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide",
               section.tone || "text-base-content/60"

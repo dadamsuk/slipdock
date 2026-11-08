@@ -2917,8 +2917,14 @@ and the table has *Assignee* and *Health* columns.
 Cards can be **assigned** to a user from the card modal, or by dragging on an
 *Assignee* swimlane axis. **My work** (`/work`, in the account menu) lists
 every card assigned to you on any board at any depth, grouped by due date
-(overdue, today, next 7 days, later, no date), each with its path — root
-board › parent cards — and a link straight to it. Above them, **Waiting on
+(overdue, today, next 7 days, later), each with its path — root
+board › parent cards — and a link straight to it. Open cards with no due
+date aren't listed: the header says how many there are (`2 have no due date
+and aren't listed`), and when they are all you have, the page says *Nothing
+with a due date* rather than *Nothing assigned to you*. A completed card,
+dated or not, is under *Show completed*. The page alone leaves them out:
+the API (`/api/work`), `slipdock work`, the MCP tools and the AI chat about
+your work still see every assigned card, so a plan made there misses none. Above them, **Waiting on
 you** lists what needs you, oldest first ([waits](#waiting-on-a-person-waits)).
 
 ## Roadmapping

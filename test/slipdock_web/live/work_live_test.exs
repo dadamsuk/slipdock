@@ -83,6 +83,7 @@ defmodule SlipdockWeb.WorkLiveTest do
     test "opens My work, first, with the count in the header; a choice answers it", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Deploy"})
       wait = ask(ctx, card, %{"choices" => ["eu", "us"]})
+      {:ok, _} = Boards.update_card(ctx.mine, %{"due_date" => Date.add(Date.utc_today(), 30)})
 
       {:ok, view, html} = live(log_in_user(build_conn(), ctx.user), ~p"/work")
 
@@ -91,8 +92,8 @@ defmodule SlipdockWeb.WorkLiveTest do
       assert has_element?(view, "#waiting-card-#{card.id} p[title='Ops']")
       # Before the due-date sections.
       {waiting_at, _} = :binary.match(html, "id=\"work-waiting\"")
-      {none_at, _} = :binary.match(html, "id=\"work-none\"")
-      assert waiting_at < none_at
+      {later_at, _} = :binary.match(html, "id=\"work-later\"")
+      assert waiting_at < later_at
       assert header_count(view) == "1"
 
       view
@@ -117,8 +118,9 @@ defmodule SlipdockWeb.WorkLiveTest do
 
       assert Repo.get!(Slipdock.Boards.Wait, wait.id).answer == "eu-west-2"
       refute has_element?(view, "#waiting-card-#{ctx.mine.id}")
-      # The card is still assigned, so it stays in its due-date section.
-      assert has_element?(view, "#work-card-#{ctx.mine.id}")
+      # The card is still assigned; with no due date it is counted, not listed (#2099).
+      refute has_element?(view, "#work-card-#{ctx.mine.id}")
+      assert has_element?(view, "#work-undated", "1 has no due date and isn't listed.")
     end
 
     test "a reader who can't change the card can't answer from here", ctx do
@@ -184,6 +186,91 @@ defmodule SlipdockWeb.WorkLiveTest do
         {:ok, view, _} = live(conn, path)
         assert header_count(view) == "1", "no count on #{path}"
       end
+    end
+  end
+
+  describe "no due date (#2099)" do
+    setup do
+      user = user_fixture()
+      board = board_fixture(%{"name" => "Plans"}, owner: user)
+      [_backlog, todo | _] = board.columns
+      %{user: user, todo: todo}
+    end
+
+    defp undated(ctx, title, attrs \\ %{}),
+      do:
+        card_fixture(
+          ctx.todo,
+          Map.merge(%{"title" => title, "assignee_id" => ctx.user.id}, attrs)
+        )
+
+    test "an open card with no due date isn't listed, and the header counts it", ctx do
+      dated = undated(ctx, "Dated", %{"due_date" => Date.add(Date.utc_today(), 3)})
+      one = undated(ctx, "Someday one")
+      two = undated(ctx, "Someday two")
+
+      {:ok, view, html} = live(log_in_user(build_conn(), ctx.user), ~p"/work")
+
+      assert has_element?(view, "#work-week #work-card-#{dated.id}")
+      refute has_element?(view, "#work-none")
+      refute has_element?(view, "#work-card-#{one.id}")
+      refute has_element?(view, "#work-card-#{two.id}")
+      refute html =~ "No due date"
+      # Counted among the open cards, and said why they aren't below.
+      assert html =~ "3 open cards assigned to you"
+      assert has_element?(view, "#work-undated", "2 have no due date and aren't listed.")
+      refute has_element?(view, "#work-empty")
+    end
+
+    test "every card dated: no count line", ctx do
+      undated(ctx, "Dated", %{"due_date" => Date.utc_today()})
+      {:ok, view, _} = live(log_in_user(build_conn(), ctx.user), ~p"/work")
+
+      refute has_element?(view, "#work-undated")
+    end
+
+    test "only undated cards: the empty state doesn't say nothing is assigned", ctx do
+      one = undated(ctx, "Someday")
+      {:ok, view, html} = live(log_in_user(build_conn(), ctx.user), ~p"/work")
+
+      refute has_element?(view, "#work-card-#{one.id}")
+      assert has_element?(view, "#work-undated", "1 has no due date and isn't listed.")
+      assert has_element?(view, "#work-empty", "Nothing with a due date")
+      refute html =~ "Nothing assigned to you"
+    end
+
+    test "nothing assigned at all keeps its own empty state", ctx do
+      {:ok, view, _} = live(log_in_user(build_conn(), ctx.user), ~p"/work")
+
+      assert has_element?(view, "#work-empty", "Nothing assigned to you")
+      refute has_element?(view, "#work-undated")
+    end
+
+    test "a completed undated card still shows under Show completed", ctx do
+      done = undated(ctx, "Finished")
+      {:ok, _} = Boards.toggle_completed(done)
+      open = undated(ctx, "Someday")
+
+      {:ok, view, _} = live(log_in_user(build_conn(), ctx.user), ~p"/work")
+      refute has_element?(view, "#work-card-#{done.id}")
+      # The completed one isn't counted as hidden: it is under Show completed.
+      assert has_element?(view, "#work-undated", "1 has no due date and isn't listed.")
+
+      view |> element("label input[phx-click=toggle_done]") |> render_click()
+
+      assert has_element?(view, "#work-done #work-card-#{done.id}")
+      refute has_element?(view, "#work-card-#{open.id}")
+      refute has_element?(view, "#work-empty")
+    end
+
+    test "the AI chat's source still has every section", ctx do
+      one = undated(ctx, "Someday")
+      {:ok, view, _} = live(log_in_user(build_conn(), ctx.user), ~p"/work")
+
+      assert [%{key: :none, items: [%{card: %{id: id}}]}] =
+               :sys.get_state(view.pid).socket.assigns.sections
+
+      assert id == one.id
     end
   end
 end
