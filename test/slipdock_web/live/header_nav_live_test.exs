@@ -208,6 +208,8 @@ defmodule SlipdockWeb.HeaderNavLiveTest do
 
   describe "what waits on you, folded into the bell" do
     setup %{user: user} do
+      # The wait's own alert (#2095) is off here: these count what waits.
+      {:ok, user} = Slipdock.Accounts.update_waiting_notice(user, %{waiting_alerts: false})
       asker = user_fixture("nav-asker@example.com")
       board = board_fixture(%{"name" => "Waits"}, owner: asker)
       {:ok, _} = Slipdock.Access.grant(board, user, "write", asker)
@@ -256,6 +258,20 @@ defmodule SlipdockWeb.HeaderNavLiveTest do
       assert has_element?(view, "#alerts-count.lg\\:hidden", "1")
       assert has_element?(view, "#alerts-total.bg-error", "2")
       assert has_element?(view, "#alerts-bar button[title='1 alert, 1 waiting on you (l)']")
+    end
+
+    test "with the wait's own alert on, the bell has it as an alert too", ctx do
+      user = Slipdock.Repo.reload!(ctx.user)
+      {:ok, _} = Slipdock.Accounts.update_waiting_notice(user, %{waiting_alerts: true})
+      [_backlog, todo | _] = Boards.get_board!(ctx.board.id).columns
+      card = card_fixture(todo, %{"title" => "And this"})
+      actor = %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.asker.id}
+
+      {:ok, _} =
+        Boards.open_wait(card, actor, %{"needs" => "And this?", "on_user_id" => ctx.user.id})
+
+      {:ok, view, _} = live(ctx.conn, ~p"/")
+      assert has_element?(view, "#alerts-bar button[title='1 alert, 2 waiting on you (l)']")
     end
   end
 
