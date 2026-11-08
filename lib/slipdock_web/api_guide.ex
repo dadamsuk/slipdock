@@ -3661,7 +3661,10 @@ defmodule SlipdockWeb.APIGuide do
     tree (the same normalised text, or mostly the same telling words, any of
     `gotcha`, `tooling` and `process`) is recorded `merged` into it with a
     `note` saying why, and the listing shows that one with every card it
-    was said on (`cards`). `rule` and `handbook-wrong` items are never
+    was said on (`cards`). One that matched nothing is put to the model
+    once, with the open findings it could repeat; a match merges it with
+    `cause: "same-lesson-ai"` and the model's reason in its `note` (reopen
+    it if the model was wrong). `rule` and `handbook-wrong` items are never
     merged across cards.
 
     The test for one: would a card on a different subject want to know

@@ -26,7 +26,7 @@ defmodule Slipdock.Findings do
 
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Comment}
-  alias Slipdock.Findings.{Block, Finding, Lesson, Promote}
+  alias Slipdock.Findings.{Block, Finding, Group, Lesson, Promote}
   alias Slipdock.Repo
   alias Slipdock.Runners.Job
 
@@ -34,8 +34,12 @@ defmodule Slipdock.Findings do
   @per_card ~w(rule handbook-wrong)
   # Kinds that can be one lesson across cards, whichever the writer chose.
   @across_kinds ~w(gotcha tooling process)
-  # What an automatic merge into another card's finding is marked with.
+  # What an automatic merge into another card's finding is marked with: by
+  # the near match here, or by the model (`Slipdock.Findings.Group`, #2118).
   @same_lesson "same-lesson"
+  @merged_by_server ~w(same-lesson same-lesson-ai)
+  # What an item kept promoted because it said it was done is marked with.
+  @settled "settled"
 
   @doc """
   Keeps the findings a card's comment carries. Idempotent: parsing a comment
@@ -69,6 +73,7 @@ defmodule Slipdock.Findings do
       end
     end)
     |> tap_ok(&Promote.consider/1)
+    |> tap_ok(&Group.consider/1)
   end
 
   defp tap_ok({:ok, value} = result, fun) do
@@ -103,6 +108,7 @@ defmodule Slipdock.Findings do
     item
     |> new_finding(at, runner)
     |> Finding.triage_changeset(%{status: "promoted", note: settled_note(item.done)})
+    |> Ecto.Changeset.put_change(:cause, @settled)
     |> Repo.insert!()
     |> List.wrap()
   end
@@ -275,20 +281,33 @@ defmodule Slipdock.Findings do
     |> Repo.all()
     |> Enum.each(&take_back(&1, id))
 
+    # An item kept promoted because it said it was done is this comment's own.
     from(f in Finding,
       where:
-        f.source == "agent" and f.status == "merged" and f.cause == @same_lesson and
+        f.source == "agent" and f.status == "promoted" and f.cause == @settled and
           f.comment_id == ^id
     )
-    |> Repo.all()
-    |> Enum.each(fn repeat ->
-      with %Finding{} = target <-
-             repeat.merged_into_id && Repo.get(Finding, repeat.merged_into_id) do
-        target |> Ecto.Changeset.change(count: max(target.count - 1, 1)) |> Repo.update!()
-      end
+    |> Repo.delete_all()
 
-      Repo.delete!(repeat)
-    end)
+    id |> server_merges() |> Enum.each(&take_back_merge/1)
+  end
+
+  # The repeats this comment made that the server merged into another card's.
+  defp server_merges(id) do
+    Repo.all(
+      from f in Finding,
+        where:
+          f.source == "agent" and f.status == "merged" and f.cause in @merged_by_server and
+            f.comment_id == ^id
+    )
+  end
+
+  defp take_back_merge(repeat) do
+    with %Finding{} = target <- repeat.merged_into_id && Repo.get(Finding, repeat.merged_into_id) do
+      target |> Ecto.Changeset.change(count: max(target.count - 1, 1)) |> Repo.update!()
+    end
+
+    Repo.delete!(repeat)
   end
 
   defp take_back(%Finding{comment_ids: [id], count: 1} = finding, id), do: Repo.delete!(finding)
