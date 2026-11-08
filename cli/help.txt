@@ -185,9 +185,10 @@ READ
   callbacks <board> [--limit N]       the calls the board's rules have made, and what came back
   alerts                              alerts automation rules have raised for you
   runners <board>                     the runners taking jobs from the board's tree (owner only)
-  now <board>                         right now on the board's tree: each runner and its jobs'
-                                      steps, the cards in progress with where they sit and what
-                                      holds them, and the queue with why each job is held
+  now <board>                         right now on the board's tree: each runner at work and its
+                                      jobs' steps, the cards in progress with where they sit and
+                                      what holds them, the queue with why each job is held, and
+                                      the idle runners last
   runner-stats <board> [--days 7|30|90]  how the board's runners are doing: status, outcomes,
                                       job time, queue wait, waits on people, reopened cards
                                       and the last 12 jobs

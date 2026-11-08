@@ -20,12 +20,24 @@ defmodule SlipdockCLI.Now do
   def run("now", [ref], o), do: HTTP.get("/boards/#{enc(ref)}/now") |> out(o, &render/1)
   def run("now", _, _o), do: fail("usage: slipdock now <board> [--json]")
 
-  @doc "The snapshot, as text: a counts line, then runners, in progress and queued."
+  @doc """
+  The snapshot, as text: a counts line, then the runners at work, in
+  progress and queued, and the idle runners last (#2113), as on the page.
+  """
   def render(s) do
+    {idle, working} = Enum.split_with(s["runners"] || [], &((&1["jobs"] || []) == []))
     IO.puts(Render.bold("Right now") <> " · " <> counts(s["counts"] || %{}))
-    section("RUNNERS", s["runners"] || [], "no runners", &runners/1)
+
+    section(
+      "RUNNERS",
+      working,
+      if(idle == [], do: "no runners", else: "none working"),
+      &runners/1
+    )
+
     section("IN PROGRESS", s["in_progress"] || [], "nothing in progress", &in_progress/1)
     section("QUEUED", s["queued"] || [], "nothing queued", &queued/1)
+    if idle != [], do: section("IDLE RUNNERS", idle, "", &runners/1)
   end
 
   @doc "`2 runners (1 online, 1 working) · 3 in progress · 1 queued`."
@@ -53,8 +65,7 @@ defmodule SlipdockCLI.Now do
     Enum.each(runners, fn r ->
       state = if r["online"], do: Render.green("online"), else: Render.dim("offline")
       session = if r["session"], do: Render.dim(" · session"), else: ""
-      idle = if (r["jobs"] || []) == [], do: Render.dim(" · idle"), else: ""
-      IO.puts("  #{r["name"]} (#{r["pool"]}) #{state}#{session}#{idle}")
+      IO.puts("  #{r["name"]} (#{r["pool"]}) #{state}#{session}")
       Enum.each(r["jobs"] || [], &IO.puts("    " <> job_line(&1)))
     end)
   end

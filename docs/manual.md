@@ -2566,8 +2566,9 @@ jobs queued under it.
 The page covers the board's whole tree (its root and every sub-board, since
 runners take work from all of it), read again every few seconds:
 
-- **Runners**: each one, online or not, and the jobs it holds now, with the
-  card, how long since it was claimed and the latest step its agent reported.
+- **Runners**: each one at work, online or not, and the jobs it holds now,
+  with the card, how long since it was claimed and the latest step its agent
+  reported.
 - **In progress**: every open card in a list whose category is *In progress*,
   longest there first, with where it sits (the board and list, and the epic
   whose sub-board holds it), its state line (*Running · Mac Studio · 7m*,
@@ -2576,14 +2577,18 @@ runners take work from all of it), read again every few seconds:
 - **Queued**: the jobs waiting for a runner, oldest first, each with its pool
   and why it is held, if something holds it (a pause, a full WIP limit, a lane,
   no runner online).
+- **Idle runners**, at the bottom of the page: the runners holding no job,
+  online or not, so the working ones lead it. A runner that takes a job moves
+  up into **Runners** the next time the page is read.
 
 Anyone who can read the board and its tree's root board can look; it changes
 nothing. The same snapshot from the CLI, the API and MCP:
 
 ```
-slipdock now <board>           the counts, then each runner with its jobs' steps, the
-                               cards in progress (where each sits, its state, what
-                               holds it, the runner on it, how long) and the queue
+slipdock now <board>           the counts, then each runner at work with its jobs'
+                               steps, the cards in progress (where each sits, its
+                               state, what holds it, the runner on it, how long),
+                               the queue and, last, the idle runners
 slipdock now <board> --json    the API's JSON, as it is
 GET /api/boards/:board/now     runners (each with its jobs), in_progress, queued, counts
 ```

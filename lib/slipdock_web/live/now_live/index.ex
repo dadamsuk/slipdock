@@ -3,6 +3,7 @@ defmodule SlipdockWeb.NowLive.Index do
   A board tree's **Right now** page (#2103, `Slipdock.Now`): which runners
   are doing what, which cards are in progress and where they sit, and the
   jobs waiting for a runner, read again every few seconds while it is open.
+  The idle runners are listed last, at the bottom of the page (#2113).
 
   One click from the board page: the delivery line (the rocket) links here,
   and a board with Agentic Building on and that line off has a line of its
@@ -68,6 +69,29 @@ defmodule SlipdockWeb.NowLive.Index do
   defp hold_class("blocked"), do: "badge-error"
   defp hold_class("stuck"), do: "badge-error"
   defp hold_class(_), do: "badge-info"
+
+  # The runners holding a job lead the page; the idle ones (no job, online
+  # or not) wait at the bottom of it, after the queue (#2113).
+  defp working(runners), do: Enum.filter(runners, &(&1.jobs != []))
+  defp idle(runners), do: Enum.filter(runners, &(&1.jobs == []))
+
+  attr :runner, :map, required: true
+
+  defp runner_line(assigns) do
+    ~H"""
+    <div class="flex flex-wrap items-center gap-2 text-sm">
+      <span class={[
+        "size-2 rounded-full",
+        if(@runner.online, do: "bg-success", else: "bg-base-content/30")
+      ]}></span>
+      <span class="font-medium">{@runner.name}</span>
+      <span class="text-xs text-base-content/60">
+        pool {@runner.pool} · {if @runner.online, do: "online", else: "offline"}{if @runner.session,
+          do: " · Claude session"}
+      </span>
+    </div>
+    """
+  end
 
   attr :job, :map, required: true
   attr :now, :any, required: true
@@ -147,24 +171,22 @@ defmodule SlipdockWeb.NowLive.Index do
                 </.link>
               </:action>
             </.empty_state>
+            <.empty_state
+              :if={@snap.runners != [] and working(@snap.runners) == []}
+              id="now-none-working"
+              compact
+              icon="hero-pause-circle"
+              title="No runner working"
+            >
+              Every runner is idle; they are listed at the bottom of the page.
+            </.empty_state>
             <ul class="space-y-2">
               <li
-                :for={r <- @snap.runners}
+                :for={r <- working(@snap.runners)}
                 id={"now-runner-#{r.id}"}
                 class="space-y-1 rounded-xl bg-base-100 p-3 shadow-sm ring-1 ring-base-content/10"
               >
-                <div class="flex flex-wrap items-center gap-2 text-sm">
-                  <span class={[
-                    "size-2 rounded-full",
-                    if(r.online, do: "bg-success", else: "bg-base-content/30")
-                  ]}></span>
-                  <span class="font-medium">{r.name}</span>
-                  <span class="text-xs text-base-content/60">
-                    pool {r.pool} · {if r.online, do: "online", else: "offline"}{if r.session,
-                      do: " · Claude session"}
-                  </span>
-                </div>
-                <p :if={r.jobs == []} class="text-xs text-base-content/60">Idle</p>
+                <.runner_line runner={r} />
                 <.job_line :for={j <- r.jobs} job={j} now={@now} />
               </li>
             </ul>
@@ -240,6 +262,22 @@ defmodule SlipdockWeb.NowLive.Index do
                 <p class="text-xs text-base-content/60">
                   pool {j.pool}<span :if={j.held}> · Held: {j.held}</span>
                 </p>
+              </li>
+            </ul>
+          </section>
+
+          <section :if={idle(@snap.runners) != []} id="now-idle" class="space-y-2">
+            <h2 class="section-title">
+              Idle runners
+              <span class="badge badge-ghost badge-sm">{length(idle(@snap.runners))}</span>
+            </h2>
+            <ul class="space-y-1">
+              <li
+                :for={r <- idle(@snap.runners)}
+                id={"now-runner-#{r.id}"}
+                class="rounded-xl bg-base-100 px-3 py-2 shadow-sm ring-1 ring-base-content/10"
+              >
+                <.runner_line runner={r} />
               </li>
             </ul>
           </section>

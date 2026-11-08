@@ -90,6 +90,60 @@ defmodule SlipdockWeb.NowTest do
       assert has_element?(view, "#now-no-runners")
       assert has_element?(view, "#now-no-cards")
       assert has_element?(view, "#now-no-queued")
+      # No runners at all: no idle section either, and no "none working" line.
+      refute has_element?(view, "#now-idle")
+      refute has_element?(view, "#now-none-working")
+    end
+
+    test "idle runners are listed at the bottom of the page, not among the working ones",
+         ctx do
+      {:ok, idle, _} =
+        Runners.create_runner(ctx.board, %{"name" => "Old laptop", "pool" => "dev"})
+
+      {:ok, view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}/now")
+
+      # The working runner stays in Runners, with its job.
+      assert has_element?(view, "#now-runners #now-runner-#{ctx.runner.id}", "Writing the tests")
+      refute has_element?(view, "#now-idle #now-runner-#{ctx.runner.id}")
+
+      # The idle one is only at the bottom, offline as it has never been seen.
+      assert has_element?(view, "#now-idle #now-runner-#{idle.id}", "Old laptop")
+      assert has_element?(view, "#now-idle #now-runner-#{idle.id}", "offline")
+      assert has_element?(view, "#now-idle h2", "Idle runners")
+      refute has_element?(view, "#now-runners #now-runner-#{idle.id}")
+      refute has_element?(view, "#now-runners", "Idle")
+      refute has_element?(view, "#now-none-working")
+
+      # The bottom: after the queue, the last section on the page.
+      sections = Regex.scan(~r/<section[^>]* id="(now-[a-z-]+)"/, html, capture: :all_but_first)
+      assert List.flatten(sections) == ~w(now-runners now-cards now-queued now-idle)
+    end
+
+    test "with every runner idle, Runners says none is working and the idle list holds them",
+         %{user: user} do
+      board = board_fixture(%{}, owner: user)
+      {:ok, a, _} = Runners.create_runner(board, %{"name" => "Box A", "pool" => "dev"})
+      a = Repo.update!(Ecto.Changeset.change(a, last_seen_at: DateTime.utc_now(:second)))
+      {:ok, view, _} = live(build_conn() |> log_in_user(user), ~p"/boards/#{board}/now")
+
+      assert has_element?(view, "#now-none-working")
+      refute has_element?(view, "#now-no-runners")
+      refute has_element?(view, "#now-runners #now-runner-#{a.id}")
+      assert has_element?(view, "#now-idle #now-runner-#{a.id}", "online")
+    end
+
+    test "a runner that takes a job moves up from the idle list when the page is read again",
+         ctx do
+      {:ok, idle, _} = Runners.create_runner(ctx.board, %{"name" => "Spare", "pool" => "dev"})
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/now")
+      assert has_element?(view, "#now-idle #now-runner-#{idle.id}")
+
+      card = card_fixture(ctx.doing, %{"title" => "Picked up by Spare"})
+      working_job_fixture(card, %{runner_id: idle.id, runner_name: "Spare", pool: "dev"})
+      send(view.pid, :tick)
+
+      assert has_element?(view, "#now-runners #now-runner-#{idle.id}", "Picked up by Spare")
+      refute has_element?(view, "#now-idle")
     end
 
     test "is read again while it is open", ctx do
