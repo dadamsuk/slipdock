@@ -60,6 +60,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.CardViews,
     Tools.ManageAutomation,
     Tools.InstallTool,
+    Tools.SkillRegistry,
     Tools.ClaimJob,
     Tools.JobProgress,
     Tools.FinishJob,

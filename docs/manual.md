@@ -242,7 +242,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 54 tools, signing in
+  other MCP clients get the boards and the wiki as 55 tools, signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
@@ -7662,6 +7662,17 @@ keeps the ones a person points the server at (#2059, spec W-2513).
   Skills page lists, for each board you can read, every such stage and what
   it gets: the skill enabled there, a skill Slipdock ships, or nothing, which
   is flagged. Each skill's page lists the stages naming it.
+- **Without the web app.** Everything above is at every door, with the same
+  permissions and the same sentences when it refuses: REST
+  (`/api/skill-sources`, `/api/skill-sources/:id/refresh`,
+  `/api/skill-entries/:id`, `/api/skill-stages`, and `POST`, `PATCH` and
+  `DELETE /api/boards/:board/skills[/:name]` for a board's skills), the CLI
+  (`slipdock registry`, `registry add|source|refresh|rm|entry|stages`,
+  `registry enable <entry> --board B --hash H`, `registry repin <name>
+  --board B --hash H`, `registry disable <name> --board B`) and MCP
+  (`skill_registry`, by `action`). Enabling and re-pinning take the
+  `content_hash` of the text read, from `registry entry` or the entry's
+  `content_hash`, and refuse any other.
 
 ## Skills
 
@@ -7814,6 +7825,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `card_views` | Your own [card views](#card-views), what you see of a card, by `action`: `list` (your named ones, and every element), `get`, `create`, `update` and `delete` a named one; `level`, `set_level` and `clear_level` for a level (`board`, and `list`, for the board's or the list's; neither for global); `applied`, what applies on a `board` (and `list`, and a saved `view`) and which level decided each element. Elements take `show`, `hide` and `inherit`. They are a display preference: agents' own output never follows them, so change them only when the person asks. |
 | `manage_automation` | Changes a board's [automation rules](#automations-and-alerts), by `action`, as the API does and for its owner only: `create` from a `spec` (exact, no model), a `preset` with its `params`, or `text` (a sentence the server's model turns into a spec, on the AI key), with optional `name` and `scope` (`board`, or `tree` for its sub-boards too); `update` a `rule` (id or name) with any of `name`, `scope`, `enabled` and `spec`, or `text` to have the model rewrite it; `delete` a `rule` with `confirm: true` — `enabled: false` turns it off without losing it. A spec that doesn't validate is refused with the reason. |
 | `install_tool` | Builds the board a [Tool](#tools) comes with, for the caller: the lists, folders, tags, page skeletons and rules from its `board.json`, and its board files in a `Tool` folder, by `tool` (its name), with optional `version` and `board_name`. Answers with the board's code and url and what was added. Installing again answers with the board already made, and makes nothing. `tool: "handbook"` with `board` puts the built-in handbook on that board's root instead; `tool: "sweep"` with `board` puts the code sweep there (its Sweeps page, a Triage list and the daily card). |
+| `skill_registry` | The [skills registry](#skills-from-elsewhere), by `action`, as `/api/skill-*` does: `sources` (yours and the seeds, each with its skills' metadata), `source`, `add` (a `url`: fetched through the egress guard), `refresh` (what was added, changed and removed) and `remove` a source, its owner only (an admin, for a seed); `entry`, one skill in full with its `content_hash`, where it is enabled and which Playbook stages name it; `enable` an `entry` on a `board`, pinned to the `hash` you read, `repin` one by `name` after reading its diff, and `disable` it, a board writer only; `stages`, every Playbook stage you can read that names a skill, with what it gets. |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
 | `job_progress` | Renews a claimed job's lease; `step`, if given, is kept on the job as what it is doing now (not on the card); `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |

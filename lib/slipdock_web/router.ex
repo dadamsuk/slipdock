@@ -594,6 +594,19 @@ defmodule SlipdockWeb.Router do
     get "/card-views/:id", CardViewController, :show
     patch "/card-views/:id", CardViewController, :update
     delete "/card-views/:id", CardViewController, :delete
+    # The skills registry (#2072, see `Slipdock.SkillRegistry`): the caller's
+    # sources and the seeds, an entry in full, the Playbook stages naming a
+    # skill, and a board's skills enabled, re-pinned and disabled by a writer.
+    get "/skill-sources", SkillRegistryController, :index
+    post "/skill-sources", SkillRegistryController, :create
+    get "/skill-sources/:id", SkillRegistryController, :show
+    post "/skill-sources/:id/refresh", SkillRegistryController, :refresh
+    delete "/skill-sources/:id", SkillRegistryController, :delete
+    get "/skill-entries/:id", SkillRegistryController, :entry
+    get "/skill-stages", SkillRegistryController, :stages
+    post "/boards/:board/skills", SkillRegistryController, :enable
+    patch "/boards/:board/skills/:name", SkillRegistryController, :repin
+    delete "/boards/:board/skills/:name", SkillRegistryController, :disable
     # The caller's own board hotkeys, Ctrl+Shift+a digit (see `Slipdock.Hotkeys`).
     get "/hotkeys", HotkeyController, :index
     put "/boards/:board/hotkey", HotkeyController, :update

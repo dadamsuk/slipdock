@@ -510,6 +510,23 @@ SKILLS  (the agent instructions this server ships, versioned with its API)
   skills check                        say whether the local copies are behind
   skills chatgpt [--dir D]            save ChatGPT's versions, one zip per skill, here (or D)
 
+REGISTRY  (skills fetched from outside Slipdock, such as a GitHub repo of SKILL.md files)
+  registry                            your skill sources and the seeds, with a count each
+  registry add <url>                  fetch a source: a GitHub repo, a folder or file in
+                                      one, or a SKILL.md at an https URL
+  registry source <id>                one source: its skills, and what the fetch left out
+  registry refresh <id>               fetch it again: which skills were added, changed, removed
+  registry rm <id>                    remove a source and its skills
+  registry entry <id>                 one skill in full, its content_hash, where it is
+                                      enabled and which Playbook stages name it
+  registry enable <entry> --board B --hash H
+                                      enable it on B, pinned to the text you read (H is
+                                      its content_hash from registry entry); a writer only
+  registry repin <name> --board B --hash H
+                                      re-pin a skill changed upstream to its new text
+  registry disable <name> --board B   take a skill off B
+  registry stages                     the Playbook stages naming a skill, and what each gets
+
 TOOLS  (packages of docs, files, a board and skills that people on this server share)
   tools                               the Tools you can see: yours, shared with you, listed
   tools show <name> [--version V]     what one holds: its board, skills, files and versions

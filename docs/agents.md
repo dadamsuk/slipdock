@@ -215,7 +215,7 @@ that connects gets a small set of tools rather than the whole API:
 
 | Reading | Writing |
 |---|---|
-| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `wiki_info`, `activity`, `download_file`, `list_automations`, `list_tools`, `garden`, `page_tool`, `job_log` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `garden_decide`, `upload_file`, `delete_attachment`, `complete_card`, `verify_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board`, `archive_board`, `delete_board`, `write_page`, `quick_note`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_wiki`, `card_views`, `manage_automation`, `install_tool`, `claim_job`, `job_progress`, `finish_job`, `keep_job_log` |
+| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `wiki_info`, `activity`, `download_file`, `list_automations`, `list_tools`, `garden`, `page_tool`, `job_log` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `garden_decide`, `upload_file`, `delete_attachment`, `complete_card`, `verify_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board`, `archive_board`, `delete_board`, `write_page`, `quick_note`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_wiki`, `card_views`, `manage_automation`, `install_tool`, `skill_registry`, `claim_job`, `job_progress`, `finish_job`, `keep_job_log` |
 
 Files move without passing through the model: with a shell, `upload_file`
 with `card` (or `page`) and `link: true` answers with a single-use
@@ -362,6 +362,22 @@ when the person asks: `card_views` (MCP, by `action`), `slipdock card-view set
 `slipdock card-view applied --board B` (`GET /api/card-views/applied`) says
 what a card there shows and which level decided it. See
 [the manual](manual.md#card-views).
+
+The **skills registry** keeps skills fetched from outside Slipdock (a GitHub
+repository of `SKILL.md` files, or one file at an https URL), and a board can
+hand one to its agents without anything installed. Add a source, read a skill
+and enable it on a board only when the person asks: `skill_registry` (MCP, by
+`action`), `slipdock registry add <url>`, `slipdock registry entry <id>` (the
+whole file and its `content_hash`), and `slipdock registry enable <entry>
+--board B --hash H`, or `/api/skill-sources`, `/api/skill-entries/:id` and
+`POST /api/boards/:board/skills`. Enabling pins the text you read, so give the
+`content_hash` the entry showed you; any other is refused. A refresh that
+changes it marks it *changed upstream* and leaves the pinned text in place
+until a writer reads the diff and re-pins it (`registry repin <name> --board B
+--hash H`, `PATCH /api/boards/:board/skills/:name`). `slipdock registry
+stages` (`GET /api/skill-stages`) lists the Playbook stages that name a skill
+(`skill: <name>`) and what each gets. See
+[the manual](manual.md#skills-from-elsewhere).
 
 The board gardener finds rot — epics done but open, cards stuck in progress,
 duplicates, orphaned pages, mistyped links, and on a handbook board long

@@ -1086,6 +1086,8 @@ reaches everyone without a reinstall
   that differ, and the board keeps the pinned text until a writer re-pins it.
   The page lists the Playbook stages (`skill: <name>` lines) on each board and
   flags one whose skill nothing provides.
+  The same over REST (`/api/skill-sources`, `/api/boards/:board/skills`), the
+  CLI (`slipdock registry`) and MCP (`skill_registry`).
 
 `slipdock tools publish <folder>` publishes one, or upload its `.tar.gz` under
 **Publish a Tool** on the Tools page (a Tool's own page takes its next
@@ -1110,7 +1112,7 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 54 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 55 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
@@ -1122,7 +1124,7 @@ the diff one save made, or between any two), `wiki_info` (your wiki and its Know
 `delete_board`, `write_page`, `quick_note` (a note the server names and files in your wiki), `page_tool` (an AI tool over a page: summarise, extract actions and more), `update_page` (rename, summary, move, file, archive or
 restore, pin to a card), `file_folder` (file a wiki folder in other folders as well as
 its home), `share` (share a wiki page or folder with a person or group, or take it
-back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_wiki` (set your wiki's keys or recordings folder, move a folder to another board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built) to write, and
+back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_wiki` (set your wiki's keys or recordings folder, move a folder to another board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built), `skill_registry` (skills fetched from outside Slipdock: add a source by URL, read a skill in full, and enable one on a board pinned to the text you read) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, `job_log` to read a job's live log while it runs and
 `keep_job_log` to keep one as a page before it expires, and `card_views`
