@@ -3674,7 +3674,12 @@ defmodule SlipdockWeb.APIGuide do
     `merge`, `audit`, `health`, `incident`), counting repeats on a card, on any
     board, handbook or not. A lane refusal is not one (#1968): the refusal, the
     job's log and its held reason already say so. Findings with source `lane`
-    from before then are kept.
+    from before then are kept. A card's `rejection` findings are dismissed
+    when the card is accepted (or merging, on a board that ships by pull
+    request), each with a `note` saying the rework was accepted and when: the
+    rejection has been dealt with, and the per-rule tally is in `slipdock
+    quality --rules`, read from the verdicts. A `verification` finding stays
+    open.
 
     **Incidents** (#1946): a card that broke after something shipped says so
     with `caused_by` (the card whose shipping caused it, any card you can

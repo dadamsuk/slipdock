@@ -97,6 +97,142 @@ defmodule Slipdock.FindingsSignalsTest do
     end
   end
 
+  describe "a rejection once the rework is accepted (#2119)" do
+    setup ctx do
+      verifying(ctx)
+      %{checker: %{ctx.agent | agent: "checker"}}
+    end
+
+    defp rejected_then_accepted(ctx) do
+      card = submit(ctx.card, ctx.agent)
+
+      {:ok, _} =
+        Verified.decide(
+          card,
+          "reject",
+          %{"reason" => "bar 2: still failing"},
+          ctx.checker,
+          ctx.owner
+        )
+
+      card = submit(ctx.card, ctx.agent)
+
+      {:ok, _} =
+        Verified.decide(card, "reject", %{"reason" => "UX-4: a raw date"}, ctx.checker, ctx.owner)
+
+      assert ctx.card |> findings() |> Enum.count(&(&1.source == "rejection")) == 2
+
+      card = submit(ctx.card, ctx.agent)
+
+      {:ok, accepted} =
+        Verified.decide(card, "accept", %{"reason" => "fixed"}, ctx.checker, ctx.owner)
+
+      accepted
+    end
+
+    test "accepting dismisses the card's open rejection findings, each with a note", ctx do
+      accepted = rejected_then_accepted(ctx)
+      assert accepted.verify_state == "accepted"
+
+      for f <- findings(ctx.card) do
+        assert %{source: "rejection", status: "dismissed", note: note} = f
+        assert note =~ ~r/^the rework was accepted at \d{4}-\d\d-\d\d \d\d:\d\d UTC$/
+      end
+
+      assert length(findings(ctx.card)) == 2
+    end
+
+    test "other sources, the verifier's notes and other cards' rejections stay open", ctx do
+      other = card_fixture(ctx.doing, %{"title" => "Other"})
+      {:ok, _} = Signals.rejected(other, "bar 1: no", %{}, ctx.checker)
+
+      {:ok, _} =
+        Findings.record(%{
+          card: ctx.card,
+          source: "timeout",
+          kind: "process",
+          text: "timed out",
+          cause: "t"
+        })
+
+      Signals.pre_existing(
+        ctx.card,
+        %{
+          "rules" => [
+            %{"id" => "UX-8", "result" => "pre-existing", "file" => "a.ex", "line" => 3}
+          ]
+        },
+        ctx.checker
+      )
+
+      {:ok, _} = Boards.add_comment(ctx.card, "- Findings:\n  - gotcha: a lesson", by: ctx.owner)
+
+      rejected_then_accepted(ctx)
+
+      by_source = ctx.card |> findings() |> Enum.group_by(& &1.source, & &1.status)
+      assert by_source["rejection"] == ["dismissed", "dismissed"]
+      assert by_source["timeout"] == ["open"]
+      assert by_source["verification"] == ["open"]
+      assert by_source["agent"] == ["open"]
+      assert [%{status: "open"}] = findings(other)
+    end
+
+    test "a rejection after the acceptance stays open until the next one", ctx do
+      accepted = rejected_then_accepted(ctx)
+
+      # Rejected again later (a failed merge sends a card back, say).
+      {:ok, again} =
+        Signals.rejected(accepted, "the ask: the docs", %{"ask" => "misses"}, ctx.checker)
+
+      assert again.status == "open"
+
+      # Saving the card while it stays accepted closes nothing.
+      {:ok, _} = Boards.update_card(Repo.get!(Card, ctx.card.id), %{"title" => "Renamed"})
+      assert Repo.get!(Finding, again.id).status == "open"
+
+      # The next acceptance does.
+      assert Signals.accepted(accepted) == 1
+      assert Repo.get!(Finding, again.id).status == "dismissed"
+      assert Signals.accepted(accepted) == 0
+    end
+
+    test "merging, on a board that ships by pull request, is an acceptance too", ctx do
+      card = submit(ctx.card, ctx.agent)
+
+      {:ok, _} =
+        Verified.decide(card, "reject", %{"reason" => "bar 1: no"}, ctx.checker, ctx.owner)
+
+      card = Repo.get!(Card, ctx.card.id)
+
+      Verified.saved(card, %{card | verify_state: "merging"}, ctx.owner)
+      assert [%{status: "dismissed"}] = findings(ctx.card)
+    end
+
+    test "the rules tally slipdock quality --rules gives is unchanged", ctx do
+      card = submit(ctx.card, ctx.agent)
+
+      {:ok, _} =
+        Verified.decide(
+          card,
+          "reject",
+          %{
+            "reason" => "UX-4: a raw date",
+            "checks" => ["rule:UX-4=broken"]
+          },
+          ctx.checker,
+          ctx.owner
+        )
+
+      before = Slipdock.Quality.for_board(ctx.board).rejections
+      assert [%{id: "UX-4"} | _] = before.by_rule
+      card = submit(ctx.card, ctx.agent)
+      {:ok, _} = Verified.decide(card, "accept", %{"reason" => "fixed"}, ctx.checker, ctx.owner)
+
+      assert [%{status: "dismissed"}] = findings(ctx.card)
+      assert Slipdock.Quality.for_board(ctx.board).rejections == before
+    end
+  end
+
   describe "a runner job that goes wrong" do
     setup ctx do
       {:ok, runner, _} = Runners.create_runner(ctx.board, %{"name" => "box", "pool" => "loop"})
