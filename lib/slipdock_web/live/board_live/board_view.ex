@@ -522,14 +522,15 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       <.muted_banner waiting_muted={@waiting_muted} board_id={@board.id} />
       <.waiting_banner :if={@waiting_filter} board={@board} />
       <%!-- The board's pulse in plain words (#1113): only when the owner
-            turned it on in settings (`show_pulse`). It opens the visualise
-            view (#1650), which a view-only share can't open, so for them it
-            stays plain text. --%>
+            turned it on in settings (`show_pulse`). With Agentic Building on
+            it opens the Right now page (#2124), what is in progress at this
+            moment; otherwise the visualise view (#1650). A view-only share
+            can open neither, so for them it stays plain text. --%>
       <.link
         :if={@pulse && !@view_only}
         id="board-pulse"
-        navigate={~p"/boards/#{@board}/visualise"}
-        title="Open the visualise view"
+        navigate={pulse_path(@board, @right_now)}
+        title={pulse_title(@right_now)}
         class="flex items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-1.5 text-xs text-base-content/70 hover:bg-base-200 hover:text-base-content"
       >
         <.icon name="hero-chart-bar" class="size-3.5 shrink-0" />
@@ -544,9 +545,21 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <span>{Slipdock.Pulse.sentence(@pulse)}</span>
       </p>
       <%!-- Delivery performance (#1134): only while the board's delivery
-            metrics are on; a nudge to wire CI until the first deploy. --%>
+            metrics are on; a nudge to wire CI until the first deploy. Once
+            there are deploys the whole line opens the long-term numbers, the
+            visualise view (#2124); a view-only share gets plain text. --%>
+      <.link
+        :if={@dora && @dora.last_deploy && !@view_only}
+        id="board-dora"
+        navigate={~p"/boards/#{@board}/visualise"}
+        title="Delivery over time: open the visualise view"
+        class="flex items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-1.5 text-xs text-base-content/70 hover:bg-base-200 hover:text-base-content"
+      >
+        <.icon name="hero-rocket-launch" class="size-3.5 shrink-0" />
+        <.dora_parts dora={@dora} />
+      </.link>
       <p
-        :if={@dora}
+        :if={@dora && !(@dora.last_deploy && !@view_only)}
         id="board-dora"
         class="flex items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-1.5 text-xs text-base-content/70"
       >
@@ -557,22 +570,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           <code>slipdock deploy run</code>
           (board settings → Delivery metrics shows how).
         </span>
-        <.link
-          :if={!@view_only}
-          id="board-now-link"
-          navigate={~p"/boards/#{@board}/now"}
-          class="ml-auto shrink-0 link link-hover"
-          title="Which runners are doing what, and the cards in progress"
-        >
-          Right now ›
-        </.link>
       </p>
       <%!-- What the runners are doing (#2103): on a board with Agentic
-            Building on, one click to the Right now page. The delivery line
-            above carries the link when it shows, so this one stands in for
-            it only when that line is off. --%>
+            Building on, one click to the Right now page. The pulse line
+            above opens that page when it shows (#2124), so this one stands
+            in for it only when the pulse is off. --%>
       <.link
-        :if={@right_now && !@dora && !@view_only}
+        :if={@right_now && !@pulse && !@view_only}
         id="board-now"
         navigate={~p"/boards/#{@board}/now"}
         title="Which runners are doing what, and the cards in progress"
@@ -1580,6 +1584,14 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     </span>
     """
   end
+
+  # Where the pulse line leads (#2124): Right now while Agentic Building is
+  # on (`right_now` is set only then), else the visualise view.
+  defp pulse_path(board, nil), do: ~p"/boards/#{board}/visualise"
+  defp pulse_path(board, _right_now), do: ~p"/boards/#{board}/now"
+
+  defp pulse_title(nil), do: "Open the visualise view"
+  defp pulse_title(_right_now), do: "Which runners are doing what, and the cards in progress"
 
   @doc "The pill classes of a DORA band (#1184), shared with the Visualise page."
   def dora_band_class("elite"), do: "badge-success"
