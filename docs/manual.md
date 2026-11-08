@@ -7709,8 +7709,9 @@ a verifier weighs them like any `should` rule. It starts with how to write
 one and a baseline of three, to edit or delete: one place for each
 concern (`PRIN-1`), the obvious reading of an ambiguous ask, the other
 noted on the card (`PRIN-2`), and extending what is there before adding
-beside it (`PRIN-3`). Adding, rewording or dropping one is a rule change,
-so it goes in as a proposal. The **Playbook** (prefix `PLAY`) is how an
+beside it, and splitting it in the same change once it has grown big or
+hard to follow, each part about one thing (`PRIN-3`). Adding, rewording
+or dropping one is a rule change, so it goes in as a proposal. The **Playbook** (prefix `PLAY`) is how an
 idea becomes cards, read by an agent asked to plan (the `slipdock-plan`
 skill) and never by the server when a card is made:
 
@@ -7738,7 +7739,10 @@ Installing 1.5.0 over an older handbook adds the two pages and changes no
 other page; installing again adds nothing, and an edited page is left as
 it is. A Principles or Playbook page that still holds the first, empty
 skeleton (#2040) gets the seed in its place, reported as `(seed added)`;
-one somebody edited is reported as `(edited: left alone)`. The seed card leaves
+one somebody edited is reported as `(edited: left alone)`. Installing 1.6.0
+(#2112) does the same for a Principles page still holding 1.5.0's seed,
+whose `PRIN-3` extended with no brake on growth: unedited, it gets the new
+seed, reported as `(seed updated)`; edited, it is left alone. The seed card leaves
 them to a person, suggesting any principle the code plainly keeps. A
 card's handbook block lists every page, held to 2.5 KB.
 

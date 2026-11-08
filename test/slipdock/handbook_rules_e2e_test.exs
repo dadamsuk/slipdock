@@ -75,6 +75,11 @@ defmodule Slipdock.HandbookRulesE2ETest do
     assert %{"count" => 3, "must" => 0, "problems" => []} = handbook(conn, board)["rules"]
     prin = ["PRIN-1", "PRIN-2", "PRIN-3"]
 
+    # PRIN-3 splits what grows as well as extending before adding (#2112),
+    # cut to fit over REST like any long rule.
+    prin3 = Enum.find(handbook(conn, board, paths: "README.md")["rules"], &(&1["id"] == "PRIN-3"))
+    assert prin3["text"] =~ "written beside it; one that has grown big or hard to follow is split"
+
     data = page(board, "Data model")
     pre = Rules.prefix(key(data))
 
