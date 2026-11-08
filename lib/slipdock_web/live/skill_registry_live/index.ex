@@ -263,7 +263,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
                 value={@url}
                 required
                 placeholder="https://github.com/owner/repo"
-                class="input input-bordered min-w-0 flex-1"
+                class="input field min-w-0 flex-1"
                 disabled={@busy == :add}
               />
               <.button variant="primary" disabled={@busy == :add}>
