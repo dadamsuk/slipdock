@@ -10,7 +10,7 @@ defmodule SlipdockWeb.CardViewsLiveTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.{Boards, CardViews}
+  alias Slipdock.{Boards, CardViews, Runners}
 
   setup %{user: user} do
     board = board_fixture(%{"name" => "Plan", "code" => unique_code()}, owner: user)
@@ -274,7 +274,50 @@ defmodule SlipdockWeb.CardViewsLiveTest do
       refute has_element?(view, "#card-authors")
       refute has_element?(view, "#card-past-due")
       refute has_element?(view, "#card-modal [data-role=start-words]")
+    end
+
+    test "the runner chip shows by default and goes with Assignees", ctx do
+      # A running job draws the chip (the card's screenshot: "BigWhite · build").
+      {:ok, runner, _} =
+        Runners.create_runner(ctx.board, %{"name" => "Mac Studio", "pool" => "dev"})
+
+      {:ok, _} = Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "go"})
+      %Runners.Job{} = job = Runners.claim(runner)
+      {:ok, :ok} = Runners.heartbeat(runner, job.id)
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+      assert has_element?(view, "#card-assignee-loop", "Mac Studio · build")
+
+      {:ok, _} =
+        CardViews.update_level(ctx.user, {:board, ctx.board}, %{"hide" => "side.assignees"})
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
       refute has_element?(view, "#card-assignee-loop")
+      refute has_element?(view, "#card-modal [data-prop=assignees]")
+      # The job itself is still there: only the sidebar row went.
+      assert has_element?(view, "#card-job-#{job.id}")
+    end
+
+    test "dates from subcards show by default and go with side.rollup", ctx do
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(ctx.card, t)
+      sub = Boards.get_board!(sub.id)
+
+      card_fixture(hd(sub.columns), %{
+        "title" => "Dated",
+        "start_date" => "2030-01-05",
+        "due_date" => "2030-01-25"
+      })
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+      assert has_element?(view, "#card-rollup-dates")
+
+      {:ok, _} = CardViews.update_level(ctx.user, {:board, ctx.board}, %{"hide" => "side.rollup"})
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+      refute has_element?(view, "#card-rollup-dates")
+      # Only what was hidden goes.
+      assert has_element?(view, "#card-modal [data-prop=due]")
     end
 
     test "a precision other than day is hidden with the rest, one property at a time", ctx do
