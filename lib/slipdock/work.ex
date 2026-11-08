@@ -134,7 +134,11 @@ defmodule Slipdock.Work do
     * `"wait_anyone"` — an open wait on anyone, on a card in a tree `user`
       owns or a card assigned to them (not one they asked themselves);
     * `"verify"` — a card an agent submitted, waiting for verification
-      (#1624), in a tree `user` owns: they can accept or reject it;
+      (#1624), in a tree `user` owns: they can accept or reject it. Not
+      while a runner has it in hand (#2125): a verify job for it claimed or
+      running, or, for `verify_grace_seconds/0` after its submission, one
+      queued or a runner of its board's verify pool online. With no
+      verifier it shows at once;
     * `"review"`, `"waiting"` — a card assigned to `user` flagged so
       (`waiting` only without an open wait, which says who it is on);
     * `"gave_up"` — a card the runner gave up on and flagged blocked, in a
@@ -177,7 +181,7 @@ defmodule Slipdock.Work do
       overseer(owned) ++
         circling(owned) ++
         waits_on(user, owned, assigned) ++
-        awaiting(owned) ++
+        awaiting(owned, now) ++
         flagged(user, now) ++
         job_trouble(owned) ++ unowned(owned, now) ++ scheduled_missed(owned, user, now)
 
@@ -438,15 +442,74 @@ defmodule Slipdock.Work do
     end)
   end
 
-  # Cards an agent submitted on a board that verifies work (#1624).
-  defp awaiting([]), do: []
+  # Cards an agent submitted on a board that verifies work (#1624), less
+  # those a runner is about to verify (#2125).
+  defp awaiting([], _now), do: []
 
-  defp awaiting(owned) do
-    from(c in Card, where: c.verify_state == "pending", select: {c.id, c.verify_at})
-    |> in_trees(owned)
-    |> live()
+  defp awaiting(owned, now) do
+    rows =
+      from(c in Card, where: c.verify_state == "pending")
+      |> in_trees(owned)
+      |> live()
+      |> select([c, b], {c.id, c.verify_at, b.verify_pool, coalesce(b.root_id, b.id)})
+      |> Repo.all()
+
+    verifying = verifier_on(rows, now)
+
+    for {id, at, _pool, _root} = row <- rows, not verifying.(row) do
+      %{card_id: id, reason: "verify", since: at}
+    end
+  end
+
+  @verify_grace_seconds 15 * 60
+
+  @doc """
+  How long a card pending verification stays off Waiting on you while a
+  verify runner for its tree is online, or its verify job is queued, but
+  no verify job has started on it (#2125): counted from its submission.
+  """
+  def verify_grace_seconds, do: @verify_grace_seconds
+
+  # Whether a runner has the card's verification in hand: a verify job for
+  # it started (claimed or running), or, within the grace period after its
+  # submission, one queued or a runner of its board's verify pool online.
+  defp verifier_on([], _now), do: fn _row -> false end
+
+  defp verifier_on(rows, now) do
+    ids = Enum.map(rows, &elem(&1, 0))
+
+    jobs =
+      from(j in Job,
+        where: j.card_id in ^ids and j.kind == ^Slipdock.Verified.verify_kind(),
+        where: j.status in ["queued", "claimed", "running"],
+        select: {j.card_id, j.status}
+      )
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    online = online_pools(rows, now)
+
+    fn {id, at, pool, root} ->
+      statuses = Map.get(jobs, id, [])
+
+      Enum.any?(statuses, &(&1 != "queued")) or
+        (in_grace?(at, now) and (statuses != [] or MapSet.member?(online, {root, pool})))
+    end
+  end
+
+  defp in_grace?(nil, _now), do: false
+  defp in_grace?(at, now), do: DateTime.diff(now, at) < @verify_grace_seconds
+
+  # `{root board id, pool}` of each runner online in the rows' verify pools.
+  defp online_pools(rows, now) do
+    roots = for {_, _, pool, root} <- rows, is_binary(pool), uniq: true, do: root
+
+    from(r in Slipdock.Runners.Runner,
+      where: r.board_id in ^roots and not is_nil(r.last_seen_at)
+    )
     |> Repo.all()
-    |> Enum.map(fn {id, at} -> %{card_id: id, reason: "verify", since: at} end)
+    |> Enum.filter(&(DateTime.diff(now, &1.last_seen_at) <= 3 * Slipdock.Runners.lease_for(&1)))
+    |> MapSet.new(&{&1.board_id, &1.pool})
   end
 
   # The newest job of each card in an owned tree, when it went wrong.
