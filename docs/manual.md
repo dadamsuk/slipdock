@@ -1593,6 +1593,10 @@ chip opens the sub-board kept to the cards waiting on you (`?waiting=me`,
 with *Show all* to clear it). The board header shows `Waiting on you: N`
 for the board's tree, which opens My work kept to that board
 (`/work?board=<id>`). Both follow a wait as it opens and is answered.
+Open the epic and its subcard list marks the same rows: each one waiting on
+you carries a badge with its reason (*to verify*, *a question*), one waiting
+on someone else a quieter mark naming who it waits on, and the line's #ids
+above the list jump to their rows.
 `slipdock card <epic>` prints the same line, and `slipdock board` prints the
 tree's count and each epic's line. `GET /api/cards/:id`, `GET
 /api/boards/:board` and MCP `get_card` / `get_board` carry `waiting_on_me`:
