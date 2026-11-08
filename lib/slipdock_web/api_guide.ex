@@ -826,6 +826,24 @@ defmodule SlipdockWeb.APIGuide do
       there shows, each element with the level that decided it. Change them
       only when the person asks. CLI: `slipdock card-views`, `slipdock
       card-view set --board B --hide comments`; MCP: `card_views`.
+    - **Skills registry** — skills fetched from outside Slipdock (#2059): the
+      token holder's sources and the seeds. `GET /api/skill-sources` lists them
+      with each skill's metadata and `content_hash`; `POST /api/skill-sources
+      {"url": "https://github.com/owner/repo"}` fetches one (a refusal, such as
+      an address that isn't public or a file over the cap, is a 422 with its
+      sentence); `GET /api/skill-sources/:id`, `POST
+      /api/skill-sources/:id/refresh` (answers with `changes`: added, changed,
+      removed) and `DELETE` are for its owner, an admin for a seed. `GET
+      /api/skill-entries/:id` is one skill in full (`body`), where it is
+      enabled (`enabled_on`, each with its `status` and, when it changed
+      upstream, the `diff`) and the Playbook stages naming it. A board writer
+      enables one with `POST /api/boards/:board/skills {"entry": 12, "hash":
+      "<content_hash>"}`, pinned to that text (any other hash is refused),
+      re-pins it with `PATCH /api/boards/:board/skills/:name {"hash": …}` and
+      takes it off with `DELETE`. `GET /api/skill-stages` lists every Playbook
+      stage you can read that names a skill and what it gets (`flagged` when
+      nothing does). Only when the person asks. CLI: `slipdock registry`; MCP:
+      `skill_registry`.
     - **Passkeys** — `GET /api/me/passkeys` lists the token holder's own
       passkeys (`id`, `name`, `created_at`, `last_used_at`; never the key), and
       `DELETE /api/me/passkeys/:id` removes one so it can no longer sign in.

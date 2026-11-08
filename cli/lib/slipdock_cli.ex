@@ -16,6 +16,7 @@ defmodule SlipdockCLI do
     Inbound,
     Lanes,
     Ledger,
+    Registry,
     Runners,
     Skills,
     Sync,
@@ -342,6 +343,8 @@ defmodule SlipdockCLI do
     # `slipdock sync`.
     vault: :string,
     watch: :boolean,
+    # The skills registry (#2072): `registry enable <entry> --hash H`.
+    hash: :string,
     # Card views (#2031): `card-view set --show a,b --hide c --inherit d
     # --reset --apply VIEW --show-all on|off`, `card-views --elements`.
     show: :string,
@@ -408,6 +411,7 @@ defmodule SlipdockCLI do
     Admin,
     Boards,
     CardViews,
+    Registry,
     Garden,
     Health,
     Findings,

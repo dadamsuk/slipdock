@@ -175,6 +175,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP, when asked"},
        {:no, "one way only"}
      ]},
+    {"Add a skill source, read a skill, enable it on a board pinned",
+     [
+       {:yes, "/api/skill-sources, /api/skill-entries, /api/boards/:board/skills"},
+       {:yes, "skill_registry"},
+       {:yes, "slipdock registry"},
+       {:yes, "through the CLI or MCP, when asked"},
+       {:yes, "through the CLI or MCP, when asked"},
+       {:no, "one way only"}
+     ]},
     {"Wait on a person, and answer a wait",
      [
        {:yes, "POST /api/cards/:id/wait"},

@@ -516,7 +516,7 @@ defmodule SlipdockWeb.HelpLiveTest do
 
       assert section_ids ==
                ~w(cli-start-here cli-find-anything cli-auth cli-admin cli-read cli-favourites) ++
-                 ~w(cli-wiki cli-folders cli-your-wiki cli-sync cli-skills cli-tools) ++
+                 ~w(cli-wiki cli-folders cli-your-wiki cli-sync cli-skills cli-registry cli-tools) ++
                  ~w(cli-write cli-view-options cli-values cli-output)
     end
 
