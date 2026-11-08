@@ -202,6 +202,42 @@ defmodule Slipdock.FindingsLessonsTest do
     end
   end
 
+  describe "an item already dealt with (#2120)" do
+    test "is kept promoted with a note naming where it went; one without stays open", ctx do
+      say(
+        ctx.one,
+        ctx.owner,
+        block([
+          "gotcha [done: W-1950 §Local setup]: the test partition needs its own database",
+          "tooling: `boundaries_test.exs` isn't among the repo checks → #2087",
+          "process: merges wait for an idle runner"
+        ])
+      )
+
+      assert [settled, filed, open] = all(ctx.board)
+
+      assert %{status: "promoted", note: "done when written: W-1950 §Local setup"} = settled
+      assert settled.text == "the test partition needs its own database"
+      assert %{status: "promoted", note: "filed as card #2087 when written"} = filed
+      assert filed.text == "`boundaries_test.exs` isn't among the repo checks"
+      assert %{status: "open", note: nil} = open
+    end
+
+    test "is counted on no open finding, and a repeat of it later is open", ctx do
+      say(ctx.one, ctx.owner, block(["gotcha: keep it once"]))
+      say(ctx.two, ctx.owner, block(["gotcha [done: W-7]: keep it once"]))
+
+      assert [%{status: "open", count: 1}, %{status: "promoted", merged_into_id: nil}] =
+               all(ctx.board)
+
+      # Parsing the comment again takes back what it made, as for any item.
+      comment = say(ctx.two, ctx.owner, block(["gotcha: → #5"]))
+      assert length(all(ctx.board)) == 2
+      {:ok, _} = Boards.delete_comment(comment)
+      assert length(all(ctx.board)) == 2
+    end
+  end
+
   describe "across cards" do
     test "the same lesson on another card is merged into the open one, which counts it", ctx do
       say(ctx.one, ctx.owner, block(["gotcha: the fixture is always the same user (#12)"]))

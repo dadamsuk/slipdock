@@ -3640,6 +3640,12 @@ defmodule SlipdockWeb.APIGuide do
     installed CLI or skills), not the project: it is kept with the runner,
     out of the board's default list (`scope=runner` shows them).
 
+    An item already dealt with says where, and is recorded `promoted` with
+    that place as its `note`, not left open for triage: `[done: <where>]`
+    after its kind when it is settled in the handbook (`- gotcha [done:
+    W-1950 §Local setup]: …`), or `→ #<card>` (or `-> #<card>`) at its end
+    when a card was filed for it (`- tooling: no test pins it → #2087`).
+
     One record per lesson: an item repeating an open finding on the same
     card (after normalising case, whitespace, backticks, trailing
     punctuation, `#id`s and shas, or most of its words in common) adds to

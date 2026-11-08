@@ -25,13 +25,23 @@ defmodule Slipdock.Findings.Block do
   of its own and its block is read there, and a pointer kept would be counted
   on every card that writes it, until it looked like a rule. A block of only
   pointers is `Findings: none`.
+
+  An item can say it is already dealt with (#2120): `[done: <where>]` after
+  its kind (`- gotcha [done: W-1950 §Local setup]: …`) when it is settled in
+  the handbook, or `→ #<card>` (or `-> #<card>`) at its end when it was filed
+  as a card. Such an item carries `done:` (the place, or the card ids), its
+  text has the arrow taken off, and `Slipdock.Findings` keeps it `promoted`
+  rather than open. Wording alone ("(corrected)", "fixed") is not read as
+  done: lessons say "fixed" too.
   """
 
   alias Slipdock.Findings.Finding
 
   @header ~r/^([ \t>]*)(?:([-*+])[ \t]+)?(?:\*\*|__)?Findings(?:\*\*|__)?:(?:\*\*|__)?[ \t]*(.*)$/i
   @item ~r/^([ \t>]*)[-*+][ \t]+(.*)$/
-  @kind ~r/^(?:\*\*|__|`)?([A-Za-z][A-Za-z _-]*?)(?:[ \t]*\(([A-Za-z]+)\))?(?:\*\*|__|`)?[ \t]*:(?:\*\*|__)?[ \t]*(.*)$/s
+  @kind ~r/^(?:\*\*|__|`)?([A-Za-z][A-Za-z _-]*?)(?:[ \t]*\(([A-Za-z]+)\))?(?:\*\*|__|`)?(?:[ \t]*\[[ \t]*done[ \t]*:[ \t]*([^\]]*?)[ \t]*\])?(?:\*\*|__|`)?[ \t]*:(?:\*\*|__)?[ \t]*(.*)$/s
+  # `→ #2087` (or `-> card #2087, #2088`) at the end: filed as a card.
+  @filed ~r/[ \t]*(?:→|->)[ \t]*((?:cards?[ \t]+)?#\d+(?:[ \t]*(?:,|&|\band\b)[ \t]*#\d+)*)[ \t]*[.;]?[ \t]*$/u
   @none ~r/^(?:\*\*|__|_)?none\b/i
   # What an item points at instead of saying: a place (the evidence, a
   # subcard's evidence, the closing comment) or ids (#75, card #12, W-1950).
@@ -94,7 +104,7 @@ defmodule Slipdock.Findings.Block do
   defp classify_all(list), do: keep_said(list)
 
   defp keep_said(list) do
-    list |> Enum.map(&classify/1) |> Enum.reject(&pointer?(&1.text))
+    list |> Enum.map(&classify/1) |> Enum.reject(&(&1.text == "" or pointer?(&1.text)))
   end
 
   @doc """
@@ -146,18 +156,45 @@ defmodule Slipdock.Findings.Block do
   defp leading(line), do: hd(Regex.run(~r/^[ \t>]*/, line))
   defp width(prefix), do: prefix |> String.replace("\t", "  ") |> String.length()
 
-  @doc "One item as `%{kind, text, scope}`; one with no known kind is a `gotcha`, kept whole."
+  @doc """
+  One item as `%{kind, text, scope}`, with `done:` when it says where it was
+  dealt with (`[done: …]` or `→ #id`); one with no known kind is a `gotcha`,
+  kept whole.
+  """
   def classify(item) do
-    with [_, kind, qualifier, text] <- Regex.run(@kind, item),
+    {said, filed} = filed(item)
+
+    with [_, kind, qualifier, done, text] <- Regex.run(@kind, said),
          kind = normalise(kind),
          true <- Enum.member?(Finding.kinds(), kind),
          text = String.trim(text),
          true <- text != "" do
       %{kind: kind, text: text, scope: scope(kind, qualifier)}
+      |> put_done(String.trim(done), filed)
     else
-      _ -> %{kind: "gotcha", text: item, scope: "board"}
+      # Only a kind and an arrow (`- gotcha: → #12`) says nothing: dropped.
+      _ -> put_done(%{kind: "gotcha", text: bare(said, filed), scope: "board"}, "", filed)
     end
   end
+
+  defp bare(said, nil), do: said
+  defp bare(said, _filed), do: if(Regex.match?(~r/^[^:\s]*:?$/u, said), do: "", else: said)
+
+  # The item without a trailing `→ #id`, and the ids it names.
+  defp filed(item) do
+    case Regex.run(@filed, item, return: :index) do
+      [{at, _}, {from, len}] ->
+        {item |> binary_part(0, at) |> String.trim(), binary_part(item, from, len)}
+
+      nil ->
+        {item, nil}
+    end
+  end
+
+  defp put_done(item, "", nil), do: item
+  defp put_done(item, "", filed), do: Map.put(item, :done, filed)
+  defp put_done(item, done, nil), do: Map.put(item, :done, done)
+  defp put_done(item, done, filed), do: Map.put(item, :done, done <> "; " <> filed)
 
   defp scope("tooling", qualifier) do
     if String.downcase(qualifier) == "runner", do: "runner", else: "board"

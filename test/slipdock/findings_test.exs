@@ -44,6 +44,37 @@ defmodule Slipdock.FindingsTest do
              ] = Block.parse(@wrap_up)
     end
 
+    test "an item can say it is done: `[done: …]` after its kind, `→ #id` at its end (#2120)" do
+      for kind <- ~w(gotcha rule handbook-wrong tooling process) do
+        assert Block.parse("- Findings:\n  - #{kind} [done: W-1950 §Local setup]: settled") == [
+                 %{kind: kind, text: "settled", scope: "board", done: "W-1950 §Local setup"}
+               ]
+
+        assert Block.parse("- Findings:\n  - #{kind}: no test pins it → #2087") == [
+                 %{kind: kind, text: "no test pins it", scope: "board", done: "#2087"}
+               ]
+      end
+
+      assert [%{kind: "tooling", scope: "runner", done: "W-1951"}] =
+               Block.parse("- Findings:\n  - tooling (runner) [done: W-1951]: the CLI lags")
+
+      assert [%{text: "two tests missing", done: "card #12, #13"}] =
+               Block.parse("Findings:\n- gotcha: two tests missing -> card #12, #13.")
+
+      assert [%{done: "W-3 §A; #9"}] =
+               Block.parse("Findings:\n- **gotcha** [done: W-3 §A]: both → #9")
+
+      # An arrow in the middle is the lesson's own text; one with nothing before it says nothing.
+      assert [%{text: "a → b, then #4"} = mid] =
+               Block.parse("Findings:\n- gotcha: a → b, then #4")
+
+      refute Map.has_key?(mid, :done)
+      assert Block.parse("Findings:\n- gotcha: → #2087") == []
+      # No marker, no `done`.
+      assert [plain] = Block.parse("Findings:\n- gotcha: (corrected) the test was fixed")
+      refute Map.has_key?(plain, :done)
+    end
+
     test "none, an empty block and no block at all" do
       assert Block.parse("- Handbook: no change\n- Findings: none") == []
       assert Block.parse("**Findings:** None (a typo fix)") == []
