@@ -467,8 +467,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   # The card as this reader may see it: dependencies on boards they can't
   # read are hidden (see `Access.hide_unreadable_dependencies/3`).
-  defp fresh(socket, id),
-    do: Access.hide_unreadable_dependencies(socket.assigns.current_user, Boards.get_card!(id))
+  defp fresh(socket, id) do
+    %{current_user: user, board: board} = socket.assigns
+    Access.hide_unreadable_dependencies(user, with_state(Boards.get_card!(id), board))
+  end
 
   # The item the shared sections (`BoardLive.ItemEvents`) act on is the card.
   defp with_item(socket), do: assign(socket, item: socket.assigns.card)

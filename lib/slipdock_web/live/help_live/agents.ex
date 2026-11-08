@@ -1320,7 +1320,8 @@ defmodule SlipdockWeb.HelpLive.Agents do
           runner rules and its <code>age</code>
           in the list. <code>stuck</code>
           marks a card past
-          its list's usual stay; filter on it with <code>stuck: true</code>
+          its list's usual stay (never an epic with open subcards, whose stay is
+          theirs); filter on it with <code>stuck: true</code>
           or <code>--stuck</code>, and on <code>driver</code>.
         </li>
         <li>

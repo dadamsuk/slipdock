@@ -50,7 +50,8 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
             "What is happening right now on the board's tree instead of the lists (#2103): " <>
               "each runner, online or not, and the jobs it holds with their latest step; " <>
               "every card in progress with its board, list, parent epic, state line and " <>
-              "what holds it (waiting, verifying, merging, blocked, review, stuck); the " <>
+              "what holds it (waiting, verifying, merging, blocked, review, stuck, " <>
+              "over_usual); the " <>
               "jobs queued and why each is held; and the counts."
         },
         history: %{

@@ -315,7 +315,8 @@ A board whose runner work a person has **paused** says so: `get_board`,
 `list_cards`, `slipdock board` and `slipdock cards` carry `paused` (a
 `PAUSED` line in the CLI). An agent seeing it takes nothing and stops.
 Every card also carries its `state` line, `driver`, `age` in its list and
-`stuck` (past the list's usual stay), and while a runner job holds it
+`stuck` (past the list's usual stay; never an epic with open subcards, whose
+stay is theirs), and while a runner job holds it
 (claimed or running) its `loop`: `{runner, kind, job_id}`, the kind `build`,
 `verify` or `merge`. The card shows the loop beside its assignees, and it
 goes when the job ends; it is never an assignee, so `--assignee me`,
@@ -821,8 +822,10 @@ for a person; an agent says on it what it knows and leaves the flag alone.
 
 **Right now.** What is happening on a board's tree at this moment — each
 runner and the job and step it is on, every card in progress with its board,
-list, parent epic and what holds it, and the jobs queued with why each is
-held — is the board's Right now page (`/boards/:id/now`, one click from the
+list, parent epic and what holds it (`waiting`, `verifying`, `merging`,
+`blocked`, `review`, `stuck` for the health monitor's flag, or `over_usual`
+for one merely past its list's usual stay), and the jobs queued with why each
+is held — is the board's Right now page (`/boards/:id/now`, one click from the
 board page's pulse line, or its own line, with Agentic Building on),
 `slipdock now <board>` (`--json` for the JSON), `GET /api/boards/:board/now`
 and MCP `get_board` `now: true`; see

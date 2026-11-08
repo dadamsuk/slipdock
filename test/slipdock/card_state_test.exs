@@ -312,6 +312,41 @@ defmodule Slipdock.CardStateTest do
       assert json.usual_stay == 7200
     end
 
+    test "an epic with open subcards is never over its usual stay; with them done it is (#2131)",
+         ctx do
+      history(ctx, 2 * 3600)
+      epic = card_fixture(ctx.doing, %{"title" => "Epic"})
+      entered(epic, 3 * 3600 + 30)
+      {:ok, template} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(epic, template)
+      sub = Boards.get_board!(sub.id)
+      child = card_fixture(hd(sub.columns), %{"title" => "Child"})
+      other = card_fixture(hd(sub.columns), %{"title" => "Other child"})
+
+      # Its stay is its subcards': 3h in a 2h list is plain, and Stuck doesn't find it.
+      state = state_of(ctx, epic)
+      assert state.age >= 3 * 3600
+      assert state.usual == 7200
+      assert state.over_usual == nil
+      refute state.stuck
+      assert CardState.age_text(state) == "3h"
+      assert Boards.list_cards(ctx.board, %{"stuck" => "true"}) == []
+
+      # One subcard done and the other archived, nothing is open under it:
+      # the epic is a card like any other again.
+      Repo.update_all(from(c in Card, where: c.id == ^child.id), set: [completed: true])
+      refute state_of(ctx, epic).stuck
+
+      Repo.update_all(from(c in Card, where: c.id == ^other.id),
+        set: [archived_at: DateTime.utc_now(:second)]
+      )
+
+      state = state_of(ctx, epic)
+      assert state.stuck
+      assert state.over_usual >= 3600
+      assert Enum.map(Boards.list_cards(ctx.board, %{"stuck" => "true"}), & &1.id) == [epic.id]
+    end
+
     test "a card in a done list shows no colour", ctx do
       history(ctx, 60)
       card = card_fixture(ctx.done)

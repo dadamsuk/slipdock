@@ -33,7 +33,8 @@ defmodule Slipdock.CardState do
     * `usual`, `over_usual` and `stuck` — the list's usual stay
       (`Slipdock.Pulse.usual_stays/1`), and by how much the card is past it.
       Never on a done, dropped or Scheduled list, a completed card, a card with an open
-      wait (the person is the hold-up, not the card), or an unknown age.
+      wait (the person is the hold-up, not the card), an epic with open
+      subcards (its stay is its subcards', #2131), or an unknown age.
 
   `put/3` decorates a batch of cards with a fixed number of queries,
   whatever their number: the board page, `Boards.list_cards/2` and
@@ -88,6 +89,7 @@ defmodule Slipdock.CardState do
       jobs: jobs,
       held: held(jobs),
       entries: entries(ids),
+      epics: open_epics(ids),
       usual: Keyword.get_lazy(opts, :usual, fn -> Pulse.usual_stays(board, now: now) end),
       columns: Map.new(opts[:columns] || [], &{&1.id, &1}),
       runner_tree:
@@ -132,6 +134,23 @@ defmodule Slipdock.CardState do
     |> Map.new(&{&1.card_id, &1})
   end
 
+  # The cards among `ids` whose sub-board still holds an open card (#2131):
+  # an epic in progress sits there for as long as its subcards take, so its
+  # list's usual stay, worked out from single cards, says nothing about it.
+  defp open_epics(ids) do
+    from(c in Card,
+      join: b in Board,
+      on: b.id == c.board_id,
+      where:
+        b.parent_card_id in ^ids and is_nil(b.archived_at) and is_nil(c.archived_at) and
+          not c.completed,
+      distinct: true,
+      select: b.parent_card_id
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
   @doc "Whether any board in the tree under `root_id` has a rule that sends cards to a runner."
   def runner_tree?(root_id) do
     from(r in Slipdock.Automations.Rule,
@@ -161,12 +180,7 @@ defmodule Slipdock.CardState do
 
     age = since && max(DateTime.diff(ctx.now, since), 0)
     usual = if known, do: ctx.usual[card.column_id]
-
-    over =
-      if usual && is_nil(wait) && not card.completed && not quiet?(column(card, ctx)) &&
-           age > usual,
-         do: age - usual
-
+    over = over_usual(card, ctx, wait, usual, age)
     {kind, line} = line(card, wait, job, held, ctx.now)
 
     %__MODULE__{
@@ -182,6 +196,16 @@ defmodule Slipdock.CardState do
       over_usual: over,
       stuck: not is_nil(over)
     }
+  end
+
+  # By how much the card is past its list's usual stay, or nil: see the
+  # moduledoc for the cards that are never over it.
+  defp over_usual(_card, _ctx, _wait, nil, _age), do: nil
+
+  defp over_usual(card, ctx, wait, usual, age) do
+    if is_nil(wait) && not card.completed && not quiet?(column(card, ctx)) &&
+         not MapSet.member?(ctx.epics, card.id) && age > usual,
+       do: age - usual
   end
 
   defp column(%Card{column: %Column{} = col}, _ctx), do: col

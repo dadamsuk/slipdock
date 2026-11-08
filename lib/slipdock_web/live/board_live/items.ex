@@ -5,14 +5,30 @@ defmodule SlipdockWeb.BoardLive.Items do
   each can check for itself that what it was handed belongs to the board.
   """
 
-  alias Slipdock.{Access, Boards, Swimlanes, Wiki}
+  alias Slipdock.{Access, Boards, CardState, Swimlanes, Wiki}
+  alias Slipdock.Boards.{Board, Card}
 
-  @doc "The live (unarchived) card `card_id`, if it is on `board`."
+  @doc "The live (unarchived) card `card_id`, if it is on `board`, with its state."
   def load_card(board, card_id) do
     card = Boards.get_card!(card_id)
-    if card.board_id == board.id and is_nil(card.archived_at), do: {:ok, card}, else: :error
+
+    if card.board_id == board.id and is_nil(card.archived_at),
+      do: {:ok, with_state(card, board)},
+      else: :error
   rescue
     Ecto.NoResultsError -> :error
+  end
+
+  @doc """
+  `card` with its state (`Slipdock.CardState`) worked out from what the
+  board page already holds, the board's usual stays and runner tree, so the
+  open card wears the age chip its tile does (#2131).
+  """
+  def with_state(%Card{} = card, %Board{} = board) do
+    [card] =
+      CardState.put([card], board, usual: board.usual_stays, runner_tree: board.runner_tree)
+
+    card
   end
 
   @doc "The wiki page `page_id`, if it is placed on `board`, ready to draw."

@@ -8,10 +8,12 @@ defmodule SlipdockWeb.NowTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
   alias Slipdock.{Accounts, Boards, Repo, Runners}
+  alias Slipdock.Boards.CardMove
 
   setup %{user: user} do
     board = board_fixture(%{"name" => "Busy", "code" => unique_code()}, owner: user)
@@ -32,6 +34,37 @@ defmodule SlipdockWeb.NowTest do
     queued = working_job_fixture(next, %{status: "queued", pool: "dev"})
 
     %{board: board, todo: todo, doing: doing, runner: runner, card: card, queued: queued}
+  end
+
+  # Eight closed stays of `secs` in the doing list, the fewest a usual stay
+  # is worked out from; and a card's entry into its list moved back.
+  defp usual_stay(ctx, secs) do
+    done = Enum.find(ctx.board.columns, &(&1.category == "done"))
+
+    for _ <- 1..8 do
+      card = card_fixture(done, %{"title" => "Closed"})
+      Repo.delete_all(from(m in CardMove, where: m.card_id == ^card.id))
+      start = DateTime.add(DateTime.utc_now(), -(secs + 86_400))
+
+      for {kind, from, to, at} <- [
+            {"created", nil, ctx.doing, start},
+            {"moved", ctx.doing, done, DateTime.add(start, secs)}
+          ] do
+        Repo.insert!(%CardMove{
+          card_id: card.id,
+          kind: kind,
+          board_id: card.board_id,
+          from_column_id: from && from.id,
+          to_column_id: to.id,
+          inserted_at: at
+        })
+      end
+    end
+  end
+
+  defp entered(card, seconds_ago) do
+    at = DateTime.add(DateTime.utc_now(), -seconds_ago)
+    Repo.update_all(from(m in CardMove, where: m.card_id == ^card.id), set: [inserted_at: at])
   end
 
   defp with_token(user) do
@@ -81,6 +114,21 @@ defmodule SlipdockWeb.NowTest do
 
       assert has_element?(view, "#now-queued-#{ctx.queued.id}", "Up next")
       refute has_element?(view, "#now-no-runners")
+    end
+
+    test "Stuck, in red, is the health monitor's flag; past the usual stay is amber (#2131)",
+         ctx do
+      usual_stay(ctx, 3600)
+      flagged = card_fixture(ctx.doing, %{"title" => "Flagged", "flags" => ["stuck"]})
+      slow = card_fixture(ctx.doing, %{"title" => "Slow"})
+      entered(slow, 2 * 3600)
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/now")
+
+      assert has_element?(view, "#now-card-#{flagged.id} .badge-error", "Stuck")
+      assert has_element?(view, "#now-card-#{slow.id} .badge-warning", "Past usual stay")
+      refute has_element?(view, "#now-card-#{slow.id} .badge-error")
+      refute has_element?(view, "#now-card-#{ctx.card.id} .badge-warning")
     end
 
     test "a quiet board says so in each section", %{user: user} do
