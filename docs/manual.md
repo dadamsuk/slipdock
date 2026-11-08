@@ -2364,9 +2364,18 @@ a proposal for a person to apply or dismiss:
   writes the rule and marks the finding *promoted* with the rule id;
   **Dismiss** leaves it open with a note, and nothing is proposed again until
   its count has risen by the threshold once more. Undoing an applied one opens
-  the finding again.
+  the finding again. Count changes that land together (a triage merging
+  several findings into one) still file one proposal between them.
+- **Triage closes it.** Promoting, dismissing or merging the finding (by a
+  person, a triage pass or a dedupe) closes its open proposal by itself, with
+  a note naming why (`finding #14 promoted: W-1950 §Tests`), so the Tidy-up
+  page keeps only what still needs a person. Reopening the finding reopens
+  its proposal. A proposal filed by hand that names the finding stays open.
 - **What is proposed.** Only the project's findings, not a runner's tooling,
-  and only on a board with a handbook: elsewhere findings are kept as they are.
+  and only lessons: what an agent wrote, a verifier's rejection or rule hit,
+  or an audit. Events the system records (health incidents, failed merges,
+  lane holds, requeues, timeouts, failed jobs, incidents) are never drafted
+  into rules. Only on a board with a handbook: elsewhere findings are kept as they are.
   `slipdock findings` and the Findings page show `proposal #id` on a finding
   that has one.
 

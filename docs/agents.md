@@ -471,8 +471,11 @@ step, is a person's to apply, dismiss or undo: the API refuses an agent.
 The server files one by itself when a finding's count reaches the board's
 `findings_propose_at` (3 by default, 0 off): a rule on the `## Rules` of
 the page covering the finding's cards (else Specification), `must` citing
-a check the finding names, else `should`. Accepting it promotes the finding;
-see [the manual](manual.md#findings).
+a check the finding names, else `should`; only from lessons (an agent's,
+a verifier's or an audit's findings), never from events such as health
+incidents or failed merges. Accepting it promotes the finding; triaging the
+finding (promote, dismiss, merge) closes it with a note, and reopening the
+finding reopens it; see [the manual](manual.md#findings).
 
 It also offers prompts, ready-made workflows the client lists in its own menu
 (the **+** menu in the Claude apps, `/mcp__slipdock__<name>` in Claude Code),

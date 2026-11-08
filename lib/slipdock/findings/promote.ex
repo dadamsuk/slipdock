@@ -19,8 +19,19 @@ defmodule Slipdock.Findings.Promote do
   `promoted` with the rule id in its note; dismissing it leaves the finding
   open with a note, and no new proposal is drafted until its count has risen
   by the threshold again; undoing an accepted one opens the finding again.
-  Only the project's findings (`scope: "board"`) are proposed, and only on a
-  board tree with a handbook.
+  Only the project's findings (`scope: "board"`) are proposed, only those an
+  agent or a verifier wrote (`proposable_sources/0`: an event such as a
+  health incident, a failed merge or a requeue records what happened, not a
+  lesson, #2129), and only on a board tree with a handbook.
+
+  Triage deciding the finding (`Slipdock.Findings.triage/3`: promoted,
+  dismissed or merged) closes its open proposals with a note naming why
+  (`settled/2`); reopening the finding reopens its own (`reopened/1`).
+
+  Drafting runs outside any transaction, since it calls a model; filing
+  takes the finding's row `FOR UPDATE` and checks again that it is due, so
+  the tasks of a burst of count changes (a triage merging five findings into
+  one) file one proposal between them, not one each (#2129).
 
   `consider/1` is called whenever a count changes. It runs under
   `Slipdock.TaskSupervisor` unless `config :slipdock, :findings,
@@ -38,6 +49,10 @@ defmodule Slipdock.Findings.Promote do
   alias Slipdock.Gardener.Suggestion
   alias Slipdock.Handbook.Rules
   alias Slipdock.Wiki.{Page, Section}
+
+  # Who writes a lesson: an agent's `Findings:` block, a verifier's
+  # rejection or rule hit, an audit. The other sources are events.
+  @proposable ~w(agent rejection verification audit)
 
   @check ~r{(?:[\w./-]*_test\.exs)|(?:\bmix [a-z][\w.]*(?: --?[\w-]+)*)|(?:\brepo_checks\b)}
 
@@ -85,7 +100,7 @@ defmodule Slipdock.Findings.Promote do
          %User{} = owner <- Repo.get(User, root.owner_id),
          {:ok, page, path} <- rules_page(handbook, finding),
          {:ok, rule_id, line} <- draft(finding, handbook, page, owner) do
-      file(finding, root, owner, page, path, rule_id, line)
+      file_once(id, owner, page, path, rule_id, line)
     else
       _ -> :skip
     end
@@ -96,9 +111,30 @@ defmodule Slipdock.Findings.Promote do
       :skip
   end
 
+  @doc "The sources whose findings are proposed as rules; the rest are events."
+  def proposable_sources, do: @proposable
+
+  # Another task may have filed for this finding while this one drafted:
+  # under the finding's row lock, the fresh row decides.
+  defp file_once(id, owner, page, path, rule_id, line) do
+    Repo.transaction(fn ->
+      finding = Repo.one(from f in Finding, where: f.id == ^id, lock: "FOR UPDATE")
+
+      case finding && due(finding) do
+        %Board{} = root -> file(finding, root, owner, page, path, rule_id, line)
+        _ -> :skip
+      end
+    end)
+    |> case do
+      {:ok, result} -> result
+      _ -> :skip
+    end
+  end
+
   # The finding's root board when its count has reached the threshold and no
   # proposal of its is open.
-  defp due(%Finding{status: "open", scope: "board"} = finding) do
+  defp due(%Finding{status: "open", scope: "board", source: source} = finding)
+       when source in @proposable do
     root = Repo.get!(Board, finding.board_id)
     threshold = root.findings_propose_at || 0
 
@@ -279,7 +315,8 @@ defmodule Slipdock.Findings.Promote do
     cards = finding |> cards() |> Enum.map(& &1.id)
 
     explanation =
-      "Finding ##{finding.id} was seen #{finding.count} times" <>
+      drafted_prefix(finding.id) <>
+        "#{finding.count} times" <>
         if(cards == [], do: "", else: " (cards #{Enum.map_join(cards, ", ", &"##{&1}")})") <>
         ": #{one_line(finding.text)}. Proposed as #{rule_id} on #{page.title}."
 
@@ -305,6 +342,57 @@ defmodule Slipdock.Findings.Promote do
       _ ->
         :skip
     end
+  end
+
+  # How a drafted proposal's explanation starts: what tells it from one an
+  # agent or a person filed with the finding as evidence.
+  defp drafted_prefix(id), do: "Finding ##{id} was seen "
+
+  @doc """
+  Triage decided `finding` (`Slipdock.Findings.triage/3`, or a dedupe's
+  merge): closes the open proposals the server drafted for it, its own and
+  any duplicates (`Slipdock.Gardener.close/2`), with a note naming why
+  (`"finding #14 promoted: W-1950 §Tests"`). Nothing is said to the finding:
+  it is decided already. Returns how many it closed.
+  """
+  def settled(%Finding{} = finding, why \\ nil) do
+    note = settled_note(finding, why)
+
+    from(s in Suggestion,
+      where: s.check == "proposal" and s.state == "open",
+      where: like(s.explanation, ^"#{drafted_prefix(finding.id)}%")
+    )
+    |> Repo.all()
+    |> Enum.count(&match?({:ok, _}, Gardener.close(&1, note)))
+  end
+
+  defp settled_note(%Finding{} = finding, why) do
+    what =
+      case finding.status do
+        "merged" -> "merged into ##{finding.merged_into_id}"
+        status -> status
+      end
+
+    detail = why || finding.note
+
+    "finding ##{finding.id} #{what}" <>
+      if(is_binary(detail) and String.trim(detail) != "", do: ": #{one_line(detail)}", else: "")
+  end
+
+  @doc """
+  `finding` was reopened: its own proposal (`proposal_id`), if `settled/2`
+  closed it, is open again, so undoing a triage undoes its close too. A
+  duplicate closed with it stays closed. Returns how many it reopened (0 or 1).
+  """
+  def reopened(%Finding{proposal_id: nil}), do: 0
+
+  def reopened(%Finding{id: id, proposal_id: proposal_id}) do
+    from(s in Suggestion,
+      where: s.id == ^proposal_id and s.state == "dismissed" and is_nil(s.decided_by_id),
+      where: like(s.note, ^"finding ##{id} %")
+    )
+    |> Repo.all()
+    |> Enum.count(&match?({:ok, _}, Gardener.reopen_closed(&1)))
   end
 
   @doc """

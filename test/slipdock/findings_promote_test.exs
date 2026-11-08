@@ -255,4 +255,219 @@ defmodule Slipdock.FindingsPromoteTest do
       assert listed.proposal_id == ctx.suggestion.id and listed.proposed_rule == "UX-4"
     end
   end
+
+  describe "event findings (#2129)" do
+    test "health, merge, lane and requeue findings, and other events, draft none", ctx do
+      AIStub.fail_with(503, "down")
+
+      for source <- ~w(health merge lane requeue timeout failed incident) do
+        f = seen(ctx, ctx.ui, "Lane held, nothing moving (#{source})", 5, source: source)
+        assert Promote.check(f.id) == :skip, source
+      end
+
+      assert proposals(ctx.board) == []
+    end
+
+    test "an agent's, a verifier's and an audit's findings are proposed", ctx do
+      AIStub.fail_with(503, "down")
+      assert Promote.proposable_sources() == ~w(agent rejection verification audit)
+
+      for source <- Promote.proposable_sources() do
+        card = card_fixture(ctx.doing, %{"title" => "From #{source}"})
+        f = seen(ctx, card, "a lesson #{source} wrote", 3, source: source)
+        assert {:ok, %Suggestion{state: "open"}} = Promote.check(f.id), source
+      end
+
+      assert length(proposals(ctx.board)) == 4
+    end
+  end
+
+  describe "racing drafts (#2129)" do
+    # Holds each drafting call until the test says go, so two checks can be
+    # past `due/1` at once, as two tasks of a burst of count changes are.
+    defp hold_drafts do
+      test = self()
+
+      Req.Test.stub(Slipdock.AI, fn conn ->
+        send(test, {:drafting, self()})
+
+        receive do
+          :go ->
+            conn
+            |> Plug.Conn.put_status(503)
+            |> Req.Test.json(%{"error" => %{"message" => "down"}})
+        after
+          5_000 -> Plug.Conn.send_resp(conn, 503, "")
+        end
+      end)
+    end
+
+    test "a second count change while the first drafts files no second proposal", ctx do
+      hold_drafts()
+      f = seen(ctx, ctx.ui, "screens must not flash on load", 3)
+
+      first = Task.async(fn -> Promote.check(f.id) end)
+      assert_receive {:drafting, first_draft}
+
+      # The count moves on (a merge into it) while the first still drafts,
+      # so the second files under another round.
+      Repo.update!(Ecto.Changeset.change(Repo.get!(Finding, f.id), count: 4))
+      second = Task.async(fn -> Promote.check(f.id) end)
+      assert_receive {:drafting, second_draft}
+
+      send(second_draft, :go)
+      assert {:ok, %Suggestion{id: id}} = Task.await(second)
+
+      send(first_draft, :go)
+      assert Task.await(first) == :skip
+
+      assert [%Suggestion{id: ^id}] = proposals(ctx.board)
+      assert %{proposal_id: ^id, proposed_at_count: 4} = Repo.get!(Finding, f.id)
+    end
+
+    test "a finding triaged while its proposal drafts files none", ctx do
+      hold_drafts()
+      f = seen(ctx, ctx.ui, "screens must not flash on load", 3)
+
+      task = Task.async(fn -> Promote.check(f.id) end)
+      assert_receive {:drafting, draft}
+      {:ok, _} = Findings.triage(Repo.get!(Finding, f.id), "dismiss", %{"note" => "a one-off"})
+
+      send(draft, :go)
+      assert Task.await(task) == :skip
+      assert proposals(ctx.board) == []
+    end
+  end
+
+  describe "triage closes the proposal (#2129)" do
+    setup ctx do
+      AIStub.fail_with(503, "down")
+      f = seen(ctx, ctx.ui, "screens must not flash on load", 3)
+      {:ok, s} = Promote.check(f.id)
+      %{finding: Repo.get!(Finding, f.id), suggestion: s}
+    end
+
+    defp fresh(%Suggestion{id: id}), do: Repo.get!(Suggestion, id)
+
+    defp activity(card) do
+      Repo.all(from a in Boards.Activity, where: a.card_id == ^card.id, select: a.message)
+      |> Enum.join("\n")
+    end
+
+    test "promoting closes it with a note naming why, and reopening opens it again", ctx do
+      {:ok, promoted} = Findings.triage(ctx.finding, "promote", %{"note" => "W-1950 §Tests"})
+
+      assert %{state: "dismissed", decided_by_id: nil, decided_at: %DateTime{}, note: note} =
+               fresh(ctx.suggestion)
+
+      assert note == "finding ##{ctx.finding.id} promoted: W-1950 §Tests"
+      assert Gardener.list_open(ctx.board, check: "proposal") == []
+
+      # The card it is about says so in its activity.
+      assert activity(ctx.ui) =~ "proposal ##{ctx.suggestion.id} closed: #{note}"
+
+      {:ok, _} = Findings.triage(promoted, "reopen")
+      assert %{state: "open", note: nil, decided_at: nil} = fresh(ctx.suggestion)
+      assert activity(ctx.ui) =~ "proposal ##{ctx.suggestion.id} reopened (was closed: #{note})"
+
+      # Open again, it is still the finding's one proposal: no second.
+      assert Promote.check(ctx.finding.id) == :skip
+      assert length(proposals(ctx.board)) == 1
+    end
+
+    test "dismissing closes it, the finding's own note when none is given", ctx do
+      Repo.update!(Ecto.Changeset.change(ctx.finding, note: "seen once, long ago"))
+      {:ok, _} = Findings.triage(Repo.get!(Finding, ctx.finding.id), "dismiss")
+
+      assert fresh(ctx.suggestion).note ==
+               "finding ##{ctx.finding.id} dismissed: seen once, long ago"
+    end
+
+    test "merging closes it, naming where it went; the target's own stays open", ctx do
+      other = card_fixture(ctx.doing, %{"title" => "Other"})
+      into = seen(ctx, other, "screens must never flash", 3)
+      {:ok, theirs} = Promote.check(into.id)
+
+      {:ok, _} = Findings.triage(ctx.finding, "merge", %{"into" => into.id})
+
+      assert %{state: "dismissed", note: note} = fresh(ctx.suggestion)
+      assert note == "finding ##{ctx.finding.id} merged into ##{into.id}"
+      assert fresh(theirs).state == "open"
+    end
+
+    test "a dedupe's merge closes the repeat's proposal", ctx do
+      Repo.update!(Ecto.Changeset.change(ctx.finding, kind: "gotcha"))
+      repeat = seen(ctx, ctx.ui, "screens must not flash on load", 3)
+      {:ok, repeat_s} = Promote.check(repeat.id)
+
+      [{%{id: repeat_id}, %{id: into_id}}] = Findings.dedupe(ctx.board)
+      assert {repeat_id, into_id} == {repeat.id, ctx.finding.id}
+
+      assert fresh(repeat_s).note =~
+               "finding ##{repeat.id} merged into ##{ctx.finding.id}: same lesson"
+
+      assert fresh(ctx.suggestion).state == "open"
+    end
+
+    test "duplicates close with it, and only its own proposal reopens", ctx do
+      %Suggestion{} = mine = ctx.suggestion
+
+      dupe =
+        Repo.insert!(%Suggestion{
+          mine
+          | id: nil,
+            fingerprint: "a duplicate",
+            inserted_at: nil,
+            updated_at: nil
+        })
+
+      {:ok, promoted} = Findings.triage(ctx.finding, "promote", %{"note" => "card #1963"})
+      assert Enum.map([ctx.suggestion, dupe], &fresh(&1).state) == ~w(dismissed dismissed)
+
+      {:ok, _} = Findings.triage(promoted, "reopen")
+      assert fresh(ctx.suggestion).state == "open"
+      assert fresh(dupe).state == "dismissed"
+    end
+
+    test "a proposal filed by hand with the finding as evidence stays open", ctx do
+      {:ok, by_hand, :new} =
+        Gardener.propose(ctx.board, ctx.owner, %{
+          "explanation" => "From triage: the lessons that recurred, as rules",
+          "steps" => [
+            %{
+              "op" => "edit_section",
+              "page" => ctx.pages["ux"].id,
+              "section" => "UX & UI/Rules",
+              "body" => "- **UX-9** should · judgement · Screens stay still."
+            }
+          ],
+          "findings" => [ctx.finding.id]
+        })
+
+      {:ok, _} = Findings.triage(ctx.finding, "promote", %{"note" => "proposal ##{by_hand.id}"})
+      assert fresh(by_hand).state == "open"
+      assert fresh(ctx.suggestion).state == "dismissed"
+    end
+
+    test "only an open suggestion closes, and only one the server closed reopens", ctx do
+      {:ok, dismissed} = Gardener.dismiss(ctx.suggestion, ctx.owner)
+      assert {:error, "only an open suggestion can be closed"} = Gardener.close(dismissed, "x")
+
+      assert {:error, "only a suggestion the server closed reopens"} =
+               Gardener.reopen_closed(dismissed)
+
+      assert {:error, _} = Gardener.reopen_closed(Repo.get!(Suggestion, ctx.suggestion.id))
+    end
+
+    test "a proposal a person dismissed is left as they left it, and not reopened", ctx do
+      {:ok, _} = Gardener.dismiss(ctx.suggestion, ctx.owner)
+      finding = Repo.get!(Finding, ctx.finding.id)
+      {:ok, promoted} = Findings.triage(finding, "promote", %{"note" => "W-1950"})
+      assert %{decided_by_id: decided_by, note: nil} = fresh(ctx.suggestion)
+      assert decided_by == ctx.owner.id
+
+      {:ok, _} = Findings.triage(promoted, "reopen")
+      assert fresh(ctx.suggestion).state == "dismissed"
+    end
+  end
 end

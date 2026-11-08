@@ -13,6 +13,10 @@ defmodule Slipdock.Gardener.Suggestion do
       longer found it)
     * `undo` – once applied, the inverse steps and the state each subject
       was left in, so undo can tell when something has moved on since
+    * `note` – why the server closed it, with nobody deciding (#2129): a
+      proposal drafted from a finding that triage has since promoted,
+      dismissed or merged (`"finding #14 promoted: …"`), a duplicate, or
+      one drafted from an event rather than a lesson
   """
   use Ecto.Schema
 
@@ -28,6 +32,7 @@ defmodule Slipdock.Gardener.Suggestion do
     field :state, :string, default: "open"
     field :decided_at, :utc_datetime
     field :undo, :map
+    field :note, :string
 
     belongs_to :run, Slipdock.Gardener.Run
     belongs_to :board, Slipdock.Boards.Board
