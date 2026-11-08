@@ -132,7 +132,17 @@ Briefly, with the detail in [the manual](docs/manual.md):
   --dismiss <card>`) until its cause changes, a board's tree with **Mute on my
   Waiting on you** in its menu (`--mute <board>`), and the list counts what it
   hides (`3 waiting · 2 dismissed · 1 board muted`); `--dismissed` and
-  `--unmute` undo them.
+  `--unmute` undo them. The boards show it where you look from the top: an
+  epic's tile carries a chip, `⏸ 2 waiting on you`, for what in its tree is on
+  you, and its glance line names each with its reason (`Waiting on you: #2063
+  (a question), #2075 (3 rejections)`, `and 1 on someone else`); the chip opens
+  the sub-board kept to those cards, and the board header's `Waiting on you: N`
+  opens My work kept to the board. `slipdock card <epic>` and `slipdock board`
+  print the same line, and REST and MCP `get_card` / `get_board` carry it as
+  `waiting_on_me`. A wait addressed to you, or a card of yours past the
+  rejection limit, alerts you in the header and by email; each is on by
+  default and switched off in account settings (*When something waits on
+  you*: *Alert me in the header*, *Email me*).
 - **Multiboard** — the top N cards of lists picked from any of your boards,
   on one page from the home page's toolbar, laid out by board, by list or as
   a grid of tiles. The view is remembered and lives in the URL, so it can be

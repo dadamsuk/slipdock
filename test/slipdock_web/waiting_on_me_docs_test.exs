@@ -1,7 +1,8 @@
 defmodule SlipdockWeb.WaitingOnMeDocsTest do
   @moduledoc """
   What in an epic's tree waits on you (#2095) as the docs describe it: the
-  manual, docs/agents.md, the API guide and the in-app guide.
+  manual, docs/agents.md, the API guide, the in-app guide and agents page,
+  the README and the packaged skill.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -28,6 +29,32 @@ defmodule SlipdockWeb.WaitingOnMeDocsTest do
     assert agents =~ "`waiting_on_me`"
     assert agents =~ "`on_others`"
     assert agents =~ "print a `Waiting on you:` line"
+  end
+
+  test "the README gives the chip, the header, the doors and the alert's switches" do
+    readme = flat("README.md")
+    assert readme =~ "`⏸ 2 waiting on you`"
+    assert readme =~ "`and 1 on someone else`"
+    assert readme =~ "`Waiting on you: N`"
+    assert readme =~ "`waiting_on_me`"
+    assert readme =~ "*When something waits on you*: *Alert me in the header*, *Email me*"
+  end
+
+  test "the packaged skill teaches the CLI line and the field" do
+    skill = flat("priv/skills/slipdock/SKILL.md")
+    assert skill =~ ~s(on an epic, a "Waiting on you:" line)
+    assert skill =~ "waiting_on_me: count, cards, on_others, line"
+    assert skill =~ ~s("Waiting on you: N" for the tree)
+  end
+
+  test "the agents page has the doors, and its CLI topic the line", %{conn: conn} do
+    conn = log_in_user(conn, Slipdock.Fixtures.user_fixture())
+    {:ok, _view, html} = live(conn, ~p"/help/agents")
+    assert html =~ "See what in an epic&#39;s tree is waiting on you"
+    assert html =~ "get_card, get_board: waiting_on_me"
+    {:ok, _view, cli} = live(conn, ~p"/help/agents/cli")
+    assert cli =~ "<code>on_others</code>"
+    assert cli =~ "an epic whose tree is all waiting on a person has nothing workable"
   end
 
   test "the API guide gives the shape" do
