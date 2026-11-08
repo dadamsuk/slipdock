@@ -424,6 +424,16 @@ defmodule SlipdockWeb.HelpLive.Flow do
       card, one at a time. A runner in that pool pulls the job, or a session takes it with <code>slipdock claim-job B --pool loop</code>.
     </p>
     <p>
+      Recurring agent work (a nightly sweep, the handbook's reconcile) lands in the board's
+      <strong>Scheduled</strong>
+      list, when it has one: a list in the <code>scheduled</code>
+      category, after To Do. Nobody picks from it, people or agents asked what to do next. Its
+      own <em>Work Scheduled with a runner</em>
+      rules send each card on its day: when a list becomes Scheduled, every rule working the
+      ready list gets one beside it, for the same pool. A Scheduled card still there after its
+      due day is on its owner's <strong>Waiting on you</strong>.
+    </p>
+    <p>
       The agent moves the card into progress, and the <strong>bar locks</strong>: from then on
       only a person can change it. A job is held, saying why, while the board is paused, its WIP
       limit is full (<em>WIP limits hold automated work</em>), another card is in progress, or

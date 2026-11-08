@@ -14,7 +14,8 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
   def description,
     do:
       "Boards you can see, with their code and lists, and which list is the ready list " <>
-        "(take work from), in progress and done. Sub-boards hang off their epic card instead."
+        "(take work from), in progress and done, and the Scheduled list (worked by feed rules, " <>
+        "never taken from). Sub-boards hang off their epic card instead."
 
   @impl true
   def input_schema do
@@ -73,7 +74,9 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
       ready: name_of(roles.ready),
       backlog: name_of(roles.backlog),
       doing: name_of(roles.doing),
-      done: name_of(roles.done)
+      done: name_of(roles.done),
+      # Where recurring agent work lands (#2100): never the ready list.
+      scheduled: name_of(roles.scheduled)
     }
     |> put_verified(full)
     # Profiles (#1951), only on a board with them on.

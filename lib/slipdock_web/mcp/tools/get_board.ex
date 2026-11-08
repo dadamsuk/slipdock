@@ -179,7 +179,7 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
   end
 
   defp role_of(roles, col) do
-    Enum.find_value([:ready, :backlog, :doing, :done], fn role ->
+    Enum.find_value([:ready, :backlog, :doing, :done, :scheduled], fn role ->
       if roles[role] && roles[role].id == col.id, do: Atom.to_string(role)
     end)
   end

@@ -32,7 +32,7 @@ defmodule Slipdock.CardState do
       unknown time there: its age counts from that row, and `known` is false;
     * `usual`, `over_usual` and `stuck` — the list's usual stay
       (`Slipdock.Pulse.usual_stays/1`), and by how much the card is past it.
-      Never on a done or dropped list, a completed card, a card with an open
+      Never on a done, dropped or Scheduled list, a completed card, a card with an open
       wait (the person is the hold-up, not the card), or an unknown age.
 
   `put/3` decorates a batch of cards with a fixed number of queries,
@@ -59,7 +59,9 @@ defmodule Slipdock.CardState do
             over_usual: nil,
             stuck: false
 
-  @quiet ~w(done dropped)
+  # A Scheduled list's cards (#2100) wait there for their feed by design:
+  # no "over usual" for them.
+  @quiet ~w(done dropped scheduled)
 
   @doc "The drivers a filter takes: everything, agent-held or person-held."
   def drivers, do: ~w(all agent human)

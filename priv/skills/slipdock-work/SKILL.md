@@ -70,7 +70,9 @@ whole card before touching it.
   blocked, waiting, snoozed, or assigned to someone else — `--open --deps ready
   --no-assignee` does most of that skipping for you (snoozed cards are left out
   of `slipdock cards` already) — and any stand-in
-  (`↪stand-in-for:#N`): it only marks where a card went into a sprint. If the
+  (`↪stand-in-for:#N`): it only marks where a card went into a sprint. Never
+  pick from a *Triage* list (for a person) or a *Scheduled* one (category
+  `scheduled`: recurring agent work, worked by feed rules). If the
   board answers `PAUSED` (`paused` in the JSON), a person has held runner work
   on it: take nothing and stop. When the card you land on has
   subcards, descend into it and work those to done before coming back up for the

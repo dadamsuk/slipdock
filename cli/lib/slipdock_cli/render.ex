@@ -163,7 +163,7 @@ defmodule SlipdockCLI.Render do
           dim(
             "  #{length(col["cards"])}#{wip} cards" <>
               if(pages == [], do: "", else: ", #{length(pages)} page(s)") <>
-              " (column ##{col["id"]})"
+              " (column ##{col["id"]})" <> list_note(col)
           )
       )
 
@@ -178,6 +178,15 @@ defmodule SlipdockCLI.Render do
       end)
     end)
   end
+
+  # The lists nobody takes work from when asked what next: a Triage list is
+  # for a person, a Scheduled one (#2100) is worked by feed rules.
+  defp list_note(%{"category" => "triage"}), do: " · triage: for a person, never pick from it"
+
+  defp list_note(%{"category" => "scheduled"}),
+    do: " · scheduled: worked by feed rules, never pick from it"
+
+  defp list_note(_col), do: ""
 
   defp page_line(p) do
     facets = page_facets(p)

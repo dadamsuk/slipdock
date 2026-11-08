@@ -381,7 +381,7 @@ defmodule Slipdock.Runners.Setup do
           }
 
           case Automations.create_rule_from_preset(board, preset, params, created_by: user) do
-            {:ok, rule} -> {:ok, rule}
+            {:ok, rule} -> scheduled_sibling(board, rule, user)
             {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset_message(changeset)}
             {:error, message} -> {:error, message}
           end
@@ -390,6 +390,16 @@ defmodule Slipdock.Runners.Setup do
       true ->
         {:ok, nil}
     end
+  end
+
+  # A feed on the ready list gets a sibling on the board's Scheduled list
+  # (#2100), where the recurring agent work lands: the rule answered is
+  # still the one asked for.
+  defp scheduled_sibling(board, rule, user) do
+    if Spec.feed?(rule.spec),
+      do: Automations.ScheduledFeed.ensure(board, by: user)
+
+    {:ok, rule}
   end
 
   defp find_list(board, name) do

@@ -5,8 +5,9 @@ defmodule Slipdock.Recurrence do
   A card is given a series (`set/3`) with a rule (`Slipdock.Recurrence.Rule`).
   The scheduler's clock calls `tick/1`, which makes each series' next
   instance when its time comes, by copying the current instance as it is now
-  (`Slipdock.Boards.copy_card/3`) to the top of its board's ready list, due
-  on the occurrence's date.
+  (`Slipdock.Boards.copy_card/3`) to the top of the series' own list, else
+  its board's Scheduled list (#2100), else its ready list, due on the
+  occurrence's date.
 
   **Not stacking up.** A fixed series whose current instance is still open
   when the next comes due does what its `on_missed` says:
@@ -160,7 +161,8 @@ defmodule Slipdock.Recurrence do
     * `"ends"` — `"never"`, `"on"` with `"ends_on"`, `"after"` with `"count"`.
     * `"on_missed"` — `bump`, `skip` or `stack`.
     * `"column"` — a list on the card's board to put instances in (the
-      board's ready list when not given); `""` clears it.
+      board's Scheduled list when not given and it has one, else its ready
+      list); `""` clears it.
     * `"paused"` — true to hold it.
 
   A card with no due date is made the series' first occurrence: it gets the
@@ -707,15 +709,19 @@ defmodule Slipdock.Recurrence do
   defp target_column(%Series{column_id: id}, current) when not is_nil(id) do
     case Repo.get(Column, id) do
       %Column{board_id: board_id} = column when board_id == current.board_id -> column
-      _ -> ready_column(current)
+      _ -> default_column(current)
     end
   end
 
-  defp target_column(_series, current), do: ready_column(current)
+  defp target_column(_series, current), do: default_column(current)
 
-  defp ready_column(current) do
+  # With no list of its own, a series makes its next instance in the board's
+  # Scheduled list when it has one (#2100), where feed rules work it, else in
+  # the ready list.
+  defp default_column(current) do
     board = Boards.get_board!(current.board_id)
-    SlipdockWeb.APIGuide.list_roles(board.columns).ready || hd(board.columns)
+    roles = SlipdockWeb.APIGuide.list_roles(board.columns)
+    roles.scheduled || roles.ready || hd(board.columns)
   end
 
   defp advance(%Series{kind: "after_done"} = series, _card, made) do

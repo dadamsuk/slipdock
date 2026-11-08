@@ -46,7 +46,7 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
     end
   end
 
-  @doc "Which list plays which part on a loaded board: `%{ready:, backlog:, doing:, done:}`."
+  @doc "Which list plays which part on a loaded board: `%{ready:, backlog:, doing:, done:, scheduled:}`."
   def roles(board), do: SlipdockWeb.APIGuide.list_roles(board.columns)
 
   @doc "A board's lists with their open counts and parts, one line."
@@ -55,7 +55,12 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
 
     board.columns
     |> Enum.map_join(" · ", fn col ->
-      part = Enum.find([:ready, :backlog, :doing, :done], &(roles[&1] && roles[&1].id == col.id))
+      part =
+        Enum.find(
+          [:ready, :backlog, :doing, :done, :scheduled],
+          &(roles[&1] && roles[&1].id == col.id)
+        )
+
       open = Enum.count(col.cards, &(not &1.completed))
       "#{col.name} (#{open} open#{if part, do: ", #{part}"})"
     end)
