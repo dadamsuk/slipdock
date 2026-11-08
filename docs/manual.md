@@ -835,7 +835,17 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   `verify_card` `checks`, or `"checks": [...]` on the REST call. The parts
   are `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`,
   `rule:<id>=ok|broken|n/a|pre-existing` and `handbook_line=ok|disputed`, each with
-  `:<why>` if it needs one. A rejection has to name a failing part (an
+  `:<why>` if it needs one. **A rejection names every instance found**:
+  once the verifier finds a rule broken, it looks for every other instance
+  of the same break the card could have missed (the same list, the same
+  string, the same door) and gives them all in one rejection, one
+  `rule:<id>=broken:<file>:<line>` line per instance (`--check
+  rule:SPEC-10=broken:README.md:40 --check
+  rule:SPEC-10=broken:docs/manual.md:12`, then `:why` if it needs one),
+  never the first now and the next in another round. A rule broken in
+  several places is one failing part, and its instances are listed under
+  the rule on the card, in `slipdock card` and in the rejection's comment.
+  A rejection has to name a failing part (an
   agent's reason that starts `bar 2:`, `the ask:`, a rule id or `Handbook
   line:` counts). An acceptance with any failing part is refused, except a
   missed `should` rule. The parts are kept on the card (`verify_checks`),
@@ -859,8 +869,10 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   kept, shown as *carried from abc1234* on the card and in `slipdock card`.
   A part that failed can't be carried, and an acceptance is still refused
   when a part it judges fails. The verifier is told not to raise a passed
-  or fixed part again, to flag a class of problem once, and to say what
-  changed since the last rejection. So the builder's new evidence names the
+  or fixed part again, to flag a class of problem once (under the one
+  rule, a `rule:<id>=broken:<file>:<line>` line for every instance it
+  finds, all in this rejection), and to say what changed since the last
+  rejection. So the builder's new evidence names the
   rejected commit and what changed since. An audit judges every part and
   carries nothing.
 - **A card going round in circles is yours to look at.** A card's second
