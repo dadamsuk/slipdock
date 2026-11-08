@@ -7645,6 +7645,23 @@ keeps the ones a person points the server at (#2059, spec W-2513).
 - **Whose.** A source is its adder's alone, who alone refreshes or removes it.
   The ones listed under *On this server* are seeds an admin added, seen by
   everyone and changed only by an admin.
+- **Enable it on a board.** On a skill's page, somebody who can write to a
+  board picks it under **Enable on** and presses **Enable this text**. The
+  board keeps a copy of exactly that text (and its hash): that copy is what
+  the board's agents get. One skill per name per board, and a sub-board
+  shares its root board's. A page left open while the source was refreshed
+  can't enable the newer text: it is refused, to be read again first.
+- **Changed upstream.** A refresh that changes an enabled skill marks it
+  *Changed upstream* on its page, with the lines that differ (− pinned,
+  + now). The board keeps the pinned text until a writer presses **Re-pin to
+  the new text**. A skill gone from its source (removed upstream, or its
+  source removed) keeps its pinned text on the board until a writer presses
+  **Disable**.
+- **Which stages name it.** A stage of a board's Playbook asks for a skill
+  with a `skill: <name>` line under its heading (not in a code block). The
+  Skills page lists, for each board you can read, every such stage and what
+  it gets: the skill enabled there, a skill Slipdock ships, or nothing, which
+  is flagged. Each skill's page lists the stages naming it.
 
 ## Skills
 
