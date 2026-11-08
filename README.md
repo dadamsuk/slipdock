@@ -124,7 +124,12 @@ Briefly, with the detail in [the manual](docs/manual.md):
   `wait_routes`), else to its owner. **Waiting on you** opens My work with everything that
   needs you, oldest first (waits, `review` and `waiting` flags on your cards,
   runner trouble, cards in progress with nobody on them), and the header counts
-  it on every page; `slipdock work` and `GET /api/work` list the same.
+  it on every page; `slipdock work` and `GET /api/work` list the same. An
+  item you don't care about comes off your own list with its × (`slipdock work
+  --dismiss <card>`) until its cause changes, a board's tree with **Mute on my
+  Waiting on you** in its menu (`--mute <board>`), and the list counts what it
+  hides (`3 waiting · 2 dismissed · 1 board muted`); `--dismissed` and
+  `--unmute` undo them.
 - **Multiboard** — the top N cards of lists picked from any of your boards,
   on one page from the home page's toolbar, laid out by board, by list or as
   a grid of tiles. The view is remembered and lives in the URL, so it can be

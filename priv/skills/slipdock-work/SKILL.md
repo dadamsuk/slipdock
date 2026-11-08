@@ -297,7 +297,10 @@ whole card before touching it.
 - "What is waiting on me?", "what needs me?" → `slipdock work`: waits on you,
   review and waiting flags on your cards, runner trouble, cards in progress
   with nobody on them, oldest first. Answer one with `slipdock answer <id>
-  "…"` (or `--choice N`) — only with the user's own answer.
+  "…"` (or `--choice N`) — only with the user's own answer. The user can take
+  an item off their own list (`slipdock work --dismiss <card>`, until its cause
+  changes) or mute a board's tree (`--mute <board>`); do either only when they
+  ask, never on your own judgement. The list counts what is hidden.
 - The work produced an answer someone will want again — a decision, a runbook, a
   gotcha, the shape of a design → a wiki page on that board, named in the
   card's closing comment.
