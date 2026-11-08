@@ -3,9 +3,10 @@ defmodule Slipdock.Runners.Drift do
   Skill and CLI drift on the machines that run agents (#1795, W-2310 §Sweeps
   and static checks).
 
-  Installed copies of the packaged skills (`priv/skills`) get edited by hand,
-  and a machine's `slipdock` CLI can be older than the server, so a pass can
-  follow stale instructions. On every claim a runner says what it has:
+  A machine's installed copies of the packaged skills (`priv/skills`, their
+  one source) can be older than what the server serves, and so can its
+  `slipdock` CLI, so a pass can follow stale instructions. On every claim a
+  runner says what it has:
 
       X-Runner-Skills: slipdock=<sha256>,slipdock-loop=<sha256>,…
       X-Runner-CLI: <sha256>
@@ -16,8 +17,13 @@ defmodule Slipdock.Runners.Drift do
   `/cli/SHA256SUMS` publishes), and keeps one alert on the runner's board
   while anything differs, cleared once it is current again.
 
-  **Report only.** Nothing here touches a machine: installed copies are
-  edited, never overwritten, so a person decides what to do about it.
+  **Report only.** Nothing here touches a machine: the server never calls
+  out to a runner (ARCH-5). Installed copies are installed from the server,
+  never edited by hand (#2048): a runner that keeps itself current puts the
+  server's skills in place before each job (`keep_skills` in
+  `priv/runner/slipdock-runner`, `Update-Skills` in its PowerShell twin), so
+  its drift clears on the next claim; anywhere else, the install one-liner
+  (`docs/agents.md` §Install the skills) brings them up to date.
   """
 
   import Ecto.Query
