@@ -1072,6 +1072,15 @@ reaches everyone without a reinstall
   (`slipdock tools download <name>`, `list_tools` with `package: true`, or
   **Download the package** on its page) is every file of a version at its
   path, ready to change and publish again.
+- **Skills from elsewhere.** Under **Skills** in the menu (`/skills`) a person
+  adds a skill collection by URL: a GitHub repository (or a folder or file in
+  one), or a `SKILL.md` at any https address. The server fetches each
+  `SKILL.md` (or the README, when there are none) through its egress guard,
+  public addresses only and size-capped, and keeps it with its name,
+  description, version, licence and when it was fetched. Each skill's page
+  shows the whole file; **Refresh** fetches the source again and says what was
+  added, changed and removed, and **Remove** deletes it. A person's sources
+  are their own; the ones an admin adds are seen by everyone.
 
 `slipdock tools publish <folder>` publishes one, or upload its `.tar.gz` under
 **Publish a Tool** on the Tools page (a Tool's own page takes its next

@@ -167,6 +167,28 @@ defmodule SlipdockWeb.AllFieldsTest do
         by: "board"
       })
 
+    # A skill entry, for its page (#2061): stored as a fetch would, without one.
+    {:ok, source} =
+      %Slipdock.SkillRegistry.Source{owner_id: admin.id}
+      |> Slipdock.SkillRegistry.Source.changeset(%{
+        url: "https://github.com/octo/skills",
+        kind: "github",
+        name: "octo/skills",
+        fetched_at: DateTime.utc_now(:second)
+      })
+      |> Slipdock.Repo.insert()
+
+    {:ok, entry} =
+      %Slipdock.SkillRegistry.Entry{source_id: source.id}
+      |> Slipdock.SkillRegistry.Entry.changeset(%{
+        path: "a/SKILL.md",
+        name: "a",
+        body: "---\nname: a\n---\nSteps.",
+        content_hash: "0",
+        fetched_at: DateTime.utc_now(:second)
+      })
+      |> Slipdock.Repo.insert()
+
     # Something shared with the admin, for Shared with me.
     owner = user_fixture("af.owner@example.com")
     theirs = board_fixture(%{"name" => "Theirs"}, owner: owner)
@@ -194,6 +216,7 @@ defmodule SlipdockWeb.AllFieldsTest do
       "/drawings/:kind/:id" => "/drawings/page/#{drawing.id}",
       "/multiboard/:id" => "/multiboard/#{mb.id}",
       "/tools/:slug" => "/tools/#{name}",
+      "/skills/entries/:id" => "/skills/entries/#{entry.id}",
       "/shared/folders/:id" => "/shared/folders/#{folder.id}",
       "/shared/pages/:id" => "/shared/pages/#{shared.id}",
       "/shared/pages/:id/edit" => "/shared/pages/#{shared.id}/edit",

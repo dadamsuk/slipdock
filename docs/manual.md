@@ -7617,6 +7617,32 @@ listed sees the approved version and no newer one until that is approved
 too. `list_tools` and `slipdock tools` give each Tool's `kind`: `mine`,
 `shared` or `listed`.
 
+### Skills from elsewhere
+
+Skills are published outside Slipdock too, usually as a GitHub repository of
+`SKILL.md` files. The **Skills** page (`/skills`, under Set up in the menu)
+keeps the ones a person points the server at (#2059, spec W-2513).
+
+- **Add a source** by its URL: a GitHub repository
+  (`https://github.com/owner/repo`), a folder in one (`…/tree/main/skills`),
+  one file in one (`…/blob/main/x/SKILL.md`), or a `SKILL.md` at any https
+  address. The server fetches every `SKILL.md` under it, or its README when
+  there is none, and keeps each as a skill with its front matter's name and
+  description, the commit (or ETag) as its version, the repository's licence
+  and when it was fetched. The fetch goes through the server's egress guard:
+  only public addresses, no redirects, at most 256 KB a file and 50 skills a
+  source. What it left out (a file too big, a `SKILL.md` with no name) is
+  listed under the source, and a source with nothing readable is refused,
+  with the reason as a sentence.
+- **Read a skill** in full on its own page, front matter and all, as fetched
+  and unrendered: it is instructions an agent may follow.
+- **Refresh** fetches the source again and says which skills were added,
+  changed and removed. A failed refresh leaves the source as it was.
+  **Remove** deletes the source and its skills.
+- **Whose.** A source is its adder's alone, who alone refreshes or removes it.
+  The ones listed under *On this server* are seeds an admin added, seen by
+  everyone and changed only by an admin.
+
 ## Skills
 
 > Setting an agent up — the address, the approval, the skills — is
