@@ -147,7 +147,7 @@ defmodule SlipdockCLI.Render do
 
     if b["owner"], do: IO.puts(dim("owner: " <> owner_name(b)))
     # What in this tree waits on you (#2095).
-    if n = waiting_count(b), do: IO.puts("Waiting on you: #{n}  " <> dim("slipdock work"))
+    waiting_count_line(b)
 
     lanes_lines(b)
 
@@ -175,10 +175,7 @@ defmodule SlipdockCLI.Render do
          Enum.map(pages, &{&1["board_position"], 1, {:page, &1}}))
       |> Enum.sort()
       |> Enum.each(fn
-        {_, _, {:card, card}} ->
-          IO.puts("  " <> card_line(card, false))
-          # An epic's glance line (#2095): what in its tree waits on you.
-          if line = waiting_line(card), do: IO.puts("        ⏸ " <> line)
+        {_, _, {:card, card}} -> board_card(card)
 
         {_, _, {:page, page}} ->
           IO.puts("  " <> page_line(page))
@@ -197,11 +194,21 @@ defmodule SlipdockCLI.Render do
 
   # `waiting_on_me` (#2095): the tree's count when anything is on you, and
   # an epic's glance line when anything waits in its tree.
-  defp waiting_count(%{"waiting_on_me" => %{"count" => n}}) when is_integer(n) and n > 0, do: n
-  defp waiting_count(_), do: nil
+  defp waiting_count_line(%{"waiting_on_me" => %{"count" => n}}) when is_integer(n) and n > 0,
+    do: IO.puts("Waiting on you: #{n}  " <> dim("slipdock work"))
 
-  defp waiting_line(%{"waiting_on_me" => %{"line" => line}}) when is_binary(line), do: line
-  defp waiting_line(_), do: nil
+  defp waiting_count_line(_), do: :ok
+
+  # A card in `slipdock board`'s lists, with an epic's glance line under it.
+  defp board_card(card) do
+    IO.puts("  " <> card_line(card, false))
+    waiting_line(card, "        ⏸ ")
+  end
+
+  defp waiting_line(%{"waiting_on_me" => %{"line" => line}}, prefix) when is_binary(line),
+    do: IO.puts(prefix <> line)
+
+  defp waiting_line(_, _prefix), do: :ok
 
   defp page_line(p) do
     facets = page_facets(p)
@@ -1418,7 +1425,7 @@ defmodule SlipdockCLI.Render do
     end
 
     # What in its tree waits on you (#2095), and on others.
-    if line = waiting_line(c), do: IO.puts(line)
+    waiting_line(c, "")
 
     if r = c["rollup"] do
       field(

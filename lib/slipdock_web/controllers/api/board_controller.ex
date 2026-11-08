@@ -130,16 +130,16 @@ defmodule SlipdockWeb.API.BoardController do
 
     json
     |> Map.put(:waiting_on_me, SlipdockWeb.API.WaitingJSON.tree(tree))
-    |> Map.update!(:columns, fn cols ->
-      Enum.map(cols, fn col ->
-        Map.update!(
-          col,
-          :cards,
-          &SlipdockWeb.API.WaitingJSON.put_on_cards(&1, tree, fn c -> c.sub_board != nil end)
-        )
-      end)
-    end)
+    |> Map.update!(:columns, fn cols -> Enum.map(cols, &waiting_column(&1, tree)) end)
   end
+
+  defp waiting_column(col, tree),
+    do:
+      Map.update!(col, :cards, fn cards ->
+        SlipdockWeb.API.WaitingJSON.put_on_cards(cards, tree, &epic?/1)
+      end)
+
+  defp epic?(card), do: card.sub_board != nil
 
   def create(conn, params) do
     attrs =

@@ -373,8 +373,18 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
      )}
   end
 
+  # The two switches as a form (#2095), from the saved person.
+  defp notice_form(user) do
+    to_form(
+      %{"waiting_alerts" => user.waiting_alerts, "waiting_emails" => user.waiting_emails},
+      as: :notice
+    )
+  end
+
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, notice_form: notice_form(assigns.current_user))
+
     ~H"""
     <div class="space-y-8">
       <section
@@ -415,28 +425,27 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
           A question addressed to you, or a card of yours past its board's rejection limit.
           It is on My work's Waiting on you either way.
         </p>
-        <form
+        <.form
+          for={@notice_form}
           id="waiting-notice-form"
           phx-submit="save_waiting_notice"
           phx-target={@myself}
           class="mt-4 space-y-2"
         >
           <.input
+            field={@notice_form[:waiting_alerts]}
             type="checkbox"
             id="waiting-alerts"
-            name="notice[waiting_alerts]"
             label="Alert me in the header"
-            checked={@current_user.waiting_alerts}
           />
           <.input
+            field={@notice_form[:waiting_emails]}
             type="checkbox"
             id="waiting-emails"
-            name="notice[waiting_emails]"
             label="Email me"
-            checked={@current_user.waiting_emails}
           />
           <button type="submit" class="btn btn-primary btn-sm">Save</button>
-        </form>
+        </.form>
       </section>
 
       <%!-- What a card shows (#2031): the editor is a page of its own. --%>

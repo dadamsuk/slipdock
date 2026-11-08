@@ -1350,12 +1350,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       loop: loop_on_face?(on, card),
       start_date: on.("start_date") and not is_nil(Slipdock.Boards.Card.effective_start(card)),
       due_date: on.("due_date") and not is_nil(Slipdock.Boards.Card.effective_due(card)),
-      # The glance line takes the percentage's place while it shows (#2095).
-      percent: on.("percent_complete") and not is_nil(card.percent_complete) and is_nil(glance),
-      # What in an epic's tree waits on the reader (#2095): the chip counts
-      # only what is on them; the line names it, and what is on others.
-      waiting_chip: waiting.mine != [],
-      waiting_line: not is_nil(glance),
+      percent: on.("percent_complete") and not is_nil(card.percent_complete),
       time: on.("time") and TimeTracking.tracked?(card),
       dependencies: on.("dependencies") and (card.blocks != [] or card.blocked_by != []),
       subcards: on.("subcards") and not is_nil(card.sub_board),
@@ -1370,6 +1365,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     }
 
     facets = Map.merge(facets, card_marks(on, card, note_mode))
+    facets = waiting_marks(facets, waiting, glance)
 
     # Start and due, both shown and both set, draw as one range (#1708).
     facets =
@@ -1691,6 +1687,17 @@ defmodule SlipdockWeb.SlipdockComponents do
       </div>
     </div>
     """
+  end
+
+  # What in an epic's tree waits on the reader (#2095): the chip counts only
+  # what is on them; the line names it, and what is on others, and takes the
+  # percentage's place while it shows.
+  defp waiting_marks(facets, waiting, glance) do
+    Map.merge(facets, %{
+      percent: facets.percent and is_nil(glance),
+      waiting_chip: waiting.mine != [],
+      waiting_line: not is_nil(glance)
+    })
   end
 
   # What the board page put on the card for the tile (#2095); nothing
