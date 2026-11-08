@@ -451,6 +451,26 @@ defmodule Slipdock.Handbook do
   end
 
   @doc """
+  `blueprint` with its repeating cards put in `board`'s Scheduled list, when
+  it has one (#2100) and the card names no list of its own: recurring agent
+  work lands there, out of the ready list, for feed rules to work. A board
+  without one leaves them to the ready list, as before.
+  """
+  def scheduled_cards(%{"cards" => cards} = blueprint, %Board{} = board) do
+    case Boards.scheduled_column(board) do
+      nil -> blueprint
+      column -> %{blueprint | "cards" => Enum.map(cards, &into_list(&1, column.name))}
+    end
+  end
+
+  def scheduled_cards(blueprint, _board), do: blueprint
+
+  defp into_list(%{"repeat" => repeat} = card, name) when not is_nil(repeat),
+    do: Map.put_new(card, "list", name)
+
+  defp into_list(card, _name), do: card
+
+  @doc """
   Installs the handbook on `board`'s root board for `user`, who must be able
   to write to it. Installing again adds only what is missing — a page somebody
   deleted, a folder — and never touches a page that is there.
@@ -464,7 +484,7 @@ defmodule Slipdock.Handbook do
     with :ok <- can_write(user, root) do
       created = is_nil(find(root))
 
-      case Blueprint.apply(root, blueprint(),
+      case Blueprint.apply(root, scheduled_cards(blueprint(), root),
              user: user,
              message: "installed by the Handbook Tool, #{@version}"
            ) do

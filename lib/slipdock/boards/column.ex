@@ -13,7 +13,10 @@ defmodule Slipdock.Boards.Column do
     {"dropped", "Dropped"},
     # Filed for a person to look at (#1793): no ready list, feed or rule's
     # runner action takes work from it.
-    {"triage", "Triage"}
+    {"triage", "Triage"},
+    # Where recurring agent work lands (#2100): worked by feed rules, never
+    # the ready list a person or an agent asked "what next" takes from.
+    {"scheduled", "Scheduled"}
   ]
 
   schema "columns" do
@@ -63,6 +66,9 @@ defmodule Slipdock.Boards.Column do
 
   def triage?(%__MODULE__{category: "triage"}), do: true
   def triage?(_), do: false
+
+  def scheduled?(%__MODULE__{category: "scheduled"}), do: true
+  def scheduled?(_), do: false
 
   @doc "Whether the list stands for a date range."
   def horizon?(%__MODULE__{horizon_from: from, horizon_to: to}),

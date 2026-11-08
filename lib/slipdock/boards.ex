@@ -619,7 +619,11 @@ defmodule Slipdock.Boards do
   def create_board(attrs, opts \\ []) do
     template = opts[:template]
     custom = custom_columns(opts[:columns])
-    columns = custom || (template && template.columns) || @default_columns
+
+    columns =
+      (custom || (template && template.columns) || @default_columns)
+      |> without_scheduled(opts[:parent_card_id])
+
     attrs = attrs |> put_code() |> put_shortcut(nil, opts)
 
     result =
@@ -665,6 +669,18 @@ defmodule Slipdock.Boards do
         {:error, changeset}
     end
   end
+
+  # A template's Scheduled list (#2100) is for a root board, where the
+  # recurring agent work lands: an epic's or a sprint's sub-board made from
+  # the same template leaves it out.
+  defp without_scheduled(columns, nil), do: columns
+
+  defp without_scheduled(columns, _parent_card_id),
+    do: Enum.reject(columns, &(column_category(&1) == "scheduled"))
+
+  defp column_category(%{"category" => category}), do: category
+  defp column_category(%{category: category}), do: category
+  defp column_category(_), do: nil
 
   defp apply_template_extras(board, template, owner_id) do
     user = owner_id && Repo.get(Slipdock.Accounts.User, owner_id)
@@ -1528,6 +1544,20 @@ defmodule Slipdock.Boards do
     end
   end
 
+  @doc """
+  `board`'s Scheduled list (category `scheduled`, #2100), where recurring
+  agent work lands, or nil.
+  """
+  def scheduled_column(%Board{id: board_id}) do
+    Repo.one(
+      from(c in Column,
+        where: c.board_id == ^board_id and c.category == "scheduled",
+        order_by: [asc: c.position, asc: c.id],
+        limit: 1
+      )
+    )
+  end
+
   def create_column(%Board{} = board, attrs) do
     position = next_position(from(c in Column, where: c.board_id == ^board.id))
 
@@ -1537,6 +1567,7 @@ defmodule Slipdock.Boards do
     |> tap_ok(fn col ->
       log(Repo, board.id, nil, "column", "added list “#{col.name}”")
       broadcast(board.id)
+      if Column.scheduled?(col), do: scheduled_feeds(col)
     end)
   end
 
@@ -1545,6 +1576,24 @@ defmodule Slipdock.Boards do
     |> Column.changeset(attrs)
     |> Repo.update()
     |> tap_ok(&broadcast(&1.board_id))
+    |> tap_ok(fn col ->
+      if Column.scheduled?(col) and not Column.scheduled?(column), do: scheduled_feeds(col)
+    end)
+  end
+
+  # A list that has just become the board's Scheduled list (#2100): the
+  # ready list's feeds get a sibling working it. A sibling that can't be
+  # made (the board is at its rule limit) leaves the list as it is.
+  defp scheduled_feeds(%Column{board_id: board_id}) do
+    case Slipdock.Automations.ScheduledFeed.ensure(board_id) do
+      {:ok, _made} ->
+        :ok
+
+      {:error, message} ->
+        require Logger
+        Logger.warning("Scheduled feeds on board #{board_id}: #{message}")
+        :ok
+    end
   end
 
   def delete_column(%Column{} = column) do

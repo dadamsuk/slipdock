@@ -195,7 +195,10 @@ Briefly, with the detail in [the manual](docs/manual.md):
   next is due has its due date moved on rather than six piling up. **Repeat…**
   on the card, `every: mon` in quick add, `slipdock repeat 12 "every mon"`,
   `PUT /api/cards/:id/recurrence` or MCP `update_card`. **Duplicate** makes the
-  same copy by hand.
+  same copy by hand. A board's **Scheduled** list (category `scheduled`; the
+  Slipdock and Simple templates have one) is where recurring agent work lands:
+  feed rules send each card to the runners on its day, nobody picks from it,
+  and one not started by the end of its day is on your Waiting on you.
 - **Snooze** — [hide a card until a day](docs/manual.md#snoozing-cards) and have
   it come back at the top of its list: one keystroke (`z`, `z z` for tomorrow)
   takes a card that isn't actionable yet out of the lists, My work and the

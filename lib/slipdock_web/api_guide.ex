@@ -1618,8 +1618,9 @@ defmodule SlipdockWeb.APIGuide do
     first, each with its reason and how long it has waited — open waits on
     you or on anyone on your cards, your cards flagged `review` or
     `waiting`, cards the runner gave up on or whose newest job failed on
-    boards you own, and cards in a doing list for over an hour with nobody
-    on them — then `sections`, your cards by when they are due. The
+    boards you own, cards in a doing list for over an hour with nobody
+    on them, and cards still in a Scheduled list after the end of their due
+    day (`scheduled_missed`) — then `sections`, your cards by when they are due. The
     overseer's open conditions (reason `overseer`, each with its
     `condition`: `check`, `why`, `todo`) come first; cards on a *Getting
     Started* tour board never come at all. `GET /api/me` and `whoami` carry
@@ -1814,7 +1815,9 @@ defmodule SlipdockWeb.APIGuide do
     that many days before it is due), `on_missed` (`bump`, the default: an
     instance still open has its due date moved on; `skip`; or `stack`),
     `ends` (`never`, `on` with `ends_on`, `after` with `count`), `column`
-    and `paused`. Only `rule` is needed to start one; a card with no due
+    (the list each one is made in: without it, the board's Scheduled list
+    when it has one, else its ready list) and `paused`. Only `rule` is
+    needed to start one; a card with no due
     date becomes the first occurrence. `GET` reads it (from an older
     instance too, with `current: false`), `DELETE` stops it, and
     `POST …/recurrence/skip` lets the next one go. Every occurrence keeps the
@@ -3830,6 +3833,13 @@ defmodule SlipdockWeb.APIGuide do
     The name in backticks after each board is its `code` — the short name for
     it, and the one to use when you address a board by anything but its id.
 
+    **Never take work from a Scheduled list.** A list marked `scheduled`
+    (category `scheduled`) is where recurring agent work lands: a recurring
+    card's next one is made there. Feed rules work it, sending its top card
+    to a runner pool. People don't, and nor does an agent asked what to do
+    next: it is never the ready list or the backlog, and the boards below
+    mark it `scheduled: worked by feed rules`.
+
     Sub-boards are not listed here — they hang off their epic's `sub_board`.
     #{archived_note(archived, limit && @short_archived)}
     """
@@ -4309,10 +4319,20 @@ defmodule SlipdockWeb.APIGuide do
 
   defp role_note(columns, col) do
     case role(columns, col) do
-      nil when col.category == "triage" -> "triage: for a person, never take work from it"
-      nil -> "uncategorised"
-      role when is_binary(col.category) and col.category != "" -> role
-      role -> "#{role} by name only"
+      nil when col.category == "triage" ->
+        "triage: for a person, never take work from it"
+
+      nil when col.category == "scheduled" ->
+        "scheduled: worked by feed rules, never take work from it"
+
+      nil ->
+        "uncategorised"
+
+      role when is_binary(col.category) and col.category != "" ->
+        role
+
+      role ->
+        "#{role} by name only"
     end
   end
 
@@ -4323,7 +4343,7 @@ defmodule SlipdockWeb.APIGuide do
   """
   def role(columns, %Column{} = col) do
     cond do
-      col.category == "triage" -> nil
+      Enum.member?(~w(triage scheduled), col.category) -> nil
       Enum.member?(~w(todo doing done dropped), col.category) -> col.category
       named?(col, ["in progress", "doing", "wip", "started", "active"]) -> "doing"
       named?(col, ["done", "complete", "shipped", "finished"]) -> "done"
@@ -4331,8 +4351,9 @@ defmodule SlipdockWeb.APIGuide do
       named?(col, todo_names() ++ backlog_names()) -> "todo"
       # An uncategorised list on a board that has no categories at all: assume
       # work can come from it, since the board offers nothing better.
-      # A Triage list (#1793) doesn't count: installing one keeps that reading.
-      Enum.all?(columns, &Enum.member?([nil, "", "triage"], &1.category)) -> "todo"
+      # A Triage list (#1793) or a Scheduled one (#2100) doesn't count:
+      # adding one keeps that reading.
+      Enum.all?(columns, &Enum.member?([nil, "", "triage", "scheduled"], &1.category)) -> "todo"
       true -> nil
     end
   end
@@ -4340,15 +4361,17 @@ defmodule SlipdockWeb.APIGuide do
   @doc """
   Which of a board's lists plays which part, by the same reading the guide
   gives under "Your boards right now": the ready list work is taken from, the
-  backlog behind it, the list in progress and the one for done work. Any of
-  them may be nil.
+  backlog behind it, the list in progress and the one for done work, and the
+  Scheduled list recurring agent work lands in (#2100), which is never the
+  ready list. Any of them may be nil.
   """
   def list_roles(columns) do
     %{
       ready: ready_list(columns),
       backlog: backlog_list(columns),
       doing: list_of_role(columns, :doing),
-      done: list_of_role(columns, :done)
+      done: list_of_role(columns, :done),
+      scheduled: Enum.find(columns, &Column.scheduled?/1)
     }
   end
 

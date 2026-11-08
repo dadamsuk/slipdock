@@ -177,7 +177,9 @@ defmodule Slipdock.Work do
       overseer(owned) ++
         circling(owned) ++
         waits_on(user, owned, assigned) ++
-        awaiting(owned) ++ flagged(user, now) ++ job_trouble(owned) ++ unowned(owned, now)
+        awaiting(owned) ++
+        flagged(user, now) ++
+        job_trouble(owned) ++ unowned(owned, now) ++ scheduled_missed(owned, user, now)
 
     cards =
       candidates
@@ -294,7 +296,7 @@ defmodule Slipdock.Work do
   def waiting_count(%User{} = user, opts \\ []),
     do: user |> waiting_on_me(Keyword.put(opts, :paths, false)) |> length()
 
-  @reasons ~w(overseer circling wait wait_anyone verify review waiting gave_up failed needs_owner)
+  @reasons ~w(overseer circling wait wait_anyone verify review waiting gave_up failed needs_owner scheduled_missed)
   defp rank(%{reason: reason}), do: Enum.find_index(@reasons, &(&1 == reason))
 
   @doc "The reasons an item can have, in the order one card's are chosen from."
@@ -319,6 +321,9 @@ defmodule Slipdock.Work do
 
   defp reason_text(%{reason: "failed", job: j}), do: "Job ##{j.id} failed"
   defp reason_text(%{reason: "needs_owner"}), do: "In progress with nobody on it"
+
+  defp reason_text(%{reason: "scheduled_missed", due: due}),
+    do: "Scheduled for #{Calendar.strftime(due, "%a %-d %b")}, not started"
 
   # The root boards `user` owns, kept to `roots` when given.
   defp owned_roots(user, roots) do
@@ -511,6 +516,34 @@ defmodule Slipdock.Work do
     |> Slipdock.Snooze.not_snoozed(now)
     |> Repo.all()
     |> Enum.map(fn {id, at} -> %{card_id: id, reason: "needs_owner", since: at} end)
+  end
+
+  # A card left in a Scheduled list (#2100) past the end of its due day, in
+  # its board owner's time zone: whatever was to take it from there didn't.
+  defp scheduled_missed([], _user, _now), do: []
+
+  defp scheduled_missed(owned, user, now) do
+    zone = user.timezone || "Etc/UTC"
+    today = Slipdock.Timezones.today(zone, now)
+
+    from(c in Card,
+      join: col in Column,
+      on: col.id == c.column_id and col.category == "scheduled",
+      where: not is_nil(c.due_date) and c.due_date < ^today,
+      select: {c.id, c.due_date}
+    )
+    |> in_trees(owned)
+    |> live()
+    |> Slipdock.Snooze.not_snoozed(now)
+    |> Repo.all()
+    |> Enum.map(fn {id, due} ->
+      %{
+        card_id: id,
+        reason: "scheduled_missed",
+        due: due,
+        since: Slipdock.Timezones.to_utc(Date.add(due, 1), ~T[00:00:00], zone)
+      }
+    end)
   end
 
   defp load_cards([]), do: %{}

@@ -405,6 +405,20 @@ sweep --board B`, or `install_tool` with `tool: "sweep"`) files what it finds
 there for a person to triage, one area and one lens a night; nothing feeds a
 runner from it. See [the manual](manual.md#tools).
 
+Never take work from a **Scheduled** list either (category `scheduled`; the
+guide marks it `scheduled: worked by feed rules`). It is where recurring agent
+work lands: a recurring card's next instance is made there when the board has
+one and the series names no list of its own, and the Sweep and Handbook Tools
+put their daily cards there. Feed rules work it: each `list_top` rule on the
+ready list gets a sibling on Scheduled with the same pool when the list is
+made or given the category, so a card from it comes to an agent only as a job.
+`list_boards` names it as `scheduled` beside `ready` and `done`, and a card
+still there after the end of its due day is on its board owner's Waiting on
+you (`scheduled_missed`). Set the category with `slipdock new-column B
+Scheduled --category scheduled` (or `set-column`), `POST|PATCH
+/api/boards/:board/columns` or MCP `create_list`. See [the
+manual](manual.md#recurring-cards).
+
 Agents propose handbook edits rather than make them, where a rule or a
 decision is concerned: `POST /api/boards/:board/garden/proposals` (`slipdock
 garden propose <board> <file.json | ->`) files an open suggestion of check

@@ -190,7 +190,8 @@ way in: what it is, the pictures, and how to get it running.
 - Calendar view (`/boards/:id/calendar`): a month or week with cards on their
   due dates, drag between days, quick add on a day
 - Roadmapping: lists can carry a **category** (to do / in progress / done /
-  dropped, or triage for work nothing feeds to the loop) and a **horizon** (a date range such as Q1 2027) that schedules
+  dropped, triage for work nothing feeds to the loop, or scheduled for
+  recurring agent work its feed rules work) and a **horizon** (a date range such as Q1 2027) that schedules
   cards dropped into them; cards can be scheduled by day, week, month,
   quarter, half-year or year; **milestones** are drawn on the timeline and
   calendar; the timeline draws **dependency lines**, red where the dates
@@ -1518,7 +1519,8 @@ first, each with why and for how long: open waits on you (a routed question
 among them), and on anyone on cards you own or are assigned; your cards flagged `review` or `waiting`;
 cards the runner gave up on, or whose newest job failed, on boards you own;
 and, for a board's owner, cards in an in-progress list for over an hour with
-nobody on them. A wait's choices and answer box are right there. The header
+nobody on them, and cards still in a [Scheduled](#recurring-cards) list after
+the end of their due day. A wait's choices and answer box are right there. The header
 shows how many on every page (refreshed within a minute; on a laptop the count
 is in the alerts bell's, and its panel's first row comes here), `slipdock whoami`
 and `GET /api/me` carry it as `waiting_on_you`, and `slipdock work`, `GET
@@ -1872,7 +1874,8 @@ being skipped.
 
 **When the next one is made.** Each instance is made at its time, in the
 series' timezone, on the day it is due (or the days early you set), copied to
-the top of the board's ready list (or the list you named):
+the top of the list you named, else the board's **Scheduled** list when it
+has one, else its ready list:
 
 - title, description, priority, cover, tags, the estimate, and on a board
   that verifies work the bar's text, the paths and the profile come along;
@@ -1897,6 +1900,35 @@ is one card, not six. *Skip this one* (`skip`) leaves it alone and lets the
 occurrence go; *Make another anyway* (`stack`) makes the new one regardless —
 right for timesheets. A server that was down catches up once, to the latest
 occurrence, never one per missed date.
+
+**The Scheduled list.** A list in the `scheduled` category is where
+recurring agent work lands: the nightly sweep, the handbook's reconcile and
+triage, anything a runner should do on a day. Nobody picks from it, people
+or agents. The agent guide never reads it as the ready list (it shows it as
+`scheduled: worked by feed rules, never take work from it`), so the daily
+cards no longer push in above your own To Do. Its *Work a list with a
+runner* rules (`list_top`) send each card to the runners on its day:
+
+- the stock **Slipdock** and **Simple** templates have one, called
+  Scheduled, after To Do; a sub-board made from them (an epic's, a
+  sprint's) leaves it out;
+- any list can be given the category from its menu, `slipdock set-column B
+  Scheduled --category scheduled`, `PATCH /api/boards/:board/columns/:id
+  {"category": "scheduled"}` or MCP `create_list`;
+- when a list becomes the Scheduled list, each *Work To Do with the … runners*
+  rule on the ready list gets a sibling, *Work Scheduled with the … runners*,
+  with the same pool and settings, and setting up a runner that works the
+  ready list adds one too. A pool with a rule on Scheduled already gets no
+  second;
+- the Sweep and Handbook Tools put their daily cards there when the board
+  has one;
+- a Scheduled card still there after the end of its due day (in the board
+  owner's time zone) means its feed didn't take it: it comes onto the owner's
+  **Waiting on you** as *Scheduled for Sun 8 Nov, not started*
+  (`scheduled_missed`). Its time in the list is never "over usual", and the
+  gardener's stale and abandoned checks leave it alone.
+
+A series with a list of its own still uses that list.
 
 **After done.** An after-done series makes nothing until its current instance
 is completed; then the next is due that long after the day it was done (in
@@ -7942,7 +7974,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `status_update` | Posts a status update on a card, as `POST /api/cards/:id/status` does: its `health` (`on_track`, `at_risk`, `off_track`) and an optional `body`. The latest is the card's stated health. |
 | `archive_card` | Puts a card away, or with `restore: true` brings it back. |
 | `delete_card` | Deletes a card with its subcards, comments and files. Needs `confirm: true`. |
-| `create_list` | A list at the end of a board, with its category (`todo`, `doing`, `done`, `dropped`, or `triage` for a list nothing feeds from) and an optional WIP limit. |
+| `create_list` | A list at the end of a board, with its category (`todo`, `doing`, `done`, `dropped`, `triage` for a list nothing feeds from, or `scheduled` for where recurring agent work lands) and an optional WIP limit. |
 | `create_tag` | A tag on a board (on its root, so the whole tree shares it), with an optional colour. A tag of that name already there comes back with `created: false` rather than a second one. |
 | `delete_list` | Deletes an empty list; one holding cards only with `with_cards: true`. |
 | `create_board` | A board of your own, with a template's lists (Backlog, To Do, In Progress, Done by default), or `lists` of its own that `save_template` can keep as a new template. |

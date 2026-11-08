@@ -197,7 +197,7 @@ defmodule Slipdock.Sweep do
     with :ok <- can_write(user, root) do
       created = is_nil(find(root))
 
-      case Blueprint.apply(root, blueprint(areas(root)),
+      case Blueprint.apply(root, Handbook.scheduled_cards(blueprint(areas(root)), root),
              user: user,
              message: "installed by the Sweep Tool, #{@version}"
            ) do

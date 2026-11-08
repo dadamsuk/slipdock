@@ -267,6 +267,11 @@ Never take a card from a **Triage** list (category `triage`, which the guide
 marks `triage: for a person`), even when it is the only list with cards: a
 code sweep files there for a person to triage, and they move what is worth
 doing into the ready list.
+Nor from a **Scheduled** list (category `scheduled`, which the guide marks
+`scheduled: worked by feed rules`): recurring agent work lands there, and its
+feed rules send each card to a runner on its day. A pass asked what to do next
+never takes from it, even when the ready list is empty; a card from it comes
+to a pass only as a job.
 
 Read the whole card before touching it: `slipdock card <id>` for the description,
 checklist, comments, dependencies, links and whether it has subcards. The

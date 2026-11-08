@@ -194,8 +194,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
       <p>
         <.app_link current_user={@current_user} to={~p"/work"}>My work</.app_link>
         opens with everything that needs you, oldest first: questions waiting on you, cards
-        flagged for your review, failed runner jobs and cards in progress with nobody on them,
-        on the boards you own. The header counts them on every page.
+        flagged for your review, failed runner jobs, cards in progress with nobody on them and
+        Scheduled cards not started by the end of their day, on the boards you own. The header counts them on every page.
       </p>
       <p>
         Some of them you won't act on. The <strong>×</strong>
@@ -292,7 +292,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
           and velocity charts.
         </li>
         <li>
-          <strong>Roadmaps</strong>: give lists a category (to do, in progress, done, dropped)
+          <strong>Roadmaps</strong>: give lists a category (to do, in progress, done, dropped,
+          triage, scheduled)
           and a horizon such as Q1 2027; add milestones; colour any view by list, priority,
           health, assignee or tag.
         </li>
@@ -302,7 +303,12 @@ defmodule SlipdockWeb.HelpLive.Guides do
           in quick add) makes it repeat: daily, weekdays, weekly, monthly on a date or the
           last Friday, yearly, or some days after the last one is done. The next one is a copy
           of the current one, made in your timezone, and one still open has its due date moved
-          on rather than another piling up. <em>Duplicate</em>
+          on rather than another piling up. On a board with a <strong>Scheduled</strong>
+          list (a list in the <em>Scheduled</em>
+          category; the Slipdock and Simple templates have one, after To Do) the next one is
+          made there unless you chose a list: recurring agent work waits there for the runners'
+          rules to send it on its day, out of your To Do, and nobody picks from it. One still
+          there after its day is on your <em>Waiting on you</em>. <em>Duplicate</em>
           makes the same copy by hand.
         </li>
         <li>
