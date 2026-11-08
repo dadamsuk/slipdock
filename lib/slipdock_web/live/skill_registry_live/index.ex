@@ -187,7 +187,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
   defp with_enablement(socket, id, fun) do
     notice =
       with {id, ""} <- Integer.parse(to_string(id)),
-           %{} = e <- SkillRegistry.get_enablement(id) do
+           %{} = e <- SkillRegistry.get_enablement(socket.assigns.current_user, id) do
         fun.(e)
       else
         _ -> {:error, "That skill is no longer enabled there."}

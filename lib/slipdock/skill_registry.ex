@@ -179,7 +179,7 @@ defmodule Slipdock.SkillRegistry do
   defdelegate naming(user, name), to: Pins
   defdelegate enabled_where(user, entry), to: Pins
   defdelegate writable_boards(user), to: Pins
-  defdelegate get_enablement(id), to: Pins
+  defdelegate get_enablement(user, id), to: Pins
 
   ## The fetch -------------------------------------------------------------
 

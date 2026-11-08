@@ -143,6 +143,29 @@ defmodule SlipdockWeb.SkillRegistryPinsLiveTest do
     assert has_element?(view, "#skill-entry-notice", "no longer enabled there")
   end
 
+  test "somebody who can't read the board learns nothing from a guessed id", %{
+    user: user,
+    entry: entry,
+    board: board
+  } do
+    {:ok, e} = SkillRegistry.enable(user, board, entry.id, entry.content_hash)
+    outsider = user_fixture("pins-live-outsider@example.com")
+    SkillRegistryStub.put("octo/seed", %{files: %{"s/SKILL.md" => skill("grilling")}})
+    {:ok, %{entries: [seed]}} = SkillRegistry.add_source(nil, "https://github.com/octo/seed")
+
+    {:ok, view, _html} = live(log_in_user(build_conn(), outsider), ~p"/skills/entries/#{seed.id}")
+
+    for event <- ["disable", "repin"] do
+      render_click(view, event, %{"id" => e.id, "hash" => entry.content_hash})
+      notice = view |> element("#skill-entry-notice") |> render()
+      assert notice =~ "That skill is no longer enabled there."
+      refute notice =~ "Plans"
+    end
+
+    assert [%{pinned_hash: hash}] = SkillRegistry.enabled(board)
+    assert hash == entry.content_hash
+  end
+
   describe "the stages that name a skill" do
     setup %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)

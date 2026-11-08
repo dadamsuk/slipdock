@@ -39,12 +39,13 @@ defmodule Slipdock.SkillRegistry.Enablement do
     :version,
     :pinned_hash,
     :pinned_body,
-    :pinned_at,
-    :entry_id,
-    :enabled_by_id
+    :pinned_at
   ]
 
-  @doc "The fields a pin sets."
+  @doc """
+  The fields a pin sets. The board, the entry and who pinned it are never
+  cast: `Slipdock.SkillRegistry.Pins` puts them on the struct or as changes.
+  """
   def changeset(enablement, attrs) do
     enablement
     |> cast(attrs, @fields)

@@ -336,6 +336,40 @@ defmodule Slipdock.SkillRegistryPinsTest do
     end
   end
 
+  test "an enablement is found only on a board the user reads", %{
+    user: user,
+    board: board,
+    grilling: grilling
+  } do
+    e = enable!(user, board, grilling)
+    reader = user_fixture("pins-lookup-reader@example.com")
+    {:ok, _} = Access.grant(board, reader, "read", user)
+
+    assert %Enablement{id: id} = SkillRegistry.get_enablement(user, e.id)
+    assert id == e.id
+    assert %Enablement{} = SkillRegistry.get_enablement(reader, e.id)
+    assert SkillRegistry.get_enablement(user_fixture("pins-lookup-out@example.com"), e.id) == nil
+    assert SkillRegistry.get_enablement(user, -1) == nil
+  end
+
+  test "the changeset never casts the board, the entry or who pinned it" do
+    changeset =
+      Enablement.changeset(%Enablement{}, %{
+        name: "x",
+        pinned_hash: "h",
+        pinned_body: "b",
+        pinned_at: DateTime.utc_now(:second),
+        board_id: 1,
+        entry_id: 2,
+        enabled_by_id: 3
+      })
+
+    assert changeset.valid?
+    refute Map.has_key?(changeset.changes, :board_id)
+    refute Map.has_key?(changeset.changes, :entry_id)
+    refute Map.has_key?(changeset.changes, :enabled_by_id)
+  end
+
   test "disabling removes it from the board", %{user: user, board: board, grilling: grilling} do
     enablement = enable!(user, board, grilling)
     assert {:ok, _} = SkillRegistry.disable(user, enablement)

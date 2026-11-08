@@ -86,10 +86,19 @@ defmodule Slipdock.SkillRegistry.Pins do
     |> Enum.filter(&(writer(user, &1) == :ok))
   end
 
-  @doc "An enablement by id, with its board and entry, or nil."
-  @spec get_enablement(integer() | String.t()) :: Enablement.t() | nil
-  def get_enablement(id) do
-    Enablement |> Repo.get(id) |> Repo.preload([:board, entry: :source])
+  @doc """
+  An enablement by id, with its board and entry, on a board `user` reads;
+  nil otherwise, so a guessed id says nothing about a board they can't see.
+  """
+  @spec get_enablement(User.t(), integer() | String.t()) :: Enablement.t() | nil
+  def get_enablement(%User{} = user, id) do
+    with %Enablement{} = e <- Repo.get(Enablement, id),
+         e = Repo.preload(e, [:board, entry: :source]),
+         true <- Access.can_read?(Access.board_permission(user, e.board)) do
+      e
+    else
+      _ -> nil
+    end
   end
 
   @doc """
@@ -132,7 +141,7 @@ defmodule Slipdock.SkillRegistry.Pins do
          :ok <- seen(entry, seen_hash),
          :ok <- free(root, entry) do
       %Enablement{board_id: root.id}
-      |> Enablement.changeset(pin_attrs(entry, user))
+      |> pin(entry, user)
       |> Repo.insert()
       |> saved(entry.name)
     end
@@ -152,7 +161,7 @@ defmodule Slipdock.SkillRegistry.Pins do
          %Entry{} = entry <- enablement.entry || {:error, gone(enablement)},
          :ok <- seen(entry, seen_hash) do
       enablement
-      |> Enablement.changeset(pin_attrs(entry, user))
+      |> pin(entry, user)
       |> Repo.update()
       |> saved(entry.name)
     end
@@ -305,10 +314,16 @@ defmodule Slipdock.SkillRegistry.Pins do
   defp gone(enablement),
     do: "#{enablement.name} has gone from its source, so there is nothing newer to pin."
 
-  defp pin_attrs(entry, user) do
+  # The entry's text now, pinned for `user`; the ids are changes, never cast.
+  defp pin(enablement, entry, user) do
+    enablement
+    |> Enablement.changeset(pin_attrs(entry))
+    |> Ecto.Changeset.put_change(:entry_id, entry.id)
+    |> Ecto.Changeset.put_change(:enabled_by_id, user.id)
+  end
+
+  defp pin_attrs(entry) do
     %{
-      entry_id: entry.id,
-      enabled_by_id: user.id,
       name: entry.name,
       description: entry.description,
       source_name: entry.source.name,
