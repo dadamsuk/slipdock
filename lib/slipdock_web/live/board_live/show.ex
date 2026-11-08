@@ -165,6 +165,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       pulse: board_pulse(board),
       # The delivery numbers (#1134), when the board's delivery metrics are on.
       dora: board_dora(board),
+      # What the runners are doing, for the Right now line (#2103).
+      right_now: board_now(board),
       # The tree's open runner pauses, for the banner (#1116).
       pauses: board_pauses(board),
       # The mute keeping this tree off my Waiting on you, if any (#2069).
@@ -603,6 +605,11 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
+  # The Right now line's counts (#2103), only while Agentic Building is on.
+  defp board_now(board) do
+    if Slipdock.AgenticBuilding.on?(board), do: Slipdock.Now.counts(board)
+  end
+
   defp job_changed(socket, card_id) do
     if match?(%{panel: :card, card: %Card{id: ^card_id}}, socket.assigns),
       do:
@@ -628,7 +635,12 @@ defmodule SlipdockWeb.BoardLive.Show do
     drain_jobs_changed(socket)
 
     {:noreply,
-     socket |> assign(board: Boards.put_states(socket.assigns.board)) |> assign_columns()}
+     socket
+     |> assign(
+       board: Boards.put_states(socket.assigns.board),
+       right_now: board_now(socket.assigns.board)
+     )
+     |> assign_columns()}
   end
 
   # More of a shown job's live log arrived (#1871): its log reads the new lines.
@@ -1428,6 +1440,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         board={@board}
         pulse={@pulse}
         dora={@dora}
+        right_now={@right_now}
         pauses={@pauses}
         waiting_muted={@waiting_muted}
         waiting_filter={@waiting_filter}

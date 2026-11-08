@@ -2253,6 +2253,15 @@ defmodule SlipdockWeb.APIGuide do
       The CLI's `slipdock health <board>`; the board's Health page, linked from
       Runners.
 
+    **Right now** (#2103): `GET /api/boards/:board/now` (or MCP `get_board`
+    `now: true`) says what is happening on the board's tree at this moment:
+    each runner (`online`, `session`) and the jobs it holds with their latest
+    `step`; every card in progress with its `board`, `list`, `parent` epic,
+    state line, `loop` and what `holds` it (`waiting`, `verifying`, `merging`,
+    `blocked`, `review`, `stuck`); the jobs `queued` and why each is `held`;
+    and the `counts`. Read access to the board and its tree's root. The
+    board's Right now page (`/boards/:id/now`) shows the same.
+
     **The overseer** (#2068) watches outcomes rather than plumbing, once its
     root board's owner turns it on. Every minute it checks the tree for work
     going round (`looping`: a second rejection, or a third runner pass of

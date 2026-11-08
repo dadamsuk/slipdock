@@ -16,9 +16,9 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
   def description,
     do:
       "A board's lists in order with a summary of each card, description included. " <>
-        "Board is an id, code or name. Use get_card for a card's comments and checklist. " <>
+        "Board is an id, code or name. get_card has a card's comments and checklist. " <>
         "Or instead: pulse (flow numbers), history (flow by day), runners, dora (delivery), " <>
-        "overseer."
+        "overseer, now."
 
   @impl true
   def input_schema do
@@ -43,6 +43,15 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
             "The overseer instead of the lists (#2068): on or off, its pacing bounds, next " <>
               "pass, last digest, and its open conditions (looping, waiting while idle, slow, " <>
               "idle capacity, no way forward), each with why and what to do."
+        },
+        now: %{
+          type: "boolean",
+          description:
+            "What is happening right now on the board's tree instead of the lists (#2103): " <>
+              "each runner, online or not, and the jobs it holds with their latest step; " <>
+              "every card in progress with its board, list, parent epic, state line and " <>
+              "what holds it (waiting, verifying, merging, blocked, review, stuck); the " <>
+              "jobs queued and why each is held; and the counts."
         },
         history: %{
           type: "boolean",
@@ -119,6 +128,9 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
         Enum.member?([true, "true"], args["overseer"]) ->
           overseer(auth, board)
 
+        Enum.member?([true, "true"], args["now"]) ->
+          right_now(auth, board)
+
         args["pulse"] in [true, "true"] ->
           {:ok,
            %{
@@ -147,6 +159,15 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
          name: board.name,
          overseer: SlipdockWeb.API.OverseerJSON.state(Slipdock.Overseer.state(root))
        }}
+    end
+  end
+
+  # Right now (#2103) names the cards of the whole tree, so it needs read on
+  # the root too, as the overseer does.
+  defp right_now(auth, board) do
+    with {:ok, root} <- Args.refusal(SlipdockWeb.API.NowController.root(auth, board)) do
+      {:ok,
+       Map.merge(%{id: board.id, code: board.code, name: board.name}, Slipdock.Now.snapshot(root))}
     end
   end
 

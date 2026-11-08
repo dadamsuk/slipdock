@@ -307,8 +307,18 @@ defmodule SlipdockWeb.AgenticLive.Index do
               How agents build on this board: what they write before and after the work,
               how it is checked and shipped, and who they ask.
             </:meta>
-            <:actions :if={@can_manage}>
+            <:actions>
+              <%!-- What is happening now (#2103): the runners, the cards in
+                    progress and the queue, live. --%>
               <.link
+                navigate={~p"/boards/#{@board}/now"}
+                id="agentic-now"
+                class="btn btn-ghost btn-sm"
+              >
+                <.icon name="hero-cpu-chip" class="size-4" /> Right now
+              </.link>
+              <.link
+                :if={@can_manage}
                 navigate={~p"/boards/#{@board}/settings?tab=features"}
                 id="agentic-board-settings"
                 class="btn btn-ghost btn-sm"

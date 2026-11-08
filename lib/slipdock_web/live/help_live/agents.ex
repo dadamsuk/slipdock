@@ -292,6 +292,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"See what is happening right now: which runners are doing what, the cards in progress",
+     [
+       {:yes, "GET /api/boards/:id/now"},
+       {:yes, "get_board's now"},
+       {:some, "slipdock runners, slipdock jobs"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "through the CLI or MCP"},
+       {:no, "one way only"}
+     ]},
     {"Record deploys, and read the delivery (DORA) numbers",
      [
        {:yes, "POST /api/deployments, GET /api/boards/:id/dora"},
