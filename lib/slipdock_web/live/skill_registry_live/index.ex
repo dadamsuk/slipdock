@@ -16,6 +16,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
   import SlipdockWeb.SlipdockComponents, only: [timestamp: 1]
 
   alias Slipdock.SkillRegistry
+  alias SlipdockWeb.SkillRegistryLive.Boards
 
   @impl true
   def mount(_params, _session, socket) do
@@ -40,7 +41,8 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
          |> push_navigate(to: ~p"/skills")}
 
       entry ->
-        {:noreply, assign(socket, entry: entry, page_title: entry.name)}
+        {:noreply,
+         socket |> assign(entry: entry, page_title: entry.name, notice: nil) |> load_entry()}
     end
   end
 
@@ -87,6 +89,53 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
     end
   end
 
+  ## An entry on boards (#2062) ----------------------------------------------
+
+  def handle_event("enable", %{"board_id" => board_id, "hash" => hash}, socket),
+    do: {:noreply, enable(socket, board_id, hash)}
+
+  def handle_event("repin", %{"id" => id, "hash" => hash}, socket) do
+    user = socket.assigns.current_user
+
+    {:noreply,
+     with_enablement(socket, id, fn e ->
+       case SkillRegistry.repin(user, e, hash) do
+         {:ok, e} ->
+           {:info, "Re-pinned #{e.name} on #{e.board.name}: its agents get the new text."}
+
+         {:error, message} ->
+           {:error, message}
+       end
+     end)}
+  end
+
+  def handle_event("disable", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    {:noreply,
+     with_enablement(socket, id, fn e ->
+       case SkillRegistry.disable(user, e) do
+         {:ok, _} -> {:info, "Disabled #{e.name} on #{e.board.name}."}
+         {:error, message} -> {:error, message}
+       end
+     end)}
+  end
+
+  defp gone(socket),
+    do: socket |> assign(notice: {:error, "That source has gone."}) |> load()
+
+  defp load(socket) do
+    user = socket.assigns.current_user
+    sources = SkillRegistry.list_sources(user)
+    {seeds, own} = Enum.split_with(sources, &is_nil(&1.owner_id))
+
+    assign(socket,
+      sections: [{"yours", "Yours", own}, {"seeds", "On this server", seeds}],
+      manage: Map.new(sources, &{&1.id, SkillRegistry.can_manage?(user, &1)}),
+      naming: SkillRegistry.naming(user)
+    )
+  end
+
   @impl true
   def handle_async(:add, {:ok, {:ok, source}}, socket) do
     {:noreply,
@@ -121,17 +170,45 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
 
   defp url_form(url), do: to_form(%{"url" => url})
 
-  defp gone(socket),
-    do: socket |> assign(notice: {:error, "That source has gone."}) |> load()
-
-  defp load(socket) do
+  defp enable(socket, board_id, hash) do
     user = socket.assigns.current_user
-    sources = SkillRegistry.list_sources(user)
-    {seeds, own} = Enum.split_with(sources, &is_nil(&1.owner_id))
+    entry = socket.assigns.entry
+    board = Enum.find(socket.assigns.writable, &(to_string(&1.id) == to_string(board_id)))
+
+    notice =
+      with %{} <- board || {:error, "Pick a board you can write to."},
+           {:ok, e} <- SkillRegistry.enable(user, board, entry.id, hash) do
+        {:info, "Enabled #{e.name} on #{board.name}, pinned to the text above."}
+      end
+
+    socket |> assign(notice: notice) |> load_entry()
+  end
+
+  defp with_enablement(socket, id, fun) do
+    notice =
+      with {id, ""} <- Integer.parse(to_string(id)),
+           %{} = e <- SkillRegistry.get_enablement(socket.assigns.current_user, id) do
+        fun.(e)
+      else
+        _ -> {:error, "That skill is no longer enabled there."}
+      end
+
+    socket |> assign(notice: notice) |> load_entry()
+  end
+
+  defp load_entry(socket) do
+    user = socket.assigns.current_user
+    entry = SkillRegistry.get_entry(user, socket.assigns.entry.id) || socket.assigns.entry
+    where = SkillRegistry.enabled_where(user, entry)
+    taken = MapSet.new(where, & &1.enablement.board_id)
 
     assign(socket,
-      sections: [{"yours", "Yours", own}, {"seeds", "On this server", seeds}],
-      manage: Map.new(sources, &{&1.id, SkillRegistry.can_manage?(user, &1)})
+      entry: entry,
+      where: where,
+      writable:
+        user |> SkillRegistry.writable_boards() |> Enum.reject(&MapSet.member?(taken, &1.id)),
+      naming: SkillRegistry.naming(user, entry.name),
+      enable_form: to_form(%{"board_id" => nil})
     )
   end
 
@@ -215,6 +292,15 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
             id="skill-entry-body"
             class="whitespace-pre-wrap break-words rounded-2xl bg-base-200 p-4 text-sm"
           >{@entry.body}</pre>
+
+          <Boards.entry_boards
+            entry={@entry}
+            where={@where}
+            writable={@writable}
+            naming={@naming}
+            form={@enable_form}
+            notice={@notice}
+          />
         </.page>
       </div>
     </Layouts.app>
@@ -377,6 +463,8 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
               </ul>
             </article>
           </section>
+
+          <Boards.stages naming={@naming} />
         </.page>
       </div>
     </Layouts.app>

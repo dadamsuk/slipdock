@@ -1075,6 +1075,15 @@ defmodule SlipdockWeb.HelpLive.Guides do
           are there for everyone, and only an admin changes them.
         </li>
       </ul>
+      <p id="tools-skills-enable">
+        To give a skill to a board's agents, open it and <strong>Enable this text</strong>
+        on a board you can write to. The board keeps the text you read: a refresh that
+        changes the skill shows <strong>Changed upstream</strong>
+        with the lines that differ, and the board's agents keep the old text until somebody
+        who can write to the board reads the change and re-pins it. A stage of a board's
+        Playbook asks for a skill with a <code>skill: &lt;name&gt;</code>
+        line; the Skills page lists those stages and flags one whose skill nothing provides.
+      </p>
     </.part>
     """
   end

@@ -1081,6 +1081,11 @@ reaches everyone without a reinstall
   shows the whole file; **Refresh** fetches the source again and says what was
   added, changed and removed, and **Remove** deletes it. A person's sources
   are their own; the ones an admin adds are seen by everyone.
+  Somebody who can write to a board enables a skill there, pinned to the text
+  they read: a refresh that changes it shows *Changed upstream* with the lines
+  that differ, and the board keeps the pinned text until a writer re-pins it.
+  The page lists the Playbook stages (`skill: <name>` lines) on each board and
+  flags one whose skill nothing provides.
 
 `slipdock tools publish <folder>` publishes one, or upload its `.tar.gz` under
 **Publish a Tool** on the Tools page (a Tool's own page takes its next

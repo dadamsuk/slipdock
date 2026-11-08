@@ -25,7 +25,7 @@ defmodule Slipdock.SkillRegistry do
   alias Slipdock.Accounts
   alias Slipdock.Accounts.User
   alias Slipdock.Repo
-  alias Slipdock.SkillRegistry.{Entry, Fetch, GitHub, Parse, Source}
+  alias Slipdock.SkillRegistry.{Entry, Fetch, GitHub, Parse, Pins, Source}
 
   @max_file_bytes 256_000
   @max_entries 50
@@ -151,6 +151,35 @@ defmodule Slipdock.SkillRegistry do
       end
     end
   end
+
+  ## Enabled on a board (#2062) -------------------------------------------
+
+  @doc """
+  Enables the entry `entry_id` on `board`'s tree for `user`, pinned to
+  `seen_hash`, the hash of the text they read (`Slipdock.SkillRegistry.Pins`).
+  The entry must be one `user` sees.
+  """
+  @spec enable(User.t(), Slipdock.Boards.Board.t(), integer() | String.t(), String.t()) ::
+          {:ok, Slipdock.SkillRegistry.Enablement.t()} | {:error, String.t()}
+  def enable(user, board, entry_id, seen_hash) do
+    case get_entry(user, entry_id) do
+      nil -> {:error, "That skill isn't one you can see."}
+      entry -> Pins.enable(user, board, entry, seen_hash)
+    end
+  end
+
+  defdelegate repin(user, enablement, seen_hash), to: Pins
+  defdelegate disable(user, enablement), to: Pins
+  defdelegate enabled(board), to: Pins
+  defdelegate get_enabled(board, name), to: Pins
+  defdelegate status(enablement), to: Pins
+  defdelegate diff(enablement), to: Pins
+  defdelegate stages(board), to: Pins
+  defdelegate naming(user), to: Pins
+  defdelegate naming(user, name), to: Pins
+  defdelegate enabled_where(user, entry), to: Pins
+  defdelegate writable_boards(user), to: Pins
+  defdelegate get_enablement(user, id), to: Pins
 
   ## The fetch -------------------------------------------------------------
 
