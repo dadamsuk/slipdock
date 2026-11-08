@@ -410,4 +410,112 @@ defmodule Slipdock.Automations.FeedTest do
       assert queued_cards(rule) == [card.id]
     end
   end
+
+  describe "lanes (#2102)" do
+    # A card in progress that a job is working on, holding `lib/**`.
+    setup ctx do
+      {:ok, board} = Boards.update_board(ctx.board, %{"lanes" => true})
+      running = pathed(ctx.doing, "Running", "lib/**")
+      working_job_fixture(running)
+      %{board: board, running: running}
+    end
+
+    defp pathed(column, title, paths) do
+      card = card_fixture(column, %{"title" => title})
+      {:ok, card} = Boards.update_card(card, %{"paths" => paths})
+      card
+    end
+
+    test "passes over a card its lane would hold and sends the next that could start", ctx do
+      held = pathed(ctx.todo, "Held", "lib/a.ex")
+      free = pathed(ctx.todo, "Free", "docs/**")
+      rule = feed_rule(ctx.board)
+
+      # Saving the rule fed it: the free card went, though the held one is on top.
+      assert queued_cards(rule) == [free.id]
+      refute held.id in Enum.map(jobs(rule), & &1.card_id)
+    end
+
+    test "sends nothing while every card in the list is held", ctx do
+      pathed(ctx.todo, "Held", "lib/a.ex")
+      rule = feed_rule(ctx.board)
+
+      assert Automations.next_card(rule) == nil
+      assert jobs(rule) == []
+      assert Automations.feed(rule) == {:idle, :empty}
+    end
+
+    test "withdraws its own queued job a lane holds, sends the next card, and the held one " <>
+           "goes when its lane frees",
+         ctx do
+      first = pathed(ctx.todo, "First", "lib/a.ex")
+      second = pathed(ctx.todo, "Second", "docs/**")
+
+      # Sent before its lane was held: the card in the way only now has a job.
+      Repo.update_all(from(j in Job, where: j.card_id == ^ctx.running.id), set: [status: "done"])
+      rule = feed_rule(ctx.board)
+      assert [%Job{id: held_id}] = open_jobs(rule)
+      assert queued_cards(rule) == [first.id]
+      working_job_fixture(ctx.running)
+
+      assert {:ok, %Card{id: id}} = Automations.feed(rule)
+      assert id == second.id
+      assert queued_cards(rule) == [second.id]
+
+      held = Repo.get!(Job, held_id)
+      assert held.status == "cancelled"
+      assert held.recovery == "withdrawn"
+
+      assert held.error ==
+               "Lane: overlaps ##{ctx.running.id}, in progress: gave way to ##{second.id}"
+
+      assert [comment] = Repo.preload(Repo.get!(Card, first.id), :comments).comments
+      assert comment.body =~ "its paths overlap ##{ctx.running.id}"
+      assert comment.body =~ "gave way to ##{second.id}"
+
+      # The card in the way is done, and so is the second card's job: the
+      # withdrawn card is next, cool-down or not.
+      {:ok, _} = Boards.update_card(ctx.running, %{"completed" => true})
+      finish(ctx.runner, "done")
+      assert queued_cards(rule) == [first.id]
+    end
+
+    test "keeps its held job when no other card could start", ctx do
+      first = pathed(ctx.todo, "First", "lib/a.ex")
+      pathed(ctx.todo, "Also held", "lib/b.ex")
+      Repo.update_all(from(j in Job, where: j.card_id == ^ctx.running.id), set: [status: "done"])
+      rule = feed_rule(ctx.board)
+      working_job_fixture(ctx.running)
+
+      assert Automations.feed(rule) == {:idle, :job_open}
+      assert [%Job{status: "queued", card_id: card_id}] = open_jobs(rule)
+      assert card_id == first.id
+      assert Repo.preload(Repo.get!(Card, first.id), :comments).comments == []
+    end
+
+    test "never withdraws a job that has been handed out", ctx do
+      first = pathed(ctx.todo, "First", "docs/a.md")
+      pathed(ctx.todo, "Second", "docs/b.md")
+      rule = feed_rule(ctx.board)
+      assert %Job{card_id: card_id} = Runners.claim(ctx.runner)
+      assert card_id == first.id
+
+      assert Automations.feed(rule) == {:idle, :job_open}
+      assert [%Job{status: "claimed"}] = open_jobs(rule)
+    end
+
+    test "with lanes advising, an overlapping card is sent as usual", ctx do
+      {:ok, _} = Boards.update_board(ctx.board, %{"lane_mode" => "advise"})
+      held = pathed(ctx.todo, "Overlapping", "lib/a.ex")
+      rule = feed_rule(ctx.board)
+      assert queued_cards(rule) == [held.id]
+    end
+
+    test "with lanes off, an overlapping card is sent as usual", ctx do
+      {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => false})
+      held = pathed(ctx.todo, "Overlapping", "lib/a.ex")
+      rule = feed_rule(ctx.board)
+      assert queued_cards(rule) == [held.id]
+    end
+  end
 end
