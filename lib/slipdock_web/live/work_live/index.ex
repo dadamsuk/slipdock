@@ -27,25 +27,51 @@ defmodule SlipdockWeb.WorkLive.Index do
        page_title: "My work",
        show_done: false,
        show_hidden: false,
+       # `?board=` (#2095): kept to one board's tree, from its header.
+       board: nil,
        ai?: Slipdock.AI.configured?(socket.assigns.current_user)
      )
      |> load()}
   end
 
+  @impl true
+  def handle_params(params, _uri, socket) do
+    board = readable_board(socket.assigns.current_user, params["board"])
+
+    if board == socket.assigns.board,
+      do: {:noreply, socket},
+      else: {:noreply, socket |> assign(board: board) |> load()}
+  end
+
+  # A board the reader can't see, or no board, keeps nothing out.
+  defp readable_board(_user, id) when id in [nil, ""], do: nil
+
+  defp readable_board(user, id) do
+    with {n, ""} <- Integer.parse(id),
+         %Slipdock.Boards.Board{} = board <- Slipdock.Repo.get(Slipdock.Boards.Board, n),
+         true <- Access.can_read?(Access.board_permission(user, board)) do
+      board
+    else
+      _ -> nil
+    end
+  end
+
   defp load(socket) do
     user = socket.assigns.current_user
-    cards = Work.assigned(user)
+    opts = if b = socket.assigns.board, do: [board_id: b.id], else: []
+    cards = Work.assigned(user, nil, opts)
     open = Enum.reject(cards, &(&1.section == :done))
 
-    %{items: waiting} = found = Work.waiting(user)
+    %{items: waiting} = found = Work.waiting(user, opts)
 
     assign(socket,
       waiting: waiting,
       dismissed: found.dismissed,
       muted_count: found.muted,
       muted_boards: Work.muted_boards(user),
-      # The header's number is this section's length, never a second count.
-      waiting_count: length(waiting),
+      # The header's number is this section's length, never a second count;
+      # kept to a board, the header still counts everything.
+      waiting_count: if(opts == [], do: length(waiting), else: Work.waiting_count(user)),
       now: DateTime.utc_now(),
       sections: Work.group(cards, socket.assigns.show_done),
       open_count: length(open),
@@ -204,6 +230,13 @@ defmodule SlipdockWeb.WorkLive.Index do
               </label>
             </:actions>
           </.page_header>
+
+          <.callout :if={@board} id="work-board-filter" kind={:info} class="mb-4 text-sm">
+            Kept to {@board.name} and the boards under it.
+            <.link id="work-board-filter-clear" patch={~p"/work"} class="link ml-1">
+              Show everything
+            </.link>
+          </.callout>
 
           <section
             :if={@waiting != [] or @dismissed != [] or @muted_boards != []}

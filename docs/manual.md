@@ -1536,6 +1536,33 @@ is in the alerts bell's, and its panel's first row comes here), `slipdock whoami
 and `GET /api/me` carry it as `waiting_on_you`, and `slipdock work`, `GET
 /api/work` and the `plan-my-day` prompt list them.
 
+**Where you look from the top.** The same items show on the boards, so a
+question on a subcard isn't hidden under its epic. An epic's tile carries a
+chip, `⏸ 2 waiting on you`, counting what in its tree (its subcards, at any
+depth) is on you, and a glance line naming them with their reasons,
+`Waiting on you: #2063 (a question), #2075 (3 rejections)`, in place of the
+percentage. Waits on other people in the tree appear in the line only (`and
+1 on someone else`), never in the chip, so the chip means "you, now". The
+chip opens the sub-board kept to the cards waiting on you (`?waiting=me`,
+with *Show all* to clear it). The board header shows `Waiting on you: N`
+for the board's tree, which opens My work kept to that board
+(`/work?board=<id>`). Both follow a wait as it opens and is answered.
+`slipdock card <epic>` prints the same line, and `slipdock board` prints the
+tree's count and each epic's line. `GET /api/cards/:id`, `GET
+/api/boards/:board` and MCP `get_card` / `get_board` carry `waiting_on_me`:
+`count`, `cards` (each the same item `GET /api/work` gives, with `short`,
+its reason in a few words), `on_others` and `line`. On a board it is the
+whole tree's, and each epic in the lists carries its own.
+
+**Told when it happens.** A wait addressed to you raises an alert in the
+header that only you see, and emails you, when somebody else asks or an
+agent asks under your own token. A card past its board's rejection limit
+asks its person with such a wait, so it alerts them the same way (*Past the
+rejection limit*). A wait you open yourself in person, or one on anyone,
+alerts nobody. Both are on by default. Turn either off in account settings,
+under *When something waits on you* (*Alert me in the header*, *Email me*).
+The `flagged` rule preset is unchanged.
+
 **Taking things off your list.** Some items are things you don't mean to
 act on: a failed job on a card you'll never pick up, or a board you are one
 step short of archiving. Two ways off, both yours alone. Nobody else's list

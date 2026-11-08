@@ -199,6 +199,23 @@ defmodule SlipdockWeb.HelpLive.Guides do
         Scheduled cards not started by the end of their day, on the boards you own. The header counts them on every page.
       </p>
       <p>
+        The boards show them too. An epic's card carries <strong>⏸ 2 waiting on you</strong>
+        for what in its subcards is on you, and a line naming each with its reason, such as <em>Waiting on you: #2063 (a question), #2075 (3 rejections)</em>. Questions waiting on
+        other people show in the line only (<em>and 1 on someone else</em>), never in the count. Click the
+        chip to open the sub-board showing only those cards. The board's header says
+        <strong>Waiting on you: N</strong>
+        for the whole board and opens My work kept to it. <code>slipdock card</code>
+        and <code>slipdock board</code>
+        print the same line.
+      </p>
+      <p>
+        A question addressed to you also raises an alert in the header that only you see, and
+        an email, and so does a card of yours past its board's rejection limit. Turn either off in <.app_link
+          current_user={@current_user}
+          to={~p"/account/settings"}
+        >account settings</.app_link>, under <strong>When something waits on you</strong>.
+      </p>
+      <p>
         Some of them you won't act on. The <strong>×</strong>
         on a row dismisses it from your own list. It stays off for that reason only: a second
         failed job, a new question or the flag put on again brings the card back. To keep a

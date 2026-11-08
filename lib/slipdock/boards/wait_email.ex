@@ -5,12 +5,16 @@ defmodule Slipdock.Boards.WaitEmail do
   mail on, how to answer by replying (`Slipdock.Inbound.WaitReply` reads the
   reply).
 
-  Sent only to a named person who isn't the one asking, since a wait on
-  anyone has nobody in particular to tell and nobody needs telling what
-  they asked themselves.
+  Sent only to a named person, since a wait on anyone has nobody in
+  particular to tell, and not to someone who asked it themselves in person
+  (`Slipdock.Boards.WaitAlert.tell?/2`; an agent asking under their token
+  is a question for them, #2095). Each person turns it off in account
+  settings (`User.waiting_emails`, on by default). The same moment raises
+  their alert (`Slipdock.Boards.WaitAlert`).
 
   It goes through `Slipdock.Notify`, which also shows it as a desktop toast
-  in any Slipdock tab the person has open with toasts on (#2101).
+  in any Slipdock tab the person has open with toasts on (#2101); with their
+  email off, only the toast.
   """
 
   alias Slipdock.{Access, Notify}
@@ -21,14 +25,16 @@ defmodule Slipdock.Boards.WaitEmail do
   @doc "Tells the person `wait` is on, if there is one to tell."
   @spec opened(struct(), Card.t()) :: :ok
   def opened(%Wait{on_user: %User{} = person} = wait, %Card{} = card) do
-    if person.id != wait.opened_by_id and
-         person |> Access.card_permission(card) |> Access.can_read?() do
+    Slipdock.Boards.WaitAlert.opened(wait, card)
+
+    if Slipdock.Boards.WaitAlert.tell?(wait, card) do
       Notify.person(person, card,
         kind: "wait",
         by: wait.opened_by_id,
         subject: subject(wait, card),
         body: body(wait, card),
         email: [footer: footer(wait)],
+        send_email: person.waiting_emails,
         title: "#{who(wait.opened_by)} is waiting on you",
         text: "#{card.title}: #{wait.needs}"
       )

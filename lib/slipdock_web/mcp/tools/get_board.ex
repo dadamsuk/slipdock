@@ -153,6 +153,8 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
   defp lists(auth, board) do
     board = Authorize.visible(auth, Boards.get_board!(board.id))
     roles = SlipdockWeb.APIGuide.list_roles(board.columns)
+    # What in the tree waits on the caller (#2095).
+    tree = Slipdock.Work.Tree.for_board(auth.assigns.current_user, board)
 
     {:ok,
      %{
@@ -170,9 +172,13 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
              name: col.name,
              role: role_of(roles, col),
              wip_limit: col.wip_limit,
-             cards: Enum.map(col.cards, &Tools.card_line/1)
+             cards:
+               col.cards
+               |> Enum.map(&Tools.card_line/1)
+               |> SlipdockWeb.API.WaitingJSON.put_on_cards(tree, &(&1.subcards != nil))
            }
-         end)
+         end),
+       waiting_on_me: SlipdockWeb.API.WaitingJSON.tree(tree)
      }
      |> Tools.ListBoards.put_lanes(board)
      |> Map.merge(SlipdockWeb.API.JSON.paused(board))}

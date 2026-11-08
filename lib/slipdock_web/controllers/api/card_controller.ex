@@ -104,6 +104,11 @@ defmodule SlipdockWeb.API.CardController do
           |> V.put_authors(card)
           |> V.put_incidents(card, conn.assigns.current_user, conn.assigns[:api_token])
           |> V.put_handbook(card, conn.assigns.current_user, conn.assigns[:api_token])
+          # What in its tree waits on the caller (#2095).
+          |> Map.put(
+            :waiting_on_me,
+            SlipdockWeb.API.WaitingJSON.for_card(conn.assigns.current_user, card)
+          )
       })
     end
   end

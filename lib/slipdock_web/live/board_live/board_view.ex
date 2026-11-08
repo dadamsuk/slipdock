@@ -24,6 +24,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :can_manage, :boolean, required: true
   attr :can_write, :boolean, required: true
 
+  attr :waiting_count, :integer,
+    default: 0,
+    doc: "what in this board's tree waits on the reader (#2095, `Slipdock.Work.Tree`)"
+
   @doc "The header's breadcrumb: the boards above this one, and this one."
   def board_nav(assigns) do
     ~H"""
@@ -106,6 +110,16 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       >
         <.icon name="hero-squares-2x2" class="size-3.5" />
         <span class="hidden sm:inline">Parent board</span>
+      </.link>
+      <%!-- What in this tree waits on me (#2095): to My work, kept to it. --%>
+      <.link
+        :if={@waiting_count > 0}
+        id="board-waiting"
+        navigate={~p"/work?board=#{@board.id}"}
+        class="chip shrink-0 bg-warning/15 text-warning hover:bg-warning/25"
+        title="What on this board's tree is waiting on you, in My work"
+      >
+        <.icon name="hero-pause-circle" class="size-3.5" /> Waiting on you: {@waiting_count}
       </.link>
     </nav>
     """
@@ -462,6 +476,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :pulse, :map, default: nil, doc: "`Slipdock.Pulse.for_board/2`, when the strip is on"
   attr :pauses, :list, default: [], doc: "`State.board_pauses/1`: the tree's runner pauses"
   attr :waiting_muted, :any, default: nil, doc: "the board whose mute covers this one (#2069)"
+  attr :waiting_filter, :boolean, default: false, doc: "`?waiting=me` (#2095)"
   attr :dora, :map, default: nil, doc: "`Slipdock.Dora.for_board/2`, when delivery metrics are on"
 
   attr :revealed_snoozed, :any,
@@ -501,6 +516,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       </.board_toolbar>
       <.pause_banner pauses={@pauses} can_manage={@can_manage} />
       <.muted_banner waiting_muted={@waiting_muted} board_id={@board.id} />
+      <.waiting_banner :if={@waiting_filter} board={@board} />
       <%!-- The board's pulse in plain words (#1113): only when the owner
             turned it on in settings (`show_pulse`). It opens the visualise
             view (#1650), which a view-only share can't open, so for them it
@@ -1098,6 +1114,23 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       >
         Unmute
       </button>
+    </.callout>
+    """
+  end
+
+  attr :board, :any, required: true
+
+  @doc """
+  The lists keep only what waits on me (#2095, `?waiting=me`), as an epic's
+  chip opens its sub-board: says so, with the way back to everything.
+  """
+  def waiting_banner(assigns) do
+    ~H"""
+    <.callout id="waiting-filter-banner" kind={:info} class="rounded-none border-l-2 py-1.5 text-xs">
+      Showing only the cards waiting on you, and the cards holding them.
+      <.link id="waiting-filter-clear" patch={~p"/boards/#{@board}"} class="link ml-1">
+        Show all
+      </.link>
     </.callout>
     """
   end

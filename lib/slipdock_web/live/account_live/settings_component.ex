@@ -208,6 +208,23 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     end
   end
 
+  # How I hear that something waits on me (#2095): the alert and the email.
+  def handle_event("save_waiting_notice", params, socket) do
+    attrs = %{
+      waiting_alerts: get_in(params, ["notice", "waiting_alerts"]) == "true",
+      waiting_emails: get_in(params, ["notice", "waiting_emails"]) == "true"
+    }
+
+    case Accounts.update_waiting_notice(socket.assigns.current_user, attrs) do
+      {:ok, user} ->
+        send(self(), {:current_user, user})
+        {:noreply, socket |> assign(current_user: user) |> flash(:info, "Saved.")}
+
+      {:error, _cs} ->
+        {:noreply, flash(socket, :error, "Couldn't save that.")}
+    end
+  end
+
   def handle_event("save_quick_add", %{"user" => params}, socket) do
     case Accounts.update_quick_add(socket.assigns.current_user, params) do
       {:ok, user} ->
@@ -383,6 +400,40 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
             label="Show"
             value={@current_user.tree_names}
             options={[{"Full titles", "full"}, {"Short names", "short"}]}
+          />
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+      </section>
+
+      <%!-- When something waits on me (#2095). --%>
+      <section
+        id="waiting-notice-settings"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="section-title">When something waits on you</h2>
+        <p class="text-sm text-base-content/60">
+          A question addressed to you, or a card of yours past its board's rejection limit.
+          It is on My work's Waiting on you either way.
+        </p>
+        <form
+          id="waiting-notice-form"
+          phx-submit="save_waiting_notice"
+          phx-target={@myself}
+          class="mt-4 space-y-2"
+        >
+          <.input
+            type="checkbox"
+            id="waiting-alerts"
+            name="notice[waiting_alerts]"
+            label="Alert me in the header"
+            checked={@current_user.waiting_alerts}
+          />
+          <.input
+            type="checkbox"
+            id="waiting-emails"
+            name="notice[waiting_emails]"
+            label="Email me"
+            checked={@current_user.waiting_emails}
           />
           <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </form>

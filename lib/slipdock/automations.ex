@@ -1108,6 +1108,8 @@ defmodule Slipdock.Automations do
       left_join: d in Dismissal,
       on: d.alert_id == a.id and d.user_id == ^user.id,
       where: a.board_id in ^board_ids and is_nil(d.id),
+      # One person's alert (#2095) is theirs alone.
+      where: is_nil(a.user_id) or a.user_id == ^user.id,
       order_by: [desc: a.inserted_at],
       limit: @alert_limit
     )

@@ -117,6 +117,14 @@ defmodule Slipdock.Accounts do
     user |> User.display_changeset(attrs) |> Repo.update()
   end
 
+  @doc """
+  Saves how this person hears that something waits on them (#2095, see
+  `User.waiting_notice_changeset/2`).
+  """
+  def update_waiting_notice(%User{} = user, attrs) do
+    user |> User.waiting_notice_changeset(attrs) |> Repo.update()
+  end
+
   def change_profile(%User{} = user, attrs \\ %{}), do: User.profile_changeset(user, attrs)
 
   def count_users, do: Repo.aggregate(User, :count)

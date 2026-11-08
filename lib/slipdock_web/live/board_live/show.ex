@@ -230,8 +230,11 @@ defmodule SlipdockWeb.BoardLive.Show do
       # The count beside Automations in the menu; the panel itself is
       # `BoardLive.AutomationsComponent`, which keeps this up to date.
       rules: [],
-      ai?: Slipdock.AI.configured?(socket.assigns.current_user)
+      ai?: Slipdock.AI.configured?(socket.assigns.current_user),
+      # `?waiting=me` (#2095): the lists keep only what waits on the reader.
+      waiting_filter: false
     )
+    |> assign_waiting_tree()
     |> assign_columns()
     |> allow_uploads()
   end
@@ -332,6 +335,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
     socket =
       socket
+      |> assign_waiting_filter(params["waiting"] == "me")
       |> assign_swimlanes(params)
       |> assign_paths()
       |> assign_page_jumps()
@@ -354,6 +358,13 @@ defmodule SlipdockWeb.BoardLive.Show do
       {:noreply, scroll_to_list(socket, params["list"])}
     end
   end
+
+  # `?waiting=me`, from an epic's chip (#2095): only when it changes, since
+  # the lists are drawn again for it.
+  defp assign_waiting_filter(%{assigns: %{waiting_filter: on}} = socket, on), do: socket
+
+  defp assign_waiting_filter(socket, on),
+    do: socket |> assign(waiting_filter: on) |> assign_columns()
 
   # `?list=<id>` arrives from a favourited list (see `Slipdock.Favourites`).
   # The board is wider than the screen — a phone shows one list at a time —
@@ -897,8 +908,12 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("clear_filters", _, socket) do
-    {:noreply,
-     socket |> assign(filters: @empty_filters, page_hit: nil, card_hit: nil) |> assign_columns()}
+    socket =
+      socket |> assign(filters: @empty_filters, page_hit: nil, card_hit: nil) |> assign_columns()
+
+    if socket.assigns.waiting_filter,
+      do: {:noreply, push_patch(socket, to: ~p"/boards/#{socket.assigns.board}")},
+      else: {:noreply, socket}
   end
 
   ## Events: columns ---------------------------------------------------------
@@ -1252,6 +1267,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           paths={@paths}
           can_manage={@can_manage}
           can_write={@can_write}
+          waiting_count={@waiting_tree.count}
         />
       </:subnav>
       <:menu :if={!@card_only and (@ai? or !@view_only)}>
@@ -1414,6 +1430,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         dora={@dora}
         pauses={@pauses}
         waiting_muted={@waiting_muted}
+        waiting_filter={@waiting_filter}
         columns={@columns}
         filters={@filters}
         filtering={@filtering}

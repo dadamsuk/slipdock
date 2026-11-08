@@ -146,6 +146,9 @@ defmodule Slipdock.Boards.Card do
     # What is happening to it (#1117): a `Slipdock.CardState`, set when it is
     # loaded through `Slipdock.Boards` for a board, a listing or on its own.
     field :state, :any, virtual: true
+    # What in its sub-board's tree waits on the reader (#2095): an entry of
+    # `Slipdock.Work.Tree.of/2`, set by the board page for the tile.
+    field :waiting_on_me, :any, virtual: true
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :column, Slipdock.Boards.Column

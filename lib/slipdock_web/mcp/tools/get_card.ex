@@ -18,7 +18,8 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
     do:
       "A card in full: its handoff (where it was left: read it first; when finished, its outcome), " <>
         "description, checklist, comments, dependencies, subcards, wiki pages, wait (on a " <>
-        "person) and rejection (the rework's brief)."
+        "person), rejection (the rework's brief) and waiting_on_me (what in its subcards' tree " <>
+        "waits on you, with reasons)."
 
   @impl true
   def input_schema do
@@ -72,6 +73,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> V.put_authors(card)
        |> V.put_incidents(card, context.user, context[:token])
        |> V.put_handbook(card, context.user, context[:token])
+       |> Map.put(:waiting_on_me, SlipdockWeb.API.WaitingJSON.for_card(context.user, card))
        |> put_timeline(card, args["timeline"] == true)
        |> put_waits(card, args["waits"] == true)}
     end

@@ -259,6 +259,16 @@ parks, and the answer sends the epic again with the subcard named. `slipdock wor
 waiting on you, and `whoami` counts it (`waiting_on_you`). See
 [the manual](manual.md#waiting-on-a-person-waits).
 
+**What in an epic's tree waits on you.** `get_card` and `get_board`
+(`GET /api/cards/:id`, `GET /api/boards/:board`) carry `waiting_on_me`:
+`count` (the items on you), `cards` (each the same item `slipdock work` /
+`GET /api/work` gives, with `short`, its reason in a few words),
+`on_others` (open waits in the tree on someone else) and `line`, the epic
+tile's glance line. On a card it is the card's sub-board tree; on a board it
+is the whole tree's, and each epic in the lists carries its own. `slipdock
+card <epic>` and `slipdock board` print a `Waiting on you:` line. An epic
+whose tree is all waiting on a person has nothing workable: leave it to them.
+
 **Off a person's own list.** A person can take an item off their own
 Waiting on you, and nobody else's: `slipdock work --dismiss <card>`,
 `POST /api/work/dismissed` (`card`), or MCP `update_card` with

@@ -340,6 +340,7 @@ defmodule SlipdockWeb.BoardLive.State do
     socket
     |> assign(board: board, page_title: board.name, ancestry: Boards.ancestry(board))
     |> assign(pulse: board_pulse(board), pauses: board_pauses(board))
+    |> assign_waiting_tree()
     # Deploys move the delivery strip themselves; a reload only follows
     # the switch.
     |> assign(
@@ -470,16 +471,40 @@ defmodule SlipdockWeb.BoardLive.State do
 
   def set_item_tags(card, tags), do: Boards.set_card_tags(card, tags)
 
+  @doc """
+  What in the board's tree waits on the reader (#2095, `Slipdock.Work.Tree`):
+  `:waiting_tree`, for the header's count and each epic's chip and glance
+  line. Worked out again on every reload, so it follows a wait opened or
+  answered anywhere below.
+  """
+  def assign_waiting_tree(socket) do
+    assign(socket,
+      waiting_tree:
+        Slipdock.Work.Tree.for_board(socket.assigns.current_user, socket.assigns.board)
+    )
+  end
+
   def assign_columns(socket) do
     %{board: board, filters: filters} = socket.assigns
+    tree = socket.assigns[:waiting_tree] || %Slipdock.Work.Tree{}
+    waiting = waiting_keep(socket.assigns[:waiting_filter], tree, board)
 
     columns =
       Enum.map(board.columns, fn col ->
-        visible = Enum.filter(col.cards, &Slipdock.Filters.matches?(&1, filters))
+        cards = Enum.map(col.cards, &%{&1 | waiting_on_me: Slipdock.Work.Tree.of(tree, &1.id)})
+
+        visible =
+          Enum.filter(cards, &(Slipdock.Filters.matches?(&1, filters) and waiting.(&1)))
+
         # A draft the reader couldn't have written was never theirs to see, so
         # it is not something the filters are hiding.
         readable = Enum.filter(col.pages, &page_visible?(&1, socket))
-        pages = Enum.filter(readable, &Slipdock.Filters.matches?(&1, filters))
+
+        pages =
+          Enum.filter(
+            readable,
+            &(Slipdock.Filters.matches?(&1, filters) and socket.assigns[:waiting_filter] != true)
+          )
 
         # Cards and placed pages share one position sequence, so the list
         # is drawn from a single ordering rather than one after the other —
@@ -500,8 +525,20 @@ defmodule SlipdockWeb.BoardLive.State do
         }
       end)
 
-    assign(socket, columns: columns, filtering: Slipdock.Filters.any?(filters))
+    assign(socket,
+      columns: columns,
+      filtering: Slipdock.Filters.any?(filters) or socket.assigns[:waiting_filter] == true
+    )
   end
+
+  # `?waiting=me` (#2095): only the cards with something on the reader on
+  # them or beneath them, as an epic's chip opens its sub-board.
+  defp waiting_keep(true, tree, board) do
+    ids = Slipdock.Work.Tree.card_ids(tree, board)
+    &MapSet.member?(ids, &1.id)
+  end
+
+  defp waiting_keep(_, _tree, _board), do: fn _ -> true end
 
   defp arrange(items, column, board) do
     items
