@@ -18,6 +18,17 @@ defmodule SlipdockWeb.CardLinkLiveTest do
   defp card_url(card),
     do: SlipdockWeb.Endpoint.url() <> "/boards/#{card.board_id}/cards/#{card.id}"
 
+  # The link's label, whole. has_element?'s text filter matches a substring,
+  # so "#1" would be found in "#12": compare the exact text instead.
+  defp link_label(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#card-copy-link [data-label]")
+    |> LazyHTML.text()
+    |> String.trim()
+  end
+
   test "the open card shows its id, linking to its full address", %{
     conn: conn,
     board: board,
@@ -43,8 +54,9 @@ defmodule SlipdockWeb.CardLinkLiveTest do
 
     {:ok, view, _} = live(conn, ~p"/boards/#{sub}/cards/#{child.id}")
 
-    assert has_element?(view, ~s(#card-copy-link[href="#{card_url(child)}"]), "##{child.id}")
-    refute has_element?(view, "#card-copy-link", "##{epic.id}")
+    assert has_element?(view, ~s(#card-copy-link[href="#{card_url(child)}"]))
+    assert link_label(view) == "##{child.id}"
+    refute link_label(view) == "##{epic.id}"
   end
 
   test "a read-only reader can still copy the link", %{board: board, card: card} do
