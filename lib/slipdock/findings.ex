@@ -83,11 +83,34 @@ defmodule Slipdock.Findings do
     scope = Map.get(item, :scope, "board")
     item = Map.put(item, :scope, scope)
 
+    if Map.get(item, :done), do: settled(item, at), else: unsettled(item, at)
+  end
+
+  defp unsettled(item, at) do
     case on_card(item, at) do
       {:open, finding} -> count_comment(finding, at.comment)
       :triaged -> []
       nil -> elsewhere(item, at)
     end
+  end
+
+  # An item that says where it was dealt with (`Block`'s `[done: …]` or
+  # `→ #id`, #2120) is kept promoted, with that place as its note: nothing is
+  # left for triage, and it is counted on no open finding.
+  defp settled(item, at) do
+    runner = if item.scope == "runner", do: runner_job(at.card)
+
+    item
+    |> new_finding(at, runner)
+    |> Finding.triage_changeset(%{status: "promoted", note: settled_note(item.done)})
+    |> Repo.insert!()
+    |> List.wrap()
+  end
+
+  defp settled_note(done) do
+    if Regex.match?(~r/^(?:cards?[ \t]+)?#\d+/u, done),
+      do: "filed as card #{String.replace(done, ~r/^cards?[ \t]+/u, "")} when written",
+      else: "done when written: #{done}"
   end
 
   # The card's own finding for this lesson: an open one to count on, or one a

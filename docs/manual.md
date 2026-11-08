@@ -2297,7 +2297,15 @@ Never a pointer (`in the evidence`, `recorded on #1819`), an event the board
 records itself, something the card fixed, or a fact about the card's own code
 (`Boards.move_card/4 returns :ok`); `Findings: none` is the usual answer. A block that only points elsewhere
 records nothing: the evidence is a comment of its own, and its block is read there. A line with no known kind is kept whole
-as a `gotcha`, so nothing written is lost to a typo. Write the block once, in
+as a `gotcha`, so nothing written is lost to a typo.
+
+An item that is already dealt with says where, and is kept *promoted*, with
+that place as its note, rather than open for triage: `[done: <where>]` after
+its kind when it is settled in the handbook (`- gotcha [done: W-1950 §Local
+setup]: the test partition needs its own database`), or `→ #<card>` (`->`
+works too) at its end when a card was filed for it (`- tooling: no test pins
+the CLI's exit codes → #2087`). Words like "(corrected)" or "fixed" are not
+read as done, since lessons say them too. Write the block once, in
 the closing comment (on a board that verifies work, the completion's
 evidence): not again in a wrap-up, a restatement or on the epic. The block is
 read when the comment is posted (the evidence of a completion too), and

@@ -253,7 +253,10 @@ whole card before touching it.
   lane refusal), something this card fixed, or a fact about this card's
   code (`Boards.move_card/4 returns :ok`). A finding reads like `gotcha:
   mix format can need two passes` or `tooling: the release image lacks
-  pwsh`. `Findings: none` is the usual answer. `slipdock-loop` has the
+  pwsh`. An item already dealt with says where, and is kept promoted, not
+  open: `- gotcha [done: W-1950 §Local setup]: …` when it is settled in
+  the handbook, `- tooling: … → #2087` when a card was filed for it.
+  `Findings: none` is the usual answer. `slipdock-loop` has the
   examples side by side.
 - **Token cost in the write-up.** The closing comment on a card ends with a
   line giving the tokens the work used, e.g. `Token cost: ~135k tokens

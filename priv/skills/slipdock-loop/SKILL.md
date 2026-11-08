@@ -624,6 +624,12 @@ anybody reads later:
    A lesson already on the board is counted, not kept twice, so write it
    as it comes rather than checking the list first.
 
+   An item already dealt with says where, and is kept *promoted*, not
+   open, so triage doesn't meet it again: `[done: <where>]` after its kind
+   when it is settled in the handbook (`- gotcha [done: W-1950 §Local
+   setup]: …`), or `→ #<card>` at its end when you filed a card for it
+   (`- tooling: no test pins the CLI's exit codes → #2087`).
+
    `Findings: none` is the usual answer: most cards teach nothing a card
    on another subject needs, and filler costs a person a dismissal each.
    The board keeps each

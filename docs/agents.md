@@ -855,7 +855,10 @@ repeated in a wrap-up or on the epic), beside the `Handbook:` line, one
 `process`, and `tooling (runner)` for the machine's own CLI or skills, kept
 with the runner), or `Findings: none`. A lesson said again is counted on the
 finding it repeats, on this card or another (`rule` and `handbook-wrong`
-excepted across cards). The test
+excepted across cards). An item already dealt with says where, and is kept
+*promoted*, not open: `- gotcha [done: W-1950 §Local setup]: …` when it is
+settled in the handbook, `- tooling: … → #2087` when a card was filed for it.
+The test
 for one: would a card on a different subject want to know this? Never a
 pointer (`in the evidence`, `recorded on #1819`), an event the board records
 itself, something the card fixed, or a fact about the card's own code
