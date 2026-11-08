@@ -844,7 +844,9 @@ card is one write, checked as on an update, and best phrased so the builder
 can meet it: a rule change "proposed as a garden proposal (rule id,
 wording)", never "W-x has rule Y"; the builder checks it at pickup and asks
 with a wait when a part needs a person); **evidence** when a card completes
-(or is created already done);
+(or is created already done; a bare `-` as the evidence is refused on any
+board, since it is what a client that doesn't read stdin sends for
+`--evidence -`: pass the text, or pipe it from a CLI that reads stdin);
 and a **second agent** who accepts the work or rejects it with the reason.
 With a verify pool set, each submitted card is queued as a `verify` job.
 On a board that ships by pull request, its CI is the one full test run: the

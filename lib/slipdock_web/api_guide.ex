@@ -4206,7 +4206,10 @@ defmodule SlipdockWeb.APIGuide do
     second agent does that. Completing with none of them, moving the card
     into a done list without it, or creating a card already done (in a
     done list, or with `"completed": true`) without it, is refused
-    (`422`). The
+    (`422`). So is evidence that is a bare `-` once trimmed, on any board:
+    a client that doesn't read stdin sends the dash for `--evidence -`, so
+    pass the text itself, or pipe it with `--evidence -` from a CLI that
+    reads stdin (evidence that merely starts with `-` goes through). The
     evidence is posted on the card as a comment; reopening the card clears
     it, so the next completion brings its own.
     """

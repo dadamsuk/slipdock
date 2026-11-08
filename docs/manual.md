@@ -796,6 +796,12 @@ MCP `complete_card`'s `evidence` and `commit`, or `PATCH /api/cards/:id
   `POST /api/boards/:board/cards`), is refused (`422`, naming the fields
   that would do). MCP `create_card` takes no evidence, so an agent creates
   the card in another list and completes it.
+- Evidence that is a bare `-` (once trimmed) is refused on any board, by
+  anyone (`422`, saying the evidence was a bare dash): it is what a client
+  that doesn't read stdin sends for `--evidence -`, so whatever was piped in
+  never arrived. Pass the text itself, or pipe it with `--evidence -` from a
+  CLI that reads stdin. Evidence that merely starts with a dash (`- Handbook:
+  …`) goes through.
 - The evidence shows on the card (**Evidence**, with the commit, branch,
   suite and test files) and in
   `slipdock card`, and is posted as a comment when the card completes.

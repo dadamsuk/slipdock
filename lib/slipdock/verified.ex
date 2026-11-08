@@ -102,6 +102,12 @@ defmodule Slipdock.Verified do
                        "--pr URL --evidence-commit SHA`, the sha `gh pr view URL --json " <>
                        "headRefOid -q .headRefOid` shows), on a resubmission too"
 
+  @dash_message "was a bare '-', which is no evidence: a client that doesn't read stdin " <>
+                  "sends the dash itself, so what was piped in (the Handbook: line, the " <>
+                  "Findings: block) never arrived. Pass the text itself (--evidence \"…\", " <>
+                  "complete_card evidence) or pipe it with --evidence - from a CLI that reads " <>
+                  "stdin (the slipdock CLI since #1966)"
+
   @doc """
   `{:ok, attrs, changes}` — `attrs` as they are to be cast, and `changes` to
   put on the card besides (the verification fields, which are never cast) —
@@ -115,6 +121,7 @@ defmodule Slipdock.Verified do
   """
   def check_update(%Card{} = card, attrs, actor) do
     with :ok <- check_reopen(card, attrs, actor),
+         :ok <- check_dash(card, attrs),
          :ok <- check_bar_edit(card, attrs, actor),
          :ok <- check_profile_edit(card, attrs, actor),
          :ok <- check_subcards(card, attrs, actor),
@@ -295,6 +302,9 @@ defmodule Slipdock.Verified do
     board = board(card)
 
     cond do
+      dash?(card.evidence) ->
+        Ecto.Changeset.add_error(changeset, :evidence, @dash_message)
+
       board.verify_work ->
         Ecto.Changeset.add_error(
           changeset,
@@ -503,6 +513,22 @@ defmodule Slipdock.Verified do
   @no_code_accepted "a card that changes no code: nothing to merge"
 
   ## Evidence -----------------------------------------------------------------
+
+  # A bare `-` (#2091): `--evidence -` from a client that doesn't read
+  # stdin. Refused on any write that sets it, by anyone on any board, and on
+  # a completion of a card that still holds one, so the piped text is never
+  # lost behind a dash.
+  defp check_dash(%Card{} = card, attrs) do
+    evidence = given(attrs, :evidence, card.evidence)
+
+    if dash?(fetch(attrs, :evidence)) or (completes?(card, attrs) and dash?(evidence)),
+      do: {:error, :evidence, @dash_message},
+      else: :ok
+  end
+
+  @doc "Whether `evidence` is a bare `-` once trimmed (#2091)."
+  def dash?(evidence) when is_binary(evidence), do: String.trim(evidence) == "-"
+  def dash?(_evidence), do: false
 
   # The fields evidence is made of (#1632, #1623): any one of them is some.
   @evidence_fields ~w(evidence evidence_commit evidence_branch evidence_tests evidence_suite evidence_pr evidence_no_code)a
