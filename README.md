@@ -241,7 +241,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Right now** — [which runners are doing what, and the cards in progress and
   where they are](docs/manual.md#right-now), on one page a click from the board,
   read again every few seconds, with the jobs queued and why each is held.
-  `GET /api/boards/:board/now` or MCP `get_board now: true`.
+  `slipdock now <board>`, `GET /api/boards/:board/now` or MCP `get_board now: true`.
 - **Overseer** — [an eye on outcomes, not the work](docs/manual.md#the-overseer):
   every minute, server checks for work going round (a second rejection, a
   third runner pass), a board waiting only on you with nothing running, cards

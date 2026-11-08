@@ -296,7 +296,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
      [
        {:yes, "GET /api/boards/:id/now"},
        {:yes, "get_board's now"},
-       {:some, "slipdock runners, slipdock jobs"},
+       {:yes, "slipdock now"},
        {:yes, "through the CLI or MCP"},
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}

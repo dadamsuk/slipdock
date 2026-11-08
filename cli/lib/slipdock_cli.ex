@@ -16,6 +16,7 @@ defmodule SlipdockCLI do
     Inbound,
     Lanes,
     Ledger,
+    Now,
     Overseer,
     Registry,
     Runners,
@@ -438,7 +439,8 @@ defmodule SlipdockCLI do
     Skills,
     Tools,
     Deploy,
-    Lanes
+    Lanes,
+    Now
   ]
 
   defp run(cmd, args, o) do

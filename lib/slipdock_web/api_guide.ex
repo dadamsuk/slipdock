@@ -2260,7 +2260,8 @@ defmodule SlipdockWeb.APIGuide do
     state line, `loop` and what `holds` it (`waiting`, `verifying`, `merging`,
     `blocked`, `review`, `stuck`); the jobs `queued` and why each is `held`;
     and the `counts`. Read access to the board and its tree's root. The
-    board's Right now page (`/boards/:id/now`) shows the same.
+    board's Right now page (`/boards/:id/now`) shows the same, and so does
+    `slipdock now <board>` (`--json` for this JSON).
 
     **The overseer** (#2068) watches outcomes rather than plumbing, once its
     root board's owner turns it on. Every minute it checks the tree for work

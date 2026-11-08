@@ -2578,9 +2578,13 @@ runners take work from all of it), read again every few seconds:
   no runner online).
 
 Anyone who can read the board and its tree's root board can look; it changes
-nothing. The same snapshot over the API and MCP:
+nothing. The same snapshot from the CLI, the API and MCP:
 
 ```
+slipdock now <board>           the counts, then each runner with its jobs' steps, the
+                               cards in progress (where each sits, its state, what
+                               holds it, the runner on it, how long) and the queue
+slipdock now <board> --json    the API's JSON, as it is
 GET /api/boards/:board/now     runners (each with its jobs), in_progress, queued, counts
 ```
 
