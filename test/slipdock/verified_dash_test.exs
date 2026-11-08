@@ -108,11 +108,24 @@ defmodule Slipdock.VerifiedDashTest do
 
       assert refusal(
                Boards.update_card(card(ctx.card), %{"completed" => true, "evidence" => "-"},
-                 actor: ctx.person
+                 actor: ctx.agent
                )
              ) =~ "bare '-'"
 
       refute card(ctx.card).completed
+    end
+
+    # SPEC-5: a check on agents' work refuses only agents.
+    test "a person, the assistant and an automation each go through", ctx do
+      for actor <- [ctx.person, Actor.assistant(ctx.user), Actor.automation()] do
+        card = card_fixture(ctx.doing, %{"title" => "Not gated #{actor.via}"})
+
+        assert {:ok, %{evidence: "-"}} =
+                 Boards.update_card(card, %{"evidence" => "-"}, actor: actor)
+
+        assert {:ok, %{completed: true}} =
+                 Boards.update_card(card(card), %{"completed" => true}, actor: actor)
+      end
     end
 
     test "a write that only sets the dash is refused too", ctx do

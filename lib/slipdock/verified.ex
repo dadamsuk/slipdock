@@ -121,7 +121,7 @@ defmodule Slipdock.Verified do
   """
   def check_update(%Card{} = card, attrs, actor) do
     with :ok <- check_reopen(card, attrs, actor),
-         :ok <- check_dash(card, attrs),
+         :ok <- check_dash(card, attrs, actor),
          :ok <- check_bar_edit(card, attrs, actor),
          :ok <- check_profile_edit(card, attrs, actor),
          :ok <- check_subcards(card, attrs, actor),
@@ -515,15 +515,19 @@ defmodule Slipdock.Verified do
   ## Evidence -----------------------------------------------------------------
 
   # A bare `-` (#2091): `--evidence -` from a client that doesn't read
-  # stdin. Refused on any write that sets it, by anyone on any board, and on
-  # a completion of a card that still holds one, so the piped text is never
-  # lost behind a dash.
-  defp check_dash(%Card{} = card, attrs) do
-    evidence = given(attrs, :evidence, card.evidence)
-
-    if dash?(fetch(attrs, :evidence)) or (completes?(card, attrs) and dash?(evidence)),
+  # stdin. Refused for agents (SPEC-5, MOD-3: people, the assistant and
+  # automations are never refused) on any board, on any write that sets it
+  # and on a completion of a card that still holds one, so the piped text is
+  # never lost behind a dash.
+  defp check_dash(%Card{} = card, attrs, actor) do
+    if gated?(actor) and dashed?(card, attrs),
       do: {:error, :evidence, @dash_message},
       else: :ok
+  end
+
+  defp dashed?(card, attrs) do
+    dash?(fetch(attrs, :evidence)) or
+      (completes?(card, attrs) and dash?(given(attrs, :evidence, card.evidence)))
   end
 
   @doc "Whether `evidence` is a bare `-` once trimmed (#2091)."
