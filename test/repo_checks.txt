@@ -26,6 +26,7 @@ test/slipdock/boundaries_test.exs
 # Source conventions
 test/slipdock_web/fonts_test.exs
 test/slipdock_web/buttons_test.exs
+test/slipdock_web/button_value_test.exs
 test/slipdock_web/controls_test.exs
 test/slipdock_web/design_tokens_test.exs
 test/slipdock_web/no_raw_date_input_test.exs
