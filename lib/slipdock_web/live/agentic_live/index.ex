@@ -64,7 +64,7 @@ defmodule SlipdockWeb.AgenticLive.Index do
     |> push_navigate(to: ~p"/boards/#{board}")
   end
 
-  # The four tiles' counts (#2012), read again every half minute so they
+  # The tiles' counts (#2012), read again every half minute so they
   # stay live while the page is open.
   @hub_every 30_000
 
@@ -320,8 +320,8 @@ defmodule SlipdockWeb.AgenticLive.Index do
 
           <%!-- The developer's daily start (#2012): where each place stands,
                 each tile opening it. --%>
-          <nav id="agentic-hub" aria-label="Runners, Findings, Ledger and Health">
-            <ul class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <nav id="agentic-hub" aria-label="Right now, Runners, Findings, Ledger and Health">
+            <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <li :for={tile <- Hub.tiles(@board, @hub)}>
                 <.link
                   navigate={tile.path}

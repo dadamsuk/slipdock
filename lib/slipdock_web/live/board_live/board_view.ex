@@ -479,6 +479,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :waiting_filter, :boolean, default: false, doc: "`?waiting=me` (#2095)"
   attr :dora, :map, default: nil, doc: "`Slipdock.Dora.for_board/2`, when delivery metrics are on"
 
+  attr :right_now, :map,
+    default: nil,
+    doc: "`Slipdock.Now.counts/1`, while the board's Agentic Building is on (#2103)"
+
   attr :revealed_snoozed, :any,
     default: MapSet.new(),
     doc: "the lists whose snoozed cards are shown, faded (W-1803)"
@@ -553,7 +557,31 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           <code>slipdock deploy run</code>
           (board settings → Delivery metrics shows how).
         </span>
+        <.link
+          :if={!@view_only}
+          id="board-now-link"
+          navigate={~p"/boards/#{@board}/now"}
+          class="ml-auto shrink-0 link link-hover"
+          title="Which runners are doing what, and the cards in progress"
+        >
+          Right now ›
+        </.link>
       </p>
+      <%!-- What the runners are doing (#2103): on a board with Agentic
+            Building on, one click to the Right now page. The delivery line
+            above carries the link when it shows, so this one stands in for
+            it only when that line is off. --%>
+      <.link
+        :if={@right_now && !@dora && !@view_only}
+        id="board-now"
+        navigate={~p"/boards/#{@board}/now"}
+        title="Which runners are doing what, and the cards in progress"
+        class="flex items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-1.5 text-xs text-base-content/70 hover:bg-base-200 hover:text-base-content"
+      >
+        <.icon name="hero-cpu-chip" class="size-3.5 shrink-0" />
+        <span>{Slipdock.Now.sentence(%{counts: @right_now}) || "Nothing running right now"}</span>
+        <span class="ml-auto shrink-0">Right now ›</span>
+      </.link>
       <div
         :if={@filtering}
         class="flex flex-wrap items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-2 text-sm"

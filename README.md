@@ -238,6 +238,10 @@ Briefly, with the detail in [the manual](docs/manual.md):
   jobs nobody takes, deadlocks, verification and merges that stall, cards and
   questions nobody is moving. What it can't fix gets the `stuck` flag (or a board
   alert) and a trigger you can attach an email to; `/healthz` reports its pulse.
+- **Right now** — [which runners are doing what, and the cards in progress and
+  where they are](docs/manual.md#right-now), on one page a click from the board,
+  read again every few seconds, with the jobs queued and why each is held.
+  `GET /api/boards/:board/now` or MCP `get_board now: true`.
 - **Overseer** — [an eye on outcomes, not the work](docs/manual.md#the-overseer):
   every minute, server checks for work going round (a second rejection, a
   third runner pass), a board waiting only on you with nothing running, cards

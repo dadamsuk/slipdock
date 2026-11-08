@@ -775,6 +775,9 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
 - "Have my laptop work cards that land in Doing" → `slipdock runner new 1 laptop --pool dev
   --agent claude --cwd ~/src/app --column Doing`, then give the user the printed steps (the
   token is in them and shown once)
+- "What are the runners doing right now?" → MCP `get_board` with `now: true`, or
+  `GET /api/boards/<board>/now`: each runner and its job's step, every card in progress
+  and where it sits, the queue; for a person, the board's Right now page (`/boards/<id>/now`)
 - "What is the agent doing with #129?" → `slipdock jobs --card 129`, then `slipdock job <id>`,
   or `slipdock job <id> --follow` to watch it live
 - "Stop that agent" → `slipdock cancel-job <id>`

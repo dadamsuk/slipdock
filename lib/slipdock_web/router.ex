@@ -345,6 +345,8 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/tidy", GardenLive.Index, :index
       # What the health monitor found stuck (W-2310).
       live "/boards/:id/health", HealthLive.Index, :index
+      # What is happening right now: runners, cards in progress, queued jobs (#2103).
+      live "/boards/:id/now", NowLive.Index, :index
       # What passes learned, to triage (W-2310 §Findings, #1940).
       live "/boards/:id/findings", FindingsLive.Index, :index
       # What shipped since yesterday, with its evidence (#1948).
@@ -854,6 +856,7 @@ defmodule SlipdockWeb.Router do
     post "/garden/suggestions/:id/dismiss", GardenController, :dismiss
     post "/garden/suggestions/:id/undo", GardenController, :undo
     get "/boards/:board/health", HealthController, :index
+    get "/boards/:board/now", NowController, :show
     post "/boards/:board/health", HealthController, :create
     patch "/boards/:board/health/settings", HealthController, :settings
     get "/boards/:board/findings", FindingController, :index

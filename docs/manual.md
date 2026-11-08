@@ -53,6 +53,8 @@ way in: what it is, the pictures, and how to get it running.
   only a person would otherwise notice (jobs nobody takes, deadlocks, merges
   that stall, cards nobody is moving), tries a safe fix, and flags what it
   can't fix — [The health monitor](#the-health-monitor)
+- What is happening right now: which runners are doing what, and the cards in
+  progress and where they are — [Right now](#right-now)
 - Findings: what each card taught that the code doesn't show, written by the
   pass in its closing comment or recorded by the server when work goes wrong,
   kept on the board to triage into the handbook — [Findings](#findings)
@@ -2550,6 +2552,40 @@ stops. `slipdock health <board>` ends with the same pulse.
 | `dead_blocker` | An open card blocked by one in a dropped list or, on a board with a feed, in a list no feed takes from and not in progress (a *Maybe Later*), so it can never start. An archived blocker no longer blocks. | None: the blocked card is flagged, naming the blocker. |
 | `lane_hog` | A card in progress whose lane has kept another card's job waiting for over 4 hours (`hours`) while nothing happened on it. | None: the card holding the lane is flagged. |
 
+## Right now
+
+What is happening on a board's tree at this moment, on one page: the board's
+**Right now** page (`/boards/:id/now`). It is one click from the board page:
+the delivery line (the rocket, while delivery metrics are on) ends in
+*Right now ›*, and on a board with [Agentic Building](#agentic-building) on and
+that line off, a line of its own says what is on (*1 runner working · 2 cards
+in progress · 1 queued*) and opens it. The Agentic Building page has a
+*Right now* tile too: the runners working, with the cards in progress and the
+jobs queued under it.
+
+The page covers the board's whole tree (its root and every sub-board, since
+runners take work from all of it), read again every few seconds:
+
+- **Runners**: each one, online or not, and the jobs it holds now, with the
+  card, how long since it was claimed and the latest step its agent reported.
+- **In progress**: every open card in a list whose category is *In progress*,
+  longest there first, with where it sits (the board and list, and the epic
+  whose sub-board holds it), its state line (*Running · Mac Studio · 7m*,
+  *Waiting on Dana*), the runner loop holding it, and what holds it: waiting
+  on a person, verifying, merging, blocked, in review or stuck.
+- **Queued**: the jobs waiting for a runner, oldest first, each with its pool
+  and why it is held, if something holds it (a pause, a full WIP limit, a lane,
+  no runner online).
+
+Anyone who can read the board and its tree's root board can look; it changes
+nothing. The same snapshot over the API and MCP:
+
+```
+GET /api/boards/:board/now     runners (each with its jobs), in_progress, queued, counts
+```
+
+MCP: `get_board` with `now: true`.
+
 ## The overseer
 
 Slipdock records everything that happens to the work — every rejection,
@@ -3481,9 +3517,10 @@ Turn on **Agentic Building** in Board settings, Features (`slipdock
 set-board <board> --agentic-building on`, `update_board`
 `agentic_building`, `PATCH /api/boards/:board {"agentic_building": true}`)
 and the board menu gains **Agentic Building**, beside Automations, for the
-board's owner. It opens `/boards/<id>/agentic`. At its top are four tiles, the places
+board's owner. It opens `/boards/<id>/agentic`. At its top are five tiles, the places
 you look every day, each with a count that says whether it needs a look
-(read again every half minute): **Runners** (online of all, jobs running
+(read again every half minute): **Right now** (runners working, cards in
+progress and jobs queued; it opens [Right now](#right-now)), **Runners** (online of all, jobs running
 and queued; it opens Automations, where the Runners panel is),
 **Findings** (open), **Ledger** (shipped since 07:00 yesterday) and
 **Health** (stuck, and how many need a person). A tile that needs a look
