@@ -2,7 +2,8 @@ defmodule Mix.Tasks.Slipdock.Findings.Dedupe do
   @moduledoc """
   Collapses a board tree's open findings into one per lesson
   (`Slipdock.Findings.dedupe/2`, #1941): each card's repeats into its oldest,
-  then each lesson repeated across cards into the tree's oldest. Every repeat
+  then each lesson repeated across cards, in the same words or reworded
+  (`Slipdock.Findings.Lesson.alike?/2`), into the tree's oldest. Every repeat
   is merged, not deleted, so its count moves and a person can reopen it.
 
       mix slipdock.findings.dedupe slipdock --dry-run   # what it would merge

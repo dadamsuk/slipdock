@@ -2305,11 +2305,18 @@ deleting the comment takes back what it added that nobody has triaged yet.
   punctuation, and every `#id` and commit sha read alike) adds to that
   finding's count. So does a restatement in other words, when at least 60% of
   its normalised words are the same.
-- **On another card of the tree**, an item whose normalised text and kind
-  match an open finding is recorded *merged* into it, which counts it. The
-  list shows that one finding, with every card it was said on. `rule` and
-  `handbook-wrong` items are never merged across cards: a rule candidate is
-  judged on its own card.
+- **On another card of the tree**, an item that restates an open finding, or
+  a repeat already merged into it, is recorded *merged* into it, which counts
+  it, with a note saying why: *same lesson as #N, in the same words*, or
+  *reworded (62% alike)*. Reworded means the telling words are mostly the
+  same: the common words (`the`, `run`, `when`) count for nothing, and a name,
+  path or flag (in backticks, or with `_`, `.` or a digit in it) counts three
+  times a plain word; at 55% alike or more it is the same lesson. The kind
+  doesn't have to match, since one writer's `gotcha` is another's `tooling`.
+  The list shows that one finding, with every card it was said on, and a
+  person can reopen a merge they disagree with. `rule` and `handbook-wrong`
+  items are never merged across cards: a rule candidate is judged on its own
+  card.
 - **A tooling item about the machine, not the project** is written
   `- tooling (runner): …` (the installed CLI or skills lag the repo, say). It
   is kept with the runner whose job the pass ran in (its card's job, or its
@@ -2345,7 +2352,8 @@ a proposal for a person to apply or dismiss:
 
 A board with findings from before this (#1941) collapses them with
 `mix slipdock.findings.dedupe <board> [--dry-run]`, which applies the same
-two rules to the open ones as merges a person can reopen
+two rules to the open ones as merges a person can reopen (run it again after
+an upgrade that widens them, as #2117 did)
 (the handbook's Operations page, W-1951 §Runbooks, has the release form).
 
 **Recorded by the server.** The system notes its own signals without asking:
