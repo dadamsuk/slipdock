@@ -601,7 +601,7 @@ defmodule Slipdock.Findings do
         do: Enum.uniq(into.comment_ids ++ repeat.comment_ids),
         else: into.comment_ids
 
-    {:ok, _} =
+    {:ok, merged} =
       Repo.transaction(fn ->
         into
         |> Ecto.Changeset.change(count: into.count + repeat.count, comment_ids: comment_ids)
@@ -619,28 +619,37 @@ defmodule Slipdock.Findings do
         )
         |> Repo.update!()
       end)
+
+    Promote.settled(merged)
   end
 
   @doc """
   Triages a finding: `"dismiss"`, `"promote"` (say what it became in `note`,
   e.g. `W-1950 §Tests TEST-4`), `"merge"` (with `into`, another finding of the
   same tree, which takes its count) or `"reopen"`.
+
+  Promoting, dismissing or merging closes the proposals the server drafted
+  for it, with a note naming why (`Promote.settled/2`, #2129); reopening it
+  reopens its own proposal if that was how it closed (`Promote.reopened/1`).
   """
   def triage(%Finding{} = finding, action, params \\ %{}) do
     note = params["note"] || params[:note]
 
     case action do
       "dismiss" ->
-        set(finding, "dismissed", note)
+        finding |> set("dismissed", note) |> tap_ok(&Promote.settled/1)
 
       "promote" ->
-        set(finding, "promoted", note)
+        finding |> set("promoted", note) |> tap_ok(&Promote.settled/1)
 
       "reopen" ->
-        finding |> reopen() |> tap_ok(&Promote.consider/1)
+        finding |> reopen() |> tap_ok(&Promote.reopened/1) |> tap_ok(&Promote.consider/1)
 
       "merge" ->
-        finding |> merge(params["into"] || params[:into], note) |> tap_ok(&Promote.consider/1)
+        finding
+        |> merge(params["into"] || params[:into], note)
+        |> tap_ok(&Promote.settled/1)
+        |> tap_ok(&Promote.consider/1)
 
       other ->
         {:error, "unknown change #{inspect(other)}: dismiss, promote, merge or reopen"}

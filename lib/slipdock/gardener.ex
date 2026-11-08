@@ -313,6 +313,45 @@ defmodule Slipdock.Gardener do
   def undo(%Suggestion{}, _user, _opts),
     do: {:error, "only an applied suggestion can be undone"}
 
+  @doc """
+  Closes an open `suggestion` with nobody deciding, saying why in `note`
+  (#2129): a proposal drafted from a finding that triage has since decided
+  (`Slipdock.Findings.Promote.settled/2`). It is dismissed, so its
+  fingerprint is remembered, nothing it proposes is applied, and each card
+  it is about logs the note. `reopen_closed/1` takes it back.
+  """
+  def close(%Suggestion{state: "open"} = suggestion, note) when is_binary(note) do
+    log(suggestion, "proposal ##{suggestion.id} closed: #{note}")
+
+    suggestion
+    |> Ecto.Changeset.change(
+      state: "dismissed",
+      note: note,
+      decided_by_id: nil,
+      decided_at: DateTime.utc_now(:second)
+    )
+    |> Repo.update()
+    |> tap_ok(&broadcast/1)
+  end
+
+  def close(%Suggestion{}, _note), do: {:error, "only an open suggestion can be closed"}
+
+  @doc """
+  Opens again a suggestion `close/2` closed; one a person dismissed is
+  refused.
+  """
+  def reopen_closed(%Suggestion{state: "dismissed", decided_by_id: nil, note: note} = suggestion)
+      when is_binary(note) do
+    log(suggestion, "proposal ##{suggestion.id} reopened (was closed: #{note})")
+
+    suggestion
+    |> Ecto.Changeset.change(state: "open", note: nil, decided_at: nil)
+    |> Repo.update()
+    |> tap_ok(&broadcast/1)
+  end
+
+  def reopen_closed(%Suggestion{}), do: {:error, "only a suggestion the server closed reopens"}
+
   @doc "Applies or dismisses, by name: `decide(s, user, \"apply\" | \"dismiss\", opts)`."
   def decide(suggestion, user, decision, opts \\ [])
   def decide(s, user, "apply", opts), do: __MODULE__.apply(s, user, opts)
