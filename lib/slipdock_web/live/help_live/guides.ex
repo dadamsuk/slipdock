@@ -183,6 +183,9 @@ defmodule SlipdockWeb.HelpLive.Guides do
         health state. <.app_link current_user={@current_user} to={~p"/work"}>My work</.app_link>
         lists everything assigned to you across every board and level, after what is waiting
         on you: the overseer's alerts first, when a board has it on (Automations, Overseer).
+        Open cards with no due date aren't listed there; its header says how many there are,
+        and completed ones are under Show completed. The API, the CLI, the MCP tools and the
+        AI chat still see every assigned card.
       </p>
       <p>
         Cards can also <strong>depend</strong>
