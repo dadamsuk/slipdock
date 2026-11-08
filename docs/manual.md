@@ -2374,7 +2374,7 @@ on the board's [Agentic Building](#agentic-building) page (the card panel's
 Findings link opens it too);
 on a sub-board it lists the whole tree's, as the API does. It shows the open
 findings, newest first, each with its kind, source, count, card, who recorded
-it and its text, and filters them as the API does: status (open, promoted,
+it, when it was found ("2 h ago", the exact time on hover) and its text, and filters them as the API does: status (open, promoted,
 dismissed, merged, any), kind, source, card and since (days back or a date),
 kept in the URL so a filtered list can be shared. With write access each open
 finding has **Promote or merge…** (a panel: promote with a note saying what it
@@ -2383,7 +2383,8 @@ became, or merge it into another open finding picked from a list) and
 "N open findings" in its panel, linking to the page filtered to that card.
 
 ```sh
-slipdock findings slipdock                       # open ones, newest first
+slipdock findings slipdock                       # open ones, newest first; each line dated
+                                                 # (#438 today 17:30 gotcha …, or #437 2026-11-07 …, UTC)
 slipdock findings slipdock --kind rule --days 7  # also --status all, --source timeout, --card 12
 slipdock findings slipdock --source incident     # what each incident's check missed
 slipdock findings slipdock --scope runner        # tooling kept with a runner; --scope all for both

@@ -73,7 +73,8 @@ defmodule SlipdockCLI.Findings do
   end
 
   @doc false
-  def line(f) do
+  def line(f, now \\ DateTime.utc_now()) do
+    found = found(f["created_at"], now)
     card = if c = f["card"], do: " ##{c["id"]}", else: ""
     also = also(f)
     runner = runner(f)
@@ -83,7 +84,22 @@ defmodule SlipdockCLI.Findings do
     into = if f["merged_into_id"], do: " → ##{f["merged_into_id"]}", else: ""
     proposal = proposal(f)
 
-    "##{f["id"]}#{status} #{f["kind"]}#{runner} (#{f["source"]}#{card}#{also})#{count}: #{f["text"]}#{into}#{proposal}#{note}"
+    "##{f["id"]}#{found}#{status} #{f["kind"]}#{runner} (#{f["source"]}#{card}#{also})#{count}: #{f["text"]}#{into}#{proposal}#{note}"
+  end
+
+  # When it was found (#2114), in UTC as the server sends it: "today 17:30"
+  # for today's, the date for older ones, so this morning's leftovers read
+  # apart from the last hour's. Nothing when the server sent no time.
+  defp found(iso, now) do
+    case DateTime.from_iso8601(to_string(iso)) do
+      {:ok, at, _} ->
+        if DateTime.to_date(at) == DateTime.to_date(now),
+          do: " today " <> Calendar.strftime(at, "%H:%M"),
+          else: " " <> Date.to_iso8601(DateTime.to_date(at))
+
+      _ ->
+        ""
+    end
   end
 
   # The other cards a lesson was said on, merged into this one (#1941).
