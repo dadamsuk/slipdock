@@ -37,6 +37,10 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert Enum.map(rules, & &1.id) == ["PRIN-1", "PRIN-2", "PRIN-3"]
     assert Enum.all?(rules, &(&1.severity == "should" and &1.check == "judgement"))
 
+    # PRIN-3 splits what grows, as well as extending before adding (#2112).
+    assert List.last(rules).text =~ "extended before a new one is written beside it; "
+    assert List.last(rules).text =~ "is split in the same change, each part about one thing."
+
     # Every list item under Principles' `## Rules` became a rule.
     {:ok, section} = Slipdock.Wiki.Section.read(seeded("Principles").body, "Principles/Rules")
     assert length(Regex.scan(~r/^- \*\*PRIN-\d+\*\*/m, section)) == length(rules)
@@ -67,5 +71,9 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert manual =~ "Editing these two pages is how a board changes how it decides and plans."
     assert manual =~ "gets the seed in its place, reported as `(seed added)`"
     assert manual =~ "`(edited: left alone)`"
+
+    # PRIN-3 as 1.6.0 words it, and the upgrade from 1.5.0's seed (#2112).
+    assert manual =~ "extending what is there before adding beside it, and splitting it"
+    assert manual =~ "reported as `(seed updated)`"
   end
 end

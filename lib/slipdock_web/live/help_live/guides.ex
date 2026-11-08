@@ -996,7 +996,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
         project takes. Each is a short paragraph and a matching <code>PRIN</code>
         rule, which agents keep to and a verifier checks. It starts with three
         that suit most projects (one place for each concern, the obvious reading of an
-        ambiguous ask, extend before adding).
+        ambiguous ask, extend before adding and split what has grown).
       </p>
       <p>
         The <strong>Playbook</strong>

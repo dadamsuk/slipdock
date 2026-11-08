@@ -805,7 +805,7 @@ defmodule Slipdock.HandbookTest do
     test "a fresh install has both, listed by the Index, with their keys and prefixes",
          %{user: user, board: board} do
       {:ok, result} = Handbook.install(user, board)
-      assert result.version.version == "1.5.0"
+      assert result.version.version == "1.6.0"
 
       for {title, key, prefix} <- [
             {"Principles", "principles", "PRIN"},
@@ -841,8 +841,19 @@ defmodule Slipdock.HandbookTest do
 
       assert {:ok, baseline} = Wiki.Section.read(page.body, "Principles/Baseline")
 
-      for name <- ["One place for each concern", "The obvious reading", "Extend before adding"],
+      for name <- [
+            "One place for each concern",
+            "The obvious reading",
+            "Extend before adding, and split when it grows"
+          ],
           do: assert(baseline =~ "**#{name}.**", name)
+
+      # PRIN-3 brakes growth as well as starting new things (#2112).
+      assert baseline =~
+               "the change that extends it refactors it first, so it ends as two things each " <>
+                 "about one thing and never as one huge object. (PRIN-3)"
+
+      refute baseline =~ "**Extend before adding.**"
 
       assert {rules, []} = Handbook.Rules.parse_page(page)
       assert Enum.map(rules, & &1.id) == ["PRIN-1", "PRIN-2", "PRIN-3"]
@@ -851,6 +862,11 @@ defmodule Slipdock.HandbookTest do
         assert %{severity: "should", check: "judgement", scope: ["**"]} = rule
         assert rule.section == "Principles/Rules"
       end
+
+      assert List.last(rules).text ==
+               "An existing page, module or component is extended before a new one is " <>
+                 "written beside it; one that has grown big or hard to follow is split in " <>
+                 "the same change, each part about one thing."
 
       # Counted like any other page's rules, and given for any path.
       assert Handbook.for_board(board, user).rules == %{count: 3, must: 0, problems: []}
@@ -964,6 +980,61 @@ defmodule Slipdock.HandbookTest do
       assert Repo.get!(Page, prin.id).body == ours
     end
 
+    test "installing 1.6.0 over an unedited 1.5.0 seed rewords PRIN-3 (#2112)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      prin = page_titled(board, "Principles")
+      seeded = prin.body
+
+      # As 1.5.0 seeded it: PRIN-3 extends, with no brake on growth.
+      old = Handbook.seed_1_5_body("principles")
+      assert old =~ "**Extend before adding.** A new page"
+      refute old =~ "split when it grows"
+      {:ok, _} = Wiki.update_page(prin, %{"body" => old})
+
+      assert {[_, _, %{id: "PRIN-3", text: "An existing page, module or component is " <> t}], []} =
+               Handbook.Rules.parse_page(Repo.get!(Page, prin.id))
+
+      assert t == "extended before a new one is written beside it."
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.version.version == "1.6.0"
+      assert again.report.added["pages"] == ["Principles (seed updated)"]
+      assert Repo.get!(Page, prin.id).body == seeded
+
+      # The ids stay PRIN-1 to PRIN-3, with the new PRIN-3.
+      assert {rules, []} = Handbook.Rules.parse_page(Repo.get!(Page, prin.id))
+      assert Enum.map(rules, & &1.id) == ["PRIN-1", "PRIN-2", "PRIN-3"]
+      assert List.last(rules).text =~ "is split in the same change, each part about one thing."
+
+      # Updated now: a third install has nothing to do.
+      {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["pages"] == []
+      refute Enum.any?(third.report.skipped["pages"], &(&1 =~ "edited"))
+    end
+
+    test "an edited 1.5.0 seed is left alone by 1.6.0 (#2112)", %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      prin = page_titled(board, "Principles")
+
+      # The old PRIN-3 kept, with one principle of the board's own beside it.
+      ours =
+        String.replace(
+          Handbook.seed_1_5_body("principles"),
+          "\n## Rules",
+          "\n**Boring tech.** Postgres first. (PRIN-4)\n\n## Rules"
+        )
+
+      assert ours =~ "**Boring tech.**"
+      {:ok, _} = Wiki.update_page(prin, %{"body" => ours})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["pages"] == []
+      assert "Principles (edited: left alone)" in again.report.skipped["pages"]
+      assert Repo.get!(Page, prin.id).body == ours
+      assert Repo.get!(Page, prin.id).body =~ "**Extend before adding.** A new page"
+    end
+
     test "the seed card leaves them to a person", %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
       seed = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Seed the handbook")
@@ -984,7 +1055,7 @@ defmodule Slipdock.HandbookTest do
       before = Map.new(handbook_pages(board), &{&1.id, {&1.body, &1.updated_at}})
 
       {:ok, again} = Handbook.install(user, board)
-      assert again.version.version == "1.5.0"
+      assert again.version.version == "1.6.0"
       # The report names what it added.
       assert again.report.added["pages"] == ["Principles", "Playbook"]
       assert again.report.added["cards"] == []

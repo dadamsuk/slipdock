@@ -31,7 +31,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.5.0"
+  @version "1.6.0"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -108,14 +108,28 @@ defmodule Slipdock.Handbook do
 
   **The obvious reading.** An ambiguous ask can be stopped on, or built. This project builds the obvious reading and notes the other one on the card, and asks only when the two differ materially. (PRIN-2)
 
-  **Extend before adding.** A new page, module or component can be written, or an existing one extended. This project extends what is there, and starts a new one only when the old one would stop being about one thing. (PRIN-3)
+  **Extend before adding, and split when it grows.** A new page, module or component can be written beside an existing one, or the existing one extended. This project extends what is there. Extending has a limit, though: when the thing being extended has grown big, hard to follow or about more than one thing, the change that extends it refactors it first, so it ends as two things each about one thing and never as one huge object. (PRIN-3)
   """
 
   @principles_rules """
   - **PRIN-1** should · judgement · Each concern (a date format, an HTTP client, a validation) has one place, and new code reuses it rather than writing its own.
   - **PRIN-2** should · judgement · An ambiguous ask is built to its obvious reading, with the other reading noted on the card; asking is for readings that differ materially.
-  - **PRIN-3** should · judgement · An existing page, module or component is extended before a new one is written beside it.
+  - **PRIN-3** should · judgement · An existing page, module or component is extended before a new one is written beside it; one that has grown big or hard to follow is split in the same change, each part about one thing.
   """
+
+  # PRIN-3 as 1.5.0 seeded it (#2041), before it split what grows (#2112): a
+  # Principles page still holding that seed, unedited, gets this one's place.
+  @principles_1_5 String.replace(
+                    @principles,
+                    "**Extend before adding, and split when it grows.** A new page, module or component can be written beside an existing one, or the existing one extended. This project extends what is there. Extending has a limit, though: when the thing being extended has grown big, hard to follow or about more than one thing, the change that extends it refactors it first, so it ends as two things each about one thing and never as one huge object. (PRIN-3)",
+                    "**Extend before adding.** A new page, module or component can be written, or an existing one extended. This project extends what is there, and starts a new one only when the old one would stop being about one thing. (PRIN-3)"
+                  )
+
+  @principles_rules_1_5 String.replace(
+                          @principles_rules,
+                          "beside it; one that has grown big or hard to follow is split in the same change, each part about one thing.",
+                          "beside it."
+                        )
 
   @card_shape """
   ## Card shape
@@ -369,6 +383,24 @@ defmodule Slipdock.Handbook do
   defp skeleton("playbook"), do: {@playbook_skeleton, rules_skeleton("playbook")}
   defp skeleton(_), do: nil
 
+  # The earlier seeds an install replaces when a page still holds one
+  # unedited, each with how the report names it: the skeleton (#2041), and
+  # on Principles the 1.5.0 seed, whose PRIN-3 didn't split what grows (#2112).
+  defp replaceable("principles") do
+    [
+      {skeleton("principles"), "seed added"},
+      {{@principles_1_5, rules_skeleton("principles") <> "\n" <> @principles_rules_1_5},
+       "seed updated"}
+    ]
+  end
+
+  defp replaceable(key) do
+    case skeleton(key) do
+      nil -> []
+      skeleton -> [{skeleton, "seed added"}]
+    end
+  end
+
   @doc false
   # The body a Principles or Playbook page had as 1.5.0 first made it, for
   # the upgrade's tests.
@@ -376,6 +408,20 @@ defmodule Slipdock.Handbook do
     {title, _key, summary, _, _} = Enum.find(@sections, &(elem(&1, 1) == key))
     {body, rules} = skeleton(key)
     page_body(title, summary, body, rules)
+  end
+
+  @doc false
+  # The body a Principles page had as 1.5.0 seeded it (#2041), before PRIN-3
+  # split what grows (#2112), for the upgrade's tests.
+  def seed_1_5_body("principles") do
+    {title, _key, summary, _, _} = Enum.find(@sections, &(elem(&1, 1) == "principles"))
+
+    page_body(
+      title,
+      summary,
+      @principles_1_5,
+      rules_skeleton("principles") <> "\n" <> @principles_rules_1_5
+    )
   end
 
   defp page_body(title, summary, body, rules), do: "# #{title}\n\n#{summary}\n\n#{body}\n#{rules}"
@@ -544,10 +590,11 @@ defmodule Slipdock.Handbook do
   defp rules_section?(page), do: has_heading?(page, "rules")
 
   # A Principles or Playbook page still holding the 1.5.0 skeleton gets the
-  # seed in its place (#2041): nobody has written on it, so nothing is lost.
+  # seed in its place (#2041), and a Principles page still holding the 1.5.0
+  # seed gets 1.6.0's (#2112): nobody has written on it, so nothing is lost.
   # One somebody edited is the board's own and is left alone. Reported as
-  # "<title> (seed added)" among the added pages, and as "<title> (edited:
-  # left alone)" among the skipped ones.
+  # "<title> (seed added)" or "<title> (seed updated)" among the added pages,
+  # and as "<title> (edited: left alone)" among the skipped ones.
   defp seed_skeletons(root, user, report) do
     case find(root) do
       nil ->
@@ -563,30 +610,32 @@ defmodule Slipdock.Handbook do
 
   defp seed_skeleton(page, user, report) do
     with {title, _key, summary, _, seed} <- Enum.find(@sections, &(elem(&1, 1) == key(page))),
-         {skeleton, skeleton_rules} <- skeleton(key(page)) do
+         [_ | _] = earlier <- replaceable(key(page)) do
       body = String.trim(page.body || "")
       seeded = page_body(title, summary, seed, seed_rules(key(page)))
 
+      replaced = Enum.find_value(earlier, &replaced_as(&1, body, title, summary))
+
       cond do
-        body == String.trim(seeded) ->
-          report
-
-        body == String.trim(page_body(title, summary, skeleton, skeleton_rules)) ->
-          put_seed(page, seeded, user, report)
-
-        true ->
-          update_in(report, [:skipped, "pages"], &mark_edited(&1, page.title))
+        body == String.trim(seeded) -> report
+        replaced -> put_seed(page, seeded, replaced, user, report)
+        true -> update_in(report, [:skipped, "pages"], &mark_edited(&1, page.title))
       end
     else
       _ -> report
     end
   end
 
-  defp put_seed(page, seeded, user, report) do
-    opts = [user: user, message: "seed added by the Handbook Tool, #{@version}"]
+  # How the report names replacing `body`, if it is this earlier seed unedited.
+  defp replaced_as({{old, old_rules}, how}, body, title, summary) do
+    if body == String.trim(page_body(title, summary, old, old_rules)), do: how
+  end
+
+  defp put_seed(page, seeded, how, user, report) do
+    opts = [user: user, message: "#{how} by the Handbook Tool, #{@version}"]
 
     case Wiki.update_page(page, %{"body" => seeded}, opts) do
-      {:ok, _} -> update_in(report, [:added, "pages"], &(&1 ++ [page.title <> " (seed added)"]))
+      {:ok, _} -> update_in(report, [:added, "pages"], &(&1 ++ [page.title <> " (#{how})"]))
       _ -> report
     end
   end
