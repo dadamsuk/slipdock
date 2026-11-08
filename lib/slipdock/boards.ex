@@ -1703,6 +1703,9 @@ defmodule Slipdock.Boards do
   `"column"`, `"tag"`, `"priority"`, `"flag"`, `"q"`, `"completed"`,
   `"archived"`, `"assignee"`, `"due"`, `"deps"` and `"kind"`.
 
+  `"q"` matches a piece of the title or description, and a card's id
+  (`123`, `#123`) or link names that card as well (`card_ref/1`).
+
   `"kind"` is `"card"` or `"document"` (a card whose whole content is the file
   on it — see `Slipdock.Kinds`). Wiki pages are the third kind of thing in a
   list and are not cards: `Slipdock.Wiki.list_pages/2` lists those.
@@ -1780,7 +1783,7 @@ defmodule Slipdock.Boards do
           where(
             query,
             [c],
-            like(fragment("lower(?)", c.title), ^like) or
+            fragment("(? = ? OR lower(?) LIKE ?)", c.id, ^ref_id(q), c.title, ^like) or
               like(fragment("lower(?)", c.description), ^like)
           )
       end
@@ -2581,6 +2584,10 @@ defmodule Slipdock.Boards do
     |> Repo.all()
     |> Repo.preload([:tags, :column])
   end
+
+  # `list_cards/2`'s `"q"`: a card's id (`123`, `#123`) or link names that
+  # card, as a piece of its title finds it (#2097). No card has id 0.
+  defp ref_id(q), do: card_ref(q) || 0
 
   # The archive panel's search: a card's id or link names that card, and
   # anything else is a piece of a title.
@@ -3634,6 +3641,24 @@ defmodule Slipdock.Boards do
   end
 
   def card_ref(_q), do: nil
+
+  @doc """
+  The live card a typed reference names (`card_ref/1`) in `board`'s tree but
+  not on `board` itself, if `user` may read it, or nil: what a board's search
+  box offers under the toolbar (#2097), since the filter already shows a card
+  on the board.
+  """
+  def card_elsewhere_in_tree(user, %Board{} = board, q) when is_binary(q) do
+    with %Card{} = card <- card_by_ref_across([Board.root_id(board)], q),
+         false <- card.board_id == board.id,
+         true <- Slipdock.Access.can_read?(Slipdock.Access.card_permission(user, card)) do
+      card
+    else
+      _ -> nil
+    end
+  end
+
+  def card_elsewhere_in_tree(_user, _board, _q), do: nil
 
   @doc """
   The card a typed reference names (see `card_ref/1`), if it is a card on one

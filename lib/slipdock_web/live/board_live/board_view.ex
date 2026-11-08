@@ -438,6 +438,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :filters, :map, required: true
   attr :filtering, :boolean, required: true
   attr :page_hit, :any, default: nil, doc: "the wiki page whose code is in the search box"
+  attr :card_hit, :any, default: nil, doc: "the card elsewhere in the tree whose id is searched"
   attr :swim, Config, required: true
   attr :swim_view, :any, required: true
   attr :swim_dirty, :boolean, required: true
@@ -556,6 +557,16 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           <span :if={@page_hit.board_id != @board.id} class="text-base-content/50">
             · {@page_hit.board.name}
           </span>
+        </.link>
+        <.link
+          :if={@card_hit}
+          id="search-card-hit"
+          navigate={~p"/boards/#{@card_hit.board_id}/cards/#{@card_hit.id}"}
+          class="badge badge-primary badge-outline gap-1 hover:bg-primary/10"
+        >
+          <.icon name="hero-rectangle-stack" class="size-3.5" />
+          <span class="font-mono">{"#" <> to_string(@card_hit.id)}</span> {@card_hit.title}
+          <span class="text-base-content/50">· {@card_hit.board.name}</span>
         </.link>
         <span :for={kind <- @filters.kinds} class="badge badge-outline">
           {Slipdock.Kinds.label(kind)} only
