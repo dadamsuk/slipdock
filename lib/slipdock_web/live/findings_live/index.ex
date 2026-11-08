@@ -20,7 +20,7 @@ defmodule SlipdockWeb.FindingsLive.Index do
   alias Slipdock.Repo
   alias SlipdockWeb.Params
 
-  import SlipdockWeb.SlipdockComponents, only: [modal: 1]
+  import SlipdockWeb.SlipdockComponents, only: [modal: 1, timestamp: 1]
 
   @filters ~w(status kind source card since scope)
 
@@ -212,6 +212,12 @@ defmodule SlipdockWeb.FindingsLive.Index do
           {@finding.status}{if @finding.merged_into_id, do: " into ##{@finding.merged_into_id}"}
         </span>
         <span class="text-base-content/50">#{@finding.id}</span>
+        <%!-- When it was found (#2114): "2 h ago", the exact time on hover. --%>
+        <.timestamp
+          at={@finding.inserted_at}
+          id={"finding-at-#{@finding.id}"}
+          class="text-base-content/60"
+        />
         <.link
           :if={@finding.card}
           navigate={~p"/boards/#{@finding.card.board_id}/cards/#{@finding.card.id}"}

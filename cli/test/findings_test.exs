@@ -102,6 +102,33 @@ defmodule SlipdockCLI.FindingsTest do
     assert Findings.line(Map.put(@open, "proposal_id", 78)) =~ "[proposal #78]"
   end
 
+  # #2114: when it was found, so this morning's read apart from the last hour's.
+  test "the line says when it was found: the time for today's, else the date" do
+    now = ~U[2026-11-08 18:00:00Z]
+
+    assert Findings.line(Map.put(@open, "created_at", "2026-11-08T17:30:12Z"), now) =~
+             "#4 today 17:30 gotcha (agent #1781): mix format can need two passes"
+
+    assert Findings.line(Map.put(@open, "created_at", "2026-11-07T23:59:59Z"), now) =~
+             "#4 2026-11-07 gotcha (agent #1781)"
+
+    assert Findings.line(Map.merge(@merged, %{"created_at" => "2026-10-30T09:00:00Z"}), now) =~
+             "#5 2026-10-30 [merged] process"
+
+    # No time, or one that doesn't parse: the line goes without, rather than failing.
+    assert Findings.line(@open, now) =~ "#4 gotcha (agent #1781)"
+    assert Findings.line(Map.put(@open, "created_at", "soon"), now) =~ "#4 gotcha (agent #1781)"
+  end
+
+  test "findings <board> prints the date the server sent" do
+    serve([
+      {200, JSON.encode!(%{"findings" => [Map.put(@open, "created_at", "2020-01-02T03:04:05Z")]})}
+    ])
+
+    out = capture_io(fn -> Findings.run("findings", ["slipdock"], []) end)
+    assert out =~ "#4 2020-01-02 gotcha (agent #1781)"
+  end
+
   test "a runner's finding with no runner known still says runner" do
     line = Findings.line(Map.merge(@open, %{"scope" => "runner", "kind" => "tooling"}))
     assert line =~ "tooling [runner] (agent #1781)"

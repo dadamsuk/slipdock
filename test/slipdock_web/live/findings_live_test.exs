@@ -67,6 +67,19 @@ defmodule SlipdockWeb.FindingsLiveTest do
       refute has_element?(view, "#findings-empty")
     end
 
+    # #2114: so this morning's leftovers read apart from the last hour's.
+    test "each row says when it was found, the exact time on hover", ctx do
+      at = ~U[2026-11-08 09:15:00Z]
+      f = finding(ctx.board, ctx.card, inserted_at: at)
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings")
+
+      stamp = "#finding-#{f.id} time#finding-at-#{f.id}"
+      assert has_element?(view, ~s(#{stamp}[datetime="2026-11-08T09:15:00Z"]))
+      assert has_element?(view, ~s(#{stamp}[title*="8 Nov 2026"]))
+      assert has_element?(view, stamp, SlipdockWeb.Dates.relative(at))
+    end
+
     test "a lesson said on several cards is one row, linking each card (#1941)", ctx do
       {:ok, _} =
         Boards.add_comment(ctx.card, "- Findings:\n  - gotcha: keep it once", by: ctx.owner)
