@@ -396,7 +396,11 @@ defmodule SlipdockWeb.HelpLive.Guides do
           <strong>Who gets asked</strong>: Agentic Building → <em>Who gets asked</em>
           names a person for each kind of question an agent asks (product, UX, security,
           release, anything else). Their waits go to that person, and to the board's owner
-          when nobody is named.
+          when nobody is named. Beside it, <em>An approval's proposal stands after</em>
+          (off until set; 4h, say) lets an unanswered wait of kind other that offers
+          choices and proposes one go ahead with its proposal: the card says so and the
+          person asked is told. Product, UX, security and release questions, and a wait
+          that proposes nothing, always wait for a person.
         </li>
         <li>
           <strong>Profiles</strong>: one word for what kind of change a card is (security,

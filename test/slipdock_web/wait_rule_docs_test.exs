@@ -112,6 +112,41 @@ defmodule SlipdockWeb.WaitRuleDocsTest do
     assert text =~ "always waits for a person, however long it takes"
   end
 
+  describe "the other places a reader looks for waits" do
+    test "the README names --default, withdrawing with a reason and wait_default_after" do
+      text = flat(read("README.md"))
+      assert text =~ "names the one the agent proposes (`--default N`, `default`)"
+      assert text =~ ~s(`slipdock wait 12 --withdraw --reason "…"`)
+      assert text =~ "**An approval's proposal stands after** a board's `wait_default_after`"
+      assert text =~ "`slipdock set-board --wait-default-after 4h`; off until set"
+      assert text =~ "never for the other kinds"
+    end
+
+    test "the slipdock skill gives --default, --reason and the board setting" do
+      text = read("priv/skills/slipdock/SKILL.md")
+
+      assert text =~
+               ~s(slipdock wait <id> "what you need" [--on EMAIL] [--choice X]... [--default N] [--kind K])
+
+      assert text =~ ~s(slipdock wait <id> --withdraw [--reason "why"])
+
+      assert flat(text) =~
+               "an agent withdrawing one it didn't open (a moot wait) must give the reason"
+
+      assert text =~ "slipdock set-board <board> --wait-default-after 4h"
+      refute text =~ ~r/slipdock wait <id> --withdraw\s+#/
+    end
+
+    test "the boards help names the proposal-stands setting beside Who gets asked",
+         %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/help/boards")
+      text = flat(html)
+      assert text =~ "<em>An approval&#39;s proposal stands after</em> (off until set; 4h, say)"
+      assert text =~ "the card says so and the person asked is told"
+      assert text =~ "always wait for a person"
+    end
+  end
+
   describe "the verifier's prompt" do
     setup %{user: owner} do
       board = board_fixture(%{"name" => "Verified"}, owner: owner)

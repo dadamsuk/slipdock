@@ -122,7 +122,14 @@ Briefly, with the detail in [the manual](docs/manual.md):
   asked**: a wait says its kind of question (`product`, `ux`, `security`,
   `release`, `other`; `--kind`, `question`), and a board routes each kind to
   the person whose call it is (`slipdock set-board --route product=EMAIL`,
-  `wait_routes`), else to its owner. **Waiting on you** opens My work with everything that
+  `wait_routes`), else to its owner. A wait that offers choices names the
+  one the agent proposes (`--default N`, `default`), so the answer can be one
+  click; an agent finding a wait moot withdraws it, whoever opened it, with
+  the reason posted on the card (`slipdock wait 12 --withdraw --reason "…"`).
+  **An approval's proposal stands after** a board's `wait_default_after`
+  (`slipdock set-board --wait-default-after 4h`; off until set): an
+  unanswered wait of kind `other` with a proposal goes ahead with it and the
+  person asked is told, never for the other kinds. **Waiting on you** opens My work with everything that
   needs you, oldest first (waits, `review` and `waiting` flags on your cards,
   runner trouble, cards in progress with nobody on them), the overseer's
   alerts before all of it, and never the Getting Started tour's cards; the
