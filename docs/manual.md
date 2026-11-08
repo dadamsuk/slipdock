@@ -2312,8 +2312,21 @@ its kind when it is settled in the handbook (`- gotcha [done: W-1950 §Local
 setup]: the test partition needs its own database`), or `→ #<card>` (`->`
 works too) at its end when a card was filed for it (`- tooling: no test pins
 the CLI's exit codes → #2087`). Words like "(corrected)" or "fixed" are not
-read as done, since lessons say them too. Write the block once, in
-the closing comment (on a board that verifies work, the completion's
+read as done, since lessons say them too.
+
+A fix is a card, not a finding. A concrete change you could hand to someone
+waits a day for triage as a finding, and triage only turns it into a card, so
+a pass files the card at once, in the backlog (`slipdock add <board> "…" --desc
+"…" --column Backlog`), and names it in the block with the arrow. A finding is
+only for what is uncertain, cuts across cards, or shows the handbook wrong:
+
+| A card (`→ #id`) | A finding |
+|---|---|
+| no test pins `slipdock done`'s exit codes | `mix format` can need two passes; run the check after it |
+| a stale moduledoc or doc entry | the shared `_pre_push` database can hold another branch's migration |
+| `page section --append -` writes a literal `-` | W-1950 §Tests says async is safe, but the fixture is one user |
+
+Write the block once, in the closing comment (on a board that verifies work, the completion's
 evidence): not again in a wrap-up, a restatement or on the epic. The block is
 read when the comment is posted (the evidence of a completion too), and
 deleting the comment takes back what it added that nobody has triaged yet.

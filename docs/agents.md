@@ -864,6 +864,15 @@ finding it repeats, on this card or another (`rule` and `handbook-wrong`
 excepted across cards). An item already dealt with says where, and is kept
 *promoted*, not open: `- gotcha [done: W-1950 §Local setup]: …` when it is
 settled in the handbook, `- tooling: … → #2087` when a card was filed for it.
+A fix is a card, not a finding: a concrete change you could hand to someone
+(a missing test such as "no test pins `slipdock done`'s exit codes", a stale
+moduledoc or doc entry, a tooling bug such as "`page section --append -`
+writes a literal `-`") goes on the board as a card now (`slipdock add <board>
+"…" --desc "…" --column Backlog`) and into the block as `→ #<card>`. A
+finding is only for what is uncertain, cuts across cards, or shows the
+handbook wrong ("`mix format` can need two passes", "the shared `_pre_push`
+database can hold another branch's migration", "W-1950 §Tests says async is
+safe, but the fixture is one user").
 The test
 for one: would a card on a different subject want to know this? Never a
 pointer (`in the evidence`, `recorded on #1819`), an event the board records

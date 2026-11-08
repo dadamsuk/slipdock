@@ -527,7 +527,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
       handbook don't show, for the daily triage to handle. An item already dealt with says where
       and is kept promoted, not open: <code>[done: W-1950 §Local setup]</code>
       after its kind, or <code>→ #2087</code>
-      at its end for a card filed for it.
+      at its end for a card filed for it. A fix is a card, not a finding: a concrete change
+      someone could be handed (a missing test, a stale doc, a tooling bug) goes on the board
+      as a card at once, and the block names it with the arrow; a finding is only for what is
+      uncertain, cuts across cards, or shows the handbook wrong.
     </p>
     <.person_note>
       <strong>No verifier, no check.</strong>

@@ -630,6 +630,21 @@ anybody reads later:
    setup]: …`), or `→ #<card>` at its end when you filed a card for it
    (`- tooling: no test pins the CLI's exit codes → #2087`).
 
+   **A fix is a card, not a finding.** A concrete change you could hand
+   to someone (a missing test, a stale moduledoc or doc entry, a tooling
+   bug) waits a day for triage as a finding, and triage turns it into a
+   card anyway. So file the card now, in the backlog (`slipdock add
+   <board> "<title>" --desc "<what, where, why>" --column Backlog`), and
+   put it in the block with the arrow, so it is kept promoted. A finding
+   is only for what is uncertain, cuts across cards, or shows the
+   handbook wrong:
+
+   | A card (`→ #id`) | A finding |
+   |---|---|
+   | no test pins `slipdock done`'s exit codes | `mix format` can need two passes; run the check after it |
+   | the `Findings` moduledoc still says a person triages them | the shared `_pre_push` database can hold another branch's migration |
+   | `page section --append -` writes a literal `-` | W-1950 §Tests says async is safe, but the fixture is one user |
+
    `Findings: none` is the usual answer: most cards teach nothing a card
    on another subject needs, and filler costs a person a dismissal each.
    The board keeps each

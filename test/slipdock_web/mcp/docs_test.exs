@@ -211,6 +211,31 @@ defmodule SlipdockWeb.MCP.DocsTest do
       assert work =~ "`gotcha: mix format can need two passes`"
     end
 
+    test "everywhere the block is taught, a fix is a card, not a finding (#2121)" do
+      for path <- ~w(priv/skills/slipdock-loop/SKILL.md priv/skills/slipdock-work/SKILL.md
+                     priv/skills/slipdock-docs/SKILL.md docs/agents.md docs/manual.md
+                     lib/slipdock_web/api_guide.ex lib/slipdock_web/live/help_live/flow.ex
+                     lib/slipdock/sweep.ex) do
+        text = read(path) |> String.replace(~r/\s+/, " ")
+
+        assert text =~ "a fix is a card, not a finding" or
+                 text =~ "A fix is a card, not a finding",
+               path
+
+        assert text =~ "→ #", path
+        assert text =~ "cuts across cards", path
+      end
+
+      # With examples of each, where a pass reads it at length.
+      for path <- ~w(priv/skills/slipdock-loop/SKILL.md priv/skills/slipdock-work/SKILL.md
+                     docs/agents.md docs/manual.md lib/slipdock_web/api_guide.ex) do
+        text = read(path) |> String.replace(~r/\s+/, " ")
+        assert text =~ "no test pins `slipdock done`'s exit codes", path
+        assert text =~ "`mix format` can need two passes", path
+        assert text =~ "--column Backlog" or text =~ "in the backlog", path
+      end
+    end
+
     test "the docs skill says where each kind of knowledge goes" do
       docs = read("priv/skills/slipdock-docs/SKILL.md")
       assert docs =~ "### What you learned: the handbook, a finding, or your memory"

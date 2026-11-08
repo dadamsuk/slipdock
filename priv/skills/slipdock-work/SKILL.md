@@ -256,6 +256,14 @@ whole card before touching it.
   pwsh`. An item already dealt with says where, and is kept promoted, not
   open: `- gotcha [done: W-1950 §Local setup]: …` when it is settled in
   the handbook, `- tooling: … → #2087` when a card was filed for it.
+  **A fix is a card, not a finding**: a concrete change you could hand to
+  someone (a missing test such as "no test pins `slipdock done`'s exit
+  codes", a stale moduledoc or doc entry, a tooling bug such as "`page
+  section --append -` writes a literal `-`") goes on the board now
+  (`slipdock add <board> "…" --desc "…" --column Backlog`) and into the
+  block as `→ #<card>`. A finding is only for what is uncertain, cuts across
+  cards, or shows the handbook wrong ("`mix format` can need two passes",
+  "W-1950 §Tests says async is safe, but the fixture is one user").
   `Findings: none` is the usual answer. `slipdock-loop` has the
   examples side by side.
 - **Token cost in the write-up.** The closing comment on a card ends with a
