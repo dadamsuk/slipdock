@@ -236,9 +236,10 @@ defmodule Slipdock.Runners.Drift do
       "title" => "Runner #{runner.name} has drifted from this server: #{Enum.join(parts, ", ")}",
       "body" =>
         "Its installed copies differ from what this server serves, so passes on it may " <>
-          "follow stale instructions. Bring them up to date by hand (installed skills are " <>
-          "edited, never copied over); the server changes nothing. This alert clears " <>
-          "itself once the runner reports them current."
+          "follow stale instructions. A runner that keeps itself current installs this " <>
+          "server's skills before its next job; otherwise run the install one-liner " <>
+          "again (skills are never edited by hand). This alert clears itself once the " <>
+          "runner reports them current."
     }
 
     case Automations.raise_alert(attrs) do

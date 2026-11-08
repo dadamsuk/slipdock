@@ -174,7 +174,7 @@ defmodule Slipdock.RunnersDriftTest do
       assert alert.title ==
                "Runner box has drifted from this server: skills drifted (slipdock-loop), CLI old"
 
-      assert alert.body =~ "the server changes nothing"
+      assert alert.body =~ "installs this server's skills before its next job"
 
       # Claiming again, still drifted: the same one alert.
       assert claim(ctx, drifted).status == 204
@@ -274,7 +274,7 @@ defmodule Slipdock.RunnersDriftTest do
       File.mkdir_p!(dir)
       {out, 0} = System.cmd("sh", [Path.expand("priv/runner/slipdock-runner"), "--help"], cd: dir)
       File.rm_rf!(dir)
-      assert out =~ "Nothing is changed on this machine."
+      assert out =~ "Skills from the server (#2048)"
       refute out =~ "set -u"
     end
   end

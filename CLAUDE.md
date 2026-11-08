@@ -9,7 +9,7 @@ Consider each of these. Not every one applies to every change, but judge each:
 - Every door (SPEC-2): the web UI, the REST API, the CLI (`cli/`) and the MCP tools (`lib/slipdock_web/mcp/tools/`). A door left out is said why on the card.
 - The agents page and the API guide (`docs/agents.md`, `lib/slipdock_web/api_guide.ex`).
 - The in-app help pages (SPEC-10): `HelpLive.Guides` for the app, `HelpLive.Agents` and `HelpLive.Flow` for agents and runners.
-- The packaged skills in `priv/skills/`. Installed copies of them elsewhere are edited the same way, never copied over.
+- The packaged skills in `priv/skills/`, their one source. Installed copies (`~/.claude/skills`) are never edited by hand: a runner that keeps itself current installs the server's before each job, and anywhere else the install one-liner does (`docs/agents.md` §Install the skills). No test reads an installed copy (`test/slipdock/repo_checks_test.exs`).
 - `README.md` and `docs/manual.md`.
 - The test suite.
 

@@ -19,20 +19,15 @@ defmodule Slipdock.HandbookPageListsTest do
 
   @root Path.expand("../..", __DIR__)
 
-  # The skill's copy installed on this machine, if there is one: edited the
-  # same way, never copied over (CLAUDE.md), so it is held to the list too.
-  @installed_skill Path.expand("~/.claude/skills/slipdock-docs/SKILL.md")
-  @skill_phrase "in the section page that covers it"
-
   # {where, the phrase that starts its list}
   defp copies do
     [
       {"README.md", "- **The handbook.** One Tool is built in"},
       {"docs/manual.md", "skeleton pages for"},
       {"docs/agents.md", "section page (Specification"},
-      {"priv/skills/slipdock-docs/SKILL.md", @skill_phrase},
+      {"priv/skills/slipdock-docs/SKILL.md", "in the section page that covers it"},
       {"the Slipdock.Handbook moduledoc", "wiki pages that describe the"}
-    ] ++ if(File.exists?(@installed_skill), do: [{@installed_skill, @skill_phrase}], else: [])
+    ]
   end
 
   test "every copy of the page list names every section page" do

@@ -79,16 +79,9 @@ defmodule SlipdockWeb.VerifiedDocsTest do
 
   test "builders check the bar at pickup and ask when a part needs a person (#1883)" do
     flat = fn text -> String.replace(text, ~r/\s+/, " ") end
-    installed = Path.expand("~/.claude/skills")
-
-    # The packaged skills, and an installed copy where there is one: those are
-    # edited the same way, never copied over, so each is checked for the wording.
+    # The packaged skills: their one source is priv/skills/ (#2048).
     for skill <- ["slipdock-loop", "slipdock-work"],
-        path <- [
-          Path.join([@root, "priv/skills", skill, "SKILL.md"]),
-          Path.join([installed, skill, "SKILL.md"])
-        ],
-        File.exists?(path),
+        path = Path.join([@root, "priv/skills", skill, "SKILL.md"]),
         text = flat.(File.read!(path)) do
       assert text =~ "**Check the bar at pickup**, before building", path
       assert text =~ "needs a person (a handbook rule added, reworded or dropped, a merge", path

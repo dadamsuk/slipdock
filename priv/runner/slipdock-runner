@@ -71,7 +71,17 @@
 # Drift (#1795): every claim also says the SHA-256 of each slipdock skill
 # installed under SKILLS_DIR (default ~/.claude/skills) and of the slipdock
 # CLI (SLIPDOCK_CLI, else the one on the PATH), and the runners list shows
-# any that differ from the server's. Nothing is changed on this machine.
+# any that differ from the server's.
+#
+# Skills from the server (#2048), on with SELF_UPDATE unless the config sets
+# SKILLS_UPDATE=0 (or on alone with SKILLS_UPDATE=1): before each job but a
+# merge, the runner fetches the server's skills (/api/skills.tar.gz) and puts
+# each slipdock skill in SKILLS_DIR in place of the copy there, so the agent
+# reads the skills of the server it talks to. The packaged skills in the
+# server's priv/skills/ are the one source: a copy here is never edited by
+# hand. An archive with any entry outside a slipdock* folder is refused, and
+# a skill folder that is a symlink is left alone. A failed fetch keeps the
+# copies there, says so in the log, and the job runs.
 set -u
 
 # The built-in merge (see above). The server sends only data: the pull
@@ -223,6 +233,47 @@ installed_skills() {
 installed_cli() {
   cli=${SLIPDOCK_CLI:-$(command -v slipdock 2>/dev/null)}
   if [ -n "$cli" ] && [ -f "$cli" ]; then sha256 "$cli" 2>/dev/null; else printf none; fi
+}
+
+# keep_skills — before a job, with SKILLS_UPDATE on (or unset and
+# SELF_UPDATE on): replace each slipdock skill under SKILLS_DIR with the
+# server's (#2048). 0 when they were put in place.
+keep_skills() {
+  case "${SKILLS_UPDATE:-${SELF_UPDATE:-}}" in 1 | yes | true | on) ;; *) return 0 ;; esac
+  new=$WORK/skills-new
+  rm -rf "$new" "$WORK/skills.tgz"
+  if ! curl -fsS --max-time 60 -o "$WORK/skills.tgz" "$SLIPDOCK_URL/api/skills.tar.gz" 2>>"$WORK/curl.err"; then
+    say "skills: could not fetch the server's skills; keeping the ones in $SKILLS_DIR"
+    return 1
+  fi
+  entries=$(tar -tzf "$WORK/skills.tgz" 2>/dev/null) || entries=
+  bad=$(printf '%s\n' "$entries" | grep -v '^slipdock[A-Za-z0-9_-]*/[A-Za-z0-9_./-]*$' | head -n 1)
+  dots=$(printf '%s\n' "$entries" | grep -e '\.\./' -e '/\.\.$' | head -n 1)
+  if [ -z "$entries" ] || [ -n "$bad" ] || [ -n "$dots" ]; then
+    say "skills: the server's archive has an entry outside a slipdock skill (${bad:-${dots:-empty}}); keeping the ones in $SKILLS_DIR"
+    return 1
+  fi
+  mkdir -p "$new" "$SKILLS_DIR" && tar -xzf "$WORK/skills.tgz" -C "$new" || {
+    say "skills: could not unpack the server's skills; keeping the ones in $SKILLS_DIR"
+    return 1
+  }
+  put=
+  for d in "$new"/slipdock*; do
+    [ -d "$d" ] || continue
+    name=$(basename "$d")
+    if [ -L "$SKILLS_DIR/$name" ]; then
+      say "skills: $SKILLS_DIR/$name is a symlink; left alone"
+      continue
+    fi
+    rm -rf "$SKILLS_DIR/$name.new" &&
+      cp -R "$d" "$SKILLS_DIR/$name.new" &&
+      rm -rf "$SKILLS_DIR/$name" &&
+      mv "$SKILLS_DIR/$name.new" "$SKILLS_DIR/$name" &&
+      put="$put${put:+ }$name"
+  done
+  rm -rf "$new" "$WORK/skills.tgz"
+  [ -n "$put" ] && say "skills: installed the server's $put in $SKILLS_DIR"
+  return 0
 }
 
 # The claim's headers, written again before each claim: a skill edited while
@@ -606,6 +657,9 @@ $JOB_INSTRUCTIONS"
   export SLIPDOCK_JOB_ID SLIPDOCK_JOB_KIND SLIPDOCK_CARD SLIPDOCK_CARD_URL SLIPDOCK_PROMPT
 
   say "job #$JOB_ID: $kind for card #$card"
+
+  # The server's skills, for the agent this job starts (#2048).
+  [ "$kind" != merge ] && keep_skills
 
   # A merge runs in the repository itself: its card's branch is the pull
   # request's, and nothing is built. That is the runner's repository wherever

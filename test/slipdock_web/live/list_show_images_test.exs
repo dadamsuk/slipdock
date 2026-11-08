@@ -134,17 +134,12 @@ defmodule SlipdockWeb.ListShowImagesTest do
     refute Repo.get!(Column, ctx.todo.id).show_images
   end
 
-  test "the manual, API guide and both copies of the skill say how to turn it off" do
+  test "the manual, API guide and the skill say how to turn it off" do
     root = Path.expand("../../..", __DIR__)
     assert File.read!(Path.join(root, "docs/manual.md")) =~ "--no-show-images"
     assert File.read!(Path.join(root, "lib/slipdock_web/api_guide.ex")) =~ "`show_images: false`"
 
-    for path <- [
-          Path.join(root, "priv/skills/slipdock/SKILL.md"),
-          Path.expand("~/.claude/skills/slipdock/SKILL.md")
-        ],
-        File.exists?(path) do
-      assert File.read!(path) =~ "set-column <board> <column> --no-show-images"
-    end
+    assert File.read!(Path.join(root, "priv/skills/slipdock/SKILL.md")) =~
+             "set-column <board> <column> --no-show-images"
   end
 end

@@ -118,6 +118,9 @@ defmodule SlipdockWeb.RunnerSelfUpdateTest do
       SLIPDOCK_RUNNER_TOKEN='#{ctx.token}'
       WAIT=0
       HEARTBEAT=1
+      # SELF_UPDATE also installs the server's skills (#2048): never this
+      # machine's own.
+      SKILLS_DIR='#{ctx.dir}/skills'
       job_echo() { echo hi; }
       #{extra}
       """)
@@ -286,6 +289,7 @@ defmodule SlipdockWeb.RunnerSelfUpdateTest do
       $Pool = 'dev'
       $Wait = 0
       $Heartbeat = 1
+      $SkillsDir = '#{ctx.dir}/skills'
       function Job-Echo { Write-Output 'hi' }
       function Job-Mark { Write-Output 'marked' }
       #{extra}

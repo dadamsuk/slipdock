@@ -4521,9 +4521,9 @@ that ships by pull request when a runner doesn't take merge jobs.
 `slipdock runners` shows the same in its SCRIPT column, and `slipdock runner`
 on its *script* line.
 
-**Skill and CLI drift.** Installed copies of the slipdock skills get edited by
-hand, and a machine's `slipdock` CLI can be older than the server, so a pass
-can follow stale instructions. Every claim also says what the machine has:
+**Skill and CLI drift.** Installed copies of the slipdock skills can be older
+than the server's, and so can a machine's `slipdock` CLI, so a pass can
+follow stale instructions. Every claim also says what the machine has:
 the SHA-256 of each `slipdock*/SKILL.md` under `~/.claude/skills`
 (`SKILLS_DIR` / `$SkillsDir` in the config for another place; line endings
 count as LF) and of the CLI (`SLIPDOCK_CLI` / `$SlipdockCli`, else the
@@ -4537,7 +4537,13 @@ and the API's runner has `drift` (`skills`, `drifted_skills`, `cli`). A
 runner that drifts raises one alert on its board, which clears itself once
 the runner reports everything current. A skill the server doesn't package,
 or one not installed, isn't drift. The server never changes anything on the
-machine: bring the copies up to date by hand. With *Keep the runner current* ticked (the default for
+machine itself, but a runner that keeps itself current (below) also puts the
+server's skills in its skills directory before every job but a merge (#2048),
+so its skills are never a hand-edited second copy: `SKILLS_UPDATE=0` /
+`$SkillsUpdate = $false` keeps them as they are, `SKILLS_UPDATE=1` /
+`$SkillsUpdate = $true` turns it on without the self-update, and a skill
+folder that is a symlink is left alone. Elsewhere, run the install one-liner
+again. With *Keep the runner current* ticked (the default for
 new installs; `--no-self-update` to `install.sh`, `-NoSelfUpdate` to
 `install.ps1`, `slipdock runner new … --no-self-update`; by hand
 `SELF_UPDATE=1` or `$SelfUpdate = $true` in the config), a runner whose

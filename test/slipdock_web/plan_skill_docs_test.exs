@@ -15,7 +15,6 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
   alias Slipdock.Handbook
 
   @root Path.expand("../..", __DIR__)
-  @installed Path.expand("~/.claude/skills")
   @priv Path.join(@root, "priv/skills/slipdock-plan/SKILL.md")
 
   defp flat(text), do: text |> String.replace(~r/\s+/, " ") |> String.trim()
@@ -39,10 +38,7 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
     Enum.find(Handbook.blueprint()["pages"], &(&1["title"] == "Playbook"))["body"]
   end
 
-  test "both copies are the same, with front matter inside the caps" do
-    installed = Path.join([@installed, "slipdock-plan", "SKILL.md"])
-    if File.exists?(installed), do: assert(File.read!(installed) == skill(), installed)
-
+  test "its front matter is inside the caps" do
     assert [_, front, _] = String.split(skill(), "---\n", parts: 3)
     assert front =~ ~r/^name: slipdock-plan$/m
     [_, description] = Regex.run(~r/^description: (.+)$/m, front)

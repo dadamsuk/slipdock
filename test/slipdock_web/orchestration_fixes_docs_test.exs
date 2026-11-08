@@ -5,20 +5,18 @@ defmodule SlipdockWeb.OrchestrationFixesDocsTest do
   may wait on its subcards (#1755), section writes keep headings and tables
   (#1756), a card is made with its bar and paths (#1757) and an epic can't be
   closed over open subcards (#1758). The agent guide, `docs/agents.md` and
-  the loop skill (packaged, and the installed copy where this machine has
-  one) no longer tell an agent to work round them, and the loop skill files
+  the packaged loop skill (`priv/skills/`, the one source, #2048) no longer
+  tell an agent to work round them, and the loop skill files
   a card with its bar and paths in one write.
   """
   use ExUnit.Case, async: true
 
   @root Path.expand("../..", __DIR__)
-  @installed Path.expand("~/.claude/skills/slipdock-loop/SKILL.md")
 
   defp flat(text), do: String.replace(text, ~r/\s+/, " ")
 
   defp loop_copies do
-    priv = Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")
-    [priv | if(File.exists?(@installed), do: [@installed], else: [])]
+    [Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")]
   end
 
   defp docs do

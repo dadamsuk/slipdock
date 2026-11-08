@@ -3,20 +3,17 @@ defmodule SlipdockWeb.HandbookSkillsTest do
   The loop's handbook steps (#1266): `slipdock-loop` reads the suggested
   sections before building, runs the docs gate before closing and writes a
   `Handbook:` line in the format the gardener parses; `slipdock-docs` sends
-  durable answers to the handbook first. The installed copies, where this
-  machine has them, carry the same steps.
+  durable answers to the handbook first. The packaged skills in `priv/skills/` are the one
+  source (#2048); no installed copy is read.
   """
   use ExUnit.Case, async: true
 
   alias Slipdock.Handbook
 
   @root Path.expand("../..", __DIR__)
-  @installed Path.expand("~/.claude/skills")
 
   defp copies(skill) do
-    priv = Path.join([@root, "priv/skills", skill, "SKILL.md"])
-    installed = Path.join([@installed, skill, "SKILL.md"])
-    [priv | if(File.exists?(installed), do: [installed], else: [])]
+    [Path.join([@root, "priv/skills", skill, "SKILL.md"])]
   end
 
   @loop_steps [
@@ -35,13 +32,13 @@ defmodule SlipdockWeb.HandbookSkillsTest do
     "| adds, rewords or drops a rule (`## Rules`) | a proposal, not an edit: `slipdock garden propose` |"
   ]
 
-  test "slipdock-loop has the read step, the gate and the line, in every copy" do
+  test "slipdock-loop has the read step, the gate and the line" do
     for path <- copies("slipdock-loop"), step <- @loop_steps do
       assert File.read!(path) =~ step, "#{path} lacks #{inspect(step)}"
     end
   end
 
-  test "the handbook paragraphs are the same in every copy" do
+  test "the handbook paragraphs are where the loop and docs skills put them" do
     blocks =
       for path <- copies("slipdock-loop") do
         text = File.read!(path)

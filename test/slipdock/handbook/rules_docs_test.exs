@@ -2,7 +2,7 @@ defmodule Slipdock.Handbook.RulesDocsTest do
   @moduledoc """
   The rule format is written down where agents and people read it (#1773):
   the guide's handbook section, `docs/agents.md`, the manual and the
-  slipdock-docs and slipdock-loop skills, in every copy. The examples they
+  slipdock-docs and slipdock-loop skills (#2048: `priv/skills/` only). The examples they
   give parse as rules, so the docs and the parser can't drift apart.
   """
   # The guide reads the settings, so this needs the database.
@@ -12,12 +12,9 @@ defmodule Slipdock.Handbook.RulesDocsTest do
   alias Slipdock.Wiki.Page
 
   @root Path.expand("../../..", __DIR__)
-  @installed Path.expand("~/.claude/skills")
 
   defp copies(skill) do
-    priv = Path.join([@root, "priv/skills", skill, "SKILL.md"])
-    installed = Path.join([@installed, skill, "SKILL.md"])
-    [priv | if(File.exists?(installed), do: [installed], else: [])]
+    [Path.join([@root, "priv/skills", skill, "SKILL.md"])]
   end
 
   defp parses!(item, key) do
@@ -76,7 +73,7 @@ defmodule Slipdock.Handbook.RulesDocsTest do
              "Installing 1.5.0 over an older handbook adds the two pages and changes no other page"
   end
 
-  test "README and slipdock-docs, in every copy, name Principles and Playbook (#2040)" do
+  test "README and slipdock-docs, name Principles and Playbook (#2040)" do
     readme = Path.join(@root, "README.md") |> File.read!() |> String.replace(~r/\s+/, " ")
     assert readme =~ "principles (the tie-breakers, each a `PRIN` rule) and the playbook"
 
@@ -97,7 +94,7 @@ defmodule Slipdock.Handbook.RulesDocsTest do
     assert manual =~ "gets an empty one appended, and nothing else on it changes"
   end
 
-  test "slipdock-docs says where a rule goes, in every copy" do
+  test "slipdock-docs says where a rule goes" do
     for path <- copies("slipdock-docs") do
       text = File.read!(path)
       assert text =~ "A **rule** (something a change must or should keep to)", path
@@ -105,7 +102,7 @@ defmodule Slipdock.Handbook.RulesDocsTest do
     end
   end
 
-  test "slipdock-loop keeps to the rules that cover the card, in every copy" do
+  test "slipdock-loop keeps to the rules that cover the card" do
     for path <- copies("slipdock-loop") do
       text = File.read!(path)
       assert text =~ "Each section page also lists its **rules** under `## Rules`", path
