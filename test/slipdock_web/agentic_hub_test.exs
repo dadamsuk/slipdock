@@ -55,6 +55,19 @@ defmodule SlipdockWeb.AgenticHubTest do
 
   defp tile(view, key), do: "#agentic-tile-#{key}"
 
+  # A rule drafted from findings, waiting on a person (#2123).
+  defp proposal(board, finding_ids, attrs \\ []) do
+    %Slipdock.Gardener.Suggestion{
+      board_id: board.id,
+      check: "proposal",
+      fingerprint: "p#{System.unique_integer([:positive])}",
+      explanation: "Finding seen 3 times: add a rule",
+      subject: if(finding_ids == [], do: %{}, else: %{"findings" => finding_ids})
+    }
+    |> struct(attrs)
+    |> Repo.insert!()
+  end
+
   test "a quiet board: five tiles, each linking its page, none asking for a look", ctx do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
 
@@ -116,12 +129,54 @@ defmodule SlipdockWeb.AgenticHubTest do
              "1 job running, 1 queued"
            )
 
-    assert has_element?(view, "#{tile(view, "findings")} [data-role=tile-number]", "2")
-    assert has_element?(view, ~s(#{tile(view, "findings")}[data-attention="info"]))
+    # Two open findings, but none waiting on a person: handled, not a to-do (#2123).
+    assert has_element?(view, "#{tile(view, "findings")} [data-role=tile-number]", "0")
+
+    assert has_element?(
+             view,
+             "#{tile(view, "findings")} [data-role=tile-line]",
+             "Nothing waiting on you · 2 findings being handled"
+           )
+
+    refute has_element?(view, ~s(#{tile(view, "findings")}[data-attention]))
     assert has_element?(view, "#{tile(view, "ledger")} [data-role=tile-number]", "2")
     assert has_element?(view, "#{tile(view, "health")} [data-role=tile-number]", "2")
     assert has_element?(view, "#{tile(view, "health")} [data-role=tile-line]", "1 needs a person")
     assert has_element?(view, ~s(#{tile(view, "health")}[data-attention="warning"]))
+  end
+
+  test "the Findings tile counts the proposals drafted from findings, not the findings", ctx do
+    card = card_fixture(hd(ctx.board.columns), %{"title" => "Work"})
+
+    [f | _] =
+      for _ <- 1..3,
+          do:
+            Repo.insert!(%Finding{
+              board_id: ctx.board.id,
+              card_id: card.id,
+              kind: "gotcha",
+              source: "agent",
+              text: "a lesson #{System.unique_integer()}"
+            })
+
+    proposal(ctx.board, [f.id])
+    proposal(ctx.board, [f.id], state: "applied")
+    # A proposal not drafted from findings is the Tidy-up page's, not this tile's.
+    proposal(ctx.board, [])
+
+    c = Hub.counts(ctx.board)
+    assert {c.proposals, c.findings} == {1, 3}
+    tile = Enum.find(Hub.tiles(ctx.board, c), &(&1.key == "findings"))
+    assert %{number: "1", unit: "proposal", attention: :info} = tile
+    assert tile.line == "To apply or dismiss · 3 findings being handled"
+
+    proposal(ctx.board, [f.id])
+    tile = Enum.find(Hub.tiles(ctx.board, Hub.counts(ctx.board)), &(&1.key == "findings"))
+    assert %{number: "2", unit: "proposals"} = tile
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
+    assert has_element?(view, "#{tile(view, "findings")} [data-role=tile-number]", "2")
+    assert has_element?(view, ~s(#{tile(view, "findings")}[data-attention="info"]))
   end
 
   test "runners all offline with work queued is a warning; offline and idle only a dot", ctx do

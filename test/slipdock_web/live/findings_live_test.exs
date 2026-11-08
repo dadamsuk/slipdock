@@ -36,10 +36,58 @@ defmodule SlipdockWeb.FindingsLiveTest do
     |> Repo.insert!()
   end
 
+  # A rule drafted from findings, waiting on a person (#2123).
+  defp proposal(board, finding_ids, attrs \\ []) do
+    %Slipdock.Gardener.Suggestion{
+      board_id: board.id,
+      check: "proposal",
+      fingerprint: "p#{System.unique_integer([:positive])}",
+      explanation: "Finding seen 3 times: add a rule",
+      subject: if(finding_ids == [], do: %{}, else: %{"findings" => finding_ids})
+    }
+    |> struct(attrs)
+    |> Repo.insert!()
+  end
+
   defp reader_conn(board, owner) do
     reader = user_fixture("findings-reader-#{System.unique_integer([:positive])}@example.com")
     {:ok, _} = Access.grant(board, reader, "read", owner)
     conn_as(reader)
+  end
+
+  describe "what waits on a person (#2123)" do
+    test "the proposals drafted from findings come first, the findings after as reference",
+         ctx do
+      f = finding(ctx.board, ctx.card, text: "a lesson seen three times", count: 3)
+      p = proposal(ctx.board, [f.id], explanation: "Seen 3 times: screens must not flash")
+      proposal(ctx.board, [f.id], state: "dismissed")
+      proposal(ctx.board, [])
+
+      {:ok, view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings")
+
+      assert has_element?(view, "#findings-awaiting [data-role=awaiting-count]", "1")
+      row = "#findings-awaiting #findings-proposal-#{p.id}"
+      assert has_element?(view, "#{row} [data-role=explanation]", "screens must not flash")
+      assert has_element?(view, "#{row} [data-role=from]", "##{f.id}")
+      assert has_element?(view, ~s(#{row} a[href="/boards/#{ctx.board.id}/tidy"]))
+
+      assert html |> Floki.parse_document!() |> Floki.find("#findings-awaiting li") |> length() ==
+               1
+
+      # Above the filters and the list.
+      {awaiting, _} = :binary.match(html, "findings-awaiting")
+      {filters, _} = :binary.match(html, "findings-filters")
+      {list, _} = :binary.match(html, "findings-list")
+      assert awaiting < filters and filters < list
+      assert has_element?(view, "#findings-list [data-role=reference]", "For reference")
+    end
+
+    test "with none it says there is nothing to decide", ctx do
+      finding(ctx.board, ctx.card, [])
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/findings")
+      assert has_element?(view, "#findings-awaiting-empty", "Nothing to decide")
+      assert has_element?(view, "#findings-awaiting [data-role=awaiting-count]", "0")
+    end
   end
 
   describe "the listing" do

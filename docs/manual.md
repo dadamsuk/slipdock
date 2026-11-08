@@ -2408,7 +2408,14 @@ ones it has.
 **The Findings page.** Each board has one at `/boards/:id/findings`, a tile
 on the board's [Agentic Building](#agentic-building) page (the card panel's
 Findings link opens it too);
-on a sub-board it lists the whole tree's, as the API does. It shows the open
+on a sub-board it lists the whole tree's, as the API does. It leads with
+**Waiting on you**: the garden proposals drafted from findings that are still
+open, each with the findings it came from and a link to the Tidy-up page to
+apply or dismiss it. That is all a person needs to do. Triage and the server
+handle the findings themselves, so the tile counts these proposals ("1
+proposal", with "N findings being handled" under it), not the open findings,
+and `slipdock findings` prints "N proposals await you" first. Below them, as
+reference, it shows the open
 findings, newest first, each with its kind, source, count, card, who recorded
 it, when it was found ("2 h ago", the exact time on hover) and its text, and filters them as the API does: status (open, promoted,
 dismissed, merged, any), kind, source, card and since (days back or a date),
@@ -2419,7 +2426,7 @@ became, or merge it into another open finding picked from a list) and
 "N open findings" in its panel, linking to the page filtered to that card.
 
 ```sh
-slipdock findings slipdock                       # open ones, newest first; each line dated
+slipdock findings slipdock                       # proposals awaiting you, then the open ones, newest first; each line dated
                                                  # (#438 today 17:30 gotcha …, or #437 2026-11-07 …, UTC)
 slipdock findings slipdock --kind rule --days 7  # also --status all, --source timeout, --card 12
 slipdock findings slipdock --source incident     # what each incident's check missed

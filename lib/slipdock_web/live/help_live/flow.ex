@@ -524,7 +524,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     </p>
     <p>
       On a board with a handbook, the closing comment has a <strong><code>Handbook:</code> line</strong>, the sections it updated or why none needed it, and a <strong><code>Findings:</code> block</strong>: what the card taught that the code and
-      handbook don't show, for a person to triage later. An item already dealt with says where
+      handbook don't show, for the daily triage to handle. An item already dealt with says where
       and is kept promoted, not open: <code>[done: W-1950 §Local setup]</code>
       after its kind, or <code>→ #2087</code>
       at its end for a card filed for it.
@@ -649,12 +649,14 @@ defmodule SlipdockWeb.HelpLive.Flow do
           shows there too, for you to keep or put back.
         </li>
         <li>
-          Findings wait for you to promote, merge or dismiss on the board's
-          <strong>Findings page</strong>
+          Findings are handled by the daily triage and the server. A finding seen three times
+          (the board's setting) is drafted as a rule on the Tidy-up page, and those proposals
+          are what wait for you: the board's <strong>Findings page</strong>
           (a tile on the board's <em>Agentic Building</em>
-          page; a card with open findings links to it), or with <code>slipdock findings B</code>
-          and <code>slipdock finding 41 promote --note "…"</code>. A finding seen three times
-          (the board's setting) is drafted as a rule on the Tidy-up page for you to apply.
+          page, counting them; a card with open findings links to it) and
+          <code>slipdock findings B</code>
+          lead with them. The findings below are reference, to promote, merge or dismiss
+          by hand when you want (<code>slipdock finding 41 promote --note "…"</code>).
         </li>
         <li>
           What shipped is on the board's <strong>Ledger page</strong>

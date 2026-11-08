@@ -307,6 +307,68 @@ defmodule SlipdockWeb.GardenAPITest do
                |> json_response(200)
     end
 
+    test "MCP garden findings: true is the findings page's list, from the root (#2123)", ctx do
+      {:ok, _} =
+        Slipdock.Boards.add_comment(
+          card_fixture(hd(ctx.board.columns), %{"title" => "Taught"}),
+          "- Findings:\n  - gotcha: screens must not flash on load",
+          by: ctx.owner
+        )
+
+      [f] = Slipdock.Repo.all(Slipdock.Findings.Finding)
+
+      {:ok, drafted, :new} =
+        Gardener.propose(ctx.board, ctx.owner, Map.put(proposal(ctx.page), "findings", [f.id]))
+
+      # A rule proposed with no findings behind it is the Tidy-up page's alone.
+      other =
+        ctx.page
+        |> proposal()
+        |> Map.delete("findings")
+        |> Map.put("steps", [
+          %{
+            "op" => "edit_section",
+            "page" => ctx.page.code,
+            "section" => "Data model/Rules",
+            "body" => "- **DATA-2** should · judgement · Name every table."
+          }
+        ])
+
+      {:ok, plain, :new} = Gardener.propose(ctx.board, ctx.owner, other)
+
+      epic = card_fixture(hd(ctx.board.columns), %{"title" => "Epic"})
+      {:ok, t} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(epic, t)
+      sub = Slipdock.Boards.get_board!(sub.id)
+
+      ids = fn list -> Enum.map(list, & &1["id"]) end
+
+      for ref <- [ctx.board.code, to_string(sub.id)] do
+        assert %{"suggestions" => from_mcp} =
+                 as(ctx.owner)
+                 |> mcp_call("garden", %{board: ref, findings: true})
+                 |> Map.fetch!("structuredContent")
+
+        assert %{"awaiting" => from_rest} =
+                 as(ctx.owner) |> get("/api/boards/#{ref}/findings") |> json_response(200)
+
+        assert ids.(from_mcp) == [drafted.id]
+        assert ids.(from_mcp) == ids.(from_rest)
+        assert hd(from_mcp)["findings"] == [f.id] and hd(from_rest)["findings"] == [f.id]
+      end
+
+      # check: proposal alone is every open proposal on the board given.
+      assert %{"suggestions" => all} =
+               as(ctx.owner)
+               |> mcp_call("garden", %{board: ctx.board.code, check: "proposal"})
+               |> Map.fetch!("structuredContent")
+
+      assert Enum.sort(ids.(all)) == Enum.sort([drafted.id, plain.id])
+
+      assert %{"isError" => true} =
+               as(ctx.owner) |> mcp_call("garden", %{board: ctx.board.code, findings: "x"})
+    end
+
     test "MCP garden lists proposals by check, and garden_decide applies one with confirm", ctx do
       {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
 

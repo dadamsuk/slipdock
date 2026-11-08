@@ -2,7 +2,9 @@ defmodule SlipdockWeb.AgenticLive.Hub do
   @moduledoc """
   The places the Agentic Building page leads to (#2012): Right now (#2103),
   Runners, Findings, Ledger and Health, each with a count that says whether
-  it needs a look, read from the board's tree.
+  it needs a look, read from the board's tree. Findings counts the proposals
+  drafted from them, which wait on a person, not the open findings, which
+  triage and the server handle (#2123).
 
   `counts/1` reads them; `tiles/2` turns them into what the page draws:
   each tile's key, title, icon, path, the number and the line under it,
@@ -13,6 +15,7 @@ defmodule SlipdockWeb.AgenticLive.Hub do
   import Ecto.Query
 
   alias Slipdock.{Findings, Health, Ledger, Now, Repo, Runners}
+  alias Slipdock.Findings.Awaiting
   alias Slipdock.Boards.Board
   alias Slipdock.Runners.Job
 
@@ -45,6 +48,7 @@ defmodule SlipdockWeb.AgenticLive.Hub do
           {:ok, open} -> length(open)
           _ -> 0
         end,
+      proposals: Awaiting.count(board),
       shipped:
         case Ledger.since(board) do
           {:ok, ledger} -> ledger.count
@@ -83,10 +87,12 @@ defmodule SlipdockWeb.AgenticLive.Hub do
         title: "Findings",
         icon: "hero-light-bulb",
         path: ~p"/boards/#{board}/findings",
-        number: "#{c.findings}",
-        unit: "open",
-        line: if(c.findings == 0, do: "Nothing to triage", else: "To promote, merge or dismiss"),
-        attention: if(c.findings > 0, do: :info)
+        # What waits on the person (#2123): the proposals drafted from
+        # findings. The open findings are being handled, so they are the line.
+        number: "#{c.proposals}",
+        unit: if(c.proposals == 1, do: "proposal", else: "proposals"),
+        line: findings_line(c),
+        attention: if(c.proposals > 0, do: :info)
       },
       %{
         key: "ledger",
@@ -142,4 +148,13 @@ defmodule SlipdockWeb.AgenticLive.Hub do
   defp health_line(%{flagged: 0}), do: "The monitor is trying fixes"
   defp health_line(%{flagged: 1}), do: "1 needs a person"
   defp health_line(%{flagged: f}), do: "#{f} need a person"
+
+  defp findings_line(%{proposals: p, findings: f}) do
+    waiting = if p == 0, do: "Nothing waiting on you", else: "To apply or dismiss"
+
+    handling =
+      if f == 0, do: nil, else: "#{f} #{if f == 1, do: "finding", else: "findings"} being handled"
+
+    Enum.join(Enum.reject([waiting, handling], &is_nil/1), " · ")
+  end
 end

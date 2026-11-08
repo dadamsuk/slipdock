@@ -633,8 +633,9 @@ anybody reads later:
    `Findings: none` is the usual answer: most cards teach nothing a card
    on another subject needs, and filler costs a person a dismissal each.
    The board keeps each
-   one (`slipdock findings <board>`) for a person to promote into the
-   handbook, merge or dismiss, and records rejections, timeouts, requeues
+   one (`slipdock findings <board>`), where the daily triage and the server
+   promote it into the handbook, merge or dismiss it (a person decides only
+   the rules drafted from them), and records rejections, timeouts, requeues
    and failed merges by itself, so don't write those up again.
    What you learn about the project goes here or in the handbook, never only
    in your own agent memory, which nobody else reads: that keeps only facts

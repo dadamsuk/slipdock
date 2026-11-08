@@ -4,7 +4,8 @@ defmodule SlipdockWeb.API.FindingController do
   kept on the root board of a tree, so both actions check the root.
 
     * `GET /api/boards/:board/findings?status=&kind=&source=&card=&since=&scope=` –
-      the tree's findings, open by default (`status=all` for every one;
+      the proposals drafted from them that wait on a person (`awaiting`,
+      as the garden lists them, #2123), then the tree's findings, open by default (`status=all` for every one;
       `since` a date, an ISO 8601 time or a number of days; `scope` board by
       default, `runner` or `all`), each with the `cards` it was said on. Read
       access.
@@ -16,7 +17,9 @@ defmodule SlipdockWeb.API.FindingController do
   alias Slipdock.Boards.Board
   alias Slipdock.{Findings, Repo}
   alias SlipdockWeb.API.Authorize
+  alias Slipdock.Findings.Awaiting
   alias SlipdockWeb.API.FindingJSON, as: F
+  alias SlipdockWeb.API.GardenJSON
 
   action_fallback SlipdockWeb.API.FallbackController
 
@@ -25,7 +28,11 @@ defmodule SlipdockWeb.API.FindingController do
          root = root(board),
          :ok <- Authorize.board(conn, root, :read),
          {:ok, findings} <- refused(Findings.list(root, params)) do
-      json(conn, %{board_id: root.id, findings: Enum.map(findings, &F.finding/1)})
+      json(conn, %{
+        board_id: root.id,
+        awaiting: root |> Awaiting.proposals() |> GardenJSON.suggestions(),
+        findings: Enum.map(findings, &F.finding/1)
+      })
     end
   end
 
