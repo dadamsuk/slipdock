@@ -13,6 +13,8 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
   """
   use SlipdockWeb, :live_view
 
+  import SlipdockWeb.SlipdockComponents, only: [timestamp: 1]
+
   alias Slipdock.SkillRegistry
 
   @impl true
@@ -20,7 +22,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
     {:ok,
      assign(socket,
        page_title: "Skills",
-       url: "",
+       form: url_form(""),
        add_error: nil,
        busy: nil,
        notice: nil,
@@ -51,7 +53,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
 
     {:noreply,
      socket
-     |> assign(url: url, add_error: nil, notice: nil, busy: :add)
+     |> assign(form: url_form(url), add_error: nil, notice: nil, busy: :add)
      |> start_async(:add, fn -> SkillRegistry.add_source(user, url) end)}
   end
 
@@ -89,7 +91,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
   def handle_async(:add, {:ok, {:ok, source}}, socket) do
     {:noreply,
      socket
-     |> assign(url: "", busy: nil, notice: {:info, added(source)})
+     |> assign(form: url_form(""), busy: nil, notice: {:info, added(source)})
      |> load()}
   end
 
@@ -116,6 +118,8 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
       _ -> {:noreply, assign(socket, notice: {:error, message})}
     end
   end
+
+  defp url_form(url), do: to_form(%{"url" => url})
 
   defp gone(socket),
     do: socket |> assign(notice: {:error, "That source has gone."}) |> load()
@@ -153,9 +157,6 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
 
   defp plural(1, one, _many), do: one
   defp plural(_n, _one, many), do: many
-
-  defp when_fetched(nil), do: "never"
-  defp when_fetched(at), do: SlipdockWeb.Dates.datetime(at)
 
   defp short(nil), do: "-"
   defp short("sha256:" <> _ = version), do: version
@@ -202,7 +203,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
             <dt class="text-base-content/60">Licence</dt>
             <dd>{@entry.licence || "none given"}</dd>
             <dt class="text-base-content/60">Fetched</dt>
-            <dd>{when_fetched(@entry.fetched_at)}</dd>
+            <dd><.timestamp at={@entry.fetched_at} format={:datetime} /></dd>
           </dl>
 
           <p class="text-sm text-base-content/60">
@@ -254,39 +255,36 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
               at any https address. Slipdock reads each <code>SKILL.md</code>
               in it, or its README when there are none.
             </p>
-            <form id="skills-add-form" phx-submit="add" class="mt-3 flex flex-wrap gap-2">
-              <label for="skills-add-url" class="sr-only">Source URL</label>
-              <input
-                id="skills-add-url"
-                type="url"
-                name="url"
-                value={@url}
-                required
-                placeholder="https://github.com/owner/repo"
-                class="input field min-w-0 flex-1"
-                disabled={@busy == :add}
-              />
-              <.button variant="primary" disabled={@busy == :add}>
+            <.form
+              for={@form}
+              id="skills-add-form"
+              phx-submit="add"
+              class="mt-3 field-row gap-2"
+            >
+              <div class="min-w-0 flex-1">
+                <.input
+                  field={@form[:url]}
+                  id="skills-add-url"
+                  type="url"
+                  label="Source URL"
+                  required
+                  placeholder="https://github.com/owner/repo"
+                  class="input field w-full"
+                  disabled={@busy == :add}
+                />
+              </div>
+              <.button class="btn btn-primary btn-sm" disabled={@busy == :add}>
                 {if @busy == :add, do: "Fetching…", else: "Add"}
               </.button>
-            </form>
-            <p :if={@add_error} id="skills-add-error" role="alert" class="mt-2 text-sm text-error">
+            </.form>
+            <.callout :if={@add_error} id="skills-add-error" kind={:error} class="mt-2">
               {@add_error}
-            </p>
+            </.callout>
           </section>
 
-          <p
-            :if={@notice}
-            id="skills-notice"
-            role="status"
-            class={[
-              "rounded-xl px-4 py-2 text-sm",
-              elem(@notice, 0) == :info && "bg-success/10 text-success",
-              elem(@notice, 0) == :error && "bg-error/10 text-error"
-            ]}
-          >
+          <.callout :if={@notice} id="skills-notice" kind={elem(@notice, 0)}>
             {elem(@notice, 1)}
-          </p>
+          </.callout>
 
           <section :for={{key, title, sources} <- @sections} id={"skills-#{key}"}>
             <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
@@ -328,7 +326,7 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
                   <p class="text-xs text-base-content/60">
                     Licence {source.licence || "none given"} · version
                     <code>{short(source.version)}</code>
-                    · fetched {when_fetched(source.fetched_at)}
+                    · fetched <.timestamp at={source.fetched_at} />
                   </p>
                 </div>
                 <div :if={@manage[source.id]} class="flex gap-2">
@@ -352,13 +350,17 @@ defmodule SlipdockWeb.SkillRegistryLive.Index do
                 </div>
               </div>
 
-              <ul
+              <.callout
                 :if={source.report != []}
                 id={"skill-source-#{source.id}-report"}
-                class="mt-2 list-disc pl-5 text-sm text-warning"
+                kind={:warning}
+                title="Left out of the last fetch"
+                class="mt-2"
               >
-                <li :for={line <- source.report}>{line}</li>
-              </ul>
+                <ul class="list-disc pl-5">
+                  <li :for={line <- source.report}>{line}</li>
+                </ul>
+              </.callout>
 
               <ul class="mt-3 divide-y divide-base-content/10">
                 <li :for={entry <- source.entries} id={"skill-entry-#{entry.id}"} class="py-2">
