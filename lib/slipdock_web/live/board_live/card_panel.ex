@@ -2167,6 +2167,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <.repeat_section
           :if={MapSet.member?(@panel, "side.repeat")}
           card={@card}
+          current_user={@current_user}
           repeat={@repeat}
           target={@target}
         />
@@ -2239,6 +2240,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   end
 
   attr :card, Card, required: true
+  attr :current_user, :any, default: nil
   attr :repeat, :map, default: nil
   attr :target, :any, required: true
 
@@ -2251,7 +2253,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       assign(assigns,
         series: Card.recurrence(assigns.card),
         # The instance this one was copied from (#2081), for "why is it like this?".
-        copied_from: Slipdock.Recurrence.copied_from(assigns.card)
+        copied_from: Slipdock.Recurrence.copied_from(assigns.card, assigns.current_user)
       )
 
     ~H"""

@@ -1365,10 +1365,11 @@ defmodule SlipdockWeb.API.JSON do
 
   @doc """
   The instance of a series `card` was copied from (#2081), as `copied_from`
-  (`%{id, title}`): left off for a card no series made, and for the first.
+  (`%{id, title}`): left off for a card no series made, for the first, and
+  when `user` can't read the one it came from.
   """
-  def put_copied_from(map, %Card{} = card) do
-    case Slipdock.Recurrence.copied_from(card) do
+  def put_copied_from(map, %Card{} = card, user) do
+    case Slipdock.Recurrence.copied_from(card, user) do
       nil -> map
       from -> Map.put(map, :copied_from, %{id: from.id, title: from.title})
     end

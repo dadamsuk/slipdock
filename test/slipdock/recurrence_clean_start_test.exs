@@ -192,6 +192,15 @@ defmodule Slipdock.RecurrenceCleanStartTest do
       assert Recurrence.copied_from(third).id == second.id
     end
 
+    test "copied_from/2 names it only to someone who can read it", ctx do
+      second = next_instance(ctx)
+      stranger = user_fixture("stranger@example.com")
+
+      assert Recurrence.copied_from(second, ctx.owner).id == ctx.card.id
+      assert Recurrence.copied_from(second, stranger) == nil
+      assert Recurrence.copied_from(second, nil) == nil
+    end
+
     test "nil for a card no series made", ctx do
       assert Recurrence.copied_from(card_fixture(ctx.todo)) == nil
     end

@@ -51,7 +51,7 @@ defmodule Slipdock.Recurrence do
 
   require Logger
 
-  alias Slipdock.{Boards, Repo, Timezones}
+  alias Slipdock.{Access, Boards, Repo, Timezones}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Card, Column, ShortNames}
   alias Slipdock.Recurrence.{Rule, Series}
@@ -683,6 +683,19 @@ defmodule Slipdock.Recurrence do
       limit: 1
     )
     |> Repo.one()
+  end
+
+  @doc """
+  `copied_from/1`, for `user` to see: nil when the instance it came from is
+  somewhere they can't read (a series moved boards, and the old ones stayed).
+  """
+  def copied_from(%Card{} = card, user) do
+    with %Card{} = from <- copied_from(card),
+         true <- Access.can_read?(Access.card_permission(user, from)) do
+      from
+    else
+      _ -> nil
+    end
   end
 
   # Due on the occurrence; a start date keeps its distance from the due date.
