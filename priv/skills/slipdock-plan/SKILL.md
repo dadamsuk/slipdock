@@ -88,14 +88,17 @@ and where it **writes to**. Then:
   unused id: `- **PRIN-n** should · judgement · <the rule, in one line>`.
   A rule is a person's call. When the person agreed it in this
   conversation, append both: `slipdock page section <code>
-  "Principles/Baseline" --append --body -` for the paragraph, and the same
-  for `"Principles/Rules"` with the item. Otherwise, file both as a
-  proposal for a person to apply: `slipdock garden propose <board> -` with
-  an `edit_section` step on the page's `## Rules`.
+  "Principles/Baseline" --append -` (the text on stdin) for the
+  paragraph, and the same for `"Principles/Rules"` with the item.
+  Otherwise, file both as a proposal for a person to apply: `slipdock
+  garden propose <board> -` with an `edit_section` step for each section,
+  its `body` the whole section as it should read, the new text added.
 - **The spec:** a page on the epic, `slipdock page new <board> "Spec: <the
   epic's title>" --card <epic> --body -` (MCP `write_page`). For a
-  system, the first sections of the Specification page too, by section:
-  `slipdock page section <code> "Specification/<feature>" --body -`.
+  system, the first sections of the Specification page too: a `##` per
+  feature, appended to its features section (`slipdock page section
+  <code> "Specification/Features" --append -`; `page section` can't make
+  a section that isn't there yet).
 - **The cards:** the epic if there isn't one, its sub-board (`slipdock
   subboard <epic> --template Simple`), then the subcards in build order,
   each as `## Card shape` says. On a board that verifies work or keeps
