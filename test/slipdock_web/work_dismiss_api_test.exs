@@ -216,6 +216,16 @@ defmodule SlipdockWeb.WorkDismissAPITest do
       {:ok, _} = Boards.open_wait(card, ctx.asker, %{"needs" => "Ok?", "on_user_id" => reader.id})
       assert [_] = Work.waiting_on_me(reader)
 
+      # Opening the wait writes the card, so the stamp to compare is taken
+      # after it. Moved an hour back, so a write by the dismiss would show
+      # even within the same second (updated_at is to the second).
+      before = DateTime.add(DateTime.utc_now(:second), -3600)
+
+      {1, _} =
+        Repo.update_all(from(c in Boards.Card, where: c.id == ^card.id),
+          set: [updated_at: before]
+        )
+
       r =
         reader
         |> with_token()
@@ -225,7 +235,7 @@ defmodule SlipdockWeb.WorkDismissAPITest do
       assert r["dismissed"]["card"]["id"] == card.id
       assert Work.waiting_on_me(reader) == []
       # Still the card it was: nothing written to it.
-      assert Boards.get_card!(card.id).updated_at == card.updated_at
+      assert Boards.get_card!(card.id).updated_at == before
     end
 
     test "update_board waiting_list: mute and unmute", ctx do
