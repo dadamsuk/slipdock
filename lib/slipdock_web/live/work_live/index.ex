@@ -412,25 +412,20 @@ defmodule SlipdockWeb.WorkLive.Index do
             </ul>
           </section>
 
-          <div
+          <%!-- Only undated cards assigned: say so, never "nothing" (#2099). --%>
+          <.empty_state
             :if={@listed == []}
             id="work-empty"
-            class="rounded-2xl border-2 border-dashed border-base-content/15 p-16 text-center"
+            icon="hero-check-badge"
+            title={
+              if @undated_count > 0, do: "Nothing with a due date", else: "Nothing assigned to you"
+            }
           >
-            <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <.icon name="hero-check-badge" class="size-7" />
-            </div>
-            <%!-- Only undated cards assigned: say so, never "nothing" (#2099). --%>
-            <h2 class="section-title">
-              {if @undated_count > 0, do: "Nothing with a due date", else: "Nothing assigned to you"}
-            </h2>
-            <p class="mt-1 text-sm text-base-content/60">
-              {if @undated_count > 0,
-                do:
-                  "Every open card assigned to you has no due date, so none is listed. Give one a due date and it shows up here.",
-                else: "Cards you are assigned to, on any board, show up here."}
-            </p>
-          </div>
+            {if @undated_count > 0,
+              do:
+                "Every open card assigned to you has no due date, so none is listed. Give one a due date and it shows up here.",
+              else: "Cards you are assigned to, on any board, show up here."}
+          </.empty_state>
 
           <section :for={section <- @listed} id={"work-#{section.key}"} class="mb-8">
             <h2 class={[
