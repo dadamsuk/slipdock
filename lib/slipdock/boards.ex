@@ -2018,11 +2018,7 @@ defmodule Slipdock.Boards do
   end
 
   defp source_of(opts) do
-    actor =
-      case Slipdock.Actor.resolve(opts) do
-        %{kind: nil} -> Slipdock.Actor.current()
-        actor -> actor
-      end
+    actor = actor_or_current(opts)
 
     case actor.kind do
       "human" -> "person"
@@ -2181,11 +2177,7 @@ defmodule Slipdock.Boards do
   # following its subcards, until they clear it. An agent's or a rule's
   # leaves it following them.
   defp percent_by_hand(changeset, opts) do
-    actor =
-      case Slipdock.Actor.resolve(opts) do
-        %{kind: nil} -> Slipdock.Actor.current()
-        actor -> actor
-      end
+    actor = actor_or_current(opts)
 
     case Ecto.Changeset.fetch_change(changeset, :percent_complete) do
       {:ok, nil} ->
@@ -3101,9 +3093,11 @@ defmodule Slipdock.Boards do
     if Repo.exists?(from(j in Slipdock.Runners.Job, where: j.id == ^id)), do: id
   end
 
-  # Whoever the opts name, as for a move; failing that, the person `:by`.
+  # Whoever the opts name, as for a move; failing that, this process's actor
+  # (the person behind a LiveView, #2094), as the activity row has; and the
+  # person `:by` when neither names a user.
   defp creator(opts) do
-    case {Slipdock.Actor.resolve(opts), opts[:by]} do
+    case {actor_or_current(opts), opts[:by]} do
       {%{user_id: nil} = actor, by} when not is_nil(by) ->
         %{actor | user_id: if(is_integer(by), do: by, else: by.id)}
 
@@ -3113,6 +3107,14 @@ defmodule Slipdock.Boards do
   end
 
   defp actor(opts), do: Slipdock.Actor.resolve(opts)
+
+  # The actor `opts` name, else this process's (`Slipdock.Actor.current/0`).
+  defp actor_or_current(opts) do
+    case Slipdock.Actor.resolve(opts) do
+      %{kind: nil} -> Slipdock.Actor.current()
+      actor -> actor
+    end
+  end
 
   @doc """
   When each open card on `board` (a board or its id) came into the list it is
