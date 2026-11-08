@@ -205,7 +205,10 @@ defmodule SlipdockWeb.HelpLive.Guides do
         The boards show them too. An epic's card carries <strong>⏸ 2 waiting on you</strong>
         for what in its subcards is on you, and a line naming each with its reason, such as <em>Waiting on you: #2063 (a question), #2075 (3 rejections)</em>. Questions waiting on
         other people show in the line only (<em>and 1 on someone else</em>), never in the count. Click the
-        chip to open the sub-board showing only those cards. The board's header says
+        chip to open the sub-board showing only those cards. Open the epic and its subcard list
+        marks the same rows: each one waiting on you carries a badge with its reason (<em>to verify</em>, <em>a question</em>),
+        one waiting on someone else a quieter mark naming who it waits on, and the line's #ids above the list jump to their rows.
+        A card further down marks the subcard it sits under, with its own #id. The board's header says
         <strong>Waiting on you: N</strong>
         for the whole board and opens My work kept to it. <code>slipdock card</code>
         and <code>slipdock board</code>

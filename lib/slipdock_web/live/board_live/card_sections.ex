@@ -13,6 +13,81 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   alias Slipdock.{LeadTime, Palette, Pulse}
   alias Slipdock.Runners.JobCost
   alias Slipdock.Boards.{Board, Card, CardLink}
+  alias SlipdockWeb.BoardLive.SubcardWaiting
+
+  attr :waiting, :map, required: true
+
+  # The epic's Waiting on you line (#2126), the words its tile shows, over
+  # the subcard list: each #id jumps to the row it is under, which the
+  # browser scrolls to and lights (`target:`).
+  defp subcards_waiting_line(assigns) do
+    ~H"""
+    <p
+      :if={@waiting.mine != [] or @waiting.others != []}
+      id="subcards-waiting-line"
+      class="flex flex-wrap items-center gap-x-1 text-xs text-base-content/70"
+    >
+      <.icon name="hero-pause-circle" class="size-3.5 text-warning" />
+      <%= if @waiting.mine != [] do %>
+        <span>Waiting on you:</span>
+        <span :for={{item, n} <- Enum.with_index(@waiting.mine)}>
+          <.waiting_ref item={item} /> ({item.reason}){if n < length(@waiting.mine) - 1, do: ","}
+        </span>
+        <span :if={@waiting.others != []}>and {length(@waiting.others)} on someone else</span>
+      <% else %>
+        <span>Waiting on someone else: {length(@waiting.others)}</span>
+      <% end %>
+    </p>
+    """
+  end
+
+  attr :item, :map, required: true
+
+  defp waiting_ref(%{item: %{row: nil}} = assigns), do: ~H"<span>#{@item.id}</span>"
+
+  defp waiting_ref(assigns) do
+    ~H"""
+    <a
+      href={"#subcard-#{@item.row}"}
+      id={"subcards-waiting-ref-#{@item.id}"}
+      class="link"
+      title="Show it in the list"
+    >#{@item.id}</a>
+    """
+  end
+
+  attr :row, :integer, required: true
+  attr :entry, :map, required: true
+
+  # A row's marks (#2126): what under it is on me, as a badge with its
+  # reason in words, and, quieter, what is on someone else.
+  defp subcard_waiting_marks(assigns) do
+    ~H"""
+    <span
+      :if={@entry.mine != []}
+      id={"subcard-#{@row}-waiting"}
+      class="badge badge-warning badge-xs ml-auto shrink-0 gap-0.5 whitespace-nowrap"
+      title={"Waiting on you: " <> SubcardWaiting.label(@entry.mine, @row)}
+    >
+      <.icon name="hero-pause-circle" class="size-3" />
+      <span class="sr-only">Waiting on you:</span>
+      {SubcardWaiting.label(@entry.mine, @row)}
+    </span>
+    <span
+      :if={@entry.others != []}
+      id={"subcard-#{@row}-waiting-others"}
+      class={[
+        "flex shrink-0 items-center gap-0.5 whitespace-nowrap text-2xs text-base-content/60",
+        @entry.mine == [] && "ml-auto"
+      ]}
+      title={"Waiting " <> SubcardWaiting.label(@entry.others, @row)}
+    >
+      <.icon name="hero-user" class="size-3" />
+      <span class="sr-only">Waiting</span>
+      {SubcardWaiting.label(@entry.others, @row)}
+    </span>
+    """
+  end
 
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
@@ -21,6 +96,10 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   attr :picking_template, :boolean, required: true
   attr :target, :any, required: true
   attr :templates, :list, required: true
+
+  attr :waiting, :map,
+    default: %{mine: [], others: [], rows: %{}},
+    doc: "what in the tree waits on the reader, by row (#2126, `BoardLive.SubcardWaiting`)"
 
   @doc "The card's subcards board: progress, its lists and adding to them, or making one."
   def subcards_section(assigns) do
@@ -107,6 +186,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
           </span>
           <.health_pill health={Card.health(@card)} />
         </div>
+        <.subcards_waiting_line waiting={@waiting} />
         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div :for={col <- @card.sub_board.columns} class="rounded-xl bg-base-200/60 p-2">
             <p class="mb-1 flex items-center gap-1.5 px-1 text-xs font-semibold">
@@ -121,7 +201,7 @@ defmodule SlipdockWeb.BoardLive.CardSections do
               <li
                 :for={sub <- Enum.filter(@card.sub_board.cards, &(&1.column_id == col.id))}
                 id={"subcard-#{sub.id}"}
-                class="flex items-center gap-1.5 rounded px-1 py-0.5 text-sm hover:bg-base-100/60"
+                class="flex scroll-mt-24 items-center gap-1.5 rounded px-1 py-0.5 text-sm hover:bg-base-100/60 target:bg-warning/15 target:ring-1 target:ring-warning/50"
               >
                 <button
                   phx-target={@target}
@@ -148,12 +228,16 @@ defmodule SlipdockWeb.BoardLive.CardSections do
                 <.link
                   navigate={~p"/boards/#{@card.sub_board.id}/cards/#{sub.id}"}
                   class={[
-                    "truncate hover:underline",
+                    "min-w-0 truncate hover:underline",
                     sub.completed && "text-base-content/50"
                   ]}
                 >
                   {sub.title}
                 </.link>
+                <.subcard_waiting_marks
+                  row={sub.id}
+                  entry={SubcardWaiting.row_entry(@waiting, sub.id)}
+                />
               </li>
             </ul>
           </div>

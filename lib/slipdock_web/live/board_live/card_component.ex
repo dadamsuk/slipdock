@@ -31,7 +31,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   alias Slipdock.{Access, Boards, Palette, Runners, Wiki}
   alias Slipdock.Boards.{Attachment, Board, Card, CardLink}
   alias SlipdockWeb.{PageLinkHook, Params}
-  alias SlipdockWeb.BoardLive.{ItemEvents, Paths, Sharing}
+  alias SlipdockWeb.BoardLive.{ItemEvents, Paths, Sharing, SubcardWaiting}
 
   @own_events ~w(card_change toggle_flag toggle_tag create_tag set_cover set_border duplicate_card archive_card delete_card
     add_dependency remove_dependency create_sub_board remove_assignee delete_sub_board
@@ -173,7 +173,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         card_view: assigns[:card_view]
       )
 
-    {:ok, if(given != socket.assigns.given, do: take(socket, given), else: socket)}
+    socket = if given != socket.assigns.given, do: take(socket, given), else: socket
+
+    # What in the epic's tree waits on the reader, over its subcard rows
+    # (#2126): the board's entry for this card, as its tile shows it.
+    {:ok, assign(socket, waiting: SubcardWaiting.build(assigns[:waiting], socket.assigns[:card]))}
   end
 
   # The board loaded the card afresh (it opened, or something changed). A
@@ -1374,6 +1378,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         repeat={@repeat}
         parent={@parent}
         favourites={@favourites}
+        waiting={@waiting}
         card_view={if @reveal_sections, do: nil, else: assigns[:card_view]}
         hidden_by_view={hidden_attention(@card, assigns[:card_view], @reveal_sections)}
         target={@myself}
@@ -1554,6 +1559,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :card_view, :any,
     default: nil,
     doc: "the reader's resolved card views (#2031); nil shows every section"
+
+  attr :waiting, :map,
+    default: %{mine: [], others: [], rows: %{}},
+    doc: "what in the epic's tree waits on the reader, by subcard row (#2126)"
 
   defp card_modal(assigns) do
     {done, total, pct} = checklist_progress(assigns.card.checklist_items)
@@ -1821,6 +1830,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 picking_template={@picking_template}
                 target={@target}
                 templates={@templates}
+                waiting={@waiting}
               />
 
               <.dependencies_section
