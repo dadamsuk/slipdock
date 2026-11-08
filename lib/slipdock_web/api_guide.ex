@@ -3654,6 +3654,16 @@ defmodule SlipdockWeb.APIGuide do
     W-1950 §Local setup]: …`), or `→ #<card>` (or `-> #<card>`) at its end
     when a card was filed for it (`- tooling: no test pins it → #2087`).
 
+    A fix is a card, not a finding: a concrete change you could hand to
+    someone (a missing test such as "no test pins `slipdock done`'s exit
+    codes", a stale moduledoc or doc entry, a tooling bug such as "`page
+    section --append -` writes a literal `-`") goes on the board as a card
+    now (`POST /api/boards/:board/cards`, `create_card`, `slipdock add`, in
+    the backlog) and into the block as `→ #<card>`. A finding is only for
+    what is uncertain, cuts across cards, or shows the handbook wrong
+    ("`mix format` can need two passes", "W-1950 §Tests says async is safe,
+    but the fixture is one user").
+
     One record per lesson: an item repeating an open finding on the same
     card (after normalising case, whitespace, backticks, trailing
     punctuation, `#id`s and shas, or most of its words in common) adds to
