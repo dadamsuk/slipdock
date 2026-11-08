@@ -199,6 +199,58 @@ defmodule SlipdockWeb.CardStateLiveTest do
     refute has_element?(view, "#card-#{old_done.id}")
   end
 
+  # Eight closed stays of `secs` in the doing list, the fewest a usual stay
+  # is worked out from.
+  defp usual_stay(ctx, secs) do
+    start = DateTime.add(DateTime.utc_now(), -3 * 86_400)
+
+    for _ <- 1..8 do
+      c = card_fixture(ctx.done)
+      Repo.delete_all(from(m in CardMove, where: m.card_id == ^c.id))
+
+      for {kind, from, to, at} <- [
+            {"created", nil, ctx.doing, start},
+            {"moved", ctx.doing, ctx.done, DateTime.add(start, secs)}
+          ] do
+        Repo.insert!(%CardMove{
+          card_id: c.id,
+          kind: kind,
+          board_id: c.board_id,
+          from_column_id: from && from.id,
+          to_column_id: to.id,
+          inserted_at: at
+        })
+      end
+    end
+  end
+
+  test "the open card's meta line wears the chip its tile does, and keeps it after an edit (#2131)",
+       ctx do
+    usual_stay(ctx, 7200)
+    slow = card_fixture(ctx.doing, %{"title" => "Slow"})
+    at = DateTime.add(DateTime.utc_now(), -(3 * 3600 + 30))
+    Repo.update_all(from(m in CardMove, where: m.card_id == ^slow.id), set: [inserted_at: at])
+    fresh = card_fixture(ctx.doing, %{"title" => "Fresh"})
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{slow}")
+
+    assert has_element?(
+             view,
+             "#card-age [data-role=age-chip][data-stuck=true]",
+             "3h · 1h over usual"
+           )
+
+    # The panel reloads the card itself after a change (`fresh/2`): the
+    # chip is still there, not gone until the board's next refresh.
+    view |> element("#card-title-form") |> render_change(%{"card" => %{"title" => "Slower"}})
+    assert Boards.get_card!(slow.id).title == "Slower"
+    assert has_element?(view, "#card-age [data-role=age-chip][data-stuck=true]", "3h")
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{fresh}")
+    assert has_element?(view, "#card-age [data-role=age-chip][data-stuck=false]")
+    refute has_element?(view, "#card-age", "over usual")
+  end
+
   test "the board's Agent filter shows as many cards as REST driver=agent returns", ctx do
     runner_rule(ctx.board)
     agent = %{Actor.unknown() | kind: "agent", via: "mcp", agent: "claude"}

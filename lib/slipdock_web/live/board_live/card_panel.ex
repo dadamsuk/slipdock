@@ -287,6 +287,13 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         </a>
         <span aria-hidden="true">·</span>
         <span>created <.timestamp id="card-created-at" at={@card.inserted_at} /></span>
+        <%!-- Its time in the list, the chip its tile wears (#2131), so the
+              card explains what the board and Right now say about it. --%>
+        <span :if={aged?(@card)} id="card-age" class="inline-flex items-center gap-1.5">
+          <span aria-hidden="true">·</span>
+          <span>in list</span>
+          <.age_chip state={@card.state} />
+        </span>
         <%!-- An epic opens onto its board in one click from the top, the
               only "Open board" on the card. --%>
         <span
@@ -2443,4 +2450,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     do:
       "The first is worked out from the card's dates, blockers and subcards. " <>
         "The second is what was last reported."
+
+  # A card whose time in its list is known: one read with its state
+  # (`Items.with_state/2`), which the chip has words for (#2131).
+  defp aged?(%Card{state: state}), do: not is_nil(Slipdock.CardState.age_text(state))
 end

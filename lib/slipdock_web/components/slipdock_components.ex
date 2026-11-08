@@ -1847,8 +1847,11 @@ defmodule SlipdockWeb.SlipdockComponents do
   attr :state, :any, required: true
   attr :compact, :boolean, default: false
 
-  # How long the card has been in its list, amber past the list's usual stay.
-  defp age_chip(assigns) do
+  @doc """
+  How long the card has been in its list, amber past the list's usual stay:
+  the tile's chip, and the open card's on its meta line (#2131).
+  """
+  def age_chip(assigns) do
     assigns = assign(assigns, :text, Slipdock.CardState.age_text(assigns.state))
 
     ~H"""

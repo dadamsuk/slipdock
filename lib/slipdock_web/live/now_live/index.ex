@@ -64,10 +64,14 @@ defmodule SlipdockWeb.NowLive.Index do
   defp hold_label("blocked"), do: "Blocked"
   defp hold_label("review"), do: "In review"
   defp hold_label("stuck"), do: "Stuck"
+  defp hold_label("over_usual"), do: "Past usual stay"
 
+  # Red is for what needs a person: a block, or the health monitor's stuck
+  # flag. Past the usual stay is amber, as the tile's age chip is (#2131).
   defp hold_class("waiting"), do: "badge-warning"
   defp hold_class("blocked"), do: "badge-error"
   defp hold_class("stuck"), do: "badge-error"
+  defp hold_class("over_usual"), do: "badge-warning"
   defp hold_class(_), do: "badge-info"
 
   # The runners holding a job lead the page; the idle ones (no job, online

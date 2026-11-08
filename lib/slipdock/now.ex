@@ -21,7 +21,9 @@ defmodule Slipdock.Now do
       holds it, `%{id, title, board_id}` or nil), `state` (`Slipdock.CardState`'s line)
       and `state_kind`, `loop` (the runner and kind holding it), `holds` (what
       it waits on: `"waiting"`, `"verifying"`, `"merging"`, `"blocked"`,
-      `"review"`, `"stuck"`), `age` (seconds in the list, nil when unknown);
+      `"review"`, `"stuck"`, the health monitor's flag, and last
+      `"over_usual"`, only past its list's usual stay, #2131), `age` (seconds
+      in the list, nil when unknown);
     * `queued` — the jobs queued for a runner, oldest first, each with
       `held`, the reason it isn't being handed out (nil when only a runner
       is missing);
@@ -217,7 +219,10 @@ defmodule Slipdock.Now do
 
   @doc false
   # What a card in progress waits on, the first that applies; nil when it
-  # is simply being worked (or nobody is on it).
+  # is simply being worked (or nobody is on it). `stuck` is the health
+  # monitor's flag alone, an incident for a person; a card merely past its
+  # list's usual stay is `over_usual`, a note rather than a hold, and comes
+  # last (#2131).
   def holds(%Card{} = c, %CardState{} = state) do
     flag? = &Enum.member?(c.flags || [], &1)
 
@@ -228,7 +233,8 @@ defmodule Slipdock.Now do
         {"verifying", c.verify_state == "pending"},
         {"blocked", flag?.("blocked")},
         {"review", flag?.("review")},
-        {"stuck", flag?.("stuck") or state.stuck}
+        {"stuck", flag?.("stuck")},
+        {"over_usual", state.stuck}
       ],
       fn {hold, on?} -> if on?, do: hold end
     )

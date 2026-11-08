@@ -2264,7 +2264,9 @@ defmodule SlipdockWeb.APIGuide do
     each runner (`online`, `session`) and the jobs it holds with their latest
     `step`; every card in progress with its `board`, `list`, `parent` epic,
     state line, `loop` and what `holds` it (`waiting`, `verifying`, `merging`,
-    `blocked`, `review`, `stuck`); the jobs `queued` and why each is `held`;
+    `blocked`, `review`, `stuck` for the health monitor's flag, `over_usual`
+    for a card merely past its list's usual stay); the jobs `queued` and why
+    each is `held`;
     and the `counts`. Read access to the board and its tree's root. The
     board's Right now page (`/boards/:id/now`) shows the same, and so does
     `slipdock now <board>` (`--json` for this JSON).

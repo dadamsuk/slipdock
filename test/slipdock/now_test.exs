@@ -7,10 +7,11 @@ defmodule Slipdock.NowTest do
   """
   use Slipdock.DataCase, async: true
 
+  import Ecto.Query
   import Slipdock.Fixtures
 
   alias Slipdock.{Actor, Boards, Now, Repo, Runners}
-  alias Slipdock.Boards.Card
+  alias Slipdock.Boards.{Card, CardMove}
 
   setup do
     owner = user_fixture()
@@ -23,6 +24,37 @@ defmodule Slipdock.NowTest do
   defp runner(board, name, seen) do
     {:ok, runner, _token} = Runners.create_runner(board, %{"name" => name, "pool" => "dev"})
     Repo.update!(Ecto.Changeset.change(runner, last_seen_at: seen))
+  end
+
+  # Eight closed stays of `secs` in the doing list, the fewest a usual stay
+  # is worked out from (`Slipdock.Pulse.min_stays/0`).
+  defp usual_stay(ctx, secs) do
+    done = Enum.find(ctx.board.columns, &(&1.category == "done"))
+
+    for _ <- 1..8 do
+      card = card_fixture(done, %{"title" => "Closed"})
+      Repo.delete_all(from(m in CardMove, where: m.card_id == ^card.id))
+      start = DateTime.add(DateTime.utc_now(), -(secs + 86_400))
+
+      for {kind, from, to, at} <- [
+            {"created", nil, ctx.doing, start},
+            {"moved", ctx.doing, done, DateTime.add(start, secs)}
+          ] do
+        Repo.insert!(%CardMove{
+          card_id: card.id,
+          kind: kind,
+          board_id: card.board_id,
+          from_column_id: from && from.id,
+          to_column_id: to.id,
+          inserted_at: at
+        })
+      end
+    end
+  end
+
+  defp entered(card, seconds_ago) do
+    at = DateTime.add(DateTime.utc_now(), -seconds_ago)
+    Repo.update_all(from(m in CardMove, where: m.card_id == ^card.id), set: [inserted_at: at])
   end
 
   # A sub-board whose second list is its doing list.
@@ -126,6 +158,32 @@ defmodule Slipdock.NowTest do
     assert %{runner: "Mac Studio", kind: "build"} = holds["Worked"].loop
     assert holds["Worked"].state =~ "Running"
     assert Enum.all?([waiting, verifying, merging, blocked], &match?(%Card{}, &1))
+  end
+
+  test "stuck is the health monitor's flag alone; past the usual stay is over_usual, last (#2131)",
+       ctx do
+    usual_stay(ctx, 3600)
+    flagged = card_fixture(ctx.doing, %{"title" => "Flagged", "flags" => ["stuck"]})
+    slow = card_fixture(ctx.doing, %{"title" => "Slow"})
+    entered(slow, 2 * 3600)
+    checked = card_fixture(ctx.doing, %{"title" => "Slow and checked"})
+    entered(checked, 2 * 3600)
+    Repo.update!(Ecto.Changeset.change(checked, verify_state: "pending"))
+    both = card_fixture(ctx.doing, %{"title" => "Slow and flagged", "flags" => ["stuck"]})
+    entered(both, 2 * 3600)
+    fresh = card_fixture(ctx.doing, %{"title" => "Fresh"})
+
+    holds = Map.new(Now.snapshot(ctx.board).in_progress, &{&1.title, &1.holds})
+
+    assert holds == %{
+             "Flagged" => "stuck",
+             "Slow" => "over_usual",
+             "Slow and checked" => "verifying",
+             "Slow and flagged" => "stuck",
+             "Fresh" => nil
+           }
+
+    assert Enum.all?([flagged, slow, checked, both, fresh], &match?(%Card{}, &1))
   end
 
   test "queued jobs, with why each is held, and the sentence", ctx do

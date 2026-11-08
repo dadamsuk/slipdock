@@ -1701,7 +1701,10 @@ whether an agent or a person holds it.
 **Its age.** A chip says how long the card has been in its list, and turns
 amber, with how far over, once that is past the list's usual stay (the time
 85 in 100 cards spent there). Never on a done or dropped list, a card with an
-open wait (the person is the hold-up), or where there is too little history.
+open wait (the person is the hold-up), an epic with open subcards (it sits in
+progress for as long as they take), or where there is too little history. The
+open card wears the same chip on the line under its title, so what the tile
+and [Right now](#right-now) say about it is explained on the card.
 It is off until you ask for it: show **Time in list** in your
 [card views](#card-views) (every board, one board or one list), and hide it
 there to leave it off again. A list can keep it off its own cards whatever
@@ -2600,7 +2603,10 @@ runners take work from all of it), read again every few seconds:
   longest there first, with where it sits (the board and list, and the epic
   whose sub-board holds it), its state line (*Running · Mac Studio · 7m*,
   *Waiting on Dana*), the runner loop holding it, and what holds it: waiting
-  on a person, verifying, merging, blocked, in review or stuck.
+  on a person, verifying, merging, blocked, in review or stuck (red: the
+  health monitor's flag, an incident for a person). A card held by none of
+  those but longer in its list than usual says so in amber, *Past usual
+  stay*, as its tile's age chip does.
 - **Queued**: the jobs waiting for a runner, oldest first, each with its pool
   and why it is held, if something holds it (a pause, a full WIP limit, a lane,
   no runner online).
