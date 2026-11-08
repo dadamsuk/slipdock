@@ -1682,7 +1682,9 @@ list's in and out over 7 days with its usual stay. `slipdock pulse <board>`,
 `GET /api/boards/:id/pulse` and MCP `get_board` with `pulse: true` answer it
 on every board; **Show the board's pulse** in the board's settings
 (`slipdock set-board <board> --show-pulse`) puts it in plain words over the
-lists; click the line to open the board's Visualise view. Off by default.
+lists; click the line to open the board's Visualise view, or, with
+[Agentic Building](#agentic-building) on, its [Right now](#right-now) page.
+Off by default.
 
 **A card's state.** A card with a job or a wait on it shows one line on its
 front — *Running · runner-2 · 7m*, *Queued · dev · 3m*, *Held · paused by
@@ -1920,7 +1922,8 @@ naming an incident card), and **idea to production** — a card first entering a
 in-progress list to the first deploy whose commits name it. Each has its DORA
 band (elite, high, medium, low) where DORA defines one. A strip over the lists
 says it in a line, each band a coloured pill (green elite, blue high, amber
-medium, red low); `slipdock dora <board> [--env E] [--days N]`, `GET
+medium, red low), and opens the Visualise view, where the numbers run over
+time; `slipdock dora <board> [--env E] [--days N]`, `GET
 /api/boards/:id/dora` and MCP `get_board` with `dora: true` give it all.
 
 **Shipped lines.** A card a succeeded deploy names shows *Shipped to production
@@ -2556,11 +2559,13 @@ stops. `slipdock health <board>` ends with the same pulse.
 ## Right now
 
 What is happening on a board's tree at this moment, on one page: the board's
-**Right now** page (`/boards/:id/now`). It is one click from the board page:
-the delivery line (the rocket, while delivery metrics are on) ends in
-*Right now ›*, and on a board with [Agentic Building](#agentic-building) on and
-that line off, a line of its own says what is on (*1 runner working · 2 cards
-in progress · 1 queued*) and opens it. The Agentic Building page has a
+**Right now** page (`/boards/:id/now`). On a board with
+[Agentic Building](#agentic-building) on it is one click from the board page:
+the pulse line (*2 in progress · 1 waiting · …*) opens it, and with the pulse
+off a line of its own says what is on (*1 runner working · 2 cards in
+progress · 1 queued*) and opens it. The delivery line under it (the rocket)
+opens the long-term numbers, the Visualise view, once there are deploys.
+The Agentic Building page has a
 *Right now* tile too: the runners working, with the cards in progress and the
 jobs queued under it.
 

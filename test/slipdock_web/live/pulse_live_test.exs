@@ -79,6 +79,21 @@ defmodule SlipdockWeb.PulseLiveTest do
       assert page_title(visualise) =~ "Visualise"
     end
 
+    test "takes the owner to Right now instead while Agentic Building is on (#2124)", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, board} = Boards.update_board(board, %{"agentic_building" => true})
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      assert has_element?(view, ~s(a#board-pulse[href="/boards/#{board.id}/now"]))
+      refute has_element?(view, ~s(a#board-pulse[href="/boards/#{board.id}/visualise"]))
+
+      {:ok, now, _} =
+        view |> element("#board-pulse") |> render_click() |> follow_redirect(conn)
+
+      assert now.module == SlipdockWeb.NowLive.Index
+    end
+
     test "is plain text for a view-only share, who can't open visualise", %{
       board: board,
       user: user

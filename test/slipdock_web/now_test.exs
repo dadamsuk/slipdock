@@ -162,16 +162,46 @@ defmodule SlipdockWeb.NowTest do
   end
 
   describe "one click from the board page" do
-    test "the delivery line (the rocket) links to it", ctx do
+    test "the delivery line no longer carries a Right now link (#2124)", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"delivery_metrics" => true})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
 
-      assert has_element?(
-               view,
-               ~s(#board-dora #board-now-link[href="/boards/#{ctx.board.id}/now"])
-             )
-
+      assert has_element?(view, "#board-dora")
+      refute has_element?(view, "#board-now-link")
+      refute render(view) =~ "Right now ›"
       refute has_element?(view, "#board-now")
+    end
+
+    test "with Agentic Building on, the pulse line opens it, standing in for its own line (#2124)",
+         ctx do
+      {:ok, _} =
+        Boards.update_board(ctx.board, %{
+          "agentic_building" => true,
+          "show_pulse" => true,
+          "delivery_metrics" => true
+        })
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+
+      assert has_element?(view, ~s(a#board-pulse[href="/boards/#{ctx.board.id}/now"]))
+      refute has_element?(view, "#board-now")
+      refute has_element?(view, "#board-now-link")
+
+      {:ok, now, _} =
+        view |> element("#board-pulse") |> render_click() |> follow_redirect(ctx.conn)
+
+      assert now.module == SlipdockWeb.NowLive.Index
+    end
+
+    test "with Agentic Building on and the pulse off, its own line shows beside the delivery line",
+         ctx do
+      {:ok, _} =
+        Boards.update_board(ctx.board, %{"agentic_building" => true, "delivery_metrics" => true})
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+
+      assert has_element?(view, "#board-dora")
+      assert has_element?(view, ~s(#board-now[href="/boards/#{ctx.board.id}/now"]))
     end
 
     test "with Agentic Building on and no delivery line, a line of its own says what is on",

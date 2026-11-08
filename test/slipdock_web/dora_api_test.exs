@@ -129,6 +129,41 @@ defmodule SlipdockWeb.DoraAPITest do
     refute has_element?(view, "#board-dora")
   end
 
+  test "once there are deploys, the whole strip opens the visualise view (#2124)", %{
+    conn: conn,
+    board: board
+  } do
+    board = turn_on(board)
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    # The nudge before the first deploy has nothing to open yet.
+    assert has_element?(view, "p#board-dora", "no deploys recorded yet")
+    refute has_element?(view, "a#board-dora")
+
+    deploy!(board)
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    assert has_element?(view, ~s(a#board-dora[href="/boards/#{board.id}/visualise"]), "1 deploy")
+    refute has_element?(view, "p#board-dora")
+    refute has_element?(view, "#board-now-link")
+
+    {:ok, visualise, _} =
+      view |> element("#board-dora") |> render_click() |> follow_redirect(conn)
+
+    assert visualise.module == SlipdockWeb.BoardLive.Visualise
+  end
+
+  test "the strip is plain text for a view-only share (#2124)", %{board: board, user: user} do
+    board = turn_on(board)
+    deploy!(board)
+    viewer = user_fixture("dora-viewer#{System.unique_integer([:positive])}@example.com")
+    {:ok, saved} = Boards.create_saved_view(board, %{"name" => "Everything"})
+    {:ok, _} = Slipdock.Access.grant(saved, viewer, "read", user)
+    conn = log_in_user(build_conn(), viewer)
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}?view=#{saved.id}")
+    assert has_element?(view, "p#board-dora", "1 deploy")
+    refute has_element?(view, "a#board-dora")
+  end
+
   test "the strip colours each metric by its DORA band (#1184)", %{conn: conn, board: board} do
     board = turn_on(board)
     deploy!(board)
