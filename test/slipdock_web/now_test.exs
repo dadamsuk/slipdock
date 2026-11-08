@@ -3,7 +3,7 @@ defmodule SlipdockWeb.NowTest do
   The doors to what is happening right now (#2103): the Right now page
   (`/boards/:id/now`), one click from the board page (the delivery line's
   link, or a line of its own with Agentic Building on), the Agentic Building
-  page's link, `GET /api/boards/:board/now` and MCP `get_board now: true`,
+  page's tile, `GET /api/boards/:board/now` and MCP `get_board now: true`,
   and a reader of a sub-board alone refused the tree's.
   """
   use SlipdockWeb.ConnCase, async: true
@@ -135,10 +135,26 @@ defmodule SlipdockWeb.NowTest do
       refute has_element?(view, "#board-now-link")
     end
 
-    test "the Agentic Building page links to it", ctx do
+    test "the Agentic Building page has it as a tile, counting what is on", ctx do
       {:ok, _} = Boards.update_board(ctx.board, %{"agentic_building" => true})
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
-      assert has_element?(view, ~s(#agentic-now[href="/boards/#{ctx.board.id}/now"]))
+      tile = ~s(#agentic-tile-now[href="/boards/#{ctx.board.id}/now"])
+
+      assert has_element?(view, tile)
+      assert has_element?(view, "#{tile} [data-role=tile-number]", "1")
+      assert has_element?(view, "#{tile} [data-role=tile-line]", "1 card in progress, 1 queued")
+      refute has_element?(view, "#agentic-now")
+    end
+
+    test "the tile on a quiet board says nothing is in progress", ctx do
+      {:ok, _} = Boards.update_board(ctx.board, %{"agentic_building" => true})
+      Repo.update_all(Slipdock.Runners.Job, set: [status: "done"])
+      Repo.update_all(Slipdock.Boards.Card, set: [completed: true])
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
+
+      assert has_element?(view, "#agentic-tile-now [data-role=tile-number]", "0")
+      assert has_element?(view, "#agentic-tile-now [data-role=tile-line]", "Nothing in progress")
+      refute has_element?(view, "#agentic-tile-now[data-attention]")
     end
   end
 
@@ -161,6 +177,28 @@ defmodule SlipdockWeb.NowTest do
                "in_progress" => 1,
                "queued" => 1
              }
+    end
+
+    test "both doors give the same NowJSON view, nothing past its fields", ctx do
+      body = ctx.user |> with_token() |> get("/api/boards/#{ctx.board.id}/now")
+      body = json_response(body, 200)
+      result = ctx.user |> with_token() |> mcp("get_board", %{board: ctx.board.id, now: true})
+      mcp_body = Jason.decode!(text(result))
+
+      assert Map.drop(mcp_body, ~w(id code name)) == body
+      assert Map.keys(body) |> Enum.sort() == ~w(board_id counts in_progress queued runners)
+      assert [runner] = body["runners"]
+      assert Map.keys(runner) |> Enum.sort() == ~w(id jobs name online pool session)
+      assert [card] = body["in_progress"]
+
+      assert Map.keys(card) |> Enum.sort() ==
+               ~w(age board board_id holds id list loop parent state state_kind title)
+
+      assert card["loop"] == nil or Map.keys(card["loop"]) -- ~w(job_id kind runner) == []
+      assert [%{"held" => _} = queued] = body["queued"]
+
+      assert Map.keys(queued) |> Enum.sort() ==
+               ~w(board_id card card_id held id kind pool since status step step_at)
     end
 
     test "GET refuses a stranger", ctx do

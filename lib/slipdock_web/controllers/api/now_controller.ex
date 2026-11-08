@@ -12,14 +12,14 @@ defmodule SlipdockWeb.API.NowController do
 
   alias Slipdock.Boards.Board
   alias Slipdock.Now
-  alias SlipdockWeb.API.Authorize
+  alias SlipdockWeb.API.{Authorize, NowJSON}
 
   action_fallback SlipdockWeb.API.FallbackController
 
   def show(conn, %{"board" => ref}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read),
          {:ok, root} <- root(conn, board) do
-      json(conn, Map.put(Now.snapshot(root), :board_id, Board.root_id(board)))
+      json(conn, NowJSON.snapshot(Board.root_id(board), Now.snapshot(root)))
     end
   end
 

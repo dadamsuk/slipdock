@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.AgenticHubTest do
   @moduledoc """
   Findings, Ledger, Health and Runners reached from the Agentic Building
-  page (#2012): its four tiles with their counts, links and whether each
+  page (#2012): its tiles with their counts, links and whether each
   needs a look; the way back from Findings, Ledger and Health; the Runners
   header without its old buttons; and the pages still opening by URL with
   the switch off.
@@ -55,10 +55,11 @@ defmodule SlipdockWeb.AgenticHubTest do
 
   defp tile(view, key), do: "#agentic-tile-#{key}"
 
-  test "a quiet board: four tiles, each linking its page, none asking for a look", ctx do
+  test "a quiet board: five tiles, each linking its page, none asking for a look", ctx do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
 
     for {key, path} <- [
+          {"now", "/boards/#{ctx.board.id}/now"},
           {"runners", "/boards/#{ctx.board.id}/automations"},
           {"findings", "/boards/#{ctx.board.id}/findings"},
           {"ledger", "/boards/#{ctx.board.id}/ledger"},

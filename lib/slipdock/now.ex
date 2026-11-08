@@ -9,7 +9,7 @@ defmodule Slipdock.Now do
   sub-board under it, since runners take work from the whole tree), as
   plain maps that the Right now page (`SlipdockWeb.NowLive.Index`), the
   REST API (`GET /api/boards/:board/now`) and MCP (`get_board` `now: true`)
-  all give out as they are:
+  all give out (the two doors through `SlipdockWeb.API.NowJSON`):
 
     * `runners` — every runner of the tree, newest first: `id`, `name`,
       `pool`, `online`, `session` (a Claude session working through an API

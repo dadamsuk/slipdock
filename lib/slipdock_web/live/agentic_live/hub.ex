@@ -1,8 +1,8 @@
 defmodule SlipdockWeb.AgenticLive.Hub do
   @moduledoc """
-  The four places the Agentic Building page leads to (#2012): Runners,
-  Findings, Ledger and Health, each with a count that says whether it needs
-  a look, read from the board's tree.
+  The places the Agentic Building page leads to (#2012): Right now (#2103),
+  Runners, Findings, Ledger and Health, each with a count that says whether
+  it needs a look, read from the board's tree.
 
   `counts/1` reads them; `tiles/2` turns them into what the page draws:
   each tile's key, title, icon, path, the number and the line under it,
@@ -12,7 +12,7 @@ defmodule SlipdockWeb.AgenticLive.Hub do
 
   import Ecto.Query
 
-  alias Slipdock.{Findings, Health, Ledger, Repo, Runners}
+  alias Slipdock.{Findings, Health, Ledger, Now, Repo, Runners}
   alias Slipdock.Boards.Board
   alias Slipdock.Runners.Job
 
@@ -31,8 +31,11 @@ defmodule SlipdockWeb.AgenticLive.Hub do
       |> Map.new()
 
     active = Health.list_active(board)
+    now = Now.counts(board)
 
     %{
+      working: now.working,
+      in_progress: now.in_progress,
       runners: length(runners),
       online: Enum.count(runners, &Runners.online?/1),
       running: Map.get(jobs, "claimed", 0) + Map.get(jobs, "running", 0),
@@ -55,6 +58,16 @@ defmodule SlipdockWeb.AgenticLive.Hub do
   @doc "The tiles the page draws, from `counts/1`."
   def tiles(%Board{} = board, c) do
     [
+      %{
+        key: "now",
+        title: "Right now",
+        icon: "hero-bolt",
+        path: ~p"/boards/#{board}/now",
+        number: "#{c.working}",
+        unit: "working",
+        line: now_line(c),
+        attention: nil
+      },
       %{
         key: "runners",
         title: "Runners",
@@ -101,6 +114,16 @@ defmodule SlipdockWeb.AgenticLive.Hub do
           end
       }
     ]
+  end
+
+  # Right now's line (#2103): the cards in progress and the jobs queued.
+  defp now_line(%{in_progress: 0, queued: 0}), do: "Nothing in progress"
+
+  defp now_line(c) do
+    cards =
+      if c.in_progress == 1, do: "1 card in progress", else: "#{c.in_progress} cards in progress"
+
+    "#{cards}, #{c.queued} queued"
   end
 
   defp runners_line(%{runners: 0}), do: "None connected yet"

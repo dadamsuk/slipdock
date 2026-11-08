@@ -167,7 +167,10 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
   defp right_now(auth, board) do
     with {:ok, root} <- Args.refusal(SlipdockWeb.API.NowController.root(auth, board)) do
       {:ok,
-       Map.merge(%{id: board.id, code: board.code, name: board.name}, Slipdock.Now.snapshot(root))}
+       Map.merge(
+         %{id: board.id, code: board.code, name: board.name},
+         SlipdockWeb.API.NowJSON.snapshot(root.id, Slipdock.Now.snapshot(root))
+       )}
     end
   end
 

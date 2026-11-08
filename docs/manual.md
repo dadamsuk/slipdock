@@ -2560,7 +2560,8 @@ the delivery line (the rocket, while delivery metrics are on) ends in
 *Right now ›*, and on a board with [Agentic Building](#agentic-building) on and
 that line off, a line of its own says what is on (*1 runner working · 2 cards
 in progress · 1 queued*) and opens it. The Agentic Building page has a
-*Right now* button too.
+*Right now* tile too: the runners working, with the cards in progress and the
+jobs queued under it.
 
 The page covers the board's whole tree (its root and every sub-board, since
 runners take work from all of it), read again every few seconds:
@@ -3516,9 +3517,10 @@ Turn on **Agentic Building** in Board settings, Features (`slipdock
 set-board <board> --agentic-building on`, `update_board`
 `agentic_building`, `PATCH /api/boards/:board {"agentic_building": true}`)
 and the board menu gains **Agentic Building**, beside Automations, for the
-board's owner. It opens `/boards/<id>/agentic`. At its top are four tiles, the places
+board's owner. It opens `/boards/<id>/agentic`. At its top are five tiles, the places
 you look every day, each with a count that says whether it needs a look
-(read again every half minute): **Runners** (online of all, jobs running
+(read again every half minute): **Right now** (runners working, cards in
+progress and jobs queued; it opens [Right now](#right-now)), **Runners** (online of all, jobs running
 and queued; it opens Automations, where the Runners panel is),
 **Findings** (open), **Ledger** (shipped since 07:00 yesterday) and
 **Health** (stuck, and how many need a person). A tile that needs a look
