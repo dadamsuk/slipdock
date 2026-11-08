@@ -1168,7 +1168,13 @@ the health monitor's *orphan in progress* and the gardener's *stale in
 progress* checks report it instead. A person working a card by hand
 doesn't hold runners off its files either: give the card a job of its own,
 or pause the board's runners. A runner job for such a card waits, held as
-*Lane: overlaps #N, in progress*, and the next job is taken instead. Only
+*Lane: overlaps #N, in progress*, and the next job is taken instead. A
+*Work a list with a runner* rule (`list_top`) passes over a card its lane
+would hold and sends the next one that could start; if the job it already
+sent is still queued and held, it withdraws that job (the card is told
+why) and sends the next card instead, so one card with broad paths doesn't
+leave every pool idle. The held card keeps its place in the list and goes
+once its lane frees. Only
 work waits: a job that verifies or merges a card edits nobody's files, so
 neither lanes nor the board's WIP limit hold one. People
 are never refused: moving the card yourself is the override, and the card's
@@ -4455,8 +4461,11 @@ Whenever nothing the rule queued is still open, it sends the top open card
 of the list, in the list's order, skipping cards that are completed,
 archived, stand-ins, waiting on an unfinished card or flagged `blocked` or
 `waiting` — and, with `unassigned: true`, cards somebody has taken — plus
-any the rule's conditions rule out, and any card a job is already open on
-(queued, claimed or running), whichever rule queued it. It looks again whenever its job ends, a
+any the rule's conditions rule out, any card a job is already open on
+(queued, claimed or running), whichever rule queued it, and, with lanes
+holding, any card whose paths overlap a card in progress (see
+[Lanes](#lanes)): a job it already sent that a lane holds, and nobody has
+taken, is withdrawn so the next card that could start goes instead. It looks again whenever its job ends, a
 card on the board changes or the list is reordered, the rule is saved or
 switched on, and every few minutes besides. A card whose job just ended and
 which is still at the top (the runner gave up on it) is passed over for ten

@@ -2264,7 +2264,9 @@ defmodule SlipdockWeb.APIGuide do
       the same queue, one at a time, so two of them never work one card. A
       rule has at most one open job per card, and a `list_top` rule passes
       over a card any job is open on, so two of them (one per pool) can work
-      one list side by side.
+      one list side by side. It passes over a card its lane would hold too,
+      and withdraws a queued job of its own that a lane holds when another
+      card could start, so a held card never keeps its pool idle.
 
     A job goes `queued → claimed → running → done | failed | cancelled |
     timeout`. A claim holds a lease (90 seconds) that each heartbeat renews;
