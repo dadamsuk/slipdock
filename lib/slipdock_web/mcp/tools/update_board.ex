@@ -172,7 +172,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
          {:ok, changes} <- Slipdock.Profiles.put_tiers(board, changes),
          {:ok, board} <- routes(board, routes),
          :ok <- overseer(board, overseer),
-         {:ok, board} <- update(board, changes) do
+         {:ok, board} <- save(board, changes) do
       summary =
         board
         |> Tools.ListBoards.summary(user)
@@ -189,8 +189,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
   defp something(_changes, _routes, _overseer), do: :ok
 
   # Only the overseer sent: the board itself is left alone.
-  defp update(board, changes) when changes == %{}, do: {:ok, board}
-  defp update(board, changes), do: Args.refusal(Boards.update_board(board, changes))
+  defp save(board, changes) when changes == %{}, do: {:ok, board}
+  defp save(board, changes), do: Args.refusal(Boards.update_board(board, changes))
 
   # The overseer's settings (#2068), on the tree's root.
   defp overseer(_board, nil), do: :ok

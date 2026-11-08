@@ -188,6 +188,34 @@ defmodule SlipdockWeb.OverseerTest do
       assert [%{"check" => "waiting_idle"}] = whoami["overseer"]
     end
 
+    test "a dismissed overseer item stays off until a new condition fires", ctx do
+      {card, condition} = waiting(ctx)
+      assert [%{reason: "overseer"}] = Work.waiting_on_me(ctx.user)
+
+      assert {:ok, %{cause: cause}} = Work.dismiss(ctx.user, card)
+      assert cause == "overseer:#{condition.id}"
+
+      waiting = Work.waiting(ctx.user)
+      assert waiting.items == []
+      assert [%{card: %{id: id}, reason: "overseer"}] = waiting.dismissed
+      assert id == card.id
+
+      whoami = ctx.user |> with_token() |> mcp("whoami", %{}) |> text() |> Jason.decode!()
+      assert whoami["overseer"] == []
+      assert whoami["waiting_hidden"]["dismissed"] == 1
+
+      # The condition clears, then fires again: a new cause, so it shows.
+      {:ok, _} = Boards.answer_wait(card, Actor.web(ctx.user), %{"answer" => "This one"})
+      settings = Overseer.settings(ctx.board)
+      %{cleared: [_]} = Overseer.Watch.run(Repo.get!(Board, ctx.board.id), settings)
+      {:ok, _} = Boards.open_wait(card, Actor.web(ctx.user), %{"needs" => "And now?"})
+      %{fired: [again]} = Overseer.Watch.run(Repo.get!(Board, ctx.board.id), settings)
+      assert again.id != condition.id
+
+      assert [%{reason: "overseer", cause: new_cause}] = Work.waiting_on_me(ctx.user)
+      assert new_cause == "overseer:#{again.id}"
+    end
+
     test "a Getting Started board's cards don't wait on anyone", ctx do
       tour =
         board_fixture(%{"name" => Slipdock.Onboarding.board_name(), "code" => unique_code()},

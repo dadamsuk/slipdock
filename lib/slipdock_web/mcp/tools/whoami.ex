@@ -11,10 +11,9 @@ defmodule SlipdockWeb.MCP.Tools.Whoami do
   @impl true
   def description,
     do:
-      "Who this connection is signed in as, the token's scope (read or write), " <>
-        "how much of the account's item limit is used, waiting_on_you: how many " <>
-        "things need this person, waiting_hidden: how many they dismissed or muted, " <>
-        "and overseer: the overseer's alerts among them, first."
+      "Who this connection is signed in as, its token's scope, the account's item " <>
+        "limit used, waiting_on_you: how many things need this person, waiting_hidden: " <>
+        "how many they dismissed or muted, and overseer: the overseer's alerts, first."
 
   @impl true
   def input_schema, do: %{type: "object", properties: %{}, additionalProperties: false}
