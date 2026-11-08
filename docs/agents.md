@@ -822,7 +822,14 @@ Handbook line), given as `checks` to `verify_card` or `POST
 (repeated, or `--checks-file`). A rule broken only in lines the diff didn't
 change is `rule:<id>=pre-existing:<file>:<line>`: never a rejection, kept as a
 `rule` finding on the card (source `verification`), and shown apart from passed
-and failed parts. A rejection names at least one failing part;
+and failed parts. **A rejection names every instance found**: once the
+verifier finds a rule broken, it looks for every other instance of the same
+break the card could have missed (the same list, the same string, the same
+door) and names them all in one rejection, each as its own line under the one
+rule with its file and line (`--check rule:SPEC-10=broken:README.md:40:why`,
+repeated), and says in the reason that it looked. A rule broken in several
+places is one failing part, and the rejection's comment lists its instances
+under it. A rejection names at least one failing part;
 an acceptance with a broken `must` rule (or any other failing part) is
 refused. The card panel and `slipdock card` list the parts under
 Verification; a later decision replaces them, and each decision's comment

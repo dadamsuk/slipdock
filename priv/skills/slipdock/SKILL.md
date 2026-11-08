@@ -321,6 +321,8 @@ slipdock verify <id> reject --reason "bar 2: …" --check bar:1=ok --check bar:2
                                        # ask=ok|misses, bar:<n>=ok|fail, suite=<passed>:<failed>,
                                        # rule:<id>=ok|broken|n/a, handbook_line=ok|disputed; a reject
                                        # names a failing part, an accept carries no broken must rule;
+                                       # a rule broken in several places: repeat rule:<id>=broken:<file>:<line>
+                                       # once per instance, all in one rejection (they list under the rule);
                                        # rule:<id>=pre-existing:<file>:<line> for a rule broken only in
                                        # lines the diff didn't change: never a rejection, kept as a finding;
                                        # defect:important|nit|pre-existing=<file>:<line>[:why] for a schema or
