@@ -53,6 +53,20 @@ defmodule Slipdock.NotifyTest do
     assert Notify.topic(%Slipdock.Accounts.User{id: 7}) == "notify:user:7"
   end
 
+  test "send_email: false toasts without the email (a person's Email me off, #2095)", ctx do
+    :ok =
+      Notify.person(ctx.priya, ctx.card,
+        kind: "wait",
+        subject: "Waiting on you",
+        body: "Which tier first?",
+        send_email: false
+      )
+
+    assert [{id, %{kind: "wait", title: "Waiting on you"}}] = toasts()
+    assert id == ctx.priya.id
+    assert_no_email_sent()
+  end
+
   describe "a wait opened on you" do
     test "toasts the person it is on, beside the unchanged email", ctx do
       {:ok, _} =
@@ -77,12 +91,25 @@ defmodule Slipdock.NotifyTest do
       assert "notify-" <> _ = event.id
     end
 
-    test "tells nobody about a wait they opened on themselves", ctx do
+    test "tells nobody about a wait they opened on themselves in person", ctx do
       {:ok, _} =
-        Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "Note", "on_user_id" => ctx.owner.id})
+        Boards.open_wait(ctx.card, Slipdock.Actor.web(ctx.owner), %{
+          "needs" => "Note",
+          "on_user_id" => ctx.owner.id
+        })
 
       assert toasts() == []
       refute_email_sent()
+    end
+
+    test "tells them about one their agent asks under their token: the question is theirs (#2095)",
+         ctx do
+      {:ok, _} =
+        Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "Note", "on_user_id" => ctx.owner.id})
+
+      owner_id = ctx.owner.id
+      assert [{^owner_id, %{kind: "wait", by_id: nil}}] = toasts()
+      assert_email_sent(fn email -> assert email.to == [{"", ctx.owner.email}] end)
     end
 
     test "tells nobody who can't read the card", ctx do

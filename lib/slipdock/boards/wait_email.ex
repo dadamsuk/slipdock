@@ -30,7 +30,7 @@ defmodule Slipdock.Boards.WaitEmail do
     if Slipdock.Boards.WaitAlert.tell?(wait, card) do
       Notify.person(person, card,
         kind: "wait",
-        by: wait.opened_by_id,
+        by: by(wait, person),
         subject: subject(wait, card),
         body: body(wait, card),
         email: [footer: footer(wait)],
@@ -70,6 +70,11 @@ defmodule Slipdock.Boards.WaitEmail do
 
     :ok
   end
+
+  # An agent asking under the person's own token is a question for them, so
+  # their page mustn't drop its toast as their own doing (#2095).
+  defp by(%Wait{kind: kind, opened_by_id: id}, %User{id: id}) when kind != "human", do: nil
+  defp by(%Wait{opened_by_id: id}, _person), do: id
 
   defp subject(wait, card),
     do: "#{who(wait.opened_by)} is waiting on you: “#{card.title}”"
