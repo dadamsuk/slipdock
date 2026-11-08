@@ -723,6 +723,13 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
           current_user={@current_user}
         />
 
+        <.live_component
+          module={SlipdockWeb.BoardLive.OverseerComponent}
+          id="board-overseer-panel"
+          board={@board}
+          current_user={@current_user}
+        />
+
         <.callback_log :if={@callbacks != []} callbacks={@callbacks} />
       </div>
     </.modal>

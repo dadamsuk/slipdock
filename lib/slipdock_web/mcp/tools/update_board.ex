@@ -30,7 +30,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
     do:
       "Changes a board you own: name, description, color, simple, default_view, handoff_label, agentic_building, " <>
         "verified-work switches, lanes, profiles, profile_tiers, " <>
-        "job log hours, findings_propose_at, wait_routes. Only what you send changes."
+        "job log hours, findings_propose_at, wait_routes, overseer. Only what you send changes."
 
   @impl true
   def input_schema do
@@ -109,6 +109,22 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
           description:
             "A finding seen this many times gets a handbook rule proposal drafted (3 by default; 0 off)."
         },
+        overseer: %{
+          type: "object",
+          description:
+            "The overseer (#2068): enabled, the runner pool its passes go to, min_minutes " <>
+              "(10) while cards are active and max_minutes (120) when nothing is in flight, " <>
+              "idle_minutes before idle runners are said, email.",
+          properties: %{
+            enabled: %{type: "boolean"},
+            pool: %{type: "string"},
+            min_minutes: %{type: "integer"},
+            max_minutes: %{type: "integer"},
+            idle_minutes: %{type: "integer"},
+            email: %{type: "boolean"}
+          },
+          additionalProperties: false
+        },
         wait_routes: %{
           type: "object",
           description:
@@ -148,26 +164,55 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
     auth = Args.auth(context)
     changes = Map.take(args, @fields)
     routes = Map.get(args, "wait_routes")
+    overseer = Map.get(args, "overseer")
 
     with {:ok, ref} <- Args.required(args, "board"),
-         :ok <- something(changes, routes),
+         :ok <- something(changes, routes, overseer),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :owner)),
          {:ok, changes} <- Slipdock.Profiles.put_tiers(board, changes),
          {:ok, board} <- routes(board, routes),
-         {:ok, board} <- Args.refusal(Boards.update_board(board, changes)) do
+         :ok <- overseer(board, overseer),
+         {:ok, board} <- update(board, changes) do
       summary =
         board
         |> Tools.ListBoards.summary(user)
         |> Map.put(:wait_routes, SlipdockWeb.API.JSON.wait_routes(board))
+        |> put_overseer(board, overseer)
 
       {:ok, summary |> put_tiers(board) |> put_agentic_warning(board, changes)}
     end
   end
 
-  defp something(changes, nil) when changes == %{},
+  defp something(changes, nil, nil) when changes == %{},
     do: {:error, "nothing to change: send a setting"}
 
-  defp something(_changes, _routes), do: :ok
+  defp something(_changes, _routes, _overseer), do: :ok
+
+  # Only the overseer sent: the board itself is left alone.
+  defp update(board, changes) when changes == %{}, do: {:ok, board}
+  defp update(board, changes), do: Args.refusal(Boards.update_board(board, changes))
+
+  # The overseer's settings (#2068), on the tree's root.
+  defp overseer(_board, nil), do: :ok
+
+  defp overseer(board, %{} = attrs) do
+    case Slipdock.Overseer.put_settings(board, attrs) do
+      {:ok, _} -> :ok
+      error -> Args.refusal(error)
+    end
+  end
+
+  defp overseer(_board, _), do: {:error, "overseer must be an object"}
+
+  defp put_overseer(summary, _board, nil), do: summary
+
+  defp put_overseer(summary, board, _attrs),
+    do:
+      Map.put(
+        summary,
+        :overseer,
+        SlipdockWeb.API.OverseerJSON.state(Slipdock.Overseer.state(board))
+      )
 
   # The tree's tiers (#1952) with profiles on, and a loud warning for
   # security set to none.

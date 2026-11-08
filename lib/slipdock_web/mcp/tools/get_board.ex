@@ -17,7 +17,8 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
     do:
       "A board's lists in order with a summary of each card, description included. " <>
         "Board is an id, code or name. Use get_card for a card's comments and checklist. " <>
-        "Or instead: pulse (flow numbers), history (flow by day), runners, dora (delivery)."
+        "Or instead: pulse (flow numbers), history (flow by day), runners, dora (delivery), " <>
+        "overseer."
 
   @impl true
   def input_schema do
@@ -35,6 +36,13 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
             "The flow numbers instead of the lists: in progress, waiting, done in 7 days " <>
               "and today, P50/P85 seconds to done, moves in 24h forward and back, each " <>
               "list's in/out over 7 days and usual stay."
+        },
+        overseer: %{
+          type: "boolean",
+          description:
+            "The overseer instead of the lists (#2068): on or off, its pacing bounds, next " <>
+              "pass, last digest, and its open conditions (looping, waiting while idle, slow, " <>
+              "idle capacity, no way forward), each with why and what to do."
         },
         history: %{
           type: "boolean",
@@ -108,6 +116,9 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
              runner_stats: Slipdock.RunnerStats.for_board(board, days: args["days"])
            }}
 
+        Enum.member?([true, "true"], args["overseer"]) ->
+          overseer(auth, board)
+
         args["pulse"] in [true, "true"] ->
           {:ok,
            %{
@@ -121,6 +132,21 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
         true ->
           lists(auth, board)
       end
+    end
+  end
+
+  # The overseer of `board`'s tree answers for its root, so it needs read
+  # on the root too (#2068): its conditions and digest name the root's cards
+  # and its sibling sub-boards'.
+  defp overseer(auth, board) do
+    with {:ok, root} <- Args.refusal(Authorize.tree_root(auth, board, :read)) do
+      {:ok,
+       %{
+         id: board.id,
+         code: board.code,
+         name: board.name,
+         overseer: SlipdockWeb.API.OverseerJSON.state(Slipdock.Overseer.state(root))
+       }}
     end
   end
 

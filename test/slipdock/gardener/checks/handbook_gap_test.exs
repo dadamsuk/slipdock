@@ -50,6 +50,15 @@ defmodule Slipdock.Gardener.Checks.HandbookGapTest do
     assert finding.alternatives == %{"reopen" => [%{"op" => "reopen", "card" => card.id}]}
   end
 
+  test "the overseer's card (#2068) is never asked for a Handbook line",
+       %{user: user, board: board} do
+    install(user, board)
+    {:ok, settings} = Slipdock.Overseer.put_settings(board, %{"enabled" => true})
+    assert Repo.get!(Slipdock.Boards.Card, settings.card_id).completed
+
+    refute Enum.any?(find(HandbookGap, board), &(&1.subject == %{"cards" => [settings.card_id]}))
+  end
+
   test "a Handbook line, `no change (…)` included, counts as the gate run",
        %{user: user, board: board, todo: todo} do
     install(user, board)

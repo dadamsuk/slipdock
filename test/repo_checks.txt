@@ -124,3 +124,4 @@ except test/slipdock/profiles_test.exs: its docs/ and priv/skills/ paths are car
 except test/slipdock_web/shared_paths_web_test.exs: docs/manual.md there is a glob a board shares, not a file it reads
 except test/slipdock/lanes_advise_test.exs: its docs/manual.md is a lane glob held as data; it reads no file
 except test/slipdock_web/runner_skills_update_test.exs: runs the runner scripts for real (seconds each); priv/skills/ there is what the server serves, compared with what the runner installed, not a doc held to a rule
+except test/slipdock/overseer_watch_test.exs: its docs/ paths are lane globs held as data; it reads no file

@@ -621,6 +621,15 @@ WRITE
                                       wake at the top of their list, or sooner when someone
                                       else comments or assigns them. --notify alerts then
   wake <id>...                        bring snoozed cards back now
+  overseer <board> [--on | --off] [--pool P] [--min-minutes N] [--max-minutes N]
+      [--idle-minutes N] [--email | --no-email]
+                                      the overseer: an eye on outcomes. Shows whether it is on,
+                                      its next pass, the last digest and the open conditions
+                                      (looping, waiting while idle, slow, idle capacity, no
+                                      way forward), each with why and what to do. --on turns it
+                                      on; passes come every --min-minutes (10) while cards are
+                                      active, up to --max-minutes (120) when nothing is in
+                                      flight, on a runner whose config has job_overseer
   garden <board> [--run] [--check K]  tidy-up suggestions: epics done but open, cards stuck in
                                       progress, overdue, duplicates, orphaned pages, mistyped
                                       [[links]]. --run looks the board over first

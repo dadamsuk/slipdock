@@ -114,11 +114,18 @@ defmodule Slipdock.Work do
   # needs an owner.
   @owner_grace 3600
 
+  # The reasons that head the list, whatever their age.
+  @first ~w(overseer circling)
+
   @doc """
   Everything that needs `user` (#1118, R14), oldest first: one item per card,
-  `%{card:, path:, reason:, text:, since:, cause:, wait:, job:}`, where `reason` is
-  the first of these that applies:
+  `%{card:, path:, reason:, text:, since:, cause:, wait:, job:, condition:}`,
+  where `reason` is the first of these that applies:
 
+    * `"overseer"` — an open condition the overseer's watch raised (#2068,
+      `Slipdock.Overseer.Watch`) on a tree `user` owns, about this card:
+      looping, waiting while idle, slow, idle capacity or no way forward.
+      These come first, with circling cards, whatever their age;
     * `"circling"` — a card going round in circles (#2047): rejected twice
       or more and still flagged `review`, not yet accepted, in a tree
       `user` owns (`Slipdock.Verified.Circling`). These come first,
@@ -140,7 +147,9 @@ defmodule Slipdock.Work do
   `since` is when it started needing them: the newest rejection, the wait's opening, the newest
   run of the flag (from the activity log), the job's end, the card's entry
   into its list. Only cards `user` may read come back; completed and
-  archived ones never do, and snoozed ones only for a wait.
+  archived ones never do, and snoozed ones only for a wait. Nor do cards on
+  a *Getting Started* board (`Slipdock.Onboarding`): the tour's cards are
+  instructions for a person, and left there they would drown the rest.
 
   Options: `:board_id` keeps one board's tree, `:roots` the trees of those
   root boards (a token's scope), `:paths` false skips working out each
@@ -165,7 +174,8 @@ defmodule Slipdock.Work do
     assigned = assigned_ids(user)
 
     candidates =
-      circling(owned) ++
+      overseer(owned) ++
+        circling(owned) ++
         waits_on(user, owned, assigned) ++
         awaiting(owned) ++ flagged(user, now) ++ job_trouble(owned) ++ unowned(owned, now)
 
@@ -185,12 +195,14 @@ defmodule Slipdock.Work do
       )
 
     muted = muted_board_ids(user)
+    tour = tour_roots(cards)
 
     {muted_cards, found} =
       candidates
       |> Enum.filter(
         &(MapSet.member?(readable, &1.card_id) and in_scope?(cards[&1.card_id], opts))
       )
+      |> Enum.reject(&MapSet.member?(tour, Board.root_id(cards[&1.card_id].board)))
       |> Enum.map(&candidate_item(&1, cards[&1.card_id], flag_since))
       |> Enum.group_by(& &1.card.id)
       |> Enum.split_with(fn {_id, [i | _]} -> muted?(i.card, muted) end)
@@ -216,11 +228,13 @@ defmodule Slipdock.Work do
       since: since,
       cause: cause(found, since),
       wait: found[:wait],
-      job: found[:job]
+      job: found[:job],
+      condition: found[:condition]
     }
   end
 
   # What a dismissal is held on: the thing that put the card on the list.
+  defp cause(%{reason: "overseer", condition: c}, _since), do: "overseer:#{c.id}"
   defp cause(%{reason: "circling", rejections: n}, _since), do: "circling:#{n}"
   defp cause(%{reason: "wait" <> _, wait: w}, _since), do: "wait:#{w.id}"
   defp cause(%{reason: r, job: %{id: id}}, _since) when r in ~w(gave_up failed), do: "job:#{id}"
@@ -246,25 +260,47 @@ defmodule Slipdock.Work do
   defp finish(items, opts) do
     items
     |> Enum.map(&Map.put(&1, :path, if(opts[:paths] == false, do: nil, else: path(&1.card))))
-    |> Enum.sort_by(&{&1.reason != "circling", &1.since, &1.card.id}, &older_first/2)
+    |> Enum.sort_by(&{not Enum.member?(@first, &1.reason), &1.since, &1.card.id}, &older_first/2)
   end
 
-  # Circling cards first (#2047), then oldest first, then by id.
+  # Overseer conditions (#2068) and circling cards (#2047) first, then
+  # oldest first, then by id.
   defp older_first({c, a, i}, {c, b, j}), do: order(DateTime.compare(a, b), i, j)
   defp older_first({not_circling, _, _}, _), do: not not_circling
 
   defp order(:eq, i, j), do: i <= j
   defp order(cmp, _i, _j), do: cmp == :lt
 
+  @overseer_shown 5
+
+  @doc """
+  What `whoami` says about `user` (#2068): how many things wait on them
+  (`waiting_count/2`) and the overseer's open conditions among them, first
+  and at most `@overseer_shown` of them, as `{count, [condition]}`.
+  """
+  def waiting_summary(%User{} = user, opts \\ []) do
+    items = waiting_on_me(user, Keyword.put(opts, :paths, false))
+    {length(items), overseer_first(items)}
+  end
+
+  @doc """
+  The overseer's conditions at the head of `items` (from `waiting/2`), at
+  most `@overseer_shown` of them.
+  """
+  def overseer_first(items),
+    do: for(%{reason: "overseer", condition: c} <- Enum.take(items, @overseer_shown), do: c)
+
   @doc "How many things are waiting on `user`: the length of `waiting_on_me/2`."
   def waiting_count(%User{} = user, opts \\ []),
     do: user |> waiting_on_me(Keyword.put(opts, :paths, false)) |> length()
 
-  @reasons ~w(circling wait wait_anyone verify review waiting gave_up failed needs_owner)
+  @reasons ~w(overseer circling wait wait_anyone verify review waiting gave_up failed needs_owner)
   defp rank(%{reason: reason}), do: Enum.find_index(@reasons, &(&1 == reason))
 
   @doc "The reasons an item can have, in the order one card's are chosen from."
   def reasons, do: @reasons
+
+  defp reason_text(%{reason: "overseer", condition: c}), do: "Overseer: #{c.title}"
 
   defp reason_text(%{reason: "circling", rejections: n}),
     do: "Going round in circles: rejected #{n} times"
@@ -352,6 +388,29 @@ defmodule Slipdock.Work do
         true -> []
       end
     end)
+  end
+
+  # The overseer's open conditions (#2068) on the owned trees, each on the
+  # card it names. The newest on a card speaks for it.
+  defp overseer([]), do: []
+
+  defp overseer(owned) do
+    owned
+    |> Slipdock.Overseer.open_conditions()
+    |> Enum.reject(&is_nil(&1.card_id))
+    |> Enum.map(&%{card_id: &1.card_id, reason: "overseer", since: &1.opened_at, condition: &1})
+  end
+
+  # The root boards among `cards`' trees that are a Getting Started tour.
+  defp tour_roots(cards) do
+    roots = cards |> Map.values() |> Enum.map(&Board.root_id(&1.board)) |> Enum.uniq()
+
+    from(b in Board,
+      where: b.id in ^roots and b.name == ^Slipdock.Onboarding.board_name(),
+      select: b.id
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   # Cards going round in circles (#2047): rejected twice or more, still

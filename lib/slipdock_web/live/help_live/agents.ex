@@ -211,6 +211,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP, when asked"},
        {:no, "one way only"}
      ]},
+    {"Turn the overseer on, set its pace, and read its alerts",
+     [
+       {:yes, "GET/PATCH /api/boards/:id/overseer"},
+       {:yes, "get_board's overseer, update_board's overseer"},
+       {:yes, "slipdock overseer"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "a runner with job_overseer runs its passes"},
+       {:no, "one way only"}
+     ]},
     {"See the top cards of lists from several boards (Multiboard)",
      [
        {:yes, "GET /api/multiboard"},

@@ -752,6 +752,25 @@ for a person; an agent says on it what it knows and leaves the flag alone.
 `GET /api/boards/:board/health` show the incidents; see
 [the manual](manual.md#the-health-monitor).
 
+**The overseer.** A board's owner can turn on an eye on outcomes
+(`slipdock overseer <board> --on`): server checks, every minute, for work
+going round (a second rejection, a third runner pass), a board waiting only
+on a person with nothing running, cards slower than the board's P85 for
+their profile and jobs whose step hasn't changed in 30 minutes, idle runners
+beside a full ready list or jobs queued behind one lane, and epics whose
+open subcards are all blocked. Each fires once, as an alert and an email
+with why and what to do, heads the owner's `slipdock work` and `whoami`
+(reason `overseer`), and clears itself when it ends. A runner job of kind
+`overseer` (only to a runner whose config has `job_overseer`, on a cheap
+model) is handed those conditions and the pulse in its prompt, and nothing
+else: it reads nothing more, takes no action, and answers with one line of
+JSON, `{"health", "digest", "look_now"}`, kept as a status update on the
+board's *Overseer* card. Passes come every 10 minutes while cards are active,
+longer when little or nothing is in flight. `GET`/`PATCH
+/api/boards/:board/overseer` (reading needs read on the tree's root, not
+just the sub-board named), MCP `get_board overseer: true` and
+`update_board overseer: {…}`; see [the manual](manual.md#the-overseer).
+
 **Findings.** What a pass learned that the code doesn't show goes on the
 board, not in one machine's agent memory: a `Findings:` block in the closing
 comment, once (on a board that verifies work, the completion's evidence; never

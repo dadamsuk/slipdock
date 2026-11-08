@@ -14,6 +14,9 @@ defmodule Slipdock.Gardener.Checks.HandbookGap do
   The other half of the spec's drift check — pages whose `covers:` paths
   changed since they were edited — needs commits' file paths, which the
   deployment ledger doesn't keep yet (#1278).
+
+  The overseer's card (#2068, `Slipdock.Overseer`) is never asked: it is
+  made completed, to hold the overseer's jobs and digests, and has no diff.
   """
   @behaviour Slipdock.Gardener.Check
 
@@ -50,6 +53,8 @@ defmodule Slipdock.Gardener.Checks.HandbookGap do
       from(c in Card,
         where: c.board_id in ^ctx.board_ids and c.completed and is_nil(c.archived_at),
         where: is_nil(c.stand_in_for_id) and c.completed_at >= ^handbook.installed_at,
+        # The overseer's card (#2068) is made done: it holds jobs, not work.
+        where: c.id not in subquery(overseer_cards()),
         select: struct(c, [:id, :title, :completed_at])
       )
       |> Repo.all()
@@ -66,6 +71,9 @@ defmodule Slipdock.Gardener.Checks.HandbookGap do
       }
     end
   end
+
+  defp overseer_cards,
+    do: from(s in Slipdock.Overseer.Settings, where: not is_nil(s.card_id), select: s.card_id)
 
   # The cards with a `Handbook:` line in any comment.
   defp gated([]), do: MapSet.new()

@@ -219,7 +219,7 @@ slipdock dora <board> [--env E] [--days N]   # delivery (DORA) numbers from reco
 slipdock deploy run --env E -- <cmd…>   # in CI, with SLIPDOCK_DEPLOY_TOKEN: record a deploy around the deploy command
 slipdock deploy setup <board> [--prompt]   # owner: turn delivery metrics on, issue the deploy token, print the CI step
 slipdock incident-of <card> <deploy-id>    # an incident card names the deploy that caused it (--clear to undo)
-slipdock work [--board B] [--done]      # what is waiting on you (waits, review/waiting flags, runner trouble), then your cards
+slipdock work [--board B] [--done]      # what is waiting on you (the overseer's alerts first, then waits, review/waiting flags, runner trouble), then your cards
 slipdock work --dismiss <card> | --undismiss <card> | --dismissed   # take an item off your own list until its cause changes; list and undo
 slipdock work --mute <board> | --unmute <board>   # nothing from a board's tree on your list (not archiving: the board works as before)
 slipdock multiboard [--list 12 --list "ops/To Do"] [--limit N] [--by board|list|grid]  # top N cards of lists across boards (no --list: the saved view)
@@ -369,6 +369,9 @@ slipdock garden settings <board> [<check> key=value...]   # checks on/off, thres
 slipdock health <board> [--run]           # work the health monitor found stuck: fixed, or flagged stuck
                                        # for a person; ends with the scheduler's and monitor's pulse
 slipdock health settings <board> [<detector> key=value...]   # detectors on/off, thresholds
+slipdock overseer <board> [--on|--off] [--pool P] [--min-minutes N] [--max-minutes N]   # the overseer: open
+                                       # conditions (looping, waiting while idle, slow, idle capacity, no way
+                                       # forward) with why and what to do, its last digest, next pass; owner sets it
 slipdock findings <board> [--status S] [--kind K] [--days N] [--card ID]   # what cards taught and the
                                        # system saw go wrong (Findings: blocks, rejections, timeouts…), open first
 slipdock finding <id> promote|dismiss|reopen [--note "W-12 §Tests"]   # triage one; promote once it is in the handbook

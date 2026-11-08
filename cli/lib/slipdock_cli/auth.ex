@@ -75,6 +75,12 @@ defmodule SlipdockCLI.Auth do
       # rather than hitting a 402 halfway through.
       for line <- standing_lines(r["limits"]), do: IO.puts("  " <> line)
 
+      # The overseer's alerts (#2068) first: what a person should look at now.
+      for c <- r["overseer"] || [] do
+        IO.puts("  overseer: ##{c["card_id"]} #{c["title"]}")
+        IO.puts("    what to do: #{c["todo"]}")
+      end
+
       case r["waiting_on_you"] do
         n when is_integer(n) and n > 0 -> IO.puts("  waiting on you: #{n} (slipdock work)")
         _ -> :ok

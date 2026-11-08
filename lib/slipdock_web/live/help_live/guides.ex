@@ -180,7 +180,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
         Each card summarises everything beneath it: how many tasks are done, the earliest
         start and latest due date, whether anything below is blocked or overdue, and a
         health state. <.app_link current_user={@current_user} to={~p"/work"}>My work</.app_link>
-        lists everything assigned to you across every board and level.
+        lists everything assigned to you across every board and level, after what is waiting
+        on you: the overseer's alerts first, when a board has it on (Automations, Overseer).
       </p>
       <p>
         Cards can also <strong>depend</strong>

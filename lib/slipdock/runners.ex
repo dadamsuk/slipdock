@@ -1078,16 +1078,17 @@ defmodule Slipdock.Runners do
           j.root_board_id == ^runner.board_id and j.pool == ^runner.pool and
             j.status == "queued",
         # A verify job never goes to the runner that built its card (#1625).
-        where: is_nil(j.exclude_runner_id) or j.exclude_runner_id != ^runner.id,
+        where: fragment("? IS DISTINCT FROM ?", j.exclude_runner_id, ^runner.id),
         # Nor an audit to its card's builder or verifier (#1780).
         where: not fragment("? = ANY(?)", ^runner.id, j.exclude_runner_ids),
         where: not j.wait_while_doing or not exists(busy_cards(worked)),
         where:
           j.board_id not in ^wip_full or exists(own_card_doing()) or
-            j.kind in ^Slipdock.Verified.finishing_kinds(),
+            j.kind in ^wip_exempt_kinds(),
         where: j.card_id not in ^lane_held or j.kind in ^Slipdock.Verified.finishing_kinds(),
-        # A merge job only goes to a runner that says it takes them (#1656).
-        where: j.kind != "merge" or ^takes_merge?(runner),
+        # A merge job (#1656) or an overseer pass (#2068) only goes to a
+        # runner that says it takes them.
+        where: j.kind not in ^kinds_not_taken(runner),
         order_by: [asc: j.id],
         limit: 1,
         lock: "FOR UPDATE SKIP LOCKED",
@@ -1138,7 +1139,7 @@ defmodule Slipdock.Runners do
   # profiles on, one with no profile gets one. Checking it isn't claiming it.
   defp claimed_profile(%Job{card_id: card_id, kind: kind} = job, runner)
        when is_integer(card_id) do
-    if not Enum.member?(Slipdock.Verified.finishing_kinds(), kind) do
+    if not Enum.member?([Slipdock.Overseer.kind() | Slipdock.Verified.finishing_kinds()], kind) do
       case Repo.get(Card, card_id) do
         nil ->
           :ok
@@ -1245,6 +1246,24 @@ defmodule Slipdock.Runners do
   @doc "Whether `runner` takes merge jobs: it said so on its last claim."
   def takes_merge?(%Runner{kinds: kinds}) when is_list(kinds), do: "merge" in kinds
   def takes_merge?(_runner), do: false
+
+  # The kinds a WIP limit never holds back: verify and merge jobs finish
+  # work, and an overseer pass (#2068) does none.
+  defp wip_exempt_kinds, do: [Slipdock.Overseer.kind() | Slipdock.Verified.finishing_kinds()]
+
+  # The kinds only handed to a runner that says it takes them, that this
+  # one hasn't said it does.
+  defp kinds_not_taken(runner) do
+    [{"merge", takes_merge?(runner)}, {Slipdock.Overseer.kind(), takes_overseer?(runner)}]
+    |> Enum.reject(&elem(&1, 1))
+    |> Enum.map(&elem(&1, 0))
+  end
+
+  @doc "Whether `runner` takes overseer passes (#2068): it said so on its last claim."
+  def takes_overseer?(%Runner{kinds: kinds}) when is_list(kinds),
+    do: Enum.member?(kinds, Slipdock.Overseer.kind())
+
+  def takes_overseer?(_runner), do: false
 
   @doc """
   What a merge job's runner needs to know, read from its card (#1656): the
@@ -1455,9 +1474,17 @@ defmodule Slipdock.Runners do
 
     # A merge job (#1657) completes its card, or sends it back with the
     # reason; it leaves no handoff of its own.
-    if job.kind == Slipdock.Verified.merge_kind(),
-      do: Slipdock.Verified.merge_finished(job, runner.name),
-      else: leave_handoff(job, runner, status)
+    # An overseer pass (#2068) leaves its digest on the overseer's card.
+    cond do
+      job.kind == Slipdock.Verified.merge_kind() ->
+        Slipdock.Verified.merge_finished(job, runner.name)
+
+      job.kind == Slipdock.Overseer.kind() ->
+        Slipdock.Overseer.job_finished(job)
+
+      true ->
+        leave_handoff(job, runner, status)
+    end
 
     job = changed(job)
     refill(job)
@@ -1799,8 +1826,9 @@ defmodule Slipdock.Runners do
   the reason a verifier rejected it, when it is rejected (#1659). A verify
   job's prompt carries the bar already.
   """
-  def claimed_prompt(%Job{kind: kind, prompt: prompt}) when kind in ["verify", "merge"],
-    do: prompt
+  def claimed_prompt(%Job{kind: kind, prompt: prompt})
+      when kind in ["verify", "merge", "overseer"],
+      do: prompt
 
   def claimed_prompt(%Job{} = job) do
     case Repo.one(from(c in Card, where: c.id == ^job.card_id, select: {c.bar, c.bar_locked_at})) do

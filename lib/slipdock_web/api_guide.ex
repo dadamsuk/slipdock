@@ -1608,8 +1608,12 @@ defmodule SlipdockWeb.APIGuide do
     you or on anyone on your cards, your cards flagged `review` or
     `waiting`, cards the runner gave up on or whose newest job failed on
     boards you own, and cards in a doing list for over an hour with nobody
-    on them — then `sections`, your cards by when they are due. `GET
-    /api/me` and `whoami` carry the count as `waiting_on_you`.
+    on them — then `sections`, your cards by when they are due. The
+    overseer's open conditions (reason `overseer`, each with its
+    `condition`: `check`, `why`, `todo`) come first; cards on a *Getting
+    Started* tour board never come at all. `GET /api/me` and `whoami` carry
+    the count as `waiting_on_you`, and the overseer's conditions among them
+    as `overseer`.
 
     **Off your own list.** Each item has a `cause` (`job:812`, `wait:40`,
     `flag:review:<unix time>`, …). `POST /api/work/dismissed` (`card`) takes the
@@ -2192,6 +2196,35 @@ defmodule SlipdockWeb.APIGuide do
       /api/boards/:board/health/settings {detector, enabled?, max_attempts?, …}`.
       The CLI's `slipdock health <board>`; the board's Health page, linked from
       Runners.
+
+    **The overseer** (#2068) watches outcomes rather than plumbing, once its
+    root board's owner turns it on. Every minute it checks the tree for work
+    going round (`looping`: a second rejection, or a third runner pass of
+    one card), a person as the only bottleneck (`waiting_idle`: a wait or
+    review open and no job open), `slow` cards (past the board's P85 time
+    to done for their profile) and jobs (a live heartbeat, the same step
+    for 30 minutes), `idle_capacity` (free ready cards and runners idle for
+    `idle_minutes`, or two or more jobs queued behind one card's lane) and
+    `no_way_forward` (an epic in progress with every open subcard blocked).
+    Each condition fires once, as a warning alert on the root board and an
+    email to the owner with why and what to do, heads the owner's waiting
+    (reason `overseer`, with its `condition`), and clears itself, alert and
+    all, when it ends. A runner job of kind `overseer` goes, at most one at
+    a time, only to a runner whose claims list `overseer` in
+    `X-Runner-Kinds`; its prompt carries the conditions, the pulse and the
+    activity counts and nothing else, and its answer, one line of JSON
+    `{"health", "digest", "look_now"}`, is kept as a status update on the
+    root board's *Overseer* card. Passes come every `min_minutes` (10)
+    while anything is in flight, 30 when only ready lists have cards, and
+    `max_minutes` (120) when nothing does; a rejection, a wait or a job
+    ending brings the next forward. `GET /api/boards/:board/overseer`
+    (read access on the board and on its tree's root, whose overseer a
+    sub-board answers with: a 403 otherwise) gives its settings, `conditions`, `cleared_last_day`,
+    `last_digest` and `next_run_at`; `PATCH` the same path `{enabled?,
+    pool?, min_minutes?, max_minutes?, idle_minutes?, email?}` (the owner;
+    bounds 5 to 1440 minutes, min no more than max). MCP: `get_board`
+    `overseer: true`, `update_board` `overseer: {…}`. CLI: `slipdock
+    overseer <board> [--on|--off] [--min-minutes N] [--max-minutes N]`.
     """
   end
 

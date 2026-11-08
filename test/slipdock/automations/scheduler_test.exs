@@ -57,6 +57,7 @@ defmodule Slipdock.Automations.SchedulerTest do
              "Runner job sweep",
              "Wiki change log prune",
              "Autosave prune",
+             "Overseer",
              "Recurring cards",
              "Waking snoozed cards",
              "Document reading sweep",

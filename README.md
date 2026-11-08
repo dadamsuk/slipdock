@@ -123,8 +123,10 @@ Briefly, with the detail in [the manual](docs/manual.md):
   the person whose call it is (`slipdock set-board --route product=EMAIL`,
   `wait_routes`), else to its owner. **Waiting on you** opens My work with everything that
   needs you, oldest first (waits, `review` and `waiting` flags on your cards,
-  runner trouble, cards in progress with nobody on them), and the header counts
-  it on every page; `slipdock work` and `GET /api/work` list the same. An
+  runner trouble, cards in progress with nobody on them), the overseer's
+  alerts before all of it, and never the Getting Started tour's cards; the
+  header counts it on every page; `slipdock work` and `GET /api/work` list
+  the same, and `slipdock whoami` names the overseer's alerts first. An
   item you don't care about comes off your own list with its × (`slipdock work
   --dismiss <card>`) until its cause changes, a board's tree with **Mute on my
   Waiting on you** in its menu (`--mute <board>`), and the list counts what it
@@ -215,6 +217,18 @@ Briefly, with the detail in [the manual](docs/manual.md):
   jobs nobody takes, deadlocks, verification and merges that stall, cards and
   questions nobody is moving. What it can't fix gets the `stuck` flag (or a board
   alert) and a trigger you can attach an email to; `/healthz` reports its pulse.
+- **Overseer** — [an eye on outcomes, not the work](docs/manual.md#the-overseer):
+  every minute, server checks for work going round (a second rejection, a
+  third runner pass), a board waiting only on you with nothing running, cards
+  past their board's P85 and jobs stuck on one step, idle runners beside a
+  full ready list or jobs queued behind one lane, and epics with every subcard
+  blocked. Each fires once — an alert and an email with why and what to do —
+  heads *Waiting on you*, and clears itself. A cheap model on your own runner
+  (job kind `overseer`) reads only those and the pulse, and keeps a digest as
+  a status update on the board's *Overseer* card: every 10 minutes while cards
+  are active, longer when they aren't. Automations → Overseer, `slipdock
+  overseer <board> --on`, `GET`/`PATCH /api/boards/:board/overseer`, MCP
+  `get_board overseer: true` / `update_board overseer`.
 - **Findings** — [what each card taught, kept on the board](docs/manual.md#findings):
   a pass writes a `Findings:` block (gotcha, rule, handbook-wrong, tooling,
   process) in its closing comment, the server records rejections, timeouts,

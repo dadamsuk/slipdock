@@ -30,6 +30,32 @@ defmodule SlipdockWeb.API.Authorize do
     |> check(need, "board")
   end
 
+  @doc """
+  The root of `board`'s tree, if this request has `need` on it as well as on
+  `board` (#2068). For what a sub-board answers with its root's (the
+  overseer): reading the sub-board is not reading the root, whose cards and
+  sibling sub-boards it names.
+  """
+  def tree_root(_conn, %Slipdock.Boards.Board{root_id: nil} = board, _need), do: {:ok, board}
+
+  def tree_root(conn, %Slipdock.Boards.Board{root_id: id}, need) do
+    root = Slipdock.Repo.get!(Slipdock.Boards.Board, id)
+
+    case board(conn, root, need) do
+      :ok ->
+        {:ok, root}
+
+      {:error, :forbidden, _} ->
+        {:error, :forbidden,
+         "this board's overseer is its tree's root board's, which you can't #{verb(need)}"}
+    end
+  end
+
+  defp verb(:read), do: "read"
+  defp verb(:comment), do: "comment on"
+  defp verb(:write), do: "edit"
+  defp verb(:owner), do: "own"
+
   def card(conn, card, need) do
     conn
     |> level(Access.card_permission(conn.assigns.current_user, card), card.board_id)
