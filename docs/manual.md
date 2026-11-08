@@ -7670,7 +7670,10 @@ drafting every page from the codebase), **Reconcile the handbook**
 (nightly, waiting on the seed) and **Triage findings** (nightly, waiting on
 the seed: it merges duplicate findings, dismisses one-offs, and promotes
 what recurs or shows the handbook wrong, a rule or a decision as a proposal
-for a person, logging each run on the Index's `## Triage`). Each night's reconcile takes at most 20
+for a person, logging each run on the Index's `## Triage`). A finding it left
+open one night is decided the next, as a card, a proposal, a promotion or a
+dismissal with its reason: nothing is left open twice, and the log line counts
+the leftovers it decided. Each night's reconcile takes at most 20
 commits from where the Index's `## Log` stopped, pipes their paths to
 `slipdock handbook <board> --paths-from -`, and reads only the pages that
 lists; with nothing new on the default branch it closes with `Handbook: no

@@ -424,6 +424,13 @@ defmodule Slipdock.HandbookTest do
       assert triage.description =~ "a card for the test instead"
       assert triage.description =~ "`slipdock quality <board> --rules`"
       assert triage.description =~ "## Triage"
+      # A finding left open at the last triage is decided now (#2122), and counted.
+      assert triage.description =~ "never left open a second time"
+      assert triage.description =~ "<n> leftovers decided; <n> left open (<ids>: why)"
+
+      assert triage.description =~
+               "Only a finding that arrived since the last triage may stay open"
+
       assert Enum.map(Boards.get_card!(triage.id).blocked_by, & &1.id) == [seed.id]
 
       index = Handbook.find(board).index
