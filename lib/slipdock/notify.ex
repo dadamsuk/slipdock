@@ -41,6 +41,8 @@ defmodule Slipdock.Notify do
 
     * `:subject` and `:body`: the email;
     * `:email`: options for `Notifier.deliver/4` (`card:` is added);
+    * `:send_email`: `false` sends no email, only the toast (a person's own
+      switch, `User.waiting_emails`, #2095); default `true`;
     * `:title` and `:text`: the toast (`:title` defaults to the subject);
     * `:kind`: what it is about (`"wait"`, `"wait_routed"`, `"mention"`);
     * `:by`: who did it, if known, so a page can tell its own reader's
@@ -53,7 +55,9 @@ defmodule Slipdock.Notify do
     event = event(person, card, opts)
 
     Slipdock.Deferred.defer(fn ->
-      Notifier.deliver([person.email], subject, Keyword.fetch!(opts, :body), email_opts)
+      if Keyword.get(opts, :send_email, true),
+        do: Notifier.deliver([person.email], subject, Keyword.fetch!(opts, :body), email_opts)
+
       Phoenix.PubSub.broadcast(@pubsub, topic(person), {:notify, event})
     end)
 

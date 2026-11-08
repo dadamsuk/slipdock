@@ -1328,6 +1328,8 @@ defmodule SlipdockWeb.SlipdockComponents do
     snoozed = Slipdock.Boards.Card.snoozed?(card)
     state = Map.get(card, :state)
     note_mode = handoff_note_mode(show, assigns.handoff_note)
+    waiting = waiting_entry(card)
+    glance = Slipdock.Work.Tree.glance(waiting)
 
     facets = %{
       cover: on.("cover") and not is_nil(cover),
@@ -1363,6 +1365,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     }
 
     facets = Map.merge(facets, card_marks(on, card, note_mode))
+    facets = waiting_marks(facets, waiting, glance)
 
     # Start and due, both shown and both set, draw as one range (#1708).
     facets =
@@ -1370,7 +1373,7 @@ defmodule SlipdockWeb.SlipdockComponents do
 
     meta? =
       facets
-      |> Map.drop([:cover, :borders, :image, :status, :tags, :id, :handoff_note])
+      |> Map.drop([:cover, :borders, :image, :status, :tags, :id, :handoff_note, :waiting_line])
       |> Map.values()
       |> Enum.any?()
 
@@ -1387,6 +1390,8 @@ defmodule SlipdockWeb.SlipdockComponents do
         handoff_note: note_mode,
         handoff: handoff,
         wait: wait,
+        waiting: waiting,
+        glance: glance,
         recurrence: recurrence,
         snoozed: snoozed,
         state: state,
@@ -1496,6 +1501,12 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.flag_icon :for={flag <- @card.flags} :if={@f.flags} flag={flag} class="size-3" />
         <.dependency_badge :if={@f.dependencies} card={@card} class="size-3" />
         <.subcards_badge :if={@f.subcards} card={@card} open={not @page?} />
+        <.waiting_chip
+          :if={@f.waiting_chip}
+          card={@card}
+          items={@waiting.mine}
+          id={"#{@dom_id}-waiting"}
+        />
         <.stated_pill
           :if={@f.stated}
           health={Slipdock.Boards.Card.stated_health(@card)}
@@ -1589,6 +1600,12 @@ defmodule SlipdockWeb.SlipdockComponents do
           <.flag_icon :for={flag <- @card.flags} :if={@f.flags} flag={flag} class="size-3.5" />
           <.dependency_badge :if={@f.dependencies} card={@card} />
           <.subcards_badge :if={@f.subcards} card={@card} open={not @page?} />
+          <.waiting_chip
+            :if={@f.waiting_chip}
+            card={@card}
+            items={@waiting.mine}
+            id={"#{@dom_id}-waiting"}
+          />
           <.stated_pill
             :if={@f.stated}
             health={Slipdock.Boards.Card.stated_health(@card)}
@@ -1649,6 +1666,17 @@ defmodule SlipdockWeb.SlipdockComponents do
             <.icon name="hero-paper-clip" class="size-3.5" /> {length(loaded_attachments(@card))}
           </span>
         </div>
+        <p
+          :if={@f.waiting_line}
+          id={"#{@dom_id}-waiting-line"}
+          data-role="waiting-line"
+          class={[
+            "text-2xs leading-snug",
+            if(@waiting.mine != [], do: "text-warning", else: "text-base-content/60")
+          ]}
+        >
+          {@glance}
+        </p>
         <.handoff_note
           :if={@f.handoff_note}
           handoff={@handoff}
@@ -1658,6 +1686,55 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.state_line :if={@f.state_line} state={@state} />
       </div>
     </div>
+    """
+  end
+
+  # What in an epic's tree waits on the reader (#2095): the chip counts only
+  # what is on them; the line names it, and what is on others, and takes the
+  # percentage's place while it shows.
+  defp waiting_marks(facets, waiting, glance) do
+    Map.merge(facets, %{
+      percent: facets.percent and is_nil(glance),
+      waiting_chip: waiting.mine != [],
+      waiting_line: not is_nil(glance)
+    })
+  end
+
+  # What the board page put on the card for the tile (#2095); nothing
+  # anywhere else.
+  defp waiting_entry(card) do
+    case Map.get(card, :waiting_on_me) do
+      %{mine: _, others: _} = entry -> entry
+      _ -> %{mine: [], others: []}
+    end
+  end
+
+  attr :card, :map, required: true
+  attr :items, :list, required: true
+  attr :id, :string, required: true
+
+  # `⏸ 2 waiting on you` (#2095): what in the epic's tree is on the reader.
+  # It opens the sub-board kept to those cards; its own click, so the
+  # card's doesn't open the card instead.
+  defp waiting_chip(assigns) do
+    assigns =
+      assign(assigns,
+        sub:
+          match?(%Slipdock.Boards.Board{}, Map.get(assigns.card, :sub_board)) &&
+            assigns.card.sub_board.id
+      )
+
+    ~H"""
+    <.dynamic_tag
+      id={@id}
+      tag_name={if @sub, do: "button", else: "span"}
+      phx-click={@sub && JS.navigate("/boards/#{@sub}?waiting=me")}
+      data-role="waiting-chip"
+      class="chip cursor-pointer bg-warning/15 text-warning hover:ring-1 hover:ring-current"
+      title={Enum.map_join(@items, "\n", &"##{&1.card.id} #{&1.card.title}: #{&1.text}")}
+    >
+      ⏸ {length(@items)} waiting on you
+    </.dynamic_tag>
     """
   end
 

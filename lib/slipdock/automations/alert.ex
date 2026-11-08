@@ -3,6 +3,9 @@ defmodule Slipdock.Automations.Alert do
   Something a rule wants the reader to notice: shown in the header bar of
   every page until each person dismisses it (see
   `Slipdock.Automations.Dismissal`).
+
+  An alert with a `user` is that person's alone (#2095): a wait on them, or
+  a card of theirs past the rejection limit. Nobody else sees it.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -17,6 +20,7 @@ defmodule Slipdock.Automations.Alert do
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :rule, Slipdock.Automations.Rule
+    belongs_to :user, Slipdock.Accounts.User
 
     has_many :dismissals, Slipdock.Automations.Dismissal
 
@@ -32,7 +36,7 @@ defmodule Slipdock.Automations.Alert do
 
   def changeset(alert, attrs) do
     alert
-    |> cast(attrs, [:title, :body, :severity, :board_id, :card_id, :rule_id])
+    |> cast(attrs, [:title, :body, :severity, :board_id, :card_id, :rule_id, :user_id])
     |> validate_required([:title, :board_id])
     |> validate_length(:title, min: 1, max: 200)
     |> validate_inclusion(:severity, @severities)

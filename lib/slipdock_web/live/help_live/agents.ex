@@ -211,6 +211,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"See what in an epic's tree is waiting on you",
+     [
+       {:yes, "GET /api/cards/:id, /api/boards/:board: waiting_on_me"},
+       {:yes, "get_card, get_board: waiting_on_me"},
+       {:yes, "slipdock card, slipdock board: Waiting on you:"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "through the CLI or MCP"},
+       {:no, "one way only"}
+     ]},
     {"Dismiss an item, or mute a board, on your Waiting on you",
      [
        {:yes, "POST /api/work/dismissed, POST /api/work/muted"},
@@ -987,7 +996,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
         </li>
         <li>
           <code>slipdock work</code>
-          lists what is waiting on you; <code>slipdock wait</code>
+          lists what is waiting on you, and <code>slipdock card</code>
+          on an epic and <code>slipdock board</code>
+          print a <code>Waiting on you:</code>
+          line for what in the tree is on you (<code>waiting_on_me</code>
+          on <code>get_card</code>
+          and <code>get_board</code>: <code>count</code>, <code>cards</code>
+          with their reasons, <code>on_others</code>
+          and <code>line</code>); an epic whose tree is all waiting on a person has nothing workable;
+          <code>slipdock wait</code>
           and <code>slipdock answer</code>
           open and answer a wait on a person (<code>--question</code>
           once per question, <code>--answer</code>

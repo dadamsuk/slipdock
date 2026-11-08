@@ -129,6 +129,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
     waits = Boards.current_waits(ids)
     last_waits = Boards.last_waits(ids)
     findings = Slipdock.Findings.open_counts(ids)
+    # What in each epic's tree waits on the caller (#2095), worked out once.
+    tree = Slipdock.Work.Tree.for_board(context.user, board)
 
     board
     |> Boards.with_details(cards)
@@ -143,6 +145,10 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
       |> Map.put(:findings, Map.get(findings, card.id, 0))
       # Who made it and changed it last (#2028), as get_card has it.
       |> V.put_authors(card)
+      |> Map.put(
+        :waiting_on_me,
+        SlipdockWeb.API.WaitingJSON.entry(Slipdock.Work.Tree.of(tree, card.id))
+      )
     end)
   end
 

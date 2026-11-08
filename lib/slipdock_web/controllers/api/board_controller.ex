@@ -114,11 +114,32 @@ defmodule SlipdockWeb.API.BoardController do
     with {:ok, board} <- fetch_board(conn, ref, :read) do
       json(
         conn,
-        %{board: V.board(Authorize.visible(conn, Boards.get_board!(board.id)))}
+        %{
+          board:
+            conn |> Authorize.visible(Boards.get_board!(board.id)) |> V.board() |> waiting(conn)
+        }
         |> Map.merge(V.paused(board))
       )
     end
   end
+
+  # What in the tree waits on the caller (#2095): the board's whole tree,
+  # and each epic's own.
+  defp waiting(%{id: id} = json, conn) do
+    tree = Slipdock.Work.Tree.for_board(conn.assigns.current_user, Boards.get_board!(id))
+
+    json
+    |> Map.put(:waiting_on_me, SlipdockWeb.API.WaitingJSON.tree(tree))
+    |> Map.update!(:columns, fn cols -> Enum.map(cols, &waiting_column(&1, tree)) end)
+  end
+
+  defp waiting_column(col, tree),
+    do:
+      Map.update!(col, :cards, fn cards ->
+        SlipdockWeb.API.WaitingJSON.put_on_cards(cards, tree, &epic?/1)
+      end)
+
+  defp epic?(card), do: card.sub_board != nil
 
   def create(conn, params) do
     attrs =

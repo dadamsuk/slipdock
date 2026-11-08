@@ -208,6 +208,23 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     end
   end
 
+  # How I hear that something waits on me (#2095): the alert and the email.
+  def handle_event("save_waiting_notice", params, socket) do
+    attrs = %{
+      waiting_alerts: get_in(params, ["notice", "waiting_alerts"]) == "true",
+      waiting_emails: get_in(params, ["notice", "waiting_emails"]) == "true"
+    }
+
+    case Accounts.update_waiting_notice(socket.assigns.current_user, attrs) do
+      {:ok, user} ->
+        send(self(), {:current_user, user})
+        {:noreply, socket |> assign(current_user: user) |> flash(:info, "Saved.")}
+
+      {:error, _cs} ->
+        {:noreply, flash(socket, :error, "Couldn't save that.")}
+    end
+  end
+
   def handle_event("save_quick_add", %{"user" => params}, socket) do
     case Accounts.update_quick_add(socket.assigns.current_user, params) do
       {:ok, user} ->
@@ -356,8 +373,18 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
      )}
   end
 
+  # The two switches as a form (#2095), from the saved person.
+  defp notice_form(user) do
+    to_form(
+      %{"waiting_alerts" => user.waiting_alerts, "waiting_emails" => user.waiting_emails},
+      as: :notice
+    )
+  end
+
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, notice_form: notice_form(assigns.current_user))
+
     ~H"""
     <div class="space-y-8">
       <section
@@ -386,6 +413,39 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
           />
           <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </form>
+      </section>
+
+      <%!-- When something waits on me (#2095). --%>
+      <section
+        id="waiting-notice-settings"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="section-title">When something waits on you</h2>
+        <p class="text-sm text-base-content/60">
+          A question addressed to you, or a card of yours past its board's rejection limit.
+          It is on My work's Waiting on you either way.
+        </p>
+        <.form
+          for={@notice_form}
+          id="waiting-notice-form"
+          phx-submit="save_waiting_notice"
+          phx-target={@myself}
+          class="mt-4 space-y-2"
+        >
+          <.input
+            field={@notice_form[:waiting_alerts]}
+            type="checkbox"
+            id="waiting-alerts"
+            label="Alert me in the header"
+          />
+          <.input
+            field={@notice_form[:waiting_emails]}
+            type="checkbox"
+            id="waiting-emails"
+            label="Email me"
+          />
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </.form>
       </section>
 
       <%!-- What a card shows (#2031): the editor is a page of its own. --%>

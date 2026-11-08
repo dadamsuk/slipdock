@@ -13,6 +13,10 @@ defmodule Slipdock.Accounts.User do
     field :quick_add_ai, :boolean, default: true
     # A short email back with a link to each card your mail makes (#1249).
     field :inbound_ack, :boolean, default: false
+    # A wait on them, or a card of theirs past the rejection limit (#2095):
+    # an alert in the header, and the wait's email. Both on until they say.
+    field :waiting_alerts, :boolean, default: true
+    field :waiting_emails, :boolean, default: true
     belongs_to :quick_add_board, Slipdock.Boards.Board
     belongs_to :quick_add_column, Slipdock.Boards.Column
     # Where a quick note lands unless the model places it (#1538): a vault of
@@ -152,6 +156,14 @@ defmodule Slipdock.Accounts.User do
 
   @doc "The choices for `tree_names`."
   def tree_names, do: @tree_names
+
+  @doc """
+  How this person hears that something waits on them (#2095):
+  `waiting_alerts` (an alert in the header) and `waiting_emails` (the wait's
+  email).
+  """
+  def waiting_notice_changeset(user, attrs),
+    do: cast(user, attrs, [:waiting_alerts, :waiting_emails])
 
   @doc """
   The admin's view of somebody: whether they may administer this server, what

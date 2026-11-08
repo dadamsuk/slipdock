@@ -146,6 +146,8 @@ defmodule SlipdockCLI.Render do
       do: IO.puts(dim("sprint board: each card is a sprint — slipdock sprint / sprint-add"))
 
     if b["owner"], do: IO.puts(dim("owner: " <> owner_name(b)))
+    # What in this tree waits on you (#2095).
+    waiting_count_line(b)
 
     lanes_lines(b)
 
@@ -173,8 +175,11 @@ defmodule SlipdockCLI.Render do
          Enum.map(pages, &{&1["board_position"], 1, {:page, &1}}))
       |> Enum.sort()
       |> Enum.each(fn
-        {_, _, {:card, card}} -> IO.puts("  " <> card_line(card, false))
-        {_, _, {:page, page}} -> IO.puts("  " <> page_line(page))
+        {_, _, {:card, card}} ->
+          board_card(card)
+
+        {_, _, {:page, page}} ->
+          IO.puts("  " <> page_line(page))
       end)
     end)
   end
@@ -187,6 +192,24 @@ defmodule SlipdockCLI.Render do
     do: " · scheduled: worked by feed rules, never pick from it"
 
   defp list_note(_col), do: ""
+
+  # `waiting_on_me` (#2095): the tree's count when anything is on you, and
+  # an epic's glance line when anything waits in its tree.
+  defp waiting_count_line(%{"waiting_on_me" => %{"count" => n}}) when is_integer(n) and n > 0,
+    do: IO.puts("Waiting on you: #{n}  " <> dim("slipdock work"))
+
+  defp waiting_count_line(_), do: :ok
+
+  # A card in `slipdock board`'s lists, with an epic's glance line under it.
+  defp board_card(card) do
+    IO.puts("  " <> card_line(card, false))
+    waiting_line(card, "        ⏸ ")
+  end
+
+  defp waiting_line(%{"waiting_on_me" => %{"line" => line}}, prefix) when is_binary(line),
+    do: IO.puts(prefix <> line)
+
+  defp waiting_line(_, _prefix), do: :ok
 
   defp page_line(p) do
     facets = page_facets(p)
@@ -1401,6 +1424,9 @@ defmodule SlipdockCLI.Render do
       lists = Enum.map_join(sb["columns"], ", ", &"#{&1["name"]} (#{&1["cards"]})")
       field("Subcards", "board ##{sb["id"]} · #{sb["completed"]}/#{sb["total"]} done · #{lists}")
     end
+
+    # What in its tree waits on you (#2095), and on others.
+    waiting_line(c, "")
 
     if r = c["rollup"] do
       field(

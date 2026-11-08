@@ -204,12 +204,15 @@ Read:
 slipdock guide [section]                # the server's instructions for agents: the short guide,
                                         # naming its sections; `guide wiki` one, `guide all` all
 slipdock boards [--archived|--all] [--sort manual|name|active|newest|oldest|cards]
-slipdock board <board>                  # full board: every column and card
+slipdock board <board>                  # full board: every column and card; "Waiting on you: N" for the tree, and each epic's line
 slipdock cards <board> [--column C] [--tag T] [--priority P] [--flag F] [--search Q] [--open|--done] [--archived]
                      [--due overdue|today|week|month|has|none] [--deps blocked|ready|blocking|violated|free]
                      [--assignee NAME|EMAIL|me | --no-assignee] [--stuck] [--driver all|agent|human]
                      # each line ends with its state (▸ Running · runner-2 · 7m) and ⏳age in its list
 slipdock card <id>                      # full detail incl. checklist item ids and comments
+                                        # on an epic, a "Waiting on you:" line: what in its tree is on you, with reasons
+                                        # (get_card/get_board and REST carry it as waiting_on_me: count, cards, on_others, line);
+                                        # an epic whose tree is all waiting on a person has nothing workable: leave it to them
 slipdock timeline <id>                  # each list it sat in (how long, who moved it), its waits and jobs
 slipdock columns <board> | slipdock tags <board> | slipdock activity <board> [--limit N]
 slipdock pulse <board>                  # flow numbers: in progress, waiting, done this week, time to done, list in/out

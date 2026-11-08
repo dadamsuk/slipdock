@@ -1627,6 +1627,19 @@ defmodule SlipdockWeb.APIGuide do
     the count as `waiting_on_you`, and the overseer's conditions among them
     as `overseer`.
 
+    **What in an epic's tree waits on you.** `GET /api/cards/:id` (MCP
+    `get_card`) carries `waiting_on_me` for the card's sub-board tree, and
+    `GET /api/boards/:board` (MCP `get_board`) for the board's whole tree,
+    with each epic in its lists carrying its own: `{count, cards,
+    on_others, line}`. `count` is the items on you; `cards` those items,
+    each exactly as `GET /api/work` gives it plus `short` (`a question`,
+    `3 rejections`, `a failed job`); `on_others` the open waits in the tree
+    on someone else by name, never counted; `line` the tile's glance line
+    (`Waiting on you: #2063 (a question) and 1 on someone else`), null when
+    nothing waits. A card with no subcards has `count` 0. A wait on you
+    (or a card past the rejection limit) also raises an alert only you see,
+    and its email, each on by default and off in account settings.
+
     **Off your own list.** Each item has a `cause` (`job:812`, `wait:40`,
     `flag:review:<unix time>`, …). `POST /api/work/dismissed` (`card`) takes the
     card off your list for that cause only: a new cause (a second failed job,
