@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -194,8 +195,14 @@ func TestTheUserExecutor(t *testing.T) {
 	if data, err := files.ReadFile(found[0]); err != nil || string(data) != "{\"card\":1}\n" {
 		t.Fatalf("ReadFile: %q %v", data, err)
 	}
-	if _, err := os.ReadFile(found[0]); err == nil {
-		t.Fatal("the daemon could read the account's 0600 file itself: the test proves nothing")
+	// The file is the account's own, 0600: the daemon reads it as the
+	// account. (Where the daemon can reach it at all, which CI's runner
+	// account can, it is still not the daemon's file.)
+	if fi, err := os.Stat(found[0]); err == nil {
+		uid, _ := strconv.Atoi(strings.TrimSpace(output(t, "id", "-u", acct)))
+		if st := fi.Sys().(*syscall.Stat_t); int(st.Uid) != uid || fi.Mode().Perm() != 0o600 {
+			t.Fatalf("the transcript is %04o and owned by %d, not the account's 0600: the test proves nothing", fi.Mode().Perm(), st.Uid)
+		}
 	}
 	if p, err := ex.Resolve("sh"); err != nil || !filepath.IsAbs(p) {
 		t.Fatalf("Resolve sh: %q %v", p, err)

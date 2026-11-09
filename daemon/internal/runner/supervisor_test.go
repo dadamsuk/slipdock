@@ -19,6 +19,8 @@ func ceiling(root string) machine.Ceiling {
 }
 
 func TestCheckAgainstTheCeiling(t *testing.T) {
+	defer func(g string) { goos = g }(goos)
+	goos = "linux" // where user is offered at all
 	root := filepath.Join(t.TempDir(), "src")
 	good := Runner{ID: 1, BoardID: 3, Config: Config{Agent: "claude", Directory: filepath.Join(root, "repo"),
 		PermissionMode: "default", TimeoutMinutes: 60, Executor: "me"}}

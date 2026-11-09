@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -35,7 +36,9 @@ func newAccount(s Settings) *account {
 // DefaultPath is the PATH a dedicated account's jobs get unless the local
 // file sets one: its own bin folders first, where per-user toolchains go.
 func DefaultPath(home, goos string) string {
-	dirs := []string{filepath.Join(home, ".local", "bin"), filepath.Join(home, "bin")}
+	// The account is Linux's or macOS's: its paths are slash-separated
+	// wherever the daemon was built.
+	dirs := []string{path.Join(home, ".local", "bin"), path.Join(home, "bin")}
 	if goos == "darwin" {
 		dirs = append(dirs, "/opt/homebrew/bin")
 	}

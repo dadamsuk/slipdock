@@ -21,7 +21,7 @@ func TestAJobWhoseExecutorCantRunFailsBeforeAnythingRuns(t *testing.T) {
 		setup func(r *rig)
 		want  string
 	}{
-		{"user, with no account set up", func(r *rig) { r.w.Runner.Config.Executor = executor.User },
+		{"user, with no account set up", func(r *rig) { r.w.Runner.Config.Executor = executor.User; r.w.GOOS = "linux" },
 			`executor "user": no dedicated account is set up`},
 		{"confined, with no launcher", func(r *rig) {
 			r.w.Runner.Config.Executor = executor.Confined

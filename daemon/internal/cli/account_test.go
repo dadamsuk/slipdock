@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -30,7 +31,16 @@ func accountIn(args []string) string {
 	return strings.Fields(s[i+len("id -u "):])[0]
 }
 
+// unixOnly skips a test of the dedicated account, whose paths are Unix's,
+// on Windows, where the account isn't offered.
+func unixOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the dedicated account is Linux's and macOS's")
+	}
+}
+
 func TestInitOffersADedicatedAccountAndRunsAsIt(t *testing.T) {
+	unixOnly(t)
 	f := &fake{}
 	ts := f.start(t)
 	w, scripts := sudoWorld(t, "\ny\n")
@@ -99,6 +109,7 @@ func TestInitAsMe(t *testing.T) {
 }
 
 func TestInitWithANamedAccountAndNoSetUp(t *testing.T) {
+	unixOnly(t)
 	f := &fake{}
 	ts := f.start(t)
 	w, scripts := sudoWorld(t, "")

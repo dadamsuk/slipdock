@@ -71,7 +71,8 @@ func TestLoadLocalRefusesWhatItDoesntKnow(t *testing.T) {
 
 func TestTheLocalFileNamesTheAccountAndWhatConfinedMayWrite(t *testing.T) {
 	d := t.TempDir()
-	l := Local{User: &Account{Name: "slipdock", Home: "/srv/slipdock"}, ConfinedWritable: []string{"/srv/me/.claude"}}
+	abs := t.TempDir()
+	l := Local{User: &Account{Name: "slipdock", Home: abs}, ConfinedWritable: []string{filepath.Join(abs, ".claude")}}
 	if err := SaveLocal(d, l); err != nil {
 		t.Fatal(err)
 	}
