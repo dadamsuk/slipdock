@@ -722,7 +722,12 @@ WRITE
                                       rejection, kept as a finding.
                                       defect:important|nit|pre-existing=lib/x.ex:42[:why]
                                       is a defect review's finding (a schema or security
-                                      card): only important fails
+                                      card): only important fails.
+                                      mutant:killed|survived|pre-existing=lib/x.ex:42:<mutation>[:note]
+                                      is a changed line the mutation review broke (a fix,
+                                      feature, schema or security card): survived fails,
+                                      pre-existing (unchanged lines) is kept as a finding;
+                                      mutants=n/a:<why> when nothing is worth mutating
       --checks-file F                 the same, one per line (or a JSON map of parts)
   accept <id> [--reason TEXT]  |  reject <id> --reason TEXT
                                       the same as verify <id> accept / reject

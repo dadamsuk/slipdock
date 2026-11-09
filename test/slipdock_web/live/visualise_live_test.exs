@@ -479,6 +479,24 @@ defmodule SlipdockWeb.VisualiseLiveTest do
       assert has_element?(view, "#quality-rule-UX-4 td:nth-child(2)", "2")
     end
 
+    test "names a surviving mutant's rejections as a part (#2354)",
+         %{conn: conn, board: board, todo: todo} do
+      card = card_fixture(todo)
+      now = DateTime.utc_now(:second)
+
+      Repo.insert!(%Slipdock.Boards.Comment{
+        card_id: card.id,
+        body:
+          "**Rejected** by c.\n\nNo\n\nChecks:\n\n- mutant: killed — lib/a.ex:1; flip\n" <>
+            "- mutant: survived — lib/a.ex:9; drop the guard",
+        inserted_at: now,
+        updated_at: now
+      })
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
+      assert has_element?(view, "#quality-rejections", "1 a surviving mutant")
+    end
+
     test "a board with nothing verified says so", %{conn: conn, board: board} do
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
       assert has_element?(view, "#quality-first-time-right [data-value]", "–")

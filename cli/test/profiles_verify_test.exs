@@ -98,6 +98,58 @@ defmodule SlipdockCLI.ProfilesVerifyTest do
     assert out =~ "○ defect pre-existing: lib/c.ex:1"
   end
 
+  test "card shows each mutant, failing only on a survivor (#2354)" do
+    checks = %{
+      "mutants" => [
+        %{"result" => "killed", "file" => "lib/a.ex", "line" => 4, "mutation" => "flip"},
+        %{
+          "result" => "survived",
+          "file" => "lib/a.ex",
+          "line" => 9,
+          "mutation" => "drop the guard",
+          "note" => "a nil test"
+        },
+        %{"result" => "pre-existing", "file" => "lib/c.ex", "line" => 1, "mutation" => "x"},
+        %{
+          "result" => "killed",
+          "file" => "lib/d.ex",
+          "line" => 2,
+          "mutation" => "y",
+          "carried_from" => "abcdef123456"
+        }
+      ]
+    }
+
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "verify_state" => "rejected",
+            "verify_by" => %{"kind" => "agent", "agent" => "checker"},
+            "verify_checks" => checks
+          })
+        )
+      end)
+
+    assert out =~ "✓ mutant killed: lib/a.ex:4; flip"
+    assert out =~ "✗ mutant survived: lib/a.ex:9; drop the guard; a nil test"
+    assert out =~ "○ mutant pre-existing: lib/c.ex:1; x"
+    assert out =~ "✓ mutant killed: carried from abcdef1; lib/d.ex:2; y"
+
+    na =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "verify_state" => "accepted",
+            "verify_by" => %{"kind" => "agent", "agent" => "checker"},
+            "verify_checks" => %{"mutants" => %{"n/a" => "renames only"}}
+          })
+        )
+      end)
+
+    assert na =~ "○ mutants n/a: renames only"
+  end
+
   test "card shows a docs card the server accepted unverified" do
     out =
       capture_io(fn ->

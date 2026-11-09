@@ -1491,7 +1491,7 @@ defmodule SlipdockWeb.APIGuide do
     # finished jobs) and health (incidents fixed, flagged, cleared, open);
     # previous is the window before's verified numbers. rejections counts the
     # verifiers' rejections in parts: by_part (ask, bar, rules, suite,
-    # handbook_line), by_rule (id, count, severity and page, most broken
+    # handbook_line, mutants), by_rule (id, count, severity and page, most broken
     # first), disputed_lines and unparted (naming no part); audits counts
     # audits agreed and disagreed. slipdock quality --rules lists every rule
     curl -s -H "$H" "B/api/boards/1/quality?days=30"
@@ -4205,7 +4205,15 @@ defmodule SlipdockWeb.APIGuide do
       bar is still required. A verify job on a `schema` or `security` card
       adds a defect review: findings as `defect:important|nit|pre-existing=<file>:<line>[:why]`
       checks (`verify_checks.defect_review`); an Important one is a
-      rejection, a Nit or a Pre-existing one is reported only. A claimed
+      rejection, a Nit or a Pre-existing one is reported only. A verify
+      job on a `fix`, `feature`, `schema` or `security` card adds a
+      mutation review: 3 to 5 changed lines broken on purpose, the card's
+      tests run against each, given as
+      `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>[:note]`
+      checks, or `mutants=n/a:<why>` (`verify_checks.mutants`). A survivor
+      on a changed line is a rejection naming the test to write; a
+      `pre-existing` one (lines the diff didn't change) is kept as a
+      finding; killed ones are carried to a resubmission. A claimed
       job carries its card's `profile` (MCP `claim_job` `profile`, the REST
       claim's `job.profile`, the runner's `x-card-profile` header); a
       runner's own config may pick a model by it (`MODEL_<profile>`), and
@@ -4354,7 +4362,9 @@ defmodule SlipdockWeb.APIGuide do
     giving the verdict in parts as `checks` (`ask=ok|misses`, `bar:2=fail:why`,
     `rule:UX-4=pre-existing:lib/x.ex:42` for a rule broken only in lines
     the diff didn't change, never a rejection and kept as a `rule` finding,
-    `suite=412:0`, `rule:UX-4=broken`, `handbook_line=ok|disputed`; kept as
+    `suite=412:0`, `rule:UX-4=broken`, `handbook_line=ok|disputed`,
+    `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>[:note]`,
+    `mutants=n/a:<why>`; kept as
     `verify_checks`, and refused without a failing part, or on an accept
     with a broken `must` rule). A rejection names every instance found:
     once a rule is found broken, the verifier looks for every other

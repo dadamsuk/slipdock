@@ -31,7 +31,7 @@ defmodule Slipdock.Quality do
       themselves and still `open`;
     * `rejections` (#1798) — the verifiers' rejections in the window, in
       parts: `by_part` (the ask, the bar, the rules, the suite, the Handbook
-      line: how many rejections failed each), `by_rule` (each rule id broken,
+      line, a surviving mutant (#2354): how many rejections failed each), `by_rule` (each rule id broken,
       with its page and severity from the handbook, most broken first),
       `disputed_lines` (rejections that disputed the `Handbook:` line) and
       `unparted`, the rejections that name no part;
@@ -243,7 +243,7 @@ defmodule Slipdock.Quality do
 
   # -- Rejections in parts ------------------------------------------------------
 
-  @part_order ~w(ask bar rules suite handbook_line)
+  @part_order ~w(ask bar rules suite handbook_line mutants)
 
   defp rejections(board, ids, from, to) do
     since_parts = parts_since()
@@ -366,6 +366,7 @@ defmodule Slipdock.Quality do
   end
 
   defp line_part("bar " <> item, "fail"), do: [{"bar", String.trim(item)}]
+  defp line_part("mutant", "survived"), do: [{"mutants", nil}]
 
   defp line_part(label, "broken") do
     case Regex.run(~r/^([A-Z][A-Z0-9]*-\d+)\b/i, label) do

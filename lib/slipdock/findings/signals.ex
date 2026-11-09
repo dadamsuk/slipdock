@@ -11,7 +11,8 @@ defmodule Slipdock.Findings.Signals do
     * a **merge** job fails (`merge_failed/3`)
     * an **audit** disagrees (`audit_disagreed/3`)
     * a verdict reports a rule broken in code the change didn't touch
-      (`pre_existing/3`, source `verification`: it isn't a rejection)
+      (`pre_existing/3`, source `verification`: it isn't a rejection), or a
+      mutant surviving there (`pre_existing_mutants/3`, #2354)
     * the **health** monitor flags an incident (`health_flagged/3`)
     * a card names the card that caused it and the check that missed it
       (`incident/2`, source `incident`, #1946): one finding per incident,
@@ -96,11 +97,15 @@ defmodule Slipdock.Findings.Signals do
       checks["handbook_line"] == "disputed" -> {"handbook-wrong", "Handbook line"}
       checks["ask"] == "misses" -> {"process", "the ask"}
       bar != [] -> {"process", "bar " <> to_string(hd(bar)["item"])}
+      survivor?(checks) -> {"process", "a surviving mutant"}
       true -> {"process", "the reason"}
     end
   end
 
   def rejection_kind(_checks), do: {"process", "the reason"}
+
+  defp survivor?(checks),
+    do: Enum.any?(Slipdock.Verified.Checks.mutants(checks), &(&1["result"] == "survived"))
 
   @doc """
   A runner job ended: one that timed out or failed is a finding on its card.
@@ -183,6 +188,35 @@ defmodule Slipdock.Findings.Signals do
         text:
           "#{r["id"]} is broken in code the change didn't touch, at #{place}" <>
             if(r["note"], do: ": #{r["note"]}", else: "") <>
+            " (reported by the verifier, not a rejection).",
+        job_id: job_id(actor)
+      })
+    end)
+  end
+
+  @doc """
+  A verdict on `card` reported mutants surviving only in code the change
+  didn't touch (#2354): the card's tests would miss a break there, but the
+  card didn't write those lines, so it isn't a rejection. One `process`
+  finding for each place, source `verification`, so the same weak spot
+  reported again is counted rather than kept twice.
+  """
+  def pre_existing_mutants(%Card{} = card, checks, actor) do
+    checks
+    |> Slipdock.Verified.Checks.pre_existing_mutants()
+    |> Enum.uniq_by(&{&1["file"], &1["line"]})
+    |> Enum.each(fn m ->
+      place = "#{m["file"]}:#{m["line"]}"
+
+      record(%{
+        card: card,
+        source: "verification",
+        kind: "process",
+        cause: "pre-existing mutant #{place}",
+        text:
+          "No test fails when #{place} is broken (#{m["mutation"]}), in code the change " <>
+            "didn't touch" <>
+            if(m["note"], do: ": #{m["note"]}", else: "") <>
             " (reported by the verifier, not a rejection).",
         job_id: job_id(actor)
       })

@@ -716,7 +716,8 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
     "bar" => "the bar",
     "rules" => "the rules",
     "suite" => "the suite",
-    "handbook_line" => "the Handbook line"
+    "handbook_line" => "the Handbook line",
+    "mutants" => "a surviving mutant"
   }
 
   # What the rejections failed, most first: "3 the rules · 1 the bar · 1 naming no part".

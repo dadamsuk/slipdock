@@ -1133,7 +1133,17 @@ verifier of a `schema` or `security` card, your prompt has a defect
 review: read the diff for bugs, give each finding with its file and line
 (`--check defect:important|nit|pre-existing=<file>:<line>[:why]`), and
 reject on any Important one; a Nit or a Pre-existing finding is reported
-only. A claimed job carries the card's `profile` (MCP `claim_job`, the
+only. On a `fix`, `feature`, `schema` or `security` card your prompt also
+has a mutation review: break 3 to 5 of the lines the diff added or changed
+(on a `fix`, one undoes the fix), run only the card's tests against each,
+restore it, and give each as `--check
+mutant:killed|survived|pre-existing=<file>:<line>:<mutation>[:the missing
+test]`, or `--check mutants=n/a:<why>` when nothing is worth mutating
+(kept as `verify_checks.mutants`). A survivor on a changed line is a
+rejection naming the test to write; a `pre-existing` one, in lines the
+diff didn't change, is kept as a finding; a killed one is carried to a
+resubmission unless its line changed. `slipdock quality` counts the
+surviving-mutant rejections as a part. A claimed job carries the card's `profile` (MCP `claim_job`, the
 REST claim's `job.profile`, the runner's `x-card-profile` header), and a
 runner's config may set `MODEL_<profile>` to run that profile on another
 model. See [the manual](manual/profiles.md#the-verifiers-spend).

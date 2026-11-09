@@ -48,6 +48,24 @@ defmodule Slipdock.Verified.Checks do
   pre-existing one is reported only. A card the server accepted unverified
   (#1953, profile `docs`) carries `"not_verified" => "docs"`.
 
+  A mutation review (#2354), asked of the verifier on a `fix`, `feature`,
+  `schema` or `security` card, is a list of mutants: a line the diff added
+  or changed, broken on purpose, and whether the card's tests caught it:
+
+      mutant:killed=lib/foo.ex:42:flip > to >=
+      mutant:survived=lib/foo.ex:51:drop the nil guard:a test giving nil
+      mutant:pre-existing=lib/bar.ex:9:return :ok:in code the diff didn't change
+      mutants=n/a:only a docstring changed
+
+  The mutation is the text up to the next colon (the map form has no such
+  limit); the note after it is optional. Stored as `"mutants" =>
+  [%{"result" => "killed" | "survived" | "pre-existing" | "carried", "file"
+  => …, "line" => 42, "mutation" => …, "note" => …}]`, or `"mutants" =>
+  %{"n/a" => why}`. A `survived` mutant is a failing part; killed,
+  pre-existing and n/a never fail. A pre-existing survivor is kept as a
+  finding, as a pre-existing rule is. A killed mutant is carried to a
+  resubmission's verdict (#1944) unless the verifier gives its place again.
+
   A rule broken in several places (#2046) is one part with its instances:
   each `broken` line for the same rule adds one, its note leading with the
   file and line, and they are stored as `"instances" => [%{"file" => …,
@@ -74,6 +92,11 @@ defmodule Slipdock.Verified.Checks do
 
   @defect_severities ~w(important nit pre-existing)
 
+  @mutant_results ~w(killed survived pre-existing carried)
+
+  @doc "A mutant's results (#2354): only `survived` fails."
+  def mutant_results, do: @mutant_results
+
   @doc "A defect finding's severities (#1953): only `important` fails."
   def defect_severities, do: @defect_severities
 
@@ -93,8 +116,10 @@ defmodule Slipdock.Verified.Checks do
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
     |> Enum.reduce_while({:ok, %{}}, fn line, {:ok, acc} ->
-      case parse_line(line) do
-        {:ok, part} -> {:cont, {:ok, put_part(acc, part)}}
+      with {:ok, part} <- parse_line(line),
+           :ok <- mutants_fit(acc, part) do
+        {:cont, {:ok, put_part(acc, part)}}
+      else
         {:error, _} = error -> {:halt, error}
       end
     end)
@@ -117,9 +142,12 @@ defmodule Slipdock.Verified.Checks do
   defp parse_line(line) do
     with [lhs, rhs] <- String.split(line, "=", parts: 2),
          {part, key} <- split_key(String.trim(lhs)) do
-      # A defect's right-hand side is a place, kept as written (#1953).
+      # A defect's or a mutant's right-hand side is a place, kept as
+      # written (#1953, #2354).
       {result, note} =
-        if part == "defect", do: {String.trim(rhs), nil}, else: split_note(String.trim(rhs))
+        if Enum.member?(~w(defect mutant), part),
+          do: {String.trim(rhs), nil},
+          else: split_note(String.trim(rhs))
 
       build(part, key, result, note)
     else
@@ -138,6 +166,7 @@ defmodule Slipdock.Verified.Checks do
     case part |> String.trim() |> String.downcase() do
       "handbook" -> "handbook_line"
       "rules" -> "rule"
+      "mutation" -> "mutant"
       p -> p
     end
   end
@@ -233,6 +262,16 @@ defmodule Slipdock.Verified.Checks do
     end
   end
 
+  defp build("mutant", key, result, nil), do: build_mutant(key, result)
+
+  defp build("mutants", nil, "n/a", why) when is_binary(why), do: {:ok, {:mutants_na, why}}
+
+  defp build("mutants", _key, _result, _note),
+    do:
+      {:error,
+       "check `mutants` is only `mutants=n/a:<why>` (nothing in the diff worth mutating); " <>
+         "give each mutant as `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`"}
+
   defp build(part, _key, _result, _note) when part in ~w(bar rule),
     do:
       {:error,
@@ -241,7 +280,62 @@ defmodule Slipdock.Verified.Checks do
   defp build(part, _key, _result, _note),
     do:
       {:error,
-       "unknown check `#{part}`: use ask, bar:<n>, suite, rule:<id>, handbook_line or defect:<severity>"}
+       "unknown check `#{part}`: use ask, bar:<n>, suite, rule:<id>, handbook_line, " <>
+         "defect:<severity>, mutant:<result> or mutants=n/a"}
+
+  # A mutant (#2354): `<file>:<line>:<mutation>[:note]`, the place kept as
+  # written; `carried` needs only the place.
+  defp build_mutant(key, place) do
+    result = key |> to_string() |> String.trim() |> String.downcase()
+    usage = "`mutant:#{result}=lib/foo.ex:42:<the mutation>[:note]`"
+
+    cond do
+      not Enum.member?(@mutant_results, result) ->
+        {:error,
+         "check `mutant` needs its result: `mutant:<#{Enum.join(@mutant_results, "|")}>=<file>:<line>:<mutation>[:note]`"}
+
+      match = Regex.run(~r/^\s*([^\s:]+):(\d+)\s*(?::([^:]*)(?::(.*))?)?$/s, place) ->
+        mutant_item(result, match, usage)
+
+      true ->
+        {:error,
+         "check `mutant:#{result}` needs the file and line it broke, never a guess from a name: " <>
+           usage}
+    end
+  end
+
+  defp mutant_item(result, [_, file, line | rest], usage) do
+    mutation = rest |> Enum.at(0) |> to_string() |> String.trim() |> blank_nil()
+    note = rest |> Enum.at(1) |> to_string() |> String.trim() |> blank_nil()
+
+    if mutation == nil and result != @carried do
+      {:error, "check `mutant:#{result}` needs the mutation it made after the line: " <> usage}
+    else
+      {:ok,
+       {:mutant,
+        %{
+          "result" => result,
+          "file" => file,
+          "line" => String.to_integer(line),
+          "mutation" => mutation,
+          "note" => note
+        }}}
+    end
+  end
+
+  # `mutants=n/a` says nothing could be mutated, so it can't sit beside a
+  # mutant in one verdict.
+  defp mutants_fit(acc, {:mutant, _}) when is_map_key(acc, "mutants") do
+    if is_list(acc["mutants"]), do: :ok, else: mutants_clash()
+  end
+
+  defp mutants_fit(acc, {:mutants_na, _}) when is_map_key(acc, "mutants"), do: mutants_clash()
+  defp mutants_fit(_acc, _part), do: :ok
+
+  defp mutants_clash,
+    do:
+      {:error,
+       "check `mutants=n/a` says nothing could be mutated: give it or the mutants, not both"}
 
   defp result_ok(part, result) do
     allowed = Map.fetch!(@results, part)
@@ -283,6 +377,22 @@ defmodule Slipdock.Verified.Checks do
     end)
   end
 
+  defp from_map("mutants", %{} = na) do
+    case Map.new(na, fn {k, v} -> {to_string(k), v} end) do
+      %{"n/a" => why} when is_binary(why) and why != "" -> {:ok, [{:mutants_na, why}]}
+      _ -> {:error, "check `mutants` is a list of mutants, or `{\"n/a\": why}`"}
+    end
+  end
+
+  defp from_map("mutants", items) when is_list(items) do
+    Enum.reduce_while(items, {:ok, []}, fn item, {:ok, acc} ->
+      case mutant_map(item) do
+        {:ok, built} -> {:cont, {:ok, acc ++ [built]}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
   # Set by the server on a card it accepted unverified (#1953).
   defp from_map("not_verified", _), do: {:ok, []}
 
@@ -311,6 +421,49 @@ defmodule Slipdock.Verified.Checks do
       nil
     )
   end
+
+  # A mutant given in the stored shape (#2354): its fields kept apart, so a
+  # mutation may hold a colon.
+  defp mutant_map(item) do
+    item = if is_map(item), do: Map.new(item, fn {k, v} -> {to_string(k), v} end), else: %{}
+    result = item["result"] |> to_string() |> String.trim() |> String.downcase()
+    file = text_or_nil(item["file"])
+    line = whole_number(item["line"])
+    mutation = text_or_nil(item["mutation"])
+
+    cond do
+      not Enum.member?(@mutant_results, result) or file == nil or line == nil ->
+        build_mutant(result, "")
+
+      result != @carried and mutation == nil ->
+        {:error, "check `mutant:#{result}` needs its `mutation`: what was broken, and how"}
+
+      true ->
+        {:ok,
+         {:mutant,
+          %{
+            "result" => result,
+            "file" => file,
+            "line" => line,
+            "mutation" => mutation,
+            "note" => text_or_nil(item["note"])
+          }}}
+    end
+  end
+
+  defp whole_number(n) when is_integer(n), do: n
+
+  defp whole_number(s) when is_binary(s) do
+    case Integer.parse(String.trim(s)) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  defp whole_number(_), do: nil
+
+  defp text_or_nil(s) when is_binary(s), do: s |> String.trim() |> blank_nil()
+  defp text_or_nil(_), do: nil
 
   # A broken rule given as a map with its instances (#2046): one item per
   # instance, which `put_part/2` adds up again.
@@ -396,6 +549,22 @@ defmodule Slipdock.Verified.Checks do
     item = item |> Enum.reject(fn {_, v} -> is_nil(v) end) |> Map.new()
     Map.update(acc, "defect_review", [item], &(&1 ++ [item]))
   end
+
+  # Mutants add up; a second at the same place and mutation replaces the
+  # first.
+  defp put_part(acc, {:mutant, item}) do
+    item = item |> Enum.reject(fn {_, v} -> is_nil(v) end) |> Map.new()
+    list = if is_list(acc["mutants"]), do: acc["mutants"], else: []
+
+    list =
+      if Enum.any?(list, &same_mutant?(&1, item)),
+        do: Enum.map(list, &if(same_mutant?(&1, item), do: item, else: &1)),
+        else: list ++ [item]
+
+    Map.put(acc, "mutants", list)
+  end
+
+  defp put_part(acc, {:mutants_na, why}), do: Map.put(acc, "mutants", %{"n/a" => why})
 
   # A second `broken` line for a rule (#2046): the rule keeps every place
   # it was found broken, the first one's included.
@@ -546,6 +715,10 @@ defmodule Slipdock.Verified.Checks do
       for(
         %{"severity" => "important"} = d <- checks["defect_review"] || [],
         do: "the defect at #{d["file"]}:#{d["line"]}"
+      ) ++
+      for(
+        %{"result" => "survived"} = m <- mutants(checks),
+        do: "the surviving mutant at #{m["file"]}:#{m["line"]}"
       )
   end
 
@@ -601,6 +774,7 @@ defmodule Slipdock.Verified.Checks do
         d <- checks["defect_review"] || [],
         do: {"defect", d["severity"], defect_note(d)}
       ) ++
+      mutant_lines(checks["mutants"]) ++
       not_verified_line(checks["not_verified"])
   end
 
@@ -611,6 +785,21 @@ defmodule Slipdock.Verified.Checks do
     if d["note"], do: "#{place}; #{d["note"]}", else: place
   end
 
+  defp mutant_lines(%{"n/a" => why}), do: [{"mutants", "n/a", why}]
+
+  defp mutant_lines(list) when is_list(list) do
+    for m <- list do
+      note =
+        ["#{m["file"]}:#{m["line"]}", m["mutation"], m["note"]]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.join("; ")
+
+      {"mutant", m["result"], carried_note(note, m["carried_from"])}
+    end
+  end
+
+  defp mutant_lines(_), do: []
+
   defp not_verified_line(profile) when is_binary(profile),
     do: [{"verification", "not verified", "profile #{profile}: no verify job runs for it"}]
 
@@ -619,6 +808,19 @@ defmodule Slipdock.Verified.Checks do
   @doc "The defect findings of `checks` (#1953), in the order given."
   def defects(%{} = checks), do: checks["defect_review"] || []
   def defects(_), do: []
+
+  @doc "The mutants of `checks` (#2354), in the order given: `[]` for none or `n/a`."
+  def mutants(%{"mutants" => list}) when is_list(list), do: list
+  def mutants(_), do: []
+
+  @doc "The pre-existing survivors of `checks` (#2354): weak tests in code the change didn't touch."
+  def pre_existing_mutants(checks),
+    do: for(%{"result" => "pre-existing"} = m <- mutants(checks), do: m)
+
+  defp same_mutant?(a, b),
+    do: a["file"] == b["file"] and a["line"] == b["line"] and a["mutation"] == b["mutation"]
+
+  defp same_place?(a, b), do: a["file"] == b["file"] and a["line"] == b["line"]
 
   defp carried_note(note, nil), do: note
   defp carried_note(nil, sha), do: "carried from #{short(sha)}"
@@ -665,7 +867,7 @@ defmodule Slipdock.Verified.Checks do
   @doc "Whether `result` (as `lines/1` gives it) is a failing one."
   def failing_result?(result),
     do:
-      Enum.member?(~w(misses fail broken disputed important), result) or
+      Enum.member?(~w(misses fail broken disputed important survived), result) or
         result =~ ~r/[1-9]\d* failed$/
 
   ## Carried parts (#1944) ------------------------------------------------------
@@ -684,10 +886,14 @@ defmodule Slipdock.Verified.Checks do
         Enum.member?(["ok", "n/a"], r),
         do: {"rules", id}
       ) ++
-      if prior["handbook_line"] == "ok", do: [{"handbook_line", nil}], else: []
+      if(prior["handbook_line"] == "ok", do: [{"handbook_line", nil}], else: []) ++
+      for(%{"result" => "killed"} = m <- mutants(prior), do: {"mutant", mutant_place(m)})
   end
 
   def passed_parts(_), do: []
+
+  @doc "A mutant's place as parts name it: `lib/foo.ex:42`."
+  def mutant_place(m), do: "#{m["file"]}:#{m["line"]}"
 
   @doc """
   `checks` (this decision's parts) with what `prior`, the verdict before it
@@ -725,13 +931,18 @@ defmodule Slipdock.Verified.Checks do
   defp part_label({"handbook_line", _}), do: "the Handbook line"
   defp part_label({"bar", i}), do: "bar #{i}"
   defp part_label({"rules", id}), do: id
+  defp part_label({"mutant", place}), do: "the mutant at #{place}"
+
+  @doc "A carried part's name, as the card and the prompt say it."
+  def carried_label(part), do: part_label(part)
 
   @doc "The parts `checks` gives as `carried`, as `passed_parts/1` names them."
   def carried_asks(checks) do
     if(checks["ask"] == @carried, do: [{"ask", nil}], else: []) ++
       for(%{"result" => @carried, "item" => i} <- checks["bar"] || [], do: {"bar", i}) ++
       for(%{"result" => @carried, "id" => id} <- checks["rules"] || [], do: {"rules", id}) ++
-      if checks["handbook_line"] == @carried, do: [{"handbook_line", nil}], else: []
+      if(checks["handbook_line"] == @carried, do: [{"handbook_line", nil}], else: []) ++
+      for(%{"result" => @carried} = m <- mutants(checks), do: {"mutant", mutant_place(m)})
   end
 
   defp carry_part(checks, {part, nil}, prior, sha) when part in ~w(ask handbook_line) do
@@ -741,6 +952,31 @@ defmodule Slipdock.Verified.Checks do
       |> Map.update("carried", %{part => sha}, &Map.put(&1, part, sha))
     else
       checks
+    end
+  end
+
+  # A killed mutant (#2354) is carried unless this verdict judged a mutant
+  # at its place again: the verifier gives it again when the commits since
+  # touched its line. A verdict that found nothing to mutate (`n/a`) this
+  # time carries nothing.
+  defp carry_part(checks, {"mutant", place}, prior, sha) do
+    earlier = Enum.find(mutants(prior), &(&1["result"] == "killed" and mutant_place(&1) == place))
+    given = mutants(checks)
+    judged = Enum.filter(given, &(same_place?(&1, earlier) and &1["result"] != @carried))
+
+    cond do
+      is_map(checks["mutants"]) ->
+        checks
+
+      judged != [] ->
+        checks
+
+      true ->
+        item =
+          earlier |> Map.take(~w(result file line mutation note)) |> Map.put("carried_from", sha)
+
+        rest = Enum.reject(given, &same_place?(&1, earlier))
+        Map.put(checks, "mutants", rest ++ [item])
     end
   end
 
