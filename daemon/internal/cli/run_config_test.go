@@ -26,6 +26,10 @@ type configServer struct {
 	version int64
 	runners []string // each runner's JSON
 	down    bool     // the config endpoint fails
+	// answer, when set, is a listing sent at once on every ask, whatever
+	// version was asked for: a server that doesn't honour the long-poll.
+	answer  string
+	asks    int
 	claims  map[string]int
 	reports []string
 }
@@ -60,6 +64,14 @@ func (s *configServer) start(t *testing.T) *httptest.Server {
 		case r.URL.Path == "/api/machine":
 			w.Write([]byte(`{"machine":{"id":7,"name":"box","boards":[3],"state":"enrolled"}}`))
 		case r.URL.Path == "/api/machine/config":
+			s.mu.Lock()
+			s.asks++
+			answer := s.answer
+			s.mu.Unlock()
+			if answer != "" {
+				w.Write([]byte(answer))
+				return
+			}
 			since, _ := strconv.ParseInt(r.URL.Query().Get("version"), 10, 64)
 			deadline := time.Now().Add(100 * time.Millisecond)
 			for {
@@ -249,5 +261,57 @@ func TestRunSaysWhenTheCacheIsBroken(t *testing.T) {
 	stop()
 	if !strings.Contains(w.errOut.String(), "can't read the cached config, so waiting for the server's") {
 		t.Fatalf("log:\n%s", w.errOut)
+	}
+}
+
+func (s *configServer) asked() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.asks
+}
+
+// A listing at a version no newer than the one taken (the same, or older)
+// is not applied, and run waits configRetry before asking again rather
+// than asking at once.
+func TestRunIgnoresAListingNoNewerThanTheOneTaken(t *testing.T) {
+	for name, version := range map[string]int{"the same version": 2, "an older version": 1} {
+		t.Run(name, func(t *testing.T) {
+			srv := &configServer{}
+			w, start := liveWorld(t, srv)
+			configRetry = 300 * time.Millisecond
+			repo := filepath.Join(w.home, "repo")
+			srv.set(runnerJSON(21, 1, repo, "default", false))
+			srv.set(runnerJSON(21, 2, repo, "default", false))
+			stop := start()
+			waitUntil(t, "version 2 to be taken", func() bool { return strings.Contains(srv.reported(), "21 v2 accepted") })
+
+			// Now the server answers at once with a listing at version
+			// 2 or 1 that removes 21 and adds 23.
+			srv.mu.Lock()
+			srv.answer = fmt.Sprintf(`{"version":%d,"runners":[%s]}`, version, runnerJSON(23, 1, repo, "default", false))
+			srv.mu.Unlock()
+			before := srv.asked()
+			time.Sleep(700 * time.Millisecond)
+			asks := srv.asked() - before
+			n21 := srv.claimsOf("21")
+			waitUntil(t, "runner 21 to keep claiming", func() bool { return srv.claimsOf("21") > n21 })
+			if code := stop(); code != 0 {
+				t.Fatalf("exit %d: %s", code, w.errOut)
+			}
+			if asks < 1 || asks > 4 {
+				t.Fatalf("%d asks in 700ms: run should wait %s between them", asks, configRetry)
+			}
+			if srv.claimsOf("23") != 0 || strings.Contains(srv.reported(), "23 v1") {
+				t.Fatalf("the listing was applied: claims 21 %d, 23 %d; reports %s", srv.claimsOf("21"), srv.claimsOf("23"), srv.reported())
+			}
+			log := w.errOut.String()
+			if strings.Count(log, "config version ") != 1 || !strings.Contains(log, "config version 2: 1 of 1 runners running") {
+				t.Fatalf("the listing was applied again:\n%s", log)
+			}
+			changes, _ := os.ReadFile(filepath.Join(w.dir, machineconfig.ChangeLog))
+			if strings.Contains(string(changes), "#23") || strings.Contains(string(changes), "removed") {
+				t.Fatalf("the change log took the listing:\n%s", changes)
+			}
+		})
 	}
 }
