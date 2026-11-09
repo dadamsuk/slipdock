@@ -709,7 +709,8 @@ WRITE
                                       submitted (--evidence-commit: what you checked at).
                                       merged: a person merged a merging card's PR by hand;
                                       agree / disagree: an audit job's say on an accepted
-                                      card (a comment; disagree alerts the board's owner)
+                                      card (a comment; disagree alerts the board's owner
+                                      and files a rework card, or comments on the open one)
       --check PART=RESULT[:note]      the verdict in parts, repeated: ask=ok|misses,
                                       bar:2=ok|fail, suite=412:0, rule:UX-4=ok|broken|n/a,
                                       handbook_line=ok|disputed. A reject names a failing

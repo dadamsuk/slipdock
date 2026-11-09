@@ -90,6 +90,7 @@ test/slipdock_web/subagent_wait_docs_test.exs
 test/slipdock_web/tool_links_docs_test.exs
 test/slipdock_web/transfer_links_docs_test.exs
 test/slipdock_web/verified_docs_test.exs
+test/slipdock_web/audit_rework_docs_test.exs
 test/slipdock_web/every_instance_docs_test.exs
 test/slipdock_web/verified_merge_docs_test.exs
 test/slipdock_web/verify_by_ci_docs_test.exs

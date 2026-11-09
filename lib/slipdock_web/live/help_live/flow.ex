@@ -605,8 +605,12 @@ defmodule SlipdockWeb.HelpLive.Flow do
       </li>
       <li>
         <strong>Audits check the checker</strong>: with <em>Audit 1 in N accepted cards</em>
-        set, another runner rechecks about one accepted card in N. It changes nothing; a
-        disagreement raises an alert for the board's owner.
+        set, another runner rechecks about one accepted card in N. The acceptance stands; a
+        disagreement files the rework as a card in the ready list, titled from the audit's
+        reason, with what failed and a link to the audit, caused by the accepted card (high
+        priority for a surviving mutant or a broken <em>must</em>
+        rule). The alert names it, and a second disagreement comments on it rather than
+        filing another.
       </li>
     </ul>
     <.person_note>
@@ -636,7 +640,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
           <strong>Merged it myself</strong>
           (<code>slipdock verify 12 merged</code>).
         </li>
-        <li>An audit that disagrees is yours to follow up.</li>
+        <li>
+          An audit that disagrees has already filed its rework card: read the alert, and reword
+          or reprioritise the card if the audit was wrong about what matters.
+        </li>
       </ul>
     </.person_note>
     """

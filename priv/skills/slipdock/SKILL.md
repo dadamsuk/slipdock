@@ -339,7 +339,7 @@ slipdock verify <id> reject --reason "bar 2: …" --check bar:1=ok --check bar:2
                                        # (a survivor is a rejection naming the test to write; pre-existing,
                                        # in unchanged lines, is kept as a finding)
 slipdock verify <id> agree|disagree --reason TEXT [--check …]   # an audit job's say on an
-                                       # accepted card: a comment; disagree alerts the board's owner
+                                       # accepted card: a comment; disagree alerts and files a rework card
 slipdock verify <id> merged [--evidence-commit SHA]   # a person only: a merging card's PR was merged by hand
 slipdock edit <id> --bar "what done means"   # the card's bar; locks when work starts on a board
                                        # that asks for one

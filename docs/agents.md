@@ -1025,9 +1025,15 @@ in N that an agent accepted is queued to the verify pool again as an audit, a
 `verify` job marked `audit`, never to the runner that built it or the one that
 verified it (on a pull request board, once it has merged). Its prompt shows
 the original verdict and has every rule judged, `should` ones too. The audit
-changes nothing: `slipdock verify <id> agree|disagree --reason …` (or
-`verify_card`) is a comment, and a disagreement raises an alert for the board's
-owner. The acceptance stands.
+changes nothing on the card: `slipdock verify <id> agree|disagree --reason …`
+(or `verify_card`) is a comment, and the acceptance stands. A disagreement
+files the rework itself: one card in the board's ready list, titled `Audit of
+#<id>: <reason>`, its description the reason, the failed parts and the audit
+comment's link, the accepted card's paths, `caused_by` the accepted card (an
+incident of it), priority `high` for a surviving mutant or a broken `must`
+rule (else `medium`). The alert for the board's owner and the `audit` finding
+name it. A second disagreement while that card is open comments on it rather
+than filing another; an agreement files nothing.
 A machine's runner takes `verify` jobs with its own agent, on the server's
 prompt, without the standing instructions, so a runner can check another
 runner's work. Deciding is `verify_card` or `slipdock

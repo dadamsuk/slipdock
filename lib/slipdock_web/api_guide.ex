@@ -4524,8 +4524,13 @@ defmodule SlipdockWeb.APIGuide do
     agent accepted to the verify pool again as an audit (kind `verify`,
     `audit: true`; never to its builder's or verifier's runner): judge it
     afresh, `should` rules too, and answer `slipdock verify ID agree|disagree
-    --reason …` (`verify_card`). That only comments; disagree alerts the
-    owner, and the acceptance stands. The submitter can't
+    --reason …` (`verify_card`). The acceptance stands; agree only comments.
+    Disagree also files the rework: one card in the ready list, titled
+    `Audit of #ID: <reason>`, with the failed parts, the audit comment's
+    link, the accepted card's paths, `caused_by` it, and priority `high`
+    for a surviving mutant or a broken `must` rule. The owner's alert and
+    the `audit` finding name it; a second disagreement comments on that
+    card while it is open. The submitter can't
     decide its own card (`403`): a different agent is a different token,
     or a different runner job. A board with a `verify_pool` also queues
     each submitted card for that runner pool as a job of kind `verify`,

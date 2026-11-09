@@ -482,8 +482,9 @@ defmodule SlipdockWeb.AgenticLive.Index do
                     <p class="text-xs text-base-content/60">
                       The rejection after the limit opens a wait on the board's owner: rework the card
                       or accept it as is. About one card in N that an agent accepted is checked again
-                      by another runner in the pool; an audit only comments, and one that disagrees
-                      alerts you. 0 turns either off.
+                      by another runner in the pool; an audit that agrees only comments, and one that
+                      disagrees alerts you and files a rework card (or comments on the open one).
+                      0 turns either off.
                     </p>
                   </div>
                   <div>
