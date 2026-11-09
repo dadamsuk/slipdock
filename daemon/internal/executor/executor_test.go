@@ -409,6 +409,9 @@ func planted(t *testing.T) (repo, outside, escaped, ran string) {
 }
 
 func TestTheDaemonsGitAndTheHooksForAConfinedRunnerAreConfined(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("confined is Linux and macOS only")
+	}
 	repo, outside, escaped, ran := planted(t)
 	ex, err := New(Confined, Settings{GOOS: runtime.GOOS, Launcher: os.Args[0], Repo: repo})
 	if err != nil {
