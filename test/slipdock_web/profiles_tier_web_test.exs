@@ -90,12 +90,14 @@ defmodule SlipdockWeb.ProfilesTierWebTest do
 
       resp =
         ctx.agent
-        |> patch(~p"/api/boards/#{ctx.board.id}", %{"profile_tiers" => %{"spike" => "none"}})
+        |> patch(~p"/api/boards/#{ctx.board.id}", %{
+          "profile_tiers" => %{"spike" => "before_merge"}
+        })
         |> json_response(200)
 
-      assert resp["board"]["profile_tiers"]["spike"] == "none"
+      assert resp["board"]["profile_tiers"]["spike"] == "before_merge"
       assert resp["board"]["profile_tiers"]["schema"] == "before_merge"
-      assert Boards.get_board!(ctx.board.id).profile_tiers == %{"spike" => "none"}
+      assert Boards.get_board!(ctx.board.id).profile_tiers == %{"spike" => "before_merge"}
 
       ctx.agent
       |> patch(~p"/api/boards/#{ctx.board.id}", %{"profile_tiers" => %{"spike" => "default"}})

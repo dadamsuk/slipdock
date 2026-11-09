@@ -418,7 +418,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
           security path raises even one you set, and more than 400 changed lines makes an
           agent's or an inferred fix or docs a feature (a fix you set keeps it). <em>Human tier, by profile</em>, on the same page, says
           whether an agent's acceptance merges the card, merges it onto the ledger or holds it
-          for a person: by default schema, security and spike changes wait for you.
+          for a person: by default schema and security changes wait for you. A spike merges nothing:
+          its prototype stays on its branch, and it holds no lane.
         </li>
         <li>
           <strong>Incidents</strong>: when a card broke something that shipped, its <em>Incident</em>

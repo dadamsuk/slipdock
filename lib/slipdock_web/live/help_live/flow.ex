@@ -95,7 +95,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     {"Lanes", "slipdock set-board B --lane-mode hold",
      "Hold: an agent can't start a card whose paths overlap a card in progress. Advise: it starts, and its prompt names that card."},
     {"Profiles", "slipdock set-board B --profiles on",
-     "A card an agent starts gets one word for what kind of change it is; a schema, security or spike card an agent accepts waits for a person before it merges. A docs card gets no verify job, and a schema or security card's verifier also reviews it for defects. A fix, feature, schema or security card's verifier breaks a few of the changed lines to see that a test fails."},
+     "A card an agent starts gets one word for what kind of change it is; a schema or security card an agent accepts waits for a person before it merges, and a spike merges nothing and holds no lane. A docs card gets no verify job, and a schema or security card's verifier also reviews it for defects. A fix, feature, schema or security card's verifier breaks a few of the changed lines to see that a test fails."},
     {"Human tier, by profile", "slipdock set-board B --profile-tier schema=none",
      "Change what an agent's acceptance of a profile does: none, ledger or before_merge."},
     {"Shared paths", "slipdock set-board B --shared-paths docs/manual.md,README.md",

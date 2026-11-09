@@ -358,7 +358,8 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   400 changed lines raises an agent's or an inferred `fix` or `docs` to
   `feature` (a `fix` you set keeps it). Its [human tier](docs/manual/profiles.md#the-human-tier)
   says whether an agent's acceptance merges, merges onto the ledger or waits
-  for a person: by default `schema`, `security` and `spike` wait
+  for a person: by default `schema` and `security` wait, and a `spike`
+  merges nothing and holds no lane
   (`slipdock set-board --profile-tier schema=none` changes one). Shown as a chip
   on the card, in `slipdock card`, `get_card` and the card's JSON, and on its
   ledger line.

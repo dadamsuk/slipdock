@@ -82,7 +82,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
           description:
             "Each profile's human tier on the tree (root board only): none or ledger (acceptance " <>
               "merges), before_merge (a person decides first); default puts one back. Defaults: " <>
-              "docs/fix none, feature ledger, schema/security/spike before_merge.",
+              "docs/fix/spike none, feature ledger, schema/security before_merge.",
           properties:
             Map.new(Slipdock.Profiles.names(), fn p ->
               {p, %{type: "string", enum: Slipdock.Profiles.tiers() ++ ["default"]}}

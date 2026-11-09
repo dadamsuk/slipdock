@@ -1089,7 +1089,8 @@ card in progress whose paths overlap yours. Read that card and its branch
 before editing those files, stay out of them where you can, and rebase on
 the default branch before pushing.
 Only a card a runner job is working on holds a lane: one in progress with
-no open job, dragged there by hand or left behind, holds none. Lanes hold work jobs only, never a verify or merge
+no open job, dragged there by hand or left behind, holds none. Nor does a
+`spike`, whose code is never merged. Lanes hold work jobs only, never a verify or merge
 job. See [the manual](manual/lanes.md).
 
 **Profiles.** On a board with `profiles` on (`profiles: on` on its line
@@ -1112,9 +1113,9 @@ changed lines a `fix` or `docs` card to `feature` (unless a person set
 it); never lower, with the reason in the card's activity.
 
 **The human tier.** Each profile has one (`profile_tiers` in the board's
-JSON): `none` (`docs`, `fix`) and `ledger` (`feature`) let your
-acceptance merge as usual; `before_merge` (`schema`, `security`,
-`spike`) holds it on a board that ships by pull request. Accepting such a
+JSON): `none` (`docs`, `fix`, `spike`) and `ledger` (`feature`) let your
+acceptance merge as usual; `before_merge` (`schema`, `security`) holds
+it on a board that ships by pull request. Accepting such a
 card as a verifier leaves it `verify_state: "held"` with a `release` wait
 (Merge / Send back) for a person, and no merge job: your verify job is
 done once you have decided. You can't answer that wait or decide a held
@@ -1123,6 +1124,15 @@ the person's reason under *Verification*: rework it as any other. Change
 a tier on the root board: `slipdock set-board B --profile-tier
 schema=none`, `update_board` `profile_tiers`. See [the
 manual](manual/profiles.md#the-human-tier).
+
+**Spikes.** A `spike` card (profile `spike`, or no profile and tagged
+`spike`, on any board) answers a question by building, and its code is
+never merged: the prototype stays on its branch and any pull request is
+closed. Complete it with why instead, naming the answer's page and the
+branch: `slipdock done ID --no-code "spike: answer on W-…, prototype on
+card-ID"` (`complete_card` `no_code`). Naming a pull request is refused,
+and accepting it merges nothing. It holds no lane, even with paths: an
+overlapping card starts beside it, and no job waits for it.
 
 **The verifier's spend.** With profiles on, completing a `docs` card on a
 verifying board queues no verify job: the server accepts it (*Accepted by
