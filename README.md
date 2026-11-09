@@ -12,18 +12,96 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL--3.0-green" alt="AGPL-3.0"></a>
 </p>
 
-Self-hosted kanban board for people who want their work tracker to be theirs and to really help get their job done: you can easily self-host for free or use the [hosted version](https://slipdock.us). Functionality of the two is identical. It's different (better?) than most Kanban boards though, because it incorporates features built on real world experience of hundreds of projects, none of the fluff you don't need and everything that you do. This system was built for a real use case: replacing Jira Tickets, Jira Product Discovery, Jira Atlas (particularly sharing updates with stakeholders) and Confluence. And with the optional AI integrations, it's better than all of them. 
+Slipdock is one place for all of a team's work. For anyone, it's a kanban
+board, a wiki and a roadmap. For a software team, it's also where people and
+coding agents work side by side: agents take cards, prove what they did and
+check each other's work, and what each card teaches is written down where the
+next card will read it. Self-host it for free or use the
+[hosted version](https://slipdock.us). Both do the same things.
 
 ![A board](docs/screenshots/board.png)
 
-Any card can become a board of its own, so an epic and its tasks
-live in one place and roll up. The same cards can be read as a board, a
-swimlane grid, a table, a Gantt timeline, a calendar, an outline or a ranked
-backlog. Each board carries a wiki, so the documentation/reasoning sits beside the work.
-Automations are written in plain English ("flag any card which is more than 3 days overdue to urgent and send an email to John"). You can give it plain English commands too: "Split this card into 3 sub-cards", interrogate it: "Across all my boards, what tasks do I have that are slated to take less than 1 day?".  And it has semantic search: "Where's the card about the invoicing bug that came in last week" (that doesn't even mention the word invoice).  
+### A good board, whatever the work
 
-And best of all the whole thing is available over
-a JSON API and a CLI, so an agent can work the board the way a person does.  Chat with Claude or ChatGPT about your work, get it to create your cards, run loops off the back of them.  Whatever you need.
+You don't need to write software, or use AI, to get a lot out of it. It was
+built from experience of hundreds of projects to replace Jira, Jira Product
+Discovery, Atlas's stakeholder updates and Confluence, with none of the fluff.
+
+- **Any card can become a board of its own**, so an epic and its tasks live
+  in one place and roll up. The same cards can be read as a board, a swimlane
+  grid, a table, a Gantt timeline, a calendar, an outline or a ranked backlog,
+  and [one setting](docs/manual/simple-boards.md) turns a board into a plain
+  to-do list.
+- **A wiki on every board**, so the documentation and the reasoning sit
+  beside the work.
+- **Automations in plain English**: "flag any card that is more than 3 days
+  overdue as urgent and email John". You can give it commands ("split this
+  card into 3 subcards") and ask it questions ("across all my boards, which
+  of my tasks will take less than a day?"). Its semantic search finds "the
+  card about the invoicing bug that came in last week" even when the card
+  never says *invoice*.
+- **Sprints, roadmaps, recurring cards, time tracking, email in, a phone
+  layout** and the rest are in [the full list](#everything-it-does).
+
+### For a software team, one place for all the work
+
+The cards a runner is building sit on the same boards as the reviews the team
+owes, a design question for the product owner and last night's incident.
+
+- **[Waiting on you](docs/manual/waiting-on-a-person-waits.md)** shows each
+  person what needs them across every board: the questions agents asked, cards
+  to review, runner trouble, and work in progress that nobody is on.
+- **Questions go to the person whose call it is.** An agent that needs a
+  decision opens a wait and stops. The board routes it by kind (product, UX,
+  security, release) and suggests an answer, so replying can take one click.
+- **[Where it was left](docs/manual/where-it-was-left-handoffs.md):** every
+  card carries its next step and a short note, so whoever picks it up next,
+  person or agent, reads that instead of the whole comment thread.
+- **Every door is open.** Anything you can do in the browser you can also do
+  over the [JSON API](docs/manual/json-api.md), the
+  [CLI](docs/manual/cli.md) and the [MCP server](docs/manual/mcp-server.md).
+  That means you can talk to Claude, Claude Code or ChatGPT about your work,
+  and they can work the board the same way a person does.
+
+### A dev harness that learns
+
+Each part is optional, and a board turns on only the ones it wants.
+Together, they make a loop:
+
+1. **Plan.** Ask an agent to plan something and it sizes the request, writes
+   the decisions and principles into the board's
+   [handbook](#tools), and makes cards, each with a bar that says what done
+   means.
+2. **Build.** [Runners](#run-an-agent-against-a-board) on your own machines
+   pull jobs, so there are no ports to open. They work a list from the top,
+   and each job gets its own [lane](docs/manual/lanes.md) and worktree so
+   parallel agents stay out of each other's files. A question parks the job
+   and the next card runs.
+3. **Prove.** The agent completes the card with
+   [evidence](docs/manual/verified-work.md), and a second agent accepts or
+   rejects it. Work can ship by pull request. A card's
+   [profile](docs/manual/profiles.md) (security, schema, feature, fix, docs or
+   spike) decides which changes wait for a person before they merge.
+4. **Record.** Merging completes the card. Deploys feed
+   [DORA metrics](docs/manual/delivery-metrics-deploys-and-dora.md), and the
+   [ledger](docs/manual/the-ledger.md) shows what shipped since yesterday,
+   who accepted it and what it cost. An
+   [incident](docs/manual/incidents.md) names the card that caused it and the
+   check that should have caught it.
+5. **Learn.** Each pass leaves [findings](docs/manual/findings.md), and the
+   server records rejections, timeouts and failed merges by itself. A daily
+   triage promotes findings into the handbook or drafts them into rules when
+   they recur. Before the next card starts, it's given the handbook sections
+   and rules that cover its files. The memory lives on the board, not in one
+   agent's head, so every runner, verifier and machine learns it.
+6. **Watch.** The [health monitor](docs/manual/the-health-monitor.md) fixes
+   stuck work where a safe fix exists. The [overseer](docs/manual/the-overseer.md)
+   checks outcomes, such as work going round in circles, idle runners beside
+   a full list or a board waiting only on you, and tells you why and what to
+   do. [Right now](docs/manual/right-now.md) shows every runner and what it is
+   doing.
+
+Slipdock is built this way itself, on its own board.
 
 ## A word on AI coding...
 
@@ -48,9 +126,9 @@ included. They are taken from a demo workspace anybody can rebuild —
 `tools/screenshots.sh` makes a throwaway database, fills it with
 `mix slipdock.demo`, runs a server of its own and photographs it.
 
-## What it does
+## Everything it does
 
-Briefly, with the detail in [the manual](docs/manual.md):
+Each item in brief, with the detail in [the manual](docs/manual.md):
 
 - **Boards, lists and cards** — drag and drop, priorities, five flags, due
   dates, tags, checklists (dragged into a new order by their handle, or
