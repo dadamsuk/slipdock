@@ -144,58 +144,48 @@ defmodule Slipdock.Runners.Setup do
       |> Map.update!("kind", &(&1 |> to_string() |> String.downcase()))
       |> Map.merge(Map.new(@toggles, &{&1, flag(answers[&1])}))
 
-    format = Runner.name_format()
-
-    cond do
-      answers["scenario"] in @retired ->
-        {:error, @retired_message}
-
-      answers["scenario"] not in @scenarios ->
-        {:error, "scenario must be one of #{Enum.join(@scenarios, ", ")}"}
-
-      not Regex.match?(format, answers["pool"]) ->
-        {:error, "pool must be lower case letters, digits, - or _"}
-
-      answers["kind"] != "" and not Regex.match?(format, answers["kind"]) ->
-        {:error, "kind must be lower case letters, digits, - or _"}
-
-      answers["scenario"] == "chatgpt" and answers["commit"] ->
-        {:error, "ChatGPT has no repository to commit to: leave commit and push off"}
-
-      answers["permission_mode"] not in @permission_modes ->
-        {:error, "permission mode must be one of #{Enum.join(@permission_modes, ", ")}"}
-
-      answers["where"] not in @wheres ->
-        {:error, "where must be desktop or cloud"}
-
-      answers["verbosity"] not in @verbosities ->
-        {:error, "verbosity must be nothing, quiet, normal or verbose"}
-
-      answers["hooks"] not in @hook_modes ->
-        {:error, "hooks must be prompt or hook"}
-
-      toggle = Enum.find(@toggles, &(answers[&1] not in [true, false])) ->
-        {:error, "#{toggle} must be true or false"}
-
-      answers["push"] and not answers["commit"] ->
-        {:error, "push needs commit: a pass can only push a commit it made"}
-
-      String.length(to_string(answers["instructions"])) > 4000 ->
-        {:error, "the instructions are over 4,000 characters"}
-
-      String.length(to_string(answers["before_job"])) > 2000 or
-          String.length(to_string(answers["after_job"])) > 2000 ->
-        {:error, "a hook is over 2,000 characters"}
-
-      someone_elses_home?(answers["cwd"]) ->
-        {:error,
-         "the working directory can't be another user's ~: use a full path, or ~/ for the " <>
-           "runner's own home"}
-
-      true ->
-        {:ok, answers}
+    case Enum.find_value(checks(), fn {wrong?, message} -> wrong?.(answers) && message end) do
+      nil -> {:ok, answers}
+      message when is_function(message, 1) -> {:error, message.(answers)}
+      message -> {:error, message}
     end
   end
+
+  # What `normalise/1` refuses, in order: a test of the answers that is true
+  # when they are wrong, and what to say (a function, when it depends on them).
+  defp checks do
+    format = Runner.name_format()
+    long? = fn a, key, max -> String.length(to_string(a[key])) > max end
+
+    [
+      {&Enum.member?(@retired, &1["scenario"]), @retired_message},
+      {&(not Enum.member?(@scenarios, &1["scenario"])),
+       "scenario must be one of #{Enum.join(@scenarios, ", ")}"},
+      {&(not Regex.match?(format, &1["pool"])),
+       "pool must be lower case letters, digits, - or _"},
+      {&(&1["kind"] != "" and not Regex.match?(format, &1["kind"])),
+       "kind must be lower case letters, digits, - or _"},
+      {&(&1["scenario"] == "chatgpt" and &1["commit"] == true),
+       "ChatGPT has no repository to commit to: leave commit and push off"},
+      {&(not Enum.member?(@permission_modes, &1["permission_mode"])),
+       "permission mode must be one of #{Enum.join(@permission_modes, ", ")}"},
+      {&(not Enum.member?(@wheres, &1["where"])), "where must be desktop or cloud"},
+      {&(not Enum.member?(@verbosities, &1["verbosity"])),
+       "verbosity must be nothing, quiet, normal or verbose"},
+      {&(not Enum.member?(@hook_modes, &1["hooks"])), "hooks must be prompt or hook"},
+      {&(bad_toggle(&1) != nil), &"#{bad_toggle(&1)} must be true or false"},
+      {&(&1["push"] == true and &1["commit"] != true),
+       "push needs commit: a pass can only push a commit it made"},
+      {&long?.(&1, "instructions", 4000), "the instructions are over 4,000 characters"},
+      {&(long?.(&1, "before_job", 2000) or long?.(&1, "after_job", 2000)),
+       "a hook is over 2,000 characters"},
+      {&someone_elses_home?(&1["cwd"]),
+       "the working directory can't be another user's ~: use a full path, or ~/ for the " <>
+         "runner's own home"}
+    ]
+  end
+
+  defp bad_toggle(answers), do: Enum.find(@toggles, &(not is_boolean(answers[&1])))
 
   # A checkbox: true or "true" / "on" from a form, false or "false" / "" when
   # it isn't ticked.

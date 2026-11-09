@@ -37,53 +37,9 @@ defmodule SlipdockCLI.Runners do
     if o[:top] && !o[:column],
       do: fail("--top goes with --column LIST: the list whose top card it sends")
 
-    body =
-      compact(%{
-        "scenario" => scenario,
-        "verbosity" => o[:verbosity],
-        "instructions" => o[:instructions],
-        "before_job" => o[:before_job],
-        "after_job" => o[:after_job],
-        "hooks" => o[:hooks],
-        "in_progress" => o[:in_progress],
-        "assign" => o[:assign],
-        "commit" => o[:commit],
-        "push" => o[:push],
-        "move_done" => o[:move_done],
-        "complete" => o[:complete],
-        "percent_100" => o[:percent_100],
-        "pool" => o[:pool],
-        "kind" => o[:kind] |> List.wrap() |> List.last(),
-        "cwd" => o[:cwd],
-        "permission_mode" => o[:permission_mode],
-        "where" => o[:where],
-        "repo" => o[:repo],
-        "column" => o[:column] |> List.wrap() |> List.last(),
-        # The list's top card, one at a time, rather than every card arriving.
-        "feed" => if(o[:top], do: "top"),
-        "wait" =>
-          case o[:wait_while_doing] do
-            true -> "yes"
-            false -> "no"
-            nil -> nil
-          end,
-        "requeue" => o[:requeue_stuck],
-        "alert" => if(o[:alert], do: "yes")
-      })
+    body = setup_answers(scenario, o)
 
-    HTTP.post("/boards/#{enc(ref)}/runners/setup", body)
-    |> out(o, fn r ->
-      if r["automation"], do: IO.puts("added the rule “#{r["automation"]["name"]}”")
-
-      if r["alert_automation"],
-        do: IO.puts("added the rule “#{r["alert_automation"]["name"]}”")
-
-      if r["enrolment_key"],
-        do: IO.puts("its enrolment key is in the steps below, shown this once")
-
-      IO.puts("")
-      Render.runner_setup(r["setup"])
-    end)
+    HTTP.post("/boards/#{enc(ref)}/runners/setup", body) |> out(o, &print_setup/1)
   end
 
   # One runner and everything known about it, with its latest jobs.
@@ -252,6 +208,56 @@ defmodule SlipdockCLI.Runners do
   def run(cmd, _args, _o), do: bad_usage(cmd)
 
   # The wizard's answers among the options given, by the names the server uses.
+  # The wizard's answers, as `runner new` sends them.
+  defp setup_answers(scenario, o) do
+    compact(%{
+      "scenario" => scenario,
+      "verbosity" => o[:verbosity],
+      "instructions" => o[:instructions],
+      "before_job" => o[:before_job],
+      "after_job" => o[:after_job],
+      "hooks" => o[:hooks],
+      "in_progress" => o[:in_progress],
+      "assign" => o[:assign],
+      "commit" => o[:commit],
+      "push" => o[:push],
+      "move_done" => o[:move_done],
+      "complete" => o[:complete],
+      "percent_100" => o[:percent_100],
+      "pool" => o[:pool],
+      "kind" => o[:kind] |> List.wrap() |> List.last(),
+      "cwd" => o[:cwd],
+      "permission_mode" => o[:permission_mode],
+      "where" => o[:where],
+      "repo" => o[:repo],
+      "column" => o[:column] |> List.wrap() |> List.last(),
+      # The list's top card, one at a time, rather than every card arriving.
+      "feed" => if(o[:top], do: "top"),
+      "wait" =>
+        case o[:wait_while_doing] do
+          true -> "yes"
+          false -> "no"
+          nil -> nil
+        end,
+      "requeue" => o[:requeue_stuck],
+      "alert" => if(o[:alert], do: "yes")
+    })
+  end
+
+  # What `runner new` made, then the steps.
+  defp print_setup(r) do
+    if r["automation"], do: IO.puts("added the rule “#{r["automation"]["name"]}”")
+
+    if r["alert_automation"],
+      do: IO.puts("added the rule “#{r["alert_automation"]["name"]}”")
+
+    if r["enrolment_key"],
+      do: IO.puts("its enrolment key is in the steps below, shown this once")
+
+    IO.puts("")
+    Render.runner_setup(r["setup"])
+  end
+
   # `--status waiting` asks a person: what is needed, from whom, the choices.
   defp finish_wait(o) do
     case {o[:status], o[:needs]} do

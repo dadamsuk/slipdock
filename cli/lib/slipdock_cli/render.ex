@@ -2497,17 +2497,23 @@ defmodule SlipdockCLI.Render do
     end
   end
 
+  # What a runner is: a session, a machine's, or one with a token of its own,
+  # which since #2582 is a retired shell runner.
+  defp runner_kind(%{"session" => true}), do: "Claude session"
+  defp runner_kind(%{"machine_id" => id}) when not is_nil(id), do: "a machine's runner"
+  defp runner_kind(_), do: "runner with its own token: a retired shell runner"
+
   # One runner in full: what it is, who made it, what it is doing now, how
   # its jobs have ended, its latest jobs and the rules that feed its pool.
   def runner(r) do
-    kind =
-      cond do
-        r["session"] -> "Claude session"
-        r["machine_id"] -> "a machine's runner"
-        true -> "runner with its own token: a retired shell runner"
-      end
+    runner_header(r)
+    unless r["session"], do: installed_lines(r)
+    runner_work(r)
+  end
 
-    IO.puts("runner ##{r["id"]} #{r["name"]}  pool #{r["pool"]}  (#{kind})")
+  # What it is, who made it, when it was seen and what it takes.
+  defp runner_header(r) do
+    IO.puts("runner ##{r["id"]} #{r["name"]}  pool #{r["pool"]}  (#{runner_kind(r)})")
     if r["settings"]["scenario"], do: IO.puts("setup:     #{r["settings"]["scenario"]}")
 
     if r["created_by"],
@@ -2521,9 +2527,10 @@ defmodule SlipdockCLI.Render do
       [_ | _] = kinds -> IO.puts("takes:     " <> Enum.join(kinds, ", "))
       _ -> IO.puts("takes:     " <> dim("not said (an older runner: no merge jobs)"))
     end
+  end
 
-    unless r["session"], do: installed_lines(r)
-
+  # Its API token and the job it holds, then its jobs.
+  defp runner_work(r) do
     if t = r["api_token"] do
       IO.puts("api token: #{t["label"] || "##{t["id"]}"} (#{t["scope"]})")
     end
@@ -2536,6 +2543,11 @@ defmodule SlipdockCLI.Render do
         IO.puts("now:       job ##{j["id"]} #{j["status"]} on card ##{j["card_id"]} #{j["card"]}")
     end
 
+    runner_jobs(r)
+  end
+
+  # How its jobs ended, the rules that feed its pool, and its latest jobs.
+  defp runner_jobs(r) do
     counts =
       (r["job_counts"] || %{})
       |> Enum.sort()
