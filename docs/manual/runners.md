@@ -94,8 +94,9 @@ meanwhile. Only the job's own card
 is touched, never one somebody moved to in progress by hand, and never by a
 job cancelled before a runner took it; a job whose lease lapsed and was
 handed out again counts once, when it finally ends. A card awaiting
-verification, or accepted and waiting for its merge, isn't stuck, and the
-card is checked with its row locked, so a merge finishing at the same
+verification, or accepted and waiting for its merge, isn't stuck; nor is
+an epic with an open subcard in either state, since its job ended to let
+that subcard be verified or merged first. The card is checked with its row locked, so a merge finishing at the same
 moment is never undone. Completing the card
 starts its count again. The job records what was done (`recovery`:
 `requeued` or `gave_up`). *Work a list with a runner* puts a card back once

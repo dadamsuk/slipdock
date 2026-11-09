@@ -222,7 +222,8 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   label, which the builder and interactive sessions share.
 - A runner job that ends with its card awaiting verification, or accepted
   and waiting for its pull request to merge, has finished: the card stays
-  where it is, and `requeue_stuck` doesn't count it as stuck.
+  where it is, and `requeue_stuck` doesn't count it as stuck. Nor does it
+  count an epic whose job ended with an open subcard in that state.
 - **Whoever submitted it can't decide it** (`403`). A different agent means
   a different token, or a different runner job on the same token. A person
   is always different, and a person completing a pending card accepts it.
