@@ -28,6 +28,12 @@ func TestCheckAgainstTheCeiling(t *testing.T) {
 	if err := (Runner{BoardID: 3, Config: Config{Agent: "claude", Directory: root, PermissionMode: "plan", TimeoutMinutes: 1, Executor: "me"}}).Check(ceiling(root)); err != nil {
 		t.Fatalf("the root itself is inside: %v", err)
 	}
+	atMost := good
+	atMost.Config.PermissionMode = "acceptEdits"
+	atMost.Config.TimeoutMinutes = 60
+	if err := atMost.Check(ceiling(root)); err != nil {
+		t.Fatalf("exactly the highest mode and the longest timeout are inside: %v", err)
+	}
 	cases := map[string]struct {
 		change func(*Runner)
 		want   string

@@ -8,10 +8,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -54,10 +56,15 @@ func helper(mode string, args []string) int {
 		}
 		code, _ := strconv.Atoi(os.Getenv("HELPER_EXIT"))
 		return code
-	case "tree":
+	case "tree", "stubborn-tree":
 		// Starts a child that ticks into $HELPER_TICK, then waits forever:
-		// stopping the job must stop both.
-		child := exec.Command(os.Args[0], "helper", "tick")
+		// stopping the job must stop both. A stubborn tree's child ignores
+		// SIGTERM, so only the forced stop after the grace ends it.
+		tick := "tick"
+		if mode == "stubborn-tree" {
+			tick = "stubborn-tick"
+		}
+		child := exec.Command(os.Args[0], "helper", tick)
 		if err := child.Start(); err != nil {
 			fmt.Println("child:", err)
 			return 1
@@ -65,7 +72,10 @@ func helper(mode string, args []string) int {
 		fmt.Println("started the tree")
 		time.Sleep(time.Hour)
 		return 0
-	case "tick":
+	case "tick", "stubborn-tick":
+		if mode == "stubborn-tick" {
+			signal.Ignore(syscall.SIGTERM)
+		}
 		for i := 0; ; i++ {
 			_ = os.WriteFile(os.Getenv("HELPER_TICK"), []byte(strconv.Itoa(i)), 0o600)
 			time.Sleep(20 * time.Millisecond)

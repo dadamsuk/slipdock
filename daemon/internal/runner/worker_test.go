@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -249,6 +250,44 @@ func TestTheTimeoutStopsTheJobAndEverythingItStarted(t *testing.T) {
 	}
 	if got := r.hooksRan(); !strings.Contains(got, "report exit=124 status=timeout") {
 		t.Fatalf("hooks: %q", got)
+	}
+}
+
+// A child that ignores SIGTERM outlives the polite stop: only the forced
+// one after the grace ends it. Unix only: on Windows taskkill /F is the
+// only stop there is.
+func TestAChildThatIgnoresTermIsKilledAfterTheGrace(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no SIGTERM on Windows: taskkill /F forces from the start")
+	}
+	for _, how := range []string{"timeout", "cancelled"} {
+		t.Run(how, func(t *testing.T) {
+			r, tick := treeRig(t, Config{})
+			r.w.Local.Agents["claude"] = self("stubborn-tree")
+			r.w.Grace = 500 * time.Millisecond
+			id := int64(124)
+			if how == "timeout" {
+				r.w.Timeout = 1500 * time.Millisecond
+			}
+			r.srv.add(fakeJob{runner: 11, id: id, kind: "claude", card: 7, prompt: "x"})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go r.w.Run(ctx)
+			waitFor(t, "the child to tick", func() bool { _, err := os.Stat(tick); return err == nil })
+			if how == "cancelled" {
+				r.srv.mu.Lock()
+				r.srv.cancel[id] = true
+				r.srv.mu.Unlock()
+			}
+			waitFor(t, "the finish", func() bool { _, ok := r.srv.finish(id); return ok })
+			f, _ := r.srv.finish(id)
+			if f.status != how {
+				t.Fatalf("finish = %+v, want %s", f, how)
+			}
+			if ticking(t, tick) {
+				t.Fatal("a child that ignores SIGTERM outlived the grace")
+			}
+		})
 	}
 }
 
