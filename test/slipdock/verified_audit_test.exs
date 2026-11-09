@@ -5,7 +5,8 @@ defmodule Slipdock.VerifiedAuditTest do
   audit (kind `verify`, `audit: true`), never to the runner that built it or
   the one that verified it. Its prompt shows the original verdict and has
   every rule judged; its decision (`agree` / `disagree`) only comments, and
-  a disagreement raises an alert for the board's owner.
+  a disagreement raises an alert for the board's owner and files the rework
+  card (#2632), or comments on the one still open.
   """
   use Slipdock.DataCase, async: true
 
@@ -16,6 +17,7 @@ defmodule Slipdock.VerifiedAuditTest do
   alias Slipdock.Automations.Alert
   alias Slipdock.Boards.Card
   alias Slipdock.Runners.Job
+  alias Slipdock.Verified.Checks
 
   setup do
     owner = user_fixture("audit-owner@example.com")
@@ -264,6 +266,105 @@ defmodule Slipdock.VerifiedAuditTest do
       assert Enum.any?(Automations.list_alerts(ctx.owner), &(&1.id == alert.id))
     end
 
+    test "agree files no rework card", ctx do
+      {:ok, _} =
+        Verified.decide(Repo.get!(Card, ctx.card.id), "agree", %{}, ctx.auditor, ctx.owner)
+
+      assert Verified.open_rework(ctx.card) == nil
+      assert Repo.all(from(c in Card, where: c.caused_by_id == ^ctx.card.id)) == []
+    end
+
+    test "disagree files one rework card, named by the alert and the finding", ctx do
+      {:ok, card} = Boards.update_card(ctx.card, %{"paths" => ["lib/foo/**", "test/foo/**"]})
+
+      {:ok, _} =
+        Verified.decide(
+          Repo.get!(Card, card.id),
+          "disagree",
+          %{
+            "reason" => "bar 1: the empty case fails\nand more",
+            "checks" => ["bar:1=fail:empty", "ask=ok"]
+          },
+          ctx.auditor,
+          ctx.owner
+        )
+
+      assert [rework] = Repo.all(from(c in Card, where: c.caused_by_id == ^card.id))
+      assert Verified.open_rework(card).id == rework.id
+      assert rework.board_id == card.board_id
+      assert rework.title == "Audit of ##{card.id}: bar 1: the empty case fails"
+      assert rework.paths == ["lib/foo/**", "test/foo/**"]
+      assert rework.priority == "medium"
+      refute rework.completed
+      # The board's ready list, not its backlog: the rework is to be taken up.
+      ready = Slipdock.Flow.ready_list(Boards.get_board!(ctx.board.id).columns)
+      assert ready.name == "To Do"
+      assert rework.column_id == ready.id
+
+      said = Boards.get_card!(card.id).comments |> Enum.max_by(& &1.id)
+      assert said.body =~ "**Audit: disagrees**"
+      assert rework.description =~ "An audit disagreed with the acceptance of ##{card.id} "
+      assert rework.description =~ "/boards/#{card.board_id}/cards/#{card.id}#comment-#{said.id}"
+      assert rework.description =~ "Its reason: bar 1: the empty case fails"
+      assert rework.description =~ "What failed:\n\n- bar 1"
+      refute rework.description =~ "- the ask\n"
+      # It counts as an incident of the accepted card (#1946).
+      assert Enum.map(Slipdock.Incidents.caused(card), & &1.id) == [rework.id]
+
+      assert [alert] = alerts(card)
+      assert alert.body =~ "Rework filed: ##{rework.id}"
+
+      assert [finding] =
+               Repo.all(
+                 from(f in Slipdock.Findings.Finding,
+                   where: f.card_id == ^card.id and f.source == "audit"
+                 )
+               )
+
+      assert finding.text =~ "Rework: ##{rework.id}."
+    end
+
+    test "a second disagreement comments on the open rework card, never a second one", ctx do
+      disagree = fn reason ->
+        Verified.decide(
+          Repo.get!(Card, ctx.card.id),
+          "disagree",
+          %{"reason" => reason, "checks" => ["bar:1=fail"]},
+          Actor.web(ctx.owner),
+          ctx.owner
+        )
+      end
+
+      {:ok, _} = disagree.("first look")
+      rework = Verified.open_rework(ctx.card)
+      {:ok, _} = disagree.("second look")
+
+      assert [only] = Repo.all(from(c in Card, where: c.caused_by_id == ^ctx.card.id))
+      assert only.id == rework.id
+
+      [comment] = Boards.get_card!(rework.id).comments
+      assert comment.body =~ "**Audit: disagrees again** with the acceptance of ##{ctx.card.id}"
+      assert comment.body =~ "second look"
+      assert comment.body =~ "- bar 1"
+
+      assert Enum.any?(alerts(ctx.card), &(&1.body =~ "Rework already open: ##{rework.id}"))
+
+      # Once that rework is done, the next disagreement files a new one.
+      {:ok, _} = Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+      {:ok, _} = disagree.("third look")
+      assert length(Repo.all(from(c in Card, where: c.caused_by_id == ^ctx.card.id))) == 2
+      refute Verified.open_rework(ctx.card).id == rework.id
+    end
+
+    test "a card a person names as caused by the accepted one isn't taken for its rework", ctx do
+      ready = Enum.find(ctx.board.columns, &(&1.category == "todo"))
+
+      {:ok, _} =
+        Boards.create_card(ready, %{"title" => "Broke later", "caused_by_id" => ctx.card.id})
+
+      assert Verified.open_rework(ctx.card) == nil
+    end
+
     test "is refused from the verifier, from an agent outside the audit job, or on a card not accepted",
          ctx do
       card = Repo.get!(Card, ctx.card.id)
@@ -292,6 +393,64 @@ defmodule Slipdock.VerifiedAuditTest do
 
       assert {:error, :conflict, _} =
                Verified.decide(Repo.get!(Card, card.id), "accept", %{}, ctx.auditor, ctx.owner)
+    end
+  end
+
+  describe "a rework's priority and title" do
+    setup ctx do
+      %{card: build_and_verify(ctx)}
+    end
+
+    test "high for a surviving mutant or a broken must rule, else not" do
+      {:ok, survived} = Checks.parse(["mutant:survived=lib/a.ex:3:drop the guard"])
+      {:ok, killed} = Checks.parse(["mutant:killed=lib/a.ex:3:drop the guard"])
+      {:ok, unknown_rule} = Checks.parse(["rule:UX-4=broken:hex colour"])
+      {:ok, bar} = Checks.parse(["bar:1=fail"])
+
+      assert Verified.urgent_disagreement?(survived)
+      refute Verified.urgent_disagreement?(killed)
+      # A rule the handbook doesn't know counts as a must.
+      assert Verified.urgent_disagreement?(unknown_rule)
+
+      assert Verified.urgent_disagreement?(
+               Checks.with_severity(unknown_rule, [%{id: "UX-4", severity: "must"}])
+             )
+
+      refute Verified.urgent_disagreement?(
+               put_in(unknown_rule, ["rules", Access.at(0), "severity"], "should")
+             )
+
+      refute Verified.urgent_disagreement?(bar)
+      refute Verified.urgent_disagreement?(nil)
+    end
+
+    test "the title is the reason's first line, cut to fit", ctx do
+      card = ctx.card
+      long = String.duplicate("x", 200)
+      title = Verified.rework_title(card, long)
+      assert String.length(title) == 72
+      assert String.ends_with?(title, "…")
+      assert Verified.rework_title(card, "  short\nrest") == "Audit of ##{card.id}: short"
+    end
+
+    test "a surviving mutant files its rework as high", ctx do
+      {:ok, _} =
+        Verified.decide(
+          Repo.get!(Card, ctx.card.id),
+          "disagree",
+          %{
+            "reason" => "a mutant lives",
+            "checks" => [
+              "mutant:survived=daemon/ceiling.go:40:flip > to >=:a test at the ceiling"
+            ]
+          },
+          Actor.web(ctx.owner),
+          ctx.owner
+        )
+
+      rework = Verified.open_rework(ctx.card)
+      assert rework.priority == "high"
+      assert rework.description =~ "the surviving mutant at daemon/ceiling.go:40"
     end
   end
 

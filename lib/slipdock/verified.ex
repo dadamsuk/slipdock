@@ -2392,7 +2392,7 @@ defmodule Slipdock.Verified do
     """
     Audit card ##{card.id} “#{card.title}” on #{board.name}: #{url}
 
-    Another agent did the work, and a verifier accepted it. You are checking the checker: judge the work afresh, as the verifier should have, then say whether you agree with its verdict. You change nothing: not the code, not the card. Your decision is a comment, and a disagreement raises an alert for the board's owner; the acceptance stands either way.
+    Another agent did the work, and a verifier accepted it. You are checking the checker: judge the work afresh, as the verifier should have, then say whether you agree with its verdict. You change nothing: not the code, not the card. Your decision is a comment, and the acceptance stands either way; a disagreement files a rework card from your reason and failing parts (or comments on the one still open), and raises an alert for the board's owner. So make the reason's first line say what is wrong: it is the rework card's title.
 
     The verdict you are auditing: accepted by #{who(card.verify_by)}#{if card.verify_at, do: " at #{card.verify_at}", else: ""}.
     #{original_verdict(card)}
@@ -2488,17 +2488,20 @@ defmodule Slipdock.Verified do
         do: "**Audit: agrees** with the acceptance, by #{by}.",
         else: "**Audit: disagrees** with the acceptance, by #{by}."
 
-    comment(card, line, with_parts(blank_to_nil(reason), checks), user)
+    said = comment(card, line, with_parts(blank_to_nil(reason), checks), user)
 
     unless agrees do
-      Slipdock.Findings.Signals.audit_disagreed(card, reason, actor)
+      # The rework is filed with the disagreement (#2632), and the finding
+      # and the alert name it.
+      rework = file_rework(card, reason, checks, said, by, user)
+      Slipdock.Findings.Signals.audit_disagreed(card, reason, actor, rework)
       root = card |> board() |> Slipdock.Handbook.root()
 
       title = "An audit disagrees with the acceptance of ##{card.id}"
 
       body =
         "#{by} audited “#{card.title}”, accepted by #{who(card.verify_by)}: " <>
-          String.slice(reason, 0, 500)
+          String.slice(reason, 0, 500) <> rework_line(rework)
 
       Slipdock.Automations.raise_alert(%{
         "board_id" => root.id,
@@ -2514,6 +2517,154 @@ defmodule Slipdock.Verified do
 
     {:ok, Repo.get!(Card, card.id)}
   end
+
+  ## An audit's rework (#2632) --------------------------------------------------
+
+  @rework_lead "An audit disagreed with the acceptance of #"
+
+  @doc """
+  The open rework card an audit filed for `card` (#2632): open, not
+  archived, caused by `card`, and filed by an audit (its description starts
+  with what `file_rework/6` writes). Nil when there is none.
+  """
+  def open_rework(%Card{id: id}) do
+    lead = "#{@rework_lead}#{id} %"
+
+    Repo.one(
+      from c in Card,
+        where:
+          c.caused_by_id == ^id and is_nil(c.archived_at) and c.completed == false and
+            like(c.description, ^lead),
+        order_by: [desc: c.id],
+        limit: 1
+    )
+  end
+
+  @doc """
+  Whether a disagreement's parts (#2632) make its rework urgent: a mutant
+  that survived, or a `must` rule broken (a rule the handbook doesn't know
+  counts as one).
+  """
+  def urgent_disagreement?(%{} = checks) do
+    Enum.any?(Slipdock.Verified.Checks.mutants(checks), &(&1["result"] == "survived")) or
+      Enum.any?(
+        checks["rules"] || [],
+        &(&1["result"] == "broken" and &1["severity"] in ["must", nil])
+      )
+  end
+
+  def urgent_disagreement?(_checks), do: false
+
+  @doc "A rework card's title (#2632): the audit's reason, after the card it reworks."
+  def rework_title(%Card{id: id}, reason) do
+    lead = "Audit of ##{id}: "
+
+    first =
+      reason
+      |> to_string()
+      |> String.split("\n", trim: true)
+      |> List.first("")
+      |> String.trim()
+
+    room = 72 - String.length(lead)
+
+    if String.length(first) > room,
+      do: lead <> String.slice(first, 0, room - 1) <> "…",
+      else: lead <> first
+  end
+
+  # A disagreement files the rework itself (#2632): one card on the accepted
+  # card's board, caused by it (an incident, #1946), or a comment on the one
+  # still open from an earlier disagreement. Nothing here may stop the audit
+  # being recorded: a card that can't be made is logged, and the alert says
+  # nothing of a rework.
+  defp file_rework(card, reason, checks, said, by, user) do
+    link = said_link(card, said)
+    failed = rework_failed(checks)
+
+    case open_rework(card) do
+      %Card{} = rework ->
+        body =
+          "**Audit: disagrees again** with the acceptance of ##{card.id}, by #{by}: #{link}\n\n" <>
+            reason <> failed
+
+        Slipdock.Boards.add_comment(rework, body, by: user)
+        {:commented, rework}
+
+      nil ->
+        new_rework(card, reason, checks, link, failed, by)
+    end
+  rescue
+    e ->
+      require Logger
+      Logger.warning("audit rework not filed for ##{card.id}: #{Exception.message(e)}")
+      nil
+  end
+
+  defp new_rework(card, reason, checks, link, failed, by) do
+    board = card |> board() |> Repo.preload(:columns)
+    columns = Enum.sort_by(board.columns, & &1.position)
+    column = Slipdock.Flow.ready_list(columns) || List.first(columns)
+
+    description =
+      "#{@rework_lead}#{card.id} “#{card.title}” (accepted by #{who(card.verify_by)}): " <>
+        "#{by} found it short after the merge. The audit: #{link}\n\n" <>
+        "Its reason: #{reason}" <>
+        failed <>
+        "\n\nThe accepted card is done and stays done: the fix lands on this card. " <>
+        "It names that card as its cause, so it counts as an incident (#1946)."
+
+    attrs = %{
+      "title" => rework_title(card, reason),
+      "description" => description,
+      "paths" => card.paths || [],
+      "caused_by_id" => card.id,
+      "priority" => if(urgent_disagreement?(checks), do: "high", else: "medium")
+    }
+
+    case Slipdock.Boards.create_card(column, attrs, actor: Slipdock.Actor.automation()) do
+      {:ok, rework} ->
+        {:filed, rework}
+
+      {:error, error} ->
+        require Logger
+        Logger.warning("audit rework not filed for ##{card.id}: #{inspect(error)}")
+        nil
+    end
+  end
+
+  defp said_link(card, said) do
+    url = "#{Slipdock.Automations.Runner.base_url()}/boards/#{card.board_id}/cards/#{card.id}"
+
+    case said do
+      {:ok, %{id: id}} -> "#{url}#comment-#{id}"
+      _ -> url
+    end
+  end
+
+  defp rework_failed(checks) do
+    case Slipdock.Verified.Checks.failing(checks || %{}) do
+      [] ->
+        ""
+
+      parts ->
+        "\n\nWhat failed:\n\n" <> Enum.map_join(parts, "\n", &"- #{&1}") <> parts_md(checks)
+    end
+  end
+
+  defp parts_md(checks) do
+    case Slipdock.Verified.Checks.markdown(checks) do
+      "" -> ""
+      md -> "\n\nThe audit's parts:\n\n" <> md
+    end
+  end
+
+  defp rework_line({:filed, rework}), do: "\nRework filed: ##{rework.id} “#{rework.title}”."
+
+  defp rework_line({:commented, rework}),
+    do: "\nRework already open: ##{rework.id} “#{rework.title}” (commented)."
+
+  defp rework_line(nil), do: ""
 
   ## Verify jobs ---------------------------------------------------------------
 

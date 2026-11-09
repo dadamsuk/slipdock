@@ -1015,7 +1015,10 @@ With one on, the pass changes like this:
   `should` rules too, against the original verdict its prompt shows, then
   `slipdock verify <id> agree --reason "…"` or `disagree --reason "<where
   the verdict is wrong>"` with your own `--check` parts. It changes
-  nothing: a disagreement is a comment and an alert for the board's owner.
+  nothing on the card: a disagreement is a comment, an alert for the
+  board's owner and a rework card the server files from your reason (its
+  first line is the title) and failing parts, or a comment on the one
+  still open. So the reason's first line says what is wrong.
 
 ## Lanes
 

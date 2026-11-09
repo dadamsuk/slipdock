@@ -9,7 +9,8 @@ defmodule Slipdock.Findings.Signals do
     * a runner job **times out** or **fails** (`job_ended/1`)
     * its card is **requeued** or given up on (`requeued/3`, `gave_up/2`)
     * a **merge** job fails (`merge_failed/3`)
-    * an **audit** disagrees (`audit_disagreed/3`)
+    * an **audit** disagrees (`audit_disagreed/4`), naming the rework card it
+      filed or commented on (#2632)
     * a verdict reports a rule broken in code the change didn't touch
       (`pre_existing/3`, source `verification`: it isn't a rejection), or a
       mutant surviving there (`pre_existing_mutants/3`, #2354)
@@ -236,16 +237,21 @@ defmodule Slipdock.Findings.Signals do
   end
 
   @doc "An audit disagreed with `card`'s acceptance."
-  def audit_disagreed(%Card{} = card, reason, actor) do
+  def audit_disagreed(%Card{} = card, reason, actor, rework \\ nil) do
     record(%{
       card: card,
       source: "audit",
       kind: "process",
       cause: "audit disagrees",
-      text: "An audit disagrees with the acceptance: " <> to_string(reason),
+      text:
+        "An audit disagrees with the acceptance: " <> to_string(reason) <> rework_text(rework),
       job_id: job_id(actor)
     })
   end
+
+  # The rework the disagreement filed, or commented on (#2632).
+  defp rework_text({_how, %Card{id: id}}), do: " Rework: ##{id}."
+  defp rework_text(_), do: ""
 
   @doc """
   The health monitor flagged an incident: one finding on each card it is

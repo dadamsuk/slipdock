@@ -211,11 +211,19 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   it takes the audit. On a pull request board the audit is queued once the
   pull request has merged. Its prompt shows the original verdict, reason and
   parts, and asks for every rule to be judged, `should` rules too. An audit
-  changes nothing: its agent answers `slipdock verify 12 agree` or
+  changes nothing on the card: its agent answers `slipdock verify 12 agree` or
   `disagree --reason "…"` (with `--check` parts, as a verifier does), which
-  posts a comment. A disagreement also raises an alert for the board's owner.
-  The acceptance stands either way: the work has shipped, so a disagreement
-  is for a person to follow up.
+  posts a comment. The acceptance stands either way: the work has shipped,
+  so a disagreement files the rework itself. It makes one card in the
+  accepted card's board's ready list, titled *Audit of #12: …* from the
+  audit's reason. Its description is the reason, the parts that failed and a link to the audit's comment; its
+  paths are the accepted card's; it names the accepted card as its cause,
+  so it counts as an incident of it; and its priority is *high* when a
+  mutant survived or a `must` rule is broken, *medium* otherwise. The
+  alert raised for the board's owner and the `audit` finding name that
+  card. A second disagreement on the same card, while that rework card is
+  still open, comments on it instead of making another. An audit that
+  agrees files nothing.
 - A decision made in a runner job on the card (the CLI sends
   `$SLIPDOCK_JOB_ID` as `x-slipdock-job`; MCP the job it claimed) is
   credited to the runner: *Accepted by runner verifier*, not the token's
