@@ -53,7 +53,8 @@ defmodule Slipdock.ScriptsRetiredDocsTest do
     "`server` (the default)",
     "job_verify",
     "WORKTREE_REPO",
-    "Change Settings"
+    "Change Settings",
+    "passlog.sh"
   ]
 
   test "no doc, help page or skill says how to install, update or set up a shell runner" do
