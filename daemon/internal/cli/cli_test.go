@@ -382,7 +382,8 @@ func TestShowFillsTheContract(t *testing.T) {
 	out := w.out.String()
 	id, _ := machine.LoadOrCreateIdentity(w.dir)
 	for _, want := range []string{"trust contract", "Machine:       box (#7)", id.Fingerprint(),
-		"Working directories inside: " + w.home, "Jobs run as:   builder", "Run a command on this machine",
+		"Working directories inside: " + w.home, "Jobs run as\n  me:         builder, as it is", "Run a command on this machine",
+		"What each executor stops", "First-install trust",
 		filepath.Join(w.dir, machine.CeilingFile)} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q", want)
@@ -393,6 +394,11 @@ func TestShowFillsTheContract(t *testing.T) {
 	if code := empty.main("show"); code != 1 || !strings.Contains(empty.errOut.String(), "not enrolled") {
 		t.Fatalf("unenrolled: %d %s", code, empty.errOut)
 	}
+	os.WriteFile(filepath.Join(w.dir, machine.LocalFile), []byte("{not json"), 0o600)
+	if code := w.main("show"); code != 1 || !strings.Contains(w.errOut.String(), machine.LocalFile) {
+		t.Fatalf("a broken local file: %d %s", code, w.errOut)
+	}
+	os.Remove(filepath.Join(w.dir, machine.LocalFile))
 	os.Remove(filepath.Join(w.dir, machine.CeilingFile))
 	if code := w.main("show"); code != 1 || !strings.Contains(w.errOut.String(), "the ceiling") {
 		t.Fatalf("no ceiling: %d %s", code, w.errOut)

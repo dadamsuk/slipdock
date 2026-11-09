@@ -8,6 +8,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
   use SlipdockWeb, :html
 
   import SlipdockWeb.HelpLive.Components
+  import SlipdockWeb.TrustContract, only: [trust_contract: 1]
 
   # The ways in, in the order the page presents them: what needs least first.
   @topics [
@@ -1308,6 +1309,16 @@ defmodule SlipdockWeb.HelpLive.Agents do
         running its suite, and corrects the page where it was wrong, so the next machine is set up
         from the page alone.
       </p>
+    </.part>
+
+    <.part id="help-trust-contract" title="What the server can and cannot do">
+      <p>
+        A machine with the runner daemon takes data from this server, never a command. This
+        is the trust contract: the same text is on each machine's page, and on the machine
+        <code>slipdock-runner show</code>
+        prints it after that machine's own limits.
+      </p>
+      <.trust_contract />
     </.part>
 
     <.part title="Sending it work">

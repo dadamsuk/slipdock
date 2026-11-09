@@ -1,0 +1,27 @@
+The Slipdock runner's trust contract
+====================================
+
+This machine
+------------
+  Server:        {{.Server}}
+  Machine:       {{.Name}} (#{{.MachineID}})
+  Fingerprint:   {{.Fingerprint}}
+  Daemon:        slipdock-runner {{.Version}}
+  Machine key:   {{.KeyPath}}
+
+Its ceiling ({{.CeilingPath}})
+  Working directories inside: {{join .Ceiling.Roots ", "}}
+  Agents:                     {{join .Ceiling.Agents ", "}}
+  Highest permission mode:    {{.Ceiling.MaxPermissionMode}}
+  Longest job:                {{.Ceiling.MaxTimeoutMinutes}} minutes
+  Boards served:              {{boards .Ceiling.Boards}}
+  Executors allowed:          {{join .Ceiling.Offered ", "}}
+
+Jobs run as
+{{- range .RunsAs}}
+  {{.}}
+{{- end}}
+
+Only a person at this machine changes the ceiling, by editing that file.
+The server never reads or writes it.
+
