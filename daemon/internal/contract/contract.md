@@ -51,6 +51,14 @@ the machine on the Machines page ends the key at once.
   who signs the releases. A self-hosted server can't author an update;
   the hosted operator can, as anyone who downloads the tool already
   trusts them to.
+- The slipdock CLI. Before each agent job the daemon puts the server's
+  `slipdock` CLI in its own folder, first on the job's PATH (or over the
+  one `local.json` names as `cli`), when it differs from the one there.
+  The agent runs it, and it is checked only against the checksum the same
+  server publishes, not the release key: a server can change the program
+  the agent calls, as it can the slipdock skills the agent reads. Set
+  `no_cli_update` (and `no_skills_update`) in `local.json` to keep your
+  own.
 - Network access. A job can reach the network, and so can send anything
   it can read to anywhere, unless its runner uses the `container`
   executor with the network off. No other executor limits the network.

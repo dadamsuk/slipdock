@@ -1311,6 +1311,20 @@ defmodule SlipdockWeb.HelpLive.Agents do
         if it has one. The page shows the probe green with when it passed, or red with its
         log. A probe is a job with no card, sent only to that runner.
       </p>
+      <p id="help-machine-keeps-current">
+        After a deploy there is nothing to do on the machine: before each agent job (not a
+        merge or a probe) the daemon puts this server's slipdock skills in place and, when
+        <code>/cli/SHA256SUMS</code>
+        differs from its <code>slipdock</code>
+        CLI, fetches this server's CLI, checks its SHA-256 and puts it in the daemon's own
+        folder, first on the job's PATH, never over a copy installed elsewhere unless the
+        machine's <code>local.json</code>
+        names it as <code>cli</code>. A failed fetch or a wrong sum keeps the CLI it had, and
+        the job runs. The runner reports the current CLI at its next claim, and its probe goes
+        green. <code>no_cli_update</code>
+        (and <code>no_skills_update</code>) in <code>local.json</code>
+        turns it off.
+      </p>
       <p id="help-machine-setup">
         <strong>Set up this machine with Claude</strong>, on the machine's page and at the end of
         <code>slipdock-runner init</code>

@@ -263,6 +263,9 @@ func (w *Worker) cliPath() string {
 	if w.Local.CLI != "" {
 		return w.Local.CLI
 	}
+	if w.usesDaemonCLI() {
+		return w.daemonCLI() // the server's, kept current (#2631)
+	}
 	if w.Executor != nil && w.Executor.Name() == executor.Container {
 		p, _ := w.LookPath("slipdock")
 		return p // the machine's, mounted over the image's
@@ -458,7 +461,7 @@ func (w *Worker) jobEnv(j *jobRun) []string {
 		// hands its builds to) 10 minutes after its last turn; 0 waits (#1812).
 		env = append(env, "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0")
 	}
-	return env
+	return append(env, w.cliEnv()...)
 }
 
 func cardText(id int64) string {
@@ -511,6 +514,7 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 		return
 	}
 	w.keepSkills(ctx, j)
+	w.keepCLI(ctx, j)
 	wt := w.Runner.Config.Worktree
 	if wt == "on" || (wt == "auto" && w.SharedDir) {
 		if j.lane, err = openLane(ctx, w.Exec, w.Executor.IsDir, j.dir, job.CardID, j.note); err != nil {
