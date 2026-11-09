@@ -915,7 +915,10 @@ With one on, the pass changes like this:
   did>"` (`complete_card` `no_code`), and accepting it merges nothing.
   A merge that fails sends the
   card back rejected, the merge's reason as the rejection: rebase
-  `card-<id>` on the default branch, push, and complete it again.
+  `card-<id>` on the default branch, push, and complete it again. A PR
+  already merged at the accepted commit isn't a failure: it completes the
+  card with that merge commit. One merged at another head leaves the card
+  merging, says which head, and isn't a rejection either.
   **A card tagged `security`** ships a neutral pull request, because the
   repository may be public and the PR is readable before the fix deploys:
   the title `Maintenance (#<id>)`, not the card's, `--body "Card #<id>."`

@@ -101,6 +101,7 @@ test/slipdock_web/wait_docs_test.exs
 test/slipdock_web/wait_rule_docs_test.exs
 test/slipdock_web/now_cli_docs_test.exs
 test/slipdock/incidents_docs_test.exs
+test/slipdock/merged_elsewhere_docs_test.exs
 test/slipdock/profiles_docs_test.exs
 test/slipdock/trust_contract_test.exs
 
