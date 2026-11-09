@@ -289,6 +289,11 @@ func TestConfinedIsntReadyWithoutWhatItNeeds(t *testing.T) {
 		if err := ex.Ready(); err == nil || !strings.Contains(err.Error(), "gone") {
 			t.Fatalf("a launcher that isn't there: %v", err)
 		}
+	} else if runtime.GOOS == "linux" {
+		// Below ABI 3 (WSL2's 5.15, say) the kernel is the reason, before the launcher.
+		if !strings.Contains(err.Error(), "Landlock ABI 3 or later") {
+			t.Fatalf("says the kernel is why: %v", err)
+		}
 	}
 	if runtime.GOOS != "linux" && !strings.Contains(err.Error(), "Landlock") {
 		t.Fatalf("no Landlock here: %v", err)
