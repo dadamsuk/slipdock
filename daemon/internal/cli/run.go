@@ -14,6 +14,7 @@ import (
 
 	"github.com/dadamsuk/slipdock/daemon/internal/enrol"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
+	"github.com/dadamsuk/slipdock/daemon/internal/machineconfig"
 	"github.com/dadamsuk/slipdock/daemon/internal/runner"
 )
 
@@ -82,7 +83,7 @@ func cmdRun(args []string, env Env) error {
 	runners.Add(1)
 	go func() {
 		defer runners.Done()
-		if err := runRunners(ctx, d, st, key, ceil, local, env, logger.Printf); errors.Is(err, runner.ErrRevoked) {
+		if err := runRunners(ctx, d, st, key, ceil, local, env, client.Sleep, logger.Printf); errors.Is(err, runner.ErrRevoked) {
 			close(revoked)
 			stopAll()
 		}
@@ -114,40 +115,22 @@ func cmdRun(args []string, env Env) error {
 	}
 }
 
-// runRunners reads the machine's runners from the server (asking again
-// until it answers), starts a worker for each one inside the ceiling, and
-// supervises them until ctx ends. Taking changes as they come, and keeping
-// the last accepted config for a start offline, is #2575's.
-func runRunners(ctx context.Context, d string, st machine.State, key string, ceil machine.Ceiling, local machine.Local, env Env, logf func(string, ...any)) error {
+// configWait is how long each of run's asks for the machine's config waits
+// for a change (the server's most).
+const configWait = 50
+
+// runRunners runs the machine's runners and keeps them to the machine's
+// config as the server changes it (#2575): each change checked against the
+// ceiling and reported, applied between jobs, without a restart. Until the
+// server first answers, it runs what was last accepted, from the cache.
+// pause waits between asks, returning early when ctx ends.
+func runRunners(ctx context.Context, d string, st machine.State, key string, ceil machine.Ceiling, local machine.Local, env Env,
+	pause func(context.Context, time.Duration) error, logf func(string, ...any)) error {
 	hc := &http.Client{}
 	if env.HTTP != nil && env.HTTP.Transport != nil {
 		hc.Transport = env.HTTP.Transport
 	}
 	client := &runner.Client{Server: st.Server, Key: key, HTTP: hc, UserAgent: "slipdock-runner/" + Version}
-	var mc *runner.MachineConfig
-	for mc == nil {
-		var err error
-		mc, err = client.FetchConfig(ctx, -1, 0)
-		switch {
-		case ctx.Err() != nil:
-			return nil
-		case runner.IsRevoked(err):
-			return runner.ErrRevoked
-		case err != nil:
-			logf("can't read this machine's runners, trying again in %s: %v", configRetry, err)
-		case mc == nil:
-			logf("the server sent no config for this machine, trying again in %s", configRetry)
-		}
-		if mc == nil {
-			t := time.NewTimer(configRetry)
-			select {
-			case <-ctx.Done():
-				t.Stop()
-				return nil
-			case <-t.C:
-			}
-		}
-	}
 	home, _ := env.UserHome()
 	base := runner.Worker{
 		Client:   client,
@@ -159,12 +142,49 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 		Getenv:   env.Getenv,
 		LookPath: env.LookPath,
 	}
-	workers, refused := runner.Build(mc, ceil, base)
-	for _, r := range mc.Runners {
-		if err, ok := refused[r.ID]; ok {
-			logf("runner %s (#%d) is outside this machine's ceiling, so it doesn't run: %v", r.Name, r.ID, err)
-		}
+	pool := runner.NewPool(ctx, logf)
+	ctx = pool.Context()
+	keeper := &machineconfig.Keeper{Dir: d, Ceiling: ceil, Server: client, Logf: logf}
+	apply := func(running []runner.Runner, listed int) {
+		workers, _ := runner.Build(&runner.MachineConfig{Version: keeper.Version(), Runners: running}, ceil, base)
+		pool.Apply(workers)
+		logf("config version %d: %d of %d runners running", keeper.Version(), len(workers), listed)
 	}
-	logf("config version %d: %d of %d runners running", mc.Version, len(workers), len(mc.Runners))
-	return runner.Supervise(ctx, workers, logf)
+
+	cached, err := keeper.Load()
+	if err != nil {
+		logf("can't read the cached config, so waiting for the server's: %v", err)
+	}
+	since, wait, started := int64(-1), 0, false
+	for {
+		l, err := client.FetchConfig(ctx, since, wait)
+		switch {
+		case ctx.Err() != nil:
+			return pool.Wait()
+		case runner.IsRevoked(err):
+			pool.Stop()
+			pool.Wait()
+			return runner.ErrRevoked
+		case err != nil:
+			if !started && cached {
+				logf("the server can't be reached, so starting from the cached config (version %d)", keeper.Version())
+				apply(keeper.Running(), len(keeper.Running()))
+				started = true
+			}
+			logf("can't read this machine's runners, trying again in %s: %v", configRetry, err)
+			if pause(ctx, configRetry) != nil {
+				return pool.Wait()
+			}
+			continue
+		case l != nil && (since < 0 || l.Version > since):
+			apply(keeper.Apply(l), len(l.Runners))
+			since, wait, started = l.Version, configWait, true
+		case l != nil:
+			// An answer at once with nothing newer: don't ask again at once.
+			if pause(ctx, configRetry) != nil {
+				return pool.Wait()
+			}
+		}
+		keeper.Flush(ctx)
+	}
 }

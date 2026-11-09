@@ -64,8 +64,9 @@ directory (`~/.config` on Linux, `~/Library/Application Support` on macOS,
 `%AppData%` on Windows), or `$SLIPDOCK_RUNNER_HOME`, or `--home DIR` on any
 command. It holds `machine.json` (the server and the machine's id),
 `machine-key`, `identity` (the key pair the fingerprint comes from),
-`ceiling.json`, `local.json` (below) and `jobs/`, each runner's log of its
-current job.
+`ceiling.json`, `local.json` (below), `jobs/` (each runner's log of its
+current job), `config-cache.json` (the settings last accepted) and
+`changes.log` (every change to them).
 
 ### The ceiling
 
@@ -126,6 +127,33 @@ optional, and with no file at all `claude` and `codex` are found on your
 A job whose agent or hook the file doesn't define fails before anything
 runs, and its log on the card says which name was missing. A file with a
 field the daemon doesn't know is refused, so a typo can't be ignored.
+
+### How settings from the board arrive
+
+The daemon keeps asking the server for the machine's runners, so a change
+made on the board arrives within seconds, with no restart and no shell.
+Each runner's settings are checked against the ceiling as they arrive:
+
+- **Inside it**, they are accepted, and the Machines page shows the version
+  taken. A runner whose settings changed takes them once the job it holds
+  has finished. A new runner starts taking jobs at once.
+- **Outside it**, they are refused, and the page shows why. The runner keeps
+  the settings it last accepted, or doesn't run if it never had any. A pause
+  is still taken, since it only narrows.
+- **Paused or removed** on the board, a runner takes no more jobs. The job it
+  holds finishes first.
+
+What was accepted is kept in `config-cache.json`. A daemon that starts
+while the server can't be reached runs from it, then takes the server's
+settings once it answers. A runner that a narrower ceiling now leaves out
+isn't started from the cache. Every change is written to `changes.log`,
+one line each, with the time, the runner, the version, whether it was
+accepted or refused (and why), and each field that changed, old and new:
+
+```
+2026-11-09T12:00:00Z runner builder (#21) v3 changed and accepted: permission_mode "default" → "acceptEdits"
+2026-11-09T12:05:00Z runner builder (#21) v4 rejected, it keeps v3: directory "/etc" is not inside ~/src (directory "~/src/app" → "/etc")
+```
 
 ### How the daemon runs a job
 
