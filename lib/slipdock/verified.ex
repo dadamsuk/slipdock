@@ -876,6 +876,9 @@ defmodule Slipdock.Verified do
   completing. Said in a claimed job's prompt and in the card's JSON, so a
   runner or an older skill needs nothing else to know.
 
+  A spike (`Slipdock.Profiles.spike?/1`, #2351) gets `spike_note/1`
+  instead, on any board: its code is never merged.
+
   A card tagged `security` (see `neutral?/1`, #1794) gets a neutral pull
   request instead: the repository may be public, and a PR describes the
   hole for anyone to read before the fix deploys. Its title is
@@ -884,30 +887,36 @@ defmodule Slipdock.Verified do
   commits, title and body to a neutral description of the change.
   """
   def ship_instructions(%Card{} = card) do
-    if Board.ships_by_pr?(board(card)) do
-      branch = pr_branch(card)
-      neutral = neutral?(card)
-
-      create =
-        if neutral,
-          do:
-            ~s(gh pr create --head #{branch} --title "#{neutral_pr_title(card)}" --body "Card ##{card.id}.")
-            |> then(&"`#{&1}` (a neutral title, not the card's)"),
-          else: "`gh pr create --head #{branch} --title \"#{pr_title(card)}\" --fill`"
-
-      """
-      This board ships by pull request: never push the default branch.
-      - Work on the branch `#{branch}`: `git fetch origin && git switch #{branch}` if it is on origin (a rejected card's earlier attempt), else `git switch -c #{branch}`. Rebase it on the default branch before pushing.
-      - Commit with the card id (##{card.id}) in the message, then `git push -u origin #{branch}`.
-      - Open the pull request once: `gh pr view #{branch}` shows one already open, which the push has updated; otherwise #{create}.
-      #{if neutral, do: neutral_note() <> "\n", else: ""}- Before pushing, run the tests you added or changed and the project's own pre-push checks, not the whole suite: the pull request's CI runs it. #{pre_push_checks(card)}
-      - The build to watch is the pull request's (`gh pr checks #{branch} --watch --fail-fast`, so a failed check stops the watch when it fails). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
-      - Complete the card with its URL and its head commit: `slipdock done #{card.id} --pr <url> --evidence-commit <sha>` (complete_card `pr` and `commit`; the sha is `gh pr view card-#{card.id} --json headRefOid -q .headRefOid`, and a PR without one is refused, on a resubmission too), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
-      #{profiles_note(card)}#{no_code_note(card)}
-      #{if epic?(card), do: epic_note(card), else: ""}
-      """
-      |> String.trim_trailing()
+    cond do
+      Slipdock.Profiles.spike?(card) -> spike_note(card)
+      Board.ships_by_pr?(board(card)) -> pr_instructions(card)
+      true -> nil
     end
+  end
+
+  defp pr_instructions(card) do
+    branch = pr_branch(card)
+    neutral = neutral?(card)
+
+    create =
+      if neutral,
+        do:
+          ~s(gh pr create --head #{branch} --title "#{neutral_pr_title(card)}" --body "Card ##{card.id}.")
+          |> then(&"`#{&1}` (a neutral title, not the card's)"),
+        else: "`gh pr create --head #{branch} --title \"#{pr_title(card)}\" --fill`"
+
+    """
+    This board ships by pull request: never push the default branch.
+    - Work on the branch `#{branch}`: `git fetch origin && git switch #{branch}` if it is on origin (a rejected card's earlier attempt), else `git switch -c #{branch}`. Rebase it on the default branch before pushing.
+    - Commit with the card id (##{card.id}) in the message, then `git push -u origin #{branch}`.
+    - Open the pull request once: `gh pr view #{branch}` shows one already open, which the push has updated; otherwise #{create}.
+    #{if neutral, do: neutral_note() <> "\n", else: ""}- Before pushing, run the tests you added or changed and the project's own pre-push checks, not the whole suite: the pull request's CI runs it. #{pre_push_checks(card)}
+    - The build to watch is the pull request's (`gh pr checks #{branch} --watch --fail-fast`, so a failed check stops the watch when it fails). Fix what it finds in this pass. If the pull request has no checks, run the whole suite yourself.
+    - Complete the card with its URL and its head commit: `slipdock done #{card.id} --pr <url> --evidence-commit <sha>` (complete_card `pr` and `commit`; the sha is `gh pr view card-#{card.id} --json headRefOid -q .headRefOid`, and a PR without one is refused, on a resubmission too), with the rest of your evidence: CI's result as the suite (`--suite passed`, with its counts if CI shows them) and its run in `--evidence`. Accepting the card merges it; don't merge it yourself.
+    #{profiles_note(card)}#{no_code_note(card)}
+    #{if epic?(card), do: epic_note(card), else: ""}
+    """
+    |> String.trim_trailing()
   end
 
   @doc """
@@ -920,6 +929,25 @@ defmodule Slipdock.Verified do
       do:
         "- Give the change with it: `--diff-base origin/<default branch>` counts its changed lines and files from git (complete_card `changed_lines` and `changed_files`), and a change bigger or stricter than the card's profile raises it.\n",
       else: ""
+  end
+
+  @doc """
+  What the builder of a spike is told (#2351), on any board: a spike
+  answers a question by building, and its code is never merged. Build the
+  prototype on `card-<id>` and push it, never a pull request or the default
+  branch; write the answer page and pin it to the epic; complete with
+  `--no-code` naming the page and the branch.
+  """
+  def spike_note(%Card{id: id} = card) do
+    branch = pr_branch(card)
+
+    """
+    This card is a spike: it answers its bar's question by building, and its code is never merged.
+    - Build the prototype on the branch `#{branch}` and push it (`git push -u origin #{branch}`) so the evidence can point at it. Never push the default branch and never open a pull request; close any you opened.
+    - Spend one sitting on it. An answer of *inconclusive*, with what was learned, is a finished spike; a guess is not.
+    - Write the answer as a wiki page and pin it to the epic (`slipdock page new <board> "Spike: <the question>" --card <epic id>`): the question, the answer (or *inconclusive*), the evidence (numbers, logs, the branch and commit; not claims), and what the answer changes in the plan. Put a `Findings:` block in the closing comment with it.
+    - Complete it with why there is nothing to merge: `slipdock done #{id} --no-code "spike: answer on W-…, prototype on #{branch}" --evidence "<the answer in a line, the evidence, the page>"` (complete_card `no_code`). A pull request named on a spike is refused, and accepting it merges nothing.\
+    """
   end
 
   @doc """
@@ -2943,7 +2971,13 @@ defmodule Slipdock.Verified do
   # Step 2 of the verify prompt. On a pull request board the PR's CI has run
   # the suite at the submitted commit, so the verifier reads the change and
   # checks CI rather than running the suite again (#1808).
-  defp check_step(%Card{evidence_commit: commit} = card, board) do
+  defp check_step(%Card{} = card, board) do
+    if Slipdock.Profiles.spike?(card),
+      do: spike_check_step(card),
+      else: shipped_check_step(card, board)
+  end
+
+  defp shipped_check_step(%Card{evidence_commit: commit} = card, board) do
     tree =
       if commit,
         do:
@@ -2958,6 +2992,24 @@ defmodule Slipdock.Verified do
       Board.ships_by_pr?(board) and epic?(card) -> epic_check_step(tree)
       true -> suite_check_step(tree, commit)
     end
+  end
+
+  # A spike (#2351): it answers a question by building, and its code is
+  # never merged, so the verifier judges the answer and its evidence, not a
+  # pull request, and runs no suite unless the bar asks for one.
+  defp spike_check_step(%Card{} = card) do
+    branch = if blank?(card.evidence_branch), do: pr_branch(card), else: card.evidence_branch
+
+    """
+    2. This card is a spike: it answers its bar's question by building, and its code is never merged (#{if blank?(card.evidence_no_code), do: "no reason given", else: "\"#{card.evidence_no_code}\""}). There is no pull request to check and nothing merges, so don't run the suite unless the bar asks for one. Read the answer page (pinned to the epic, or named in the evidence) and the prototype on `#{branch}`, and judge:
+       - The ask: the answer addresses the question the bar asks.
+       - The evidence is real: numbers, logs, a branch and commit you can look at, not claims. An answer claimed without evidence is a rejection.
+       - The page says what the answer changes in the plan.
+       - *Inconclusive*, with what was learned, passes. Reject only for not really trying, or for an answer without evidence; never for the answer being "no".
+       Steps to report:
+       - `spike: <the answer in a few words, or inconclusive>`
+       - `evidence: <what you looked at>`\
+    """
   end
 
   # An epic on a pull request board with no pull request of its own (#1917):
