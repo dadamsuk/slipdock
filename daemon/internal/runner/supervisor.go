@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime/debug"
-	"sync"
 	"time"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
@@ -25,33 +24,13 @@ var Restart = time.Second
 // longer the machine's) stops for good; the machine key refused stops them
 // all, and Supervise returns ErrRevoked.
 func Supervise(ctx context.Context, workers []*Worker, logf func(string, ...any)) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	var (
-		wg      sync.WaitGroup
-		mu      sync.Mutex
-		revoked bool
-	)
-	for _, w := range workers {
-		wg.Add(1)
-		go func(w *Worker) {
-			defer wg.Done()
-			if err := keep(ctx, w, logf); IsRevoked(err) {
-				mu.Lock()
-				revoked = true
-				mu.Unlock()
-				cancel()
-			}
-		}(w)
-	}
-	wg.Wait()
-	if revoked {
-		return ErrRevoked
-	}
-	return nil
+	p := NewPool(ctx, logf)
+	p.Apply(workers)
+	return p.Wait()
 }
 
-// keep runs one worker, starting it again after a crash or a failure.
+// keep runs one worker, starting it again after a crash or a failure. Told
+// to stop, its claim answers ErrStopped, a refusal: it ends there.
 func keep(ctx context.Context, w *Worker, logf func(string, ...any)) error {
 	wait := Restart
 	for {

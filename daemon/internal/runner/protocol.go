@@ -21,7 +21,15 @@ type Client struct {
 	Key       string
 	HTTP      *http.Client
 	UserAgent string
+	// Stop, closed, ends this runner's claims: the one waiting is dropped
+	// and no other is made, so its worker finishes the job it holds and
+	// stops (ErrStopped). A pool gives each worker its own (#2575).
+	Stop <-chan struct{}
 }
+
+// ErrStopped is a claim not made because the runner was told to stop: its
+// config changed, it was paused, or it was removed.
+var ErrStopped error = &Refused{Text: "this runner was told to stop"}
 
 // Job is a claimed job: what the server sent, every field data.
 type Job struct {
@@ -54,6 +62,9 @@ type Refused struct {
 }
 
 func (e *Refused) Error() string {
+	if e.Status == 0 {
+		return e.Text
+	}
 	return fmt.Sprintf("the server refused the runner (HTTP %d): %s", e.Status, e.Text)
 }
 
@@ -81,7 +92,9 @@ func (c *Client) request(ctx context.Context, runnerID int64, method, path strin
 	if runnerID != 0 {
 		req.Header.Set("X-Runner-Id", strconv.FormatInt(runnerID, 10))
 	}
-	req.Header.Set("Content-Type", "text/plain")
+	if req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", "text/plain")
+	}
 	if c.UserAgent != "" {
 		req.Header.Set("User-Agent", c.UserAgent)
 	}
@@ -106,10 +119,29 @@ func refused(resp *http.Response, data []byte) error {
 }
 
 // Claim asks for a job, waiting up to wait for one. A nil job is nothing to do.
+// Told to stop (Client.Stop), it makes no claim, drops the one waiting,
+// and answers ErrStopped.
 func (c *Client) Claim(ctx context.Context, runnerID int64, headers http.Header, wait int) (*Job, Claim, error) {
+	if c.stopped() {
+		return nil, Claim{}, ErrStopped
+	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(wait+15)*time.Second)
 	defer cancel()
+	if c.Stop != nil {
+		go func() {
+			select {
+			case <-c.Stop:
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+	}
 	resp, data, err := c.request(ctx, runnerID, http.MethodPost, "/api/runner/claim?wait="+strconv.Itoa(wait), nil, headers)
+	if c.stopped() {
+		// A job claimed as the stop came is left unstarted: its lease runs
+		// out and it goes back to the queue.
+		return nil, Claim{}, ErrStopped
+	}
 	if err != nil {
 		return nil, Claim{}, err
 	}
@@ -251,9 +283,22 @@ func (c *Client) Finish(ctx context.Context, runnerID, jobID int64, exit int, st
 	return last
 }
 
+// stopped says whether the runner has been told to stop.
+func (c *Client) stopped() bool {
+	if c.Stop == nil {
+		return false
+	}
+	select {
+	case <-c.Stop:
+		return true
+	default:
+		return false
+	}
+}
+
 // FetchConfig reads the machine's runners: at once with wait 0, else the
 // server's long-poll for a version above since. nil is no change.
-func (c *Client) FetchConfig(ctx context.Context, since int64, wait int) (*MachineConfig, error) {
+func (c *Client) FetchConfig(ctx context.Context, since int64, wait int) (*Listing, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(wait+15)*time.Second)
 	defer cancel()
 	h := http.Header{"Accept": {"application/json"}}
@@ -265,13 +310,36 @@ func (c *Client) FetchConfig(ctx context.Context, since int64, wait int) (*Machi
 	case http.StatusNoContent:
 		return nil, nil
 	case http.StatusOK:
-		var mc MachineConfig
+		var mc Listing
 		if err := json.Unmarshal(data, &mc); err != nil {
 			return nil, fmt.Errorf("the machine's config isn't JSON: %w", err)
 		}
 		return &mc, nil
 	}
 	return nil, refused(resp, data)
+}
+
+// Report tells the server what the daemon did with runnerID's config at
+// version: "accepted", or "rejected" with the reason. A version no longer
+// the runner's current one (409) is not an error: a newer config is on its
+// way, and that one is reported instead. Nor is a runner no longer the
+// machine's (404): there is nothing left to report on.
+func (c *Client) Report(ctx context.Context, runnerID, version int64, outcome, reason string) error {
+	body, err := json.Marshal(map[string]any{"version": version, "outcome": outcome, "reason": reason})
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	h := http.Header{"Content-Type": {"application/json"}, "Accept": {"application/json"}}
+	resp, data, err := c.request(ctx, 0, http.MethodPost, fmt.Sprintf("/api/machine/runners/%d/report", runnerID), body, h)
+	switch {
+	case err != nil:
+		return err
+	case resp.StatusCode == http.StatusOK, resp.StatusCode == http.StatusConflict, resp.StatusCode == http.StatusNotFound:
+		return nil
+	}
+	return refused(resp, data)
 }
 
 func isHex(s string) bool {
