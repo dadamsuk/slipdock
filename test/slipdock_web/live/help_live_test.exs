@@ -17,6 +17,18 @@ defmodule SlipdockWeb.HelpLiveTest do
   @topics ~w(guide mcp cli skills runners webhooks)
 
   defp doc(html), do: LazyHTML.from_document(html)
+
+  # An element's text with its runs of whitespace made single spaces, so a
+  # sentence the template wraps across lines matches as written.
+  defp normalised_text(view, selector) do
+    view
+    |> element(selector)
+    |> render()
+    |> doc()
+    |> LazyHTML.text()
+    |> String.replace(~r/\s+/, " ")
+  end
+
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
 
   describe "the hub" do
@@ -266,6 +278,49 @@ defmodule SlipdockWeb.HelpLiveTest do
 
       assert html =~ "There is no help page by that name."
       assert has_element?(view, "#help-compare")
+    end
+
+    @tag :anonymous
+    test "the Runners topic explains the profile a claimed job carries (#2594)", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/help/agents/runners")
+
+      assert has_element?(view, "#help-runners-profile strong", "profile")
+
+      # It sits beside what a job carries: the paragraph straight before it
+      # says what the server sends.
+      [before | _] =
+        doc(html)
+        |> LazyHTML.query("#help-topic-runners p:has(+ #help-runners-profile)")
+        |> Enum.to_list()
+
+      assert LazyHTML.text(before) =~ ~r/The server sends\s+only the card and a prompt/
+
+      # The list sentence names every profile there is, in Profiles' order,
+      # so dropping or reordering one fails here (names repeated further on
+      # don't count).
+      {init, [last]} = Enum.split(Slipdock.Profiles.names(), -1)
+      list = Enum.join(init, ", ") <> " or " <> last
+
+      assert normalised_text(view, "#help-runners-profile") =~
+               "what kind of change it is, " <> list <> ". It is the card's own"
+
+      # The claim's fields that carry it.
+      for field <- ["claim_job", "slipdock claim-job", "profile:", "SLIPDOCK_PROFILE"] do
+        assert has_element?(view, "#help-runners-profile code", field)
+      end
+
+      text = normalised_text(view, "#help-runners-profile")
+      assert text =~ "profiles on"
+      assert text =~ "raise a card's profile once work has started, never lower it"
+      assert text =~ ~r/With profiles off, no profile is sent/
+    end
+
+    @tag :anonymous
+    test "the profile is explained only on the Runners topic", %{conn: conn} do
+      for slug <- Agents.slugs() -- ["runners"] do
+        {:ok, view, _html} = live(conn, ~p"/help/agents/#{slug}")
+        refute has_element?(view, "#help-runners-profile"), slug
+      end
     end
 
     @tag :anonymous

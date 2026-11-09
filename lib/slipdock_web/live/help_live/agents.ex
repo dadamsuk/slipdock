@@ -1204,6 +1204,25 @@ defmodule SlipdockWeb.HelpLive.Agents do
         your machine, and a kind of job it doesn't define is refused. A runner's token can
         only take and report on its own pool's jobs.
       </p>
+      <p id="help-runners-profile">
+        On a board with profiles on, a claimed job also carries the card's <strong>profile</strong>: one word for what kind of change it is, <code>security</code>, <code>schema</code>, <code>feature</code>, <code>fix</code>,
+        <code>docs</code>
+        or <code>spike</code>. It is the card's own, else the one its paths and tags infer:
+        a security path makes it <code>security</code>, a migration <code>schema</code>, a
+        <code>bug</code>
+        tag <code>fix</code>, only docs paths <code>docs</code>, a <code>spike</code>
+        tag <code>spike</code>, anything else <code>feature</code>. It is <code>profile</code>
+        in <code>claim_job</code>'s answer and the session claim's job, <code>profile:</code>
+        in <code>slipdock claim-job</code>, and <code>SLIPDOCK_PROFILE</code>
+        in a runner's job, where the runner's config can pick a model for it
+        (<code>MODEL_feature</code>). The profile decides how the work is checked: a <code>docs</code>
+        card gets no verifier, a <code>schema</code>
+        or <code>security</code>
+        one a defect review and, on a board that ships by pull request, waits by default for a
+        person before it merges, and a <code>spike</code>
+        merges nothing. An agent may raise a card's profile once work has started, never lower
+        it, and the change it completes with can raise it too (<code>slipdock done 12 --diff-base origin/main</code>). With profiles off, no profile is sent.
+      </p>
       <p>
         What happens to the card after that, from the claim through building, CI and a second
         agent's check to the deploy, and where it waits for you: <.link
