@@ -48,17 +48,45 @@ defmodule Slipdock.Runners.Requeue do
 
   @doc """
   Runs `fun` — closing `wait` and what follows — with the asking job's rule
-  held off in this process, so the waiting flag coming off can't feed the
-  rule the card with its plain prompt before the answer is sent.
+  and every other feed (`list_top`) rule on the card's board tree held off
+  in this process, so the waiting flag coming off can't feed the card with
+  its plain prompt before the answer is sent: not by the asking rule, nor
+  by another pool's rule on the same list (#2613). Once the answer's job is
+  open, every feed passes the card over (`Slipdock.Automations.next_card/2`).
   """
-  def quietly(%Wait{job_id: job_id}, fun) when is_integer(job_id) do
+  def quietly(%Wait{job_id: job_id} = wait, fun) when is_integer(job_id) do
     case rule_of(Repo.get(Job, job_id)) do
-      %Rule{} = rule -> Recovery.quietly(rule, fun)
-      nil -> fun.()
+      %Rule{} = rule ->
+        [rule | tree_feeds(wait, rule)]
+        |> Enum.uniq_by(& &1.id)
+        |> hold_off(fun)
+
+      nil ->
+        fun.()
     end
   end
 
   def quietly(_wait, fun), do: fun.()
+
+  defp hold_off([], fun), do: fun.()
+  defp hold_off([rule | rest], fun), do: Recovery.quietly(rule, fn -> hold_off(rest, fun) end)
+
+  # The enabled feed rules on the tree the wait's card is on.
+  defp tree_feeds(%Wait{card_id: card_id}, %Rule{} = asking) do
+    root =
+      case Repo.get(Card, card_id) do
+        %Card{board_id: board_id} -> Boards.root_of_board(board_id)
+        nil -> Boards.root_of_board(asking.board_id)
+      end
+
+    from(r in Rule,
+      join: b in Slipdock.Boards.Board,
+      on: b.id == r.board_id,
+      where: r.enabled == true and (b.id == ^root or b.root_id == ^root)
+    )
+    |> Repo.all()
+    |> Enum.filter(&Spec.feed?(&1.spec))
+  end
 
   @doc """
   Acts on an answered `wait`: queues, rewrites, holds or explains, as the
@@ -97,7 +125,7 @@ defmodule Slipdock.Runners.Requeue do
         )
 
       true ->
-        open = open_job(rule, card)
+        open = card_job(rule, card)
         other = open || (Spec.feed?(rule.spec) && any_open_job(rule))
 
         cond do
@@ -155,6 +183,35 @@ defmodule Slipdock.Runners.Requeue do
         limit: 1
       )
     )
+  end
+
+  # The rule's open job for the card, else another rule's (#2613): the
+  # answer goes with it, or after it, never beside it.
+  defp card_job(rule, card), do: open_job(rule, card) || card_open_job(card)
+
+  defp card_open_job(card), do: rule_job(card.id)
+
+  @doc """
+  The card's oldest open (queued, claimed or running) job that a rule
+  queued, from any rule but `except_rule_id` when one is given, or nil
+  (#2613). Jobs no rule queued (verify, merge, overseer) don't count: an
+  answer is never held behind them or written into them, and they never
+  keep a rule from sending the card.
+  """
+  def rule_job(card_id, except_rule_id \\ nil) do
+    query =
+      from(j in Job,
+        where:
+          j.card_id == ^card_id and not is_nil(j.rule_id) and
+            j.status in ^Job.open_statuses(),
+        order_by: [asc: j.id],
+        limit: 1
+      )
+
+    query =
+      if except_rule_id, do: from(j in query, where: j.rule_id != ^except_rule_id), else: query
+
+    Repo.one(query)
   end
 
   defp any_open_job(rule) do
@@ -231,6 +288,9 @@ defmodule Slipdock.Runners.Requeue do
   # The rule's job for the card hasn't been handed out yet: it goes with the
   # answer in it, rather than a second job after it.
   defp rewrite(wait, rule, card, job) do
+    # Another rule's job is rewritten with its own rule's prompt (#2613).
+    rule = if job.rule_id == rule.id, do: rule, else: rule_of(job) || rule
+
     with {:ok, attrs} <- Slipdock.Automations.Runner.runner_job(rule, card) do
       prompt = prompt(wait, card, attrs.prompt)
 

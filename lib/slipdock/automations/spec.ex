@@ -152,7 +152,8 @@ defmodule Slipdock.Automations.Spec do
      "send the card to a coding agent on one of the user's own machines: queue a job for the " <>
        "runners of that pool, which run the kind of job named (claude by default) with the " <>
        "prompt (the card's title, link and description by default). The runner's own config " <>
-       "decides what each kind runs. At most one open job per card per rule. " <>
+       "decides what each kind runs. At most one open job per card from any rule: a card " <>
+       "some rule already has an open job for gets no second one. " <>
        "wait_while_doing: true keeps the job queued while any other open card is in an " <>
        "in-progress list on the card's board. requeue_stuck: N (list_top rules only, 0-10) " <>
        "puts a card its job left in an in-progress list back on top of the rule's list, " <>
