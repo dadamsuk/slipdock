@@ -248,6 +248,21 @@ defmodule Slipdock.CiWorkflowTest do
       # The step is the cli job's compile line, run in cli/.
       assert {"compile", ["--warnings-as-errors"], cd: "cli"} in Mix.Project.get!().pre_push_steps()
     end
+
+    test "checks cli/'s formatting before its compile, as the cli job does (#2602)" do
+      cli = mix_runs(job("cli"))
+      assert "mix format --check-formatted" in cli
+
+      # The cli job's format and compile, in the job's order, are pre_push's
+      # steps in cli/.
+      in_cli =
+        for {task, argv, opts} <- Mix.Project.get!().pre_push_steps(),
+            opts[:cd] == "cli",
+            do: Enum.join(["mix", task | argv], " ")
+
+      assert in_cli == Enum.filter(cli, &(&1 in in_cli))
+      assert in_cli == ["mix format --check-formatted", "mix compile --warnings-as-errors"]
+    end
   end
 
   describe "the runner daemon (#2573)" do

@@ -124,10 +124,12 @@ defmodule Slipdock.MixProject do
   with the same arguments, for running before a push (`mix pre_push`).
   `test/slipdock/ci_workflow_test.exs` fails when CI runs one this doesn't.
 
-  After the compile and format checks it compiles the CLI (`cli/`, its own Mix
-  project) with `--warnings-as-errors`, as CI's `cli` job does, so a CLI
-  warning fails here rather than in the pull request (#1964). A step with
-  `cd:` runs in that directory, in its own environment (`pre_push_env/1`).
+  After the compile and format checks it checks the CLI's (`cli/`, its own Mix
+  project) formatting, which the app's `mix format` doesn't cover (#2602), and
+  compiles it with `--warnings-as-errors`, in the order CI's `cli` job does,
+  so a CLI warning or unformatted file fails here rather than in the pull
+  request (#1964). A step with `cd:` runs in that directory, in its own
+  environment (`pre_push_env/1`).
 
   Then the runner daemon's (`daemon/`, a Go module) `go vet` and `go test`,
   as CI's daemon job does (#2573). A step with `exec: true` runs its task as
@@ -153,6 +155,7 @@ defmodule Slipdock.MixProject do
     [
       {"compile", ["--force", "--warnings-as-errors"]},
       {"format", ["--check-formatted"]},
+      {"format", ["--check-formatted"], cd: "cli"},
       {"compile", ["--warnings-as-errors"], cd: "cli"},
       {"go", ["vet", "./..."], cd: "daemon", exec: true},
       {"go", ["test", "./..."], cd: "daemon", exec: true},

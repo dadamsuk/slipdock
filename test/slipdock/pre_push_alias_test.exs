@@ -42,6 +42,7 @@ defmodule Slipdock.PrePushAliasTest do
     assert project().pre_push_steps() == [
              {"compile", ["--force", "--warnings-as-errors"]},
              {"format", ["--check-formatted"]},
+             {"format", ["--check-formatted"], cd: "cli"},
              {"compile", ["--warnings-as-errors"], cd: "cli"},
              {"go", ["vet", "./..."], cd: "daemon", exec: true},
              {"go", ["test", "./..."], cd: "daemon", exec: true},
@@ -89,6 +90,7 @@ defmodule Slipdock.PrePushAliasTest do
     assert ran() == [
              "compile",
              "format",
+             "format",
              "compile",
              "go",
              "go",
@@ -118,7 +120,17 @@ defmodule Slipdock.PrePushAliasTest do
       assert error.message == "pre_push: mix hex.audit failed (exit 3)"
     end)
 
-    assert ran() == ["compile", "format", "compile", "go", "go", "ecto.drop", "test", "hex.audit"]
+    assert ran() == [
+             "compile",
+             "format",
+             "format",
+             "compile",
+             "go",
+             "go",
+             "ecto.drop",
+             "test",
+             "hex.audit"
+           ]
   end
 
   test "a failing repo check stops the run before the audits (#1867)" do
@@ -130,14 +142,15 @@ defmodule Slipdock.PrePushAliasTest do
                    end
     end)
 
-    assert ran() == ["compile", "format", "compile", "go", "go", "ecto.drop", "test"]
+    assert ran() == ["compile", "format", "format", "compile", "go", "go", "ecto.drop", "test"]
   end
 
   test "runs the repo checks after the compiles and format, before the slower audits (#1867)" do
     tasks = Enum.map(project().pre_push_steps(), &elem(&1, 0))
 
-    assert Enum.take(tasks, 7) == [
+    assert Enum.take(tasks, 8) == [
              "compile",
+             "format",
              "format",
              "compile",
              "go",
@@ -146,7 +159,7 @@ defmodule Slipdock.PrePushAliasTest do
              "test"
            ]
 
-    {"test", files} = Enum.at(project().pre_push_steps(), 6)
+    {"test", files} = Enum.at(project().pre_push_steps(), 7)
     assert "test/slipdock/nothing_personal_test.exs" in files
     assert Enum.all?(files, &File.regular?(Path.join(@root, &1)))
   end
@@ -200,7 +213,7 @@ defmodule Slipdock.PrePushAliasTest do
         end
       end)
 
-      assert ran() == ["compile", "format", "compile", "go", "go", "ecto.drop"]
+      assert ran() == ["compile", "format", "format", "compile", "go", "go", "ecto.drop"]
     end
 
     test "TEST_DATABASE_URL, which overrides the partition, gets it on its database's name" do
@@ -253,15 +266,15 @@ defmodule Slipdock.PrePushAliasTest do
         end
       end)
 
-    assert length(ran()) == 11
+    assert length(ran()) == 12
     refute out =~ "all checks passed"
   end
 
   describe "the daemon's vet and tests (#2573)" do
     test "run go vet and go test in daemon/, as CI's daemon job does, after the CLI's compile" do
       steps = project().pre_push_steps()
-      assert Enum.at(steps, 3) == {"go", ["vet", "./..."], cd: "daemon", exec: true}
-      assert Enum.at(steps, 4) == {"go", ["test", "./..."], cd: "daemon", exec: true}
+      assert Enum.at(steps, 4) == {"go", ["vet", "./..."], cd: "daemon", exec: true}
+      assert Enum.at(steps, 5) == {"go", ["test", "./..."], cd: "daemon", exec: true}
       assert File.regular?(Path.join([@root, "daemon", "go.mod"]))
     end
 
@@ -285,7 +298,7 @@ defmodule Slipdock.PrePushAliasTest do
         assert error.message == "pre_push: go test ./... (in daemon/) failed (exit 1)"
       end)
 
-      assert ran() == ["compile", "format", "compile", "go"]
+      assert ran() == ["compile", "format", "format", "compile", "go"]
     end
 
     test "take none of Mix's environment" do
@@ -316,8 +329,8 @@ defmodule Slipdock.PrePushAliasTest do
   end
 
   describe "the CLI's compile (#1964)" do
-    test "compiles cli/ with warnings as errors, after the app's compile and format" do
-      assert Enum.at(project().pre_push_steps(), 2) ==
+    test "compiles cli/ with warnings as errors, after the app's checks and the CLI's format" do
+      assert Enum.at(project().pre_push_steps(), 3) ==
                {"compile", ["--warnings-as-errors"], cd: "cli"}
 
       assert File.regular?(Path.join([@root, "cli", "mix.exs"]))
@@ -355,7 +368,7 @@ defmodule Slipdock.PrePushAliasTest do
                  "pre_push: mix compile --warnings-as-errors (in cli/) failed (exit 1)"
       end)
 
-      assert ran() == ["compile", "format"]
+      assert ran() == ["compile", "format", "format"]
     end
 
     test "builds as CI's cli job does, not in the app's test partition" do
@@ -374,7 +387,7 @@ defmodule Slipdock.PrePushAliasTest do
           entry not in ["_build", "deps"],
           do: File.cp_r!(Path.join(cli, entry), Path.join(dir, entry))
 
-      {"compile", argv, _opts} = Enum.at(project().pre_push_steps(), 2)
+      {"compile", argv, _opts} = Enum.at(project().pre_push_steps(), 3)
 
       {0, out} = with_io(fn -> project().pre_push_run("compile", argv, cd: dir) end)
       refute out =~ "warning:"
@@ -393,6 +406,79 @@ defmodule Slipdock.PrePushAliasTest do
       {status, out} = with_io(fn -> project().pre_push_run("compile", argv, cd: dir) end)
       assert status != 0
       assert out =~ "variable \"x\" is unused"
+    end
+  end
+
+  describe "the CLI's format check (#2602)" do
+    test "checks cli/'s formatting after the app's format, before the CLI's compile" do
+      steps = project().pre_push_steps()
+
+      assert Enum.slice(steps, 1..3) == [
+               {"format", ["--check-formatted"]},
+               {"format", ["--check-formatted"], cd: "cli"},
+               {"compile", ["--warnings-as-errors"], cd: "cli"}
+             ]
+
+      assert File.regular?(Path.join([@root, "cli", ".formatter.exs"]))
+    end
+
+    test "is passed its directory, and says where it runs" do
+      me = self()
+
+      out =
+        capture_io(fn ->
+          project().pre_push([], fn task, argv, opts ->
+            send(me, {:step, task, argv, opts})
+            0
+          end)
+        end)
+
+      assert_received {:step, "format", ["--check-formatted"], [cd: "cli"]}
+      assert_received {:step, "format", ["--check-formatted"], []}
+      assert out =~ "==> pre_push: mix format --check-formatted (in cli/)\n"
+    end
+
+    test "an unformatted CLI file stops the run before the CLI's compile" do
+      capture_io(fn ->
+        error =
+          assert_raise Mix.Error, fn ->
+            project().pre_push([], fn
+              "format", _argv, [cd: "cli"] -> 1
+              task, argv, _opts -> recorder().(task, argv, [])
+            end)
+          end
+
+        assert error.mix == 1
+
+        assert error.message ==
+                 "pre_push: mix format --check-formatted (in cli/) failed (exit 1)"
+      end)
+
+      assert ran() == ["compile", "format"]
+    end
+
+    @tag :tmp_dir
+    test "really fails on an unformatted CLI file, and passes without one", %{tmp_dir: dir} do
+      # A copy of cli/ without its build, so the real step runs on it.
+      cli = Path.join(@root, "cli")
+
+      for entry <- File.ls!(cli),
+          entry not in ["_build", "deps"],
+          do: File.cp_r!(Path.join(cli, entry), Path.join(dir, entry))
+
+      {"format", argv, _opts} = Enum.at(project().pre_push_steps(), 2)
+
+      {0, _out} = with_io(fn -> project().pre_push_run("format", argv, cd: dir) end)
+
+      File.write!(Path.join([dir, "lib", "pre_push_unformatted.ex"]), """
+      defmodule PrePushUnformatted do
+        def   spaced( x ),do:   x
+      end
+      """)
+
+      {status, out} = with_io(fn -> project().pre_push_run("format", argv, cd: dir) end)
+      assert status != 0
+      assert out =~ "pre_push_unformatted.ex"
     end
   end
 end
