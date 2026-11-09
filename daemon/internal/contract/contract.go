@@ -16,13 +16,19 @@ import (
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
-// Text is the contract as the server publishes it, in Markdown.
-//
 //go:embed contract.md
-var Text string
+var rawText string
 
 //go:embed machine.txt
-var machineText string
+var rawMachineText string
+
+// Text is the contract as the server publishes it, in Markdown, with LF
+// line ends whatever the checkout did (Git for Windows writes CRLF).
+var Text = lf(rawText)
+
+var machineText = lf(rawMachineText)
+
+func lf(s string) string { return strings.ReplaceAll(s, "\r\n", "\n") }
 
 // Facts are what Render fills in.
 type Facts struct {

@@ -135,3 +135,14 @@ func TestNoBoardsReadsAsNoneAndAnOldCeilingAsMe(t *testing.T) {
 		}
 	}
 }
+
+// A Windows checkout writes the embedded files with CRLF; the contract reads
+// the same either way.
+func TestLineEndsAreLF(t *testing.T) {
+	if got := lf("a\r\nb\r\n\r\nc\n"); got != "a\nb\n\nc\n" {
+		t.Fatalf("%q", got)
+	}
+	if strings.Contains(Text, "\r") || strings.Contains(machineText, "\r") {
+		t.Fatal("a carriage return in the embedded text")
+	}
+}
