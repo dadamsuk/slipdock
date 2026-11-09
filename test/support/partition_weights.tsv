@@ -330,7 +330,7 @@ test/slipdock/verified_every_instance_flow_test.exs	async	37
 test/slipdock/verified_every_instance_test.exs	async	3229
 test/slipdock/verified_evidence_test.exs	sync	537
 test/slipdock/verified_gate_test.exs	async	609
-test/slipdock/verified_jobs_test.exs	async	1322
+test/slipdock/verified_jobs_test.exs	sync	1322
 test/slipdock/verified_merge_pool_test.exs	async	3152
 test/slipdock/verified_mutants_test.exs	async	2814
 test/slipdock/verified_no_code_test.exs	async	1983
