@@ -45,6 +45,21 @@ defmodule SlipdockWeb.AuditReworkDocsTest do
              "a disagreement is a comment and an alert for the board's owner."
   end
 
+  test "the agent settings hint and the MCP door's verify_card say so" do
+    hint = read("lib/slipdock_web/live/agentic_live/index.ex")
+    assert hint =~ "disagrees alerts you and files a rework card (or comments on the open one)"
+    refute hint =~ "an audit only comments"
+
+    decision =
+      SlipdockWeb.MCP.Tools.VerifyCard.input_schema().properties.decision.description
+      |> flat()
+
+    assert decision =~
+             "disagree alerts the owner and files a rework card, or comments on the open one"
+
+    refute decision =~ "disagree alerts the owner)"
+  end
+
   test "the Flow help page says it", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
     text = html |> LazyHTML.from_document() |> LazyHTML.text() |> flat()
