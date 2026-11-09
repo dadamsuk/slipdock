@@ -173,8 +173,16 @@ defmodule Slipdock.MixProject do
   steps are) in `pre_push_build_root/0`, and stops at the first that exits
   non-zero, with each one's time. `run` is given each step's task, arguments
   and options (`cd:`), and answers with its exit status.
+
+  `mix pre_push --prune` runs no checks: it drops the test databases of
+  checkouts that no longer exist (`pre_push_prune/2`), which is all a removed
+  worktree leaves behind (#2604). `prune` is what it calls.
   """
-  def pre_push(args, run \\ &pre_push_run/3) do
+  def pre_push(args, run \\ &pre_push_run/3, prune \\ &pre_push_prune/0)
+
+  def pre_push(["--prune"], _run, prune), do: prune.()
+
+  def pre_push(args, run, _prune) do
     started = System.monotonic_time(:millisecond)
 
     for step <- pre_push_steps(args) do
@@ -298,6 +306,137 @@ defmodule Slipdock.MixProject do
 
     name = if String.ends_with?(name, partition), do: name, else: name <> partition
     URI.to_string(%{uri | path: "/" <> name})
+  end
+
+  @doc """
+  Drops the test databases `mix pre_push` left for checkouts that are gone
+  (`mix pre_push --prune`, #2604). Each checkout's run makes
+  `<base>_pre_push_<hash>` (`pre_push_partition/1`), and nothing drops it
+  when its worktree is removed. This lists the server's databases, keeps
+  those of the checkouts that still exist (`pre_push_checkouts/0`) and drops
+  the rest (`pre_push_stale_databases/3`), saying which. `<base>` is the
+  database `TEST_DATABASE_URL` names, else `slipdock_test`.
+
+  A separate clone's database (one `git worktree list` doesn't name) is
+  dropped too. That costs nothing: its next `mix pre_push` drops and creates
+  it again anyway. One still in use isn't dropped: it says so, carries on
+  with the rest, and fails at the end.
+
+  `sql` runs one statement on the server's `postgres` database and answers
+  `{:ok, rows}` or `{:error, message}` (`pre_push_sql/1`).
+  """
+  def pre_push_prune(sql \\ nil, checkouts \\ nil) do
+    sql = sql || pre_push_connect()
+    checkouts = checkouts || pre_push_checkouts()
+    base = pre_push_database_base(System.get_env("TEST_DATABASE_URL"))
+
+    databases =
+      case sql.("SELECT datname FROM pg_database ORDER BY datname") do
+        {:ok, rows} -> List.flatten(rows)
+        {:error, message} -> Mix.raise("pre_push --prune: can't list the databases: #{message}")
+      end
+
+    stale = pre_push_stale_databases(databases, checkouts, base)
+    if stale == [], do: Mix.shell().info("pre_push --prune: no databases of removed checkouts")
+
+    failed = Enum.reject(stale, &(pre_push_drop(sql, &1) == :ok))
+
+    if failed != [],
+      do: Mix.raise("pre_push --prune: couldn't drop #{Enum.join(failed, ", ")}", exit_status: 1)
+
+    stale
+  end
+
+  defp pre_push_drop(sql, name) do
+    case sql.(~s(DROP DATABASE "#{name}")) do
+      {:ok, _} ->
+        Mix.shell().info("    dropped #{name}")
+        :ok
+
+      {:error, message} ->
+        Mix.shell().error("    #{name} not dropped: #{message}")
+        :error
+    end
+  end
+
+  @doc """
+  The databases among `databases` that `mix pre_push` made for a checkout
+  not in `checkouts`: named `base`, `_pre_push_` and 8 hex digits, whose
+  partition is no checkout's. Any other database is left alone.
+  """
+  def pre_push_stale_databases(databases, checkouts, base \\ "slipdock_test") do
+    live = MapSet.new(checkouts, &(base <> pre_push_partition(&1)))
+    pattern = ~r/\A#{Regex.escape(base)}_pre_push_[0-9a-f]{8}\z/
+
+    Enum.filter(databases, &(Regex.match?(pattern, &1) and not MapSet.member?(live, &1)))
+  end
+
+  @doc """
+  The checkouts whose databases `mix pre_push --prune` keeps: this one, and
+  every worktree of its repository whose directory still exists
+  (`pre_push_worktrees/1`).
+  """
+  def pre_push_checkouts do
+    {out, _status} =
+      System.cmd("git", ["worktree", "list", "--porcelain"], cd: __DIR__, stderr_to_stdout: true)
+
+    Enum.uniq([Path.expand(__DIR__) | pre_push_worktrees(out)])
+  end
+
+  @doc """
+  The worktrees `git worktree list --porcelain` names whose directory still
+  exists. A worktree removed by hand stays in the list (as `prunable`) until
+  `git worktree prune`; its database goes all the same.
+  """
+  def pre_push_worktrees(porcelain) do
+    for "worktree " <> path <- String.split(porcelain, "\n"),
+        File.dir?(path),
+        do: Path.expand(path)
+  end
+
+  @doc """
+  The name the pre_push databases start with: the database `url` names
+  (`TEST_DATABASE_URL`), else `slipdock_test`, as `config/test.exs` has it.
+  """
+  def pre_push_database_base(url) when url in [nil, ""], do: "slipdock_test"
+
+  def pre_push_database_base(url) do
+    case URI.parse(url).path do
+      path when path in [nil, "", "/"] -> "slipdock_test"
+      "/" <> name -> name
+    end
+  end
+
+  @doc """
+  Runs `statement` on the `postgres` database of the server `url` names,
+  answering `{:ok, rows}` or `{:error, message}`.
+  """
+  def pre_push_sql(url, statement) do
+    opts = Ecto.Repo.Supervisor.parse_url(url) |> Keyword.put(:database, "postgres")
+    {:ok, conn} = Postgrex.start_link(opts)
+
+    try do
+      case Postgrex.query(conn, statement, []) do
+        {:ok, result} -> {:ok, result.rows || []}
+        {:error, error} -> {:error, Exception.message(error)}
+      end
+    after
+      GenServer.stop(conn)
+    end
+  end
+
+  # The test database's server, from `TEST_DATABASE_URL` or `config/test.exs`.
+  defp pre_push_connect do
+    Mix.Task.run("loadpaths")
+    {:ok, _} = Application.ensure_all_started(:postgrex)
+
+    url =
+      case System.get_env("TEST_DATABASE_URL") do
+        url when url in [nil, ""] -> Application.fetch_env!(:slipdock, Slipdock.Repo)[:url]
+        url -> url
+      end
+
+    &pre_push_sql(url, &1)
   end
 
   defp step_parts({task, argv}), do: {task, argv, []}

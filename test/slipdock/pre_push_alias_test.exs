@@ -481,4 +481,182 @@ defmodule Slipdock.PrePushAliasTest do
       assert out =~ "pre_push_unformatted.ex"
     end
   end
+
+  describe "--prune (#2604)" do
+    # A SQL runner that answers the listing with `databases` and records each
+    # drop, failing those in `failing`.
+    defp fake_sql(databases, failing \\ []) do
+      me = self()
+
+      fn
+        "SELECT datname FROM pg_database ORDER BY datname" ->
+          {:ok, Enum.map(databases, &[&1])}
+
+        ~s(DROP DATABASE ") <> rest ->
+          name = String.trim_trailing(rest, ~s("))
+          send(me, {:dropped, name})
+          if name in failing, do: {:error, "is being accessed by other users"}, else: {:ok, []}
+      end
+    end
+
+    defp dropped(acc \\ []) do
+      receive do
+        {:dropped, name} -> dropped([name | acc])
+      after
+        0 -> Enum.reverse(acc)
+      end
+    end
+
+    defp db(root), do: "slipdock_test" <> project().pre_push_partition(root)
+
+    test "runs no checks: mix pre_push --prune only prunes" do
+      me = self()
+      project().pre_push(["--prune"], recorder(), fn -> send(me, :pruned) end)
+
+      assert_received :pruned
+      assert ran() == []
+    end
+
+    test "picks the pre_push databases of checkouts that are gone, and nothing else" do
+      live = "/work/live"
+      gone = "/work/gone"
+
+      databases = [
+        "postgres",
+        "slipdock_dev",
+        "slipdock_test",
+        "slipdock_test_bigwhite",
+        db(live),
+        db(gone),
+        # Near misses: another base, a short or upper-case hash, a suffix.
+        "other_test" <> project().pre_push_partition(gone),
+        "slipdock_test_pre_push_abc",
+        "slipdock_test_pre_push_ABCDEF12",
+        db(gone) <> "x"
+      ]
+
+      assert project().pre_push_stale_databases(databases, [live]) == [db(gone)]
+      assert project().pre_push_stale_databases(databases, [live, gone]) == []
+
+      assert project().pre_push_stale_databases(databases, [], "other_test") ==
+               ["other_test" <> project().pre_push_partition(gone)]
+    end
+
+    test "drops the stale ones, says which, and keeps the live ones" do
+      sql = fake_sql(["slipdock_test", db("/work/live"), db("/work/gone"), db("/work/old")])
+
+      out =
+        capture_io(fn ->
+          assert project().pre_push_prune(sql, ["/work/live"]) ==
+                   [db("/work/gone"), db("/work/old")]
+        end)
+
+      assert dropped() == [db("/work/gone"), db("/work/old")]
+      assert out =~ "dropped #{db("/work/gone")}"
+      assert out =~ "dropped #{db("/work/old")}"
+    end
+
+    test "says so when there is nothing to drop" do
+      out =
+        capture_io(fn ->
+          assert project().pre_push_prune(fake_sql([db("/work/live")]), ["/work/live"]) == []
+        end)
+
+      assert out =~ "no databases of removed checkouts"
+      assert dropped() == []
+    end
+
+    test "carries on past a database it can't drop, then fails naming it" do
+      sql = fake_sql([db("/work/a"), db("/work/b")], [db("/work/a")])
+
+      err =
+        capture_io(:stderr, fn ->
+          capture_io(fn ->
+            error = assert_raise Mix.Error, fn -> project().pre_push_prune(sql, []) end
+            assert error.message == "pre_push --prune: couldn't drop #{db("/work/a")}"
+            assert error.mix == 1
+          end)
+        end)
+
+      assert dropped() == [db("/work/a"), db("/work/b")]
+      assert err =~ "#{db("/work/a")} not dropped: is being accessed by other users"
+    end
+
+    test "fails when it can't list the databases, and drops nothing" do
+      sql = fn _ -> {:error, "connection refused"} end
+
+      assert_raise Mix.Error,
+                   "pre_push --prune: can't list the databases: connection refused",
+                   fn ->
+                     project().pre_push_prune(sql, [])
+                   end
+    end
+
+    @tag :tmp_dir
+    test "keeps the worktrees whose directory still exists", %{tmp_dir: dir} do
+      porcelain = """
+      worktree #{dir}
+      HEAD 84baaaed
+      branch refs/heads/main
+
+      worktree #{dir}/removed
+      HEAD 891d1f47
+      branch refs/heads/card-1
+      prunable gitdir file points to non-existent location
+
+      """
+
+      assert project().pre_push_worktrees(porcelain) == [dir]
+      assert project().pre_push_worktrees("") == []
+    end
+
+    test "keeps this checkout and its live worktrees" do
+      checkouts = project().pre_push_checkouts()
+      assert hd(checkouts) == @root
+      assert Enum.all?(checkouts, &File.dir?/1)
+      assert checkouts == Enum.uniq(checkouts)
+    end
+
+    test "names its databases as TEST_DATABASE_URL does, else slipdock_test" do
+      assert project().pre_push_database_base(nil) == "slipdock_test"
+      assert project().pre_push_database_base("") == "slipdock_test"
+      assert project().pre_push_database_base("postgres://u:p@h:5432") == "slipdock_test"
+      assert project().pre_push_database_base("postgres://u:p@h:5432/") == "slipdock_test"
+      assert project().pre_push_database_base("postgres://u:p@h:5432/ci_test") == "ci_test"
+    end
+
+    @tag :tmp_dir
+    test "really drops a removed checkout's database on the server", %{tmp_dir: dir} do
+      url = Application.fetch_env!(:slipdock, Slipdock.Repo)[:url]
+      sql = &project().pre_push_sql(url, &1)
+      gone = Path.join(dir, "removed")
+      mine = [db(dir), db(gone)]
+
+      on_exit(fn ->
+        for name <- mine, do: project().pre_push_sql(url, ~s(DROP DATABASE IF EXISTS "#{name}"))
+      end)
+
+      for name <- mine, do: assert({:ok, _} = sql.(~s(CREATE DATABASE "#{name}")))
+
+      # Only this test's own databases: the server's others are left alone.
+      only_mine = fn
+        "SELECT" <> _ = statement ->
+          {:ok, rows} = sql.(statement)
+          {:ok, Enum.filter(rows, &(hd(&1) in mine))}
+
+        statement ->
+          sql.(statement)
+      end
+
+      capture_io(fn -> assert project().pre_push_prune(only_mine, [dir]) == [db(gone)] end)
+
+      {:ok, rows} = sql.("SELECT datname FROM pg_database")
+      names = List.flatten(rows)
+      assert db(dir) in names
+      refute db(gone) in names
+
+      assert {:error, message} = sql.(~s(DROP DATABASE "#{db(gone)}"))
+      assert message =~ "does not exist"
+    end
+  end
 end
