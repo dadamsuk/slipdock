@@ -1065,9 +1065,11 @@ defmodule SlipdockWeb.HelpLive.Agents do
         <li>
           <code>slipdock-plan</code>: planning. Asked to plan ("I want to build…", "break this
           into cards"), it follows the board's handbook Playbook: it sizes the ask as a card,
-          a feature or a system, then runs the stages that size takes (grill, decide,
+          a feature or a system, then runs the stages that size takes (grill, spike, decide,
           principles, spec, cards) and writes Decisions, Principles, the spec on the epic and
-          the cards. A one-sentence ask stays one card, and a board with no handbook is
+          the cards. A question only building can answer becomes a <code>spike</code>
+          subcard you confirm, and planning stops until the spikes are answered: the
+          server then asks you to resume, and the Spec is written from their answers. A one-sentence ask stays one card, and a board with no handbook is
           offered one. For a stage whose Playbook section names a skill
           (<code>skill: grilling</code>), it uses the one enabled on the board from the
           <.link navigate={~p"/skills"} class="link">skills registry</.link>

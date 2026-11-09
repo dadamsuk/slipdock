@@ -117,7 +117,7 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       for [_, name] <- Regex.scan(~r/^### (\w+)$/m, section(text, "## Stage texts")), do: name
 
     seed = for [_, name] <- Regex.scan(~r/^## (\w+)$/m, seed_playbook()), do: name
-    assert stages == ["Grill", "Decide", "Principles", "Spec", "Cards"]
+    assert stages == ["Grill", "Spike", "Decide", "Principles", "Spec", "Cards"]
     assert Enum.all?(stages, &(&1 in seed))
 
     for stage <- stages do
@@ -194,6 +194,74 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       text = html |> Floki.parse_document!() |> Floki.text() |> flat()
       assert text =~ "it uses the one enabled on the board from the skills registry"
       assert text =~ "else one installed on the machine, else its own text, and says which"
+    end
+  end
+
+  describe "the Spike stage (#2353)" do
+    test "the skill has the three tests, the confirmation, the stop and the resume" do
+      stage = skill() |> section("### Spike") |> flat()
+      assert stage =~ "only building answers it (not a person, not reading)?"
+      assert stage =~ ~s{A "no" changes the spec (say how)?}
+      assert stage =~ "counting flow time and lane contention as well as rework?"
+      assert stage =~ "Fails only the third: its card goes first in build order"
+      assert stage =~ "only those the person confirms become spikes"
+      assert stage =~ "None pass: skip the stage and say why"
+
+      step = skill() |> section("## 3. Run the stages") |> flat()
+      assert step =~ "or the spike candidates, to the person as a wait"
+      assert step =~ "--kind product"
+      assert step =~ "**Spikes stop the plan.** With spike cards made, stop"
+
+      assert step =~
+               ~s{slipdock handoff <epic> --next "Planning resumes at Spec once spikes #… are answered"}
+
+      assert step =~ "**Resuming**, read each accepted spike's answer page and start at Spec"
+
+      assert step =~
+               "An *inconclusive* answer goes to the person: another spike, the risky card first, or drop it"
+
+      write = skill() |> section("## 4. Write where the Playbook says") |> flat()
+      assert write =~ "**The spikes:**"
+      assert write =~ "no paths"
+      assert write =~ "--profile spike --bar"
+    end
+
+    test "the spike's add command is one the CLI takes" do
+      help = Slipdock.DocsText.read!(Path.join(@root, "cli/help.txt"))
+      assert help =~ "--profile P                 what kind of change it is"
+      assert help =~ "--bar TEXT  --paths"
+      assert "spike" in Slipdock.Profiles.names()
+    end
+
+    test "docs/agents.md, the API guide and the manual describe the stage" do
+      agents = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/agents.md")))
+      assert agents =~ "Grill, Spike, Decide, Principles, Spec, Cards for a system"
+      assert agents =~ "Grill, Spike, Spec, Cards for a feature"
+      assert agents =~ "**Spike** runs only when an open question passes three tests"
+      assert agents =~ "Spikes answered (#…): resume planning"
+
+      # The Profiles section, shown to a user with profiles on: read its source.
+      guide = flat(Slipdock.DocsText.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex")))
+      assert guide =~ "the `slipdock-plan` skill's Spike stage"
+      assert guide =~ "Spikes answered (#…): resume planning"
+      assert guide =~ "Nothing resumes by itself"
+
+      manual = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/manual/skills.md")))
+      assert manual =~ "(grill, spike, decide, principles, spec, cards)"
+      assert manual =~ "becomes a `spike` subcard, once you confirm it"
+    end
+
+    test "the help pages describe it", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/help/agents/skills")
+      text = html |> Floki.parse_document!() |> Floki.text() |> flat()
+      assert text =~ "(grill, spike, decide, principles, spec, cards)"
+      assert text =~ "planning stops until the spikes are answered"
+
+      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      text = html |> Floki.parse_document!() |> Floki.text() |> flat()
+      assert text =~ "An epic planned with the plan skill can start with spikes"
+      assert text =~ "--profile spike"
+      assert text =~ "the Spec is written from the answers"
     end
   end
 end

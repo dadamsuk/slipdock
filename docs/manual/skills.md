@@ -51,14 +51,17 @@ CI, which a chat can't.
   when asked for a card. It finds the board's handbook, offering to install
   one where there is none. It reads the Playbook and sizes the ask by its
   `## Sizing`: a card-sized ask becomes one card and stops there. Otherwise
-  it runs the stages that size takes (grill, decide, principles, spec,
-  cards), each with the skill its section names when that skill is
+  it runs the stages that size takes (grill, spike, decide, principles,
+  spec, cards), each with the skill its section names when that skill is
   installed, else its own text. It writes Decision pages into
   `Handbook/Decisions` and principles onto the Principles page (as a garden
   proposal unless the person agreed them). The spec becomes a page on the
   epic, and the subcards go on in build order. It proposes the person's
   `defaults:` page and asks, never imposes. Run unattended, it puts its
-  questions in a wait.
+  questions in a wait. A question only building can answer (and whose late
+  "no" would cost more than finding out now) becomes a `spike` subcard,
+  once you confirm it: planning stops there, and resumes at Spec from the
+  spikes' answer pages when the server's "Spikes answered" wait says so.
 - **`slipdock-loop`** — working the ready list unattended: one pass, one card,
   its subcards included, claimed before the work and closed out with a
   wrap-up comment and the commit id. Where the work lands in a GitHub repo it

@@ -4204,6 +4204,17 @@ defmodule SlipdockWeb.APIGuide do
       on W-…, prototype on card-ID"`), never a pull request. An agent naming
       one is refused (`422`), and accepting it merges nothing. It holds no
       lane, even with paths: nothing is refused or held because of it.
+      Spikes come from planning: the `slipdock-plan` skill's Spike stage,
+      between Grill and Spec for a feature or a system, turns an open
+      question that only building can answer, whose "no" changes the spec
+      and costs more found late than the spike does, into a spike subcard of
+      the epic once a person confirms it (unattended: one `product` wait),
+      its bar the question, and stops. Write the answer as a page pinned to
+      the epic: the question, the answer or *inconclusive*, the evidence and
+      what it changes in the plan. When the epic's last open spike is
+      accepted, the server opens one `product` wait on the epic, "Spikes
+      answered (#…): resume planning"; a person resumes, and planning
+      writes the Spec from the answers. Nothing resumes by itself.
 
       A profile also sets the verifier's spend. Completing a `docs` card
       on a verifying board queues no verify job: the server accepts it
