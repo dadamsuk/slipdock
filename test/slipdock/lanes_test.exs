@@ -309,7 +309,9 @@ defmodule Slipdock.LanesTest do
 
       plain = card_fixture(ctx.todo, %{"title" => "Unpathed"})
       {:ok, job} = queue(plain)
-      assert Runners.claimed_prompt(Repo.reload!(job)) == "go"
+
+      assert Runners.claimed_prompt(Repo.reload!(job)) ==
+               "go\n\n" <> Slipdock.Runners.ClaimMove.prompt_line(plain.id)
     end
   end
 
@@ -415,7 +417,9 @@ defmodule Slipdock.LanesTest do
       prompt = Runners.claimed_prompt(Repo.reload!(job))
       assert prompt =~ "lib/a/**\ndocs/manual.md"
       assert prompt =~ "Shared on the board, so they hold no lane"
-      assert prompt =~ ~r/rebase on the default branch before pushing:\ndocs\/manual.md\z/
+      # Then, last, the list the card is in (#2633).
+      assert prompt =~
+               ~r/rebase on the default branch before pushing:\ndocs\/manual.md\n\nThe card is in /
 
       share(board, [])
 

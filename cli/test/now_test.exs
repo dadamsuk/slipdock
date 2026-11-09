@@ -266,6 +266,48 @@ defmodule SlipdockCLI.NowTest do
              "Epic › Doing (in #40)"
   end
 
+  test "where says when a card a runner builds isn't in a doing list (#2633)" do
+    assert Now.where(%{"board" => "b", "list" => "To Do", "in_doing" => false}) ==
+             "b › To Do (not a doing list)"
+
+    assert Now.where(%{
+             "board" => "Epic",
+             "list" => "To Do",
+             "parent" => %{"id" => 40},
+             "in_doing" => false
+           }) == "Epic › To Do (in #40) (not a doing list)"
+
+    assert Now.where(%{"board" => "b", "list" => "Doing", "in_doing" => true}) == "b › Doing"
+  end
+
+  test "now lists a card a runner builds outside a doing list, its list named (#2633)" do
+    slipped = %{
+      id: 70,
+      title: "Slipped",
+      board_id: 3,
+      board: "slipdock",
+      list: "To Do",
+      parent: nil,
+      state: "Running · box",
+      state_kind: "running",
+      loop: %{runner: "box", kind: "build", job_id: 16},
+      holds: nil,
+      age: 60,
+      in_doing: false
+    }
+
+    snapshot()
+    |> JSON.decode!()
+    |> Map.update!("in_progress", &[slipped | &1])
+    |> JSON.encode!()
+    |> serve()
+
+    out = capture_io(fn -> SlipdockCLI.main(["now", "slipdock"]) end)
+    line = out |> String.split("\n") |> Enum.find(&String.starts_with?(&1, "#70 Slipped"))
+
+    assert line =~ ~r/slipdock › To Do \(not a doing list\)\s+Running · box\s+-\s+box build/
+  end
+
   test "now is a command the CLI routes" do
     assert "now" in Now.commands()
   end

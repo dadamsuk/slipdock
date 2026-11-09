@@ -54,7 +54,10 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert get_resp_header(conn, "x-lease-seconds") == ["90"]
       assert [content_type] = get_resp_header(conn, "content-type")
       assert content_type =~ "text/plain"
-      assert conn.resp_body == "Line one\n\"quoted\" $(not run)"
+      # The prompt as queued, then the list the card is in (#2633).
+      assert conn.resp_body ==
+               "Line one\n\"quoted\" $(not run)\n\n" <>
+                 Slipdock.Runners.ClaimMove.prompt_line(ctx.card.id)
     end
 
     test "naming another pool is refused", ctx do
@@ -301,7 +304,10 @@ defmodule SlipdockWeb.API.RunnersTest do
         |> json_response(200)
 
       assert body["job"]["id"] == job.id
-      assert body["job"]["prompt"] == "Work on it"
+
+      assert body["job"]["prompt"] ==
+               "Work on it\n\n" <> Slipdock.Runners.ClaimMove.prompt_line(ctx.card.id)
+
       assert body["job"]["card_url"] =~ "/cards/#{ctx.card.id}"
       assert body["lease_seconds"] == 1200
       assert Enum.any?(Runners.list_runners(ctx.board), &Slipdock.Runners.Runner.session?/1)

@@ -52,6 +52,13 @@ defmodule Slipdock.Runners.RecoveryTest do
     job
   end
 
+  # The claim moved the card to the doing list (#2633): the job leaves it
+  # back on its list.
+  defp left_on_list(ctx, job) do
+    :ok = Boards.move_card_to_index(Repo.get!(Boards.Card, job.card_id), ctx.todo, :top)
+    job
+  end
+
   defp finish(ctx, job, status \\ "failed") do
     {:ok, job} = Runners.finish(ctx.runner, job.id, %{status: status})
     Repo.reload!(job)
@@ -204,7 +211,7 @@ defmodule Slipdock.Runners.RecoveryTest do
     test "a card somebody else is working by hand", ctx do
       rule_fixture(ctx.board, spec())
       by_hand = card_fixture(ctx.doing, %{"title" => "by hand"})
-      job = Runners.claim(ctx.runner)
+      job = left_on_list(ctx, Runners.claim(ctx.runner))
 
       job = finish(ctx, job)
 
@@ -221,7 +228,7 @@ defmodule Slipdock.Runners.RecoveryTest do
       assert done.recovery == nil
       refute done.transcript_failed_at
 
-      job = Runners.claim(ctx.runner)
+      job = left_on_list(ctx, Runners.claim(ctx.runner))
       assert finish(ctx, job).recovery == nil
       assert comments(ctx.b) == []
     end

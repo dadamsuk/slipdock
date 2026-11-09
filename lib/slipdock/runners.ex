@@ -26,7 +26,7 @@ defmodule Slipdock.Runners do
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
-  alias Slipdock.Runners.{ClaimDrain, Job, Pause, Probe, Recovery, Requeue, Runner}
+  alias Slipdock.Runners.{ClaimDrain, ClaimMove, Job, Pause, Probe, Recovery, Requeue, Runner}
 
   @pubsub Slipdock.PubSub
 
@@ -1169,14 +1169,17 @@ defmodule Slipdock.Runners do
       end)
 
     if claimed do
+      claimed_profile(claimed, runner)
+      # The card goes to its board's doing list on claim (#2633).
+      moved = ClaimMove.move(claimed, runner)
+
       Boards.log_activity(
         claimed.board_id,
         claimed.card_id,
         "runner",
-        "#{runner.name} took job ##{claimed.id}"
+        "#{runner.name} took job ##{claimed.id}" <> ClaimMove.activity_suffix(moved)
       )
 
-      claimed_profile(claimed, runner)
       Slipdock.StepStatus.claimed(claimed)
       claimed |> changed() |> Repo.preload(:card)
     end
@@ -1843,8 +1846,10 @@ defmodule Slipdock.Runners do
   @doc """
   The prompt a claimed job is handed (#1622): as it was queued, followed by
   the card's bar when it has one, so the agent works to it (and checks it at
-  pickup for parts only a person can meet, #1883), its paths, and
-  the reason a verifier rejected it, when it is rejected (#1659). A verify
+  pickup for parts only a person can meet, #1883), its paths,
+  the reason a verifier rejected it, when it is rejected (#1659), how the
+  work ships, and last the list the card is in, with its board's doing list
+  by name (#2633). A verify
   job's prompt carries the bar already.
   """
   def claimed_prompt(%Job{kind: kind, prompt: prompt})
@@ -1871,6 +1876,16 @@ defmodule Slipdock.Runners do
     |> with_lane_advice(job)
     |> with_rejection(job)
     |> with_shipping(job)
+    |> with_list(job)
+  end
+
+  # Where the card is (#2633): its list, and the board's doing list by its
+  # own name, so an agent moving it by hand doesn't guess "Doing".
+  defp with_list(prompt, %Job{card_id: card_id}) do
+    case ClaimMove.prompt_line(card_id) do
+      nil -> prompt
+      line -> (prompt || "") <> "\n\n" <> line
+    end
   end
 
   # Sent back by a verifier (#1659): the reason is the brief for the rework,

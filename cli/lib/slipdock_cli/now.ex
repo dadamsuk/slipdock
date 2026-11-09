@@ -94,9 +94,17 @@ defmodule SlipdockCLI.Now do
     Render.table(["CARD", "WHERE", "STATE", "HOLDS", "RUNNER", "AGE"], rows)
   end
 
-  @doc "Where a card in progress sits: its board and list, and the epic over a sub-board."
-  def where(%{"parent" => %{"id" => id}} = c), do: "#{c["board"]} › #{c["list"]} (in ##{id})"
-  def where(c), do: "#{c["board"]} › #{c["list"]}"
+  @doc """
+  Where a card in progress sits: its board and list, and the epic over a
+  sub-board. A card a runner builds outside a doing list says so (#2633).
+  """
+  def where(c), do: place(c) <> outside(c)
+
+  defp place(%{"parent" => %{"id" => id}} = c), do: "#{c["board"]} › #{c["list"]} (in ##{id})"
+  defp place(c), do: "#{c["board"]} › #{c["list"]}"
+
+  defp outside(%{"in_doing" => false}), do: " (not a doing list)"
+  defp outside(_c), do: ""
 
   defp loop(%{"runner" => runner} = l), do: "#{runner} #{l["kind"]}" |> String.trim()
   defp loop(_), do: Render.dim("-")

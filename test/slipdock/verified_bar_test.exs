@@ -147,7 +147,9 @@ defmodule Slipdock.VerifiedBarTest do
       # #1883: then the check at pickup, before building.
       assert Slipdock.Runners.claimed_prompt(job) ==
                "Do it.\n\nThe card's bar (what done means for it); work to it as written:\nTests pass" <>
-                 "\n\n" <> Slipdock.Verified.bar_pickup_check()
+                 "\n\n" <>
+                 Slipdock.Verified.bar_pickup_check() <>
+                 "\n\n" <> Slipdock.Runners.ClaimMove.prompt_line(card.id)
 
       check = Slipdock.Verified.bar_pickup_check()
       assert check =~ "Before building, check each part of the bar against the guide"
@@ -168,7 +170,9 @@ defmodule Slipdock.VerifiedBarTest do
       other = card_fixture(ctx.todo, %{"title" => "No bar"})
       {:ok, plain} = Slipdock.Runners.queue(other, %{pool: "dev", kind: "claude", prompt: "Go."})
       # No bar, nothing to check at pickup.
-      assert Slipdock.Runners.claimed_prompt(plain) == "Go."
+      assert Slipdock.Runners.claimed_prompt(plain) ==
+               "Go.\n\n" <> Slipdock.Runners.ClaimMove.prompt_line(other.id)
+
       refute Slipdock.Runners.claimed_prompt(plain) =~ "check each part of the bar"
     end
 

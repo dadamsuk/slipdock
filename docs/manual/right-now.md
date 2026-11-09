@@ -20,7 +20,11 @@ runners take work from all of it), read again every few seconds:
   with the card, how long since it was claimed and the latest step its agent
   reported.
 - **In progress**: every open card in a list whose category is *In progress*,
-  longest there first, with where it sits (the board and list, and the epic
+  and every card a runner is building (a claimed or running job other than
+  a verify or merge), wherever it sits, so a card whose agent never moved it
+  still shows, marked *Not in a doing list* (`in_doing: false` in the API and
+  MCP, *(not a doing list)* after its list in `slipdock now`). Longest there
+  first, with where it sits (the board and list, and the epic
   whose sub-board holds it), its state line (*Running · Mac Studio · 7m*,
   *Waiting on Dana*), the runner loop holding it, and what holds it: waiting
   on a person, verifying, merging, blocked, in review or stuck (red: the

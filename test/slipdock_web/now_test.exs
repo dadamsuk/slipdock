@@ -131,6 +131,32 @@ defmodule SlipdockWeb.NowTest do
       refute has_element?(view, "#now-card-#{ctx.card.id} .badge-warning")
     end
 
+    test "a card a runner builds outside a doing list shows, its list named (#2633)", ctx do
+      slipped = card_fixture(ctx.todo, %{"title" => "Slipped through"})
+
+      working_job_fixture(slipped, %{
+        runner_id: ctx.runner.id,
+        runner_name: "Mac Studio",
+        pool: "dev"
+      })
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/now")
+
+      row = "#now-card-#{slipped.id}"
+      assert has_element?(view, row, "Slipped through")
+      assert has_element?(view, row, "Busy › #{ctx.todo.name}")
+      assert has_element?(view, "#{row}-outside.badge-warning", "Not in a doing list")
+      refute has_element?(view, "#now-card-#{ctx.card.id}-outside")
+      assert has_element?(view, "#now-cards h2", "2")
+
+      body = ctx.user |> with_token() |> get("/api/boards/#{ctx.board.id}/now")
+      cards = json_response(body, 200)["in_progress"]
+
+      assert %{"list" => list, "in_doing" => false} = Enum.find(cards, &(&1["id"] == slipped.id))
+      assert list == ctx.todo.name
+      assert %{"in_doing" => true} = Enum.find(cards, &(&1["id"] == ctx.card.id))
+    end
+
     test "a quiet board says so in each section", %{user: user} do
       board = board_fixture(%{}, owner: user)
       {:ok, view, _} = live(build_conn() |> log_in_user(user), ~p"/boards/#{board}/now")
@@ -324,7 +350,7 @@ defmodule SlipdockWeb.NowTest do
       assert [card] = body["in_progress"]
 
       assert Map.keys(card) |> Enum.sort() ==
-               ~w(age board board_id holds id list loop parent state state_kind title)
+               ~w(age board board_id holds id in_doing list loop parent state state_kind title)
 
       assert card["loop"] == nil or Map.keys(card["loop"]) -- ~w(job_id kind runner) == []
       assert [%{"held" => _} = queued] = body["queued"]
