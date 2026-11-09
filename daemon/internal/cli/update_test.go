@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +19,7 @@ import (
 	"time"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/release"
+	"github.com/dadamsuk/slipdock/daemon/internal/runner"
 	"github.com/dadamsuk/slipdock/daemon/internal/update"
 )
 
@@ -284,5 +288,100 @@ func TestADevBuildDoesntUpdateItself(t *testing.T) {
 	exeHolds(t, w, "old binary\n")
 	if code := w.main("doctor"); !strings.Contains(w.out.String(), "warn  updates: a dev build doesn't update itself") {
 		t.Fatalf("doctor: %d %s", code, w.out)
+	}
+}
+
+// An update found by a later check, with the runners running (#2618): they
+// take no more jobs, and run exits to restart on the new binary once they
+// are idle, rather than at once.
+func TestRunDrainsItsRunnersBeforeALaterUpdateRestarts(t *testing.T) {
+	srv := &configServer{}
+	w, _ := liveWorld(t, srv)
+	r := withReleases(t, w)
+	r.mu.Lock()
+	r.publish("v1.2.0", []byte("old binary\n")) // nothing newer at the start
+	r.mu.Unlock()
+	old := updateEvery
+	updateEvery = 2
+	t.Cleanup(func() { updateEvery = old })
+	srv.set(runnerJSON(21, 1, filepath.Join(w.home, "repo"), "default", false))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	w.env.Context = func() (context.Context, context.CancelFunc) { return ctx, cancel }
+	code := make(chan int, 1)
+	go func() { code <- Main([]string{"run"}, w.env) }()
+	waitUntil(t, "runner 21 to claim", func() bool { return srv.claimsOf("21") > 0 })
+
+	r.mu.Lock()
+	r.publish("v1.3.0", []byte("new binary\n"))
+	r.mu.Unlock()
+	select {
+	case c := <-code:
+		if c != 1 || !strings.Contains(w.errOut.String(), "updated: exiting so the service starts the new version") {
+			t.Fatalf("exit %d: %s", c, w.errOut)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatalf("run didn't restart for the update:\n%s", w.errOut)
+	}
+	exeHolds(t, w, "new binary\n")
+	log := w.errOut.String()
+	for _, want := range []string{
+		"updated v1.2.0 to v1.3.0, signature and checksum checked; restarting",
+		"runner r21 (#21) takes no more jobs",
+		"the runners take no more jobs: restarting once the jobs they hold have finished",
+		"the runners are idle: restarting on the new version",
+	} {
+		if !strings.Contains(log, want) {
+			t.Errorf("the log doesn't say %q:\n%s", want, log)
+		}
+	}
+	// A config that comes while it drains starts nothing; after the exit
+	// no runner claims.
+	n := srv.claimsOf("21")
+	time.Sleep(100 * time.Millisecond)
+	if srv.claimsOf("21") != n {
+		t.Fatal("runner 21 went on claiming after the restart")
+	}
+}
+
+// restartWhenIdle waits for the runners' jobs, however long they take, but
+// not past the process being asked to stop, and a revocation meanwhile wins.
+func TestRestartWhenIdleWaitsForTheHeldJobs(t *testing.T) {
+	logs := &strings.Builder{}
+	var mu sync.Mutex
+	logf := func(f string, a ...any) { mu.Lock(); defer mu.Unlock(); fmt.Fprintf(logs, f+"\n", a...) }
+	start := func(ctx context.Context, revoked chan struct{}) (drain, idle chan struct{}, got chan error) {
+		drain, idle, got = make(chan struct{}), make(chan struct{}), make(chan error, 1)
+		go func() { got <- restartWhenIdle(ctx, errRestart, drain, idle, revoked, logf) }()
+		return
+	}
+
+	drain, idle, got := start(context.Background(), make(chan struct{}))
+	<-drain // the runners are told at once
+	select {
+	case err := <-got:
+		t.Fatalf("returned %v while a job was held", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	close(idle)
+	if err := <-got; !errors.Is(err, errRestart) {
+		t.Fatalf("err = %v, want errRestart", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	_, _, got = start(ctx, make(chan struct{}))
+	cancel()
+	if err := <-got; !errors.Is(err, errRestart) {
+		t.Fatalf("stopped while draining: err = %v, want errRestart", err)
+	}
+
+	revoked := make(chan struct{})
+	close(revoked)
+	ctx, cancel = context.WithCancel(context.Background())
+	cancel()
+	_, _, got = start(ctx, revoked)
+	if err := <-got; !errors.Is(err, runner.ErrRevoked) {
+		t.Fatalf("revoked while draining: err = %v, want ErrRevoked", err)
 	}
 }
