@@ -271,6 +271,10 @@ What the container sees, each at the path it has on the machine:
   there.
 - the machine's `slipdock` CLI, read-only, over the image's, so the board's
   drift check reads what runs.
+- for the agent alone (not the hooks or the daemon's own git), a fresh,
+  empty directory of the job's own at `~/.claude/projects`, where Claude
+  Code writes its transcript. It is made outside your home and the
+  daemon's directory for each job, and removed when the job ends.
 - a home at your home's path that is empty (a `tmpfs`) but for those.
 
 It is refused, and the job fails before anything starts, if what it would
@@ -285,8 +289,13 @@ the network off (`--network none`); an agent that calls its provider's API
 needs it on, and so does the built-in merge.
 
 Under `container` the agent's and hooks' programs are the image's, found
-on its `PATH`. The daemon reads nothing a container job wrote outside the
-repository, so the live transcript isn't sent: the job's own log is.
+on its `PATH`. The live transcript is sent as it is for any other job, read
+only from the job's transcripts directory: the daemon opens nothing but
+regular files beneath it (a link, a FIFO or a file over 128 MB the job
+put there is passed over), so nothing the job plants can make it read the
+machine's files. That needs a daemon built with Go 1.24 or later, as the
+released ones are; one built with an older Go sends no transcript for a
+container job, and its log still streams.
 
 The base image, `daemon/images/agent/Dockerfile` in the repository, has
 Claude Code, Codex, the slipdock CLI, `git` and `gh`. Build it on the
@@ -600,9 +609,11 @@ the machine allows, and a job never runs under a weaker one in its place.
   read a secret and send it.
 - `container`: jobs run in a short-lived Docker or Podman container,
   from an image the machine's own allow-list names, with the repository
-  or worktree mounted at the same path and the agent's login mounted
-  read-only. It stops a job reading or writing anything outside what is
-  mounted, and, when the runner asks for the network off, the network.
+  or worktree mounted at the same path, the agent's login mounted
+  read-only, and an empty directory of its own for the agent's
+  transcript, which the daemon reads only as regular files beneath it.
+  It stops a job reading or writing anything outside what is mounted,
+  and, when the runner asks for the network off, the network.
   It doesn't stop the job changing the mounted repository, using the
   agent's login (it can't change it, but can act with it), whatever the
   image itself does, or the network when it is left on. The runtime is

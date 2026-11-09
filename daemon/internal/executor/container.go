@@ -24,7 +24,9 @@ import (
 // path it has here: the job's directory (or its repository) and the
 // repository a worktree belongs to, read-write; the agent's and the CLI's
 // logins, read-only; and the machine's slipdock CLI, read-only, over the
-// image's. Its home (the daemon's home's path) is an empty tmpfs, so
+// image's; and, for the agent alone, a fresh directory of the job's own
+// at the home's .claude/projects, for its transcripts (#2625). Its home
+// (the daemon's home's path) is an empty tmpfs, so
 // nothing of the home is there but what is mounted. A mount of the home,
 // of a directory holding it, of the daemon's own directory or of the
 // container runtime's socket is refused. Only the job's own variables
@@ -53,8 +55,13 @@ func (c *container) Home() string { return c.s.Home }
 
 // Files: the daemon reads nothing the job could have written. A job can
 // put a link anywhere in what it may write, and following it would read
-// the machine's files for it.
+// the machine's files for it. Its transcripts are read from the
+// directory made for them, through Beneath (#2625).
 func (c *container) Files() Files { return noFiles{} }
+
+// TranscriptsAt is where a Proc's Transcripts directory is mounted in the
+// container: Claude Code's projects directory, in the home.
+func TranscriptsAt(home string) string { return filepath.Join(home, ".claude", "projects") }
 
 // Pulls are the pull policies a machine may set (container.pull).
 var Pulls = []string{"never", "missing", "always"}
@@ -446,6 +453,13 @@ func (c *container) runArgs(rt string, p Proc) ([]string, []string, error) {
 	}
 	for _, m := range ro {
 		argv = append(argv, "--mount=type=bind,source="+m+",destination="+m+",readonly")
+	}
+	if p.Transcripts != "" {
+		tx, err := c.mountable(p.Transcripts)
+		if err != nil {
+			return nil, nil, err
+		}
+		argv = append(argv, "--mount=type=bind,source="+tx+",destination="+TranscriptsAt(home))
 	}
 	if c.s.CLI != "" {
 		if cli, err := realPath(c.s.CLI); err == nil && !badMountPath(cli) {

@@ -480,3 +480,52 @@ ls /sys/class/net`
 		t.Logf("with the network on: %q %v", out, err)
 	}
 }
+
+// TestOnlyTheAgentGetsTheTranscriptsMount: a Proc's Transcripts directory
+// is mounted read-write at the home's .claude/projects (#2625); a hook
+// and the daemon's own git get none, and one that can't be mounted is
+// refused.
+func TestOnlyTheAgentGetsTheTranscriptsMount(t *testing.T) {
+	r := newContainerRig(t)
+	ex := r.new(t)
+	tx, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "--mount=type=bind,source=" + tx + ",destination=" + filepath.Join(r.home, ".claude", "projects")
+	cmd, err := ex.Command(Proc{Dir: r.repo, Transcripts: tx}, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts, _ := split(t, cmd.Args, "ghcr.io/me/agent:1"); !has(opts, want) {
+		t.Fatalf("no %s in %q", want, opts)
+	}
+	if TranscriptsAt(r.home) != filepath.Join(r.home, ".claude", "projects") {
+		t.Fatal(TranscriptsAt(r.home))
+	}
+
+	hook, err := ex.Hook(context.Background(), Proc{Dir: r.repo}, "setup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Remove(r.calls)
+	if _, err := ex.Exec(context.Background(), r.repo, "git", "status"); err != nil {
+		t.Fatal(err)
+	}
+	calls, _ := os.ReadFile(r.calls)
+	for what, line := range map[string]string{"the hook": strings.Join(hook.Args, " "), "the daemon's git": string(calls)} {
+		if !strings.Contains(line, " run ") && !strings.HasPrefix(line, "run ") {
+			t.Fatalf("%s didn't run in a container: %q", what, line)
+		}
+		if strings.Contains(line, ".claude/projects") {
+			t.Errorf("%s got the transcripts mount: %s", what, line)
+		}
+	}
+
+	// The daemon's own directory, or the home, is never the transcripts'.
+	for _, bad := range []string{r.machineDir, r.home} {
+		if _, err := ex.Command(Proc{Dir: r.repo, Transcripts: bad}, "claude"); err == nil {
+			t.Errorf("mounted %s as the transcripts", bad)
+		}
+	}
+}
