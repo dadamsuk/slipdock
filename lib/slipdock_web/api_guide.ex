@@ -2565,7 +2565,7 @@ defmodule SlipdockWeb.APIGuide do
     `/cli/SHA256SUMS` differs from its CLI, fetches `/cli/slipdock.escript`,
     checks its SHA-256 and puts it in its own `bin`, first on the job's
     PATH (`no_cli_update` in `local.json` turns that off), so its next
-    claim reports it current. Elsewhere, run the install one-liner on the
+    claim reports it current. Otherwise, run the install one-liner on the
     machine again. A skill's one source is the server, never a hand-edited
     copy.
 
