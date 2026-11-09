@@ -585,6 +585,10 @@ defmodule SlipdockWeb.API.JSON do
       description: c.description,
       priority: c.priority,
       flags: c.flags,
+      # Who clears each flag (#2624): "person" when somebody has to act,
+      # "auto" when the board's own processes clear it, "none" for a mark
+      # that asks nothing, each with a line saying why.
+      flag_attention: Slipdock.Attention.map(c),
       tags: if(Ecto.assoc_loaded?(c.tags), do: Enum.map(c.tags, & &1.name), else: []),
       start_date: c.start_date,
       due_date: c.due_date,

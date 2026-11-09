@@ -687,7 +687,13 @@ defmodule SlipdockWeb.APIGuide do
       `tags`, `start_date`, `due_date`, `completed`, `percent_complete` (0–100,
       or null when nobody has said), `assignees` (everybody it is assigned to,
       lead first) and `assignee` (the lead alone), `position` within its list.
-      `archived_at` is set on archived cards.
+      `archived_at` is set on archived cards. `flag_attention` says who clears
+      each of its flags (#2624): `{"review": {"attention": "auto", "why": "A
+      verifier agent checks it and decides."}}`, where `person` means somebody
+      has to act, `auto` that the board's own processes clear it (a blocker
+      still open, a verify pool's verifier) and `none` a mark that asks
+      nothing (`starred`). The board draws a `person` flag filled and an
+      `auto` one outline only.
     - **Time** — a card's `time` says how long has gone on it against its
       estimate: `unit` (`minutes`, `hours`, `days`, `weeks`, `months`), `spent`
       and `estimate` in that unit, the same as `spent_minutes` and

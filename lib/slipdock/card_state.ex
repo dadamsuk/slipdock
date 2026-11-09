@@ -36,6 +36,11 @@ defmodule Slipdock.CardState do
       wait (the person is the hold-up, not the card), an epic with open
       subcards (its stay is its subcards', #2131), or an unknown age.
 
+    * `verifier` — whether the card's board queues a verify job for a
+      verifier agent when a card is submitted (`verify_work` with a
+      `verify_pool`), so a pending card's `review` flag clears without a
+      person (`Slipdock.Attention`, #2624).
+
   `put/3` decorates a batch of cards with a fixed number of queries,
   whatever their number: the board page, `Boards.list_cards/2` and
   `Boards.get_card/1` go through it, and the tile, `API.JSON.card/1`, MCP
@@ -58,7 +63,8 @@ defmodule Slipdock.CardState do
             known: false,
             usual: nil,
             over_usual: nil,
-            stuck: false
+            stuck: false,
+            verifier: false
 
   # A Scheduled list's cards (#2100) wait there for their feed by design:
   # no "over usual" for them.
@@ -93,7 +99,8 @@ defmodule Slipdock.CardState do
       usual: Keyword.get_lazy(opts, :usual, fn -> Pulse.usual_stays(board, now: now) end),
       columns: Map.new(opts[:columns] || [], &{&1.id, &1}),
       runner_tree:
-        Keyword.get_lazy(opts, :runner_tree, fn -> runner_tree?(Board.root_id(board)) end)
+        Keyword.get_lazy(opts, :runner_tree, fn -> runner_tree?(Board.root_id(board)) end),
+      verifier: verifier?(board)
     }
 
     Enum.map(cards, &%{&1 | state: derive(&1, ctx)})
@@ -194,9 +201,16 @@ defmodule Slipdock.CardState do
       known: known,
       usual: usual,
       over_usual: over,
-      stuck: not is_nil(over)
+      stuck: not is_nil(over),
+      verifier: ctx.verifier
     }
   end
+
+  @doc "Whether `board` sends a submitted card to a verifier agent (a verify pool, with verified work on)."
+  def verifier?(%Board{verify_work: true, verify_pool: pool}) when is_binary(pool) and pool != "",
+    do: true
+
+  def verifier?(_board), do: false
 
   # By how much the card is past its list's usual stay, or nil: see the
   # moduledoc for the cards that are never over it.

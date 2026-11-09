@@ -545,6 +545,7 @@ defmodule SlipdockWeb.TableComponents do
     <span class="flex items-center gap-1"><.flag_icon
       :for={flag <- @card.flags}
       flag={flag}
+      card={@card}
       class="size-3.5"
     /></span>
     """

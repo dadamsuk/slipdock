@@ -155,7 +155,12 @@ defmodule SlipdockWeb.PrioritiseComponents do
                 >
                   {entry.card.title}
                 </span>
-                <.flag_icon :for={flag <- entry.card.flags} flag={flag} class="size-3.5 shrink-0" />
+                <.flag_icon
+                  :for={flag <- entry.card.flags}
+                  flag={flag}
+                  card={entry.card}
+                  class="size-3.5 shrink-0"
+                />
                 <span :if={entry.card.tags != []} class="hidden items-center gap-1 lg:flex">
                   <.tag_chip :for={tag <- entry.card.tags} tag={tag} size="xs" />
                 </span>
@@ -237,7 +242,12 @@ defmodule SlipdockWeb.PrioritiseComponents do
           >
             {entry.card.title}
           </span>
-          <.flag_icon :for={flag <- entry.card.flags} flag={flag} class="size-3.5 shrink-0" />
+          <.flag_icon
+            :for={flag <- entry.card.flags}
+            flag={flag}
+            card={entry.card}
+            class="size-3.5 shrink-0"
+          />
         </div>
 
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-8">

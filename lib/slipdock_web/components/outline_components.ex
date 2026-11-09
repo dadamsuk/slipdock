@@ -238,6 +238,7 @@ defmodule SlipdockWeb.OutlineComponents do
             :for={flag <- node.card.flags}
             :if={MapSet.member?(@show, "flags")}
             flag={flag}
+            card={node.card}
             class="size-3"
           />
           <.priority_badge

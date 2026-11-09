@@ -205,6 +205,13 @@ defmodule SlipdockWeb.MCP.Tools do
       stand_in_for: full.stand_in_for && full.stand_in_for.id
     })
     |> then(&if(full.archived_at, do: Map.put(&1, :archived, true), else: &1))
+    # Who clears each flag (#2624), when it has any.
+    |> then(
+      &if(full.flag_attention != %{},
+        do: Map.put(&1, :flag_attention, full.flag_attention),
+        else: &1
+      )
+    )
     # Its profile (#1951), when it has one, and where it came from (#2018).
     |> then(&if(p = full[:profile], do: Map.put(&1, :profile, p), else: &1))
     |> then(

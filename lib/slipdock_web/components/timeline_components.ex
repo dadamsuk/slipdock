@@ -412,6 +412,7 @@ defmodule SlipdockWeb.TimelineComponents do
             :for={flag <- Enum.take(bar.card.flags, 2)}
             :if={MapSet.member?(@show, "flags")}
             flag={flag}
+            card={bar.card}
             class="size-3"
           />
           <.priority_badge :if={MapSet.member?(@show, "priority")} priority={bar.card.priority} />
@@ -561,6 +562,7 @@ defmodule SlipdockWeb.TimelineComponents do
             :for={flag <- Enum.take(bar.card.flags, 2)}
             :if={MapSet.member?(@show, "flags")}
             flag={flag}
+            card={bar.card}
             class="size-3"
           />
           <.priority_badge

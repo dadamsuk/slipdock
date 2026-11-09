@@ -837,6 +837,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           <.flag_chip
             :for={flag <- applied_flags(@card)}
             flag={flag}
+            card={@card}
             removable={@can_write}
             phx-target={@target}
           />
@@ -1146,27 +1147,45 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   defp applied_flags(card), do: for({flag, _, _, _, _} <- flags(), flag in card.flags, do: flag)
 
   attr :flag, :string, required: true
+  attr :card, :any, required: true
   attr :removable, :boolean, default: false
   attr :rest, :global
 
   # An applied flag (#1727): its colour, icon and name, and an × to take it
-  # off for someone who may.
+  # off for someone who may. Filled when a person has to act on it, outline
+  # only when the board's own processes clear it (#2624), and its tooltip
+  # says which.
   defp flag_chip(assigns) do
     {_, label, icon, color, active_cls} = List.keyfind!(flags(), assigns.flag, 0)
-    assigns = assign(assigns, label: label, icon_name: icon, color: color, active_cls: active_cls)
+    {attention, why} = flag_attention(assigns.flag, assigns.card)
+
+    assigns =
+      assign(assigns,
+        label: label,
+        icon_name: flag_icon_name(icon, attention),
+        color: color,
+        chip_cls: if(attention == "auto", do: [color, "ring-current/50"], else: active_cls),
+        attention: attention,
+        tip: flag_tip(label, attention, why)
+      )
 
     ~H"""
     <span
       id={"card-flag-#{@flag}"}
       data-role="flag-chip"
+      data-attention={@attention}
+      title={@tip}
       class={[
         "inline-flex items-center gap-1 rounded-full py-0.5 pl-2 text-xs font-medium ring-1",
-        @active_cls,
+        @chip_cls,
         if(@removable, do: "pr-1", else: "pr-2.5")
       ]}
     >
       <.icon name={@icon_name} class={["size-3.5", @color]} />
       {@label}
+      <.icon :if={@attention == "person"} name="hero-hand-raised" class="size-3 opacity-70" />
+      <span :if={@attention == "auto"} class="font-normal opacity-70">· clears itself</span>
+      <span class="sr-only">{@tip}</span>
       <button
         :if={@removable}
         type="button"

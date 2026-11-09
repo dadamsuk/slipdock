@@ -838,6 +838,9 @@ verification and merges that stall, cards and waits nobody is moving — tries
 a safe fix (a comment on the card each time), and flags what it can't fix: the
 card gets the `stuck` flag, or the board an alert. A card flagged `stuck` is
 for a person; an agent says on it what it knows and leaves the flag alone.
+Every card's `flag_attention` says the same of each flag it carries
+(`person`, `auto` or `none`, and why), as the board draws it: filled for a
+person, outline only for what clears itself (#2624).
 `slipdock health <board>`, the board's Health page and
 `GET /api/boards/:board/health` show the incidents; see
 [the manual](manual/the-health-monitor.md).

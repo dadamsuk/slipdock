@@ -482,7 +482,7 @@ defmodule SlipdockWeb.MultiboardLive.Index do
     ~H"""
     <span class="flex flex-wrap items-center gap-1">
       <.tag_chip :for={tag <- @card.tags} tag={tag} size="xs" />
-      <.flag_icon :for={flag <- @card.flags} flag={flag} class="size-3.5" />
+      <.flag_icon :for={flag <- @card.flags} flag={flag} card={@card} class="size-3.5" />
       <.priority_badge priority={@card.priority} />
       <.schedule_badges card={@card} />
     </span>
