@@ -135,8 +135,9 @@ available as [a tarball](https://app.slipdock.us/api/skills.tar.gz) and as
 that serves it (in Slipdock's repository, `priv/skills/`). The copy on your
 machine is installed from there, never edited by hand: to change a skill,
 change it in `priv/skills/`, and once that is deployed run the one-liner
-again, on a runner's machine too: a runner reports its skills' drift (below)
-but changes nothing on the machine. Slipdock's own tests read only
+again. A machine with the runner daemon needs no step: before each agent
+job its daemon puts the server's skills and `slipdock` CLI in place (below).
+Slipdock's own tests read only
 `priv/skills/`, never `~/.claude/skills`.
 
 What you get:
@@ -760,7 +761,17 @@ slipdock skill's `SKILL.md` and of the `slipdock` CLI, which the server
 compares with what it serves. `slipdock runners` (SKILLS · CLI), the Runners
 panel and the runner's `drift` in the API say current, drifted (naming the
 skills), old or unknown, and a drifted runner raises one alert until it is
-current again. The server never changes the machine: run the install
+current again. The server never changes the machine; its daemon does,
+before each agent job (not a merge or a probe): it puts the server's skills
+in place, and when `/cli/SHA256SUMS` differs from the CLI it reports, it
+fetches `/cli/slipdock.escript`, checks its SHA-256 against those sums and
+puts it in the daemon's own `bin` folder, first on the job's PATH (or over
+the `cli` its `local.json` names, never over a copy installed elsewhere).
+The next claim reports it, so a deploy leaves no runner *cli old*. A failed
+fetch or a wrong sum keeps the CLI there was, and the job runs.
+`no_cli_update: true` (and `no_skills_update`) in `local.json` turns it
+off. Under the `user` executor, and for a CLI the daemon doesn't write (the
+`container` executor or Windows, with no `cli` named), run the install
 one-liner there again (see *One source for each skill* under §3 above).
 
 **A job runs with nobody watching**, so two things are set up for it. A

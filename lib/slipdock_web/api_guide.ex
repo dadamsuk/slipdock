@@ -2560,7 +2560,12 @@ defmodule SlipdockWeb.APIGuide do
     each runner's `drift` compares them with what this server serves:
     `skills` current, drifted (`drifted_skills` names them) or unknown,
     `cli` current, old, none or unknown. A drifted runner raises one
-    alert, cleared once it is current: run the install one-liner on the
+    alert, cleared once it is current. A daemon clears it itself: before
+    each agent job it puts the server's skills in place and, when
+    `/cli/SHA256SUMS` differs from its CLI, fetches `/cli/slipdock.escript`,
+    checks its SHA-256 and puts it in its own `bin`, first on the job's
+    PATH (`no_cli_update` in `local.json` turns that off), so its next
+    claim reports it current. Elsewhere, run the install one-liner on the
     machine again. A skill's one source is the server, never a hand-edited
     copy.
 

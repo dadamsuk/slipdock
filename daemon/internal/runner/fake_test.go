@@ -52,7 +52,7 @@ func helper(mode string, args []string) int {
 			fmt.Fprintf(&b, "arg=%s\n", strings.ReplaceAll(a, "\n", `\n`))
 		}
 		for _, e := range os.Environ() {
-			if strings.HasPrefix(e, "SLIPDOCK_") || strings.HasPrefix(e, "CLAUDE_CODE_") {
+			if strings.HasPrefix(e, "SLIPDOCK_") || strings.HasPrefix(e, "CLAUDE_CODE_") || (os.Getenv("HELPER_SHOW_PATH") != "" && strings.HasPrefix(e, "PATH=")) {
 				fmt.Fprintf(&b, "env=%s\n", strings.ReplaceAll(e, "\n", `\n`))
 			}
 		}
@@ -182,6 +182,16 @@ type server struct {
 	skillsCode int
 	skillsGets int
 	skillsKey  string
+	// cli and cliSums are what /cli/slipdock.escript and /cli/SHA256SUMS
+	// answer (404 when nil); cliCode fails the escript's fetch; cliGets
+	// counts the escript's fetches and cliKeys the Authorization each of
+	// the two sent.
+	cli      []byte
+	cliSums  []byte
+	cliCode  int
+	cliGets  int
+	sumsGets int
+	cliKeys  []string
 }
 
 func newServer(t *testing.T) *server {
@@ -201,6 +211,27 @@ func (s *server) add(j fakeJob) {
 
 func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
+	if r.URL.Path == "/cli/slipdock.escript" || r.URL.Path == "/cli/SHA256SUMS" {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.cliKeys = append(s.cliKeys, r.Header.Get("Authorization"))
+		body, code := s.cliSums, 0
+		if r.URL.Path == "/cli/slipdock.escript" {
+			s.cliGets++
+			body, code = s.cli, s.cliCode
+		} else {
+			s.sumsGets++
+		}
+		switch {
+		case code != 0:
+			w.WriteHeader(code)
+		case body == nil:
+			w.WriteHeader(404)
+		default:
+			_, _ = w.Write(body)
+		}
+		return
+	}
 	if r.URL.Path == "/api/skills.tar.gz" {
 		s.mu.Lock()
 		defer s.mu.Unlock()

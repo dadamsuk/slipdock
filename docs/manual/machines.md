@@ -349,8 +349,10 @@ optional, and with no file at all `claude` and `codex` are found on your
   transcripts, the slipdock skills and the `slipdock` CLI are, when they
   aren't in the usual places. `no_merge: true` turns off the built-in merge.
   `no_skills_update: true` stops the daemon putting the server's slipdock
-  skills in `skills_dir` before each agent job (see
-  [Runners](runners.md), *Skill and CLI drift*).
+  skills in `skills_dir` before each agent job, and `no_cli_update: true`
+  stops it putting the server's `slipdock` CLI in its own `bin` folder (or
+  at `cli`, when that is set) (see [Runners](runners.md), *Skill and CLI
+  drift*).
 
 A job whose agent or hook the file doesn't define fails before anything
 runs, and its log on the card says which name was missing. A file with a
@@ -388,7 +390,13 @@ accepted or refused (and why), and each field that changed, old and new:
 Each runner takes one job at a time. Its claims say
 which kinds it takes (its agent's, `verify`, the built-in `merge` and the
 built-in `probe`), and
-which skills and CLI are installed, so the board shows drift. While a job
+which skills and CLI are installed, so the board shows drift. Before an
+agent job (not a merge or a probe) it puts the server's skills and, when the
+server's `/cli/SHA256SUMS` differs from the installed CLI, the server's
+`slipdock` CLI in place, so a deploy needs no step on the machine: the
+CLI goes in the daemon's own `bin` folder, beside its `jobs` folder, and
+first on the job's PATH, never over a copy you installed elsewhere unless
+`cli` in the local file names it. While a job
 runs, its log's tail goes to the board every 20 seconds and Claude Code's
 transcript about once a minute, with this machine's keys and tokens taken
 out. Cancelling the job on the board, or its timeout, stops it and every
@@ -549,6 +557,14 @@ the machine on the Machines page ends the key at once.
   who signs the releases. A self-hosted server can't author an update;
   the hosted operator can, as anyone who downloads the tool already
   trusts them to.
+- The slipdock CLI. Before each agent job the daemon puts the server's
+  `slipdock` CLI in its own folder, first on the job's PATH (or over the
+  one `local.json` names as `cli`), when it differs from the one there.
+  The agent runs it, and it is checked only against the checksum the same
+  server publishes, not the release key: a server can change the program
+  the agent calls, as it can the slipdock skills the agent reads. Set
+  `no_cli_update` (and `no_skills_update`) in `local.json` to keep your
+  own.
 - Network access. A job can reach the network, and so can send anything
   it can read to anywhere, unless its runner uses the `container`
   executor with the network off. No other executor limits the network.

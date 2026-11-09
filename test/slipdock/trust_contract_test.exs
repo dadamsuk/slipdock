@@ -36,7 +36,9 @@ defmodule Slipdock.TrustContractTest do
             "the operator who runs the server is also the one who signs the releases",
             "unless its runner uses the `container` executor with the network off",
             "Prompts are the board members' instructions.",
-            "within the runner's permission mode"
+            "within the runner's permission mode",
+            "- The slipdock CLI.",
+            "not the release key"
           ] do
         assert text =~ promise, "the contract no longer says #{promise}"
       end

@@ -57,6 +57,10 @@ type Local struct {
 	// default each slipdock skill there is replaced with the server's
 	// before every agent job (#2614).
 	NoSkillsUpdate bool `json:"no_skills_update,omitempty"`
+	// NoCLIUpdate keeps the slipdock CLI as it is: by default, before
+	// every agent job, the server's is put in the daemon's own bin (or at
+	// CLI, when that is set) if the claim's CLI differs from it (#2631).
+	NoCLIUpdate bool `json:"no_cli_update,omitempty"`
 	// User is the dedicated account jobs run as under the user executor
 	// (W-2543): init writes it when it sets the account up.
 	User *Account `json:"user,omitempty"`

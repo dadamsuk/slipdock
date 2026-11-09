@@ -98,6 +98,28 @@ defmodule SlipdockWeb.RunnerDocsTest do
     refute read("CLAUDE.md") =~ "installs nothing yet"
   end
 
+  test "the daemon keeping the CLI current is described in the manual, agents page and help (#2631)" do
+    manual = read("docs/manual.md")
+    assert manual =~ "`no_cli_update: true`"
+    assert manual =~ "fetches\n`/cli/slipdock.escript`, checks its SHA-256"
+    assert manual =~ "A failed fetch or a wrong sum keeps the CLI there was"
+    refute manual =~ "There, and for the `slipdock` CLI, run the"
+
+    agents = read("docs/agents.md")
+    assert agents =~ "`no_cli_update: true`"
+    assert agents =~ "so a deploy leaves no runner *cli old*"
+    refute agents =~ "The server never changes the machine: run the install"
+
+    help = read("lib/slipdock_web/live/help_live/agents.ex")
+    assert help =~ ~s(id="help-machine-keeps-current")
+    assert help =~ "A failed fetch or a wrong sum keeps the CLI it had"
+    assert help =~ "<code>no_cli_update</code>"
+
+    guide = read("lib/slipdock_web/api_guide.ex")
+    assert guide =~ "A daemon clears it itself"
+    assert guide =~ "`no_cli_update` in `local.json` turns that off"
+  end
+
   test "the built-in merge kind is described in the docs (#1656)" do
     manual = read("docs/manual.md")
     assert manual =~ "**Runners merge.**"

@@ -76,6 +76,8 @@ func TestTheTextSaysWhatTheServerCanAndCannotDo(t *testing.T) {
 		"unless its runner uses the `container` executor with the network off",
 		"Prompts are the board members' instructions",
 		"within the runner's permission mode",
+		"The slipdock CLI. Before each agent job",
+		"not the release key",
 		"#### What each executor stops",
 	} {
 		if !strings.Contains(text, want) {

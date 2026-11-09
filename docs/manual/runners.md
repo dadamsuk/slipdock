@@ -280,7 +280,8 @@ than the server's, and so can a machine's `slipdock` CLI, so a pass can
 follow stale instructions. Every claim also says what the machine has:
 the SHA-256 of each `slipdock*/SKILL.md` under `~/.claude/skills`
 (`skills_dir` in a machine's local file for another place; line endings
-count as LF) and of the CLI (`cli` there, else the `slipdock` on the PATH).
+count as LF) and of the CLI (`cli` there, else the daemon's own copy, else
+the `slipdock` on the PATH).
 The server compares them with the skills it packages and the escript
 `/cli/SHA256SUMS` publishes. The Runners panel marks a runner *skills
 drifted* or *old CLI*, its details say *Skills* current, drifted (with the
@@ -298,10 +299,22 @@ folder, a `..` in a path, or a link, and installs nothing from it; leaves a
 skill folder that is a symlink (a checkout of your own) alone; and keeps
 the installed skills when the fetch fails, and runs the job anyway, saying
 so in the job's log. `no_skills_update: true` in the machine's local file
-turns it off. Under the `user` executor the skills are the job account's,
-which the daemon doesn't write. There, and for the `slipdock` CLI, run the
-install one-liner (`/install.sh`, `/install.ps1` on Windows) on the machine
-again, so its skills are never a hand-edited second copy.
+turns it off. It keeps the `slipdock` CLI current the same way (#2631):
+when `/cli/SHA256SUMS` differs from the CLI the claim reports, it fetches
+`/cli/slipdock.escript`, checks its SHA-256 against those sums, and puts it
+in the daemon's own `bin` folder (beside its `jobs` folder), which goes
+first on the job's PATH and is the CLI the next claim reports, so the
+runner shows a current CLI after a deploy without a step on the machine. A
+copy you installed elsewhere is never written unless the local file names
+it as `cli`; then that file is replaced in place, unless it is a symlink.
+A failed fetch or a wrong sum keeps the CLI there was, and the job runs.
+`no_cli_update: true` turns it off, and the daemon's copy is then neither
+used nor reported. Under the `user` executor the skills and CLI are the
+job account's, which the daemon doesn't write; under the `container`
+executor and on Windows only a `cli` the local file names is replaced.
+There, run the install one-liner (`/install.sh`, `/install.ps1` on
+Windows; `/cli/install.ps1` for the CLI on Windows) on the machine again,
+so its skills are never a hand-edited second copy.
 
 **Runners** belong to a board tree and a pool. The board owner makes them.
 A machine's runners authenticate with its machine key, and claim only for
