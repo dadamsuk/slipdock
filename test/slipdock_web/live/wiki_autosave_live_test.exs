@@ -1,5 +1,7 @@
 defmodule SlipdockWeb.WikiAutosaveLiveTest do
   @moduledoc "The wiki's editor keeps unsaved work, and takes images on new pages (#1532)."
+  # Sync: points the app's :uploads_dir at a temporary directory with
+  # Application.put_env, which is the whole node's.
   use SlipdockWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest

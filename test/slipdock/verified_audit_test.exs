@@ -7,7 +7,7 @@ defmodule Slipdock.VerifiedAuditTest do
   every rule judged; its decision (`agree` / `disagree`) only comments, and
   a disagreement raises an alert for the board's owner.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures

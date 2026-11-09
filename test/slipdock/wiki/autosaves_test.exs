@@ -1,4 +1,6 @@
 defmodule Slipdock.Wiki.AutosavesTest do
+  # Sync: points the app's :uploads_dir at a temporary directory with
+  # Application.put_env, which is the whole node's.
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures

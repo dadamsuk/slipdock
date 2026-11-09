@@ -9,6 +9,8 @@ defmodule SlipdockWeb.WikiTreePerfTest do
   everything, which costs seconds at this size, without failing on a slow
   runner. The body check is the strict one.
   """
+  # Sync: it times queries against loose bounds, and its telemetry handler
+  # sees every query on the node, so other tests beside it would skew both.
   use SlipdockWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest

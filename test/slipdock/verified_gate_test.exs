@@ -5,7 +5,7 @@ defmodule Slipdock.VerifiedGateTest do
   verdict in parts (#1778), the rejection past the limit going to a person
   (#1779), and an audit of the acceptance (#1780).
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures

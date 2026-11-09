@@ -3,6 +3,8 @@ defmodule Slipdock.WikiFolderMoveRollbackTest do
   A folder move is all or nothing (#745). Not async: the trigger that makes
   it fail locks the pages table until the test's sandbox rolls it away.
   """
+  # Sync: the trigger that makes the move fail locks the pages table until
+  # the test's sandbox rolls it away.
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures

@@ -1,5 +1,7 @@
 defmodule SlipdockWeb.DeploymentRateLimitTest do
   @moduledoc "Deploys are rate-limited per board (#1134). Sync: it turns the limiter on."
+  # Sync: it turns the rate limiter on with Application.put_env and resets
+  # its counts, which are one table for the node.
   use SlipdockWeb.ConnCase, async: false
 
   import Slipdock.Fixtures
