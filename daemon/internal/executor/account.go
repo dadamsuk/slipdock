@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -242,6 +243,21 @@ func (a *account) IsDir(path string) bool {
 }
 
 func (a *account) Files() Files { return accountFiles{a} }
+
+// Feeder runs a command as the account jobs run as, with stdin on its
+// standard input, and gives its output: how the daemon writes into that
+// account's home without writing as itself (#2642).
+type Feeder interface {
+	Feed(ctx context.Context, stdin []byte, name string, args ...string) (string, error)
+}
+
+// Feed runs name as the account, from /, with the same bare environment
+// as as's, fed stdin.
+func (a *account) Feed(ctx context.Context, stdin []byte, name string, args ...string) (string, error) {
+	cmd := a.as(ctx, name, args...)
+	cmd.Stdin = bytes.NewReader(stdin)
+	return run(ctx, cmd)
+}
 
 // accountFiles read as the account: its transcripts are its own, 0600.
 type accountFiles struct{ a *account }

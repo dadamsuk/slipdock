@@ -36,8 +36,10 @@ import (
 //     runs.
 //
 // local.json's no_skills_update turns it off. Under the user executor the
-// skills are another account's, which the daemon can't write, so they are
-// left alone and the log says so.
+// skills are the account's, which the daemon doesn't write as itself: the
+// archive is checked here as for any other, and only the entries that
+// passed are packed again and unpacked by the account (putSkillsAs, #2642),
+// with the same swap and the same symlink rule.
 
 // skillsPath is where the server serves every skill as one archive. It
 // needs no key, so none is sent.
@@ -222,9 +224,14 @@ func (w *Worker) keepSkills(ctx context.Context, j *jobRun) {
 		return
 	}
 	dir := w.skillsDir()
+	var feeder executor.Feeder
 	if w.Executor != nil && w.Executor.Name() == executor.User {
-		say("the jobs run as another account, whose skills the daemon doesn't write; keeping the ones in %s", dir)
-		return
+		f, ok := w.Executor.(executor.Feeder)
+		if !ok {
+			say("the jobs run as another account, which this executor can't write as; keeping the ones in %s", dir)
+			return
+		}
+		feeder = f
 	}
 	archive, err := w.Client.fetchSkills(ctx)
 	if err != nil {
@@ -236,11 +243,136 @@ func (w *Worker) keepSkills(ctx context.Context, j *jobRun) {
 		say("%v; keeping the ones in %s", err, dir)
 		return
 	}
-	put, notes := putSkills(dir, skills)
+	var put, notes []string
+	if feeder != nil {
+		put, notes = putSkillsAs(ctx, feeder, dir, skills)
+	} else {
+		put, notes = putSkills(dir, skills)
+	}
 	for _, n := range notes {
 		say("%s", n)
 	}
 	if len(put) > 0 {
 		say("installed the server's %s in %s", strings.Join(put, " "), dir)
 	}
+}
+
+// putSkillsScript puts the skills on its stdin (a tar of checked entries)
+// in place in $1, as the account it runs as: unpacked into a staging
+// folder there, then each skill named after $1 as putSkill does, written
+// whole to <name>.new and swapped in, unless its folder is a symlink. A
+// line for each: put, link or fail, and the name.
+const putSkillsScript = `dir=$1; shift
+mkdir -p "$dir" || exit 3
+stage=$(mktemp -d "$dir/.slipdock-skills.XXXXXX") || exit 3
+trap 'rm -rf "$stage"' EXIT
+tar -xf - -C "$stage" || exit 4
+for name do
+	target=$dir/$name
+	if [ -L "$target" ]; then printf 'link %s\n' "$name"; continue; fi
+	[ -d "$stage/$name" ] || mkdir "$stage/$name" || { printf 'fail %s\n' "$name"; continue; }
+	if rm -rf "$target.new" && mv "$stage/$name" "$target.new" && rm -rf "$target" && mv "$target.new" "$target"; then
+		printf 'put %s\n' "$name"
+	else
+		rm -rf "$target.new"
+		printf 'fail %s\n' "$name"
+	fi
+done`
+
+// putSkillsAs is putSkills, done by the account jobs run as (the user
+// executor) through f: the daemon writes nothing in its home. Only the
+// entries readSkills checked are packed and fed in, so the account's tar
+// sees no link and no path outside a skill.
+func putSkillsAs(ctx context.Context, f executor.Feeder, dir string, skills map[string][]skillFile) (put, notes []string) {
+	names := make([]string, 0, len(skills))
+	for name := range skills {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	archive, err := packSkills(names, skills)
+	if err != nil {
+		return nil, []string{fmt.Sprintf("could not pack the server's skills: %v; keeping the installed skills", err)}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	out, err := f.Feed(ctx, archive, "/bin/sh", append([]string{"-c", putSkillsScript, "sh", dir}, names...)...)
+	var other []string
+	for _, line := range strings.Split(out, "\n") {
+		what, name, _ := strings.Cut(strings.TrimSpace(line), " ")
+		switch {
+		case what == "put" && hasSkill(names, name):
+			put = append(put, name)
+		case what == "link" && hasSkill(names, name):
+			notes = append(notes, fmt.Sprintf("%s is a symlink; left alone", filepath.Join(dir, name)))
+		case what == "fail" && hasSkill(names, name):
+			notes = append(notes, fmt.Sprintf("could not put %s in place as the account; kept the installed copy", name))
+		case strings.TrimSpace(line) != "":
+			other = append(other, strings.TrimSpace(line))
+		}
+	}
+	switch {
+	case err != nil && len(other) > 0:
+		notes = append(notes, fmt.Sprintf("could not unpack the server's skills as the account (%v: %s); keeping the installed skills in %s", err, strings.Join(other, "; "), dir))
+	case err != nil:
+		notes = append(notes, fmt.Sprintf("could not unpack the server's skills as the account (%v); keeping the installed skills in %s", err, dir))
+	case len(other) > 0:
+		notes = append(notes, "the account said: "+strings.Join(other, "; "))
+	}
+	return put, notes
+}
+
+func hasSkill(names []string, name string) bool {
+	i := sort.SearchStrings(names, name)
+	return i < len(names) && names[i] == name
+}
+
+// packSkills is a plain tar of the checked skills: a folder for each, then
+// its files, with the folders they need.
+func packSkills(names []string, skills map[string][]skillFile) ([]byte, error) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	dirs := map[string]bool{}
+	addDir := func(name string) error {
+		if dirs[name] {
+			return nil
+		}
+		dirs[name] = true
+		return tw.WriteHeader(&tar.Header{Name: name + "/", Typeflag: tar.TypeDir, Mode: 0o755})
+	}
+	for _, name := range names {
+		if err := addDir(name); err != nil {
+			return nil, err
+		}
+		for _, f := range skills[name] {
+			p := name + "/" + f.rel
+			if err := addParents(addDir, name, f.rel); err != nil {
+				return nil, err
+			}
+			if err := tw.WriteHeader(&tar.Header{Name: p, Typeflag: tar.TypeReg, Mode: int64(f.mode), Size: int64(len(f.data))}); err != nil {
+				return nil, err
+			}
+			if _, err := tw.Write(f.data); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// addParents adds the folders between a skill's and its file rel, top
+// first.
+func addParents(addDir func(string) error, skill, rel string) error {
+	var parents []string
+	for d := path.Dir(rel); d != "."; d = path.Dir(d) {
+		parents = append([]string{skill + "/" + d}, parents...)
+	}
+	for _, d := range parents {
+		if err := addDir(d); err != nil {
+			return err
+		}
+	}
+	return nil
 }
