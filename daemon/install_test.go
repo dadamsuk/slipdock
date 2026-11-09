@@ -16,12 +16,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/release"
 )
 
 type installWorld struct {
+	// mu guards files: the release host's handler reads it on the server's
+	// goroutines, and the race detector can't see that the write before
+	// the run happened first (it is ordered only through curl, another
+	// process), so every read and write takes the lock (#2644).
+	mu     sync.Mutex
 	files  map[string][]byte
 	priv   ed25519.PrivateKey
 	script string
@@ -46,7 +52,9 @@ func newInstallWorld(t *testing.T) *installWorld {
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
 	w := &installWorld{files: map[string][]byte{}, priv: priv, bin: filepath.Join(t.TempDir(), "bin")}
 	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		w.mu.Lock()
 		data, ok := w.files[strings.TrimPrefix(r.URL.Path, "/rel/")]
+		w.mu.Unlock()
 		if !ok {
 			rw.WriteHeader(404)
 			return
@@ -74,9 +82,25 @@ func (w *installWorld) publish(bin []byte) {
 	m, _ := release.MarshalManifest(release.Manifest{Version: "v1.5.0", Files: map[string]release.File{
 		runtime.GOOS + "/" + runtime.GOARCH: {Name: w.name, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(bin))},
 	}})
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.files[release.ManifestFile] = m
 	w.files[release.SignatureFile] = release.Sign(w.priv, m)
 	w.files[w.name] = bin
+}
+
+// spoil changes what the release host serves, under the lock.
+func (w *installWorld) spoil(f func(files map[string][]byte)) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	f(w.files)
+}
+
+// served is what the release host serves at name.
+func (w *installWorld) served(name string) []byte {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.files[name]
 }
 
 func (w *installWorld) run(t *testing.T, script string) (string, error) {
@@ -98,7 +122,7 @@ func TestInstallShInstallsASignedRelease(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	got, err := w.installed()
-	if err != nil || string(got) != string(w.files[w.name]) {
+	if err != nil || string(got) != string(w.served(w.name)) {
 		t.Fatalf("installed %q, %v", got, err)
 	}
 	if st, _ := os.Stat(filepath.Join(w.bin, "slipdock-runner")); st.Mode().Perm() != 0o755 {
@@ -112,21 +136,21 @@ func TestInstallShInstallsASignedRelease(t *testing.T) {
 func TestInstallShRefusesWhatDoesntVerify(t *testing.T) {
 	_, otherPriv, _ := ed25519.GenerateKey(rand.Reader)
 	for name, c := range map[string]struct {
-		spoil func(w *installWorld)
+		spoil func(name string, files map[string][]byte)
 		want  string
 	}{
-		"a tampered binary": {func(w *installWorld) { w.files[w.name] = []byte("#!/bin/sh\necho evil\n") }, "SHA-256"},
-		"a manifest changed after signing": {func(w *installWorld) {
-			w.files[release.ManifestFile] = []byte(strings.Replace(string(w.files[release.ManifestFile]), "v1.5.0", "v9.9.9", 1))
+		"a tampered binary": {func(name string, files map[string][]byte) { files[name] = []byte("#!/bin/sh\necho evil\n") }, "SHA-256"},
+		"a manifest changed after signing": {func(_ string, files map[string][]byte) {
+			files[release.ManifestFile] = []byte(strings.Replace(string(files[release.ManifestFile]), "v1.5.0", "v9.9.9", 1))
 		}, "not signed with the project's release key"},
-		"another key's signature": {func(w *installWorld) {
-			w.files[release.SignatureFile] = release.Sign(otherPriv, w.files[release.ManifestFile])
+		"another key's signature": {func(_ string, files map[string][]byte) {
+			files[release.SignatureFile] = release.Sign(otherPriv, files[release.ManifestFile])
 		}, "not signed with the project's release key"},
-		"no signature": {func(w *installWorld) { delete(w.files, release.SignatureFile) }, "can't download release.json.sig"},
+		"no signature": {func(_ string, files map[string][]byte) { delete(files, release.SignatureFile) }, "can't download release.json.sig"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			w := newInstallWorld(t)
-			c.spoil(w)
+			w.spoil(func(files map[string][]byte) { c.spoil(w.name, files) })
 			out, err := w.run(t, w.script)
 			if err == nil || !strings.Contains(out, c.want) {
 				t.Fatalf("%v\n%s", err, out)
