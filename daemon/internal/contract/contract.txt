@@ -1,0 +1,61 @@
+The Slipdock runner's trust contract
+====================================
+
+This machine runs jobs that a Slipdock server queues for it. This is what
+that server can and cannot make it do. It is the same text the server
+publishes; `slipdock-runner show` fills it with this machine's limits.
+
+This machine
+------------
+  Server:        {{.Server}}
+  Machine:       {{.Name}} (#{{.MachineID}})
+  Fingerprint:   {{.Fingerprint}}
+  Daemon:        slipdock-runner {{.Version}}
+  Jobs run as:   {{.Account}}
+
+Its ceiling ({{.CeilingPath}})
+  Working directories inside: {{join .Ceiling.Roots ", "}}
+  Agents:                     {{join .Ceiling.Agents ", "}}
+  Highest permission mode:    {{.Ceiling.MaxPermissionMode}}
+  Longest job:                {{.Ceiling.MaxTimeoutMinutes}} minutes
+  Boards served:              {{boards .Ceiling.Boards}}
+
+Only a person at this machine changes the ceiling, by editing that file.
+The server never reads or writes it.
+
+What the server can do
+----------------------
+- Queue jobs for the pools this machine's runners joined, each with a
+  prompt: the card and the board members' instructions.
+- Set a runner's typed settings (pool, agent, working directory, permission
+  mode, timeout, model, worktree, verbosity, standing instructions,
+  executor, and the names of its hooks), but only inside the ceiling above.
+  A setting outside it is refused here, and the runner keeps its last
+  accepted settings.
+- Name a newer version of this daemon.
+
+What the server cannot do
+-------------------------
+- Run a command on this machine. The daemon never runs anything the server
+  sends; agents, custom commands and hooks are defined only in this
+  machine's own files, and the server can only name them.
+- Change a hook or a command.
+- Set a working directory outside the roots above, an agent not listed, a
+  permission mode above the highest, or a timeout above the longest.
+- Read files on this machine.
+- Install an update that isn't signed with the project's release key.
+
+What nothing here bounds
+------------------------
+- First-install trust: the first copy of this daemon is trusted because of
+  where it was downloaded from. Later updates are checked; that one isn't.
+- On the hosted service, its operator is also the one who signs releases.
+- Network access: a job can reach the network unless its runner uses the
+  container executor with the network off.
+- Prompts are instructions from the board's members. The agent follows
+  them within its permission mode, as the account jobs run as. What that
+  account can read and change, an instruction on a card can ask for.
+
+The machine key in {{.KeyPath}} lets this machine claim and report on its
+runners' jobs and read its settings, and nothing else; it is not an API
+token. Revoking the machine on the Machines page ends it at once.

@@ -43,6 +43,8 @@ defmodule Slipdock.PrePushAliasTest do
              {"compile", ["--force", "--warnings-as-errors"]},
              {"format", ["--check-formatted"]},
              {"compile", ["--warnings-as-errors"], cd: "cli"},
+             {"go", ["vet", "./..."], cd: "daemon", exec: true},
+             {"go", ["test", "./..."], cd: "daemon", exec: true},
              {"ecto.drop", ["--quiet"]},
              {"test", project().repo_checks()},
              {"hex.audit", []},
@@ -88,6 +90,8 @@ defmodule Slipdock.PrePushAliasTest do
              "compile",
              "format",
              "compile",
+             "go",
+             "go",
              "ecto.drop",
              "test",
              "hex.audit",
@@ -114,7 +118,7 @@ defmodule Slipdock.PrePushAliasTest do
       assert error.message == "pre_push: mix hex.audit failed (exit 3)"
     end)
 
-    assert ran() == ["compile", "format", "compile", "ecto.drop", "test", "hex.audit"]
+    assert ran() == ["compile", "format", "compile", "go", "go", "ecto.drop", "test", "hex.audit"]
   end
 
   test "a failing repo check stops the run before the audits (#1867)" do
@@ -126,14 +130,23 @@ defmodule Slipdock.PrePushAliasTest do
                    end
     end)
 
-    assert ran() == ["compile", "format", "compile", "ecto.drop", "test"]
+    assert ran() == ["compile", "format", "compile", "go", "go", "ecto.drop", "test"]
   end
 
   test "runs the repo checks after the compiles and format, before the slower audits (#1867)" do
     tasks = Enum.map(project().pre_push_steps(), &elem(&1, 0))
-    assert Enum.take(tasks, 5) == ["compile", "format", "compile", "ecto.drop", "test"]
 
-    {"test", files} = Enum.at(project().pre_push_steps(), 4)
+    assert Enum.take(tasks, 7) == [
+             "compile",
+             "format",
+             "compile",
+             "go",
+             "go",
+             "ecto.drop",
+             "test"
+           ]
+
+    {"test", files} = Enum.at(project().pre_push_steps(), 6)
     assert "test/slipdock/nothing_personal_test.exs" in files
     assert Enum.all?(files, &File.regular?(Path.join(@root, &1)))
   end
@@ -187,7 +200,7 @@ defmodule Slipdock.PrePushAliasTest do
         end
       end)
 
-      assert ran() == ["compile", "format", "compile", "ecto.drop"]
+      assert ran() == ["compile", "format", "compile", "go", "go", "ecto.drop"]
     end
 
     test "TEST_DATABASE_URL, which overrides the partition, gets it on its database's name" do
@@ -240,8 +253,66 @@ defmodule Slipdock.PrePushAliasTest do
         end
       end)
 
-    assert length(ran()) == 9
+    assert length(ran()) == 11
     refute out =~ "all checks passed"
+  end
+
+  describe "the daemon's vet and tests (#2573)" do
+    test "run go vet and go test in daemon/, as CI's daemon job does, after the CLI's compile" do
+      steps = project().pre_push_steps()
+      assert Enum.at(steps, 3) == {"go", ["vet", "./..."], cd: "daemon", exec: true}
+      assert Enum.at(steps, 4) == {"go", ["test", "./..."], cd: "daemon", exec: true}
+      assert File.regular?(Path.join([@root, "daemon", "go.mod"]))
+    end
+
+    test "say they run go, not mix, and where" do
+      out = capture_io(fn -> project().pre_push([], recorder()) end)
+      assert out =~ "==> pre_push: go vet ./... (in daemon/)\n"
+      assert out =~ "==> pre_push: go test ./... (in daemon/)\n"
+      refute out =~ "mix go"
+    end
+
+    test "a failing daemon test stops the run before the repo checks" do
+      capture_io(fn ->
+        error =
+          assert_raise Mix.Error, fn ->
+            project().pre_push([], fn
+              "go", ["test" | _], _opts -> 1
+              task, argv, _opts -> recorder().(task, argv, [])
+            end)
+          end
+
+        assert error.message == "pre_push: go test ./... (in daemon/) failed (exit 1)"
+      end)
+
+      assert ran() == ["compile", "format", "compile", "go"]
+    end
+
+    test "take none of Mix's environment" do
+      assert project().pre_push_env([cd: "daemon", exec: true], "postgres://h/db") == []
+    end
+
+    test "fail, and say so, when the program isn't installed" do
+      {status, out} =
+        with_io(:stderr, fn ->
+          project().pre_push_run("no-such-program-2573", ["vet"], cd: "daemon", exec: true)
+        end)
+
+      assert status == 127
+      assert out =~ "no-such-program-2573 is not on the PATH"
+    end
+
+    @tag :tmp_dir
+    test "really run the program in its directory, and pass on its exit status", %{tmp_dir: dir} do
+      sh = System.find_executable("sh") || flunk("no sh")
+      File.write!(Path.join(dir, "marker"), "")
+
+      {status, out} =
+        with_io(fn -> project().pre_push_run(sh, ["-c", "ls; exit 3"], cd: dir, exec: true) end)
+
+      assert status == 3
+      assert out =~ "marker"
+    end
   end
 
   describe "the CLI's compile (#1964)" do
