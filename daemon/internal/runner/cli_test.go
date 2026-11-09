@@ -42,7 +42,28 @@ func personsCLI(t *testing.T, r *rig, body string) string {
 	return p
 }
 
+// daemonsBinOnly skips a test of the daemon's own bin on Windows, where
+// only a cli local.json names is replaced (TestWhereTheCLIGoes).
+func daemonsBinOnly(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("on Windows the daemon writes only a cli local.json names")
+	}
+}
+
+// oldCLI is where a test's CLI is replaced: the daemon's bin, or on
+// Windows a cli local.json names.
+func oldCLI(t *testing.T, r *rig) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		r.w.Local.CLI = filepath.Join(t.TempDir(), "slipdock.escript")
+		return r.w.Local.CLI
+	}
+	return r.w.daemonCLI()
+}
+
 func TestAnAgentJobPutsTheServersCLIInTheDaemonsBin(t *testing.T) {
+	daemonsBinOnly(t)
 	r := newRig(t, Config{})
 	serveCLI(r, theServersCLI)
 	theirs := personsCLI(t, r, "the person's old CLI\n")
@@ -95,6 +116,7 @@ func TestAnAgentJobPutsTheServersCLIInTheDaemonsBin(t *testing.T) {
 }
 
 func TestACurrentCLIIsNotFetchedAgain(t *testing.T) {
+	daemonsBinOnly(t)
 	r := newRig(t, Config{})
 	serveCLI(r, theServersCLI)
 	personsCLI(t, r, theServersCLI)
@@ -143,7 +165,7 @@ func TestAFailedFetchKeepsTheCLIAndTheJobRuns(t *testing.T) {
 			r := newRig(t, Config{})
 			serveCLI(r, theServersCLI)
 			set(r)
-			bin := r.w.daemonCLI()
+			bin := oldCLI(t, r)
 			writeFile(t, bin, "the daemon's old copy\n")
 
 			if f := r.runJob(fakeJob{id: 804, kind: "claude", card: 42, prompt: "x"}); f.exit != 0 {
@@ -166,7 +188,7 @@ func TestAWrongSumKeepsTheCLI(t *testing.T) {
 	r := newRig(t, Config{})
 	r.srv.cli = []byte("a CLI cut short in transit\n")
 	r.srv.cliSums = []byte(sumOf(theServersCLI) + "  slipdock.escript\n")
-	bin := r.w.daemonCLI()
+	bin := oldCLI(t, r)
 	writeFile(t, bin, "the daemon's old copy\n")
 
 	if f := r.runJob(fakeJob{id: 805, kind: "claude", card: 42, prompt: "x"}); f.exit != 0 {
@@ -184,6 +206,7 @@ func TestAWrongSumKeepsTheCLI(t *testing.T) {
 }
 
 func TestAWrongSumWithNoCLIWritesNone(t *testing.T) {
+	daemonsBinOnly(t)
 	r := newRig(t, Config{})
 	r.srv.cli = []byte("not the server's\n")
 	r.srv.cliSums = []byte(sumOf(theServersCLI) + "  slipdock.escript\n")
