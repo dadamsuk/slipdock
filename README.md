@@ -285,8 +285,8 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   a sync client gets the title, short name and disk path of everything. Renaming
   a card, a short name or a board reaches a synced folder as a move. What the
   server writes names itself the same way: a write-up is `Cards/<short>/<short>.md`,
-  a recurring card's occurrences add their date, and the runner example `passlog.sh`
-  writes `Pass <card> (<YYYY-MM-DD HH.MM>)` into the card's folder.
+  a recurring card's occurrences add their date, and **Keep this log** on a
+  runner job writes `Pass <card> (<YYYY-MM-DD HH.MM>)` into the card's folder.
 - **Recurring cards** — [repeating work kept on the card](docs/manual/recurring-cards.md)
   ("every Monday: review invoices", "the last Friday of the month", "three days
   after I last did it"): the next one is a copy of the current one, checklist
