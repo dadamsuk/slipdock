@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
@@ -102,7 +104,7 @@ func TestAGreenProbe(t *testing.T) {
 	if r.agentSaw() != "" {
 		t.Error("a probe runs no agent job")
 	}
-	if kinds := r.srv.claimHeader[11].Get("X-Runner-Kinds"); !strings.HasSuffix(kinds, ",probe") {
+	if kinds := r.srv.header(11).Get("X-Runner-Kinds"); !strings.HasSuffix(kinds, ",probe") {
 		t.Errorf("X-Runner-Kinds = %q", kinds)
 	}
 }
@@ -140,7 +142,7 @@ func TestARedProbeSaysEachFailureAndRunsTheRest(t *testing.T) {
 		{"skills drifted", nil, "skills: drifted (slipdock-loop)\ncli: current\n", "FAIL skills and CLI: skills drifted (slipdock-loop)"},
 		{"cli old", nil, "skills: current\ncli: old\n", "FAIL skills and CLI: cli old"},
 		{"cli none", nil, "skills: current\ncli: none\n", "FAIL skills and CLI: cli not installed"},
-		{"executor not offered", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.Executor = "container" }, "", `FAIL executor: executor "container" is not available`},
+		{"executor not offered", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.Executor = "container" }, "", `FAIL executor: executor "container": container is not available`},
 		{"shell fails", func(_ *rig, f *fakeProbe) { f.shellFails = true }, "", "FAIL executor: a command didn't run as me"},
 		{"hook undefined", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.ProbeHook = "nothere" }, "", `FAIL probe hook "nothere": not defined in this machine's`},
 		{"hook fails", func(_ *rig, _ *fakeProbe) { t.Setenv("HELPER_HOOK_EXIT_probe", "3") }, "", `FAIL probe hook "check": exit 3`},
@@ -165,6 +167,43 @@ func TestARedProbeSaysEachFailureAndRunsTheRest(t *testing.T) {
 			// One red check doesn't stop the others.
 			if !strings.Contains(fin.body, "skills and CLI:") || !strings.Contains(fin.body, "probe hook") {
 				t.Fatalf("a check was skipped:\n%s", fin.body)
+			}
+		})
+	}
+}
+
+func TestAProbeWhoseExecutorCantRunSkipsWhatRunsUnderIt(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(r *rig)
+		want  string
+	}{
+		{"not one this daemon runs", func(r *rig) { r.w.Runner.Config.Executor = executor.Container },
+			`FAIL executor: executor "container": container is not available`},
+		{"built but not ready", func(r *rig) {
+			r.w.Runner.Config.Executor = executor.Confined
+			r.w.GOOS = "linux"
+			r.w.Launcher = filepath.Join(t.TempDir(), "gone")
+		}, `FAIL executor: executor "confined": `},
+	}
+	for i, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r, f := probeRig(t)
+			c.setup(r)
+			fin := r.runJob(fakeJob{id: int64(340 + i), kind: ProbeKind, prompt: greenPrompt})
+			if fin.exit != 1 || !strings.Contains(fin.body, c.want) || !strings.Contains(fin.body, "probe: red: 1 failed (executor)") {
+				t.Fatalf("exit %d, want 1 with %q and only the executor failed:\n%s", fin.exit, c.want, fin.body)
+			}
+			for _, skipped := range []string{"skip directory: not checked", "skip agent: not checked", "skip gh: not checked", `skip probe hook "check": not checked`} {
+				if !strings.Contains(fin.body, skipped) {
+					t.Fatalf("no %q:\n%s", skipped, fin.body)
+				}
+			}
+			if len(f.ran) != 0 || r.hooksRan() != "" {
+				t.Fatalf("commands %q and hooks %q ran under an executor that can't run them", f.ran, r.hooksRan())
+			}
+			if !strings.Contains(fin.body, "ok   skills and CLI:") {
+				t.Fatalf("the check that needs no executor didn't run:\n%s", fin.body)
 			}
 		})
 	}

@@ -273,7 +273,7 @@ func TestConfinedIsntReadyWithoutWhatItNeeds(t *testing.T) {
 	if _, cerr := ex.Command(Proc{Dir: t.TempDir()}, "/bin/true"); cerr == nil {
 		t.Fatal("a confined command was made that can't be confined: the job would run unconfined")
 	}
-	if runtime.GOOS == "linux" && landlockABI() >= 1 {
+	if runtime.GOOS == "linux" && landlockABI() >= minLandlockABI {
 		if !strings.Contains(err.Error(), "can't find its own") {
 			t.Fatalf("says why: %v", err)
 		}
