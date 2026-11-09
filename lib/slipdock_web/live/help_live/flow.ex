@@ -95,7 +95,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     {"Lanes", "slipdock set-board B --lane-mode hold",
      "Hold: an agent can't start a card whose paths overlap a card in progress. Advise: it starts, and its prompt names that card."},
     {"Profiles", "slipdock set-board B --profiles on",
-     "A card an agent starts gets one word for what kind of change it is; a schema, security or spike card an agent accepts waits for a person before it merges. A docs card gets no verify job, and a schema or security card's verifier also reviews it for defects."},
+     "A card an agent starts gets one word for what kind of change it is; a schema, security or spike card an agent accepts waits for a person before it merges. A docs card gets no verify job, and a schema or security card's verifier also reviews it for defects. A fix, feature, schema or security card's verifier breaks a few of the changed lines to see that a test fails."},
     {"Human tier, by profile", "slipdock set-board B --profile-tier schema=none",
      "Change what an agent's acceptance of a profile does: none, ledger or before_merge."},
     {"Shared paths", "slipdock set-board B --shared-paths docs/manual.md,README.md",
@@ -559,7 +559,14 @@ defmodule SlipdockWeb.HelpLive.Flow do
       profiles on, a <code>docs</code>
       card gets no verifier (the server accepts it on its suite), and a <code>schema</code>
       or <code>security</code>
-      card's verifier also reviews the diff for defects, rejecting on an Important one. The
+      card's verifier also reviews the diff for defects, rejecting on an Important one. On a <code>fix</code>, <code>feature</code>,
+      <code>schema</code>
+      or <code>security</code>
+      card the verifier also mutates the change: it breaks 3 to 5 of the lines the change added
+      or changed, one at a time, runs only the card's tests and restores each line. A break no
+      test catches (a surviving mutant) is a rejection naming the mutation and the test to
+      write; on a fix, one break undoes the fix, which the regression test must catch. A
+      survivor in lines the change didn't touch is kept as a finding. The
       profile is checked against the change the agent completes with
       (<code>slipdock done 12 --diff-base origin/main</code>): a migration makes it <code>schema</code>, a security path <code>security</code>, and over 400 changed lines a
       <code>fix</code>

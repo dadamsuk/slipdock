@@ -205,6 +205,124 @@ defmodule Slipdock.ProfilesVerifyTest do
     end
   end
 
+  describe "the mutation step (#2354)" do
+    test "a fix, feature, schema or security card's verify prompt carries it", ctx do
+      for profile <- ~w(fix feature schema security) do
+        card =
+          ctx
+          |> card(profile)
+          |> submit(ctx, %{"evidence_tests" => ["test/foo_test.exs", "test/bar_test.exs"]})
+
+        [job] = jobs(card, "verify")
+
+        assert job.prompt =~
+                 "The mutation step: would the tests catch a break? This card's profile is `#{profile}`"
+
+        assert job.prompt =~
+                 "pick 3 to 5 of the most consequential lines the diff added or changed"
+
+        assert job.prompt =~
+                 "run only the card's tests (`test/foo_test.exs test/bar_test.exs`), never the whole suite"
+
+        assert job.prompt =~ "restore the line before the next"
+        assert job.prompt =~ "--check mutant:killed=lib/foo.ex:42"
+        assert job.prompt =~ "--check mutant:survived=lib/foo.ex:42"
+
+        assert job.prompt =~
+                 "It is a rejection, its reason naming the mutation and the test to write"
+
+        assert job.prompt =~ "--check mutant:pre-existing=lib/bar.ex:90"
+        assert job.prompt =~ "--check mutants=n/a:\"why\""
+        assert job.prompt =~ "Step: `mutating the change`"
+
+        assert job.prompt =~
+                 "`mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`"
+      end
+    end
+
+    test "only a fix is told to undo the fix", ctx do
+      fix = ctx |> card("fix") |> submit(ctx)
+      [job] = jobs(fix, "verify")
+      assert job.prompt =~ "one mutation undoes the fix itself"
+      assert job.prompt =~ "the regression test must kill it"
+
+      feature = ctx |> card("feature") |> submit(ctx)
+      [job] = jobs(feature, "verify")
+      refute job.prompt =~ "undoes the fix"
+    end
+
+    test "a completion that names no tests is told so", ctx do
+      card = ctx |> card("feature") |> submit(ctx)
+      [job] = jobs(card, "verify")
+      assert job.prompt =~ "it gave no `--tests`: say so"
+    end
+
+    test "spike, docs, no-code and profiles off get no step", ctx do
+      board = Repo.get!(Boards.Board, ctx.board.id)
+
+      spike = ctx |> card("spike") |> submit(ctx)
+      [job] = jobs(spike, "verify")
+      refute job.prompt =~ "The mutation step"
+      refute job.prompt =~ "mutant:killed"
+      refute Verified.mutation_review?(spike, board)
+
+      refute Verified.mutation_review?(card(ctx, "docs"), board)
+
+      no_code = %{card(ctx, "feature") | evidence_no_code: "a handbook reconcile"}
+      refute Verified.mutation_review?(no_code, board)
+      refute Verified.verify_prompt(no_code, board) =~ "The mutation step"
+
+      set(ctx, %{"profiles" => false})
+      card = ctx |> card("feature") |> submit(ctx)
+      [job] = jobs(card, "verify")
+      refute job.prompt =~ "The mutation step"
+      refute Verified.mutation_review?(card, Repo.get!(Boards.Board, ctx.board.id))
+    end
+
+    test "an audit of a feature card asks for it too", ctx do
+      card = ctx |> card("feature")
+      board = Repo.get!(Boards.Board, ctx.board.id)
+      prompt = Verified.audit_prompt(card, board)
+      assert prompt =~ "The mutation step"
+      assert prompt =~ "`mutants=n/a:<why>`"
+    end
+
+    test "a resubmission re-runs survivors and touched lines, and carries the rest", ctx do
+      card = %{
+        card(ctx, "feature")
+        | verify_checks: %{"judged_at" => "abc1234", "decision" => "reject"}
+      }
+
+      step = Verified.mutation_step(card)
+      assert step =~ "break again every mutant that survived last time"
+      assert step =~ "--check mutant:carried=lib/foo.ex:42"
+      refute Verified.mutation_step(card, audit: true) =~ "On this resubmission"
+      refute Verified.mutation_step(card(ctx, "feature")) =~ "On this resubmission"
+    end
+
+    test "every example check the step gives parses, and only the survivor fails", ctx do
+      step = Verified.mutation_step(card(ctx, "fix"))
+
+      lines =
+        ~r/--check (\S+?=[^`]+)`/
+        |> Regex.scan(step, capture: :all_but_first)
+        |> Enum.map(fn [line] -> String.replace(line, "\"", "") end)
+        |> Enum.reject(&String.starts_with?(&1, "mutants="))
+
+      assert length(lines) == 3
+      assert {:ok, checks} = Checks.parse(lines)
+      assert [_, _, _] = checks["mutants"]
+      assert [survivor] = Checks.failing(checks)
+      assert survivor =~ "lib/foo.ex:42"
+
+      assert {:ok, %{"mutants" => %{"n/a" => "why"}}} = Checks.parse(["mutants=n/a:why"])
+    end
+
+    test "the profiles it runs on" do
+      assert Verified.mutation_profiles() == ~w(fix feature schema security)
+    end
+  end
+
   describe "the defect review" do
     test "a schema or security card's verify prompt carries it", ctx do
       for profile <- ~w(schema security) do
