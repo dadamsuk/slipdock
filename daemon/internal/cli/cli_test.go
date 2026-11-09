@@ -25,6 +25,11 @@ type fake struct {
 	revoked  bool
 	enrols   int
 	lastBody map[string]string
+	// config is GET /api/machine/config's answer (404 when empty), and
+	// claims the runners' claims, each answered claimStatus.
+	config      string
+	claims      map[string]int
+	claimStatus int
 }
 
 func (f *fake) start(t *testing.T) *httptest.Server {
@@ -57,6 +62,18 @@ func (f *fake) start(t *testing.T) *httptest.Server {
 				w.WriteHeader(400)
 				w.Write([]byte(`{"error":"invalid_grant","error_description":"that enrolment key is unknown, used or lapsed"}`))
 			}
+		case "/api/machine/config":
+			if f.config == "" || r.Header.Get("Authorization") != "Bearer sdm_key" {
+				w.WriteHeader(404)
+				return
+			}
+			w.Write([]byte(f.config))
+		case "/api/runner/claim":
+			if f.claims == nil {
+				f.claims = map[string]int{}
+			}
+			f.claims[r.Header.Get("X-Runner-Id")]++
+			w.WriteHeader(f.claimStatus)
 		case "/api/machine":
 			if r.Header.Get("Authorization") != "Bearer sdm_key" || f.revoked {
 				w.WriteHeader(401)
@@ -531,6 +548,53 @@ func TestRunStopsWhenRevokedOrAskedTo(t *testing.T) {
 	if code := empty.main("run"); code != 1 || !strings.Contains(empty.errOut.String(), "not enrolled") {
 		t.Fatalf("%d %s", code, empty.errOut)
 	}
+}
+
+func TestRunRunsTheMachinesRunners(t *testing.T) {
+	w, f := enrolled(t)
+	inside := filepath.Join(w.home, "repo")
+	f.config = `{"version":4,"runners":[
+		{"id":21,"name":"builder","board_id":3,"pool":"default","config_version":2,
+		 "config":{"agent":"claude","directory":` + jsonString(inside) + `,"permission_mode":"acceptEdits","timeout_minutes":30,"executor":"me","worktree":"auto"}},
+		{"id":22,"name":"wide","board_id":3,"pool":"default","config_version":1,
+		 "config":{"agent":"claude","directory":` + jsonString(filepath.Join(filepath.Dir(w.home), "elsewhere")) + `,"permission_mode":"acceptEdits","timeout_minutes":30,"executor":"me"}}]}`
+	// The server takes the machine's key away while its runner claims: run
+	// stops everything and says why.
+	f.claimStatus = 401
+	logFile := filepath.Join(t.TempDir(), "daemon.log")
+	if code := w.main("run", "--log", logFile); code != 1 || !strings.Contains(w.errOut.String(), "revoked") {
+		t.Fatalf("exit %d: %s", code, w.errOut)
+	}
+	log, _ := os.ReadFile(logFile)
+	for _, want := range []string{
+		"config version 4: 1 of 2 runners running",
+		"runner wide (#22) is outside this machine's ceiling, so it doesn't run",
+		"runner builder (#21): the server refused the runner (HTTP 401)",
+	} {
+		if !strings.Contains(string(log), want) {
+			t.Errorf("the log doesn't say %q:\n%s", want, log)
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.claims["21"] != 1 || f.claims["22"] != 0 {
+		t.Fatalf("claims = %v: only the runner inside the ceiling claims", f.claims)
+	}
+}
+
+func TestRunRefusesABrokenLocalFile(t *testing.T) {
+	w, _ := enrolled(t)
+	if err := os.WriteFile(filepath.Join(w.dir, machine.LocalFile), []byte(`{"command":"x"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := w.main("run"); code != 1 || !strings.Contains(w.errOut.String(), "the local file") {
+		t.Fatalf("exit %d: %s", code, w.errOut)
+	}
+}
+
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }
 
 func TestRunRetriesAnUnreachableServer(t *testing.T) {

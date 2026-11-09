@@ -9,9 +9,10 @@ added and changed from the board, not from a shell on the machine, and the
 machine's own **ceiling** limits what the board may set.
 
 The daemon is being built in steps (epic #2569). What is here today:
-enrolling a machine, its ceiling, `show`, `doctor` and the service. Running
-its runners' jobs, and taking their settings from the board, come next;
-until then a machine's runners are still the [shell runners](runners.md).
+enrolling a machine, its ceiling, `show`, `doctor`, the service, and running
+its runners' jobs. It reads its runners from the board when it starts;
+taking changes as they come, while it runs, comes next. Until a machine
+moves over, its runners are still the [shell runners](runners.md).
 
 ### Getting the daemon
 
@@ -57,8 +58,9 @@ The daemon's directory is `slipdock-runner/machine` under your config
 directory (`~/.config` on Linux, `~/Library/Application Support` on macOS,
 `%AppData%` on Windows), or `$SLIPDOCK_RUNNER_HOME`, or `--home DIR` on any
 command. It holds `machine.json` (the server and the machine's id),
-`machine-key`, `identity` (the key pair the fingerprint comes from) and
-`ceiling.json`.
+`machine-key`, `identity` (the key pair the fingerprint comes from),
+`ceiling.json`, `local.json` (below) and `jobs/`, each runner's log of its
+current job.
 
 ### The ceiling
 
@@ -79,6 +81,60 @@ them as it writes the file (`--root` and `--agent` repeat). `init --replace`
 keeps a ceiling already there unless one of those flags is given. A setting
 from the board outside the ceiling is refused on the machine, and the runner
 keeps its last accepted settings.
+
+### What runs: the local file
+
+The board names an agent and a runner's hooks; only the machine says what
+those names run. `local.json`, in the daemon's directory, is where it says
+so. Like the ceiling, the server never reads or writes it. Every field is
+optional, and with no file at all `claude` and `codex` are found on your
+`PATH`:
+
+```json
+{
+  "agents": {
+    "claude": {"path": "/opt/claude/bin/claude", "allowed_tools": ["mcp__slipdock"]},
+    "lint": {"path": "/usr/bin/make", "args": ["lint"]}
+  },
+  "hooks": {
+    "fresh-main": {"path": "/usr/local/bin/fresh-main.sh"}
+  },
+  "models": {"schema": "opus"}
+}
+```
+
+- `agents`: `claude` and `codex` need an entry only when they aren't on the
+  `PATH`, or when `claude` has tools a job may use without asking
+  (`allowed_tools`: in a job nobody is there to approve one). Any other agent
+  a runner names must be defined here. It gets the prompt as
+  `$SLIPDOCK_PROMPT`, never on its command line.
+- `hooks`: what a runner's before and after hooks run, by name. A before
+  hook that fails stops the job; the after hook runs however the job ended,
+  with `$SLIPDOCK_EXIT` and `$SLIPDOCK_STATUS` (`done`, `failed`,
+  `cancelled` or `timeout`).
+- `models`: a model for a card's profile (`docs`, `fix`, `feature`,
+  `schema`, `security`, `spike`), over the runner's own.
+- `transcripts`, `skills_dir` and `cli` say where Claude Code's
+  transcripts, the slipdock skills and the `slipdock` CLI are, when they
+  aren't in the usual places. `no_merge: true` turns off the built-in merge.
+
+A job whose agent or hook the file doesn't define fails before anything
+runs, and its log on the card says which name was missing. A file with a
+field the daemon doesn't know is refused, so a typo can't be ignored.
+
+### How the daemon runs a job
+
+Each runner takes one job at a time, as a shell runner does. Its claims say
+which kinds it takes (its agent's, `verify` and the built-in `merge`), and
+which skills and CLI are installed, so the board shows drift. While a job
+runs, its log's tail goes to the board every 20 seconds and Claude Code's
+transcript about once a minute, with this machine's keys and tokens taken
+out. Cancelling the job on the board, or its timeout, stops it and every
+process it started. With `worktree` on (or `auto`, when two runners share a
+directory) each job gets a git worktree of its own, on the branch
+`card-<id>`. A merge job merges the card's pull request only if it is in the
+runner's repository, still open, and at the accepted commit. A runner that
+crashes is started again, and the machine's other runners carry on.
 
 ### What the server can and cannot do
 
