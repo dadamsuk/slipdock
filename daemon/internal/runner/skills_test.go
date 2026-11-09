@@ -94,7 +94,9 @@ func TestAnAgentJobInstallsTheServersSkillsFirst(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "slipdock-loop", "SKILL.md"), "a stale loop\n")
 	writeFile(t, filepath.Join(dir, "slipdock-loop", "gone.md"), "a file the server no longer ships\n")
 	writeFile(t, filepath.Join(dir, "other-skill", "SKILL.md"), "not ours\n")
-	writeFile(t, filepath.Join(dir, "slipdock-mine.new", "x"), "a half-done earlier swap\n")
+	// A half-done earlier swap of a skill the archive ships: its leftover
+	// must not end up in the installed copy.
+	writeFile(t, filepath.Join(dir, "slipdock-loop.new", "stale.md"), "a half-done earlier swap\n")
 
 	if f := r.runJob(fakeJob{id: 701, kind: "claude", card: 42, prompt: "x"}); f.exit != 0 {
 		t.Fatalf("finish = %+v", f)
@@ -112,6 +114,9 @@ func TestAnAgentJobInstallsTheServersSkillsFirst(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "slipdock-loop", "gone.md")); !os.IsNotExist(err) {
 		t.Errorf("the skill is the server's whole: a file it no longer ships is gone (%v)", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "slipdock-loop", "stale.md")); !os.IsNotExist(err) {
+		t.Errorf("a leftover of a half-done earlier swap was swapped in (%v)", err)
 	}
 	for _, n := range []string{"slipdock.new", "slipdock-loop.new", "slipdock-wiki.new"} {
 		if _, err := os.Stat(filepath.Join(dir, n)); !os.IsNotExist(err) {
