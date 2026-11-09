@@ -366,7 +366,8 @@ func TestAMergeAndAProbeDontInstallSkills(t *testing.T) {
 	}
 }
 
-// asAccount is an executor that says it is the user executor.
+// asAccount is an executor that says it is the user executor, but can't
+// run anything as the account (no Feed).
 type asAccount struct{ *recorder }
 
 func (asAccount) Name() string { return executor.User }
@@ -383,7 +384,7 @@ func TestUnderTheUserExecutorTheAccountsSkillsAreLeftAlone(t *testing.T) {
 	if r.srv.skillsGets != 0 {
 		t.Errorf("the archive was fetched for skills it can't install")
 	}
-	if !strings.Contains(r.logged.String(), "skills: the jobs run as another account") {
+	if !strings.Contains(r.logged.String(), "skills: the jobs run as another account, which this executor can't write as") {
 		t.Errorf("the log says why the skills were left:\n%s", r.logged)
 	}
 }

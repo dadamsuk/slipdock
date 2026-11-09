@@ -310,12 +310,14 @@ copy you installed elsewhere is never written unless the local file names
 it as `cli`; then that file is replaced in place, unless it is a symlink.
 A failed fetch or a wrong sum keeps the CLI there was, and the job runs.
 `no_cli_update: true` turns it off, and the daemon's copy is then neither
-used nor reported. Under the `user` executor the skills and CLI are the
-job account's, which the daemon doesn't write; under the `container`
-executor and on Windows only a `cli` the local file names is replaced.
-There, run the install one-liner (`/install.sh`, `/install.ps1` on
-Windows; `/cli/install.ps1` for the CLI on Windows) on the machine again,
-so its skills are never a hand-edited second copy.
+used nor reported. Under the `user` executor the skills are the job
+account's, and the account unpacks them itself (`sudo -n -u`, fed the
+checked archive, with the same guards); its CLI the daemon doesn't write.
+Under the `container` executor and on Windows only a `cli` the local file
+names is replaced. For a CLI the daemon doesn't write, run the install
+one-liner (`/install.sh`, `/install.ps1` on Windows; `/cli/install.ps1`
+for the CLI on Windows) on the machine again, as the account the jobs run
+as, rather than keep a hand-edited second copy.
 
 **Runners** belong to a board tree and a pool. The board owner makes them.
 A machine's runners authenticate with its machine key, and claim only for

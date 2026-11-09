@@ -268,3 +268,56 @@ func output(t *testing.T, name string, args ...string) string {
 	}
 	return string(out)
 }
+
+// fakeSudo is a sudo that writes its arguments to args, and runs what
+// follows its "--" with the environment it was given, as a sudo of the
+// same account would.
+func fakeSudo(t *testing.T) (sudo, args string) {
+	t.Helper()
+	dir := t.TempDir()
+	sudo, args = filepath.Join(dir, "sudo"), filepath.Join(dir, "args")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + args + "\nwhile [ \"$1\" != -- ]; do shift; done\nshift\nexec \"$@\"\n"
+	if err := os.WriteFile(sudo, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return sudo, args
+}
+
+func TestFeedRunsAsTheAccountWithStdin(t *testing.T) {
+	a := newAccount(Settings{GOOS: runtime.GOOS, Account: "slipdock", AccountHome: "/srv/slipdock"})
+	var args string
+	a.sudo, args = fakeSudo(t)
+	t.Setenv("SLIPDOCK_TOKEN", "the daemon's")
+	var ex Executor = a
+	f, ok := ex.(Feeder)
+	if !ok {
+		t.Fatal("the user executor is a Feeder")
+	}
+	out, err := f.Feed(context.Background(), []byte("the archive"), "/bin/sh", "-c", `printf '%s|%s|%s|%s' "$(cat)" "$1" "$PWD" "$SLIPDOCK_TOKEN$HOME"`, "sh", "an arg")
+	if err != nil {
+		t.Fatalf("Feed: %v (%s)", err, out)
+	}
+	if out != "the archive|an arg|/|" {
+		t.Errorf("output = %q: stdin, its arguments, run from /, and nothing of the daemon's environment", out)
+	}
+	recorded, err := os.ReadFile(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(recorded), "-n\n-u\nslipdock\n--\n/bin/sh\n") {
+		t.Errorf("sudo's arguments = %q, want -n -u slipdock -- /bin/sh …", recorded)
+	}
+}
+
+func TestFeedSaysWhyItFailed(t *testing.T) {
+	a := newAccount(Settings{GOOS: runtime.GOOS, Account: "slipdock", AccountHome: "/srv/slipdock"})
+	a.sudo, _ = fakeSudo(t)
+	out, err := a.Feed(context.Background(), nil, "/bin/sh", "-c", "echo no room >&2; exit 3")
+	if err == nil || !strings.Contains(out, "no room") {
+		t.Errorf("Feed = %q, %v: want the failure and its output", out, err)
+	}
+	a.sudo = filepath.Join(t.TempDir(), "no-sudo")
+	if _, err := a.Feed(context.Background(), nil, "/bin/true"); err == nil {
+		t.Error("Feed with no sudo succeeded")
+	}
+}

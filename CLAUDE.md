@@ -9,7 +9,7 @@ Consider each of these. Not every one applies to every change, but judge each:
 - Every door (SPEC-2): the web UI, the REST API, the CLI (`cli/`) and the MCP tools (`lib/slipdock_web/mcp/tools/`). A door left out is said why on the card.
 - The agents page and the API guide (`docs/agents.md`, `lib/slipdock_web/api_guide.ex`).
 - The in-app help pages (SPEC-10): `HelpLive.Guides` for the app, `HelpLive.Agents` and `HelpLive.Flow` for agents and runners.
-- The packaged skills in `priv/skills/`, their one source. Installed copies (`~/.claude/skills`) are never edited by hand: the install one-liner puts the server's there (`docs/agents.md` §Install the skills). The runner daemon also puts the server's there before each agent job (#2614), unless the machine's `local.json` sets `no_skills_update` or its jobs run as another account (the user executor), where the one-liner is the only route. No test reads an installed copy (`test/slipdock/repo_checks_test.exs`).
+- The packaged skills in `priv/skills/`, their one source. Installed copies (`~/.claude/skills`) are never edited by hand: the install one-liner puts the server's there (`docs/agents.md` §Install the skills). The runner daemon also puts the server's there before each agent job (#2614), unless the machine's `local.json` sets `no_skills_update`; under the user executor the job account unpacks them itself (#2642). No test reads an installed copy (`test/slipdock/repo_checks_test.exs`).
 - `README.md` and the manual: `docs/manual.md` is its contents, and each section is a page of its own in `docs/manual/` (a new section gets a page and a line in the contents; `test/slipdock/manual_pages_test.exs`).
 - The test suite.
 
