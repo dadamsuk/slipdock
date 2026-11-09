@@ -525,7 +525,7 @@ defmodule Slipdock.PrePushAliasTest do
         "postgres",
         "slipdock_dev",
         "slipdock_test",
-        "slipdock_test_bigwhite",
+        "slipdock_test_ci",
         db(live),
         db(gone),
         # Near misses: another base, a short or upper-case hash, a suffix.
