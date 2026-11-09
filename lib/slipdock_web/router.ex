@@ -300,6 +300,9 @@ defmodule SlipdockWeb.Router do
       # the page that approves one's enrolment by its code.
       live "/account/machines", AccountLive.Index, :machines
       live "/account/machines/approve", AccountLive.MachineApprove, :show
+      # One machine (#2572): its owner manages its runners there, and a
+      # member of a board it serves sees it.
+      live "/machines/:id", MachinesLive.Show, :show
       # How to point an agent at this server. A page rather than a doc because
       # the one thing it has to get right is this install's own address.
       live "/account/agent", AccountLive.Index, :agent
@@ -538,6 +541,10 @@ defmodule SlipdockWeb.Router do
     post "/machines/:id/runners", MachineController, :add_runner
     patch "/machines/:id/runners/:runner_id", MachineController, :set_runner
     delete "/machines/:id/runners/:runner_id", MachineController, :remove_runner
+    # Pause or resume one, and ask the daemon to update now (#2572).
+    post "/machines/:id/runners/:runner_id/pause", MachineController, :pause_runner
+    post "/machines/:id/runners/:runner_id/resume", MachineController, :resume_runner
+    post "/machines/:id/update", MachineController, :request_update
     # The caller's own inbound mail and what came of it (#1242).
     get "/inbound/log", InboundController, :log
     # The caller's own inbound addresses (#1246): personal, and per board.

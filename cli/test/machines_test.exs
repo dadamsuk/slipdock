@@ -127,6 +127,164 @@ defmodule SlipdockCLI.MachinesTest do
     assert out =~ "refused build-box"
   end
 
+  describe "a machine's runners (#2572)" do
+    test "add-runner sends the board, pool and typed config from the switches" do
+      serve([
+        {201,
+         JSON.encode!(%{
+           "runner" => %{"id" => 9, "name" => "build-box build", "config_version" => 1}
+         })}
+      ])
+
+      out =
+        capture_io(fn ->
+          Machines.run("machine", ["add-runner", "4", "slipdock"],
+            pool: "build",
+            dir: "/srv/src/app",
+            timeout_minutes: 30,
+            permission_mode: "acceptEdits",
+            executor: "me",
+            before_hook: "fetch",
+            worktree: false
+          )
+        end)
+
+      assert_received {:request, "POST", "/api/machines/4/runners", body}
+
+      assert JSON.decode!(body) == %{
+               "board" => "slipdock",
+               "pool" => "build",
+               "config" => %{
+                 "directory" => "/srv/src/app",
+                 "timeout_minutes" => 30,
+                 "permission_mode" => "acceptEdits",
+                 "executor" => "me",
+                 "before_hook" => "fetch",
+                 "worktree" => "off"
+               }
+             }
+
+      assert out =~ "added runner #9 build-box build (v1)"
+    end
+
+    test "add-runner needs a pool and a directory" do
+      assert {:error, "usage: " <> _} = Machines.plan(["add-runner", "4", "b"], pool: "x")
+      assert {:error, "usage: " <> _} = Machines.plan(["add-runner", "4", "b"], dir: "/x")
+    end
+
+    test "set-runner sends only what is given" do
+      serve([
+        {200, JSON.encode!(%{"runner" => %{"id" => 9, "name" => "b", "config_version" => 3}})}
+      ])
+
+      out =
+        capture_io(fn ->
+          Machines.run("machine", ["set-runner", "4", "9"], model: "sonnet", worktree: true)
+        end)
+
+      assert_received {:request, "PATCH", "/api/machines/4/runners/9", body}
+      assert JSON.decode!(body) == %{"config" => %{"model" => "sonnet", "worktree" => "on"}}
+      assert out =~ "runner #9 b is now v3"
+    end
+
+    test "pause-runner, resume-runner, rm-runner and update" do
+      serve([
+        {200, JSON.encode!(%{"runner" => %{"name" => "b", "paused" => true}})},
+        {200, JSON.encode!(%{"runner" => %{"name" => "b", "paused" => false}})},
+        {200, JSON.encode!(%{"removed" => %{"name" => "b"}})},
+        {200, JSON.encode!(%{"machine" => %{"name" => "build-box"}})}
+      ])
+
+      out = capture_io(fn -> Machines.run("machine", ["pause-runner", "4", "b"], []) end)
+      assert_received {:request, "POST", "/api/machines/4/runners/b/pause", _}
+      assert out =~ "paused b: it takes no job until resumed"
+
+      out = capture_io(fn -> Machines.run("machine", ["resume-runner", "4", "b"], []) end)
+      assert_received {:request, "POST", "/api/machines/4/runners/b/resume", _}
+      assert out =~ "b takes jobs again"
+
+      out = capture_io(fn -> Machines.run("machine", ["rm-runner", "4", "b"], []) end)
+      assert_received {:request, "DELETE", "/api/machines/4/runners/b", _}
+      assert out =~ "removed b"
+
+      out = capture_io(fn -> Machines.run("machine", ["update", "4"], []) end)
+      assert_received {:request, "POST", "/api/machines/4/update", _}
+      assert out =~ "asked build-box to update now"
+    end
+
+    test "show prints the ceiling, the runners, a refusal with its limit, and the log" do
+      machine =
+        Map.merge(@machine, %{
+          "ceiling" => %{
+            "roots" => ["/srv/src"],
+            "agents" => ["claude"],
+            "max_permission_mode" => "acceptEdits",
+            "max_timeout_minutes" => 60,
+            "executors" => ["user"]
+          },
+          "runners" => [
+            %{
+              "id" => 9,
+              "name" => "builder",
+              "pool" => "build",
+              "config" => %{
+                "agent" => "claude",
+                "directory" => "/srv/src/app",
+                "permission_mode" => "acceptEdits",
+                "executor" => "user"
+              },
+              "config_version" => 2,
+              "accepted_version" => 1,
+              "rejected_version" => 2,
+              "rejection" => "timeout over the ceiling",
+              "outside_ceiling" => ["timeout 240 minutes is over 60"],
+              "paused" => false
+            },
+            %{
+              "id" => 10,
+              "name" => "idle",
+              "pool" => "x",
+              "config" => %{},
+              "config_version" => 1,
+              "accepted_version" => 1,
+              "paused" => true
+            }
+          ],
+          "changes" => [
+            %{
+              "at" => "2026-11-09T04:00:00Z",
+              "runner" => "builder",
+              "version" => 2,
+              "outcome" => "rejected",
+              "reason" => "timeout over the ceiling"
+            }
+          ]
+        })
+
+      serve([{200, JSON.encode!(%{"machine" => machine})}])
+      out = capture_io(fn -> Machines.run("machine", ["show", "4"], []) end)
+
+      assert out =~ "Max timeout: 60 minutes"
+
+      assert out =~
+               ~r/#9\s+builder\s+build\s+claude\s+\/srv\/src\/app\s+acceptEdits\s+user\s+rejected v2/
+
+      assert out =~ ~r/#10\s+idle.*paused/
+      assert out =~ "builder: v2 refused: timeout over the ceiling"
+      assert out =~ "outside the ceiling: timeout 240 minutes is over 60"
+      assert out =~ "builder v2 rejected: timeout over the ceiling"
+    end
+
+    test "machines lists the ones serving your boards after your own" do
+      shared = Map.merge(@machine, %{"id" => 5, "name" => "their-box"})
+      serve([{200, JSON.encode!(%{"machines" => [@machine], "shared" => [shared]})}])
+      out = capture_io(fn -> Machines.run("machines", [], []) end)
+
+      assert out =~ "Serving your boards"
+      assert out =~ ~r/#5\s+their-box/
+    end
+  end
+
   test "anything else is the usage: no board, no code, an unknown verb" do
     for args <- [
           ["enrol-key"],

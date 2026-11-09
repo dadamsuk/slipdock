@@ -54,6 +54,9 @@ defmodule Slipdock.Runners.Runner do
     field :rejected_version, :integer
     field :rejection, :string
     field :rejected_at, :utc_datetime
+    # Paused from the Machines page (#2572): no job is handed to it while
+    # set. Only `MachineRunners` sets it.
+    field :paused_at, :utc_datetime
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :created_by, Slipdock.Accounts.User

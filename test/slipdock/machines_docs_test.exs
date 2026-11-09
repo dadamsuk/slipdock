@@ -64,4 +64,36 @@ defmodule Slipdock.MachinesDocsTest do
     assert manual =~ "**Machines** (`/account/machines`)"
     assert manual =~ "/account/machines/approve"
   end
+
+  test "the Machines page is written up everywhere a reader looks (#2572)" do
+    for text <- [SlipdockWeb.APIGuide.markdown(), read("docs/agents.md")] do
+      text = String.replace(text, ~r/\s+/, " ")
+
+      for part <- [
+            "/machines/:id",
+            "POST /api/machines/:id/runners/:runner_id/pause",
+            "POST /api/machines/:id/update",
+            "update_requested_at",
+            "`shared`",
+            "A member's write is a 403",
+            "add-runner|set-runner|pause-runner|resume-runner|rm-runner|update",
+            "`scenario` `daemon`",
+            "`enrolment_key`"
+          ] do
+        assert text =~ part, "missing #{part}"
+      end
+    end
+
+    manual = read("docs/manual/machines.md")
+    assert manual =~ "### The Machines page"
+    assert manual =~ "slipdock machine add-runner"
+    assert read("docs/manual.md") =~ "(manual/machines.md#the-machines-page)"
+    assert read("docs/agents.md") =~ "| A machine with the daemon |"
+    assert read("README.md") =~ "machine with the runner daemon (offered first"
+
+    help = read("lib/slipdock_web/live/help_live/agents.ex")
+    assert help =~ ~s(id="help-machine-page")
+    assert help =~ ~s(id="help-scenario-daemon")
+    assert read("cli/help.txt") =~ "machine add-runner <id> <board> --pool P --dir D"
+  end
 end

@@ -200,6 +200,24 @@ defmodule Slipdock.Runners.ConfigTest do
       assert Enum.any?(reasons, &(&1 =~ "board 4"))
     end
 
+    test "outside/3 names each field outside it, with its limit, for the page (#2572)", ctx do
+      assert Ceiling.outside(ctx.config, ctx.ceiling, 3) == []
+      assert Ceiling.outside(ctx.config, nil, 3) == []
+
+      config = %{ctx.config | "timeout_minutes" => 240, "executor" => "container"}
+
+      assert Ceiling.outside(config, ctx.ceiling, 3) == [
+               {"timeout_minutes", "timeout 240 minutes is over 60"},
+               {"executor", "executor container is not one this machine offers"}
+             ]
+
+      # A timeout still being typed (not a number yet) isn't called outside.
+      assert Ceiling.outside(%{ctx.config | "timeout_minutes" => nil}, ctx.ceiling, 3) == []
+
+      assert [{"board", "board 4 is not one this machine serves"}] =
+               Ceiling.outside(ctx.config, ctx.ceiling, 4)
+    end
+
     test "a weaker mode is inside a stronger ceiling", ctx do
       for mode <- ~w(plan default acceptEdits) do
         assert Ceiling.check(%{ctx.config | "permission_mode" => mode}, ctx.ceiling, 3) == :ok

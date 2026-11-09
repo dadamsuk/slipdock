@@ -285,4 +285,45 @@ defmodule Slipdock.MachinesTest do
       assert Machines.boards_for(%{machine | board_ids: [-1]}, ctx.user) == []
     end
   end
+
+  describe "who sees a machine (#2572)" do
+    test "a member of a board it serves sees it, read-only; others don't", ctx do
+      {_key, machine} = approved_key(ctx)
+      member = user_fixture("member@example.com")
+      stranger = user_fixture("stranger@example.com")
+      {:ok, _} = Slipdock.Access.grant(ctx.board, member, "read", ctx.user)
+
+      assert [%Machine{id: id, user: %{id: owner_id}}] = Machines.list_shared_machines(member)
+      assert id == machine.id
+      assert owner_id == ctx.user.id
+      assert Machines.list_shared_machines(stranger) == []
+      # Your own machines are yours, not shared with you.
+      assert Machines.list_shared_machines(ctx.user) == []
+
+      assert {:ok, %Machine{id: ^id}, :owner} = Machines.get_visible_machine(ctx.user, id)
+
+      assert {:ok, %Machine{id: ^id}, :member} =
+               Machines.get_visible_machine(member, to_string(id))
+
+      assert {:error, :not_found, "machine"} = Machines.get_visible_machine(stranger, id)
+      assert {:error, :not_found, "machine"} = Machines.get_visible_machine(member, "nope")
+      assert {:error, :not_found, "machine"} = Machines.get_visible_machine(member, id + 1000)
+
+      # A revoked machine is no longer shown to members; its owner keeps it.
+      {:ok, _} = Machines.revoke_machine(machine)
+      assert Machines.list_shared_machines(member) == []
+      assert {:error, :not_found, _} = Machines.get_visible_machine(member, id)
+      assert {:ok, _, :owner} = Machines.get_visible_machine(ctx.user, id)
+    end
+
+    test "online means heard from in the last two minutes, and never once revoked", ctx do
+      {_key, machine} = approved_key(ctx)
+      now = DateTime.utc_now(:second)
+
+      refute Machines.online?(%{machine | last_seen_at: nil})
+      assert Machines.online?(%{machine | last_seen_at: DateTime.add(now, -120)}, now)
+      refute Machines.online?(%{machine | last_seen_at: DateTime.add(now, -121)}, now)
+      refute Machines.online?(%{machine | last_seen_at: now, revoked_at: now}, now)
+    end
+  end
 end

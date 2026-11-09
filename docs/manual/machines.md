@@ -9,10 +9,15 @@ added and changed from the board, not from a shell on the machine, and the
 machine's own **ceiling** limits what the board may set.
 
 The daemon is being built in steps (epic #2569). What is here today:
-enrolling a machine, its ceiling, `show`, `doctor`, the service, and running
-its runners' jobs. It reads its runners from the board when it starts;
-taking changes as they come, while it runs, comes next. Until a machine
-moves over, its runners are still the [shell runners](runners.md).
+enrolling a machine, its ceiling, `show`, `doctor`, the service, running
+its runners' jobs, and the Machines page where its runners are set. It
+reads its runners from the board when it starts; taking changes as they
+come, while it runs, comes next. Until a machine moves over, its runners
+are still the [shell runners](runners.md).
+
+A board's **Automations → Connect a runner** offers *A machine with the
+daemon* first: its steps make a one-time enrolment key for the board and
+give you the `init` line with it.
 
 ### Getting the daemon
 
@@ -135,6 +140,55 @@ directory) each job gets a git worktree of its own, on the branch
 `card-<id>`. A merge job merges the card's pull request only if it is in the
 runner's repository, still open, and at the accepted commit. A runner that
 crashes is started again, and the machine's other runners carry on.
+
+### The Machines page
+
+**Account → Machines** lists your machines, and the machines of other
+people that serve a board you're on. Each opens its own page, which shows:
+
+- whether it is **online** (heard from in the last two minutes), its system,
+  and when it was last seen;
+- its **ceiling** and the **executors** it offers, as the machine reported
+  them: read-only, since only someone at the machine changes them;
+- its **runners**: name, board, pool, agent, directory, permission mode,
+  timeout, what it runs as, and its state (*ready*, *waiting for the
+  machine*, *working* on a card, *paused* or *rejected*);
+- a **refusal** in full: the setting the machine refused, its reason, the
+  limit it crossed, and the version it still runs;
+- the **changes**: every setting the machine accepted or refused.
+
+On your own machine you can:
+
+- **Add a runner**: the board (one the machine serves), the pool, and its
+  settings: agent, working directory, permission mode, timeout, what it
+  runs as, model, a worktree per job, how much it writes, standing
+  instructions, and the names of a before, after and probe hook that the
+  machine itself defines. A field outside the ceiling is marked with the
+  limit as you type. You can still save it, but the machine will refuse it
+  and keep the runner's last accepted settings.
+- **Edit** a runner. The machine has the change within seconds and applies
+  it between jobs.
+- **Pause** a runner: it is handed no job until you **Resume** it. The job
+  it holds finishes.
+- **Remove** a runner: the machine finishes the job it holds, then stops
+  it.
+- **Update now**: the machine looks for a newer signed release at once,
+  rather than waiting for its next check.
+- **Revoke** the machine: its key stops working at once.
+
+Someone who only shares a board with the machine sees the page with the
+runners of their boards, and none of the buttons. From the command line:
+
+```sh
+slipdock machines
+slipdock machine show 4
+slipdock machine add-runner 4 my-board --pool build --dir ~/src/app --timeout-minutes 30
+slipdock machine set-runner 4 build-box-build --permission-mode plan
+slipdock machine pause-runner 4 build-box-build
+slipdock machine resume-runner 4 build-box-build
+slipdock machine rm-runner 4 build-box-build
+slipdock machine update 4
+```
 
 ### What the server can and cannot do
 

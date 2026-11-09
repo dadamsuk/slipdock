@@ -41,10 +41,14 @@ defmodule SlipdockWeb.API.JobController do
   (`server`, `windows`, `loop`, `cloud`) and its options, plus `column` to add
   a rule sending that list's cards (or `rule_id` for one already there) and
   `name` for the runner. Answers with the steps to follow — and, for the two
-  scenarios with a runner of their own, the runner and its token, once.
+  scenarios with a runner of their own, the runner and its token, once. The
+  `daemon` scenario (#2572) makes a one-time enrolment key for the board,
+  in the steps and as `enrolment_key`, once; machines are the account's, so
+  a token limited to some boards is refused it, as `/api/machines` does.
   """
   def setup(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner) do
+    with :ok <- machine_scope(conn, params["scenario"]),
+         {:ok, board} <- Authorize.fetch_board(conn, ref, :owner) do
       case Setup.connect(board, params, conn.assigns.current_user, base_url(conn)) do
         {:ok, result} ->
           conn
@@ -54,7 +58,8 @@ defmodule SlipdockWeb.API.JobController do
             runner: result.runner && V.runner(result.runner),
             token: result.token,
             automation: result.rule && V.automation(result.rule),
-            alert_automation: result.alert_rule && V.automation(result.alert_rule)
+            alert_automation: result.alert_rule && V.automation(result.alert_rule),
+            enrolment_key: result.enrolment_key
           })
 
         {:error, message} ->
@@ -62,6 +67,20 @@ defmodule SlipdockWeb.API.JobController do
       end
     end
   end
+
+  defp machine_scope(conn, "daemon") do
+    case conn.assigns[:api_token] do
+      %{scope_boards: [_ | _]} ->
+        {:error, :forbidden,
+         "this API token is limited to some boards, so it can't enrol a machine: machines " <>
+           "belong to the account (use a token without a board limit)"}
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp machine_scope(_conn, _scenario), do: :ok
 
   @doc """
   One runner and everything known about it: who made it, the session's API

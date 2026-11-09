@@ -1087,9 +1087,18 @@ defmodule Slipdock.Runners do
   # for it. (An `UPDATE … WHERE id IN (SELECT … LIMIT 1 SKIP LOCKED)` looks
   # the same but may run the subquery again per row and claim two.)
   defp try_claim(runner) do
-    # A paused pool or tree hands out nothing (#1116); its jobs wait.
-    if pause_for(runner.board_id, runner.pool), do: nil, else: claim_next(runner)
+    # A paused pool or tree hands out nothing (#1116); its jobs wait. Nor
+    # does a machine runner paused on the Machines page (#2572).
+    if pause_for(runner.board_id, runner.pool) || runner_paused?(runner),
+      do: nil,
+      else: claim_next(runner)
   end
+
+  # Read each time: a wait for a job can outlast the pause that ends it.
+  defp runner_paused?(%Runner{machine_id: nil}), do: false
+
+  defp runner_paused?(%Runner{id: id}),
+    do: Repo.exists?(from(r in Runner, where: r.id == ^id and not is_nil(r.paused_at)))
 
   defp claim_next(runner) do
     now = now()

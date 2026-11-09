@@ -460,6 +460,51 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert Enum.any?(body["setup"]["steps"], &(&1["code"] =~ "/loop /slipdock-loop"))
     end
 
+    test "a machine with the daemon: an enrolment key for the board, once (#2572)", ctx do
+      body =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{
+          "scenario" => "daemon",
+          "pool" => "build"
+        })
+        |> json_response(201)
+
+      assert body["runner"] == nil
+      assert body["token"] == nil
+      assert "sde_" <> _ = key = body["enrolment_key"]
+      assert body["setup"]["title"] == "A machine with the daemon"
+      assert Enum.any?(body["setup"]["steps"], &(&1["code"] =~ "slipdock-runner init --server"))
+      assert Enum.any?(body["setup"]["steps"], &(&1["code"] =~ key))
+      assert body["setup"]["warnings"] == []
+
+      {:ok, {_machine_key, machine}} =
+        Slipdock.Machines.enrol_with_key(key, %{"hostname" => "build-box"})
+
+      assert machine.board_ids == [ctx.board.id]
+    end
+
+    test "a board-scoped token can't enrol a machine through the wizard (#2572)", ctx do
+      {token, _} =
+        Slipdock.Accounts.create_api_token(ctx.user, "scoped", scope_boards: [ctx.board.id])
+
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("authorization", "Bearer " <> token)
+
+      assert %{"error" => "forbidden: this API token is limited to some boards" <> _} =
+               conn
+               |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{"scenario" => "daemon"})
+               |> json_response(403)
+
+      assert Slipdock.Machines.list_enrolment_keys(ctx.user) == []
+
+      # The other scenarios still work with it.
+      conn
+      |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{"scenario" => "loop"})
+      |> json_response(201)
+    end
+
     test "ChatGPT: steps only, and committing is a 422 (#522)", ctx do
       body =
         ctx.conn

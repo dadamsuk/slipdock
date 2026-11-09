@@ -397,4 +397,97 @@ defmodule Slipdock.MachineRunnersTest do
       assert claimed == verify.id
     end
   end
+
+  describe "pausing a runner and updating now (#2572)" do
+    test "a paused runner is handed no job; resumed, it takes the next", ctx do
+      runner = add(ctx)
+      [_backlog, todo | _] = ctx.board.columns
+      card = card_fixture(todo, %{"title" => "Queued"})
+      {:ok, job} = Runners.queue(card, %{pool: "build", kind: "claude", prompt: "Do"})
+      before = version(ctx.machine)
+
+      assert {:ok, paused} = MachineRunners.pause_runner(runner)
+      assert %DateTime{} = paused.paused_at
+      assert version(ctx.machine) == before + 1
+      assert [%{paused: true}] = MachineRunners.config_for(ctx.machine).runners
+
+      {:ok, claimer} = Runners.authenticate_machine(ctx.key, runner.id)
+      assert Runners.claim(claimer) == nil
+
+      # Pausing again changes nothing, not even the version.
+      assert {:ok, ^paused} = MachineRunners.pause_runner(paused)
+      assert version(ctx.machine) == before + 1
+
+      assert {:ok, resumed} = MachineRunners.resume_runner(paused)
+      assert resumed.paused_at == nil
+      assert [%{paused: false}] = MachineRunners.config_for(ctx.machine).runners
+      assert {:ok, ^resumed} = MachineRunners.resume_runner(resumed)
+
+      {:ok, claimer} = Runners.authenticate_machine(ctx.key, runner.id)
+      assert %{id: id} = Runners.claim(claimer)
+      assert id == job.id
+    end
+
+    test "a pause made while a claim waits holds the job back", ctx do
+      runner = add(ctx)
+      {:ok, claimer} = Runners.authenticate_machine(ctx.key, runner.id)
+      {:ok, _} = MachineRunners.pause_runner(runner)
+
+      # The struct the claim holds was read before the pause.
+      assert claimer.paused_at == nil
+      [_backlog, todo | _] = ctx.board.columns
+      card = card_fixture(todo, %{"title" => "Queued"})
+      {:ok, _job} = Runners.queue(card, %{pool: "build", kind: "claude", prompt: "Do"})
+      assert Runners.claim(claimer) == nil
+    end
+
+    test "only a machine's runner is paused, and not on a revoked machine", ctx do
+      runner = add(ctx)
+
+      {:ok, shell, _} = Runners.create_runner(ctx.board, %{"name" => "sh", "pool" => "build"})
+
+      assert {:error, :invalid, "not a machine's runner" <> _} =
+               MachineRunners.pause_runner(shell)
+
+      assert {:error, :invalid, "not a machine's runner" <> _} =
+               MachineRunners.resume_runner(shell)
+
+      {:ok, _} = Machines.revoke_machine(ctx.machine)
+      assert {:error, :invalid, "the machine is revoked"} = MachineRunners.pause_runner(runner)
+      assert Repo.get!(Runner, runner.id).paused_at == nil
+    end
+
+    test "update now goes out in the config and wakes the long-poll", ctx do
+      before = version(ctx.machine)
+      assert MachineRunners.config_for(ctx.machine).update_requested_at == nil
+
+      assert {:ok, machine} = MachineRunners.request_update(ctx.machine)
+      assert %DateTime{} = machine.update_requested_at
+      assert machine.config_version == before + 1
+
+      assert %{update_requested_at: at, version: v} =
+               MachineRunners.wait_for_config(ctx.machine, before, 0)
+
+      assert at == machine.update_requested_at
+      assert v == before + 1
+
+      {:ok, revoked} = Machines.revoke_machine(machine)
+      assert {:error, :invalid, "the machine is revoked"} = MachineRunners.request_update(revoked)
+    end
+
+    test "the job each runner holds now, by runner", ctx do
+      runner = add(ctx)
+      idle = add(ctx, %{"pool" => "other", "name" => "idle"})
+      [_backlog, todo | _] = ctx.board.columns
+      card = card_fixture(todo, %{"title" => "Held"})
+      {:ok, job} = Runners.queue(card, %{pool: "build", kind: "claude", prompt: "Do"})
+      {:ok, claimer} = Runners.authenticate_machine(ctx.key, runner.id)
+      %{id: id} = Runners.claim(claimer)
+      assert id == job.id
+
+      jobs = MachineRunners.running_jobs([runner, idle])
+      assert %{card: %{title: "Held"}} = jobs[runner.id]
+      refute Map.has_key?(jobs, idle.id)
+    end
+  end
 end

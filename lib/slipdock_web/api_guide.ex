@@ -2622,6 +2622,28 @@ defmodule SlipdockWeb.APIGuide do
     protocol takes the machine key with `X-Runner-Id`, for that machine's own
     runners only; each runner keeps its own identity, so a verify job still
     goes to a runner other than its builder.
+
+    **The Machines page** (#2572). Each machine has a page at `/machines/:id`,
+    opened from Account › Machines: whether it is online, its system, the
+    executors and ceiling it reported (read-only), its runners with their
+    state and current job, each refusal with its reason and the limit it
+    crossed, and the log of accepted and rejected changes. Its owner adds,
+    changes, pauses and removes runners there (a field outside the ceiling is
+    marked with the limit), asks it to update now and revokes it. Members of
+    a board it serves see it, with only their boards' runners, and change
+    nothing. Over the API: `GET /api/machines` lists yours and, as `shared`,
+    the machines serving a board you're on; `GET /api/machines/:id` shows
+    either (`yours` says which); `POST
+    /api/machines/:id/runners/:runner_id/pause` and `…/resume` (a paused
+    runner is handed no job until resumed, and its config says `paused`);
+    `POST /api/machines/:id/update` asks the daemon to look for a newer signed
+    release now (its config carries `update_requested_at`). A member's write
+    is a 403. CLI: `slipdock machine
+    add-runner|set-runner|pause-runner|resume-runner|rm-runner|update`. The
+    board's **Connect a runner** offers *A machine with the daemon* first: its
+    steps make a one-time enrolment key for the board (`scenario` `daemon` on
+    `POST /api/boards/:board/runners/setup`, answered as `enrolment_key`,
+    refused to a token confined to some boards).
     """
   end
 

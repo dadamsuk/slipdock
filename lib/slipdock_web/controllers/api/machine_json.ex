@@ -23,14 +23,33 @@ defmodule SlipdockWeb.API.MachineJSON do
       state: if(Machine.revoked?(m), do: "revoked", else: "enrolled"),
       ceiling: m.ceiling,
       ceiling_at: m.ceiling_at,
-      config_version: m.config_version
+      config_version: m.config_version,
+      update_requested_at: m.update_requested_at,
+      owner: owner_name(m.user)
     }
   end
 
-  @doc "A machine with its runners and its log of config changes (#2571)."
-  def machine_detail(%Machine{} = m) do
+  @doc """
+  A machine with its runners and its log of config changes (#2571). With
+  `boards: ids` (a board member who isn't the owner, #2572), only the
+  runners of those boards and their changes.
+  """
+  def machine_detail(%Machine{} = m, opts \\ []) do
+    listed =
+      case opts[:boards] do
+        nil -> MachineRunners.list_runners(m)
+        ids -> m |> MachineRunners.list_runners() |> Enum.filter(&Enum.member?(ids, &1.board_id))
+      end
+
+    ids = Enum.map(listed, & &1.id)
+
+    changes =
+      m
+      |> MachineRunners.reports()
+      |> Enum.filter(&(is_nil(opts[:boards]) or Enum.member?(ids, &1.runner_id)))
+
     runners =
-      Enum.map(MachineRunners.list_runners(m), fn r ->
+      Enum.map(listed, fn r ->
         outside =
           case MachineRunners.outside_ceiling(m, r) do
             :ok -> []
@@ -42,7 +61,7 @@ defmodule SlipdockWeb.API.MachineJSON do
 
     m
     |> machine()
-    |> Map.merge(%{runners: runners, changes: Enum.map(MachineRunners.reports(m), &report/1)})
+    |> Map.merge(%{runners: runners, changes: Enum.map(changes, &report/1)})
   end
 
   @doc """
@@ -64,9 +83,16 @@ defmodule SlipdockWeb.API.MachineJSON do
       rejection: r.rejection,
       rejected_at: r.rejected_at,
       last_seen_at: r.last_seen_at,
-      current_job_id: r.current_job_id
+      current_job_id: r.current_job_id,
+      paused: not is_nil(r.paused_at),
+      paused_at: r.paused_at,
+      version: r.version
     }
   end
+
+  # Who owns a machine shared with you; not loaded (your own) is left out.
+  defp owner_name(%Slipdock.Accounts.User{} = u), do: Slipdock.Accounts.User.display_name(u)
+  defp owner_name(_), do: nil
 
   @doc "One accepted or rejected change, from the machine's log."
   def report(%ConfigReport{} = r) do

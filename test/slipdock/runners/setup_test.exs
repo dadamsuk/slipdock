@@ -26,6 +26,62 @@ defmodule Slipdock.Runners.SetupTest do
 
   defp codes(setup), do: setup.steps |> Enum.map(& &1[:code]) |> Enum.reject(&is_nil/1)
 
+  describe "the daemon scenario (#2572)" do
+    test "comes first; its steps install, enrol with a key, run the service, add the runner",
+         %{board: board} do
+      assert hd(Setup.scenarios()) == "daemon"
+      assert Setup.label("daemon") == "A machine with the daemon"
+      refute Setup.needs_token?("daemon")
+
+      setup = gen(board, %{"scenario" => "daemon", "pool" => "build"}, nil)
+      [build, init, service] = codes(setup)
+
+      assert build =~ "go build"
+      assert init == "slipdock-runner init --server #{@base} --key sde_YOUR_ENROLMENT_KEY"
+      assert service == "slipdock-runner service install"
+      assert List.last(setup.steps).text =~ "#{@base}/account/machines"
+      assert List.last(setup.steps).text =~ "the build pool"
+      assert setup.intro =~ "machine's page"
+      # No key yet: the preview says one is made when the steps are shown.
+      assert [warning] = setup.warnings
+      assert warning =~ "sde_YOUR_ENROLMENT_KEY"
+    end
+
+    test "connect makes a one-time key for the board's tree, and no runner",
+         %{board: board, owner: owner} do
+      assert {:ok, result} =
+               Setup.connect(board, %{"scenario" => "daemon", "pool" => "build"}, owner, @base)
+
+      assert "sde_" <> _ = result.enrolment_key
+      assert result.runner == nil
+      assert result.token == nil
+      assert Enum.any?(codes(result.setup), &(&1 =~ result.enrolment_key))
+      assert result.setup.warnings == []
+      assert [key] = Slipdock.Machines.list_enrolment_keys(owner)
+      assert key.board_ids == [board.id]
+      assert key.label == "build runner"
+      assert Runners.list_runners(board) == []
+    end
+
+    test "a sub-board's wizard enrols the machine for its tree", %{board: board, owner: owner} do
+      [_backlog, todo | _] = board.columns
+      card = card_fixture(todo, %{"title" => "Epic"})
+      {:ok, t} = Slipdock.Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(card, t)
+
+      assert {:ok, result} = Setup.connect(sub, %{"scenario" => "daemon"}, owner, @base)
+      assert [%{board_ids: [id]}] = Slipdock.Machines.list_enrolment_keys(owner)
+      assert id == board.id
+      assert result.enrolment_key
+    end
+
+    test "other scenarios make no key", %{board: board, owner: owner} do
+      {:ok, result} = Setup.connect(board, %{"scenario" => "loop"}, owner, @base)
+      assert result.enrolment_key == nil
+      assert Slipdock.Machines.list_enrolment_keys(owner) == []
+    end
+  end
+
   describe "normalise/1" do
     test "fills in the defaults and folds case" do
       a = answers(%{"pool" => " Dev-Box ", "timeout" => "900"})

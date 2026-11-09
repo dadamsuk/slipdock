@@ -1074,8 +1074,24 @@ WRITE
                                                  on the runner's next heartbeat
   machines                                       your machines running the runner daemon: state,
                                                  system, boards, last seen
-  machine show <id>                              one machine: hostname, OS, fingerprint, boards
+  machine show <id>                              one machine: hostname, OS, fingerprint, boards,
+                                                 its ceiling, runners, refusals and changes
   machine revoke <id>                            revoke a machine: its key stops working at once
+  machine update <id>                            ask its daemon to look for a newer signed
+                                                 release now
+  machine add-runner <id> <board> --pool P --dir D
+                                                 add a runner to the machine for a board it
+                                                 serves: --name, --agent, --permission-mode,
+                                                 --timeout-minutes, --model, --executor,
+                                                 --[no-]worktree, --verbosity, --instructions,
+                                                 --before-hook/--after-hook/--probe-hook (names
+                                                 the machine defines); the machine refuses what
+                                                 is outside its ceiling
+  machine set-runner <id> <runner> [those]       change a runner: only what you give changes
+  machine pause-runner <id> <runner>             hand it no job until resumed (its job finishes)
+  machine resume-runner <id> <runner>            it takes jobs again
+  machine rm-runner <id> <runner>                remove it: the machine finishes its job, then
+                                                 stops it
   machine enrolment <code>                       the machine a `slipdock-runner init` code belongs
                                                  to: hostname, system, fingerprint, where it asked
   machine approve <code> <board>...              approve it, to serve those boards; you own it

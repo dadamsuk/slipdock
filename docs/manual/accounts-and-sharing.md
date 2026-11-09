@@ -58,7 +58,10 @@ The current section is marked in the nav and named again over its content:
   one-time enrolment key for `slipdock-runner init --key` on a machine with
   nobody at its screen. A machine's code from `slipdock-runner init` is
   approved at `/account/machines/approve`, which shows its hostname, system
-  and fingerprint and asks which boards it may serve. Also `slipdock
+  and fingerprint and asks which boards it may serve. Each machine opens
+  its own page, where its runners are added, changed, paused and removed
+  ([Machines](machines.md#the-machines-page)); machines of other people that
+  serve a board you're on are listed too, to see. Also `slipdock
   machines`.
 - **Import & export** (`/account/data`) — everything you have as a zip, and
   boards as files another Slipdock can read back.

@@ -14,9 +14,12 @@ defmodule SlipdockWeb.RunnersLiveTest do
     %{board: board}
   end
 
+  # The wizard opens on the daemon (#2572); these tests start from the
+  # shell runner's scenario, the one they were written for.
   defp open(conn, board) do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
     view |> element("#connect-runner") |> render_click()
+    choose(view, %{"scenario" => "server"})
     view
   end
 

@@ -187,6 +187,129 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
     end
   end
 
+  describe "pause, resume and update now (#2572)" do
+    test "the owner pauses and resumes a runner, and asks the machine to update", ctx do
+      runner = add(ctx)
+
+      assert %{"runner" => %{"paused" => true, "paused_at" => at}} =
+               ctx.conn
+               |> post(~p"/api/machines/#{ctx.machine.id}/runners/#{runner.id}/pause")
+               |> json_response(200)
+
+      assert at
+      assert Repo.get!(Runner, runner.id).paused_at
+
+      assert %{"runner" => %{"paused" => false}} =
+               ctx.conn
+               |> post(~p"/api/machines/#{ctx.machine.id}/runners/#{runner.name}/resume")
+               |> json_response(200)
+
+      refute Repo.get!(Runner, runner.id).paused_at
+
+      assert %{"machine" => %{"update_requested_at" => asked}} =
+               ctx.conn
+               |> post(~p"/api/machines/#{ctx.machine.id}/update")
+               |> json_response(200)
+
+      assert asked
+
+      assert %{"update_requested_at" => ^asked, "runners" => [%{"paused" => false}]} =
+               machine_conn(ctx.key) |> get(~p"/api/machine/config") |> json_response(200)
+
+      ctx.conn
+      |> post(~p"/api/machines/#{ctx.machine.id}/runners/nobody/pause")
+      |> json_response(404)
+    end
+
+    test "a revoked machine can't be paused or updated; a scoped token is refused", ctx do
+      runner = add(ctx)
+      {token, _} = Accounts.create_api_token(ctx.user, "scoped", scope_boards: [ctx.board.id])
+      scoped = anon() |> put_req_header("authorization", "Bearer " <> token)
+
+      assert %{"error" => "this API token is limited to some boards" <> _} =
+               scoped |> post(~p"/api/machines/#{ctx.machine.id}/update") |> json_response(403)
+
+      {:ok, _} = Machines.revoke_machine(ctx.machine)
+
+      assert %{"error" => "the machine is revoked"} =
+               ctx.conn
+               |> post(~p"/api/machines/#{ctx.machine.id}/runners/#{runner.id}/pause")
+               |> json_response(422)
+
+      assert %{"error" => "the machine is revoked"} =
+               ctx.conn |> post(~p"/api/machines/#{ctx.machine.id}/update") |> json_response(422)
+    end
+  end
+
+  describe "a member of a board it serves (#2572)" do
+    setup ctx do
+      member = user_fixture("member@example.com")
+      {:ok, _} = Slipdock.Access.grant(ctx.board, member, "read", ctx.user)
+      other = board_fixture(%{"name" => "Private", "code" => unique_code()}, owner: ctx.user)
+      %{member: conn_as(member), other: other}
+    end
+
+    test "sees the machine and its board's runners, not the owner's other work", ctx do
+      seen = add(ctx, %{"name" => "seen"})
+      {:ok, machine} = Machines.get_machine(ctx.user, ctx.machine.id)
+
+      machine =
+        Repo.update!(Ecto.Changeset.change(machine, board_ids: [ctx.board.id, ctx.other.id]))
+
+      {:ok, hidden} =
+        MachineRunners.add_runner(machine, ctx.other, %{
+          "pool" => "build",
+          "name" => "hidden",
+          "config" => %{"directory" => @dir}
+        })
+
+      {:ok, _} =
+        MachineRunners.report(machine, hidden, %{
+          "version" => 1,
+          "outcome" => "rejected",
+          "reason" => "secret"
+        })
+
+      assert %{"machines" => [], "shared" => [%{"id" => id, "owner" => owner}]} =
+               ctx.member |> get(~p"/api/machines") |> json_response(200)
+
+      assert id == ctx.machine.id
+      assert owner
+
+      assert %{"machine" => %{"yours" => false, "runners" => runners, "changes" => []}} =
+               ctx.member |> get(~p"/api/machines/#{ctx.machine.id}") |> json_response(200)
+
+      assert Enum.map(runners, & &1["name"]) == [seen.name]
+
+      assert %{"machine" => %{"yours" => true, "runners" => all, "changes" => [_]}} =
+               ctx.conn |> get(~p"/api/machines/#{ctx.machine.id}") |> json_response(200)
+
+      assert length(all) == 2
+    end
+
+    test "changes nothing: every write says only the owner changes it", ctx do
+      runner = add(ctx)
+      id = ctx.machine.id
+
+      for request <- [
+            &post(&1, ~p"/api/machines/#{id}/runners", %{board: ctx.board.id, pool: "x"}),
+            &patch(&1, ~p"/api/machines/#{id}/runners/#{runner.id}", %{pool: "x"}),
+            &delete(&1, ~p"/api/machines/#{id}/runners/#{runner.id}"),
+            &post(&1, ~p"/api/machines/#{id}/runners/#{runner.id}/pause"),
+            &post(&1, ~p"/api/machines/#{id}/update"),
+            &delete(&1, ~p"/api/machines/#{id}")
+          ] do
+        assert %{"error" => "only the machine's owner changes it" <> _} =
+                 ctx.member |> request.() |> json_response(403)
+      end
+
+      runner = Repo.get!(Runner, runner.id)
+      assert runner.pool == "build"
+      refute runner.paused_at
+      refute Machines.get_machine(ctx.user, id) |> elem(1) |> Map.get(:revoked_at)
+    end
+  end
+
   describe "the daemon's side" do
     test "the config long-poll: at once when newer, 204 when nothing changes", ctx do
       runner = add(ctx)

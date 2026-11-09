@@ -348,11 +348,64 @@ defmodule Slipdock.Machines do
     )
   end
 
+  # The daemon asks for its config every 25 seconds or so (#2571), and
+  # each ask brings `last_seen_at` up to date.
+  @online_within_seconds 120
+
+  @doc """
+  Whether the machine's daemon has been heard from in the last two minutes
+  (it long-polls its config, so a running one is seen every half minute).
+  A revoked machine is never online.
+  """
+  def online?(machine, now \\ DateTime.utc_now())
+
+  def online?(%Machine{revoked_at: nil, last_seen_at: %DateTime{} = at}, now),
+    do: DateTime.diff(now, at) <= @online_within_seconds
+
+  def online?(%Machine{}, _now), do: false
+
   @doc "One of `user`'s machines, by id."
   def get_machine(%User{} = user, id) do
     case Repo.get_by(Machine, id: id, user_id: user.id) do
       nil -> {:error, :not_found, "machine"}
       machine -> {:ok, machine}
+    end
+  end
+
+  @doc """
+  The live machines `user` doesn't own but may see (#2572): those serving a
+  board `user` is a member of. They are shown read-only; only the owner
+  changes a machine. Newest first.
+  """
+  def list_shared_machines(%User{} = user) do
+    board_ids = user |> Access.list_boards(archived: :all) |> Enum.map(& &1.id)
+
+    Repo.all(
+      from(m in Machine,
+        where:
+          m.user_id != ^user.id and is_nil(m.revoked_at) and
+            fragment("? && ?", m.board_ids, ^board_ids),
+        order_by: [desc: m.id],
+        preload: [:user]
+      )
+    )
+  end
+
+  @doc """
+  A machine `user` may see, by id, and whether they may change it:
+  `{:ok, machine, :owner}` for its owner, `{:ok, machine, :member}` for a
+  member of a board it serves (see `list_shared_machines/1`), else
+  `{:error, :not_found, "machine"}`, so a machine you can't see isn't told
+  apart from one that doesn't exist.
+  """
+  def get_visible_machine(%User{} = user, id) do
+    with {id, ""} <- Integer.parse(to_string(id)),
+         {:owner, {:error, _, _}} <- {:owner, get_machine(user, id)},
+         %Machine{} = machine <- Enum.find(list_shared_machines(user), &(&1.id == id)) do
+      {:ok, machine, :member}
+    else
+      {:owner, {:ok, machine}} -> {:ok, machine, :owner}
+      _ -> {:error, :not_found, "machine"}
     end
   end
 

@@ -1,8 +1,11 @@
 defmodule Slipdock.Runners.Setup do
   @moduledoc """
   The "Connect a runner" wizard's answers turned into exactly what to paste,
-  for each of the five ways of running an agent against a board:
+  for each of the six ways of running an agent against a board:
 
+    * `daemon` — a machine running the runner daemon (#2572, epic #2569):
+      install it, enrol it with a one-time enrolment key made for the
+      board, and add its runner on the machine's page. Offered first.
     * `server` — a Linux or macOS machine: the shell runner's one-line
       install, and the config it will write
     * `windows` — a Windows machine: the PowerShell runner's one-line install
@@ -24,7 +27,7 @@ defmodule Slipdock.Runners.Setup do
   alias Slipdock.Boards.Board
   alias Slipdock.Runners.Runner
 
-  @scenarios ~w(server windows loop cloud chatgpt)
+  @scenarios ~w(daemon server windows loop cloud chatgpt)
   @agents ~w(claude codex custom)
   @permission_modes ~w(default acceptEdits plan bypassPermissions)
   @services ~w(auto systemd launchd none)
@@ -100,6 +103,9 @@ defmodule Slipdock.Runners.Setup do
   # Shown in place of a token that was only ever shown once.
   @token_placeholder "sdr_YOUR_RUNNER_TOKEN"
 
+  # Shown in the daemon's steps until the wizard makes the key itself.
+  @enrolment_key_placeholder "sde_YOUR_ENROLMENT_KEY"
+
   def scenarios, do: @scenarios
   def agents, do: @agents
   def permission_modes, do: @permission_modes
@@ -119,6 +125,7 @@ defmodule Slipdock.Runners.Setup do
   def default_cwd(_scenario), do: "/tmp"
 
   @doc "What each scenario is called in the wizard."
+  def label("daemon"), do: "A machine with the daemon"
   def label("server"), do: "Linux / macOS machine"
   def label("windows"), do: "Windows machine"
   def label("loop"), do: "Claude Code on my machine"
@@ -329,14 +336,35 @@ defmodule Slipdock.Runners.Setup do
   def connect(%Board{} = board, params, user, base_url) do
     with {:ok, answers} <- normalise(params),
          answers = install_name(answers, board),
+         {:ok, key} <- enrolment_key(board, answers, user),
          {:ok, rule} <- rule(board, params, answers, user),
          {:ok, alert_rule} <- alert_rule(board, params, answers, user),
          {:ok, runner, token} <- runner(board, params, answers, user) do
-      setup = generate(answers, %{base_url: base_url, board: board, token: token, rule: rule})
+      ctx = %{base_url: base_url, board: board, token: token, rule: rule, enrolment_key: key}
+      setup = generate(answers, ctx)
 
-      {:ok, %{setup: setup, runner: runner, token: token, rule: rule, alert_rule: alert_rule}}
+      {:ok,
+       %{
+         setup: setup,
+         runner: runner,
+         token: token,
+         rule: rule,
+         alert_rule: alert_rule,
+         enrolment_key: key
+       }}
     end
   end
+
+  # A machine with the daemon (#2572) enrols with a one-time key, made for
+  # the board's tree: the machine then serves it.
+  defp enrolment_key(board, %{"scenario" => "daemon", "pool" => pool}, user) do
+    case Slipdock.Machines.create_enrolment_key(user, [Board.root_id(board)], "#{pool} runner") do
+      {:ok, key, _record} -> {:ok, key}
+      {:error, :invalid, message} -> {:error, message}
+    end
+  end
+
+  defp enrolment_key(_board, _answers, _user), do: {:ok, nil}
 
   # "Tell me when a job times out or a card is given up": a rule of its own,
   # raising an alert for the pool's jobs (see the `runner_trouble` preset).
@@ -545,7 +573,9 @@ defmodule Slipdock.Runners.Setup do
   """
   def generate(answers, ctx) do
     scenario = answers["scenario"]
-    ctx = Map.merge(%{token: nil, rule: nil, again: false, board: nil}, ctx)
+
+    ctx =
+      Map.merge(%{token: nil, rule: nil, again: false, board: nil, enrolment_key: nil}, ctx)
 
     # A runner set up again keeps the name it was installed with — none, for
     # one made before runners had names.
@@ -560,6 +590,13 @@ defmodule Slipdock.Runners.Setup do
       cost: cost(scenario)
     }
   end
+
+  defp intro("daemon", a),
+    do:
+      "Run the runner daemon on the machine that should do the work: one program, enrolled " <>
+        "once, whose runners you then add and change from the machine's page rather than " <>
+        "from a shell. It takes #{a["pool"]} jobs once you add a runner for that pool, and " <>
+        "the machine's own ceiling limits what the page may set."
 
   defp intro("server", a),
     do:
@@ -595,7 +632,7 @@ defmodule Slipdock.Runners.Setup do
       "A Claude Desktop scheduled task takes #{a["pool"]} jobs on a schedule, on this " <>
         "computer, while the Desktop app is open."
 
-  defp cost(scenario) when scenario in ~w(server windows),
+  defp cost(scenario) when scenario in ~w(daemon server windows),
     do:
       "A runner costs nothing while it waits: it asks the server for work and only " <>
         "starts the agent when there is a job."
@@ -654,6 +691,12 @@ defmodule Slipdock.Runners.Setup do
         "place of #{@token_placeholder}, or make a new token."
     ]
 
+  defp base_warnings("daemon", _a, %{enrolment_key: nil}),
+    do: [
+      "The enrolment key is made when you show the steps, and shown that once: it goes " <>
+        "in place of #{@enrolment_key_placeholder}."
+    ]
+
   defp base_warnings(_, _, _), do: []
 
   defp hookless("chatgpt"), do: "ChatGPT"
@@ -666,6 +709,8 @@ defmodule Slipdock.Runners.Setup do
   # the directory it starts in. A cloud routine works in its repository.
   defp cwd_warnings("cloud", %{"where" => "cloud"}), do: []
   defp cwd_warnings("chatgpt", _a), do: []
+  # The daemon's runners get their directory on the machine's page.
+  defp cwd_warnings("daemon", _a), do: []
 
   defp cwd_warnings(_scenario, %{"agent" => "claude", "cwd" => ""}),
     do: [
@@ -690,6 +735,41 @@ defmodule Slipdock.Runners.Setup do
   # The two runner scenarios name their steps (`id`), so the wizard can lay
   # them out as one command with what it installs behind links; the API and
   # the CLI list them in order.
+  defp steps("daemon", a, ctx) do
+    key = ctx.enrolment_key || @enrolment_key_placeholder
+
+    [
+      %{
+        text:
+          "Get the daemon onto the machine: one file, no dependencies, for Linux (WSL " <>
+            "included), macOS and Windows. Until its signed releases are out, build it " <>
+            "from Slipdock's repository with Go:",
+        lang: "sh",
+        code: "cd daemon && go build -o ~/.local/bin/slipdock-runner ./cmd/slipdock-runner"
+      },
+      %{
+        text:
+          "Enrol the machine with this one-time key. It works once, within " <>
+            "#{Slipdock.Machines.EnrolmentKey.validity_hours()} hours, and the machine " <>
+            "then serves this board. init also writes the machine's ceiling: the limits on " <>
+            "what the board may set there.",
+        lang: "sh",
+        code: "slipdock-runner init --server #{ctx.base_url} --key #{key}"
+      },
+      %{
+        text: "Keep it running as a service of your account:",
+        lang: "sh",
+        code: "slipdock-runner service install"
+      },
+      %{
+        text:
+          "Then open the machine from Account › Machines (#{ctx.base_url}/account/machines) " <>
+            "and add a runner for the #{a["pool"]} pool: its agent, working directory, " <>
+            "permission mode and timeout, inside the machine's ceiling."
+      }
+    ]
+  end
+
   defp steps("server", a, ctx) do
     [
       %{
