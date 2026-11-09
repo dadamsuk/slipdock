@@ -18,7 +18,11 @@ defmodule Slipdock.Sweep do
     a `list_top` feed and a rule's runner action never take from it, so
     what a sweep files waits for a person instead of going to the loop;
   - a **recurring card, *Sweep the code***, every day, whose description is
-    the procedure.
+    the procedure and whose bar (`card_bar/1`) names the page but no cell
+    of it, so it holds on any day. Each run's builder may reword its own
+    instance's bar for the cell it took; the next instance starts again
+    from the template (`template_bar/1`, which `Slipdock.Recurrence` asks
+    for), never from yesterday's cell (#2611).
 
   Installing again adds only what is missing, and never touches a page that
   is there. A list already called `Triage` with no category is given the
@@ -82,6 +86,39 @@ defmodule Slipdock.Sweep do
   6. Update the page by section, with `--message "#<this card> sweep <area> × <lens>"`: the cell gets `<sha> <date>`, and the Log gets a line `- <date>: <area> × <lens> at <sha>, filed <card ids or nothing>`.
   7. Remove the worktree, and close the card with what was swept (area, lens, sha) and the cards filed. The next one comes by itself tomorrow.
   """
+
+  @doc """
+  The bar of every *#{@card_title}* instance (#2611), for the rotation page
+  `code` (`W-…`): what a run does, whichever cell is stalest that day. It
+  names no area and no lens, since the run that takes the card is what picks
+  them.
+  """
+  def card_bar(code) do
+    """
+    Swept the stalest cell of #{code}'s Rotation table (a `—` first, else the oldest date; ties to the area higher in the table): one area through one lens, at the default branch's head
+    Each issue found filed as its own card in the Triage list (security ones tagged `security`), and named in the closing comment's Findings block, or none found said so
+    #{code}'s Rotation cell for that area and lens, and its Log, updated with the sha and date; the closing comment names the area, the lens and the sha
+    """
+    |> String.trim_trailing()
+  end
+
+  @doc """
+  The bar a new instance of `card` starts from, when `card` is its board's
+  *#{@card_title}* card and the board has the sweep installed: the template
+  (`card_bar/1`) with the rotation page's code, whatever the instance before
+  it said. Nil for any other card, which keeps its own bar.
+  """
+  def template_bar(%Card{title: @card_title, board_id: board_id}) do
+    with %Board{} = board <- Repo.get(Board, board_id),
+         %{board: %Board{id: ^board_id}, page: %Page{code: code}} when is_binary(code) <-
+           find(board) do
+      card_bar(code)
+    else
+      _ -> nil
+    end
+  end
+
+  def template_bar(_card), do: nil
 
   @doc """
   The sweep as a board blueprint (see `Slipdock.Blueprint`): the Triage list,
@@ -203,6 +240,7 @@ defmodule Slipdock.Sweep do
            ) do
         {:ok, report} ->
           report = categorise_triage(root, report)
+          :ok = put_bar(root, user)
 
           {:ok,
            %{
@@ -237,6 +275,21 @@ defmodule Slipdock.Sweep do
       {:ok, _} = col |> Column.changeset(%{category: "triage"}) |> Repo.update()
       update_in(report, [:added, "lists"], &(&1 ++ ["#{col.name} (category set)"]))
     end)
+  end
+
+  # The card's bar (#2611), given once the page has its code: on a card made
+  # now, or an older install's card that has none. A bar somebody wrote, or
+  # one that has locked, is theirs.
+  defp put_bar(root, user) do
+    case find(root) do
+      %{card: %Card{bar: bar, bar_locked_at: nil} = card, page: %Page{code: code}}
+      when bar in [nil, ""] and is_binary(code) ->
+        {:ok, _} = Boards.update_card(card, %{"bar" => card_bar(code)}, by: user)
+        :ok
+
+      _ ->
+        :ok
+    end
   end
 
   defp can_write(user, board) do

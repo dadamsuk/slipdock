@@ -185,6 +185,98 @@ defmodule Slipdock.SweepTest do
     end
   end
 
+  describe "the card's bar (#2611)" do
+    # The previous instance as its run leaves it: the bar reworded for the
+    # day's cell, locked, the card done.
+    defp swept(card, bar) do
+      Repo.update_all(from(c in Card, where: c.id == ^card.id),
+        set: [bar: bar, bar_locked_at: DateTime.utc_now(:second)]
+      )
+
+      {:ok, card} = Boards.update_card(Repo.get!(Card, card.id), %{"completed" => true})
+      card
+    end
+
+    # `days` on from now: far enough that the series' next occurrence has come.
+    defp next_instance(card, days \\ 3) do
+      series = Slipdock.Recurrence.for_card(card)
+      assert Slipdock.Recurrence.tick(DateTime.add(DateTime.utc_now(), days, :day)) == 1
+      Boards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
+    end
+
+    test "is the template at install: the page's code and no cell", %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [card] = sweep_cards(board)
+      [page] = rotation_pages(board)
+
+      assert card.bar == Sweep.card_bar(page.code)
+      assert card.bar =~ "the stalest cell of #{page.code}'s Rotation table"
+      assert is_nil(card.bar_locked_at)
+
+      for {lens, _} <- Sweep.lenses(), do: refute(card.bar =~ lens)
+    end
+
+    test "the next instance starts from the template, not the cell its run named",
+         %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [card] = sweep_cards(board)
+      [page] = rotation_pages(board)
+
+      yesterday =
+        "Swept Architecture × test gaps (the stalest cell) at abc1234\nW-1 cell updated"
+
+      new = card |> swept(yesterday) |> next_instance()
+
+      refute new.id == card.id
+      assert new.title == "Sweep the code"
+      assert new.bar == Sweep.card_bar(page.code)
+      refute new.bar =~ "Architecture"
+      refute new.bar =~ "test gaps"
+      assert is_nil(new.bar_locked_at)
+
+      # And the day after, from a run that named another cell.
+      newer = new |> swept("Swept Accounts × dead code at def5678") |> next_instance(6)
+      assert newer.bar == Sweep.card_bar(page.code)
+      refute newer.bar =~ "Accounts"
+    end
+
+    test "an older install's card with no bar gets it; a bar somebody wrote is kept",
+         %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [card] = sweep_cards(board)
+      [page] = rotation_pages(board)
+
+      Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [bar: nil])
+      {:ok, _} = Sweep.install(user, board)
+      assert Repo.get!(Card, card.id).bar == Sweep.card_bar(page.code)
+
+      Repo.update_all(from(c in Card, where: c.id == ^card.id), set: [bar: "Our own bar"])
+      {:ok, _} = Sweep.install(user, board)
+      assert Repo.get!(Card, card.id).bar == "Our own bar"
+    end
+
+    test "is only for the sweep's own card on a board with the sweep", %{
+      user: user,
+      board: board
+    } do
+      [_backlog, todo | _] = board.columns
+
+      # The same title on a board with no sweep installed keeps its own bar.
+      lookalike = card_fixture(todo, %{"title" => "Sweep the code", "bar" => "Ours"})
+      assert Sweep.template_bar(lookalike) == nil
+
+      {:ok, _} = Sweep.install(user, board)
+      other = card_fixture(todo, %{"title" => "Another chore", "bar" => "Its own"})
+      assert Sweep.template_bar(other) == nil
+      assert Sweep.template_bar(Repo.get!(Card, lookalike.id)) =~ "the stalest cell of W-"
+
+      # Another chore's series carries its own bar, as before (#2081).
+      {:ok, _} = Slipdock.Recurrence.set(other, %{"rule" => "every day"}, user)
+      new = other |> swept("Its own, reworded") |> next_instance()
+      assert new.bar == "Its own, reworded"
+    end
+  end
+
   describe "tool?/1" do
     test "names the built-in Tool, whatever the case" do
       assert Sweep.tool?("sweep")
