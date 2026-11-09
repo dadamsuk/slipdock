@@ -418,6 +418,7 @@ defmodule Slipdock.Lanes do
   defp in_progress_others(card, board) do
     root = Board.root_id(board)
     {exclude, below} = own_tree(card, board)
+    doing = doing_column_ids(root)
 
     from(c in Card,
       as: :card,
@@ -425,7 +426,7 @@ defmodule Slipdock.Lanes do
       join: b in assoc(c, :board),
       as: :board,
       where:
-        (b.id == ^root or b.root_id == ^root) and col.category == "doing" and
+        (b.id == ^root or b.root_id == ^root) and col.id in ^doing and
           is_nil(c.archived_at) and c.completed == false and c.paths != ^[] and
           c.id not in ^exclude and c.board_id not in ^below and
           not exists(epic_subcards()),
@@ -551,7 +552,7 @@ defmodule Slipdock.Lanes do
   # in progress already is the pass's work, and one that is free can start.
   defp epic_conflict(subcards) do
     Enum.reduce_while(subcards, nil, fn subcard, first ->
-      case subcard.column.category != "doing" && conflict(subcard) do
+      case not doing_list?(subcard.column) && conflict(subcard) do
         %Card{} = other -> {:cont, first || other}
         _ -> {:halt, :free}
       end
@@ -587,7 +588,7 @@ defmodule Slipdock.Lanes do
   into `to` because its paths overlap a card in progress.
   """
   def check_move(%Card{} = card, %Column{} = to, actor) do
-    with true <- to.category == "doing" and gated?(actor),
+    with true <- doing_list?(to) and gated?(actor),
          true <- hold?(card),
          %Card{} = other <- conflict(card) do
       {:error, message(card, other)}
@@ -605,7 +606,7 @@ defmodule Slipdock.Lanes do
   def check_create(%Ecto.Changeset{valid?: true} = changeset, %Column{} = column, actor) do
     card = Ecto.Changeset.apply_changes(changeset)
 
-    with true <- column.category == "doing" and gated?(actor),
+    with true <- doing_list?(column) and gated?(actor),
          true <- hold?(card),
          %Card{} = other <- conflict(card, card.paths) do
       Ecto.Changeset.add_error(changeset, :paths, create_message(column, other))
@@ -649,7 +650,28 @@ defmodule Slipdock.Lanes do
   end
 
   defp in_doing?(%Card{column_id: column_id}) do
-    Repo.exists?(from(col in Column, where: col.id == ^column_id and col.category == "doing"))
+    case Repo.get(Column, column_id) do
+      %Column{} = column -> doing_list?(column)
+      nil -> false
+    end
+  end
+
+  # A doing list, as the guide reads one (`Slipdock.Flow.doing_list?/1`):
+  # by its category, else by its name. A sub-board made from the Simple
+  # template has a "Doing" list with no category, and its cards in progress
+  # held no lane and its moves were never checked (#2597).
+  defp doing_list?(%Column{} = column), do: Slipdock.Flow.doing_list?(column)
+
+  # The ids of the doing lists on the tree under `root`, read as
+  # `doing_list?/1` reads them.
+  defp doing_column_ids(root) do
+    from(col in Column,
+      join: b in assoc(col, :board),
+      where: b.id == ^root or b.root_id == ^root
+    )
+    |> Repo.all()
+    |> Enum.filter(&doing_list?/1)
+    |> Enum.map(& &1.id)
   end
 
   @doc """
@@ -660,12 +682,14 @@ defmodule Slipdock.Lanes do
   """
   def held_cards(root_id) do
     if lanes_on?(root_id) do
+      doing = doing_column_ids(root_id)
+
       from(c in Card,
         join: j in Job,
         on: j.card_id == c.id,
         join: col in assoc(c, :column),
         where:
-          j.root_board_id == ^root_id and j.status == "queued" and col.category != "doing" and
+          j.root_board_id == ^root_id and j.status == "queued" and col.id not in ^doing and
             j.kind not in ^Slipdock.Verified.finishing_kinds(),
         distinct: true
       )
