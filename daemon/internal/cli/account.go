@@ -128,7 +128,8 @@ func startSetUp(r runAs, root string, env Env) {
 	fmt.Fprintf(env.Stdout, "\nJobs run as %s: %s\n\n"+
 		"Set it up now: a shell as %s opens. Sign in to the agent (`claude`) and to GitHub (`gh auth login`),\n"+
 		"clone your repositories under %s, then type `exit`. (Later: `sudo -u %s -i`.)\n\n", r.account, executor.Limits[executor.User], r.account, root, r.account)
-	if err := env.Run("sudo", "-u", r.account, "-i"); err != nil {
+	// Interactive, not Run: the shell is the person's to type into.
+	if err := env.Interactive("sudo", "-u", r.account, "-i"); err != nil {
 		fmt.Fprintf(env.Stdout, "The shell as %s ended: %v. Open it again with `sudo -u %s -i`.\n", r.account, err, r.account)
 	}
 }

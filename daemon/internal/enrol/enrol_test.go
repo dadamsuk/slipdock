@@ -194,3 +194,41 @@ func TestUnreachableServer(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestSetupPrompt(t *testing.T) {
+	var path, auth string
+	body, status := `{"prompt":"Read W-1 and set this machine up."}`, 200
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path, auth = r.Method+" "+r.URL.Path, r.Header.Get("Authorization")
+		w.WriteHeader(status)
+		w.Write([]byte(body))
+	}))
+	defer ts.Close()
+	c := NewClient(ts.URL, "")
+
+	p, err := c.SetupPrompt(context.Background(), "sdm_good")
+	if err != nil || p != "Read W-1 and set this machine up." {
+		t.Fatalf("SetupPrompt = %q, %v", p, err)
+	}
+	if path != "GET /api/machine/setup-prompt" || auth != "Bearer sdm_good" {
+		t.Fatalf("asked %q with %q", path, auth)
+	}
+
+	body, status = `{"error":"unauthorized"}`, 401
+	if _, err := c.SetupPrompt(context.Background(), "sdm_revoked"); !IsUnauthorized(err) || IsNotFound(err) {
+		t.Fatalf("revoked: %v", err)
+	}
+
+	body, status = ``, 404
+	if _, err := c.SetupPrompt(context.Background(), "sdm_good"); !IsNotFound(err) || IsUnauthorized(err) {
+		t.Fatalf("an older server: %v", err)
+	}
+	if IsNotFound(nil) {
+		t.Fatal("nil is not a 404")
+	}
+
+	body, status = `{"prompt":"  "}`, 200
+	if _, err := c.SetupPrompt(context.Background(), "sdm_good"); err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("an empty prompt: %v", err)
+	}
+}

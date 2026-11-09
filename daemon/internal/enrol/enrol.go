@@ -170,6 +170,28 @@ func (c *Client) Me(ctx context.Context, key string) (Machine, error) {
 	return out.Machine, nil
 }
 
+// SetupPrompt fetches the server's machine-setup prompt for this machine
+// (GET /api/machine/setup-prompt): what Claude is told to make the machine
+// ready to run the board's jobs. A server that predates it answers 404
+// (IsNotFound).
+func (c *Client) SetupPrompt(ctx context.Context, key string) (string, error) {
+	var out struct {
+		Prompt string `json:"prompt"`
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.Server+"/api/machine/setup-prompt", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	if err := c.do(req, &out); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(out.Prompt) == "" {
+		return "", errors.New("the server's setup prompt is empty")
+	}
+	return out.Prompt, nil
+}
+
 func checkResult(r Result) error {
 	if r.Key == "" {
 		return errors.New("the server approved the enrolment but sent no machine key")
@@ -229,4 +251,11 @@ func (c *Client) do(req *http.Request, out any) error {
 func IsUnauthorized(err error) bool {
 	var e *Error
 	return errors.As(err, &e) && e.Status == http.StatusUnauthorized
+}
+
+// IsNotFound says whether err is the server answering 404: an endpoint the
+// server doesn't have yet.
+func IsNotFound(err error) bool {
+	var e *Error
+	return errors.As(err, &e) && e.Status == http.StatusNotFound
 }
