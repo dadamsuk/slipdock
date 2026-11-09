@@ -1107,7 +1107,9 @@ machine with the runner daemon (offered first: an enrolment key and the
 `slipdock-runner init` line, then its runners set on the machine's page
 under Account › Machines, where its owner adds, changes, pauses and removes
 them inside the machine's own ceiling, and sees each refusal with its reason
-and the limit), a Linux or macOS machine (a POSIX `sh` + `curl` runner, as a systemd or launchd
+and the limit; *Set up this machine with Claude* there, and at the end of
+`init`, has Claude set the machine up from the board's machine-setup page
+and prove it by running the suite), a Linux or macOS machine (a POSIX `sh` + `curl` runner, as a systemd or launchd
 service), a Windows machine (a PowerShell runner, started by Task Scheduler,
 no admin), Claude Code in a `/loop`, Claude on a schedule (a Desktop task
 or a cloud routine), or ChatGPT (its Slipdock connector and a prompt for a chat

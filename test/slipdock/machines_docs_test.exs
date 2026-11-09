@@ -5,7 +5,8 @@ defmodule Slipdock.MachinesDocsTest do
   why there is no MCP door; README and the agents help page say what a
   machine key is; and the manual's account page lists Account › Machines
   and the approval page. A machine's runners (#2571) are described the same
-  way in the guide and `docs/agents.md`, every config field named.
+  way in the guide and `docs/agents.md`, every config field named, and so
+  is Set up this machine with Claude (#2579).
   """
   use ExUnit.Case, async: true
 
@@ -122,6 +123,31 @@ defmodule Slipdock.MachinesDocsTest do
 
     assert read("priv/skills/slipdock/SKILL.md") =~
              "slipdock machine probe <id> <runner> [--wait]"
+  end
+
+  test "Set up this machine with Claude is written up everywhere a reader looks (#2579)" do
+    for text <- [SlipdockWeb.APIGuide.markdown(), read("docs/agents.md")] do
+      text = String.replace(text, ~r/\s+/, " ")
+
+      for part <- [
+            "**Set up this machine with Claude**",
+            "GET /api/machines/:id/setup-prompt",
+            "slipdock machine setup-prompt <id>",
+            "GET /api/machine/setup-prompt",
+            "Testing & tooling §Local setup"
+          ] do
+        assert text =~ part, "missing #{part}"
+      end
+    end
+
+    manual = read("docs/manual/machines.md")
+    assert manual =~ "### Set up this machine with Claude"
+    assert manual =~ "slipdock-runner setup"
+    assert manual =~ "init --no-setup"
+    assert read("docs/manual.md") =~ "(manual/machines.md#set-up-this-machine-with-claude)"
+    assert read("README.md") =~ "*Set up this machine with Claude* there"
+    assert read("lib/slipdock_web/live/help_live/agents.ex") =~ ~s(id="help-machine-setup")
+    assert read("cli/help.txt") =~ "machine setup-prompt <id>"
   end
 
   test "every copy of Connect a runner's scenario list names each scenario (#2572)" do
