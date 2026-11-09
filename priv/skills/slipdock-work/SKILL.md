@@ -149,7 +149,13 @@ whole card before touching it.
   reconcile) has no PR either, never a token one: complete it with
   `slipdock done <id> --no-code "<why>" --evidence "…"`. A failed merge sends the
   card back rejected with the reason: rebase the branch and submit again.
-  With profiles on, a `schema`, `security` or `spike` card an agent
+  A spike (tagged `spike`) is never merged: prototype on `card-<id>`,
+  push it, open no PR, pin the answer page (the question, the answer or
+  *inconclusive*, the evidence, what it changes in the plan) to the epic,
+  and complete it with `slipdock done <id> --no-code "spike: answer on
+  W-…, prototype on card-<id>"`; a verifier passes an inconclusive answer
+  with what was learned, and rejects one without evidence.
+  With profiles on, a `schema` or `security` card an agent
   accepts is *held* for a person, who merges it or sends it back with a
   reason (a rejection like any other), and the completion gives the change
   (`--diff-base origin/<default branch>`), which raises the profile if it

@@ -74,7 +74,7 @@ defmodule Slipdock.ProfilesDocsTest do
 
   # #2349: a spike's tier is none, so nothing that lists the defaults may
   # still put it with schema and security under before_merge, or say it
-  # waits for a person. (priv/skills joins the scan with #2351.)
+  # waits for a person, or is held. The skills too (#2351).
   @stale_spike [
     ~r/before_merge[ (]*schema[ ,\/]+security[ ,\/]+(and )?spike/,
     ~r/schema[ ,\/]+security[ ,\/]+(and |or )?spike[ )]*(before_merge|changes wait|wait|card an agent accepts (is )?(held|waits))/
@@ -82,7 +82,10 @@ defmodule Slipdock.ProfilesDocsTest do
 
   test "nothing lists spike's tier as before_merge" do
     files =
-      Enum.flat_map(["lib/**/*.ex", "docs/**/*.md"], &Path.wildcard(Path.join(@root, &1))) ++
+      Enum.flat_map(
+        ["lib/**/*.ex", "docs/**/*.md", "priv/skills/**/*.md"],
+        &Path.wildcard(Path.join(@root, &1))
+      ) ++
         Enum.map(["README.md", "cli/help.txt"], &Path.join(@root, &1))
 
     stale =
@@ -101,6 +104,7 @@ defmodule Slipdock.ProfilesDocsTest do
           "| `before_merge` | `schema`, `security`, `spike` | holds the card |",
           "by default schema, security and spike changes wait for you",
           "a schema, security or spike card an agent accepts waits for a person",
+          "a `schema`, `security` or `spike` card an agent\n  accepts is *held* for a person",
           "\"docs/fix none, feature ledger, schema/security/spike before_merge.\""
         ],
         do: assert(Enum.any?(@stale_spike, &Regex.match?(&1, flatten(stale))), stale)

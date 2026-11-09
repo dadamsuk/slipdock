@@ -871,7 +871,7 @@ With one on, the pass changes like this:
   refused, a resubmission after a rejection too. Don't merge
   it: accepting the card has a runner merge it (the card shows *merging*
   until then, and the merge completes it). On a board with profiles on, a
-  `schema`, `security` or `spike` card an agent accepts is *held* first:
+  `schema` or `security` card an agent accepts is *held* first:
   a person merges it or sends it back, rejected with their reason, which
   is the next brief like any rejection. A `docs` card there gets no
   verify job: the server accepts it on your evidence's suite (give CI's
@@ -901,6 +901,22 @@ With one on, the pass changes like this:
   never the hole, how to exploit it or which endpoints it hit. The detail
   stays on the card; after the deploy, the closing comment may link it.
   The prompt and `slipdock card` (`security: a neutral PR`) say so.
+- **A spike** (tagged or profiled `spike`, on any board; the prompt says
+  *This card is a spike*) answers its bar's question by building, and its
+  code is never merged. Spend one sitting. Build the prototype on
+  `card-<id>` and push it so the evidence can point at it, but never open
+  a pull request (close any you opened) and never push the default
+  branch. Write the answer as a page pinned to the epic (`slipdock page
+  new <board> "Spike: <the question>" --card <epic>`): the question, the
+  answer or *inconclusive*, the evidence (numbers, logs, the branch and
+  commit, not claims) and what the answer changes in the plan. Then
+  complete it with `slipdock done <id> --no-code "spike: answer on W-…,
+  prototype on card-<id>" --evidence "…"`, with the `Findings:` block:
+  naming a PR is refused, and accepting it merges nothing. *Inconclusive,
+  with what was learned* is a finished spike; a guess is not. A spike
+  holds no lane, so it needs no paths. When the last spike under an epic
+  is accepted, the server opens a `product` wait on the epic to resume
+  planning: that is a person's, not yours.
 - **A verify job** (a job of kind `verify`, or a card you are asked to
   verify) is checking, not doing. Claim nothing, move nothing and change no
   code. Never verify a card you built. Read the bar and the evidence, then
@@ -926,7 +942,15 @@ With one on, the pass changes like this:
   4. **The `Handbook:` line** (a board with a handbook), in the evidence or
      the closing comment, against the docs gate (step 7.1): no line, `no
      change` on a diff that needed an update, or pages named that weren't
-     edited, is a rejection. On a board that ships by pull request, don't run the suite: its
+     edited, is a rejection.
+  **A spike** is judged on its answer, not a pull request: the answer
+  addresses the question its bar asks (the ask); the evidence is real
+  (numbers, logs, a branch and commit you can look at, not claims); the
+  page says what the answer changes in the plan. *Inconclusive*, with
+  what was learned, passes; reject only for not really trying or for an
+  answer without evidence, never for the answer being "no". There is no
+  PR to check and nothing merges, so run no suite unless the bar asks
+  for one. On a board that ships by pull request, don't run the suite: its
   CI ran it at that commit. Read the change and the tests the bar names,
   check that the pull request's head is the evidence's commit and that
   every check passed (wait for any still running; a failed one is a
