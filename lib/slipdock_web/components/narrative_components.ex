@@ -302,7 +302,12 @@ defmodule SlipdockWeb.NarrativeComponents do
         </span>
       </.summary_item>
       <.summary_item :if={@card.flags != []} label="Flags">
-        <span class="flex gap-1"><.flag_icon :for={flag <- @card.flags} flag={flag} class="size-3.5" /></span>
+        <span class="flex gap-1"><.flag_icon
+          :for={flag <- @card.flags}
+          flag={flag}
+          card={@card}
+          class="size-3.5"
+        /></span>
       </.summary_item>
       <.summary_item :if={@votes > 0} label="Votes">{@votes}</.summary_item>
     </dl>

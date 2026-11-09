@@ -130,7 +130,8 @@ included. They are taken from a demo workspace anybody can rebuild —
 
 Each item in brief, with the detail in [the manual](docs/manual.md):
 
-- **Boards, lists and cards** — drag and drop, priorities, five flags, due
+- **Boards, lists and cards** — drag and drop, priorities, six flags (each
+  [filled when a person has to act, outline only when it clears itself](docs/manual/features.md#who-clears-a-flag)), due
   dates, tags, checklists (dragged into a new order by their handle, or
   `slipdock move-check`), comments with `@mentions` that email the person
   named (and, with desktop notifications on in their browser, show a toast

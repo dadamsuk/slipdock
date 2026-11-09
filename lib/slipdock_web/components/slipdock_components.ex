@@ -126,19 +126,65 @@ defmodule SlipdockWeb.SlipdockComponents do
   def flags, do: @flags
   def flag_label(flag), do: @flags |> List.keyfind!(flag, 0) |> elem(1)
 
+  @doc """
+  A flag's icon. Given the `card` it is on, it also says who clears it
+  (`Slipdock.Attention`, #2624): filled with a solid icon when a person has
+  to act, outline only when the board's own processes clear it, plain for a
+  mark that asks nothing; the tooltip and an `sr-only` line say which.
+  Without a card it is drawn filled, as it always was.
+  """
   attr :flag, :string, required: true
+  attr :card, :any, default: nil
   attr :class, :string, default: "size-4"
 
   def flag_icon(assigns) do
     {_, label, icon, color, _} = List.keyfind!(@flags, assigns.flag, 0)
-    assigns = assign(assigns, label: label, icon_name: icon, color: color)
+    {attention, why} = flag_attention(assigns.flag, assigns.card)
+
+    assigns =
+      assign(assigns,
+        label: label,
+        icon_name: flag_icon_name(icon, attention),
+        color: color,
+        attention: attention,
+        tip: flag_tip(label, attention, why)
+      )
 
     ~H"""
-    <span class={["chip chip-icon chip-tint", @color]} title={@label}>
+    <span
+      class={["chip chip-icon", flag_chip_class(@attention), @color]}
+      title={@tip}
+      data-role="flag"
+      data-flag={@flag}
+      data-attention={@attention}
+    >
       <.icon name={@icon_name} class={@class} />
+      <span class="sr-only">{@tip}</span>
     </span>
     """
   end
+
+  @doc "`{attention, why}` for a flag, or `{nil, nil}` with no card to read it from."
+  def flag_attention(_flag, nil), do: {nil, nil}
+  def flag_attention(flag, card), do: Slipdock.Attention.of(flag, card)
+
+  @doc "The words that say who clears a flag: the tooltip, the `sr-only` line, the card panel's chip."
+  def flag_tip(label, "person", why), do: "#{label} · Needs a person: #{why}"
+  def flag_tip(label, "auto", why), do: "#{label} · Clears itself: #{why}"
+  def flag_tip(label, "none", why), do: "#{label} · #{why}"
+  def flag_tip(label, _attention, _why), do: label
+
+  @doc "A flag's chip fill: outline only for one that clears itself, filled otherwise."
+  def flag_chip_class("auto"), do: "chip-auto"
+  def flag_chip_class(_attention), do: "chip-tint"
+
+  @doc "A flag's icon: the solid one where a person must act, the outline one where it clears itself."
+  def flag_icon_name(icon, "person"), do: solid_icon(icon)
+  def flag_icon_name(icon, "auto"), do: String.replace_suffix(icon, "-solid", "")
+  def flag_icon_name(icon, _attention), do: icon
+
+  defp solid_icon(icon),
+    do: if(String.ends_with?(icon, "-solid"), do: icon, else: icon <> "-solid")
 
   attr :flag, :string, required: true
   attr :active, :boolean, default: false
@@ -1498,7 +1544,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         >
           <span :for={tag <- @card.tags} class={["size-2 rounded-full", Palette.dot(tag.color)]}></span>
         </span>
-        <.flag_icon :for={flag <- @card.flags} :if={@f.flags} flag={flag} class="size-3" />
+        <.flag_icon :for={flag <- @card.flags} :if={@f.flags} flag={flag} card={@card} class="size-3" />
         <.dependency_badge :if={@f.dependencies} card={@card} class="size-3" />
         <.subcards_badge :if={@f.subcards} card={@card} open={not @page?} />
         <.waiting_chip
@@ -1597,7 +1643,13 @@ defmodule SlipdockWeb.SlipdockComponents do
           class="card-meta flex flex-wrap items-center gap-x-2 gap-y-1 text-base-content/60"
           data-role="card-meta"
         >
-          <.flag_icon :for={flag <- @card.flags} :if={@f.flags} flag={flag} class="size-3.5" />
+          <.flag_icon
+            :for={flag <- @card.flags}
+            :if={@f.flags}
+            flag={flag}
+            card={@card}
+            class="size-3.5"
+          />
           <.dependency_badge :if={@f.dependencies} card={@card} />
           <.subcards_badge :if={@f.subcards} card={@card} open={not @page?} />
           <.waiting_chip

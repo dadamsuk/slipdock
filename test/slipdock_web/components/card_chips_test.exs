@@ -105,7 +105,7 @@ defmodule SlipdockWeb.Components.CardChipsTest do
 
       assert LazyHTML.text(node) =~ "Design"
       assert count(node, "[title^='Priority']") == 1
-      assert count(node, "[title='Needs review']") == 1
+      assert count(node, "[data-flag=review]") == 1
       assert count(node, "[title^='Due']") == 1
 
       # Off by default: the start date, the description mark, comments,
@@ -228,7 +228,7 @@ defmodule SlipdockWeb.Components.CardChipsTest do
       assert "bg-amber-500/15" in near
       refute "chip-line" in near
 
-      flag = classes(card_node(html, flagged), "[data-role=card-meta] [title='Blocked']")
+      flag = classes(card_node(html, flagged), "[data-role=card-meta] [data-flag=blocked]")
       assert "chip-tint" in flag
 
       lock = classes(card_node(html, blocked), "[data-role=card-meta] [title^='Blocked by']")

@@ -80,7 +80,9 @@ whole card before touching it.
 - **Updating as you go.** Move the card to in progress and assign it to yourself
   when you start (not under a runner job: there the card shows the runner as its
   `loop` while the job holds it, and "me" would name the token's owner); comment at every decision, surprise or dead end; flag it
-  (`blocked`, `review`) with a comment saying what you are waiting for; when
+  (`blocked`, `review`) with a comment saying what you are waiting for (a
+  card's `flag_attention` says whether each flag needs a person or clears
+  itself, as the board draws it: don't chase one marked `auto`); when
   only a person can give what you need, open a wait and stop (`slipdock wait
   <id> "what you need" [--on EMAIL] [--choice X]...`, or `update_card` `wait`;
   several questions go as `--question Q --question Q` / `questions`, one each,

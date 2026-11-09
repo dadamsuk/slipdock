@@ -1351,7 +1351,12 @@ defmodule SlipdockCLI.Render do
     lead_time_fields(c["lead_time"])
 
     field("Priority", c["priority"])
-    field("Flags", if(c["flags"] == [], do: "-", else: Enum.join(c["flags"], ", ")))
+
+    field(
+      "Flags",
+      if(c["flags"] == [], do: "-", else: flags_text(c["flags"], c["flag_attention"]))
+    )
+
     field("Tags", if(c["tags"] == [], do: "-", else: Enum.join(c["tags"], ", ")))
     # What kind of change it is (#1951), when it has a profile.
     profile_field(c)
@@ -2997,6 +3002,27 @@ defmodule SlipdockCLI.Render do
   defp copied_from_field(_), do: :ok
 
   defp field(name, value), do: IO.puts(String.pad_trailing(name <> ":", 14) <> to_string(value))
+
+  # The card's flags, each with who clears it (#2624) when the server says:
+  # one a line, "needs a person" or "clears itself" and why. A server older
+  # than `flag_attention` gets them on one line, as before.
+  @doc false
+  def flags_text(flags, _attention) when flags in [nil, []], do: "-"
+
+  def flags_text(flags, attention) when is_map(attention) and map_size(attention) > 0 do
+    Enum.map_join(flags, "\n" <> String.duplicate(" ", 14), fn flag ->
+      case attention[flag] do
+        %{"attention" => kind, "why" => why} -> "#{flag} · #{attention_words(kind)}#{why}"
+        _ -> flag
+      end
+    end)
+  end
+
+  def flags_text(flags, _attention), do: Enum.join(flags, ", ")
+
+  defp attention_words("person"), do: "needs a person: "
+  defp attention_words("auto"), do: "clears itself: "
+  defp attention_words(_kind), do: ""
 
   defp indent(text, pad \\ "  "),
     do: text |> String.split("\n") |> Enum.map_join("\n", &(pad <> &1))

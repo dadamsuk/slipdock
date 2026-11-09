@@ -14,7 +14,9 @@
   goes to the bottom of that list; a card that has moved since your tab drew
   it, say while a phone slept, stays where it is now, and the board tells you
   and redraws), description, priority
-  (low → critical), six flags (flagged, blocked, needs review, waiting, starred, stuck),
+  (low → critical), six flags (flagged, blocked, needs review, waiting, starred, stuck;
+  each says who clears it: filled when a person has to act, outline only when
+  the board clears it by itself, see [Who clears a flag](#who-clears-a-flag)),
   due dates with overdue/soon states, completion toggle, cover colours, tags,
   checklists (drag an item by its handle to put it in a new order; a placed
   wiki page's checklist too), comments, archive/restore and delete — one at a time, or several
@@ -256,3 +258,29 @@
 ---
 
 [Contents](../manual.md) · [Getting Started](getting-started.md) →
+
+## Who clears a flag
+
+A flag on a card is drawn one of two ways, so a glance says whether you need
+to do anything about it:
+
+- **Filled**, with a solid icon (and a raised hand on the open card): nothing
+  on the board will clear it by itself, so a person has to act.
+- **Outline only**, and *clears itself* on the open card: something already in
+  motion takes it off.
+
+Hover a flag (or read it with a screen reader) for who clears it. Which way a
+flag goes depends on the card:
+
+| Flag | Filled: a person acts | Outline: clears itself |
+|---|---|---|
+| Waiting | always: a question waits on someone's answer | |
+| Flagged | always: put on by hand, taken off by hand | |
+| Stuck | always: the health monitor's own fixes ran out | |
+| Blocked | blocked on nothing the board tracks | while a blocker card is still open: the board takes it off when that card is done |
+| Needs review | flagged by hand; awaiting verification with no verify pool; or accepted and held for a person to merge | awaiting verification on a board with a verify pool (a verifier agent decides), or being merged |
+| Starred | neither: a bookmark that asks nothing | |
+
+The API's and MCP's card carries the same answer as `flag_attention`, one
+entry per flag (`attention` `person`, `auto` or `none`, and `why`), and
+`slipdock card` prints it beside each flag.

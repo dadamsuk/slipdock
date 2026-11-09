@@ -151,10 +151,20 @@ defmodule SlipdockWeb.HelpLive.Guides do
       <ul class="list-disc space-y-1 pl-5">
         <li>a Markdown description, a checklist and comments</li>
         <li>a priority from low to critical, a start date and a due date</li>
-        <li>flags: flagged, blocked, needs review, waiting, starred</li>
+        <li>flags: flagged, blocked, needs review, waiting, starred, stuck</li>
         <li>tags, one or more assignees, a cover colour, web links and attachments</li>
         <li>a timer, with time spent against an estimate</li>
       </ul>
+      <p id="help-flag-attention">
+        A flag says who clears it. <strong>Filled</strong>, with a solid icon (and a
+        raised hand on the open card), means nothing on the board will clear it: a
+        person has to act. <strong>Outline only</strong>, and <em>clears itself</em>
+        on the open card, means something already in motion will: a blocked card
+        whose blocker is still open is unblocked when that card is done, and a card
+        awaiting verification on a board with a verify pool is decided by a verifier
+        agent. Waiting, flagged and stuck always need a person; a starred card asks
+        nothing of anyone. Hover a flag to see who clears it.
+      </p>
       <p>
         <code>@name</code> in a description or comment mentions someone who can see the
         board, and they get an email (and a desktop notification, if they have those on). Lists can have a colour, a WIP limit, and their own

@@ -483,7 +483,7 @@ defmodule SlipdockWeb.WorkLive.Index do
                 <span :if={card.tags != []} class="hidden items-center gap-1 sm:flex">
                   <.tag_chip :for={tag <- card.tags} tag={tag} size="xs" />
                 </span>
-                <.flag_icon :for={flag <- card.flags} flag={flag} class="size-3.5" />
+                <.flag_icon :for={flag <- card.flags} flag={flag} card={card} class="size-3.5" />
                 <.subcards_badge card={card} />
                 <.priority_badge priority={card.priority} />
                 <.schedule_badges card={card} />
