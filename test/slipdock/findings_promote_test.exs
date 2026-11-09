@@ -185,6 +185,17 @@ defmodule Slipdock.FindingsPromoteTest do
       assert prompt =~ "##{ctx.ui.id} A screen"
     end
 
+    test "a rule id in other digits is not a number: the next one counts ASCII ids only", ctx do
+      write(ctx.pages["ux"], "[lib/app_web/**]", """
+      - **UX-1** should · judgement · Screens use the layout's header.
+      - **UX-٣** must · judgement · LiveViews stream long lists.
+      """)
+
+      AIStub.fail_with(503, "down")
+      {:ok, s} = Promote.check(seen(ctx, ctx.ui, "screens flash on load", 3).id)
+      assert step(s)["body"] =~ "- **UX-2** should · judgement · screens flash on load"
+    end
+
     test "none named makes a should rule by judgement", ctx do
       AIStub.reply_with(%{"text" => "Screens render without a flash of unstyled content."})
       {:ok, s} = Promote.check(seen(ctx, ctx.ui, "screens flash on load", 3).id)

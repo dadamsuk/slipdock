@@ -10,8 +10,10 @@ defmodule Slipdock.RegexUnicodeCasesTest do
   """
   use ExUnit.Case, async: true
 
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+
   alias Slipdock.Handbook.Rules
-  alias Slipdock.{Mentions, QuickAdd}
+  alias Slipdock.{Mentions, Quality, QuickAdd}
   alias Slipdock.Wiki.{Markup, Page, Query}
 
   test "a mention is the whole name, accents and all" do
@@ -86,5 +88,35 @@ defmodule Slipdock.RegexUnicodeCasesTest do
     }
 
     assert {[%{check: "test/données_test.exs"}], []} = Rules.parse_page(page)
+  end
+
+  test "an inline card field takes its card in ASCII digits, and ٣ is no card at all" do
+    assert Query.inline("card: #٣.title", %{}) == :error
+    assert Query.inline("card:٣٠.title", %{}) == :error
+  end
+
+  test "a broken check is counted as a rule only when its id ends in ASCII digits" do
+    body = fn label -> "Rejected.\n\nChecks:\n- #{label}: broken — why\n" end
+
+    assert Quality.rejection_parts(body.("OPS-3"), DateTime.utc_now(), nil) == [
+             {"rules", "OPS-3"}
+           ]
+
+    assert Quality.rejection_parts(body.("OPS-٣"), DateTime.utc_now(), nil) == []
+  end
+
+  test "a sprint is shortened under its bar only when its number is in ASCII digits" do
+    sprint = fn title ->
+      %{title: title, committed: 2, completed: 1, finished: true}
+    end
+
+    html =
+      render_component(&SlipdockWeb.SprintChartComponents.velocity_chart/1,
+        velocity: %{sprints: [sprint.("Sprint 12"), sprint.("Sprint ٣")], average: nil}
+      )
+
+    assert html =~ "S12"
+    refute html =~ "S٣"
+    assert html =~ "Sprint ٣"
   end
 end
