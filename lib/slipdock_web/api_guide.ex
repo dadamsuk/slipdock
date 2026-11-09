@@ -3713,7 +3713,10 @@ defmodule SlipdockWeb.APIGuide do
     It adds a `Sweeps` page (the rotation table: areas from the handbook's
     `covers:`, against the lenses, each cell the commit last swept), a
     **Triage** list and a daily *Sweep the code* card whose description is
-    the procedure. Installing again adds only what is missing.
+    the procedure. Installing again adds only what is missing. The card's
+    bar names no cell ("Swept the stalest cell of W-…'s Rotation table…"),
+    and each new instance starts from that template, not the last run's
+    bar: work to the stalest cell on the day, not one a bar names.
 
     **Never take work from a Triage list.** Its category is `triage`, and
     the boards below mark it `triage: for a person`: it is never the ready

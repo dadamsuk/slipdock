@@ -30,7 +30,11 @@ defmodule Slipdock.Recurrence do
   The recurrence adds: no assignees (a runner that worked the last one
   assigned it to its token's owner, and the runners' feed rules take only
   unassigned cards) and no flags at all; and it carries the bar's text, the
-  paths and the profile, which a plain copy doesn't. Title, description,
+  paths and the profile, which a plain copy doesn't. The Sweep Tool's card
+  takes the Tool's template bar instead (#2611,
+  `Slipdock.Sweep.template_bar/1`): its builder writes the day's cell into
+  the bar, and the next day's card would otherwise name a cell already
+  swept. Title, description,
   tags, priority, colour, the estimate and the checklist (unticked) come
   with the copy; the due date is the schedule's. `copied_from/1` names the
   instance a card was made from.
@@ -665,7 +669,7 @@ defmodule Slipdock.Recurrence do
     %{
       "assignee_ids" => [],
       "flags" => [],
-      "bar" => current.bar,
+      "bar" => Slipdock.Sweep.template_bar(current) || current.bar,
       "paths" => current.paths,
       "profile" => current.profile
     }
