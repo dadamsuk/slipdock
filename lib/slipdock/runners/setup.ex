@@ -1,36 +1,44 @@
 defmodule Slipdock.Runners.Setup do
   @moduledoc """
   The "Connect a runner" wizard's answers turned into exactly what to paste,
-  for each of the six ways of running an agent against a board:
+  for each of the four ways of running an agent against a board:
 
     * `daemon` — a machine running the runner daemon (#2572, epic #2569):
       install it, enrol it with a one-time enrolment key made for the
       board, and add its runner on the machine's page. Offered first.
-    * `server` — a Linux or macOS machine: the shell runner's one-line
-      install, and the config it will write
-    * `windows` — a Windows machine: the PowerShell runner's one-line install
     * `loop` — Claude Code on your own machine, in a `/loop`
     * `cloud` — a Claude Desktop scheduled task, or a cloud routine
     * `chatgpt` — ChatGPT, through the Slipdock connector
 
   One generator behind the web wizard, the API and `slipdock runner new`, so
   the three can't tell people different things. It writes text and nothing
-  else; `connect/4` is what makes the runner and the rule.
+  else; `connect/4` is what makes the enrolment key and the rule.
 
-  The two runner scenarios need a runner token in what they print; the
-  Claude and ChatGPT ones don't — a session takes jobs with the sign-in it
-  already has (see `Slipdock.Runners.session_runner/4`).
+  None of them makes a runner token: a machine's runners authenticate with
+  its machine key, and a Claude or ChatGPT session takes jobs with the
+  sign-in it already has (see `Slipdock.Runners.session_runner/4`).
+
+  The `server` and `windows` scenarios, the shell and PowerShell runners'
+  installs, were retired for the daemon (#2582, W-2544 §10). A runner made
+  with one keeps its token and its saved answers, and `regenerate/4` gives
+  it the steps to move onto a machine instead (`retired?/1`).
   """
 
-  alias Slipdock.{Automations, Runners}
+  alias Slipdock.Automations
   alias Slipdock.Automations.Spec
   alias Slipdock.Boards.Board
   alias Slipdock.Runners.Runner
 
-  @scenarios ~w(daemon server windows loop cloud chatgpt)
-  @agents ~w(claude codex custom)
+  @scenarios ~w(daemon loop cloud chatgpt)
+
+  # The shell and PowerShell runners' scenarios, retired for the daemon
+  # (#2582): asked for, they are refused with where to go instead.
+  @retired ~w(server windows)
+  @retired_message "the shell and PowerShell runners were retired for the runner daemon: " <>
+                     "use the daemon scenario, a machine whose runners you add on its page " <>
+                     "(Account › Machines)"
+
   @permission_modes ~w(default acceptEdits plan bypassPermissions)
-  @services ~w(auto systemd launchd none)
   @wheres ~w(desktop cloud)
   @verbosities ["nothing", "", "quiet", "normal", "verbose"]
   @hook_modes ~w(prompt hook)
@@ -58,15 +66,11 @@ defmodule Slipdock.Runners.Setup do
   }
 
   @defaults %{
-    "scenario" => "server",
-    "agent" => "claude",
+    "scenario" => "daemon",
     "kind" => "",
-    "command" => "",
     "cwd" => "/tmp",
     "permission_mode" => "acceptEdits",
-    "timeout" => 3600,
     "pool" => "default",
-    "service" => "auto",
     "where" => "desktop",
     "repo" => "",
     "verbosity" => "nothing",
@@ -80,60 +84,40 @@ defmodule Slipdock.Runners.Setup do
     "push" => false,
     "move_done" => false,
     "complete" => false,
-    "percent_100" => false,
-    "slipdock_tools" => true,
-    # Lanes (#1627): each job in a git worktree of its own, on a branch
-    # named for its card. Only for a runner on a machine (server, windows).
-    "worktree" => false,
-    # Keeping current (#1658): the runner replaces itself with the server's
-    # newer script between jobs, on a matching checksum. On for new installs.
-    "self_update" => true,
-    "mcp_servers" => "claude_ai_Slipdock, slipdock",
-    # The runner's name on its machine, so several can run there side by
-    # side (see `install_name/2`). Blank is the machine's one runner.
-    "install_name" => ""
+    "percent_100" => false
   }
-
-  @install_name_format ~r/^[a-z0-9][a-z0-9_-]{0,59}$/
-
-  # What a Slipdock MCP server can be called: Claude Code names its tools
-  # mcp__<server>__<tool>, with the server's name in it as is.
-  @mcp_server_format ~r/^[A-Za-z0-9_-]+$/
-
-  # Shown in place of a token that was only ever shown once.
-  @token_placeholder "sdr_YOUR_RUNNER_TOKEN"
 
   # Shown in the daemon's steps until the wizard makes the key itself.
   @enrolment_key_placeholder "sde_YOUR_ENROLMENT_KEY"
 
   def scenarios, do: @scenarios
-  def agents, do: @agents
   def permission_modes, do: @permission_modes
-  def services, do: @services
   def defaults, do: @defaults
   def verbosities, do: @verbosities
   def hook_modes, do: @hook_modes
   def toggles, do: @toggles
-  def token_placeholder, do: @token_placeholder
 
   @doc """
-  Where jobs run when nobody says: a scratch directory, so a new runner
-  touches nothing of yours. On Windows that is your TEMP, spelled with the
-  `~` the installer understands.
+  Where jobs run when nobody says: a scratch directory, so a new session
+  touches nothing of yours.
   """
-  def default_cwd("windows"), do: ~S"~\AppData\Local\Temp"
   def default_cwd(_scenario), do: "/tmp"
 
   @doc "What each scenario is called in the wizard."
   def label("daemon"), do: "A machine with the daemon"
-  def label("server"), do: "Linux / macOS machine"
-  def label("windows"), do: "Windows machine"
   def label("loop"), do: "Claude Code on my machine"
   def label("cloud"), do: "Claude, scheduled"
   def label("chatgpt"), do: "ChatGPT"
 
-  @doc "Whether a scenario's runner takes jobs with a runner token of its own."
-  def needs_token?(scenario), do: scenario in ~w(server windows)
+  @doc """
+  Whether `runner` is one the retired scenarios made (#2582): a runner with
+  a token of its own, neither a machine's nor a Claude session's. Every
+  such runner was the shell or PowerShell script, or one somebody wrote
+  against the runner protocol themselves; it still takes jobs with its
+  token, but its setup is now the move onto a machine.
+  """
+  def retired?(%Runner{} = runner),
+    do: not Runner.session?(runner) and not Runner.machine?(runner)
 
   @doc """
   The answers, checked and filled in from the defaults: `{:ok, answers}` or
@@ -158,119 +142,56 @@ defmodule Slipdock.Runners.Setup do
       answers
       |> Map.update!("pool", &(&1 |> to_string() |> String.downcase()))
       |> Map.update!("kind", &(&1 |> to_string() |> String.downcase()))
-      |> Map.update!("install_name", &(&1 |> to_string() |> String.downcase()))
-      |> Map.update!("slipdock_tools", &flag/1)
-      |> Map.update!("worktree", &flag/1)
-      |> Map.update!("self_update", &flag/1)
       |> Map.merge(Map.new(@toggles, &{&1, flag(answers[&1])}))
-      |> Map.update!("mcp_servers", &mcp_server_list/1)
 
-    format = Runner.name_format()
-
-    cond do
-      answers["scenario"] not in @scenarios ->
-        {:error, "scenario must be one of #{Enum.join(@scenarios, ", ")}"}
-
-      answers["agent"] not in @agents ->
-        {:error, "agent must be claude, codex or custom"}
-
-      not Regex.match?(format, answers["pool"]) ->
-        {:error, "pool must be lower case letters, digits, - or _"}
-
-      answers["kind"] != "" and not Regex.match?(format, answers["kind"]) ->
-        {:error, "kind must be lower case letters, digits, - or _"}
-
-      answers["install_name"] != "" and
-          not Regex.match?(@install_name_format, answers["install_name"]) ->
-        {:error, "the name on the machine must be lower case letters, digits, - or _"}
-
-      answers["scenario"] == "chatgpt" and answers["commit"] ->
-        {:error, "ChatGPT has no repository to commit to: leave commit and push off"}
-
-      answers["agent"] == "custom" and answers["command"] == "" and
-          needs_token?(answers["scenario"]) ->
-        {:error, "a custom agent needs the command to run"}
-
-      answers["permission_mode"] not in @permission_modes ->
-        {:error, "permission mode must be one of #{Enum.join(@permission_modes, ", ")}"}
-
-      answers["service"] not in @services ->
-        {:error, "service must be one of #{Enum.join(@services, ", ")}"}
-
-      answers["where"] not in @wheres ->
-        {:error, "where must be desktop or cloud"}
-
-      answers["verbosity"] not in @verbosities ->
-        {:error, "verbosity must be nothing, quiet, normal or verbose"}
-
-      answers["hooks"] not in @hook_modes ->
-        {:error, "hooks must be prompt or hook"}
-
-      toggle = Enum.find(@toggles, &(answers[&1] not in [true, false])) ->
-        {:error, "#{toggle} must be true or false"}
-
-      answers["push"] and not answers["commit"] ->
-        {:error, "push needs commit: a pass can only push a commit it made"}
-
-      String.length(to_string(answers["instructions"])) > 4000 ->
-        {:error, "the instructions are over 4,000 characters"}
-
-      String.length(to_string(answers["before_job"])) > 2000 or
-          String.length(to_string(answers["after_job"])) > 2000 ->
-        {:error, "a hook is over 2,000 characters"}
-
-      someone_elses_home?(answers["cwd"]) ->
-        {:error,
-         "the working directory can't be another user's ~: use a full path, or ~/ for the " <>
-           "runner's own home"}
-
-      not match?({:ok, _}, timeout(answers["timeout"])) ->
-        {:error, "the timeout must be a whole number of seconds, at least 60"}
-
-      answers["slipdock_tools"] not in [true, false] ->
-        {:error, "slipdock_tools must be true or false"}
-
-      answers["worktree"] not in [true, false] ->
-        {:error, "worktree must be true or false"}
-
-      answers["self_update"] not in [true, false] ->
-        {:error, "self_update must be true or false"}
-
-      answers["slipdock_tools"] and answers["mcp_servers"] == [] ->
-        {:error, "name the Slipdock MCP server, or turn the Slipdock tools off"}
-
-      not Enum.all?(answers["mcp_servers"], &Regex.match?(@mcp_server_format, &1)) ->
-        {:error,
-         "an MCP server's name is letters, digits, - or _, as in claude_ai_Slipdock or slipdock"}
-
-      true ->
-        {:ok, timeout} = timeout(answers["timeout"])
-
-        {:ok,
-         %{
-           answers
-           | "timeout" => timeout,
-             "mcp_servers" => Enum.join(answers["mcp_servers"], ", ")
-         }}
+    case Enum.find_value(checks(), fn {wrong?, message} -> wrong?.(answers) && message end) do
+      nil -> {:ok, answers}
+      message when is_function(message, 1) -> {:error, message.(answers)}
+      message -> {:error, message}
     end
   end
+
+  # What `normalise/1` refuses, in order: a test of the answers that is true
+  # when they are wrong, and what to say (a function, when it depends on them).
+  defp checks do
+    format = Runner.name_format()
+    long? = fn a, key, max -> String.length(to_string(a[key])) > max end
+
+    [
+      {&Enum.member?(@retired, &1["scenario"]), @retired_message},
+      {&(not Enum.member?(@scenarios, &1["scenario"])),
+       "scenario must be one of #{Enum.join(@scenarios, ", ")}"},
+      {&(not Regex.match?(format, &1["pool"])),
+       "pool must be lower case letters, digits, - or _"},
+      {&(&1["kind"] != "" and not Regex.match?(format, &1["kind"])),
+       "kind must be lower case letters, digits, - or _"},
+      {&(&1["scenario"] == "chatgpt" and &1["commit"] == true),
+       "ChatGPT has no repository to commit to: leave commit and push off"},
+      {&(not Enum.member?(@permission_modes, &1["permission_mode"])),
+       "permission mode must be one of #{Enum.join(@permission_modes, ", ")}"},
+      {&(not Enum.member?(@wheres, &1["where"])), "where must be desktop or cloud"},
+      {&(not Enum.member?(@verbosities, &1["verbosity"])),
+       "verbosity must be nothing, quiet, normal or verbose"},
+      {&(not Enum.member?(@hook_modes, &1["hooks"])), "hooks must be prompt or hook"},
+      {&(bad_toggle(&1) != nil), &"#{bad_toggle(&1)} must be true or false"},
+      {&(&1["push"] == true and &1["commit"] != true),
+       "push needs commit: a pass can only push a commit it made"},
+      {&long?.(&1, "instructions", 4000), "the instructions are over 4,000 characters"},
+      {&(long?.(&1, "before_job", 2000) or long?.(&1, "after_job", 2000)),
+       "a hook is over 2,000 characters"},
+      {&someone_elses_home?(&1["cwd"]),
+       "the working directory can't be another user's ~: use a full path, or ~/ for the " <>
+         "runner's own home"}
+    ]
+  end
+
+  defp bad_toggle(answers), do: Enum.find(@toggles, &(not is_boolean(answers[&1])))
 
   # A checkbox: true or "true" / "on" from a form, false or "false" / "" when
   # it isn't ticked.
   defp flag(value) when value in [true, "true", "on"], do: true
   defp flag(value) when value in [false, "false", "off", ""], do: false
   defp flag(value), do: value
-
-  defp mcp_server_list(names), do: String.split(to_string(names), [",", " "], trim: true)
-
-  @doc """
-  The value of claude's `--allowedTools` that lets a job use the Slipdock
-  MCP tools — every tool of each server named — or "" with the option off.
-  """
-  def allowed_tools(%{"slipdock_tools" => true} = a),
-    do: a["mcp_servers"] |> mcp_server_list() |> Enum.map_join(",", &("mcp__" <> &1))
-
-  def allowed_tools(_), do: ""
 
   # ~ and ~/… are the runner's own home; ~bob/… would be somebody else's, which
   # the config can't spell without the shell's help.
@@ -279,25 +200,13 @@ defmodule Slipdock.Runners.Setup do
 
   defp someone_elses_home?(_), do: false
 
-  defp timeout(n) when is_integer(n) and n >= 60, do: {:ok, n}
-
-  defp timeout(text) when is_binary(text) do
-    case Integer.parse(text) do
-      {n, ""} when n >= 60 -> {:ok, n}
-      _ -> :error
-    end
-  end
-
-  defp timeout(_), do: :error
-
   @doc """
   The standing instructions every job is given, after the card's own
-  prompt: for a runner of its own (server, windows) what to do to the card
-  and the repository, then the verbosity paragraph, then the free text. The
-  Claude scenarios say the first in their prompt instead.
+  prompt: the verbosity paragraph, then the free text. What to do to the
+  card and the repository is said in the prompt itself (`card_text/1`).
   """
   def instructions(a) do
-    [runner_card_text(a), @verbosity_text[a["verbosity"]], a["instructions"]]
+    [@verbosity_text[a["verbosity"]], a["instructions"]]
     |> Enum.reject(&(&1 in [nil, ""]))
     |> Enum.join("\n\n")
   end
@@ -316,10 +225,10 @@ defmodule Slipdock.Runners.Setup do
 
   defp hooks_given?(a), do: a["before_job"] != "" or a["after_job"] != ""
 
-  @doc "The job kind the answers queue and run: the one named, else the agent's."
+  @doc "The job kind the answers queue and run: the one named, else claude (chatgpt's own)."
   def kind(%{"kind" => kind}) when kind not in [nil, ""], do: kind
   def kind(%{"scenario" => "chatgpt"}), do: "chatgpt"
-  def kind(%{"agent" => agent}), do: agent
+  def kind(_answers), do: "claude"
 
   ## Doing it -----------------------------------------------------------------
 
@@ -327,27 +236,27 @@ defmodule Slipdock.Runners.Setup do
   The whole wizard: checks the answers, puts the rule in place (a new
   *send to runner* rule on `answers["column"]` — or, with `"feed" => "top"`,
   one sending that list's top card one at a time — an existing one named by
-  `answers["rule_id"]`, or none), makes the runner when the scenario needs a
-  token, and generates the text. With `"alert" => "yes"` it also adds a rule
+  `answers["rule_id"]`, or none), makes the daemon's enrolment key, and
+  generates the text. With `"alert" => "yes"` it also adds a rule
   raising an alert when one of the pool's jobs times out or its card is put
   back or given up on. Answers `{:ok, %{setup, runner, token, rule,
   alert_rule}}` or `{:error, message}`.
   """
   def connect(%Board{} = board, params, user, base_url) do
     with {:ok, answers} <- normalise(params),
-         answers = install_name(answers, board),
          {:ok, key} <- enrolment_key(board, answers, user),
          {:ok, rule} <- rule(board, params, answers, user),
-         {:ok, alert_rule} <- alert_rule(board, params, answers, user),
-         {:ok, runner, token} <- runner(board, params, answers, user) do
-      ctx = %{base_url: base_url, board: board, token: token, rule: rule, enrolment_key: key}
+         {:ok, alert_rule} <- alert_rule(board, params, answers, user) do
+      ctx = %{base_url: base_url, board: board, rule: rule, enrolment_key: key}
       setup = generate(answers, ctx)
 
+      # No scenario makes a runner or a token any more (#2582): the keys stay
+      # so the answer reads the same.
       {:ok,
        %{
          setup: setup,
-         runner: runner,
-         token: token,
+         runner: nil,
+         token: nil,
          rule: rule,
          alert_rule: alert_rule,
          enrolment_key: key
@@ -437,134 +346,73 @@ defmodule Slipdock.Runners.Setup do
     end
   end
 
-  defp runner(board, params, answers, user) do
-    if needs_token?(answers["scenario"]) do
-      name = blank(params["name"]) || "#{answers["pool"]} runner"
-      attrs = %{"name" => name, "pool" => answers["pool"], "settings" => answers}
-
-      case Runners.create_runner(board, attrs, user) do
-        {:ok, runner, token} -> {:ok, runner, token}
-        {:error, changeset} -> {:error, changeset_message(changeset)}
-      end
-    else
-      {:ok, nil, nil}
-    end
-  end
-
   @doc """
-  The text again for a runner made earlier, from the answers saved on it. Its
-  token was shown once and is not kept, so the text has a placeholder where
-  it goes — unless a fresh `token` (see `Slipdock.Runners.rotate_token/1`) is
-  given.
+  The steps for a runner made earlier, which now are the move onto a
+  machine: every runner with a token of its own ran a script the server no
+  longer serves (`retired?/1`, #2582), or was somebody's own client of the
+  runner protocol. Its token was shown once and is not kept; a fresh `token`
+  (see `Slipdock.Runners.rotate_token/1`) is shown in a step of its own.
   """
   def regenerate(%Runner{} = runner, %Board{} = board, base_url, token \\ nil) do
-    ctx = %{base_url: base_url, board: board, token: token, rule: nil, again: true}
-    generate(saved(runner), ctx)
+    %{
+      scenario: "retired",
+      title: "A retired shell runner",
+      intro:
+        "This runner was the shell or PowerShell script, which this server no longer serves " <>
+          "(#2582): it keeps the script it has, but can't update itself or be installed " <>
+          "again. Move it onto the runner daemon, between jobs, so no job is cut short.",
+      steps: retired_steps(runner, board, base_url) ++ token_step(token),
+      warnings: [],
+      cost: cost("daemon")
+    }
   end
 
-  @doc """
-  The answers saved on a runner, with its pool. Those saved before the
-  toggles (#511's commit push|commit|none and close done|open) carry over.
-  """
-  def saved(runner) do
-    settings = (runner.settings || %{}) |> carry_over() |> Map.put("pool", runner.pool)
-    {:ok, answers} = normalise(settings)
-    answers
+  @doc false
+  def retired_message, do: @retired_message
+
+  defp retired_steps(runner, board, base_url) do
+    [
+      %{
+        text:
+          "Set the daemon up on its machine: Connect a runner › #{label("daemon")}, or " <>
+            "this, and follow the steps it prints.",
+        lang: "sh",
+        code:
+          "slipdock runner new #{board.code || board.id} --scenario daemon --pool #{runner.pool}"
+      },
+      %{
+        text:
+          "On the machine's page (#{base_url}/account/machines), add a runner for the " <>
+            "#{runner.pool} pool with the same agent, directory and permission mode as this " <>
+            "one, and probe it until it is green."
+      },
+      %{
+        text: "Stop this one, still between jobs (on Windows, remove the Slipdock runner task):",
+        lang: "sh",
+        code:
+          "systemctl --user disable --now slipdock-runner.service   # Linux, WSL\n" <>
+            "launchctl bootout gui/$(id -u)/us.slipdock.runner         # macOS"
+      },
+      %{
+        text:
+          "Then revoke this runner here, so its pool isn't counted twice. The manual's " <>
+            "Machines page has the rest."
+      }
+    ]
   end
 
-  defp carry_over(settings) do
-    commit =
-      case settings["commit"] do
-        "push" -> %{"commit" => true, "push" => true}
-        "commit" -> %{"commit" => true}
-        "none" -> %{"commit" => false}
-        _ -> %{}
-      end
+  defp token_step(nil), do: []
 
-    close =
-      case settings["close"] do
-        "done" -> %{"move_done" => true, "complete" => true}
-        _ -> %{}
-      end
-
-    settings |> Map.delete("close") |> Map.merge(commit) |> Map.merge(close)
-  end
-
-  @doc """
-  New answers for a runner made earlier: saved on it (the pool stays what
-  its token is for), and the steps for them with a line-by-line `diff`
-  against the steps the old answers gave — what changes on the machine.
-  """
-  def update(%Runner{} = runner, %Board{} = board, params, base_url) do
-    old = regenerate(runner, board, base_url)
-
-    # Answers not given keep what the runner has: changing one thing changes
-    # one thing.
-    params = runner |> saved() |> Map.merge(Map.new(params, fn {k, v} -> {to_string(k), v} end))
-
-    # Its name on the machine stays too, once it has one: another would
-    # install a second copy beside it rather than change it.
-    params =
-      case saved(runner)["install_name"] do
-        "" -> params
-        name -> Map.put(params, "install_name", name)
-      end
-
-    with {:ok, answers} <- normalise(Map.put(params, "pool", runner.pool)),
-         {:ok, runner} <- Runners.update_runner(runner, %{"settings" => answers}) do
-      new = regenerate(runner, board, base_url)
-      {:ok, %{runner: runner, setup: new, diff: diff(old, new)}}
-    else
-      {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset_message(changeset)}
-      error -> error
-    end
-  end
-
-  @doc """
-  The lines that differ between two sets of steps' text, as `{:del, line}`
-  and `{:ins, line}` among `{:eq, line}`.
-  """
-  def diff(old, new) do
-    old
-    |> text_lines()
-    |> List.myers_difference(text_lines(new))
-    |> Enum.flat_map(fn {op, lines} -> Enum.map(lines, &{op, &1}) end)
-  end
-
-  defp text_lines(setup) do
-    setup.steps
-    |> Enum.map(& &1[:code])
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join("\n")
-    |> String.split("\n")
-  end
-
-  @doc """
-  `answers` with the runner's name on its machine filled in, when it isn't
-  given: the board's code and the pool, as in "slipdock-loop". Named, a
-  second runner on the same machine — for another board — is installed
-  beside the first instead of over it. Only the two installed runners have
-  one.
-  """
-  def install_name(%{"install_name" => name} = answers, %Board{code: code})
-      when name in [nil, ""] and is_binary(code) do
-    if needs_token?(answers["scenario"]) do
-      name =
-        "#{code}-#{answers["pool"]}"
-        |> String.downcase()
-        |> String.replace(~r/[^a-z0-9_-]+/, "-")
-        |> String.trim("-")
-        |> String.slice(0, 60)
-
-      if Regex.match?(@install_name_format, name),
-        do: %{answers | "install_name" => name},
-        else: answers
-    else
-      answers
-    end
-  end
-
-  def install_name(answers, _board), do: answers
+  defp token_step(token),
+    do: [
+      %{
+        text:
+          "Its new token, shown this once: until it moves, put it in place of " <>
+            "SLIPDOCK_RUNNER_TOKEN in the installed runner's config by hand.",
+        lang: "text",
+        code: token
+      }
+    ]
 
   @doc """
   The steps for `answers` (already normalised): a map with the scenario,
@@ -573,13 +421,7 @@ defmodule Slipdock.Runners.Setup do
   """
   def generate(answers, ctx) do
     scenario = answers["scenario"]
-
-    ctx =
-      Map.merge(%{token: nil, rule: nil, again: false, board: nil, enrolment_key: nil}, ctx)
-
-    # A runner set up again keeps the name it was installed with — none, for
-    # one made before runners had names.
-    answers = if ctx.again, do: answers, else: install_name(answers, ctx.board)
+    ctx = Map.merge(%{rule: nil, board: nil, enrolment_key: nil}, ctx)
 
     %{
       scenario: scenario,
@@ -597,18 +439,6 @@ defmodule Slipdock.Runners.Setup do
         "once, whose runners you then add and change from the machine's page rather than " <>
         "from a shell. It takes #{a["pool"]} jobs once you add a runner for that pool, and " <>
         "the machine's own ceiling limits what the page may set."
-
-  defp intro("server", a),
-    do:
-      "Run this on the machine that should do the work. It installs a small shell script " <>
-        "(sh and curl, nothing else) that takes #{a["pool"]} jobs from this board and runs " <>
-        "#{agent_name(a)} on each, and keeps it running as a #{service_name(a)}."
-
-  defp intro("windows", a),
-    do:
-      "Run this in PowerShell on the Windows machine. It installs the PowerShell runner " <>
-        "(nothing else needed) for your user, with a Task Scheduler entry that starts it at " <>
-        "logon — no admin rights. It takes #{a["pool"]} jobs and runs #{agent_name(a)} on each."
 
   defp intro("loop", a),
     do:
@@ -632,7 +462,7 @@ defmodule Slipdock.Runners.Setup do
       "A Claude Desktop scheduled task takes #{a["pool"]} jobs on a schedule, on this " <>
         "computer, while the Desktop app is open."
 
-  defp cost(scenario) when scenario in ~w(daemon server windows),
+  defp cost("daemon"),
     do:
       "A runner costs nothing while it waits: it asks the server for work and only " <>
         "starts the agent when there is a job."
@@ -678,19 +508,6 @@ defmodule Slipdock.Runners.Setup do
       "Routines run at most once an hour."
     ]
 
-  defp base_warnings(scenario, _a, %{token: nil, again: true})
-       when scenario in ~w(server windows),
-       do: [
-         "Run it on the machine that already has this runner: with no token given, the " <>
-           "installer keeps the one in its config. For a new machine, make a new token."
-       ]
-
-  defp base_warnings(scenario, _a, %{token: nil}) when scenario in ~w(server windows),
-    do: [
-      "The runner's token was shown once, when it was made, and isn't kept. Put it in " <>
-        "place of #{@token_placeholder}, or make a new token."
-    ]
-
   defp base_warnings("daemon", _a, %{enrolment_key: nil}),
     do: [
       "The enrolment key is made when you show the steps, and shown that once: it goes " <>
@@ -712,14 +529,14 @@ defmodule Slipdock.Runners.Setup do
   # The daemon's runners get their directory on the machine's page.
   defp cwd_warnings("daemon", _a), do: []
 
-  defp cwd_warnings(_scenario, %{"agent" => "claude", "cwd" => ""}),
+  defp cwd_warnings(_scenario, %{"cwd" => ""}),
     do: [
       "No working directory: jobs start in your home directory, so the project's own " <>
         "commands, skills and .claude/settings.json won't be loaded. Set it to the " <>
         "project's folder."
     ]
 
-  defp cwd_warnings(scenario, %{"agent" => "claude", "cwd" => cwd}) do
+  defp cwd_warnings(scenario, %{"cwd" => cwd}) do
     if cwd == default_cwd(scenario),
       do: [
         "The working directory is #{cwd}, the default, so the project's own commands, " <>
@@ -728,13 +545,8 @@ defmodule Slipdock.Runners.Setup do
       else: []
   end
 
-  defp cwd_warnings(_, _), do: []
-
   ## Steps --------------------------------------------------------------------
 
-  # The two runner scenarios name their steps (`id`), so the wizard can lay
-  # them out as one command with what it installs behind links; the API and
-  # the CLI list them in order.
   defp steps("daemon", a, ctx) do
     key = ctx.enrolment_key || @enrolment_key_placeholder
 
@@ -768,65 +580,6 @@ defmodule Slipdock.Runners.Setup do
             "permission mode and timeout, inside the machine's ceiling."
       }
     ]
-  end
-
-  defp steps("server", a, ctx) do
-    [
-      %{
-        id: :command,
-        text: "On the machine, run:",
-        lang: "sh",
-        code: server_one_liner(a, ctx)
-      },
-      %{
-        id: :checksums,
-        text:
-          "Or check it first: the installer is the same file for everybody, and these are " <>
-            "its checksums (compare with sha256sum install.sh).",
-        lang: "sh",
-        code:
-          "curl -fsSL #{ctx.base_url}/runner/install.sh -o install.sh\n" <>
-            "curl -fsSL #{ctx.base_url}/runner/SHA256SUMS"
-      },
-      %{
-        id: :config,
-        text:
-          "It writes this config to ~/.config/slipdock-runner/#{sh_config(a)} (mode 600). " <>
-            "It is yours " <>
-            "to edit: each job_<kind> function is a kind of job this machine will run, and " <>
-            "nothing else ever runs.",
-        lang: "sh",
-        code: config_preview(a, ctx)
-      }
-    ] ++ rule_step(a, ctx)
-  end
-
-  defp steps("windows", a, ctx) do
-    [
-      %{
-        id: :command,
-        text: "In PowerShell on the machine, run:",
-        lang: "powershell",
-        code: windows_one_liner(a, ctx)
-      },
-      %{
-        id: :checksums,
-        text:
-          "Or check it first: the installer is the same file for everybody, and these are " <>
-            "its checksums (compare with Get-FileHash install.ps1).",
-        lang: "powershell",
-        code:
-          "irm #{ps_q(ctx.base_url <> "/runner/install.ps1")} -OutFile install.ps1\n" <>
-            "irm #{ps_q(ctx.base_url <> "/runner/SHA256SUMS")}"
-      },
-      %{
-        id: :config,
-        text:
-          "It writes its config to %LOCALAPPDATA%\\slipdock-runner\\#{ps_file(a, "config", "ps1")}, " <>
-            "readable by your user alone, with a Job-#{pascal(kind(a))} function for this kind " <>
-            "of job. Logs are in %LOCALAPPDATA%\\slipdock-runner\\#{ps_file(a, "runner", "log")}."
-      }
-    ] ++ rule_step(a, ctx)
   end
 
   defp steps("loop", a, ctx) do
@@ -1027,222 +780,6 @@ defmodule Slipdock.Runners.Setup do
 
   ## The text itself ----------------------------------------------------------
 
-  @doc false
-  def server_one_liner(a, ctx) do
-    flags =
-      [
-        "--url #{sh_q(ctx.base_url)}"
-      ] ++
-        token_flag(ctx, "--token #{sh_q(ctx.token || @token_placeholder)}") ++
-        ["--pool #{a["pool"]}", "--agent #{a["agent"]}"] ++
-        if(a["kind"] != "", do: ["--kind #{a["kind"]}"], else: []) ++
-        if(a["agent"] == "custom", do: ["--command #{sh_q(a["command"])}"], else: []) ++
-        if(a["cwd"] != "", do: ["--cwd #{sh_q(a["cwd"])}"], else: []) ++
-        if(a["agent"] == "claude", do: ["--permission-mode #{a["permission_mode"]}"], else: []) ++
-        if(a["agent"] == "claude", do: ["--mcp-servers #{sh_q(mcp_servers_flag(a))}"], else: []) ++
-        ["--timeout #{a["timeout"]}"] ++
-        if(a["service"] != "auto", do: ["--service #{a["service"]}"], else: []) ++
-        if(a["install_name"] != "", do: ["--name #{a["install_name"]}"], else: []) ++
-        if(instructions(a) != "", do: ["--instructions #{sh_q(instructions(a))}"], else: []) ++
-        if(a["before_job"] != "", do: ["--before-job #{sh_q(a["before_job"])}"], else: []) ++
-        if(a["after_job"] != "", do: ["--after-job #{sh_q(a["after_job"])}"], else: []) ++
-        if(a["worktree"] == true, do: ["--worktree"], else: []) ++
-        if(a["self_update"] == false, do: ["--no-self-update"], else: [])
-
-    "curl -fsSL #{ctx.base_url}/runner/install.sh | sh -s -- \\\n  " <>
-      Enum.join(flags, " \\\n  ")
-  end
-
-  @doc false
-  def windows_one_liner(a, ctx) do
-    params =
-      [
-        "-Url #{ps_q(ctx.base_url)}"
-      ] ++
-        token_flag(ctx, "-Token #{ps_q(ctx.token || @token_placeholder)}") ++
-        ["-Pool #{a["pool"]}", "-Agent #{a["agent"]}"] ++
-        if(a["kind"] != "", do: ["-Kind #{a["kind"]}"], else: []) ++
-        if(a["agent"] == "custom", do: ["-Command #{ps_q(a["command"])}"], else: []) ++
-        if(a["cwd"] != "", do: ["-Cwd #{ps_q(a["cwd"])}"], else: []) ++
-        if(a["agent"] == "claude", do: ["-PermissionMode #{a["permission_mode"]}"], else: []) ++
-        if(a["agent"] == "claude", do: ["-McpServers #{ps_q(mcp_servers_flag(a))}"], else: []) ++
-        ["-Timeout #{a["timeout"]}"] ++
-        if(a["install_name"] != "", do: ["-Name #{a["install_name"]}"], else: []) ++
-        if(instructions(a) != "", do: ["-Instructions #{ps_q(instructions(a))}"], else: []) ++
-        if(a["before_job"] != "", do: ["-BeforeJob #{ps_q(a["before_job"])}"], else: []) ++
-        if(a["after_job"] != "", do: ["-AfterJob #{ps_q(a["after_job"])}"], else: []) ++
-        if(a["worktree"] == true, do: ["-Worktree"], else: []) ++
-        if(a["self_update"] == false, do: ["-NoSelfUpdate"], else: [])
-
-    "& ([scriptblock]::Create((irm #{ps_q(ctx.base_url <> "/runner/install.ps1")}))) `\n  " <>
-      Enum.join(params, " `\n  ")
-  end
-
-  # Where the installers put a runner's files: runner NAME's are config-NAME
-  # and the like, beside the machine's one unnamed runner's.
-  defp sh_config(%{"install_name" => ""}), do: "config"
-  defp sh_config(%{"install_name" => name}), do: "config-#{name}"
-
-  defp ps_file(%{"install_name" => ""}, base, ext), do: "#{base}.#{ext}"
-  defp ps_file(%{"install_name" => name}, base, ext), do: "#{base}-#{name}.#{ext}"
-
-  # The installers' --mcp-servers / -McpServers: always given for claude, so
-  # installing again with the option turned off turns it off.
-  defp mcp_servers_flag(%{"slipdock_tools" => true} = a),
-    do: a["mcp_servers"] |> mcp_server_list() |> Enum.join(",")
-
-  defp mcp_servers_flag(_), do: ""
-
-  # Set up again without a new token: the installer keeps the one it has.
-  defp token_flag(%{token: nil, again: true}, _flag), do: []
-  defp token_flag(_ctx, flag), do: [flag]
-
-  # What install.sh writes for a model per profile (#1953): every knob
-  # commented out, so nothing changes until the person sets one.
-  @model_config """
-
-  # A model per profile: on a board with profiles on, each job says its card's
-  # profile (docs, fix, feature, schema, security or spike) as SLIPDOCK_PROFILE,
-  # and SLIPDOCK_MODEL holds the MODEL_<profile> set here for it, for the job
-  # above to pass on. All unset, so every job runs on the agent's own default.
-  #MODEL_docs=
-  #MODEL_fix=
-  #MODEL_feature=
-  #MODEL_schema=
-  #MODEL_security=
-  #MODEL_spike=
-  """
-
-  @doc """
-  The config the shell installer writes for these answers, line for line,
-  except for the two things only the machine knows at install time — where
-  the agent's program is, and the PATH — which are shown as notes.
-  """
-  def config_preview(a, ctx) do
-    fn_name = "job_" <> String.replace(kind(a), "-", "_")
-
-    """
-    # slipdock-runner config — written by install.sh, yours to edit. It is sourced
-    # by sh, so it is shell. It holds the runner's token: keep it mode 600.
-    #
-    # A job of kind K runs the function job_K below (a - in K is an _ here). The
-    # server never says what to run: a kind with no function here is refused.
-    # Each job gets SLIPDOCK_PROMPT, SLIPDOCK_JOB_ID, SLIPDOCK_JOB_KIND,
-    # SLIPDOCK_CARD and SLIPDOCK_CARD_URL in its environment (and SLIPDOCK_PROFILE
-    # and SLIPDOCK_MODEL, below); pass the prompt on
-    # only ever as "$SLIPDOCK_PROMPT", in double quotes.
-
-    SLIPDOCK_URL=#{sh_q(ctx.base_url)}
-    SLIPDOCK_RUNNER_TOKEN=#{sh_q(ctx.token || @token_placeholder)}
-    POOL=#{sh_q(a["pool"])}
-    WORKDIR=#{if(a["cwd"] == "", do: sh_q("(your home)"), else: sh_path(a["cwd"]))}
-    JOB_TIMEOUT=#{a["timeout"]}
-    PERMISSION_MODE=#{sh_q(a["permission_mode"])}
-    ALLOWED_TOOLS=#{sh_q(if(a["agent"] == "claude", do: allowed_tools(a), else: ""))}
-    AGENT_BIN=#{sh_q(agent_bin_note(a))}
-    CUSTOM_COMMAND=#{sh_q(if(a["agent"] == "custom", do: a["command"], else: ""))}
-    PATH='(your PATH when you install)'
-    export PATH CUSTOM_COMMAND
-    #{agent_env(a)}
-    #{fn_name}() {
-      cd "${SLIPDOCK_WORKTREE:-$WORKDIR}" || exit 1
-    #{agent_line(a)}
-    }
-
-    # A kind to try the pipeline with: queue a job of kind echo and its output is
-    # the prompt it was sent.
-    job_echo() {
-      printf '%s\\n' "$SLIPDOCK_PROMPT"
-    }
-    #{verify_job(fn_name)}#{config_extra(a)}#{@model_config}\
-    """
-  end
-
-  # What install.sh writes for verify jobs (#1634): the same agent, unless
-  # the runner's own kind is verify.
-  defp verify_job("job_verify"), do: ""
-
-  defp verify_job(fn_name) do
-    """
-
-    # Verify jobs: a board that verifies work sends each card an agent submits
-    # here, for a second agent to check against its bar, and a sample of accepted
-    # cards as audits (never to the runner that built or verified one). The same
-    # agent runs it, on the server's prompt alone. Delete this to take no verify jobs.
-    job_verify() {
-      #{fn_name}
-    }
-    """
-  end
-
-  # What install.sh --worktree adds (#1627).
-  @worktree_config """
-
-  # Lanes: each job runs in a git worktree of WORKDIR's repository, on a branch
-  # named for its card (card-<id>), in WORKDIR's sibling directory <repo>-lanes.
-  # A clean one is removed after the job; one with uncommitted changes is kept.
-  WORKTREE=1
-  WORKTREE_REPO=$WORKDIR
-  """
-
-  # What install.sh adds unless --no-self-update (#1658).
-  @self_update_config """
-
-  # Keeping current: between jobs, the runner replaces itself with the server's
-  # newer script, only when it matches the published SHA-256. 0 turns it off.
-  SELF_UPDATE=1
-  """
-
-  # What install.sh adds for the instructions and hooks. The heredoc's
-  # delimiter is drawn at random when it is written.
-  defp config_extra(a) do
-    text = instructions(a)
-
-    [
-      text != "" &&
-        "\n# Added after every job's prompt.\njob_instructions() {\n" <>
-          "  cat <<'SLIPDOCK_EOF_<random>'\n" <>
-          text <> "\nSLIPDOCK_EOF_<random>\n}\nJOB_INSTRUCTIONS=$(job_instructions)\n",
-      a["before_job"] != "" &&
-        "\n# Runs before each job; the job runs only if this succeeds.\nbefore_job() {\n" <>
-          a["before_job"] <> "\n}\n",
-      a["after_job"] != "" &&
-        "\n# Runs after each job however it ended, with $SLIPDOCK_EXIT and $SLIPDOCK_STATUS\n" <>
-          "# (done, failed, cancelled or timeout).\nafter_job() {\n" <> a["after_job"] <> "\n}\n",
-      a["worktree"] == true && @worktree_config,
-      a["self_update"] != false && @self_update_config
-    ]
-    |> Enum.filter(&is_binary/1)
-    |> Enum.join()
-  end
-
-  # What install.sh adds for claude alone (#1812): print mode stops a run's
-  # background tasks 10 minutes after its last turn, which killed a pass's
-  # subagents mid-build.
-  @claude_env """
-
-  # Claude Code in print mode (-p) stops background tasks, such as the subagents
-  # a pass hands its builds to, 10 minutes after the last turn. 0 waits for them.
-  export CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
-  """
-
-  defp agent_env(%{"agent" => "claude"}), do: @claude_env
-  defp agent_env(_), do: ""
-
-  defp agent_bin_note(%{"agent" => "custom"}), do: ""
-  defp agent_bin_note(%{"agent" => agent}), do: "(where #{agent} is on your PATH)"
-
-  defp agent_line(%{"agent" => "claude"} = a) do
-    line = ~S|  "$AGENT_BIN" -p "$SLIPDOCK_PROMPT" --permission-mode "$PERMISSION_MODE"|
-    line = if allowed_tools(a) == "", do: line, else: line <> ~S| --allowedTools "$ALLOWED_TOOLS"|
-    line <> ~S| ${SLIPDOCK_MODEL:+--model "$SLIPDOCK_MODEL"}|
-  end
-
-  defp agent_line(%{"agent" => "codex"}),
-    do: ~S|  "$AGENT_BIN" exec ${SLIPDOCK_MODEL:+-m "$SLIPDOCK_MODEL"} "$SLIPDOCK_PROMPT"|
-
-  defp agent_line(%{"agent" => "custom"}), do: ~S|  sh -c "$CUSTOM_COMMAND"|
-
   # A session whose connector was added before the job tools existed has
   # none: working the lists directly would race the runners and leave the
   # job queued, so it stops and says why instead.
@@ -1320,12 +857,6 @@ defmodule Slipdock.Runners.Setup do
     do:
       "If the working directory is a git repository, commit with the card id in the message " <>
         "and push; if it isn't one, skip the commit."
-
-  # A runner of its own is told in its standing instructions, which go after
-  # every job's prompt; a Claude session in the prompt it is given.
-  defp runner_card_text(a) do
-    if needs_token?(a["scenario"]), do: "What to do to the card: " <> card_text(a)
-  end
 
   @doc """
   The words the prompts use to turn each toggle off, which the slipdock-loop
@@ -1452,23 +983,11 @@ defmodule Slipdock.Runners.Setup do
 
   ## Helpers ------------------------------------------------------------------
 
-  defp agent_name(%{"agent" => "claude"}), do: "Claude Code"
-  defp agent_name(%{"agent" => "codex"}), do: "Codex"
-  defp agent_name(%{"agent" => "custom"}), do: "your command"
-
-  defp service_name(%{"service" => "systemd"}), do: "systemd user service"
-  defp service_name(%{"service" => "launchd"}), do: "launchd agent"
-  defp service_name(%{"service" => "none"}), do: "process you start yourself"
-  defp service_name(_), do: "service (systemd on Linux, launchd on macOS)"
-
   defp cwd(%{"cwd" => ""}), do: "~"
   defp cwd(%{"cwd" => cwd}), do: cwd
 
   defp repo(%{"repo" => ""}), do: "your project's GitHub repository"
   defp repo(%{"repo" => repo}), do: repo
-
-  defp pascal(kind),
-    do: kind |> String.split(["-", "_"], trim: true) |> Enum.map_join(&String.capitalize/1)
 
   @doc false
   # Single quotes, with any quote inside closed, escaped and reopened.
@@ -1497,6 +1016,4 @@ defmodule Slipdock.Runners.Setup do
     |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
     |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
   end
-
-  defp changeset_message(other), do: to_string(other)
 end

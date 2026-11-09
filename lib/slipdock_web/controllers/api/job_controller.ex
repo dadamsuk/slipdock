@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.JobController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Runners}
-  alias Slipdock.Runners.{HookPrompt, Runner, Setup, TranscriptRetention}
+  alias Slipdock.Runners.{Runner, Setup, TranscriptRetention}
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
 
@@ -24,7 +24,12 @@ defmodule SlipdockWeb.API.JobController do
     end
   end
 
-  @doc "Makes a runner. The token is in this reply and nowhere else, ever."
+  @doc """
+  Makes a runner with a token of its own, for a client of the runner
+  protocol somebody writes themselves. The token is in this reply and
+  nowhere else, ever. (The shell and PowerShell runners it was for were
+  retired, #2582: a machine's runners are added on its page.)
+  """
   def create_runner(conn, %{"board" => ref} = params) do
     attrs = Map.take(params, ["name", "pool", "settings"])
 
@@ -38,10 +43,11 @@ defmodule SlipdockWeb.API.JobController do
 
   @doc """
   The "Connect a runner" wizard (see `Slipdock.Runners.Setup`): `scenario`
-  (`daemon`, `server`, `windows`, `loop`, `cloud`, `chatgpt`) and its options, plus `column` to add
-  a rule sending that list's cards (or `rule_id` for one already there) and
-  `name` for the runner. Answers with the steps to follow — and, for the two
-  scenarios with a runner of their own, the runner and its token, once. The
+  (`daemon`, `loop`, `cloud`, `chatgpt`) and its options, plus `column` to
+  add a rule sending that list's cards (or `rule_id` for one already there).
+  Answers with the steps to follow. `server` and `windows`, the shell and
+  PowerShell runners, were retired (#2582) and are refused; `runner` and
+  `token` are always null now, kept so the answer reads the same. The
   `daemon` scenario (#2572) makes a one-time enrolment key for the board,
   in the steps and as `enrolment_key`, once; machines are the account's, so
   a token limited to some boards is refused it, as `/api/machines` does.
@@ -55,8 +61,8 @@ defmodule SlipdockWeb.API.JobController do
           |> put_status(:created)
           |> json(%{
             setup: result.setup,
-            runner: result.runner && V.runner(result.runner),
-            token: result.token,
+            runner: nil,
+            token: nil,
             automation: result.rule && V.automation(result.rule),
             alert_automation: result.alert_rule && V.automation(result.alert_rule),
             enrolment_key: result.enrolment_key
@@ -118,11 +124,16 @@ defmodule SlipdockWeb.API.JobController do
     end
   end
 
-  @doc "A runner's steps again, from its saved answers, with a placeholder for the token."
+  @doc """
+  A runner's steps again. Every runner with a token of its own is a retired
+  shell runner (#2582, `Setup.retired?/1`), so its steps are the move onto
+  a machine.
+  """
   def runner_setup(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
          {:ok, runner} <- Runners.find_runner(board, id),
-         :ok <- not_session(runner) do
+         :ok <- not_session(runner),
+         :ok <- not_machine(runner) do
       json(conn, %{
         setup: Setup.regenerate(runner, board, base_url(conn)),
         runner: V.runner(runner)
@@ -131,50 +142,21 @@ defmodule SlipdockWeb.API.JobController do
   end
 
   @doc """
-  The prompt that has Claude write a runner's hooks on its machine (see
-  `Slipdock.Runners.HookPrompt`), for the runner's own scenario.
+  Retired with the shell runners (#2582): the prompt that had Claude write
+  a shell runner's hooks, and new answers for its install. Both answer 410
+  Gone, saying where to go: a machine's runners and hooks are set on its
+  page and in its own file.
   """
-  def hook_prompt(conn, %{"board" => ref, "id" => id}) do
-    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
-         {:ok, runner} <- Runners.find_runner(board, id),
-         :ok <- not_session(runner) do
-      scenario = Setup.saved(runner)["scenario"]
+  def hook_prompt(_conn, _params), do: {:error, :gone, Setup.retired_message()}
 
-      json(conn, %{
-        prompt: HookPrompt.text(scenario, base_url(conn)),
-        scenario: scenario,
-        env: HookPrompt.env_vars()
-      })
-    end
-  end
-
-  @doc """
-  New answers for a runner: saved, with its steps and a `diff` against the
-  ones the old answers gave (`[["del", line], ["ins", line], ["eq", line]…]`).
-  """
-  def update_setup(conn, %{"board" => ref, "id" => id} = params) do
-    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
-         {:ok, runner} <- Runners.find_runner(board, id),
-         :ok <- not_session(runner) do
-      case Setup.update(runner, board, Map.drop(params, ["board", "id"]), base_url(conn)) do
-        {:ok, result} ->
-          json(conn, %{
-            setup: result.setup,
-            runner: V.runner(result.runner),
-            diff: Enum.map(result.diff, fn {op, line} -> [to_string(op), line] end)
-          })
-
-        {:error, message} ->
-          {:error, :unprocessable_entity, message}
-      end
-    end
-  end
+  def update_setup(_conn, _params), do: {:error, :gone, Setup.retired_message()}
 
   @doc "A new token for a runner (the old one stops working), with its steps written out for it."
   def rotate_token(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
          {:ok, runner} <- Runners.find_runner(board, id),
          :ok <- not_session(runner),
+         :ok <- not_machine(runner),
          {:ok, runner, token} <- Runners.rotate_token(runner) do
       json(conn, %{
         token: token,
@@ -189,6 +171,19 @@ defmodule SlipdockWeb.API.JobController do
   # A Claude session's runner is made by its first claim and authenticated by
   # the session's API token: it has no answers, steps or token of its own, and
   # its instructions are in the session's task, which the server never sees.
+  # A machine's runner (#2571) has no token or setup steps of its own: its
+  # machine key authenticates it, and its settings are on the machine's page.
+  defp not_machine(runner) do
+    if Runner.machine?(runner) do
+      {:error, :unprocessable_entity,
+       "“#{runner.name}” is a machine's runner, so it has no setup steps or token of its own: " <>
+         "change it on the machine's page (Account › Machines) or with slipdock machine " <>
+         "set-runner."}
+    else
+      :ok
+    end
+  end
+
   defp not_session(runner) do
     if Runner.session?(runner) do
       {:error, :unprocessable_entity,

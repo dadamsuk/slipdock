@@ -28,80 +28,18 @@ defmodule SlipdockCLI.Runners do
   end
 
   # The same wizard as the board's Automations panel: a scenario and its
-  # options in, the steps to follow out — and for a runner of its own, the
-  # token, once.
-  def run("runner", ["new", ref | name], o) do
-    scenario = o[:scenario] || "server"
-
-    if scenario in ~w(server windows) and !o[:pool],
-      do: fail("pass --pool P: the pool this runner takes jobs for")
+  # options in, the steps to follow out. The shell and PowerShell runners'
+  # scenarios (server, windows) were retired for the daemon (#2582), and
+  # the server refuses them saying so.
+  def run("runner", ["new", ref | _name], o) do
+    scenario = o[:scenario] || "daemon"
 
     if o[:top] && !o[:column],
       do: fail("--top goes with --column LIST: the list whose top card it sends")
 
-    body =
-      compact(%{
-        "scenario" => scenario,
-        "verbosity" => o[:verbosity],
-        "instructions" => o[:instructions],
-        "before_job" => o[:before_job],
-        "after_job" => o[:after_job],
-        "hooks" => o[:hooks],
-        "in_progress" => o[:in_progress],
-        "assign" => o[:assign],
-        "commit" => o[:commit],
-        "push" => o[:push],
-        "move_done" => o[:move_done],
-        "complete" => o[:complete],
-        "percent_100" => o[:percent_100],
-        "slipdock_tools" => o[:slipdock_tools],
-        "worktree" => o[:worktree],
-        "self_update" => o[:self_update],
-        "mcp_servers" => o[:mcp_servers],
-        "install_name" => o[:install_name],
-        "name" => nonblank(Enum.join(name, " ")),
-        "pool" => o[:pool],
-        "agent" => o[:agent],
-        "kind" => o[:kind] |> List.wrap() |> List.last(),
-        "command" => o[:command],
-        "cwd" => o[:cwd],
-        "permission_mode" => o[:permission_mode],
-        "timeout" => o[:timeout],
-        "service" => o[:service],
-        "where" => o[:where],
-        "repo" => o[:repo],
-        "column" => o[:column] |> List.wrap() |> List.last(),
-        # The list's top card, one at a time, rather than every card arriving.
-        "feed" => if(o[:top], do: "top"),
-        "wait" =>
-          case o[:wait_while_doing] do
-            true -> "yes"
-            false -> "no"
-            nil -> nil
-          end,
-        "requeue" => o[:requeue_stuck],
-        "alert" => if(o[:alert], do: "yes")
-      })
+    body = setup_answers(scenario, o)
 
-    HTTP.post("/boards/#{enc(ref)}/runners/setup", body)
-    |> out(o, fn r ->
-      if r["runner"],
-        do:
-          IO.puts(
-            "made runner ##{r["runner"]["id"]} #{r["runner"]["name"]} for pool #{r["runner"]["pool"]}"
-          )
-
-      if r["automation"], do: IO.puts("added the rule “#{r["automation"]["name"]}”")
-
-      if r["alert_automation"],
-        do: IO.puts("added the rule “#{r["alert_automation"]["name"]}”")
-
-      if r["token"],
-        do: IO.puts("its token is in the steps below, shown this once — keep it on that machine")
-
-      IO.puts("")
-      Render.runner_setup(r["setup"])
-    end)
+    HTTP.post("/boards/#{enc(ref)}/runners/setup", body) |> out(o, &print_setup/1)
   end
 
   # One runner and everything known about it, with its latest jobs.
@@ -110,28 +48,11 @@ defmodule SlipdockCLI.Runners do
     |> out(o, &Render.runner(&1["runner"]))
   end
 
+  # A runner with a token of its own ran a retired script (#2582): its steps
+  # are the move onto a machine. Its answers can no longer be changed.
   def run("runner", ["setup", ref, runner], o) do
-    answers = answers(o)
-
-    cond do
-      # The prompt that has Claude write the runner's hooks, as plain text to
-      # paste (or pipe) into Claude Code on that machine.
-      o[:hook_prompt] ->
-        HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}/hook-prompt")
-        |> out(o, &IO.write(&1["prompt"]))
-
-      answers == %{} ->
-        HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup")
-        |> out(o, &Render.runner_setup(&1["setup"]))
-
-      true ->
-        # New answers: saved on the runner, and what changes printed first.
-        HTTP.put("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup", answers)
-        |> out(o, fn r ->
-          Render.runner_diff(r["diff"])
-          Render.runner_setup(r["setup"])
-        end)
-    end
+    HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup")
+    |> out(o, &Render.runner_setup(&1["setup"]))
   end
 
   def run("runner", ["token", ref, runner], o) do
@@ -150,7 +71,7 @@ defmodule SlipdockCLI.Runners do
   def run("runner", _, _o),
     do:
       fail(
-        "usage: slipdock runner ls <board> | show <board> <runner> | new <board> <name> --pool P | rm <board> <runner>"
+        "usage: slipdock runner ls <board> | show <board> <runner> | new <board> --pool P [--scenario daemon|loop|cloud|chatgpt] | setup <board> <runner> | token <board> <runner> | rm <board> <runner>"
       )
 
   def run("jobs", [], o) do
@@ -287,17 +208,10 @@ defmodule SlipdockCLI.Runners do
   def run(cmd, _args, _o), do: bad_usage(cmd)
 
   # The wizard's answers among the options given, by the names the server uses.
-  defp answers(o) do
+  # The wizard's answers, as `runner new` sends them.
+  defp setup_answers(scenario, o) do
     compact(%{
-      "agent" => o[:agent],
-      "kind" => o[:kind] |> List.wrap() |> List.last(),
-      "command" => o[:command],
-      "cwd" => o[:cwd],
-      "permission_mode" => o[:permission_mode],
-      "timeout" => o[:timeout],
-      "service" => o[:service],
-      "where" => o[:where],
-      "repo" => o[:repo],
+      "scenario" => scenario,
       "verbosity" => o[:verbosity],
       "instructions" => o[:instructions],
       "before_job" => o[:before_job],
@@ -310,12 +224,38 @@ defmodule SlipdockCLI.Runners do
       "move_done" => o[:move_done],
       "complete" => o[:complete],
       "percent_100" => o[:percent_100],
-      "slipdock_tools" => o[:slipdock_tools],
-      "worktree" => o[:worktree],
-      "self_update" => o[:self_update],
-      "mcp_servers" => o[:mcp_servers],
-      "install_name" => o[:install_name]
+      "pool" => o[:pool],
+      "kind" => o[:kind] |> List.wrap() |> List.last(),
+      "cwd" => o[:cwd],
+      "permission_mode" => o[:permission_mode],
+      "where" => o[:where],
+      "repo" => o[:repo],
+      "column" => o[:column] |> List.wrap() |> List.last(),
+      # The list's top card, one at a time, rather than every card arriving.
+      "feed" => if(o[:top], do: "top"),
+      "wait" =>
+        case o[:wait_while_doing] do
+          true -> "yes"
+          false -> "no"
+          nil -> nil
+        end,
+      "requeue" => o[:requeue_stuck],
+      "alert" => if(o[:alert], do: "yes")
     })
+  end
+
+  # What `runner new` made, then the steps.
+  defp print_setup(r) do
+    if r["automation"], do: IO.puts("added the rule “#{r["automation"]["name"]}”")
+
+    if r["alert_automation"],
+      do: IO.puts("added the rule “#{r["alert_automation"]["name"]}”")
+
+    if r["enrolment_key"],
+      do: IO.puts("its enrolment key is in the steps below, shown this once")
+
+    IO.puts("")
+    Render.runner_setup(r["setup"])
   end
 
   # `--status waiting` asks a person: what is needed, from whom, the choices.

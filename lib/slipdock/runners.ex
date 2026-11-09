@@ -57,7 +57,7 @@ defmodule Slipdock.Runners do
   def lease_seconds, do: config()[:lease_seconds] || 90
 
   # A Claude session reports between steps of its own work, and one step
-  # (a test run, a CI watch) can take many minutes; a shell runner's
+  # (a test run, a CI watch) can take many minutes; a machine's runner's
   # heartbeat is a background loop. So a session holds a longer lease.
   def session_lease_seconds, do: config()[:session_lease_seconds] || 1200
 
@@ -243,10 +243,6 @@ defmodule Slipdock.Runners do
 
   @doc "Revokes a runner: its token stops working at once."
   def delete_runner(%Runner{} = runner), do: Repo.delete(runner)
-
-  @doc "Saves the setup wizard's answers on the runner (never the token)."
-  def update_runner(%Runner{} = runner, attrs),
-    do: runner |> Runner.changeset(attrs) |> Repo.update()
 
   @doc """
   The runner `token` belongs to, with its last-seen time brought up to date,
@@ -1233,45 +1229,6 @@ defmodule Slipdock.Runners do
     else
       Repo.update_all(from(r in Runner, where: r.id == ^runner.id), set: [kinds: kinds])
       %{runner | kinds: kinds}
-    end
-  end
-
-  @doc """
-  Keeps the runner script version `runner` says it is running
-  (`X-Runner-Version: sh <sha256>`, #1658), and returns the runner with it.
-  A missing or malformed header leaves what was kept alone.
-  """
-  def report_version(%Runner{} = runner, header) when is_binary(header) do
-    case Regex.run(~r/\A\s*(sh|ps1)\s+([0-9a-f]{64})\s*\z/i, header) do
-      [_, flavor, sha] ->
-        version = String.downcase(flavor) <> " " <> String.downcase(sha)
-
-        if version == runner.version do
-          runner
-        else
-          Repo.update_all(from(r in Runner, where: r.id == ^runner.id), set: [version: version])
-          %{runner | version: version}
-        end
-
-      _ ->
-        runner
-    end
-  end
-
-  def report_version(%Runner{} = runner, _header), do: runner
-
-  @doc """
-  Whether `runner`'s script is the one this server hands out (#1658), given
-  the current SHA-256 of each flavour (`%{"sh" => sha, "ps1" => sha}`):
-  `:current`, `:out_of_date`, or `:unknown` for a runner that never said
-  (a script from before versions were reported, or a Claude session).
-  """
-  def script_state(%Runner{version: nil}, _latest), do: :unknown
-
-  def script_state(%Runner{version: version}, latest) do
-    case String.split(version, " ", parts: 2) do
-      [flavor, sha] -> if latest[flavor] == sha, do: :current, else: :out_of_date
-      _ -> :unknown
     end
   end
 

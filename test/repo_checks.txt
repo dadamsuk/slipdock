@@ -78,6 +78,7 @@ test/slipdock_web/recording_api_docs_test.exs
 test/slipdock_web/recurrence_docs_test.exs
 test/slipdock_web/reply_docs_test.exs
 test/slipdock_web/runner_docs_test.exs
+test/slipdock/scripts_retired_docs_test.exs
 test/slipdock_web/saved_multiboard_docs_test.exs
 test/slipdock_web/skill_progress_docs_test.exs
 test/slipdock_web/snooze_docs_test.exs
@@ -99,7 +100,6 @@ test/slipdock/trust_contract_test.exs
 
 # Feature tests that also hold docs or skills to what they built
 test/slipdock/runners_drift_test.exs
-test/slipdock/runners/hook_prompt_test.exs
 test/slipdock/runners_security_ship_test.exs
 test/slipdock/sweep_install_test.exs
 test/slipdock_web/card_timeline_api_test.exs
@@ -135,5 +135,5 @@ except test/slipdock/lanes_epic_test.exs: its docs/ paths are lane globs held as
 except test/slipdock/profiles_test.exs: its docs/ and priv/skills/ paths are card paths held as data for the inference; it reads no file
 except test/slipdock_web/shared_paths_web_test.exs: docs/manual.md there is a glob a board shares, not a file it reads
 except test/slipdock/lanes_advise_test.exs: its docs/manual.md is a lane glob held as data; it reads no file
-except test/slipdock_web/runner_skills_update_test.exs: runs the runner scripts for real (seconds each); priv/skills/ there is what the server serves, compared with what the runner installed, not a doc held to a rule
+except test/slipdock_web/runner_scripts_retired_test.exs: docs/manual/machines.md there is the pointer the 410 body gives, held as data; it reads no file
 except test/slipdock/overseer_watch_test.exs: its docs/ paths are lane globs held as data; it reads no file

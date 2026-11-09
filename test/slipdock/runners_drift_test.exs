@@ -177,7 +177,9 @@ defmodule Slipdock.RunnersDriftTest do
       assert alert.title ==
                "Runner box has drifted from this server: skills drifted (slipdock-loop), CLI old"
 
-      assert alert.body =~ "installs this server's skills before its next job"
+      assert alert.body =~ "Run the install one-liner on its machine again"
+      # The scripts that installed the skills themselves were retired (#2582).
+      refute alert.body =~ "keeps itself current"
 
       # Claiming again, still drifted: the same one alert.
       assert claim(ctx, drifted).status == 204
@@ -264,21 +266,10 @@ defmodule Slipdock.RunnersDriftTest do
   end
 
   describe "the docs" do
-    test "the guide, the manual, agents.md and both runner scripts say so" do
+    test "the guide, the manual and agents.md say so" do
       assert SlipdockWeb.APIGuide.markdown() =~ "`X-Runner-Skills`"
       assert Slipdock.DocsText.read!("docs/manual.md") =~ "**Skill and CLI drift.**"
       assert Slipdock.DocsText.read!("docs/agents.md") =~ "Runners also report **drift**"
-      assert Slipdock.DocsText.read!("priv/runner/slipdock-runner") =~ "# Drift (#1795)"
-      assert Slipdock.DocsText.read!("priv/runner/slipdock-runner.ps1") =~ "# Drift (#1795)"
-    end
-
-    test "the shell runner's --help still prints its whole header" do
-      dir = Path.join(System.tmp_dir!(), "slipdock-help-#{System.unique_integer([:positive])}")
-      File.mkdir_p!(dir)
-      {out, 0} = System.cmd("sh", [Path.expand("priv/runner/slipdock-runner"), "--help"], cd: dir)
-      File.rm_rf!(dir)
-      assert out =~ "Skills from the server (#2048)"
-      refute out =~ "set -u"
     end
   end
 end

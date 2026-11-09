@@ -21,8 +21,8 @@ defmodule Slipdock.Runners.SetupTest do
     a
   end
 
-  defp gen(board, extra, token \\ "sdr_tok"),
-    do: Setup.generate(answers(extra), %{base_url: @base, board: board, token: token})
+  defp gen(board, extra, _token \\ nil),
+    do: Setup.generate(answers(extra), %{base_url: @base, board: board})
 
   defp codes(setup), do: setup.steps |> Enum.map(& &1[:code]) |> Enum.reject(&is_nil/1)
 
@@ -31,7 +31,6 @@ defmodule Slipdock.Runners.SetupTest do
          %{board: board} do
       assert hd(Setup.scenarios()) == "daemon"
       assert Setup.label("daemon") == "A machine with the daemon"
-      refute Setup.needs_token?("daemon")
 
       setup = gen(board, %{"scenario" => "daemon", "pool" => "build"}, nil)
       [build, init, service] = codes(setup)
@@ -84,11 +83,10 @@ defmodule Slipdock.Runners.SetupTest do
 
   describe "normalise/1" do
     test "fills in the defaults and folds case" do
-      a = answers(%{"pool" => " Dev-Box ", "timeout" => "900"})
-      assert a["scenario"] == "server"
-      assert a["agent"] == "claude"
+      a = answers(%{"pool" => " Dev-Box "})
+      # The daemon is the default since the scripts went (#2582).
+      assert a["scenario"] == "daemon"
       assert a["pool"] == "dev-box"
-      assert a["timeout"] == 900
       assert a["permission_mode"] == "acceptEdits"
     end
 
@@ -98,115 +96,51 @@ defmodule Slipdock.Runners.SetupTest do
 
     test "refuses what it can't use" do
       for {params, message} <- [
-            {%{"scenario" => "mainframe"}, "scenario"},
-            {%{"agent" => "vim"}, "agent"},
+            {%{"scenario" => "mainframe"},
+             "scenario must be one of daemon, loop, cloud, chatgpt"},
             {%{"pool" => "my pool"}, "pool"},
             {%{"kind" => "$(id)"}, "kind"},
-            {%{"agent" => "custom"}, "custom agent needs the command"},
             {%{"permission_mode" => "yolo"}, "permission mode"},
-            {%{"service" => "cron"}, "service"},
-            {%{"where" => "moon"}, "where"},
-            {%{"timeout" => "5"}, "timeout"},
-            {%{"timeout" => "soon"}, "timeout"}
+            {%{"where" => "moon"}, "where"}
           ] do
         assert {:error, got} = Setup.normalise(params)
         assert got =~ message, "#{inspect(params)} → #{got}"
       end
     end
 
-    test "a custom agent in a Claude scenario needs no command" do
-      assert {:ok, _} = Setup.normalise(%{"scenario" => "loop", "agent" => "custom"})
-    end
-  end
+    # The shell and PowerShell runners' scenarios were retired (#2582).
+    test "server and windows are refused, pointing at the daemon" do
+      for scenario <- ~w(server windows) do
+        assert {:error, message} = Setup.normalise(%{"scenario" => scenario})
+        assert message =~ "the shell and PowerShell runners were retired for the runner daemon"
+        assert message =~ "use the daemon scenario"
+        assert message =~ "Account › Machines"
+      end
 
-  describe "the server scenario" do
-    test "one line to paste, with every option as a flag and values quoted", %{board: board} do
-      setup =
-        gen(board, %{
-          "pool" => "dev",
-          "agent" => "claude",
-          "cwd" => "/srv/it's here",
-          "timeout" => "600",
-          "service" => "systemd"
+      refute "server" in Setup.scenarios()
+      refute "windows" in Setup.scenarios()
+      assert Setup.scenarios() == ~w(daemon loop cloud chatgpt)
+    end
+
+    test "the script runners' options are dropped, not kept" do
+      a =
+        answers(%{
+          "scenario" => "loop",
+          "self_update" => "true",
+          "worktree" => "true",
+          "service" => "systemd",
+          "install_name" => "box",
+          "mcp_servers" => "slipdock",
+          "timeout" => "900",
+          "agent" => "codex",
+          "command" => "true"
         })
 
-      [line | _] = codes(setup)
-      assert line =~ "curl -fsSL #{@base}/runner/install.sh | sh -s -- \\\n"
-      assert line =~ "--url '#{@base}'"
-      assert line =~ "--token 'sdr_tok'"
-      assert line =~ "--pool dev"
-      assert line =~ "--agent claude"
-      assert line =~ ~S(--cwd '/srv/it'\''s here')
-      assert line =~ "--permission-mode acceptEdits"
-      assert line =~ "--timeout 600"
-      assert line =~ "--service systemd"
-      assert setup.cost =~ "costs nothing while it waits"
-      assert setup.warnings == []
+      for key <- ~w(self_update worktree service install_name mcp_servers timeout agent command),
+          do: refute(Map.has_key?(a, key), key)
+
+      assert Setup.kind(a) == "claude"
     end
-
-    test "a custom command and kind, but no permission mode it wouldn't use", %{board: board} do
-      [line | _] =
-        board
-        |> gen(%{
-          "agent" => "custom",
-          "kind" => "make",
-          "command" => "make agent P=\"$SLIPDOCK_PROMPT\""
-        })
-        |> codes()
-
-      assert line =~ "--agent custom"
-      assert line =~ "--kind make"
-      assert line =~ ~S(--command 'make agent P="$SLIPDOCK_PROMPT"')
-      refute line =~ "--permission-mode"
-    end
-
-    test "without the token, a placeholder and a warning saying why", %{board: board} do
-      setup = gen(board, %{"cwd" => "/srv/w"}, nil)
-      assert hd(codes(setup)) =~ "--token '#{Setup.token_placeholder()}'"
-      assert [warning] = setup.warnings
-      assert warning =~ "shown once"
-    end
-
-    test "shows the config it will write and how to check the installer", %{board: board} do
-      [_, sums, config] = board |> gen(%{"pool" => "dev", "agent" => "codex"}) |> codes()
-      assert sums =~ "#{@base}/runner/SHA256SUMS"
-      assert config =~ "SLIPDOCK_RUNNER_TOKEN='sdr_tok'"
-      assert config =~ "POOL='dev'"
-      assert config =~ "job_codex() {"
-
-      assert config =~
-               ~S("$AGENT_BIN" exec ${SLIPDOCK_MODEL:+-m "$SLIPDOCK_MODEL"} "$SLIPDOCK_PROMPT")
-
-      # The per-profile models (#1953) are written unset.
-      assert config =~ "\n#MODEL_docs=\n"
-      refute config =~ ~r/^MODEL_/m
-    end
-
-    test "says no rule sends it anything yet, or which one does", %{board: board} do
-      assert List.last(gen(board, %{}).steps).text =~ "Nothing is sent until a rule sends it"
-
-      rule =
-        rule_fixture(board, %{
-          "trigger" => %{"type" => "card_created"},
-          "actions" => [%{"type" => "runner", "pool" => "default"}]
-        })
-
-      setup = Setup.generate(answers(), %{base_url: @base, board: board, token: "t", rule: rule})
-      assert List.last(setup.steps).text =~ "the rule “#{rule.name}” sends cards"
-    end
-  end
-
-  test "the windows scenario: a PowerShell line with literal strings", %{board: board} do
-    setup = gen(board, %{"scenario" => "windows", "cwd" => "C:\\src\\it's", "pool" => "win"})
-    [line, sums] = codes(setup)
-    assert sums =~ "irm '#{@base}/runner/install.ps1' -OutFile install.ps1"
-    assert sums =~ "irm '#{@base}/runner/SHA256SUMS'"
-    assert Enum.map(setup.steps, & &1[:id]) == [:command, :checksums, :config, :rule]
-    assert line =~ "& ([scriptblock]::Create((irm '#{@base}/runner/install.ps1'))) `\n"
-    assert line =~ "-Token 'sdr_tok'"
-    assert line =~ "-Cwd 'C:\\src\\it''s'"
-    assert line =~ "-Pool win"
-    assert setup.cost =~ "costs nothing"
   end
 
   test "the loop scenario: connect, the skills, and the exact /loop line", %{board: board} do
@@ -517,77 +451,6 @@ defmodule Slipdock.Runners.SetupTest do
                  "to the done list when you finish. Mark the card complete when you finish. Set " <>
                  "the card's % complete to 100 when you finish. Then call finish_job"
     end
-
-    test "a runner of its own is told in its standing instructions", %{board: board} do
-      for scenario <- ~w(server windows) do
-        text = Setup.instructions(answers(%{"scenario" => scenario}))
-        assert text =~ "What to do to the card: Don't move the card to the doing list"
-        assert text =~ "Don't commit or push anything."
-
-        on = Setup.instructions(answers(Map.put(@all_on, "scenario", scenario)))
-        assert on =~ "What to do to the card: Move the card to the doing list when you start."
-        assert on =~ "Set the card's % complete to 100 when you finish."
-      end
-
-      [line | _] = board |> gen(%{"commit" => "true"}) |> codes()
-      assert line =~ "--instructions 'What to do to the card:"
-      assert line =~ "commit with the card id in the message, but don'\\''t push"
-
-      # A Claude session hears it in its prompt, so not twice.
-      refute Setup.instructions(answers(%{"scenario" => "loop"})) =~ "What to do to the card"
-    end
-
-    test "saved with the runner and changed later like any answer", ctx do
-      {:ok, %{runner: runner}} =
-        Setup.connect(
-          ctx.board,
-          %{"pool" => "dev", "commit" => "true", "assign" => "true"},
-          ctx.owner,
-          @base
-        )
-
-      assert %{"commit" => true, "assign" => true, "push" => false} = runner.settings
-
-      {:ok, %{runner: runner}} = Setup.update(runner, ctx.board, %{"push" => "true"}, @base)
-      assert %{"commit" => true, "assign" => true, "push" => true} = runner.settings
-
-      assert {:error, "push needs commit" <> _} =
-               Setup.update(runner, ctx.board, %{"commit" => "false"}, @base)
-    end
-
-    test "answers saved under #511 carry over", ctx do
-      {:ok, %{runner: runner}} = Setup.connect(ctx.board, %{"pool" => "dev"}, ctx.owner, @base)
-
-      for {old, want} <- [
-            {%{"commit" => "push", "close" => "done"},
-             %{"commit" => true, "push" => true, "move_done" => true, "complete" => true}},
-            {%{"commit" => "commit", "close" => "open"},
-             %{"commit" => true, "push" => false, "move_done" => false, "complete" => false}},
-            {%{"commit" => "none", "close" => "done"},
-             %{"commit" => false, "push" => false, "move_done" => true, "complete" => true}}
-          ] do
-        {:ok, runner} =
-          Runners.update_runner(runner, %{"settings" => Map.merge(runner.settings, old)})
-
-        saved = Setup.saved(runner)
-        assert Map.take(saved, Map.keys(want)) == want, inspect(old)
-
-        assert {saved["in_progress"], saved["assign"], saved["percent_100"]} ==
-                 {false, false, false}
-
-        refute Map.has_key?(saved, "close")
-      end
-
-      # And changing one answer saves the carried-over ones as toggles.
-      {:ok, runner} =
-        Runners.update_runner(runner, %{
-          "settings" => Map.merge(runner.settings, %{"commit" => "none", "close" => "done"})
-        })
-
-      {:ok, %{runner: runner}} = Setup.update(runner, ctx.board, %{"assign" => "true"}, @base)
-      assert %{"commit" => false, "move_done" => true, "assign" => true} = runner.settings
-      refute Map.has_key?(runner.settings, "close")
-    end
   end
 
   describe "how much to write on the card: Nothing, the default (#514)" do
@@ -602,12 +465,9 @@ defmodule Slipdock.Runners.SetupTest do
       assert Setup.instructions(answers(%{"scenario" => "loop", "verbosity" => ""})) == ""
     end
 
-    test "reaches the loop prompt and a runner's standing instructions", %{board: board} do
+    test "reaches the loop prompt", %{board: board} do
       assert loop(board, %{"scenario" => "loop"}) =~
                "Standing instructions for every job:\nDon't comment on the card at all"
-
-      [line | _] = board |> gen(%{}) |> codes()
-      assert line =~ "Don'\\''t comment on the card at all"
     end
 
     test "a cloud routine is told no notes and no comments, and says why only in the job",
@@ -697,25 +557,6 @@ defmodule Slipdock.Runners.SetupTest do
   end
 
   describe "connect/4" do
-    test "a runner scenario makes the runner, saves the answers and never the token", ctx do
-      {:ok, result} =
-        Setup.connect(
-          ctx.board,
-          %{"pool" => "dev", "name" => "laptop", "agent" => "codex"},
-          ctx.owner,
-          @base
-        )
-
-      assert result.runner.name == "laptop"
-      assert result.runner.pool == "dev"
-      assert "sdr_" <> _ = result.token
-      assert Runners.authenticate(result.token).id == result.runner.id
-      assert result.runner.settings["agent"] == "codex"
-      refute inspect(result.runner.settings) =~ result.token
-      assert hd(codes(result.setup)) =~ result.token
-      assert result.rule == nil
-    end
-
     test "a list adds a send-to-runner rule for it", ctx do
       [_, doing | _] = ctx.board.columns
 
@@ -774,116 +615,6 @@ defmodule Slipdock.Runners.SetupTest do
       assert result.token == nil
       assert Runners.list_runners(ctx.board) == []
     end
-
-    test "regenerate: the same steps from the saved answers, with the token left out", ctx do
-      {:ok, %{runner: runner, setup: first}} =
-        Setup.connect(
-          ctx.board,
-          %{"pool" => "dev", "agent" => "codex", "cwd" => "/w"},
-          ctx.owner,
-          @base
-        )
-
-      again = Setup.regenerate(runner, ctx.board, @base)
-      [line | _] = codes(again)
-      assert line =~ "--agent codex"
-      assert line =~ "--cwd '/w'"
-      # No token: run again on that machine, the installer keeps the one it has.
-      refute line =~ "--token"
-      assert hd(again.warnings) =~ "keeps the one in its config"
-      assert length(again.steps) == length(first.steps)
-
-      {:ok, runner, token} = Runners.rotate_token(runner)
-      assert hd(codes(Setup.regenerate(runner, ctx.board, @base, token))) =~ token
-    end
-  end
-
-  describe "the runner's name on its machine" do
-    test "a new server or Windows runner is named for its board and pool, and keeps it",
-         ctx do
-      {:ok, %{runner: runner, setup: setup}} =
-        Setup.connect(ctx.board, %{"pool" => "loop"}, ctx.owner, @base)
-
-      name = "#{ctx.board.code}-loop"
-      assert runner.settings["install_name"] == name
-      assert hd(codes(setup)) =~ " \\\n  --name #{name}"
-
-      config = Enum.find(setup.steps, &(&1[:id] == :config))
-      assert config.text =~ "~/.config/slipdock-runner/config-#{name} (mode 600)"
-
-      # Set up again, rotated or changed, it is still the same install.
-      assert hd(codes(Setup.regenerate(runner, ctx.board, @base))) =~ "--name #{name}"
-
-      {:ok, %{runner: changed, setup: again}} =
-        Setup.update(runner, ctx.board, %{"timeout" => "900", "install_name" => "x"}, @base)
-
-      assert changed.settings["install_name"] == name
-      assert hd(codes(again)) =~ "--name #{name}"
-
-      {:ok, %{setup: win}} =
-        Setup.connect(ctx.board, %{"pool" => "pc", "scenario" => "windows"}, ctx.owner, @base)
-
-      assert hd(codes(win)) =~ "-Name #{ctx.board.code}-pc"
-      win_config = Enum.find(win.steps, &(&1[:id] == :config))
-      assert win_config.text =~ "config-#{ctx.board.code}-pc.ps1"
-      assert win_config.text =~ "runner-#{ctx.board.code}-pc.log"
-    end
-
-    test "the wizard's preview shows the name it will get", ctx do
-      assert hd(codes(gen(ctx.board, %{"pool" => "dev"}))) =~ "--name #{ctx.board.code}-dev"
-    end
-
-    test "one given is used instead, and a name that isn't one is refused", ctx do
-      {:ok, %{runner: runner, setup: setup}} =
-        Setup.connect(
-          ctx.board,
-          %{"pool" => "dev", "install_name" => " Laptop "},
-          ctx.owner,
-          @base
-        )
-
-      assert runner.settings["install_name"] == "laptop"
-      assert hd(codes(setup)) =~ "--name laptop"
-
-      for bad <- ["a/b", "-x", "two words", String.duplicate("a", 61)] do
-        assert {:error, message} = Setup.normalise(%{"install_name" => bad})
-        assert message =~ "name on the machine", bad
-      end
-    end
-
-    test "a runner made before names keeps none, until one is given", ctx do
-      {:ok, runner, _token} =
-        Runners.create_runner(ctx.board, %{
-          "name" => "old",
-          "pool" => "dev",
-          "settings" => Map.delete(answers(%{"pool" => "dev"}), "install_name")
-        })
-
-      again = Setup.regenerate(runner, ctx.board, @base)
-      refute hd(codes(again)) =~ "--name"
-      assert Enum.find(again.steps, &(&1[:id] == :config)).text =~ "slipdock-runner/config (mode"
-
-      {:ok, %{setup: same}} = Setup.update(runner, ctx.board, %{"timeout" => "900"}, @base)
-      refute hd(codes(same)) =~ "--name"
-
-      {:ok, %{runner: named, setup: setup}} =
-        Setup.update(runner, ctx.board, %{"install_name" => "old-one"}, @base)
-
-      assert named.settings["install_name"] == "old-one"
-      assert hd(codes(setup)) =~ "--name old-one"
-    end
-
-    test "a code with characters a name can't have is cleaned up", ctx do
-      a = Setup.install_name(answers(%{"pool" => "dev"}), %{ctx.board | code: "Q.V M"})
-      assert a["install_name"] == "q-v-m-dev"
-    end
-
-    test "runners that aren't installed get none", ctx do
-      for scenario <- ~w(loop cloud chatgpt) do
-        a = Setup.install_name(answers(%{"scenario" => scenario}), ctx.board)
-        assert a["install_name"] == "", scenario
-      end
-    end
   end
 
   test "rotating a token ends the old one", %{board: board} do
@@ -894,16 +625,12 @@ defmodule Slipdock.Runners.SetupTest do
   end
 
   describe "instructions and hooks" do
-    @tricky ~S"""
-    Say "hi" and it's fine. $(touch PWNED) `touch PWNED` ${HOME}
-    SLIPDOCK_EOF_deadbeef
-    'quoted' — naïve café ✓
-    """
-
     test "the verbosity paragraph, then the free text" do
       loop = &answers(Map.put(&1, "scenario", "loop"))
       assert Setup.instructions(loop.(%{"verbosity" => ""})) == ""
       assert Setup.instructions(loop.(%{"verbosity" => "quiet"})) =~ "one line when you start"
+      # What to do to the card is the prompt's, never the standing instructions'.
+      refute Setup.instructions(loop.(%{"commit" => "true"})) =~ "What to do to the card"
 
       both =
         Setup.instructions(
@@ -911,52 +638,6 @@ defmodule Slipdock.Runners.SetupTest do
         )
 
       assert both =~ ~r/^Keep a detailed.*full summary\.\n\nNever push to main\.$/s
-    end
-
-    test "the server line carries them, quoted so nothing in them runs", %{board: board} do
-      [line | _] =
-        board
-        |> gen(%{
-          "instructions" => @tricky,
-          "before_job" => "git pull",
-          "after_job" => ~S(echo "$SLIPDOCK_STATUS")
-        })
-        |> codes()
-
-      text = Setup.instructions(answers(%{"instructions" => @tricky}))
-      assert text =~ ~r/\n\n#{Regex.escape(String.trim(@tricky))}$/
-      assert line =~ "--instructions " <> Setup.sh_q(text)
-      assert line =~ "--before-job 'git pull'"
-      assert line =~ ~S(--after-job 'echo "$SLIPDOCK_STATUS"')
-    end
-
-    test "the config preview shows the heredoc and the hook functions", %{board: board} do
-      [_, _, config] =
-        board |> gen(%{"instructions" => "Be brief.", "before_job" => "git pull"}) |> codes()
-
-      assert config =~
-               "job_instructions() {\n  cat <<'SLIPDOCK_EOF_<random>'\nWhat to do to the card:"
-
-      assert config =~ "\n\nBe brief.\nSLIPDOCK_EOF_<random>\n}"
-
-      assert config =~ "JOB_INSTRUCTIONS=$(job_instructions)"
-      assert config =~ "before_job() {\ngit pull\n}"
-      refute config =~ "after_job()"
-    end
-
-    test "PowerShell gets them as literal strings", %{board: board} do
-      [line, _sums] =
-        board
-        |> gen(%{
-          "scenario" => "windows",
-          "instructions" => "it's '@ here",
-          "after_job" => "Write-Host 'x'"
-        })
-        |> codes()
-
-      assert line =~ ~S(-Instructions 'What to do to the card: Don''t move)
-      assert line =~ "\n\nit''s ''@ here' `"
-      assert line =~ ~S(-AfterJob 'Write-Host ''x''')
     end
 
     test "a /loop is asked to run the hooks, in so many words", %{board: board} do
@@ -1043,152 +724,6 @@ defmodule Slipdock.Runners.SetupTest do
       assert {:error, "verbosity" <> _} = Setup.normalise(%{"verbosity" => "shouty"})
       assert {:error, "hooks" <> _} = Setup.normalise(%{"hooks" => "magic"})
     end
-
-    test "changing a runner's answers saves them and says what changes", ctx do
-      {:ok, %{runner: runner}} = Setup.connect(ctx.board, %{"pool" => "dev"}, ctx.owner, @base)
-
-      {:ok, %{runner: runner, diff: diff}} =
-        Setup.update(
-          runner,
-          ctx.board,
-          %{"instructions" => "Be brief.", "timeout" => "900", "pool" => "other"},
-          @base
-        )
-
-      assert runner.settings["instructions"] == "Be brief."
-      # The pool is what the token is for: it doesn't change here.
-      assert runner.pool == "dev"
-      assert Enum.any?(diff, &match?({:del, "  --timeout 3600" <> _}, &1))
-      assert Enum.any?(diff, &match?({:ins, "Be brief.'"}, &1))
-      assert Enum.any?(diff, &match?({:ins, "Be brief."}, &1))
-      assert Enum.any?(diff, &match?({:eq, _}, &1))
-
-      {:ok, %{diff: same}} = Setup.update(runner, ctx.board, Setup.saved(runner), @base)
-      assert Enum.all?(same, &match?({:eq, _}, &1))
-
-      assert {:error, "verbosity" <> _} =
-               Setup.update(runner, ctx.board, %{"verbosity" => "x"}, @base)
-    end
-  end
-
-  describe "the Slipdock tools, for a claude runner" do
-    test "on by default: both servers in the flag, the config and the claude line",
-         %{board: board} do
-      a = answers()
-      assert a["slipdock_tools"] == true
-      assert a["mcp_servers"] == "claude_ai_Slipdock, slipdock"
-      assert Setup.allowed_tools(a) == "mcp__claude_ai_Slipdock,mcp__slipdock"
-
-      [line, _sums, config] = board |> gen(%{"cwd" => "/srv/w"}) |> codes()
-      assert line =~ "--mcp-servers 'claude_ai_Slipdock,slipdock'"
-      assert config =~ "ALLOWED_TOOLS='mcp__claude_ai_Slipdock,mcp__slipdock'"
-
-      assert config =~
-               ~S("$AGENT_BIN" -p "$SLIPDOCK_PROMPT" --permission-mode "$PERMISSION_MODE" --allowedTools "$ALLOWED_TOOLS")
-
-      [ps | _] = board |> gen(%{"scenario" => "windows", "cwd" => "C:\\w"}) |> codes()
-      assert ps =~ "-McpServers 'claude_ai_Slipdock,slipdock'"
-    end
-
-    test "one server named, given as the form or the API sends it", %{board: board} do
-      for flag <- ["true", "on", true] do
-        a = answers(%{"slipdock_tools" => flag, "mcp_servers" => " my-slipdock "})
-        assert Setup.allowed_tools(a) == "mcp__my-slipdock"
-      end
-
-      [line | _] = board |> gen(%{"mcp_servers" => "slipdock"}) |> codes()
-      assert line =~ "--mcp-servers 'slipdock'"
-    end
-
-    test "off: no --allowedTools anywhere, and the installers are told so", %{board: board} do
-      for off <- ["false", false, "off", ""] do
-        a = answers(%{"slipdock_tools" => off})
-        assert a["slipdock_tools"] == false
-        assert Setup.allowed_tools(a) == ""
-      end
-
-      [line, _sums, config] = board |> gen(%{"slipdock_tools" => "false"}) |> codes()
-      assert line =~ "--mcp-servers ''"
-      assert config =~ "ALLOWED_TOOLS=''"
-      refute config =~ "--allowedTools"
-
-      [ps | _] = board |> gen(%{"scenario" => "windows", "slipdock_tools" => false}) |> codes()
-      assert ps =~ "-McpServers ''"
-    end
-
-    test "codex and custom agents aren't given it", %{board: board} do
-      for agent <- ["codex", "custom"] do
-        [line, _sums, config] =
-          board |> gen(%{"agent" => agent, "command" => "true"}) |> codes()
-
-        refute line =~ "--mcp-servers"
-        assert config =~ "ALLOWED_TOOLS=''"
-        refute config =~ "--allowedTools"
-      end
-    end
-
-    test "a server name that isn't one, or none with the option on, is refused" do
-      for names <- ["slip dock$", "mcp__x;rm", "a/b", "é"] do
-        assert {:error, "an MCP server's name" <> _} =
-                 Setup.normalise(%{"mcp_servers" => names}),
-               names
-      end
-
-      assert {:error, "name the Slipdock MCP server" <> _} =
-               Setup.normalise(%{"mcp_servers" => " , "})
-
-      assert {:ok, _} = Setup.normalise(%{"mcp_servers" => "", "slipdock_tools" => "false"})
-
-      assert {:error, "slipdock_tools must be true or false"} =
-               Setup.normalise(%{"slipdock_tools" => "maybe"})
-    end
-
-    test "turning it off shows in what changes on the machine", ctx do
-      {:ok, %{runner: runner}} = Setup.connect(ctx.board, %{"pool" => "dev"}, ctx.owner, @base)
-      assert runner.settings["slipdock_tools"] == true
-
-      {:ok, %{runner: runner, diff: diff}} =
-        Setup.update(runner, ctx.board, %{"slipdock_tools" => "false"}, @base)
-
-      assert runner.settings["slipdock_tools"] == false
-      assert {:del, "  --mcp-servers 'claude_ai_Slipdock,slipdock' \\"} in diff
-      assert {:ins, "  --mcp-servers '' \\"} in diff
-      assert {:ins, "ALLOWED_TOOLS=''"} in diff
-      assert Enum.any?(diff, &match?({:del, "  \"$AGENT_BIN\"" <> _}, &1))
-    end
-  end
-
-  describe "a worktree per job (#1627)" do
-    test "off by default: no flag, no WORKTREE in the config", %{board: board} do
-      assert answers()["worktree"] == false
-      [line, _sums, config] = board |> gen(%{"cwd" => "/srv/w"}) |> codes()
-      refute line =~ "--worktree"
-      refute config =~ "WORKTREE="
-      # The job goes to its worktree only when the runner made one.
-      assert config =~ ~S(cd "${SLIPDOCK_WORKTREE:-$WORKDIR}" || exit 1)
-
-      [ps | _] = board |> gen(%{"scenario" => "windows", "cwd" => "C:\\w"}) |> codes()
-      refute ps =~ "-Worktree"
-    end
-
-    test "on: --worktree / -Worktree, and the config sets it on WORKDIR's repository",
-         %{board: board} do
-      for on <- [true, "true", "on"], do: assert(answers(%{"worktree" => on})["worktree"])
-
-      [line, _sums, config] = board |> gen(%{"cwd" => "/srv/w", "worktree" => "true"}) |> codes()
-      assert line =~ "--worktree"
-      assert config =~ "\nWORKTREE=1\nWORKTREE_REPO=$WORKDIR\n"
-
-      [ps | _] =
-        board |> gen(%{"scenario" => "windows", "cwd" => "C:\\w", "worktree" => true}) |> codes()
-
-      assert ps =~ "-Worktree"
-    end
-
-    test "anything but a yes or no is refused" do
-      assert {:error, "worktree must be true or false"} =
-               Setup.normalise(%{"worktree" => "maybe"})
-    end
   end
 
   describe "a blank working directory" do
@@ -1197,8 +732,6 @@ defmodule Slipdock.Runners.SetupTest do
     test "warns a claude runner, loop or Desktop task that project settings won't load",
          %{board: board} do
       for extra <- [
-            %{},
-            %{"scenario" => "windows"},
             %{"scenario" => "loop"},
             %{"scenario" => "cloud", "where" => "desktop"}
           ] do
@@ -1208,12 +741,12 @@ defmodule Slipdock.Runners.SetupTest do
       end
     end
 
-    test "but not with a directory set, for codex or a command, or a cloud routine",
+    test "but not with a directory set, for the daemon, ChatGPT or a cloud routine",
          %{board: board} do
       for extra <- [
-            %{"cwd" => "/srv/app"},
-            %{"agent" => "codex"},
-            %{"agent" => "custom", "command" => "true"},
+            %{"scenario" => "loop", "cwd" => "/srv/app"},
+            %{"scenario" => "daemon"},
+            %{"scenario" => "chatgpt"},
             %{"scenario" => "cloud", "where" => "cloud"}
           ] do
         refute Enum.any?(gen(board, extra).warnings, &String.starts_with?(&1, @warning)),
@@ -1237,24 +770,6 @@ defmodule Slipdock.Runners.SetupTest do
       end
     end
 
-    test "the config spells ~ as $HOME, outside the quotes", %{board: board} do
-      config = fn cwd -> board |> gen(%{"cwd" => cwd}) |> codes() |> List.last() end
-
-      assert config.("~/webs/it's here") =~ ~S(WORKDIR="$HOME"/'webs/it'\''s here') <> "\n"
-      assert config.("~") =~ ~S(WORKDIR="$HOME") <> "\n"
-      # Nothing changes for a path that is already whole.
-      assert config.("/srv/app") =~ "WORKDIR='/srv/app'\n"
-      assert config.("/srv/~x") =~ "WORKDIR='/srv/~x'\n"
-    end
-
-    test "the one-liners pass it as written, for the installer to expand", %{board: board} do
-      [line | _] = board |> gen(%{"cwd" => "~/x"}) |> codes()
-      assert line =~ "--cwd '~/x'"
-
-      [ps | _] = board |> gen(%{"scenario" => "windows", "cwd" => "~\\x"}) |> codes()
-      assert ps =~ "-Cwd '~\\x'"
-    end
-
     test "a /loop starts where it says, home included", %{board: board} do
       cd = fn extra ->
         board |> gen(Map.put(extra, "scenario", "loop")) |> codes() |> Enum.at(2)
@@ -1270,29 +785,22 @@ defmodule Slipdock.Runners.SetupTest do
     test "a working directory not given is a scratch one; one given blank is still home" do
       assert answers()["cwd"] == "/tmp"
       assert answers(%{"scenario" => "loop"})["cwd"] == "/tmp"
-      assert answers(%{"scenario" => "windows"})["cwd"] == ~S"~\AppData\Local\Temp"
       assert answers(%{"cwd" => ""})["cwd"] == ""
       assert answers(%{"cwd" => "/srv/app"})["cwd"] == "/srv/app"
     end
 
-    test "the default goes into the one-liner and the config", %{board: board} do
-      [line, _sums, config] = board |> gen(%{}) |> codes()
-      assert line =~ "--cwd '/tmp'"
-      assert config =~ "WORKDIR='/tmp'\n"
-
-      [ps | _] = board |> gen(%{"scenario" => "windows"}) |> codes()
-      assert ps =~ ~S"-Cwd '~\AppData\Local\Temp'"
-    end
-
     test "the default directory warns like a blank one; a project folder doesn't", %{board: board} do
-      for scenario <- ["server", "windows", "loop"] do
-        warnings = gen(board, %{"scenario" => scenario}).warnings
+      for extra <- [%{"scenario" => "loop"}, %{"scenario" => "cloud", "where" => "desktop"}] do
+        warnings = gen(board, extra).warnings
 
         assert Enum.any?(warnings, &(&1 =~ "the default, so the project's own commands")),
-               scenario
+               inspect(extra)
       end
 
-      refute Enum.any?(gen(board, %{"cwd" => "/srv/app"}).warnings, &(&1 =~ "the default"))
+      refute Enum.any?(
+               gen(board, %{"scenario" => "loop", "cwd" => "/srv/app"}).warnings,
+               &(&1 =~ "the default")
+             )
     end
 
     test "the cost notes lose the sentences comparing the two", %{board: board} do
@@ -1307,7 +815,7 @@ defmodule Slipdock.Runners.SetupTest do
     end
 
     test "with no rule, the last step names the Send cards to a runner preset", %{board: board} do
-      rule = List.last(gen(board, %{"pool" => "dev"}).steps)
+      rule = List.last(gen(board, %{"scenario" => "loop", "pool" => "dev"}).steps)
       assert rule.id == :rule
 
       assert rule.text ==
@@ -1316,90 +824,6 @@ defmodule Slipdock.Runners.SetupTest do
 
       assert {rule.pool, rule.kind} == {"dev", "claude"}
       refute rule.text =~ "coding agent"
-    end
-
-    test "the runner scenarios name their steps for the wizard", %{board: board} do
-      assert Enum.map(gen(board, %{}).steps, & &1[:id]) == [:command, :checksums, :config, :rule]
-    end
-
-    test "changing one answer keeps the others the runner has", ctx do
-      {:ok, %{runner: runner}} =
-        Setup.connect(
-          ctx.board,
-          %{"pool" => "dev", "cwd" => "", "instructions" => "Be brief."},
-          ctx.owner,
-          @base
-        )
-
-      {:ok, %{runner: runner}} = Setup.update(runner, ctx.board, %{"timeout" => "900"}, @base)
-      assert runner.settings["timeout"] == 900
-      # Not reset to the defaults: home stays home, the instructions stay.
-      assert runner.settings["cwd"] == ""
-      assert runner.settings["instructions"] == "Be brief."
-    end
-  end
-
-  describe "keeping the runner current (#1658)" do
-    test "on by default: no flag, and the config sets SELF_UPDATE=1", %{board: board} do
-      assert answers()["self_update"] == true
-      [line, _sums, config] = board |> gen(%{"cwd" => "/srv/w"}) |> codes()
-      refute line =~ "--no-self-update"
-      assert config =~ "\nSELF_UPDATE=1\n"
-
-      [ps | _] = board |> gen(%{"scenario" => "windows", "cwd" => "C:\\w"}) |> codes()
-      refute ps =~ "-NoSelfUpdate"
-    end
-
-    test "unticked: --no-self-update / -NoSelfUpdate, and no line in the config",
-         %{board: board} do
-      [line, _sums, config] =
-        board |> gen(%{"cwd" => "/srv/w", "self_update" => "false"}) |> codes()
-
-      assert line =~ "--no-self-update"
-      refute config =~ "SELF_UPDATE"
-
-      [ps | _] =
-        board
-        |> gen(%{"scenario" => "windows", "cwd" => "C:\\w", "self_update" => false})
-        |> codes()
-
-      assert ps =~ "-NoSelfUpdate"
-    end
-
-    test "anything but a yes or no is refused" do
-      assert {:error, "self_update must be true or false"} =
-               Setup.normalise(%{"self_update" => "maybe"})
-    end
-  end
-
-  describe "a pass's subagents finish their builds (#1812)" do
-    @wait_export "\nexport CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0\n"
-
-    test "a claude runner's config waits for background tasks, and says why",
-         %{board: board} do
-      [_line, _sums, config] = board |> gen(%{"cwd" => "/srv/w"}) |> codes()
-
-      assert config =~
-               "# Claude Code in print mode (-p) stops background tasks, such as the subagents\n" <>
-                 "# a pass hands its builds to, 10 minutes after the last turn. 0 waits for them." <>
-                 @wait_export
-
-      # Set before the job function, so the claude it runs inherits it.
-      {at, _} = :binary.match(config, @wait_export)
-      {job, _} = :binary.match(config, "job_claude() {")
-      assert at < job
-    end
-
-    test "codex and custom runners' configs are unchanged", %{board: board} do
-      for extra <- [
-            %{"agent" => "codex"},
-            %{"agent" => "custom", "command" => "make it"}
-          ] do
-        [_line, _sums, config] = board |> gen(Map.put(extra, "cwd", "/srv/w")) |> codes()
-        refute config =~ "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", inspect(extra)
-        refute config =~ "print mode", inspect(extra)
-        assert config =~ "export PATH CUSTOM_COMMAND\n\njob_", inspect(extra)
-      end
     end
   end
 end

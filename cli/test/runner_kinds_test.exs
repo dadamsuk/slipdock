@@ -33,22 +33,28 @@ defmodule SlipdockCLI.RunnerKindsTest do
     assert out =~ "not said (an older runner: no merge jobs)"
   end
 
-  test "the list and the runner say whether its script is current, and what it lacks (#1658)" do
+  # The SCRIPT column went with the scripts (#2582); what a runner lacks stays.
+  test "the list and the runner say what it lacks, and nothing of a script (#1658, #2582)" do
     out =
       capture_io(fn ->
         Render.runners([
-          Map.merge(runner(["claude"]), %{"script" => "out_of_date", "missing_kinds" => ["merge"]}),
-          Map.merge(runner(["merge"]), %{"id" => 5, "script" => "current", "missing_kinds" => []}),
-          Map.merge(runner(nil), %{"id" => 6, "script" => "unknown"})
+          Map.merge(runner(["claude"]), %{"missing_kinds" => ["merge"]}),
+          Map.merge(runner(["merge"]), %{"id" => 5, "missing_kinds" => []}),
+          Map.merge(runner(nil), %{"id" => 6, "script" => "out_of_date"})
         ])
       end)
 
-    assert out =~ "SCRIPT"
-    assert out =~ "out of date, lacks merge"
-    assert out =~ "current"
-    assert out =~ "old (can't say)"
+    [header | rows] = String.split(out, "\n", trim: true)
+    assert header =~ "LACKS"
+    refute header =~ "SCRIPT"
+    assert Enum.at(rows, 0) =~ "merge"
+    refute out =~ "out of date"
+    refute out =~ "old (can't say)"
 
-    one = Map.merge(runner(["claude"]), %{"script" => "out_of_date", "missing_kinds" => []})
-    assert capture_io(fn -> Render.runner(one) end) =~ "script:    out of date"
+    one = Map.merge(runner(["claude"]), %{"missing_kinds" => ["merge"], "machine_id" => 3})
+    shown = capture_io(fn -> Render.runner(one) end)
+    assert shown =~ "lacks:     merge"
+    assert shown =~ "(a machine's runner)"
+    refute shown =~ "script:"
   end
 end

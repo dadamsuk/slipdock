@@ -52,6 +52,11 @@ defmodule SlipdockWeb.API.FallbackController do
     conn |> put_status(:unprocessable_entity) |> json(%{error: message})
   end
 
+  # Something retired (#2582): 410, saying what to use instead.
+  def call(conn, {:error, :gone, message}) do
+    conn |> put_status(:gone) |> json(%{error: message})
+  end
+
   # A request that cannot happen in the state the thing is in: a transcription
   # already running, or a Drive not connected.
   def call(conn, {:error, :conflict, message}) when is_binary(message) do

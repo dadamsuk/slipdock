@@ -116,7 +116,7 @@ defmodule SlipdockWeb.VerifyAuditLiveTest do
     assert (shown["job"] || shown)["audit"] == true
   end
 
-  test "the guide, docs/agents.md, the manual, the skills and the installers describe audits",
+  test "the guide, docs/agents.md, the manual, and the skills describe audits",
        ctx do
     {:ok, _} = Boards.update_board(ctx.board, %{"verify_pool" => "loop"})
     squash = &String.replace(&1, ~r/\s+/, " ")
@@ -134,11 +134,5 @@ defmodule SlipdockWeb.VerifyAuditLiveTest do
 
     assert Slipdock.DocsText.read!("priv/skills/slipdock/SKILL.md") =~
              "slipdock verify <id> agree|disagree"
-
-    for f <- ~w(install.sh install.ps1),
-        do:
-          assert(
-            Slipdock.DocsText.read!("priv/runner/" <> f) =~ "cards as audits (never to the runner"
-          )
   end
 end

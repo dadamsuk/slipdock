@@ -182,13 +182,12 @@ work before submitting.
 **A model per profile.** A claimed job carries its card's profile (with
 profiles on): the runner's `x-card-profile` header, `job.profile` in
 `POST /api/boards/:board/jobs/claim`, `profile` in MCP `claim_job`, and a
-`profile:` line from `slipdock claim-job`. Both runner scripts put it in
-`SLIPDOCK_PROFILE`, and set `SLIPDOCK_MODEL` from the config's
-`MODEL_<profile>` (`MODEL_docs`, `MODEL_schema`, …; `$MODEL_docs` and so on
-in the PowerShell config). The installers write these knobs commented out,
-so nothing changes until you set one. The `claude` and `codex` jobs they
-write pass `--model` (or `-m`) only when `SLIPDOCK_MODEL` is set. The
-server sends only the word: what model it means is your runner's config.
+`profile:` line from `slipdock claim-job`. A machine's runner puts it in
+`SLIPDOCK_PROFILE`, and sets `SLIPDOCK_MODEL` from the `models` in the
+machine's own file (`{"schema": "opus"}`, [Machines](machines.md#what-runs-the-local-file)),
+else the runner's own model; its `claude` and `codex` jobs pass `--model`
+(or `-m`) only when there is one. The server sends only the word: what
+model it means is the machine's.
 
 ---
 

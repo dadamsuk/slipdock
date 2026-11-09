@@ -135,13 +135,9 @@ available as [a tarball](https://app.slipdock.us/api/skills.tar.gz) and as
 that serves it (in Slipdock's repository, `priv/skills/`). The copy on your
 machine is installed from there, never edited by hand: to change a skill,
 change it in `priv/skills/`, and once that is deployed run the one-liner
-again. A runner does that by itself: with *Keep the runner current* on (the
-default for new installs) it puts the server's skills in its skills
-directory before every job but a merge (`SKILLS_UPDATE=0` /
-`$SkillsUpdate = $false` in its config keeps the script current but the
-skills as they are; `SKILLS_UPDATE=1` / `$SkillsUpdate = $true` turns it on
-alone). A skill folder that is a symlink is left alone. Slipdock's own
-tests read only `priv/skills/`, never `~/.claude/skills`.
+again, on a runner's machine too: a runner reports its skills' drift (below)
+but changes nothing on the machine. Slipdock's own tests read only
+`priv/skills/`, never `~/.claude/skills`.
 
 What you get:
 
@@ -700,11 +696,16 @@ and gives you exactly what to paste:
 | Scenario | What you paste | Costs while idle |
 | --- | --- | --- |
 | A machine with the daemon | `slipdock-runner init --server … --key sde_…` (a one-time enrolment key made for the board) and `slipdock-runner service install`; its runners are then added on the machine's page | nothing |
-| Linux / macOS machine | `curl … /runner/install.sh \| sh -s -- --url … --token sdr_… --pool …` — the shell runner (`sh` and `curl` only) as a systemd user service or launchd agent | nothing |
-| Windows machine | `& ([scriptblock]::Create((irm '…/runner/install.ps1'))) -Url … -Token sdr_…` — the PowerShell runner, started at logon by Task Scheduler | nothing |
 | Claude Code on my machine | `claude mcp add …`, the skills, and a `/loop /slipdock-loop … taking a job from the … pool's queue` line | a Claude turn per check |
 | Claude, scheduled | a Claude Desktop local routine, or a cloud routine at claude.ai/code/routines with the Slipdock connector | a Claude turn per run |
 | ChatGPT | the Slipdock connector in ChatGPT, and a prompt for a chat or a scheduled task that takes one job with `claim_job`, works it in the conversation and ends with `finish_job` | a ChatGPT turn per check |
+
+The shell and PowerShell runners the daemon replaced were retired (#2582):
+the server no longer serves them, every path under `/runner/` answers 410
+Gone, and `--scenario server` or `windows` is refused. One still running
+keeps its script and token, and its setup (`slipdock runner setup <board>
+<runner>`, **Move to a machine** on the Runners panel) is the move onto a
+machine.
 
 It can also add the rule that sends a list's cards to the runner's **pool**
 (the *Send cards to a runner* preset, offered once the board has a runner,
@@ -743,31 +744,24 @@ card and the Runners panel, with `slipdock job <id> --follow`, or the MCP tool
 deleted a set time after the job ends (the board's `job_log_hours`, 24, or
 `failure_log_hours`, 168, for a failure) unless kept: `slipdock job <id> --keep`
 or `keep_job_log` writes it as a `Pass <card> (<date>)` page in the card's folder. It takes standing instructions
-and before/after hooks, written into the config or prompt it generates; for the
-site-specific part of a hook (which notifier, what to keep from a pass) it gives
-a prompt to paste into Claude Code on that machine (*Have Claude write this
-hook*, or `slipdock runner setup <board> <runner> --hook-prompt`), which states
-the hook contract and points at a worked example served at
-`/runner/examples/after-job-hook.sh`, with a pass-log script at
-`/runner/examples/passlog.sh` that writes `Pass <card> (<YYYY-MM-DD HH.MM>)`
-into the card's folder. The pass log is opt-in (`SLIPDOCK_HOOK_PASSLOG`): a
-job's log is kept with Keep this log instead.
+and before/after hooks: for a `/loop` or a routine written into the prompt it
+generates, and for a machine's runner set on the machine's page, the hooks by
+name from the machine's own file.
 
 Runners also report **drift**: on every claim the SHA-256 of each installed
 slipdock skill's `SKILL.md` and of the `slipdock` CLI, which the server
 compares with what it serves. `slipdock runners` (SKILLS · CLI), the Runners
 panel and the runner's `drift` in the API say current, drifted (naming the
 skills), old or unknown, and a drifted runner raises one alert until it is
-current again. A runner that keeps itself current installs the server's
-skills before each job (see *One source for each skill* under §3 above),
-so it doesn't stay drifted; anywhere else, run the install one-liner again.
+current again. The server never changes the machine: run the install
+one-liner there again (see *One source for each skill* under §3 above).
 
 **A job runs with nobody watching**, so two things are set up for it. A
 Claude runner may use the Slipdock MCP tools without asking (`--allowedTools`
-for the servers named in the wizard — `claude_ai_Slipdock`, the claude.ai
-connector, and `slipdock`, one added with `claude mcp add`, by default):
-without that it can't read the card or write anything back. Untick **Let it
-use the Slipdock tools** and it has no access to the board. And every job's
+for the tools its machine's own file names, `allowed_tools` on its `claude`
+agent: `mcp__claude_ai_Slipdock`, the claude.ai connector, or
+`mcp__slipdock`, one added with `claude mcp add`): without that it can't
+read the card or write anything back. And every job's
 prompt ends by saying nobody will answer questions: choose inputs from the
 card, say what was chosen, or open a wait saying what it needs and stop
 (the job is **parked**, its card goes back on top of the list so the next
@@ -801,7 +795,7 @@ own.
 
 A Claude or ChatGPT session takes jobs from the same queue with the token it already
 has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
-`slipdock claim-job` — so a `/loop` and a shell runner never work the same
+`slipdock claim-job` — so a `/loop` and a machine's runner never work the same
 card. `job_progress` with `step` (`slipdock job-progress --step`) says what a
 job is doing now on the job alone, not the card: a verify job reports each
 step that way, and every runner job's prompt asks for its milestones too (on
@@ -1034,9 +1028,9 @@ the original verdict and has every rule judged, `should` ones too. The audit
 changes nothing: `slipdock verify <id> agree|disagree --reason …` (or
 `verify_card`) is a comment, and a disagreement raises an alert for the board's
 owner. The acceptance stands.
-The installer's config gives every runner a `job_verify` that runs the same
-agent on the server's prompt, without the standing instructions, so a runner
-can check another runner's work. Deciding is `verify_card` or `slipdock
+A machine's runner takes `verify` jobs with its own agent, on the server's
+prompt, without the standing instructions, so a runner can check another
+runner's work. Deciding is `verify_card` or `slipdock
 verify`, and never on a card you submitted yourself. A board can also
 **ship by pull request**: its agents push a `card-<id>` branch and open a
 pull request, never the default branch, and complete with its URL
@@ -1049,12 +1043,9 @@ reconcile, a read-and-file card) has no pull request either, and never a
 token one: it completes with `slipdock done --no-code "<why>"`
 (`complete_card` `no_code`), and accepting it merges nothing. The claimed job's prompt and the card itself
 (`get_card`'s `shipping`) say so, so a runner needs no setup for it, and
-both runner scripts have a built-in `merge` kind that merges the accepted
-commit's pull request in their own repository (`MERGE=0` turns it off;
-runners installed now replace themselves with the server's newer script
-between any two jobs, after an empty claim or after a job's finish and
-before the next claim, on a matching checksum, so new kinds reach them
-however busy the queue is):
+a machine's runners have a built-in `merge` kind that merges the accepted
+commit's pull request in their own repository (`no_merge: true` in the
+machine's own file turns it off):
 accepting a card there queues the merge, and the merge completes it (a
 failed merge sends it back rejected with the reason). The merge goes to a
 runner that is idle now, else to the one that accepted the card, so it
@@ -1325,12 +1316,11 @@ server because that is the server that drew the page.
 | `this API token's scope doesn't allow it` | The token is confined to certain boards, or you asked an ordinary token to administer the server. |
 | `card_limit_reached` (402) | The board owner's allowance of items — cards, pages and files together — is used up. Archive something finished with; a wiki page instead of a card will not get round it. |
 | `trial_expired` (402) | A free trial has ended. Everything there stays readable and editable; nothing new can be added until there is a subscription. |
-| A runner says `the server refused this runner (HTTP 401)` | Its token was revoked or replaced. **Setup → Make a new token** on the board, then run the one-liner again on that machine. |
+| A runner says `the server refused this runner (HTTP 401)` | A machine's key was revoked: enrol it again (`slipdock-runner init`). A retired shell runner's token was revoked or replaced: move it onto a machine (**Move to a machine** on the Runners panel). |
 | A runner job sits `queued` | No runner of that pool is running for that board: check its name and pool in **Automations → Runners** (*last seen*), and that the rule's pool is spelled the same. |
-| A runner's agent says it can't use the Slipdock tools (`get_card`, `comment` refused) | The runner's claude line has no `--allowedTools` for the server, or names it wrongly. Its name on that machine is in `claude mcp list` (the claude.ai connector is `claude_ai_Slipdock`). **Setup**, tick *Let it use the Slipdock tools* with that name, and run the one-liner again; or set `ALLOWED_TOOLS` in the config by hand. |
-| A runner's agent can't find a project command or skill (`/genarticle` "not found") | The runner has no working directory, so jobs start in your home and the project's `.claude/` isn't loaded. Set the working directory to the project's folder and run the one-liner again. |
-| Every job fails with `cd: can't cd to ~/…` | A runner installed before `~` was understood wrote it in quotes, where sh doesn't expand it. Run the one-liner again (**Setup**), or give a full path. |
-| A job fails with exit 127, "no such job kind" | The rule queued a kind this runner's config has no `job_<kind>` (shell) or `Job-<Kind>` (PowerShell) function for. Add one, or change the rule's kind. |
+| A runner's agent says it can't use the Slipdock tools (`get_card`, `comment` refused) | The machine's own file gives its `claude` agent no `allowed_tools` for the server, or names it wrongly, so the job's `--allowedTools` leaves it out. Its name on that machine is in `claude mcp list` (the claude.ai connector is `claude_ai_Slipdock`, so `mcp__claude_ai_Slipdock`). |
+| A runner's agent can't find a project command or skill (`/genarticle` "not found") | The runner's directory isn't the project's folder, so the project's `.claude/` isn't loaded. Set its directory to the project's folder on the machine's page. |
+| A job fails saying its agent isn't defined | The rule queued a kind the machine's own file defines no agent for. Add one there, or change the rule's kind. |
 | Someone says they emailed a card or a page in and nothing happened | `slipdock inbound log` (or `GET /api/inbound/log`) says what each message made, or why it bounced or was ignored — see [Emailing your board](manual/emailing-your-board.md). A `+ Title` mail bounces when no page has that title (the log shows the near matches it offered). Their addresses are `slipdock inbound <board>` (a wiki folder's own: `--folder <path>`); don't `--rotate` it unless asked, since the old one stops working. A reply to a notification email (kind `reply`) bounces when it was all quote, came from another address, or the card is gone — see [Replying to a notification](manual/emailing-your-board.md#replying-to-a-notification). A `[#42] …` subject to a card address comments on card 42, and bounces when 42 isn't on that board or its sub-boards. |
 | A rule meant to act on mail (`card_emailed`, `page_emailed`) didn't | It fires only for what mail made, once the message accepted (`slipdock inbound log`), so a card typed in by hand doesn't set it off. Its `column`, `folder` (a path, as `Notes/Calls`) and `how` (`new` or `added`) must match. Its last error is in `slipdock automations <board>`. A `page_emailed` rule can only flag, tag, prioritise, date or assign the page (or email, alert, log, call a URL, create a card): the rest is refused when it is saved. See [Rules for what mail brings in](manual/automations-and-alerts.md#rules-for-what-mail-brings-in). |
 | The agent inventing list or tag names | It has not read the guide, or read it without a token. The guide with a token ends with your real boards and lists. |
@@ -1350,5 +1340,6 @@ For anyone reading the code rather than using it:
   `lib/slipdock_web/controllers/cli_install_controller.ex` serves it with its
   checksum and the Windows installer (`priv/cli/install.ps1`) under `/cli/`.
 - `lib/slipdock/runners.ex`, `lib/slipdock/runners/setup.ex` — the job queue
-  and the Connect-a-runner generator; `priv/runner/` — the shell and
-  PowerShell runners and their installers, served under `/runner/`.
+  and the Connect-a-runner generator; `daemon/` — the runner daemon, in Go.
+  The shell and PowerShell runners were retired (#2582); `/runner/`
+  answers 410 Gone.

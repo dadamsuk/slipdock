@@ -506,25 +506,24 @@ slipdock alerts                               # what the rules want you to know
 slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep theirs
 
 # Runners: agents on the user's own machines that rules send cards to (owner only to make)
-slipdock runner new <board> [name] --pool P [--scenario daemon|server|windows|loop|cloud|chatgpt]
-    [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR] [--permission-mode M]
-    [--timeout S] [--service auto|systemd|launchd|none] [--where desktop|cloud] [--repo owner/repo]
+slipdock runner new <board> --pool P [--scenario daemon|loop|cloud|chatgpt]
+    [--kind K] [--cwd DIR] [--permission-mode M] [--where desktop|cloud] [--repo owner/repo]
     [--column LIST [--top] [--[no-]wait-while-doing]] [--verbosity nothing|quiet|normal|verbose]
     [--instructions TEXT]
     [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
     [--[no-]in-progress] [--[no-]assign] [--[no-]commit] [--[no-]push] [--[no-]move-done]
     [--[no-]complete] [--[no-]percent-100]    # what a job does to the card: each off unless given
-    [--no-slipdock-tools] [--mcp-servers A,B]
-                                              # prints exactly what to paste; server/windows make a
-                                              # runner and print its token, ONCE; --column adds the rule
+                                              # prints exactly what to paste; --column adds the rule
                                               # (--top: the list's top card, one at a time,
                                               # waiting while anything is in progress unless
                                               # --no-wait-while-doing)
-                                              # daemon: a one-time enrolment key + the init line;
-                                              # its runners are then set with `machine add-runner`
+                                              # daemon (the default): a one-time enrolment key + the
+                                              # init line; its runners are then set with
+                                              # `machine add-runner`. The shell runners (server,
+                                              # windows) were retired: refused
 slipdock runner ls <board>                    # runners: pool, last seen, current job
 slipdock runner show <board> <runner>         # one in full: maker, job now, job counts, latest jobs, rules
-slipdock runner setup <board> <runner> [opts] # the steps again; with options, saves them + shows the diff
+slipdock runner setup <board> <runner>        # a token runner (a retired shell runner): move it to a machine
 slipdock runner token <board> <runner>        # a new token (the old one stops working)
 slipdock runner rm <board> <runner>           # revoke
 
@@ -623,11 +622,12 @@ In Progress 3/3` when the owner turned on `set-board --automation-wip`, `#N is i
 progress`, no runner online).
 
 Every runner job's prompt ends by saying it runs unattended (nobody answers questions). A
-Claude runner may use the Slipdock MCP tools without asking, for the servers named with
-`--mcp-servers` (default `claude_ai_Slipdock,slipdock`; the name on that machine is in
-`claude mcp list`); `--no-slipdock-tools` leaves it with no access to the board. When a runner's
-agent says it can't use the Slipdock tools, that name is the first thing to check. Give a Claude
-runner `--cwd` the project's folder: Claude Code loads the project's own commands, skills and
+Claude runner may use the Slipdock MCP tools without asking, for the tools its machine's own file
+names (`allowed_tools` on its `claude` agent, as `mcp__claude_ai_Slipdock`, the claude.ai
+connector, or `mcp__slipdock`; the name on that machine is in `claude mcp list`), passed as
+`--allowedTools`; with none it has no access to the board. When a runner's agent says it can't
+use the Slipdock tools, that name is the first thing to check. Give a Claude runner `--dir` the
+project's folder: Claude Code loads the project's own commands, skills and
 `.claude/settings.json` only from where it starts, so with none a project command is "not found".
 
 The `webhook` action is the way out to anything else the user runs: it calls a URL of theirs
@@ -797,9 +797,10 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
   `slipdock new-automation 1 --spec '{"trigger":{"type":"card_moved","to":"Done"},"actions":[{"type":"email","to":"me@example.com","subject":"Done: {{card.title}}","body":"{{card.url}}"}]}' --name "Email on done"`
 - "Nudge me about anything overdue" →
   `slipdock new-automation 1 --spec '{"trigger":{"type":"card_overdue"},"actions":[{"type":"alert","title":"Overdue: {{card.title}}","severity":"urgent"}]}' --name "Overdue alerts"`
-- "Have my laptop work cards that land in Doing" → `slipdock runner new 1 laptop --pool dev
-  --agent claude --cwd ~/src/app --column Doing`, then give the user the printed steps (the
-  token is in them and shown once)
+- "Have my laptop work cards that land in Doing" → `slipdock runner new 1 --pool dev
+  --column Doing` (the daemon scenario), then give the user the printed steps (the
+  enrolment key is in them and shown once); once the machine is enrolled,
+  `slipdock machine add-runner <machine> 1 --pool dev --dir ~/src/app`
 - "What are the runners doing right now?" → `slipdock now <board>` (`--json` for the JSON),
   MCP `get_board` with `now: true`, or `GET /api/boards/<board>/now`: each runner and its job's step, every card in progress
   and where it sits, the queue; for a person, the board's Right now page (`/boards/<id>/now`)

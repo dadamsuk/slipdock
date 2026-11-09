@@ -26,44 +26,53 @@ defmodule SlipdockCLI.RunnersTest do
 
   defp serve(responses), do: System.put_env("SLIPDOCK_URL", FakeServer.start(responses))
 
-  @setup ~s({"title":"Linux / macOS machine","intro":"Run this.","steps":[{"text":"On the machine, run:","code":"curl -fsSL x | sh -s -- --token sdr_secret"},{"text":"Nothing is sent until a rule sends it."}],"warnings":["watch out"],"cost":"free while idle"})
+  @setup ~s({"title":"A machine with the daemon","intro":"Run this.","steps":[{"text":"Install the daemon.","code":"slipdock-runner init --server x --key sde_once"},{"text":"Nothing is sent until a rule sends it."}],"warnings":["watch out"],"cost":"free while idle"})
 
-  test "runner new asks the wizard and prints its steps, token and all" do
+  test "runner new asks the wizard for the daemon by default, and prints its steps" do
     serve([
       {201,
-       ~s({"runner":{"id":4,"name":"laptop","pool":"dev"},"token":"sdr_secret","automation":{"name":"Send Doing to the dev runners"},"setup":#{@setup}})}
+       ~s({"runner":null,"token":null,"enrolment_key":"sde_once","automation":{"name":"Send Doing to the dev runners"},"setup":#{@setup}})}
     ])
 
     out =
       capture_io(fn ->
-        Runners.run("runner", ["new", "b", "laptop"],
-          pool: "dev",
-          agent: "codex",
-          cwd: "~/src",
-          timeout: 900,
-          column: ["Doing"]
-        )
+        Runners.run("runner", ["new", "b", "laptop"], pool: "dev", column: ["Doing"])
       end)
 
     assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
 
-    assert JSON.decode!(body) == %{
-             "scenario" => "server",
-             "name" => "laptop",
-             "pool" => "dev",
-             "agent" => "codex",
-             "cwd" => "~/src",
-             "timeout" => 900,
-             "column" => "Doing"
-           }
+    # The shell runners were retired (#2582): the daemon is the default, and
+    # the name and the script runners' options are no longer sent.
+    assert JSON.decode!(body) == %{"scenario" => "daemon", "pool" => "dev", "column" => "Doing"}
 
-    assert out =~ "made runner #4 laptop for pool dev"
+    refute out =~ "made runner"
+    assert out =~ "its enrolment key is in the steps below, shown this once"
     assert out =~ "added the rule “Send Doing to the dev runners”"
-    assert out =~ "1. On the machine, run:"
-    assert out =~ "    curl -fsSL x | sh -s -- --token sdr_secret"
+    assert out =~ "1. Install the daemon."
     assert out =~ "2. Nothing is sent until a rule sends it."
     assert out =~ "⚠ watch out"
     assert out =~ "free while idle"
+  end
+
+  test "the script runners' switches are gone: the CLI refuses them as unknown" do
+    for flag <-
+          ~w(--no-self-update --self-update --install-name --service --no-slipdock-tools --mcp-servers --hook-prompt --command --timeout) do
+      {_, _, invalid} = OptionParser.parse([flag, "x"], strict: SlipdockCLI.switches())
+      assert [{^flag, _}] = invalid, flag
+    end
+  end
+
+  test "runner setup takes no answers: it only shows the steps to move onto a machine" do
+    serve([{200, ~s({"setup":#{@setup}})}])
+
+    out =
+      capture_io(fn ->
+        Runners.run("runner", ["setup", "b", "4"], instructions: "Be brief.", commit: true)
+      end)
+
+    assert_received {:request, "GET", "/api/boards/b/runners/4/setup", _}
+    refute_received {:request, "PUT", _, _}
+    assert out =~ "Run this."
   end
 
   test "runner new --top asks for a rule sending the list's top card, one at a time" do
@@ -128,7 +137,10 @@ defmodule SlipdockCLI.RunnersTest do
     assert_received {:request, "GET", path, _}
     assert path =~ "/api/boards/b/runners/laptop"
     assert path =~ "limit=3"
-    assert out =~ "runner #4 laptop  pool dev  (runner with its own token)"
+
+    assert out =~
+             "runner #4 laptop  pool dev  (runner with its own token: a retired shell runner)"
+
     assert out =~ "by David"
     assert out =~ "seen:      never"
     assert out =~ "now:       job #9 running on card #12 Fix it"
@@ -151,22 +163,6 @@ defmodule SlipdockCLI.RunnersTest do
     assert out =~ "jobs:      0\n"
     assert out =~ "none send cards to this pool"
     refute out =~ "latest jobs"
-  end
-
-  test "runner setup --hook-prompt prints the prompt as it is" do
-    serve([
-      {200,
-       ~s({"prompt":"Write the hooks.\\n- $SLIPDOCK_STATUS: how it ended\\n","scenario":"server"})}
-    ])
-
-    out =
-      capture_io(fn ->
-        Runners.run("runner", ["setup", "b", "box"], hook_prompt: true)
-      end)
-
-    assert_received {:request, "GET", path, _}
-    assert path =~ "/boards/b/runners/box/hook-prompt"
-    assert out == "Write the hooks.\n- $SLIPDOCK_STATUS: how it ended\n"
   end
 
   test "runner new passes --no-wait-while-doing and --wait-while-doing on" do
@@ -223,91 +219,6 @@ defmodule SlipdockCLI.RunnersTest do
     assert capture_io(fn -> Runners.run("claim-job", ["b"], pool: "loop") end) =~ "nothing queued"
   end
 
-  test "runner new and setup pass the Slipdock tools option, on, off or for named servers" do
-    serve([
-      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
-      {200, ~s({"setup":#{@setup},"diff":[]})}
-    ])
-
-    capture_io(fn ->
-      Runners.run("runner", ["new", "b"], pool: "dev", mcp_servers: "my-slipdock")
-    end)
-
-    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
-    assert JSON.decode!(body)["mcp_servers"] == "my-slipdock"
-    refute Map.has_key?(JSON.decode!(body), "slipdock_tools")
-
-    capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], slipdock_tools: false) end)
-    assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
-    assert JSON.decode!(body) == %{"slipdock_tools" => false}
-  end
-
-  test "runner new and setup pass --install-name, and leave it out unset" do
-    serve([
-      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
-      {200, ~s({"setup":#{@setup},"diff":[]})},
-      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})}
-    ])
-
-    capture_io(fn -> Runners.run("runner", ["new", "b"], pool: "dev", install_name: "laptop") end)
-    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
-    assert JSON.decode!(body)["install_name"] == "laptop"
-
-    capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], install_name: "old-one") end)
-    assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
-    assert JSON.decode!(body) == %{"install_name" => "old-one"}
-
-    capture_io(fn -> Runners.run("runner", ["new", "b"], pool: "dev") end)
-    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
-    refute Map.has_key?(JSON.decode!(body), "install_name")
-
-    assert {[install_name: "x"], [], []} =
-             OptionParser.parse(["--install-name", "x"], strict: SlipdockCLI.switches())
-  end
-
-  test "runner new and setup pass --worktree (#1627), and leave it out unset" do
-    serve([
-      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
-      {200, ~s({"setup":#{@setup},"diff":[]})}
-    ])
-
-    capture_io(fn -> Runners.run("runner", ["new", "b"], pool: "dev", worktree: true) end)
-    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
-    assert JSON.decode!(body)["worktree"] == true
-
-    capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], install_name: "x") end)
-    assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
-    refute Map.has_key?(JSON.decode!(body), "worktree")
-
-    assert {[worktree: false], [], []} =
-             OptionParser.parse(["--no-worktree"], strict: SlipdockCLI.switches())
-  end
-
-  test "runner new and setup pass --no-self-update (#1658), and leave it out unset" do
-    serve([
-      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
-      {200, ~s({"setup":#{@setup},"diff":[]})}
-    ])
-
-    {opts, [], []} = OptionParser.parse(["--no-self-update"], strict: SlipdockCLI.switches())
-    assert opts == [self_update: false]
-
-    capture_io(fn -> Runners.run("runner", ["new", "b"], [pool: "dev"] ++ opts) end)
-    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
-    assert JSON.decode!(body)["self_update"] == false
-
-    capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], install_name: "x") end)
-    assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
-    refute Map.has_key?(JSON.decode!(body), "self_update")
-  end
-
-  test "--no-slipdock-tools and --mcp-servers are options the CLI parses" do
-    assert {[slipdock_tools: false, mcp_servers: "a,b"], [], []} =
-             OptionParser.parse(["--no-slipdock-tools", "--mcp-servers", "a,b"],
-               strict: SlipdockCLI.switches()
-             )
-  end
-
   test "the seven toggles parse as --[no-]flags, are sent as given, and left out unset" do
     args =
       ~w(--in-progress --assign --commit --push --move-done --complete --percent-100 --verbosity nothing)
@@ -332,10 +243,7 @@ defmodule SlipdockCLI.RunnersTest do
     assert {[commit: true], ["push", "done"], [{"--close", nil}]} =
              OptionParser.parse(~w(--commit push --close done), strict: SlipdockCLI.switches())
 
-    serve([
-      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
-      {200, ~s({"setup":#{@setup},"diff":[]})}
-    ])
+    serve([{201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})}])
 
     capture_io(fn ->
       Runners.run("runner", ["new", "b"], [scenario: "loop"] ++ Keyword.delete(opts, :verbosity))
@@ -353,10 +261,6 @@ defmodule SlipdockCLI.RunnersTest do
              "complete" => true,
              "percent_100" => true
            }
-
-    capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], commit: false, push: false) end)
-    assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
-    assert JSON.decode!(body) == %{"commit" => false, "push" => false}
   end
 
   test "runner new for a Claude scenario needs no pool and makes no runner" do
@@ -365,7 +269,7 @@ defmodule SlipdockCLI.RunnersTest do
     assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
     assert JSON.decode!(body) == %{"scenario" => "loop"}
     refute out =~ "made runner"
-    assert out =~ "1. On the machine, run:"
+    assert out =~ "1. Install the daemon."
   end
 
   test "runner setup and runner token" do
@@ -540,35 +444,6 @@ defmodule SlipdockCLI.RunnersTest do
     assert JSON.decode!(body) == %{"outcome" => "failed"}
   end
 
-  test "runner setup with new answers saves them and prints what changes first" do
-    serve([
-      {200,
-       ~s({"diff":[["eq","curl …"],["del","  --timeout 3600"],["ins","  --timeout 900"],["ins","  --instructions 'Be brief.'"]],"setup":#{@setup}})}
-    ])
-
-    out =
-      capture_io(fn ->
-        Runners.run("runner", ["setup", "b", "4"],
-          timeout: 900,
-          instructions: "Be brief.",
-          after_job: "echo done"
-        )
-      end)
-
-    assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
-
-    assert JSON.decode!(body) == %{
-             "timeout" => 900,
-             "instructions" => "Be brief.",
-             "after_job" => "echo done"
-           }
-
-    assert out =~ "- " <> "  --timeout 3600"
-    assert out =~ "+   --instructions 'Be brief.'"
-    refute out =~ "curl …\n+"
-    assert out =~ "1. On the machine, run:"
-  end
-
   describe "skill and CLI drift (#1795)" do
     defp drifting(drift) do
       %{
@@ -580,7 +455,6 @@ defmodule SlipdockCLI.RunnersTest do
         "created_at" => "2026-11-03T10:00:00Z",
         "last_seen_at" => nil,
         "kinds" => ["claude"],
-        "script" => "current",
         "missing_kinds" => [],
         "drift" => drift,
         "current_job" => nil,

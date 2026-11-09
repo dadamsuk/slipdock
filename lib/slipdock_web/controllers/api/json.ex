@@ -1632,17 +1632,13 @@ defmodule SlipdockWeb.API.JSON do
       last_seen_at: r.last_seen_at,
       # The job kinds it said it takes on its last claim (#1656); nil if never.
       kinds: r.kinds,
-      # Its script (#1658): "sh <sha256>", and whether it is the one this
-      # server hands out (current, out_of_date, or unknown: never said).
-      version: r.version,
-      script:
-        r
-        |> Slipdock.Runners.script_state(SlipdockWeb.RunnerInstallController.latest())
-        |> to_string(),
       missing_kinds: Slipdock.Runners.missing_kinds(r),
       # Its installed skills and CLI against what this server serves (#1795).
       drift: drift(r),
       session: Slipdock.Runners.Runner.session?(r),
+      # A machine's runner (#2571); nil for a session's, or a retired shell
+      # runner's, with a token of its own (#2582).
+      machine_id: r.machine_id,
       settings: r.settings || %{},
       created_at: r.inserted_at
     }

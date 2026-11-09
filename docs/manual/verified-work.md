@@ -285,12 +285,9 @@ the project's toolchain.
 - Each new submission (after a rejection, say) queues a fresh job.
 - A job the queue won't take (it is full, or over its rate) is said on the
   card as a comment, and the card waits for someone to verify it by hand.
-- A runner takes `verify` jobs only if its config has a `job_verify`. The
-  installers (`install.sh`, `install.ps1`) write one (`Job-Verify` on
-  Windows) that runs the same agent as the runner's own kind, on the
-  server's prompt alone: a runner adds no standing instructions to a
+- A machine's runner takes `verify` jobs with the same agent as its own
+  kind, on the server's prompt alone: it adds no standing instructions to a
   `verify` job, since its agent checks the work rather than doing it.
-  Delete the function to take no verify jobs.
 
 ### Shipping by pull request
 
@@ -398,17 +395,14 @@ is signed out) isn't the card's fault: the merge is handed on to another
 runner that merges, never to that one again, and the card says so
 (**Merge handed on**). After two hand-ons, or with no other runner, the card
 stays merging with nothing queued and says why (**Merge waiting**). If no runner can merge, nothing is queued and the card
-says so: update a runner's script, or merge the pull request yourself and
+says so: give the pool a machine's runner that merges, or merge the pull request yourself and
 press **Merged it myself** (`slipdock verify 12 merged [--evidence-commit
 SHA]`, `verify_card` `merged`; a person only).
 
-**Runners merge.** Both runner scripts (`slipdock-runner`,
-`slipdock-runner.ps1`) have a built-in `merge` job kind, so a runner
-needs no config edit to merge. It runs in the runner's repository,
-wherever the runner was started (a service starts it in the home
-directory): `WORKTREE_REPO`, else `WORKDIR`, else the directory it started
-in (`$WorktreeRepo`, `$WorkDir` on Windows), with `git` and a signed-in
-`gh` (GitHub CLI). The server sends only data:
+**Runners merge.** A machine's runners have a built-in `merge` job kind,
+so a runner needs nothing set to merge (`no_merge: true` in the machine's
+own file turns it off). It runs in the runner's directory, its repository,
+with `git` and a signed-in `gh` (GitHub CLI). The server sends only data:
 the card's pull request and the commit that was accepted (the verifier's
 commit, else the builder's). The runner then checks, before merging anything:
 

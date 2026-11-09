@@ -153,13 +153,9 @@ defmodule SlipdockWeb.Router do
     get "/cli/install.ps1", CLIInstallController, :install_ps1
     get "/cli/slipdock.escript", CLIInstallController, :escript
     get "/cli/SHA256SUMS", CLIInstallController, :sums
-    # The shell runner and its installer (see `SlipdockWeb.RunnerInstallController`).
-    get "/runner/install.sh", RunnerInstallController, :install
-    get "/runner/slipdock-runner", RunnerInstallController, :runner
-    get "/runner/SHA256SUMS", RunnerInstallController, :sums
-    get "/runner/install.ps1", RunnerInstallController, :install_ps1
-    get "/runner/slipdock-runner.ps1", RunnerInstallController, :runner_ps1
-    get "/runner/examples/:name", RunnerInstallController, :example
+    # Where the shell and PowerShell runners were served, retired for the
+    # runner daemon (#2582): 410 Gone, pointing at Machines.
+    get "/runner/*path", RetiredRunnerController, :gone
     # Recording deploys from CI: worked examples (see `SlipdockWeb.DeployExamplesController`).
     get "/deploy/examples/:name", DeployExamplesController, :show
   end

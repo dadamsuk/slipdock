@@ -2055,9 +2055,9 @@ defmodule Slipdock.Verified do
   end
 
   defp no_merger_text(card) do
-    "**No runner can merge this.** None of this board's runners takes merge jobs: a runner " <>
-      "says it does on each claim once its script is current (reinstall or update " <>
-      "`slipdock-runner` / `slipdock-runner.ps1`; `MERGE=0` turns it off). " <>
+    "**No runner can merge this.** None of this board's runners takes merge jobs: a " <>
+      "machine's runner says it does on each claim unless its machine turns the built-in " <>
+      "merge off (`no_merge` in the machine's own file). " <>
       merge_by_hand_text(card)
   end
 
@@ -2105,9 +2105,10 @@ defmodule Slipdock.Verified do
 
   def merge_finished(_job, _runner_name), do: :ok
 
-  # What a runner script says, before touching anything, when the runner
-  # itself can't merge (`job_merge` / `Job-Merge`, exit 2): the card isn't
-  # at fault, so another runner may merge it.
+  # What a runner's built-in merge says, before touching anything, when the
+  # runner itself can't merge (exit 2): the card isn't at fault, so another
+  # runner may merge it. (The first wording is the retired shell runners'
+  # as well as the daemon's.)
   @runner_refusals [
     "but this runner's repository is",
     "has no origin remote",
