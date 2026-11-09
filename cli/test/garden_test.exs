@@ -226,6 +226,24 @@ defmodule SlipdockCLI.GardenTest do
     refute out =~ "page 11"
   end
 
+  test "garden <board> falls back to the suggestion's pages for the proposal and each alternative (#2592)" do
+    # A server older than #2592 sends no page_code: the suggestion's pages name the page.
+    suggestion =
+      @proposal
+      |> Map.put("pages", [%{"id" => 11, "title" => "Runbooks", "code" => "W-11"}])
+      |> Map.put("proposal", [%{"op" => "archive", "page" => 11}])
+      |> Map.put("alternatives", %{
+        "file" => [%{"op" => "file_page", "page" => 11, "folder" => 2}]
+      })
+
+    serve([{200, listing([suggestion])}])
+    out = capture_io(fn -> Garden.run("garden", ["ops"], []) end)
+
+    assert out =~ "→ archive page W-11"
+    assert out =~ ~s(or --choice "file": file page W-11 into folder 2)
+    refute out =~ "page 11"
+  end
+
   test "a page comment step, and a section edit, read as words (#1790)" do
     assert Garden.steps([%{"op" => "comment", "page" => 12, "body" => "Split it"}]) ==
              ~s(comment on page 12: "Split it")
