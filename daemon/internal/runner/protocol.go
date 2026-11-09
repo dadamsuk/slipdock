@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
 // Client speaks the runner protocol (SlipdockWeb.API.RunnerController) as
@@ -338,6 +340,32 @@ func (c *Client) Report(ctx context.Context, runnerID, version int64, outcome, r
 		return err
 	case resp.StatusCode == http.StatusOK, resp.StatusCode == http.StatusConflict, resp.StatusCode == http.StatusNotFound:
 		return nil
+	}
+	return refused(resp, data)
+}
+
+// ReportCeiling tells the server the machine's ceiling and the executors it
+// offers (PUT /api/machine/ceiling, #2615), for the Machines page to show
+// and to say which runner fields fall outside it. A refusal (the key
+// revoked, or the server finding the ceiling invalid) is a *Refused: asking
+// again won't change the answer. Anything else (no answer, a 5xx) is worth
+// another try.
+func (c *Client) ReportCeiling(ctx context.Context, ceil machine.Ceiling) error {
+	body, err := json.Marshal(map[string]any{"ceiling": ceil.Reported()})
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	h := http.Header{"Content-Type": {"application/json"}, "Accept": {"application/json"}}
+	resp, data, err := c.request(ctx, 0, http.MethodPut, "/api/machine/ceiling", body, h)
+	switch {
+	case err != nil:
+		return err
+	case resp.StatusCode == http.StatusOK:
+		return nil
+	case resp.StatusCode == http.StatusUnprocessableEntity:
+		return &Refused{Status: resp.StatusCode, Text: strings.TrimSpace(string(data))}
 	}
 	return refused(resp, data)
 }

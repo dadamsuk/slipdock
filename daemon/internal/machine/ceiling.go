@@ -46,6 +46,25 @@ func (c Ceiling) Offered() []string {
 	return c.Executors
 }
 
+// Reported is the ceiling as the daemon reports it to the server
+// (PUT /api/machine/ceiling, #2615): every field the server's
+// Ceiling.build requires, the executors always named (me alone for a
+// ceiling written before there were any), so none reads as no limit.
+func (c Ceiling) Reported() Ceiling {
+	r := c
+	r.Executors = append([]string(nil), c.Offered()...)
+	if r.Roots == nil {
+		r.Roots = []string{}
+	}
+	if r.Agents == nil {
+		r.Agents = []string{}
+	}
+	if r.Boards == nil {
+		r.Boards = []int64{}
+	}
+	return r
+}
+
 // PermissionModes from least to most permissive: a runner's mode must not
 // rank above the ceiling's.
 var PermissionModes = []string{"plan", "default", "acceptEdits", "bypassPermissions"}
