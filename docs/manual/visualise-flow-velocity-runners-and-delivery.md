@@ -29,7 +29,8 @@ it is worked out when you open it, and follows the board as it changes.
   jobs.
 - **Quality** — how well agent work goes over the window: the share of cards
   accepted on their first submission (with no rejection, a failed merge
-  counting as one, and never reopened), rejections per accepted card (and how
+  counting as one unless it found the pull request already merged, and never
+  reopened), rejections per accepted card (and how
   many were reopened, and how many are in rework now), runner jobs that timed
   out, failed, were requeued or given up on per 100 finished jobs, and health
   incidents fixed, flagged, cleared and open. Then **rework by area**: each
