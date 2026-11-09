@@ -1,0 +1,192 @@
+defmodule Slipdock.Runners.AnswerOneJobTest do
+  @moduledoc """
+  One job per card, whichever rule sends it (#2613). A board with two
+  `list_top` rules on one list, one per pool: answering or skipping the
+  wait a parked job asked sends the card as one job, with the answer, and
+  never a second with its plain prompt from the other pool's rule; and a
+  card some rule already has an open job for gets no second one from any
+  rule's runner action.
+  """
+  use Slipdock.DataCase, async: true
+
+  import Ecto.Query
+  import Slipdock.Fixtures
+
+  alias Slipdock.{Actor, Automations, Boards, Repo, Runners}
+  alias Slipdock.Boards.{Card, Wait}
+  alias Slipdock.Runners.Job
+
+  setup do
+    owner = user_fixture()
+    dana = user_fixture("dana-2613@example.com")
+    board = board_fixture(%{"name" => "Two pools"}, owner: owner)
+    {:ok, _} = Slipdock.Access.grant(board, dana, "write", owner)
+    [backlog, todo, doing, _done] = board.columns
+    {:ok, loop, _} = Runners.create_runner(board, %{"name" => "box", "pool" => "loop"})
+    {:ok, white, _} = Runners.create_runner(board, %{"name" => "white", "pool" => "white"})
+    a = card_fixture(todo, %{"title" => "a"})
+
+    %{owner: owner, dana: dana, board: board, todo: todo, doing: doing, a: a, loop: loop}
+    |> Map.merge(%{white: white, backlog: backlog})
+  end
+
+  defp feed(board, pool) do
+    rule_fixture(board, %{
+      "trigger" => %{"type" => "list_top", "column" => "To Do"},
+      "actions" => [%{"type" => "runner", "pool" => pool}]
+    })
+  end
+
+  defp card_jobs(card),
+    do: Repo.all(from(j in Job, where: j.card_id == ^card.id, order_by: [asc: j.id]))
+
+  defp open_card_jobs(card), do: card |> card_jobs() |> Enum.filter(&Job.open?/1)
+
+  # The loop runner takes the card, asks and parks: the card goes back on
+  # top of To Do, unassigned and flagged waiting.
+  defp park(ctx) do
+    job = Runners.claim(ctx.loop)
+    assert job.card_id == ctx.a.id
+    :ok = Boards.move_card_to_index(Repo.get!(Card, job.card_id), ctx.doing, :top)
+
+    {:ok, _} =
+      Boards.open_wait(Repo.get!(Card, job.card_id), Actor.runner(ctx.owner, job.id), %{
+        "needs" => "Which region?",
+        "choices" => ["eu", "us"],
+        "job_id" => job.id
+      })
+
+    {:ok, %Job{status: "parked"} = job} =
+      Runners.finish(ctx.loop, job.id, %{exit: "0", output: "Asked which region"})
+
+    # Past the feeds' cool-down: only the hold keeps them off the card.
+    Repo.update_all(from(j in Job, where: j.id == ^job.id),
+      set: [finished_at: DateTime.add(DateTime.utc_now(:second), -7200)]
+    )
+
+    assert open_card_jobs(ctx.a) == []
+    job
+  end
+
+  defp setup_two_feeds(ctx) do
+    loop_rule = feed(ctx.board, "loop")
+    white_rule = feed(ctx.board, "white")
+    # The only card goes to the first rule; the other has nothing to send.
+    assert [%Job{rule_id: id}] = open_card_jobs(ctx.a)
+    assert id == loop_rule.id
+    {loop_rule, white_rule}
+  end
+
+  describe "answering a parked wait, two list_top rules on one list" do
+    test "sends the card as one job, the asking rule's, with the answer", ctx do
+      {loop_rule, white_rule} = setup_two_feeds(ctx)
+      parked = park(ctx)
+
+      {:ok, wait} =
+        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+
+      assert [fresh] = open_card_jobs(ctx.a)
+      assert fresh.id != parked.id
+      assert fresh.rule_id == loop_rule.id
+      assert fresh.pool == "loop"
+      assert fresh.prompt =~ "Question on card ##{ctx.a.id}: Which region?"
+      assert wait.requeue_state == "queued"
+      assert wait.requeue_job_id == fresh.id
+
+      # The other pool's rule never sent the card, and its feed still won't.
+      refute Enum.any?(card_jobs(ctx.a), &(&1.rule_id == white_rule.id))
+      assert {:idle, _} = Automations.feed(white_rule)
+      assert Automations.next_card(white_rule, force: true) == nil
+      assert [_] = open_card_jobs(ctx.a)
+    end
+
+    test "skipping it sends one job too", ctx do
+      {loop_rule, _white_rule} = setup_two_feeds(ctx)
+      park(ctx)
+      wait = Repo.one!(from(w in Wait, where: w.card_id == ^ctx.a.id))
+
+      {:ok, wait} = Boards.answer_wait(wait, Actor.web(ctx.dana), %{"skip" => true})
+
+      assert [fresh] = open_card_jobs(ctx.a)
+      assert fresh.rule_id == loop_rule.id
+      assert fresh.prompt =~ "skipped"
+      assert wait.requeue_state == "queued"
+    end
+
+    test "another rule's still-queued job on the card carries the answer, no second", ctx do
+      {loop_rule, white_rule} = setup_two_feeds(ctx)
+      park(ctx)
+      # Sent by the other pool's rule meanwhile (another process won a race).
+      {:ok, plain} =
+        Runners.queue(Repo.get!(Card, ctx.a.id), %{
+          rule: white_rule,
+          pool: "white",
+          prompt: "plain prompt"
+        })
+
+      {:ok, wait} =
+        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 2})
+
+      assert [same] = open_card_jobs(ctx.a)
+      assert same.id == plain.id
+      assert same.pool == "white"
+      assert same.prompt =~ "Question on card ##{ctx.a.id}: Which region?"
+      assert wait.requeue_state == "queued"
+      assert wait.requeue_job_id == plain.id
+      refute Enum.any?(open_card_jobs(ctx.a), &(&1.rule_id == loop_rule.id))
+    end
+
+    test "another rule's job already running on the card holds the answer till it ends", ctx do
+      {loop_rule, white_rule} = setup_two_feeds(ctx)
+      park(ctx)
+
+      {:ok, plain} =
+        Runners.queue(Repo.get!(Card, ctx.a.id), %{
+          rule: white_rule,
+          pool: "white",
+          prompt: "plain prompt"
+        })
+
+      assert %Job{id: id} = Runners.claim(ctx.white)
+      assert id == plain.id
+
+      {:ok, wait} =
+        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+
+      assert wait.requeue_state == "pending"
+      assert [%Job{id: ^id}] = open_card_jobs(ctx.a)
+      refute Enum.any?(card_jobs(ctx.a), &(&1.rule_id == loop_rule.id and Job.open?(&1)))
+    end
+  end
+
+  describe "a card whose job is still running" do
+    test "no rule's runner action sends it a second job", ctx do
+      {_loop_rule, white_rule} = setup_two_feeds(ctx)
+
+      # A third rule sends a card to the white pool when it enters Doing.
+      moved =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "card_entered", "column" => ctx.doing.name},
+          "actions" => [%{"type" => "runner", "pool" => "white"}]
+        })
+
+      job = Runners.claim(ctx.loop)
+      Runners.heartbeat(ctx.loop, job.id)
+      assert Repo.reload!(job).status in ~w(claimed running)
+      :ok = Boards.move_card_to_index(Repo.get!(Card, ctx.a.id), ctx.doing, :top)
+
+      # The move fired the third rule, and both feeds have had their turn.
+      assert {:idle, _} = Automations.feed(white_rule)
+      assert [%Job{id: only}] = open_card_jobs(ctx.a)
+      assert only == job.id
+      refute Enum.any?(card_jobs(ctx.a), &(&1.rule_id == moved.id))
+
+      # A card with no open job (from the Backlog, which no feed works): the
+      # same rule sends it.
+      b = card_fixture(ctx.backlog, %{"title" => "b"})
+      assert open_card_jobs(b) == []
+      :ok = Boards.move_card_to_index(Repo.get!(Card, b.id), ctx.doing, :top)
+      assert Enum.any?(open_card_jobs(b), &(&1.rule_id == moved.id))
+    end
+  end
+end
