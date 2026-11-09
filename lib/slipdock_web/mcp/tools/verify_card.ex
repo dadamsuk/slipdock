@@ -57,6 +57,10 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
               "(never a rejection); " <>
               "defect:important|nit|pre-existing=<file>:<line>[:why] for a schema or " <>
               "security card's defect review (only important fails); " <>
+              "mutant:killed|survived|pre-existing=<file>:<line>:<mutation>[:note] for each " <>
+              "changed line the mutation review broke (survived fails: name the missing test; " <>
+              "pre-existing is a survivor in unchanged lines, kept as a finding), or " <>
+              "mutants=n/a:<why> when nothing in the diff is worth mutating; " <>
               "on a resubmission, =carried for a part passed before."
         }
       },

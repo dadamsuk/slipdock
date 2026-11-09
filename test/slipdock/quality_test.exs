@@ -458,6 +458,32 @@ defmodule Slipdock.QualityTest do
                rejections(ctx.board)
     end
 
+    test "a surviving mutant is a part of its own (#2354); killed and pre-existing ones aren't",
+         ctx do
+      rejected!(ctx, %{
+        "reason" => "No test fails without the guard",
+        "checks" => [
+          "mutant:killed=lib/a.ex:4:flip",
+          "mutant:survived=lib/a.ex:9:drop the guard",
+          "mutant:survived=lib/a.ex:12:return nil"
+        ]
+      })
+
+      rejected!(ctx, %{
+        "reason" => "bar 1: missing",
+        "checks" => ["bar:1=fail", "mutant:pre-existing=lib/old.ex:3:return nil"]
+      })
+
+      r = rejections(ctx.board)
+      assert r.rejections == 2
+      assert r.unparted == 0
+
+      assert Enum.sort_by(r.by_part, & &1.part) == [
+               %{part: "bar", count: 1},
+               %{part: "mutants", count: 1}
+             ]
+    end
+
     test "a rule the handbook no longer has keeps its id, with no page", ctx do
       rejected!(ctx, %{"reason" => "Gone", "checks" => ["rule:OLD-9=broken"]})
       assert [%{id: "OLD-9", page: nil, severity: nil}] = rejections(ctx.board).by_rule

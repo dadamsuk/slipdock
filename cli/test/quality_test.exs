@@ -183,6 +183,18 @@ defmodule SlipdockCLI.QualityTest do
     }
   end
 
+  test "a surviving mutant's rejections are named as a part (#2354)" do
+    rejections =
+      Map.put(many_rules(), "by_part", [
+        %{"part" => "rules", "count" => 6},
+        %{"part" => "mutants", "count" => 2}
+      ])
+
+    serve(quality(verified(1, 0, +0.0, 9, 9.0), rejections: rejections))
+    out = capture_io(fn -> Boards.run("quality", ["ship"], []) end)
+    assert out =~ "rejections: 9 · 6 the rules, 2 a surviving mutant, 1 naming no part"
+  end
+
   test "rejections by part, the five most broken rules and audits (#1798)" do
     serve(
       quality(verified(1, 0, +0.0, 9, 9.0),

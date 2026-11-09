@@ -204,4 +204,46 @@ defmodule SlipdockWeb.ProfilesVerifyWebTest do
     assert [%{"severity" => "nit", "line" => 3}] =
              Repo.get!(Card, card.id).verify_checks["defect_review"]
   end
+
+  test "MCP verify_card takes mutants, refuses an acceptance with a survivor, and reads them back (#2354)",
+       ctx do
+    {:ok, _} = Boards.update_board(ctx.board, %{"verify_work" => true})
+    card = card_fixture(ctx.doing, %{"title" => "Export"})
+    {:ok, card} = Boards.update_card(card, %{"profile" => "feature"})
+    builder = %{Actor.unknown() | kind: "agent", via: "api", user_id: ctx.user.id, agent: "b"}
+    {:ok, _} = Boards.update_card(card, %{"completed" => true}, actor: builder)
+
+    text =
+      ctx.user
+      |> with_token()
+      |> mcp("verify_card", %{
+        "card" => card.id,
+        "decision" => "accept",
+        "checks" => ["ask=ok", "mutant:survived=lib/export.ex:9:drop the header"]
+      })
+
+    assert text =~ "the surviving mutant at lib/export.ex:9"
+    assert Repo.get!(Card, card.id).verify_state == "pending"
+
+    ctx.user
+    |> with_token()
+    |> mcp("verify_card", %{
+      "card" => card.id,
+      "decision" => "reject",
+      "reason" => "No test fails without the header row",
+      "checks" => ["ask=ok", "mutant:survived=lib/export.ex:9:drop the header:a header test"]
+    })
+
+    assert [%{"result" => "survived", "line" => 9, "note" => "a header test"}] =
+             Repo.get!(Card, card.id).verify_checks["mutants"]
+
+    json =
+      ctx.user
+      |> with_token()
+      |> get("/api/cards/#{card.id}")
+      |> json_response(200)
+
+    assert [%{"result" => "survived", "file" => "lib/export.ex"}] =
+             (json["card"] || json)["verify_checks"]["mutants"]
+  end
 end

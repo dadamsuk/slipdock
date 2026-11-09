@@ -1069,6 +1069,7 @@ defmodule Slipdock.Verified do
                ) do
           cancel_verify_jobs(card, actor)
           Slipdock.Findings.Signals.pre_existing(card, checks, actor)
+          Slipdock.Findings.Signals.pre_existing_mutants(card, checks, actor)
           decided
         end
     end
@@ -1149,7 +1150,8 @@ defmodule Slipdock.Verified do
       do:
         {:error, :unprocessable_entity,
          "a rejection names what fails: give a failing check (`--check bar:2=fail:why`, " <>
-           "`rule:UX-4=broken`, `ask=misses`, `handbook_line=disputed`), or start the reason " <>
+           "`rule:UX-4=broken`, `ask=misses`, `handbook_line=disputed`, " <>
+           "`mutant:survived=lib/foo.ex:42:<mutation>`), or start the reason " <>
            "with the one it fails (`bar 2: …`, `the ask: …`, `UX-4: …`, `Handbook line: …`)" <>
            pre_existing_note(checks)},
       else: :ok
@@ -1164,7 +1166,8 @@ defmodule Slipdock.Verified do
         {:error, :unprocessable_entity,
          "an acceptance can't carry a failing check: " <>
            Enum.join(blocking, ", ") <>
-           " (a broken `must` rule, a bar item, the ask, the suite or the Handbook line is a rejection)"}
+           " (a broken `must` rule, a bar item, the ask, the suite, the Handbook line, an important " <>
+           "defect or a surviving mutant is a rejection)"}
     end
   end
 
@@ -1172,11 +1175,12 @@ defmodule Slipdock.Verified do
 
   # A rejection naming only pre-existing rule hits (#1945) is told why.
   defp pre_existing_note(checks) do
-    if Slipdock.Verified.Checks.pre_existing(checks) == [],
-      do: "",
-      else:
-        ". A rule broken only in code the change didn't touch (`pre-existing`) is never a " <>
-          "rejection: accept, and it is kept as a finding"
+    if Slipdock.Verified.Checks.pre_existing(checks) == [] and
+         Slipdock.Verified.Checks.pre_existing_mutants(checks) == [],
+       do: "",
+       else:
+         ". A rule broken, or a mutant surviving, only in code the change didn't touch " <>
+           "(`pre-existing`) is never a rejection: accept, and it is kept as a finding"
   end
 
   # nil when there are no parts; parts read from the reason are marked, as
@@ -2658,12 +2662,7 @@ defmodule Slipdock.Verified do
   defp carry_list(passed),
     do:
       " Passed then: " <>
-        Enum.map_join(passed, ", ", fn
-          {"ask", _} -> "the ask"
-          {"handbook_line", _} -> "the Handbook line"
-          {"bar", i} -> "bar #{i}"
-          {"rules", id} -> id
-        end) <> "."
+        Enum.map_join(passed, ", ", &Slipdock.Verified.Checks.carried_label/1) <> "."
 
   # What the card asks, its bar and evidence, and the steps to its checks:
   # the same for a verify job and an audit.

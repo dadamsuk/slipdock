@@ -593,6 +593,7 @@ defmodule SlipdockCLI.Render do
   defp part_name("rules"), do: "the rules"
   defp part_name("suite"), do: "the suite"
   defp part_name("handbook_line"), do: "the Handbook line"
+  defp part_name("mutants"), do: "a surviving mutant"
   defp part_name(other), do: other
 
   defp quality_area(a) do
@@ -3094,7 +3095,9 @@ defmodule SlipdockCLI.Render do
          "Handbook line",
          checks["handbook_line"],
          carried_note(notes["handbook_line"], carried["handbook_line"])
-       ) ++ defect_parts(checks["defect_review"]) ++ not_verified_part(checks["not_verified"]))
+       ) ++
+       defect_parts(checks["defect_review"]) ++
+       mutant_parts(checks["mutants"]) ++ not_verified_part(checks["not_verified"]))
     |> Enum.map(&check_line/1)
   end
 
@@ -3110,6 +3113,23 @@ defmodule SlipdockCLI.Render do
   end
 
   defp defect_parts(_), do: []
+
+  # The mutation review (#2354): each line broken on purpose, and whether
+  # the card's tests caught it. Only a survivor fails.
+  defp mutant_parts(%{"n/a" => why}), do: [{"mutants", "n/a", why}]
+
+  defp mutant_parts(list) when is_list(list) do
+    for m <- list do
+      note =
+        ["#{m["file"]}:#{m["line"]}", m["mutation"], m["note"]]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.join("; ")
+
+      {"mutant", m["result"], carried_note(note, m["carried_from"])}
+    end
+  end
+
+  defp mutant_parts(_), do: []
 
   # A docs card the server accepted with no verify job (#1953).
   defp not_verified_part(p) when is_binary(p),
@@ -3150,8 +3170,8 @@ defmodule SlipdockCLI.Render do
   defp check_line({label, result, note}) do
     mark =
       cond do
-        Enum.member?(~w(pre-existing nit unverified), result) -> "○"
-        Enum.member?(~w(misses fail broken disputed important), result) -> "✗"
+        Enum.member?(~w(pre-existing nit unverified n/a), result) -> "○"
+        Enum.member?(~w(misses fail broken disputed important survived), result) -> "✗"
         true -> "✓"
       end
 
