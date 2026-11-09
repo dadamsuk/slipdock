@@ -212,7 +212,18 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 		logf("config version %d: %d of %d runners running", keeper.Version(), len(workers), listed)
 	}
 
-	go reportCeiling(ctx, client, ceil, pause, logf)
+	// The ceiling's report ends before runRunners returns (#2644): it logs,
+	// and nothing it writes may land after the run has finished.
+	reportCtx, stopReport := context.WithCancel(ctx)
+	reported := make(chan struct{})
+	go func() {
+		defer close(reported)
+		reportCeiling(reportCtx, client, ceil, pause, logf)
+	}()
+	defer func() {
+		stopReport()
+		<-reported
+	}()
 
 	cached, err := keeper.Load()
 	if err != nil {
