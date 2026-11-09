@@ -269,6 +269,44 @@ defmodule SlipdockWeb.HelpLiveTest do
     end
 
     @tag :anonymous
+    test "the Runners topic explains the profile a claimed job carries (#2594)", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/help/agents/runners")
+
+      assert has_element?(view, "#help-runners-profile strong", "profile")
+
+      # It sits beside what a job carries: the paragraph straight before it
+      # says what the server sends.
+      [before | _] =
+        doc(html)
+        |> LazyHTML.query("#help-topic-runners p:has(+ #help-runners-profile)")
+        |> Enum.to_list()
+
+      assert LazyHTML.text(before) =~ ~r/The server sends\s+only the card and a prompt/
+
+      # Every profile there is, and the claim's fields that carry it.
+      for name <- Slipdock.Profiles.names() do
+        assert has_element?(view, "#help-runners-profile code", name)
+      end
+
+      for field <- ["claim_job", "slipdock claim-job", "profile:", "SLIPDOCK_PROFILE"] do
+        assert has_element?(view, "#help-runners-profile code", field)
+      end
+
+      text = view |> element("#help-runners-profile") |> render() |> doc() |> LazyHTML.text()
+      assert text =~ ~r/profiles\s+on/
+      assert text =~ ~r/raise a card's profile once work has started, never lower\s+it/
+      assert text =~ ~r/With profiles off, no profile is sent/
+    end
+
+    @tag :anonymous
+    test "the profile is explained only on the Runners topic", %{conn: conn} do
+      for slug <- Agents.slugs() -- ["runners"] do
+        {:ok, view, _html} = live(conn, ~p"/help/agents/#{slug}")
+        refute has_element?(view, "#help-runners-profile"), slug
+      end
+    end
+
+    @tag :anonymous
     test "the pages carry the address they were reached on", %{conn: conn} do
       # The test request's host, not the endpoint's configured localhost:4000:
       # what's copied from here has to work against the server that drew it.
