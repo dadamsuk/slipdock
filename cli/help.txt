@@ -879,8 +879,8 @@ WRITE
                                       of that profile does on a pull-request board (root
                                       board only): none or ledger merge it, before_merge
                                       waits for a person to merge it or send it back;
-                                      default puts it back (docs/fix none, feature ledger,
-                                      schema/security/spike before_merge)
+                                      default puts it back (docs/fix/spike none, feature
+                                      ledger, schema/security before_merge)
   sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                       start the next sprint on a sprint board: a dated card
                                       ("Sprint 4", following on from the last, 14 days unless

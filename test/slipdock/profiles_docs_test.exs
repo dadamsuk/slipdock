@@ -71,4 +71,51 @@ defmodule Slipdock.ProfilesDocsTest do
         ],
         do: assert(text =~ part, inspect(part))
   end
+
+  # #2349: a spike's tier is none, so nothing that lists the defaults may
+  # still put it with schema and security under before_merge, or say it
+  # waits for a person. (priv/skills joins the scan with #2351.)
+  @stale_spike [
+    ~r/before_merge[ (]*schema[ ,\/]+security[ ,\/]+(and )?spike/,
+    ~r/schema[ ,\/]+security[ ,\/]+(and |or )?spike[ )]*(before_merge|changes wait|wait|card an agent accepts (is )?(held|waits))/
+  ]
+
+  test "nothing lists spike's tier as before_merge" do
+    files =
+      Enum.flat_map(["lib/**/*.ex", "docs/**/*.md"], &Path.wildcard(Path.join(@root, &1))) ++
+        Enum.map(["README.md", "cli/help.txt"], &Path.join(@root, &1))
+
+    stale =
+      for file <- files,
+          text = file |> File.read!() |> flatten(),
+          Enum.any?(@stale_spike, &Regex.match?(&1, text)),
+          do: Path.relative_to(file, @root)
+
+    assert stale == []
+  end
+
+  test "the stale wording is caught, wrapped or quoted" do
+    for stale <- [
+          "default puts it back (docs/fix none, feature ledger,\n   schema/security/spike before_merge)",
+          "`before_merge` (`schema`, `security`,\n`spike`) holds it",
+          "| `before_merge` | `schema`, `security`, `spike` | holds the card |",
+          "by default schema, security and spike changes wait for you",
+          "a schema, security or spike card an agent accepts waits for a person",
+          "\"docs/fix none, feature ledger, schema/security/spike before_merge.\""
+        ],
+        do: assert(Enum.any?(@stale_spike, &Regex.match?(&1, flatten(stale))), stale)
+
+    refute Enum.any?(
+             @stale_spike,
+             &Regex.match?(&1, flatten("docs/fix/spike none, schema/security before_merge"))
+           )
+  end
+
+  # Backticks, table pipes, quotes, emphasis and string joins out; one space.
+  defp flatten(text) do
+    text
+    |> String.replace(~r/[`|"*]/, " ")
+    |> String.replace(~r/\s*<>\s*/, " ")
+    |> String.replace(~r/\s+/, " ")
+  end
 end
