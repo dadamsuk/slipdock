@@ -38,6 +38,7 @@ test/slipdock_web/live/file_picker_live_test.exs
 test/slipdock_web/mcp/tool_descriptions_test.exs
 test/slipdock/inbound_worker_pattern_test.exs
 test/slipdock_web/panel_no_flash_test.exs
+test/slipdock_web/device_approval_browser_only_test.exs
 
 # Docs and skills held to the server
 test/slipdock_web/controllers/api/skills_test.exs
