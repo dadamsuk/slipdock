@@ -484,6 +484,20 @@ defmodule Slipdock.QualityTest do
              ]
     end
 
+    test "a rejection whose only mutants were killed has no mutants part (#2354)", ctx do
+      rejected!(ctx, %{
+        "reason" => "bar 1: missing",
+        "checks" => [
+          "bar:1=fail",
+          "mutant:killed=lib/a.ex:4:flip",
+          "mutant:killed=lib/a.ex:9:drop the guard"
+        ]
+      })
+
+      assert %{rejections: 1, unparted: 0, by_part: [%{part: "bar", count: 1}]} =
+               rejections(ctx.board)
+    end
+
     test "a rule the handbook no longer has keeps its id, with no page", ctx do
       rejected!(ctx, %{"reason" => "Gone", "checks" => ["rule:OLD-9=broken"]})
       assert [%{id: "OLD-9", page: nil, severity: nil}] = rejections(ctx.board).by_rule
