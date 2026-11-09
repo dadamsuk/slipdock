@@ -90,6 +90,33 @@ defmodule SlipdockWeb.API.DeviceFlowTest do
                nil
     end
 
+    # SPEC-1's exception (#2596): approving a code mints a token, so a token
+    # alone, with no signed-in browser behind it, never approves one.
+    test "a write token without a browser session cannot approve a code", ctx do
+      started = start(ctx.conn)
+      {token, _} = Accounts.create_api_token(ctx.user, "agent", scope: "write")
+
+      token_only =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Conn.put_req_header("authorization", "Bearer " <> token)
+
+      body = %{user_code: started["user_code"], decision: "approve"}
+
+      # The browser route sends a token-only request to sign in, and there is
+      # no /api twin to take it instead.
+      assert token_only |> post(~p"/activate", body) |> redirected_to() =~ "/login"
+
+      for path <- ["/api/activate", "/api/auth/device/approve", "/api/device/approve"] do
+        assert token_only |> post(path, body) |> response(404)
+      end
+
+      assert %{"error" => "authorization_pending"} =
+               ctx.conn |> poll(started["device_code"]) |> json_response(400)
+
+      assert Repo.get_by!(DeviceAuthorization, user_code: strip(started["user_code"])).approved_at ==
+               nil
+    end
+
     test "a GET to /activate never approves — only a POST decides", ctx do
       started = start(ctx.conn)
 
