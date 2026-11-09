@@ -125,6 +125,9 @@ test/slipdock_web/verify_progress_test.exs
 test/slipdock/ci_workflow_test.exs
 test/slipdock/daemon_release_workflow_test.exs
 
+# The e2e scripts CI can't run, against what they drive
+test/slipdock/daemon_job_log_e2e_test.exs
+
 # The branch against main: its migrations are newer than main's (DATA-14, #2090)
 test/slipdock/migration_order_test.exs
 
