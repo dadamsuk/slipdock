@@ -143,7 +143,7 @@ defmodule SlipdockCLI.GardenTest do
 
     assert out =~ "Proposed edits (1)"
     assert out =~ "#50 UX-4 keeps breaking"
-    assert out =~ "→ edit §UX & UI/Rules of page 9"
+    assert out =~ "→ edit §UX & UI/Rules of page W-3"
     assert out =~ "evidence: findings #3, #5"
     assert out =~ "a person's to decide"
   end
@@ -162,13 +162,68 @@ defmodule SlipdockCLI.GardenTest do
     assert_received {:request, "POST", "/api/boards/ops/garden/proposals", sent}
     assert JSON.decode!(sent) == body
     assert out =~ "proposed #50 UX-4 keeps breaking"
-    assert out =~ "→ edit §UX & UI/Rules of page 9"
+    assert out =~ "→ edit §UX & UI/Rules of page W-3"
 
     out =
       capture_io(JSON.encode!(body), fn -> Garden.run("garden", ["propose", "ops", "-"], []) end)
 
     assert_received {:request, "POST", "/api/boards/ops/garden/proposals", ^sent}
     assert out =~ "already filed: #50"
+  end
+
+  test "a step's page is named by its code: the step's page_code, else the pages, else the id (#2592)" do
+    pages = [%{"id" => 9, "title" => "UX & UI", "code" => "W-3"}]
+
+    # The server's page_code wins.
+    assert Garden.steps(
+             [
+               %{
+                 "op" => "edit_section",
+                 "page" => 1939,
+                 "page_code" => "W-1944",
+                 "section" => "S/Rules"
+               }
+             ],
+             pages
+           ) == "edit §S/Rules of page W-1944"
+
+    # A server older than #2592: the suggestion's pages name it.
+    assert Garden.steps(
+             [
+               %{"op" => "archive", "page" => 9},
+               %{"op" => "comment", "page" => 9, "body" => "Split it"},
+               %{"op" => "rewrite_link", "page" => 9, "from" => "Runbok", "to" => "Runbook"},
+               %{"op" => "file_page", "page" => 9, "folder" => 3}
+             ],
+             pages
+           ) ==
+             ~s(archive page W-3, comment on page W-3: "Split it", ) <>
+               "rewrite [[Runbok]] to [[Runbook]] on page W-3, file page W-3 into folder 3"
+
+    # A page neither names keeps its id; a card step is untouched.
+    assert Garden.steps(
+             [%{"op" => "archive", "page" => 12}, %{"op" => "complete", "card" => 4}],
+             pages
+           ) ==
+             "archive page 12, complete #4"
+
+    assert Garden.steps([%{"op" => "archive", "page" => 12}], nil) == "archive page 12"
+  end
+
+  test "garden <board> names the alternatives' pages by code too (#2592)" do
+    alt = [%{"op" => "file_page", "page" => 11, "page_code" => "W-11", "folder" => 2}]
+
+    suggestion =
+      @proposal
+      |> Map.put("proposal", [%{"op" => "archive", "page" => 11, "page_code" => "W-11"}])
+      |> Map.put("alternatives", %{"file" => alt})
+
+    serve([{200, listing([suggestion])}])
+    out = capture_io(fn -> Garden.run("garden", ["ops"], []) end)
+
+    assert out =~ "→ archive page W-11"
+    assert out =~ ~s(or --choice "file": file page W-11 into folder 2)
+    refute out =~ "page 11"
   end
 
   test "a page comment step, and a section edit, read as words (#1790)" do

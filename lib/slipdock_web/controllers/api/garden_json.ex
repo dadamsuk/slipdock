@@ -26,10 +26,19 @@ defmodule SlipdockWeb.API.GardenJSON do
     }
   end
 
-  @doc "Suggestions, their subjects named (one query for the cards, one for the pages)."
+  @doc """
+  Suggestions, their subjects named (one query for the cards, one for the
+  pages). Each step on a page keeps its `page` id, which applying it
+  reads, and gains the page's `page_code` (`W-1944`), which a reader
+  needs (#2592).
+  """
   def suggestions(list) when is_list(list) do
     card_ids = list |> Enum.flat_map(&Suggestion.card_ids/1) |> Enum.uniq()
-    page_ids = list |> Enum.flat_map(&Suggestion.page_ids/1) |> Enum.uniq()
+
+    page_ids =
+      list
+      |> Enum.flat_map(&(Suggestion.page_ids(&1) ++ step_page_ids(&1)))
+      |> Enum.uniq()
 
     cards =
       from(c in Card,
@@ -64,16 +73,38 @@ defmodule SlipdockWeb.API.GardenJSON do
       explanation: s.explanation,
       cards: s |> Suggestion.card_ids() |> Enum.map(&(cards[&1] || %{id: &1, title: nil})),
       pages: s |> Suggestion.page_ids() |> Enum.map(&(pages[&1] || %{id: &1, title: nil})),
-      proposal: s.proposal,
+      proposal: coded(s.proposal, pages),
       findings: Map.get(s.subject, "findings", []),
       person_only: Gardener.person_only?(s),
-      alternatives: s.alternatives,
+      alternatives: Map.new(s.alternatives || %{}, fn {k, steps} -> {k, coded(steps, pages)} end),
       needs_keep: Steps.needs_pick?(s.proposal),
       decided_by_id: s.decided_by_id,
       decided_at: s.decided_at,
       created_at: s.inserted_at
     }
   end
+
+  # The pages the proposal and its alternatives' steps are on.
+  defp step_page_ids(%Suggestion{proposal: steps, alternatives: alts}) do
+    [steps | Map.values(alts || %{})]
+    |> Enum.flat_map(&List.wrap/1)
+    |> Enum.flat_map(fn
+      %{"page" => id} when is_integer(id) -> [id]
+      _ -> []
+    end)
+  end
+
+  defp coded(steps, pages) when is_list(steps), do: Enum.map(steps, &coded_step(&1, pages))
+  defp coded(steps, _pages), do: steps
+
+  defp coded_step(%{"page" => id} = step, pages) when is_integer(id) do
+    case pages[id] do
+      %{code: code} when is_binary(code) -> Map.put(step, "page_code", code)
+      _ -> step
+    end
+  end
+
+  defp coded_step(step, _pages), do: step
 
   @doc "Every check, with what it runs with on `board`."
   def checks(%Board{} = board) do

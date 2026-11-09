@@ -227,8 +227,10 @@ defmodule SlipdockWeb.GardenAPITest do
       assert s["label"] == "Proposed edits"
       assert s["findings"] == [4]
       assert s["person_only"] == true
-      assert [%{"op" => "edit_section", "page" => page_id, "base" => base}] = s["proposal"]
+      assert [%{"op" => "edit_section", "page" => page_id, "base" => base} = step] = s["proposal"]
       assert page_id == ctx.page.id
+      # The step names its page by code too, for a reader (#2592).
+      assert step["page_code"] == ctx.page.code
       assert is_binary(base)
       assert [%{"id" => ^page_id, "code" => _}] = s["pages"]
 
@@ -238,10 +240,12 @@ defmodule SlipdockWeb.GardenAPITest do
       assert id == s["id"]
 
       # Listed, and narrowed by check=proposal.
-      assert %{"suggestions" => [%{"id" => ^id}]} =
+      assert %{"suggestions" => [%{"id" => ^id, "proposal" => [listed]}]} =
                as(ctx.owner)
                |> get("/api/boards/#{ctx.board.code}/garden?check=proposal")
                |> json_response(200)
+
+      assert listed["page_code"] == ctx.page.code
     end
 
     test "a step outside the list, an unknown field, a reader and a read-only token are refused",
