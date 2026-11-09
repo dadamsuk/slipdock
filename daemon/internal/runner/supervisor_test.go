@@ -48,7 +48,7 @@ func TestCheckAgainstTheCeiling(t *testing.T) {
 		"timeout":   {func(r *Runner) { r.Config.TimeoutMinutes = 61 }, "timeout 61"},
 		"zero time": {func(r *Runner) { r.Config.TimeoutMinutes = 0 }, "timeout 0"},
 		"board":     {func(r *Runner) { r.BoardID = 4 }, "board #4"},
-		"executor":  {func(r *Runner) { r.Config.Executor = "user" }, `executor "user" is not available`},
+		"executor":  {func(r *Runner) { r.Config.Executor = "user" }, `executor "user" is not one this machine offers`},
 	}
 	for name, c := range cases {
 		r := good

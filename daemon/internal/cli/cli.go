@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
@@ -52,6 +53,8 @@ type Env struct {
 	Context func() (context.Context, context.CancelFunc)
 	// Account names the OS account the daemon runs as.
 	Account func() string
+	// HomeOpen says whether a home is open to other accounts.
+	HomeOpen func(home string) bool
 }
 
 // DefaultEnv is the real world.
@@ -88,6 +91,9 @@ func DefaultEnv() Env {
 			return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		},
 		Account: account,
+		HomeOpen: func(home string) bool {
+			return executor.HomeOpen(runtime.GOOS, home)
+		},
 	}
 }
 
@@ -132,7 +138,8 @@ func openBrowser(goos, url string, start func(string, ...string) error) error {
 const usage = `slipdock-runner: the Slipdock runner daemon, one per machine.
 
 Usage:
-  slipdock-runner init [--server URL] [--key KEY] [--replace]   enrol this machine
+  slipdock-runner init [--server URL] [--key KEY] [--replace] [--user NAME | --as-me]
+                                          enrol this machine, and choose who jobs run as
   slipdock-runner show                    the trust contract, with this machine's limits
   slipdock-runner doctor                  check this machine is ready to run jobs
   slipdock-runner service install|uninstall|print
@@ -172,6 +179,9 @@ func Main(args []string, env Env) int {
 		err = cmdRun(rest, env)
 	case "update":
 		err = cmdUpdate(rest, env)
+	case "confine":
+		// How the daemon starts a confined job on Linux; not for people.
+		return executor.ConfineMain(rest, env.Stderr)
 	case "version", "--version":
 		fmt.Fprintf(env.Stdout, "slipdock-runner %s (%s/%s)\n", Version, env.GOOS, env.GOARCH)
 	default:

@@ -68,3 +68,24 @@ func TestLoadLocalRefusesWhatItDoesntKnow(t *testing.T) {
 		}
 	}
 }
+
+func TestTheLocalFileNamesTheAccountAndWhatConfinedMayWrite(t *testing.T) {
+	d := t.TempDir()
+	l := Local{User: &Account{Name: "slipdock", Home: "/srv/slipdock"}, ConfinedWritable: []string{"/srv/me/.claude"}}
+	if err := SaveLocal(d, l); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadLocal(d)
+	if err != nil || got.User == nil || *got.User != *l.User || len(got.ConfinedWritable) != 1 {
+		t.Fatalf("%+v %v", got, err)
+	}
+	for _, bad := range []Local{
+		{User: &Account{Name: "", Home: "/srv/x"}},
+		{User: &Account{Name: "x", Home: "home/x"}},
+		{ConfinedWritable: []string{"relative"}},
+	} {
+		if err := SaveLocal(d, bad); err == nil {
+			t.Errorf("saved %+v", bad)
+		}
+	}
+}

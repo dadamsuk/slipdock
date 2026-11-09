@@ -17,15 +17,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
 // TestMain doubles as the agent and the hooks: run as `<test binary>
 // helper <mode> …`, it does what the mode says instead of testing, so the
-// jobs run a real process on every OS.
+// jobs run a real process on every OS. Run as `<test binary> confine …`,
+// it is slipdock-runner's confine, which a confined job starts through.
 func TestMain(m *testing.M) {
 	if len(os.Args) >= 3 && os.Args[1] == "helper" {
 		os.Exit(helper(os.Args[2], os.Args[3:]))
+	}
+	if len(os.Args) >= 2 && os.Args[1] == "confine" {
+		os.Exit(executor.ConfineMain(os.Args[2:], os.Stderr))
 	}
 	os.Exit(m.Run())
 }
@@ -46,6 +51,11 @@ func helper(mode string, args []string) int {
 		for _, e := range os.Environ() {
 			if strings.HasPrefix(e, "SLIPDOCK_") || strings.HasPrefix(e, "CLAUDE_CODE_") {
 				fmt.Fprintf(&b, "env=%s\n", strings.ReplaceAll(e, "\n", `\n`))
+			}
+		}
+		if tmp := os.Getenv("TMPDIR"); os.Getenv("HELPER_SCRATCH") != "" && tmp != "" {
+			if err := os.WriteFile(filepath.Join(tmp, "scratch"), []byte("x"), 0o600); err == nil {
+				b.WriteString("scratch=writable\n")
 			}
 		}
 		_ = os.WriteFile(os.Getenv("HELPER_OUT"), []byte(b.String()), 0o600)
@@ -250,6 +260,15 @@ func jobID(path string) int64 {
 	return id
 }
 
+// header is the last claim's headers from runner id. A claim still in
+// flight when the worker stops can land after the job's finish, so it is
+// read under the lock.
+func (s *server) header(id int64) http.Header {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.claimHeader[id]
+}
+
 func (s *server) finish(id int64) (finished, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -344,6 +363,7 @@ func newRig(t *testing.T, cfg Config) *rig {
 		},
 		Wait: 0, Heartbeat: 30 * time.Millisecond, TranscriptEvery: 30 * time.Millisecond,
 		Grace: 200 * time.Millisecond, Tick: 10 * time.Millisecond,
+		Launcher: os.Args[0],
 	}
 	return r
 }

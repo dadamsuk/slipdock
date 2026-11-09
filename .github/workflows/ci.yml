@@ -340,5 +340,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # On Linux and macOS the executors' tests run for real and a missing
+      # facility fails them rather than skipping: confined (Landlock,
+      # sandbox-exec) on both, and on Linux the user executor, which makes a
+      # throwaway account with the runner's passwordless sudo (#2576).
       - name: Test
         run: go test ./...
+        env:
+          SLIPDOCK_EXECUTOR_TESTS: ${{ matrix.os != 'windows-latest' && '1' || '' }}

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -26,6 +25,9 @@ func cmdInit(args []string, env Env) error {
 	fs.Var(&agents, "agent", "an agent runners may run (repeat for more; default: claude)")
 	maxMode := fs.String("max-mode", "", "the highest permission mode a runner may use (default: acceptEdits)")
 	maxTimeout := fs.Int("max-timeout", 0, "the longest a job may run, in minutes (default: 60)")
+	asMe := fs.Bool("as-me", false, "run jobs as you, for a laptop that is only yours (asked if neither this nor --user)")
+	user := fs.String("user", "", "run jobs as this dedicated account, made if it isn't there (the question's default: "+DefaultAccount+")")
+	noSetup := fs.Bool("no-setup", false, "don't open a shell as the account to set it up")
 	if err := parse(fs, args); err != nil {
 		return err
 	}
@@ -42,8 +44,26 @@ func cmdInit(args []string, env Env) error {
 
 	// The ceiling's flags are checked before enrolling, so a mistake in
 	// them doesn't leave a machine enrolled on the server with no ceiling.
-	if _, _, err := chooseCeiling(d, []int64{0}, roots, agents, *maxMode, *maxTimeout, env); err != nil {
+	userHome, err := env.UserHome()
+	if err != nil {
+		return fmt.Errorf("can't find your home directory: %w", err)
+	}
+	if _, _, err := chooseCeiling(d, []int64{0}, roots, agents, *maxMode, *maxTimeout, userHome, nil, env); err != nil {
 		return err
+	}
+
+	// Who jobs run as, and the account set up (one sudo), before the
+	// enrolment: a refusal here leaves nothing enrolled.
+	who, err := chooseRunAs(*asMe, *user, env)
+	if err != nil {
+		return err
+	}
+	jobsHome := userHome
+	if who.account != "" {
+		if who, err = setUpAccount(who, env); err != nil {
+			return err
+		}
+		jobsHome = who.home
 	}
 
 	srv, err := serverURL(*server, env)
@@ -85,7 +105,7 @@ func cmdInit(args []string, env Env) error {
 		return fmt.Errorf("enrolment failed: %w", err)
 	}
 
-	ceiling, kept, err := chooseCeiling(d, res.Machine.Boards, roots, agents, *maxMode, *maxTimeout, env)
+	ceiling, kept, err := chooseCeiling(d, res.Machine.Boards, roots, agents, *maxMode, *maxTimeout, jobsHome, who.executors(env.GOOS), env)
 	if err != nil {
 		return err
 	}
@@ -106,6 +126,9 @@ func cmdInit(args []string, env Env) error {
 			return err
 		}
 	}
+	if err := saveRunAs(d, who); err != nil {
+		return fmt.Errorf("enrolled, but couldn't write who jobs run as into %s: %w", machine.LocalFile, err)
+	}
 
 	fmt.Fprintf(env.Stdout, "Enrolled as %s (machine #%d). Its key is in %s, readable only by you.\n\n",
 		st.Name, st.MachineID, filepath.Join(d, machine.KeyFile))
@@ -115,6 +138,9 @@ func cmdInit(args []string, env Env) error {
 	}
 	fmt.Fprintf(env.Stdout, "%s ceiling, in %s (only someone at this machine changes it; the server never sees the file):\n", how, filepath.Join(d, machine.CeilingFile))
 	printCeiling(env, ceiling)
+	if !*noSetup {
+		startSetUp(who, ceiling.Roots[0], env)
+	}
 	fmt.Fprintf(env.Stdout, "\nNext: add its runners on the Machines page, then `slipdock-runner service install`.\n"+
 		"`slipdock-runner show` says what the server can and cannot make this machine do.\n")
 	return nil
@@ -133,11 +159,7 @@ func serverURL(flagValue string, env Env) (string, error) {
 	s := strings.TrimSpace(flagValue)
 	if s == "" {
 		fmt.Fprintf(env.Stdout, "Slipdock server [%s]: ", DefaultServer)
-		line, err := bufio.NewReader(env.Stdin).ReadString('\n')
-		if err != nil && line == "" {
-			line = ""
-		}
-		s = strings.TrimSpace(line)
+		s = strings.TrimSpace(readLine(env.Stdin))
 		if s == "" {
 			s = DefaultServer
 		}
@@ -186,17 +208,22 @@ func deviceFlow(ctx context.Context, c *enrol.Client, about enrol.About, noBrows
 }
 
 // chooseCeiling keeps a ceiling already on disk (a person's own, on
-// --replace) unless a flag changes it; otherwise it proposes one.
-func chooseCeiling(d string, boards []int64, roots, agents list, maxMode string, maxTimeout int, env Env) (machine.Ceiling, bool, error) {
+// --replace) unless a flag changes it; otherwise it proposes one, its
+// working directories in jobsHome (the home of the account jobs run as).
+// The executors are who init's choice says jobs run as.
+func chooseCeiling(d string, boards []int64, roots, agents list, maxMode string, maxTimeout int, jobsHome string, executors []string, env Env) (machine.Ceiling, bool, error) {
 	flags := len(roots) > 0 || len(agents) > 0 || maxMode != "" || maxTimeout != 0
 	if existing, err := machine.LoadCeiling(d); err == nil && !flags {
-		return existing, true, nil
+		if executors == nil || equal(existing.Executors, executors) {
+			return existing, true, nil
+		}
+		existing.Executors = executors
+		return existing, false, nil
 	}
-	userHome, err := env.UserHome()
-	if err != nil {
-		return machine.Ceiling{}, false, fmt.Errorf("can't find your home directory: %w", err)
+	c := machine.ProposeCeiling(jobsHome, boards)
+	if executors != nil {
+		c.Executors = executors
 	}
-	c := machine.ProposeCeiling(userHome, boards)
 	if len(roots) > 0 {
 		c.Roots = nil
 		for _, r := range roots {
@@ -228,6 +255,20 @@ func printCeiling(env Env, c machine.Ceiling) {
 		boards[i] = fmt.Sprintf("#%d", b)
 	}
 	fmt.Fprintf(env.Stdout, "  working directories inside: %s\n  agents:                     %s\n"+
-		"  highest permission mode:    %s\n  longest job:                %d minutes\n  boards:                     %s\n",
-		strings.Join(c.Roots, ", "), strings.Join(c.Agents, ", "), c.MaxPermissionMode, c.MaxTimeoutMinutes, strings.Join(boards, ", "))
+		"  highest permission mode:    %s\n  longest job:                %d minutes\n  boards:                     %s\n"+
+		"  executors:                  %s\n",
+		strings.Join(c.Roots, ", "), strings.Join(c.Agents, ", "), c.MaxPermissionMode, c.MaxTimeoutMinutes, strings.Join(boards, ", "),
+		strings.Join(c.Executors, ", "))
+}
+
+func equal(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

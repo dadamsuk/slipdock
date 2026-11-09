@@ -26,7 +26,13 @@ type Ceiling struct {
 	MaxTimeoutMinutes int `json:"max_timeout_minutes"`
 	// Boards the machine serves.
 	Boards []int64 `json:"boards"`
+	// Executors a runner may name (W-2543): me, user, confined. A ceiling
+	// written before there were any reads as me only.
+	Executors []string `json:"executors,omitempty"`
 }
+
+// ExecutorNames are the executors a ceiling may list.
+var ExecutorNames = []string{"me", "user", "confined", "container"}
 
 // PermissionModes from least to most permissive: a runner's mode must not
 // rank above the ceiling's.
@@ -73,6 +79,11 @@ func (c Ceiling) Validate() error {
 	if len(c.Boards) == 0 {
 		problems = append(problems, "boards: the machine serves at least one board")
 	}
+	for _, e := range c.Executors {
+		if !oneOf(ExecutorNames, e) {
+			problems = append(problems, fmt.Sprintf("executors: %q is not one of %s", e, strings.Join(ExecutorNames, ", ")))
+		}
+	}
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "; "))
 	}
@@ -103,7 +114,17 @@ func ProposeCeiling(home string, boards []int64) Ceiling {
 		MaxPermissionMode: "acceptEdits",
 		MaxTimeoutMinutes: 60,
 		Boards:            b,
+		Executors:         []string{"me"},
 	}
+}
+
+func oneOf(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // SaveCeiling writes the ceiling, after checking it.
@@ -136,6 +157,9 @@ func LoadCeiling(dir string) (Ceiling, error) {
 	}
 	if err := c.Validate(); err != nil {
 		return c, fmt.Errorf("%s: %w", path, err)
+	}
+	if len(c.Executors) == 0 {
+		c.Executors = []string{"me"}
 	}
 	return c, nil
 }
