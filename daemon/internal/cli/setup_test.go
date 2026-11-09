@@ -293,6 +293,7 @@ func TestSetupLaunchesClaude(t *testing.T) {
 }
 
 func TestSetupLaunchesClaudeAsTheSavedAccount(t *testing.T) {
+	unixOnly(t)
 	w, f := enrolled(t)
 	f.setupPrompt = prompt
 	if err := saveRunAs(w.dir, runAs{account: "slipdock", home: "/srv/slipdock"}); err != nil {
