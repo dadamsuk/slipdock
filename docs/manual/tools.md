@@ -162,7 +162,11 @@ adds:
   Triage (where, why it matters, the fix), record each as a finding in the
   closing comment, then update the cell and the Log. One area and one lens a
   run; a security issue gets the `security` tag and stays vague in commit
-  messages, pull requests and the log.
+  messages, pull requests and the log. It is installed with a bar of its own
+  that names no cell ("Swept the stalest cell of W-…'s Rotation table…"),
+  and each new instance starts from that template rather than the last
+  run's bar, which named the cell that run swept, so the bar holds on any
+  day.
 
 Installing again adds only what is missing (the list, the page or the card,
 if deleted) and never touches the page once it is there.

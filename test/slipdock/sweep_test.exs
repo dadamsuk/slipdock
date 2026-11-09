@@ -275,6 +275,46 @@ defmodule Slipdock.SweepTest do
       new = other |> swept("Its own, reworded") |> next_instance()
       assert new.bar == "Its own, reworded"
     end
+
+    test "a card of the same title on a sub-board of a swept board keeps its own bar",
+         %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [col | _] = board.columns
+      epic = card_fixture(col, %{"title" => "Epic"})
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(epic, t)
+      [sub_col | _] = Boards.get_board!(sub.id).columns
+
+      # Sweep.find(sub) finds the root's sweep, but the template is the root
+      # card's, not this one's.
+      assert Sweep.find(sub).board.id == board.id
+      lookalike = card_fixture(sub_col, %{"title" => "Sweep the code", "bar" => "Sub's own"})
+      assert Sweep.template_bar(lookalike) == nil
+
+      {:ok, series} = Slipdock.Recurrence.set(lookalike, %{"rule" => "every day"}, user)
+      swept(lookalike, "Sub's own, reworded")
+      # The root's own Sweep the code series is due too: two instances.
+      assert Slipdock.Recurrence.tick(DateTime.add(DateTime.utc_now(), 3, :day)) == 2
+      new = Boards.get_card!(Repo.get!(Slipdock.Recurrence.Series, series.id).card_id)
+      refute new.id == lookalike.id
+      assert new.board_id == sub.id
+      assert new.bar == "Sub's own, reworded"
+    end
+
+    test "a locked card with no bar is left alone at reinstall", %{user: user, board: board} do
+      {:ok, _} = Sweep.install(user, board)
+      [card] = sweep_cards(board)
+      locked_at = DateTime.utc_now(:second)
+
+      Repo.update_all(from(c in Card, where: c.id == ^card.id),
+        set: [bar: "", bar_locked_at: locked_at]
+      )
+
+      {:ok, _} = Sweep.install(user, board)
+      card = Repo.get!(Card, card.id)
+      assert card.bar == ""
+      assert card.bar_locked_at == locked_at
+    end
   end
 
   describe "tool?/1" do
