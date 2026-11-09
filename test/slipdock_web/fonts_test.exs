@@ -210,16 +210,30 @@ defmodule SlipdockWeb.FontsTest do
       <h1 id={"x-#{f(@a)}-title"} class="text-2xl">Interpolated id</h1>
       <h1 phx-click={JS.toggle(to: "#m-#{@id}")} data-on={@n > 1} class="text-xl">Calls</h1>
       <h1 id={"q-#{"}"}"} title="}" class="text-lg">Braces in strings</h1>
+      <h1 data={%{a: 1}} class="text-xl">A bare map</h1>
+      <h1 data-x={[%{y: @z}]} class="text-3xl">A list holding a map</h1>
+      <h1 title={"a \"}\" b"} class="text-xl">An escaped quote before a brace</h1>
       <h1 id={"ok-#{@id}"} class="page-title">Fine</h1>
       """
 
       size = ~r/(?<![\w:-])text-(?:lg|xl|2xl|3xl)(?![\w-])/
 
-      assert [{"x.ex", 1, first}, {"x.ex", 2, _}, {"x.ex", 3, third}] =
-               stray_titles([{"x.ex", src}], "h1", size)
+      assert [
+               {"x.ex", 1, first},
+               {"x.ex", 2, _},
+               {"x.ex", 3, third},
+               {"x.ex", 4, map},
+               {"x.ex", 5, list},
+               {"x.ex", 6, escaped}
+             ] = stray_titles([{"x.ex", src}], "h1", size)
 
       assert first == ~S|<h1 id={"x-#{f(@a)}-title"} class="text-2xl">|
       assert third =~ ~S(class="text-lg">)
+      # Bare nested braces need the brace group's own recursion, and an
+      # escaped quote needs the string's `\\.`: without either, these hide.
+      assert map == ~S|<h1 data={%{a: 1}} class="text-xl">|
+      assert list == ~S|<h1 data-x={[%{y: @z}]} class="text-3xl">|
+      assert escaped == ~S|<h1 title={"a \"}\" b"} class="text-xl">|
     end
 
     test "<.header> renders its title as a page-title h1" do
