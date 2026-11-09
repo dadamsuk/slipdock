@@ -195,6 +195,8 @@ defmodule SlipdockWeb.VerifiedMergeTest do
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card}")
       assert has_element?(view, "#card-no-merger")
+      refute has_element?(view, "#card-merge-already-merged")
+      refute has_element?(view, "#card-merge-waiting")
     end
   end
 
@@ -314,7 +316,13 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       assert card.column_id == ctx.merging.column_id
       assert Repo.get!(Job, ctx.job_id).status == "failed"
       refute Verified.Circling.circling?(card)
-      assert Verified.merge_status(card) == :none
+      assert Verified.merge_status(card) == :already_merged
+
+      # The panel says what happened, not that no runner can merge (#2646).
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card}")
+      assert view |> element("#card-merge-already-merged") |> render() =~ "already merged"
+      refute has_element?(view, "#card-no-merger")
+      refute has_element?(view, "#card-merge-waiting")
 
       all = comments(card)
       assert [failed] = Enum.filter(all, &(&1 =~ "**Merge failed: already merged.**"))
@@ -343,6 +351,51 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       assert card.verify_state == "merging"
       assert card.verify_rejections in [nil, 0]
       assert Enum.any?(comments(card), &(&1 =~ "**Merge failed: already merged.**"))
+      assert Verified.merge_status(card) == :already_merged
+    end
+
+    test "a runner that can't merge here, with none to hand on to: the panel says it waits",
+         ctx do
+      said =
+        "merge: the pull request is in acme/app, but this runner's repository is " <>
+          "https://github.com/other/thing.git; nothing merged"
+
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "2", output: said})
+
+      card = Repo.get!(Card, ctx.merging.id)
+      assert card.verify_state == "merging"
+      assert Enum.any?(comments(card), &(&1 =~ "**Merge waiting.**"))
+      assert Verified.merge_status(card) == :waiting
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{card}")
+      assert view |> element("#card-merge-waiting") |> render() =~ "no other runner"
+      refute has_element?(view, "#card-no-merger")
+      refute has_element?(view, "#card-merge-already-merged")
+    end
+
+    test "a merge job that failed some other way leaves no reason to give", ctx do
+      # A failure merge_finished/2 sends back is no longer merging; one that
+      # somehow left the card merging is read as nothing to merge it.
+      {:ok, _} =
+        Runners.finish(ctx.runner, ctx.job_id, %{exit: "1", output: "merge: something else"})
+
+      card = %{
+        Repo.get!(Card, ctx.merging.id)
+        | verify_state: "merging",
+          verify_at: ctx.merging.verify_at
+      }
+
+      assert Verified.merge_status(card) == :none
+    end
+
+    test "a merge job from before the acceptance doesn't count (#2646)", ctx do
+      said = "merge: #{@pr} was already merged at head 999fff, not the accepted commit abc1234"
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "2", output: said})
+
+      later = DateTime.utc_now() |> DateTime.add(3600) |> DateTime.truncate(:second)
+      Repo.update_all(from(c in Card, where: c.id == ^ctx.merging.id), set: [verify_at: later])
+
+      assert Verified.merge_status(Repo.get!(Card, ctx.merging.id)) == :none
     end
 
     # Only the runner's own `merge:` line says it was already merged: the

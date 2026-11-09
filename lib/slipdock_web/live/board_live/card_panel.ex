@@ -434,6 +434,19 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             No runner can merge it: none of this board's runners takes merge jobs. Update a
             runner's script, or merge the pull request yourself and press Merged it myself.
           </span>
+          <span
+            :if={@merge_status == :already_merged}
+            id="card-merge-already-merged"
+            class="text-warning"
+          >
+            Its merge job found the pull request already merged, but not at the accepted
+            commit, so nothing was merged. Check what was merged; if it is the accepted
+            work, press Merged it myself.
+          </span>
+          <span :if={@merge_status == :waiting} id="card-merge-waiting" class="text-warning">
+            Merge waiting: its runner couldn't merge here and no other runner has taken it
+            on. Fix that runner, or merge the pull request yourself and press Merged it myself.
+          </span>
         </p>
         <button
           :if={@can_write}

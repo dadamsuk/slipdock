@@ -2025,29 +2025,57 @@ defmodule Slipdock.Verified do
 
   @doc """
   Where a card being merged stands (#1657): `:queued` or `:running` while a
-  merge job is open on it, `:none` when nothing will merge it (no runner
-  can), nil when it isn't merging.
+  merge job is open on it, nil when it isn't merging. With none open, its
+  last merge job since the acceptance says why (#2646): `:already_merged`
+  when that job found the pull request merged at another head (#2637),
+  `:waiting` when its runner couldn't merge here and no other runner took
+  it on (#1754), and `:none` when nothing will merge it (no runner can).
   """
-  def merge_status(%Card{verify_state: "merging", id: id}) do
+  def merge_status(%Card{verify_state: "merging"} = card) do
     import Ecto.Query
 
     case Repo.one(
            from(j in Slipdock.Runners.Job,
              where:
-               j.card_id == ^id and j.kind == @merge_kind and
+               j.card_id == ^card.id and j.kind == @merge_kind and
                  j.status in ^Slipdock.Runners.Job.open_statuses(),
              order_by: [desc: j.id],
              limit: 1,
              select: j.status
            )
          ) do
-      nil -> :none
+      nil -> last_merge_outcome(card)
       "queued" -> :queued
       _ -> :running
     end
   end
 
   def merge_status(_card), do: nil
+
+  # Why a merging card has no merge job open (#2646): its last merge job
+  # since the acceptance, read the way merge_finished/2 read it.
+  defp last_merge_outcome(card) do
+    import Ecto.Query
+
+    query =
+      from(j in Slipdock.Runners.Job,
+        where: j.card_id == ^card.id and j.kind == @merge_kind,
+        order_by: [desc: j.id],
+        limit: 1
+      )
+
+    query =
+      if card.verify_at, do: where(query, [j], j.inserted_at >= ^card.verify_at), else: query
+
+    job = Repo.one(query)
+
+    cond do
+      is_nil(job) -> :none
+      already_merged?(job) -> :already_merged
+      runner_refused?(job) -> :waiting
+      true -> :none
+    end
+  end
 
   defp merge_prompt(card) do
     "Merge the pull request of card ##{card.id}: #{card.evidence_pr} at the accepted commit " <>
