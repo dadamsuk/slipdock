@@ -1260,6 +1260,16 @@ defmodule SlipdockWeb.HelpLive.Agents do
           </tbody>
         </table>
       </div>
+      <p id="help-machines">
+        A machine running the runner daemon enrols once: <code>slipdock-runner init</code>
+        shows a code and the machine's fingerprint, and you approve it under <.app_link
+          current_user={@current_user}
+          to={~p"/account/machines"}
+        >Account → Machines</.app_link>, checking the hostname, system and fingerprint and
+        choosing the boards it may serve. It gets a machine key of its own, which is not an API
+        token, and revoking the machine there stops the key at once. For a machine with nobody
+        at its screen, make a one-time enrolment key on the same page.
+      </p>
     </.part>
 
     <.part title="Sending it work">

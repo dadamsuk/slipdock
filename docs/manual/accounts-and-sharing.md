@@ -52,6 +52,14 @@ The current section is marked in the nav and named again over its content:
   CLI and agents sign in with.
 - **Set up an agent** (`/account/agent`) — pointing Claude, ChatGPT or another
   agent at this server.
+- **Machines** (`/account/machines`) — the computers enrolled to run the
+  runner daemon for you: each one's system, fingerprint, boards and when it
+  was last seen, revoking one (its key stops working at once), and a
+  one-time enrolment key for `slipdock-runner init --key` on a machine with
+  nobody at its screen. A machine's code from `slipdock-runner init` is
+  approved at `/account/machines/approve`, which shows its hostname, system
+  and fingerprint and asks which boards it may serve. Also `slipdock
+  machines`.
 - **Import & export** (`/account/data`) — everything you have as a zip, and
   boards as files another Slipdock can read back.
 - **Email log** (`/account/email-log`, only while the server receives mail)

@@ -1072,6 +1072,17 @@ WRITE
   runner rm <board> <runner>                     revoke a runner (its token stops working)
   cancel-job <id>                                stop a job: a queued one at once, a running one
                                                  on the runner's next heartbeat
+  machines                                       your machines running the runner daemon: state,
+                                                 system, boards, last seen
+  machine show <id>                              one machine: hostname, OS, fingerprint, boards
+  machine revoke <id>                            revoke a machine: its key stops working at once
+  machine enrolment <code>                       the machine a `slipdock-runner init` code belongs
+                                                 to: hostname, system, fingerprint, where it asked
+  machine approve <code> <board>...              approve it, to serve those boards; you own it
+  machine refuse <code>                          refuse it; the machine is told
+  machine enrol-key <board>... [--label L]       a one-time key (24 hours) for
+                                                 `slipdock-runner init --key`, on a machine with
+                                                 nobody at its screen; shown once
   claim-job <board> --pool P                     take the next queued job as this session (prints
                                                  "nothing queued" when there is none, or why
                                                  work is held: paused, WIP full…)
