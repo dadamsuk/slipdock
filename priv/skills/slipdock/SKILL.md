@@ -319,6 +319,11 @@ slipdock done <id>... | slipdock undone <id>...
 slipdock done <id> --evidence-commit <sha> --branch B --tests a.exs,b.exs --suite passed:38:0 --evidence "…"
                                        # on a board that asks for evidence; where a second agent
                                        # verifies, done submits the card (pending, flagged review)
+                                       # mutation review before submitting: break 3 to 5 changed lines
+                                       # one at a time, run the card's tests, restore; a survivor gets a
+                                       # test or a reason. Name the mutants in the evidence, a line each:
+                                       # mutant:killed=lib/foo.ex:42:flip > to >= (the verifier carries
+                                       # them and breaks other lines rather than repeat them)
 slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]   # or: slipdock accept|reject <id>
                                        # decide a card someone else submitted: accept completes it
                                        # and moves it to Done (on a pull request board it queues

@@ -300,6 +300,45 @@ defmodule Slipdock.ProfilesVerifyTest do
       refute Verified.mutation_step(card(ctx, "feature")) =~ "On this resubmission"
     end
 
+    test "the builder's named mutants are listed to carry, and others tried (#2635)", ctx do
+      evidence = """
+      Built the export.
+      - mutant:killed=lib/a.ex:42:flip > to >=
+      * `mutant:survived=lib/a.ex:51:drop the nil guard:no test yet`
+      mutant:killed=no place here
+      mutant:bogus=lib/a.ex:1:x
+      """
+
+      card = %{card(ctx, "feature") | evidence: evidence}
+
+      assert [
+               %{"result" => "killed", "file" => "lib/a.ex", "line" => 42},
+               %{"result" => "survived", "line" => 51, "note" => "no test yet"}
+             ] = Verified.builder_mutants(card)
+
+      step = Verified.mutation_step(card)
+      assert step =~ "names the mutants it tried"
+      assert step =~ "`mutant:killed=lib/a.ex:42:flip > to >=`"
+      assert step =~ "`mutant:survived=lib/a.ex:51:drop the nil guard:no test yet`"
+      assert step =~ "--check mutant:carried=<file>:<line>"
+      assert step =~ "spend your 3 to 5 on other lines"
+      refute step =~ "named no mutants"
+      refute step =~ "no place here"
+
+      assert {:ok, %{"mutants" => [%{"result" => "carried"}]}} =
+               Checks.parse(["mutant:carried=lib/a.ex:42"])
+    end
+
+    test "a builder that named no mutants is said to have named none", ctx do
+      for evidence <- [nil, "", "Built it; CI green."] do
+        card = %{card(ctx, "feature") | evidence: evidence}
+        assert Verified.builder_mutants(card) == []
+        step = Verified.mutation_step(card)
+        assert step =~ "The builder named no mutants in its evidence"
+        refute step =~ "names the mutants it tried"
+      end
+    end
+
     test "every example check the step gives parses, and only the survivor fails", ctx do
       step = Verified.mutation_step(card(ctx, "fix"))
 

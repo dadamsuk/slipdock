@@ -1197,7 +1197,18 @@ test]`, or `--check mutants=n/a:<why>` when nothing is worth mutating
 rejection naming the test to write; a `pre-existing` one, in lines the
 diff didn't change, is kept as a finding; a killed one is carried to a
 resubmission unless its line changed. `slipdock quality` counts the
-surviving-mutant rejections as a part. A claimed job carries the card's `profile` (MCP `claim_job`, the
+surviving-mutant rejections as a part.
+
+**The mutation review before submitting** (#2635). As a builder, run the
+verifier's mutation step on your own change before `slipdock done`: break
+3 to 5 of the most consequential lines you added or changed, one at a
+time, run only the card's tests, restore the line, and add a test until
+each break fails one (a survivor you leave gets its reason in the
+evidence). Name the mutants in the evidence, one line each, as a verifier
+writes them: `mutant:killed=lib/foo.ex:42:flip > to >=`. The verifier's
+prompt lists them: it carries the killed ones (`mutant:carried=…`) and
+breaks other lines rather than repeat them, and breaks a named survivor
+again. A claimed job carries the card's `profile` (MCP `claim_job`, the
 REST claim's `job.profile`, the runner's `x-card-profile` header), and a
 runner's config may set `MODEL_<profile>` to run that profile on another
 model. See [the manual](manual/profiles.md#the-verifiers-spend).
