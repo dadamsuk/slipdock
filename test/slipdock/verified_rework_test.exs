@@ -7,7 +7,7 @@ defmodule Slipdock.VerifiedReworkTest do
   reason is on the comment and the card, not copied into the handoff, and
   reaches the next agent through its claimed prompt.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures

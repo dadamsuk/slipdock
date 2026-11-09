@@ -1,5 +1,7 @@
 defmodule SlipdockWeb.SharedAutosaveLiveTest do
   @moduledoc "The shared-page editor keeps unsaved work, and takes images (#1534)."
+  # Sync: points the app's :uploads_dir at a temporary directory with
+  # Application.put_env, which is the whole node's.
   use SlipdockWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest

@@ -6,7 +6,7 @@ defmodule Slipdock.VerifiedVerifyTest do
   reason (kept, commented, pointed at by the handoff, evidence cleared). The
   submitter can't decide its own card; a person completing one accepts it.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

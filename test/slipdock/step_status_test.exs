@@ -8,7 +8,7 @@ defmodule Slipdock.StepStatusTest do
   of it, while a person's own update still does. A job ending on a card
   already accepted leaves no handoff.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures

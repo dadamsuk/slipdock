@@ -5,7 +5,7 @@ defmodule Slipdock.VerifiedJobsTest do
   carries the bar, the evidence and how to decide; a decision stops the
   other verify jobs on the card. No pool, or verification off, queues none.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures

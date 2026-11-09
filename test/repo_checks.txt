@@ -131,6 +131,9 @@ test/slipdock/fixtures_test.exs
 test/slipdock/nothing_personal_test.exs
 test/slipdock/repo_checks_test.exs
 
+# A sync test module says why above its use line (TEST-9, #2607)
+test/slipdock/sync_says_why_test.exs
+
 # Not on the list
 except test/slipdock_web/all_fields_test.exs: renders every LiveView route, 23 s alone; its one source rule (no daisyUI field sizes) waits for CI
 except test/slipdock/lanes_test.exs: its docs/ paths are lane globs held as data; it reads no file

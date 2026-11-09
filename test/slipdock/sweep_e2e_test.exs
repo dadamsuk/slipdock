@@ -6,7 +6,7 @@ defmodule Slipdock.SweepE2ETest do
   Triage ships a pull request that doesn't describe the hole (#1794); and
   the machine that runs it reports skill and CLI drift (#1795).
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures
