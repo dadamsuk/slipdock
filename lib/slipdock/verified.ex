@@ -2344,7 +2344,7 @@ defmodule Slipdock.Verified do
     #{decide}. Say once whether you agree, and report it as a step first (`deciding: agree` or `deciding: disagree`):
        - `slipdock verify #{card.id} agree --reason "what you checked" --check ask=ok --check bar:1=ok …`
        - `slipdock verify #{card.id} disagree --reason "where the verdict is wrong, specifically" --check bar:2=fail:"why" …`
-    Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
+    Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
     """
   end
 
@@ -2608,7 +2608,7 @@ defmodule Slipdock.Verified do
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
        - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically" --check bar:2=fail:"why" …`
-    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
+    Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
     A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
     """
   end
@@ -2701,7 +2701,7 @@ defmodule Slipdock.Verified do
         do: [hd(base), bar_with_proposals(handbook) | handbook_steps(card, board, handbook, opts)],
         else: base
 
-    steps ++ defect_steps(card, board)
+    steps ++ defect_steps(card, board) ++ mutation_steps(card, board, opts)
   end
 
   @defect_profiles ~w(schema security)
@@ -2735,6 +2735,67 @@ defmodule Slipdock.Verified do
        No findings is a normal answer: say so in the reason. Step: `reviewing for defects`\
     """
   end
+
+  @mutation_profiles ~w(fix feature schema security)
+
+  @doc """
+  Whether a verifier of `card` also mutates the change (#2354): profiles are
+  on for `board`, the card's profile (set, else inferred) is `fix`,
+  `feature`, `schema` or `security`, and the completion changes code (never
+  a `--no-code` one). `docs` and `spike` cards get no mutation step.
+  """
+  def mutation_review?(%Card{} = card, %Board{} = board),
+    do:
+      board.profiles == true and not no_code?(card) and
+        Enum.member?(@mutation_profiles, Slipdock.Profiles.profile_of(card))
+
+  @doc "The profiles whose verifier mutates the change."
+  def mutation_profiles, do: @mutation_profiles
+
+  defp mutation_steps(card, board, opts) do
+    if mutation_review?(card, board),
+      do: [mutation_step(card, opts)],
+      else: []
+  end
+
+  @doc """
+  The mutation step of a verify prompt (#2354): break the change's most
+  consequential lines one at a time, run only the card's tests, restore, and
+  give each mutant as a part. On a `fix` card one mutation undoes the fix.
+  """
+  def mutation_step(%Card{} = card, opts \\ []) do
+    profile = Slipdock.Profiles.profile_of(card)
+
+    tests =
+      if Enum.member?([nil, []], card.evidence_tests),
+        do:
+          "the tests the evidence names (it gave no `--tests`: say so, and use the test files the diff adds or changes)",
+        else: "the card's tests (`#{Enum.join(List.wrap(card.evidence_tests), " ")}`)"
+
+    """
+    The mutation step: would the tests catch a break? This card's profile is `#{profile}`. In the clean worktree, pick 3 to 5 of the most consequential lines the diff added or changed: a condition, a guard, an error branch, a returned value. Break each one in turn (flip `>` to `>=`, drop the branch, return the wrong thing), run only #{tests}, never the whole suite, then restore the line before the next (`git checkout -- <file>`) and leave the tree as you found it.#{fix_mutation(profile)} On a board that ships by pull request run these tests yourself all the same: CI ran the suite, not the mutations. Give each mutant as a part, its file and line read in the clean tree:
+       - Killed: a test failed. `--check mutant:killed=lib/foo.ex:42:"> to >="`.
+       - Survived: no test failed, on a line the diff added or changed. It is a rejection, its reason naming the mutation and the test to write: `--check mutant:survived=lib/foo.ex:42:"drop the nil guard":"a test that passes nil"`.
+       - Pre-existing: a survivor on a line the diff didn't change. Reported only, and kept as a finding: `--check mutant:pre-existing=lib/bar.ex:90:"return []"`.
+       - Nothing in the diff worth mutating (only text, config or a rename): `--check mutants=n/a:"why"`, and say why in the reason.
+    #{mutation_resubmission(card, opts)}   Step: `mutating the change`\
+    """
+  end
+
+  # A resubmission (#1944) re-runs only what could have changed: the
+  # mutants that survived, and any on lines the commits since touch.
+  defp mutation_resubmission(card, opts) do
+    if not Keyword.get(opts, :audit, false) and previous_verdict(card) != nil,
+      do:
+        "   On this resubmission, break again every mutant that survived last time and any on a line the commits since touch, giving its place afresh; a killed one elsewhere stands: give it as `--check mutant:carried=lib/foo.ex:42` (or leave it out).\n",
+      else: ""
+  end
+
+  defp fix_mutation("fix"),
+    do:
+      " This is a fix, so one mutation undoes the fix itself (put the old line back): the regression test must kill it, and a survivor there means the fix has no test."
+
+  defp fix_mutation(_), do: ""
 
   # On a board with a handbook a rule is a person's call, so a bar item that
   # asks for a rule change is met by an open proposal, never a direct edit

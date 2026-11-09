@@ -818,7 +818,13 @@ With one on, the pass changes like this:
 - **The verifier's checks, first.** Before submitting, run the four
   checks a verifier will (see **A verify job** below) on your own work: the
   bar covers the ask, each part of the bar is met, no `must` rule for the
-  diff is broken, and the `Handbook:` line is honest. Put the `Handbook:`
+  diff is broken, and the `Handbook:` line is honest. With profiles on, a
+  `fix`, `feature`, `schema` or `security` card gets the verifier's
+  **mutation step** too, so run it first: break 3 to 5 of the most
+  consequential lines you added or changed, one at a time (a condition, a
+  guard, an error branch, a returned value), run only the card's tests,
+  restore the line, and add a test until each break fails one. On a `fix`,
+  undo the fix itself: the regression test must fail. Put the `Handbook:`
   line in `--evidence` too, so it is on the card when the verifier starts,
   and the `Findings:` block with it: the evidence is the closing comment
   that carries the block, once. The wrap-up after it says
@@ -957,7 +963,21 @@ With one on, the pass changes like this:
   on) the prompt adds a defect review: read the diff for bugs, not
   style, and give each finding with its file and line,
   `defect:important|nit|pre-existing=<file>:<line>[:why]`; an important
-  one is a rejection, a nit or a pre-existing one is reported only. You can't decide a card you submitted
+  one is a rejection, a nit or a pre-existing one is reported only.
+  On a `fix`, `feature`, `schema` or `security` card (profiles on; never
+  `docs`, `spike` or a `--no-code` completion) the prompt adds a
+  **mutation step**: in the clean worktree, pick 3 to 5 of the most
+  consequential lines the diff added or changed, break each in turn (flip
+  `>` to `>=`, drop the branch, return the wrong thing), run only the
+  card's `--tests`, never the whole suite (on a pull request board too:
+  CI ran the suite, not the mutations), and restore the line. On a `fix`,
+  one mutation undoes the fix: the regression test must kill it. Give
+  each as `mutant:killed=<file>:<line>:<mutation>`,
+  `mutant:survived=<file>:<line>:<mutation>[:the test that's missing]`
+  (a rejection, its reason naming the mutation and the test to write) or
+  `mutant:pre-existing=…` (a survivor in lines the diff didn't change:
+  reported only, kept as a finding), or `mutants=n/a:<why>` when nothing
+  in the diff is worth mutating. You can't decide a card you submitted
   yourself (`403`). **A resubmission** (the prompt says the card was
   judged before, at a commit) is judged on what changed: the parts that
   failed, and any part the commits since touch (`git diff --name-only

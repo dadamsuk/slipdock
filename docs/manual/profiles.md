@@ -156,6 +156,25 @@ failing part: it is a rejection, and an acceptance can't carry one. A Nit
 or a Pre-existing finding is reported only. The card panel and `slipdock
 card` list each finding.
 
+**`fix`, `feature`, `schema` and `security` get a mutation step.** A
+verify job (or an audit) on such a card, with profiles on, checks that
+the card's tests would catch a break: in its clean worktree the verifier
+picks 3 to 5 of the most consequential lines the diff added or changed
+(a condition, a guard, an error branch, a returned value), breaks each
+in turn, runs only the card's `--tests` and restores the line. On a
+`fix`, one mutation undoes the fix, and the regression test must catch
+it. Each is a check: `mutant:killed=lib/foo.ex:42:"> to >="`,
+`mutant:survived=lib/foo.ex:42:<mutation>:<the test that's missing>`, a
+rejection naming the mutation and the test to write, or
+`mutant:pre-existing=…` for a survivor in lines the diff didn't change,
+reported only and kept as a finding. Nothing worth mutating is
+`mutants=n/a:<why>`. They are kept in `verify_checks` as `mutants`, and
+`slipdock quality` counts them as a part. A `docs` card (no verify job),
+a `spike` and a `--no-code` completion get no mutation step. On a board
+that ships by pull request the verifier runs these tests itself: CI ran
+the suite, not the mutations. Builders run the same step on their own
+work before submitting.
+
 **A model per profile.** A claimed job carries its card's profile (with
 profiles on): the runner's `x-card-profile` header, `job.profile` in
 `POST /api/boards/:board/jobs/claim`, `profile` in MCP `claim_job`, and a
