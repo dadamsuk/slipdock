@@ -530,4 +530,4 @@ The runner protocol and the session endpoints are in the agent guide
 
 ---
 
-← [Automations and alerts](automations-and-alerts.md) · [Contents](../manual.md) · [Wiki](wiki.md) →
+← [Automations and alerts](automations-and-alerts.md) · [Contents](../manual.md) · [Machines](machines.md) →

@@ -306,3 +306,39 @@ jobs:
 
       - name: Test
         run: mix test
+
+  # The runner daemon (daemon/, a Go module: W-2540) on the three OSes it
+  # ships for (#2573). No Elixir or Postgres: its tests fake the server.
+  # `mix pre_push` runs the same vet and tests.
+  daemon:
+    name: daemon (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    defaults:
+      run:
+        working-directory: daemon
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The newest Go, not go.mod's floor (1.22, what a machine needs to
+      # build it): macOS's loader refuses 1.22's test binaries ("missing
+      # LC_UUID load command"), and releases build with the newest anyway.
+      # No dependencies, so no go.sum for the module cache to key on.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...

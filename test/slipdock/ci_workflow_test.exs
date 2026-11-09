@@ -250,6 +250,33 @@ defmodule Slipdock.CiWorkflowTest do
     end
   end
 
+  describe "the runner daemon (#2573)" do
+    test "is built, vetted and tested on Linux, macOS and Windows" do
+      daemon = job("daemon")
+      assert has?(daemon, "os: [ubuntu-latest, macos-latest, windows-latest]")
+      assert has?(daemon, "runs-on: ${{ matrix.os }}")
+      assert has?(daemon, "working-directory: daemon")
+      # The newest Go: macOS refuses 1.22's test binaries (missing LC_UUID).
+      assert has?(daemon, "go-version: stable")
+
+      for command <- ["go build ./...", "go vet ./...", "go test ./..."],
+          do: assert(runs?(daemon, command), "the daemon job no longer runs `#{command}`")
+    end
+
+    test "one OS failing doesn't cancel the others" do
+      assert has?(job("daemon"), "fail-fast: false")
+    end
+
+    test "mix pre_push runs the job's vet and tests, in daemon/" do
+      steps = Mix.Project.get!().pre_push_steps()
+
+      for "run: go " <> rest <- job("daemon"), rest != "build ./..." do
+        step = {"go", String.split(rest), cd: "daemon", exec: true}
+        assert step in steps, "CI's daemon job runs `go #{rest}`, which `mix pre_push` doesn't"
+      end
+    end
+  end
+
   # The build cache and the partition split (#1858).
   describe "build cache" do
     defp step_index(job, line), do: Enum.find_index(job, &(&1 == line))

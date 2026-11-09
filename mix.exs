@@ -129,6 +129,11 @@ defmodule Slipdock.MixProject do
   warning fails here rather than in the pull request (#1964). A step with
   `cd:` runs in that directory, in its own environment (`pre_push_env/1`).
 
+  Then the runner daemon's (`daemon/`, a Go module) `go vet` and `go test`,
+  as CI's daemon job does (#2573). A step with `exec: true` runs its task as
+  a program rather than a `mix` task; with no `go` on the PATH it fails and
+  says so.
+
   Then it drops this checkout's own test database (`pre_push_partition/0`),
   so a schema left by another branch's migrations can't carry over (#2115),
   and runs the tests in
@@ -149,6 +154,8 @@ defmodule Slipdock.MixProject do
       {"compile", ["--force", "--warnings-as-errors"]},
       {"format", ["--check-formatted"]},
       {"compile", ["--warnings-as-errors"], cd: "cli"},
+      {"go", ["vet", "./..."], cd: "daemon", exec: true},
+      {"go", ["test", "./..."], cd: "daemon", exec: true},
       {"ecto.drop", ["--quiet"]},
       {"test", repo_checks()},
       {"hex.audit", []},
@@ -170,12 +177,12 @@ defmodule Slipdock.MixProject do
     for step <- pre_push_steps(args) do
       {task, argv, opts} = step_parts(step)
       line = step_line(task, argv, opts)
-      Mix.shell().info([:cyan, "==> pre_push: mix #{line}", :reset])
+      Mix.shell().info([:cyan, "==> pre_push: #{line}", :reset])
       step_started = System.monotonic_time(:millisecond)
 
       case run.(task, argv, opts) do
         0 -> Mix.shell().info("    #{seconds(step_started)} s")
-        status -> Mix.raise("pre_push: mix #{line} failed (exit #{status})", exit_status: status)
+        status -> Mix.raise("pre_push: #{line} failed (exit #{status})", exit_status: status)
       end
     end
 
@@ -235,6 +242,9 @@ defmodule Slipdock.MixProject do
   """
   def pre_push_env(opts \\ [], test_database_url \\ System.get_env("TEST_DATABASE_URL"))
 
+  # A program (the daemon's `go`) needs none of Mix's settings.
+  def pre_push_env([cd: _dir, exec: true], _test_database_url), do: []
+
   # The CLI is its own project: it builds in its own `_build` in its default
   # environment, as CI's cli job does, not in the app's test partition.
   def pre_push_env([cd: _dir], _test_database_url) do
@@ -291,16 +301,43 @@ defmodule Slipdock.MixProject do
   defp step_parts({task, argv, opts}), do: {task, argv, opts}
 
   defp step_line("test", files, []),
-    do: "test (the #{length(files)} files in test/repo_checks.txt)"
+    do: "mix test (the #{length(files)} files in test/repo_checks.txt)"
 
-  defp step_line(task, argv, cd: dir), do: Enum.join([task | argv], " ") <> " (in #{dir}/)"
-  defp step_line(task, argv, []), do: Enum.join([task | argv], " ")
+  defp step_line(program, argv, cd: dir, exec: true),
+    do: Enum.join([program | argv], " ") <> " (in #{dir}/)"
+
+  defp step_line(task, argv, cd: dir), do: Enum.join(["mix", task | argv], " ") <> " (in #{dir}/)"
+  defp step_line(task, argv, []), do: Enum.join(["mix", task | argv], " ")
 
   @doc """
-  Runs one step as its own `mix` process and answers with its exit status. A
-  `cd:` directory is relative to the project root.
+  Runs one step as its own `mix` process, or with `exec: true` as the
+  program it names, and answers with its exit status. A `cd:` directory is
+  relative to the project root.
   """
   def pre_push_run(task, argv, opts) do
+    if opts[:exec], do: pre_push_exec(task, argv, opts), else: pre_push_mix(task, argv, opts)
+  end
+
+  defp pre_push_exec(program, argv, opts) do
+    case System.find_executable(program) do
+      nil ->
+        Mix.shell().error("    #{program} is not on the PATH: install it to run this check")
+        127
+
+      path ->
+        {_, status} =
+          System.cmd(path, argv,
+            into: IO.stream(),
+            stderr_to_stdout: true,
+            cd: Path.expand(Keyword.fetch!(opts, :cd), __DIR__),
+            env: pre_push_env(opts)
+          )
+
+        status
+    end
+  end
+
+  defp pre_push_mix(task, argv, opts) do
     {_, status} =
       System.cmd("mix", [task | argv],
         into: IO.stream(),

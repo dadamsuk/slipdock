@@ -1386,4 +1386,4 @@ is kept with the wiki's other files.
 
 ---
 
-← [Runners](runners.md) · [Contents](../manual.md) · [Moving boards between servers](moving-boards-between-servers.md) →
+← [Machines](machines.md) · [Contents](../manual.md) · [Moving boards between servers](moving-boards-between-servers.md) →

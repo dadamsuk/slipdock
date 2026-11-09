@@ -1,0 +1,3 @@
+# A local `go build` of the daemon.
+/slipdock-runner
+/slipdock-runner.exe

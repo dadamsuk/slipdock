@@ -1,0 +1,133 @@
+[Slipdock — the manual](../manual.md)
+
+## Machines
+
+A **machine** is a computer of yours that runs Slipdock's
+[runners](runners.md) through one program, the **runner daemon**
+(`slipdock-runner`). You enrol the machine once; after that its runners are
+added and changed from the board, not from a shell on the machine, and the
+machine's own **ceiling** limits what the board may set.
+
+The daemon is being built in steps (epic #2569). What is here today:
+enrolling a machine, its ceiling, `show`, `doctor` and the service. Running
+its runners' jobs, and taking their settings from the board, come next;
+until then a machine's runners are still the [shell runners](runners.md).
+
+### Getting the daemon
+
+Signed releases come with self-update. Until then, build it from this
+repository with Go 1.22 or newer:
+
+```sh
+cd daemon && go build -o ~/.local/bin/slipdock-runner ./cmd/slipdock-runner
+```
+
+It is one file with no dependencies, for Linux (WSL included), macOS and
+Windows.
+
+### Enrolling a machine
+
+```sh
+slipdock-runner init
+```
+
+`init` asks for the server's address (`--server URL` skips the question),
+then prints a short code and a link to the approval page, and opens it in
+your browser when it can (`--no-browser` doesn't). It also prints the
+machine's **fingerprint**: check the approval page shows the same one before
+you approve, so you know it is this machine you are letting in. On the page
+you choose the boards the machine may serve.
+
+When you approve, the daemon receives the machine's key and keeps it in its
+directory, readable only by you. The key lets the machine claim and report
+on its own runners' jobs and nothing else: it is not an API token. Revoking
+the machine on the Machines page ends it at once.
+
+On a machine with no browser to hand, make a one-time **enrolment key** on
+the Machines page (`slipdock machine enrol-key <board>…`) and give it to `init`:
+
+```sh
+slipdock-runner init --server https://slipdock.example.com --key sdk_…
+```
+
+A machine that is already enrolled refuses a second `init`; `--replace`
+enrols it again (revoke the old one on the Machines page).
+
+The daemon's directory is `slipdock-runner/machine` under your config
+directory (`~/.config` on Linux, `~/Library/Application Support` on macOS,
+`%AppData%` on Windows), or `$SLIPDOCK_RUNNER_HOME`, or `--home DIR` on any
+command. It holds `machine.json` (the server and the machine's id),
+`machine-key`, `identity` (the key pair the fingerprint comes from) and
+`ceiling.json`.
+
+### The ceiling
+
+The ceiling is the machine's own limits on what the board may configure. It
+is a file on the machine, `ceiling.json`, which the server never reads or
+writes; only someone at the machine changes it.
+
+| Field | What it limits | `init` proposes |
+|---|---|---|
+| `roots` | the directories a runner may work in | your source folder (`~/src`, `~/dev`, `~/code`, `~/projects` or `~/repos`, whichever is there) |
+| `agents` | the agents a runner may run: `claude`, `codex`, or a custom command defined on the machine | `claude` |
+| `max_permission_mode` | the highest permission mode (`plan`, `default`, `acceptEdits`, `bypassPermissions`) | `acceptEdits` |
+| `max_timeout_minutes` | the longest a job may run | 60 |
+| `boards` | the boards the machine serves | the ones chosen on the approval page |
+
+`init --root DIR --agent NAME --max-mode MODE --max-timeout MINUTES` sets
+them as it writes the file (`--root` and `--agent` repeat). `init --replace`
+keeps a ceiling already there unless one of those flags is given. A setting
+from the board outside the ceiling is refused on the machine, and the runner
+keeps its last accepted settings.
+
+### What the server can and cannot do
+
+```sh
+slipdock-runner show
+```
+
+prints the **trust contract**, filled in with this machine's ceiling: what
+a Slipdock server can make the machine do (queue jobs for its runners' pools,
+set their settings inside the ceiling, name a newer version), what it cannot
+(run a command, change a hook, set a directory outside the roots, read
+files, install an unsigned update), and what nothing here bounds (the first
+download, the hosted operator also being the signer, the network outside a
+container, and prompts being the board members' instructions).
+
+### Checking a machine
+
+```sh
+slipdock-runner doctor
+```
+
+checks the machine is enrolled and the server still accepts its key, the
+key and directory are yours alone, the ceiling is valid and its roots exist,
+each agent in it answers `--version`, `git` is there, `gh` is logged in, and
+the service is installed. Each line is `ok`, `warn` or `FAIL` with what to
+do; any `FAIL` makes it exit non-zero.
+
+### Running it as a service
+
+```sh
+slipdock-runner service install
+```
+
+installs the daemon as a service of your account, started now and at every
+log-in, and brought back if it stops:
+
+- **Linux** (and WSL with systemd on): a systemd user unit,
+  `slipdock-machine.service`. Logs: `journalctl --user -u slipdock-machine`.
+  `loginctl enable-linger` keeps it running while you are logged out.
+- **macOS**: a launchd agent, `us.slipdock.machine`. Logs:
+  `~/Library/Logs/slipdock-machine.log`.
+- **Windows**: a Task Scheduler task, *Slipdock machine*, at log-on and
+  every five minutes after (a no-op while it runs). Logs: `daemon.log` in
+  the daemon's directory.
+
+The names differ from the shell runner's, so both can run while a machine
+moves over. `service print` shows what it would install; `service
+uninstall` stops and removes it.
+
+---
+
+← [Runners](runners.md) · [Contents](../manual.md) · [Wiki](wiki.md) →
