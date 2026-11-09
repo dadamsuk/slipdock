@@ -285,6 +285,115 @@ defmodule SlipdockCLI.MachinesTest do
     end
   end
 
+  describe "a runner's probe (#2580)" do
+    @green %{
+      "id" => 50,
+      "status" => "done",
+      "result" => "green",
+      "finished_at" => "2026-11-09T05:00:00Z",
+      "log" => "probe: green"
+    }
+    @red %{
+      "id" => 51,
+      "status" => "failed",
+      "result" => "red",
+      "finished_at" => "2026-11-09T05:01:00Z",
+      "log" => "ok   directory: fine\nFAIL gh: gh is not signed in\n"
+    }
+    @pending %{"id" => 51, "status" => "queued", "result" => "pending"}
+
+    test "probe sends it and says where its result goes" do
+      serve([{201, JSON.encode!(%{"probe" => @pending})}])
+      out = capture_io(fn -> Machines.run("machine", ["probe", "4", "builder"], []) end)
+
+      assert_received {:request, "POST", "/api/machines/4/runners/builder/probe", _}
+      assert out =~ "probe #51 sent: `slipdock machine show 4` has its result"
+    end
+
+    test "probe --wait follows it until it ends green" do
+      serve([
+        {201, JSON.encode!(%{"probe" => @pending})},
+        {200, JSON.encode!(%{"probe" => %{@pending | "status" => "running"}})},
+        {200, JSON.encode!(%{"probe" => @green})}
+      ])
+
+      out =
+        capture_io(fn ->
+          Machines.run("machine", ["probe", "4", "9"], wait: true, poll_ms: 1)
+        end)
+
+      assert_received {:request, "POST", "/api/machines/4/runners/9/probe", _}
+      assert_received {:request, "GET", "/api/machines/4/runners/9/probe", _}
+      assert_received {:request, "GET", "/api/machines/4/runners/9/probe", _}
+      assert out =~ "probe #51 sent; waiting for it to end"
+      assert out =~ "probe #50 passed  2026-11-09T05:00:00Z"
+
+      assert Machines.plan(["probe", "4", "9"], wait: true) ==
+               {:ok, :probe_wait, "/machines/4/runners/9/probe"}
+    end
+
+    test "a red probe is printed with its log; one that doesn't end in time says so" do
+      out =
+        capture_io(fn ->
+          assert {:ok, :red} = Machines.await_probe(fn -> {:ok, %{"probe" => @red}} end, [])
+        end)
+
+      assert out =~ "probe #51 failed  2026-11-09T05:01:00Z"
+      assert out =~ "\n  FAIL gh: gh is not signed in\n"
+
+      assert {:error, "the probe hasn't ended yet" <> _} =
+               Machines.await_probe(fn -> {:ok, %{"probe" => @pending}} end,
+                 poll_ms: 1,
+                 wait_ms: 5
+               )
+
+      assert {:error, "only the machine's owner changes it"} =
+               Machines.await_probe(
+                 fn -> {:error, 403, %{"error" => "only the machine's owner changes it"}} end,
+                 []
+               )
+
+      assert {:error, "could not read the probe" <> _} =
+               Machines.await_probe(fn -> {:error, :connect, :econnrefused} end, [])
+
+      no_log = capture_io(fn -> Machines.probe_line(Map.put(@red, "log", "")) end)
+      assert no_log =~ "no log was sent"
+    end
+
+    test "show gives each runner's probe, and a red one's log" do
+      runner = fn id, name, probe ->
+        %{
+          "id" => id,
+          "name" => name,
+          "pool" => "b",
+          "config" => %{},
+          "config_version" => 1,
+          "accepted_version" => 1,
+          "probe" => probe
+        }
+      end
+
+      machine =
+        Map.put(@machine, "runners", [
+          runner.(9, "greenie", @green),
+          runner.(10, "reddie", @red),
+          runner.(11, "never", nil),
+          runner.(12, "waiting", @pending)
+        ])
+
+      serve([{200, JSON.encode!(%{"machine" => machine})}])
+      out = capture_io(fn -> Machines.run("machine", ["show", "4"], []) end)
+
+      assert out =~ ~r/#9\s+greenie.*green 2026-11-09T05:00:00Z/
+      assert out =~ ~r/#10\s+reddie.*red 2026-11-09T05:01:00Z/
+      assert out =~ ~r/#11\s+never.*never/
+      assert out =~ ~r/#12\s+waiting.*queued/
+      assert out =~ "reddie: probe #51 failed"
+      assert out =~ "  FAIL gh: gh is not signed in"
+      refute out =~ "greenie: probe"
+    end
+  end
+
   test "anything else is the usage: no board, no code, an unknown verb" do
     for args <- [
           ["enrol-key"],
@@ -293,6 +402,7 @@ defmodule SlipdockCLI.MachinesTest do
           ["refuse"],
           ["enrolment"],
           ["show"],
+          ["probe", "4"],
           ["frobnicate"],
           []
         ] do

@@ -223,6 +223,10 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 		w.runMerge(ctx, j)
 		return
 	}
+	if job.Kind == ProbeKind {
+		w.runProbe(ctx, j)
+		return
+	}
 	w.runAgent(ctx, j)
 }
 

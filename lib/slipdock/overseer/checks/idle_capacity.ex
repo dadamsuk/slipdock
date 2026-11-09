@@ -84,7 +84,13 @@ defmodule Slipdock.Overseer.Checks.IdleCapacity do
   end
 
   defp free_cards(ctx) do
-    open_jobs = from(j in Job, where: j.status in ^Job.open_statuses(), select: j.card_id)
+    # A probe has no card (#2580); a NULL would empty `NOT IN`.
+    open_jobs =
+      from(j in Job,
+        where: j.status in ^Job.open_statuses() and not is_nil(j.card_id),
+        select: j.card_id
+      )
+
     assigned = from(a in "card_assignees", select: a.card_id)
 
     ctx

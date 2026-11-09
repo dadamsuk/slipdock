@@ -5,7 +5,7 @@ defmodule SlipdockWeb.API.MachineJSON do
   """
 
   alias Slipdock.Machines.{Enrolment, Machine}
-  alias Slipdock.Runners.{ConfigReport, MachineRunners, Runner}
+  alias Slipdock.Runners.{ConfigReport, Job, MachineRunners, Probe, Runner}
 
   def machine(%Machine{} = m) do
     %{
@@ -48,6 +48,8 @@ defmodule SlipdockWeb.API.MachineJSON do
       |> MachineRunners.reports()
       |> Enum.filter(&(is_nil(opts[:boards]) or Enum.member?(ids, &1.runner_id)))
 
+    probes = Probe.latest(listed)
+
     runners =
       Enum.map(listed, fn r ->
         outside =
@@ -56,7 +58,9 @@ defmodule SlipdockWeb.API.MachineJSON do
             {:error, reasons} -> reasons
           end
 
-        Map.put(runner(r), :outside_ceiling, outside)
+        r
+        |> runner()
+        |> Map.merge(%{outside_ceiling: outside, probe: probes[r.id] && probe(probes[r.id])})
       end)
 
     m
@@ -87,6 +91,24 @@ defmodule SlipdockWeb.API.MachineJSON do
       paused: not is_nil(r.paused_at),
       paused_at: r.paused_at,
       version: r.version
+    }
+  end
+
+  @doc """
+  A probe (#2580): `result` is `green` (it ended done), `red` (any other
+  end) or `pending`, with when it ended and the log it sent.
+  """
+  def probe(%Job{} = j) do
+    %{
+      id: j.id,
+      runner_id: j.for_runner_id,
+      status: j.status,
+      result: Atom.to_string(Probe.result(j)),
+      exit_code: j.exit_code,
+      queued_at: j.inserted_at,
+      finished_at: j.finished_at,
+      error: j.error,
+      log: Probe.log(j)
     }
   end
 

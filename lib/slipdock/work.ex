@@ -627,7 +627,11 @@ defmodule Slipdock.Work do
       where: c.id not in subquery(from(a in "card_assignees", select: a.card_id)),
       where:
         c.id not in subquery(
-          from(j in Job, where: j.status in ^Job.open_statuses(), select: j.card_id)
+          # A probe has no card (#2580); a NULL would empty `NOT IN`.
+          from(j in Job,
+            where: j.status in ^Job.open_statuses() and not is_nil(j.card_id),
+            select: j.card_id
+          )
         ),
       where: c.id not in subquery(from(w in Wait, where: is_nil(w.closed_at), select: w.card_id)),
       select: {c.id, m.at}

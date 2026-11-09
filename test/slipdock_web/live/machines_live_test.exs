@@ -10,6 +10,7 @@ defmodule SlipdockWeb.MachinesLiveTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
@@ -280,6 +281,81 @@ defmodule SlipdockWeb.MachinesLiveTest do
     end
   end
 
+  describe "the probe (#2580)" do
+    defp probe_claimed(ctx, runner) do
+      {:ok, claimer} = Runners.authenticate_machine(ctx.key, runner.id)
+      claimer = Runners.report_kinds(claimer, "claude,verify,merge,probe")
+      %Runners.Job{} = job = Runners.claim(claimer)
+      {claimer, job}
+    end
+
+    test "the owner sends one, and the page follows it to green", ctx do
+      runner = add(ctx)
+      {:ok, view, _html} = page(ctx)
+      refute has_element?(view, "#machine-runner-#{runner.id}-probe")
+
+      view |> element("#machine-runner-#{runner.id} [data-role=probe-runner]") |> render_click()
+      assert has_element?(view, "#machine-notice", "Probe sent to #{runner.name}")
+
+      assert has_element?(
+               view,
+               "#machine-runner-#{runner.id}-probe[data-result=pending]",
+               "waiting for the machine"
+             )
+
+      # The daemon takes it and reports, and the page shows each step live.
+      {claimer, job} = probe_claimed(ctx, runner)
+      {:ok, :ok} = Runners.heartbeat(claimer, job.id, "ok   directory: fine\n")
+
+      assert has_element?(
+               view,
+               "#machine-runner-#{runner.id}-probe[data-result=pending]",
+               "Probe ##{job.id} running"
+             )
+
+      {:ok, _} = Runners.finish(claimer, job.id, %{exit: "0", output: "probe: green\n"})
+
+      assert has_element?(
+               view,
+               "#machine-runner-#{runner.id}-probe[data-result=green]",
+               "Probe passed"
+             )
+    end
+
+    test "a red probe shows how it ended and its log", ctx do
+      runner = add(ctx)
+      {:ok, _} = Runners.Probe.send_probe(ctx.machine, runner)
+      {claimer, job} = probe_claimed(ctx, runner)
+
+      {:ok, _} =
+        Runners.finish(claimer, job.id, %{exit: "1", output: "FAIL gh: gh is not signed in\n"})
+
+      {:ok, view, _html} = page(ctx)
+
+      assert has_element?(
+               view,
+               "#machine-runner-#{runner.id}-probe[data-result=red]",
+               "Probe failed"
+             )
+
+      assert has_element?(
+               view,
+               "#machine-runner-#{runner.id}-probe [data-role=probe-log]",
+               "FAIL gh: gh is not signed in"
+             )
+    end
+
+    test "a paused runner has no Probe button, and probing it anyway says why", ctx do
+      runner = add(ctx)
+      {:ok, _} = MachineRunners.pause_runner(runner)
+      {:ok, view, _html} = page(ctx)
+
+      refute has_element?(view, "#machine-runner-#{runner.id} [data-role=probe-runner]")
+      render_click(view, "probe_runner", %{"id" => runner.id})
+      assert has_element?(view, "#machine-notice", "is paused: resume it, then probe it")
+    end
+  end
+
   describe "a member of a board it serves" do
     setup ctx do
       member = user_fixture("member@example.com")
@@ -326,11 +402,25 @@ defmodule SlipdockWeb.MachinesLiveTest do
       assert has_element?(owner_view, "#machine-log", "the private board's secret")
     end
 
+    test "sees a runner's probe result", ctx do
+      runner = add(ctx)
+      {:ok, probe} = Runners.Probe.send_probe(ctx.machine, runner)
+
+      Repo.update_all(from(j in Runners.Job, where: j.id == ^probe.id),
+        set: [status: "done", exit_code: 0, finished_at: DateTime.utc_now(:second)]
+      )
+
+      {:ok, view, _html} = live(ctx.member_conn, ~p"/machines/#{ctx.machine.id}")
+      assert has_element?(view, "#machine-runner-#{runner.id}-probe[data-result=green]")
+      refute has_element?(view, "#machine-runner-#{runner.id} [data-role=probe-runner]")
+    end
+
     test "an event sent anyway changes nothing", ctx do
       runner = add(ctx)
       {:ok, view, _html} = live(ctx.member_conn, ~p"/machines/#{ctx.machine.id}")
 
       render_click(view, "pause_runner", %{"id" => runner.id})
+      render_click(view, "probe_runner", %{"id" => runner.id})
       render_click(view, "revoke", %{})
       render_click(view, "update_now", %{})
 
@@ -338,6 +428,7 @@ defmodule SlipdockWeb.MachinesLiveTest do
       machine = Repo.get!(Machine, ctx.machine.id)
       refute Machine.revoked?(machine)
       refute machine.update_requested_at
+      assert Runners.Probe.latest([runner]) == %{}
       assert has_element?(view, "#machine-notice", "Only the machine's owner changes it")
     end
 

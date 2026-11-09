@@ -29,6 +29,10 @@ defmodule SlipdockWeb.API.RunnerController do
   so between jobs, after the finish and before its next claim, so a deploy
   during a long job reaches the next one.
 
+  A probe (`X-Job-Kind: probe`, #2580) has no card, so no `X-Card-*`
+  headers: its body is what the server knows of the runner, one `name:
+  value` line each (`Slipdock.Runners.Probe.prompt/1`).
+
   A job that asked a person something (a wait opened with its id) finishes
   `ok parked`, whatever its exit code. A job sent again after its question
   was answered says so in `X-Wait-Id`, and `X-Handoff-Id` names the card's
@@ -82,9 +86,7 @@ defmodule SlipdockWeb.API.RunnerController do
           conn
           |> put_resp_header("x-job-id", to_string(job.id))
           |> put_resp_header("x-job-kind", job.kind)
-          |> put_resp_header("x-card-id", to_string(job.card_id))
-          |> put_resp_header("x-card-ref", "##{job.card_id}")
-          |> put_resp_header("x-card-url", card_url(job))
+          |> card_headers(job)
           |> put_resp_header("x-board-id", to_string(job.board_id))
           |> put_resp_header("x-lease-seconds", to_string(Runners.lease_for(conn.assigns.runner)))
           |> context_headers(job)
@@ -142,6 +144,16 @@ defmodule SlipdockWeb.API.RunnerController do
       {:error, :ended} -> text_reply(conn, 409, "the job has ended")
       {:error, :not_found} -> text_reply(conn, 404, "no such job for this runner")
     end
+  end
+
+  # A probe (#2580) has no card, and so no card headers.
+  defp card_headers(conn, %{card_id: nil}), do: conn
+
+  defp card_headers(conn, job) do
+    conn
+    |> put_resp_header("x-card-id", to_string(job.card_id))
+    |> put_resp_header("x-card-ref", "##{job.card_id}")
+    |> put_resp_header("x-card-url", card_url(job))
   end
 
   defp context_headers(conn, job) do
