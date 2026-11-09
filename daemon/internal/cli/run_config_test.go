@@ -120,7 +120,14 @@ func liveWorld(t *testing.T, srv *configServer) (*world, func() (stop func() int
 	if err := machine.Save(w.dir, st, key); err != nil {
 		t.Fatal(err)
 	}
-	w.env.Sleep = func(ctx context.Context, d time.Duration) error { return sleepCtx(ctx, 10*time.Millisecond) }
+	w.env.Sleep = func(ctx context.Context, d time.Duration) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Millisecond):
+			return nil
+		}
+	}
 	return w, func() func() int {
 		ctx, cancel := context.WithCancel(context.Background())
 		w.env.Context = func() (context.Context, context.CancelFunc) { return ctx, cancel }

@@ -83,7 +83,7 @@ func cmdRun(args []string, env Env) error {
 	runners.Add(1)
 	go func() {
 		defer runners.Done()
-		if err := runRunners(ctx, d, st, key, ceil, local, env, logger.Printf); errors.Is(err, runner.ErrRevoked) {
+		if err := runRunners(ctx, d, st, key, ceil, local, env, client.Sleep, logger.Printf); errors.Is(err, runner.ErrRevoked) {
 			close(revoked)
 			stopAll()
 		}
@@ -123,7 +123,9 @@ const configWait = 50
 // config as the server changes it (#2575): each change checked against the
 // ceiling and reported, applied between jobs, without a restart. Until the
 // server first answers, it runs what was last accepted, from the cache.
-func runRunners(ctx context.Context, d string, st machine.State, key string, ceil machine.Ceiling, local machine.Local, env Env, logf func(string, ...any)) error {
+// pause waits between asks, returning early when ctx ends.
+func runRunners(ctx context.Context, d string, st machine.State, key string, ceil machine.Ceiling, local machine.Local, env Env,
+	pause func(context.Context, time.Duration) error, logf func(string, ...any)) error {
 	hc := &http.Client{}
 	if env.HTTP != nil && env.HTTP.Transport != nil {
 		hc.Transport = env.HTTP.Transport
@@ -170,7 +172,7 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 				started = true
 			}
 			logf("can't read this machine's runners, trying again in %s: %v", configRetry, err)
-			if sleepCtx(ctx, configRetry) != nil {
+			if pause(ctx, configRetry) != nil {
 				return pool.Wait()
 			}
 			continue
@@ -179,21 +181,10 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 			since, wait, started = l.Version, configWait, true
 		case l != nil:
 			// An answer at once with nothing newer: don't ask again at once.
-			if sleepCtx(ctx, configRetry) != nil {
+			if pause(ctx, configRetry) != nil {
 				return pool.Wait()
 			}
 		}
 		keeper.Flush(ctx)
-	}
-}
-
-func sleepCtx(ctx context.Context, d time.Duration) error {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
 	}
 }
