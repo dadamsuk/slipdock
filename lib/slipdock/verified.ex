@@ -2549,7 +2549,7 @@ defmodule Slipdock.Verified do
     Enum.any?(Slipdock.Verified.Checks.mutants(checks), &(&1["result"] == "survived")) or
       Enum.any?(
         checks["rules"] || [],
-        &(&1["result"] == "broken" and &1["severity"] in ["must", nil])
+        &(&1["result"] == "broken" and Enum.member?(["must", nil], &1["severity"]))
       )
   end
 
