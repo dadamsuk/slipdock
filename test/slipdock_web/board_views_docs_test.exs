@@ -6,7 +6,7 @@ defmodule SlipdockWeb.BoardViewsDocsTest do
   use ExUnit.Case, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   defp section(manual, heading) do
     [_, rest] = String.split(manual, "\n## #{heading}\n", parts: 2)

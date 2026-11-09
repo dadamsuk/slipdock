@@ -9,7 +9,7 @@ defmodule SlipdockWeb.LedgerDocsTest do
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
   defp flat(path), do: path |> read() |> String.replace(~r/\s+/, " ")
 
   test "the API guide gives the endpoint, the CLI and the MCP view" do
@@ -40,14 +40,14 @@ defmodule SlipdockWeb.LedgerDocsTest do
   test "the manual has the section, its doors and the activity row" do
     manual = read("docs/manual.md")
     assert manual =~ "\n## The ledger\n"
-    assert manual =~ "[The ledger](#the-ledger)"
+    assert manual =~ "[The ledger](the-ledger.md)"
     assert manual =~ "slipdock ledger slipdock --since 7"
     assert manual =~ "GET /api/boards/:board/ledger?since="
 
     assert manual =~
-             "**The Ledger page.** Each board has one at `/boards/:id/ledger`, a tile\non the board's [Agentic Building](#agentic-building) page."
+             "**The Ledger page.** Each board has one at `/boards/:id/ledger`, a tile\non the board's [Agentic Building](the-header-and-the-avatar-menu.md#agentic-building) page."
 
-    assert manual =~ ~s|`view: "ledger"` (with `since`) gives the [ledger](#the-ledger)|
+    assert manual =~ ~s|`view: "ledger"` (with `since`) gives the [ledger](the-ledger.md)|
 
     assert flat("docs/manual.md") =~
              "The window starts at 07:00 yesterday, in the board's timezone"
@@ -57,7 +57,7 @@ defmodule SlipdockWeb.LedgerDocsTest do
     readme = flat("README.md")
 
     assert readme =~
-             "- **Ledger** — [what shipped since yesterday, to skim](docs/manual.md#the-ledger)"
+             "- **Ledger** — [what shipped since yesterday, to skim](docs/manual/the-ledger.md)"
 
     assert readme =~ "`slipdock ledger <board> [--since S]`"
     assert readme =~ "`GET /api/boards/:board/ledger?since=`"

@@ -124,17 +124,21 @@ defmodule SlipdockWeb.VerifyAuditLiveTest do
     assert guide =~ "A board's `verify_audit` (1 in N, 0 none)"
     assert guide =~ "agree|disagree --reason"
 
-    assert squash.(File.read!("docs/agents.md")) =~
+    assert squash.(Slipdock.DocsText.read!("docs/agents.md")) =~
              "A board's `verify_audit` (1 in N; 0, the default,"
 
-    assert squash.(File.read!("docs/manual.md")) =~ "**Audits check the checker.**"
+    assert squash.(Slipdock.DocsText.read!("docs/manual.md")) =~ "**Audits check the checker.**"
 
-    assert File.read!("priv/skills/slipdock-loop/SKILL.md") =~
+    assert Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md") =~
              "- **An audit** (a verify job with `audit: true`"
 
-    assert File.read!("priv/skills/slipdock/SKILL.md") =~ "slipdock verify <id> agree|disagree"
+    assert Slipdock.DocsText.read!("priv/skills/slipdock/SKILL.md") =~
+             "slipdock verify <id> agree|disagree"
 
     for f <- ~w(install.sh install.ps1),
-        do: assert(File.read!("priv/runner/" <> f) =~ "cards as audits (never to the runner")
+        do:
+          assert(
+            Slipdock.DocsText.read!("priv/runner/" <> f) =~ "cards as audits (never to the runner"
+          )
   end
 end

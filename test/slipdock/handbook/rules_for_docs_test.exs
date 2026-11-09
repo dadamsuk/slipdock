@@ -20,7 +20,7 @@ defmodule Slipdock.Handbook.RulesForDocsTest do
 
   test "docs/agents.md and the manual show both forms" do
     for doc <- ~w(docs/agents.md docs/manual.md) do
-      text = File.read!(Path.join(@root, doc))
+      text = Slipdock.DocsText.read!(Path.join(@root, doc))
       assert text =~ "--paths-from -", doc
       assert text =~ "/api/boards/:board/handbook?paths=a,b", doc
       assert text =~ "rules_more", doc
@@ -29,7 +29,7 @@ defmodule Slipdock.Handbook.RulesForDocsTest do
 
   test "slipdock-loop checks the diff against the rules before submitting" do
     path = Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")
-    text = File.read!(path)
+    text = Slipdock.DocsText.read!(path)
     assert text =~ "**Before\nsubmitting, check the diff against them**", path
     assert text =~ "slipdock handbook <board> --paths-from -", path
   end

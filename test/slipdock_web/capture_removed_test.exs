@@ -110,7 +110,7 @@ defmodule SlipdockWeb.CaptureRemovedTest do
 
   describe "the CLI's help" do
     test "names no capture, meetings or voiceprint command, nor their settings" do
-      help = File.read!(Path.join(@root, "cli/help.txt"))
+      help = Slipdock.DocsText.read!(Path.join(@root, "cli/help.txt"))
 
       refute help =~ ~r/^\s+(meetings|capture|capture-chat|voiceprint)\b/m
       refute help =~ "admin meetings"
@@ -189,7 +189,7 @@ defmodule SlipdockWeb.CaptureRemovedTest do
 
       hits =
         for path <- files,
-            text = File.read!(path),
+            text = Slipdock.DocsText.read!(path),
             String.valid?(text),
             {line, n} <- text |> String.split("\n") |> Enum.with_index(1),
             line =~ @terms,
@@ -221,6 +221,6 @@ defmodule SlipdockWeb.CaptureRemovedTest do
 
   test "the slipdock-capture skill is gone" do
     refute File.exists?(Path.join(@root, "priv/skills/slipdock-capture"))
-    refute File.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~ "capture"
+    refute Slipdock.DocsText.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~ "capture"
   end
 end

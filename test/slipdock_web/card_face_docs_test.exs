@@ -10,7 +10,7 @@ defmodule SlipdockWeb.CardFaceDocsTest do
   @manual Path.expand("../../docs/manual.md", __DIR__)
 
   setup_all do
-    %{manual: File.read!(@manual)}
+    %{manual: Slipdock.DocsText.read!(@manual)}
   end
 
   test "the board toolbar's one order, in every view, and View options", %{manual: manual} do

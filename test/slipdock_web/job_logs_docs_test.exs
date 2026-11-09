@@ -9,7 +9,7 @@ defmodule SlipdockWeb.JobLogsDocsTest do
   use SlipdockWeb.ConnCase, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the README tells the whole story in one place" do
     readme = read("README.md")

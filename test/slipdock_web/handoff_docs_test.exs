@@ -10,7 +10,7 @@ defmodule SlipdockWeb.HandoffDocsTest do
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the short guide says to read the handoff first and to leave one when stopping" do
     short = SlipdockWeb.APIGuide.short()
@@ -31,8 +31,8 @@ defmodule SlipdockWeb.HandoffDocsTest do
     assert manual =~ ~r/^## Where it was left \(handoffs\)$/m
     assert manual =~ "POST   /api/cards/:id/handoff"
     assert manual =~ "slipdock handoff 12 --next"
-    assert read("README.md") =~ "docs/manual.md#where-it-was-left-handoffs"
-    assert read("docs/agents.md") =~ "manual.md#where-it-was-left-handoffs"
+    assert read("README.md") =~ "docs/manual/where-it-was-left-handoffs.md"
+    assert read("docs/agents.md") =~ "manual/where-it-was-left-handoffs.md"
   end
 
   test "deleting a handoff is documented everywhere it is written (#1214)" do

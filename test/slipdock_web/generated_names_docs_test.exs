@@ -7,7 +7,7 @@ defmodule SlipdockWeb.GeneratedNamesDocsTest do
   alias SlipdockWeb.APIGuide
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the skills that file cards ask for short titles, in their own copies" do
     for skill <- ~w(slipdock-work slipdock-loop slipdock-docs) do

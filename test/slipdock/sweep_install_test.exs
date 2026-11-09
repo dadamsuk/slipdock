@@ -129,15 +129,16 @@ defmodule Slipdock.SweepInstallTest do
     end
 
     test "the manual, tool-packages, agents.md and both skills say so" do
-      assert File.read!("docs/manual.md") =~ "**The code sweep**"
-      assert File.read!("docs/manual.md") =~ "**A Triage list is never fed.**"
-      assert File.read!("docs/tool-packages.md") =~ "`triage`"
-      assert File.read!("docs/agents.md") =~ "Triage"
+      assert Slipdock.DocsText.read!("docs/manual.md") =~ "**The code sweep**"
+      assert Slipdock.DocsText.read!("docs/manual.md") =~ "**A Triage list is never fed.**"
+      assert Slipdock.DocsText.read!("docs/tool-packages.md") =~ "`triage`"
+      assert Slipdock.DocsText.read!("docs/agents.md") =~ "Triage"
 
-      assert File.read!("priv/skills/slipdock-loop/SKILL.md") =~
+      assert Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md") =~
                "Never take a card from a **Triage** list"
 
-      assert File.read!("priv/skills/slipdock/SKILL.md") =~ "install-board sweep --board B"
+      assert Slipdock.DocsText.read!("priv/skills/slipdock/SKILL.md") =~
+               "install-board sweep --board B"
     end
 
     test "the MCP tool's description names it" do

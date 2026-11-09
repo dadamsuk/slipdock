@@ -7,12 +7,12 @@ defmodule SlipdockWeb.LanesDocsTest do
   use ExUnit.Case, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the manual has the section README links to, with every part" do
     manual = read("docs/manual.md")
     assert manual =~ ~r/^## Lanes$/m
-    assert read("README.md") =~ "docs/manual.md#lanes"
+    assert read("README.md") =~ "docs/manual/lanes.md"
 
     for part <- [
           "**Paths on a card.**",
@@ -67,7 +67,7 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert read("priv/skills/slipdock-work/SKILL.md") =~
              "On a push board a card awaiting verification\n  frees its lane and its dependents"
 
-    guide = File.read!("lib/slipdock_web/api_guide.ex")
+    guide = Slipdock.DocsText.read!("lib/slipdock_web/api_guide.ex")
 
     assert guide =~
              "ships by push, a card awaiting verification has\n      shipped: it frees its lane"
@@ -84,7 +84,7 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert read("docs/agents.md") =~
              "An epic's lane is its subcards': in progress it holds\nnone of its own"
 
-    assert File.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex")) =~
+    assert Slipdock.DocsText.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex")) =~
              "An epic's lane is its subcards': in progress it holds none\n      of its own"
   end
 
@@ -94,7 +94,7 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert manual =~ "Jobs that verify or merge a card don't: they finish work"
     assert read("docs/agents.md") =~ "Lanes hold work jobs only, never a verify or merge\njob."
 
-    assert File.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex")) =~
+    assert Slipdock.DocsText.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex")) =~
              "Verify and merge\n      jobs are never held, by lanes or the WIP limit"
   end
 

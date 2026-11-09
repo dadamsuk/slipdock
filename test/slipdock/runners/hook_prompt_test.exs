@@ -70,7 +70,7 @@ defmodule Slipdock.Runners.HookPromptTest do
     end
 
     test "is in the manual as the shell runner's prompt, word for word" do
-      manual = File.read!(Path.join(@root, "docs/manual.md"))
+      manual = Slipdock.DocsText.read!(Path.join(@root, "docs/manual.md"))
       prompt = HookPrompt.text("server", "https://your-server")
       assert manual =~ "````text\n" <> String.trim_trailing(prompt) <> "\n````"
     end
@@ -80,7 +80,7 @@ defmodule Slipdock.Runners.HookPromptTest do
     test "is served, and an unknown name is a 404", %{conn: conn} do
       for name <- HookPrompt.example_files() do
         body = conn |> get("/runner/examples/#{name}") |> response(200)
-        assert body == File.read!(Path.join(@root, "priv/runner/examples/#{name}"))
+        assert body == Slipdock.DocsText.read!(Path.join(@root, "priv/runner/examples/#{name}"))
       end
 
       assert conn |> get("/runner/examples/install.sh") |> response(404)
@@ -88,12 +88,12 @@ defmodule Slipdock.Runners.HookPromptTest do
     end
 
     test "never touches the board: putting cards back is the server's" do
-      script = File.read!(Path.join(@root, "priv/runner/examples/after-job-hook.sh"))
+      script = Slipdock.DocsText.read!(Path.join(@root, "priv/runner/examples/after-job-hook.sh"))
       refute script =~ ~r/^[^#\n]*slipdock (move|flag|comment|edit|done)/m
     end
 
     test "logs with a timestamp BSD date prints too, so its log survives on a Mac (#1974)" do
-      script = File.read!(Path.join(@root, "priv/runner/examples/after-job-hook.sh"))
+      script = Slipdock.DocsText.read!(Path.join(@root, "priv/runner/examples/after-job-hook.sh"))
 
       code =
         script

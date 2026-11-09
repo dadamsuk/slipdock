@@ -9,7 +9,8 @@ defmodule SlipdockWeb.WorkDismissDocsTest do
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
-  defp flat(path), do: @root |> Path.join(path) |> File.read!() |> String.replace(~r/\s+/, " ")
+  defp flat(path),
+    do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
   test "the manual says how, and that it is mine alone" do
     manual = flat("docs/manual.md")

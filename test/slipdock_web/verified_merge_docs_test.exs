@@ -7,7 +7,7 @@ defmodule SlipdockWeb.VerifiedMergeDocsTest do
   use ExUnit.Case, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the manual says where a merge goes and what a runner that can't merge does" do
     manual = read("docs/manual.md")

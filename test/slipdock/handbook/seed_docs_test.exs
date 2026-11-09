@@ -62,7 +62,7 @@ defmodule Slipdock.Handbook.SeedDocsTest do
   test "the manual describes the seed and the upgrade from the skeleton" do
     manual =
       Path.expand("../../../docs/manual.md", __DIR__)
-      |> File.read!()
+      |> Slipdock.DocsText.read!()
       |> flat()
 
     assert manual =~ "It starts with how to write one and a baseline of three"

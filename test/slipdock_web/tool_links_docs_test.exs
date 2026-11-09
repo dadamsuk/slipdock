@@ -9,7 +9,7 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "list_tools offers skill and link: true" do
     description = SlipdockWeb.MCP.Tools.ListTools.description()

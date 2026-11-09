@@ -18,7 +18,7 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
   @priv Path.join(@root, "priv/skills/slipdock-plan/SKILL.md")
 
   defp flat(text), do: text |> String.replace(~r/\s+/, " ") |> String.trim()
-  defp skill, do: File.read!(@priv)
+  defp skill, do: Slipdock.DocsText.read!(@priv)
 
   # The text under a heading, up to the next heading of that level or above.
   defp section(text, heading) do
@@ -97,7 +97,7 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
 
   test "its section writes are ones the CLI takes (#2039 trial)" do
     text = flat(skill())
-    help = File.read!(Path.join(@root, "cli/help.txt"))
+    help = Slipdock.DocsText.read!(Path.join(@root, "cli/help.txt"))
 
     # `page section … --append` takes the text (or `-` for stdin), not a further `--body`.
     assert help =~ "page section <page> <path> --append TEXT"
@@ -134,15 +134,15 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
   end
 
   test "docs/agents.md, README and the manual name it and say when it runs" do
-    agents = File.read!(Path.join(@root, "docs/agents.md"))
+    agents = Slipdock.DocsText.read!(Path.join(@root, "docs/agents.md"))
     assert agents =~ "| `slipdock-plan` | Planning:"
     assert agents =~ "## Planning an idea: the `slipdock-plan` skill"
     assert flat(agents) =~ "It is not used for \"add a card…\"."
 
-    readme = flat(File.read!(Path.join(@root, "README.md")))
+    readme = flat(Slipdock.DocsText.read!(Path.join(@root, "README.md")))
     assert readme =~ "**Planning.** The `slipdock-plan` skill runs when an agent is asked to plan"
 
-    manual = flat(File.read!(Path.join(@root, "docs/manual.md")))
+    manual = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/manual.md")))
     assert manual =~ "**`slipdock-plan`** — planning, when an agent is asked to plan"
     assert manual =~ "not when asked for a card"
   end
@@ -156,7 +156,7 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
 
   describe "a board's enabled skills, served to its agents (#2063)" do
     test "docs/agents.md and the guide name each door and the plan skill's order" do
-      agents = flat(File.read!(Path.join(@root, "docs/agents.md")))
+      agents = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/agents.md")))
       assert agents =~ "`GET /api/boards/:board/skills`, for anyone who reads the board"
       assert agents =~ "`slipdock skills board <board>`"
       assert agents =~ "MCP's is `get_guide` with `board`, which adds the same list as `skills`"
@@ -169,15 +169,15 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       assert guide =~ "CLI: `slipdock skills board <board> [<name>]`"
       assert guide =~ "`get_guide` with `board`, whose answer adds the same list as `skills`"
 
-      help = File.read!(Path.join(@root, "cli/help.txt"))
+      help = Slipdock.DocsText.read!(Path.join(@root, "cli/help.txt"))
       assert help =~ "skills board <board> [<name>]"
 
-      manual = flat(File.read!(Path.join(@root, "docs/manual.md")))
+      manual = flat(Slipdock.DocsText.read!(Path.join(@root, "docs/manual.md")))
       assert manual =~ "**What the board's agents get.** `GET /api/boards/:board/skills`"
       assert manual =~ "the one enabled on the board first, else one installed on the machine"
       refute manual =~ "an installed skill named with `skill:`"
 
-      readme = flat(File.read!(Path.join(@root, "README.md")))
+      readme = flat(Slipdock.DocsText.read!(Path.join(@root, "README.md")))
       assert readme =~ "`slipdock skills board <board> [<name>]`"
       assert readme =~ "`slipdock-plan` uses one for a Playbook stage that names it"
     end

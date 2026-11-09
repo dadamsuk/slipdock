@@ -12,7 +12,7 @@ defmodule SlipdockWeb.ReproduceReportedDocsTest do
   @root Path.expand("../..", __DIR__)
   # Line breaks folded, for prose that is rewrapped as it changes.
   defp flat(path),
-    do: @root |> Path.join(path) |> File.read!() |> String.replace(~r/\s+/, " ")
+    do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
   describe "the loop skill" do
     setup do: %{loop: flat("priv/skills/slipdock-loop/SKILL.md")}

@@ -56,10 +56,10 @@ defmodule SlipdockWeb.VerifyRejectionLimitLiveTest do
     guide = SlipdockWeb.APIGuide.markdown(user: ctx.user) |> String.replace(~r/\s+/, " ")
     assert guide =~ "Past the board's `verify_rejection_limit` (2 by default, 0 never)"
 
-    agents = File.read!("docs/agents.md") |> String.replace(~r/\s+/, " ")
+    agents = Slipdock.DocsText.read!("docs/agents.md") |> String.replace(~r/\s+/, " ")
     assert agents =~ "`verify_rejection_limit` (2 by default, 0 never;"
 
-    manual = File.read!("docs/manual.md") |> String.replace(~r/\s+/, " ")
+    manual = Slipdock.DocsText.read!("docs/manual.md") |> String.replace(~r/\s+/, " ")
     assert manual =~ "**Too many rejections go to a person.**"
     assert manual =~ "--verify-rejection-limit 2"
     assert manual =~ "*Rework as rejected* (or any other answer, or skipping)"

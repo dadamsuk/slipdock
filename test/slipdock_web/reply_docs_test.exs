@@ -7,7 +7,7 @@ defmodule SlipdockWeb.ReplyDocsTest do
   use SlipdockWeb.ConnCase, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the manual: which emails, quoted text, waits by reply, bounces" do
     manual = read("docs/manual.md")
@@ -25,19 +25,25 @@ defmodule SlipdockWeb.ReplyDocsTest do
 
   test "README links to it from the features and from Receiving email" do
     readme = read("README.md")
-    assert Regex.scan(~r/docs\/manual\.md#replying-to-a-notification/, readme) |> length() >= 2
+
+    assert Regex.scan(
+             ~r/docs\/manual\/emailing-your-board\.md#replying-to-a-notification/,
+             readme
+           )
+           |> length() >= 2
+
     assert readme =~ "signed `reply-…@` `Reply-To`"
   end
 
   test "docs/agents.md and the API guide say a reply can be a comment" do
-    assert read("docs/agents.md") =~ "manual.md#replying-to-a-notification"
+    assert read("docs/agents.md") =~ "manual/emailing-your-board.md#replying-to-a-notification"
 
     assert SlipdockWeb.APIGuide.markdown() =~
              "Emails about a card (mentions, waits, rule emails) can be replied to"
   end
 
   test "the slipdock skill explains kind reply in the log" do
-    assert File.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~
+    assert Slipdock.DocsText.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~
              ~s(kind "reply" = a reply to a notification email)
   end
 end

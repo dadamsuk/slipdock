@@ -13,7 +13,8 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
   @root Path.expand("../..", __DIR__)
 
   # Compared with line breaks folded, since the skills and docs wrap their prose.
-  defp flat(path), do: @root |> Path.join(path) |> File.read!() |> String.replace(~r/\s+/, " ")
+  defp flat(path),
+    do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
   test "the loop skill has a runner's pass report steps, and the epic hear of each subcard" do
     loop = flat("priv/skills/slipdock-loop/SKILL.md")
@@ -27,7 +28,7 @@ defmodule SlipdockWeb.SkillProgressDocsTest do
 
   test "the loop leaves an epic's progress lines to the server (#1881)" do
     path = Path.join(@root, "priv/skills/slipdock-loop/SKILL.md")
-    loop = path |> File.read!() |> String.replace(~r/\s+/, " ")
+    loop = path |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
     refute loop =~ "a one-line comment on the epic itself as each subcard closes", path
     assert loop =~ "the server posts each subcard's progress on the epic itself", path

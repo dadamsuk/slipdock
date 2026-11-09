@@ -20,7 +20,7 @@ defmodule SlipdockWeb.WaitRuleDocsTest do
 
   @root Path.expand("../..", __DIR__)
 
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
   # Line breaks folded, for prose that is rewrapped as it changes.
   defp flat(text), do: String.replace(text, ~r/\s+/, " ")
   defp skill(name), do: flat(read("priv/skills/#{name}/SKILL.md"))

@@ -57,20 +57,23 @@ defmodule Slipdock.RunnersDriftTest do
   describe "what the server serves" do
     test "each packaged skill's SKILL.md, by SHA-256" do
       skills = Drift.served_skills()
-      text = File.read!(Path.join([Slipdock.Skills.dir(), "slipdock-loop", "SKILL.md"]))
+
+      text =
+        Slipdock.DocsText.read!(Path.join([Slipdock.Skills.dir(), "slipdock-loop", "SKILL.md"]))
+
       assert skills["slipdock-loop"] == sha(text)
       assert Map.has_key?(skills, "slipdock")
     end
 
     test "the CLI escript's SHA-256, as /cli/SHA256SUMS publishes it; nil without one", ctx do
-      assert Drift.served_cli() == sha(File.read!(ctx.escript))
+      assert Drift.served_cli() == sha(Slipdock.DocsText.read!(ctx.escript))
 
       body = build_conn() |> get("/cli/SHA256SUMS") |> response(200)
       assert body == Drift.served_cli() <> "  slipdock.escript\n"
 
       # A rebuilt escript is read again, not served from the cache.
       File.write!(ctx.escript, "#!/usr/bin/env escript\na newer CLI, longer\n")
-      assert Drift.served_cli() == sha(File.read!(ctx.escript))
+      assert Drift.served_cli() == sha(Slipdock.DocsText.read!(ctx.escript))
 
       Application.put_env(:slipdock, :cli_escript, ctx.escript <> ".missing")
       assert Drift.served_cli() == nil
@@ -263,10 +266,10 @@ defmodule Slipdock.RunnersDriftTest do
   describe "the docs" do
     test "the guide, the manual, agents.md and both runner scripts say so" do
       assert SlipdockWeb.APIGuide.markdown() =~ "`X-Runner-Skills`"
-      assert File.read!("docs/manual.md") =~ "**Skill and CLI drift.**"
-      assert File.read!("docs/agents.md") =~ "Runners also report **drift**"
-      assert File.read!("priv/runner/slipdock-runner") =~ "# Drift (#1795)"
-      assert File.read!("priv/runner/slipdock-runner.ps1") =~ "# Drift (#1795)"
+      assert Slipdock.DocsText.read!("docs/manual.md") =~ "**Skill and CLI drift.**"
+      assert Slipdock.DocsText.read!("docs/agents.md") =~ "Runners also report **drift**"
+      assert Slipdock.DocsText.read!("priv/runner/slipdock-runner") =~ "# Drift (#1795)"
+      assert Slipdock.DocsText.read!("priv/runner/slipdock-runner.ps1") =~ "# Drift (#1795)"
     end
 
     test "the shell runner's --help still prints its whole header" do

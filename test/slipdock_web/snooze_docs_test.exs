@@ -10,7 +10,7 @@ defmodule SlipdockWeb.SnoozeDocsTest do
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the guide has the field, the recipe and the counts; MCP's update_card names it" do
     guide = SlipdockWeb.APIGuide.markdown()
@@ -25,7 +25,7 @@ defmodule SlipdockWeb.SnoozeDocsTest do
   test "the manual has the section, quick add's snooze:, the z key and the commands" do
     manual = read("docs/manual.md")
     assert manual =~ ~r/^## Snoozing cards$/m
-    assert manual =~ "[Snoozing cards](#snoozing-cards)"
+    assert manual =~ "[Snoozing cards](snoozing-cards.md)"
     assert manual =~ "`snooze: mon`, `snooze: next week`"
     assert manual =~ "- `z` — **snooze** the card"
     assert manual =~ "slipdock snooze 12 next week"
@@ -35,9 +35,9 @@ defmodule SlipdockWeb.SnoozeDocsTest do
   end
 
   test "README and docs/agents.md link to it" do
-    assert read("README.md") =~ "docs/manual.md#snoozing-cards"
+    assert read("README.md") =~ "docs/manual/snoozing-cards.md"
     agents = read("docs/agents.md")
-    assert agents =~ "manual.md#snoozing-cards"
+    assert agents =~ "manual/snoozing-cards.md"
     assert agents =~ "snooze it rather than flag it `waiting`"
   end
 

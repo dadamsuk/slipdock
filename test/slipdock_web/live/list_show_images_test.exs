@@ -136,10 +136,12 @@ defmodule SlipdockWeb.ListShowImagesTest do
 
   test "the manual, API guide and the skill say how to turn it off" do
     root = Path.expand("../../..", __DIR__)
-    assert File.read!(Path.join(root, "docs/manual.md")) =~ "--no-show-images"
-    assert File.read!(Path.join(root, "lib/slipdock_web/api_guide.ex")) =~ "`show_images: false`"
+    assert Slipdock.DocsText.read!(Path.join(root, "docs/manual.md")) =~ "--no-show-images"
 
-    assert File.read!(Path.join(root, "priv/skills/slipdock/SKILL.md")) =~
+    assert Slipdock.DocsText.read!(Path.join(root, "lib/slipdock_web/api_guide.ex")) =~
+             "`show_images: false`"
+
+    assert Slipdock.DocsText.read!(Path.join(root, "priv/skills/slipdock/SKILL.md")) =~
              "set-column <board> <column> --no-show-images"
   end
 end

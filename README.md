@@ -59,9 +59,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   in any Slipdock tab they have open, as a wait on them does), attachments (uploaded in the browser, or over the API and CLI —
   `slipdock attach 12 shot.png`, and back with `slipdock download 5`), image thumbnails on card fronts, recordings that
   play in place and transcribe on a transcription server of your own
-  (Configuration → Server → Transcription server; [what it must speak](docs/manual.md#what-a-transcription-server-must-speak)), which can be taught the voices you name in transcripts, cover colours and a colour for each edge of a card (which the AI chat and automations can set too), archive and restore (the archive searchable by title, `#id` or a card's link), [PDFs and images read for text](docs/manual.md#reading-text-from-files) so search finds what is in them, and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
+  (Configuration → Server → Transcription server; [what it must speak](docs/manual/links-and-goals.md#what-a-transcription-server-must-speak)), which can be taught the voices you name in transcripts, cover colours and a colour for each edge of a card (which the AI chat and automations can set too), archive and restore (the archive searchable by title, `#id` or a card's link), [PDFs and images read for text](docs/manual/links-and-goals.md#reading-text-from-files) so search finds what is in them, and a [select mode](docs/manual/calendar.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.
-- **Where it was left** — [a handoff on every card](docs/manual.md#where-it-was-left-handoffs):
+- **Where it was left** — [a handoff on every card](docs/manual/where-it-was-left-handoffs.md):
   the one next step and a short note (state, gotchas, open questions,
   pointers), shown just beneath the card's title and marked on its front, so whoever picks
   it up next — you, a colleague, an agent or a runner — reads that instead of
@@ -77,7 +77,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   server posts as a quiet status update; once the card is finished, its
   outcome (done when, accepted by whom, the merged PR, shipped with the time)
   takes the next step's place, and the note from before it finished is folded away.
-- **Verified work** — [optional checks per board](docs/manual.md#verified-work)
+- **Verified work** — [optional checks per board](docs/manual/verified-work.md)
   on what an agent says it finished, all off by default: a bar (what done
   means) written before work starts, locked once it does
   (`slipdock set-board --bar-required`, `slipdock edit 12 --bar "…"`), and
@@ -97,7 +97,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   themselves current between jobs, on a matching checksum. On every board,
   switch or not, an agent can't close an epic over open subcards or reopen
   a done card: done stays done unless a person reopens it.
-- **Lanes** — [parallel agents stay out of each other's files](docs/manual.md#lanes),
+- **Lanes** — [parallel agents stay out of each other's files](docs/manual/lanes.md),
   all optional and off by default: a card's paths (`slipdock edit 12 --paths
   "lib/runners/**"`), a board switch that refuses an agent starting a card
   whose paths overlap one in progress (`slipdock set-board --lanes`), or in
@@ -107,7 +107,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   commit inside its card's paths (`slipdock hook install lane-check`), and a
   board's shared paths that never count toward a lane, for the files nearly
   every card edits (`slipdock set-board --shared-paths "docs/manual.md,README.md"`).
-- **Waiting on a person** — [a wait on a card](docs/manual.md#waiting-on-a-person-waits):
+- **Waiting on a person** — [a wait on a card](docs/manual/waiting-on-a-person-waits.md):
   what it needs, from whom (or anyone), since when, and optional answer
   choices. It flags the card `waiting`; answering it on the card, in My work,
   with `slipdock answer 12 --choice 1`, `POST /api/cards/:id/wait/answer` or
@@ -160,13 +160,13 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Reorder** — a mode on the home page where every board and saved
   multiboard is dragged by the whole tile, into an order of your own, which
   the top of your wiki's tree follows too.
-- **A board's pulse** — [flow numbers from every move](docs/manual.md#flow-the-pulse-a-cards-state-and-its-age):
+- **A board's pulse** — [flow numbers from every move](docs/manual/flow-the-pulse-a-cards-state-and-its-age.md):
   each card move is recorded with who made it (a person, an agent or an
   automation), and the board works out what is in progress, what waits on a
   person, what got done this week, typical time to done and each list's usual
   stay. `slipdock pulse <board>`, `GET /api/boards/:id/pulse` or `get_board`
   with `pulse: true`; a plain-words strip over the lists if the owner turns it on, which opens *Visualise* when clicked.
-- **Visualise** — [one page for a board's flow](docs/manual.md#visualise-flow-velocity-runners-and-delivery):
+- **Visualise** — [one page for a board's flow](docs/manual/visualise-flow-velocity-runners-and-delivery.md):
   pick *Visualise* from the board's view menu for its pulse tiles, a block per
   list with traffic and usual stay, cumulative flow, velocity, backlog burndown
   and cycle time over 7, 30 or 90 days, aging work in progress, the work mix
@@ -175,14 +175,14 @@ Briefly, with the detail in [the manual](docs/manual.md):
   The same history and runner numbers: `slipdock flow <board> [--days N]`,
   `slipdock runner-stats <board>`, `GET /api/boards/:id/flow?days=` and
   `/runner_stats`, or `get_board` with `history: true` or `runners: true`.
-- **Quality numbers** — [is the agent loop right first time?](docs/manual.md#visualise-flow-velocity-runners-and-delivery):
+- **Quality numbers** — [is the agent loop right first time?](docs/manual/visualise-flow-velocity-runners-and-delivery.md):
   over a window, the cards accepted on their first submission, rejections per
   card and by handbook area, rejections by part and by rule id, the `Handbook:`
   lines a verifier disputed, job timeouts, requeues and give-ups per 100 jobs,
   and health incidents fixed versus flagged. A *Quality* section on
   *Visualise*, `slipdock quality <board> [--days N] [--rules]` or
   `GET /api/boards/:id/quality?days=`; the triage pass reads them too.
-- **Delivery metrics (DORA)** — [deploys recorded from CI](docs/manual.md#delivery-metrics-deploys-and-dora):
+- **Delivery metrics (DORA)** — [deploys recorded from CI](docs/manual/delivery-metrics-deploys-and-dora.md):
   wrap your deploy step in `slipdock deploy run --env production -- ./deploy.sh`
   and the board records each deploy with the commits since the last one, then
   reports deployment frequency, lead time for changes, change failure rate,
@@ -206,7 +206,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   server writes names itself the same way: a write-up is `Cards/<short>/<short>.md`,
   a recurring card's occurrences add their date, and the runner example `passlog.sh`
   writes `Pass <card> (<YYYY-MM-DD HH.MM>)` into the card's folder.
-- **Recurring cards** — [repeating work kept on the card](docs/manual.md#recurring-cards)
+- **Recurring cards** — [repeating work kept on the card](docs/manual/recurring-cards.md)
   ("every Monday: review invoices", "the last Friday of the month", "three days
   after I last did it"): the next one is a copy of the current one, checklist
   unticked and subcards reopened, made in your timezone; one still open when the
@@ -217,14 +217,14 @@ Briefly, with the detail in [the manual](docs/manual.md):
   Slipdock and Simple templates have one) is where recurring agent work lands:
   feed rules send each card to the runners on its day, nobody picks from it,
   and one not started by the end of its day is on your Waiting on you.
-- **Snooze** — [hide a card until a day](docs/manual.md#snoozing-cards) and have
+- **Snooze** — [hide a card until a day](docs/manual/snoozing-cards.md) and have
   it come back at the top of its list: one keystroke (`z`, `z z` for tomorrow)
   takes a card that isn't actionable yet out of the lists, My work and the
   runners' pick. Each list's foot counts its sleepers and shows them faded on a
   click; search, the calendar and roll-ups still see them, and someone else's
   comment wakes one early. `snooze: mon` in quick add, `slipdock snooze 12 next
   week`, `POST /api/cards/:id/snooze` or MCP `update_card`'s `snoozed_until`.
-- **Tidy up** — [the board finds its own rot and proposes the fix](docs/manual.md#tidying-up):
+- **Tidy up** — [the board finds its own rot and proposes the fix](docs/manual/tidying-up.md):
   epics done but still open, Done cards never completed (or completed ones
   outside Done), cards stuck in progress, epics with no next step, long-overdue
   and abandoned cards, likely duplicates (from the stored search vectors, no
@@ -234,15 +234,15 @@ Briefly, with the detail in [the manual](docs/manual.md):
   alert with the count and applies nothing. `slipdock garden <board> --run`,
   `POST /api/boards/:board/garden` or MCP `garden` / `garden_decide`.
 - **Health monitor** — [work stuck in ways only a person would notice is found,
-  fixed where a safe fix exists, or flagged](docs/manual.md#the-health-monitor):
+  fixed where a safe fix exists, or flagged](docs/manual/the-health-monitor.md):
   jobs nobody takes, deadlocks, verification and merges that stall, cards and
   questions nobody is moving. What it can't fix gets the `stuck` flag (or a board
   alert) and a trigger you can attach an email to; `/healthz` reports its pulse.
 - **Right now** — [which runners are doing what, and the cards in progress and
-  where they are](docs/manual.md#right-now), on one page a click from the board,
+  where they are](docs/manual/right-now.md), on one page a click from the board,
   read again every few seconds, with the jobs queued and why each is held.
   `slipdock now <board>`, `GET /api/boards/:board/now` or MCP `get_board now: true`.
-- **Overseer** — [an eye on outcomes, not the work](docs/manual.md#the-overseer):
+- **Overseer** — [an eye on outcomes, not the work](docs/manual/the-overseer.md):
   every minute, server checks for work going round (a second rejection, a
   third runner pass), a board waiting only on you with nothing running, cards
   past their board's P85 and jobs stuck on one step, idle runners beside a
@@ -254,7 +254,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   are active, longer when they aren't. Automations → Overseer, `slipdock
   overseer <board> --on`, `GET`/`PATCH /api/boards/:board/overseer`, MCP
   `get_board overseer: true` / `update_board overseer`.
-- **Findings** — [what each card taught, kept on the board](docs/manual.md#findings):
+- **Findings** — [what each card taught, kept on the board](docs/manual/findings.md):
   a pass writes a `Findings:` block (gotcha, rule, handbook-wrong, tooling,
   process) in its closing comment, the server records rejections, timeouts,
   requeues and failed merges by itself, and the daily triage and the server
@@ -263,12 +263,12 @@ Briefly, with the detail in [the manual](docs/manual.md):
   the board's Findings page and its tile lead with the proposals and keep the
   findings as reference (a card says how many open ones it has), as do
   `slipdock findings <board>` and `GET /api/boards/:board/findings`.
-- **Ledger** — [what shipped since yesterday, to skim](docs/manual.md#the-ledger):
+- **Ledger** — [what shipped since yesterday, to skim](docs/manual/the-ledger.md):
   one line per card completed, accepted, merged or deployed, with who or what
   accepted it, its evidence, the `should` rules it missed, where its time went
   and a *Look closer* into its card chat; the board's Ledger page,
   `slipdock ledger <board> [--since S]` or `GET /api/boards/:board/ledger?since=`.
-- **Profiles and the human tier** — [one word for what kind of change a card is](docs/manual.md#profiles),
+- **Profiles and the human tier** — [one word for what kind of change a card is](docs/manual/profiles.md),
   off until `slipdock set-board --profiles on`: `security`, `schema`, `feature`,
   `fix`, `docs` or `spike`, fixed in code. An agent starting a card with none
   gets one inferred from its paths and tags, strictest first: `security`, then
@@ -278,34 +278,34 @@ Briefly, with the detail in [the manual](docs/manual.md):
   profile is checked again against the change itself, and raised, never lowered:
   a migration or a security path raises even a profile you set, and more than
   400 changed lines raises an agent's or an inferred `fix` or `docs` to
-  `feature` (a `fix` you set keeps it). Its [human tier](docs/manual.md#the-human-tier)
+  `feature` (a `fix` you set keeps it). Its [human tier](docs/manual/profiles.md#the-human-tier)
   says whether an agent's acceptance merges, merges onto the ledger or waits
   for a person: by default `schema`, `security` and `spike` wait
   (`slipdock set-board --profile-tier schema=none` changes one). Shown as a chip
   on the card, in `slipdock card`, `get_card` and the card's JSON, and on its
   ledger line.
-- **Cost on the card** — [what its jobs spent, beside its lead time](docs/manual.md#its-lead-time-and-cost):
+- **Cost on the card** — [what its jobs spent, beside its lead time](docs/manual/flow-the-pulse-a-cards-state-and-its-age.md#its-lead-time-and-cost):
   the model's and the tools' time from each job's log, and tokens where the log
   carried them (never a made-up 0), by phase and rolled up for an epic. No
   prices. On the card panel, `slipdock card`, `get_card`, `GET /api/cards/:id`
   and the ledger line.
-- **Incidents** — [what broke after it shipped, and which check missed it](docs/manual.md#incidents):
+- **Incidents** — [what broke after it shipped, and which check missed it](docs/manual/incidents.md):
   a card names the card that caused it (`caused_by`) and the check that should
   have caught it (`missed_by`: bar, rules, ci, verify, audit or none), and the
   causing card carries a `process` finding with source `incident`.
-- **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
+- **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual/time-tracking.md)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the
   estimate and red past it.
-- **Subcards** — [any card becomes a board of its own](docs/manual.md#subcards-and-templates),
+- **Subcards** — [any card becomes a board of its own](docs/manual/subcards-and-templates.md),
   nesting as deep as the work does, and
-  [rolls up](docs/manual.md#roll-ups-the-outline-and-my-work): leaves done,
+  [rolls up](docs/manual/roll-ups-the-outline-and-my-work.md): leaves done,
   effective dates, slip, blocked-anywhere-below, health.
-- **Simple boards** — [one setting](docs/manual.md#simple-boards) turns a
+- **Simple boards** — [one setting](docs/manual/simple-boards.md) turns a
   board into a plain to-do list, hiding % complete, start dates, health, time
   tracking, votes, dependencies and the timeline and prioritise views.
-- **Default view** — [a board can open on](docs/manual.md#a-boards-default-view)
+- **Default view** — [a board can open on](docs/manual/a-boards-default-view.md)
   its wiki, table, calendar or any other view instead of the kanban.
-- **Sprints** — [a sprint board](docs/manual.md#sprints) where each card is a
+- **Sprints** — [a sprint board](docs/manual/sprints.md) where each card is a
   sprint: **New sprint** dates the next one, and **Add cards…** opens a
   planning view over the boards and lists you plan from — priority, RICE and
   other scores, votes and estimates side by side, epics opening in place, with
@@ -314,61 +314,61 @@ Briefly, with the detail in [the manual](docs/manual.md):
   leaving a live stand-in on the board it came from;
   **Charts** draws each sprint's burndown and the board's velocity.
 - **Seven views** of the same cards —
-  [board](docs/manual.md#features), [swimlanes](docs/manual.md#swimlanes),
-  [table](docs/manual.md#table), [timeline](docs/manual.md#timeline),
-  [calendar](docs/manual.md#calendar),
-  [outline](docs/manual.md#roll-ups-the-outline-and-my-work) and
-  [prioritise](docs/manual.md#prioritise) — each with filters, display
+  [board](docs/manual/features.md), [swimlanes](docs/manual/swimlanes.md),
+  [table](docs/manual/table.md), [timeline](docs/manual/timeline.md),
+  [calendar](docs/manual/calendar.md),
+  [outline](docs/manual/roll-ups-the-outline-and-my-work.md) and
+  [prioritise](docs/manual/prioritise.md) — each with filters, display
   options and saved views that can be shared or published.
-- **Card views** — [choose what you see of a card](docs/manual.md#card-views),
+- **Card views** — [choose what you see of a card](docs/manual/card-views.md),
   on its front and opened, for every board, one board or one list, each
   level changing only what it names; named views to apply anywhere, a saved
   view that brings its own, and **Show all** for a moment. Yours alone, kept
   on the server, so every browser shows the same.
 - **Planning** — [dependencies with cycle detection, list categories and
   horizons, milestones, custom and formula fields (RICE, ICE, value/effort),
-  budget voting, typed links and goals](docs/manual.md#roadmapping).
-- **A wiki per board** — [Markdown pages in a tree of folders](docs/manual.md#wiki),
+  budget voting, typed links and goals](docs/manual/roadmapping.md).
+- **A wiki per board** — [Markdown pages in a tree of folders](docs/manual/wiki.md),
   written in an Obsidian-style live-preview editor (descriptions and comments too),
   that stays quick with thousands of notes (loaded a folder at a time, only the rows
   on screen drawn), icons and colours on folders and pages, `[[links]]` (typing `[[` opens a page picker: by title, folder or `W-` code, recent first, across your wiki), live card chips, live query blocks, backlinks, revisions,
   templates, export and public links. You have one
-  [wiki](docs/manual.md#your-wiki): your **Knowledge Base** first, for what
+  [wiki](docs/manual/wiki.md#your-wiki): your **Knowledge Base** first, for what
   belongs to no board, then a folder for every board you own (archived ones
   left out), a folder tree of Markdown (and other)
   files, the way Obsidian keeps notes (Obsidian itself isn't needed): links, `#tags`, aliases,
   embeds and front matter as Obsidian reads them, a page or a whole folder filed in several
-  folders, and [`slipdock sync`](docs/manual.md#syncing-your-wiki-to-a-folder)
+  folders, and [`slipdock sync`](docs/manual/wiki.md#syncing-your-wiki-to-a-folder)
   to mirror it both ways to a folder on each computer, Obsidian included (or one way,
   `sync from-server` / `sync to-server`), after
-  a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the Obsidian vault you have,
-  Excalidraw [drawings](docs/manual.md#drawings) drawn in the page and drawn
+  a one-time [import](docs/manual/wiki.md#importing-an-obsidian-vault) of the Obsidian vault you have,
+  Excalidraw [drawings](docs/manual/wiki.md#drawings) drawn in the page and drawn
   in together live, with everyone's pointers on the canvas,
-  [meeting pages](docs/manual.md#meeting-recordings-from-google-drive) that play
+  [meeting pages](docs/manual/wiki.md#meeting-recordings-from-google-drive) that play
   their recording from Google Drive in step with the transcript (whose voices
   you can name in place), and
-  [encrypted notes](docs/manual.md#encrypted-notes) in Meld Encrypt's format, encrypted and
+  [encrypted notes](docs/manual/wiki.md#encrypted-notes) in Meld Encrypt's format, encrypted and
   decrypted in your browser or the CLI so the server never sees them. Plus a
-  [Narrative view](docs/manual.md#narrative) that tells you what happened to a
+  [Narrative view](docs/manual/narrative.md) that tells you what happened to a
   set of cards over a date range.
-- **Automations** — ["when a card lands in Done, email the team"](docs/manual.md#automations-and-alerts),
+- **Automations** — ["when a card lands in Done, email the team"](docs/manual/automations-and-alerts.md),
   parsed once by a model and then run by the app — or picked from ready-made
   ones (follow a board, a list or a card; reminders; tidying) with a short
   form and no model at all — with alerts in the header
   and callbacks (GET or POST, with the card's title, link, dates, flags and
   status) out to anything else you run, each one logged with what came back.
 - **Email a card in** — [your own addresses for each board, and one for Quick
-  Add](docs/manual.md#emailing-your-board): forward a message and it is a card,
+  Add](docs/manual/emailing-your-board.md): forward a message and it is a card,
   attachments and all, or mail the board's page address and it is a wiki page
   (`[Folder] Title` files it, `+ Title` adds a dated section to that page),
-  and [reply to a notification](docs/manual.md#replying-to-a-notification)
+  and [reply to a notification](docs/manual/emailing-your-board.md#replying-to-a-notification)
   to comment on its card or answer a wait. A board's owner can list
   permitted senders who may mail its card address too
   (needs [Receiving email](#receiving-email)).
 - **Semantic Search** - find what you're looking for even when you can't remember exactly what it is.
 - **AI, on your own key — or your own hardware** — [chat about a board, ask
   questions in prose over every board at once, search by meaning rather than
-  substring, and an edit mode you approve before it applies](docs/manual.md#ai-assistant).
+  substring, and an edit mode you approve before it applies](docs/manual/ai-assistant.md).
   Open a card a runner worked on and ask it how the work went: why CI
   failed, whether the rejection was fair, where its 78 minutes went (its lead
   time by phase, from the queue to the deploy), or what the agent did in a
@@ -379,24 +379,24 @@ Briefly, with the detail in [the manual](docs/manual.md):
   your own — LM Studio, Ollama, llama.cpp, vLLM — and nothing leaves your
   network at all. Neither one, no AI features; nothing is sent anywhere
   without one. An admin picks the server's models and
-  [OpenRouter fallbacks for when one is rate-limited](docs/manual.md#the-servers-models-and-fallbacks)
+  [OpenRouter fallbacks for when one is rate-limited](docs/manual/running.md#the-servers-models-and-fallbacks)
   under Configuration → AI.
 - **Built for the keyboard and the phone** — [a command palette, a key for
-  every board and your wiki, Ctrl-Shift-digit hotkeys, Shift-Alt-S to search everything, Shift-Alt-N for a [quick note](docs/manual.md#quick-notes), Shift-Alt-F for Favourites and Shift-Alt-A to ask, card labels you can jump to](docs/manual.md#keyboard),
-  [boards and your wiki pinned to the header as icons](docs/manual.md#header-links), and
+  every board and your wiki, Ctrl-Shift-digit hotkeys, Shift-Alt-S to search everything, Shift-Alt-N for a [quick note](docs/manual/quick-notes.md), Shift-Alt-F for Favourites and Shift-Alt-A to ask, card labels you can jump to](docs/manual/keyboard.md),
+  [boards and your wiki pinned to the header as icons](docs/manual/keyboard.md#header-links), and
   [a layout below 640px that is a pager rather than a sideways
-  scroll](docs/manual.md#on-a-phone).
+  scroll](docs/manual/on-a-phone.md).
 - **A tour that is made of the thing it describes** — the first time somebody
   signs in they get a **Getting Started** board:
-  [a dozen cards explaining the app](docs/manual.md#getting-started), with an
+  [a dozen cards explaining the app](docs/manual/getting-started.md), with an
   epic, subcards, a working automation and three wiki pages, so nobody meets a
   blank page and the explanation of flags is a card with flags on it. Archive
   it when you are done; `slipdock welcome` brings it back.
 - **Accounts and sharing** — [passwordless sign-in (an emailed link or code, or
   a passkey), groups, and read-only, comment-only (discuss without
   editing) or editable grants on a board, a single card, a wiki page or a saved
-  view](docs/manual.md#accounts-and-sharing). A wiki page or a whole folder
-  can be [shared on its own](docs/manual.md#sharing-pages-and-folders), to a
+  view](docs/manual/accounts-and-sharing.md). A wiki page or a whole folder
+  can be [shared on its own](docs/manual/wiki.md#sharing-pages-and-folders), to a
   person or a group: it shows under their **Shared with me** without the rest
   of the board along with the images and files the page embeds, a share to
   edit can't delete, move out or pass anything on, and a synced wiki gets link stubs rather than the content. A board somebody shared with you
@@ -404,19 +404,19 @@ Briefly, with the detail in [the manual](docs/manual.md):
   boards of unknown provenance, and its *…* menu has a **Shared** page saying
   who handed it over with a **Discard** button that gives the access back —
   plus
-  [a device flow for signing an agent in](docs/manual.md#signing-an-agent-in)
+  [a device flow for signing an agent in](docs/manual/accounts-and-sharing.md#signing-an-agent-in)
   from anywhere, with scoped, expiring, revocable tokens.
 - **Boards that can leave** — [a whole board tree as one JSON file another
-  Slipdock reads back](docs/manual.md#moving-boards-between-servers): lists,
+  Slipdock reads back](docs/manual/moving-boards-between-servers.md): lists,
   cards, subcards, tags, checklists, comments, custom fields, dependencies and
   the wiki. Plus the wiki on its own as a folder of Markdown, and everything
   you have as a zip. Nothing here is a one-way door — and boards can arrive
-  too: [a Trello board's JSON export](docs/manual.md#from-trello) imports as
+  too: [a Trello board's JSON export](docs/manual/moving-boards-between-servers.md#from-trello) imports as
   it is, lists, cards, labels, checklists and comments.
-- **A JSON API and a CLI** — [everything the UI can do](docs/manual.md#json-api),
-  [from the shell](docs/manual.md#cli) (on Windows, `irm <server>/cli/install.ps1 | iex`
+- **A JSON API and a CLI** — [everything the UI can do](docs/manual/json-api.md),
+  [from the shell](docs/manual/cli.md) (on Windows, `irm <server>/cli/install.ps1 | iex`
   installs the CLI from your own server), plus
-  [agent skills](docs/manual.md#skills) the server ships (for ChatGPT too,
+  [agent skills](docs/manual/skills.md) the server ships (for ChatGPT too,
   as zips that use the MCP connector instead of the CLI) and a
   `/api/guide` that describes *your* boards to whatever is driving them
   (`?section=short` to start, then one section at a time; the whole of it is long).
@@ -425,7 +425,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   searching, and adding, moving, commenting on, completing and archiving
   cards, with their dependencies and checklists. Add it
   as a connector by its address and sign in through the browser (OAuth), or
-  connect with an API token ([the tools](docs/manual.md#mcp-server),
+  connect with an API token ([the tools](docs/manual/mcp-server.md),
   [connecting](docs/agents.md#over-mcp)).
 - **An agent on your board in a minute** —
   [setting one up](docs/agents.md) needs no software and no access to the
@@ -860,14 +860,14 @@ write to (the board's `…` menu › *Email to this board*, `slipdock inbound
 <board>`), a `page-…@` address of its own for any wiki folder (the tree's
 *Email this folder…*, `slipdock inbound <board> --folder <path>`) and a personal `add-…@` address that goes through Quick Add
 (Account, `slipdock inbound me`): see [Emailing your
-board](docs/manual.md#emailing-your-board) for what a message becomes and why
+board](docs/manual/emailing-your-board.md) for what a message becomes and why
 one might bounce. A board's automations can act on what mail brings in, as
 it arrives: the `card_emailed` and `page_emailed` triggers (flag it for
 review, tag it, alert someone; [Rules for what mail brings
-in](docs/manual.md#rules-for-what-mail-brings-in)). Emails about a card (mentions, waits, automation emails)
+in](docs/manual/automations-and-alerts.md#rules-for-what-mail-brings-in)). Emails about a card (mentions, waits, automation emails)
 carry a signed `reply-…@` `Reply-To`, so a reply becomes a comment on the
 card or answers the wait ([Replying to a
-notification](docs/manual.md#replying-to-a-notification)); rotating the
+notification](docs/manual/emailing-your-board.md#replying-to-a-notification)); rotating the
 secret retires those addresses once the previous one is dropped. Each person's last 50 inbound messages, and what came of
 each (what it made, or why it bounced or was ignored), are on the account's
 *Email Log* tab, at `GET /api/inbound/log` and with `slipdock inbound log`. The design
@@ -877,7 +877,7 @@ and the deploy runbook are on the Slipdock board's wiki (W-1933).
 
 A meeting page can play its recording straight from the owner's Google
 Drive, in step with its transcript
-([manual](docs/manual.md#meeting-recordings-from-google-drive)). Nothing is
+([manual](docs/manual/wiki.md#meeting-recordings-from-google-drive)). Nothing is
 copied to the server. Each person connects their own Drive, read-only, through
 an OAuth client you make once:
 
@@ -919,7 +919,7 @@ client that holds an API token plays the same stream from
 
 What a meeting page has to look like to play, for whatever records and
 transcribes your meetings, is in the manual:
-[Meeting transcripts: what Slipdock expects](docs/manual.md#meeting-transcripts-what-slipdock-expects).
+[Meeting transcripts: what Slipdock expects](docs/manual/wiki.md#meeting-transcripts-what-slipdock-expects).
 
 ### From a checkout
 
@@ -941,7 +941,7 @@ development the server binds to this machine's Tailscale address if it has one,
 otherwise loopback; `SLIPDOCK_BIND_IP` and `PORT` override that, and
 `DATABASE_URL` points it at another database.
 [`deploy/slipdock.service`](deploy/slipdock.service) is a systemd unit template for
-running a production release on boot — see [the manual](docs/manual.md#as-a-service).
+running a production release on boot — see [the manual](docs/manual/as-a-service.md).
 Do not leave the dev server reachable by other people: its `/dev/mailbox` shows
 every sign-in link it has sent.
 
@@ -1054,7 +1054,7 @@ second never replaces the first.
 `slipdock runner new <board> [name] --pool default [--scenario …]` prints the
 same, `slipdock runner ls|show|setup|token|rm` manage them, and `slipdock jobs
 <board>` shows what they're doing. The details are in
-[the manual](docs/manual.md#runners).
+[the manual](docs/manual/runners.md).
 
 ## Tools
 
@@ -1141,7 +1141,7 @@ reaches everyone without a reinstall
 version). The package format, every
 endpoint and a worked example are in
 [Tool packages: the reference](docs/tool-packages.md); the overview is in
-[the manual](docs/manual.md#tools).
+[the manual](docs/manual/tools.md).
 
 ## Connecting an MCP client
 
@@ -1165,9 +1165,9 @@ the rest of its sections, one call each with `section`), `list_boards`, `get_boa
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
 the diff one save made, or between any two), `wiki_info` (your wiki and its Knowledge Base, which board a path lands in, the page a link finds, what changed), `activity`
-(a board's log, or one card's), `download_file` (a card's or page's attached file: text as text, an image as an image; `text: true` gives the words read from a PDF or image; `link: true` gives a single-use, ten-minute URL to curl it from a shell instead) `list_automations` (a board's rules, owner only, with the spec grammar on request) `list_tools` (the [Tools](#tools) you can install, the board each install made, and with `file` one file of a Tool) and `garden` (a board's open [tidy-up suggestions](docs/manual.md#tidying-up); `run: true` looks the board over first) to read; `create_card`,
-`update_card`, `move_card`, `comment`, `leave_handoff` (where you left a card: the one next step and a short note, which `get_card` shows first), `garden_decide` (apply, dismiss or undo one tidy-up suggestion the person approved, with `confirm: true`), `upload_file` (attach a file of up to 10 MB to a card or page; `sha256` refuses bytes that changed on the way and is required with `content_base64`, since base64 a model writes out goes wrong above about 1 KB — a caller with a shell asks for `link: true` instead, and gets a single-use upload URL, good for ten minutes and needing no token, to `curl -F file=@… -F sha256=…` the file to (it takes and answers what `/api/cards/:id/attachments` does, so neither the bytes nor a long-lived token pass through the model), and naming a file's path in your wiki copies a file your synced wiki already holds without its bytes passing through the model; and the answer carries the stored file's `sha256`, as `get_card` and `read_page` listings do; a bigger file goes in verified chunks — `append: true` with each chunk's `sha256`, then `finish: true` with the whole file's — and only the finished file becomes an attachment; `replace: true` deletes older files of the same name once it is stored, so a rebuild leaves one copy), `delete_attachment` (a file off a card or page by its id, with `confirm: true`), `complete_card`, `verify_card` (accept or reject a card another agent submitted, on a board that [verifies work](docs/manual.md#verified-work)), `status_update` (a card's stated health, with a note), `archive_card`,
-`delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board` (a board's settings, [Verified work](docs/manual.md#verified-work)'s switches among them), `archive_board`,
+(a board's log, or one card's), `download_file` (a card's or page's attached file: text as text, an image as an image; `text: true` gives the words read from a PDF or image; `link: true` gives a single-use, ten-minute URL to curl it from a shell instead) `list_automations` (a board's rules, owner only, with the spec grammar on request) `list_tools` (the [Tools](#tools) you can install, the board each install made, and with `file` one file of a Tool) and `garden` (a board's open [tidy-up suggestions](docs/manual/tidying-up.md); `run: true` looks the board over first) to read; `create_card`,
+`update_card`, `move_card`, `comment`, `leave_handoff` (where you left a card: the one next step and a short note, which `get_card` shows first), `garden_decide` (apply, dismiss or undo one tidy-up suggestion the person approved, with `confirm: true`), `upload_file` (attach a file of up to 10 MB to a card or page; `sha256` refuses bytes that changed on the way and is required with `content_base64`, since base64 a model writes out goes wrong above about 1 KB — a caller with a shell asks for `link: true` instead, and gets a single-use upload URL, good for ten minutes and needing no token, to `curl -F file=@… -F sha256=…` the file to (it takes and answers what `/api/cards/:id/attachments` does, so neither the bytes nor a long-lived token pass through the model), and naming a file's path in your wiki copies a file your synced wiki already holds without its bytes passing through the model; and the answer carries the stored file's `sha256`, as `get_card` and `read_page` listings do; a bigger file goes in verified chunks — `append: true` with each chunk's `sha256`, then `finish: true` with the whole file's — and only the finished file becomes an attachment; `replace: true` deletes older files of the same name once it is stored, so a rebuild leaves one copy), `delete_attachment` (a file off a card or page by its id, with `confirm: true`), `complete_card`, `verify_card` (accept or reject a card another agent submitted, on a board that [verifies work](docs/manual/verified-work.md)), `status_update` (a card's stated health, with a note), `archive_card`,
+`delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `update_board` (a board's settings, [Verified work](docs/manual/verified-work.md)'s switches among them), `archive_board`,
 `delete_board`, `write_page`, `quick_note` (a note the server names and files in your wiki), `page_tool` (an AI tool over a page: summarise, extract actions and more), `update_page` (rename, summary, move, file, archive or
 restore, pin to a card), `file_folder` (file a wiki folder in other folders as well as
 its home), `share` (share a wiki page or folder with a person or group, or take it
@@ -1181,7 +1181,7 @@ checks the same token, so a read-only or board-scoped token stays that way.
 The deletes need an explicit confirmation. claude.ai connects from
 Anthropic's servers, so for it the server must be reachable from the internet
 over https; Claude Code only needs to reach it from where it runs. The
-details are in [the manual](docs/manual.md#mcp-server), and setting up a
+details are in [the manual](docs/manual/mcp-server.md), and setting up a
 particular client in [docs/agents.md](docs/agents.md#over-mcp).
 
 It also offers 6 prompts, ready-made workflows the client lists in its own
@@ -1202,7 +1202,7 @@ in Claude Code), so the model starts with it in front of it. The list holds My
 work, your favourites and the pages pinned to your favourite boards; anything
 else is one URI away: `slipdock://board/{code}`, `slipdock://card/{id}`,
 `slipdock://page/{code}`, `slipdock://view/{board}/{view}` and `slipdock://work`.
-See [the manual](docs/manual.md#the-resources).
+See [the manual](docs/manual/mcp-server.md#the-resources).
 
 ## Security notes
 

@@ -336,7 +336,7 @@ Two built-in Tools go onto a board that already exists instead of building
 one, with `board` given: `handbook` (the project handbook) and `sweep` (the
 code sweep: a `Sweeps` rotation page, a `Triage` list and a daily *Sweep the
 code* card). Both go on the board's root and add only what is missing when
-installed again. See [the manual](manual.md#tools).
+installed again. See [the manual](manual/tools.md).
 
 On a **first install** the server builds the board:
 

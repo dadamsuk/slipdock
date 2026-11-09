@@ -9,7 +9,8 @@ defmodule SlipdockWeb.WaitingOnMeDocsTest do
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
-  defp flat(path), do: @root |> Path.join(path) |> File.read!() |> String.replace(~r/\s+/, " ")
+  defp flat(path),
+    do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
   test "the manual gives the chip, the line, the header, the doors and the alert" do
     manual = flat("docs/manual.md")
