@@ -670,7 +670,8 @@ WRITE
                                       runner: the tooling (runner) items kept with a runner.
                                       First, what waits on you: the proposals drafted from
                                       findings ("2 proposals await you"), each by id, to
-                                      decide with garden apply|dismiss <id>
+                                      decide with garden apply|dismiss <id> (from Claude
+                                      Code, add --confirm: a proposal is a person's call)
   finding <id> dismiss|promote|reopen [--note TEXT]
                                       triage one (promote: say what it became, W-1950 §Tests)
   finding <id> merge --into ID        fold a repeat into another finding, adding its count

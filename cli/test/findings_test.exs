@@ -69,6 +69,16 @@ defmodule SlipdockCLI.FindingsTest do
     assert out =~ "#5 [merged] process (timeout #12) ×3: job #9 timed out → #4 — same cause"
   end
 
+  # #2649: help.txt's findings entry gives the route a person takes from
+  # Claude Code too, not only the bare command the server refuses there.
+  test "help.txt's findings entry says to add --confirm from Claude Code" do
+    help = File.read!(Path.expand("../help.txt", __DIR__))
+    [_, entry] = String.split(help, "\n  findings <board>", parts: 2)
+    [entry | _] = String.split(entry, "\n  finding <id>", parts: 2)
+    assert entry =~ "decide with garden apply|dismiss <id>"
+    assert entry |> String.replace(~r/\s+/, " ") =~ "from Claude Code, add --confirm"
+  end
+
   # #2123: what waits on the person comes first.
   test "findings <board> leads with the proposals that await you" do
     awaiting = [
@@ -82,7 +92,11 @@ defmodule SlipdockCLI.FindingsTest do
     assert out =~ "2 proposals await you:\n"
     assert out =~ "  proposal #123 (from #4): Seen 3 times: add UX-4\n"
     assert out =~ "  proposal #124 (from #5, #6): Seen 4 times: add TEST-9\n"
-    assert out =~ "  Apply or dismiss one: slipdock garden apply|dismiss <id>\n"
+    # #2649: the route a person takes from Claude Code, where the bare one is refused.
+    assert out =~
+             "  Apply or dismiss one: slipdock garden apply|dismiss <id> " <>
+               "(from Claude Code: add --confirm)\n"
+
     [before, _] = String.split(out, "#4 gotcha")
     assert before =~ "proposal #124"
 

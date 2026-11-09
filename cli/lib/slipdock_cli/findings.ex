@@ -89,7 +89,11 @@ defmodule SlipdockCLI.Findings do
     each =
       Enum.map(proposals, &"  proposal ##{&1["id"]} (from #{from(&1)}): #{&1["explanation"]}")
 
-    decide = "  Apply or dismiss one: slipdock garden apply|dismiss <id>"
+    # A proposal is a person's call: from Claude Code the CLI says it's an
+    # agent, so the person adds --confirm (#2638, #2649).
+    decide =
+      "  Apply or dismiss one: slipdock garden apply|dismiss <id> " <>
+        "(from Claude Code: add --confirm)"
 
     ["#{n} #{if n == 1, do: "proposal awaits", else: "proposals await"} you:" | each] ++
       [decide, ""]
