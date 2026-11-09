@@ -9,11 +9,15 @@ defmodule SlipdockWeb.WaitDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
-  import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
+
+  # A help page as the server sends it, without joining its LiveView: these
+  # tests read what the page says, and a join refused under load came back
+  # from `live/2` as a redirect to the page itself (#2639).
+  defp help(conn, path), do: conn |> get(path) |> html_response(200)
 
   describe "the guide" do
     test "the short guide says to open a wait when stuck on a person, and to stop when paused" do
@@ -161,7 +165,7 @@ defmodule SlipdockWeb.WaitDocsTest do
 
   describe "/help/agents" do
     test "the comparison has the wait, waiting-on-you and pause rows", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents")
+      html = help(conn, ~p"/help/agents")
       assert html =~ "Wait on a person, and answer a wait"
       assert html =~ "See what is waiting on you, and a board&#39;s pulse"
       assert html =~ "Pause runner work, and see that it is paused"
@@ -169,15 +173,15 @@ defmodule SlipdockWeb.WaitDocsTest do
     end
 
     test "the runner, MCP and CLI pages say the same", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/runners")
+      html = help(conn, ~p"/help/agents/runners")
       assert html =~ "saying what it needs and stop"
       assert html =~ "takes nothing and stops"
       refute html =~ "flag the card <em>waiting</em> and stop"
 
-      {:ok, _view, html} = live(conn, ~p"/help/agents/mcp")
+      html = help(conn, ~p"/help/agents/mcp")
       assert html =~ "answer_wait"
 
-      {:ok, _view, html} = live(conn, ~p"/help/agents/cli")
+      html = help(conn, ~p"/help/agents/cli")
       assert html =~ "slipdock answer"
       assert html =~ "slipdock pause"
     end
@@ -212,10 +216,10 @@ defmodule SlipdockWeb.WaitDocsTest do
     end
 
     test "the MCP and CLI pages name questions, answers and skip", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help/agents/mcp")
+      html = help(conn, ~p"/help/agents/mcp")
       assert html =~ "several questions go as <code>questions</code>"
 
-      {:ok, _view, html} = live(conn, ~p"/help/agents/cli")
+      html = help(conn, ~p"/help/agents/cli")
       assert html =~ "<code>--question</code>"
       assert html =~ "<code>slipdock waits</code>"
     end
@@ -257,9 +261,9 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert help =~ "--route KIND=EMAIL[,EMAIL]: who a wait asking that"
       assert help =~ "[--kind K]"
 
-      {:ok, _view, html} = Phoenix.LiveViewTest.live(conn, "/help/boards")
+      html = help(conn, "/help/boards")
       assert html =~ "Who gets asked"
-      {:ok, _view, cli} = Phoenix.LiveViewTest.live(conn, "/help/agents/cli")
+      cli = help(conn, "/help/agents/cli")
       assert cli =~ "<code>--kind</code>"
     end
   end
