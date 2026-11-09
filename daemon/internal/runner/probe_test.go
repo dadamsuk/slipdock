@@ -429,6 +429,31 @@ func TestAProbeInADirectoryTheAccountCantWrite(t *testing.T) {
 	}
 }
 
+// unwriting is an executor whose shell runs and exits 0 but never says
+// writable: the executor check must not take the exit for the write.
+type unwriting struct {
+	executor.Executor
+}
+
+func (u unwriting) Command(p executor.Proc, prog string, args ...string) (*exec.Cmd, error) {
+	if strings.TrimSuffix(filepath.Base(prog), ".exe") == shellName() {
+		h := self("ran-unwritten")
+		return u.Executor.Command(p, h.Path, h.Args...)
+	}
+	return u.Executor.Command(p, prog, args...)
+}
+
+func TestAProbeWhoseCommandExitsZeroWithoutWriting(t *testing.T) {
+	r, f := probeRig(t)
+	me, _ := executor.New(executor.Me, executor.Settings{GOOS: runtime.GOOS, LookPath: probeLookPath})
+	r.w.Executor = unwriting{probeExecutor{me, f}}
+	fin := r.runJob(fakeJob{id: 375, kind: ProbeKind, prompt: greenPrompt})
+	if fin.exit != 1 || !strings.Contains(fin.body, "a command runs as someone (executor me) in "+r.dir+" but can't write it: ") ||
+		!strings.Contains(fin.body, "probe: red: 1 failed (executor)") {
+		t.Fatalf("exit %d, want 1 with the command never saying writable:\n%s", fin.exit, fin.body)
+	}
+}
+
 // TestARealConfinedProbeIsGreen: a confined runner's probe, nothing faked
 // but gh's login, is green: its git, agent and command run confined, and
 // the command can write the directory. Required where CI says so

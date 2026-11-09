@@ -103,6 +103,12 @@ func helper(mode string, args []string) int {
 		fmt.Println("hook", name, "ran")
 		code, _ := strconv.Atoi(os.Getenv("HELPER_HOOK_EXIT_" + name))
 		return code
+	case "ran-unwritten":
+		// Runs and says so, and as whom, then exits 0 without writing:
+		// an executor check that never says writable.
+		fmt.Println("ran")
+		fmt.Println("someone")
+		return 0
 	case "refuse":
 		// An executor that won't run the command: sudo's refusal.
 		fmt.Fprintln(os.Stderr, "sudo: a password is required")
