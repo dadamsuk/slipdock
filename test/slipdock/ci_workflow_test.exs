@@ -256,7 +256,8 @@ defmodule Slipdock.CiWorkflowTest do
       assert has?(daemon, "os: [ubuntu-latest, macos-latest, windows-latest]")
       assert has?(daemon, "runs-on: ${{ matrix.os }}")
       assert has?(daemon, "working-directory: daemon")
-      assert has?(daemon, "go-version-file: daemon/go.mod")
+      # The newest Go: macOS refuses 1.22's test binaries (missing LC_UUID).
+      assert has?(daemon, "go-version: stable")
 
       for command <- ["go build ./...", "go vet ./...", "go test ./..."],
           do: assert(runs?(daemon, command), "the daemon job no longer runs `#{command}`")
