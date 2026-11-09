@@ -1299,7 +1299,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
       </p>
       <p id="help-machine-setup">
         <strong>Set up this machine with Claude</strong>, on the machine's page and at the end of
-        <code>slipdock-runner init</code> (or <code>slipdock-runner setup</code> later), starts
+        <code>slipdock-runner init</code>
+        (or <code>slipdock-runner setup</code>
+        later), starts
         Claude Code on the machine, as the account its jobs run as, with a prompt that reads each
         board's machine-setup page (the handbook's Testing &amp; tooling, Local setup). It checks
         what the machine has, installs what's missing, proves it by cloning the repository and
