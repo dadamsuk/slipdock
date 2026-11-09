@@ -118,6 +118,7 @@ func doctorChecks(d string, env Env) []check {
 	}
 
 	add(serviceCheck(d, env))
+	add(updateCheck(d))
 	return out
 }
 

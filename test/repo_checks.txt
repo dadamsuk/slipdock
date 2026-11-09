@@ -117,6 +117,7 @@ test/slipdock_web/verify_progress_test.exs
 
 # CI's workflow and the pre-push alias against the repo
 test/slipdock/ci_workflow_test.exs
+test/slipdock/daemon_release_workflow_test.exs
 
 # The branch against main: its migrations are newer than main's (DATA-14, #2090)
 test/slipdock/migration_order_test.exs

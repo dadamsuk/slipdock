@@ -9,11 +9,11 @@ added and changed from the board, not from a shell on the machine, and the
 machine's own **ceiling** limits what the board may set.
 
 The daemon is being built in steps (epic #2569). What is here today:
-enrolling a machine, its ceiling, `show`, `doctor`, the service, running
-its runners' jobs, and the Machines page where its runners are set. It
-reads its runners from the board when it starts; taking changes as they
-come, while it runs, comes next. Until a machine moves over, its runners
-are still the [shell runners](runners.md).
+enrolling a machine, its ceiling, `show`, `doctor`, the service, signed
+releases that it updates itself from, running its runners' jobs, and the
+Machines page where its runners are set, taking changes made there while
+it runs. Until a machine moves over, its runners are still the
+[shell runners](runners.md).
 
 A board's **Automations → Connect a runner** offers *A machine with the
 daemon* first: its steps make a one-time enrolment key for the board and
@@ -21,15 +21,89 @@ give you the `init` line with it.
 
 ### Getting the daemon
 
-Signed releases come with self-update. Until then, build it from this
-repository with Go 1.22 or newer:
+On Linux (WSL included) or macOS:
+
+```sh
+curl -fsSL https://github.com/dadamsuk/slipdock/releases/latest/download/install.sh | sh
+```
+
+On Windows, in PowerShell:
+
+```powershell
+irm https://github.com/dadamsuk/slipdock/releases/latest/download/install.ps1 | iex
+```
+
+Each fetches the latest release's `release.json` (every platform's binary
+with its SHA-256) and its signature, checks the signature against the
+project's release key written into the installer, and only then downloads
+the binary for your machine, checks its SHA-256 against the signed list, and
+puts it in `~/.local/bin` (on Windows, `%LOCALAPPDATA%\Programs\slipdock-runner`).
+`SLIPDOCK_RUNNER_BIN` puts it elsewhere. Anything that doesn't verify is
+refused, and nothing is installed. The check is `ssh-keygen -Y verify`, so
+the installers need OpenSSH 8.1 or later, which macOS, current Linux
+distributions and Windows 10 and 11 have (on Windows, the *OpenSSH Client*
+optional feature).
+
+**First-install trust is download trust.** The key the installer checks
+against comes inside the installer, so the first install is only as
+trustworthy as the download of the installer itself, from GitHub over
+HTTPS. Nothing can do better than that for a first download. From then on
+it is better: the daemon checks every update against the key built into
+it, whichever host serves the update.
+
+To build it yourself instead, with Go 1.22 or newer (a build of your own
+has no release key, so it never updates itself):
 
 ```sh
 cd daemon && go build -o ~/.local/bin/slipdock-runner ./cmd/slipdock-runner
 ```
 
 It is one file with no dependencies, for Linux (WSL included), macOS and
-Windows.
+Windows, on amd64 and arm64.
+
+### Updates
+
+The daemon keeps itself current. When it starts, and every six hours after,
+it fetches the latest release's `release.json` and its signature and checks
+the signature against the **project's release key, which is built into the
+binary**. Only a release signed with that key, and newer than the one
+running, counts. The binary for the machine is then checked against the
+SHA-256 in the signed list before it replaces the running one.
+
+- **`auto`** (the default): the update is installed, and the daemon exits so
+  the service starts the new version. Found at start, that is before any
+  runner takes a job; found by a later check, a job a runner holds is
+  stopped as when the service stops, and goes back to the queue.
+- **`manual`**: the daemon only logs that a newer version exists, and
+  `slipdock-runner update` installs it when you choose.
+
+```sh
+slipdock-runner update --check        # is there a newer release?
+slipdock-runner update                # install it now
+slipdock-runner update --mode manual  # or auto
+slipdock-runner update --source URL   # where releases come from; default puts back GitHub's
+```
+
+Releases can come from anywhere, a mirror or a self-hosted server, because
+what is checked is the signature, not the host. A host can hand out a
+release, but it can't make one. A **refused** update, whether its signature
+doesn't verify, its binary has been changed or its manifest isn't the
+project's, leaves the running binary as it was. The refusal is logged
+(`REFUSED an update from …`) and kept in `update.json` in the daemon's
+directory, and `show` and `doctor` report it until a check succeeds
+(`doctor` as a `FAIL`). An older release is never installed over a newer
+one.
+
+The release key is in the repository, `daemon/internal/release/release_key.pub`.
+The private half is held by GitHub Actions in a protected environment, and
+only a release tag can use it. A signature is an OpenSSH one, so you can
+check a release by hand:
+
+```sh
+printf 'slipdock-release namespaces="slipdock-runner" %s\n' "$(grep '^ssh-ed25519' release_key.pub)" > allowed_signers
+ssh-keygen -Y verify -f allowed_signers -I slipdock-release -n slipdock-runner \
+  -s release.json.sig < release.json
+```
 
 ### Enrolling a machine
 
@@ -65,8 +139,9 @@ directory (`~/.config` on Linux, `~/Library/Application Support` on macOS,
 command. It holds `machine.json` (the server and the machine's id),
 `machine-key`, `identity` (the key pair the fingerprint comes from),
 `ceiling.json`, `local.json` (below), `jobs/` (each runner's log of its
-current job), `config-cache.json` (the settings last accepted) and
-`changes.log` (every change to them).
+current job), `config-cache.json` (the settings last accepted),
+`changes.log` (every change to them) and `update.json` (how updates go,
+and the last check).
 
 ### The ceiling
 
@@ -278,8 +353,8 @@ slipdock-runner doctor
 
 checks the machine is enrolled and the server still accepts its key, the
 key and directory are yours alone, the ceiling is valid and its roots exist,
-each agent in it answers `--version`, `git` is there, `gh` is logged in, and
-the service is installed. Each line is `ok`, `warn` or `FAIL` with what to
+each agent in it answers `--version`, `git` is there, `gh` is logged in,
+the service is installed, and the last update check wasn't refused. Each line is `ok`, `warn` or `FAIL` with what to
 do; any `FAIL` makes it exit non-zero.
 
 ### Running it as a service

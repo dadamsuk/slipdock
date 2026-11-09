@@ -1,0 +1,6 @@
+# The public half of the key that signs slipdock-runner's releases (W-2542),
+# one "ssh-ed25519 AAAA… comment" line below. The binary embeds this file and
+# the release job writes it into the installers; with no key line, a build
+# refuses every update. The private half is DAEMON_SIGNING_KEY in the
+# daemon-release environment: see the manual's Machines page, Releases.
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAo7MOI8Vlatc4OJhTbDn7IvDSiStQlk1yZSv/sYuEGi slipdock-runner-release

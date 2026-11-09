@@ -288,6 +288,130 @@ jobs:
         env:
           VERSION: ${{ steps.meta.outputs.version }}
 
+  # The runner daemon's signed release (W-2542, #2578), from a v* tag: the
+  # binaries for every platform, release.json (each one's SHA-256 and size)
+  # and the two installers, published as the tag's GitHub Release. The daemon
+  # and the installers install nothing whose signature doesn't verify
+  # against daemon/internal/release/release_key.pub, the one copy of the
+  # public key: the binary embeds it, and this job writes it into the
+  # installers.
+  #
+  # Built here with no secrets at all; signed in the next job, which is the
+  # only one that can read the key.
+  daemon-build:
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: daemon
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Vet and test
+        run: |
+          go vet ./...
+          go test ./...
+
+      # Pure Go, so every platform cross-compiles from here. The platform
+      # list is the release package's (release-manifest -platforms), the
+      # same one release.json is written from.
+      - name: Build every platform
+        run: |
+          mkdir -p dist
+          go run ./cmd/release-manifest -version "$VERSION" -platforms |
+            while read -r platform name; do
+              CGO_ENABLED=0 GOOS="${platform%/*}" GOARCH="${platform#*/}" go build -trimpath \
+                -ldflags "-s -w -X github.com/dadamsuk/slipdock/daemon/internal/cli.Version=$VERSION" \
+                -o "dist/$name" ./cmd/slipdock-runner
+            done
+          go run ./cmd/release-manifest -version "$VERSION" -dir dist
+          cat dist/release.json
+        env:
+          VERSION: ${{ github.ref_name }}
+
+      # A release with no key in it would install nothing, so it isn't made.
+      - name: Write the release key into the installers
+        run: |
+          key=$(awk '!/^#/ && NF { print $1 " " $2; exit }' internal/release/release_key.pub)
+          case $key in
+            "ssh-ed25519 "?*) ;;
+            *) echo "::error::daemon/internal/release/release_key.pub holds no ssh-ed25519 key"; exit 1 ;;
+          esac
+          sed "s|__SLIPDOCK_RELEASE_KEY__|$key|" install.sh > dist/install.sh
+          sed "s|__SLIPDOCK_RELEASE_KEY__|$key|" install.ps1 > dist/install.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daemon-dist
+          path: daemon/dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Signs release.json and publishes the release. The private key is the
+  # secret DAEMON_SIGNING_KEY, which only the daemon-release environment
+  # holds: that environment allows v* tags only and waits for a reviewer's
+  # approval, so neither a stray run nor a pull request can sign. The
+  # signature is checked against the committed public key before anything
+  # is published, so a secret that isn't its other half fails here.
+  daemon-release:
+    needs: daemon-build
+    runs-on: ubuntu-latest
+    environment: daemon-release
+    permissions:
+      contents: write
+    concurrency:
+      group: daemon-release
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: daemon/internal/release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: daemon-dist
+          path: dist
+
+      - name: Sign release.json
+        run: |
+          umask 077
+          key_file="$RUNNER_TEMP/release-key"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s\n' "$DAEMON_SIGNING_KEY" > "$key_file"
+          ssh-keygen -Y sign -q -f "$key_file" -n slipdock-runner dist/release.json
+        env:
+          DAEMON_SIGNING_KEY: ${{ secrets.DAEMON_SIGNING_KEY }}
+
+      - name: Check the signature against the committed key
+        run: |
+          key=$(awk '!/^#/ && NF { print $1 " " $2; exit }' daemon/internal/release/release_key.pub)
+          printf 'slipdock-release namespaces="slipdock-runner" %s\n' "$key" > "$RUNNER_TEMP/allowed_signers"
+          ssh-keygen -Y verify -f "$RUNNER_TEMP/allowed_signers" -I slipdock-release -n slipdock-runner \
+            -s dist/release.json.sig < dist/release.json
+
+      # A pre-release tag (v1.2.0-rc.1) is published as one, so the latest
+      # release, which the daemon and the installers read, stays the last
+      # full one.
+      - name: Publish the release
+        run: |
+          pre=""
+          case $TAG in *-*) pre="--prerelease" ;; esac
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag $pre \
+            --title "slipdock-runner $TAG" \
+            --notes "The runner daemon, signed. Install: see the manual's Machines page. release.json.sig is an OpenSSH signature (namespace slipdock-runner) of release.json with the key in daemon/internal/release/release_key.pub."
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+
   # Puts the image just published on the production server, which is reached
   # only over Tailscale: this runner joins the tailnet as an ephemeral tag:ci
   # node (workload identity federation, so there is no Tailscale secret to

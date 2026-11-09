@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/contract"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
@@ -30,7 +31,7 @@ func cmdShow(args []string, env Env) error {
 	if err != nil {
 		return err
 	}
-	return contract.Render(env.Stdout, contract.Facts{
+	if err := contract.Render(env.Stdout, contract.Facts{
 		Server:      st.Server,
 		Name:        st.Name,
 		MachineID:   st.MachineID,
@@ -40,5 +41,29 @@ func cmdShow(args []string, env Env) error {
 		CeilingPath: filepath.Join(d, machine.CeilingFile),
 		KeyPath:     filepath.Join(d, machine.KeyFile),
 		Ceiling:     c,
-	})
+	}); err != nil {
+		return err
+	}
+	return showUpdates(d, env)
+}
+
+// showUpdates says how this binary is kept current, and how the last check went.
+func showUpdates(d string, env Env) error {
+	mode, last, err := updateLines(d)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(env.Stdout, "\nUpdates:       %s. An update installs only if it is signed\n", mode)
+	fmt.Fprintln(env.Stdout, "               with the project's release key, which is built into this binary.")
+	if last != nil {
+		line := fmt.Sprintf("%s at %s", last.Outcome, last.At.Format(time.RFC3339))
+		if last.Latest != "" {
+			line += ", latest " + last.Latest
+		}
+		if last.Reason != "" {
+			line += ": " + last.Reason
+		}
+		fmt.Fprintf(env.Stdout, "Last check:    %s\n", line)
+	}
+	return nil
 }
