@@ -12,11 +12,20 @@ defmodule Slipdock.Boards.WaitAlert do
   asking under their own token is still a question for them: that is how
   most questions reach a board's owner. Each person turns the alert off
   in account settings (`User.waiting_alerts`, on by default).
+
+  The alert comes down by itself when the wait closes, by whatever route
+  (`closed/1`, #2636): answered, skipped, withdrawn, its default standing,
+  or its card completed or archived. A later wait on the card raises an
+  alert of its own.
   """
+
+  import Ecto.Query
 
   alias Slipdock.Access
   alias Slipdock.Accounts.User
+  alias Slipdock.Automations.{Alert, Dismissal}
   alias Slipdock.Boards.{Card, Wait}
+  alias Slipdock.Repo
 
   @doc """
   Whether a wait's person is told about it: there is one, they may read
@@ -48,6 +57,27 @@ defmodule Slipdock.Boards.WaitAlert do
   end
 
   def opened(_wait, _card), do: :ok
+
+  @doc """
+  Takes down the alerts a closed wait raised: each person's alert on its
+  card (one addressed to them, not a rule's) is dismissed for them. A card
+  has one open wait at most, so any such alert is this wait's, or one
+  moved on from (`Boards.move_wait/3`).
+  """
+  @spec closed(struct()) :: :ok
+  def closed(%Wait{card_id: card_id}) do
+    from(a in Alert,
+      left_join: d in Dismissal,
+      on: d.alert_id == a.id and d.user_id == a.user_id,
+      where: a.card_id == ^card_id and not is_nil(a.user_id) and is_nil(a.rule_id),
+      where: is_nil(d.id),
+      select: {a.id, a.user_id}
+    )
+    |> Repo.all()
+    |> Enum.each(fn {id, user_id} ->
+      Slipdock.Automations.dismiss_alert(%User{id: user_id}, id)
+    end)
+  end
 
   @doc "What the alert says: what kind of wait, and the card."
   def title(%Wait{purpose: "verify_limit"}, card),

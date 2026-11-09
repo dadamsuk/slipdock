@@ -4654,6 +4654,7 @@ defmodule Slipdock.Boards do
             )
 
       log(Repo, card.board_id, card.id, "wait", "wait #{reason}: #{closed.needs}")
+      Slipdock.Boards.WaitAlert.closed(closed)
       broadcast(card.board_id)
       {:ok, closed}
     end
