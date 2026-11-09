@@ -97,6 +97,11 @@ defmodule Slipdock.Verified do
                 "(an epic, whose subcards ship their own, needs none; a card that changes no " <>
                 "code says why instead: evidence_no_code, `slipdock done --no-code REASON`)"
 
+  @spike_pr_message "can't be given for a spike: a spike merges nothing, so complete it with " <>
+                      "--no-code and the branch its prototype is on (evidence_no_code, " <>
+                      "`slipdock done --no-code \"spike: answer on W-…, prototype on card-<id>\"`) " <>
+                      "and close any pull request you opened for it"
+
   @pr_commit_message "is required with evidence_pr: the pull request is merged at the commit " <>
                        "the card names, so give its head (evidence_commit, `slipdock done " <>
                        "--pr URL --evidence-commit SHA`, the sha `gh pr view URL --json " <>
@@ -126,6 +131,7 @@ defmodule Slipdock.Verified do
          :ok <- check_profile_edit(card, attrs, actor),
          :ok <- check_subcards(card, attrs, actor),
          :ok <- check_evidence(card, attrs, actor),
+         :ok <- check_spike_pr(card, attrs, actor),
          :ok <- check_change(attrs) do
       {attrs, changes} = card |> clear_evidence(attrs) |> verification(card, actor)
       {:ok, attrs, changes}
@@ -565,6 +571,25 @@ defmodule Slipdock.Verified do
       pr? and missing_commit?(card, attrs) -> {:error, :evidence_commit, @pr_commit_message}
       pr? or no_code? or epic?(card) -> :ok
       true -> {:error, :evidence_pr, @pr_message}
+    end
+  end
+
+  # A spike's code is never merged (#2349): an agent completing one names
+  # no pull request, on any board. People, the assistant and automations
+  # are not refused (W-2235).
+  defp check_spike_pr(%Card{} = card, attrs, actor) do
+    if completes?(card, attrs) and gated?(actor) and
+         present?(given(attrs, :evidence_pr, card.evidence_pr)) and
+         Slipdock.Profiles.spike?(spiked(card, attrs)),
+       do: {:error, :evidence_pr, @spike_pr_message},
+       else: :ok
+  end
+
+  # The card as the write would leave its profile, for `spike?/1`.
+  defp spiked(card, attrs) do
+    case fetch(attrs, :profile) do
+      profile when is_binary(profile) -> %{card | profile: String.trim(profile)}
+      _ -> card
     end
   end
 

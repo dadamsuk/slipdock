@@ -15,11 +15,13 @@ defmodule Slipdock.Profiles do
   Each profile has a human tier, saying what an agent's acceptance does on
   a board that ships by pull request (`tier/1`):
 
-    * `none` (`docs`, `fix`): acceptance merges, as without profiles;
+    * `none` (`docs`, `fix`, `spike`): acceptance merges, as without
+      profiles; a spike has nothing to merge (#2349), since its code is a
+      prototype that stays on its branch;
     * `ledger` (`feature`): acceptance merges, and the card's line on the
       ledger (`Slipdock.Ledger`) is the person's look at it; it behaves as
       `none`, and exists so a board can raise it;
-    * `before_merge` (`schema`, `security`, `spike`): acceptance opens a
+    * `before_merge` (`schema`, `security`): acceptance opens a
       wait routed `release` (Merge / Send back) instead of queueing the
       merge, and the card is `held` until a person answers
       (`Slipdock.Verified`).
@@ -27,6 +29,14 @@ defmodule Slipdock.Profiles do
   A board's root holds any changes to the defaults (`Board.profile_tiers`,
   only the ones that differ); with profiles off on the card's board every
   tier is `none`. The verifier's spend (#1953) is still to come.
+
+  ## Spikes (#2349)
+
+  A spike card (`spike?/1`) answers a question by building, and its code is
+  never merged: an agent completes it with `evidence_no_code` and its
+  branch, never a pull request (`Slipdock.Verified`), and it holds no lane
+  (`Slipdock.Lanes`). That holds on any board, profiles on or off, so a
+  hand-tagged `spike` card gets it too.
 
   ## Inference
 
@@ -83,7 +93,7 @@ defmodule Slipdock.Profiles do
     "feature" => "ledger",
     "schema" => "before_merge",
     "security" => "before_merge",
-    "spike" => "before_merge"
+    "spike" => "none"
   }
 
   @doc "The profiles, strictest first."
@@ -291,6 +301,22 @@ defmodule Slipdock.Profiles do
   defp reason(_feature, [], _tags), do: "the default: it has no paths yet"
   defp reason(_feature, _paths, _tags), do: "the default for its paths"
 
+  @doc """
+  Whether `card` is a spike (#2349): its profile is `spike`, or it has no
+  profile and is tagged `spike` (any case). Its tags are loaded if they
+  aren't and it has been saved.
+  """
+  def spike?(%{profile: "spike"}), do: true
+  def spike?(%{profile: profile}) when is_binary(profile) and profile != "", do: false
+
+  def spike?(%{tags: %Ecto.Association.NotLoaded{}, id: id} = card) when not is_nil(id),
+    do: card |> Slipdock.Repo.preload(:tags) |> spike?()
+
+  def spike?(%{tags: tags}),
+    do: tags |> tag_names() |> Enum.any?(&(String.downcase(&1) == "spike"))
+
+  def spike?(_card), do: false
+
   defp tag_names(%Ecto.Association.NotLoaded{}), do: []
   defp tag_names(tags), do: Enum.map(tags || [], & &1.name)
 
@@ -312,7 +338,7 @@ defmodule Slipdock.Profiles do
   defp bump(profile, _lines), do: profile
 
   # How strict each profile is, for raising and never lowering (#2017): the
-  # inference order, with `spike` (before merge by default) above `feature`.
+  # inference order, with `spike` above `feature`.
   @rank %{"docs" => 0, "fix" => 1, "feature" => 2, "spike" => 3, "schema" => 4, "security" => 5}
 
   @doc "How strict `profile` is: higher is stricter; nil (no profile) is below them all."

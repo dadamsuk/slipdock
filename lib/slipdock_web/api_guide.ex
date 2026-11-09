@@ -4185,8 +4185,8 @@ defmodule SlipdockWeb.APIGuide do
       `person`, an `agent` or a `rule` (nil with no profile, or unrecorded).
 
       Each profile has a human tier (the board's JSON, `profile_tiers`):
-      `none` (`docs`, `fix`) and `ledger` (`feature`) let an agent's
-      acceptance merge; `before_merge` (`schema`, `security`, `spike`) holds
+      `none` (`docs`, `fix`, `spike`) and `ledger` (`feature`) let an agent's
+      acceptance merge; `before_merge` (`schema`, `security`) holds
       it on a board that ships by pull request: the card goes
       `verify_state: "held"`, no merge job, and a `release` wait asks a
       person to Merge or Send back. An agent can't answer that wait or
@@ -4196,6 +4196,14 @@ defmodule SlipdockWeb.APIGuide do
       `PATCH /api/boards/:id {"profile_tiers": {"schema": "none"}}`
       (`default` puts one back), `update_board` `profile_tiers` or
       `slipdock set-board B --profile-tier schema=none`.
+
+      A `spike` card (profile `spike`, or no profile and tagged `spike`, on
+      any board) answers a question by building, and its code is never
+      merged: complete it with `no_code` naming the answer's page and the
+      branch its prototype is on (`slipdock done ID --no-code "spike: answer
+      on W-…, prototype on card-ID"`), never a pull request. An agent naming
+      one is refused (`422`), and accepting it merges nothing. It holds no
+      lane, even with paths: nothing is refused or held because of it.
 
       A profile also sets the verifier's spend. Completing a `docs` card
       on a verifying board queues no verify job: the server accepts it

@@ -28,7 +28,10 @@ defmodule Slipdock.Lanes do
   default branch and nobody is editing its files. A rejection sends it back
   to the ready list, and moving it into a doing list again takes the lane
   back, through the same check. On a board that ships by pull request a
-  pending card keeps its lane until the merge. People are never refused — a person moving the card is
+  pending card keeps its lane until the merge. Nor does a spike
+  (#2349, `Slipdock.Profiles.spike?/1`): its code is never merged, so its
+  paths, if it has any, hold no lane, and nothing is held behind it or holds
+  it. People are never refused — a person moving the card is
   the override — and nor are automations. With the switch off, paths are
   recorded and shown and nothing is refused.
 
@@ -387,7 +390,7 @@ defmodule Slipdock.Lanes do
   def conflict(%Card{} = card, paths \\ nil) do
     board = Repo.get(Board, card.board_id)
 
-    if board && on?(board) do
+    if board && on?(board) && not Slipdock.Profiles.spike?(card) do
       case is_nil(paths) && workable_subcards(card) do
         [_ | _] = subcards -> epic_conflict(subcards)
         _ -> paths_conflict(card, board, tidy(paths || card.paths))
@@ -426,6 +429,7 @@ defmodule Slipdock.Lanes do
           is_nil(c.archived_at) and c.completed == false and c.paths != ^[] and
           c.id not in ^exclude and c.board_id not in ^below and
           not exists(epic_subcards()),
+      where: ^not_spike(),
       where: ^holding(Slipdock.Runners.worked(root)),
       order_by: [asc: c.board_id, asc: col.position, asc: c.position, asc: c.id]
     )
@@ -494,6 +498,24 @@ defmodule Slipdock.Lanes do
 
   defp own_tree(%Card{id: id}, board),
     do: {[id | ancestor_ids(board)], Slipdock.Boards.subtree_board_ids(id)}
+
+  # Not a spike (#2349): a spike is profile `spike`, or no profile and tagged `spike`, as
+  # `Slipdock.Profiles.spike?/1` reads it.
+  defp not_spike do
+    tagged =
+      from(ct in "card_tags",
+        join: t in Slipdock.Boards.Tag,
+        on: t.id == ct.tag_id,
+        where: ct.card_id == parent_as(:card).id and fragment("lower(?)", t.name) == "spike",
+        select: 1
+      )
+
+    dynamic(
+      [card: c],
+      not (coalesce(c.profile, "") == "spike" or
+             (coalesce(c.profile, "") == "" and exists(subquery(tagged))))
+    )
+  end
 
   # The cards on the sub-board of the card in progress being looked at: it
   # is an epic when there are any.

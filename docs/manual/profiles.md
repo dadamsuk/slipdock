@@ -31,7 +31,11 @@ migration and a docs file is `schema`:
    `user_auth.ex` or `user_token.ex`).
 2. `schema`: any migration (`…/migrations/…`) or schema file
    (`structure.sql`, `schema.ex`, `schema.rb`).
-3. `spike`: tagged `spike`. A spike is only ever said by tag.
+3. `spike`: tagged `spike`. A spike is only ever said by tag. A spike
+   answers a question by building, and its code is never merged: an agent
+   completes it with `--no-code`, naming the answer's page and the branch
+   its prototype is on, and a pull request on it is refused. It holds no
+   lane. That holds with profiles off too, for a card tagged `spike`.
 4. `fix`: tagged `bug`.
 5. `docs`: it has paths, and every one is under `docs/`, a `README.md` or
    a `.md` file.
@@ -78,9 +82,9 @@ board that ships by pull request. The defaults are the strict ones:
 
 | Tier | Profiles | An agent's acceptance |
 |---|---|---|
-| `none` | `docs`, `fix` | merges, as without profiles |
+| `none` | `docs`, `fix`, `spike` | merges, as without profiles (a spike has nothing to merge) |
 | `ledger` | `feature` | merges; the card's line on the ledger is your look at it (it behaves as `none`, and is there so you can raise it) |
-| `before_merge` | `schema`, `security`, `spike` | holds the card and asks a person first |
+| `before_merge` | `schema`, `security` | holds the card and asks a person first |
 
 A card with no profile is judged by the one its paths and tags infer, so
 an unprofiled migration still waits. A person's own acceptance (the card

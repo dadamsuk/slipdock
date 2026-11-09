@@ -104,7 +104,7 @@ defmodule Slipdock.ProfilesTierTest do
                "feature" => "ledger",
                "schema" => "before_merge",
                "security" => "before_merge",
-               "spike" => "before_merge"
+               "spike" => "none"
              }
 
       assert Profiles.tiers() == ~w(none ledger before_merge)
@@ -150,7 +150,7 @@ defmodule Slipdock.ProfilesTierTest do
          ctx do
       assert ctx |> card("docs") |> Profiles.tier() == "none"
       assert ctx |> card("feature") |> Profiles.tier() == "ledger"
-      assert ctx |> card("spike") |> Profiles.tier() == "before_merge"
+      assert ctx |> card("spike") |> Profiles.tier() == "none"
 
       parent = card(ctx, "feature")
       {:ok, t} = Boards.find_template(nil, "Simple")

@@ -37,7 +37,9 @@ running, a verify or merge job still to finish included), or a subcard of
 an epic whose job is open. A card in progress with nothing working on it,
 dragged there by hand or left behind by a job that ended, holds no lane;
 the health monitor's *orphan in progress* and the gardener's *stale in
-progress* checks report it instead. A person working a card by hand
+progress* checks report it instead. **A spike holds no lane** (a card
+profiled or tagged `spike`): its code is never merged, so an overlapping
+card starts beside it and no job waits for it. A person working a card by hand
 doesn't hold runners off its files either: give the card a job of its own,
 or pause the board's runners. A runner job for such a card waits, held as
 *Lane: overlaps #N, in progress*, and the next job is taken instead. A
