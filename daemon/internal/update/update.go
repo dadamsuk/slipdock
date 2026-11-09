@@ -266,6 +266,8 @@ func replace(exe string, data []byte) error {
 			os.Rename(old, exe)
 			return err
 		}
+		// Gone now unless it is the running binary; Cleanup gets it then.
+		os.Remove(old)
 		return nil
 	}
 	return os.Rename(name, exe)

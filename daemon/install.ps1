@@ -82,7 +82,14 @@ try {
     if ($file.name -notmatch '^[A-Za-z0-9._-]+$') { Fail "release.json names a file it shouldn't: $($file.name)" }
 
     $downloaded = Fetch $file.name
-    $got = (Get-FileHash -Algorithm SHA256 -Path $downloaded).Hash.ToLowerInvariant()
+    # .NET's SHA-256, not Get-FileHash: that cmdlet's module isn't always
+    # found (a PSModulePath left by PowerShell 7 hides it from 5.1).
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $got = ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($downloaded))) -replace '-', '').ToLowerInvariant()
+    } finally {
+        $sha.Dispose()
+    }
     if ($got -ne $file.sha256) {
         Fail "REFUSED: $($file.name)'s SHA-256 is $got, but the signed manifest says $($file.sha256); nothing was installed"
     }
