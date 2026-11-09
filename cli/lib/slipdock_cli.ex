@@ -140,6 +140,8 @@ defmodule SlipdockCLI do
     rules: :boolean,
     # `slipdock garden <board> --run --check K`, `garden apply <id> --keep N --choice C`.
     run: :boolean,
+    # `garden apply|dismiss|undo <id> --confirm` (#2638): the person's say-so under Claude Code.
+    confirm: :boolean,
     # `slipdock overseer <board>` (#2068): its pacing bounds and email.
     min_minutes: :integer,
     max_minutes: :integer,

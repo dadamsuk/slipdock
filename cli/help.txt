@@ -646,6 +646,9 @@ WRITE
                                       apply suggestions you approve (--keep: the duplicate
                                       that stays; --choice: one of its alternatives)
   garden dismiss|undo <id>...         dismiss (it stays dismissed) or undo an applied one
+                                      --confirm: you decide it yourself from Claude Code, where
+                                      the CLI says it's an agent (a proposed handbook edit is a
+                                      person's call; a runner job's --confirm counts for nothing)
   garden settings <board> [<check> key=value...]
                                       show the checks, or change one (enabled=false, days=30)
   garden propose <board> <file.json | ->

@@ -23,8 +23,7 @@ defmodule SlipdockCLI.Garden do
         {:error, message} -> fail(message)
       end
 
-    body =
-      if verb == "apply", do: compact(%{"keep" => o[:keep], "choice" => o[:choice]}), else: %{}
+    body = decision_body(verb, o)
 
     Enum.each(ids, fn id ->
       HTTP.post("/garden/suggestions/#{id}/#{verb}", body)
@@ -83,9 +82,19 @@ defmodule SlipdockCLI.Garden do
   def run("garden", _args, _o) do
     fail(
       "usage: slipdock garden <board> [--run] [--check K] | garden apply|dismiss|undo <id>... " <>
-        "[--keep CARD] [--choice NAME] | garden settings <board> [<check> key=value...] | " <>
+        "[--keep CARD] [--choice NAME] [--confirm] | garden settings <board> [<check> key=value...] | " <>
         "garden propose <board> <file.json | ->"
     )
+  end
+
+  @doc false
+  # What a decision sends. `--confirm` (#2638) is the person's say-so: under
+  # Claude Code the CLI says it is an agent, and a proposed handbook edit is a
+  # person's to decide, so without it the server refuses. A runner job's
+  # `--confirm` counts for nothing.
+  def decision_body(verb, o) do
+    keep = if verb == "apply", do: %{"keep" => o[:keep], "choice" => o[:choice]}, else: %{}
+    compact(Map.put(keep, "confirm", if(o[:confirm], do: true)))
   end
 
   @doc false
@@ -168,7 +177,11 @@ defmodule SlipdockCLI.Garden do
             IO.puts("      evidence: findings " <> Enum.map_join(s["findings"], ", ", &"##{&1}"))
 
         if s["person_only"],
-          do: IO.puts("      a person's to decide: an agent can't apply or dismiss it")
+          do:
+            IO.puts(
+              "      a person's to decide: an agent can't apply or dismiss it " <>
+                "(the person, from Claude Code: --confirm)"
+            )
 
         if s["needs_keep"],
           do:
