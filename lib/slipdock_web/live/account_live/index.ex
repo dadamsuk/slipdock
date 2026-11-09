@@ -50,6 +50,7 @@ defmodule SlipdockWeb.AccountLive.Index do
       {:sign_in, ~p"/account/sign-in", "hero-finger-print", "Sign-in & passkeys"},
       {:tokens, ~p"/account/tokens", "hero-key", "API tokens"},
       {:agent, ~p"/account/agent", "hero-cpu-chip", "Set up an agent"},
+      {:machines, ~p"/account/machines", "hero-computer-desktop", "Machines"},
       {:data, ~p"/account/data", "hero-arrows-right-left", "Import & export"},
       {:email_log, ~p"/account/email-log", "hero-inbox-arrow-down", "Email log"}
     ]
@@ -76,6 +77,7 @@ defmodule SlipdockWeb.AccountLive.Index do
   defp section_component(:tokens), do: AccountLive.TokensComponent
   defp section_component(:data), do: AccountLive.DataComponent
   defp section_component(:agent), do: AccountLive.AgentComponent
+  defp section_component(:machines), do: AccountLive.MachinesComponent
   defp section_component(:email_log), do: AccountLive.InboundLogComponent
   defp section_component(:index), do: AccountLive.ProfileComponent
 

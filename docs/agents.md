@@ -1176,6 +1176,29 @@ REST claim's `job.profile`, the runner's `x-card-profile` header), and a
 runner's config may set `MODEL_<profile>` to run that profile on another
 model. See [the manual](manual/profiles.md#the-verifiers-spend).
 
+**Machines** (#2570). A machine
+running `slipdock-runner` enrols once and gets a **machine key**
+(`sdm_…`), bound to the account that approved it. By device code:
+`POST /api/machines/enrol` with `hostname`, `os`, `arch` and
+`fingerprint` answers a `user_code` and a `device_code`; a person
+approves at `/account/machines/approve`, seeing the hostname, system and
+fingerprint and choosing the boards it may serve (or over the API:
+`GET /api/machines/enrolment?user_code=…` shows the machine, `POST
+/api/machines/enrolment/approve` with `user_code` and `boards`, or
+`…/refuse`); `POST
+/api/machines/enrol/token` with the `device_code` answers
+`authorization_pending` until then, and the key once after. Or with a
+one-time `enrolment_key` (`POST /api/machines/enrolment-keys` with
+`boards`, shown once, good for 24 hours) and the machine's description
+on the same token endpoint. The key reaches `GET /api/machine` and is
+no API token: every other route refuses it, and revoking the machine
+(`DELETE /api/machines/:id`, or Account › Machines) refuses it at once.
+`GET /api/machines` lists yours; a token confined to some boards is
+refused them. CLI: `slipdock machines`, `machine
+show|revoke|enrolment|approve|refuse|enrol-key`.
+Not over MCP: enrolling and revoking a machine is the account's owner's
+call, made where they sign in, not an agent's.
+
 ## If you self-host
 
 Two things to get right, both about the address:

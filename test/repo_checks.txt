@@ -32,6 +32,7 @@ test/slipdock_web/design_tokens_test.exs
 test/slipdock_web/no_raw_date_input_test.exs
 test/slipdock_web/one_date_format_test.exs
 test/slipdock/directory_leaks_test.exs
+test/slipdock/machines_docs_test.exs
 test/slipdock/mentions_test.exs
 test/slipdock_web/live/file_picker_live_test.exs
 test/slipdock_web/mcp/tool_descriptions_test.exs

@@ -26,6 +26,8 @@ defmodule SlipdockWeb.AccountNavTest do
     {"/account/tokens", "API tokens", ["slipdock auth"], ["About", "AI model", "Passkeys"]},
     {"/account/agent", "Set up an agent", ["Tell it where the board is"],
      ["About", "AI model", "Bring boards in"]},
+    {"/account/machines", "Machines", ["slipdock-runner init", "Enrolment key"],
+     ["About", "AI model", "Passkeys"]},
     {"/account/data", "Import & export", ["Your data", "Bring boards in"],
      ["About", "AI model", "Passkeys"]}
   ]
@@ -136,8 +138,18 @@ defmodule SlipdockWeb.AccountNavTest do
     test "lists Email log only while the server takes mail, and never a Voiceprint" do
       keys = fn i -> AccountLive.Index.sections(i) |> Enum.map(&elem(&1, 0)) end
 
-      assert keys.(false) == [:index, :settings, :sign_in, :tokens, :agent, :data]
-      assert keys.(true) == [:index, :settings, :sign_in, :tokens, :agent, :data, :email_log]
+      assert keys.(false) == [:index, :settings, :sign_in, :tokens, :agent, :machines, :data]
+
+      assert keys.(true) == [
+               :index,
+               :settings,
+               :sign_in,
+               :tokens,
+               :agent,
+               :machines,
+               :data,
+               :email_log
+             ]
     end
 
     test "labels are in sentence case" do

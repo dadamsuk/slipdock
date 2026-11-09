@@ -296,6 +296,10 @@ defmodule SlipdockWeb.Router do
       live "/account/sign-in", AccountLive.Index, :sign_in
       live "/account/tokens", AccountLive.Index, :tokens
       live "/account/data", AccountLive.Index, :data
+      # The machines running the runner daemon for this account (#2570), and
+      # the page that approves one's enrolment by its code.
+      live "/account/machines", AccountLive.Index, :machines
+      live "/account/machines/approve", AccountLive.MachineApprove, :show
       # How to point an agent at this server. A page rather than a doc because
       # the one thing it has to get right is this install's own address.
       live "/account/agent", AccountLive.Index, :agent
@@ -422,6 +426,12 @@ defmodule SlipdockWeb.Router do
 
     post "/auth/device", DeviceController, :create
     post "/auth/device/token", DeviceController, :token
+
+    # A runner daemon enrolling its machine (#2570), and an enrolled machine
+    # asking who it is with its machine key, which is not an API token.
+    post "/machines/enrol", MachineController, :enrol
+    post "/machines/enrol/token", MachineController, :token
+    get "/machine", MachineController, :me
   end
 
   # Signing in from a third-party app with OAuth (W-21). Discovery and
@@ -510,6 +520,15 @@ defmodule SlipdockWeb.Router do
     pipe_through :api
 
     get "/me", MeController, :show
+    # The caller's machines (#2570): list, one, a one-time enrolment key,
+    # revoke, and an enrolment looked up and decided by its code.
+    get "/machines", MachineController, :index
+    post "/machines/enrolment-keys", MachineController, :create_key
+    get "/machines/enrolment", MachineController, :enrolment
+    post "/machines/enrolment/approve", MachineController, :approve
+    post "/machines/enrolment/refuse", MachineController, :refuse
+    get "/machines/:id", MachineController, :show
+    delete "/machines/:id", MachineController, :revoke
     # The caller's own inbound mail and what came of it (#1242).
     get "/inbound/log", InboundController, :log
     # The caller's own inbound addresses (#1246): personal, and per board.

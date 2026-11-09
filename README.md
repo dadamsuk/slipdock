@@ -1315,6 +1315,13 @@ these are decisions only you can make.
   named boards, and made to expire; Account › API tokens shows when each was last
   used and from where. A read-only token is refused anything that would change
   something, and a board-scoped one cannot even list boards outside its scope.
+- **A machine running runners has a key of its own, not your token.**
+  `slipdock-runner init` shows a code and the machine's fingerprint; you
+  approve it at Account › Machines (`/account/machines/approve`), seeing its
+  hostname, system and fingerprint, and choose the boards it may serve. Its
+  machine key is bound to you, works nowhere an API token does, and stops at
+  once when you revoke the machine. A one-time enrolment key (24 hours) does
+  the same for a machine with nobody at its screen.
 - **Agentic Login is an authentication bypass, by design**, and is *not* how to
   sign an agent in — the device flow above is. With
   `SLIPDOCK_AGENTIC_LOGIN=true` the sign-in page will write a working link for
