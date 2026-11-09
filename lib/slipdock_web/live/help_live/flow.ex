@@ -409,6 +409,14 @@ defmodule SlipdockWeb.HelpLive.Flow do
       declare them without holding each other, and their edits are left to merge.
     </p>
     <p>
+      An epic planned with the plan skill can start with <strong>spikes</strong>: a question only
+      building can answer, which you confirm, becomes a card with the <code>spike</code>
+      profile (<code>slipdock add 12 "Spike: does the API page?" --profile spike</code>), its
+      bar the question. A spike needs no paths and holds no lane, and its code is never merged:
+      its answer is a page pinned to the epic. Planning waits until the last is accepted, then
+      a product wait on the epic asks you to resume, and the Spec is written from the answers.
+    </p>
+    <p>
       On a board with a <strong>handbook</strong>
       (its <code>Handbook/</code>
       wiki pages), the card lists the sections the builder should read first, and the rules

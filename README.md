@@ -1167,7 +1167,7 @@ reaches everyone without a reinstall
 - **Planning.** The `slipdock-plan` skill runs when an agent is asked to plan
   ("I want to build…", "break this into cards"). It reads the board's
   Playbook and sizes the ask as a card, a feature or a system. It then runs
-  the stages that size takes (grill, decide, principles, spec, cards) and
+  the stages that size takes (grill, spike, decide, principles, spec, cards) and
   writes the answers into the handbook's Decisions and Principles, a spec on
   the epic, and its cards. A one-sentence ask stays one card. Where a board
   has no handbook, it offers to install one.

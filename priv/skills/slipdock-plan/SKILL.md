@@ -74,10 +74,16 @@ and where it **writes to**. Then:
 - **One stage at a time.** Show the person what the stage produced before
   writing it, and fold in what they change.
 - **Nobody there** (a runner job, a loop): don't answer your own questions.
-  Put the grill's or decide's questions to the person as a wait (`slipdock
+  Put the grill's or decide's questions, or the spike candidates, to the person as a wait (`slipdock
   wait <epic> "intro" --question Q --question Q --kind product`, MCP
   `update_card` `wait`) and stop; the answer starts the next pass. Write
   only what doesn't need them.
+- **Spikes stop the plan.** With spike cards made, stop: leave a handoff
+  on the epic, `slipdock handoff <epic> --next "Planning resumes at Spec
+  once spikes #… are answered"`. Accepting the last opens a `product` wait
+  on the epic. **Resuming**, read each accepted spike's answer page and
+  start at Spec, writing what the answers changed. An *inconclusive* answer
+  goes to the person: another spike, the risky card first, or drop it.
 
 ## 4. Write where the Playbook says
 
@@ -108,6 +114,10 @@ and where it **writes to**. Then:
   feature, appended to its features section (`slipdock page section
   <code> "Specification/Features" --append -`; `page section` can't make
   a section that isn't there yet).
+- **The spikes:** the epic and its sub-board first, then one subcard per
+  confirmed question, a spike by its profile (any board takes it), no
+  paths: `slipdock add <sub> "Spike: <question>" --profile spike --bar
+  "<question>; an answer is …"`.
 - **The cards:** the epic if there isn't one, its sub-board (`slipdock
   subboard <epic> --template Simple`), then the subcards in build order,
   each as `## Card shape` says. On a board that verifies work or keeps
@@ -140,6 +150,15 @@ the person plainly doesn't care about. Offer your best guess with each
 question, so a yes is enough. Stop when the next answer wouldn't change the
 plan. Produce a brief: the problem, who it is for, done-when, out of scope,
 open questions.
+
+### Spike
+
+For each open question in the brief, answer three: only building answers
+it (not a person, not reading)? A "no" changes the spec (say how)? A late
+"no" costs more than the spike, counting flow time and lane contention as
+well as rework? All three: a candidate. Fails only the third: its card goes
+first in build order. Show the candidates; only those the person confirms
+become spikes, one sitting each. None pass: skip the stage and say why.
 
 ### Decide
 

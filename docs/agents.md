@@ -604,13 +604,31 @@ card…".
    it carries.
 2. It reads the Playbook and sizes the ask by its `## Sizing`. A card-sized
    ask gets one card, shaped by `## Card shape`, and the skill stops there.
-3. It runs the stages the size takes, in order: Grill, Decide, Principles,
-   Spec, Cards for a system, and Grill, Spec, Cards for a feature. For a
+3. It runs the stages the size takes, in order: Grill, Spike, Decide,
+   Principles, Spec, Cards for a system, and Grill, Spike, Spec, Cards for a
+   feature. For a
    stage whose section names a skill (`skill: <name>`) it uses, in order: the
    one enabled on the board from the skills registry (its pinned text, from
    `slipdock skills board <board> <name>` or `get_guide` with `board`), else
    one installed locally, else the stage's own text in `slipdock-plan`, and
    says which. A stage whose output is already on the board is skipped.
+   **Spike** runs only when an open question passes three tests: only
+   building answers it (not a person, not reading), a "no" changes the spec
+   (it says how), and a late "no" costs more than the spike, counting flow
+   time and lane contention as well as rework. One that fails only the
+   third gets its card first in build order instead; none pass, and the
+   stage is skipped, said so. The agent proposes the candidates and a person
+   confirms them (unattended, as one `product` wait on the epic). Each
+   confirmed question becomes a `spike` subcard of the epic, its bar the
+   question and what counts as an answer, with no paths. Planning then
+   stops, with a handoff on the epic saying it resumes at Spec. A spike
+   holds no lane and merges nothing: its answer is a page pinned to the
+   epic, its prototype stays on its branch (see **Spikes** under Profiles).
+   When the last is accepted, the server opens a `product` wait on the
+   epic, "Spikes answered (#…): resume planning". A person resumes; the
+   skill reads the answer pages and writes the Spec from them, and an
+   *inconclusive* answer goes back to the person: another spike, the risky
+   card first, or drop the feature.
 4. It writes where the Playbook says:
    - Decision pages go in `Handbook/Decisions`, each with its context, the
      choice, the alternatives and why not, and where it was decided.
