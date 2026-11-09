@@ -91,6 +91,7 @@ the machine allows, and a job never runs under a weaker one in its place.
   mounted, and, when the runner asks for the network off, the network.
   It doesn't stop the job changing the mounted repository, using the
   agent's login (it can't change it, but can act with it), whatever the
-  image itself does, or the network when it is left on.
+  image itself does, or the network when it is left on. The runtime is
+  trusted too: an account in the `docker` group is root on the machine.
 
 On Windows, jobs run as the current account only (`me`).
