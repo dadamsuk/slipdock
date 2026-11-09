@@ -6,9 +6,10 @@ defmodule Slipdock.Findings.Promote do
   leaves it where a person already approves things, as a garden proposal
   (`Slipdock.Gardener.propose/4`).
 
-  The proposal is one `edit_section` on the `## Rules` of the handbook page
-  whose `covers:` take in the finding's cards' paths (most first), else the
-  Specification page. The rule is drafted up the ladder: when the finding
+  The proposal is one `edit_section` on the `## Rules` of the page of the
+  rule the finding names (#2603), else the handbook page whose `covers:`
+  take in the finding's cards' paths (most first), else the Specification
+  page. The rule is drafted up the ladder: when the finding
   names a check (a `*_test.exs`, a `mix` command, `repo_checks`), a `must`
   rule citing it; otherwise a `should` rule, left to judgement. One
   `Slipdock.AI` call words it, given the finding, its cards and the page's
@@ -154,9 +155,12 @@ defmodule Slipdock.Findings.Promote do
     do: Repo.exists?(from s in Suggestion, where: s.id == ^id and s.state == "open")
 
   @doc """
-  The page the rule goes on and its `## Rules` path: the first handbook page
-  whose `covers:` take in the finding's cards' paths (most covered first)
-  that has a Rules section, else the Specification page.
+  The page the rule goes on and its `## Rules` path. A finding that names a
+  rule (`DATA-14`) is about that rule's page, whatever its cards touched
+  (#2603): the page holding the rule, else the page whose prefix the id
+  carries. Otherwise the first handbook page whose `covers:` take in the
+  finding's cards' paths (most covered first) that has a Rules section,
+  else the Specification page.
   """
   def rules_page(handbook, %Finding{} = finding) do
     paths = finding |> cards() |> Enum.flat_map(&(&1.paths || []))
@@ -165,7 +169,8 @@ defmodule Slipdock.Findings.Promote do
     spec = Enum.filter(handbook.pages, &(Handbook.key(&1) == "specification"))
 
     ordered =
-      Enum.map(covering, fn code -> Enum.find(handbook.pages, &(&1.code == code)) end) ++ spec
+      named_pages(handbook, finding.text) ++
+        Enum.map(covering, fn code -> Enum.find(handbook.pages, &(&1.code == code)) end) ++ spec
 
     Enum.find_value(ordered, {:error, :no_rules_page}, fn
       %Page{} = page ->
@@ -177,6 +182,26 @@ defmodule Slipdock.Findings.Promote do
       _ ->
         nil
     end)
+  end
+
+  # The pages of the rules the text names, in the order it names them: the
+  # page that holds a rule by that id, else the one whose prefix it carries.
+  # An id no page answers to (`SPEC-2` with no Specification page, `CVE-12`)
+  # names none.
+  defp named_pages(handbook, text) do
+    held = Map.new(Rules.rules(handbook), &{&1.id, &1.page})
+
+    ~r/\b([A-Z][A-Z0-9]*)-([0-9]+)\b/u
+    |> Regex.scan(text || "")
+    |> Enum.flat_map(fn [id, prefix, _n] ->
+      by_code = Map.get(held, id)
+
+      List.wrap(
+        Enum.find(handbook.pages, &(by_code && &1.code == by_code)) ||
+          Enum.find(handbook.pages, &(Rules.prefix(Handbook.key(&1)) == prefix))
+      )
+    end)
+    |> Enum.uniq_by(& &1.id)
   end
 
   defp rules_path(%Page{body: body}) do
