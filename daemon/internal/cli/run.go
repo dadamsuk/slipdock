@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,11 @@ var updateEvery = int((6 * time.Hour) / checkEvery)
 // configRetry is how long run waits to ask again for the machine's config
 // when the server can't be reached. A var so tests can shorten it.
 var configRetry = 30 * time.Second
+
+// ceilingRetryMax is the longest run waits between tries to report the
+// ceiling: each try after a failure waits twice as long as the last,
+// from configRetry, up to this. A var so tests can shorten it.
+var ceilingRetryMax = 5 * time.Minute
 
 // cmdRun is what the service runs: the machine's runners, each taking and
 // running jobs (#2574), and the enrolment kept checked. It stops when the
@@ -206,6 +212,8 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 		logf("config version %d: %d of %d runners running", keeper.Version(), len(workers), listed)
 	}
 
+	go reportCeiling(ctx, client, ceil, pause, logf)
+
 	cached, err := keeper.Load()
 	if err != nil {
 		logf("can't read the cached config, so waiting for the server's: %v", err)
@@ -241,5 +249,35 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 			}
 		}
 		keeper.Flush(ctx)
+	}
+}
+
+// reportCeiling tells the server the machine's ceiling and the executors it
+// offers (#2615), trying again until it is sent. The ceiling is the one
+// this run read at the start: changed at the machine, it takes effect when
+// the daemon restarts, and the restarted run reports it then. A refusal
+// (the key revoked, the ceiling found invalid) is logged and not retried:
+// the same ceiling would be refused again. It ends when ctx does.
+func reportCeiling(ctx context.Context, client *runner.Client, ceil machine.Ceiling,
+	pause func(context.Context, time.Duration) error, logf func(string, ...any)) {
+	wait := configRetry
+	for {
+		err := client.ReportCeiling(ctx, ceil)
+		var refused *runner.Refused
+		switch {
+		case err == nil:
+			logf("reported the ceiling (executors %s)", strings.Join(ceil.Reported().Executors, ", "))
+			return
+		case ctx.Err() != nil:
+			return
+		case errors.As(err, &refused):
+			logf("the server refused the ceiling, so not reporting it again until the daemon restarts: %v", err)
+			return
+		}
+		logf("can't report the ceiling, trying again in %s: %v", wait, err)
+		if pause(ctx, wait) != nil {
+			return
+		}
+		wait = min(2*wait, ceilingRetryMax)
 	}
 }
