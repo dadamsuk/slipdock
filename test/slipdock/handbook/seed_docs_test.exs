@@ -94,5 +94,10 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert manual =~ "both take a spike after the grill when one is needed"
     assert manual =~ "Installing 1.7.0 (#2352) adds the **Spike** stage"
     assert manual =~ "`(edited: left alone; Spike stage proposed)`, and only once"
+
+    # The upgrade from 1.7.0's seed, whose Grill named no registry skill (#2601).
+    assert manual =~ "and so (#2601) does one still holding the 1.7.0 seed"
+    assert manual =~ "names the skill enabled on the board from the skills registry first"
+    refute manual =~ "gets the 1.7.0 one"
   end
 end
