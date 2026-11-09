@@ -94,9 +94,11 @@ the machine allows, and a job never runs under a weaker one in its place.
   read a secret and send it.
 - `container`: jobs run in a short-lived Docker or Podman container,
   from an image the machine's own allow-list names, with the repository
-  or worktree mounted at the same path and the agent's login mounted
-  read-only. It stops a job reading or writing anything outside what is
-  mounted, and, when the runner asks for the network off, the network.
+  or worktree mounted at the same path, the agent's login mounted
+  read-only, and an empty directory of its own for the agent's
+  transcript, which the daemon reads only as regular files beneath it.
+  It stops a job reading or writing anything outside what is mounted,
+  and, when the runner asks for the network off, the network.
   It doesn't stop the job changing the mounted repository, using the
   agent's login (it can't change it, but can act with it), whatever the
   image itself does, or the network when it is left on. The runtime is

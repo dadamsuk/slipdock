@@ -502,6 +502,24 @@ func (w *Worker) newScratch(j *jobRun) error {
 	return os.MkdirAll(j.scratch, 0o700)
 }
 
+// containerTranscripts makes a container job's own transcripts directory
+// (#2625), mounted for its agent alone and read through
+// executor.Beneath, or is "" (not a container job, or it couldn't be
+// made: the job runs, with no live transcript). It is outside JobsDir,
+// which is never mounted. The caller removes it when the job ends;
+// RemoveAll unlinks a link the job planted and never follows it.
+func (w *Worker) containerTranscripts(j *jobRun) string {
+	if w.Executor.Name() != executor.Container {
+		return ""
+	}
+	dir, err := os.MkdirTemp("", "slipdock-transcripts-")
+	if err != nil {
+		j.note("slipdock-runner: no directory for the transcript, so it isn't sent: " + err.Error())
+		return ""
+	}
+	return dir
+}
+
 // runAgent runs an agent job: the checks, the worktree, the before hook,
 // the agent, watched, then the after hook and the finish.
 func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
@@ -546,9 +564,14 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 		}
 	}
 
+	p := w.proc(j, j.env)
 	tx := &transcript{root: w.transcriptsDir(), cardURL: job.CardURL, started: time.Now().Add(-time.Second),
 		files: w.files(), secrets: w.secrets()}
-	cmd, err := w.Executor.Command(w.proc(j, j.env), argv[0], argv[1:]...)
+	if dir := w.containerTranscripts(j); dir != "" {
+		defer os.RemoveAll(dir)
+		p.Transcripts, tx.root, tx.files = dir, dir, executor.Beneath(dir, 0)
+	}
+	cmd, err := w.Executor.Command(p, argv[0], argv[1:]...)
 	if err == nil {
 		cmd.Stdout, cmd.Stderr = j.log, j.log
 		err = cmd.Start()

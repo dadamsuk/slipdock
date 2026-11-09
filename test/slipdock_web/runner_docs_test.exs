@@ -98,6 +98,17 @@ defmodule SlipdockWeb.RunnerDocsTest do
     refute read("CLAUDE.md") =~ "installs nothing yet"
   end
 
+  test "a container job's live transcript is described as sent, and how it is read (#2625)" do
+    machines = read("docs/manual/machines.md")
+    assert machines =~ "fresh,\n  empty directory of the job's own at `~/.claude/projects`"
+    assert machines =~ "The live transcript is sent as it is for any other job"
+    assert machines =~ "a link, a FIFO or a file over 128 MB"
+    refute machines =~ "the live transcript isn't sent"
+
+    assert read("daemon/internal/contract/contract.md") =~
+             "an empty directory of its own for the agent's\n  transcript"
+  end
+
   test "the daemon keeping the CLI current is described in the manual, agents page and help (#2631)" do
     manual = read("docs/manual.md")
     assert manual =~ "`no_cli_update: true`"

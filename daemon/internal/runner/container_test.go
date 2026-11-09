@@ -194,3 +194,99 @@ func TestAContainerJobRunsThroughTheRuntime(t *testing.T) {
 		t.Fatalf("the runtime ran a container:\n%s", b)
 	}
 }
+
+// TestAContainerJobsTranscriptReachesTheServer (#2625): the fake runtime
+// writes the agent's transcript into the directory mounted at the home's
+// .claude/projects, and plants links to a file and a directory of the
+// machine's that name the card too, touched last so they'd be the newest.
+// Only the transcript is sent; the hook gets no such mount; and the
+// directory is gone once the job ends.
+func TestAContainerJobsTranscriptReachesTheServer(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("container is Linux and macOS only")
+	}
+	if !executor.BeneathReads {
+		t.Skip("this build reads no container transcript (Go 1.24's os.Root)")
+	}
+	r := newRig(t, Config{BeforeHook: "setup"})
+	r.w.Local.Hooks = map[string]machine.Command{"setup": self("hook", "setup")}
+	bin := t.TempDir()
+	calls, txdir := filepath.Join(bin, "calls"), filepath.Join(bin, "txdir")
+	hostDir := filepath.Join(bin, "host")
+	secret := filepath.Join(hostDir, "secret.jsonl")
+	if err := os.MkdirAll(filepath.Join(hostDir, "dir"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '" + calls + "'\n" +
+		"[ \"$1\" = run ] || exit 0\n" +
+		"for a in \"$@\"; do case \"$a\" in --mount=type=bind,source=*,destination=*/.claude/projects)\n" +
+		"  s=${a#--mount=type=bind,source=}; s=${s%%,destination=*}; echo \"$s\" > '" + txdir + "'\n" +
+		"  mkdir -p \"$s/proj\"\n" +
+		// The planted links first, and a few of the daemon's looks with
+		// nothing else there, so a reader that followed them would send
+		// them; then the transcript, and the machine's files touched to be
+		// the newest.
+		"  printf '{\"text\":\"%s HOST_SECRET\"}\\n' \"$SLIPDOCK_CARD_URL\" > '" + secret + "'\n" +
+		"  cp '" + secret + "' '" + filepath.Join(hostDir, "dir", "s.jsonl") + "'\n" +
+		"  ln -s '" + secret + "' \"$s/proj/z.jsonl\"; ln -s '" + filepath.Join(hostDir, "dir") + "' \"$s/linked\"\n" +
+		"  sleep 0.2\n" +
+		"  printf '{\"text\":\"%s\"}\\n{\"n\":2}\\n' \"$SLIPDOCK_CARD_URL\" > \"$s/proj/s.jsonl\"\n" +
+		"  sleep 0.1; touch '" + secret + "' '" + filepath.Join(hostDir, "dir", "s.jsonl") + "';;\n" +
+		"esac; done\n" +
+		"while [ $# -gt 0 ]; do a=$1; shift; [ \"$a\" = ghcr.io/me/agent:2 ] && exec \"$@\"; done\nexit 125\n"
+	rt := filepath.Join(bin, "docker")
+	if err := os.WriteFile(rt, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := &r.w.Runner.Config
+	c.Executor, c.Image, c.Network = executor.Container, "ghcr.io/me/agent:2", "off"
+	r.w.Images = []string{"ghcr.io/me/*"}
+	r.w.Local.Container = &machine.ContainerSettings{Runtime: rt, Pull: "missing"}
+	r.w.MachineDir = filepath.Join(bin, "machine")
+	// The local file's transcripts directory is the machine's, not the job's.
+	r.w.Local.Transcripts = hostDir
+
+	f := r.runJob(fakeJob{id: 404, kind: "claude", card: 7, prompt: "Build it"})
+	if f.exit != 0 {
+		t.Fatalf("finish = %+v", f)
+	}
+	got := r.srv.transcript[404]
+	if len(got) != 2 || !strings.Contains(got[0], "/cards/7") || got[1] != `{"n":2}` {
+		t.Fatalf("sent %q: want the job's own transcript", got)
+	}
+	for _, l := range got {
+		if strings.Contains(l, "HOST_SECRET") {
+			t.Fatalf("sent the machine's file: %q", got)
+		}
+	}
+
+	b, _ := os.ReadFile(calls)
+	var agent, hook string
+	for _, l := range strings.Split(string(b), "\n") {
+		switch {
+		case strings.HasPrefix(l, "run ") && strings.Contains(l, " hook setup"):
+			hook = l
+		case strings.HasPrefix(l, "run ") && strings.Contains(l, " agent"):
+			agent = l
+		}
+	}
+	if hook == "" || agent == "" {
+		t.Fatalf("want the hook and the agent run in containers, got:\n%s", b)
+	}
+	if strings.Contains(hook, ".claude/projects") || !strings.Contains(agent, ",destination="+filepath.Join(r.w.jobHome(), ".claude", "projects")) {
+		t.Fatalf("the transcripts mount is the agent's alone:\nhook:  %s\nagent: %s", hook, agent)
+	}
+	dir, _ := os.ReadFile(txdir)
+	if d := strings.TrimSpace(string(dir)); d == "" {
+		t.Fatal("the runtime saw no transcripts directory")
+	} else if _, err := os.Lstat(d); !os.IsNotExist(err) {
+		t.Fatalf("%s is still there after the job: %v", d, err)
+	}
+	// RemoveAll took the links, never what they pointed at.
+	if _, err := os.Stat(secret); err != nil {
+		t.Fatalf("the machine's file went with the directory: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(hostDir, "dir", "s.jsonl")); err != nil {
+		t.Fatalf("the machine's directory went with the job's: %v", err)
+	}
+}

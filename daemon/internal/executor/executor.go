@@ -55,8 +55,9 @@ var Limits = map[string]string{
 		"later) and macOS (sandbox-exec) only.",
 	Container: "Jobs run in a short-lived Docker or Podman container, from an image on " +
 		"this machine's allow-list. They see only what is mounted: their directory " +
-		"and repository (read-write), and the agent's and the CLI's logins (read-only); " +
-		"the home is otherwise empty. The network is off when the runner asks. They " +
+		"and repository (read-write), the agent's and the CLI's logins (read-only), and " +
+		"an empty directory of the job's own for the agent's transcript, which the daemon " +
+		"reads only as regular files beneath it; the home is otherwise empty. The network is off when the runner asks. They " +
 		"still reach the network when it is on, carry the logins mounted in, and are " +
 		"only as safe as the image and the runtime (a user in the docker group is root " +
 		"on the machine). Linux and macOS only.",
@@ -75,6 +76,11 @@ type Proc struct {
 	// Scratch, under confined: the job's own temporary directory, its
 	// TMPDIR.
 	Scratch string
+	// Transcripts, under container: the agent's own fresh directory for
+	// its transcripts (#2625), mounted read-write at the home's
+	// .claude/projects. Only the agent's process gets one, never the
+	// hooks' or the daemon's own git.
+	Transcripts string
 	// noState leaves out the agent's own state (Settings.Writable): the
 	// daemon's own work and the hooks aren't the agent.
 	noState bool
