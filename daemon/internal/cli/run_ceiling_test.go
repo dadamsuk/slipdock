@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -155,10 +156,18 @@ func TestRunReportsTheCeilingAtTheStart(t *testing.T) {
 	if err := machine.Save(w.dir, st, key); err != nil {
 		t.Fatal(err)
 	}
+	// The server records the ceiling before the daemon has its answer and
+	// logs it, so the test waits for the log line too before it stops the
+	// daemon (#2650), reading the log through a lock as the daemon writes it.
+	log := &lockedBuffer{}
+	w.env.Stderr = log
 	stop := start()
 	waitUntil(t, "the ceiling to be reported", func() bool { _, sent := ceil.counts(); return sent == 1 })
+	waitUntil(t, "the ceiling's report to be logged", func() bool {
+		return strings.Contains(log.String(), "reported the ceiling (executors ")
+	})
 	if code := stop(); code != 0 {
-		t.Fatalf("exit %d: %s", code, w.errOut)
+		t.Fatalf("exit %d: %s", code, log)
 	}
 	want, _ := machine.LoadCeiling(w.dir)
 	got := ceil.sent[0]
@@ -172,8 +181,26 @@ func TestRunReportsTheCeilingAtTheStart(t *testing.T) {
 		t.Errorf("%d tries: want one failed and one sent", tries)
 	}
 	for _, want := range []string{"can't report the ceiling, trying again", "reported the ceiling (executors "} {
-		if !strings.Contains(w.errOut.String(), want) {
-			t.Errorf("the log doesn't say %q:\n%s", want, w.errOut)
+		if !strings.Contains(log.String(), want) {
+			t.Errorf("the log doesn't say %q:\n%s", want, log)
 		}
 	}
+}
+
+// lockedBuffer is a log a test can read while the daemon writes to it.
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
 }
