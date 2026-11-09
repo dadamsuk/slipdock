@@ -19,8 +19,10 @@ defmodule Slipdock.CardAuthors do
       loop (`"Dev server loop"`, from `Job.runner_name`); an agent otherwise
       by its token label; an automation by its rule's name, which the
       ledger doesn't keep, so it is read from the card's first activity row.
-      A row written with no actor (the web's quick add passes none) takes
-      its actor from that first activity row too, which is stamped.
+      Every door stamps the row with its actor, the web's with the person
+      behind the page (#2094); a row written with no actor (the web's
+      creates, before #2094) takes its actor from that first activity row
+      too, which is stamped.
     * **Last changed** is the later of the card's newest activity row (every
       change logs one, stamped with its actor since #1735: fields, moves,
       comments, checklist, attachments, flags) and the card's own
@@ -99,10 +101,10 @@ defmodule Slipdock.CardAuthors do
     %{kind: "automation", name: rule_name(card_id) || "An automation rule", user_id: nil}
   end
 
-  # A ledger row written with no actor (a door that didn't pass one, such
-  # as the web's quick add) is filled in from the card's first activity
-  # row, which every door stamps with the process's actor: a record, not a
-  # guess. An unstamped row is nobody.
+  # A ledger row written with no actor (the web's creates wrote these
+  # until #2094 stamped them with the process's actor) is filled in from the
+  # card's first activity row, which every door stamps with the process's
+  # actor: a record, not a guess. An unstamped row is nobody.
   defp creator(%CardMove{actor_kind: nil}, card_id), do: card_id |> first_activity() |> actor()
 
   defp creator(_move, _card_id), do: nil
