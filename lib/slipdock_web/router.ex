@@ -432,6 +432,11 @@ defmodule SlipdockWeb.Router do
     post "/machines/enrol", MachineController, :enrol
     post "/machines/enrol/token", MachineController, :token
     get "/machine", MachineController, :me
+    # Its runners' typed configs (a long-poll), its ceiling, and what it did
+    # with each config (#2571): the machine key again.
+    get "/machine/config", MachineController, :config
+    put "/machine/ceiling", MachineController, :ceiling
+    post "/machine/runners/:runner_id/report", MachineController, :report
   end
 
   # Signing in from a third-party app with OAuth (W-21). Discovery and
@@ -529,6 +534,10 @@ defmodule SlipdockWeb.Router do
     post "/machines/enrolment/refuse", MachineController, :refuse
     get "/machines/:id", MachineController, :show
     delete "/machines/:id", MachineController, :revoke
+    # A machine's runners, configured as typed data (#2571).
+    post "/machines/:id/runners", MachineController, :add_runner
+    patch "/machines/:id/runners/:runner_id", MachineController, :set_runner
+    delete "/machines/:id/runners/:runner_id", MachineController, :remove_runner
     # The caller's own inbound mail and what came of it (#1242).
     get "/inbound/log", InboundController, :log
     # The caller's own inbound addresses (#1246): personal, and per board.

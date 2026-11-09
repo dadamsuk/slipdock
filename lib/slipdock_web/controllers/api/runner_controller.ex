@@ -43,7 +43,9 @@ defmodule SlipdockWeb.API.RunnerController do
 
   Authenticated with a runner token (`Authorization: Bearer sdr_…`), never
   an API token: a runner can take and report on its own pool's jobs and do
-  nothing else.
+  nothing else. A machine's daemon (#2571) passes its machine key
+  (`Bearer sdm_…`) and names the runner in `X-Runner-Id`: it claims and
+  reports only for its own machine's runners.
   """
   use SlipdockWeb, :controller
 
@@ -182,6 +184,36 @@ defmodule SlipdockWeb.API.RunnerController do
   defp fetch_runner(conn, _opts) do
     token = SlipdockWeb.UserAuth.bearer_token(conn)
 
+    if is_binary(token) and String.starts_with?(token, "sdm_"),
+      do: fetch_machine_runner(conn, token),
+      else: fetch_token_runner(conn, token)
+  end
+
+  # A machine's daemon (#2571): its machine key, and which of its runners
+  # is asking, in `X-Runner-Id` (or `?runner=`). Only its own runners.
+  defp fetch_machine_runner(conn, key) do
+    ref = conn |> get_req_header("x-runner-id") |> List.first() || conn.params["runner"]
+
+    case Runners.authenticate_machine(key, ref, SlipdockWeb.ClientIP.from_conn(conn)) do
+      {:ok, runner} ->
+        conn |> assign(:runner, runner) |> assign(:runner_token, key)
+
+      {:error, :unauthorized} ->
+        conn
+        |> text_reply(401, "unauthorized: the machine key is unknown or the machine is revoked")
+        |> halt()
+
+      {:error, :no_runner} ->
+        conn
+        |> text_reply(400, "a machine key says which of its runners is asking: X-Runner-Id")
+        |> halt()
+
+      {:error, :not_this_machine} ->
+        conn |> text_reply(403, "that runner is not one of this machine's") |> halt()
+    end
+  end
+
+  defp fetch_token_runner(conn, token) do
     case Runners.authenticate(token) do
       nil ->
         conn

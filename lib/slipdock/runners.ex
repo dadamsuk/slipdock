@@ -244,16 +244,43 @@ defmodule Slipdock.Runners do
 
   @doc """
   The runner `token` belongs to, with its last-seen time brought up to date,
-  or nil.
+  or nil. A machine's runner (#2571) is never found by a token: it
+  authenticates with its machine's key (`authenticate_machine/2`).
   """
   def authenticate(token) when is_binary(token) and token != "" do
-    case Repo.get_by(Runner, token_hash: hash(String.trim(token))) do
+    case Repo.one(
+           from(r in Runner,
+             where: r.token_hash == ^hash(String.trim(token)) and is_nil(r.machine_id)
+           )
+         ) do
       nil -> nil
       runner -> touch(runner)
     end
   end
 
   def authenticate(_), do: nil
+
+  @doc """
+  The runner a machine key (`sdm_…`) and a runner id name together (#2571):
+  the machine's own runner, with its last-seen time brought up to date, or
+  `{:error, reason}`: `:unauthorized` for a key that is unknown or revoked,
+  `:no_runner` when no runner id is given, and `:not_this_machine` for a
+  runner that isn't the machine's. A machine key claims and reports only for
+  its own runners.
+  """
+  def authenticate_machine(key, runner_ref, ip \\ nil) do
+    with {:machine, %Slipdock.Machines.Machine{} = machine} <-
+           {:machine, Slipdock.Machines.authenticate(key, ip)},
+         {:ref, ref} when ref not in [nil, ""] <- {:ref, runner_ref},
+         {:runner, %Runner{} = runner} <-
+           {:runner, Slipdock.Runners.MachineRunners.machine_runner(machine, ref)} do
+      {:ok, touch(runner)}
+    else
+      {:machine, nil} -> {:error, :unauthorized}
+      {:ref, _} -> {:error, :no_runner}
+      {:runner, nil} -> {:error, :not_this_machine}
+    end
+  end
 
   defp touch(runner) do
     now = now()

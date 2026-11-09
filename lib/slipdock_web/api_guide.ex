@@ -2595,6 +2595,33 @@ defmodule SlipdockWeb.APIGuide do
     show|revoke|enrolment|approve|refuse|enrol-key`.
     Not over MCP: enrolling and revoking a machine is the account's owner's
     call, made where they sign in, not an agent's.
+
+    **A machine's runners** (#2571). A runner the daemon runs belongs to its
+    machine and is configured as data: `POST /api/machines/:id/runners` with
+    `board` (one the machine serves), `pool`, an optional `name` and a
+    `config`; `PATCH /api/machines/:id/runners/:runner_id` changes `pool`,
+    `name` or any config field; `DELETE …/runners/:runner_id` removes it (the
+    daemon finishes its job, then stops it). The config is closed and typed:
+    `agent`, `directory`, `permission_mode` (`plan`, `default`, `acceptEdits`,
+    `bypassPermissions`), `timeout_minutes`, `model`, `worktree` (`auto`,
+    `on`, `off`), `verbosity`, `instructions`, `executor` (`me`, `user`,
+    `confined`, `container`) and the names of a `before_hook`, `after_hook`
+    and `probe_hook`. There is no command field: an unknown key, `command`
+    included, is refused, and every name resolves in the machine's own local
+    file. The daemon, with its machine key, long-polls `GET
+    /api/machine/config?version=N&wait=S` (its runners' configs and the
+    machine's `version`, at once when newer than `N`, else when one changes,
+    else 204), reports its machine's ceiling with `PUT /api/machine/ceiling`
+    (`roots`, `agents`, `max_permission_mode`, `max_timeout_minutes`,
+    `boards`, `executors`, from its own local file: the server only shows it)
+    and says what it did with each config: `POST
+    /api/machine/runners/:runner_id/report` with `version` and `outcome`
+    `accepted`, or `rejected` and a `reason` (a stale version answers 409).
+    `GET /api/machines/:id` shows the ceiling, the runners with what falls
+    outside it, and the log of accepted and rejected changes. The runner
+    protocol takes the machine key with `X-Runner-Id`, for that machine's own
+    runners only; each runner keeps its own identity, so a verify job still
+    goes to a runner other than its builder.
     """
   end
 

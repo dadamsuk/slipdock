@@ -4,7 +4,8 @@ defmodule Slipdock.MachinesDocsTest do
   agent guide and `docs/agents.md` name the endpoints, the machine key and
   why there is no MCP door; README and the agents help page say what a
   machine key is; and the manual's account page lists Account › Machines
-  and the approval page.
+  and the approval page. A machine's runners (#2571) are described the same
+  way in the guide and `docs/agents.md`, every config field named.
   """
   use ExUnit.Case, async: true
 
@@ -27,6 +28,26 @@ defmodule Slipdock.MachinesDocsTest do
           ] do
         assert text =~ String.replace(part, "\n", " ") or text =~ part, "missing #{part}"
       end
+    end
+  end
+
+  test "the guide and docs/agents.md describe a machine's runners the same way (#2571)" do
+    for text <- [SlipdockWeb.APIGuide.markdown(), read("docs/agents.md")] do
+      text = String.replace(text, ~r/\s+/, " ")
+
+      for part <- [
+            "POST /api/machines/:id/runners",
+            "PATCH /api/machines/:id/runners/:runner_id",
+            "GET /api/machine/config?version=N&wait=S",
+            "PUT /api/machine/ceiling",
+            "POST /api/machine/runners/:runner_id/report",
+            "There is no command field",
+            "X-Runner-Id"
+          ] do
+        assert text =~ part, "missing #{part}"
+      end
+
+      for field <- Slipdock.Runners.Config.fields(), do: assert(text =~ "`#{field}`")
     end
   end
 
