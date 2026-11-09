@@ -6,6 +6,8 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
   the runner protocol takes the machine key for the machine's own runners
   and nothing else.
   """
+  # Sync: each test resets the rate-limit counts, which are one table for the
+  # node (RateLimit.reset/0 clears everybody's).
   use SlipdockWeb.ConnCase, async: false
 
   import Slipdock.Fixtures
@@ -216,7 +218,7 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
           ctx.key |> machine_conn() |> get(~p"/api/machine/config?version=1&wait=5")
         end)
 
-      Process.sleep(100)
+      Slipdock.DataCase.await_subscribed(MachineRunners.topic(ctx.machine), task.pid)
       {:ok, _} = MachineRunners.set_runner(runner, %{"pool" => "verify"})
 
       conn = Task.await(task)

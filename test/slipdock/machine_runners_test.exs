@@ -7,7 +7,7 @@ defmodule Slipdock.MachineRunnersTest do
   its own runners and nothing else; and the verify job's "not the builder"
   check telling two runners of one machine apart.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
@@ -186,8 +186,7 @@ defmodule Slipdock.MachineRunnersTest do
         end)
 
       assert_receive :waiting
-      # Let it subscribe before the change.
-      Process.sleep(50)
+      await_subscribed(MachineRunners.topic(ctx.machine), task.pid)
       started = System.monotonic_time(:millisecond)
       {:ok, _} = MachineRunners.set_runner(runner, %{"config" => %{"model" => "sonnet"}})
 
@@ -203,7 +202,7 @@ defmodule Slipdock.MachineRunnersTest do
       {:ok, {_, other}} = Machines.enrol_with_key(key, @about)
 
       task = Task.async(fn -> MachineRunners.wait_for_config(ctx.machine, 1, 300) end)
-      Process.sleep(50)
+      await_subscribed(MachineRunners.topic(ctx.machine), task.pid)
 
       {:ok, _} =
         MachineRunners.add_runner(other, ctx.board, %{

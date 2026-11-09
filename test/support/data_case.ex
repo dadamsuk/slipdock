@@ -75,4 +75,33 @@ defmodule Slipdock.DataCase do
       end)
     end)
   end
+
+  @doc """
+  Waits until `pid` has subscribed to `topic` on `Slipdock.PubSub`, so a
+  test can broadcast knowing a long-poll is listening, instead of sleeping
+  and hoping it got there (TEST-14). Fails after `timeout` ms.
+  """
+  def await_subscribed(topic, pid, timeout \\ 2_000) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+    do_await_subscribed(topic, pid, deadline)
+  end
+
+  defp do_await_subscribed(topic, pid, deadline) do
+    subscribed? = Enum.any?(Registry.lookup(Slipdock.PubSub, topic), fn {p, _} -> p == pid end)
+
+    cond do
+      subscribed? ->
+        :ok
+
+      System.monotonic_time(:millisecond) > deadline ->
+        raise ExUnit.AssertionError, "#{inspect(pid)} never subscribed to #{topic}"
+
+      true ->
+        # Yields between looks; the wait is on the subscription, not the clock.
+        receive do
+        after
+          5 -> do_await_subscribed(topic, pid, deadline)
+        end
+    end
+  end
 end
