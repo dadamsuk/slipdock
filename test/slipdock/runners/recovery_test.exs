@@ -419,4 +419,125 @@ defmodule Slipdock.Runners.RecoveryTest do
       refute Enum.any?(comments(a), &(&1 =~ "Runner job ##{job.id}"))
     end
   end
+
+  # #2354: an epic's job submitted a subcard and ended, so the next subcard
+  # waits for that one's verification and merge. The epic was put back on
+  # To Do as a retry while it was still being worked, and its retry spent.
+  describe "an epic whose subcard waits for its verifier or its merge" do
+    setup ctx do
+      {:ok, board} = Boards.update_board(ctx.board, %{"verify_work" => true})
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = Boards.create_sub_board(ctx.a, t)
+      sub = Boards.get_board!(sub.id)
+      first = card_fixture(hd(sub.columns), %{"title" => "first"})
+      second = card_fixture(hd(sub.columns), %{"title" => "second"})
+
+      builder = %{
+        Actor.unknown()
+        | kind: "agent",
+          via: "api",
+          user_id: ctx.owner.id,
+          agent: "builder"
+      }
+
+      %{board: board, sub: sub, first: first, second: second, builder: builder}
+    end
+
+    defp set_verify_state(card, state, extra \\ []) do
+      Repo.update_all(from(c in Boards.Card, where: c.id == ^card.id),
+        set: [verify_state: state] ++ extra
+      )
+    end
+
+    defp left_in_progress(ctx, job) do
+      assert job.recovery == nil
+      refute job.transcript_failed_at
+      a = card(ctx.a)
+      assert a.column_id == ctx.doing.id
+      refute "blocked" in a.flags
+      refute Enum.any?(comments(a), &(&1 =~ "Runner job ##{job.id}"))
+      assert Repo.aggregate(from(j in Job, where: j.recovery == "requeued"), :count) == 0
+    end
+
+    test "the job that submitted a subcard leaves the epic in progress (#2354)", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      assert job.card_id == ctx.a.id
+
+      # The epic's job submits its first subcard with its pull request.
+      {:ok, first} =
+        Boards.update_card(
+          card(ctx.first),
+          %{
+            "completed" => true,
+            "evidence_pr" => "https://github.com/acme/app/pull/7",
+            "evidence_commit" => "abc1234"
+          },
+          actor: %{ctx.builder | job_id: job.id}
+        )
+
+      assert first.verify_state == "pending"
+      refute first.completed
+
+      left_in_progress(ctx, finish(ctx, job, "done"))
+    end
+
+    for state <- ~w(merging held) do
+      test "a subcard #{state} leaves the epic in progress", ctx do
+        rule_fixture(ctx.board, spec())
+        job = take(ctx)
+        set_verify_state(ctx.first, unquote(state))
+
+        left_in_progress(ctx, finish(ctx, job, "done"))
+      end
+    end
+
+    test "with no subcard waiting, the epic is put back as before", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      set_verify_state(ctx.first, "rejected")
+
+      job = finish(ctx, job, "done")
+
+      assert job.recovery == "requeued"
+      assert card(ctx.a).column_id == ctx.todo.id
+      assert List.last(comments(ctx.a)) =~ "retry 1 of 1"
+    end
+
+    for {why, extra} <- [completed: :completed, archived: :archived] do
+      test "a waiting subcard that is #{why} doesn't hold it", ctx do
+        extra =
+          case unquote(extra) do
+            :completed -> [completed: true]
+            :archived -> [archived_at: DateTime.utc_now() |> DateTime.truncate(:second)]
+          end
+
+        rule_fixture(ctx.board, spec())
+        job = take(ctx)
+        assert job.card_id == ctx.a.id
+        set_verify_state(ctx.first, "pending", extra)
+
+        job = finish(ctx, job, "done")
+
+        assert job.recovery == "requeued"
+        assert card(ctx.a).column_id == ctx.todo.id
+        assert List.last(comments(ctx.a)) =~ "retry 1 of 1"
+      end
+    end
+
+    test "a waiting card on another epic's sub-board doesn't hold it", ctx do
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, other} = Boards.create_sub_board(ctx.b, t)
+      other = Boards.get_board!(other.id)
+      elsewhere = card_fixture(hd(other.columns), %{"title" => "elsewhere"})
+      set_verify_state(elsewhere, "pending")
+
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      assert job.card_id == ctx.a.id
+
+      assert finish(ctx, job, "done").recovery == "requeued"
+      assert card(ctx.a).column_id == ctx.todo.id
+    end
+  end
 end

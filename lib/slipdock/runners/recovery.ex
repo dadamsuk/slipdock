@@ -14,7 +14,9 @@ defmodule Slipdock.Runners.Recovery do
   A card left awaiting verification (`verify_state: "pending"`, #1659), or
   accepted and waiting for its pull request to merge (`"merging"`, #1850)
   or for a person to say it may (`"held"`, #1952), is not stuck: the job
-  finished it, and it waits for the verifier, the person or the merge. The check is made with the card's row locked, so a merge finishing
+  finished it, and it waits for the verifier, the person or the merge.
+  Nor is an epic with an open subcard in one of those states (#2371): its
+  job ended so that subcard could be verified or merged first. The check is made with the card's row locked, so a merge finishing
   meanwhile is never undone.
 
   Only the job's own card is touched, and only by a job that was handed out
@@ -40,6 +42,10 @@ defmodule Slipdock.Runners.Recovery do
   alias Slipdock.Runners.Job
 
   @max 10
+
+  # A card in one of these states was finished by its job and waits for
+  # its verifier, its merge or a person (#1659, #1850, #1952).
+  @waiting_states ["pending", "merging", "held"]
 
   @doc "The most times a rule may put a card back."
   def max_requeues, do: @max
@@ -174,16 +180,33 @@ defmodule Slipdock.Runners.Recovery do
   # The job's card, if it is still open in an in-progress list. A card
   # awaiting verification (#1659), or accepted and waiting for its merge
   # (#1850), is finished as far as its job goes: it waits in progress for
-  # the verifier or the merge, not for a retry.
+  # the verifier or the merge, not for a retry. So is an epic with an open
+  # subcard waiting that way (#2371): its job ended to let that subcard be
+  # verified or merged before the next one starts.
   defp stuck_card(job) do
     Repo.one(
       from(c in Card,
+        as: :card,
         join: col in assoc(c, :column),
         where:
           c.id == ^job.card_id and col.category == "doing" and is_nil(c.archived_at) and
             c.completed == false and
-            coalesce(c.verify_state, "") not in ["pending", "merging", "held"]
+            coalesce(c.verify_state, "") not in @waiting_states and
+            not exists(waiting_subcard())
       )
+    )
+  end
+
+  # An open, unarchived card on the sub-board of the card named `:card`,
+  # waiting for its verifier, its merge or a person's say-so.
+  defp waiting_subcard do
+    from(s in Card,
+      join: b in Board,
+      on: b.id == s.board_id,
+      where:
+        b.parent_card_id == parent_as(:card).id and is_nil(s.archived_at) and
+          s.completed == false and s.verify_state in @waiting_states,
+      select: 1
     )
   end
 
