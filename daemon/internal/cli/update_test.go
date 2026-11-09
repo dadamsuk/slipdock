@@ -200,6 +200,26 @@ func TestRunInstallsAnUpdateAndRestarts(t *testing.T) {
 	}
 }
 
+// An update found when run starts restarts the daemon before its runners
+// start, so no runner has taken a job the restart would stop.
+func TestRunUpdatesAtStartBeforeAnyRunnerClaims(t *testing.T) {
+	w, f := enrolled(t)
+	withReleases(t, w)
+	f.config = `{"version":1,"runners":[
+		{"id":21,"name":"builder","board_id":3,"pool":"default","config_version":1,
+		 "config":{"agent":"claude","directory":` + jsonString(filepath.Join(w.home, "repo")) + `,"permission_mode":"acceptEdits","timeout_minutes":30,"executor":"me","worktree":"auto"}}]}`
+	f.claimStatus = 204
+	if code := w.main("run"); code != 1 || !strings.Contains(w.errOut.String(), "updated") {
+		t.Fatalf("exit %d: %s", code, w.errOut)
+	}
+	exeHolds(t, w, "new binary\n")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.claims) != 0 {
+		t.Fatalf("runners claimed before the restart: %v", f.claims)
+	}
+}
+
 func TestRunInManualModeOnlyReports(t *testing.T) {
 	w, _ := enrolled(t)
 	withReleases(t, w)
@@ -242,7 +262,7 @@ func TestRunChecksForUpdatesOnlyEverySoOften(t *testing.T) {
 	updateEvery = 3
 	t.Cleanup(func() { updateEvery = old })
 	r.asked = 0
-	w.stopAfterSleep = 7 // seven checks of the enrolment: updates at 0, 3, 6
+	w.stopAfterSleep = 7 // seven checks of the enrolment: updates at the start, 3 and 6
 	w.main("run")
 	if r.asked != 3*2 { // the manifest and its signature, each time
 		t.Fatalf("asked %d times", r.asked)
