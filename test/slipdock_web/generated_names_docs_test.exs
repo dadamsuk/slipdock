@@ -27,7 +27,8 @@ defmodule SlipdockWeb.GeneratedNamesDocsTest do
 
     agents = read("docs/agents.md") |> String.replace(~r/\s+/, " ")
     assert agents =~ "about 60 characters at most"
-    assert agents =~ "`/runner/examples/passlog.sh`"
+    # The pass-log example was served with the shell runners, retired (#2582).
+    refute agents =~ "`/runner/examples/passlog.sh`"
   end
 
   test "the short guide stays as it was: this lives in the full one" do
@@ -37,7 +38,7 @@ defmodule SlipdockWeb.GeneratedNamesDocsTest do
   test "the manual and README name what's written" do
     manual = read("docs/manual.md")
     refute manual =~ "*Decisions / Pricing sync · 7 Oct 2026*"
-    assert manual =~ "`/runner/examples/passlog.sh`"
+    refute manual =~ "`/runner/examples/passlog.sh`"
     assert manual =~ "`Weekly review 2026-11-02`"
     assert manual =~ "`<rule>: <card> <date>`"
 

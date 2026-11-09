@@ -24,16 +24,20 @@ defmodule SlipdockWeb.VerifiedDocsTest do
         do: assert(manual =~ heading)
 
     assert manual =~ "| `verify_card` |"
-    assert manual =~ "job_verify"
+    # The shell runners' job_verify went with them (#2582).
+    assert manual =~ "A machine's runner takes `verify` jobs"
+    refute manual =~ "job_verify"
   end
 
   test "README and agents.md name it" do
     assert read("README.md") =~ "**Verified work**"
-    # Ship by PR (#1653): the merge, the pending-lane release, self-update.
+    # Ship by PR (#1653): the merge, the pending-lane release, and (since the
+    # scripts' self-update was retired, #2582) the daemon's own updates.
     readme = "README.md" |> read() |> String.replace(~r/\s+/, " ")
     assert readme =~ "`slipdock verify 12 merged`"
     assert readme =~ "a card awaiting verification frees its lane and its dependents"
-    assert readme =~ "keep themselves current between jobs"
+    assert readme =~ "A machine's runner daemon updates itself from signed releases"
+    refute readme =~ "keep themselves current between jobs"
     assert read("README.md") =~ "`verify_card`"
     assert read("docs/agents.md") =~ "**Verified work.**"
     assert read("docs/agents.md") =~ "**ship by pull request**"

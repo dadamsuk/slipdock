@@ -26,14 +26,18 @@ defmodule SlipdockWeb.JobLogsDocsTest do
     assert manual =~ "**Logs evaporate unless kept.**"
     assert manual =~ "**Keep job logs for** (24 hours by default)"
     assert manual =~ "**Keep failure logs for** (168 hours, 7 days)"
-    assert manual =~ "pass log is **opt-in**"
+    # The opt-in pass-log hook example went with the shell runners (#2582):
+    # Keep this log is the one way to keep a pass.
+    refute manual =~ "pass log is **opt-in**"
+    assert manual =~ "**Keep this log**"
   end
 
   test "the agent guide, the API guide and the skill name the commands" do
     agents = read("docs/agents.md")
     assert agents =~ "`slipdock job <id> --follow`"
     assert agents =~ "`keep_job_log`"
-    assert agents =~ "The pass log is opt-in"
+    refute agents =~ "The pass log is opt-in"
+    assert agents =~ "unless kept: `slipdock job <id> --keep`"
 
     guide = SlipdockWeb.APIGuide.markdown()
     assert guide =~ "GET /api/jobs/:id/log?from=N"

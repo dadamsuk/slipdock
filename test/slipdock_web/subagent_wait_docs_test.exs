@@ -52,8 +52,7 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
     for part <- [
           "**Subagents finish their builds.**",
           "stops a run's background tasks 10 minutes after its last turn",
-          "exports `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` (`$env:` on Windows)",
-          "Codex and custom agents don't get it",
+          "the daemon runs a Claude job with `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`",
           "has a pass wait for every subagent it started before its turn ends",
           "never end with a subcard it moved in left in progress with nothing working on it",
           "it finishes the subcard or hands it back with a handoff"
