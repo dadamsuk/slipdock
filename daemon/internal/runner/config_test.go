@@ -46,3 +46,38 @@ func TestTheExecutorMustBeOfferedAndRunnable(t *testing.T) {
 		}
 	}
 }
+
+// The runner's directory is checked against the ceiling's roots (#2630):
+// the root and what is under it are inside; its parent, a sibling and a
+// relative path are not, or a server could widen the ceiling the machine set.
+func TestTheDirectoryMustBeAtOrBelowARoot(t *testing.T) {
+	defer func(g string) { goos = g }(goos)
+	goos = "linux"
+	home := t.TempDir()
+	root := filepath.Join(home, "dev")
+	cases := []struct {
+		name, dir string
+		inside    bool
+	}{
+		{"the root itself", root, true},
+		{"a child", filepath.Join(root, "repo"), true},
+		{"a child whose name starts with ..", filepath.Join(root, "..cache"), true},
+		{"the root's parent", home, false},
+		{"the root's parent, written as root/..", root + string(filepath.Separator) + "..", false},
+		{"the root's grandparent", filepath.Dir(home), false},
+		{"a sibling", filepath.Join(home, "other"), false},
+		{"a ..-prefixed relative path", filepath.Join("..", "dev", "repo"), false},
+		{"a bare ..", "..", false},
+	}
+	for _, c := range cases {
+		r := Runner{ID: 1, BoardID: 3, Config: Config{Agent: "claude", Directory: c.dir,
+			PermissionMode: "default", TimeoutMinutes: 60, Executor: "me"}}
+		err := r.Check(ceiling(root))
+		switch {
+		case c.inside && err != nil:
+			t.Errorf("%s (%q): refused: %v", c.name, c.dir, err)
+		case !c.inside && (err == nil || !strings.Contains(err.Error(), "is not inside")):
+			t.Errorf("%s (%q): err = %v, want it refused as not inside %s", c.name, c.dir, err, root)
+		}
+	}
+}
