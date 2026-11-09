@@ -302,6 +302,71 @@ defmodule SlipdockWeb.GardenAPITest do
                |> json_response(200)
     end
 
+    test "the person's own CLI under Claude Code decides it with confirm (#2638)", ctx do
+      {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
+
+      # Without the say-so it is refused, and the refusal names routes that work.
+      assert %{"error" => error} =
+               agent_token(ctx.owner)
+               |> post("/api/garden/suggestions/#{s.id}/dismiss", %{})
+               |> json_response(422)
+
+      assert error =~ "on the board's Tidy-up page"
+      assert error =~ "slipdock garden dismiss #{s.id} --confirm"
+
+      assert %{"suggestion" => %{"state" => "dismissed"}} =
+               agent_token(ctx.owner)
+               |> post("/api/garden/suggestions/#{s.id}/dismiss", %{"confirm" => true})
+               |> json_response(200)
+
+      {:ok, s2, :new} =
+        Gardener.propose(
+          ctx.board,
+          ctx.owner,
+          put_in(
+            proposal(ctx.page),
+            ["steps", Elixir.Access.at(0), "body"],
+            "- **SEC-9** must · judgement · Other."
+          )
+        )
+
+      assert %{"suggestion" => %{"state" => "applied"}} =
+               agent_token(ctx.owner)
+               |> post("/api/garden/suggestions/#{s2.id}/apply", %{"confirm" => "true"})
+               |> json_response(200)
+
+      assert %{"suggestion" => %{"state" => "open"}} =
+               agent_token(ctx.owner)
+               |> post("/api/garden/suggestions/#{s2.id}/undo", %{"confirm" => true})
+               |> json_response(200)
+    end
+
+    test "an agent's confirm counts for nothing: a runner job's CLI, a script's token (#2638)",
+         ctx do
+      {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
+      job = agent_token(ctx.owner) |> put_req_header("x-slipdock-job", "77")
+
+      script =
+        ctx.owner |> with_token([]) |> put_req_header("x-slipdock-client", "curl")
+
+      for conn <- [job, script], verb <- ~w(apply dismiss) do
+        assert %{"error" => error} =
+                 conn
+                 |> post("/api/garden/suggestions/#{s.id}/#{verb}", %{"confirm" => true})
+                 |> json_response(422)
+
+        assert error =~ "only a person can #{verb} a proposed handbook edit"
+        assert error =~ "never a runner job's"
+      end
+
+      assert Gardener.get_suggestion(s.id).state == "open"
+
+      # confirm false is no say-so either.
+      assert agent_token(ctx.owner)
+             |> post("/api/garden/suggestions/#{s.id}/dismiss", %{"confirm" => false})
+             |> json_response(422)
+    end
+
     test "an ordinary suggestion is still an agent's to apply", ctx do
       s = open_one(ctx.board)
 

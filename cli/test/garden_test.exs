@@ -114,6 +114,35 @@ defmodule SlipdockCLI.GardenTest do
     assert out =~ "undid #42"
   end
 
+  test "--confirm sends the person's say-so with apply, dismiss and undo (#2638)" do
+    dismissed = JSON.encode!(%{"suggestion" => %{@dupe | "state" => "dismissed"}})
+    serve([{200, dismissed}, {200, dismissed}, {200, dismissed}])
+
+    out = capture_io(fn -> Garden.run("garden", ["dismiss", "42"], confirm: true) end)
+    assert_received {:request, "POST", "/api/garden/suggestions/42/dismiss", d}
+    assert JSON.decode!(d) == %{"confirm" => true}
+    assert out =~ "dismissed #42"
+
+    capture_io(fn -> Garden.run("garden", ["apply", "42"], confirm: true, keep: "1") end)
+    assert_received {:request, "POST", "/api/garden/suggestions/42/apply", a}
+    assert JSON.decode!(a) == %{"confirm" => true, "keep" => "1"}
+
+    capture_io(fn -> Garden.run("garden", ["undo", "42"], confirm: true) end)
+    assert_received {:request, "POST", "/api/garden/suggestions/42/undo", u}
+    assert JSON.decode!(u) == %{"confirm" => true}
+  end
+
+  test "--confirm is a switch the CLI parses, and without it nothing is said (#2638)" do
+    assert {[confirm: true], ["garden", "dismiss", "42"], []} =
+             OptionParser.parse(["garden", "dismiss", "42", "--confirm"],
+               strict: SlipdockCLI.switches()
+             )
+
+    assert Garden.decision_body("dismiss", confirm: false) == %{}
+    assert Garden.decision_body("dismiss", []) == %{}
+    assert Garden.decision_body("apply", choice: "snooze") == %{"choice" => "snooze"}
+  end
+
   @proposal %{
     "id" => 50,
     "check" => "proposal",

@@ -74,22 +74,40 @@ defmodule SlipdockWeb.API.GardenController do
   end
 
   def apply(conn, %{"id" => id} = params) do
-    with :ok <- known(params, ~w(id keep choice)) do
+    with :ok <- known(params, ~w(id keep choice confirm)) do
       decide(conn, id, :write, fn s, user ->
         Gardener.apply(s, user,
           keep: params["keep"],
           choice: params["choice"],
-          actor: Slipdock.Actor.from_conn(conn)
+          actor: decider(conn, params)
         )
       end)
     end
   end
 
-  def dismiss(conn, %{"id" => id}),
-    do: decide(conn, id, :write, &Gardener.dismiss(&1, &2, actor: Slipdock.Actor.from_conn(conn)))
+  def dismiss(conn, %{"id" => id} = params),
+    do: decide(conn, id, :write, &Gardener.dismiss(&1, &2, actor: decider(conn, params)))
 
-  def undo(conn, %{"id" => id}),
-    do: decide(conn, id, :write, &Gardener.undo(&1, &2, actor: Slipdock.Actor.from_conn(conn)))
+  def undo(conn, %{"id" => id} = params),
+    do: decide(conn, id, :write, &Gardener.undo(&1, &2, actor: decider(conn, params)))
+
+  # Who decides (#2638). The CLI under Claude Code says it is an agent, though
+  # the token is the person's and the person may be the one typing. With
+  # `confirm: true` (`slipdock garden dismiss <id> --confirm`: the person said
+  # so) and no runner job behind it, the decision is the person's, as MCP's
+  # `garden_decide` with `confirm: true` is. A runner job's CLI and a script's
+  # bare token stay agents whatever they send.
+  defp decider(conn, params) do
+    case Slipdock.Actor.from_conn(conn) do
+      %{kind: "agent", via: "cli", job_id: nil} = actor ->
+        if Enum.member?([true, "true"], params["confirm"]),
+          do: %{actor | kind: "human"},
+          else: actor
+
+      actor ->
+        actor
+    end
+  end
 
   defp decide(conn, id, need, fun) do
     with {:ok, suggestion} <- fetch(id),

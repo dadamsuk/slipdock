@@ -375,7 +375,8 @@ defmodule Slipdock.Gardener do
       do:
         {:error,
          "only a person can #{what} a proposed handbook edit: ask them to, on the board's Tidy-up page " <>
-           "or with slipdock garden #{what} #{suggestion.id}"},
+           "or with slipdock garden #{what} #{suggestion.id} --confirm from their own session " <>
+           "(never a runner job's)"},
       else: :ok
   end
 
