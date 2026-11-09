@@ -21,6 +21,8 @@ type Pool struct {
 	slots   map[int64]*slot
 	wg      sync.WaitGroup
 	revoked atomic.Bool
+	// draining: Drain was called, and Apply starts nothing more.
+	draining bool
 }
 
 // slot is one runner's worker: stop tells it to finish and end, done is
@@ -44,10 +46,13 @@ func (p *Pool) Context() context.Context { return p.ctx }
 // Stop stops every worker: what they are running is stopped too.
 func (p *Pool) Stop() { p.cancel() }
 
-// Apply makes workers the pool's runners.
+// Apply makes workers the pool's runners. After Drain it does nothing.
 func (p *Pool) Apply(workers []*Worker) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.draining {
+		return
+	}
 	want := map[int64]*Worker{}
 	for _, w := range workers {
 		want[w.Runner.ID] = w
@@ -71,6 +76,31 @@ func (p *Pool) Apply(workers []*Worker) {
 			p.slots[id] = p.start(w, s.done)
 		}
 	}
+}
+
+// Drain stops the pool taking jobs, for good (#2618): every worker
+// finishes the job it holds and ends, and Apply starts no more. It returns
+// once they all have, or the pool's context has ended, so the daemon can
+// restart on an update it installed without cutting a job short.
+func (p *Pool) Drain() {
+	p.mu.Lock()
+	if !p.draining {
+		p.draining = true
+		for id, s := range p.slots {
+			p.logf("runner %s (#%d) takes no more jobs: it stops once the job it holds has finished", s.worker.Runner.Name, id)
+			close(s.stop)
+			delete(p.slots, id)
+		}
+	}
+	p.mu.Unlock()
+	p.wg.Wait()
+}
+
+// Draining says whether Drain has been called.
+func (p *Pool) Draining() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.draining
 }
 
 // same: nothing a worker runs with differs, its config version aside.

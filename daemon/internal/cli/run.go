@@ -90,13 +90,16 @@ func cmdRun(args []string, env Env) error {
 
 	// The runners run beside the enrolment check; the machine revoked
 	// (seen by either) or the process stopping ends both.
+	// A later update drains them first (#2618): closing drain stops their
+	// claims, and idle is closed once the jobs they held have finished.
 	ctx, stopAll := context.WithCancel(ctx)
 	revoked := make(chan struct{})
+	drain, idle := make(chan struct{}), make(chan struct{})
 	var runners sync.WaitGroup
 	runners.Add(1)
 	go func() {
 		defer runners.Done()
-		if err := runRunners(ctx, d, st, key, ceil, local, env, client.Sleep, logger.Printf); errors.Is(err, runner.ErrRevoked) {
+		if err := runRunners(ctx, d, st, key, ceil, local, env, client.Sleep, logger.Printf, drain, idle); errors.Is(err, runner.ErrRevoked) {
 			close(revoked)
 			stopAll()
 		}
@@ -109,7 +112,7 @@ func cmdRun(args []string, env Env) error {
 	for n := 1; ; n++ {
 		if n%updateEvery == 0 {
 			if err := autoUpdate(ctx, d, env, logger.Printf); err != nil {
-				return err
+				return restartWhenIdle(ctx, err, drain, idle, revoked, logger.Printf)
 			}
 		}
 		m, err := client.Me(ctx, key)
@@ -133,6 +136,26 @@ func cmdRun(args []string, env Env) error {
 	}
 }
 
+// restartWhenIdle is run after an update installed while its runners run
+// (#2618): they take no more jobs, and run ends with err, to restart on the
+// new binary, once the jobs they hold have finished. A job is never cut
+// short by an update; the process asked to stop meanwhile ends at once.
+func restartWhenIdle(ctx context.Context, err error, drain chan<- struct{}, idle, revoked <-chan struct{}, logf func(string, ...any)) error {
+	logf("the runners take no more jobs: restarting once the jobs they hold have finished")
+	close(drain)
+	select {
+	case <-idle:
+		logf("the runners are idle: restarting on the new version")
+	case <-ctx.Done():
+	}
+	select {
+	case <-revoked:
+		return runner.ErrRevoked
+	default:
+		return err
+	}
+}
+
 // configWait is how long each of run's asks for the machine's config waits
 // for a change (the server's most).
 const configWait = 50
@@ -141,9 +164,11 @@ const configWait = 50
 // config as the server changes it (#2575): each change checked against the
 // ceiling and reported, applied between jobs, without a restart. Until the
 // server first answers, it runs what was last accepted, from the cache.
-// pause waits between asks, returning early when ctx ends.
+// pause waits between asks, returning early when ctx ends. Once drain is
+// closed the runners take no more jobs, and idle is closed when the jobs
+// they held have finished (#2618).
 func runRunners(ctx context.Context, d string, st machine.State, key string, ceil machine.Ceiling, local machine.Local, env Env,
-	pause func(context.Context, time.Duration) error, logf func(string, ...any)) error {
+	pause func(context.Context, time.Duration) error, logf func(string, ...any), drain <-chan struct{}, idle chan<- struct{}) error {
 	hc := &http.Client{}
 	if env.HTTP != nil && env.HTTP.Transport != nil {
 		hc.Transport = env.HTTP.Transport
@@ -162,8 +187,20 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 	}
 	pool := runner.NewPool(ctx, logf)
 	ctx = pool.Context()
+	go func() {
+		select {
+		case <-drain:
+			pool.Drain()
+			close(idle)
+		case <-ctx.Done():
+		}
+	}()
 	keeper := &machineconfig.Keeper{Dir: d, Ceiling: ceil, Server: client, Logf: logf}
 	apply := func(running []runner.Runner, listed int) {
+		if pool.Draining() {
+			logf("config version %d: no runner starts, as the daemon restarts for an update", keeper.Version())
+			return
+		}
 		workers, _ := runner.Build(&runner.MachineConfig{Version: keeper.Version(), Runners: running}, ceil, base)
 		pool.Apply(workers)
 		logf("config version %d: %d of %d runners running", keeper.Version(), len(workers), listed)

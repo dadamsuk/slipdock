@@ -72,8 +72,11 @@ SHA-256 in the signed list before it replaces the running one.
 
 - **`auto`** (the default): the update is installed, and the daemon exits so
   the service starts the new version. Found at start, that is before any
-  runner takes a job; found by a later check, a job a runner holds is
-  stopped as when the service stops, and goes back to the queue.
+  runner takes a job. Found by a later check, the runners take no more
+  jobs, each one finishes the job it holds, and the daemon exits once they
+  are all idle: an update never cuts a job short. The log says
+  `restarting once the jobs they hold have finished`, then `the runners are
+  idle`. A config change that comes meanwhile waits for the new version.
 - **`manual`**: the daemon only logs that a newer version exists, and
   `slipdock-runner update` installs it when you choose.
 

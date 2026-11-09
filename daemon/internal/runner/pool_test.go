@@ -234,3 +234,76 @@ func TestReportAndTheListing(t *testing.T) {
 		}
 	}
 }
+
+// A drained pool (an update installed, #2618) lets the job it holds run to
+// its end, claims nothing more, starts no runner a later config adds, and
+// Drain returns only once the job has ended.
+func TestDrainLetsTheHeldJobFinishThenEnds(t *testing.T) {
+	r, p, tick := poolWithTree(t)
+	claimed := r.srv.claimsOf(11)
+
+	drained := make(chan struct{})
+	go func() { p.Drain(); close(drained) }()
+	if !ticking(t, tick) {
+		t.Fatal("the job was cut short by the drain")
+	}
+	select {
+	case <-drained:
+		t.Fatal("Drain returned while the runner still held its job")
+	default:
+	}
+	if !p.Draining() {
+		t.Fatal("the pool doesn't say it is draining")
+	}
+	added := *r.w
+	added.Runner.ID = 12
+	p.Apply([]*Worker{r.w, &added})
+
+	r.cancelJob(130)
+	select {
+	case <-drained:
+	case <-time.After(20 * time.Second):
+		t.Fatal("Drain didn't return once the job had ended")
+	}
+	if _, ok := r.srv.finish(130); !ok {
+		t.Fatal("the held job's finish wasn't reported before Drain returned")
+	}
+	time.Sleep(100 * time.Millisecond)
+	if n := r.srv.claimsOf(11); n != claimed {
+		t.Fatalf("claims went from %d to %d after the drain", claimed, n)
+	}
+	if n := r.srv.claimsOf(12); n != 0 {
+		t.Fatalf("a runner applied after the drain claimed %d times", n)
+	}
+	if !strings.Contains(r.logged.String(), "runner builder (#11) takes no more jobs") {
+		t.Fatalf("log:\n%s", r.logged)
+	}
+}
+
+// An idle pool drains at once, and twice is the same as once.
+func TestDrainingAnIdlePoolReturnsAtOnce(t *testing.T) {
+	srv := newServer(t)
+	logs := &logBuf{}
+	p := NewPool(context.Background(), logs.logf)
+	t.Cleanup(func() { p.Stop(); p.Wait() })
+	p.Apply([]*Worker{{Runner: Runner{ID: 1, Name: "r", BoardID: 3, Config: Config{Agent: "claude"}},
+		Client: &Client{Server: srv.ts.URL, Key: "sdm_test_key", HTTP: &http.Client{}}, Logf: logs.logf,
+		LookPath: func(string) (string, error) { return "", errors.New("no") }, Getenv: func(string) string { return "" }}})
+	waitFor(t, "runner 1 to claim", func() bool { return srv.claimsOf(1) > 0 })
+
+	drained := make(chan struct{})
+	go func() { p.Drain(); p.Drain(); close(drained) }()
+	select {
+	case <-drained:
+	case <-time.After(5 * time.Second):
+		t.Fatal("an idle pool didn't drain: the waiting claim wasn't dropped")
+	}
+	n := srv.claimsOf(1)
+	time.Sleep(100 * time.Millisecond)
+	if srv.claimsOf(1) != n {
+		t.Fatal("a drained runner went on claiming")
+	}
+	if p.Context().Err() != nil {
+		t.Fatal("a drain isn't a stop: the pool's context ended")
+	}
+}
