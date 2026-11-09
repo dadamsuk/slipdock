@@ -24,35 +24,11 @@ defmodule SlipdockWeb.RunnerDocsTest do
     end
   end
 
-  test "a worktree per job (#1627) is described, with the settings the runners read" do
-    runner = read("priv/runner/slipdock-runner")
-    ps = read("priv/runner/slipdock-runner.ps1")
-
-    for setting <- ["WORKTREE=1", "WORKTREE_REPO", "WORKTREE_DIR", "$SLIPDOCK_WORKTREE"] do
-      assert read("docs/manual.md") =~ setting
-    end
-
-    for {setting, script} <- [{"WORKTREE_REPO", runner}, {"$WorktreeRepo", ps}],
-        do: assert(script =~ setting)
-
-    assert read("README.md") =~ "A git worktree per job"
+  test "a worktree per job (#1627) is described, as a machine's runner's setting" do
+    assert read("docs/manual.md") =~ "`card-<id>`"
+    assert read("docs/manual/machines.md") =~ "With `worktree` on"
+    assert read("README.md") =~ "a worktree per job"
     assert read("README.md") =~ "`card-<id>`"
-  end
-
-  test "the installers named are the ones served" do
-    for path <- ["/runner/install.sh", "/runner/install.ps1", "/runner/SHA256SUMS"] do
-      assert read("docs/manual.md") =~ path
-    end
-
-    served = SlipdockWeb.RunnerInstallController.files() |> Map.keys()
-
-    assert Enum.sort(served) == [
-             "SHA256SUMS",
-             "install.ps1",
-             "install.sh",
-             "slipdock-runner",
-             "slipdock-runner.ps1"
-           ]
   end
 
   test "the CLI commands the manual's table names are ones the CLI has" do
@@ -85,16 +61,17 @@ defmodule SlipdockWeb.RunnerDocsTest do
   test "the docs say a runner may use the Slipdock tools, and how to fix it when it can't" do
     for path <- ["docs/agents.md", "docs/manual.md", "priv/skills/slipdock/SKILL.md"] do
       text = read(path)
-      assert text =~ "--allowedTools" or text =~ "--mcp-servers", path
+      assert text =~ "--allowedTools", path
+      assert text =~ "allowed_tools", path
       assert text =~ "claude_ai_Slipdock", path
       assert text =~ ".claude/settings.json", path
+      # The wizard's options for the shell runner went with it (#2582).
+      refute text =~ "--no-slipdock-tools", path
+      refute text =~ "Let it use the Slipdock tools", path
     end
 
     assert read("docs/agents.md") =~ "can't use the Slipdock tools"
-    assert read("docs/manual.md") =~ "--no-slipdock-tools"
     assert read("README.md") =~ "nobody will answer questions"
-    assert read("docs/manual.md") =~ "another user's `~bob/…` is refused"
-    assert read("docs/agents.md") =~ "can't cd to ~/"
   end
 
   test "the docs call the preset Send cards to a runner, and the old name is gone" do
@@ -106,66 +83,20 @@ defmodule SlipdockWeb.RunnerDocsTest do
       refute read(path) =~ "Send cards to a coding agent", path
     end
 
-    assert read("docs/manual.md") =~ "**Verify the\nscript**"
     assert read("docs/manual.md") =~ "**Advanced**"
   end
 
-  test "the built-in merge kind is described in the scripts and the docs (#1656)" do
-    sh = read("priv/runner/slipdock-runner")
-    ps = read("priv/runner/slipdock-runner.ps1")
-    assert sh =~ "Built in: the merge kind (#1656)"
-    assert sh =~ "MERGE=0 in the config turns it off"
-    assert ps =~ "Built in: the merge kind (#1656)"
-    assert ps =~ "$Merge = $false in the config turns"
-
+  test "the built-in merge kind is described in the docs (#1656)" do
     manual = read("docs/manual.md")
     assert manual =~ "**Runners merge.**"
     assert manual =~ "`gh pr merge --match-head-commit`"
     assert manual =~ "`X-Runner-Kinds`"
+    assert manual =~ "`no_merge: true`"
     assert read("docs/agents.md") =~ "built-in `merge` kind"
 
     guide = read("lib/slipdock_web/api_guide.ex")
     assert guide =~ "`merge` jobs (merging an accepted card's pull request)"
+    assert guide =~ "built into\n    the runner daemon"
     assert guide =~ "`X-Runner-Kinds`"
-  end
-
-  test "keeping runners current is described in the scripts, installers and docs (#1658)" do
-    flat = fn path -> path |> read() |> String.replace(~r/\s+/, " ") end
-
-    assert flat.("priv/runner/slipdock-runner") =~
-             "Keeping current (#1658), off unless the config sets SELF_UPDATE=1"
-
-    assert flat.("priv/runner/slipdock-runner.ps1") =~
-             "Keeping current (#1658), off unless the config sets $SelfUpdate = $true"
-
-    assert flat.("priv/runner/install.sh") =~ "--no-self-update"
-    assert flat.("priv/runner/install.ps1") =~ "[switch]$NoSelfUpdate"
-    assert flat.("docs/manual.md") =~ "**Keeping runners current.**"
-    assert flat.("docs/manual.md") =~ "The config is never touched"
-    assert flat.("docs/agents.md") =~ "replace themselves with the server's newer script"
-    assert flat.("lib/slipdock_web/api_guide.ex") =~ "(`X-Runner-Version`)"
-  end
-
-  test "a runner updates itself between any two jobs, as the scripts and docs say (#1925)" do
-    # Comment markers at line starts go too, so a phrase can cross lines.
-    flat = fn path -> path |> read() |> String.replace(~r/\s*\n#?\s*|\s+/, " ") end
-
-    for script <- ~w(priv/runner/slipdock-runner priv/runner/slipdock-runner.ps1) do
-      assert flat.(script) =~
-               "updates between jobs (#1925): after an empty claim, or after a job's finish is reported and before the next claim, never during a job"
-
-      refute flat.(script) =~ "came back empty, so no job is running"
-    end
-
-    manual = flat.("docs/manual.md")
-    assert manual =~ "updates itself **between any two jobs** (#1925)"
-    assert manual =~ "never needs restarting by hand"
-    refute manual =~ "claim comes back empty, so no job is running"
-
-    assert flat.("docs/agents.md") =~
-             "between any two jobs, after an empty claim or after a job's finish"
-
-    assert flat.("lib/slipdock_web/api_guide.ex") =~
-             "replaces itself between any two jobs: after an empty claim, or after a job's finish"
   end
 end

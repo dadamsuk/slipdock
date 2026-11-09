@@ -2430,43 +2430,43 @@ defmodule SlipdockWeb.APIGuide do
 
     **Connecting one** is easiest with the wizard, which the board's
     Automations panel shows as *Connect a runner*: `POST
-    /api/boards/:board/runners/setup` with `scenario` (`daemon`, `server`,
-    `windows`, `loop`, `cloud`, `chatgpt`), `pool`, `agent`, `cwd`, `permission_mode`, `timeout`,
-    `service`, `where` and `repo`, and `column` to add a rule sending that
-    list's cards. It answers with `setup.steps` — exactly what to paste — and
-    for a runner of its own the `runner` and its `token`, once. `GET
-    …/runners/:id` is one runner in full (`created_by`, a session's
-    `api_token`, `current_job`, `job_counts`, `recent_jobs` up to `limit`,
-    and the `rules` sending to its pool), `GET
-    …/runners/:id/setup` gives the steps again, `POST …/runners/:id/token` a
-    new token, and `PUT …/runners/:id/setup` saves new answers and answers
-    with a `diff` of what changes. Standing `instructions` (and a
-    `verbosity`) and `before_job`/`after_job` hooks are answers too: they
-    are written into the generated config or prompt and kept on the
-    machine, never sent with a job. For a Claude runner, `slipdock_tools`
-    (default true) and `mcp_servers` (default `claude_ai_Slipdock, slipdock`)
-    let it use those MCP servers' tools without asking — in `-p` nobody can
-    approve one; `slipdock_tools: false` leaves it no access to the board.
-    `worktree: true` (server and windows) runs each job in a git worktree
-    of the working directory's repository, on branch `card-<id>`.
+    /api/boards/:board/runners/setup` with `scenario` (`daemon`, `loop`,
+    `cloud`, `chatgpt`), which is `daemon` when not given, and `pool`,
+    `cwd`, `permission_mode`, `where` and `repo`, and `column` to add a rule sending that list's cards. It
+    answers with `setup.steps` — exactly what to paste — and, for `daemon`,
+    a one-time `enrolment_key`; `runner` and `token` are null. `server` and
+    `windows`, the shell and PowerShell runners, were retired (#2582) and
+    answer 422 saying to use `daemon`; every path under `/runner/`, where
+    they were served, answers 410 Gone. `GET …/runners/:id` is one runner
+    in full (`created_by`, a session's `api_token`, `current_job`,
+    `job_counts`, `recent_jobs` up to `limit`, and the `rules` sending to
+    its pool; `machine_id` for a machine's runner). For a runner with a
+    token of its own (a retired shell runner's), `GET …/runners/:id/setup`
+    gives the steps to move it onto a machine and `POST …/runners/:id/token`
+    a new token; `PUT …/runners/:id/setup` and `GET …/runners/:id/hook-prompt`
+    answer 410. A machine's runners are set with `/api/machines/:id/runners`.
+    Standing `instructions` (and a `verbosity`) and `before_job`/`after_job`
+    hooks are answers too: they are written into the generated prompt,
+    never sent with a job.
     Every job's prompt ends by telling the agent nobody will answer questions.
     `slipdock runner new` prints the same. What a job does to its card and
     repository is seven booleans, all false unless given, in every scenario:
     `in_progress`, `assign`, `commit` (only in a git repository), `push`
     (refused without `commit`; `commit` is refused for `chatgpt`, which has no
     repository), `move_done`, `complete` and `percent_100`.
-    Each is said in the prompt, or a runner's standing instructions, on or
-    off. `verbosity` is `nothing` (the default: no comments, `job_progress`
+    Each is said in the prompt, on or off. `verbosity` is `nothing` (the default: no comments, `job_progress`
     with no note), `quiet`, `normal`, `verbose`, or `""` for whatever the
     skill says. Answers saved as #511's `commit` and `close` carry over. A
     session with no job tools (a connector added before they existed keeps its
     old tool list) is told to stop and say so rather than work the lists.
 
     **Runners themselves** are the board owner's to make and revoke: `GET`,
-    `POST` (`{"name", "pool"}`, answering with the runner's token, once) and
-    `DELETE /api/boards/:board/runners[/:id]`. A runner's token (`sdr_…`)
-    works only on the runner protocol, which is plain text so a machine with
-    nothing but `sh` and `curl` can speak it:
+    `POST` (`{"name", "pool"}`, answering with the runner's token, once, for
+    a client of the protocol you write yourself) and `DELETE
+    /api/boards/:board/runners[/:id]`. A runner's token (`sdr_…`), or a
+    machine's key (`sdm_…`) naming its runner in `X-Runner-Id`, works only
+    on the runner protocol, which is plain text so a machine with nothing
+    but `sh` and `curl` can speak it:
 
     ```
     POST /api/runner/claim?wait=25             204, or 200 with X-Job-Id, X-Job-Kind, X-Card-Id,
@@ -2520,20 +2520,12 @@ defmodule SlipdockWeb.APIGuide do
     A server stopping for a deploy answers every open claim at once with a
     204 and `Retry-After: 1`: wait that many seconds, then claim again, and
     the new server answers. A 502, 503 or 504 on a claim is a deploy too
-    (the proxy lost it): claim again a second later. Both runners do this
-    and log it only when it goes on.
+    (the proxy lost it): claim again a second later. The runner daemon
+    does this and logs it only when it goes on.
 
-    The shell runner that speaks it, `slipdock-runner` (`sh` and `curl`
-    only), installs with `curl -fsSL B/runner/install.sh | sh -s -- --url B
-    --token sdr_… --pool default`; on Windows, `slipdock-runner.ps1` from
-    `B/runner/install.ps1`. `B/runner/SHA256SUMS` has the checksums. One
-    machine runs several runners — one per board, say — when each is
-    installed with its own `--name NAME` (`-Name` on Windows): runner NAME
-    has its own config (`config-NAME`) and service, and installing it leaves
-    the others alone. The setup steps name each new runner after its board
-    and pool, as in `--name slipdock-loop`. Installed with no name over
-    another server's or pool's runner, the installer refuses rather than
-    replace it, unless given `--replace`.
+    The runner daemon (`slipdock-runner`, from Slipdock's signed releases)
+    speaks it for every runner of its machine: see *Machines*. One machine
+    runs as many runners as are added on its page — one per board, say.
 
     `slipdock runner ls|new|rm`, `slipdock jobs`, `slipdock job`,
     `slipdock cancel-job`, `slipdock claim-job`, `slipdock job-progress`,
@@ -2551,25 +2543,18 @@ defmodule SlipdockWeb.APIGuide do
     second agent accepts or rejects a card another one submitted: see
     *Verified work*, which appears when one of your boards has it on. With
     `verify_pool` set, each submitted card is queued for that pool as a job
-    of kind `verify`, so a runner needs a `job_verify` to take them.
+    of kind `verify`, which a machine's runner takes with its own agent.
     `merge` jobs (merging an accepted card's pull request) are built into
-    the runner scripts, and go only to runners whose claims list `merge`
-    in `X-Runner-Kinds`. Claims also say the script's own SHA-256
-    (`X-Runner-Version`); the runners list's `script` says whether it is
-    current, and `missing_kinds` what the board needs that it lacks. Every
-    claim (empty or not) and every finish answers with the script this
-    server hands out (`X-Runner-Latest`), and a runner set to keep itself
-    current replaces itself between any two jobs: after an empty claim, or
-    after a job's finish and before its next claim, never during a job.
-    They also say what the machine has installed (`X-Runner-Skills`, each
+    the runner daemon, and go only to runners whose claims list `merge`
+    in `X-Runner-Kinds`; the runners list's `missing_kinds` says what the
+    board needs that a runner lacks. Claims also say what the machine has installed (`X-Runner-Skills`, each
     slipdock skill's `SKILL.md` SHA-256; `X-Runner-CLI`, the CLI's), and
     each runner's `drift` compares them with what this server serves:
     `skills` current, drifted (`drifted_skills` names them) or unknown,
     `cli` current, old, none or unknown. A drifted runner raises one
-    alert, cleared once it is current. A runner that keeps itself current
-    also installs this server's skills (`/api/skills.tar.gz`) before each
-    job but a merge (`SKILLS_UPDATE=0` keeps them): a skill's one source is
-    the server, never a hand-edited copy.
+    alert, cleared once it is current: run the install one-liner on the
+    machine again. A skill's one source is the server, never a hand-edited
+    copy.
 
     **The server keeps an epic's record.** As each subcard starts, is
     submitted, rejected, accepted, merged, fails a build, waits on a person

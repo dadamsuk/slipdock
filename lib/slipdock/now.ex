@@ -13,7 +13,7 @@ defmodule Slipdock.Now do
 
     * `runners` — every runner of the tree, newest first: `id`, `name`,
       `pool`, `online`, `session` (a Claude session working through an API
-      token rather than a runner script) and `jobs`, the jobs it holds now
+      token rather than a runner of its own) and `jobs`, the jobs it holds now
       (claimed or running), oldest first;
     * `in_progress` — every open, unarchived card in a list whose category
       is *In progress* (`doing`), longest there first: `id`, `title`, where

@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.MCP.Tools.ClaimJob do
   @moduledoc """
   Takes the next runner job of a pool, so a Claude session works the same
-  queue as the shell runners rather than racing them for the same card (see
+  queue as the machines' runners rather than racing them for the same card (see
   `Slipdock.Runners`).
   """
   @behaviour SlipdockWeb.MCP.Tool

@@ -19,11 +19,10 @@ defmodule Slipdock.Runners.Drift do
 
   **Report only.** Nothing here touches a machine: the server never calls
   out to a runner (ARCH-5). Installed copies are installed from the server,
-  never edited by hand (#2048): a runner that keeps itself current puts the
-  server's skills in place before each job (`keep_skills` in
-  `priv/runner/slipdock-runner`, `Update-Skills` in its PowerShell twin), so
-  its drift clears on the next claim; anywhere else, the install one-liner
-  (`docs/agents.md` §Install the skills) brings them up to date.
+  never edited by hand (#2048): the install one-liner (`docs/agents.md`
+  §Install the skills) brings them up to date, and the drift clears on the
+  runner's next claim. (The retired shell runners, #2582, could do that
+  themselves before each job; the daemon reports, and doesn't install.)
   """
 
   import Ecto.Query
@@ -242,10 +241,9 @@ defmodule Slipdock.Runners.Drift do
       "title" => "Runner #{runner.name} has drifted from this server: #{Enum.join(parts, ", ")}",
       "body" =>
         "Its installed copies differ from what this server serves, so passes on it may " <>
-          "follow stale instructions. A runner that keeps itself current installs this " <>
-          "server's skills before its next job; otherwise run the install one-liner " <>
-          "again (skills are never edited by hand). This alert clears itself once the " <>
-          "runner reports them current."
+          "follow stale instructions. Run the install one-liner on its machine again " <>
+          "(skills are never edited by hand). This alert clears itself once the runner " <>
+          "reports them current."
     }
 
     case Automations.raise_alert(attrs) do

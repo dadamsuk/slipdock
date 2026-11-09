@@ -172,8 +172,8 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   --no-code "<why>"`, completes without a pull request of its own)
   (`slipdock verify 12 merged` when you merged it yourself). On a board that
   ships by push, a card awaiting verification frees its lane and its
-  dependents. Runners say which script they run, and new installs keep
-  themselves current between jobs, on a matching checksum. On every board,
+  dependents. A machine's runner daemon updates itself from signed
+  releases. On every board,
   switch or not, an agent can't close an epic over open subcards or reopen
   a done card: done stays done unless a person reopens it.
 - **Lanes** — [parallel agents stay out of each other's files](docs/manual/lanes.md),
@@ -1081,9 +1081,9 @@ with the tail of the log — and a Cancel button.
   `slipdock cards`, which filter on `stuck` and `driver` (`--stuck --driver
   agent`), as does the board's Filter menu.
 - **A worktree per job, if you want one.** Several runners on one
-  repository can tread on each other's files. Tick *A git worktree per job*
-  in **Connect a runner** (`--worktree`, `-Worktree`, or `WORKTREE=1` in the
-  runner's config) and each job runs in a git worktree of its own, on a
+  repository can tread on each other's files. Turn on *a worktree per job*
+  in a machine's runner's settings (`slipdock machine add-runner …
+  --worktree`) and each job runs in a git worktree of its own, on a
   branch named for its card (`card-<id>`), beside the repository in
   `<repo>-lanes/`; a clean one is removed after the job, one with
   uncommitted changes kept for the next job on that card. Off by default.
@@ -1110,17 +1110,15 @@ under Account › Machines, where its owner adds, changes, pauses and removes
 them inside the machine's own ceiling, and sees each refusal with its reason
 and the limit; *Set up this machine with Claude* there, and at the end of
 `init`, has Claude set the machine up from the board's machine-setup page
-and prove it by running the suite), a Linux or macOS machine (a POSIX `sh` + `curl` runner, as a systemd or launchd
-service), a Windows machine (a PowerShell runner, started by Task Scheduler,
-no admin), Claude Code in a `/loop`, Claude on a schedule (a Desktop task
+and prove it by running the suite), Claude Code in a `/loop`, Claude on a schedule (a Desktop task
 or a cloud routine), or ChatGPT (its Slipdock connector and a prompt for a chat
 or a scheduled task; no repository, so no commit or push), and it gives you exactly what to paste — and can add the
 rule that sends a list's cards, plus standing instructions and before/after
-hooks for every job — and a prompt that has Claude Code on the machine write
-those hooks for you (your notifier, and what to keep from each pass: by
-default nothing, since a job's live log is on the card until it expires and
-**Keep this log** keeps the ones worth keeping), from a worked example. A Claude runner may use the Slipdock MCP tools without
-asking (on by default) and every job is told nobody will answer questions, since
+hooks for every job. The shell and PowerShell runners the daemon replaced
+were retired (#2582): the server no longer serves them, and one still
+running shows **Move to a machine** on the Runners panel. A machine names the
+Slipdock MCP tools a Claude job may use without
+asking, and every job is told nobody will answer questions, since
 nobody is watching — to open a wait and stop if it needs a person, and to take
 nothing more once the board is paused — and to leave a handoff if it stops with the card unfinished
 (a job that ends with its card open leaves its summary as one). A runner costs nothing while it waits; the Claude and
@@ -1133,11 +1131,9 @@ much it writes on the card defaults to Nothing: no comments, just the job's
 lease renewed (the server's own notes, such as a card put back or given up on,
 still appear). Until a Claude session takes its first job, its pool shows in the
 runner list as waiting.
-One machine can run several runners — one per board, say: the steps install
-each under a name of its own (its board's code and pool, as in
-`--name slipdock-loop`), with its own config and service, so setting up a
-second never replaces the first.
-`slipdock runner new <board> [name] --pool default [--scenario …]` prints the
+One machine runs as many runners as you add on its page — one per board,
+say — each with its own pool, directory and settings.
+`slipdock runner new <board> --pool default [--scenario …]` prints the
 same, `slipdock runner ls|show|setup|token|rm` manage them, and `slipdock jobs
 <board>` shows what they're doing. The details are in
 [the manual](docs/manual/runners.md).

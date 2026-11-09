@@ -89,8 +89,7 @@ defmodule SlipdockWeb.API.MachineJSON do
       last_seen_at: r.last_seen_at,
       current_job_id: r.current_job_id,
       paused: not is_nil(r.paused_at),
-      paused_at: r.paused_at,
-      version: r.version
+      paused_at: r.paused_at
     }
   end
 

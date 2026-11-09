@@ -31,10 +31,9 @@ defmodule Slipdock.Runners.Runner do
     # #1656); nil for one that never said (an older runner, a session).
     # Only `merge` jobs are routed on it.
     field :kinds, {:array, :string}
-    # The runner script it said it is running on its last claim
-    # (`X-Runner-Version`, #1658): "sh <sha256>" or "ps1 <sha256>", the
-    # script file's own SHA-256; nil for one that never said.
-    field :version, :string
+    # The `version` column (#1658) held the shell or PowerShell script a
+    # runner said it ran; the scripts were retired (#2582), so nothing reads
+    # or writes it. It stays in the table: migrations are additive (OPS-6).
     # What it said it has installed on its last claim (#1795,
     # `Slipdock.Runners.Drift`): each slipdock skill's SKILL.md SHA-256 by
     # name, and its CLI's ("none" without one); nil for never said.

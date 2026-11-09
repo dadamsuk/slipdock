@@ -1,7 +1,9 @@
 defmodule SlipdockWeb.RunnersLiveTest do
   # "Connect a runner" in the Automations panel: each scenario gives its own
-  # steps, a runner's token is shown once, the rule it asks for appears, and
-  # runners can be set up again, given a new token or revoked.
+  # steps and the rule it asks for appears. The shell and Windows scenarios
+  # were retired (#2582): a runner with a token of its own is one of theirs,
+  # and its setup is the move onto a machine; it can still be given a new
+  # token or revoked.
   use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
@@ -15,11 +17,11 @@ defmodule SlipdockWeb.RunnersLiveTest do
   end
 
   # The wizard opens on the daemon (#2572); these tests start from the
-  # shell runner's scenario, the one they were written for.
+  # /loop scenario, which has every option the wizard still asks.
   defp open(conn, board) do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
     view |> element("#connect-runner") |> render_click()
-    choose(view, %{"scenario" => "server"})
+    choose(view, %{"scenario" => "loop"})
     view
   end
 
@@ -34,42 +36,69 @@ defmodule SlipdockWeb.RunnersLiveTest do
     refute has_element?(view, "#runner-list")
   end
 
-  test "a Linux machine: the runner is made and its token shown once", %{conn: conn, board: board} do
-    view = open(conn, board)
-    assert has_element?(view, "#runner-wizard", "costs nothing while it waits")
+  # The scripts were retired (#2582): no shell or Windows scenario, and none
+  # of the options only they had.
+  test "the wizard offers no shell or Windows scenario", %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+    html = view |> element("#connect-runner") |> render_click()
 
-    html = submit(view, %{"scenario" => "server", "pool" => "dev", "name" => "laptop"})
+    radios =
+      ~r/name="wizard\[scenario\]" value="([a-z]+)"/
+      |> Regex.scan(html, capture: :all_but_first)
+      |> List.flatten()
 
-    assert [runner] = Runners.list_runners(board)
-    assert runner.name == "laptop"
-    assert html =~ "shown this once"
-    assert has_element?(view, "#runner-command", "/runner/install.sh")
-    assert has_element?(view, "#runner-command", "--pool dev")
-    assert has_element?(view, "#runner-command-copy")
-    view |> element("#reveal-config") |> render_click()
-    assert has_element?(view, "#runner-config", "job_claude()")
-    assert has_element?(view, "#runner-#{runner.id}", "laptop")
-    [token] = Regex.run(~r/sdr_[A-Za-z0-9_-]{20,}/, html)
-    assert Runners.authenticate(token).id == runner.id
+    assert radios == ~w(daemon loop cloud chatgpt)
+    refute html =~ "Linux / macOS machine"
+    refute html =~ "Windows machine"
 
-    # Set up again later: the same steps, the token left out, a new one on request.
-    view |> element("#runner-#{runner.id} button", "Setup") |> render_click()
-    refute render(view) =~ token
-    refute has_element?(view, "#runner-command", "--token")
-    assert has_element?(view, "#runner-setup", "keeps the one in its config")
+    for scenario <- ~w(daemon loop cloud chatgpt) do
+      html = choose(view, %{"scenario" => scenario})
 
+      for name <- ~w(name agent command timeout service worktree self_update slipdock_tools
+                     mcp_servers),
+          do: refute(html =~ ~s(name="wizard[#{name}]"), "#{scenario}: #{name}")
+
+      refute has_element?(view, "#wizard-hook-prompt")
+      refute html =~ "Keep the runner current"
+      refute html =~ "/runner/"
+      refute has_element?(view, "#runner-wizard button[type=submit]", "Make the runner")
+    end
+  end
+
+  test "a runner with a token of its own shows the steps to move onto a machine", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, runner, token} =
+      Runners.create_runner(board, %{
+        "name" => "laptop",
+        "pool" => "dev",
+        "settings" => %{"scenario" => "server", "self_update" => true}
+      })
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+    refute has_element?(view, "#runner-#{runner.id} button", "Setup")
+    refute has_element?(view, "#runner-#{runner.id}-script")
+    view |> element("#runner-#{runner.id}-move", "Move to a machine") |> render_click()
+
+    assert has_element?(view, "#runner-setup", "A retired shell runner — laptop")
+    assert has_element?(view, "#runner-setup", "no longer serves")
+    assert has_element?(view, "#runner-setup", "--scenario daemon --pool dev")
+    assert has_element?(view, "#runner-setup", "systemctl --user disable --now slipdock-runner")
+    refute has_element?(view, "#runner-setup", "/runner/install.sh")
+    refute has_element?(view, "#runner-setup button", "Change Settings")
+
+    # Its token can still be replaced, shown once, for its config by hand.
     html = view |> element("#runner-setup button", "Make a new token") |> render_click()
     [new] = Regex.run(~r/sdr_[A-Za-z0-9_-]{20,}/, html)
     refute new == token
     assert Runners.authenticate(token) == nil
+    assert Runners.authenticate(new).id == runner.id
+    assert has_element?(view, "#runner-setup", "shown this once")
   end
 
   test "each scenario shows its own options and steps", %{conn: conn, board: board} do
     view = open(conn, board)
-
-    choose(view, %{"scenario" => "windows"})
-    assert has_element?(view, "#runner-wizard", "Longest a job may run")
-    refute has_element?(view, "#runner-wizard select[name='wizard[service]']")
 
     choose(view, %{"scenario" => "loop"})
     refute has_element?(view, "#runner-wizard input[name='wizard[name]']")
@@ -136,18 +165,10 @@ defmodule SlipdockWeb.RunnersLiveTest do
     end
   end
 
-  test "a custom agent shows a command field", %{conn: conn, board: board} do
-    view = open(conn, board)
-    refute has_element?(view, "input[name='wizard[command]']")
-    choose(view, %{"scenario" => "server", "agent" => "custom"})
-    assert has_element?(view, "input[name='wizard[command]']")
-    assert has_element?(view, "#runner-wizard", "a custom agent needs the command")
-  end
-
   test "picking a list adds the rule that sends it cards", %{conn: conn, board: board} do
     [_, doing | _] = board.columns
     view = open(conn, board)
-    submit(view, %{"scenario" => "server", "pool" => "dev", "send" => "column:#{doing.name}"})
+    submit(view, %{"scenario" => "loop", "pool" => "dev", "send" => "column:#{doing.name}"})
 
     assert [rule] = Automations.list_rules(board.id)
     assert rule.spec["trigger"]["column"] == doing.name
@@ -164,7 +185,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
     card_fixture(todo, %{"title" => "Second"})
     view = open(conn, board)
     assert has_element?(view, "option[value='top:#{todo.name}']", "the top card of #{todo.name}")
-    submit(view, %{"scenario" => "server", "pool" => "dev", "send" => "top:#{todo.name}"})
+    submit(view, %{"scenario" => "loop", "pool" => "dev", "send" => "top:#{todo.name}"})
 
     assert [rule] = Automations.list_rules(board.id)
 
@@ -185,10 +206,10 @@ defmodule SlipdockWeb.RunnersLiveTest do
   } do
     view = open(conn, board)
     refute has_element?(view, "input[type=checkbox][name='wizard[wait]']")
-    choose(view, %{"scenario" => "server", "pool" => "dev", "send" => "top:To Do"})
+    choose(view, %{"scenario" => "loop", "pool" => "dev", "send" => "top:To Do"})
     assert has_element?(view, "input[type=checkbox][name='wizard[wait]'][checked]")
 
-    submit(view, %{"scenario" => "server", "pool" => "dev", "send" => "top:To Do", "wait" => "no"})
+    submit(view, %{"scenario" => "loop", "pool" => "dev", "send" => "top:To Do", "wait" => "no"})
 
     assert [rule] = Automations.list_rules(board.id)
     refute Map.has_key?(hd(rule.spec["actions"]), "wait_while_doing")
@@ -200,11 +221,11 @@ defmodule SlipdockWeb.RunnersLiveTest do
   } do
     view = open(conn, board)
     refute has_element?(view, "input[name='wizard[requeue]']")
-    choose(view, %{"scenario" => "server", "pool" => "dev", "send" => "top:To Do"})
+    choose(view, %{"scenario" => "loop", "pool" => "dev", "send" => "top:To Do"})
     assert has_element?(view, "input[type=number][name='wizard[requeue]'][value='1']")
 
     submit(view, %{
-      "scenario" => "server",
+      "scenario" => "loop",
       "pool" => "dev",
       "send" => "top:To Do",
       "requeue" => "2"
@@ -222,7 +243,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
     assert has_element?(view, "input[type=checkbox][name='wizard[alert]']")
     refute has_element?(view, "input[type=checkbox][name='wizard[alert]'][checked]")
 
-    submit(view, %{"scenario" => "server", "pool" => "dev", "alert" => "yes"})
+    submit(view, %{"scenario" => "loop", "pool" => "dev", "alert" => "yes"})
 
     assert [rule] = Automations.list_rules(board.id)
 
@@ -233,27 +254,9 @@ defmodule SlipdockWeb.RunnersLiveTest do
            }
   end
 
-  test "Advanced → Hooks has a prompt for Claude to write the hook, for the runner chosen", %{
-    conn: conn,
-    board: board
-  } do
-    view = open(conn, board)
-    choose(view, %{"scenario" => "server", "pool" => "dev"})
-    assert has_element?(view, "#wizard-hook-prompt summary", "Have Claude write this hook")
-    assert has_element?(view, "#hook-prompt", "$SLIPDOCK_STATUS")
-    assert has_element?(view, "#hook-prompt", "/runner/examples/after-job-hook.sh")
-    assert has_element?(view, "#hook-prompt-copy")
-
-    choose(view, %{"scenario" => "windows", "pool" => "dev"})
-    assert has_element?(view, "#hook-prompt", "$env:SLIPDOCK_STATUS")
-
-    choose(view, %{"scenario" => "loop", "pool" => "dev"})
-    refute has_element?(view, "#wizard-hook-prompt")
-  end
-
   test "an answer it can't use is said, and nothing is made", %{conn: conn, board: board} do
     view = open(conn, board)
-    choose(view, %{"scenario" => "server", "pool" => "My Pool"})
+    choose(view, %{"scenario" => "loop", "pool" => "My Pool"})
     assert has_element?(view, "#runner-wizard", "pool must be lower case")
     assert has_element?(view, "#runner-wizard button[type=submit][disabled]")
     assert Runners.list_runners(board) == []
@@ -270,7 +273,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
           %{
             "name" => "box",
             "pool" => "dev",
-            "settings" => %{"scenario" => "server", "cwd" => "~/src"}
+            "settings" => %{"scenario" => "loop", "cwd" => "~/src"}
           },
           user
         )
@@ -298,7 +301,9 @@ defmodule SlipdockWeb.RunnersLiveTest do
       view |> element("#show-runner-#{runner.id}") |> render_click()
       details = "#runner-details-#{runner.id}"
       assert has_element?(view, details, "Runner with a token of its own")
-      assert has_element?(view, details, "Linux / macOS machine")
+      # Its saved scenario was retired (#2582), so it isn't named.
+      assert has_element?(view, details, "a retired shell runner, to move onto a machine")
+      refute has_element?(view, details, "Linux / macOS machine")
       assert has_element?(view, details, "~/src")
       assert has_element?(view, details, "by #{user.name || user.email}")
       assert has_element?(view, "#runner-now-#{runner.id}", "job ##{busy_job.id}")
@@ -327,22 +332,6 @@ defmodule SlipdockWeb.RunnersLiveTest do
       assert has_element?(view, "#runner-details-#{runner.id}", "never")
       assert has_element?(view, "#runner-details-#{runner.id}", "no enabled rule sends cards")
       refute has_element?(view, "#runner-jobs-#{runner.id}")
-    end
-
-    test "a runner whose script is behind the server's is marked out of date (#1925)", ctx do
-      %{conn: conn, board: board} = ctx
-      latest = SlipdockWeb.RunnerInstallController.latest()
-      {:ok, behind, _} = Runners.create_runner(board, %{"name" => "behind", "pool" => "dev"})
-      {:ok, current, _} = Runners.create_runner(board, %{"name" => "current", "pool" => "dev"})
-      {:ok, silent, _} = Runners.create_runner(board, %{"name" => "silent", "pool" => "dev"})
-      Runners.report_version(behind, "sh " <> String.duplicate("a", 64))
-      Runners.report_version(current, "ps1 " <> latest["ps1"])
-
-      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
-
-      assert has_element?(view, "#runner-#{behind.id}-script", "out of date")
-      refute has_element?(view, "#runner-#{current.id}-script")
-      assert has_element?(view, "#runner-#{silent.id}-script", "old script")
     end
 
     test "a Claude session's runner names its API token", %{conn: conn, board: board, user: user} do
@@ -397,38 +386,6 @@ defmodule SlipdockWeb.RunnersLiveTest do
     end
   end
 
-  test "changing a runner's answers shows what changes on the machine", %{
-    conn: conn,
-    board: board
-  } do
-    view = open(conn, board)
-    submit(view, %{"scenario" => "server", "pool" => "dev", "name" => "laptop"})
-    [runner] = Runners.list_runners(board)
-
-    view |> element("#runner-#{runner.id} button", "Setup") |> render_click()
-    refute has_element?(view, "#runner-setup button", "Change the answers")
-    view |> element("#runner-setup button", "Change Settings") |> render_click()
-    assert has_element?(view, "#runner-wizard", "Changing “laptop”")
-    refute has_element?(view, "#runner-wizard input[name='wizard[pool]']")
-
-    view
-    |> form("#runner-wizard",
-      wizard: %{"instructions" => "Never push to main.", "before_job" => "git pull"}
-    )
-    |> render_submit()
-
-    assert has_element?(
-             view,
-             "#runner-diff span.text-success",
-             "Never push to main.'"
-           )
-
-    assert has_element?(view, "#runner-diff span.text-success", "git pull")
-
-    assert Runners.list_runners(board) |> hd() |> Map.get(:settings) |> Map.get("before_job") ==
-             "git pull"
-  end
-
   test "hooks are greyed out for a cloud routine, with the reason", %{conn: conn, board: board} do
     view = open(conn, board)
     assert has_element?(view, "input[name='wizard[before_job]']")
@@ -441,64 +398,6 @@ defmodule SlipdockWeb.RunnersLiveTest do
 
     choose(view, %{"scenario" => "loop"})
     assert has_element?(view, "select[name='wizard[hooks]']")
-  end
-
-  test "a claude runner may use the Slipdock tools unless it's unticked", %{
-    conn: conn,
-    board: board
-  } do
-    view = open(conn, board)
-
-    assert has_element?(view, "#wizard-slipdock-tools", "Let it use the Slipdock tools")
-    assert has_element?(view, "#wizard-slipdock-tools", "no access to the board")
-    assert has_element?(view, "#wizard-slipdock-tools input[type=checkbox][checked]")
-
-    assert has_element?(
-             view,
-             "input[name='wizard[mcp_servers]'][value='claude_ai_Slipdock, slipdock']"
-           )
-
-    # Unticked: the server's name goes, and nothing is allowed.
-    choose(view, %{"slipdock_tools" => "false"})
-    refute has_element?(view, "#wizard-slipdock-tools input[type=checkbox][checked]")
-    refute has_element?(view, "input[name='wizard[mcp_servers]']")
-
-    # Not offered for codex.
-    choose(view, %{"agent" => "codex"})
-    refute has_element?(view, "#wizard-slipdock-tools")
-
-    choose(view, %{"agent" => "claude"})
-    choose(view, %{"slipdock_tools" => "true"})
-    submit(view, %{"pool" => "dev", "mcp_servers" => "slipdock", "cwd" => "/srv/app"})
-    assert has_element?(view, "#runner-command", "--mcp-servers 'slipdock'")
-    view |> element("#reveal-config") |> render_click()
-    assert has_element?(view, "#runner-config", "ALLOWED_TOOLS='mcp__slipdock'")
-    assert [runner] = Runners.list_runners(board)
-    assert runner.settings["slipdock_tools"] == true
-  end
-
-  test "a worktree per job is offered for a runner on a machine, off until ticked", %{
-    conn: conn,
-    board: board
-  } do
-    view = open(conn, board)
-    assert has_element?(view, "#wizard-worktree", "A git worktree per job")
-    refute has_element?(view, "#wizard-worktree input[type=checkbox][checked]")
-
-    choose(view, %{"worktree" => "true"})
-    assert has_element?(view, "#wizard-worktree input[type=checkbox][checked]")
-    submit(view, %{"pool" => "dev", "cwd" => "/srv/app"})
-    assert has_element?(view, "#runner-command", "--worktree")
-    view |> element("#reveal-config") |> render_click()
-    assert has_element?(view, "#runner-config", "WORKTREE_REPO=$WORKDIR")
-    assert [runner] = Runners.list_runners(board)
-    assert runner.settings["worktree"] == true
-  end
-
-  test "a bad server name is said, and nothing is made", %{conn: conn, board: board} do
-    view = open(conn, board)
-    choose(view, %{"mcp_servers" => "not a name!"})
-    assert has_element?(view, "#runner-wizard", "an MCP server's name is letters")
   end
 
   test "a claude runner with no working directory is warned", %{conn: conn, board: board} do
@@ -537,10 +436,9 @@ defmodule SlipdockWeb.RunnersLiveTest do
       assert Runners.list_runners(board) == []
     end
 
-    test "name is optional, the directory /tmp, Hooks under Advanced", %{conn: conn, board: board} do
+    test "the directory /tmp, Hooks under Advanced", %{conn: conn, board: board} do
       view = open(conn, board)
 
-      assert has_element?(view, "#runner-wizard label", "(optional)")
       assert has_element?(view, "input[name='wizard[cwd]'][value='/tmp']")
       assert has_element?(view, "details#wizard-advanced summary", "Advanced")
 
@@ -551,102 +449,17 @@ defmodule SlipdockWeb.RunnersLiveTest do
 
       refute has_element?(view, "details#wizard-advanced[open]")
 
-      # Windows gets its own scratch directory; one typed in stays put.
-      html = choose(view, %{"scenario" => "windows"})
-      assert html =~ ~S(name="wizard[cwd]" value="~\AppData\Local\Temp")
-      choose(view, %{"scenario" => "server"})
-      assert has_element?(view, "input[name='wizard[cwd]'][value='/tmp']")
+      # One typed in stays put across scenarios.
       choose(view, %{"cwd" => "/srv/app"})
-      choose(view, %{"scenario" => "windows"})
+      choose(view, %{"scenario" => "cloud", "cwd" => "/srv/app"})
       assert has_element?(view, "input[name='wizard[cwd]'][value='/srv/app']")
-    end
-
-    test "the hooks under Advanced still submit, and /tmp reaches the config", %{
-      conn: conn,
-      board: board
-    } do
-      view = open(conn, board)
-      assert has_element?(view, "#runner-wizard", "the default, so the project's own commands")
-      submit(view, %{"pool" => "dev", "before_job" => "git pull --ff-only"})
-
-      assert [runner] = Runners.list_runners(board)
-      assert runner.settings["before_job"] == "git pull --ff-only"
-      assert runner.settings["cwd"] == "/tmp"
-      assert has_element?(view, "#runner-command", "--cwd '/tmp'")
-      assert has_element?(view, "#runner-command", "--before-job 'git pull --ff-only'")
-    end
-
-    test "the steps: no numbers, the script and config behind links, then Verify", %{
-      conn: conn,
-      board: board
-    } do
-      view = open(conn, board)
-      html = submit(view, %{"pool" => "dev"})
-
-      refute html =~ ~r/>\s*1\.\s*</
-      refute has_element?(view, "#runner-setup ol")
-      assert has_element?(view, "#runner-setup", "On the machine, run:")
-      assert has_element?(view, "#runner-command-copy")
-      assert has_element?(view, "#runner-installs", "That command will install")
-      assert has_element?(view, "#reveal-script", "a runner script")
-      assert has_element?(view, "#reveal-config", "a config file")
-      refute has_element?(view, "#runner-setup", "Or check it first")
-      # The token note sits above the command.
-      assert html =~ ~r/shown this once.*id="runner-command"/s
-
-      refute has_element?(view, "#runner-script")
-      view |> element("#reveal-script") |> render_click()
-      assert has_element?(view, "#runner-script", "SLIPDOCK_RUNNER_TOKEN")
-      assert has_element?(view, "#runner-script-copy")
-
-      refute has_element?(view, "#runner-config")
-      view |> element("#reveal-config") |> render_click()
-      assert has_element?(view, "#runner-config", "job_claude()")
-      assert has_element?(view, "#runner-config-copy")
-      assert has_element?(view, "#runner-setup", "~/.config/slipdock-runner/config")
-
-      refute has_element?(view, "#runner-checksums")
-      view |> element("#reveal-verify", "Verify the script") |> render_click()
-      assert has_element?(view, "#runner-checksums", "/runner/SHA256SUMS")
-      assert has_element?(view, "#runner-setup", "Or check it first")
-
-      # Clicked again, a link hides what it showed.
-      view |> element("#reveal-script") |> render_click()
-      refute has_element?(view, "#runner-script")
-
-      assert has_element?(
-               view,
-               "#runner-rule",
-               "Nothing is sent until a rule sends it: add one under"
-             )
-
-      assert has_element?(view, "#runner-rule", "with the Send cards to a runner preset")
-      view |> element("#runner-to-automations", "Automations") |> render_click()
-      refute has_element?(view, "#runner-dialog")
-      assert has_element?(view, "#rule-preset-send_to_runner", "Send cards to a runner")
     end
 
     test "a rule the wizard made is named instead", %{conn: conn, board: board} do
       view = open(conn, board)
       submit(view, %{"pool" => "dev", "send" => "column:To Do"})
-      assert has_element?(view, "#runner-rule", "sends cards")
+      assert has_element?(view, "#runner-setup", "sends cards")
       refute has_element?(view, "#runner-to-automations")
-    end
-
-    test "on Windows, the script is the PowerShell runner and Verify its checksums", %{
-      conn: conn,
-      board: board
-    } do
-      view = open(conn, board)
-      choose(view, %{"scenario" => "windows"})
-      submit(view, %{"scenario" => "windows", "pool" => "win"})
-
-      view |> element("#reveal-script") |> render_click()
-      assert has_element?(view, "#runner-script", "$RunnerToken")
-      view |> element("#reveal-config") |> render_click()
-      assert has_element?(view, "#runner-setup", "config.ps1")
-      view |> element("#reveal-verify") |> render_click()
-      assert has_element?(view, "#runner-checksums", "-OutFile install.ps1")
     end
 
     test "a Claude scenario's steps are a plain list, unnumbered", %{conn: conn, board: board} do
@@ -662,14 +475,14 @@ defmodule SlipdockWeb.RunnersLiveTest do
       conn: conn,
       board: board
     } do
-      view = open(conn, board)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
       refute has_element?(view, "#rule-preset-send_to_runner")
       refute render(view) =~ "coding agent\""
 
-      submit(view, %{"pool" => "dev"})
+      {:ok, runner, _} = Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
       assert has_element?(view, "#rule-preset-send_to_runner", "Send cards to a runner")
 
-      [runner] = Runners.list_runners(board)
       view |> element("#runner-#{runner.id} button[title=Revoke]") |> render_click()
       refute has_element?(view, "#rule-preset-send_to_runner")
     end
@@ -678,8 +491,8 @@ defmodule SlipdockWeb.RunnersLiveTest do
       conn: conn,
       board: board
     } do
-      view = open(conn, board)
-      submit(view, %{"pool" => "dev"})
+      {:ok, _runner, _} = Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
 
       view |> element("#rule-preset-send_to_runner") |> render_click()
       assert has_element?(view, "#rule-preset-form textarea[name='preset[prompt]']")
@@ -749,7 +562,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
     test "six checkboxes, unticked, for every scenario, and Nothing written by default", ctx do
       view = open(ctx.conn, ctx.board)
 
-      for scenario <- ~w(server windows loop cloud chatgpt) do
+      for scenario <- ~w(loop cloud chatgpt) do
         choose(view, %{"scenario" => scenario})
 
         for id <- @toggle_ids do
@@ -817,28 +630,6 @@ defmodule SlipdockWeb.RunnersLiveTest do
       assert has_element?(view, "#runner-setup", "Don't assign the card to anyone:")
       assert has_element?(view, "#runner-setup", "Don't move the card to the done list.")
       assert has_element?(view, "#runner-setup", "Don't comment on the card at all")
-    end
-
-    test "a runner's saved toggles show ticked when its answers are changed", ctx do
-      view = open(ctx.conn, ctx.board)
-      choose(view, %{"scenario" => "server", "commit" => "true"})
-
-      submit(view, %{
-        "scenario" => "server",
-        "pool" => "dev",
-        "name" => "box",
-        "commit" => "true",
-        "move_done" => "true"
-      })
-
-      [runner] = Runners.list_runners(ctx.board)
-      assert %{"commit" => true, "move_done" => true, "push" => false} = runner.settings
-
-      view |> element("#runner-#{runner.id} button", "Setup") |> render_click()
-      view |> element("#runner-setup button", "Change Settings") |> render_click()
-      assert has_element?(view, "#wizard-commit[checked]")
-      assert has_element?(view, "#wizard-move_done[checked]")
-      refute has_element?(view, "#wizard-assign[checked]")
     end
   end
 end

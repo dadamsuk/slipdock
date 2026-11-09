@@ -3,9 +3,10 @@ defmodule SlipdockWeb.API.RunnerController do
   The runner protocol: what a runner on somebody's machine calls to take
   jobs and report on them (see `Slipdock.Runners`).
 
-  Deliberately not JSON. The shell runner is `sh` and `curl` and nothing
-  else, so everything it needs comes back as response headers and a plain
-  text body, and what it sends is a plain text body too:
+  Deliberately not JSON: it was written for a shell runner that was `sh`
+  and `curl` and nothing else (retired for the runner daemon, #2582), so
+  everything a runner needs comes back as response headers and a plain text
+  body, and what it sends is a plain text body too:
 
       POST /api/runner/claim?wait=30          204, or 200 + X-Job-* headers, prompt as body
       POST /api/runner/jobs/:id/heartbeat     body = log tail → "ok" or "cancel"
@@ -22,12 +23,10 @@ defmodule SlipdockWeb.API.RunnerController do
   A claim may say which job kinds the runner takes (`X-Runner-Kinds:
   claude,merge`, #1656): kept on the runner, and a `merge` job goes only to
   a runner that lists it. A merge job comes with `X-Merge-PR` and
-  `X-Merge-Commit`, and its finish may say `merged=<sha>`. A claim may say
-  the runner script's own SHA-256 (`X-Runner-Version: sh <sha>`, #1658);
-  the answer then says the one this server hands out (`X-Runner-Latest`),
-  and so does each job's finish (#1925): a runner set to update itself does
-  so between jobs, after the finish and before its next claim, so a deploy
-  during a long job reaches the next one.
+  `X-Merge-Commit`, and its finish may say `merged=<sha>`. An
+  `X-Runner-Version` on a claim is ignored: the scripts that said which
+  one they ran, and were answered with `X-Runner-Latest` to update
+  themselves (#1658), were retired (#2582).
 
   A probe (`X-Job-Kind: probe`, #2580) has no card, so no `X-Card-*`
   headers: its body is what the server knows of the runner, one `name:
@@ -67,13 +66,10 @@ defmodule SlipdockWeb.API.RunnerController do
     runner =
       conn.assigns.runner
       |> Runners.report_kinds(conn |> get_req_header("x-runner-kinds") |> List.first())
-      |> Runners.report_version(conn |> get_req_header("x-runner-version") |> List.first())
       |> Slipdock.Runners.Drift.report(
         conn |> get_req_header("x-runner-skills") |> List.first(),
         conn |> get_req_header("x-runner-cli") |> List.first()
       )
-
-    conn = latest_header(conn, runner)
 
     if params["pool"] not in [nil, "", runner.pool] do
       text_reply(conn, 403, "this runner token is for pool #{runner.pool}, not #{params["pool"]}")
@@ -117,7 +113,7 @@ defmodule SlipdockWeb.API.RunnerController do
 
     case Runners.finish(conn.assigns.runner, id, attrs) do
       {:ok, job} ->
-        conn |> latest_header(conn.assigns.runner) |> text_reply(200, "ok #{job.status}")
+        text_reply(conn, 200, "ok #{job.status}")
 
       {:error, :not_found} ->
         text_reply(conn, 404, "no such job for this runner")
@@ -169,19 +165,6 @@ defmodule SlipdockWeb.API.RunnerController do
       &if(handoff, do: put_resp_header(&1, "x-handoff-id", to_string(handoff.id)), else: &1)
     )
   end
-
-  # The script this server hands out for the runner's flavour (#1658), so a
-  # runner set to update itself knows when to.
-  defp latest_header(conn, %{version: version}) when is_binary(version) do
-    flavor = version |> String.split(" ") |> hd()
-
-    case SlipdockWeb.RunnerInstallController.latest()[flavor] do
-      nil -> conn
-      sha -> put_resp_header(conn, "x-runner-latest", sha)
-    end
-  end
-
-  defp latest_header(conn, _runner), do: conn
 
   # A merge job (#1656): the pull request and the accepted commit, for the
   # runner's built-in merge to check before it merges anything.

@@ -389,17 +389,12 @@ defmodule SlipdockWeb.API.RunnersTest do
 
   # A session's runner has no answers of its own: asking for its steps used
   # to crash on the "session" scenario it is saved with.
-  test "a session's runner has no setup, hook prompt or token: 422, saying why", ctx do
+  test "a session's runner has no setup or token: 422, saying why", ctx do
     {_token, api_token} = Accounts.create_api_token(ctx.user, "desktop")
     {:ok, session} = Runners.session_runner(ctx.board, "dev", api_token, ctx.user)
     base = "/api/boards/#{ctx.board.id}/runners/#{session.id}"
 
-    for conn <- [
-          get(ctx.conn, base <> "/setup"),
-          get(ctx.conn, base <> "/hook-prompt"),
-          put(ctx.conn, base <> "/setup", %{"commit" => "none"}),
-          post(ctx.conn, base <> "/token")
-        ] do
+    for conn <- [get(ctx.conn, base <> "/setup"), post(ctx.conn, base <> "/token")] do
       message = json_response(conn, 422)["error"]
       assert message =~ "is a Claude or ChatGPT session, so it has no setup steps or token"
       assert message =~ "--scenario loop|cloud|chatgpt"
@@ -412,41 +407,69 @@ defmodule SlipdockWeb.API.RunnersTest do
   end
 
   describe "the setup wizard" do
-    test "a server runner: made, its token once, the steps and the rule", ctx do
-      [_, doing | _] = ctx.board.columns
+    test "server and windows were retired: a 422 pointing at the daemon, nothing made", ctx do
+      for scenario <- ~w(server windows) do
+        body =
+          ctx.conn
+          |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{
+            "scenario" => scenario,
+            "pool" => "other"
+          })
+          |> json_response(422)
 
+        assert body["error"] =~ "the shell and PowerShell runners were retired"
+        assert body["error"] =~ "use the daemon scenario"
+      end
+
+      assert Enum.map(Runners.list_runners(ctx.board), & &1.pool) == ["dev"]
+    end
+
+    test "with no scenario it is the daemon's steps, and no runner or token", ctx do
       body =
         ctx.conn
-        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{
-          "pool" => "dev",
-          "name" => "laptop",
-          "column" => doing.name
-        })
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{"pool" => "build"})
         |> json_response(201)
 
-      assert "sdr_" <> _ = body["token"]
-      assert body["runner"]["name"] == "laptop"
-      assert body["automation"]["name"] =~ "dev runners"
-      assert body["setup"]["scenario"] == "server"
-      assert hd(body["setup"]["steps"])["code"] =~ body["token"]
-      assert hd(body["setup"]["steps"])["code"] =~ "/runner/install.sh"
+      assert body["setup"]["scenario"] == "daemon"
+      assert "sde_" <> _ = body["enrolment_key"]
+      assert body["runner"] == nil
+      assert body["token"] == nil
+      refute inspect(body) =~ "/runner/install"
+    end
 
+    test "a runner with a token of its own: its steps are the move onto a machine", ctx do
       again =
         ctx.conn
-        |> get(~p"/api/boards/#{ctx.board.id}/runners/#{body["runner"]["id"]}/setup")
+        |> get(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/setup")
         |> json_response(200)
 
-      refute inspect(again) =~ body["token"]
-      refute hd(again["setup"]["steps"])["code"] =~ "--token"
+      assert again["setup"]["scenario"] == "retired"
+      assert again["setup"]["intro"] =~ "no longer serves"
+      codes = Enum.map_join(again["setup"]["steps"], "\n", &(&1["code"] || ""))
+      assert codes =~ "--scenario daemon --pool dev"
+      refute codes =~ "/runner/install"
 
       rotated =
         ctx.conn
-        |> post(~p"/api/boards/#{ctx.board.id}/runners/#{body["runner"]["id"]}/token")
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/token")
         |> json_response(200)
 
-      assert hd(rotated["setup"]["steps"])["code"] =~ rotated["token"]
-      assert post(runner_conn(body["token"]), "/api/runner/claim?wait=0").status == 401
+      assert List.last(rotated["setup"]["steps"])["code"] == rotated["token"]
+      assert post(runner_conn(ctx.token), "/api/runner/claim?wait=0").status == 401
       assert post(runner_conn(rotated["token"]), "/api/runner/claim?wait=0").status == 204
+    end
+
+    test "new answers and the hook prompt are gone: 410, saying where to go", ctx do
+      base = "/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}"
+
+      for conn <- [
+            put(ctx.conn, base <> "/setup", %{"instructions" => "Be brief."}),
+            get(ctx.conn, base <> "/hook-prompt")
+          ] do
+        assert json_response(conn, 410)["error"] =~ "use the daemon scenario"
+      end
+
+      assert Repo.reload!(ctx.runner).settings == ctx.runner.settings
     end
 
     test "a Claude scenario: steps only", ctx do
@@ -530,45 +553,6 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert refused["error"] =~ "ChatGPT has no repository to commit to"
     end
 
-    test "the hook prompt, for the runner's own scenario, owners only", ctx do
-      body =
-        ctx.conn
-        |> get(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/hook-prompt")
-        |> json_response(200)
-
-      assert body["scenario"] == "server"
-      assert body["env"] == Slipdock.Runners.HookPrompt.env_vars()
-      assert body["prompt"] =~ "$SLIPDOCK_STATUS"
-      assert body["prompt"] =~ "/runner/examples/after-job-hook.sh"
-
-      windows =
-        ctx.conn
-        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{
-          "scenario" => "windows",
-          "pool" => "win"
-        })
-        |> json_response(201)
-
-      assert ctx.conn
-             |> get(
-               ~p"/api/boards/#{ctx.board.id}/runners/#{windows["runner"]["id"]}/hook-prompt"
-             )
-             |> json_response(200)
-             |> Map.fetch!("prompt") =~ "$env:SLIPDOCK_STATUS"
-
-      assert ctx.conn
-             |> get(~p"/api/boards/#{ctx.board.id}/runners/nope/hook-prompt")
-             |> json_response(404)
-
-      other = user_fixture("h#{System.unique_integer([:positive])}@example.com")
-      share_fixture(ctx.board, [other], "write")
-
-      assert conn_as(other)
-             |> put_req_header("accept", "application/json")
-             |> get(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/hook-prompt")
-             |> json_response(403)
-    end
-
     test "bad answers are a 422 that says why", ctx do
       body =
         ctx.conn
@@ -597,51 +581,24 @@ defmodule SlipdockWeb.API.RunnersTest do
     end
   end
 
-  test "new answers for a runner: saved, and the diff of what changes", ctx do
-    body =
+  test "the seven toggles: set through setup, and push refused without commit", ctx do
+    url = ~p"/api/boards/#{ctx.board.id}/runners/setup"
+    loop = &Map.put(&1, "scenario", "loop")
+
+    steps =
       ctx.conn
-      |> put(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/setup", %{
-        "instructions" => "Be brief.",
-        "after_job" => "echo done"
-      })
-      |> json_response(200)
+      |> post(url, loop.(%{"commit" => true, "push" => true, "verbosity" => "nothing"}))
+      |> json_response(201)
+      |> get_in(["setup", "steps"])
+      |> Enum.map_join("\n", &(&1["code"] || ""))
 
-    assert Enum.any?(body["diff"], &(&1 == ["ins", "Be brief.' \\"]))
-
-    assert Enum.any?(body["diff"], &(&1 == ["ins", "echo done"]))
-
-    assert Slipdock.Repo.get!(Slipdock.Runners.Runner, ctx.runner.id).settings["after_job"] ==
-             "echo done"
-
-    assert ctx.conn
-           |> put(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/setup", %{
-             "hooks" => "x"
-           })
-           |> json_response(422)
-  end
-
-  test "the seven toggles: set through setup, saved, and push refused without commit", ctx do
-    url = ~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/setup"
-
-    body =
-      ctx.conn
-      |> put(url, %{"commit" => true, "push" => true, "assign" => true, "verbosity" => "nothing"})
-      |> json_response(200)
-
-    assert Enum.any?(body["diff"], fn [op, line] ->
-             op == "ins" and line =~ "commit with the card id in the message and push"
-           end)
-
-    settings = Slipdock.Repo.get!(Slipdock.Runners.Runner, ctx.runner.id).settings
-    assert %{"commit" => true, "push" => true, "assign" => true} = settings
-    assert %{"in_progress" => false, "move_done" => false, "complete" => false} = settings
-    assert settings["percent_100"] == false
+    assert steps =~ "commit with the card id in the message and push"
 
     assert %{"error" => "push needs commit" <> _} =
-             ctx.conn |> put(url, %{"commit" => false}) |> json_response(422)
+             ctx.conn |> post(url, loop.(%{"push" => true})) |> json_response(422)
 
     assert %{"error" => "complete must be true or false"} =
-             ctx.conn |> put(url, %{"complete" => "maybe"}) |> json_response(422)
+             ctx.conn |> post(url, loop.(%{"complete" => "maybe"})) |> json_response(422)
 
     # A Claude scenario's steps say them too, all off when not given.
     steps =

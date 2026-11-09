@@ -1240,18 +1240,6 @@ defmodule SlipdockWeb.HelpLive.Agents do
               <td>Nothing</td>
             </tr>
             <tr>
-              <td>Linux or macOS</td>
-              <td>
-                A shell runner (<code>sh</code> and <code>curl</code>) as a systemd or launchd service
-              </td>
-              <td>Nothing</td>
-            </tr>
-            <tr>
-              <td>Windows</td>
-              <td>A PowerShell runner, started at logon</td>
-              <td>Nothing</td>
-            </tr>
-            <tr>
               <td>Claude Code</td>
               <td>A <code>/loop</code> that takes jobs from the pool's queue</td>
               <td>A Claude turn per check</td>
@@ -1269,6 +1257,12 @@ defmodule SlipdockWeb.HelpLive.Agents do
           </tbody>
         </table>
       </div>
+      <p id="help-scripts-retired">
+        The shell and PowerShell runners the daemon replaced were retired: this server no
+        longer serves them. One still running keeps working with its token until it is moved:
+        <strong>Move to a machine</strong>
+        on it in the Runners panel gives the steps.
+      </p>
       <p id="help-machines">
         A machine running the runner daemon enrols once: <code>slipdock-runner init</code>
         shows a code and the machine's fingerprint, and you approve it under <.app_link
@@ -1339,7 +1333,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
           A Claude or ChatGPT session can also take jobs from the same queue itself, with
           <code>claim_job</code>
           over <.link patch={~p"/help/agents/mcp"} class="link">MCP</.link>
-          or <code>slipdock claim-job</code>, so a loop and a shell runner never work the same card.
+          or <code>slipdock claim-job</code>, so a loop and a machine's runner never work the same card.
         </li>
       </ul>
     </.part>

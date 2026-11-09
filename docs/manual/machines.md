@@ -12,8 +12,10 @@ The daemon is being built in steps (epic #2569). What is here today:
 enrolling a machine, its ceiling, `show`, `doctor`, the service, signed
 releases that it updates itself from, running its runners' jobs, and the
 Machines page where its runners are set, taking changes made there while
-it runs. Until a machine moves over, its runners are still the
-[shell runners](runners.md).
+it runs. It replaced the shell and PowerShell runners, which this server no
+longer serves (#2582, [Runners](runners.md)): a machine still running one
+moves over as W-1951's runbook *Moving a machine's runners onto the daemon*
+says.
 
 A board's **Automations → Connect a runner** offers *A machine with the
 daemon* first: its steps make a one-time enrolment key for the board and
@@ -377,7 +379,7 @@ accepted or refused (and why), and each field that changed, old and new:
 
 ### How the daemon runs a job
 
-Each runner takes one job at a time, as a shell runner does. Its claims say
+Each runner takes one job at a time. Its claims say
 which kinds it takes (its agent's, `verify`, the built-in `merge` and the
 built-in `probe`), and
 which skills and CLI are installed, so the board shows drift. While a job
@@ -617,8 +619,9 @@ log-in, and brought back if it stops:
   every five minutes after (a no-op while it runs). Logs: `daemon.log` in
   the daemon's directory.
 
-The names differ from the shell runner's, so both can run while a machine
-moves over. `service print` shows what it would install; `service
+The names differ from the retired shell runner's (`slipdock-runner.service`,
+`us.slipdock.runner`, *Slipdock runner*), so both can run while a machine
+moves over, until the old one is stopped. `service print` shows what it would install; `service
 uninstall` stops and removes it.
 
 ---

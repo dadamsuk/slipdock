@@ -2440,7 +2440,12 @@ defmodule SlipdockCLI.Render do
   end
 
   def runners([]),
-    do: IO.puts(dim("no runners — make one with `slipdock runner new <board> <name> --pool P`"))
+    do:
+      IO.puts(
+        dim(
+          "no runners — connect one with `slipdock runner new <board> --pool P` (a machine by default)"
+        )
+      )
 
   def runners(runners) do
     rows =
@@ -2451,12 +2456,12 @@ defmodule SlipdockCLI.Render do
           r["pool"],
           if(r["last_seen_at"], do: stamp(r["last_seen_at"]), else: dim("never")),
           if(r["current_job_id"], do: "job ##{r["current_job_id"]}", else: dim("idle")),
-          script_cell(r),
+          lacks_cell(r),
           drift_cell(r)
         ]
       end)
 
-    table(["ID", "NAME", "POOL", "LAST SEEN", "NOW", "SCRIPT", "SKILLS · CLI"], rows)
+    table(["ID", "NAME", "POOL", "LAST SEEN", "NOW", "LACKS", "SKILLS · CLI"], rows)
   end
 
   # Its installed skills and CLI against what the server serves (#1795):
@@ -2474,34 +2479,34 @@ defmodule SlipdockCLI.Render do
 
   defp skills_state(d), do: d["skills"] || "unknown"
 
-  # Its script, skills and CLI against the server's (#1658, #1795).
+  # Its skills and CLI against the server's (#1795), and the kinds it lacks.
   defp installed_lines(r) do
     d = r["drift"] || %{}
-    IO.puts("script:    " <> script_cell(r))
+    IO.puts("lacks:     " <> lacks_cell(r))
     IO.puts("skills:    " <> skills_state(d))
     IO.puts("cli:       " <> (d["cli"] || "unknown"))
   end
 
-  # Whether a runner's script is current, and the kinds its board needs that
-  # it lacks (#1658).
-  defp script_cell(r) do
-    state =
-      case r["script"] do
-        "current" -> "current"
-        "out_of_date" -> "out of date"
-        _ -> if r["session"], do: dim("-"), else: "old (can't say)"
-      end
-
+  # The kinds its board needs that it doesn't take (#1658). The SCRIPT
+  # column that said whether its shell script was current went with the
+  # scripts (#2582).
+  defp lacks_cell(r) do
     case r["missing_kinds"] do
-      [_ | _] = kinds -> state <> ", lacks " <> Enum.join(kinds, ", ")
-      _ -> state
+      [_ | _] = kinds -> Enum.join(kinds, ", ")
+      _ -> dim("-")
     end
   end
 
   # One runner in full: what it is, who made it, what it is doing now, how
   # its jobs have ended, its latest jobs and the rules that feed its pool.
   def runner(r) do
-    kind = if r["session"], do: "Claude session", else: "runner with its own token"
+    kind =
+      cond do
+        r["session"] -> "Claude session"
+        r["machine_id"] -> "a machine's runner"
+        true -> "runner with its own token: a retired shell runner"
+      end
+
     IO.puts("runner ##{r["id"]} #{r["name"]}  pool #{r["pool"]}  (#{kind})")
     if r["settings"]["scenario"], do: IO.puts("setup:     #{r["settings"]["scenario"]}")
 
@@ -2551,24 +2556,6 @@ defmodule SlipdockCLI.Render do
     end
   end
 
-  # What new answers change in a runner's steps: the lines out and in.
-  def runner_diff(diff) do
-    changed = Enum.reject(diff || [], fn [op, _] -> op == "eq" end)
-
-    if changed == [] do
-      IO.puts(dim("nothing changes on the machine\n"))
-    else
-      IO.puts("what changes — run the first step again on the machine:")
-
-      Enum.each(changed, fn [op, line] ->
-        IO.puts(if(op == "ins", do: "+ ", else: "- ") <> line)
-      end)
-
-      IO.puts("")
-    end
-  end
-
-  # The wizard's steps, as `Slipdock.Runners.Setup` writes them.
   def runner_setup(setup) do
     IO.puts(setup["title"])
     IO.puts(setup["intro"] <> "\n")

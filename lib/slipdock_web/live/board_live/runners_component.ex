@@ -15,14 +15,11 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   alias Slipdock.{Access, Automations, Runners}
   alias Slipdock.Automations.Spec
-  alias Slipdock.Runners.{Drift, HookPrompt, Runner, Setup}
+  alias Slipdock.Runners.{Drift, Runner, Setup}
 
   @events ~w(open_wizard close_wizard wizard_change connect regenerate rotate_token
-    revoke_runner close_setup edit_answers close_dialog reveal show_runner
+    revoke_runner close_setup close_dialog show_runner
     open_pause pause_change pause cancel_pause resume)
-
-  # What the setup steps keep behind a link until it's clicked.
-  @reveals ~w(script config verify)
 
   @doc false
   def events, do: @events
@@ -38,9 +35,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
        setup: nil,
        setup_runner: nil,
        token: nil,
-       diff: nil,
-       editing: nil,
-       revealed: MapSet.new(),
        shown: nil,
        details: nil,
        # The pause form (#1116): nil, :tree, or the pool it would hold.
@@ -104,68 +98,15 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     answers =
       Map.merge(Setup.defaults(), %{"scenario" => scenario, "cwd" => Setup.default_cwd(scenario)})
 
-    {:noreply,
-     assign(socket,
-       wizard: wizard(answers),
-       wizard_error: nil,
-       setup: nil,
-       token: nil,
-       diff: nil,
-       editing: nil
-     )}
+    {:noreply, assign(socket, wizard: wizard(answers), wizard_error: nil, setup: nil, token: nil)}
   end
 
   def handle_event("close_wizard", _params, socket),
-    do: {:noreply, assign(socket, wizard: nil, wizard_error: nil, editing: nil)}
-
-  # The wizard again, filled in with a runner's saved answers; saving shows
-  # what changes.
-  def handle_event("edit_answers", %{"id" => id}, socket) do
-    with {:ok, runner} <- Runners.find_runner(socket.assigns.board, id) do
-      {:noreply,
-       assign(socket,
-         wizard: wizard(Setup.saved(runner)),
-         wizard_error: nil,
-         editing: runner,
-         setup: nil,
-         diff: nil,
-         token: nil
-       )}
-    else
-      _ -> {:noreply, flash(socket, :error, "That runner is gone.")}
-    end
-  end
+    do: {:noreply, assign(socket, wizard: nil, wizard_error: nil)}
 
   def handle_event("wizard_change", %{"wizard" => params}, socket) do
-    params = params |> follow_default_cwd(socket.assigns.wizard) |> push_needs_commit()
+    params = push_needs_commit(params)
     {:noreply, assign(socket, wizard: wizard(params), wizard_error: nil)}
-  end
-
-  def handle_event(
-        "connect",
-        %{"wizard" => params},
-        %{assigns: %{editing: %Runner{} = runner}} = socket
-      ) do
-    %{board: board, base_url: base_url} = socket.assigns
-
-    case Setup.update(runner, board, params, base_url) do
-      {:ok, result} ->
-        {:noreply,
-         socket
-         |> assign(
-           wizard: nil,
-           editing: nil,
-           setup: result.setup,
-           setup_runner: result.runner,
-           token: nil,
-           diff: result.diff,
-           revealed: MapSet.new()
-         )
-         |> assign_runners()}
-
-      {:error, message} ->
-        {:noreply, assign(socket, wizard: wizard(params), wizard_error: message)}
-    end
   end
 
   def handle_event("connect", %{"wizard" => params}, socket) do
@@ -175,15 +116,9 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       {:ok, result} ->
         {:noreply,
          socket
-         |> assign(
-           wizard: nil,
-           setup: result.setup,
-           setup_runner: result.runner,
-           token: result.token,
-           revealed: MapSet.new()
-         )
+         |> assign(wizard: nil, setup: result.setup, setup_runner: nil, token: nil)
          |> assign_runners()
-         |> refresh_automations(result.runner || result.rule || result.alert_rule)}
+         |> refresh_automations(result.rule || result.alert_rule)}
 
       {:error, message} ->
         {:noreply, assign(socket, wizard: wizard(params), wizard_error: message)}
@@ -194,15 +129,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     with {:ok, runner} <- Runners.find_runner(socket.assigns.board, id) do
       setup = Setup.regenerate(runner, socket.assigns.board, socket.assigns.base_url)
 
-      {:noreply,
-       assign(socket,
-         wizard: nil,
-         setup: setup,
-         setup_runner: runner,
-         token: nil,
-         diff: nil,
-         revealed: MapSet.new()
-       )}
+      {:noreply, assign(socket, wizard: nil, setup: setup, setup_runner: runner, token: nil)}
     else
       _ -> {:noreply, flash(socket, :error, "That runner is gone.")}
     end
@@ -314,46 +241,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   end
 
   def handle_event("close_setup", _params, socket),
-    do: {:noreply, assign(socket, setup: nil, setup_runner: nil, token: nil, diff: nil)}
+    do: {:noreply, assign(socket, setup: nil, setup_runner: nil, token: nil)}
 
   # The dialog closed itself (Escape, or a click outside): the wizard or the
   # steps, whichever it held, go too.
   def handle_event("close_dialog", _params, socket),
     do:
       {:noreply,
-       assign(socket,
-         wizard: nil,
-         wizard_error: nil,
-         editing: nil,
-         setup: nil,
-         setup_runner: nil,
-         token: nil,
-         diff: nil
-       )}
-
-  def handle_event("reveal", %{"part" => part}, socket) when part in @reveals do
-    revealed = socket.assigns.revealed
-
-    revealed =
-      if MapSet.member?(revealed, part),
-        do: MapSet.delete(revealed, part),
-        else: MapSet.put(revealed, part)
-
-    {:noreply, assign(socket, revealed: revealed)}
-  end
-
-  def handle_event("reveal", _params, socket), do: {:noreply, socket}
-
-  # Switching scenario takes that scenario's default working directory with
-  # it, unless one was typed in.
-  defp follow_default_cwd(%{"scenario" => new} = params, %{params: %{"scenario" => old}})
-       when new != old do
-    if params["cwd"] in [nil, Setup.default_cwd(old)],
-      do: Map.put(params, "cwd", Setup.default_cwd(new)),
-      else: params
-  end
-
-  defp follow_default_cwd(params, _wizard), do: params
+       assign(socket, wizard: nil, wizard_error: nil, setup: nil, setup_runner: nil, token: nil)}
 
   # "Which cards does it get?" is one select: a list for a new rule, or a
   # rule already there.
@@ -545,18 +440,10 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               <span class="text-xs text-base-content/50">· pool {runner.pool}</span>
             </button>
             <span
-              :if={not Runner.session?(runner) and script_state(runner) != :current}
-              id={"runner-#{runner.id}-script"}
-              class="badge badge-warning badge-xs shrink-0"
-              title="Its script isn't the one this server hands out: install it again, or turn on Keep the runner current"
-            >
-              {if script_state(runner) == :out_of_date, do: "out of date", else: "old script"}
-            </span>
-            <span
               :if={match?({:drifted, _}, drift(runner).skills)}
               id={"runner-#{runner.id}-skills"}
               class="badge badge-warning badge-xs shrink-0"
-              title={"Its installed skills differ from this server's: #{Drift.describe(drift(runner).skills)}. A runner that keeps itself current installs this server's before its next job"}
+              title={"Its installed skills differ from this server's: #{Drift.describe(drift(runner).skills)}. Run the install one-liner on its machine again"}
             >
               skills drifted
             </span>
@@ -572,7 +459,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               :for={kind <- Slipdock.Runners.missing_kinds(runner)}
               id={"runner-#{runner.id}-lacks-#{kind}"}
               class="badge badge-error badge-xs shrink-0"
-              title={"This board needs #{kind} jobs, and this runner doesn't take them: update its script"}
+              title={"This board needs #{kind} jobs, and this runner doesn't take them"}
             >
               no {kind}
             </span>
@@ -594,16 +481,19 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
                   never seen
               <% end %>
             </span>
+            <%!-- A runner with a token of its own ran a retired script (#2582):
+                 its setup is the move onto a machine. --%>
             <button
-              :if={not Runner.session?(runner)}
+              :if={Setup.retired?(runner)}
+              id={"runner-#{runner.id}-move"}
               phx-target={@myself}
               type="button"
               class="btn btn-ghost btn-xs"
               phx-click="regenerate"
               phx-value-id={runner.id}
-              title="Show the setup steps again"
+              title="Its script was retired: the steps to move it onto a machine"
             >
-              Setup
+              Move to a machine
             </button>
             <button
               phx-target={@myself}
@@ -650,7 +540,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         <div class="modal-box max-w-2xl p-5">
           <.wizard_form
             :if={@wizard}
-            editing={@editing}
             wizard={@wizard}
             error={@wizard_error}
             preview={@preview}
@@ -665,8 +554,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             setup={@setup}
             runner={@setup_runner}
             token={@token}
-            diff={@diff}
-            revealed={@revealed}
             target={@myself}
           />
         </div>
@@ -794,10 +681,13 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       <dl class="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
         <dt class="text-base-content/60">Kind</dt>
         <dd>
-          <%= if Runner.session?(@runner) do %>
-            Claude session, taking jobs with an API token
-          <% else %>
-            Runner with a token of its own
+          <%= cond do %>
+            <% Runner.session?(@runner) -> %>
+              Claude session, taking jobs with an API token
+            <% Runner.machine?(@runner) -> %>
+              A machine's runner, set on the machine's page
+            <% true -> %>
+              Runner with a token of its own: a retired shell runner, to move onto a machine
           <% end %>
           <span
             :if={(scenario = @runner.settings["scenario"]) in Setup.scenarios()}
@@ -921,7 +811,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   end
 
   attr :wizard, :map, required: true
-  attr :editing, :any, default: nil
   attr :error, :string, default: nil
   attr :preview, :map, default: nil
   attr :board, :any, required: true
@@ -942,8 +831,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       phx-submit="connect"
       class="space-y-4 rounded-xl bg-base-200/40 p-4 ring-1 ring-base-content/10"
     >
-      <p :if={@editing} class="text-sm font-medium">Changing “{@editing.name}”</p>
-      <fieldset :if={is_nil(@editing)} class="space-y-1.5">
+      <fieldset class="space-y-1.5">
         <legend class="text-xs font-medium text-base-content/70">
           Where should the work happen?
         </legend>
@@ -971,42 +859,9 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       </fieldset>
 
       <div class="grid grid-cols-2 gap-3 text-sm">
-        <label :if={Setup.needs_token?(@p["scenario"]) and is_nil(@editing)} class="space-y-1">
-          <span class="text-xs text-base-content/70">
-            Name <span class="text-base-content/50">(optional)</span>
-          </span>
-          <input
-            name="wizard[name]"
-            value={@p["name"]}
-            placeholder={"#{@p["pool"]} runner"}
-            class="input field w-full"
-          />
-        </label>
-        <input :if={@editing} type="hidden" name="wizard[scenario]" value={@p["scenario"]} />
-        <label :if={is_nil(@editing)} class="space-y-1">
+        <label class="space-y-1">
           <span class="text-xs text-base-content/70">Pool</span>
           <input name="wizard[pool]" value={@p["pool"]} class="input field w-full" />
-        </label>
-        <label :if={Setup.needs_token?(@p["scenario"])} class="space-y-1">
-          <span class="text-xs text-base-content/70">Agent</span>
-          <select name="wizard[agent]" class="select field w-full">
-            <option value="claude" selected={@p["agent"] == "claude"}>Claude Code</option>
-            <option value="codex" selected={@p["agent"] == "codex"}>Codex</option>
-            <option value="custom" selected={@p["agent"] == "custom"}>A command of my own</option>
-          </select>
-        </label>
-        <label
-          :if={Setup.needs_token?(@p["scenario"]) and @p["agent"] == "custom"}
-          class="col-span-2 space-y-1"
-        >
-          <span class="text-xs text-base-content/70">
-            Command (run with sh -c; the prompt is in $SLIPDOCK_PROMPT)
-          </span>
-          <input
-            name="wizard[command]"
-            value={@p["command"]}
-            class="input field w-full field-mono"
-          />
         </label>
         <label
           :if={
@@ -1024,10 +879,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           />
         </label>
         <label
-          :if={
-            not Enum.member?(["chatgpt", "daemon"], @p["scenario"]) and
-              (@p["agent"] == "claude" or not Setup.needs_token?(@p["scenario"]))
-          }
+          :if={not Enum.member?(["chatgpt", "daemon"], @p["scenario"])}
           class="space-y-1"
         >
           <span class="text-xs text-base-content/70">Permission mode</span>
@@ -1039,104 +891,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             >
               {mode}
             </option>
-          </select>
-        </label>
-        <div
-          :if={Setup.needs_token?(@p["scenario"]) and @p["agent"] == "claude"}
-          id="wizard-slipdock-tools"
-          class="col-span-2 space-y-1.5 rounded-lg p-3 ring-1 ring-base-content/10"
-        >
-          <label class="flex items-center gap-2">
-            <input type="hidden" name="wizard[slipdock_tools]" value="false" />
-            <input
-              type="checkbox"
-              name="wizard[slipdock_tools]"
-              value="true"
-              checked={@p["slipdock_tools"] in [true, "true"]}
-              class="checkbox"
-            />
-            <span class="font-medium">Let it use the Slipdock tools</span>
-          </label>
-          <p class="text-xs text-base-content/60">
-            Claude runs each job with nobody there to approve a tool, so without this it can't
-            read the card or the wiki, comment, move or complete anything: it gets no access to
-            the board. Ticked, every tool of the Slipdock MCP servers named here is allowed
-            (--allowedTools), and nothing else.
-          </p>
-          <label :if={@p["slipdock_tools"] in [true, "true"]} class="block space-y-1">
-            <span class="text-xs text-base-content/70">
-              Its name on that machine (the claude.ai connector is claude_ai_Slipdock; one added
-              with claude mcp add is the name you gave it)
-            </span>
-            <input
-              name="wizard[mcp_servers]"
-              value={@p["mcp_servers"]}
-              class="input field w-full field-mono"
-            />
-          </label>
-        </div>
-        <div
-          :if={Setup.needs_token?(@p["scenario"])}
-          id="wizard-worktree"
-          class="col-span-2 space-y-1.5 rounded-lg p-3 ring-1 ring-base-content/10"
-        >
-          <label class="flex items-center gap-2">
-            <input type="hidden" name="wizard[worktree]" value="false" />
-            <input
-              type="checkbox"
-              name="wizard[worktree]"
-              value="true"
-              checked={@p["worktree"] in [true, "true"]}
-              class="checkbox"
-            />
-            <span class="font-medium">A git worktree per job</span>
-          </label>
-          <p class="text-xs text-base-content/60">
-            For several agents on one repository: each job runs in a worktree of the working
-            directory's repository, on a branch named for its card (card-&lt;id&gt;), so two jobs
-            never share a working tree. A clean worktree is removed after the job; one with
-            uncommitted changes is kept for the next job on that card.
-          </p>
-        </div>
-        <div
-          :if={Setup.needs_token?(@p["scenario"])}
-          id="wizard-self-update"
-          class="col-span-2 space-y-1.5 rounded-lg p-3 ring-1 ring-base-content/10"
-        >
-          <label class="flex items-center gap-2">
-            <input type="hidden" name="wizard[self_update]" value="false" />
-            <input
-              type="checkbox"
-              name="wizard[self_update]"
-              value="true"
-              checked={@p["self_update"] not in [false, "false"]}
-              class="checkbox"
-            />
-            <span class="font-medium">Keep the runner current</span>
-          </label>
-          <p class="text-xs text-base-content/60">
-            Between jobs, the runner replaces itself with this server's newer script, so new job
-            kinds reach it without reinstalling. It only does so when the download matches the
-            published SHA-256, never during a job, and never touches its config.
-          </p>
-        </div>
-        <label :if={Setup.needs_token?(@p["scenario"])} class="space-y-1">
-          <span class="text-xs text-base-content/70">Longest a job may run (seconds)</span>
-          <input
-            name="wizard[timeout]"
-            value={@p["timeout"]}
-            type="number"
-            min="60"
-            class="input field w-full"
-          />
-        </label>
-        <label :if={@p["scenario"] == "server"} class="space-y-1">
-          <span class="text-xs text-base-content/70">Keep it running with</span>
-          <select name="wizard[service]" class="select field w-full">
-            <option value="auto" selected={@p["service"] == "auto"}>systemd or launchd</option>
-            <option value="systemd" selected={@p["service"] == "systemd"}>systemd (Linux)</option>
-            <option value="launchd" selected={@p["service"] == "launchd"}>launchd (macOS)</option>
-            <option value="none" selected={@p["service"] == "none"}>Nothing: I'll start it</option>
           </select>
         </label>
         <label :if={@p["scenario"] == "cloud"} class="space-y-1">
@@ -1297,37 +1051,10 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             >
               A Desktop task is asked to run them in its prompt: best effort.
             </p>
-            <details
-              :if={HookPrompt.for_scenario?(@p["scenario"])}
-              id="wizard-hook-prompt"
-              class="rounded-lg bg-base-100 ring-1 ring-base-content/10"
-            >
-              <summary class="cursor-pointer select-none px-3 py-2 text-xs font-medium text-base-content/70">
-                Have Claude write this hook
-              </summary>
-              <div class="space-y-2 px-3 pb-3">
-                <p class="text-xs text-base-content/60">
-                  Paste this into Claude Code on the runner's machine. It asks which notifier you
-                  use and what to keep from each job, then writes the hooks and a test for them,
-                  starting from <a
-                    href={"#{@base_url}/runner/examples/after-job-hook.sh"}
-                    target="_blank"
-                    class="link"
-                  >a worked example</a>. Putting back a card left in progress is the server's job,
-                  so the hooks never move cards.
-                </p>
-                <.code_block
-                  id="hook-prompt"
-                  code={HookPrompt.text(@p["scenario"], @base_url)}
-                  class="max-h-64"
-                  wrap
-                />
-              </div>
-            </details>
           </fieldset>
         </details>
 
-        <label :if={is_nil(@editing)} class="col-span-2 space-y-1">
+        <label class="col-span-2 space-y-1">
           <span class="text-xs text-base-content/70">Which cards does it get?</span>
           <select name="wizard[send]" class="select field w-full">
             <option value="" selected={blank?(@p["send"])}>
@@ -1358,7 +1085,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         </label>
 
         <label
-          :if={is_nil(@editing) and String.starts_with?(to_string(@p["send"]), "top:")}
+          :if={String.starts_with?(to_string(@p["send"]), "top:")}
           class="col-span-2 flex items-center gap-2 text-xs"
         >
           <input type="hidden" name="wizard[wait]" value="no" />
@@ -1373,7 +1100,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         </label>
 
         <label
-          :if={is_nil(@editing) and String.starts_with?(to_string(@p["send"]), "top:")}
+          :if={String.starts_with?(to_string(@p["send"]), "top:")}
           class="col-span-2 flex items-center gap-2 text-xs"
         >
           Put a card its job leaves in progress back on the list
@@ -1387,7 +1114,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           /> times, then flag it blocked
         </label>
 
-        <label :if={is_nil(@editing)} class="col-span-2 flex items-center gap-2 text-xs">
+        <label class="col-span-2 flex items-center gap-2 text-xs">
           <input type="hidden" name="wizard[alert]" value="no" />
           <input
             type="checkbox"
@@ -1433,11 +1160,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           class="btn btn-primary btn-sm"
           disabled={match?({:error, _}, @wizard.preview)}
         >
-          {cond do
-            @editing -> "Save and show the steps"
-            Setup.needs_token?(@p["scenario"]) -> "Make the runner"
-            true -> "Show the steps"
-          end}
+          Show the steps
         </button>
       </div>
     </.form>
@@ -1447,21 +1170,10 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   attr :setup, :map, required: true
   attr :runner, :any, default: nil
   attr :token, :string, default: nil
-  attr :diff, :list, default: nil
-  attr :revealed, :any, default: MapSet.new()
   attr :target, :any, required: true
 
   defp setup_steps(assigns) do
-    named = Map.new(for step <- assigns.setup.steps, step[:id], do: {step.id, step})
-
-    assigns =
-      assign(assigns,
-        named: named,
-        # A runner of its own: the command, with what it installs behind links.
-        installer?: Map.has_key?(named, :command),
-        indexed: Enum.with_index(assigns.setup.steps, 1),
-        script: runner_script(assigns.setup.scenario)
-      )
+    assigns = assign(assigns, indexed: Enum.with_index(assigns.setup.steps, 1))
 
     ~H"""
     <div id="runner-setup" class="space-y-3">
@@ -1483,101 +1195,11 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
       <p :if={@token} class="rounded-lg bg-warning/10 px-3 py-2 text-xs ring-1 ring-warning/30">
         <.icon name="hero-key" class="mr-1 size-3.5 align-text-bottom" />
-        The runner's token is in the command below. It is shown this once and not kept:
+        The runner's new token is in the steps below. It is shown this once and not kept:
         copy it now.
       </p>
 
-      <div :if={@diff} id="runner-diff" class="space-y-1">
-        <p class="text-xs font-medium text-base-content/70">
-          {if Enum.all?(@diff, &match?({:eq, _}, &1)),
-            do: "Nothing changes on the machine.",
-            else: "What changes — run the command again on the machine to put it in place:"}
-        </p>
-        <pre
-          :if={Enum.any?(@diff, &(not match?({:eq, _}, &1)))}
-          class="max-h-64 overflow-auto rounded-lg bg-base-300/60 p-3 font-mono text-xs"
-        ><span
-          :for={{op, line} <- @diff}
-          :if={op != :eq}
-          class={["block", if(op == :ins, do: "text-success", else: "text-error")]}
-        >{if op == :ins, do: "+ ", else: "- "}{line}</span></pre>
-      </div>
-
-      <div :if={@installer?} class="space-y-3 text-sm">
-        <div class="space-y-1.5">
-          <p>{@named.command.text}</p>
-          <.code_block id="runner-command" code={@named.command.code} />
-        </div>
-
-        <p id="runner-installs">
-          That command will install
-          <button
-            type="button"
-            class="link link-primary"
-            phx-target={@target}
-            phx-click="reveal"
-            phx-value-part="script"
-            id="reveal-script"
-          >a runner script</button>
-          and
-          <button
-            type="button"
-            class="link link-primary"
-            phx-target={@target}
-            phx-click="reveal"
-            phx-value-part="config"
-            id="reveal-config"
-          >a config file</button>
-        </p>
-
-        <div :if={MapSet.member?(@revealed, "script")} class="space-y-1.5">
-          <p class="text-xs text-base-content/70">
-            The runner, the same for everybody: it asks for a job, runs the config's function for
-            its kind, and reports back.
-          </p>
-          <.code_block id="runner-script" code={@script} class="max-h-80" />
-        </div>
-
-        <div :if={MapSet.member?(@revealed, "config") and @named[:config]} class="space-y-1.5">
-          <p class="text-xs text-base-content/70">{@named.config.text}</p>
-          <.code_block :if={@named.config[:code]} id="runner-config" code={@named.config.code} />
-        </div>
-
-        <div :if={@named[:checksums]} class="space-y-1.5">
-          <button
-            type="button"
-            class="link text-xs text-base-content/70"
-            phx-target={@target}
-            phx-click="reveal"
-            phx-value-part="verify"
-            id="reveal-verify"
-          >
-            Verify the script
-          </button>
-          <div :if={MapSet.member?(@revealed, "verify")} class="space-y-1.5">
-            <p class="text-xs text-base-content/70">{@named.checksums.text}</p>
-            <.code_block id="runner-checksums" code={@named.checksums.code} />
-          </div>
-        </div>
-
-        <p :if={@named[:rule]} id="runner-rule">
-          <%= if @named.rule[:pool] do %>
-            Nothing is sent until a rule sends it: add one under
-            <button
-              type="button"
-              class="link link-primary"
-              phx-target={@target}
-              phx-click="close_dialog"
-              id="runner-to-automations"
-            >Automations</button>
-            with the Send cards to a runner preset (pool {@named.rule.pool}, kind {@named.rule.kind}).
-          <% else %>
-            {@named.rule.text}
-          <% end %>
-        </p>
-      </div>
-
-      <ul :if={not @installer?} class="space-y-3">
+      <ul class="space-y-3">
         <li :for={{step, n} <- @indexed} class="space-y-1.5 text-sm">
           <p>{step.text}</p>
           <.code_block :if={step[:code]} id={"runner-step-#{n}"} code={step.code} />
@@ -1589,15 +1211,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       </ul>
 
       <div :if={@runner && is_nil(@token)} class="flex justify-end gap-1">
-        <button
-          type="button"
-          class="btn btn-ghost btn-xs"
-          phx-target={@target}
-          phx-click="edit_answers"
-          phx-value-id={@runner.id}
-        >
-          <.icon name="hero-pencil-square" class="size-3.5" /> Change Settings
-        </button>
         <button
           type="button"
           class="btn btn-ghost btn-xs"
@@ -1644,13 +1257,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     """
   end
 
-  # What the installer puts on the machine as the runner itself.
-  defp runner_script("windows"),
-    do: SlipdockWeb.RunnerInstallController.files()["slipdock-runner.ps1"]
-
-  defp runner_script(_scenario),
-    do: SlipdockWeb.RunnerInstallController.files()["slipdock-runner"]
-
   defp blank?(value), do: value in [nil, ""]
 
   # A toggle that can't be ticked here: push without commit, and either of
@@ -1660,10 +1266,6 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   defp off_here?(_key, _p), do: false
 
-  # Whether a runner's script is the one this server hands out (#1658).
   # Its installed skills and CLI against this server's (#1795).
   defp drift(runner), do: Drift.states(runner)
-
-  defp script_state(runner),
-    do: Slipdock.Runners.script_state(runner, SlipdockWeb.RunnerInstallController.latest())
 end
