@@ -471,3 +471,39 @@ func TestConfinedNeedsLandlockABI3(t *testing.T) {
 		}
 	}
 }
+
+func TestAConfinedRunnersHookMayWriteTheRepositoryAndItsWorktrees(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("confined is Linux and macOS only")
+	}
+	repo, outside, _, _ := planted(t)
+	ex, _ := New(Confined, Settings{GOOS: runtime.GOOS, Launcher: os.Args[0], Repo: repo})
+	if err := ex.Ready(); err != nil {
+		skipOrFail(t, err.Error())
+	}
+	lane := filepath.Join(repo+"-lanes", "card-2")
+	if err := os.MkdirAll(lane, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The hook runs in a directory of its own (the job's), so only the
+	// repository's own allowance lets it write the repository and the lane.
+	dir := t.TempDir()
+	cmd, err := ex.(Hooker).Hook(context.Background(), Proc{Dir: dir}, "/bin/sh", "-c",
+		`try() { if sh -c "$2" 2>/dev/null; then echo "$1 yes"; else echo "$1 no"; fi; }
+try repo    'echo x > "$R/hooked"'
+try lane    'echo x > "$L/hooked"'
+try outside 'echo x > "$O/hooked"'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd.Env = append(cmd.Env, "R="+repo, "L="+lane, "O="+outside)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	for _, want := range []string{"repo yes", "lane yes", "outside no"} {
+		if !strings.Contains(string(out), want+"\n") {
+			t.Errorf("want %q; the hook said:\n%s", want, out)
+		}
+	}
+}
