@@ -96,4 +96,22 @@ defmodule Slipdock.MachinesDocsTest do
     assert help =~ ~s(id="help-scenario-daemon")
     assert read("cli/help.txt") =~ "machine add-runner <id> <board> --pool P --dir D"
   end
+
+  test "every copy of Connect a runner's scenario list names each scenario (#2572)" do
+    scenarios = Slipdock.Runners.Setup.scenarios()
+    flag = "[--scenario #{Enum.join(scenarios, "|")}]"
+
+    for path <- ["cli/help.txt", "priv/skills/slipdock/SKILL.md"],
+        do: assert(read(path) =~ flag, "#{path} lacks #{flag}")
+
+    guide = String.replace(SlipdockWeb.APIGuide.markdown(), ~r/\s+/, " ")
+    listed = Enum.map_join(scenarios, ", ", &"`#{&1}`")
+    assert guide =~ "with `scenario` (#{listed})"
+
+    runners = String.replace(read("docs/manual/runners.md"), ~r/\s+/, " ")
+    assert runners =~ "where the work should happen — a machine with the runner daemon"
+    for s <- scenarios, do: assert(runners =~ "`#{s}`", "runners.md's CLI row lacks #{s}")
+
+    assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock machine add-runner"
+  end
 end

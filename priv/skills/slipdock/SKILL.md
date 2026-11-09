@@ -506,7 +506,7 @@ slipdock alerts                               # what the rules want you to know
 slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep theirs
 
 # Runners: agents on the user's own machines that rules send cards to (owner only to make)
-slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|cloud|chatgpt]
+slipdock runner new <board> [name] --pool P [--scenario daemon|server|windows|loop|cloud|chatgpt]
     [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR] [--permission-mode M]
     [--timeout S] [--service auto|systemd|launchd|none] [--where desktop|cloud] [--repo owner/repo]
     [--column LIST [--top] [--[no-]wait-while-doing]] [--verbosity nothing|quiet|normal|verbose]
@@ -520,11 +520,27 @@ slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|clou
                                               # (--top: the list's top card, one at a time,
                                               # waiting while anything is in progress unless
                                               # --no-wait-while-doing)
+                                              # daemon: a one-time enrolment key + the init line;
+                                              # its runners are then set with `machine add-runner`
 slipdock runner ls <board>                    # runners: pool, last seen, current job
 slipdock runner show <board> <runner>         # one in full: maker, job now, job counts, latest jobs, rules
 slipdock runner setup <board> <runner> [opts] # the steps again; with options, saves them + shows the diff
 slipdock runner token <board> <runner>        # a new token (the old one stops working)
 slipdock runner rm <board> <runner>           # revoke
+
+# Machines: computers running the runner daemon; their runners are typed data inside the
+# machine's own ceiling (the machine refuses what is outside it). Only the owner changes them.
+slipdock machines                             # yours, then the ones serving your boards (read-only)
+slipdock machine show <id>                    # ceiling, runners and their state, refusals, changes
+slipdock machine add-runner <id> <board> --pool P --dir D [--name N] [--agent A]
+    [--permission-mode M] [--timeout-minutes N] [--model M] [--executor me|user|confined|container]
+    [--[no-]worktree] [--verbosity quiet|normal|verbose] [--instructions TEXT]
+    [--before-hook H] [--after-hook H] [--probe-hook H]   # hooks: names the machine defines
+slipdock machine set-runner <id> <runner> [same options]  # only what you give changes
+slipdock machine pause-runner|resume-runner|rm-runner <id> <runner>
+slipdock machine update <id>                  # its daemon looks for a newer signed release now
+slipdock machine revoke <id>                  # its key stops working at once
+slipdock machine enrol-key <board>... [--label L]  # one-time key for `slipdock-runner init --key`
 slipdock jobs <board> [--status open|queued|running|done|failed|cancelled|timeout]
 slipdock jobs --card ID                       # one card's jobs
 slipdock job <id>                             # status, runner, latest step, prompt, the tail of its log

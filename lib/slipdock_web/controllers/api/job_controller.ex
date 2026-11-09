@@ -38,7 +38,7 @@ defmodule SlipdockWeb.API.JobController do
 
   @doc """
   The "Connect a runner" wizard (see `Slipdock.Runners.Setup`): `scenario`
-  (`server`, `windows`, `loop`, `cloud`) and its options, plus `column` to add
+  (`daemon`, `server`, `windows`, `loop`, `cloud`, `chatgpt`) and its options, plus `column` to add
   a rule sending that list's cards (or `rule_id` for one already there) and
   `name` for the runner. Answers with the steps to follow — and, for the two
   scenarios with a runner of their own, the runner and its token, once. The

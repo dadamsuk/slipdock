@@ -2424,8 +2424,8 @@ defmodule SlipdockWeb.APIGuide do
 
     **Connecting one** is easiest with the wizard, which the board's
     Automations panel shows as *Connect a runner*: `POST
-    /api/boards/:board/runners/setup` with `scenario` (`server`, `windows`,
-    `loop`, `cloud`, `chatgpt`), `pool`, `agent`, `cwd`, `permission_mode`, `timeout`,
+    /api/boards/:board/runners/setup` with `scenario` (`daemon`, `server`,
+    `windows`, `loop`, `cloud`, `chatgpt`), `pool`, `agent`, `cwd`, `permission_mode`, `timeout`,
     `service`, `where` and `repo`, and `column` to add a rule sending that
     list's cards. It answers with `setup.steps` — exactly what to paste — and
     for a runner of its own the `runner` and its `token`, once. `GET

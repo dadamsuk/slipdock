@@ -301,6 +301,13 @@ defmodule SlipdockWeb.MachinesLiveTest do
           "config" => %{"directory" => @dir}
         })
 
+      {:ok, _} =
+        MachineRunners.report(machine, hidden, %{
+          "version" => 1,
+          "outcome" => "rejected",
+          "reason" => "the private board's secret"
+        })
+
       {:ok, view, _html} = live(ctx.member_conn, ~p"/machines/#{ctx.machine.id}")
 
       assert has_element?(view, "#machine-owner", "you see it as a member")
@@ -312,8 +319,11 @@ defmodule SlipdockWeb.MachinesLiveTest do
       refute has_element?(view, "#machine-runner-#{runner.id} button")
       # Only the runners of boards they're on: not the owner's other work.
       refute has_element?(view, "#machine-runner-#{hidden.id}")
+      refute has_element?(view, "#machine-log", "the private board's secret")
+      refute has_element?(view, "#machine-log", "hidden")
       {:ok, owner_view, _html} = page(ctx)
       assert has_element?(owner_view, "#machine-runner-#{hidden.id}")
+      assert has_element?(owner_view, "#machine-log", "the private board's secret")
     end
 
     test "an event sent anyway changes nothing", ctx do

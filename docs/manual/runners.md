@@ -182,9 +182,12 @@ card's state line: *paused by David: bad deploy*, *WIP full: In Progress
 
 **Connect a runner**, in the board's Automations panel, is the way in: it
 opens a dialog of its own. Pick
-where the work should happen — a Linux or macOS machine, a Windows machine,
-Claude Code on your own machine in a `/loop`, or Claude on a schedule (a
-Claude Desktop scheduled task, or a routine in Anthropic's cloud) — and a few
+where the work should happen — a machine with the runner daemon (offered
+first: a one-time enrolment key and the `slipdock-runner init` line, then its
+runners set on the [Machines page](machines.md#the-machines-page)), a Linux or
+macOS machine, a Windows machine, Claude Code on your own machine in a `/loop`,
+or Claude on a schedule (a Claude Desktop scheduled task, or a routine in
+Anthropic's cloud) — and a few
 options (the pool, the agent, its working directory — `/tmp` unless you say,
 `~\AppData\Local\Temp` on Windows — permission mode and timeout, how to keep
 it running; hooks are under **Advanced**), and it gives you exactly what to
@@ -385,7 +388,7 @@ own work rather than from a background loop, so it holds its job on a
 
 | CLI | What it does |
 |---|---|
-| `slipdock runner new <board> [name] --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `server` (the default), `windows`, `loop`, `cloud` or `chatgpt` (the connector, and a one-job prompt for a chat or a ChatGPT scheduled task; jobs of kind `chatgpt`, and `--commit` refused, as it has no repository), with `--agent`, `--command`, `--kind`, `--cwd`, `--permission-mode`, `--no-slipdock-tools`, `--mcp-servers A,B`, `--timeout`, `--service`, `--where desktop\|cloud`, `--repo`, and what a job does to its card and repository, in every scenario and each off unless given: `--in-progress` (move it to the doing list), `--assign` (assign it to the session), `--commit` (only ever in a git repository), `--push` (needs `--commit`), `--move-done`, `--complete` and `--percent-100`, each with a `--no-` form. Off ones are said in the prompt (or a runner's standing instructions) as don'ts. `--verbosity nothing` (the default) means no comments on the card at all. A working directory spelled the Windows way (`C:\…`, `~\…`) gets PowerShell steps, the skills from `/install.ps1`. For a runner of its own (server, windows) it makes one and prints its token, once; `--column LIST` adds a rule sending that list's cards. |
+| `slipdock runner new <board> [name] --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `daemon` (a machine with the runner daemon: a one-time enrolment key for the board, its `init` line and the service, then its runners added on the machine's page or with `slipdock machine add-runner`), `server` (the default), `windows`, `loop`, `cloud` or `chatgpt` (the connector, and a one-job prompt for a chat or a ChatGPT scheduled task; jobs of kind `chatgpt`, and `--commit` refused, as it has no repository), with `--agent`, `--command`, `--kind`, `--cwd`, `--permission-mode`, `--no-slipdock-tools`, `--mcp-servers A,B`, `--timeout`, `--service`, `--where desktop\|cloud`, `--repo`, and what a job does to its card and repository, in every scenario and each off unless given: `--in-progress` (move it to the doing list), `--assign` (assign it to the session), `--commit` (only ever in a git repository), `--push` (needs `--commit`), `--move-done`, `--complete` and `--percent-100`, each with a `--no-` form. Off ones are said in the prompt (or a runner's standing instructions) as don'ts. `--verbosity nothing` (the default) means no comments on the card at all. A working directory spelled the Windows way (`C:\…`, `~\…`) gets PowerShell steps, the skills from `/install.ps1`. For a runner of its own (server, windows) it makes one and prints its token, once; `--column LIST` adds a rule sending that list's cards. |
 | `slipdock runner setup <board> <runner> [options]` | A runner's steps again, from the answers saved on it (the token left out); with any of `runner new`'s options, including `--verbosity`, the seven `--[no-]in-progress` … `--[no-]percent-100` toggles, `--instructions`, `--before-job`, `--after-job` and `--hooks prompt\|hook`, saves them and prints what changes. With `--hook-prompt`, prints the prompt that has Claude write the runner's hooks. |
 | `slipdock runner token <board> <runner>` | A new token for a runner, the old one ended, with its steps written out for it. |
 | `slipdock runner ls <board>` / `slipdock runners <board>` | The board's runners: pool, last seen, current job. |
