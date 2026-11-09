@@ -467,7 +467,9 @@ section edited since. A proposal, and any suggestion with an `edit_section`
 step, is a person's to apply, dismiss or undo: the API refuses an agent.
 The server files one by itself when a finding's count reaches the board's
 `findings_propose_at` (3 by default, 0 off): a rule on the `## Rules` of
-the page covering the finding's cards (else Specification), `must` citing
+the page holding a rule the finding names (`DATA-14`), else the page whose
+prefix that id carries, else the page covering the finding's cards (else
+Specification), with that page's next id, `must` citing
 a check the finding names, else `should`; only from lessons (an agent's,
 a verifier's or an audit's findings), never from events such as health
 incidents or failed merges. Accepting it promotes the finding; triaging the

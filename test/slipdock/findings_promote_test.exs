@@ -191,6 +191,20 @@ defmodule Slipdock.FindingsPromoteTest do
       assert s.explanation =~ "Proposed as DATA-15 on Data model."
     end
 
+    test "a misnumbered rule goes to the page holding it, not the one its prefix names", ctx do
+      write(ctx.pages["data-model"], "[priv/repo/**]", """
+      - **DATA-14** must · judgement · A migration backfills in batches.
+      - **UX-5** should · judgement · Seeds stay small.
+      """)
+
+      {:ok, s} = Promote.check(seen(ctx, ctx.ui, "UX-5 seeds grew past a megabyte", 3).id)
+
+      assert step(s)["page"] == ctx.pages["data-model"].id
+      assert step(s)["section"] == "Data model/Rules"
+      assert step(s)["body"] =~ "- **DATA-15** should"
+      refute step(s)["body"] =~ "**UX-4**"
+    end
+
     test "an id no rule holds yet goes to the page its prefix names", ctx do
       {:ok, s} =
         Promote.check(seen(ctx, ctx.plain, "DATA-40 would say: index foreign keys", 3).id)

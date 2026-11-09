@@ -3858,9 +3858,11 @@ defmodule SlipdockWeb.APIGuide do
     A finding counted to the board's `findings_propose_at` (3 by default, 0
     off; `update_board`, `PATCH /api/boards/:board`, `slipdock set-board
     --findings-propose-at N`) is drafted by the server as a garden proposal
-    for a person: a rule on the `## Rules` of the handbook page covering its
-    cards' paths (else Specification), `must` citing a check the finding
-    names, else `should`. A finding shows it as `proposal_id` and
+    for a person: a rule on the `## Rules` of the handbook page holding a
+    rule the finding names (`DATA-14`), else the page whose prefix that id
+    carries, else the page covering its cards' paths (else Specification),
+    with that page's next id; `must` citing a check the finding names, else
+    `should`. A finding shows it as `proposal_id` and
     `proposed_rule`, never has two open, and is `promoted` when a person
     applies it. Don't file one by hand for a finding that has one.
     """
