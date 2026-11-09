@@ -165,7 +165,7 @@ defmodule SlipdockWeb.API.MachineControllerTest do
                key |> machine_conn() |> get(~p"/api/machine") |> json_response(401)
     end
 
-    test "is not an API token: the API and the runner protocol refuse it", ctx do
+    test "is not an API token: the API refuses it, and the runner protocol wants a runner", ctx do
       {key, _} = enrolled(ctx)
 
       key |> machine_conn() |> get(~p"/api/me") |> json_response(401)
@@ -177,7 +177,10 @@ defmodule SlipdockWeb.API.MachineControllerTest do
         |> put_req_header("authorization", "Bearer " <> key)
         |> post("/api/runner/claim?wait=0")
 
-      assert conn.status == 401
+      # Since #2571 the runner protocol takes a machine key for one of the
+      # machine's own runners, named in X-Runner-Id; it claims nothing without.
+      assert conn.status == 400
+      assert conn.resp_body =~ "X-Runner-Id"
     end
 
     test "an API token or runner token is not a machine key", ctx do

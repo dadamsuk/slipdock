@@ -6,10 +6,12 @@ defmodule SlipdockWeb.API.MachineController do
     how a machine gets its key. Guarded the way the device flow is: the
     device code is 32 random bytes, the user code short-lived and single
     use, and both starting and polling rate limited per address.
-  - **An enrolled machine** (`me`): its machine key as the bearer, and only
-    here. The machine key is not an API token, so every other route refuses
-    it.
-  - **The owner** (`index`, `show`, `create_key`, `revoke`, and looking up
+  - **An enrolled machine** (`me`, and since #2571 `config`, `ceiling` and
+    `report`): its machine key as the bearer, and only here and on the
+    runner protocol for its own runners. The machine key is not an API
+    token, so every other route refuses it.
+  - **The owner** (`index`, `show`, `create_key`, `revoke`, a machine's
+    runners with `add_runner`, `set_runner` and `remove_runner`, and looking up
     and deciding an enrolment by its code, `enrolment`, `approve` and `refuse`, as the
     approval page does): an API token.
     Machines are account-wide, so a token confined to some boards is
@@ -19,15 +21,29 @@ defmodule SlipdockWeb.API.MachineController do
 
   alias Slipdock.Machines
   alias Slipdock.Machines.{Enrolment, EnrolmentKey, Machine}
+  alias Slipdock.Runners.MachineRunners
   alias SlipdockWeb.API.MachineJSON
   alias Slipdock.RateLimit
 
   @poll_interval_seconds 5
   @starts_per_hour 20
   @polls_per_minute 30
+  @default_config_wait 25
+  @max_config_wait 50
 
   plug :refuse_board_scoped_token
-       when action in [:index, :show, :create_key, :revoke, :enrolment, :approve, :refuse]
+       when action in [
+              :index,
+              :show,
+              :create_key,
+              :revoke,
+              :enrolment,
+              :approve,
+              :refuse,
+              :add_runner,
+              :set_runner,
+              :remove_runner
+            ]
 
   ## A daemon enrolling ----------------------------------------------------------
 
@@ -121,6 +137,72 @@ defmodule SlipdockWeb.API.MachineController do
 
   @doc "GET /api/machine — the machine its key belongs to."
   def me(conn, _params) do
+    with {:ok, machine} <- machine_key(conn) do
+      json(conn, %{machine: MachineJSON.machine(machine)})
+    end
+  end
+
+  @doc """
+  GET /api/machine/config?version=N&wait=S — the daemon's long-poll (#2571):
+  its runners' typed configs and the machine's config version, at once when
+  the version is above `N` (or no `N` is given), else as soon as it changes,
+  or 204 after `S` seconds (at most #{@max_config_wait}) with no change.
+  """
+  def config(conn, params) do
+    with {:ok, machine} <- machine_key(conn) do
+      since = int(params["version"], -1)
+      wait = params["wait"] |> int(@default_config_wait) |> max(0) |> min(@max_config_wait)
+
+      case MachineRunners.wait_for_config(machine, since, wait * 1000) do
+        nil -> send_resp(conn, :no_content, "")
+        config -> json(conn, config)
+      end
+    end
+  end
+
+  @doc """
+  PUT /api/machine/ceiling — the daemon reports its machine's ceiling, from
+  the machine's own local file (#2571). Kept to show; the server never sets it.
+  """
+  def ceiling(conn, params) do
+    with {:ok, machine} <- machine_key(conn) do
+      case MachineRunners.record_ceiling(machine, Map.get(params, "ceiling", params)) do
+        {:ok, machine} -> json(conn, %{machine: MachineJSON.machine(machine)})
+        {:error, :invalid, message} -> unprocessable(conn, message)
+      end
+    end
+  end
+
+  @doc """
+  POST /api/machine/runners/:runner_id/report — the daemon says what it did
+  with a runner's config at `version`: `outcome` `accepted`, or `rejected`
+  with a `reason` (#2571). A stale version answers 409 with the current one.
+  """
+  def report(conn, %{"runner_id" => runner_id} = params) do
+    with {:ok, machine} <- machine_key(conn) do
+      case MachineRunners.machine_runner(machine, runner_id) do
+        nil -> conn |> put_status(:not_found) |> json(%{error: "no such runner on this machine"})
+        runner -> reported(conn, MachineRunners.report(machine, runner, params), params)
+      end
+    end
+  end
+
+  defp reported(conn, {:ok, runner}, _params),
+    do: json(conn, %{runner: MachineJSON.runner(runner)})
+
+  defp reported(conn, {:error, :stale, current}, params) do
+    conn
+    |> put_status(:conflict)
+    |> json(%{
+      error: "version #{params["version"]} is not the runner's current config",
+      config_version: current
+    })
+  end
+
+  defp reported(conn, {:error, :invalid, message}, _params), do: unprocessable(conn, message)
+
+  # The machine key (`Bearer sdm_…`), and only that: it is not an API token.
+  defp machine_key(conn) do
     key =
       case get_req_header(conn, "authorization") do
         ["Bearer " <> key | _] -> key
@@ -129,7 +211,7 @@ defmodule SlipdockWeb.API.MachineController do
 
     case Machines.authenticate(key, SlipdockWeb.ClientIP.from_conn(conn)) do
       %Machine{} = machine ->
-        json(conn, %{machine: MachineJSON.machine(machine)})
+        {:ok, machine}
 
       nil ->
         conn
@@ -139,6 +221,13 @@ defmodule SlipdockWeb.API.MachineController do
             "unauthorized: pass the machine key as `Authorization: Bearer sdm_…` " <>
               "(a revoked machine's key no longer works)"
         })
+    end
+  end
+
+  defp int(value, default) do
+    case Integer.parse(to_string(value || "")) do
+      {n, ""} -> n
+      _ -> default
     end
   end
 
@@ -152,12 +241,79 @@ defmodule SlipdockWeb.API.MachineController do
     })
   end
 
-  @doc "GET /api/machines/:id"
+  @doc "GET /api/machines/:id — with its ceiling, runners and log of config changes."
   def show(conn, %{"id" => id}) do
     with {:ok, machine} <- fetch(conn, id) do
-      json(conn, %{machine: MachineJSON.machine(machine)})
+      json(conn, %{machine: MachineJSON.machine_detail(machine)})
     end
   end
+
+  @doc """
+  POST /api/machines/:id/runners — add a runner to the machine (#2571):
+  `board` (one it serves), `pool`, optional `name`, and its typed `config`.
+  """
+  def add_runner(conn, %{"id" => id} = params) do
+    with {:ok, machine} <- fetch(conn, id),
+         {:ok, board} <- serving_board(conn, machine, params["board"]) do
+      case MachineRunners.add_runner(machine, board, params) do
+        {:ok, runner} ->
+          conn |> put_status(:created) |> json(%{runner: MachineJSON.runner(runner)})
+
+        {:error, :invalid, message} ->
+          unprocessable(conn, message)
+      end
+    end
+  end
+
+  @doc """
+  PATCH /api/machines/:id/runners/:runner_id — change a runner's `pool`,
+  `name` or any of its `config` fields; the daemon has it within seconds.
+  """
+  def set_runner(conn, %{"id" => id, "runner_id" => runner_id} = params) do
+    with {:ok, machine} <- fetch(conn, id),
+         {:ok, runner} <- fetch_runner(conn, machine, runner_id) do
+      case MachineRunners.set_runner(runner, params) do
+        {:ok, runner} -> json(conn, %{runner: MachineJSON.runner(runner)})
+        {:error, :invalid, message} -> unprocessable(conn, message)
+      end
+    end
+  end
+
+  @doc "DELETE /api/machines/:id/runners/:runner_id — the daemon finishes its job, then stops it."
+  def remove_runner(conn, %{"id" => id, "runner_id" => runner_id}) do
+    with {:ok, machine} <- fetch(conn, id),
+         {:ok, runner} <- fetch_runner(conn, machine, runner_id),
+         {:ok, runner} <- MachineRunners.remove_runner(runner) do
+      json(conn, %{removed: MachineJSON.runner(runner)})
+    end
+  end
+
+  defp fetch_runner(conn, machine, ref) do
+    case MachineRunners.get_runner(machine, ref) do
+      {:ok, runner} ->
+        {:ok, runner}
+
+      {:error, :not_found, _} ->
+        conn |> put_status(:not_found) |> json(%{error: "no such runner on this machine"})
+    end
+  end
+
+  # One of the boards the machine serves that its owner can still reach.
+  defp serving_board(conn, machine, ref) do
+    with {:ok, [board_id]} <- Machines.servable_board_ids(conn.assigns.current_user, [ref || ""]),
+         true <- Enum.member?(machine.board_ids, board_id) do
+      {:ok, Slipdock.Repo.get!(Slipdock.Boards.Board, board_id)}
+    else
+      false ->
+        unprocessable(conn, "the machine doesn't serve that board: choose one of its boards")
+
+      {:error, :invalid, message} ->
+        unprocessable(conn, message)
+    end
+  end
+
+  defp unprocessable(conn, message),
+    do: conn |> put_status(:unprocessable_entity) |> json(%{error: message})
 
   @doc "POST /api/machines/enrolment-keys — a one-time key for `boards`, shown once."
   def create_key(conn, params) do

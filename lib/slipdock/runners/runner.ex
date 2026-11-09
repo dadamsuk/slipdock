@@ -42,12 +42,27 @@ defmodule Slipdock.Runners.Runner do
     field :cli_sha, :string
     # The alert raised while either differs from what the server serves.
     field :drift_alert_id, :integer
+    # A machine's runner (#2571, `Slipdock.Runners.MachineRunners`): its
+    # closed, typed config (`Slipdock.Runners.Config`) and its version, and
+    # what the machine's daemon last said of it: the version it runs and
+    # that config, and the newest version it refused, with the reason.
+    # None of these is cast: only `MachineRunners` sets them.
+    field :config, :map
+    field :config_version, :integer, default: 0
+    field :accepted_version, :integer
+    field :accepted_config, :map
+    field :rejected_version, :integer
+    field :rejection, :string
+    field :rejected_at, :utc_datetime
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :created_by, Slipdock.Accounts.User
     # Set for a Claude session taking jobs with its own API token (see
     # `Slipdock.Runners.session_runner/4`); nil for a runner with a token of its own.
     belongs_to :api_token, Slipdock.Accounts.UserToken
+    # Set for a runner its machine's daemon runs (#2571); it authenticates
+    # with the machine key, never a token of its own.
+    belongs_to :machine, Slipdock.Machines.Machine
 
     timestamps(type: :utc_datetime)
   end
@@ -57,6 +72,9 @@ defmodule Slipdock.Runners.Runner do
 
   @doc "Whether this is a Claude session working through its API token."
   def session?(%__MODULE__{api_token_id: id}), do: not is_nil(id)
+
+  @doc "Whether a machine's daemon runs it (#2571)."
+  def machine?(%__MODULE__{machine_id: id}), do: not is_nil(id)
 
   def changeset(runner, attrs) do
     runner
