@@ -15,8 +15,6 @@ defmodule Slipdock.Automations.Runner do
   `variables/1`.
   """
 
-  import Ecto.Query, only: [from: 2]
-
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Automations.{Notifier, Spec}
@@ -752,20 +750,7 @@ defmodule Slipdock.Automations.Runner do
   # otherwise build the same card twice at once. The rule's own open job is
   # `Slipdock.Runners.queue/2`'s to find.
   defp other_rules_job(%Card{id: card_id}, rule) do
-    rule_id = rule && rule.id
-
-    query =
-      from(j in Slipdock.Runners.Job,
-        where:
-          j.card_id == ^card_id and not is_nil(j.rule_id) and
-            j.status in ^Slipdock.Runners.Job.open_statuses(),
-        order_by: [asc: j.id],
-        limit: 1
-      )
-
-    query = if rule_id, do: from(j in query, where: j.rule_id != ^rule_id), else: query
-
-    case Repo.one(query) do
+    case Slipdock.Runners.Requeue.rule_job(card_id, rule && rule.id) do
       nil -> nil
       job -> {:ok, :already_open, job}
     end

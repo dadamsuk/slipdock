@@ -30,10 +30,10 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
     |> Map.merge(%{white: white, backlog: backlog})
   end
 
-  defp feed(board, pool) do
+  defp feed(board, pool, extra \\ %{}) do
     rule_fixture(board, %{
       "trigger" => %{"type" => "list_top", "column" => "To Do"},
-      "actions" => [%{"type" => "runner", "pool" => pool}]
+      "actions" => [Map.merge(%{"type" => "runner", "pool" => pool}, extra)]
     })
   end
 
@@ -68,9 +68,9 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
     job
   end
 
-  defp setup_two_feeds(ctx) do
+  defp setup_two_feeds(ctx, white_extra \\ %{}) do
     loop_rule = feed(ctx.board, "loop")
-    white_rule = feed(ctx.board, "white")
+    white_rule = feed(ctx.board, "white", white_extra)
     # The only card goes to the first rule; the other has nothing to send.
     assert [%Job{rule_id: id}] = open_card_jobs(ctx.a)
     assert id == loop_rule.id
@@ -136,6 +136,49 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       refute Enum.any?(open_card_jobs(ctx.a), &(&1.rule_id == loop_rule.id))
     end
 
+    test "another rule's still-queued job keeps its own rule's prompt, with the answer", ctx do
+      {loop_rule, white_rule} = setup_two_feeds(ctx, %{"prompt" => "white pool prompt"})
+      park(ctx)
+
+      {:ok, plain} =
+        Runners.queue(Repo.get!(Card, ctx.a.id), %{
+          rule: white_rule,
+          pool: "white",
+          prompt: "plain prompt"
+        })
+
+      {:ok, _wait} =
+        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+
+      assert [same] = open_card_jobs(ctx.a)
+      assert same.id == plain.id
+      assert same.prompt =~ "white pool prompt"
+      assert same.prompt =~ "Question on card ##{ctx.a.id}: Which region?"
+
+      # Not the asking rule's prompt (the default one).
+      {:ok, asking} = Automations.Runner.runner_job(loop_rule, ctx.a)
+      refute asking.prompt =~ "white pool prompt"
+      refute String.starts_with?(same.prompt, String.slice(asking.prompt, 0, 40))
+    end
+
+    test "an open job no rule queued (a verify job) neither holds nor takes the answer", ctx do
+      {loop_rule, _white_rule} = setup_two_feeds(ctx)
+      park(ctx)
+
+      {:ok, verify} =
+        Runners.queue(Repo.get!(Card, ctx.a.id), %{pool: "v", kind: "verify", prompt: "check it"})
+
+      {:ok, wait} =
+        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+
+      assert Repo.reload!(verify).prompt == "check it"
+      assert Repo.reload!(verify).status == "queued"
+      assert [fresh] = Enum.filter(open_card_jobs(ctx.a), &(&1.rule_id == loop_rule.id))
+      assert fresh.prompt =~ "Question on card ##{ctx.a.id}: Which region?"
+      assert wait.requeue_state == "queued"
+      assert wait.requeue_job_id == fresh.id
+    end
+
     test "another rule's job already running on the card holds the answer till it ends", ctx do
       {loop_rule, white_rule} = setup_two_feeds(ctx)
       park(ctx)
@@ -180,6 +223,13 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       assert [%Job{id: only}] = open_card_jobs(ctx.a)
       assert only == job.id
       refute Enum.any?(card_jobs(ctx.a), &(&1.rule_id == moved.id))
+
+      # A card whose only open job no rule queued (a verify job): sent.
+      c = card_fixture(ctx.backlog, %{"title" => "c"})
+      {:ok, verify} = Runners.queue(c, %{pool: "v", kind: "verify", prompt: "check it"})
+      :ok = Boards.move_card_to_index(Repo.get!(Card, c.id), ctx.doing, :top)
+      assert Enum.any?(open_card_jobs(c), &(&1.rule_id == moved.id))
+      assert Repo.reload!(verify).prompt == "check it"
 
       # A card with no open job (from the Backlog, which no feed works): the
       # same rule sends it.

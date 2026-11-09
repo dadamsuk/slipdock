@@ -189,17 +189,29 @@ defmodule Slipdock.Runners.Requeue do
   # answer goes with it, or after it, never beside it.
   defp card_job(rule, card), do: open_job(rule, card) || card_open_job(card)
 
-  # An open job any rule queued for the card.
-  defp card_open_job(card) do
-    Repo.one(
+  defp card_open_job(card), do: rule_job(card.id)
+
+  @doc """
+  The card's oldest open (queued, claimed or running) job that a rule
+  queued, from any rule but `except_rule_id` when one is given, or nil
+  (#2613). Jobs no rule queued (verify, merge, overseer) don't count: an
+  answer is never held behind them or written into them, and they never
+  keep a rule from sending the card.
+  """
+  def rule_job(card_id, except_rule_id \\ nil) do
+    query =
       from(j in Job,
         where:
-          j.card_id == ^card.id and not is_nil(j.rule_id) and
+          j.card_id == ^card_id and not is_nil(j.rule_id) and
             j.status in ^Job.open_statuses(),
         order_by: [asc: j.id],
         limit: 1
       )
-    )
+
+    query =
+      if except_rule_id, do: from(j in query, where: j.rule_id != ^except_rule_id), else: query
+
+    Repo.one(query)
   end
 
   defp any_open_job(rule) do
