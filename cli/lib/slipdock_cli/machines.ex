@@ -7,7 +7,9 @@ defmodule SlipdockCLI.Machines do
   # and the one-time enrolment keys for a machine with nobody at its screen.
   # A machine's runners (#2572): added, changed, paused, resumed and removed,
   # each a typed config the machine checks against its own ceiling; and
-  # `update`, asking its daemon to look for a newer release now.
+  # `update`, asking its daemon to look for a newer release now. A runner's
+  # probe (#2580): sent, and with --wait followed until it ends, green or
+  # red with its log; `show` gives each runner's latest.
 
   import SlipdockCLI.Util
 
@@ -21,7 +23,8 @@ defmodule SlipdockCLI.Machines do
            "machine refuse <code> | machine enrol-key <board>... [--label L] | " <>
            "machine add-runner <id> <board> --pool P --dir D [config] | " <>
            "machine set-runner <id> <runner> [config] | " <>
-           "machine pause-runner|resume-runner|rm-runner <id> <runner>"
+           "machine pause-runner|resume-runner|rm-runner <id> <runner> | " <>
+           "machine probe <id> <runner> [--wait]"
 
   # The config switches, as the server's field names.
   @config ~w(agent dir permission_mode timeout_minutes model executor verbosity instructions
@@ -38,6 +41,7 @@ defmodule SlipdockCLI.Machines do
       {:ok, :delete, path, render} -> HTTP.delete(path) |> out(o, render)
       {:ok, :post, path, body, render} -> HTTP.post(path, body) |> out(o, render)
       {:ok, :patch, path, body, render} -> HTTP.patch(path, body) |> out(o, render)
+      {:ok, :probe_wait, path} -> probe_and_wait(path, o)
       {:error, usage} -> fail(usage)
     end
   end
@@ -129,6 +133,21 @@ defmodule SlipdockCLI.Machines do
      end}
   end
 
+  def plan(["probe", id, runner], o) do
+    path = "/machines/#{enc(id)}/runners/#{enc(runner)}/probe"
+
+    if o[:wait],
+      do: {:ok, :probe_wait, path},
+      else:
+        {:ok, :post, path, %{},
+         fn %{"probe" => p} ->
+           IO.puts(
+             "probe ##{p["id"]} sent: `slipdock machine show #{id}` has its result, " <>
+               "or send it with --wait"
+           )
+         end}
+  end
+
   def plan(["rm-runner", id, runner], _o) do
     {:ok, :delete, "/machines/#{enc(id)}/runners/#{enc(runner)}",
      fn %{"removed" => r} ->
@@ -137,6 +156,72 @@ defmodule SlipdockCLI.Machines do
   end
 
   def plan(_args, _o), do: {:error, @usage}
+
+  # How long --wait follows a probe, and how often it asks.
+  @probe_wait_ms 30 * 60 * 1000
+  @probe_poll_ms 2000
+
+  # Sends the probe, then asks after it until it ends: red exits 1.
+  defp probe_and_wait(path, o) do
+    case HTTP.post(path, %{}) do
+      {:ok, %{"probe" => p}} ->
+        IO.puts("probe ##{p["id"]} sent; waiting for it to end")
+        fn -> HTTP.get(path) end |> await_probe(o) |> waited()
+
+      other ->
+        out(other, o, & &1)
+    end
+  end
+
+  defp waited({:ok, :green}), do: :ok
+  defp waited({:ok, _red}), do: System.halt(1)
+  defp waited({:error, message}), do: fail(message)
+
+  @doc false
+  # Asks `get` (the probe's GET) until the probe ends, then prints it.
+  # `o[:poll_ms]` and `o[:wait_ms]` stand in for the defaults in tests.
+  def await_probe(get, o) do
+    deadline = System.monotonic_time(:millisecond) + (o[:wait_ms] || @probe_wait_ms)
+    poll(get, o[:poll_ms] || @probe_poll_ms, deadline)
+  end
+
+  defp poll(get, every, deadline) do
+    case get.() do
+      {:ok, %{"probe" => %{"result" => result} = p}} when result in ["green", "red"] ->
+        probe_line(p)
+        {:ok, String.to_existing_atom(result)}
+
+      {:ok, %{"probe" => _}} ->
+        if System.monotonic_time(:millisecond) >= deadline do
+          {:error, "the probe hasn't ended yet: `slipdock machine show` has it when it does"}
+        else
+          Process.sleep(every)
+          poll(get, every, deadline)
+        end
+
+      {:error, _, %{"error" => message}} ->
+        {:error, message}
+
+      other ->
+        {:error, "could not read the probe: #{inspect(other)}"}
+    end
+  end
+
+  @doc false
+  # A probe: green with when it passed, red with how it ended and its log.
+  def probe_line(%{"result" => "green"} = p),
+    do: IO.puts(Render.green("probe ##{p["id"]} passed") <> "  #{p["finished_at"]}")
+
+  def probe_line(%{"result" => "red"} = p) do
+    IO.puts(Render.red("probe ##{p["id"]} #{p["status"]}") <> "  #{p["finished_at"]}")
+
+    case String.trim(p["log"] || "") do
+      "" -> IO.puts(Render.dim("  " <> (p["error"] || "no log was sent")))
+      log -> log |> String.split("\n") |> Enum.each(&IO.puts("  " <> &1))
+    end
+  end
+
+  def probe_line(p), do: IO.puts(Render.dim("probe ##{p["id"]} #{p["status"]}"))
 
   # The config fields given as switches; none given is an empty map, which
   # changes nothing.
@@ -235,7 +320,7 @@ defmodule SlipdockCLI.Machines do
     IO.puts("\n" <> Render.bold("Runners"))
 
     Render.table(
-      ["ID", "NAME", "POOL", "AGENT", "DIRECTORY", "MODE", "RUNS AS", "STATE"],
+      ["ID", "NAME", "POOL", "AGENT", "DIRECTORY", "MODE", "RUNS AS", "STATE", "PROBE"],
       Enum.map(list, fn r ->
         c = r["config"] || %{}
 
@@ -247,7 +332,8 @@ defmodule SlipdockCLI.Machines do
           c["directory"],
           c["permission_mode"],
           c["executor"],
-          state(r)
+          state(r),
+          probe_state(r["probe"])
         ]
         |> Enum.map(&to_string(&1 || ""))
       end)
@@ -259,7 +345,18 @@ defmodule SlipdockCLI.Machines do
       for line <- r["outside_ceiling"] || [],
           do: IO.puts(Render.dim("  outside the ceiling: #{line}"))
     end
+
+    # A red probe's log, so the reason is in front of whoever reads it.
+    for r <- list, match?(%{"result" => "red"}, r["probe"]) do
+      IO.write("#{r["name"]}: ")
+      probe_line(r["probe"])
+    end
   end
+
+  defp probe_state(nil), do: "never"
+  defp probe_state(%{"result" => "green", "finished_at" => at}), do: "green #{at}"
+  defp probe_state(%{"result" => "red", "finished_at" => at}), do: "red #{at}"
+  defp probe_state(%{"status" => status}), do: status
 
   defp state(r) do
     cond do

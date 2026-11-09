@@ -114,10 +114,11 @@ optional, and with no file at all `claude` and `codex` are found on your
   (`allowed_tools`: in a job nobody is there to approve one). Any other agent
   a runner names must be defined here. It gets the prompt as
   `$SLIPDOCK_PROMPT`, never on its command line.
-- `hooks`: what a runner's before and after hooks run, by name. A before
-  hook that fails stops the job; the after hook runs however the job ended,
-  with `$SLIPDOCK_EXIT` and `$SLIPDOCK_STATUS` (`done`, `failed`,
-  `cancelled` or `timeout`).
+- `hooks`: what a runner's before, after and probe hooks run, by name. A
+  before hook that fails stops the job; the after hook runs however the job
+  ended, with `$SLIPDOCK_EXIT` and `$SLIPDOCK_STATUS` (`done`, `failed`,
+  `cancelled` or `timeout`). The probe hook runs at the end of a probe
+  (below), and a probe whose hook exits non-zero is red.
 - `models`: a model for a card's profile (`docs`, `fix`, `feature`,
   `schema`, `security`, `spike`), over the runner's own.
 - `transcripts`, `skills_dir` and `cli` say where Claude Code's
@@ -158,7 +159,8 @@ accepted or refused (and why), and each field that changed, old and new:
 ### How the daemon runs a job
 
 Each runner takes one job at a time, as a shell runner does. Its claims say
-which kinds it takes (its agent's, `verify` and the built-in `merge`), and
+which kinds it takes (its agent's, `verify`, the built-in `merge` and the
+built-in `probe`), and
 which skills and CLI are installed, so the board shows drift. While a job
 runs, its log's tail goes to the board every 20 seconds and Claude Code's
 transcript about once a minute, with this machine's keys and tokens taken
@@ -181,6 +183,8 @@ people that serve a board you're on. Each opens its own page, which shows:
 - its **runners**: name, board, pool, agent, directory, permission mode,
   timeout, what it runs as, and its state (*ready*, *waiting for the
   machine*, *working* on a card, *paused* or *rejected*);
+- each runner's latest **probe**: green with when it passed, or red with
+  how it ended and the log it sent;
 - a **refusal** in full: the setting the machine refused, its reason, the
   limit it crossed, and the version it still runs;
 - the **changes**: every setting the machine accepted or refused.
@@ -196,6 +200,8 @@ On your own machine you can:
   and keep the runner's last accepted settings.
 - **Edit** a runner. The machine has the change within seconds and applies
   it between jobs.
+- **Probe** a runner: it checks its own setup and shows green or red
+  (below).
 - **Pause** a runner: it is handed no job until you **Resume** it. The job
   it holds finishes.
 - **Remove** a runner: the machine finishes the job it holds, then stops
@@ -215,8 +221,40 @@ slipdock machine set-runner 4 build-box-build --permission-mode plan
 slipdock machine pause-runner 4 build-box-build
 slipdock machine resume-runner 4 build-box-build
 slipdock machine rm-runner 4 build-box-build
+slipdock machine probe 4 build-box-build --wait
 slipdock machine update 4
 ```
+
+### Probing a runner
+
+A **probe** checks that a runner is ready to work, from the board, without
+a shell on the machine. Send one with **Probe** on the Machines page, or
+`slipdock machine probe <machine> <runner>` (`--wait` follows it, and exits
+1 if it is red). It is a job like any other, in the job list and kept as
+long as any job's log, but it has no card and goes only to the runner it
+was sent to, ahead of its pool's queue. A paused runner takes no probe:
+resume it first.
+
+The daemon runs each check, even after one fails, and writes a line for
+each, `ok` or `FAIL`, to the probe's log, which reaches the board as it
+runs:
+
+- **directory**: the runner's directory is a git repository with an
+  `origin`, which the log names, so you can see it is the one you meant;
+- **agent**: the agent's program, from `local.json`, answers `--version`;
+- **gh**: `gh` is installed and signed in;
+- **skills and CLI**: the slipdock skills and CLI are installed and are the
+  ones this server serves;
+- **executor**: the runner's executor is one the daemon offers, and a
+  command runs under it in the runner's directory;
+- **probe hook**: the runner's probe hook, if its settings name one, from
+  `local.json`, with the same `SLIPDOCK_*` variables a job's hooks get. Use
+  it for the project's own checks, such as cloning and running the suite.
+  A name the file doesn't define fails the probe.
+
+The probe is **green** when every check passes, with the time it passed,
+and **red** otherwise, with its log. Cancelling it or its timeout stops it,
+and its hook, like any job.
 
 ### What the server can and cannot do
 

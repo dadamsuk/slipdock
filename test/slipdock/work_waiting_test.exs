@@ -30,6 +30,23 @@ defmodule Slipdock.WorkWaitingTest do
     %{owner: owner, dana: dana, board: board, todo: todo, doing: doing}
   end
 
+  # An open probe (#2580): a job with no card, as `Slipdock.Runners.Probe`
+  # queues one.
+  defp open_probe(board) do
+    {:ok, runner, _} = Runners.create_runner(board, %{"name" => "probed", "pool" => "probe-pool"})
+
+    Repo.insert!(%Job{
+      board_id: board.id,
+      root_board_id: board.id,
+      card_id: nil,
+      for_runner_id: runner.id,
+      pool: "probe-pool",
+      kind: "probe",
+      prompt: "",
+      status: "queued"
+    })
+  end
+
   defp agent(user), do: %{Actor.unknown() | kind: "agent", via: "mcp", user_id: user.id}
 
   defp open_wait(card, by, attrs) do
@@ -214,6 +231,15 @@ defmodule Slipdock.WorkWaitingTest do
       assert item.text == "In progress with nobody on it"
       assert DateTime.diff(DateTime.utc_now(), item.since) in 7199..7201
       assert reasons(ctx.dana) == []
+    end
+
+    test "an open probe, with no card, doesn't hide a card that needs an owner (#2580)",
+         ctx do
+      open_probe(ctx.board)
+      card = card_fixture(ctx.doing)
+      entered(card, 7200)
+
+      assert [%{reason: "needs_owner"}] = Work.waiting_on_me(ctx.owner)
     end
 
     test "half an hour into Doing is not yet anyone's problem", ctx do

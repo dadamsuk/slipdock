@@ -531,13 +531,14 @@ slipdock runner rm <board> <runner>           # revoke
 # Machines: computers running the runner daemon; their runners are typed data inside the
 # machine's own ceiling (the machine refuses what is outside it). Only the owner changes them.
 slipdock machines                             # yours, then the ones serving your boards (read-only)
-slipdock machine show <id>                    # ceiling, runners and their state, refusals, changes
+slipdock machine show <id>                    # ceiling, runners, their state and probes, refusals, changes
 slipdock machine add-runner <id> <board> --pool P --dir D [--name N] [--agent A]
     [--permission-mode M] [--timeout-minutes N] [--model M] [--executor me|user|confined|container]
     [--[no-]worktree] [--verbosity quiet|normal|verbose] [--instructions TEXT]
     [--before-hook H] [--after-hook H] [--probe-hook H]   # hooks: names the machine defines
 slipdock machine set-runner <id> <runner> [same options]  # only what you give changes
 slipdock machine pause-runner|resume-runner|rm-runner <id> <runner>
+slipdock machine probe <id> <runner> [--wait]  # it checks its setup: green, or red with its log
 slipdock machine update <id>                  # its daemon looks for a newer signed release now
 slipdock machine revoke <id>                  # its key stops working at once
 slipdock machine enrol-key <board>... [--label L]  # one-time key for `slipdock-runner init --key`

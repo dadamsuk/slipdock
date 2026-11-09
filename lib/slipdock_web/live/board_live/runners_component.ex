@@ -848,10 +848,15 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         <dt class="text-base-content/60">Now</dt>
         <dd id={"runner-now-#{@runner.id}"}>
           <%= if job = @d.current_job do %>
-            job #{job.id} ({job.status}) on
-            <.link navigate={~p"/boards/#{job.board_id}/cards/#{job.card_id}"} class="link">
-              #{job.card_id} {job.card && job.card.title}
-            </.link>
+            job #{job.id} ({job.status})
+            <%= if job.card_id do %>
+              on
+              <.link navigate={~p"/boards/#{job.board_id}/cards/#{job.card_id}"} class="link">
+                #{job.card_id} {job.card && job.card.title}
+              </.link>
+            <% else %>
+              {job.kind}, checking the runner
+            <% end %>
             <span :if={job.step} id={"runner-step-#{@runner.id}"} class="block">
               {job.step}
               <span class="text-base-content/60">· {relative_time(job.step_at)}</span>
@@ -889,11 +894,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             <span class="shrink-0 text-base-content/60">#{job.id}</span>
             <span class="shrink-0">{job.status}</span>
             <.link
+              :if={job.card_id}
               navigate={~p"/boards/#{job.board_id}/cards/#{job.card_id}"}
               class="link min-w-0 flex-1 truncate"
             >
               #{job.card_id} {job.card && job.card.title}
             </.link>
+            <%!-- A probe has no card (#2580). --%>
+            <span :if={is_nil(job.card_id)} class="min-w-0 flex-1 truncate">{job.kind}</span>
             <span class="shrink-0 text-base-content/50">
               {relative_time(job.finished_at || job.started_at || job.claimed_at || job.inserted_at)}
             </span>

@@ -545,6 +545,9 @@ defmodule SlipdockWeb.Router do
     post "/machines/:id/runners/:runner_id/pause", MachineController, :pause_runner
     post "/machines/:id/runners/:runner_id/resume", MachineController, :resume_runner
     post "/machines/:id/update", MachineController, :request_update
+    # Send a runner a probe, and read its latest (#2580).
+    post "/machines/:id/runners/:runner_id/probe", MachineController, :probe
+    get "/machines/:id/runners/:runner_id/probe", MachineController, :show_probe
     # The caller's own inbound mail and what came of it (#1242).
     get "/inbound/log", InboundController, :log
     # The caller's own inbound addresses (#1246): personal, and per board.

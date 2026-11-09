@@ -19,6 +19,10 @@ defmodule Slipdock.Runners.Job do
   still in a doing list puts the card back on its list, or gives up on it
   (see `Slipdock.Runners.Recovery`).
 
+  A probe (#2580, `Slipdock.Runners.Probe`) is the one job with no card:
+  kind `probe`, sent to one runner (`for_runner_id`), which checks its own
+  setup and reports green or red with its log.
+
   A claim comes with a lease; heartbeats extend it. A lease that runs out
   puts the job back in the queue, up to a retry cap (see
   `Slipdock.Runners.sweep/1`).
@@ -102,6 +106,8 @@ defmodule Slipdock.Runners.Job do
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :rule, Slipdock.Automations.Rule
     belongs_to :runner, Slipdock.Runners.Runner
+    # The one runner that may take it (#2580): a probe's.
+    belongs_to :for_runner, Slipdock.Runners.Runner
 
     timestamps(type: :utc_datetime)
   end

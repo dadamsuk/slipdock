@@ -26,7 +26,7 @@ defmodule Slipdock.Runners do
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
-  alias Slipdock.Runners.{ClaimDrain, Job, Pause, Recovery, Requeue, Runner}
+  alias Slipdock.Runners.{ClaimDrain, Job, Pause, Probe, Recovery, Requeue, Runner}
 
   @pubsub Slipdock.PubSub
 
@@ -98,8 +98,14 @@ defmodule Slipdock.Runners do
 
   defp changed(%Job{} = job) do
     Phoenix.PubSub.broadcast(@pubsub, "runner_jobs:#{job.board_id}", {:jobs_changed, job.card_id})
+    Probe.broadcast(job)
     job
   end
+
+  @doc false
+  # Wakes the runners of `pool` waiting on a claim: a job has been queued.
+  def wake_pool(root_id, pool),
+    do: Phoenix.PubSub.broadcast(@pubsub, pool_topic(root_id, pool), :job_queued)
 
   ## Runners ------------------------------------------------------------------
 
@@ -1087,12 +1093,18 @@ defmodule Slipdock.Runners do
   # for it. (An `UPDATE … WHERE id IN (SELECT … LIMIT 1 SKIP LOCKED)` looks
   # the same but may run the subquery again per row and claim two.)
   defp try_claim(runner) do
-    # A paused pool or tree hands out nothing (#1116); its jobs wait. Nor
-    # does a machine runner paused on the Machines page (#2572).
-    if pause_for(runner.board_id, runner.pool) || runner_paused?(runner),
-      do: nil,
-      else: claim_next(runner)
+    # A probe sent to this runner (#2580) goes first, whatever holds the
+    # pool's work: it checks the machine, and does no card's work.
+    # Otherwise a paused pool or tree hands out nothing (#1116); its jobs
+    # wait. Nor does a machine runner paused on the Machines page (#2572).
+    cond do
+      probe = Probe.claim(runner) -> claimed_probe(probe)
+      pause_for(runner.board_id, runner.pool) || runner_paused?(runner) -> nil
+      true -> claim_next(runner)
+    end
   end
+
+  defp claimed_probe(job), do: job |> changed() |> Repo.preload(:card)
 
   # Read each time: a wait for a job can outlast the pause that ends it.
   defp runner_paused?(%Runner{machine_id: nil}), do: false
@@ -1113,6 +1125,9 @@ defmodule Slipdock.Runners do
         where:
           j.root_board_id == ^runner.board_id and j.pool == ^runner.pool and
             j.status == "queued",
+        # A job for one runner (a probe, #2580) is that runner's, taken
+        # above, never the pool's.
+        where: is_nil(j.for_runner_id),
         # A verify job never goes to the runner that built its card (#1625).
         where: fragment("? IS DISTINCT FROM ?", j.exclude_runner_id, ^runner.id),
         # Nor an audit to its card's builder or verifier (#1780).
@@ -1500,6 +1515,14 @@ defmodule Slipdock.Runners do
     job
   end
 
+  # A probe (#2580) has no card, so nothing about it goes on one: it is
+  # read from the Machines page.
+  defp after_end(_runner, %Job{card_id: nil} = job, _status) do
+    job = changed(job)
+    refill(job)
+    job
+  end
+
   defp after_end(runner, job, status) do
     Boards.log_activity(
       job.board_id,
@@ -1704,6 +1727,9 @@ defmodule Slipdock.Runners do
 
   # Rules watching for jobs ending (`job_finished`) hear about it once, with
   # the job as it ended and after its card was put back or given up on.
+  # A probe (#2580) is about a runner, not a card: no rule hears of it.
+  defp announce(%Job{card_id: nil}), do: :ok
+
   defp announce(%Job{id: id}) do
     with %Job{} = job <- Repo.get(Job, id),
          true <- job.status in Job.finished_statuses() do
@@ -1829,6 +1855,8 @@ defmodule Slipdock.Runners do
     end
   end
 
+  defp flag_card(%Job{card_id: nil}), do: :ok
+
   defp flag_card(job) do
     case Repo.get(Card, job.card_id) do
       nil ->
@@ -1865,6 +1893,10 @@ defmodule Slipdock.Runners do
   def claimed_prompt(%Job{kind: kind, prompt: prompt})
       when kind in ["verify", "merge", "overseer"],
       do: prompt
+
+  # A probe (#2580) has no card: its prompt is what the server knows of
+  # the runner, as data.
+  def claimed_prompt(%Job{card_id: nil} = job), do: Probe.prompt(job)
 
   def claimed_prompt(%Job{} = job) do
     case Repo.one(from(c in Card, where: c.id == ^job.card_id, select: {c.bar, c.bar_locked_at})) do
@@ -1987,6 +2019,8 @@ defmodule Slipdock.Runners do
   runner's own config may pick a model for it (`MODEL_<profile>`). The
   server sends the word, never a command (ARCH-5).
   """
+  def claim_context(%Job{card_id: nil}), do: %{wait: nil, handoff: nil, profile: nil}
+
   def claim_context(%Job{} = job) do
     wait =
       Repo.one(

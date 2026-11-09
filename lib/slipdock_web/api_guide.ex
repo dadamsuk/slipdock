@@ -2644,6 +2644,22 @@ defmodule SlipdockWeb.APIGuide do
     steps make a one-time enrolment key for the board (`scenario` `daemon` on
     `POST /api/boards/:board/runners/setup`, answered as `enrolment_key`,
     refused to a token confined to some boards).
+
+    **The probe** (#2580). A probe checks a machine runner's setup: a job of
+    kind `probe` with no card, sent to that one runner and taken ahead of its
+    pool's queue (never by another runner of the pool), leased, heartbeated,
+    finished and kept like any job. The owner sends one with `POST
+    /api/machines/:id/runners/:runner_id/probe` (201; 200 with the one already
+    on its way; 422 for a paused runner). `GET` on the same path is the
+    runner's latest, or `probe: null`, for the owner and a member of the
+    runner's board; `GET /api/machines/:id` gives each runner's as `probe`,
+    with `result` `green` (it ended `done`), `red` (any other end) or
+    `pending`, its `status`, `finished_at` and `log`. Over the runner
+    protocol it comes as `X-Job-Kind: probe` with no `X-Card-*` headers, only
+    to a daemon whose claim lists the `probe` kind; its body is the server's
+    drift verdict (`skills: current`, `cli: old`). CLI: `slipdock machine
+    probe <machine> <runner> [--wait]`. Not over MCP, as the rest of a
+    machine's management isn't.
     """
   end
 

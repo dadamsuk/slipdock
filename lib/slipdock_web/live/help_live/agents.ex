@@ -1287,6 +1287,16 @@ defmodule SlipdockWeb.HelpLive.Agents do
         shows the refusal with its reason and the limit. People who share a board with the
         machine see its page but can't change it.
       </p>
+      <p id="help-machine-probe">
+        <strong>Probe</strong>
+        a runner from that page, or with <code>slipdock machine probe</code>, to check it is ready to work without a shell on
+        the machine. The runner checks its directory is a git repository with an origin, its
+        agent answers <code>--version</code>, <code>gh</code>
+        is signed in, the slipdock skills
+        and CLI are this server's, and its executor runs a command, then runs its probe hook
+        if it has one. The page shows the probe green with when it passed, or red with its
+        log. A probe is a job with no card, sent only to that runner.
+      </p>
     </.part>
 
     <.part title="Sending it work">

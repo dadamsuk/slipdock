@@ -758,6 +758,8 @@ defmodule Slipdock.Automations do
   defp open_job_cards do
     from(j in Slipdock.Runners.Job,
       where: j.status in ^Slipdock.Runners.Job.open_statuses(),
+      # A probe has no card (#2580); a NULL would empty `NOT IN`.
+      where: not is_nil(j.card_id),
       select: j.card_id
     )
   end

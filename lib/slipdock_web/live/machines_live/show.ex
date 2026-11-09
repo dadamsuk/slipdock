@@ -5,9 +5,10 @@ defmodule SlipdockWeb.MachinesLive.Show do
   the ceiling it reported (read-only: only a person at the machine changes
   it), its runners with their state and current job, the rejections with
   their reasons and the limits, and the log of accepted and rejected
-  changes.
+  changes, and each runner's latest probe (#2580): green with when it
+  passed, red with the log it sent.
 
-  Its owner adds, changes, pauses and removes runners here, asks it to
+  Its owner adds, changes, pauses, probes and removes runners here, asks it to
   update now, and revokes it. A field set outside the ceiling is marked
   with the limit; the page still saves it, since the daemon is what
   refuses (`Slipdock.Runners.Ceiling`), and its refusal then shows here.
@@ -22,7 +23,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
   alias Slipdock.{Access, Machines}
   alias Slipdock.Machines.Machine
-  alias Slipdock.Runners.{Ceiling, Config, MachineRunners}
+  alias Slipdock.Runners.{Ceiling, Config, MachineRunners, Probe}
 
   @config_fields ~w(agent directory permission_mode timeout_minutes model worktree verbosity
                     instructions executor before_hook after_hook probe_hook)
@@ -62,6 +63,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
       machine: machine,
       runners: runners,
       jobs: MachineRunners.running_jobs(runners),
+      probes: Probe.latest(runners),
       changes:
         machine
         |> MachineRunners.reports()
@@ -161,6 +163,19 @@ defmodule SlipdockWeb.MachinesLive.Show do
     end
   end
 
+  def handle_event("probe_runner", %{"id" => id}, socket) do
+    with runner when not is_nil(runner) <- find_runner(socket, id),
+         {:ok, _job} <- Probe.send_probe(socket.assigns.machine, runner) do
+      {:noreply,
+       socket
+       |> notice(:info, "Probe sent to #{runner.name}. Its result shows here when it ends.")
+       |> load(socket.assigns.machine)}
+    else
+      nil -> {:noreply, socket}
+      {:error, :invalid, message} -> {:noreply, notice(socket, :error, message)}
+    end
+  end
+
   def handle_event("update_now", _params, socket) do
     case MachineRunners.request_update(socket.assigns.machine) do
       {:ok, machine} ->
@@ -225,7 +240,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
   @impl true
   def handle_info({event, _machine_id}, socket)
-      when event in [:config_changed, :config_reported],
+      when event in [:config_changed, :config_reported, :probe_changed],
       do: {:noreply, load(socket, socket.assigns.machine)}
 
   def handle_info(_message, socket), do: {:noreply, socket}
@@ -276,6 +291,51 @@ defmodule SlipdockWeb.MachinesLive.Show do
   defp board_name(names, id), do: Map.get(names, id, "board ##{id}")
 
   ## Render ------------------------------------------------------------------------
+
+  attr :runner, :map, required: true
+  attr :probe, :map, required: true
+
+  # A runner's latest probe: waiting or running, green with when it
+  # passed, or red with the log it sent.
+  defp probe_result(assigns) do
+    assigns = assign(assigns, result: Probe.result(assigns.probe), log: Probe.log(assigns.probe))
+
+    ~H"""
+    <div id={"machine-runner-#{@runner.id}-probe"} data-result={@result} class="text-xs">
+      <p :if={@result == :pending} class="text-base-content/60">
+        Probe #{@probe.id} {if @probe.status == "queued",
+          do: "sent, waiting for the machine to take it",
+          else: "running"} · <.timestamp at={@probe.inserted_at} />
+      </p>
+      <p :if={@result == :green} class="text-success">
+        <span class="hero-check-circle size-3.5 align-text-bottom" /> Probe passed
+        · <.timestamp at={@probe.finished_at} />
+      </p>
+      <details :if={@result == :red} open class="text-error">
+        <summary class="cursor-pointer">
+          <span class="hero-x-circle size-3.5 align-text-bottom" /> Probe {probe_end(@probe)} ·
+          <.timestamp at={@probe.finished_at || @probe.updated_at} />
+        </summary>
+        <pre
+          data-role="probe-log"
+          class="field-mono mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-base-200 p-2 text-base-content"
+        >{if @log == "", do: @probe.error || "No log was sent.", else: @log}</pre>
+      </details>
+      <details :if={@result != :red and @log != ""} class="text-base-content/60">
+        <summary class="cursor-pointer">Its log</summary>
+        <pre
+          data-role="probe-log"
+          class="field-mono mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-base-200 p-2 text-base-content"
+        >{@log}</pre>
+      </details>
+    </div>
+    """
+  end
+
+  defp probe_end(%{status: "failed"}), do: "failed"
+  defp probe_end(%{status: "timeout"}), do: "timed out"
+  defp probe_end(%{status: "cancelled"}), do: "was cancelled"
+  defp probe_end(%{status: status}), do: "ended #{status}"
 
   @impl true
   def render(assigns) do
@@ -462,6 +522,14 @@ defmodule SlipdockWeb.MachinesLive.Show do
                       :if={is_nil(r.paused_at)}
                       type="button"
                       class="btn btn-ghost btn-xs"
+                      data-role="probe-runner"
+                      phx-click="probe_runner"
+                      phx-value-id={r.id}
+                    >Probe</button>
+                    <button
+                      :if={is_nil(r.paused_at)}
+                      type="button"
+                      class="btn btn-ghost btn-xs"
                       phx-click="pause_runner"
                       phx-value-id={r.id}
                     >Pause</button>
@@ -491,6 +559,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
                   Working on job #{job.id}<span :if={job.card}>:
                   <.link navigate={~p"/boards/#{job.card.board_id}/cards/#{job.card.id}"} class="link">#{job.card.id} {job.card.title}</.link></span>
                 </p>
+                <.probe_result :if={@probes[r.id]} runner={r} probe={@probes[r.id]} />
                 <.callout
                   :if={r.rejected_version}
                   id={"machine-runner-#{r.id}-rejection"}

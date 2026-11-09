@@ -286,6 +286,26 @@ defmodule Slipdock.OverseerWatchTest do
       assert [_] = cleared(watch(ctx), "idle_capacity")
     end
 
+    test "an open probe, with no card, doesn't hide the free cards (#2580)", ctx do
+      now = DateTime.utc_now(:second)
+      card = card_fixture(ctx.todo, %{"title" => "Ready and waiting"})
+      runner(ctx, "idle-one", last_seen_at: now, inserted_at: DateTime.add(now, -3600))
+      {:ok, probed, _} = Runners.create_runner(ctx.board, %{"name" => "probed", "pool" => "p"})
+
+      Repo.insert!(%Job{
+        board_id: ctx.board.id,
+        root_board_id: ctx.board.id,
+        for_runner_id: probed.id,
+        pool: "p",
+        kind: "probe",
+        prompt: "",
+        status: "queued"
+      })
+
+      assert [%{card_id: card_id}] = fired(watch(ctx), "idle_capacity")
+      assert card_id == card.id
+    end
+
     test "a runner offline, busy or only just idle doesn't count; nor a blocked card", ctx do
       now = DateTime.utc_now(:second)
       card_fixture(ctx.todo, %{"flags" => ["blocked"]})

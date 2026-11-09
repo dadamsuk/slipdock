@@ -91,6 +91,7 @@ The manual is in parts, one page each. Every section and what it covers:
   - [Enrolling a machine](manual/machines.md#enrolling-a-machine)
   - [The ceiling](manual/machines.md#the-ceiling)
   - [The Machines page](manual/machines.md#the-machines-page)
+  - [Probing a runner](manual/machines.md#probing-a-runner)
   - [What the server can and cannot do](manual/machines.md#what-the-server-can-and-cannot-do)
   - [Checking a machine](manual/machines.md#checking-a-machine)
   - [Running it as a service](manual/machines.md#running-it-as-a-service)

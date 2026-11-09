@@ -1075,7 +1075,8 @@ WRITE
   machines                                       your machines running the runner daemon: state,
                                                  system, boards, last seen
   machine show <id>                              one machine: hostname, OS, fingerprint, boards,
-                                                 its ceiling, runners, refusals and changes
+                                                 its ceiling, runners and their probes,
+                                                 refusals and changes
   machine revoke <id>                            revoke a machine: its key stops working at once
   machine update <id>                            ask its daemon to look for a newer signed
                                                  release now
@@ -1092,6 +1093,10 @@ WRITE
   machine resume-runner <id> <runner>            it takes jobs again
   machine rm-runner <id> <runner>                remove it: the machine finishes its job, then
                                                  stops it
+  machine probe <id> <runner> [--wait]           probe it: the machine checks its directory,
+                                                 agent, gh, skills and CLI and executor, then
+                                                 runs its probe hook; --wait follows it to green,
+                                                 or red with its log (exit 1)
   machine enrolment <code>                       the machine a `slipdock-runner init` code belongs
                                                  to: hostname, system, fingerprint, where it asked
   machine approve <code> <board>...              approve it, to serve those boards; you own it

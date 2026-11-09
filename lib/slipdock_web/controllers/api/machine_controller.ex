@@ -22,7 +22,7 @@ defmodule SlipdockWeb.API.MachineController do
 
   alias Slipdock.Machines
   alias Slipdock.Machines.{Enrolment, EnrolmentKey, Machine}
-  alias Slipdock.Runners.MachineRunners
+  alias Slipdock.Runners.{MachineRunners, Probe}
   alias SlipdockWeb.API.MachineJSON
   alias Slipdock.RateLimit
 
@@ -291,6 +291,64 @@ defmodule SlipdockWeb.API.MachineController do
         {:error, :invalid, message} -> unprocessable(conn, message)
       end
     end
+  end
+
+  @doc """
+  POST /api/machines/:id/runners/:runner_id/probe — send the runner a probe
+  (#2580): it checks its setup and runs its probe hook. A probe already on
+  its way is answered rather than a second (200, else 201).
+  """
+  def probe(conn, %{"id" => id, "runner_id" => runner_id}) do
+    with {:ok, machine} <- fetch(conn, id),
+         {:ok, runner} <- fetch_runner(conn, machine, runner_id) do
+      open = Probe.latest([runner])[runner.id]
+
+      case Probe.send_probe(machine, runner) do
+        {:ok, %{id: same} = job} when is_map(open) and open.id == same ->
+          json(conn, %{probe: MachineJSON.probe(job)})
+
+        {:ok, job} ->
+          conn |> put_status(:created) |> json(%{probe: MachineJSON.probe(job)})
+
+        {:error, :invalid, message} ->
+          unprocessable(conn, message)
+      end
+    end
+  end
+
+  @doc """
+  GET /api/machines/:id/runners/:runner_id/probe — the runner's latest probe
+  (#2580), or `probe: null`; for its owner, and for a member of the
+  runner's board.
+  """
+  def show_probe(conn, %{"id" => id, "runner_id" => runner_id}) do
+    with {:ok, machine, role} <- fetch_visible(conn, id),
+         {:ok, runner} <- fetch_runner(conn, machine, runner_id),
+         :ok <- runner_visible(conn, role, runner) do
+      probe = Probe.latest([runner])[runner.id]
+      json(conn, %{probe: probe && MachineJSON.probe(probe)})
+    end
+  end
+
+  # A machine its owner or a member of one of its boards may read.
+  defp fetch_visible(conn, id) do
+    case Machines.get_visible_machine(conn.assigns.current_user, id) do
+      {:ok, machine, role} -> {:ok, machine, role}
+      {:error, :not_found, _} -> not_found(conn)
+    end
+  end
+
+  # A member reads only the runners of boards they can read (#2572).
+  defp runner_visible(_conn, :owner, _runner), do: :ok
+
+  defp runner_visible(conn, :member, runner) do
+    board = Slipdock.Repo.get!(Slipdock.Boards.Board, runner.board_id)
+
+    if Slipdock.Access.can_read?(
+         Slipdock.Access.board_permission(conn.assigns.current_user, board)
+       ),
+       do: :ok,
+       else: conn |> put_status(:not_found) |> json(%{error: "no such runner on this machine"})
   end
 
   @doc """

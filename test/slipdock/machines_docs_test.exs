@@ -97,6 +97,33 @@ defmodule Slipdock.MachinesDocsTest do
     assert read("cli/help.txt") =~ "machine add-runner <id> <board> --pool P --dir D"
   end
 
+  test "the probe is written up everywhere a reader looks (#2580)" do
+    for text <- [SlipdockWeb.APIGuide.markdown(), read("docs/agents.md")] do
+      text = String.replace(text, ~r/\s+/, " ")
+
+      for part <- [
+            "**The probe** (#2580)",
+            "POST /api/machines/:id/runners/:runner_id/probe",
+            "`probe: null`",
+            "`X-Job-Kind: probe`",
+            "`skills: current`",
+            "slipdock machine probe <machine> <runner> [--wait]"
+          ] do
+        assert text =~ part, "missing #{part}"
+      end
+    end
+
+    manual = read("docs/manual/machines.md")
+    assert manual =~ "### Probing a runner"
+    assert manual =~ "slipdock machine probe 4 build-box-build --wait"
+    assert read("docs/manual.md") =~ "(manual/machines.md#probing-a-runner)"
+    assert read("lib/slipdock_web/live/help_live/agents.ex") =~ ~s(id="help-machine-probe")
+    assert read("cli/help.txt") =~ "machine probe <id> <runner> [--wait]"
+
+    assert read("priv/skills/slipdock/SKILL.md") =~
+             "slipdock machine probe <id> <runner> [--wait]"
+  end
+
   test "every copy of Connect a runner's scenario list names each scenario (#2572)" do
     scenarios = Slipdock.Runners.Setup.scenarios()
     flag = "[--scenario #{Enum.join(scenarios, "|")}]"
