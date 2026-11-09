@@ -812,7 +812,7 @@ defmodule Slipdock.HandbookTest do
     test "a fresh install has both, listed by the Index, with their keys and prefixes",
          %{user: user, board: board} do
       {:ok, result} = Handbook.install(user, board)
-      assert result.version.version == "1.6.0"
+      assert result.version.version == Handbook.version()
 
       for {title, key, prefix} <- [
             {"Principles", "principles", "PRIN"},
@@ -895,8 +895,8 @@ defmodule Slipdock.HandbookTest do
       sizing = read.("Sizing")
 
       for {size, stages} <- [
-            {"System", "Grill, Decide, Principles, Spec, Cards."},
-            {"Feature", "Grill, Spec, Cards."},
+            {"System", "Grill, Spike (when one is needed), Decide, Principles, Spec, Cards."},
+            {"Feature", "Grill, Spike (when one is needed), Spec, Cards."},
             {"Card", "No stages."}
           ],
           do: assert(sizing =~ ~r/\*\*#{size}\*\*:.*#{Regex.escape(stages)}/, size)
@@ -906,7 +906,7 @@ defmodule Slipdock.HandbookTest do
 
       assert sizing =~ "a change to the data model"
 
-      for stage <- ["Grill", "Decide", "Principles", "Spec", "Cards"] do
+      for stage <- ["Grill", "Spike", "Decide", "Principles", "Spec", "Cards"] do
         text = read.(stage)
 
         for part <- [
@@ -1005,7 +1005,7 @@ defmodule Slipdock.HandbookTest do
       assert t == "extended before a new one is written beside it."
 
       {:ok, again} = Handbook.install(user, board)
-      assert again.version.version == "1.6.0"
+      assert again.version.version == Handbook.version()
       assert again.report.added["pages"] == ["Principles (seed updated)"]
       assert Repo.get!(Page, prin.id).body == seeded
 
@@ -1042,6 +1042,163 @@ defmodule Slipdock.HandbookTest do
       assert Repo.get!(Page, prin.id).body =~ "**Extend before adding.** A new page"
     end
 
+    defp proposals(board) do
+      Repo.all(
+        from s in Slipdock.Gardener.Suggestion,
+          where: s.board_id == ^board.id and s.check == "proposal",
+          order_by: s.id
+      )
+    end
+
+    defp h2s(body), do: for(h <- Wiki.Section.headings(body), h.level == 2, do: h.title)
+
+    test "a fresh install's Playbook has the Spike stage between Grill and Spec (#2352)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      body = page_titled(board, "Playbook").body
+
+      stages = Enum.filter(h2s(body), &(&1 in ~w(Grill Spike Decide Principles Spec Cards)))
+      assert stages == ~w(Grill Spike Decide Principles Spec Cards)
+
+      {:ok, spike} = Wiki.Section.read(body, "Playbook/Spike")
+      assert spike =~ "only building answers it (not a person, not reading)"
+      assert spike =~ ~s{a "no" changes the spec (say how)}
+
+      assert spike =~
+               "a late \"no\" costs more than the spike, counting flow time and lane contention"
+
+      assert spike =~ "gets its card first in build order instead"
+      assert spike =~ "None pass: the stage is skipped, and the agent says why."
+      assert spike =~ "one `product` wait on the epic"
+      assert spike =~ "tagged `spike`"
+      assert spike =~ "resumes at Spec once every spike is accepted"
+
+      {:ok, sizing} = Wiki.Section.read(body, "Playbook/Sizing")
+
+      assert sizing =~
+               "Stages: Grill, Spike (when one is needed), Decide, Principles, Spec, Cards."
+
+      assert sizing =~ "Stages: Grill, Spike (when one is needed), Spec, Cards."
+
+      assert sizing =~
+               "**Card**: anything else. One sitting, one agent, one PR, said in a sentence. Make the card, as Card shape says. No stages."
+
+      assert proposals(board) == []
+    end
+
+    test "installing 1.7.0 over an unedited 1.6.0 or 1.5.0 Playbook seed updates it (#2352)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+      seeded = play.body
+
+      for version <- ["1.6.0", "1.5.0"] do
+        old = Handbook.seed_body("playbook", version)
+        refute old =~ "## Spike"
+        assert old =~ "## Grill"
+        assert old =~ "made moot" == (version == "1.6.0")
+        {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => old})
+
+        {:ok, again} = Handbook.install(user, board)
+        assert again.version.version == "1.7.0"
+        assert again.report.added["pages"] == ["Playbook (seed updated)"], version
+        assert Repo.get!(Page, play.id).body == seeded
+      end
+
+      {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["pages"] == []
+      refute Enum.any?(third.report.skipped["pages"], &(&1 =~ "edited"))
+      assert proposals(board) == []
+    end
+
+    test "an edited Playbook is left alone and gets one proposal adding Spike (#2352)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+
+      ours =
+        String.replace(
+          Handbook.seed_body("playbook", "1.6.0"),
+          "\n## Decide",
+          "\nWe grill over coffee.\n\n## Decide"
+        )
+
+      {:ok, _} = Wiki.update_page(play, %{"body" => ours})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["pages"] == []
+
+      assert "Playbook (edited: left alone; Spike stage proposed)" in again.report.skipped[
+               "pages"
+             ]
+
+      assert Repo.get!(Page, play.id).body == ours
+
+      assert [proposal] = proposals(board)
+      assert proposal.state == "open"
+      assert proposal.explanation =~ "Spike stage"
+
+      assert [%{"op" => "edit_section", "page" => page_id, "section" => "Playbook/Grill"}] =
+               proposal.proposal
+
+      assert page_id == play.id
+
+      # Installing again files no second one, and still leaves the page alone.
+      {:ok, third} = Handbook.install(user, board)
+      assert "Playbook (edited: left alone)" in third.report.skipped["pages"]
+      assert [_] = proposals(board)
+      assert Repo.get!(Page, play.id).body == ours
+
+      # Applied, it keeps the board's Grill and puts Spike after it.
+      assert {:ok, _} = Slipdock.Gardener.apply(proposal, user)
+      body = Repo.get!(Page, play.id).body
+      assert body =~ "We grill over coffee."
+      assert Enum.take(Enum.drop_while(h2s(body), &(&1 != "Grill")), 3) == ~w(Grill Spike Decide)
+      assert body =~ "only building answers it (not a person, not reading)"
+
+      # With Spike on the page now, installing proposes nothing more.
+      {:ok, fourth} = Handbook.install(user, board)
+      assert "Playbook (edited: left alone)" in fourth.report.skipped["pages"]
+      assert [_] = proposals(board)
+    end
+
+    test "an edited Playbook with no Grill gets Spike proposed before its Spec (#2352)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+
+      ours =
+        "# Playbook\n\nOurs.\n\n## Spec\n\nA page.\n\n## Cards\n\nSubcards.\n\n" <>
+          Handbook.rules_skeleton("playbook")
+
+      {:ok, _} = Wiki.update_page(play, %{"body" => ours})
+
+      {:ok, _} = Handbook.install(user, board)
+      assert [proposal] = proposals(board)
+      assert [%{"section" => "Playbook/Spec"}] = proposal.proposal
+      assert {:ok, _} = Slipdock.Gardener.apply(proposal, user)
+      assert h2s(Repo.get!(Page, play.id).body) == ~w(Spike Spec Cards Rules)
+    end
+
+    test "an edited Playbook with a Spike already, or with neither Grill nor Spec, gets none (#2352)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+
+      for ours <- [
+            "# Playbook\n\n## Grill\n\nAsk.\n\n## Spike\n\nOur own.\n\n## Spec\n\nWrite.\n",
+            "# Playbook\n\nWe plan on a whiteboard.\n"
+          ],
+          ours = ours <> "\n" <> Handbook.rules_skeleton("playbook") do
+        {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => ours})
+        {:ok, again} = Handbook.install(user, board)
+        assert "Playbook (edited: left alone)" in again.report.skipped["pages"]
+        assert Repo.get!(Page, play.id).body == ours
+      end
+
+      assert proposals(board) == []
+    end
+
     test "the seed card leaves them to a person", %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
       seed = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Seed the handbook")
@@ -1062,7 +1219,7 @@ defmodule Slipdock.HandbookTest do
       before = Map.new(handbook_pages(board), &{&1.id, {&1.body, &1.updated_at}})
 
       {:ok, again} = Handbook.install(user, board)
-      assert again.version.version == "1.6.0"
+      assert again.version.version == Handbook.version()
       # The report names what it added.
       assert again.report.added["pages"] == ["Principles", "Playbook"]
       assert again.report.added["cards"] == []

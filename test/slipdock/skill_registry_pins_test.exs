@@ -301,8 +301,8 @@ defmodule Slipdock.SkillRegistryPinsTest do
       body =
         String.replace(
           playbook.body,
-          "## Decide\n",
-          "- skill: grilling\n- skill: slipdock-plan\n- skill: nowhere\n\n## Decide\n"
+          "## Spike\n",
+          "- skill: grilling\n- skill: slipdock-plan\n- skill: nowhere\n\n## Spike\n"
         )
 
       {:ok, _} = Wiki.update_page(playbook, %{"body" => body}, user: user)

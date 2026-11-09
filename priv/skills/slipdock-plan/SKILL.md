@@ -179,10 +179,12 @@ When the board has no handbook, or its Playbook has no `## Sizing`, use
 this, which is the Handbook Tool's own seed:
 
 - **System**: a new deployable or service, a new repository, or a board
-  with no code yet. Stages: Grill, Decide, Principles, Spec, Cards.
+  with no code yet. Stages: Grill, Spike (when one is needed), Decide,
+  Principles, Spec, Cards.
 - **Feature**: a new user-facing surface (a page, a command, an API
   resource), a new external integration, a change to the data model, or
-  more than one sitting's work. Stages: Grill, Spec, Cards.
+  more than one sitting's work. Stages: Grill, Spike (when one is needed),
+  Spec, Cards.
 - **Card**: anything else. One sitting, one agent, one PR, said in a
   sentence. Make the card, as Card shape says. No stages.
 

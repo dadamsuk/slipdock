@@ -389,7 +389,7 @@ defmodule SlipdockWeb.API.SkillRegistryTest do
 
     {:ok, _} = Handbook.install(user, board)
     playbook = Enum.find(Handbook.find(board).pages, &(Handbook.key(&1) == "playbook"))
-    body = String.replace(playbook.body, "## Decide\n", "- skill: grilling\n\n## Decide\n")
+    body = String.replace(playbook.body, "## Spike\n", "- skill: grilling\n\n## Spike\n")
     {:ok, _} = Wiki.update_page(playbook, %{"body" => body}, user: user)
 
     assert %{"boards" => [%{"board" => %{"name" => "Plans"}, "stages" => [stage]}]} =

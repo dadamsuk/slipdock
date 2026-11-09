@@ -97,9 +97,10 @@ skill) and never by the server when a card is made:
   repository, or a board with no code yet) takes grill, decide,
   principles, spec and cards; a *feature* (a new user-facing surface, an
   external integration, a data model change, or more than one sitting)
-  takes grill, spec and cards; anything else is a *card*, made as Card
-  shape says, with no stages.
-- **One section per stage** (Grill, Decide, Principles, Spec, Cards), each
+  takes grill, spec and cards; both take a spike after the grill when one
+  is needed; anything else is a *card*, made as Card shape says, with no
+  stages.
+- **One section per stage** (Grill, Spike, Decide, Principles, Spec, Cards), each
   saying what it asks, the skill it uses (one named with `skill:`, which
   the plan skill takes from the board's enabled skills, else an installed
   one, else its own text), what it produces and where it
@@ -120,7 +121,18 @@ skeleton (#2040) gets the seed in its place, reported as `(seed added)`;
 one somebody edited is reported as `(edited: left alone)`. Installing 1.6.0
 (#2112) does the same for a Principles page still holding 1.5.0's seed,
 whose `PRIN-3` extended with no brake on growth: unedited, it gets the new
-seed, reported as `(seed updated)`; edited, it is left alone. The seed card leaves
+seed, reported as `(seed updated)`; edited, it is left alone. Installing
+1.7.0 (#2352) adds the **Spike** stage, between Grill and Spec: an open
+question becomes a spike only when only building answers it, a "no"
+changes the spec, and a late "no" costs more than the spike (counting flow
+time and lane contention as well as rework); one that fails only the last
+gets its card first in build order instead. The agent proposes the
+candidates and a person confirms them; each is a `spike` card whose answer
+is a page pinned to the epic, and planning resumes at Spec once every
+spike is accepted. A Playbook still holding the 1.6.0 (or 1.5.0) seed gets
+the 1.7.0 one, reported as `(seed updated)`; an edited one is left alone
+and gets a gardener proposal adding the section after its Grill, reported
+as `(edited: left alone; Spike stage proposed)`, and only once. The seed card leaves
 them to a person, suggesting any principle the code plainly keeps. A
 card's handbook block lists every page, held to 2.5 KB.
 

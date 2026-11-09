@@ -67,7 +67,7 @@ defmodule Slipdock.Handbook.SeedDocsTest do
 
     assert manual =~ "It starts with how to write one and a baseline of three"
     assert manual =~ "**Sizing**, checked in order: a *system*"
-    assert manual =~ "**One section per stage** (Grill, Decide, Principles, Spec, Cards)"
+    assert manual =~ "**One section per stage** (Grill, Spike, Decide, Principles, Spec, Cards)"
     assert manual =~ "Editing these two pages is how a board changes how it decides and plans."
     assert manual =~ "gets the seed in its place, reported as `(seed added)`"
     assert manual =~ "`(edited: left alone)`"
@@ -75,5 +75,10 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     # PRIN-3 as 1.6.0 words it, and the upgrade from 1.5.0's seed (#2112).
     assert manual =~ "extending what is there before adding beside it, and splitting it"
     assert manual =~ "reported as `(seed updated)`"
+
+    # The Spike stage, and the upgrade to it (#2352).
+    assert manual =~ "both take a spike after the grill when one is needed"
+    assert manual =~ "Installing 1.7.0 (#2352) adds the **Spike** stage"
+    assert manual =~ "`(edited: left alone; Spike stage proposed)`, and only once"
   end
 end
