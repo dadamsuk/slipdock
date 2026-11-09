@@ -15,8 +15,10 @@ defmodule Slipdock.Now do
       `pool`, `online`, `session` (a Claude session working through an API
       token rather than a runner of its own) and `jobs`, the jobs it holds now
       (claimed or running), oldest first;
-    * `in_progress` — every open, unarchived card in a list whose category
-      is *In progress* (`doing`), and every unarchived card a build job
+    * `in_progress` — every open, unarchived card in an in-progress list
+      (category *In progress*, `doing`, or no category and a name that says
+      so, like the Simple template's *Doing*: `Slipdock.Flow.doing_list?/1`),
+      and every unarchived card a build job
       (claimed or running, of a kind that isn't `verify`, `merge`, `overseer`
       or `probe`) holds wherever it sits (#2633), longest there first: `id`, `title`, where
       it is (`board_id`, `board`, `list`, `parent`, the epic whose sub-board
@@ -39,6 +41,8 @@ defmodule Slipdock.Now do
   """
 
   import Ecto.Query
+
+  require Slipdock.Flow.DoingList, as: DoingList
 
   alias Slipdock.{CardState, Repo, Runners}
   alias Slipdock.Boards.{Board, Card, Column, Wait}
@@ -203,7 +207,7 @@ defmodule Slipdock.Now do
       on: col.id == c.column_id,
       where:
         c.board_id in ^board_ids and is_nil(c.archived_at) and
-          ((col.category == "doing" and not c.completed) or c.id in ^building)
+          ((DoingList.doing?(col.category, col.name) and not c.completed) or c.id in ^building)
     )
   end
 

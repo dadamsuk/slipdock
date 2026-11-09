@@ -9,6 +9,8 @@ defmodule Slipdock.Overseer.Checks.NoWayForward do
 
   import Ecto.Query
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.Boards
   alias Slipdock.Boards.{Board, Card, Column}
   alias Slipdock.Overseer.Check
@@ -24,7 +26,9 @@ defmodule Slipdock.Overseer.Checks.NoWayForward do
   def find(ctx) do
     ctx
     |> Check.live_cards()
-    |> join(:inner, [c], col in Column, on: col.id == c.column_id and col.category == "doing")
+    |> join(:inner, [c], col in Column,
+      on: col.id == c.column_id and DoingList.doing?(col.category, col.name)
+    )
     |> join(:inner, [c], sb in Board, on: sb.parent_card_id == c.id)
     |> select([c, _col, sb], {%{id: c.id, title: c.title}, sb.id})
     |> Repo.all()

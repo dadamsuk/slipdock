@@ -84,7 +84,8 @@ defmodule Slipdock.Flow do
 
   @doc """
   Whether `column` is a doing list: by its category, else by its name (the
-  guide's reading; the Simple template's "Doing" has no category).
+  guide's reading; the Simple template's "Doing" has no category). In a
+  query, `Slipdock.Flow.DoingList.doing?/2` reads a list the same way.
   """
   def doing_list?(%Column{} = column),
     do: SlipdockWeb.APIGuide.role([column], column) == "doing"

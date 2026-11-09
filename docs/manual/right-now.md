@@ -19,7 +19,9 @@ runners take work from all of it), read again every few seconds:
 - **Runners**: each one at work, online or not, and the jobs it holds now,
   with the card, how long since it was claimed and the latest step its agent
   reported.
-- **In progress**: every open card in a list whose category is *In progress*,
+- **In progress**: every open card in an in-progress list (a list with the
+  *In progress* category, or with no category and a name that says so, like
+  the Simple template's *Doing*),
   and every card a runner is building (a claimed or running job other than
   a verify, merge, overseer or probe job), wherever it sits, so a card whose agent never moved it
   still shows, marked *Not in a doing list* (`in_doing: false` in the API and

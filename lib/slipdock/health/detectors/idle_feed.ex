@@ -112,6 +112,6 @@ defmodule Slipdock.Health.Detectors.IdleFeed do
 
   defp wip_held?(%Card{} = card) do
     card = Repo.preload(card, :column)
-    card.column.category != "doing" and not is_nil(Runners.wip_full(card.board_id))
+    not Slipdock.Flow.doing_list?(card.column) and not is_nil(Runners.wip_full(card.board_id))
   end
 end

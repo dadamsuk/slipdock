@@ -35,7 +35,7 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
 
   @impl true
   def detect(%Context{} = ctx, %{"minutes" => minutes}) do
-    doing = for {id, %{category: "doing"}} <- ctx.columns, do: id
+    doing = for {id, column} <- ctx.columns, Slipdock.Flow.doing_list?(column), do: id
 
     candidates =
       from(c in Card,
