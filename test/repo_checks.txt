@@ -43,6 +43,7 @@ test/slipdock/no_sleep_test.exs
 test/slipdock/regex_unicode_test.exs
 
 # Docs and skills held to the server
+test/slipdock/builder_mutation_review_docs_test.exs
 test/slipdock_web/controllers/api/skills_test.exs
 test/slipdock_web/handbook_skills_test.exs
 test/slipdock/handbook/rules_docs_test.exs

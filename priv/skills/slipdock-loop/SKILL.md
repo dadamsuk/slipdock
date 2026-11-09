@@ -833,13 +833,21 @@ With one on, the pass changes like this:
 - **The verifier's checks, first.** Before submitting, run the four
   checks a verifier will (see **A verify job** below) on your own work: the
   bar covers the ask, each part of the bar is met, no `must` rule for the
-  diff is broken, and the `Handbook:` line is honest. With profiles on, a
-  `fix`, `feature`, `schema` or `security` card gets the verifier's
-  **mutation step** too, so run it first: break 3 to 5 of the most
-  consequential lines you added or changed, one at a time (a condition, a
-  guard, an error branch, a returned value), run only the card's tests,
-  restore the line, and add a test until each break fails one. On a `fix`,
-  undo the fix itself: the regression test must fail. Put the `Handbook:`
+  diff is broken, and the `Handbook:` line is honest. Then **the mutation
+  review before submitting**, on any card that changes code: break 3 to 5
+  of the most consequential lines you added or changed, one at a time (a
+  condition, a guard, an error branch, a returned value), run only the
+  card's tests, restore the line (`git checkout -- <file>`), and add a test
+  until each break fails one; a survivor you leave gets its reason in the
+  evidence. On a `fix`, undo the fix itself: the regression test must
+  fail. It is the verifier's own mutation step (on a `fix`, `feature`,
+  `schema` or `security` card with profiles on), and a mutant it finds
+  surviving costs a rejection and a second build. **Name the mutants in
+  the evidence**, one line each, as the verifier writes them:
+  `mutant:killed=lib/foo.ex:42:flip > to >=` (or
+  `mutant:survived=<file>:<line>:<mutation>:<why it stays>`). The verifier
+  carries those and breaks other lines rather than repeating yours.
+  Put the `Handbook:`
   line in `--evidence` too, so it is on the card when the verifier starts,
   and the `Findings:` block with it: the evidence is the closing comment
   that carries the block, once. The wrap-up after it says

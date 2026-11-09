@@ -3032,8 +3032,48 @@ defmodule Slipdock.Verified do
        - Survived: no test failed, on a line the diff added or changed. It is a rejection, its reason naming the mutation and the test to write: `--check mutant:survived=lib/foo.ex:42:"drop the nil guard":"a test that passes nil"`.
        - Pre-existing: a survivor on a line the diff didn't change. Reported only, and kept as a finding: `--check mutant:pre-existing=lib/bar.ex:90:"return []"`.
        - Nothing in the diff worth mutating (only text, config or a rename): `--check mutants=n/a:"why"`, and say why in the reason.
-    #{mutation_resubmission(card, opts)}   Step: `mutating the change`\
+    #{builder_mutants_note(card)}#{mutation_resubmission(card, opts)}   Step: `mutating the change`\
     """
+  end
+
+  @doc """
+  The mutants a builder names in its evidence (#2635): the `mutant:...=`
+  lines of `card.evidence` (a leading `- ` or `* ` bullet allowed), parsed
+  as a verifier's parts are. A line that doesn't parse is left out, so a
+  builder's typo never breaks the verify prompt.
+  """
+  def builder_mutants(%Card{evidence: evidence}) when is_binary(evidence) do
+    evidence
+    |> String.split("\n")
+    |> Enum.map(&(&1 |> String.trim() |> String.replace(~r/^[-*]\s+/, "") |> String.trim("`")))
+    |> Enum.filter(&String.starts_with?(&1, "mutant:"))
+    |> Enum.flat_map(fn line ->
+      case Slipdock.Verified.Checks.parse([line]) do
+        {:ok, %{"mutants" => [mutant]}} -> [mutant]
+        _ -> []
+      end
+    end)
+  end
+
+  def builder_mutants(_card), do: []
+
+  # The builder runs the mutation review before submitting (#2635) and names
+  # what it broke: the verifier carries those and spends its own on others.
+  defp builder_mutants_note(card) do
+    case builder_mutants(card) do
+      [] ->
+        "   The builder named no mutants in its evidence (`mutant:killed=<file>:<line>:<mutation>` lines): choose all of yours freely, and say in the reason that it named none.\n"
+
+      mutants ->
+        listed = Enum.map_join(mutants, "\n", &"     - `#{mutant_line(&1)}`")
+
+        "   The builder ran this review before submitting and names the mutants it tried:\n#{listed}\n   Don't break those again: carry each one it says was killed (`--check mutant:carried=<file>:<line>`) and spend your 3 to 5 on other lines. One it says survived must have a test now or a stated reason in the evidence; break it again.\n"
+    end
+  end
+
+  defp mutant_line(%{"result" => result, "file" => file, "line" => line} = mutant) do
+    note = if mutant["note"], do: ":#{mutant["note"]}", else: ""
+    "mutant:#{result}=#{file}:#{line}:#{mutant["mutation"]}#{note}"
   end
 
   # A resubmission (#1944) re-runs only what could have changed: the

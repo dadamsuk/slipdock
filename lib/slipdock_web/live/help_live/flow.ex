@@ -576,7 +576,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
       or changed, one at a time, runs only the card's tests and restores each line. A break no
       test catches (a surviving mutant) is a rejection naming the mutation and the test to
       write; on a fix, one break undoes the fix, which the regression test must catch. A
-      survivor in lines the change didn't touch is kept as a finding. The
+      survivor in lines the change didn't touch is kept as a finding. The builder runs the
+      mutation review before submitting, on its own change, and names the mutants it tried in
+      the evidence, one line each (<code>mutant:killed=lib/foo.ex:42:flip &gt; to &gt;=</code>):
+      the verifier carries those and breaks other lines rather than repeat them. The
       profile is checked against the change the agent completes with
       (<code>slipdock done 12 --diff-base origin/main</code>): a migration makes it <code>schema</code>, a security path <code>security</code>, and over 400 changed lines a
       <code>fix</code>
