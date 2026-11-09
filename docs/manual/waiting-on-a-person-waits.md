@@ -123,6 +123,15 @@ slipdock wait 12 --withdraw --reason "Answered on #40: the bar was edited since"
 slipdock set-board slipdock --wait-default-after 4h
 ```
 
+**Spikes answered: resume planning.** When planning stops to answer a
+question by building, each question is a `spike` subcard of the epic. When
+the last open one is accepted (an archived spike counts as answered), the
+server opens one `product` wait on the epic, "Spikes answered (#a, #b):
+resume planning", naming each spike and the wiki page that answers it.
+Nothing resumes by itself: you resume planning, and the plan skill reads
+the answers and writes the Spec. An epic already waiting on something
+gets no second wait, and a spike with no epic above it opens none.
+
 Agents are told to open a wait, say what they need and what kind of question
 it is, and stop, rather than flag the card and hope. A wait opened from a [runner](runners.md) job
 **parks** the job, and answering it sends the card to the same rule again
