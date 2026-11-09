@@ -6,7 +6,8 @@ defmodule SlipdockWeb.MachinesLive.Show do
   it), its runners with their state and current job, the rejections with
   their reasons and the limits, and the log of accepted and rejected
   changes, and each runner's latest probe (#2580): green with when it
-  passed, red with the log it sent.
+  passed, red with the log it sent. Last, the trust contract
+  (`SlipdockWeb.TrustContract`, #2581).
 
   Its owner adds, changes, pauses, probes and removes runners here, asks it to
   update now, and revokes it. A field set outside the ceiling is marked
@@ -20,6 +21,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
   use SlipdockWeb, :live_view
 
   import SlipdockWeb.SlipdockComponents, only: [timestamp: 1]
+  import SlipdockWeb.TrustContract, only: [trust_contract: 1]
 
   alias Slipdock.{Access, Machines}
   alias Slipdock.Machines.Machine
@@ -672,6 +674,18 @@ defmodule SlipdockWeb.MachinesLive.Show do
             >
               Each setting the machine accepts or refuses is listed here.
             </.empty_state>
+          </section>
+
+          <section
+            id="machine-trust-contract"
+            class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+          >
+            <h2 class="section-title">What the server can and cannot do</h2>
+            <p class="mt-1 text-sm text-base-content/60">
+              The trust contract. On the machine, <code>slipdock-runner show</code>
+              prints it after this machine's own limits.
+            </p>
+            <.trust_contract class="mt-3 text-sm" />
           </section>
         </.page>
       </div>

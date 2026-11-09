@@ -1329,6 +1329,16 @@ these are decisions only you can make.
   machine key is bound to you, works nowhere an API token does, and stops at
   once when you revoke the machine. A one-time enrolment key (24 hours) does
   the same for a machine with nobody at its screen.
+- **A machine takes data from the server, never a command.** The trust
+  contract ([the manual's Machines page](docs/manual/machines.md#what-the-server-can-and-cannot-do),
+  and `slipdock-runner show` on the machine) says what a server can make it
+  do (queue jobs with prompts, set its runners' typed settings inside the
+  machine's own ceiling, name a newer version), what it cannot (run a
+  command, change a hook, read files, install an unsigned update), what each
+  executor stops, and what nothing here bounds: first-install download
+  trust, the hosted operator also being the signer, the network outside a
+  container, and prompts being the board members' instructions within the
+  runner's permission mode.
 - **Agentic Login is an authentication bypass, by design**, and is *not* how to
   sign an agent in — the device flow above is. With
   `SLIPDOCK_AGENTIC_LOGIN=true` the sign-in page will write a working link for

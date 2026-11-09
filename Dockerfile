@@ -56,6 +56,10 @@ ARG SLIPDOCK_GIT_SHA=""
 ENV SLIPDOCK_GIT_SHA=${SLIPDOCK_GIT_SHA}
 
 COPY priv priv
+# The trust contract's one text lives in the daemon's module, which embeds
+# it; Slipdock.Machines.TrustContract reads it at compile time, so it must be
+# here before `mix compile` (test/slipdock/trust_contract_test.exs checks).
+COPY daemon/internal/contract/contract.md daemon/internal/contract/
 COPY lib lib
 COPY assets assets
 

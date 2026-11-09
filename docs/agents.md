@@ -1285,6 +1285,17 @@ CLI: `slipdock machine probe <machine> <runner> [--wait]`, and `machine
 show` gives each runner's. Not over MCP, as the rest of a machine's
 management isn't: the owner probes their own machine, where they sign in.
 
+**The trust contract** (#2581). What a server can and cannot make a
+machine do, what each executor stops, and what nothing here bounds, is one
+text, `daemon/internal/contract/contract.md`. The daemon embeds it, and
+`slipdock-runner show` prints it after the machine's own limits (its
+ceiling, the executors it allows and who a job runs as under each). The
+server reads the same file when it is built and shows it on each machine's
+page and in Help › Agents; the manual's
+[Machines page](manual/machines.md#what-the-server-can-and-cannot-do)
+carries a copy held equal to it. It is not over the API on its own, as it
+is the same for every machine: the agent guide (`GET /api/guide`) carries it.
+
 ## If you self-host
 
 Two things to get right, both about the address:
