@@ -47,7 +47,8 @@ defmodule SlipdockWeb.API.NowJSON do
       state_kind: c.state_kind,
       loop: c.loop && Map.take(c.loop, [:runner, :kind, :job_id]),
       holds: c.holds,
-      age: c.age
+      age: c.age,
+      in_doing: c.in_doing
     }
   end
 

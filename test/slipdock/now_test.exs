@@ -206,4 +206,82 @@ defmodule Slipdock.NowTest do
     assert Now.sentence(%{counts: %{working: 2, in_progress: 3, queued: 0}}) ==
              "2 runners working · 3 cards in progress"
   end
+
+  describe "a card a runner builds outside a doing list (#2633)" do
+    test "is listed in progress wherever it sits, its list named", ctx do
+      busy = runner(ctx.board, "Mac Studio", DateTime.utc_now(:second))
+      slipped = card_fixture(ctx.todo, %{"title" => "Slipped"})
+      working_job_fixture(slipped, %{runner_id: busy.id, runner_name: "Mac Studio", pool: "dev"})
+      doing = card_fixture(ctx.doing, %{"title" => "Moved"})
+      # A ready card no job holds stays out.
+      card_fixture(ctx.todo, %{"title" => "Ready"})
+
+      snap = Now.snapshot(ctx.board)
+
+      assert Enum.sort(Enum.map(snap.in_progress, & &1.title)) == ["Moved", "Slipped"]
+      row = Enum.find(snap.in_progress, &(&1.id == slipped.id))
+      assert row.list == ctx.todo.name and row.in_doing == false
+      assert row.loop.runner == "Mac Studio" and row.loop.kind == "build"
+      assert Enum.find(snap.in_progress, &(&1.id == doing.id)).in_doing == true
+      assert snap.counts.in_progress == 2
+      assert Now.counts(ctx.board).in_progress == 2
+    end
+
+    test "on a sub-board too, and a card in a doing list with a job is listed once", ctx do
+      epic = card_fixture(ctx.doing, %{"title" => "Epic"})
+      sub = sub(epic)
+      sub_todo = hd(sub.columns)
+      child = card_fixture(sub_todo, %{"title" => "Child"})
+      working_job_fixture(child)
+      working_job_fixture(epic, %{status: "claimed"})
+
+      snap = Now.snapshot(ctx.board)
+
+      assert Enum.sort(Enum.map(snap.in_progress, & &1.title)) == ["Child", "Epic"]
+      row = Enum.find(snap.in_progress, &(&1.id == child.id))
+      assert row.board_id == sub.id and row.list == sub_todo.name and row.in_doing == false
+      assert row.parent.id == epic.id
+      assert Now.counts(ctx.board).in_progress == 2
+    end
+
+    test "in a doing list known only by its name, it is in a doing list", ctx do
+      # The claim move finds the doing list as the guide does (by category,
+      # else by name); Right now reads it the same way.
+      Repo.update!(Ecto.Changeset.change(ctx.doing, category: nil, name: "Doing"))
+      card = card_fixture(ctx.doing, %{"title" => "Moved by name"})
+      working_job_fixture(card)
+
+      assert [row] = Now.snapshot(ctx.board).in_progress
+      assert row.id == card.id and row.list == "Doing" and row.in_doing == true
+    end
+
+    test "a queued job, a verify, merge, overseer or probe job, or an ended one doesn't list it",
+         ctx do
+      for {kind, status} <- [
+            {"claude", "queued"},
+            {"verify", "running"},
+            {"merge", "claimed"},
+            {"overseer", "running"},
+            {"probe", "running"},
+            {"claude", "done"}
+          ] do
+        card = card_fixture(ctx.todo, %{"title" => "#{kind} #{status}"})
+        working_job_fixture(card, %{kind: kind, status: status})
+      end
+
+      snap = Now.snapshot(ctx.board)
+
+      assert snap.in_progress == []
+      assert Now.counts(ctx.board).in_progress == 0
+    end
+
+    test "an archived card a job still holds is left out", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Gone"})
+      working_job_fixture(card)
+      Repo.update!(Ecto.Changeset.change(card, archived_at: DateTime.utc_now(:second)))
+
+      assert Now.snapshot(ctx.board).in_progress == []
+      assert Now.counts(ctx.board).in_progress == 0
+    end
+  end
 end

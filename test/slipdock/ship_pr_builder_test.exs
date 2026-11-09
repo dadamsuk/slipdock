@@ -35,7 +35,10 @@ defmodule Slipdock.ShipPrBuilderTest do
 
   test "a push board's claimed prompt is unchanged, and the card has no instructions", ctx do
     {:ok, _} = Boards.update_board(ctx.board, %{"verify_work" => true})
-    assert Runners.claimed_prompt(queue(ctx.card)) == "Do it."
+    # Then the list the card is in (#2633).
+    assert Runners.claimed_prompt(queue(ctx.card)) ==
+             "Do it.\n\n" <> Slipdock.Runners.ClaimMove.prompt_line(ctx.card.id)
+
     assert Verified.ship_instructions(Repo.get!(Card, ctx.card.id)) == nil
   end
 
@@ -196,6 +199,8 @@ defmodule Slipdock.ShipPrBuilderTest do
   test "turning verification off ships by push again, and the prompt says nothing", ctx do
     board = ship_by_pr(ctx)
     {:ok, _} = Boards.update_board(board, %{"verify_work" => false})
-    assert Runners.claimed_prompt(queue(ctx.card)) == "Do it."
+    # Then the list the card is in (#2633).
+    assert Runners.claimed_prompt(queue(ctx.card)) ==
+             "Do it.\n\n" <> Slipdock.Runners.ClaimMove.prompt_line(ctx.card.id)
   end
 end

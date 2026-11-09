@@ -209,7 +209,7 @@ defmodule SlipdockWeb.NowLive.Index do
               icon="hero-rectangle-stack"
               title="Nothing in progress"
             >
-              No open card sits in an in-progress list on this board or beneath it.
+              No open card sits in an in-progress list on this board or beneath it, and no runner is building one.
             </.empty_state>
             <ul class="space-y-2">
               <li
@@ -226,6 +226,14 @@ defmodule SlipdockWeb.NowLive.Index do
                   </span>
                   <span :if={c.loop} class="badge badge-ghost badge-sm gap-1">
                     <.icon name="hero-cpu-chip" class="size-3" /> {CardState.loop_label(c.loop)}
+                  </span>
+                  <span
+                    :if={not c.in_doing}
+                    id={"now-card-#{c.id}-outside"}
+                    class="badge badge-warning badge-sm"
+                    title="A runner is building this card, but it isn't in a doing list"
+                  >
+                    Not in a doing list
                   </span>
                 </div>
                 <p class="text-xs text-base-content/60">

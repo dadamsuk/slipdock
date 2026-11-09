@@ -60,6 +60,19 @@ minutes (`feed_cooldown_seconds`), so it doesn't go straight back out;
 **Run now** sends the top card at once regardless. A `list_top` rule must
 have a `runner` action, and the list must exist.
 
+**The card moves when its job is claimed.** The moment a runner claims a
+`list_top` rule's job, the server moves the card to the top of its board's
+doing list (the list the guide names as in progress: by its *In progress*
+category, else by a name such as *In Progress* or *Doing*), assigns nobody,
+and says so in the card's activity (*Mac Studio took job #12 and moved the
+card to In Progress*). The agent's own move into that list afterwards
+changes nothing. The board's rules still hold: on a board that asks for a
+bar before work starts, a card without one stays where it is, and so does
+a card on a board with no doing list; the activity line says why. The job's
+prompt ends by naming the list the card is in (*The card is in In
+Progress, its board's doing list*), or, when it stayed put, the doing list
+by its own name, so an agent moving it by hand doesn't guess.
+
 **Two runners on one list.** Because a card with an open job is passed
 over, two `list_top` rules on the same list — each sending to its own pool,
 one per machine say — work it side by side: each sends the top card the

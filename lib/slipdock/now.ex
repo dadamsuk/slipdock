@@ -16,14 +16,17 @@ defmodule Slipdock.Now do
       token rather than a runner of its own) and `jobs`, the jobs it holds now
       (claimed or running), oldest first;
     * `in_progress` — every open, unarchived card in a list whose category
-      is *In progress* (`doing`), longest there first: `id`, `title`, where
+      is *In progress* (`doing`), and every unarchived card a build job
+      (claimed or running, of a kind that isn't `verify`, `merge`, `overseer`
+      or `probe`) holds wherever it sits (#2633), longest there first: `id`, `title`, where
       it is (`board_id`, `board`, `list`, `parent`, the epic whose sub-board
       holds it, `%{id, title, board_id}` or nil), `state` (`Slipdock.CardState`'s line)
       and `state_kind`, `loop` (the runner and kind holding it), `holds` (what
       it waits on: `"waiting"`, `"verifying"`, `"merging"`, `"blocked"`,
       `"review"`, `"stuck"`, the health monitor's flag, and last
       `"over_usual"`, only past its list's usual stay, #2131), `age` (seconds
-      in the list, nil when unknown);
+      in the list, nil when unknown) and `in_doing` (false for a card a build
+      job holds outside a doing list, so a card that slipped through shows);
     * `queued` — the jobs queued for a runner, oldest first, each with
       `held`, the reason it isn't being handed out (nil when only a runner
       is missing);
@@ -41,6 +44,10 @@ defmodule Slipdock.Now do
   alias Slipdock.Boards.{Board, Card, Column, Wait}
   alias Slipdock.Runners.{Job, Runner}
 
+  # Job kinds that check or finish a card, or do no card's work: a card one
+  # of them holds is in progress only when it sits in a doing list.
+  @not_building ~w(verify merge overseer probe)
+
   @doc "Why a reader of a sub-board who can't read its root is refused."
   def refusal,
     do: "Right now covers the whole tree from its root board, which you can't read"
@@ -55,7 +62,7 @@ defmodule Slipdock.Now do
     {working, queued} = Enum.split_with(jobs, &Enum.member?(~w(claimed running), &1.status))
     held = Runners.held_reasons(queued)
     by_runner = Enum.group_by(working, & &1.runner_id)
-    cards = in_progress(boards, now)
+    cards = in_progress(boards, building(working), now)
 
     runner_rows =
       Enum.map(runners, fn r ->
@@ -126,9 +133,18 @@ defmodule Slipdock.Now do
         )
       )
 
+    building =
+      from(j in Job,
+        where:
+          j.root_board_id == ^root_id and j.status in ~w(claimed running) and
+            j.kind not in @not_building and not is_nil(j.card_id),
+        select: j.card_id
+      )
+      |> Repo.all()
+
     %{
       working: working,
-      in_progress: Repo.aggregate(doing_query(board_ids), :count),
+      in_progress: Repo.aggregate(in_progress_query(board_ids, building), :count),
       queued: Map.get(jobs, "queued", 0)
     }
   end
@@ -171,21 +187,31 @@ defmodule Slipdock.Now do
     }
   end
 
-  defp doing_query(board_ids) do
+  # The cards the build jobs among `working` hold (#2633).
+  defp building(working) do
+    for %Job{card_id: id, kind: kind} <- working,
+        is_integer(id) and not Enum.member?(@not_building, kind),
+        uniq: true,
+        do: id
+  end
+
+  # The cards in a doing list, and the ones a build job holds wherever they
+  # sit (#2633): a card whose agent never moved it still shows.
+  defp in_progress_query(board_ids, building) do
     from(c in Card,
       join: col in Column,
       on: col.id == c.column_id,
       where:
-        c.board_id in ^board_ids and col.category == "doing" and not c.completed and
-          is_nil(c.archived_at)
+        c.board_id in ^board_ids and is_nil(c.archived_at) and
+          ((col.category == "doing" and not c.completed) or c.id in ^building)
     )
   end
 
-  defp in_progress(boards, now) do
+  defp in_progress(boards, building, now) do
     cards =
       boards
       |> Map.keys()
-      |> doing_query()
+      |> in_progress_query(building)
       |> preload([:column, wait: ^{from(w in Wait, where: is_nil(w.closed_at)), [:on_user]}])
       |> Repo.all()
 
@@ -210,7 +236,8 @@ defmodule Slipdock.Now do
       state_kind: state.kind,
       loop: state.loop,
       holds: holds(c, state),
-      age: state.age
+      age: state.age,
+      in_doing: Slipdock.Flow.doing_list?(c.column)
     }
   end
 

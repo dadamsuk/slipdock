@@ -444,8 +444,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
       due day is on its owner's <strong>Waiting on you</strong>.
     </p>
     <p>
-      The agent moves the card into progress, and the <strong>bar locks</strong>: from then on
-      only a person can change it. A job is held, saying why, while the board is paused, its WIP
+      The card moves into progress, and the <strong>bar locks</strong>: from then on only a
+      person can change it. For a <em>Work a list with a runner</em> job the server makes the
+      move the moment a runner claims it, to the board's doing list (the one the guide names),
+      and the job's prompt names that list; for any other job the agent moves the card. A job is held, saying why, while the board is paused, its WIP
       limit is full (<em>WIP limits hold automated work</em>), another card is in progress, or
       its lane overlaps one.
     </p>

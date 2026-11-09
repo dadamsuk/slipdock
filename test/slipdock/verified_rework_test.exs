@@ -265,6 +265,8 @@ defmodule Slipdock.VerifiedReworkTest do
       c = card_fixture(ctx.todo, %{"title" => "c"})
       assert open_jobs(rule) == [c.id]
       other = Runners.claim(ctx.runner)
+      # The claim moved it to the doing list (#2633); the job leaves it in To Do.
+      :ok = Boards.move_card_to_index(Repo.get!(Card, c.id), ctx.todo, :top)
       {:ok, _} = Runners.finish(ctx.runner, other.id, %{status: "failed"})
       assert open_jobs(rule) == []
 

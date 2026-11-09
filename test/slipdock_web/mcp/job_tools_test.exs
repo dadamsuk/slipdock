@@ -59,9 +59,11 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
     claimed = claim!(ctx)
     # Then the check at pickup, before building (#1883).
     check = Regex.escape(Slipdock.Verified.bar_pickup_check())
+    # And last the list the card is in (#2633).
+    list = Regex.escape(Slipdock.Runners.ClaimMove.prompt_line(ctx.card.id))
 
     assert claimed["prompt"] =~
-             ~r/\AWork on it\n\nThe card's bar .*\nThe parser reads dates\n\n#{check}\z/s
+             ~r/\AWork on it\n\nThe card's bar .*\nThe parser reads dates\n\n#{check}\n\n#{list}\z/s
   end
 
   test "tools/list offers all three as writes that destroy nothing", %{conn: conn} do
@@ -108,7 +110,10 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       assert out["job"] == job.id
       assert out["card"] == ctx.card.id
       assert out["kind"] == "claude"
-      assert out["prompt"] == "Work on it"
+
+      assert out["prompt"] ==
+               "Work on it\n\n" <> Slipdock.Runners.ClaimMove.prompt_line(ctx.card.id)
+
       assert out["card_url"] =~ "/boards/#{ctx.board.id}/cards/#{ctx.card.id}"
       # A session works between reports, so its lease is far longer than a
       # shell runner's 90 seconds.
@@ -349,7 +354,10 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
     test "are null on a plain job", ctx do
       {:ok, _} = queue(ctx.card)
       out = claim!(ctx)
-      assert out["prompt"] == "Work on it"
+
+      assert out["prompt"] ==
+               "Work on it\n\n" <> Slipdock.Runners.ClaimMove.prompt_line(ctx.card.id)
+
       assert Map.has_key?(out, "wait") and out["wait"] == nil
       assert Map.has_key?(out, "handoff") and out["handoff"] == nil
     end

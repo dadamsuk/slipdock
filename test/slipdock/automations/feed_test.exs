@@ -44,6 +44,11 @@ defmodule Slipdock.Automations.FeedTest do
 
   defp finish(runner, status) do
     job = Runners.claim(runner)
+    # The claim moved the card to the doing list (#2633); the job leaves it
+    # back on its list, as these cool-down cases need.
+    card = Repo.get!(Card, job.card_id)
+    todo = Repo.get_by!(Slipdock.Boards.Column, board_id: card.board_id, name: "To Do")
+    :ok = Boards.move_card_to_index(card, todo, :top)
     {:ok, job} = Runners.finish(runner, job.id, %{status: status})
     job
   end
