@@ -29,7 +29,8 @@ func TestTheExecutorMustBeOfferedAndRunnable(t *testing.T) {
 		{"me on a dedicated-account machine", "linux", "me", offering("user"), `executor "me" is not one this machine offers (user)`},
 		{"user on Windows", "windows", "user", offering("me", "user"), "current account only"},
 		{"confined on Windows", "windows", "confined", offering("me", "confined"), "Linux and macOS only"},
-		{"container", "linux", "container", offering("me", "container"), "not available on this daemon yet"},
+		{"container with no image", "linux", "container", offering("me", "container"), "no image is named"},
+		{"container on Windows", "windows", "container", offering("me", "container"), "Linux and macOS only"},
 		{"no such executor", "linux", "root", offering("me"), "is not an executor"},
 		{"none at all", "linux", "", offering("me"), "is not an executor"},
 	}

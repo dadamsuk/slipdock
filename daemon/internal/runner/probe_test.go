@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -142,7 +143,7 @@ func TestARedProbeSaysEachFailureAndRunsTheRest(t *testing.T) {
 		{"skills drifted", nil, "skills: drifted (slipdock-loop)\ncli: current\n", "FAIL skills and CLI: skills drifted (slipdock-loop)"},
 		{"cli old", nil, "skills: current\ncli: old\n", "FAIL skills and CLI: cli old"},
 		{"cli none", nil, "skills: current\ncli: none\n", "FAIL skills and CLI: cli not installed"},
-		{"executor not offered", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.Executor = "container" }, "", `FAIL executor: executor "container": container is not available`},
+		{"executor not offered", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.Executor = "container" }, "", "FAIL executor: executor \"container\": " + containerRefusal()},
 		{"shell fails", func(_ *rig, f *fakeProbe) { f.shellFails = true }, "", "FAIL executor: a command didn't run as me"},
 		{"hook undefined", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.ProbeHook = "nothere" }, "", `FAIL probe hook "nothere": not defined in this machine's`},
 		{"hook fails", func(_ *rig, _ *fakeProbe) { t.Setenv("HELPER_HOOK_EXIT_probe", "3") }, "", `FAIL probe hook "check": exit 3`},
@@ -179,7 +180,7 @@ func TestAProbeWhoseExecutorCantRunSkipsWhatRunsUnderIt(t *testing.T) {
 		want  string
 	}{
 		{"not one this daemon runs", func(r *rig) { r.w.Runner.Config.Executor = executor.Container },
-			`FAIL executor: executor "container": container is not available`},
+			"FAIL executor: executor \"container\": " + containerRefusal()},
 		{"built but not ready", func(r *rig) {
 			r.w.Runner.Config.Executor = executor.Confined
 			r.w.GOOS = "linux"
@@ -272,4 +273,13 @@ func TestScrubURLDropsCredentials(t *testing.T) {
 			t.Errorf("scrubURL(%q) = %q, want %q", in, got, want)
 		}
 	}
+}
+
+// containerRefusal is why a container runner with no image can't run: on
+// Windows, that there is no container executor there at all.
+func containerRefusal() string {
+	if runtime.GOOS == "windows" {
+		return "container is Linux and macOS only"
+	}
+	return "no image is named"
 }

@@ -31,6 +31,10 @@ type Ceiling struct {
 	// Executors a runner may name (W-2543): me, user, confined. A ceiling
 	// written before there were any reads as me only.
 	Executors []string `json:"executors,omitempty"`
+	// ContainerImages are the images a runner under the container executor
+	// may run (#2577): patterns in which * is any run of characters but /.
+	// None allows none.
+	ContainerImages []string `json:"container_images,omitempty"`
 }
 
 // Offered is the executors the machine allows: me alone for a ceiling
@@ -90,6 +94,11 @@ func (c Ceiling) Validate() error {
 	for _, e := range c.Executors {
 		if !oneOf(executor.Names, e) {
 			problems = append(problems, fmt.Sprintf("executors: %q is not one of %s", e, strings.Join(executor.Names, ", ")))
+		}
+	}
+	for _, p := range c.ContainerImages {
+		if err := executor.ValidImagePattern(p); err != nil {
+			problems = append(problems, "container_images: "+err.Error())
 		}
 	}
 	if len(problems) > 0 {

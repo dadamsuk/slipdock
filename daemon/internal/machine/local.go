@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 )
 
 // LocalFile is the machine's own definitions of what can run: the agents'
@@ -57,6 +59,25 @@ type Local struct {
 	// ConfinedWritable are what a confined job may write besides its own
 	// directory: the agent's own state (default ~/.claude, for claude).
 	ConfinedWritable []string `json:"confined_writable,omitempty"`
+	// Container is how the container executor runs a job here (#2577).
+	// Which images it may run is the ceiling's (container_images).
+	Container *ContainerSettings `json:"container,omitempty"`
+}
+
+// ContainerSettings are the machine's own for the container executor.
+type ContainerSettings struct {
+	// Runtime is docker, podman or a path to either (default: docker on
+	// the PATH, else podman).
+	Runtime string `json:"runtime,omitempty"`
+	// Pull is never (the default: the image must be on the machine),
+	// missing or always.
+	Pull string `json:"pull,omitempty"`
+	// Login are mounted read-only at the same paths, each inside the home
+	// (default: the agent's login, and the slipdock CLI's).
+	Login []string `json:"login,omitempty"`
+	// Env are the daemon's variables a job gets (default: the agent's key
+	// or token). SLIPDOCK_* never pass.
+	Env []string `json:"env,omitempty"`
 }
 
 // Account is a dedicated account: its name, its home, and the PATH its
@@ -98,6 +119,24 @@ func (l Local) Validate() error {
 	for _, w := range l.ConfinedWritable {
 		if !filepath.IsAbs(w) {
 			problems = append(problems, fmt.Sprintf("confined_writable: %q is not an absolute path", w))
+		}
+	}
+	if ct := l.Container; ct != nil {
+		if ct.Pull != "" && !oneOf(executor.Pulls, ct.Pull) {
+			problems = append(problems, fmt.Sprintf("container.pull: %q is not one of %s", ct.Pull, strings.Join(executor.Pulls, ", ")))
+		}
+		if ct.Runtime != "" && strings.TrimSpace(ct.Runtime) != ct.Runtime {
+			problems = append(problems, fmt.Sprintf("container.runtime: %q has spaces around it", ct.Runtime))
+		}
+		for _, p := range ct.Login {
+			if !filepath.IsAbs(p) {
+				problems = append(problems, fmt.Sprintf("container.login: %q is not an absolute path", p))
+			}
+		}
+		for _, name := range ct.Env {
+			if err := executor.ValidPassEnv(name); err != nil {
+				problems = append(problems, "container.env: "+err.Error())
+			}
 		}
 	}
 	if len(problems) > 0 {

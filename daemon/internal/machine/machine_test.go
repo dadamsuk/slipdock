@@ -264,3 +264,26 @@ func TestTheCeilingsExecutors(t *testing.T) {
 		t.Fatal(got.Executors)
 	}
 }
+
+func TestTheCeilingsContainerImages(t *testing.T) {
+	d := t.TempDir()
+	c := ProposeCeiling(t.TempDir(), []int64{3})
+	if len(c.ContainerImages) != 0 {
+		t.Fatalf("init proposes no images: %v", c.ContainerImages)
+	}
+	for _, bad := range []string{"*", "*/agent", "ghcr.io/me agent", ""} {
+		c.ContainerImages = []string{"ghcr.io/me/*", bad}
+		if err := SaveCeiling(d, c); err == nil || !strings.Contains(err.Error(), "container_images: ") {
+			t.Errorf("saved a ceiling allowing %q: %v", bad, err)
+		}
+	}
+	c.Executors = []string{"me", "container"}
+	c.ContainerImages = []string{"ghcr.io/me/agent:*", "slipdock-agent:*"}
+	if err := SaveCeiling(d, c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadCeiling(d)
+	if err != nil || strings.Join(got.ContainerImages, ",") != "ghcr.io/me/agent:*,slipdock-agent:*" {
+		t.Fatalf("%+v %v", got, err)
+	}
+}

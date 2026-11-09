@@ -34,6 +34,10 @@ type Config struct {
 	BeforeHook     string `json:"before_hook"`
 	AfterHook      string `json:"after_hook"`
 	ProbeHook      string `json:"probe_hook"`
+	// Image and Network are the container executor's (#2577): the image,
+	// which runs only if it is on the machine's allow-list, and on or off.
+	Image   string `json:"image"`
+	Network string `json:"network"`
 }
 
 // Runner is one of the machine's runners, as GET /api/machine/config lists it.
@@ -81,6 +85,15 @@ func (r Runner) Check(ceil machine.Ceiling) error {
 		problems = append(problems, fmt.Sprintf("executor %q: %v", c.Executor, err))
 	} else if !contains(offered, c.Executor) {
 		problems = append(problems, fmt.Sprintf("executor %q is not one this machine offers (%s)", c.Executor, strings.Join(offered, ", ")))
+	}
+	if c.Network != "" && c.Network != "on" && c.Network != "off" {
+		problems = append(problems, fmt.Sprintf("network %q is not on or off", c.Network))
+	}
+	// An image runs only if it matches the machine's own allow-list.
+	if c.Executor == executor.Container {
+		if err := executor.ImageAllowed(c.Image, ceil.ContainerImages); err != nil {
+			problems = append(problems, err.Error())
+		}
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("%s", strings.Join(problems, "; "))

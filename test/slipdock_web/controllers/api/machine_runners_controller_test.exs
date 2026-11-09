@@ -126,6 +126,13 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
                })
                |> json_response(422)
 
+      assert %{"error" => "image must be an image name" <> _} =
+               ctx.conn
+               |> patch(~p"/api/machines/#{ctx.machine.id}/runners/#{runner.id}", %{
+                 config: %{executor: "container", image: "--privileged"}
+               })
+               |> json_response(422)
+
       ctx.conn
       |> patch(~p"/api/machines/#{ctx.machine.id}/runners/999999", %{config: %{}})
       |> json_response(404)
@@ -330,6 +337,32 @@ defmodule SlipdockWeb.API.MachineRunnersControllerTest do
                ctx.key
                |> machine_conn()
                |> get(~p"/api/machine/config?version=1&wait=0")
+               |> json_response(200)
+
+      # A container runner's image and network reach the daemon as data (#2577).
+      {:ok, _} =
+        MachineRunners.set_runner(runner, %{
+          "config" => %{
+            "executor" => "container",
+            "image" => "slipdock-agent:1",
+            "network" => "off"
+          }
+        })
+
+      assert %{
+               "runners" => [
+                 %{
+                   "config" => %{
+                     "executor" => "container",
+                     "image" => "slipdock-agent:1",
+                     "network" => "off"
+                   }
+                 }
+               ]
+             } =
+               ctx.key
+               |> machine_conn()
+               |> get(~p"/api/machine/config?version=2&wait=0")
                |> json_response(200)
     end
 

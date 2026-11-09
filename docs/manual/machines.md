@@ -180,6 +180,7 @@ writes; only someone at the machine changes it.
 | `max_timeout_minutes` | the longest a job may run | 60 |
 | `boards` | the boards the machine serves | the ones chosen on the approval page |
 | `executors` | who a runner's jobs may run as (below) | `user` with a dedicated account; `me` and `confined` without one (`me` only on Windows) |
+| `container_images` | the images a `container` runner may run (below) | none: no image runs until you list one |
 
 `init --root DIR --agent NAME --max-mode MODE --max-timeout MINUTES` sets
 them as it writes the file (`--root` and `--agent` repeat). `init --replace`
@@ -200,7 +201,7 @@ is gone, say), the job fails before anything starts, and its log says why.
 | `user` | a dedicated account, `slipdock` by default, with its own home, clones and logins | reading your home: a job is refused while your home is open to the account | reading what every account can, writing its own home and `/tmp`, the network |
 | `confined` | you, unable to write outside the job's directory | writing anywhere else: your home, other repositories, the system | reading your files, the network. It may also write its own temporary directory, the terminal devices and the agent's own state (`~/.claude` for `claude`) |
 | `me` | you, as you are | nothing: an agent can read and change what you can | |
-| `container` | not available yet | | |
+| `container` | you, in a short-lived Docker or Podman container from an image on the machine's allow-list | seeing anything not mounted: your home is an empty one; writing outside the job's directory and repository; the network, when the runner turns it off | the network when it is on; what the mounted logins allow; the image itself, and the runtime (an account in the `docker` group is root on the machine) |
 
 `init` asks which, and says what each does and doesn't stop:
 
@@ -229,7 +230,70 @@ git config or a hook the job planted there runs inside the same walls.
 write.
 
 **Windows** runs jobs as the current account only (`me`): `init` says so and
-doesn't ask, and neither `user` nor `confined` is offered there yet.
+doesn't ask, and neither `user`, `confined` nor `container` is offered there yet.
+
+### Container
+
+A `container` runner runs each of a job's processes (the agent, the hooks,
+and the daemon's own git and `gh` for it) in a short-lived container:
+`docker run --rm` or `podman run --rm`, from the image the runner names.
+The image's name is data from the board, so the machine runs it only if it
+matches its own allow-list, `container_images` in `ceiling.json`, which the
+board can't change. With no list, no image runs. A pattern is an image name
+in which `*` stands for any run of characters but `/`: `slipdock-agent:*`
+allows every tag of that image, `ghcr.io/me/*` every image directly under
+`ghcr.io/me`. Its first part (the registry, or the image's name) is written
+out, so no pattern allows everything. An image not on the list is refused
+with the reason, which the Machines page shows, and the runner keeps its
+last accepted settings. Add `container` to the ceiling's `executors` too:
+`init` doesn't offer it.
+
+```json
+{
+  "executors": ["me", "container"],
+  "container_images": ["slipdock-agent:*"]
+}
+```
+
+What the container sees, each at the path it has on the machine:
+
+- the job's directory (its repository), read-write; in a worktree, the
+  worktree and its repository. The hooks and the daemon's own git also see
+  the repository's worktrees (`<repo>-lanes`).
+- the agent's login and the slipdock CLI's, read-only: by default
+  `~/.claude/.credentials.json` and `~/.claude/skills` for `claude`,
+  `~/.codex/auth.json` for `codex`, and `~/.config/slipdock`, those that are
+  there.
+- the machine's `slipdock` CLI, read-only, over the image's, so the board's
+  drift check reads what runs.
+- a home at your home's path that is empty (a `tmpfs`) but for those.
+
+It is refused, and the job fails before anything starts, if what it would
+mount is your home, a directory holding it, the daemon's own directory or
+the runtime's socket, or if a login isn't inside your home. Jobs run as
+your account (`--user`), with every capability dropped and no new
+privileges. Only the job's own `SLIPDOCK_*` variables and the agent's key or
+token (`CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY`, or
+`OPENAI_API_KEY`) pass in; the daemon's own `SLIPDOCK_*` variables never
+do. The runner's `network` setting (`on` or `off`, from the board) turns
+the network off (`--network none`); an agent that calls its provider's API
+needs it on, and so does the built-in merge.
+
+Under `container` the agent's and hooks' programs are the image's, found
+on its `PATH`. The daemon reads nothing a container job wrote outside the
+repository, so the live transcript isn't sent: the job's own log is.
+
+The base image, `daemon/images/agent/Dockerfile` in the repository, has
+Claude Code, Codex, the slipdock CLI, `git` and `gh`. Build it on the
+machine and allow it:
+
+```sh
+docker build -t slipdock-agent:1 daemon/images/agent
+```
+
+A project's own toolchain goes in an image built `FROM` that one, whose
+name then goes on the list. `local.json`'s `container` block (below) says
+how the machine runs containers.
 
 ### What runs: the local file
 
@@ -267,6 +331,15 @@ optional, and with no file at all `claude` and `codex` are found on your
 - `user`: the dedicated account (`name`, `home`, and the `path` its jobs
   get), which `init` writes. `confined_writable`: what a confined job may
   write besides its directory.
+- `container`: how the `container` executor runs here. `runtime`
+  (`docker`, `podman` or a path; default `docker`, else `podman`), `pull`
+  (`never`, the default: the image must be on the machine; `missing` or
+  `always` let the runtime fetch it), `login` (the paths mounted read-only,
+  each inside your home, in place of the defaults; add `~/.config/gh` for
+  the built-in merge) and `env` (the daemon's variables a job gets, in
+  place of the agent's key or token; `SLIPDOCK_*` and the container's own,
+  such as `HOME` and `PATH`, are refused). Which images may run is the
+  ceiling's `container_images`, not this file's.
 - `transcripts`, `skills_dir` and `cli` say where Claude Code's
   transcripts, the slipdock skills and the `slipdock` CLI are, when they
   aren't in the usual places. `no_merge: true` turns off the built-in merge.

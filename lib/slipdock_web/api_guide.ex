@@ -2605,8 +2605,10 @@ defmodule SlipdockWeb.APIGuide do
     `agent`, `directory`, `permission_mode` (`plan`, `default`, `acceptEdits`,
     `bypassPermissions`), `timeout_minutes`, `model`, `worktree` (`auto`,
     `on`, `off`), `verbosity`, `instructions`, `executor` (`me`, `user`,
-    `confined`, `container`) and the names of a `before_hook`, `after_hook`
-    and `probe_hook`. There is no command field: an unknown key, `command`
+    `confined`, `container`), the names of a `before_hook`, `after_hook`
+    and `probe_hook`, and under `container` an `image` (required: a name
+    only, which the machine runs only if it matches its own allow-list,
+    `container_images` in its ceiling) and `network` (`on`, `off`). There is no command field: an unknown key, `command`
     included, is refused, and every name resolves in the machine's own local
     file. The daemon, with its machine key, long-polls `GET
     /api/machine/config?version=N&wait=S` (its runners' configs and the
