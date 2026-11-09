@@ -204,6 +204,38 @@ defmodule SlipdockWeb.FontsTest do
       assert stray_titles([{"x.ex", src}], "h2", ~r/(?<![\w:-])text-(?:lg|base)(?![\w-])/) == []
     end
 
+    test "the check reads past attributes that nest braces" do
+      # Each h1 here hid from `\{[^}]*\}`, which stopped at the first `}` (#2595).
+      src = ~S"""
+      <h1 id={"x-#{f(@a)}-title"} class="text-2xl">Interpolated id</h1>
+      <h1 phx-click={JS.toggle(to: "#m-#{@id}")} data-on={@n > 1} class="text-xl">Calls</h1>
+      <h1 id={"q-#{"}"}"} title="}" class="text-lg">Braces in strings</h1>
+      <h1 data={%{a: 1}} class="text-xl">A bare map</h1>
+      <h1 data-x={[%{y: @z}]} class="text-3xl">A list holding a map</h1>
+      <h1 title={"a \"}\" b"} class="text-xl">An escaped quote before a brace</h1>
+      <h1 id={"ok-#{@id}"} class="page-title">Fine</h1>
+      """
+
+      size = ~r/(?<![\w:-])text-(?:lg|xl|2xl|3xl)(?![\w-])/
+
+      assert [
+               {"x.ex", 1, first},
+               {"x.ex", 2, _},
+               {"x.ex", 3, third},
+               {"x.ex", 4, map},
+               {"x.ex", 5, list},
+               {"x.ex", 6, escaped}
+             ] = stray_titles([{"x.ex", src}], "h1", size)
+
+      assert first == ~S|<h1 id={"x-#{f(@a)}-title"} class="text-2xl">|
+      assert third =~ ~S(class="text-lg">)
+      # Bare nested braces need the brace group's own recursion, and an
+      # escaped quote needs the string's `\\.`: without either, these hide.
+      assert map == ~S|<h1 data={%{a: 1}} class="text-xl">|
+      assert list == ~S|<h1 data-x={[%{y: @z}]} class="text-3xl">|
+      assert escaped == ~S|<h1 title={"a \"}\" b"} class="text-xl">|
+    end
+
     test "<.header> renders its title as a page-title h1" do
       assigns = %{}
 
@@ -227,12 +259,18 @@ defmodule SlipdockWeb.FontsTest do
     for {path, src} <- sources(), Regex.match?(re, src), do: path
   end
 
+  # A `{…}` attribute value: braces nest, and an Elixir string inside one may
+  # hold `}` or `>` and its own `#{…}` (#2595: `\{[^}]*\}` stopped at the
+  # first `}` and lost the tag).
+  @brace_value ~S'(?(DEFINE)(?<brace>\{(?:[^{}"]|(?&str)|(?&brace))*\})' <>
+                 ~S'(?<str>"(?:[^"\\#]|\\.|#(?!\{)|#(?&brace))*"))'
+
   # Tags `<tag …>` whose class matches `size`, as {path, line, tag}.
   defp stray_titles(sources, tag, size) do
-    open = Regex.compile!("<#{tag}\\b(?:[^>\"{]|\"[^\"]*\"|\\{[^}]*\\})*>", "s")
+    open = Regex.compile!(~s/#{@brace_value}<#{tag}\\b(?:[^>"{]|"[^"]*"|(?&brace))*>/, "s")
 
     for {path, src} <- sources,
-        [{at, len}] <- Regex.scan(open, src, return: :index),
+        [{at, len}] <- Regex.scan(open, src, return: :index, capture: :first),
         text = binary_part(src, at, len),
         [_, class] <- [Regex.run(~r/\bclass="([^"]*)"/, text) || [nil, ""]],
         Regex.match?(size, class) do
