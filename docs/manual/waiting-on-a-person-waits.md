@@ -148,7 +148,11 @@ is on you only when no runner will verify it: while a verify job for it is
 claimed or running, or for 15 minutes after its submission while one is
 queued or a runner of the board's verify pool is online, it stays off, and
 it comes back if no verify job has started by then. With no verifier it is
-on you at once, and you can accept or reject it by hand whenever you like. A wait's choices and answer box are right there. The header
+on you at once, and you can accept or reject it by hand whenever you like. A
+merge that failed on something a rebase fixes (a conflict, a head that moved)
+stays off while a runner's build job is claimed or running on the card or on
+an epic above it, since that runner has the rework in hand; any other failed
+merge, and any failed build job, shows as before. A wait's choices and answer box are right there. The header
 shows how many on every page (refreshed within a minute; on a laptop the count
 is in the alerts bell's, and its panel's first row comes here), `slipdock whoami`
 and `GET /api/me` carry it as `waiting_on_you`, and `slipdock work`, `GET

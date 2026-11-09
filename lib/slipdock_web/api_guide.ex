@@ -1655,7 +1655,10 @@ defmodule SlipdockWeb.APIGuide do
     is claimed or running, nor, for 15 minutes after it was submitted, while
     one is queued or a runner of its board's verify pool is online. Past
     that with no verify job started it comes back; with no verifier it is
-    on you at once. You can accept or reject it by hand either way. The
+    on you at once. You can accept or reject it by hand either way. A merge
+    job that failed on something a rebase fixes (a conflict, a head that
+    moved) is left out while a build job is claimed or running on the card
+    or a card above it; any other failure shows as before. The
     overseer's open conditions (reason `overseer`, each with its
     `condition`: `check`, `why`, `todo`) come first; cards on a *Getting
     Started* tour board never come at all. `GET /api/me` and `whoami` carry
