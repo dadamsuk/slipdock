@@ -148,6 +148,7 @@ defmodule Slipdock.MachinesDocsTest do
     assert read("README.md") =~ "*Set up this machine with Claude* there"
     assert read("lib/slipdock_web/live/help_live/agents.ex") =~ ~s(id="help-machine-setup")
     assert read("cli/help.txt") =~ "machine setup-prompt <id>"
+    assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock machine setup-prompt <id>"
   end
 
   test "every copy of Connect a runner's scenario list names each scenario (#2572)" do
