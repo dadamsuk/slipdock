@@ -2069,9 +2069,13 @@ defmodule Slipdock.Verified do
   @doc """
   A merge job has ended (#1657), called by `Slipdock.Runners` for kind
   merge. Done: the card completes, with the merge commit as `merge_sha`,
-  and moves to the done list. A runner that couldn't merge here (not the
-  pull request's repository, no git or gh, gh signed out) hands it on to
-  another runner (#1754): the card's work isn't at fault. Anything else: it
+  and moves to the done list (a pull request the runner found already
+  merged at the accepted commit too, #2637). A runner that couldn't merge
+  here (not the pull request's repository, no git or gh, gh signed out)
+  hands it on to another runner (#1754): the card's work isn't at fault.
+  One the runner found already merged at another head (or, from an older
+  runner, merged at a head it didn't say) stays merging for a person, with
+  a comment, and isn't a rejection (#2637). Anything else: it
   goes back to the top of the ready list as rejected, the merge's reason as
   the rejection's, so the builder rebases and submits it again. A card no
   longer merging is left alone.
@@ -2083,16 +2087,13 @@ defmodule Slipdock.Verified do
 
         cond do
           job.status == "done" ->
-            complete_merged(
-              card,
-              job.merged_sha,
-              actor,
-              nil,
-              "**Merged** by runner #{runner_name}"
-            )
+            complete_merged(card, job.merged_sha, actor, nil, merged_line(job, runner_name))
 
           runner_refused?(job) ->
             hand_on(card, job, runner_name)
+
+          already_merged?(job) ->
+            merged_elsewhere(card, job, runner_name)
 
           true ->
             merge_failed(card, job, actor)
@@ -2104,6 +2105,51 @@ defmodule Slipdock.Verified do
   end
 
   def merge_finished(_job, _runner_name), do: :ok
+
+  # The runner's words for a pull request it found already merged at the
+  # accepted commit (#2637): the merge the job wanted, so the card completes.
+  defp merged_line(job, runner_name) do
+    if String.contains?(merge_reason(job), "was already merged at the accepted commit"),
+      do:
+        "**Merged** by runner #{runner_name}: the pull request was already merged at the " <>
+          "accepted commit",
+      else: "**Merged** by runner #{runner_name}"
+  end
+
+  # A merge that failed because the pull request was already merged (#2637):
+  # at another head (the daemon's words), or at a head the runner didn't say
+  # (older runners: `is MERGED, not open`).
+  defp already_merged?(%{status: "failed"} = job) do
+    said = merge_reason(job)
+
+    String.starts_with?(said, "merge: ") and
+      (String.contains?(said, "was already merged at head") or
+         String.contains?(said, "is MERGED, not open"))
+  end
+
+  defp already_merged?(_job), do: false
+
+  # Already merged, but not at a head the runner could match to the
+  # accepted commit: no rebase or resubmission changes a merged pull
+  # request, so the card isn't sent back or counted as rejected (in quality
+  # or circling). It stays merging, and the comment says which head was
+  # merged, for a person to look at and mark merged by hand.
+  defp merged_elsewhere(card, job, runner_name) do
+    said = merge_reason(job)
+    Slipdock.Findings.Signals.merge_failed(card, job, said)
+
+    Slipdock.Boards.add_comment(
+      card,
+      "**Merge failed: already merged.** Runner #{runner_name} found " <>
+        "#{card.evidence_pr || "the pull request"} merged already, but not at a head it " <>
+        "could match to the accepted commit `#{card.verify_commit || card.evidence_commit}`. " <>
+        "Nothing was merged, and it doesn't count as a rejection. Check what was merged; if " <>
+        "it is the accepted work, press **Merged it myself** on the card " <>
+        "(`slipdock verify #{card.id} merged`).\n\n#{said}"
+    )
+
+    :ok
+  end
 
   # What a runner's built-in merge says, before touching anything, when the
   # runner itself can't merge (exit 2): the card isn't at fault, so another

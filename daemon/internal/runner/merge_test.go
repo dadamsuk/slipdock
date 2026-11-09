@@ -67,6 +67,26 @@ func TestMergeMergesTheAcceptedCommit(t *testing.T) {
 	}
 }
 
+// #2637: a pull request already merged at the accepted commit is the merge
+// the job wanted: it answers the merge commit and merges nothing again.
+func TestMergeOfAPullRequestAlreadyMergedAtTheAcceptedCommit(t *testing.T) {
+	g := &fakeGit{origin: "https://github.com/dadamsuk/slipdock.git", state: "MERGED", head: "ABC123def"}
+	var log []string
+	sha, err := merge(context.Background(), g.exec, "/repo", mergeJob(), func(s string) { log = append(log, s) })
+	if err != nil || sha != "fff999" {
+		t.Fatalf("merge = %q, %v", sha, err)
+	}
+	for _, line := range g.ran {
+		if strings.HasPrefix(line, "gh pr merge") {
+			t.Fatalf("merged again: %s", line)
+		}
+	}
+	want := "merge: https://github.com/dadamsuk/slipdock/pull/7 was already merged at the accepted commit (head ABC123def) as fff999"
+	if !contains(log, want) {
+		t.Fatalf("log: %v", log)
+	}
+}
+
 func TestMergeRefusesWhatDoesntCheckOut(t *testing.T) {
 	cases := []struct {
 		name string
@@ -82,7 +102,9 @@ func TestMergeRefusesWhatDoesntCheckOut(t *testing.T) {
 		{"no origin", nil, fakeGit{}, 2, "has no origin remote"},
 		{"other repo", nil, fakeGit{origin: "https://github.com/someone/else.git"}, 2, "nothing merged"},
 		{"gh signed out", nil, fakeGit{origin: "https://github.com/dadamsuk/slipdock", authFails: true}, 2, "gh is not signed in"},
-		{"closed", nil, fakeGit{origin: "https://github.com/dadamsuk/slipdock", state: "MERGED", head: "abc123"}, 2, "is MERGED, not open"},
+		{"closed", nil, fakeGit{origin: "https://github.com/dadamsuk/slipdock", state: "CLOSED", head: "abc123"}, 2, "is CLOSED, not open"},
+		{"merged at another head", nil, fakeGit{origin: "https://github.com/dadamsuk/slipdock", state: "MERGED", head: "999"}, 2,
+			"https://github.com/dadamsuk/slipdock/pull/7 was already merged at head 999, not the accepted commit abc123; nothing merged"},
 		{"head moved", nil, fakeGit{origin: "https://github.com/dadamsuk/slipdock", state: "OPEN", head: "999"}, 2, "not the accepted commit abc123"},
 		{"gh refused", nil, fakeGit{origin: "https://x-token@" + "github.com/dadamsuk/slipdock.git", state: "OPEN", head: "abc123",
 			mergeFails: true, mergeSays: "Pull request is not mergeable:\n the merge commit cannot be cleanly created"}, 3,

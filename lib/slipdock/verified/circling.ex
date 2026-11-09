@@ -13,8 +13,8 @@ defmodule Slipdock.Verified.Circling do
   what puts it at the top of the owner's *Waiting on you*
   (`Slipdock.Work.waiting_on_me/2`, reason `circling`). It fires on the
   event, not on the gardener's schedule. A failed merge counts towards
-  the two (it adds to `verify_rejections`), but only a verifier's
-  rejection fires it.
+  the two (it adds to `verify_rejections`; one that found the pull request
+  already merged doesn't, #2637), but only a verifier's rejection fires it.
   """
 
   alias Slipdock.Boards.{Board, Card}
