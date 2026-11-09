@@ -142,6 +142,11 @@ defmodule SlipdockWeb.API.MachineProbeControllerTest do
       assert conn.status == 200
       assert get_resp_header(conn, "x-job-id") == [to_string(probe.id)]
       assert get_resp_header(conn, "x-job-kind") == ["probe"]
+
+      # Claimed, not yet heartbeated: still pending.
+      assert %{"probe" => %{"status" => "claimed", "result" => "pending"}} =
+               ctx.conn |> get(path(ctx)) |> json_response(200)
+
       assert get_resp_header(conn, "x-card-id") == []
       assert get_resp_header(conn, "x-card-url") == []
       assert get_resp_header(conn, "x-board-id") == [to_string(ctx.board.id)]

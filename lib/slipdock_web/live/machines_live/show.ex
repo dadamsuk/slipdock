@@ -308,13 +308,13 @@ defmodule SlipdockWeb.MachinesLive.Show do
           else: "running"} · <.timestamp at={@probe.inserted_at} />
       </p>
       <p :if={@result == :green} class="text-success">
-        <span class="hero-check-circle size-3.5 align-text-bottom" /> Probe passed
+        <.icon name="hero-check-circle" class="size-3.5 align-text-bottom" /> Probe passed
         · <.timestamp at={@probe.finished_at} />
       </p>
       <details :if={@result == :red} open class="text-error">
         <summary class="cursor-pointer">
-          <span class="hero-x-circle size-3.5 align-text-bottom" /> Probe {probe_end(@probe)} ·
-          <.timestamp at={@probe.finished_at || @probe.updated_at} />
+          <.icon name="hero-x-circle" class="size-3.5 align-text-bottom" />
+          Probe {probe_end(@probe)} · <.timestamp at={@probe.finished_at || @probe.updated_at} />
         </summary>
         <pre
           data-role="probe-log"

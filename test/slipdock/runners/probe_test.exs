@@ -259,6 +259,8 @@ defmodule Slipdock.Runners.ProbeTest do
     assert Probe.latest([]) == %{}
     assert Probe.result(%Job{status: "timeout"}) == :red
     assert Probe.result(%Job{status: "queued"}) == :pending
+    assert Probe.result(%Job{status: "claimed"}) == :pending
+    assert Probe.result(%Job{status: "running"}) == :pending
     assert Probe.log(%Job{output: nil, log_tail: nil}) == ""
   end
 end
