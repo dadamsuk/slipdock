@@ -1,5 +1,5 @@
-// Package cli is slipdock-runner's commands: init, show, doctor, service,
-// run and version. Everything outside the process (the terminal, the
+// Package cli is slipdock-runner's commands: init, setup, show, doctor,
+// service, run and version. Everything outside the process (the terminal, the
 // environment, the network, the clock, other programs) comes in through
 // Env, so each command can be tested on its own.
 package cli
@@ -45,6 +45,9 @@ type Env struct {
 	LookPath    func(string) (string, error)
 	// Run runs a program, its output to the terminal.
 	Run func(name string, args ...string) error
+	// Interactive runs a program attached to the terminal: its stdin as
+	// well as its output, for a program a person talks to (claude).
+	Interactive func(name string, args ...string) error
 	// Output runs a program and returns what it printed.
 	Output func(name string, args ...string) (string, error)
 	Sleep  func(context.Context, time.Duration) error
@@ -79,6 +82,11 @@ func DefaultEnv() Env {
 		Run: func(name string, args ...string) error {
 			cmd := exec.Command(name, args...)
 			cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+			return cmd.Run()
+		},
+		Interactive: func(name string, args ...string) error {
+			cmd := exec.Command(name, args...)
+			cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 			return cmd.Run()
 		},
 		Output: func(name string, args ...string) (string, error) {
@@ -138,8 +146,9 @@ func openBrowser(goos, url string, start func(string, ...string) error) error {
 const usage = `slipdock-runner: the Slipdock runner daemon, one per machine.
 
 Usage:
-  slipdock-runner init [--server URL] [--key KEY] [--replace] [--user NAME | --as-me]
+  slipdock-runner init [--server URL] [--key KEY] [--replace] [--user NAME | --as-me] [--no-setup]
                                           enrol this machine, and choose who jobs run as
+  slipdock-runner setup [--print]         set this machine up with Claude, from the server's prompt
   slipdock-runner show                    the trust contract, with this machine's limits
   slipdock-runner doctor                  check this machine is ready to run jobs
   slipdock-runner service install|uninstall|print
@@ -169,6 +178,8 @@ func Main(args []string, env Env) int {
 	switch cmd {
 	case "init":
 		err = cmdInit(rest, env)
+	case "setup":
+		err = cmdSetup(rest, env)
 	case "show":
 		err = cmdShow(rest, env)
 	case "doctor":

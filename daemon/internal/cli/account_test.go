@@ -78,8 +78,8 @@ func TestInitOffersADedicatedAccountAndRunsAsIt(t *testing.T) {
 	if strings.Join(c.Executors, ",") != "user" || c.Roots[0] != "/srv/slipdock/src" {
 		t.Fatalf("a dedicated-account machine offers user only, in the account's home: %+v", c)
 	}
-	if strings.Join(w.ran, "|") != "sudo -u slipdock -i" {
-		t.Fatalf("set-up runs as the account: %v", w.ran)
+	if len(w.interactive) != 1 || strings.Join(w.interactive[0], " ") != "sudo -u slipdock -i" || len(w.ran) != 0 {
+		t.Fatalf("set-up opens a shell as the account, attached to the terminal: %q %v", w.interactive, w.ran)
 	}
 }
 
@@ -92,8 +92,8 @@ func TestInitAsMe(t *testing.T) {
 		if code := w.main(args...); code != 0 {
 			t.Fatalf("%v: exit %d: %s", how, code, w.errOut)
 		}
-		if len(*scripts) != 0 || len(w.ran) != 0 {
-			t.Fatalf("%v: as me needs no sudo and opens no shell: %v %v", how, *scripts, w.ran)
+		if len(*scripts) != 0 || len(w.ran) != 0 || len(w.interactive) != 0 {
+			t.Fatalf("%v: as me needs no sudo and opens no shell: %v %v %q", how, *scripts, w.ran, w.interactive)
 		}
 		c, _ := machine.LoadCeiling(w.dir)
 		if strings.Join(c.Executors, ",") != "me,confined" {
@@ -119,8 +119,8 @@ func TestInitWithANamedAccountAndNoSetUp(t *testing.T) {
 	if len(*scripts) != 1 || !strings.Contains((*scripts)[0], "'builder ALL=(jobs) NOPASSWD: ALL'") || strings.Contains((*scripts)[0], "o-rwx") {
 		t.Fatalf("the named account, the home left alone (it isn't open): %q", *scripts)
 	}
-	if len(w.ran) != 0 {
-		t.Fatalf("--no-setup opens no shell: %v", w.ran)
+	if len(w.ran) != 0 || len(w.interactive) != 0 {
+		t.Fatalf("--no-setup opens no shell: %v %q", w.ran, w.interactive)
 	}
 	if l, _ := machine.LoadLocal(w.dir); l.User == nil || l.User.Name != "jobs" || l.User.Home != "/srv/jobs" {
 		t.Fatalf("%+v", l.User)
@@ -209,7 +209,7 @@ func TestSetUpWithoutAHomeOnTheEnd(t *testing.T) {
 
 func TestTheSetUpShellFailingIsSaid(t *testing.T) {
 	w, _ := sudoWorld(t, "")
-	w.runErr["sudo -u slipdock -i"] = errors.New("exit status 1")
+	w.interactiveErr["sudo -u slipdock -i"] = errors.New("exit status 1")
 	startSetUp(runAs{account: "slipdock", home: "/srv/slipdock"}, "/srv/slipdock/src", w.env)
 	if !strings.Contains(w.out.String(), "Open it again with `sudo -u slipdock -i`") {
 		t.Fatal(w.out.String())

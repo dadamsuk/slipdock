@@ -2639,7 +2639,17 @@ defmodule SlipdockWeb.APIGuide do
     `POST /api/machines/:id/update` asks the daemon to look for a newer signed
     release now (its config carries `update_requested_at`). A member's write
     is a 403. CLI: `slipdock machine
-    add-runner|set-runner|pause-runner|resume-runner|rm-runner|update`. The
+    add-runner|set-runner|pause-runner|resume-runner|rm-runner|update`.
+    **Set up this machine with Claude** (#2579): `GET
+    /api/machines/:id/setup-prompt` (the owner's; `slipdock machine
+    setup-prompt <id>`, and the machine's page) answers `prompt`, for Claude
+    Code on the machine, run as the account its jobs run as. It names each
+    served board's machine-setup page (the handbook's Testing & tooling
+    §Local setup), and asks for a check, the installs, a proof (a clean
+    clone, set up from the page, its suite run) and the page corrected. The
+    daemon fetches the same with its machine key, `GET
+    /api/machine/setup-prompt`, and `slipdock-runner init` (or `setup`)
+    offers to launch Claude with it. The
     board's **Connect a runner** offers *A machine with the daemon* first: its
     steps make a one-time enrolment key for the board (`scenario` `daemon` on
     `POST /api/boards/:board/runners/setup`, answered as `enrolment_key`,

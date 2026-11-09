@@ -643,7 +643,10 @@ defmodule Slipdock.HandbookTest do
 
       assert Enum.sort(again.report.added["pages"]) ==
                Enum.sort(
-                 ["Testing & tooling (Before you push added)"] ++
+                 [
+                   "Testing & tooling (Before you push added)",
+                   "Testing & tooling (A runner machine added)"
+                 ] ++
                    for(
                      t <- Map.keys(by_title),
                      t not in ["Index", "UX & UI"],
@@ -715,6 +718,50 @@ defmodule Slipdock.HandbookTest do
       assert Handbook.before_you_push(board) == nil
     end
 
+    test "the seed's Local setup ends with a runner machine stub, and local_setup/1 names it (#2579)",
+         %{user: user, board: board} do
+      assert Handbook.local_setup(board) == nil
+      assert Handbook.local_setup(nil) == nil
+
+      {:ok, _} = Handbook.install(user, board)
+      page = testing(board)
+      {:ok, local} = Wiki.Section.read(page.body, "Testing & tooling/Local setup")
+      assert local =~ "_From a clean checkout to a running app._"
+      assert local =~ "### A runner machine"
+      assert local =~ "Set up this machine with Claude"
+
+      assert Handbook.local_setup(board) ==
+               %{page: page.code, path: "Testing & tooling/Local setup"}
+
+      {:ok, _} = Wiki.update_page(page, %{"body" => "# Testing & tooling\n\n## CI\n"})
+      assert Handbook.local_setup(board) == nil
+    end
+
+    test "installing over a handbook without the stub adds it, with a Local setup if missing (#2579)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      page = testing(board)
+
+      {:ok, _} =
+        Wiki.update_page(page, %{
+          "body" => "# Testing & tooling\n\n#{Handbook.before_you_push_skeleton()}"
+        })
+
+      {:ok, again} = Handbook.install(user, board)
+      assert "Testing & tooling (A runner machine added)" in again.report.added["pages"]
+      body = Repo.get!(Page, page.id).body
+      assert body =~ "## Local setup\n\n" <> Handbook.runner_machine_skeleton()
+      assert Handbook.local_setup(board).path == "Testing & tooling/Local setup"
+
+      # Written by the team at another level: left alone, and not added twice.
+      ours = "# Testing & tooling\n\n## Local setup\n\nOurs.\n\n## A runner machine\n\nGo 1.22.\n"
+      {:ok, _} = Wiki.update_page(Repo.get!(Page, page.id), %{"body" => ours})
+      {:ok, third} = Handbook.install(user, board)
+      refute "Testing & tooling (A runner machine added)" in third.report.added["pages"]
+      assert Repo.get!(Page, page.id).body =~ "## A runner machine\n\nGo 1.22.\n"
+      refute Repo.get!(Page, page.id).body =~ "### A runner machine"
+    end
+
     test "the seed gathers every pull-request check into one command, proposed if missing",
          %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
@@ -767,14 +814,20 @@ defmodule Slipdock.HandbookTest do
       others = for p <- handbook_pages(board), p.id != page.id, into: %{}, do: {p.id, p.body}
 
       {:ok, again} = Handbook.install(user, board)
-      assert again.report.added["pages"] == ["Testing & tooling (Before you push added)"]
+
+      assert again.report.added["pages"] == [
+               "Testing & tooling (Before you push added)",
+               "Testing & tooling (A runner machine added)"
+             ]
 
       body = Repo.get!(Page, page.id).body
 
       assert body ==
                "# Testing & tooling\n\n## CI\n\n- **test**: the suite.\n\n" <>
                  Handbook.before_you_push_skeleton() <>
-                 "\n## Local setup\n\nOurs.\n\n## Rules\n\n- **TEST-1** must · judgement · Green.\n"
+                 "\n## Local setup\n\nOurs.\n\n" <>
+                 Handbook.runner_machine_skeleton() <>
+                 "\n## Rules\n\n- **TEST-1** must · judgement · Green.\n"
 
       for p <- handbook_pages(board), p.id != page.id, do: assert(p.body == others[p.id], p.title)
       assert Repo.reload!(rec).description =~ "A range that touches CI config"
@@ -1086,7 +1139,7 @@ defmodule Slipdock.HandbookTest do
       assert proposals(board) == []
     end
 
-    test "installing 1.7.0 over an unedited 1.6.0 or 1.5.0 Playbook seed updates it (#2352)",
+    test "installing 1.7.0 or later over an unedited 1.6.0 or 1.5.0 Playbook seed updates it (#2352)",
          %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
       play = page_titled(board, "Playbook")
@@ -1100,7 +1153,7 @@ defmodule Slipdock.HandbookTest do
         {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => old})
 
         {:ok, again} = Handbook.install(user, board)
-        assert again.version.version == "1.7.0"
+        assert again.version.version == Handbook.version()
         assert again.report.added["pages"] == ["Playbook (seed updated)"], version
         assert Repo.get!(Page, play.id).body == seeded
       end

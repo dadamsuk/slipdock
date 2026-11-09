@@ -22,7 +22,7 @@ defmodule SlipdockWeb.API.MachineController do
 
   alias Slipdock.Machines
   alias Slipdock.Machines.{Enrolment, EnrolmentKey, Machine}
-  alias Slipdock.Runners.{MachineRunners, Probe}
+  alias Slipdock.Runners.{MachineRunners, MachineSetup, Probe}
   alias SlipdockWeb.API.MachineJSON
   alias Slipdock.RateLimit
 
@@ -143,6 +143,16 @@ defmodule SlipdockWeb.API.MachineController do
   def me(conn, _params) do
     with {:ok, machine} <- machine_key(conn) do
       json(conn, %{machine: MachineJSON.machine(machine)})
+    end
+  end
+
+  @doc """
+  GET /api/machine/setup-prompt — *Set up this machine with Claude* (#2579):
+  the prompt `slipdock-runner init` (and `setup`) launches Claude with.
+  """
+  def machine_setup_prompt(conn, _params) do
+    with {:ok, machine} <- machine_key(conn) do
+      json(conn, %{prompt: MachineSetup.prompt(machine, SlipdockWeb.BaseURL.from_conn(conn))})
     end
   end
 
@@ -349,6 +359,16 @@ defmodule SlipdockWeb.API.MachineController do
        ),
        do: :ok,
        else: conn |> put_status(:not_found) |> json(%{error: "no such runner on this machine"})
+  end
+
+  @doc """
+  GET /api/machines/:id/setup-prompt — *Set up this machine with Claude*
+  (#2579), to paste into Claude Code on the machine; its owner's alone.
+  """
+  def setup_prompt(conn, %{"id" => id}) do
+    with {:ok, machine} <- fetch(conn, id) do
+      json(conn, %{prompt: MachineSetup.prompt(machine, SlipdockWeb.BaseURL.from_conn(conn))})
+    end
   end
 
   @doc """

@@ -370,4 +370,47 @@ defmodule SlipdockWeb.API.MachineControllerTest do
       refute Machine.revoked?(Repo.get!(Machine, machine.id))
     end
   end
+
+  describe "Set up this machine with Claude (#2579)" do
+    test "the machine key fetches the prompt for its own boards; a revoked one is refused", ctx do
+      {key, machine} = enrolled(ctx)
+
+      assert %{"prompt" => prompt} =
+               key |> machine_conn() |> get(~p"/api/machine/setup-prompt") |> json_response(200)
+
+      assert prompt =~ ~s|enrolled as "build-box" (machine ##{machine.id})|
+      assert prompt =~ "Served"
+      assert prompt =~ "4. **Write back.**"
+
+      anon() |> get(~p"/api/machine/setup-prompt") |> json_response(401)
+      {api_token, _} = Accounts.create_api_token(ctx.user, "t")
+      api_token |> machine_conn() |> get(~p"/api/machine/setup-prompt") |> json_response(401)
+
+      ctx.conn |> delete(~p"/api/machines/#{machine.id}") |> json_response(200)
+      key |> machine_conn() |> get(~p"/api/machine/setup-prompt") |> json_response(401)
+    end
+
+    test "its owner gets the same prompt; a member is refused and a stranger finds nothing",
+         ctx do
+      {key, machine} = enrolled(ctx)
+
+      assert %{"prompt" => prompt} =
+               ctx.conn |> get(~p"/api/machines/#{machine.id}/setup-prompt") |> json_response(200)
+
+      assert %{"prompt" => ^prompt} =
+               key |> machine_conn() |> get(~p"/api/machine/setup-prompt") |> json_response(200)
+
+      member = user_fixture("setup-member@example.com")
+      {:ok, _} = Slipdock.Access.grant(ctx.board, member, "read", ctx.user)
+
+      assert %{"error" => "only the machine's owner changes it" <> _} =
+               conn_as(member)
+               |> get(~p"/api/machines/#{machine.id}/setup-prompt")
+               |> json_response(403)
+
+      conn_as(user_fixture("setup-stranger@example.com"))
+      |> get(~p"/api/machines/#{machine.id}/setup-prompt")
+      |> json_response(404)
+    end
+  end
 end

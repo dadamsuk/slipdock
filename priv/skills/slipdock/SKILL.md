@@ -542,6 +542,7 @@ slipdock machine probe <id> <runner> [--wait]  # it checks its setup: green, or 
 slipdock machine update <id>                  # its daemon looks for a newer signed release now
 slipdock machine revoke <id>                  # its key stops working at once
 slipdock machine enrol-key <board>... [--label L]  # one-time key for `slipdock-runner init --key`
+slipdock machine setup-prompt <id>            # the *Set up this machine with Claude* prompt, to paste into Claude Code on it
 slipdock jobs <board> [--status open|queued|running|done|failed|cancelled|timeout]
 slipdock jobs --card ID                       # one card's jobs
 slipdock job <id>                             # status, runner, latest step, prompt, the tail of its log

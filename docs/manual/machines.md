@@ -136,6 +136,26 @@ enrols it again (revoke the old one on the Machines page).
 `init` also asks who jobs run as (below): a dedicated account, or you.
 `--user NAME` and `--as-me` answer it on the command line.
 
+### Set up this machine with Claude
+
+At its end `init` asks whether to set the machine up with Claude now. Say
+yes and it starts Claude Code as the account the machine's jobs run as
+(with a dedicated account, `sudo -u <account> -i claude …`, in place of the
+plain shell as the account; otherwise as you), with a prompt from the server that reads each board's **machine-setup
+page**: the handbook's Testing & tooling page, section Local setup, where
+`### A runner machine` says what a machine needs. Claude checks what the
+machine has, installs what's missing (asking before anything that needs
+`sudo`), proves it by cloning the repository and running its suite from
+the clean checkout, then corrects the page where it was wrong and tells
+you what it did. A board whose handbook has no such section gets one
+written.
+
+`slipdock-runner setup` does it later (`--print` shows the prompt alone),
+`init --no-setup` doesn't ask (nor open the shell), and the machine's page has the same prompt
+under **Set up this machine with Claude**, to paste into Claude Code there
+(`slipdock machine setup-prompt <id>`). It needs Claude Code (`claude`) on
+the machine; without it, install it and run `slipdock-runner setup`.
+
 The daemon's directory is `slipdock-runner/machine` under your config
 directory (`~/.config` on Linux, `~/Library/Application Support` on macOS,
 `%AppData%` on Windows), or `$SLIPDOCK_RUNNER_HOME`, or `--home DIR` on any

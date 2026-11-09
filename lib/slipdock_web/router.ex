@@ -438,6 +438,7 @@ defmodule SlipdockWeb.Router do
     # Its runners' typed configs (a long-poll), its ceiling, and what it did
     # with each config (#2571): the machine key again.
     get "/machine/config", MachineController, :config
+    get "/machine/setup-prompt", MachineController, :machine_setup_prompt
     put "/machine/ceiling", MachineController, :ceiling
     post "/machine/runners/:runner_id/report", MachineController, :report
   end
@@ -548,6 +549,7 @@ defmodule SlipdockWeb.Router do
     # Send a runner a probe, and read its latest (#2580).
     post "/machines/:id/runners/:runner_id/probe", MachineController, :probe
     get "/machines/:id/runners/:runner_id/probe", MachineController, :show_probe
+    get "/machines/:id/setup-prompt", MachineController, :setup_prompt
     # The caller's own inbound mail and what came of it (#1242).
     get "/inbound/log", InboundController, :log
     # The caller's own inbound addresses (#1246): personal, and per board.

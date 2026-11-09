@@ -30,6 +30,10 @@ type fake struct {
 	config      string
 	claims      map[string]int
 	claimStatus int
+	// setupPrompt is GET /api/machine/setup-prompt's prompt; noSetup makes
+	// it 404, as a server that predates it does.
+	setupPrompt string
+	noSetup     bool
 }
 
 func (f *fake) start(t *testing.T) *httptest.Server {
@@ -74,6 +78,18 @@ func (f *fake) start(t *testing.T) *httptest.Server {
 			}
 			f.claims[r.Header.Get("X-Runner-Id")]++
 			w.WriteHeader(f.claimStatus)
+		case "/api/machine/setup-prompt":
+			if f.noSetup {
+				w.WriteHeader(404)
+				return
+			}
+			if r.Header.Get("Authorization") != "Bearer sdm_key" || f.revoked {
+				w.WriteHeader(401)
+				w.Write([]byte(`{"error":"unauthorized"}`))
+				return
+			}
+			b, _ := json.Marshal(map[string]string{"prompt": f.setupPrompt})
+			w.Write(b)
 		case "/api/machine":
 			if r.Header.Get("Authorization") != "Bearer sdm_key" || f.revoked {
 				w.WriteHeader(401)
@@ -95,6 +111,8 @@ type world struct {
 	dir, home      string
 	opened         []string
 	ran            []string
+	interactive    [][]string
+	interactiveErr map[string]error
 	runErr         map[string]error
 	paths          map[string]bool
 	outputs        map[string]string
@@ -107,10 +125,11 @@ func newWorld(t *testing.T) *world {
 	w := &world{
 		out: &bytes.Buffer{}, errOut: &bytes.Buffer{},
 		dir: filepath.Join(t.TempDir(), "machine"), home: t.TempDir(),
-		runErr:    map[string]error{},
-		paths:     map[string]bool{"git": true, "gh": true, "claude": true, "systemctl": true},
-		outputs:   map[string]string{"claude": "2.1.0 (Claude Code)\n", "gh": "Logged in\n"},
-		outputErr: map[string]error{},
+		runErr:         map[string]error{},
+		interactiveErr: map[string]error{},
+		paths:          map[string]bool{"git": true, "gh": true, "claude": true, "systemctl": true},
+		outputs:        map[string]string{"claude": "2.1.0 (Claude Code)\n", "gh": "Logged in\n"},
+		outputErr:      map[string]error{},
 	}
 	w.env = Env{
 		Stdin:  strings.NewReader(""),
@@ -132,6 +151,10 @@ func newWorld(t *testing.T) *world {
 			line := name + " " + strings.Join(args, " ")
 			w.ran = append(w.ran, line)
 			return w.runErr[line]
+		},
+		Interactive: func(name string, args ...string) error {
+			w.interactive = append(w.interactive, append([]string{name}, args...))
+			return w.interactiveErr[name+" "+strings.Join(args, " ")]
 		},
 		Output: func(name string, args ...string) (string, error) { return w.outputs[name], w.outputErr[name] },
 		Sleep: func(ctx context.Context, d time.Duration) error {

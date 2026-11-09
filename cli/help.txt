@@ -1080,6 +1080,9 @@ WRITE
   machine revoke <id>                            revoke a machine: its key stops working at once
   machine update <id>                            ask its daemon to look for a newer signed
                                                  release now
+  machine setup-prompt <id>                      the Set up this machine with Claude prompt: it
+                                                 reads the boards' machine-setup pages, installs
+                                                 and proves; `slipdock-runner setup` launches it
   machine add-runner <id> <board> --pool P --dir D
                                                  add a runner to the machine for a board it
                                                  serves: --name, --agent, --permission-mode,
