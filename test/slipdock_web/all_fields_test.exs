@@ -201,6 +201,10 @@ defmodule SlipdockWeb.AllFieldsTest do
     # And a board shared with them: its Shared page is a member's.
     {:ok, _} = Access.grant(theirs, admin, "write", owner)
 
+    # A machine of theirs, for its page (#2572).
+    {:ok, key, _} = Slipdock.Machines.create_enrolment_key(admin, [board.id])
+    {:ok, {_machine_key, machine}} = Slipdock.Machines.enrol_with_key(key, %{"hostname" => "box"})
+
     params = %{
       "id" => board.id,
       "card_id" => card.id,
@@ -221,7 +225,8 @@ defmodule SlipdockWeb.AllFieldsTest do
       "/shared/pages/:id" => "/shared/pages/#{shared.id}",
       "/shared/pages/:id/edit" => "/shared/pages/#{shared.id}/edit",
       "/wiki/*path" => "/wiki/Every field",
-      "/boards/:id/shared" => "/boards/#{theirs.id}/shared"
+      "/boards/:id/shared" => "/boards/#{theirs.id}/shared",
+      "/machines/:id" => "/machines/#{machine.id}"
     }
 
     %{conn: log_in_user(conn, admin), params: params, special: special}
