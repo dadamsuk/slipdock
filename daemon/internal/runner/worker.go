@@ -63,6 +63,11 @@ type Worker struct {
 	Tick            time.Duration // how often a running job is looked at (1 s)
 	// Timeout overrides the config's timeout_minutes (tests).
 	Timeout time.Duration
+	// DriftEvery is how long the user executor keeps the skills' and the
+	// CLI's sums between jobs (driftEvery); Now is the clock (time.Now).
+	DriftEvery time.Duration
+	Now        func() time.Time
+	sums       driftSums
 	// Sleep waits between claims that failed; it returns early when ctx ends.
 	Sleep func(context.Context, time.Duration) error
 }
@@ -113,6 +118,12 @@ func (w *Worker) defaults() {
 	}
 	if w.Sleep == nil {
 		w.Sleep = sleepCtx
+	}
+	if w.DriftEvery == 0 {
+		w.DriftEvery = driftEvery
+	}
+	if w.Now == nil {
+		w.Now = time.Now
 	}
 }
 
@@ -225,7 +236,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	backoff := time.Second
 	w.say("taking jobs from %s (pool %s, board #%d)", w.Client.Server, w.Runner.Pool, w.Runner.BoardID)
 	for ctx.Err() == nil {
-		headers := claimHeaders(w.driftFiles(), w.Runner.Kinds(w.Local), w.Version, w.skillsDir(), w.cliPath())
+		headers := claimHeaders(w.Runner.Kinds(w.Local), w.Version, w.drift())
 		job, info, err := w.Client.Claim(ctx, w.Runner.ID, headers, w.Wait)
 		var refusal *Refused
 		switch {
@@ -247,6 +258,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		default:
 			backoff = time.Second
 			w.runJob(ctx, job)
+			w.sums = driftSums{} // read the skills and the CLI again
 		}
 	}
 	return nil
