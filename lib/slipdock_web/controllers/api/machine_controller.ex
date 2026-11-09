@@ -11,7 +11,8 @@ defmodule SlipdockWeb.API.MachineController do
     runner protocol for its own runners. The machine key is not an API
     token, so every other route refuses it.
   - **The owner** (`index`, `show`, `create_key`, `revoke`, a machine's
-    runners with `add_runner`, `set_runner` and `remove_runner`, and looking up
+    runners with `add_runner`, `set_runner`, `remove_runner`, `pause_runner` and
+    `resume_runner`, `request_update`, and looking up
     and deciding an enrolment by its code, `enrolment`, `approve` and `refuse`, as the
     approval page does): an API token.
     Machines are account-wide, so a token confined to some boards is
@@ -42,7 +43,10 @@ defmodule SlipdockWeb.API.MachineController do
               :refuse,
               :add_runner,
               :set_runner,
-              :remove_runner
+              :remove_runner,
+              :pause_runner,
+              :resume_runner,
+              :request_update
             ]
 
   ## A daemon enrolling ----------------------------------------------------------
@@ -233,18 +237,72 @@ defmodule SlipdockWeb.API.MachineController do
 
   ## The owner -------------------------------------------------------------------
 
-  @doc "GET /api/machines — your machines."
+  @doc """
+  GET /api/machines — your machines, and (`shared`) the machines serving a
+  board you're a member of, which you see but don't change (#2572).
+  """
   def index(conn, _params) do
+    user = conn.assigns.current_user
+
     json(conn, %{
-      machines:
-        conn.assigns.current_user |> Machines.list_machines() |> Enum.map(&MachineJSON.machine/1)
+      machines: user |> Machines.list_machines() |> Enum.map(&MachineJSON.machine/1),
+      shared: user |> Machines.list_shared_machines() |> Enum.map(&MachineJSON.machine/1)
     })
   end
 
-  @doc "GET /api/machines/:id — with its ceiling, runners and log of config changes."
+  @doc """
+  GET /api/machines/:id — with its ceiling, runners and log of config
+  changes; yours, or one serving a board you're a member of (`yours` says
+  which).
+  """
   def show(conn, %{"id" => id}) do
+    case Machines.get_visible_machine(conn.assigns.current_user, id) do
+      {:ok, machine, :owner} ->
+        json(conn, %{machine: Map.put(MachineJSON.machine_detail(machine), :yours, true)})
+
+      {:ok, machine, :member} ->
+        boards =
+          conn.assigns.current_user
+          |> Slipdock.Access.list_boards(archived: :all)
+          |> Enum.map(& &1.id)
+
+        detail = MachineJSON.machine_detail(machine, boards: boards)
+        json(conn, %{machine: Map.put(detail, :yours, false)})
+
+      {:error, :not_found, _} ->
+        not_found(conn)
+    end
+  end
+
+  @doc """
+  POST /api/machines/:id/runners/:runner_id/pause (or …/resume) — a paused
+  runner is handed no job until it is resumed (#2572).
+  """
+  def pause_runner(conn, params), do: pause_or_resume(conn, params, :pause_runner)
+
+  @doc false
+  def resume_runner(conn, params), do: pause_or_resume(conn, params, :resume_runner)
+
+  defp pause_or_resume(conn, %{"id" => id, "runner_id" => runner_id}, action) do
+    with {:ok, machine} <- fetch(conn, id),
+         {:ok, runner} <- fetch_runner(conn, machine, runner_id) do
+      case apply(MachineRunners, action, [runner]) do
+        {:ok, runner} -> json(conn, %{runner: MachineJSON.runner(runner)})
+        {:error, :invalid, message} -> unprocessable(conn, message)
+      end
+    end
+  end
+
+  @doc """
+  POST /api/machines/:id/update — *update now*: the daemon looks for a newer
+  signed release at once (#2572).
+  """
+  def request_update(conn, %{"id" => id}) do
     with {:ok, machine} <- fetch(conn, id) do
-      json(conn, %{machine: MachineJSON.machine_detail(machine)})
+      case MachineRunners.request_update(machine) do
+        {:ok, machine} -> json(conn, %{machine: MachineJSON.machine(machine)})
+        {:error, :invalid, message} -> unprocessable(conn, message)
+      end
     end
   end
 
@@ -408,14 +466,20 @@ defmodule SlipdockWeb.API.MachineController do
     })
   end
 
+  # A machine to change: its owner's alone. A member of a board it serves
+  # sees it (`show`) but is told only the owner changes it.
   defp fetch(conn, id) do
-    case SlipdockWeb.Params.id(id) do
-      nil ->
-        not_found(conn)
+    case Machines.get_visible_machine(conn.assigns.current_user, id) do
+      {:ok, machine, :owner} ->
+        {:ok, machine}
 
-      id ->
-        with {:error, :not_found, _} <- Machines.get_machine(conn.assigns.current_user, id),
-             do: not_found(conn)
+      {:ok, _machine, :member} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "only the machine's owner changes it; you can see it as a board member"})
+
+      {:error, :not_found, _} ->
+        not_found(conn)
     end
   end
 

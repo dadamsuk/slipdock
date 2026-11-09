@@ -4,6 +4,10 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
   daemon for this account, each revocable, and the one-time enrolment keys
   for a machine with nobody at its screen (`slipdock-runner init --key`).
   A key is shown once.
+
+  Each machine opens its own page (`SlipdockWeb.MachinesLive.Show`, #2572),
+  where its runners are managed. The machines of other people that serve a
+  board you're on are listed too, to see, not to change.
   """
   use SlipdockWeb, :live_component
 
@@ -26,6 +30,7 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
 
     assign(socket,
       machines: Machines.list_machines(user),
+      shared: Machines.list_shared_machines(user),
       keys: Machines.list_enrolment_keys(user),
       boards: boards,
       board_names: Map.new(Access.list_boards(user, archived: :all), &{&1.id, &1.name})
@@ -95,7 +100,13 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
             <.icon name="hero-computer-desktop" class="size-4 text-base-content/40" />
             <span class="flex min-w-0 flex-1 flex-col">
               <span class="flex items-center gap-2">
-                <span class="truncate font-medium">{m.name}</span>
+                <.link navigate={~p"/machines/#{m.id}"} class="link truncate font-medium">
+                  {m.name}
+                </.link>
+                <span
+                  :if={Machines.online?(m)}
+                  class="rounded bg-success/15 px-1.5 py-0.5 text-2xs font-medium text-success"
+                >online</span>
                 <span class="text-xs text-base-content/50">{m.os} {m.arch}</span>
                 <span
                   :if={Machine.revoked?(m)}
@@ -132,6 +143,34 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
         >
           Run <code>slipdock-runner init</code> on a computer, or make an enrolment key below.
         </.empty_state>
+      </section>
+
+      <section
+        :if={@shared != []}
+        id="shared-machines"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h3 class="font-medium">Serving your boards</h3>
+        <p class="mt-1 text-sm text-base-content/60">
+          Other people's machines that take work from boards you're on. You can see them;
+          only their owners change them.
+        </p>
+        <ul class="mt-3 divide-y divide-base-content/10">
+          <li
+            :for={m <- @shared}
+            id={"shared-machine-#{m.id}"}
+            class="flex items-center gap-3 py-2 text-sm"
+          >
+            <.icon name="hero-computer-desktop" class="size-4 text-base-content/40" />
+            <.link navigate={~p"/machines/#{m.id}"} class="link font-medium">{m.name}</.link>
+            <span class="text-xs text-base-content/60">
+              {Slipdock.Accounts.User.display_name(m.user)}'s · serves {board_list(
+                m.board_ids,
+                @board_names
+              )}
+            </span>
+          </li>
+        </ul>
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">

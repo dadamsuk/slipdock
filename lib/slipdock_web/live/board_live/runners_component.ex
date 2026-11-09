@@ -98,7 +98,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     do: {:noreply, flash(socket, :error, "Only the board's owner can do that.")}
 
   def handle_event("open_wizard", params, socket) do
-    scenario = params["scenario"] || "server"
+    # The daemon is offered first (#2572).
+    scenario = params["scenario"] || "daemon"
 
     answers =
       Map.merge(Setup.defaults(), %{"scenario" => scenario, "cwd" => Setup.default_cwd(scenario)})
@@ -1001,7 +1002,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         </label>
         <label
           :if={
-            @p["scenario"] != "chatgpt" and (@p["scenario"] != "cloud" or @p["where"] == "desktop")
+            not Enum.member?(["chatgpt", "daemon"], @p["scenario"]) and
+              (@p["scenario"] != "cloud" or @p["where"] == "desktop")
           }
           class="space-y-1"
         >
@@ -1015,7 +1017,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         </label>
         <label
           :if={
-            @p["scenario"] != "chatgpt" and
+            not Enum.member?(["chatgpt", "daemon"], @p["scenario"]) and
               (@p["agent"] == "claude" or not Setup.needs_token?(@p["scenario"]))
           }
           class="space-y-1"
@@ -1147,7 +1149,18 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             class="input field w-full field-mono"
           />
         </label>
-        <fieldset class="col-span-2 space-y-2 rounded-lg p-3 ring-1 ring-base-content/10">
+        <p
+          :if={@p["scenario"] == "daemon"}
+          id="wizard-daemon-note"
+          class="col-span-2 text-xs text-base-content/70"
+        >
+          The runner's agent, directory, permission mode, timeout and instructions are set on the
+          machine's page once it is enrolled, inside the machine's own limits.
+        </p>
+        <fieldset
+          :if={@p["scenario"] != "daemon"}
+          class="col-span-2 space-y-2 rounded-lg p-3 ring-1 ring-base-content/10"
+        >
           <legend class="px-1 text-xs font-medium text-base-content/70">
             Instructions for every job
           </legend>
@@ -1209,6 +1222,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         </fieldset>
 
         <details
+          :if={@p["scenario"] != "daemon"}
           id="wizard-advanced"
           class="col-span-2 rounded-lg ring-1 ring-base-content/10"
           phx-mounted={JS.ignore_attributes("open")}

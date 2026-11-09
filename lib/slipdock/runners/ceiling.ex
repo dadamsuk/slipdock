@@ -113,27 +113,44 @@ defmodule Slipdock.Runners.Ceiling do
   that hasn't reported a ceiling (nil) has nothing to compare with: `:ok`,
   and the daemon decides.
   """
-  def check(_config, nil, _board_id), do: :ok
-
   def check(config, ceiling, board_id) do
-    reasons =
-      [
-        not under_root?(config["directory"], ceiling["roots"]) &&
-          "directory #{config["directory"]} is not under #{Enum.join(ceiling["roots"], ", ")}",
-        not Enum.member?(ceiling["agents"], config["agent"]) &&
-          "agent #{config["agent"]} is not one of #{Enum.join(ceiling["agents"], ", ")}",
-        rank(config["permission_mode"]) > rank(ceiling["max_permission_mode"]) &&
-          "permission mode #{config["permission_mode"]} is above #{ceiling["max_permission_mode"]}",
-        config["timeout_minutes"] > ceiling["max_timeout_minutes"] &&
-          "timeout #{config["timeout_minutes"]} minutes is over #{ceiling["max_timeout_minutes"]}",
-        not Enum.member?(ceiling["executors"], config["executor"]) &&
-          "executor #{config["executor"]} is not one this machine offers",
-        not Enum.member?(ceiling["boards"], board_id) &&
-          "board #{board_id} is not one this machine serves"
-      ]
-      |> Enum.filter(&is_binary/1)
+    case outside(config, ceiling, board_id) do
+      [] -> :ok
+      fields -> {:error, Enum.map(fields, &elem(&1, 1))}
+    end
+  end
 
-    if reasons == [], do: :ok, else: {:error, reasons}
+  @doc """
+  The fields of `config` outside `ceiling`, each with the line saying so and
+  the limit: `[{"timeout_minutes", "timeout 240 minutes is over 60"}, …]`,
+  in the config's order, so a form can mark each field (#2572). Empty when
+  it fits, or when there is no ceiling to compare with.
+  """
+  def outside(_config, nil, _board_id), do: []
+
+  def outside(config, ceiling, board_id) do
+    [
+      {"directory",
+       not under_root?(config["directory"], ceiling["roots"]) &&
+         "directory #{config["directory"]} is not under #{Enum.join(ceiling["roots"], ", ")}"},
+      {"agent",
+       not Enum.member?(ceiling["agents"], config["agent"]) &&
+         "agent #{config["agent"]} is not one of #{Enum.join(ceiling["agents"], ", ")}"},
+      {"permission_mode",
+       rank(config["permission_mode"]) > rank(ceiling["max_permission_mode"]) &&
+         "permission mode #{config["permission_mode"]} is above #{ceiling["max_permission_mode"]}"},
+      {"timeout_minutes",
+       (is_integer(config["timeout_minutes"]) and
+          config["timeout_minutes"] > ceiling["max_timeout_minutes"]) &&
+         "timeout #{config["timeout_minutes"]} minutes is over #{ceiling["max_timeout_minutes"]}"},
+      {"executor",
+       not Enum.member?(ceiling["executors"], config["executor"]) &&
+         "executor #{config["executor"]} is not one this machine offers"},
+      {"board",
+       not Enum.member?(ceiling["boards"], board_id) &&
+         "board #{board_id} is not one this machine serves"}
+    ]
+    |> Enum.filter(fn {_field, line} -> is_binary(line) end)
   end
 
   defp rank(mode), do: Enum.find_index(Config.permission_modes(), &(&1 == mode)) || 99

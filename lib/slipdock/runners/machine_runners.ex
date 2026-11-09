@@ -63,6 +63,22 @@ defmodule Slipdock.Runners.MachineRunners do
   end
 
   @doc """
+  The job each of `runners` holds now (claimed or running, card preloaded),
+  by runner id: what the Machines page shows as its current job.
+  """
+  def running_jobs(runners) do
+    ids = Enum.map(runners, & &1.id)
+
+    from(j in Slipdock.Runners.Job,
+      where: j.runner_id in ^ids and j.status in ["claimed", "running"],
+      order_by: [asc: j.id],
+      preload: :card
+    )
+    |> Repo.all()
+    |> Map.new(&{&1.runner_id, &1})
+  end
+
+  @doc """
   Adds a runner to `machine` for `board`'s tree. `attrs`: `pool` (required),
   `name` (defaults to the machine's name and the pool) and `config` (see
   `Slipdock.Runners.Config`; `directory` is required). The board must be
@@ -157,6 +173,63 @@ defmodule Slipdock.Runners.MachineRunners do
     |> after_change(machine)
   end
 
+  @doc """
+  Pauses a machine runner (#2572): the server hands it no job until it is
+  resumed, and its config tells the daemon so. The job it holds finishes.
+  Pausing one already paused leaves it as it was.
+  """
+  def pause_runner(%Runner{machine_id: machine_id, paused_at: nil} = runner)
+      when is_integer(machine_id),
+      do: set_paused(runner, DateTime.utc_now(:second))
+
+  def pause_runner(%Runner{machine_id: machine_id} = runner) when is_integer(machine_id),
+    do: {:ok, runner}
+
+  def pause_runner(%Runner{}), do: not_a_machine_runner()
+
+  @doc "Resumes a paused machine runner: it takes jobs again."
+  def resume_runner(%Runner{machine_id: machine_id, paused_at: %DateTime{}} = runner)
+      when is_integer(machine_id),
+      do: set_paused(runner, nil)
+
+  def resume_runner(%Runner{machine_id: machine_id} = runner) when is_integer(machine_id),
+    do: {:ok, runner}
+
+  def resume_runner(%Runner{}), do: not_a_machine_runner()
+
+  defp not_a_machine_runner,
+    do: {:error, :invalid, "not a machine's runner: its settings live in its own config"}
+
+  defp set_paused(runner, at) do
+    machine = Repo.get!(Machine, runner.machine_id)
+
+    with :ok <- live(machine) do
+      runner
+      |> Ecto.Changeset.change(paused_at: at)
+      |> save(machine, &Repo.update/1)
+    end
+  end
+
+  @doc """
+  *Update now* (#2572): asks the machine's daemon to look for a newer
+  signed release at once rather than at its next check. The request goes
+  out in its config (`update_requested_at`); the daemon decides, and
+  verifies what it fetches (W-2542).
+  """
+  def request_update(%Machine{} = machine) do
+    with :ok <- live(machine) do
+      now = DateTime.utc_now(:second)
+
+      Repo.update_all(from(m in Machine, where: m.id == ^machine.id),
+        inc: [config_version: 1],
+        set: [update_requested_at: now, updated_at: now]
+      )
+
+      broadcast(machine, :config_changed)
+      {:ok, Repo.get!(Machine, machine.id)}
+    end
+  end
+
   defp live(%Machine{revoked_at: nil}), do: :ok
   defp live(%Machine{}), do: {:error, :invalid, "the machine is revoked"}
 
@@ -206,14 +279,16 @@ defmodule Slipdock.Runners.MachineRunners do
   end
 
   @doc """
-  What the daemon runs: the machine's config version and each runner's
-  id, name, board, pool, config and config version.
+  What the daemon runs: the machine's config version, when *update now*
+  was last asked for, and each runner's id, name, board, pool, config,
+  config version and whether it is paused.
   """
   def config_for(%Machine{id: id}) do
     machine = Repo.get!(Machine, id)
 
     %{
       version: machine.config_version,
+      update_requested_at: machine.update_requested_at,
       runners:
         Enum.map(list_runners(machine), fn r ->
           %{
@@ -222,7 +297,8 @@ defmodule Slipdock.Runners.MachineRunners do
             board_id: r.board_id,
             pool: r.pool,
             config: r.config,
-            config_version: r.config_version
+            config_version: r.config_version,
+            paused: not is_nil(r.paused_at)
           }
         end)
     }

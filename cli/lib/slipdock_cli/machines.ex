@@ -5,6 +5,9 @@ defmodule SlipdockCLI.Machines do
   # shown and revoked; a machine's enrolment looked up, approved or refused
   # by the code `slipdock-runner init` shows (as the approval page does);
   # and the one-time enrolment keys for a machine with nobody at its screen.
+  # A machine's runners (#2572): added, changed, paused, resumed and removed,
+  # each a typed config the machine checks against its own ceiling; and
+  # `update`, asking its daemon to look for a newer release now.
 
   import SlipdockCLI.Util
 
@@ -13,9 +16,16 @@ defmodule SlipdockCLI.Machines do
 
   @commands ~w(machines machine)
 
-  @usage "usage: slipdock machines | machine show|revoke <id> | " <>
+  @usage "usage: slipdock machines | machine show|revoke|update <id> | " <>
            "machine enrolment <code> | machine approve <code> <board>... | " <>
-           "machine refuse <code> | machine enrol-key <board>... [--label L]"
+           "machine refuse <code> | machine enrol-key <board>... [--label L] | " <>
+           "machine add-runner <id> <board> --pool P --dir D [config] | " <>
+           "machine set-runner <id> <runner> [config] | " <>
+           "machine pause-runner|resume-runner|rm-runner <id> <runner>"
+
+  # The config switches, as the server's field names.
+  @config ~w(agent dir permission_mode timeout_minutes model executor verbosity instructions
+             before_hook after_hook probe_hook)a
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -27,6 +37,7 @@ defmodule SlipdockCLI.Machines do
       {:ok, :get, path, render} -> HTTP.get(path) |> out(o, render)
       {:ok, :delete, path, render} -> HTTP.delete(path) |> out(o, render)
       {:ok, :post, path, body, render} -> HTTP.post(path, body) |> out(o, render)
+      {:ok, :patch, path, body, render} -> HTTP.patch(path, body) |> out(o, render)
       {:error, usage} -> fail(usage)
     end
   end
@@ -36,7 +47,7 @@ defmodule SlipdockCLI.Machines do
   @doc false
   # What each `machine …` sends, and how its answer is shown; anything else
   # is the usage (a refusal halts, so the tests take it as this value).
-  def plan(["ls"], _o), do: {:ok, :get, "/machines", &listing(&1["machines"])}
+  def plan(["ls"], _o), do: {:ok, :get, "/machines", &listing/1}
 
   def plan(["show", id], _o), do: {:ok, :get, "/machines/#{enc(id)}", &show(&1["machine"])}
 
@@ -67,13 +78,106 @@ defmodule SlipdockCLI.Machines do
      &key/1}
   end
 
+  def plan(["update", id], _o) do
+    {:ok, :post, "/machines/#{enc(id)}/update", %{},
+     fn %{"machine" => m} ->
+       IO.puts("asked #{m["name"]} to update now: it looks for a newer signed release at once")
+     end}
+  end
+
+  def plan(["add-runner", id, board], o) do
+    if o[:pool] && o[:dir] do
+      body =
+        compact(%{
+          "board" => board,
+          "pool" => o[:pool],
+          "name" => o[:name],
+          "config" => config(o)
+        })
+
+      {:ok, :post, "/machines/#{enc(id)}/runners", body,
+       fn %{"runner" => r} ->
+         IO.puts(
+           "added runner ##{r["id"]} #{r["name"]} (v#{r["config_version"]}): " <>
+             "the machine has it within seconds"
+         )
+       end}
+    else
+      {:error, @usage}
+    end
+  end
+
+  def plan(["set-runner", id, runner], o) do
+    body = compact(%{"pool" => o[:pool], "name" => o[:name], "config" => config(o)})
+
+    {:ok, :patch, "/machines/#{enc(id)}/runners/#{enc(runner)}", body,
+     fn %{"runner" => r} ->
+       IO.puts("runner ##{r["id"]} #{r["name"]} is now v#{r["config_version"]}")
+     end}
+  end
+
+  def plan([verb, id, runner], _o) when verb in ["pause-runner", "resume-runner"] do
+    action = String.trim_trailing(verb, "-runner")
+
+    {:ok, :post, "/machines/#{enc(id)}/runners/#{enc(runner)}/#{action}", %{},
+     fn %{"runner" => r} ->
+       IO.puts(
+         if r["paused"],
+           do: "paused #{r["name"]}: it takes no job until resumed",
+           else: "#{r["name"]} takes jobs again"
+       )
+     end}
+  end
+
+  def plan(["rm-runner", id, runner], _o) do
+    {:ok, :delete, "/machines/#{enc(id)}/runners/#{enc(runner)}",
+     fn %{"removed" => r} ->
+       IO.puts("removed #{r["name"]}: the machine finishes the job it holds, then stops it")
+     end}
+  end
+
   def plan(_args, _o), do: {:error, @usage}
 
+  # The config fields given as switches; none given is an empty map, which
+  # changes nothing.
+  defp config(o) do
+    @config
+    |> Enum.flat_map(fn key ->
+      case o[key] do
+        nil -> []
+        value -> [{if(key == :dir, do: "directory", else: Atom.to_string(key)), value}]
+      end
+    end)
+    |> Map.new()
+    |> worktree(o[:worktree])
+  end
+
+  defp worktree(config, nil), do: config
+  defp worktree(config, true), do: Map.put(config, "worktree", "on")
+  defp worktree(config, false), do: Map.put(config, "worktree", "off")
+
   @doc false
-  def listing([]),
+  # Yours, then the machines serving a board you're on, which you only see.
+  def listing(%{"machines" => mine} = body) do
+    table(mine)
+
+    case body["shared"] || [] do
+      [] ->
+        :ok
+
+      shared ->
+        IO.puts(
+          "\n" <> Render.bold("Serving your boards (you see them; their owners change them)")
+        )
+
+        table(shared)
+    end
+  end
+
+  defp table([]),
     do: IO.puts(Render.dim("no machines: run `slipdock-runner init` on one to enrol it"))
 
-  def listing(machines) do
+  defp table(machines) do
     Render.table(
       ["ID", "NAME", "SYSTEM", "STATE", "BOARDS", "LAST SEEN"],
       Enum.map(machines, fn m ->
@@ -100,8 +204,82 @@ defmodule SlipdockCLI.Machines do
       {"Boards", Enum.join(m["boards"] || [], ", ")},
       {"Enrolled", "#{m["enrolled_at"]} (by #{m["enrolled_via"]})"},
       {"Last seen", m["last_seen_at"] || "never"},
-      {"Revoked", m["revoked_at"]}
+      {"Revoked", m["revoked_at"]},
+      {"Update asked", m["update_requested_at"]}
     ])
+
+    ceiling(m["ceiling"])
+    runners(m["runners"] || [])
+    changes(m["changes"] || [])
+  end
+
+  defp ceiling(nil), do: :ok
+
+  defp ceiling(c) do
+    IO.puts(
+      "\n" <> Render.bold("Ceiling") <> Render.dim("  (set on the machine; read-only here)")
+    )
+
+    fields([
+      {"Roots", Enum.join(c["roots"] || [], ", ")},
+      {"Agents", Enum.join(c["agents"] || [], ", ")},
+      {"Max mode", c["max_permission_mode"]},
+      {"Max timeout", "#{c["max_timeout_minutes"]} minutes"},
+      {"Executors", Enum.join(c["executors"] || [], ", ")}
+    ])
+  end
+
+  defp runners([]), do: :ok
+
+  defp runners(list) do
+    IO.puts("\n" <> Render.bold("Runners"))
+
+    Render.table(
+      ["ID", "NAME", "POOL", "AGENT", "DIRECTORY", "MODE", "RUNS AS", "STATE"],
+      Enum.map(list, fn r ->
+        c = r["config"] || %{}
+
+        [
+          "##{r["id"]}",
+          r["name"],
+          r["pool"],
+          c["agent"],
+          c["directory"],
+          c["permission_mode"],
+          c["executor"],
+          state(r)
+        ]
+        |> Enum.map(&to_string(&1 || ""))
+      end)
+    )
+
+    for r <- list, r["rejection"] do
+      IO.puts(Render.red("#{r["name"]}: v#{r["rejected_version"]} refused: #{r["rejection"]}"))
+
+      for line <- r["outside_ceiling"] || [],
+          do: IO.puts(Render.dim("  outside the ceiling: #{line}"))
+    end
+  end
+
+  defp state(r) do
+    cond do
+      r["paused"] -> "paused"
+      r["rejected_version"] -> "rejected v#{r["rejected_version"]}"
+      r["current_job_id"] -> "job ##{r["current_job_id"]}"
+      r["accepted_version"] == r["config_version"] -> "ready v#{r["config_version"]}"
+      true -> "v#{r["config_version"]} not yet taken"
+    end
+  end
+
+  defp changes([]), do: :ok
+
+  defp changes(list) do
+    IO.puts("\n" <> Render.bold("Changes"))
+
+    for c <- Enum.take(list, 10) do
+      reason = if c["reason"], do: ": #{c["reason"]}", else: ""
+      IO.puts("  #{c["at"]}  #{c["runner"]} v#{c["version"]} #{c["outcome"]}#{reason}")
+    end
   end
 
   @doc false

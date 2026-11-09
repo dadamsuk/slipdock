@@ -33,6 +33,9 @@ defmodule Slipdock.Machines.Machine do
     # Goes up whenever any of its runners changes: what the daemon's
     # config long-poll waits on (`Slipdock.Runners.MachineRunners`).
     field :config_version, :integer, default: 0
+    # *Update now* from the Machines page (#2572): the daemon reads it in
+    # its config and checks for a newer release at once.
+    field :update_requested_at, :utc_datetime
 
     belongs_to :user, Slipdock.Accounts.User
     has_many :runners, Slipdock.Runners.Runner

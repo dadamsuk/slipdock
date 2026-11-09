@@ -1230,6 +1230,14 @@ defmodule SlipdockWeb.HelpLive.Agents do
             </tr>
           </thead>
           <tbody>
+            <tr id="help-scenario-daemon">
+              <td>A machine with the daemon</td>
+              <td>
+                <code>slipdock-runner init</code>
+                with a one-time enrolment key made for the board, then its runners set on the machine's page
+              </td>
+              <td>Nothing</td>
+            </tr>
             <tr>
               <td>Linux or macOS</td>
               <td>
@@ -1269,6 +1277,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
         choosing the boards it may serve. It gets a machine key of its own, which is not an API
         token, and revoking the machine there stops the key at once. For a machine with nobody
         at its screen, make a one-time enrolment key on the same page.
+      </p>
+      <p id="help-machine-page">
+        Each machine has a page of its own, opened from that list: whether it is online, the
+        ceiling and executors it reported, its runners and what each is working on, and the
+        log of settings it accepted or refused. There you add, change, pause and remove its
+        runners, ask it to update now, and revoke it. A setting outside the machine's ceiling
+        is marked with the limit; if you save it anyway the machine refuses it, and the page
+        shows the refusal with its reason and the limit. People who share a board with the
+        machine see its page but can't change it.
       </p>
     </.part>
 

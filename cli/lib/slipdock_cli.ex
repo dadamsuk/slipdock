@@ -336,6 +336,13 @@ defmodule SlipdockCLI do
     instructions: :string,
     before_job: :string,
     after_job: :string,
+    # A machine runner's typed config (#2572, `machine add-runner|set-runner`).
+    timeout_minutes: :integer,
+    model: :string,
+    executor: :string,
+    before_hook: :string,
+    after_hook: :string,
+    probe_hook: :string,
     hooks: :string,
     in_progress: :boolean,
     assign: :boolean,
