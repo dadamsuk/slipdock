@@ -112,6 +112,32 @@ defmodule Slipdock.NotifyTest do
       assert_email_sent(fn email -> assert email.to == [{"", ctx.owner.email}] end)
     end
 
+    test "with their Email me off, toasts them and sends no email (#2606)", ctx do
+      {:ok, priya} =
+        Slipdock.Accounts.update_waiting_notice(ctx.priya, %{waiting_emails: false})
+
+      {:ok, _} =
+        Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "Tier?", "on_user_id" => priya.id})
+
+      priya_id = priya.id
+      owner_id = ctx.owner.id
+      assert [{^priya_id, %{kind: "wait", by_id: ^owner_id}}] = toasts()
+      assert_no_email_sent()
+    end
+
+    test "with their Email me off, their agent's question under their token still toasts (#2606)",
+         ctx do
+      {:ok, owner} =
+        Slipdock.Accounts.update_waiting_notice(ctx.owner, %{waiting_emails: false})
+
+      {:ok, _} =
+        Boards.open_wait(ctx.card, ctx.agent, %{"needs" => "Note", "on_user_id" => owner.id})
+
+      owner_id = owner.id
+      assert [{^owner_id, %{kind: "wait", by_id: nil}}] = toasts()
+      assert_no_email_sent()
+    end
+
     test "tells nobody who can't read the card", ctx do
       wait = %Boards.Wait{
         on_user: ctx.stranger,

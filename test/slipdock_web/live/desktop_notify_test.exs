@@ -36,6 +36,57 @@ defmodule SlipdockWeb.DesktopNotifyTest do
     assert_push_event(view, "desktop-notify", %{kind: "mention", path: ^path, id: "notify-" <> _})
   end
 
+  describe "a wait on the reader (#2606)" do
+    test "one their agent asks under their own token reaches their page", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+
+      agent = %{
+        Slipdock.Actor.unknown()
+        | kind: "agent",
+          via: "mcp",
+          user_id: ctx.user.id,
+          agent: "builder"
+      }
+
+      {:ok, _} =
+        Boards.open_wait(ctx.card, agent, %{"needs" => "Which tier?", "on_user_id" => ctx.user.id})
+
+      path = "/boards/#{ctx.board.id}/cards/#{ctx.card.id}"
+      assert_push_event(view, "desktop-notify", %{kind: "wait", by_id: nil, path: ^path})
+    end
+
+    test "one they open on themselves in person doesn't", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+
+      {:ok, _} =
+        Boards.open_wait(ctx.card, Slipdock.Actor.web(ctx.user), %{
+          "needs" => "Note to self",
+          "on_user_id" => ctx.user.id
+        })
+
+      refute_push_event(view, "desktop-notify", _, 100)
+    end
+
+    test "with their Email me off, it still reaches their page", ctx do
+      {:ok, user} =
+        Slipdock.Accounts.update_waiting_notice(ctx.user, %{waiting_emails: false})
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      other = user_fixture("asker-#{System.unique_integer([:positive])}@example.com")
+      {:ok, _} = Access.grant(ctx.board, other, "write", user)
+
+      {:ok, _} =
+        Boards.open_wait(ctx.card, Slipdock.Actor.web(other), %{
+          "needs" => "Ship it?",
+          "on_user_id" => user.id
+        })
+
+      by = other.id
+      assert_push_event(view, "desktop-notify", %{kind: "wait", by_id: ^by})
+      Swoosh.TestAssertions.assert_no_email_sent()
+    end
+  end
+
   test "pages outside a board carry the hook too", %{conn: conn, user: user} do
     {:ok, view, _} = live(conn, ~p"/work")
     assert has_element?(view, "#desktop-notify[data-user-id='#{user.id}']")
