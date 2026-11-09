@@ -510,6 +510,7 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 		w.finish(ctx, job, j, 127, "failed", "", "")
 		return
 	}
+	w.keepSkills(ctx, j)
 	wt := w.Runner.Config.Worktree
 	if wt == "on" || (wt == "auto" && w.SharedDir) {
 		if j.lane, err = openLane(ctx, w.Exec, w.Executor.IsDir, j.dir, job.CardID, j.note); err != nil {

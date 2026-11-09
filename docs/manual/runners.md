@@ -277,9 +277,18 @@ and the API's runner has `drift` (`skills`, `drifted_skills`, `cli`). A
 runner that drifts raises one alert on its board, which clears itself once
 the runner reports everything current. A skill the server doesn't package,
 or one not installed, isn't drift. The server never changes anything on the
-machine itself: run the install one-liner (`/install.sh`, `/install.ps1` on
-Windows) on the machine again, so its skills are never a hand-edited second
-copy.
+machine itself, but the machine's daemon keeps its skills current: before
+each agent job (not a merge or a probe) it fetches the server's
+`/api/skills.tar.gz` and puts each `slipdock*` skill folder in place of the
+installed one. It refuses an archive with anything outside a `slipdock*`
+folder, a `..` in a path, or a link, and installs nothing from it; leaves a
+skill folder that is a symlink (a checkout of your own) alone; and keeps
+the installed skills when the fetch fails, and runs the job anyway, saying
+so in the job's log. `no_skills_update: true` in the machine's local file
+turns it off. Under the `user` executor the skills are the job account's,
+which the daemon doesn't write. There, and for the `slipdock` CLI, run the
+install one-liner (`/install.sh`, `/install.ps1` on Windows) on the machine
+again, so its skills are never a hand-edited second copy.
 
 **Runners** belong to a board tree and a pool. The board owner makes them.
 A machine's runners authenticate with its machine key, and claim only for

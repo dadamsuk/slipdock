@@ -86,6 +86,18 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert read("docs/manual.md") =~ "**Advanced**"
   end
 
+  test "the daemon keeping the skills current is described in the manual (#2614)" do
+    manual = read("docs/manual.md")
+    assert manual =~ "`no_skills_update: true`"
+    assert manual =~ "fetches the server's\n`/api/skills.tar.gz`"
+    assert manual =~ "skill folder that is a symlink"
+
+    assert read("CLAUDE.md") =~
+             "The runner daemon also puts the server's there before each agent job (#2614)"
+
+    refute read("CLAUDE.md") =~ "installs nothing yet"
+  end
+
   test "the built-in merge kind is described in the docs (#1656)" do
     manual = read("docs/manual.md")
     assert manual =~ "**Runners merge.**"

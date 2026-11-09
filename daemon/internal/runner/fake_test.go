@@ -138,6 +138,12 @@ type server struct {
 	transcript  map[int64][]string
 	txCap       int
 	config      string
+	// skills is what /api/skills.tar.gz answers (404 when nil);
+	// skillsKey, the Authorization its last fetch sent.
+	skills     []byte
+	skillsCode int
+	skillsGets int
+	skillsKey  string
 }
 
 func newServer(t *testing.T) *server {
@@ -157,6 +163,21 @@ func (s *server) add(j fakeJob) {
 
 func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
+	if r.URL.Path == "/api/skills.tar.gz" {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.skillsGets++
+		s.skillsKey = r.Header.Get("Authorization")
+		switch {
+		case s.skillsCode != 0:
+			w.WriteHeader(s.skillsCode)
+		case s.skills == nil:
+			w.WriteHeader(404)
+		default:
+			_, _ = w.Write(s.skills)
+		}
+		return
+	}
 	if r.Header.Get("Authorization") != "Bearer sdm_test_key" {
 		w.WriteHeader(401)
 		fmt.Fprintln(w, "unauthorized: the machine key is unknown or the machine is revoked")

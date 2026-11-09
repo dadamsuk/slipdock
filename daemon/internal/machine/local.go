@@ -53,6 +53,10 @@ type Local struct {
 	CLI       string `json:"cli,omitempty"`
 	// NoMerge turns off the built-in merge kind.
 	NoMerge bool `json:"no_merge,omitempty"`
+	// NoSkillsUpdate keeps the skills in SkillsDir as they are: by
+	// default each slipdock skill there is replaced with the server's
+	// before every agent job (#2614).
+	NoSkillsUpdate bool `json:"no_skills_update,omitempty"`
 	// User is the dedicated account jobs run as under the user executor
 	// (W-2543): init writes it when it sets the account up.
 	User *Account `json:"user,omitempty"`

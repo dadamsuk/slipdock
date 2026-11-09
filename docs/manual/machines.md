@@ -348,6 +348,9 @@ optional, and with no file at all `claude` and `codex` are found on your
 - `transcripts`, `skills_dir` and `cli` say where Claude Code's
   transcripts, the slipdock skills and the `slipdock` CLI are, when they
   aren't in the usual places. `no_merge: true` turns off the built-in merge.
+  `no_skills_update: true` stops the daemon putting the server's slipdock
+  skills in `skills_dir` before each agent job (see
+  [Runners](runners.md), *Skill and CLI drift*).
 
 A job whose agent or hook the file doesn't define fails before anything
 runs, and its log on the card says which name was missing. A file with a
