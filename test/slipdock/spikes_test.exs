@@ -164,6 +164,30 @@ defmodule Slipdock.SpikesTest do
       assert waits(ctx.epic) == []
     end
 
+    test "on a later save of a spike already accepted, once the resume wait is answered",
+         ctx do
+      s = ctx.column |> spike("Only") |> submit(ctx) |> accept(ctx)
+      assert [_] = waits(ctx.epic)
+
+      {:ok, _} =
+        Boards.answer_wait(fresh(ctx.epic), Actor.web(ctx.owner), %{"answer" => "Resuming"})
+
+      assert [%Wait{closed_at: %DateTime{}}] = waits(ctx.epic)
+
+      merging = %{fresh(s) | verify_state: "merging"}
+      accepted = fresh(s)
+      assert accepted.verify_state == "accepted"
+
+      # merging -> accepted, and an accepted spike edited again: neither
+      # accepts it now, so neither opens a second wait.
+      assert Spikes.answered(merging, accepted) == :none
+      assert Spikes.answered(accepted, %{accepted | title: "Only, renamed"}) == :none
+
+      {:ok, _} = Boards.update_card(fresh(s), %{"title" => "Only, renamed"})
+
+      assert [%Wait{closed_at: %DateTime{}}] = waits(ctx.epic)
+    end
+
     test "for a spike submitted but not yet accepted", ctx do
       ctx.column |> spike("Pending") |> submit(ctx)
       assert waits(ctx.epic) == []
