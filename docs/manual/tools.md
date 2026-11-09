@@ -130,9 +130,13 @@ gets its card first in build order instead. The agent proposes the
 candidates and a person confirms them; each is a `spike` card whose answer
 is a page pinned to the epic, and planning resumes at Spec once every
 spike is accepted. A Playbook still holding the 1.6.0 (or 1.5.0) seed gets
-the 1.7.0 one, reported as `(seed updated)`; an edited one is left alone
-and gets a gardener proposal adding the section after its Grill, reported
-as `(edited: left alone; Spike stage proposed)`, and only once. The seed card leaves
+the current one, reported as `(seed updated)`, and so (#2601) does one
+still holding the 1.7.0 seed, whose Grill named only an installed skill:
+the current seed's Grill names the skill enabled on the board from the
+skills registry first, then one installed where the agent runs. An edited
+one is left alone; if it has no Spike stage it also gets a gardener
+proposal adding the section after its Grill, reported as
+`(edited: left alone; Spike stage proposed)`, and only once. The seed card leaves
 them to a person, suggesting any principle the code plainly keeps. A
 card's handbook block lists every page, held to 2.5 KB.
 

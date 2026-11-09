@@ -59,6 +59,20 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert bullets(ours) == bullets(guide)
   end
 
+  test "the Playbook's Grill names a board-enabled registry skill before an installed one (#2601)" do
+    {:ok, grill} = Slipdock.Wiki.Section.read(seeded("Playbook").body, "Playbook/Grill")
+    [skill] = Regex.run(~r/^- \*\*Skill:\*\*.*$/m, grill)
+
+    assert skill =~ "add `skill: <its name>` here"
+    {registry, _} = :binary.match(skill, "enabled on this board from the skills registry")
+    {installed, _} = :binary.match(skill, "installed where the agent runs")
+    # The plan skill's order: the board's pinned entry first, then a local one.
+    assert registry < installed
+
+    # The placeholder names no skill, so the seed asks the registry for none.
+    assert Slipdock.SkillRegistry.Pins.stage_lines(seeded("Playbook").body) == []
+  end
+
   test "the manual describes the seed and the upgrade from the skeleton" do
     manual =
       Path.expand("../../../docs/manual.md", __DIR__)
@@ -80,5 +94,10 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert manual =~ "both take a spike after the grill when one is needed"
     assert manual =~ "Installing 1.7.0 (#2352) adds the **Spike** stage"
     assert manual =~ "`(edited: left alone; Spike stage proposed)`, and only once"
+
+    # The upgrade from 1.7.0's seed, whose Grill named no registry skill (#2601).
+    assert manual =~ "and so (#2601) does one still holding the 1.7.0 seed"
+    assert manual =~ "names the skill enabled on the board from the skills registry first"
+    refute manual =~ "gets the 1.7.0 one"
   end
 end

@@ -1164,6 +1164,53 @@ defmodule Slipdock.HandbookTest do
       assert proposals(board) == []
     end
 
+    test "installing over an unedited 1.7.0 Playbook seed names the registry in Grill (#2601)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+      seeded = play.body
+
+      old = Handbook.seed_body("playbook", "1.7.0")
+      assert old =~ "## Spike"
+      assert old =~ "To use an installed skill instead, add `skill: <its name>` here."
+      refute old =~ "skills registry"
+      # Only the Grill's Skill line differs from today's seed.
+      assert [{_, [new_line]}] =
+               String.split(old, "\n")
+               |> List.myers_difference(String.split(seeded, "\n"))
+               |> Enum.filter(&(elem(&1, 0) == :ins))
+
+      assert new_line =~ "- **Skill:** the plan skill's Grill."
+
+      {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => old})
+      {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["pages"] == ["Playbook (seed updated)"]
+      assert Repo.get!(Page, play.id).body == seeded
+      assert seeded =~ "the one enabled on this board from the skills registry"
+      assert proposals(board) == []
+    end
+
+    test "an edited 1.7.0 Playbook keeps its Grill line and gets no proposal (#2601)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+
+      ours =
+        String.replace(
+          Handbook.seed_body("playbook", "1.7.0"),
+          "\n## Decide",
+          "\nWe grill over coffee.\n\n## Decide"
+        )
+
+      {:ok, _} = Wiki.update_page(play, %{"body" => ours})
+      {:ok, again} = Handbook.install(user, board)
+
+      assert again.report.added["pages"] == []
+      assert "Playbook (edited: left alone)" in again.report.skipped["pages"]
+      assert Repo.get!(Page, play.id).body == ours
+      assert proposals(board) == []
+    end
+
     test "an edited Playbook is left alone and gets one proposal adding Spike (#2352)",
          %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
