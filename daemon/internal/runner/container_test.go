@@ -81,11 +81,12 @@ func TestAContainerWorkersExecutorIsTheRunnersAndTheMachines(t *testing.T) {
 	c.Executor, c.Image, c.Network = executor.Container, "ghcr.io/me/agent:2", "off"
 	r.w.Images = []string{"ghcr.io/me/agent:*"}
 	r.w.Local.Container = &machine.ContainerSettings{Runtime: "podman", Pull: "missing", Login: []string{"/h/.x"}, Env: []string{"GOFLAGS"}}
-	r.w.LookPath = func(name string) (string, error) { return "/opt/bin/" + name, nil }
+	bin := t.TempDir()
+	r.w.LookPath = func(name string) (string, error) { return filepath.Join(bin, name), nil }
 	s := r.w.executorSettings()
 	if s.Image != "ghcr.io/me/agent:2" || strings.Join(s.Images, ",") != "ghcr.io/me/agent:*" || !s.NetworkOff ||
 		s.Runtime != "podman" || s.Pull != "missing" || s.Login[0] != "/h/.x" || s.PassEnv[0] != "GOFLAGS" ||
-		s.Agent != "claude" || s.CLI != "/opt/bin/slipdock" || s.Repo != r.dir {
+		s.Agent != "claude" || s.CLI != filepath.Join(bin, "slipdock") || s.Repo != r.dir {
 		t.Fatalf("settings %+v", s)
 	}
 	if !oneOfAll(s.Protected, filepath.Dir(r.w.JobsDir), r.w.JobsDir) {
@@ -96,8 +97,8 @@ func TestAContainerWorkersExecutorIsTheRunnersAndTheMachines(t *testing.T) {
 		t.Fatal("network on is on")
 	}
 	// The local file's CLI wins.
-	r.w.Local.CLI = "/usr/local/bin/my-slipdock"
-	if s := r.w.executorSettings(); s.CLI != "/usr/local/bin/my-slipdock" {
+	r.w.Local.CLI = filepath.Join(bin, "my-slipdock")
+	if s := r.w.executorSettings(); s.CLI != r.w.Local.CLI {
 		t.Fatal(s.CLI)
 	}
 }
