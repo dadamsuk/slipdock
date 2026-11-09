@@ -31,7 +31,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.6.0"
+  @version "1.7.0"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -159,7 +159,21 @@ defmodule Slipdock.Handbook do
     gets none unless the person said "after X". None on a simple board.
   """
 
-  @playbook """
+  # The Spike stage (1.7.0, #2352): between Grill and Spec, for a question
+  # only building can answer. A board whose Playbook it edited gets it as a
+  # gardener proposal instead (`propose_spike/3`).
+  @spike """
+  ## Spike
+
+  - **Asks:** of the brief's open questions, which pass all three: only building answers it (not a person, not reading); a "no" changes the spec (say how); a late "no" costs more than the spike, counting flow time and lane contention as well as rework. One that fails only the third gets its card first in build order instead. None pass: the stage is skipped, and the agent says why.
+  - **Skill:** the plan skill's Spike. The agent proposes the candidates and a person confirms them; unattended, they go to a person as one `product` wait on the epic.
+  - **Produces:** one card tagged `spike` per confirmed question, one sitting each, its bar the question and what counts as an answer. A spike holds no lane and merges nothing: its answer is a page, its prototype stays on a branch.
+  - **Writes to:** the epic's sub-board; each answer to a page pinned to the epic. Planning stops there and resumes at Spec once every spike is accepted, from their answers.
+  """
+
+  # The Playbook as 1.5.0 and 1.6.0 seeded it, before the Spike stage
+  # (#2352): an unedited one gets the 1.7.0 seed in its place.
+  @playbook_1_6 """
   ## When this applies
 
   An agent reads this page when it is asked to plan: "plan this", "I want to build…", "break this into cards", "spec this out", "where do we start" (the `slipdock-plan` skill). Never when a card is simply asked for, and never by the server. Sizing comes first. A card-sized ask gets one card, shaped as Card shape says, and nothing else: no grill, no spec, no epic.
@@ -182,6 +196,77 @@ defmodule Slipdock.Handbook do
   - **Skill:** the plan skill's Grill. To use an installed skill instead, add `skill: <its name>` here.
   - **Produces:** a brief: the problem, who it is for, done-when, out of scope, open questions.
   - **Writes to:** the epic's description, making the epic if there is none.
+
+  ## Decide
+
+  - **Asks:** each choice the work needs before code: stack, hosting, deployment, data store, auth. When Defaults names a page, the agent proposes each default with its rationale, and asks.
+  - **Skill:** the plan skill's Decide.
+  - **Produces:** one Decision per choice: the context, the choice, the alternatives and why not, and where it was decided.
+  - **Writes to:** a new page in `Handbook/Decisions` titled `Decision: <what was chosen>`, named on the epic.
+
+  ## Principles
+
+  - **Asks:** where two right ways exist (naming, errors, how deep tests go, one place for each concern), which one this project takes.
+  - **Skill:** the plan skill's Principles.
+  - **Produces:** for each, a short paragraph and a `PRIN-n should · judgement` item.
+  - **Writes to:** the Principles page, appended when the person agreed it in the conversation. Unattended, it goes in as a proposal (`slipdock garden propose`), because a rule is a person's call.
+
+  ## Spec
+
+  - **Asks:** what each part does for the person using it, its rules and edge cases, and what is out of scope.
+  - **Skill:** the plan skill's Spec.
+  - **Produces:** goals, non-goals, behaviour part by part, and done-when for the whole.
+  - **Writes to:** a wiki page on the epic, named in its Docs. For a system, also the first sections of the Specification page.
+
+  ## Cards
+
+  - **Asks:** nothing new. It turns the spec into cards.
+  - **Skill:** the plan skill's Cards.
+  - **Produces:** subcards under the epic in build order, each shaped as Card shape says, with a bar where the board verifies work and `blocked_by` where one card builds on another's output.
+  - **Writes to:** the epic's sub-board.
+
+  #{String.trim_trailing(@card_shape)}
+
+  ## Defaults
+
+  defaults: none
+
+  _Replace `none` with the page holding the person's own defaults (stack, hosting), as `defaults: W-123`: their Knowledge Base. Decide reads it, proposes each default with its rationale, asks, and records the outcome as a Decision on this project. A default is never imposed. With none named, it asks from scratch._
+  """
+
+  # The 1.5.0 Playbook seed before Card shape read a moot bar item the
+  # obvious way (#2096).
+  @playbook_1_5 String.replace(
+                  @playbook_1_6,
+                  "- **A bar item made moot** by a later, cited decision or rule: read it\n  the obvious way and say so. Not a wait.\n",
+                  ""
+                )
+
+  @playbook """
+  ## When this applies
+
+  An agent reads this page when it is asked to plan: "plan this", "I want to build…", "break this into cards", "spec this out", "where do we start" (the `slipdock-plan` skill). Never when a card is simply asked for, and never by the server. Sizing comes first. A card-sized ask gets one card, shaped as Card shape says, and nothing else: no grill, no spec, no epic.
+
+  Each stage below says what it asks, the skill it uses, what it produces and where it writes. A stage whose output already exists on the board (a Decision, the spec on the epic) is skipped, and the agent says so. A board changes how it plans by editing this page.
+
+  ## Sizing
+
+  Check the sizes in this order and take the first whose trigger matches:
+
+  - **System**: a new deployable or service, a new repository, or a board with no code yet. Stages: Grill, Spike (when one is needed), Decide, Principles, Spec, Cards.
+  - **Feature**: a new user-facing surface (a page, a command, an API resource), a new external integration, a change to the data model, or more than one sitting's work. Stages: Grill, Spike (when one is needed), Spec, Cards.
+  - **Card**: anything else. One sitting, one agent, one PR, said in a sentence. Make the card, as Card shape says. No stages.
+
+  Between two sizes, take the smaller and say so. If the grill turns up more, grow it.
+
+  ## Grill
+
+  - **Asks:** one question at a time, until the agent can say back what is built, for whom, what done looks like and what is out of scope. It doesn't ask what the board already answers (the handbook, earlier Decisions).
+  - **Skill:** the plan skill's Grill. To use an installed skill instead, add `skill: <its name>` here.
+  - **Produces:** a brief: the problem, who it is for, done-when, out of scope, open questions.
+  - **Writes to:** the epic's description, making the epic if there is none.
+
+  #{String.trim_trailing(@spike)}
 
   ## Decide
 
@@ -395,6 +480,18 @@ defmodule Slipdock.Handbook do
     ]
   end
 
+  # On Playbook, its 1.6.0 seed and the 1.5.0 one before Card shape read a
+  # moot bar item the obvious way (#2096), neither with a Spike stage (#2352).
+  defp replaceable("playbook") do
+    rules = rules_skeleton("playbook")
+
+    [
+      {skeleton("playbook"), "seed added"},
+      {{@playbook_1_6, rules}, "seed updated"},
+      {{@playbook_1_5, rules}, "seed updated"}
+    ]
+  end
+
   defp replaceable(key) do
     case skeleton(key) do
       nil -> []
@@ -423,6 +520,17 @@ defmodule Slipdock.Handbook do
       @principles_1_5,
       rules_skeleton("principles") <> "\n" <> @principles_rules_1_5
     )
+  end
+
+  @doc false
+  # The body a Playbook page had as 1.6.0 seeded it, before the Spike stage
+  # (#2352), and as 1.5.0 did before #2096, for the upgrade's tests.
+  def seed_body("playbook", "1.6.0"), do: playbook_body(@playbook_1_6)
+  def seed_body("playbook", "1.5.0"), do: playbook_body(@playbook_1_5)
+
+  defp playbook_body(body) do
+    {title, _key, summary, _, _} = Enum.find(@sections, &(elem(&1, 1) == "playbook"))
+    page_body(title, summary, body, rules_skeleton("playbook"))
   end
 
   defp page_body(title, summary, body, rules), do: "# #{title}\n\n#{summary}\n\n#{body}\n#{rules}"
@@ -620,7 +728,7 @@ defmodule Slipdock.Handbook do
       cond do
         body == String.trim(seeded) -> report
         replaced -> put_seed(page, seeded, replaced, user, report)
-        true -> update_in(report, [:skipped, "pages"], &mark_edited(&1, page.title))
+        true -> left_alone(page, user, report)
       end
     else
       _ -> report
@@ -641,8 +749,68 @@ defmodule Slipdock.Handbook do
     end
   end
 
-  defp mark_edited(skipped, title) do
-    note = title <> " (edited: left alone)"
+  # An edited page is the board's own. An edited Playbook with no Spike
+  # stage gets one proposed instead (#2352), for a person to apply.
+  defp left_alone(page, user, report) do
+    note =
+      case key(page) == "playbook" and propose_spike(page, user) do
+        {:ok, _suggestion} -> "edited: left alone; Spike stage proposed"
+        _ -> "edited: left alone"
+      end
+
+    update_in(report, [:skipped, "pages"], &mark_edited(&1, page.title, note))
+  end
+
+  @doc """
+  Files a gardener proposal adding the Spike stage to `page`, an edited
+  Playbook without one (#2352): an `edit_section` on its `## Grill` that
+  keeps the section and adds `## Spike` after it, or on its `## Spec`,
+  adding it before. A Playbook with a `## Spike`, or with neither section,
+  gets none. Filing it again finds the same proposal (`Gardener.propose/4`),
+  so installing again adds no second one. `{:ok, suggestion}` or `:none`.
+  """
+  def propose_spike(%Page{} = page, user) do
+    headings = Wiki.Section.headings(page.body)
+
+    with false <- Enum.any?(headings, &h2?(&1, "spike")),
+         {:ok, step} <- spike_step(page, headings),
+         {:ok, suggestion, :new} <-
+           Slipdock.Gardener.propose(Boards.get_board!(page.board_id), user, %{
+             "explanation" =>
+               "The Handbook Tool #{@version} adds a Spike stage to the Playbook, between Grill and Spec: " <>
+                 "an open question only building can answer becomes a `spike` card, answered on a page and never merged, before the spec is written. " <>
+                 "This Playbook is the board's own, so it is proposed rather than written. " <>
+                 "Sizing may also want `Spike (when one is needed)` after Grill for Feature and System.",
+             "steps" => [step]
+           }) do
+      {:ok, suggestion}
+    else
+      _ -> :none
+    end
+  end
+
+  defp spike_step(page, headings) do
+    case {Enum.find(headings, &h2?(&1, "grill")), Enum.find(headings, &h2?(&1, "spec"))} do
+      {%{path: path}, _} -> spike_step(page, path, &(&1 <> "\n\n" <> @spike))
+      {nil, %{path: path}} -> spike_step(page, path, &(@spike <> "\n" <> &1))
+      _ -> :none
+    end
+  end
+
+  defp spike_step(page, path, with_spike) do
+    {:ok, text} = Wiki.Section.read(page.body, path)
+
+    {:ok,
+     %{
+       "op" => "edit_section",
+       "page" => page.id,
+       "section" => path,
+       "body" => with_spike.(String.trim_trailing(text))
+     }}
+  end
+
+  defp mark_edited(skipped, title, note) do
+    note = title <> " (#{note})"
 
     if Enum.member?(skipped, title),
       do: Enum.map(skipped, &if(&1 == title, do: note, else: &1)),
