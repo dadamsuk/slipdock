@@ -40,6 +40,8 @@ defmodule Slipdock.Now do
 
   import Ecto.Query
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.{CardState, Repo, Runners}
   alias Slipdock.Boards.{Board, Card, Column, Wait}
   alias Slipdock.Runners.{Job, Runner}
@@ -203,7 +205,7 @@ defmodule Slipdock.Now do
       on: col.id == c.column_id,
       where:
         c.board_id in ^board_ids and is_nil(c.archived_at) and
-          ((col.category == "doing" and not c.completed) or c.id in ^building)
+          ((DoingList.doing?(col.category, col.name) and not c.completed) or c.id in ^building)
     )
   end
 

@@ -21,6 +21,8 @@ defmodule Slipdock.Overseer.Pass do
 
   import Ecto.Query
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.Boards
   alias Slipdock.Boards.{Board, Card, Column, Wait}
   alias Slipdock.Overseer
@@ -58,6 +60,16 @@ defmodule Slipdock.Overseer.Pass do
       )
     end
 
+    # A doing list by its name too (#2629): a Simple sub-board's "Doing".
+    in_doing =
+      Repo.aggregate(
+        from(c in live,
+          join: col in Column,
+          on: col.id == c.column_id and DoingList.doing?(col.category, col.name)
+        ),
+        :count
+      )
+
     jobs =
       from(j in Job,
         where: j.root_board_id == ^root.id and j.status in ^Job.open_statuses(),
@@ -71,7 +83,7 @@ defmodule Slipdock.Overseer.Pass do
     %{
       runners_online: Enum.count(runners, &Runners.online?/1),
       runners_busy: Enum.count(runners, &(not is_nil(&1.current_job_id))),
-      cards_in_doing: in_category.("doing"),
+      cards_in_doing: in_doing,
       ready_cards: in_category.("todo"),
       jobs_queued: Map.get(jobs, "queued", 0),
       jobs_running: Map.get(jobs, "claimed", 0) + Map.get(jobs, "running", 0),

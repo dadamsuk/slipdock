@@ -214,7 +214,7 @@ defmodule Slipdock.Automations do
          %Board{} = board <-
            Repo.get(Board, Ecto.Changeset.get_field(changeset, :board_id))
            |> Repo.preload(:columns),
-         false <- Enum.any?(board.columns, &(&1.category == "doing")) do
+         false <- Enum.any?(board.columns, &Slipdock.Flow.doing_list?/1) do
       Ecto.Changeset.add_error(
         changeset,
         :spec,
@@ -659,7 +659,8 @@ defmodule Slipdock.Automations do
   # The board holds automated work at its WIP limit (#1116, KTD11) and the
   # card isn't in progress already.
   defp wip_held?(%Card{} = card) do
-    card.column.category != "doing" and not is_nil(Slipdock.Runners.wip_full(card.board_id))
+    not Slipdock.Flow.doing_list?(card.column) and
+      not is_nil(Slipdock.Runners.wip_full(card.board_id))
   end
 
   defp feed_job_open?(rule) do
@@ -749,7 +750,7 @@ defmodule Slipdock.Automations do
   # a card in progress that a job is working on. Checked last, being the
   # dearest.
   defp lane_held?(card) do
-    card.column.category != "doing" and Slipdock.Lanes.hold?(card) and
+    not Slipdock.Flow.doing_list?(card.column) and Slipdock.Lanes.hold?(card) and
       not is_nil(Slipdock.Lanes.conflict(card))
   end
 

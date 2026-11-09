@@ -29,6 +29,8 @@ defmodule Slipdock.Health.Detectors.Deadlock do
 
   import Ecto.Query
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.{Automations, Boards, Lanes, Repo, Runners, Verified}
   alias Slipdock.Automations.{Rule, Spec}
   alias Slipdock.Boards.{Board, Card, Column, Wait}
@@ -264,7 +266,8 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     from(c in Card,
       join: col in assoc(c, :column),
       where:
-        c.board_id in ^board_ids and col.category == "doing" and is_nil(c.archived_at) and
+        c.board_id in ^board_ids and DoingList.doing?(col.category, col.name) and
+          is_nil(c.archived_at) and
           c.completed == false,
       select: %{id: c.id, board_id: c.board_id}
     )

@@ -70,7 +70,7 @@ defmodule Slipdock.Health.Detectors.DeadBlocker do
       column.category == "dropped" ->
         "is in #{column.name}, a dropped list"
 
-      column.category in ["doing", "done"] ->
+      column.category == "done" or Slipdock.Flow.doing_list?(column) ->
         nil
 
       MapSet.member?(feeding, blocker.board_id) and {blocker.board_id, column.id} not in fed ->

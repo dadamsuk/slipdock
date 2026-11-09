@@ -23,6 +23,8 @@ defmodule Slipdock.Runners do
 
   import Ecto.Query
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
@@ -560,7 +562,7 @@ defmodule Slipdock.Runners do
     from(c in Card,
       join: col in assoc(c, :column),
       where:
-        c.board_id == parent_as(:job).board_id and col.category == "doing" and
+        c.board_id == parent_as(:job).board_id and DoingList.doing?(col.category, col.name) and
           is_nil(c.archived_at) and c.completed == false and c.id != parent_as(:job).card_id and
           (c.id in ^worked_cards or c.board_id in ^worked_boards),
       select: 1
@@ -579,7 +581,8 @@ defmodule Slipdock.Runners do
       from(c in Card,
         join: col in assoc(c, :column),
         where:
-          c.board_id == ^job.board_id and col.category == "doing" and is_nil(c.archived_at) and
+          c.board_id == ^job.board_id and DoingList.doing?(col.category, col.name) and
+            is_nil(c.archived_at) and
             c.completed == false and c.id != ^job.card_id and
             (c.id in ^worked_cards or c.board_id in ^worked_boards),
         order_by: [asc: col.position, asc: c.position, asc: c.id],
@@ -718,7 +721,8 @@ defmodule Slipdock.Runners do
     from(c in Card,
       join: col in assoc(c, :column),
       where:
-        c.board_id in ^board_ids and col.category == "doing" and is_nil(c.archived_at) and
+        c.board_id in ^board_ids and DoingList.doing?(col.category, col.name) and
+          is_nil(c.archived_at) and
           c.completed == false and (c.id in ^worked_cards or c.board_id in ^worked_boards),
       order_by: [asc: col.position, asc: c.position, asc: c.id],
       select: %{id: c.id, board_id: c.board_id}
@@ -744,7 +748,7 @@ defmodule Slipdock.Runners do
     Repo.exists?(
       from(c in Card,
         join: col in assoc(c, :column),
-        where: c.id == ^card_id and col.category == "doing"
+        where: c.id == ^card_id and DoingList.doing?(col.category, col.name)
       )
     )
   end
@@ -761,7 +765,7 @@ defmodule Slipdock.Runners do
   def wip_full(board_id) do
     from(b in Board,
       join: col in assoc(b, :columns),
-      where: b.id == ^board_id and b.automation_wip and col.category == "doing",
+      where: b.id == ^board_id and b.automation_wip and DoingList.doing?(col.category, col.name),
       order_by: [asc: col.position, asc: col.id],
       limit: 1,
       select: col
@@ -803,7 +807,7 @@ defmodule Slipdock.Runners do
   defp own_card_doing do
     from(c in Card,
       join: col in assoc(c, :column),
-      where: c.id == parent_as(:job).card_id and col.category == "doing",
+      where: c.id == parent_as(:job).card_id and DoingList.doing?(col.category, col.name),
       select: 1
     )
   end

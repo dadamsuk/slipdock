@@ -82,7 +82,8 @@ back, and turn on lanes so the two don't work in the same files.
 **Waiting while anything is in progress.** A `runner` action with
 `"wait_while_doing": true` queues jobs that are not handed out while any
 other open card that a runner job is working on is in an in-progress list
-(a list with the *In progress* category) on the job's board — the job's own
+(a list with the *In progress* category, or with no category and a name
+that says so, like the Simple template's *Doing*) on the job's board — the job's own
 card doesn't count, and nor do cards on its sub-boards. A card counts while
 a job is open on it (queued, claimed or running, a verify or merge job still
 to finish included) or on the epic it is a subcard of; a card in progress

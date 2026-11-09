@@ -16,6 +16,8 @@ defmodule Slipdock.Overseer.Checks.Slow do
 
   import Ecto.Query
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.Boards.{Card, CardMove, Column}
   alias Slipdock.Overseer.Check
   alias Slipdock.Repo
@@ -38,7 +40,8 @@ defmodule Slipdock.Overseer.Checks.Slow do
   defp slow_cards(ctx) do
     started =
       from(m in CardMove,
-        where: m.to_category == "doing" and m.kind in ^CardMove.entry_kinds(),
+        where:
+          DoingList.doing?(m.to_category, m.to_column_name) and m.kind in ^CardMove.entry_kinds(),
         group_by: m.card_id,
         select: %{card_id: m.card_id, at: min(m.inserted_at)}
       )
@@ -46,7 +49,9 @@ defmodule Slipdock.Overseer.Checks.Slow do
     cards =
       ctx
       |> Check.live_cards()
-      |> join(:inner, [c], col in Column, on: col.id == c.column_id and col.category == "doing")
+      |> join(:inner, [c], col in Column,
+        on: col.id == c.column_id and DoingList.doing?(col.category, col.name)
+      )
       |> join(:inner, [c], s in subquery(started), on: s.card_id == c.id)
       |> select([c, _col, s], %{
         id: c.id,
@@ -94,7 +99,8 @@ defmodule Slipdock.Overseer.Checks.Slow do
 
     started =
       from(m in CardMove,
-        where: m.to_category == "doing" and m.kind in ^CardMove.entry_kinds(),
+        where:
+          DoingList.doing?(m.to_category, m.to_column_name) and m.kind in ^CardMove.entry_kinds(),
         group_by: m.card_id,
         select: %{card_id: m.card_id, at: min(m.inserted_at)}
       )
