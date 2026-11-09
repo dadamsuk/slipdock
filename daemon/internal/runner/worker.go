@@ -10,9 +10,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
@@ -25,8 +27,9 @@ type Worker struct {
 	Version string
 	// JobsDir holds each runner's job log, owner-only.
 	JobsDir string
-	// Home is the home of the account jobs run as: transcripts, skills and
-	// the CLI's tokens are found from it.
+	// Home is the daemon's own account's home. Transcripts and skills are
+	// found from the home of the account jobs run as: this one, except
+	// under the user executor.
 	Home string
 	// SharedDir: another of the machine's runners works in the same
 	// directory, so worktree "auto" means a worktree per job.
@@ -36,6 +39,14 @@ type Worker struct {
 	Getenv   func(string) string
 	LookPath func(string) (string, error)
 	Exec     execFunc
+	// Executor runs the job's processes (default: the one the runner's
+	// config names, made from Local; New's error, if any, fails each job
+	// before anything runs). Launcher is the slipdock-runner binary, which
+	// confines a job on Linux (default: this one).
+	Executor    executor.Executor
+	executorErr error
+	Launcher    string
+	GOOS        string
 
 	// The protocol's pace, as the shell runner's defaults.
 	Wait            int           // seconds a claim waits for a job (25)
@@ -79,12 +90,65 @@ func (w *Worker) defaults() {
 	if w.LookPath == nil {
 		w.LookPath = exec.LookPath
 	}
+	if w.GOOS == "" {
+		w.GOOS = runtime.GOOS
+	}
+	if w.Launcher == "" {
+		w.Launcher, _ = os.Executable()
+	}
+	if w.Executor == nil && w.executorErr == nil {
+		w.Executor, w.executorErr = executor.New(w.Runner.Config.Executor, w.executorSettings())
+	}
 	if w.Exec == nil {
 		w.Exec = realExec
+		if w.Executor != nil {
+			w.Exec = w.Executor.Exec
+		}
 	}
 	if w.Sleep == nil {
 		w.Sleep = sleepCtx
 	}
+}
+
+// executorSettings are what the executor needs from the machine's files.
+func (w *Worker) executorSettings() executor.Settings {
+	s := executor.Settings{GOOS: w.GOOS, Home: w.Home, Getenv: w.Getenv, LookPath: w.LookPath, Launcher: w.Launcher,
+		Repo: w.Runner.Config.Directory}
+	if u := w.Local.User; u != nil {
+		s.Account, s.AccountHome, s.AccountPath = u.Name, u.Home, u.Path
+	}
+	s.Writable = w.Local.ConfinedWritable
+	if len(s.Writable) == 0 && w.Runner.Config.Agent == "claude" && w.Home != "" {
+		s.Writable = []string{filepath.Join(w.Home, ".claude")}
+	}
+	return s
+}
+
+// jobHome is the home of the account jobs run as.
+func (w *Worker) jobHome() string {
+	if w.Executor != nil {
+		return w.Executor.Home()
+	}
+	return w.Home
+}
+
+// files reads the files of the account jobs run as.
+func (w *Worker) files() executor.Files {
+	if w.Executor != nil {
+		return w.Executor.Files()
+	}
+	return executor.LocalFiles
+}
+
+// secrets are what a transcript must never carry: the machine's (the
+// machine key, the daemon's own CLI tokens) and, under the user executor,
+// the account's CLI tokens too.
+func (w *Worker) secrets() []string {
+	s := machineSecrets(w.Client.Key, w.Home, w.Getenv, executor.LocalFiles)
+	if w.Executor != nil && w.Executor.Name() == executor.User {
+		s = append(s, machineSecrets("", w.Executor.Home(), func(string) string { return "" }, w.Executor.Files())...)
+	}
+	return longestFirst(s)
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) error {
@@ -118,7 +182,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	backoff := time.Second
 	w.say("taking jobs from %s (pool %s, board #%d)", w.Client.Server, w.Runner.Pool, w.Runner.BoardID)
 	for ctx.Err() == nil {
-		headers := claimHeaders(w.Runner.Kinds(w.Local), w.Version, w.skillsDir(), w.cliPath())
+		headers := claimHeaders(w.files(), w.Runner.Kinds(w.Local), w.Version, w.skillsDir(), w.cliPath())
 		job, info, err := w.Client.Claim(ctx, w.Runner.ID, headers, w.Wait)
 		var refusal *Refused
 		switch {
@@ -149,12 +213,16 @@ func (w *Worker) skillsDir() string {
 	if w.Local.SkillsDir != "" {
 		return w.Local.SkillsDir
 	}
-	return filepath.Join(w.Home, ".claude", "skills")
+	return filepath.Join(w.jobHome(), ".claude", "skills")
 }
 
 func (w *Worker) cliPath() string {
 	if w.Local.CLI != "" {
 		return w.Local.CLI
+	}
+	if w.Executor != nil {
+		p, _ := w.Executor.Resolve("slipdock")
+		return p
 	}
 	p, _ := w.LookPath("slipdock")
 	return p
@@ -164,10 +232,10 @@ func (w *Worker) transcriptsDir() string {
 	if w.Local.Transcripts != "" {
 		return w.Local.Transcripts
 	}
-	if d := w.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
+	if d := w.Getenv("CLAUDE_CONFIG_DIR"); d != "" && (w.Executor == nil || w.Executor.Name() != executor.User) {
 		return filepath.Join(d, "projects")
 	}
-	return filepath.Join(w.Home, ".claude", "projects")
+	return filepath.Join(w.jobHome(), ".claude", "projects")
 }
 
 // jobRun is one job in flight: its log file, and what the after hook and
@@ -180,6 +248,7 @@ type jobRun struct {
 	dir     string
 	lane    *lane
 	after   *machine.Command
+	scratch string
 }
 
 func (j *jobRun) note(line string) {
@@ -233,13 +302,19 @@ func (w *Worker) runJob(ctx context.Context, job *Job) {
 // prepare checks everything the job needs before anything runs: the agent's
 // program and every hook the runner names must be defined on this machine,
 // and the directory must be there. The error is why the job didn't start.
-func (w *Worker) prepare(j *jobRun) (*exec.Cmd, *machine.Command, error) {
+func (w *Worker) prepare(j *jobRun) ([]string, *machine.Command, error) {
 	c := w.Runner.Config
+	if w.executorErr != nil {
+		return nil, nil, fmt.Errorf("executor %q: %v, so the job was not run", c.Executor, w.executorErr)
+	}
+	if err := w.Executor.Ready(); err != nil {
+		return nil, nil, fmt.Errorf("executor %s: %v, so the job was not run", w.Executor.Name(), err)
+	}
 	agent, ok := w.Local.Agent(c.Agent)
 	if !ok {
 		return nil, nil, fmt.Errorf("agent %q is not defined in this machine's %s, so the job was not run", c.Agent, machine.LocalFile)
 	}
-	path, err := w.resolve(agent.Path)
+	path, err := w.Executor.Resolve(agent.Path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("agent %q: %s is not on the PATH of the account jobs run as, so the job was not run", c.Agent, agent.Path)
 	}
@@ -255,27 +330,17 @@ func (w *Worker) prepare(j *jobRun) (*exec.Cmd, *machine.Command, error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("the %s hook %q is not defined in this machine's %s, so the job was not run", h.which, h.name, machine.LocalFile)
 		}
-		resolved, err := w.resolve(hook.Path)
+		resolved, err := w.Executor.Resolve(hook.Path)
 		if err != nil {
 			return nil, nil, fmt.Errorf("the %s hook %q: %s is not on the PATH, so the job was not run", h.which, h.name, hook.Path)
 		}
 		hook.Path = resolved
 		*h.set = &hook
 	}
-	if fi, err := os.Stat(c.Directory); err != nil || !fi.IsDir() {
+	if !w.Executor.IsDir(c.Directory) {
 		return nil, nil, fmt.Errorf("the working directory %s is not there, so the job was not run", c.Directory)
 	}
 	return w.agentCommand(c, agent, path, j.job), before, nil
-}
-
-func (w *Worker) resolve(path string) (string, error) {
-	if filepath.IsAbs(path) {
-		if _, err := os.Stat(path); err != nil {
-			return path, err
-		}
-		return path, nil
-	}
-	return w.LookPath(path)
 }
 
 // prompt is the server's prompt, with this runner's standing instructions
@@ -296,10 +361,10 @@ func (w *Worker) model(job *Job) string {
 	return w.Runner.Config.Model
 }
 
-// agentCommand is the agent's command line: claude and codex as the shell
-// runner's installer writes them, a custom command as the local file has
-// it, with the prompt only in $SLIPDOCK_PROMPT.
-func (w *Worker) agentCommand(c Config, agent machine.Command, path string, job *Job) *exec.Cmd {
+// agentCommand is the agent's command line, its program first: claude and
+// codex as the shell runner's installer writes them, a custom command as
+// the local file has it, with the prompt only in $SLIPDOCK_PROMPT.
+func (w *Worker) agentCommand(c Config, agent machine.Command, path string, job *Job) []string {
 	args := append([]string(nil), agent.Args...)
 	prompt, model := w.prompt(job), w.model(job)
 	switch c.Agent {
@@ -318,13 +383,13 @@ func (w *Worker) agentCommand(c Config, agent machine.Command, path string, job 
 		}
 		args = append(args, prompt)
 	}
-	return exec.Command(path, args...)
+	return append([]string{path}, args...)
 }
 
 // jobEnv is the SLIPDOCK_* environment a job and its hooks get.
 func (w *Worker) jobEnv(j *jobRun) []string {
 	job := j.job
-	env := append(inherited(),
+	env := append([]string(nil),
 		fmt.Sprintf("SLIPDOCK_JOB_ID=%d", job.ID),
 		"SLIPDOCK_JOB_KIND="+job.Kind,
 		"SLIPDOCK_CARD="+cardText(job.CardID),
@@ -345,26 +410,6 @@ func (w *Worker) jobEnv(j *jobRun) []string {
 	return env
 }
 
-// jobVars are what the daemon sets for a job and its hooks. The daemon's
-// own environment never passes one on: a stale SLIPDOCK_EXIT, say, from
-// whatever started the daemon, would read as this job's.
-var jobVars = []string{"SLIPDOCK_JOB_ID", "SLIPDOCK_JOB_KIND", "SLIPDOCK_CARD", "SLIPDOCK_CARD_URL",
-	"SLIPDOCK_PROMPT", "SLIPDOCK_PROFILE", "SLIPDOCK_MODEL", "SLIPDOCK_RUNNER_ID", "SLIPDOCK_WORKTREE",
-	"SLIPDOCK_EXIT", "SLIPDOCK_STATUS", "SLIPDOCK_MERGE_PR", "SLIPDOCK_MERGE_COMMIT", "SLIPDOCK_MERGED_FILE",
-	"CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", "PWD"}
-
-// inherited is the daemon's environment without jobVars.
-func inherited() []string {
-	var env []string
-	for _, kv := range os.Environ() {
-		name, _, _ := strings.Cut(kv, "=")
-		if !contains(jobVars, strings.ToUpper(name)) {
-			env = append(env, kv)
-		}
-	}
-	return env
-}
-
 func cardText(id int64) string {
 	if id == 0 {
 		return ""
@@ -379,11 +424,35 @@ func (j *jobRun) where() string {
 	return j.dir
 }
 
+// proc is where and how a job's process runs: in its worktree or
+// directory, with its variables; confined, it may write the repository
+// (a worktree's commits land there) and its scratch directory.
+func (w *Worker) proc(j *jobRun, env []string) executor.Proc {
+	p := executor.Proc{Dir: j.where(), Env: env, Scratch: j.scratch}
+	if j.lane != nil {
+		p.Writable = []string{j.lane.repo}
+	}
+	return p
+}
+
+// newScratch empties and makes the runner's scratch directory, a confined
+// job's TMPDIR. Only confined jobs get one: the others have /tmp.
+func (w *Worker) newScratch(j *jobRun) error {
+	if w.Executor.Name() != executor.Confined {
+		return nil
+	}
+	j.scratch = filepath.Join(w.JobsDir, fmt.Sprint(w.Runner.ID), "tmp")
+	if err := os.RemoveAll(j.scratch); err != nil {
+		return err
+	}
+	return os.MkdirAll(j.scratch, 0o700)
+}
+
 // runAgent runs an agent job: the checks, the worktree, the before hook,
 // the agent, watched, then the after hook and the finish.
 func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 	job := j.job
-	cmd, before, err := w.prepare(j)
+	argv, before, err := w.prepare(j)
 	if err != nil {
 		w.say("job #%d: %v", job.ID, err)
 		j.note("slipdock-runner: " + err.Error())
@@ -392,7 +461,7 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 	}
 	wt := w.Runner.Config.Worktree
 	if wt == "on" || (wt == "auto" && w.SharedDir) {
-		if j.lane, err = openLane(ctx, w.Exec, j.dir, job.CardID, j.note); err != nil {
+		if j.lane, err = openLane(ctx, w.Exec, w.Executor.IsDir, j.dir, job.CardID, j.note); err != nil {
 			w.say("job #%d: no worktree for it, so not run: %v", job.ID, err)
 			j.note("slipdock-runner: " + err.Error())
 			j.env = w.jobEnv(j)
@@ -402,6 +471,13 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 		}
 	}
 	j.env = w.jobEnv(j)
+	if err := w.newScratch(j); err != nil {
+		j.note("slipdock-runner: can't make the job's temporary directory: " + err.Error())
+		w.afterHook(ctx, j, 1, "failed")
+		j.lane.close(ctx, w.Exec, j.note)
+		w.finish(ctx, job, j, 1, "failed", "", "")
+		return
+	}
 
 	if before != nil {
 		if rc := w.hook(ctx, j, *before, j.env); rc != 0 {
@@ -414,13 +490,14 @@ func (w *Worker) runAgent(ctx context.Context, j *jobRun) {
 		}
 	}
 
-	cmd.Dir = j.where()
-	cmd.Env = append(j.env, "PWD="+cmd.Dir)
-	cmd.Stdout, cmd.Stderr = j.log, j.log
-	inGroup(cmd)
 	tx := &transcript{root: w.transcriptsDir(), cardURL: job.CardURL, started: time.Now().Add(-time.Second),
-		secrets: machineSecrets(w.Client.Key, w.Home, w.Getenv)}
-	if err := cmd.Start(); err != nil {
+		files: w.files(), secrets: w.secrets()}
+	cmd, err := w.Executor.Command(w.proc(j, j.env), argv[0], argv[1:]...)
+	if err == nil {
+		cmd.Stdout, cmd.Stderr = j.log, j.log
+		err = cmd.Start()
+	}
+	if err != nil {
 		j.note("slipdock-runner: the agent didn't start: " + err.Error())
 		w.afterHook(ctx, j, 127, "failed")
 		j.lane.close(ctx, w.Exec, j.note)
@@ -451,8 +528,10 @@ func exitCode(cmd *exec.Cmd, err error) int {
 
 // stopTree stops the job and everything it started: asked first, made
 // after the grace.
-func (w *Worker) stopTree(cmd *exec.Cmd, done chan int) {
-	signalTree(cmd, false)
+func (w *Worker) stopTree(cmd *exec.Cmd, done chan int) { w.stopWith(w.Executor, cmd, done) }
+
+func (w *Worker) stopWith(ex executor.Executor, cmd *exec.Cmd, done chan int) {
+	ex.Stop(cmd, false)
 	exited := false
 	select {
 	case <-done:
@@ -460,7 +539,7 @@ func (w *Worker) stopTree(cmd *exec.Cmd, done chan int) {
 	case <-time.After(w.Grace):
 	}
 	// Made, whether or not the job itself went: its children may outlive it.
-	signalTree(cmd, true)
+	ex.Stop(cmd, true)
 	if !exited {
 		select {
 		case <-done:
@@ -600,13 +679,25 @@ func (w *Worker) runMerge(ctx context.Context, j *jobRun) {
 
 // hook runs a hook in the job's directory, its output in the job's log,
 // stopped with the job's tree if the daemon stops. Its exit code.
+//
+// A hook is the machine's own program, not the agent: it runs as the
+// account jobs run as. A confined job's hooks are confined to the
+// repository (where the job may have planted git config), not to the
+// job's directory alone.
 func (w *Worker) hook(ctx context.Context, j *jobRun, h machine.Command, env []string) int {
-	cmd := exec.Command(h.Path, h.Args...)
-	cmd.Dir = j.where()
-	cmd.Env = append(env, "PWD="+cmd.Dir)
-	cmd.Stdout, cmd.Stderr = j.log, j.log
-	inGroup(cmd)
-	if err := cmd.Start(); err != nil {
+	ex := w.Executor
+	var cmd *exec.Cmd
+	var err error
+	if hk, ok := ex.(executor.Hooker); ok {
+		cmd, err = hk.Hook(ctx, w.proc(j, env), h.Path, h.Args...)
+	} else {
+		cmd, err = ex.Command(w.proc(j, env), h.Path, h.Args...)
+	}
+	if err == nil {
+		cmd.Stdout, cmd.Stderr = j.log, j.log
+		err = cmd.Start()
+	}
+	if err != nil {
 		j.note("slipdock-runner: the hook didn't start: " + err.Error())
 		return 127
 	}
@@ -616,7 +707,7 @@ func (w *Worker) hook(ctx context.Context, j *jobRun, h machine.Command, env []s
 	case rc := <-done:
 		return rc
 	case <-ctx.Done():
-		w.stopTree(cmd, done)
+		w.stopWith(ex, cmd, done)
 		return 130
 	}
 }

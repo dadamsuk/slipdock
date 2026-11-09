@@ -133,6 +133,9 @@ slipdock-runner init --server https://slipdock.example.com --key sdk_…
 A machine that is already enrolled refuses a second `init`; `--replace`
 enrols it again (revoke the old one on the Machines page).
 
+`init` also asks who jobs run as (below): a dedicated account, or you.
+`--user NAME` and `--as-me` answer it on the command line.
+
 The daemon's directory is `slipdock-runner/machine` under your config
 directory (`~/.config` on Linux, `~/Library/Application Support` on macOS,
 `%AppData%` on Windows), or `$SLIPDOCK_RUNNER_HOME`, or `--home DIR` on any
@@ -156,12 +159,57 @@ writes; only someone at the machine changes it.
 | `max_permission_mode` | the highest permission mode (`plan`, `default`, `acceptEdits`, `bypassPermissions`) | `acceptEdits` |
 | `max_timeout_minutes` | the longest a job may run | 60 |
 | `boards` | the boards the machine serves | the ones chosen on the approval page |
+| `executors` | who a runner's jobs may run as (below) | `user` with a dedicated account; `me` and `confined` without one (`me` only on Windows) |
 
 `init --root DIR --agent NAME --max-mode MODE --max-timeout MINUTES` sets
 them as it writes the file (`--root` and `--agent` repeat). `init --replace`
 keeps a ceiling already there unless one of those flags is given. A setting
 from the board outside the ceiling is refused on the machine, and the runner
 keeps its last accepted settings.
+
+### Who jobs run as: executors
+
+Each runner names an **executor**, and the ceiling's `executors` say which
+ones the machine allows. A runner set to one the machine doesn't allow, or
+that can't run here, is refused, and its jobs never run under a weaker one
+in its place. When a job's executor isn't ready (the account's `sudo` rule
+is gone, say), the job fails before anything starts, and its log says why.
+
+| Executor | Jobs run as | What it stops | What it doesn't |
+|---|---|---|---|
+| `user` | a dedicated account, `slipdock` by default, with its own home, clones and logins | reading your home: a job is refused while your home is open to the account | reading what every account can, writing its own home and `/tmp`, the network |
+| `confined` | you, unable to write outside the job's directory | writing anywhere else: your home, other repositories, the system | reading your files, the network. It may also write its own temporary directory, the terminal devices and the agent's own state (`~/.claude` for `claude`) |
+| `me` | you, as you are | nothing: an agent can read and change what you can | |
+| `container` | not available yet | | |
+
+`init` asks which, and says what each does and doesn't stop:
+
+- **A dedicated account** (recommended for an always-on machine: a build
+  box, a WSL instance). `init` makes the account if it isn't there and adds
+  a `sudoers` rule (`/etc/sudoers.d/slipdock-runner-<account>`) that lets
+  you run commands as it without a password, with one `sudo`. If your home
+  is open to other accounts it offers to close it (`chmod o-rwx`, and
+  `g-rwx` on macOS, where every account shares the home's group). Then it
+  opens a shell as the account (`sudo -u slipdock -i`; `--no-setup` skips
+  it) where you sign in to the agent and to GitHub and clone your
+  repositories: the account's home holds them, and the ceiling's `roots`
+  start in it. A job gets the account's own environment, nothing of the
+  daemon's. The machine allows `user` only, so the board can't move a
+  runner back to running as you.
+- **You**, for a laptop that is only yours (`--as-me`). The machine allows
+  `me` and, on Linux and macOS, `confined`.
+
+`confined` uses Landlock on Linux (ABI 3, kernel 6.2 or later, which also
+refuses truncating a file outside) and `sandbox-exec` on macOS: nothing to
+install. A job may write its repository, `.git` included, so the daemon's
+own git for the runner (its worktrees, the built-in merge) and the runner's
+hooks run confined too, able to write only the repository and its worktrees:
+git config or a hook the job planted there runs inside the same walls.
+`confined_writable` in the local file lists more paths a confined job may
+write.
+
+**Windows** runs jobs as the current account only (`me`): `init` says so and
+doesn't ask, and neither `user` nor `confined` is offered there yet.
 
 ### What runs: the local file
 
@@ -196,6 +244,9 @@ optional, and with no file at all `claude` and `codex` are found on your
   (below), and a probe whose hook exits non-zero is red.
 - `models`: a model for a card's profile (`docs`, `fix`, `feature`,
   `schema`, `security`, `spike`), over the runner's own.
+- `user`: the dedicated account (`name`, `home`, and the `path` its jobs
+  get), which `init` writes. `confined_writable`: what a confined job may
+  write besides its directory.
 - `transcripts`, `skills_dir` and `cli` say where Claude Code's
   transcripts, the slipdock skills and the `slipdock` CLI are, when they
   aren't in the usual places. `no_merge: true` turns off the built-in merge.

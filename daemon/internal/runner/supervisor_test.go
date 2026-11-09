@@ -19,6 +19,8 @@ func ceiling(root string) machine.Ceiling {
 }
 
 func TestCheckAgainstTheCeiling(t *testing.T) {
+	defer func(g string) { goos = g }(goos)
+	goos = "linux" // where user is offered at all
 	root := filepath.Join(t.TempDir(), "src")
 	good := Runner{ID: 1, BoardID: 3, Config: Config{Agent: "claude", Directory: filepath.Join(root, "repo"),
 		PermissionMode: "default", TimeoutMinutes: 60, Executor: "me"}}
@@ -48,7 +50,7 @@ func TestCheckAgainstTheCeiling(t *testing.T) {
 		"timeout":   {func(r *Runner) { r.Config.TimeoutMinutes = 61 }, "timeout 61"},
 		"zero time": {func(r *Runner) { r.Config.TimeoutMinutes = 0 }, "timeout 0"},
 		"board":     {func(r *Runner) { r.BoardID = 4 }, "board #4"},
-		"executor":  {func(r *Runner) { r.Config.Executor = "user" }, `executor "user" is not available`},
+		"executor":  {func(r *Runner) { r.Config.Executor = "user" }, `executor "user" is not one this machine offers`},
 	}
 	for name, c := range cases {
 		r := good

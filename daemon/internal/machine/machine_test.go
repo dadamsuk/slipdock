@@ -239,3 +239,28 @@ func write(t *testing.T, path, s string) {
 		t.Fatal(err)
 	}
 }
+
+func TestTheCeilingsExecutors(t *testing.T) {
+	d := t.TempDir()
+	c := ProposeCeiling(t.TempDir(), []int64{3})
+	if len(c.Executors) != 1 || c.Executors[0] != "me" {
+		t.Fatalf("proposed: %v", c.Executors)
+	}
+	c.Executors = []string{"user", "root"}
+	if err := SaveCeiling(d, c); err == nil || !strings.Contains(err.Error(), `executors: "root"`) {
+		t.Fatalf("%v", err)
+	}
+	// A ceiling written before there were executors reads as me only.
+	c.Executors = nil
+	if err := SaveCeiling(d, c); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := LoadCeiling(d); err != nil || len(got.Executors) != 1 || got.Executors[0] != "me" {
+		t.Fatalf("%+v %v", got, err)
+	}
+	c.Executors = []string{"user", "confined"}
+	_ = SaveCeiling(d, c)
+	if got, _ := LoadCeiling(d); strings.Join(got.Executors, ",") != "user,confined" {
+		t.Fatal(got.Executors)
+	}
+}

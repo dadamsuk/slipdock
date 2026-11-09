@@ -159,7 +159,7 @@ func TestInitByDeviceCode(t *testing.T) {
 	ts := f.start(t)
 	w := newWorld(t)
 
-	if code := w.main("init", "--server", ts.URL); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	out := w.out.String()
@@ -201,12 +201,12 @@ func TestInitRefusesToReplaceWithoutReplace(t *testing.T) {
 	f := &fake{}
 	ts := f.start(t)
 	w := newWorld(t)
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	_, firstKey, _ := machine.Load(w.dir)
 
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good"); code != 1 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good"); code != 1 {
 		t.Fatalf("a second init must refuse: exit %d", code)
 	}
 	if !strings.Contains(w.errOut.String(), "already enrolled (box on "+ts.URL+"). Pass --replace") {
@@ -225,7 +225,7 @@ func TestInitRefusesToReplaceWithoutReplace(t *testing.T) {
 	if err := machine.SaveCeiling(w.dir, c); err != nil {
 		t.Fatal(err)
 	}
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good", "--replace"); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good", "--replace"); code != 0 {
 		t.Fatalf("--replace: exit %d: %s", code, w.errOut)
 	}
 	if got, _ := machine.LoadCeiling(w.dir); got.MaxTimeoutMinutes != 15 {
@@ -240,7 +240,7 @@ func TestInitWithAKey(t *testing.T) {
 	f := &fake{}
 	ts := f.start(t)
 	w := newWorld(t)
-	code := w.main("init", "--server", ts.URL, "--key", " sdk_good ", "--root", w.home, "--agent", "claude",
+	code := w.main("init", "--as-me", "--server", ts.URL, "--key", " sdk_good ", "--root", w.home, "--agent", "claude",
 		"--agent", "codex", "--max-mode", "plan", "--max-timeout", "30")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
@@ -266,7 +266,7 @@ func TestInitFailures(t *testing.T) {
 	ts := f.start(t)
 
 	w := newWorld(t)
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_used"); code != 1 ||
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_used"); code != 1 ||
 		!strings.Contains(w.errOut.String(), "enrolment failed: invalid_grant") {
 		t.Fatalf("a used key: %d %s", code, w.errOut)
 	}
@@ -275,7 +275,7 @@ func TestInitFailures(t *testing.T) {
 	}
 
 	before := f.enrols
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good", "--max-mode", "yolo"); code != 1 ||
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good", "--max-mode", "yolo"); code != 1 ||
 		!strings.Contains(w.errOut.String(), "max_permission_mode") {
 		t.Fatalf("a bad ceiling flag: %d %s", code, w.errOut)
 	}
@@ -283,18 +283,18 @@ func TestInitFailures(t *testing.T) {
 		t.Fatal("a bad ceiling flag is caught before enrolling")
 	}
 
-	if code := w.main("init", "--server", "http://slipdock.example.com", "--key", "k"); code != 1 ||
+	if code := w.main("init", "--as-me", "--server", "http://slipdock.example.com", "--key", "k"); code != 1 ||
 		!strings.Contains(w.errOut.String(), "plain http") {
 		t.Fatalf("plain http to another host: %d %s", code, w.errOut)
 	}
-	if code := w.main("init", "--server", "ftp://x", "--key", "k"); code != 1 ||
+	if code := w.main("init", "--as-me", "--server", "ftp://x", "--key", "k"); code != 1 ||
 		!strings.Contains(w.errOut.String(), "is not a server address") {
 		t.Fatalf("not a server: %d %s", code, w.errOut)
 	}
-	if code := w.main("init", "--bogus"); code != 2 {
+	if code := w.main("init", "--as-me", "--bogus"); code != 2 {
 		t.Fatalf("an unknown flag is a usage error: %d", code)
 	}
-	if code := w.main("init", "extra"); code != 2 {
+	if code := w.main("init", "--as-me", "extra"); code != 2 {
 		t.Fatalf("a stray argument is a usage error: %d", code)
 	}
 }
@@ -304,7 +304,7 @@ func TestInitAsksForTheServer(t *testing.T) {
 	ts := f.start(t)
 	w := newWorld(t)
 	w.env.Stdin = strings.NewReader(ts.URL + "/\n")
-	if code := w.main("init", "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--as-me", "--key", "sdk_good"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	if !strings.Contains(w.out.String(), "Slipdock server [https://app.slipdock.us]: ") {
@@ -331,7 +331,7 @@ func TestInitDeviceRefusedOrExpired(t *testing.T) {
 			rw.Write([]byte(`{"error":"` + code + `"}`))
 		}))
 		w := newWorld(t)
-		if c := w.main("init", "--server", ts.URL, "--no-browser"); c != 1 || !strings.Contains(w.errOut.String(), want) {
+		if c := w.main("init", "--as-me", "--server", ts.URL, "--no-browser"); c != 1 || !strings.Contains(w.errOut.String(), want) {
 			t.Errorf("%s: exit %d %s", code, c, w.errOut)
 		}
 		if len(w.opened) != 0 {
@@ -345,7 +345,7 @@ func enrolled(t *testing.T) (*world, *fake) {
 	f := &fake{}
 	ts := f.start(t)
 	w := newWorld(t)
-	if code := w.main("init", "--server", ts.URL, "--key", "sdk_good", "--root", w.home); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good", "--root", w.home); code != 0 {
 		t.Fatalf("init: %s", w.errOut)
 	}
 	return w, f

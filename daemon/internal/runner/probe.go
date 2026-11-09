@@ -62,15 +62,20 @@ func (w *Worker) probe(ctx context.Context, j *jobRun) int {
 		cctx, cancel := context.WithTimeout(ctx, probeStepTimeout)
 		said, err := check.run(cctx)
 		cancel()
-		if err != nil {
+		switch {
+		case isSkipped(err):
+			j.note(fmt.Sprintf("skip %s: %v", check.name, err))
+		case err != nil:
 			failed = append(failed, check.name)
 			j.note(fmt.Sprintf("FAIL %s: %v", check.name, err))
-		} else {
+		default:
 			j.note(fmt.Sprintf("ok   %s: %s", check.name, said))
 		}
 	}
 	if name := c.ProbeHook; name != "" {
-		if err := w.probeHook(ctx, j, name); err != nil {
+		if err := w.probeHook(ctx, j, name); isSkipped(err) {
+			j.note(fmt.Sprintf("skip probe hook %q: %v", name, err))
+		} else if err != nil {
 			failed = append(failed, "probe hook")
 			j.note(fmt.Sprintf("FAIL probe hook %q: %v", name, err))
 		} else {
@@ -94,9 +99,9 @@ func (w *Worker) probe(ctx context.Context, j *jobRun) int {
 func (w *Worker) probeChecks(j *jobRun) []probeCheck {
 	c := w.Runner.Config
 	return []probeCheck{
-		{"directory", func(ctx context.Context) (string, error) { return w.probeDirectory(ctx, c.Directory) }},
-		{"agent", func(ctx context.Context) (string, error) { return w.probeAgent(ctx, c) }},
-		{"gh", func(ctx context.Context) (string, error) { return w.probeGH(ctx, c.Directory) }},
+		{"directory", w.needsExecutor(func(ctx context.Context) (string, error) { return w.probeDirectory(ctx, c.Directory) })},
+		{"agent", w.needsExecutor(func(ctx context.Context) (string, error) { return w.probeAgent(ctx, c) })},
+		{"gh", w.needsExecutor(func(ctx context.Context) (string, error) { return w.probeGH(ctx, c.Directory) })},
 		{"skills and CLI", func(context.Context) (string, error) { return probeDrift(j.job.Prompt) }},
 		{"executor", func(ctx context.Context) (string, error) { return w.probeExecutor(ctx, c) }},
 	}
@@ -126,7 +131,7 @@ func (w *Worker) probeAgent(ctx context.Context, c Config) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("agent %q is not defined in this machine's %s", c.Agent, machine.LocalFile)
 	}
-	path, err := w.resolve(agent.Path)
+	path, err := w.Executor.Resolve(agent.Path)
 	if err != nil {
 		return "", fmt.Errorf("%s is not on the PATH of the account jobs run as", agent.Path)
 	}
@@ -140,7 +145,7 @@ func (w *Worker) probeAgent(ctx context.Context, c Config) (string, error) {
 // probeGH: gh is installed and signed in, as pull requests and the merge
 // kind need.
 func (w *Worker) probeGH(ctx context.Context, dir string) (string, error) {
-	if _, err := w.LookPath("gh"); err != nil {
+	if _, err := w.Executor.Resolve("gh"); err != nil {
 		return "", errors.New("gh is not on the PATH (install the GitHub CLI)")
 	}
 	if said, err := w.Exec(ctx, dir, "gh", "auth", "status"); err != nil {
@@ -178,11 +183,12 @@ func probeDrift(prompt string) (string, error) {
 	return said, nil
 }
 
-// probeExecutor: the runner's executor is one this daemon offers, and a
-// command runs under it in the runner's directory.
+// probeExecutor: the runner's executor is one this daemon can run and is
+// ready (a dedicated account set up, Landlock there), and a command runs
+// under it in the runner's directory.
 func (w *Worker) probeExecutor(ctx context.Context, c Config) (string, error) {
-	if !contains(executors, c.Executor) {
-		return "", fmt.Errorf("executor %q is not available on this daemon (only %s)", c.Executor, strings.Join(executors, ", "))
+	if err := w.executorReady(); err != nil {
+		return "", err
 	}
 	shell, args := "sh", []string{"-c", "echo ok"}
 	if runtime.GOOS == "windows" {
@@ -198,11 +204,14 @@ func (w *Worker) probeExecutor(ctx context.Context, c Config) (string, error) {
 // probeHook runs the runner's probe hook, from the machine's own file, its
 // output in the probe's log. A name the file doesn't define fails it.
 func (w *Worker) probeHook(ctx context.Context, j *jobRun, name string) error {
+	if err := w.executorSkip(); err != nil {
+		return err
+	}
 	hook, ok := w.Local.Hook(name)
 	if !ok {
 		return fmt.Errorf("not defined in this machine's %s", machine.LocalFile)
 	}
-	path, err := w.resolve(hook.Path)
+	path, err := w.Executor.Resolve(hook.Path)
 	if err != nil {
 		return fmt.Errorf("%s is not on the PATH", hook.Path)
 	}
@@ -237,4 +246,48 @@ func orUnknown(s string) string {
 		return "unknown"
 	}
 	return s
+}
+
+// executorReady says why no job can run under the runner's executor now,
+// or nil.
+func (w *Worker) executorReady() error {
+	if w.executorErr != nil {
+		return fmt.Errorf("executor %q: %v", w.Runner.Config.Executor, w.executorErr)
+	}
+	if err := w.Executor.Ready(); err != nil {
+		return fmt.Errorf("executor %q: %v", w.Runner.Config.Executor, err)
+	}
+	return nil
+}
+
+// errSkipped is a check that can't be made: its failure is another's
+// (the executor's), said once there rather than again in each.
+type errSkipped struct{ why string }
+
+func (e errSkipped) Error() string { return e.why }
+
+func isSkipped(err error) bool {
+	var skip errSkipped
+	return errors.As(err, &skip)
+}
+
+// needsExecutor is a check run only when the runner's executor is ready:
+// every check but the executor's runs as the account jobs run as, and with
+// no such account it is skipped, the executor check saying why once.
+func (w *Worker) needsExecutor(check func(context.Context) (string, error)) func(context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		if err := w.executorSkip(); err != nil {
+			return "", err
+		}
+		return check(ctx)
+	}
+}
+
+// executorSkip is the skip of a check that needs the executor, or nil when
+// it is ready.
+func (w *Worker) executorSkip() error {
+	if w.executorReady() != nil {
+		return errSkipped{fmt.Sprintf("not checked: executor %q can't run jobs", w.Runner.Config.Executor)}
+	}
+	return nil
 }

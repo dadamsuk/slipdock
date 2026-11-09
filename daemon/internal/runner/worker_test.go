@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
@@ -57,7 +58,7 @@ func TestClaudeJobRunsWithTheRunnersSettings(t *testing.T) {
 		t.Fatal("the machine key reached the agent")
 	}
 
-	h := r.srv.claimHeader[11]
+	h := r.srv.header(11)
 	if got := h.Get("X-Runner-Kinds"); got != "claude,verify,merge,probe" {
 		t.Errorf("X-Runner-Kinds = %q", got)
 	}
@@ -113,7 +114,7 @@ func TestCodexAndACustomCommand(t *testing.T) {
 	if !strings.Contains(saw, "env=SLIPDOCK_PROMPT=Secret prompt\n") {
 		t.Fatalf("the prompt reaches a custom command as $SLIPDOCK_PROMPT:\n%s", saw)
 	}
-	if got := r.srv.claimHeader[11].Get("X-Runner-Kinds"); got != "lint,verify,merge,probe" {
+	if got := r.srv.header(11).Get("X-Runner-Kinds"); got != "lint,verify,merge,probe" {
 		t.Fatalf("kinds = %q", got)
 	}
 }
@@ -404,7 +405,7 @@ func TestMachineSecretsIncludeTheCLIsTokens(t *testing.T) {
 	}
 	got := machineSecrets("sdm_machine_key", home, func(k string) string {
 		return map[string]string{"SLIPDOCK_TOKEN": "sdk_env_token_3", "XDG_CONFIG_HOME": ""}[k]
-	})
+	}, executor.LocalFiles)
 	for _, want := range []string{"sdm_machine_key", "sdk_cli_token_1", "sdk_board_token_2", "sdk_env_token_3"} {
 		found := false
 		for _, s := range got {
@@ -497,5 +498,31 @@ func TestClaimsBackOffAndHonourRetryAfter(t *testing.T) {
 	}
 	if len(slept) != 4 || slept[0] != time.Second || slept[1] != 2*time.Second || slept[3] != 8*time.Second {
 		t.Fatalf("waits = %v, want doubling from a second", slept)
+	}
+}
+
+func TestATranscriptFromBeforeTheJobIsNeverSent(t *testing.T) {
+	r := newRig(t, Config{})
+	r.w.Local.Transcripts = filepath.Join(t.TempDir(), "projects")
+	url := "https://slipdock.example.com/boards/3/cards/42"
+	// An earlier job's transcript for the same card, written before this
+	// one started.
+	old := filepath.Join(r.w.Local.Transcripts, "proj", "a-old.jsonl") // listed first
+	if err := os.MkdirAll(filepath.Dir(old), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(old, []byte(`{"old":"`+url+`"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	then := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(old, then, then); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HELPER_TRANSCRIPT", filepath.Join(r.w.Local.Transcripts, "proj", "new.jsonl"))
+	t.Setenv("HELPER_TRANSCRIPT_BODY", `{"new":"`+url+`"}`+"\n")
+	r.runJob(fakeJob{id: 132, kind: "claude", card: 42, prompt: "x"})
+	got := r.srv.transcript[132]
+	if len(got) != 1 || !strings.Contains(got[0], `"new"`) {
+		t.Fatalf("sent %q: want only this job's transcript", got)
 	}
 }

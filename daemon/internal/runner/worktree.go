@@ -3,7 +3,6 @@ package runner
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -19,7 +18,9 @@ type lane struct {
 // card or no repository there is none, and the log says the job runs in
 // place; an error means the worktree couldn't be made, and the job must
 // not run, since running it in the shared tree is what the setting is for.
-func openLane(ctx context.Context, run execFunc, dir string, card int64, note func(string)) (*lane, error) {
+//
+// isDir looks as the account jobs run as, whose worktrees they are.
+func openLane(ctx context.Context, run execFunc, isDir func(string) bool, dir string, card int64, note func(string)) (*lane, error) {
 	if card == 0 {
 		note(fmt.Sprintf("slipdock-runner: the job has no card, so no worktree; it runs in %s", dir))
 		return nil, nil
@@ -32,7 +33,7 @@ func openLane(ctx context.Context, run execFunc, dir string, card int64, note fu
 	top = filepath.Clean(strings.TrimSpace(top))
 	branch := fmt.Sprintf("card-%d", card)
 	path := filepath.Join(top+"-lanes", branch)
-	if fi, err := os.Stat(path); err == nil && fi.IsDir() {
+	if isDir(path) {
 		if _, err := run(ctx, path, "git", "rev-parse", "--git-dir"); err != nil {
 			return nil, fmt.Errorf("%s is there but is not a worktree, so the job was not run", path)
 		}

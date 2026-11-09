@@ -12,8 +12,10 @@ package runner
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
@@ -50,10 +52,8 @@ type MachineConfig struct {
 	Runners []Runner `json:"runners"`
 }
 
-// executors this daemon can run a job under yet. The others (W-2543) come
-// with their own cards; a runner set to one is refused, never run as the
-// daemon's own account in its place.
-var executors = []string{"me"}
+// goos is the system the executors are checked for (tests change it).
+var goos = runtime.GOOS
 
 // Check says why c falls outside the ceiling, or nil when it is inside it.
 func (r Runner) Check(ceil machine.Ceiling) error {
@@ -74,8 +74,13 @@ func (r Runner) Check(ceil machine.Ceiling) error {
 	if !containsID(ceil.Boards, r.BoardID) {
 		problems = append(problems, fmt.Sprintf("board #%d is not one this machine serves", r.BoardID))
 	}
-	if !contains(executors, c.Executor) {
-		problems = append(problems, fmt.Sprintf("executor %q is not available on this daemon yet (only %s)", c.Executor, strings.Join(executors, ", ")))
+	// A runner set to an executor the machine doesn't offer, or this daemon
+	// can't run, is refused: never run as the daemon's own account instead.
+	offered := ceil.Offered()
+	if err := executor.Supported(c.Executor, goos); err != nil {
+		problems = append(problems, fmt.Sprintf("executor %q: %v", c.Executor, err))
+	} else if !contains(offered, c.Executor) {
+		problems = append(problems, fmt.Sprintf("executor %q is not one this machine offers (%s)", c.Executor, strings.Join(offered, ", ")))
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("%s", strings.Join(problems, "; "))

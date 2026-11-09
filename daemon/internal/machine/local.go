@@ -51,6 +51,20 @@ type Local struct {
 	CLI       string `json:"cli,omitempty"`
 	// NoMerge turns off the built-in merge kind.
 	NoMerge bool `json:"no_merge,omitempty"`
+	// User is the dedicated account jobs run as under the user executor
+	// (W-2543): init writes it when it sets the account up.
+	User *Account `json:"user,omitempty"`
+	// ConfinedWritable are what a confined job may write besides its own
+	// directory: the agent's own state (default ~/.claude, for claude).
+	ConfinedWritable []string `json:"confined_writable,omitempty"`
+}
+
+// Account is a dedicated account: its name, its home, and the PATH its
+// jobs get (default: its ~/.local/bin and ~/bin, then the system's).
+type Account struct {
+	Name string `json:"name"`
+	Home string `json:"home"`
+	Path string `json:"path,omitempty"`
 }
 
 // BuiltinAgents need no entry in the local file.
@@ -73,10 +87,38 @@ func (l Local) Validate() error {
 	for _, name := range sortedKeys(l.Hooks) {
 		check("hooks", name, l.Hooks[name])
 	}
+	if u := l.User; u != nil {
+		if strings.TrimSpace(u.Name) == "" {
+			problems = append(problems, "user.name: the account's name is empty")
+		}
+		if !filepath.IsAbs(u.Home) {
+			problems = append(problems, fmt.Sprintf("user.home: %q is not an absolute path", u.Home))
+		}
+	}
+	for _, w := range l.ConfinedWritable {
+		if !filepath.IsAbs(w) {
+			problems = append(problems, fmt.Sprintf("confined_writable: %q is not an absolute path", w))
+		}
+	}
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// SaveLocal writes the local file, after checking it.
+func SaveLocal(dir string, l Local) error {
+	if err := l.Validate(); err != nil {
+		return fmt.Errorf("the local file isn't valid: %w", err)
+	}
+	if err := ensureDir(dir); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(l, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeFile(filepath.Join(dir, LocalFile), append(data, '\n'), 0o644)
 }
 
 func sortedKeys(m map[string]Command) []string {
