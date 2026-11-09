@@ -1,4 +1,4 @@
-// The browser half of tools/e2e/agentic-hub.sh (#2012).
+// The browser half of tools/e2e/agentic-hub.sh (#2012, #2600).
 //
 //   node tools/e2e/agentic-hub.mjs <login-url> <base-url> <board-id>
 import { createRequire } from 'node:module'
@@ -24,17 +24,40 @@ const shot = async (name) => { if (shots) await page.screenshot({ path: `${shots
 const text = (sel) => page.locator(sel).first().innerText()
 
 await open(`/boards/${board}/agentic`)
-const expect = { runners: '1/2', findings: '2', ledger: '3', health: '1' }
+// Findings counts the proposals waiting on a person (#2123); the seed's two
+// findings have none drafted, so they are its line.
+const expect = { now: '1', runners: '1/2', findings: '0', ledger: '3', health: '1' }
+const order = ['now', 'runners', 'findings', 'ledger', 'health']
 for (const [key, n] of Object.entries(expect)) {
   const got = (await text(`#agentic-tile-${key} [data-role=tile-number]`)).trim()
   if (got !== n) fail(`${key} tile says ${got}, not ${n}`)
 }
 if ((await page.locator('#agentic-tile-health').getAttribute('data-attention')) !== 'warning') fail('Health is not ringed')
+const nowLine = (await text('#agentic-tile-now [data-role=tile-line]')).trim()
+if (nowLine !== '1 card in progress, 0 queued') fail(`Right now's line says ${nowLine}`)
+const findingsLine = (await text('#agentic-tile-findings [data-role=tile-line]')).trim()
+if (findingsLine !== 'Nothing waiting on you · 2 findings being handled') fail(`Findings' line says ${findingsLine}`)
+const ids = await page.$$eval('#agentic-hub li > a', (els) => els.map((e) => e.id.replace('agentic-tile-', '')))
+if (ids.join() !== order.join()) fail(`tiles in the order ${ids.join()}, not ${order.join()}`)
 
-// The four tiles share one row at 1440, each the same height.
-const boxes = await page.$$eval('#agentic-hub li', (els) => els.map((e) => e.getBoundingClientRect()))
-if (boxes.length !== 4 || new Set(boxes.map((b) => Math.round(b.top))).size !== 1) fail(`tiles not one row: ${JSON.stringify(boxes.map((b) => b.top))}`)
-console.log(`ok: tiles ${Object.entries(expect).map(([k, n]) => `${k} ${n}`).join(', ')}, one row, Health ringed`)
+// The tiles' rows, top to bottom, each the tiles in it left to right.
+const rows = () =>
+  page.$$eval('#agentic-hub li', (els) => {
+    const by = new Map()
+    for (const e of els) {
+      const b = e.getBoundingClientRect()
+      const top = Math.round(b.top)
+      by.set(top, [...(by.get(top) || []), { left: b.left, right: b.right, height: Math.round(b.height) }])
+    }
+    return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([, r]) => r)
+  })
+
+// The five tiles share one row at 1440, each the same height, inside the page.
+const wide = await rows()
+if (wide.length !== 1 || wide[0].length !== 5) fail(`tiles at 1440 in rows of ${wide.map((r) => r.length).join(', ')}, not one of 5`)
+if (new Set(wide[0].map((t) => t.height)).size !== 1) fail(`tiles at 1440 not one height: ${wide[0].map((t) => t.height).join(', ')}`)
+if (Math.max(...wide[0].map((t) => t.right)) > 1440) fail('a tile runs off the page at 1440')
+console.log(`ok: tiles ${Object.entries(expect).map(([k, n]) => `${k} ${n}`).join(', ')}, one row of 5, Health ringed`)
 
 for (const t of ['light', 'dark']) {
   await theme(t)
@@ -43,8 +66,9 @@ for (const t of ['light', 'dark']) {
 }
 await theme('light')
 
-// Each tile opens its place; Findings, Ledger and Health lead back.
+// Each tile opens its place; Right now, Findings, Ledger and Health lead back.
 for (const [key, url, ready] of [
+  ['now', /\/now$/, '#now-title'],
   ['findings', /\/findings$/, '#findings-title'],
   ['ledger', /\/ledger$/, '#ledger-title'],
   ['health', /\/health$/, '#health-shell, h1'],
@@ -57,7 +81,7 @@ for (const [key, url, ready] of [
   await Promise.all([page.waitForURL(/\/agentic$/), page.locator('#agentic-back').click()])
   await page.waitForSelector('#agentic-hub')
 }
-console.log('ok: Findings, Ledger and Health open from their tiles and lead back')
+console.log('ok: Right now, Findings, Ledger and Health open from their tiles and lead back')
 
 await open(`/boards/${board}/agentic`)
 await Promise.all([page.waitForURL(/\/automations$/), page.locator('#agentic-tile-runners').click()])
@@ -66,16 +90,17 @@ for (const id of ['runners-findings', 'runners-ledger', 'runners-health'])
   if (await page.locator(`#${id}`).count()) fail(`the Runners header still has #${id}`)
 console.log('ok: Runners opens Automations, its header without the three old buttons')
 
-// Phone: two tiles a row, nothing wider than the screen.
+// Phone: two tiles a row (2, 2, then Health alone), nothing wider than the screen.
 await page.setViewportSize({ width: 390, height: 844 })
 await open(`/boards/${board}/agentic`)
 for (const t of ['light', 'dark']) {
   await theme(t)
   await page.waitForTimeout(200)
-  const tops = await page.$$eval('#agentic-hub li', (els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
-  if (new Set(tops).size !== 2) fail(`${t}: tiles on ${new Set(tops).size} rows at 390`)
-  const wide = await page.evaluate(() => document.documentElement.scrollWidth)
-  if (wide > 390) fail(`${t}: ${wide}px wide`)
+  const phone = await rows()
+  const shape = phone.map((r) => r.length).join(', ')
+  if (shape !== '2, 2, 1') fail(`${t}: tiles at 390 in rows of ${shape}, not 2, 2, 1`)
+  const scroll = await page.evaluate(() => document.documentElement.scrollWidth)
+  if (scroll > 390) fail(`${t}: ${scroll}px wide`)
   await shot(`hub-${t}-390`)
 }
 await open(`/boards/${board}/health`)

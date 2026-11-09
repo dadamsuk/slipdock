@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# End to end in a real browser (#2012): the Agentic Building page's four
-# tiles (Runners, Findings, Ledger, Health) with their counts, each opened
-# in turn, the way back from Findings, Ledger and Health, the Runners panel
-# without its old buttons, and the tiles at phone width. Light and dark,
-# 1440 and 390.
+# End to end in a real browser (#2012, #2600): the Agentic Building page's
+# five tiles (Right now, Runners, Findings, Ledger, Health) with their
+# counts, each opened in turn, the way back from Right now, Findings, Ledger
+# and Health, the Runners panel without its old buttons, and the tiles in
+# one row at 1440 and two a row at 390. Light and dark.
 #
 #   PORT=4143 SHOTS=/tmp/shots tools/e2e/agentic-hub.sh
 #
@@ -18,15 +18,15 @@ mix run -e '
   alias Slipdock.Boards.Card
   b = Boards.get_board!('"$KB"')
   {:ok, b} = Boards.update_board(b, %{"agentic_building" => true, "verify_work" => true, "lane_mode" => "hold"})
-  [_, todo | _] = b.columns
+  doing = Enum.find(b.columns, &(&1.category == "doing"))
   done = List.last(b.columns)
   now = DateTime.utc_now(:second)
-  {:ok, card} = Boards.create_card(todo, %{"title" => "Being built"})
+  {:ok, card} = Boards.create_card(doing, %{"title" => "Being built"})
   {:ok, r, _} = Runners.create_runner(b, %{"name" => "Studio", "pool" => "dev"})
   Repo.update!(Ecto.Changeset.change(r, last_seen_at: now))
   {:ok, r2, _} = Runners.create_runner(b, %{"name" => "Laptop", "pool" => "dev"})
   Repo.update!(Ecto.Changeset.change(r2, last_seen_at: DateTime.add(now, -86_400, :second)))
-  Repo.insert!(%Slipdock.Runners.Job{board_id: b.id, root_board_id: b.id, card_id: card.id, pool: "dev", kind: "claude", prompt: "Work it", status: "running"})
+  Repo.insert!(%Slipdock.Runners.Job{board_id: b.id, root_board_id: b.id, card_id: card.id, pool: "dev", kind: "claude", runner_id: r.id, prompt: "Work it", status: "running"})
   for t <- ["Seed data needs a fresh migration", "mix format can need two passes"],
     do: Repo.insert!(%Slipdock.Findings.Finding{board_id: b.id, card_id: card.id, kind: "gotcha", source: "agent", text: t, by: "Builder"})
   for t <- ["Agentic tiles", "Ledger bars", "Back links"] do
