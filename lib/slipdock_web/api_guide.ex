@@ -2561,13 +2561,16 @@ defmodule SlipdockWeb.APIGuide do
     `skills` current, drifted (`drifted_skills` names them) or unknown,
     `cli` current, old, none or unknown. A drifted runner raises one
     alert, cleared once it is current. A daemon clears it itself: before
-    each agent job it puts the server's skills in place and, when
-    `/cli/SHA256SUMS` differs from its CLI, fetches `/cli/slipdock.escript`,
-    checks its SHA-256 and puts it in its own `bin`, first on the job's
-    PATH (`no_cli_update` in `local.json` turns that off), so its next
-    claim reports it current. Otherwise, run the install one-liner on the
-    machine again. A skill's one source is the server, never a hand-edited
-    copy.
+    each agent job it puts the server's skills in place (under the `user`
+    executor the job account unpacks them; `no_skills_update` turns it
+    off) and, when `/cli/SHA256SUMS` differs from its CLI, fetches
+    `/cli/slipdock.escript`, checks its SHA-256 and puts it in its own
+    `bin`, first on the job's PATH
+    (`no_cli_update` in `local.json` turns that off), so its next claim
+    reports it current. For skills it doesn't update and
+    a CLI it doesn't write, run the install one-liner on the machine again,
+    as the account the jobs run as. A skill's one source is the server,
+    never a hand-edited copy.
 
     **The server keeps an epic's record.** As each subcard starts, is
     submitted, rejected, accepted, merged, fails a build, waits on a person

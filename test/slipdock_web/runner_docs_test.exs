@@ -98,6 +98,27 @@ defmodule SlipdockWeb.RunnerDocsTest do
     refute read("CLAUDE.md") =~ "installs nothing yet"
   end
 
+  test "agents.md and the API guide say the daemon keeps the skills current, and when not (#2643)" do
+    agents = read("docs/agents.md")
+
+    assert agents =~
+             "needs no step for its skills: before\neach agent job its daemon puts the server's skills in place"
+
+    assert agents =~ "whose `local.json` sets `no_skills_update: true`"
+    assert agents =~ "Under the `user` executor the job account unpacks\nthe skills itself"
+    refute agents =~ "Under the `user` executor, and for a CLI the daemon doesn't write"
+
+    guide = read("lib/slipdock_web/api_guide.ex")
+
+    assert guide =~
+             "under the `user`\n    executor the job account unpacks them; `no_skills_update` turns it\n    off"
+
+    assert guide =~
+             "For skills it doesn't update and\n    a CLI it doesn't write, run the install one-liner"
+
+    refute guide =~ "Otherwise, run the install one-liner"
+  end
+
   test "a container job's live transcript is described as sent, and how it is read (#2625)" do
     machines = read("docs/manual/machines.md")
     assert machines =~ "fresh,\n  empty directory of the job's own at `~/.claude/projects`"

@@ -135,8 +135,12 @@ available as [a tarball](https://app.slipdock.us/api/skills.tar.gz) and as
 that serves it (in Slipdock's repository, `priv/skills/`). The copy on your
 machine is installed from there, never edited by hand: to change a skill,
 change it in `priv/skills/`, and once that is deployed run the one-liner
-again. A machine with the runner daemon needs no step: before each agent
-job its daemon puts the server's skills and `slipdock` CLI in place (below).
+again. A machine with the runner daemon needs no step for its skills: before
+each agent job its daemon puts the server's skills in place (and its
+`slipdock` CLI, see *drift* in §Runners), and under the `user` executor the
+job account unpacks them itself. Run the one-liner there only for a machine
+whose `local.json` sets `no_skills_update: true`, or for a CLI the daemon
+doesn't write.
 Slipdock's own tests read only
 `priv/skills/`, never `~/.claude/skills`.
 
@@ -771,10 +775,13 @@ puts it in the daemon's own `bin` folder, first on the job's PATH (or over
 the `cli` its `local.json` names, never over a copy installed elsewhere).
 The next claim reports it, so a deploy leaves no runner *cli old*. A failed
 fetch or a wrong sum keeps the CLI there was, and the job runs.
-`no_cli_update: true` (and `no_skills_update`) in `local.json` turns it
-off. Under the `user` executor, and for a CLI the daemon doesn't write (the
-`container` executor or Windows, with no `cli` named), run the install
-one-liner there again (see *One source for each skill* under §3 above).
+`no_cli_update: true` (and `no_skills_update` for the skills) in
+`local.json` turns it off. Under the `user` executor the job account unpacks
+the skills itself (the same checked archive), but the daemon doesn't write
+its CLI. For skills with `no_skills_update` set, and for a CLI the daemon
+doesn't write (the `user` or `container` executor, or Windows, with no `cli`
+named), run the install one-liner there again, as the account the jobs run
+as (see *One source for each skill* under §3 above).
 
 **A job runs with nobody watching**, so two things are set up for it. A
 Claude runner may use the Slipdock MCP tools without asking (`--allowedTools`
