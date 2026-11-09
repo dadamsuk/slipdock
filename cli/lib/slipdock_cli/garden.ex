@@ -44,7 +44,7 @@ defmodule SlipdockCLI.Garden do
       s = r["suggestion"]
 
       if r["created"],
-        do: IO.puts("proposed " <> line(s) <> "\n      → " <> steps(s["proposal"])),
+        do: IO.puts("proposed " <> line(s) <> "\n      → " <> steps(s["proposal"], s["pages"])),
         else: IO.puts("already filed: " <> line(s))
     end)
   end
@@ -158,10 +158,10 @@ defmodule SlipdockCLI.Garden do
 
       Enum.each(group, fn s ->
         IO.puts("  " <> line(s))
-        IO.puts("      → " <> steps(s["proposal"]))
+        IO.puts("      → " <> steps(s["proposal"], s["pages"]))
 
         for {name, alt} <- s["alternatives"] || %{},
-            do: IO.puts("      or --choice #{inspect(name)}: " <> steps(alt))
+            do: IO.puts("      or --choice #{inspect(name)}: " <> steps(alt, s["pages"]))
 
         if (s["findings"] || []) != [],
           do:
@@ -197,23 +197,36 @@ defmodule SlipdockCLI.Garden do
   end
 
   @doc false
-  # The steps in words: "complete #12, move #12 to list 34".
-  def steps(steps), do: Enum.map_join(steps, ", ", &step_text/1)
+  # The steps in words: "complete #12, move #12 to list 34". A step's page
+  # is named by its code (`W-1944`, #2592): the step's own `page_code`, else
+  # the suggestion's `pages` (a server older than #2592), else its id.
+  def steps(steps, pages \\ []) do
+    codes =
+      for %{"id" => id, "code" => code} <- pages || [], is_binary(code), into: %{}, do: {id, code}
 
-  defp step_text(%{"op" => "archive", "page" => page}) when not is_nil(page),
-    do: "archive page #{page}"
+    Enum.map_join(steps, ", ", &step_text(&1, codes))
+  end
 
-  defp step_text(%{"op" => "comment", "page" => page} = step) when not is_nil(page),
-    do: "comment on page #{page}: #{inspect(step["body"])}"
+  defp step_text(%{"page" => page} = step, codes) when not is_nil(page),
+    do: page_step(step, "page " <> to_string(step["page_code"] || codes[page] || page))
 
-  defp step_text(%{"op" => "rewrite_link"} = step),
-    do: "rewrite [[#{step["from"]}]] to [[#{step["to"]}]] on page #{step["page"]}"
+  defp step_text(step, _codes), do: step_text(step)
 
-  defp step_text(%{"op" => "file_page"} = step),
-    do: "file page #{step["page"]} into folder #{step["folder"]}"
+  defp page_step(%{"op" => "archive"}, page), do: "archive #{page}"
 
-  defp step_text(%{"op" => "edit_section"} = step),
-    do: "edit §#{step["section"]} of page #{step["page"]}"
+  defp page_step(%{"op" => "comment"} = step, page),
+    do: "comment on #{page}: #{inspect(step["body"])}"
+
+  defp page_step(%{"op" => "rewrite_link"} = step, page),
+    do: "rewrite [[#{step["from"]}]] to [[#{step["to"]}]] on #{page}"
+
+  defp page_step(%{"op" => "file_page"} = step, page),
+    do: "file #{page} into folder #{step["folder"]}"
+
+  defp page_step(%{"op" => "edit_section"} = step, page),
+    do: "edit §#{step["section"]} of #{page}"
+
+  defp page_step(step, _page), do: step_text(step)
 
   defp step_text(%{"op" => op} = step), do: card_step(op, step_card(step), step)
 
