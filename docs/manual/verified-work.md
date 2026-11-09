@@ -187,8 +187,9 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   work`, whatever its age, and counts in `slipdock whoami`'s waiting. The
   runners still take it for rework: the flag asks you to look at whether
   the card needs a different approach or a reworded bar. Taking the flag
-  off says you've seen it. A failed merge counts towards the two; only a
-  verifier's rejection fires it.
+  off says you've seen it. A failed merge counts towards the two (not one
+  that finds the pull request already merged); only a verifier's rejection
+  fires it.
 - **Too many rejections go to a person.** **Rejections before a person
   decides** (`slipdock set-board B --verify-rejection-limit 2`, `PATCH
   /api/boards/:board {"verify_rejection_limit": 2}`; 2 by default, 0 never)

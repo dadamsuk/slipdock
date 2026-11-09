@@ -4406,7 +4406,10 @@ defmodule SlipdockWeb.APIGuide do
     queues a `merge` job for a runner (one idle now first, else the one
     that accepted it), and the merge completes the card
     (its `merge_sha`). A failed merge sends it back rejected, the merge's
-    reason as the rejection: rebase the branch and complete it again. A
+    reason as the rejection: rebase the branch and complete it again.
+    A pull request already merged at the accepted commit completes the
+    card with that merge commit; one merged at another head leaves it
+    merging and says which head, and neither counts as a rejection. A
     person can say they merged it by hand (`verify_card` `merged`).
     """
   end

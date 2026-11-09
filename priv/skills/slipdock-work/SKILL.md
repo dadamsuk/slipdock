@@ -151,6 +151,9 @@ whole card before touching it.
   reconcile) has no PR either, never a token one: complete it with
   `slipdock done <id> --no-code "<why>" --evidence "…"`. A failed merge sends the
   card back rejected with the reason: rebase the branch and submit again.
+  A PR already merged at the accepted commit completes the card with that
+  merge commit; one merged at another head leaves it merging, says which
+  head and isn't a rejection.
   A spike (tagged `spike`) is never merged: prototype on `card-<id>`,
   push it, open no PR, pin the answer page (the question, the answer or
   *inconclusive*, the evidence, what it changes in the plan) to the epic,

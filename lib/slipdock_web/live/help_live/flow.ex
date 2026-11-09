@@ -596,7 +596,9 @@ defmodule SlipdockWeb.HelpLive.Flow do
       <li>
         <strong>Accepted</strong>
         by push: the card is done. By pull request: a runner merges it, and the merge completes the
-        card. A failed merge comes back as a rejection.
+        card. A failed merge comes back as a rejection, unless the pull request was already merged:
+        at the accepted commit the card completes with that merge, at another head it stays merging
+        and says which head, and neither counts as a rejection.
       </li>
       <li>
         <strong>Rejected</strong>: the card goes back to the top of its list, and the reason is the

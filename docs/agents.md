@@ -1023,7 +1023,8 @@ warning alert goes up on the root board and the board's owner (and whoever
 `release` questions go to) is emailed, and it heads the owner's `slipdock
 work` (reason `circling`) and counts in `whoami`'s waiting. The runners still
 send it for rework; the flag isn't a stop. A failed merge counts towards the
-two, but only a verifier's rejection fires it. A board's `verify_rejection_limit` (2 by default, 0 never;
+two (not one that finds the pull request already merged), but only a
+verifier's rejection fires it. A board's `verify_rejection_limit` (2 by default, 0 never;
 `slipdock set-board --verify-rejection-limit`) sends the rejection after that
 many to a person: a wait on the board's owner, *Rework as rejected* or
 *Accept as is*, with the card flagged `waiting` so runners pass it over. The
@@ -1063,7 +1064,10 @@ a machine's runners have a built-in `merge` kind that merges the accepted
 commit's pull request in their own repository (`no_merge: true` in the
 machine's own file turns it off):
 accepting a card there queues the merge, and the merge completes it (a
-failed merge sends it back rejected with the reason). The merge goes to a
+failed merge sends it back rejected with the reason; one that finds the
+pull request already merged at the accepted commit completes it with that
+merge commit, and at another head leaves it merging, says which head and
+counts as no rejection). The merge goes to a
 runner that is idle now, else to the one that accepted the card, so it
 doesn't wait for a pass to end; a runner that can't merge in that
 repository hands it on rather than failing the card. The skills

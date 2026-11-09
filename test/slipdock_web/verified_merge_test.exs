@@ -345,6 +345,29 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       assert Enum.any?(comments(card), &(&1 =~ "**Merge failed: already merged.**"))
     end
 
+    # Only the runner's own `merge:` line says it was already merged: the
+    # same words elsewhere in a failed job's output (a shell runner's last
+    # line, say) are a failure like any other.
+    for said <- [
+          "gh: acme/app#7 is MERGED, not open",
+          "note: it was already merged at head 999fff"
+        ] do
+      test "#{said} without a merge: line is a failed merge, rejected", ctx do
+        {:ok, _} =
+          Runners.finish(ctx.runner, ctx.job_id, %{exit: "1", output: "x\n#{unquote(said)}\n"})
+
+        card = Repo.get!(Card, ctx.merging.id)
+        refute card.completed
+        assert card.verify_state == "rejected"
+        assert card.verify_rejections == 1
+        assert card.verify_note =~ unquote(said)
+        assert card.column_id == ctx.todo.id
+        all = comments(card)
+        assert Enum.any?(all, &(&1 =~ "**Merge failed.**"))
+        refute Enum.any?(all, &(&1 =~ "**Merge failed: already merged.**"))
+      end
+    end
+
     test "a person cancelling it sends it back too", ctx do
       job = Repo.get!(Job, ctx.job_id)
       {:ok, _} = Runners.cancel_job(job)
