@@ -26,7 +26,8 @@ func (e *mergeExit) Error() string { return e.msg }
 // the pull request and the accepted commit are data from the server,
 // checked here before use. It merges only a pull request in dir's own
 // origin, still open, whose head is the accepted commit, and answers the
-// merge commit. log gets what a person reads afterwards.
+// merge commit; one already merged at that commit answers its merge
+// commit too (#2637). log gets what a person reads afterwards.
 func merge(ctx context.Context, run execFunc, dir string, job *Job, log func(string)) (string, error) {
 	fail := func(code int, format string, a ...any) (string, error) {
 		return "", &mergeExit{code, "merge: " + fmt.Sprintf(format, a...)}
@@ -61,6 +62,9 @@ func merge(ctx context.Context, run execFunc, dir string, job *Job, log func(str
 		return fail(2, "could not read %s: %s", pr, oneLine(info))
 	}
 	state, head, _ := strings.Cut(strings.TrimSpace(info), " ")
+	if state == "MERGED" {
+		return alreadyMerged(ctx, run, dir, pr, prRepo, num, head, want, log)
+	}
 	if state != "OPEN" {
 		return fail(2, "%s is %s, not open; nothing merged", pr, state)
 	}
@@ -85,14 +89,35 @@ func merge(ctx context.Context, run execFunc, dir string, job *Job, log func(str
 	if s := strings.TrimSpace(said); s != "" {
 		log(s)
 	}
-	sha, _ := run(ctx, dir, "gh", "pr", "view", num, "--repo", prRepo, "--json", "mergeCommit", "--jq", ".mergeCommit.oid")
-	sha = strings.TrimSpace(sha)
-	shown := sha
-	if shown == "" {
-		shown = "an unknown commit"
-	}
-	log(fmt.Sprintf("merge: merged %s (head %s) as %s", pr, head, shown))
+	sha := mergeCommit(ctx, run, dir, prRepo, num)
+	log(fmt.Sprintf("merge: merged %s (head %s) as %s", pr, head, shownSha(sha)))
 	return sha, nil
+}
+
+// alreadyMerged is a pull request somebody merged before this job got to it
+// (#2637): merged at the accepted commit, it is the merge the job wanted,
+// so it answers the merge commit; merged at another head, it fails and
+// says which, for a person to look at.
+func alreadyMerged(ctx context.Context, run execFunc, dir, pr, prRepo, num, head, want string, log func(string)) (string, error) {
+	if !strings.HasPrefix(strings.ToLower(head), strings.ToLower(want)) {
+		return "", &mergeExit{2, fmt.Sprintf("merge: %s was already merged at head %s, not the accepted commit %s; nothing merged", pr, head, want)}
+	}
+	sha := mergeCommit(ctx, run, dir, prRepo, num)
+	log(fmt.Sprintf("merge: %s was already merged at the accepted commit (head %s) as %s", pr, head, shownSha(sha)))
+	return sha, nil
+}
+
+// mergeCommit is the pull request's merge commit, "" if gh doesn't say.
+func mergeCommit(ctx context.Context, run execFunc, dir, prRepo, num string) string {
+	sha, _ := run(ctx, dir, "gh", "pr", "view", num, "--repo", prRepo, "--json", "mergeCommit", "--jq", ".mergeCommit.oid")
+	return strings.TrimSpace(sha)
+}
+
+func shownSha(sha string) string {
+	if sha == "" {
+		return "an unknown commit"
+	}
+	return sha
 }
 
 // repoOf is owner/name from a GitHub remote URL (https or ssh).

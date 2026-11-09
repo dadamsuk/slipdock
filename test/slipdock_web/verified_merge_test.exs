@@ -269,6 +269,105 @@ defmodule SlipdockWeb.VerifiedMergeTest do
       assert failed =~ said
     end
 
+    # #2637: a pull request somebody merged before the job got to it.
+    test "already merged at the accepted commit completes the card as merged", ctx do
+      said = "merge: #{@pr} was already merged at the accepted commit (head abc1234ff) as #{@sha}"
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "0", merged: @sha, output: said})
+
+      card = Repo.get!(Card, ctx.merging.id)
+      assert card.completed
+      assert card.verify_state == "accepted"
+      assert card.merge_sha == @sha
+      assert card.column_id == ctx.done.id
+      assert card.verify_rejections in [nil, 0]
+
+      assert Enum.any?(
+               comments(card),
+               &(&1 =~
+                   "**Merged** by runner m-dev: the pull request was already merged at the " <>
+                     "accepted commit as `#{@sha}`.")
+             )
+
+      quality = Slipdock.Quality.for_board(ctx.board)
+      assert quality.verified.accepted == 1
+      assert quality.verified.first_time_right == 1
+      assert quality.verified.rejections == 0
+    end
+
+    test "already merged at another head fails, says which, and isn't a rejection", ctx do
+      # A rejection before the acceptance: one more would be the circling second.
+      Repo.update_all(from(c in Card, where: c.id == ^ctx.merging.id),
+        set: [verify_rejections: 1]
+      )
+
+      said =
+        "merge: #{@pr} was already merged at head 999fff, not the accepted commit abc1234; " <>
+          "nothing merged"
+
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "2", output: "x\n#{said}\n"})
+
+      card = Repo.get!(Card, ctx.merging.id)
+      refute card.completed
+      assert card.verify_state == "merging"
+      assert card.verify_rejections == 1
+      assert card.evidence_pr == @pr
+      assert card.column_id == ctx.merging.column_id
+      assert Repo.get!(Job, ctx.job_id).status == "failed"
+      refute Verified.Circling.circling?(card)
+      assert Verified.merge_status(card) == :none
+
+      all = comments(card)
+      assert [failed] = Enum.filter(all, &(&1 =~ "**Merge failed: already merged.**"))
+      assert failed =~ "head 999fff, not the accepted commit abc1234"
+      assert failed =~ "doesn't count as a rejection"
+      assert failed =~ "slipdock verify #{card.id} merged"
+      refute Enum.any?(all, &(&1 =~ "Going round in circles"))
+      refute Enum.any?(all, &(&1 =~ "**Merge failed.**"))
+
+      quality = Slipdock.Quality.for_board(ctx.board)
+      assert quality.verified.in_rework == 0
+      assert quality.verified.rejections == 1
+
+      # A person who checks it can still mark it merged by hand.
+      {:ok, card} =
+        Verified.decide(card, "merged", %{"commit" => "999fff1"}, Actor.web(ctx.user), ctx.user)
+
+      assert card.completed
+    end
+
+    test "an older runner's 'is MERGED, not open' is treated the same", ctx do
+      said = "merge: #{@pr} is MERGED, not open; nothing merged"
+      {:ok, _} = Runners.finish(ctx.runner, ctx.job_id, %{exit: "2", output: said})
+
+      card = Repo.get!(Card, ctx.merging.id)
+      assert card.verify_state == "merging"
+      assert card.verify_rejections in [nil, 0]
+      assert Enum.any?(comments(card), &(&1 =~ "**Merge failed: already merged.**"))
+    end
+
+    # Only the runner's own `merge:` line says it was already merged: the
+    # same words elsewhere in a failed job's output (a shell runner's last
+    # line, say) are a failure like any other.
+    for said <- [
+          "gh: acme/app#7 is MERGED, not open",
+          "note: it was already merged at head 999fff"
+        ] do
+      test "#{said} without a merge: line is a failed merge, rejected", ctx do
+        {:ok, _} =
+          Runners.finish(ctx.runner, ctx.job_id, %{exit: "1", output: "x\n#{unquote(said)}\n"})
+
+        card = Repo.get!(Card, ctx.merging.id)
+        refute card.completed
+        assert card.verify_state == "rejected"
+        assert card.verify_rejections == 1
+        assert card.verify_note =~ unquote(said)
+        assert card.column_id == ctx.todo.id
+        all = comments(card)
+        assert Enum.any?(all, &(&1 =~ "**Merge failed.**"))
+        refute Enum.any?(all, &(&1 =~ "**Merge failed: already merged.**"))
+      end
+    end
+
     test "a person cancelling it sends it back too", ctx do
       job = Repo.get!(Job, ctx.job_id)
       {:ok, _} = Runners.cancel_job(job)

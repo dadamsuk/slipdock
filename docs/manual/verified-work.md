@@ -187,8 +187,9 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   work`, whatever its age, and counts in `slipdock whoami`'s waiting. The
   runners still take it for rework: the flag asks you to look at whether
   the card needs a different approach or a reworded bar. Taking the flag
-  off says you've seen it. A failed merge counts towards the two; only a
-  verifier's rejection fires it.
+  off says you've seen it. A failed merge counts towards the two (not one
+  that finds the pull request already merged); only a verifier's rejection
+  fires it.
 - **Too many rejections go to a person.** **Rejections before a person
   decides** (`slipdock set-board B --verify-rejection-limit 2`, `PATCH
   /api/boards/:board {"verify_rejection_limit": 2}`; 2 by default, 0 never)
@@ -393,7 +394,12 @@ goes to the runner that accepted the card, which is about to finish its
 verify job, else to the builder's pool, else to any pool on the board with
 a runner that merges. When the merge succeeds the card completes, moves to Done and
 shows the merge commit (`merge_sha`), and a deploy's commits name it as
-usual. When it fails the card goes back to the top of the ready list as
+usual. A pull request somebody already merged at the accepted commit is
+that merge: the runner reports its merge commit and the card completes the
+same way. One already merged at another head isn't a rejection either: the
+card stays merging, says which head was merged (**Merge failed: already
+merged**), and waits for a person to check it and press **Merged it
+myself**. When it fails the card goes back to the top of the ready list as
 rejected, the merge job's own reason as the rejection. Only a conflict or a
 head that moved suggests rebasing `card-<id>` and submitting it again; any
 other reason (a closed pull request, a failing check) says to fix what it

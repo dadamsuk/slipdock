@@ -14,7 +14,8 @@ defmodule Slipdock.Quality do
     * `verified` — the cards accepted in the window (`verify_state` accepted,
       or merging on a board that ships by pull request, decided in the
       window), and of them `first_time_right`: accepted with no rejection
-      (a failed merge counts as one, as `verify_rejections` does) and never
+      (a failed merge counts as one, as `verify_rejections` does, but not
+      one that found the pull request already merged, #2637) and never
       reopened. `reopened` counts the accepted cards a person reopened at
       some point (the activity log's `reopened` lines): a card that had to
       be reopened was not right first time. `rejections` sums the accepted
