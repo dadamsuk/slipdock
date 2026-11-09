@@ -16,11 +16,16 @@ import (
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 	"github.com/dadamsuk/slipdock/daemon/internal/machineconfig"
 	"github.com/dadamsuk/slipdock/daemon/internal/runner"
+	"github.com/dadamsuk/slipdock/daemon/internal/update"
 )
 
 // checkEvery is how often run asks the server whether the machine is still
 // enrolled. A var so tests can shorten it.
 var checkEvery = 5 * time.Minute
+
+// updateEvery is how often run checks for a newer release, in checks of
+// the enrolment: every 6 hours, and once at the start.
+var updateEvery = int((6 * time.Hour) / checkEvery)
 
 // configRetry is how long run waits to ask again for the machine's config
 // when the server can't be reached. A var so tests can shorten it.
@@ -74,6 +79,14 @@ func cmdRun(args []string, env Env) error {
 	defer cancel()
 
 	logger.Printf("%s %s starting as %s (machine #%d) on %s", "slipdock-runner", Version, st.Name, st.MachineID, st.Server)
+	if exe, err := env.Executable(); err == nil {
+		update.Cleanup(exe)
+	}
+	// The first check comes before the runners start, so an update found
+	// then restarts the daemon before it has taken a job.
+	if err := autoUpdate(ctx, d, env, logger.Printf); err != nil {
+		return err
+	}
 
 	// The runners run beside the enrolment check; the machine revoked
 	// (seen by either) or the process stopping ends both.
@@ -93,7 +106,12 @@ func cmdRun(args []string, env Env) error {
 		runners.Wait()
 	}()
 
-	for {
+	for n := 1; ; n++ {
+		if n%updateEvery == 0 {
+			if err := autoUpdate(ctx, d, env, logger.Printf); err != nil {
+				return err
+			}
+		}
 		m, err := client.Me(ctx, key)
 		switch {
 		case enrol.IsUnauthorized(err) || (err == nil && m.State == "revoked"):

@@ -137,6 +137,8 @@ Usage:
   slipdock-runner doctor                  check this machine is ready to run jobs
   slipdock-runner service install|uninstall|print
   slipdock-runner run                     run this machine's runners (what the service runs)
+  slipdock-runner update [--check] [--mode auto|manual] [--source URL]
+                                          install a newer signed release, or set how updates go
   slipdock-runner version
 
 Every command takes --home DIR, the daemon's directory (default: %s,
@@ -168,6 +170,8 @@ func Main(args []string, env Env) int {
 		err = cmdService(rest, env)
 	case "run":
 		err = cmdRun(rest, env)
+	case "update":
+		err = cmdUpdate(rest, env)
 	case "version", "--version":
 		fmt.Fprintf(env.Stdout, "slipdock-runner %s (%s/%s)\n", Version, env.GOOS, env.GOARCH)
 	default:
