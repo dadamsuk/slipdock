@@ -26,7 +26,9 @@ defmodule Slipdock.Runners.ConfigTest do
                "executor" => "user",
                "before_hook" => nil,
                "after_hook" => nil,
-               "probe_hook" => nil
+               "probe_hook" => nil,
+               "image" => nil,
+               "network" => "on"
              }
 
       assert Map.keys(config) |> Enum.sort() ==
@@ -106,6 +108,63 @@ defmodule Slipdock.Runners.ConfigTest do
 
         assert message =~ field
         assert message =~ says
+      end
+    end
+
+    test "a container runner names an image, a name and never an option (#2577)" do
+      digest = "@sha256:" <> String.duplicate("a1", 32)
+
+      for image <- [
+            "alpine",
+            "slipdock-agent:1",
+            "ghcr.io/me/agent:1.2",
+            "localhost:5000/a/b" <> digest
+          ] do
+        assert {:ok, %{"image" => ^image, "executor" => "container"}} =
+                 Config.build(%{"directory" => @dir, "executor" => "container", "image" => image})
+      end
+
+      for bad <- [
+            "--privileged",
+            "-v/:/host",
+            "alpine --privileged",
+            "alpine\n--rm",
+            "Alpine",
+            "ghcr.io/me/agent:*",
+            "alpine;id",
+            "$(id)",
+            "alpine:",
+            "ghcr.io/me/agent,readonly",
+            String.duplicate("a", 256)
+          ] do
+        assert {:error, message} =
+                 Config.build(%{"directory" => @dir, "executor" => "container", "image" => bad})
+
+        assert message =~ "image ", "took #{inspect(bad)}"
+      end
+
+      assert {:error, "image is required when executor is container"} =
+               Config.build(%{"directory" => @dir, "executor" => "container"})
+
+      assert {:error, "image is required when executor is container"} =
+               Config.build(%{"directory" => @dir, "executor" => "container", "image" => "  "})
+
+      # Moving a runner to container later needs the image then.
+      {:ok, stored} = Config.build(%{"directory" => @dir, "executor" => "me"})
+      assert {:error, "image " <> _} = Config.build(%{"executor" => "container"}, stored)
+
+      assert {:ok, %{"image" => "alpine:3", "executor" => "container"}} =
+               Config.build(%{"executor" => "container", "image" => "alpine:3"}, stored)
+    end
+
+    test "the network is on or off (#2577)" do
+      assert {:ok, %{"network" => "off"}} =
+               Config.build(%{"directory" => @dir, "network" => "off"})
+
+      for bad <- ["Off", "none", "host", true] do
+        assert {:error, "network " <> _} =
+                 Config.build(%{"directory" => @dir, "network" => bad}),
+               "took #{inspect(bad)}"
       end
     end
 

@@ -90,3 +90,33 @@ func TestTheLocalFileNamesTheAccountAndWhatConfinedMayWrite(t *testing.T) {
 		}
 	}
 }
+
+func TestTheLocalFileSaysHowContainersRun(t *testing.T) {
+	d := t.TempDir()
+	abs := t.TempDir()
+	l := Local{Container: &ContainerSettings{Runtime: "podman", Pull: "missing",
+		Login: []string{filepath.Join(abs, ".claude", ".credentials.json")}, Env: []string{"CLAUDE_CODE_OAUTH_TOKEN"}}}
+	if err := SaveLocal(d, l); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadLocal(d)
+	if err != nil || got.Container == nil || got.Container.Runtime != "podman" || got.Container.Pull != "missing" ||
+		len(got.Container.Login) != 1 || got.Container.Env[0] != "CLAUDE_CODE_OAUTH_TOKEN" {
+		t.Fatalf("%+v %v", got.Container, err)
+	}
+	for _, c := range []struct {
+		bad  ContainerSettings
+		want string
+	}{
+		{ContainerSettings{Pull: "sometimes"}, "container.pull"},
+		{ContainerSettings{Login: []string{".claude"}}, "container.login"},
+		{ContainerSettings{Env: []string{"SLIPDOCK_TOKEN"}}, "never pass"},
+		{ContainerSettings{Env: []string{"HOME"}}, "container's own"},
+		{ContainerSettings{Runtime: " docker"}, "container.runtime"},
+	} {
+		bad := c.bad
+		if err := SaveLocal(d, Local{Container: &bad}); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("saved %+v: %v", c.bad, err)
+		}
+	}
+}

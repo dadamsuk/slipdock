@@ -142,7 +142,7 @@ func TestARedProbeSaysEachFailureAndRunsTheRest(t *testing.T) {
 		{"skills drifted", nil, "skills: drifted (slipdock-loop)\ncli: current\n", "FAIL skills and CLI: skills drifted (slipdock-loop)"},
 		{"cli old", nil, "skills: current\ncli: old\n", "FAIL skills and CLI: cli old"},
 		{"cli none", nil, "skills: current\ncli: none\n", "FAIL skills and CLI: cli not installed"},
-		{"executor not offered", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.Executor = "container" }, "", `FAIL executor: executor "container": container is not available`},
+		{"executor not offered", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.Executor = "container" }, "", `FAIL executor: executor "container": no image is named`},
 		{"shell fails", func(_ *rig, f *fakeProbe) { f.shellFails = true }, "", "FAIL executor: a command didn't run as me"},
 		{"hook undefined", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.ProbeHook = "nothere" }, "", `FAIL probe hook "nothere": not defined in this machine's`},
 		{"hook fails", func(_ *rig, _ *fakeProbe) { t.Setenv("HELPER_HOOK_EXIT_probe", "3") }, "", `FAIL probe hook "check": exit 3`},
@@ -179,7 +179,7 @@ func TestAProbeWhoseExecutorCantRunSkipsWhatRunsUnderIt(t *testing.T) {
 		want  string
 	}{
 		{"not one this daemon runs", func(r *rig) { r.w.Runner.Config.Executor = executor.Container },
-			`FAIL executor: executor "container": container is not available`},
+			`FAIL executor: executor "container": no image is named`},
 		{"built but not ready", func(r *rig) {
 			r.w.Runner.Config.Executor = executor.Confined
 			r.w.GOOS = "linux"

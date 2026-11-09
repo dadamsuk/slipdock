@@ -115,6 +115,53 @@ defmodule SlipdockWeb.MachinesLiveTest do
       assert runner.config_version == 2
     end
 
+    test "a container runner names its image and its network (#2577)", ctx do
+      {:ok, view, _html} = page(ctx)
+      view |> element("#machine-add-runner") |> render_click()
+      assert has_element?(view, "#machine-runner-form select[name='runner[network]']")
+
+      for {image, says} <- [
+            {"", "image is required when executor is container"},
+            {"--privileged", "image must be an image name"}
+          ] do
+        view
+        |> form("#machine-runner-form",
+          runner: %{
+            "pool" => "build",
+            "directory" => @dir,
+            "executor" => "container",
+            "image" => image
+          }
+        )
+        |> render_submit()
+
+        assert has_element?(view, "#machine-notice", says)
+        assert MachineRunners.list_runners(ctx.machine) == []
+      end
+
+      view
+      |> form("#machine-runner-form",
+        runner: %{
+          "pool" => "build",
+          "directory" => @dir,
+          "executor" => "container",
+          "image" => "slipdock-agent:1",
+          "network" => "off"
+        }
+      )
+      |> render_submit()
+
+      assert [runner] = MachineRunners.list_runners(ctx.machine)
+      assert runner.config["image"] == "slipdock-agent:1"
+      assert runner.config["network"] == "off"
+
+      assert has_element?(
+               view,
+               "#machine-runner-#{runner.id} [data-role=runner-image]",
+               "slipdock-agent:1, network off"
+             )
+    end
+
     test "a bad setting is refused on the page, and nothing is saved", ctx do
       {:ok, view, _html} = page(ctx)
       view |> element("#machine-add-runner") |> render_click()

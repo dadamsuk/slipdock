@@ -24,6 +24,10 @@ defmodule Slipdock.Runners.Config do
   - `instructions`: standing instructions appended to each prompt
   - `executor`: one of `executors/0` (W-2543)
   - `before_hook`, `after_hook`, `probe_hook`: hook names, optional
+  - `image`: the container executor's image (#2577), required under it: a
+    name only, which the machine runs only if it matches its own allow-list
+    (`container_images` in its ceiling, which the server never sets)
+  - `network`: `on` or `off`, whether a container job reaches the network
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -34,6 +38,11 @@ defmodule Slipdock.Runners.Config do
   @executors ~w(me user confined container)
   @worktree ~w(auto on off)
   @verbosity ~w(quiet normal verbose)
+  @network ~w(on off)
+  # An image reference as Docker and Podman read one (the daemon's
+  # `executor.ValidImage`): it starts with a letter or digit, so it never
+  # reads as an option.
+  @image_format ~r/\A(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*(?::[0-9]{1,5})?\/)?[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*(?:\/[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*)*(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?(?:@sha256:[a-f0-9]{64})?\z/
   @max_timeout 1440
   @max_instructions 4000
 
@@ -51,10 +60,12 @@ defmodule Slipdock.Runners.Config do
     field :before_hook, :string
     field :after_hook, :string
     field :probe_hook, :string
+    field :image, :string
+    field :network, :string, default: "on"
   end
 
   @fields ~w(agent directory permission_mode timeout_minutes model worktree verbosity
-             instructions executor before_hook after_hook probe_hook)a
+             instructions executor before_hook after_hook probe_hook image network)a
 
   @doc "Every field, in order: the whole schema, which is closed."
   def fields, do: @fields
@@ -64,6 +75,9 @@ defmodule Slipdock.Runners.Config do
 
   @doc "The executors a runner may run its jobs under (W-2543)."
   def executors, do: @executors
+
+  @doc "Whether a container job reaches the network."
+  def networks, do: @network
 
   @doc "What an agent or a hook may be called."
   def name_format, do: @name_format
@@ -134,9 +148,10 @@ defmodule Slipdock.Runners.Config do
     |> update_change(:before_hook, &blank/1)
     |> update_change(:after_hook, &blank/1)
     |> update_change(:probe_hook, &blank/1)
+    |> update_change(:image, &blank/1)
     |> validate_required(
       [:agent, :directory, :permission_mode, :timeout_minutes] ++
-        [:worktree, :verbosity, :executor]
+        [:worktree, :verbosity, :executor, :network]
     )
     |> validate_format(:agent, @name_format,
       message: "must be a name: lower case, digits, - or _"
@@ -156,6 +171,19 @@ defmodule Slipdock.Runners.Config do
     |> validate_format(:before_hook, @name_format, message: "must be a hook name")
     |> validate_format(:after_hook, @name_format, message: "must be a hook name")
     |> validate_format(:probe_hook, @name_format, message: "must be a hook name")
+    |> validate_length(:image, max: 255)
+    |> validate_format(:image, @image_format,
+      message: "must be an image name: registry/path:tag or @sha256:digest"
+    )
+    |> validate_inclusion(:network, @network, message: "must be on or off")
+    |> validate_image_for_container()
+  end
+
+  # The container executor runs nothing without an image.
+  defp validate_image_for_container(changeset) do
+    if get_field(changeset, :executor) == "container" and is_nil(get_field(changeset, :image)),
+      do: add_error(changeset, :image, "is required when executor is container"),
+      else: changeset
   end
 
   defp validate_directory(changeset) do

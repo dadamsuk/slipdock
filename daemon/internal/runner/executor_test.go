@@ -29,7 +29,14 @@ func TestAJobWhoseExecutorCantRunFailsBeforeAnythingRuns(t *testing.T) {
 			r.w.GOOS = "linux"
 			r.w.Launcher = filepath.Join(t.TempDir(), "gone")
 		}, "executor confined: confined "},
-		{"container", func(r *rig) { r.w.Runner.Config.Executor = executor.Container }, "not available on this daemon yet"},
+		{"container, with no image", func(r *rig) { r.w.Runner.Config.Executor = executor.Container; r.w.GOOS = "linux" },
+			`executor "container": no image is named`},
+		{"container, with an image not on the list", func(r *rig) {
+			r.w.Runner.Config.Executor = executor.Container
+			r.w.Runner.Config.Image = "docker.io/someone/agent:latest"
+			r.w.Images = []string{"ghcr.io/me/agent:*"}
+			r.w.GOOS = "linux"
+		}, `executor "container": image "docker.io/someone/agent:latest" is not on this machine's allow-list`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

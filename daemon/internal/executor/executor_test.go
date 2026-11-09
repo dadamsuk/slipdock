@@ -43,7 +43,7 @@ func TestSupportedAndOffered(t *testing.T) {
 		{Me, "windows", ""}, {Me, "linux", ""},
 		{User, "linux", ""}, {User, "darwin", ""}, {User, "windows", "current account only"},
 		{Confined, "linux", ""}, {Confined, "darwin", ""}, {Confined, "windows", "Linux and macOS only"},
-		{Container, "linux", "not available on this daemon yet"},
+		{Container, "linux", ""}, {Container, "darwin", ""}, {Container, "windows", "Linux and macOS only"},
 		{"root", "linux", "is not an executor"}, {"", "linux", "is not an executor"},
 	} {
 		err := Supported(c.name, c.goos)
@@ -76,8 +76,16 @@ func TestNew(t *testing.T) {
 	if _, err := New(User, Settings{GOOS: "windows", Account: "slipdock"}); err == nil {
 		t.Fatal("user on Windows")
 	}
-	if _, err := New(Container, Settings{GOOS: "linux"}); err == nil {
-		t.Fatal("container")
+	if _, err := New(Container, Settings{GOOS: "linux"}); err == nil || !strings.Contains(err.Error(), "no image is named") {
+		t.Fatalf("container with no image: %v", err)
+	}
+	if _, err := New(Container, Settings{GOOS: "linux", Image: "evil/agent:1", Images: []string{"ghcr.io/me/*"}}); err == nil ||
+		!strings.Contains(err.Error(), "not on this machine's allow-list") {
+		t.Fatalf("container with an image not on the list: %v", err)
+	}
+	if ex, err := New(Container, Settings{GOOS: "linux", Image: "ghcr.io/me/agent:1", Images: []string{"ghcr.io/me/*"}, Home: "/srv/me"}); err != nil ||
+		ex.Name() != Container || ex.Home() != "/srv/me" {
+		t.Fatalf("container with an allowed image: %v, %v", ex, err)
 	}
 	for name, want := range map[string]string{Me: Me, User: User, Confined: Confined} {
 		ex, err := New(name, Settings{GOOS: "linux", Account: "slipdock", AccountHome: "/srv/slipdock", Home: "/srv/me"})

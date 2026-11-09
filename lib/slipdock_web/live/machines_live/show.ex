@@ -26,7 +26,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
   alias Slipdock.Runners.{Ceiling, Config, MachineRunners, MachineSetup, Probe}
 
   @config_fields ~w(agent directory permission_mode timeout_minutes model worktree verbosity
-                    instructions executor before_hook after_hook probe_hook)
+                    instructions executor before_hook after_hook probe_hook image network)
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -236,6 +236,10 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
   # What an action says goes at the top of the page, where it was done.
   defp notice(socket, kind, text), do: assign(socket, notice: {kind, text})
+
+  # A container runner's network, said only when it is off.
+  defp network_note(%{"network" => "off"}), do: ", network off"
+  defp network_note(_config), do: ""
 
   defp blank(value) when is_binary(value) do
     if String.trim(value) == "", do: nil, else: value
@@ -594,6 +598,9 @@ defmodule SlipdockWeb.MachinesLive.Show do
                   · {r.config["permission_mode"]} · {r.config["timeout_minutes"]} min · runs as {r.config[
                     "executor"
                   ]}
+                  <span :if={r.config["executor"] == "container"} data-role="runner-image">
+                    from <span class="field-mono">{r.config["image"]}</span>{network_note(r.config)}
+                  </span>
                 </p>
                 <p :if={job} class="text-xs" data-role="runner-job">
                   Working on job #{job.id}<span :if={job.card}>:
@@ -732,6 +739,18 @@ defmodule SlipdockWeb.MachinesLive.Show do
         />
         <.input field={@f[:timeout_minutes]} type="number" min="1" label="Timeout (minutes)" />
         <.input field={@f[:executor]} type="select" label="Runs as" options={Config.executors()} />
+        <.input
+          field={@f[:image]}
+          label="Container image (container only; the machine's allow-list decides)"
+          placeholder="slipdock-agent:1"
+          class="w-full input field field-mono"
+        />
+        <.input
+          field={@f[:network]}
+          type="select"
+          label="Network (container only)"
+          options={Config.networks()}
+        />
         <.input field={@f[:model]} label="Model (optional)" />
         <.input
           field={@f[:worktree]}

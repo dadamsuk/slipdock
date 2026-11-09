@@ -343,6 +343,9 @@ defmodule SlipdockCLI do
     before_hook: :string,
     after_hook: :string,
     probe_hook: :string,
+    # The container executor's image and network (#2577).
+    image: :string,
+    network: :string,
     hooks: :string,
     in_progress: :boolean,
     assign: :boolean,

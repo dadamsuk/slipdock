@@ -536,6 +536,7 @@ slipdock machine add-runner <id> <board> --pool P --dir D [--name N] [--agent A]
     [--permission-mode M] [--timeout-minutes N] [--model M] [--executor me|user|confined|container]
     [--[no-]worktree] [--verbosity quiet|normal|verbose] [--instructions TEXT]
     [--before-hook H] [--after-hook H] [--probe-hook H]   # hooks: names the machine defines
+    [--image NAME] [--network on|off]   # container: an image on the machine's own allow-list
 slipdock machine set-runner <id> <runner> [same options]  # only what you give changes
 slipdock machine pause-runner|resume-runner|rm-runner <id> <runner>
 slipdock machine probe <id> <runner> [--wait]  # it checks its setup: green, or red with its log

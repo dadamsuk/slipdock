@@ -28,7 +28,7 @@ defmodule SlipdockCLI.Machines do
 
   # The config switches, as the server's field names.
   @config ~w(agent dir permission_mode timeout_minutes model executor verbosity instructions
-             before_hook after_hook probe_hook)a
+             before_hook after_hook probe_hook image network)a
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -242,6 +242,13 @@ defmodule SlipdockCLI.Machines do
     |> worktree(o[:worktree])
   end
 
+  # A container runner runs as its image, and says when its network is off.
+  defp runs_as(%{"executor" => "container", "image" => image} = c) do
+    "container #{image}" <> if(c["network"] == "off", do: " (no network)", else: "")
+  end
+
+  defp runs_as(c), do: c["executor"]
+
   defp worktree(config, nil), do: config
   defp worktree(config, true), do: Map.put(config, "worktree", "on")
   defp worktree(config, false), do: Map.put(config, "worktree", "off")
@@ -336,7 +343,7 @@ defmodule SlipdockCLI.Machines do
           c["agent"],
           c["directory"],
           c["permission_mode"],
-          c["executor"],
+          runs_as(c),
           state(r),
           probe_state(r["probe"])
         ]

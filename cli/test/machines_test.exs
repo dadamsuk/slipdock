@@ -187,6 +187,30 @@ defmodule SlipdockCLI.MachinesTest do
       assert out =~ "runner #9 b is now v3"
     end
 
+    test "set-runner moves a runner into a container: its image and network (#2577)" do
+      serve([
+        {200, JSON.encode!(%{"runner" => %{"id" => 9, "name" => "b", "config_version" => 4}})}
+      ])
+
+      capture_io(fn ->
+        Machines.run("machine", ["set-runner", "4", "9"],
+          executor: "container",
+          image: "slipdock-agent:1",
+          network: "off"
+        )
+      end)
+
+      assert_received {:request, "PATCH", "/api/machines/4/runners/9", body}
+
+      assert JSON.decode!(body) == %{
+               "config" => %{
+                 "executor" => "container",
+                 "image" => "slipdock-agent:1",
+                 "network" => "off"
+               }
+             }
+    end
+
     test "pause-runner, resume-runner, rm-runner and update" do
       serve([
         {200, JSON.encode!(%{"runner" => %{"name" => "b", "paused" => true}})},
@@ -250,6 +274,22 @@ defmodule SlipdockCLI.MachinesTest do
               "paused" => false
             },
             %{
+              "id" => 11,
+              "name" => "boxed",
+              "pool" => "build",
+              "config" => %{
+                "agent" => "claude",
+                "directory" => "/srv/src/app",
+                "permission_mode" => "acceptEdits",
+                "executor" => "container",
+                "image" => "slipdock-agent:1",
+                "network" => "off"
+              },
+              "config_version" => 1,
+              "accepted_version" => 1,
+              "paused" => false
+            },
+            %{
               "id" => 10,
               "name" => "idle",
               "pool" => "x",
@@ -278,6 +318,7 @@ defmodule SlipdockCLI.MachinesTest do
       assert out =~
                ~r/#9\s+builder\s+build\s+claude\s+\/srv\/src\/app\s+acceptEdits\s+user\s+rejected v2/
 
+      assert out =~ ~r/#11\s+boxed.*container slipdock-agent:1 \(no network\)/
       assert out =~ ~r/#10\s+idle.*paused/
       assert out =~ "builder: v2 refused: timeout over the ceiling"
       assert out =~ "outside the ceiling: timeout 240 minutes is over 60"

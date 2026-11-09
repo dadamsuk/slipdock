@@ -47,6 +47,12 @@ type Worker struct {
 	executorErr error
 	Launcher    string
 	GOOS        string
+	// Images are the machine's allow-list for the container executor
+	// (its ceiling's container_images), which Build sets. MachineDir is
+	// the daemon's own directory, never mounted into a container
+	// (default: JobsDir's parent).
+	Images     []string
+	MachineDir string
 
 	// The protocol's pace, as the shell runner's defaults.
 	Wait            int           // seconds a claim waits for a job (25)
@@ -121,7 +127,35 @@ func (w *Worker) executorSettings() executor.Settings {
 	if len(s.Writable) == 0 && w.Runner.Config.Agent == "claude" && w.Home != "" {
 		s.Writable = []string{filepath.Join(w.Home, ".claude")}
 	}
+	if w.Runner.Config.Executor == executor.Container {
+		w.containerSettings(&s)
+	}
 	return s
+}
+
+// containerSettings are the container executor's: the runner's image and
+// network, the machine's allow-list, and the local file's container block.
+func (w *Worker) containerSettings(s *executor.Settings) {
+	c := w.Runner.Config
+	s.Image, s.Images, s.NetworkOff, s.Agent = c.Image, w.Images, c.Network == "off", c.Agent
+	if ct := w.Local.Container; ct != nil {
+		s.Runtime, s.Pull, s.Login, s.PassEnv = ct.Runtime, ct.Pull, ct.Login, ct.Env
+	}
+	md := w.MachineDir
+	if md == "" && w.JobsDir != "" {
+		md = filepath.Dir(w.JobsDir)
+	}
+	for _, p := range []string{md, w.JobsDir} {
+		if p != "" {
+			s.Protected = append(s.Protected, p)
+		}
+	}
+	s.CLI = w.Local.CLI
+	if s.CLI == "" {
+		if p, err := w.LookPath("slipdock"); err == nil && filepath.IsAbs(p) {
+			s.CLI = p
+		}
+	}
 }
 
 // jobHome is the home of the account jobs run as.
@@ -138,6 +172,15 @@ func (w *Worker) files() executor.Files {
 		return w.Executor.Files()
 	}
 	return executor.LocalFiles
+}
+
+// driftFiles read the skills and the CLI a claim reports. A container job
+// uses the machine's own, mounted read-only, which the job can't change.
+func (w *Worker) driftFiles() executor.Files {
+	if w.Executor != nil && w.Executor.Name() == executor.Container {
+		return executor.LocalFiles
+	}
+	return w.files()
 }
 
 // secrets are what a transcript must never carry: the machine's (the
@@ -182,7 +225,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	backoff := time.Second
 	w.say("taking jobs from %s (pool %s, board #%d)", w.Client.Server, w.Runner.Pool, w.Runner.BoardID)
 	for ctx.Err() == nil {
-		headers := claimHeaders(w.files(), w.Runner.Kinds(w.Local), w.Version, w.skillsDir(), w.cliPath())
+		headers := claimHeaders(w.driftFiles(), w.Runner.Kinds(w.Local), w.Version, w.skillsDir(), w.cliPath())
 		job, info, err := w.Client.Claim(ctx, w.Runner.ID, headers, w.Wait)
 		var refusal *Refused
 		switch {
@@ -220,11 +263,19 @@ func (w *Worker) cliPath() string {
 	if w.Local.CLI != "" {
 		return w.Local.CLI
 	}
-	if w.Executor != nil {
-		p, _ := w.Executor.Resolve("slipdock")
-		return p
+	if w.Executor != nil && w.Executor.Name() == executor.Container {
+		p, _ := w.LookPath("slipdock")
+		return p // the machine's, mounted over the image's
 	}
-	p, _ := w.LookPath("slipdock")
+	var p string
+	if w.Executor != nil {
+		p, _ = w.Executor.Resolve("slipdock")
+	} else {
+		p, _ = w.LookPath("slipdock")
+	}
+	if !filepath.IsAbs(p) {
+		return ""
+	}
 	return p
 }
 

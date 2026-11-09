@@ -8,8 +8,10 @@
 //   - confined: as the daemon's account, but unable to write outside its
 //     working directory: Landlock on Linux (applied by `slipdock-runner
 //     confine` before it runs the program), sandbox-exec on macOS.
+//   - container: in a short-lived Docker or Podman container (#2577), from
+//     the image the runner names, only if it matches the machine's
+//     allow-list (container_images in its ceiling). Linux and macOS.
 //
-// container is a name the server knows, but no executor here yet (#2577).
 // Windows offers me only. An executor that can't run a job says why
 // (Ready), and the job fails before anything starts: a job is never run
 // under a weaker executor in its place.
@@ -19,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -50,7 +53,13 @@ var Limits = map[string]string{
 		"for it are confined to its repository and worktrees. Jobs can still read " +
 		"your files, and reach the network. Linux (Landlock ABI 3: kernel 6.2 or " +
 		"later) and macOS (sandbox-exec) only.",
-	Container: "Not available on this daemon yet.",
+	Container: "Jobs run in a short-lived Docker or Podman container, from an image on " +
+		"this machine's allow-list. They see only what is mounted: their directory " +
+		"and repository (read-write), and the agent's and the CLI's logins (read-only); " +
+		"the home is otherwise empty. The network is off when the runner asks. They " +
+		"still reach the network when it is on, carry the logins mounted in, and are " +
+		"only as safe as the image and the runtime (a user in the docker group is root " +
+		"on the machine). Linux and macOS only.",
 }
 
 // Proc is what one of a job's processes needs.
@@ -118,9 +127,33 @@ type Settings struct {
 	// Writable, under confined: paths every job may write besides its own
 	// (the agent's own state). Missing ones are left out.
 	Writable []string
-	// Repo, under confined: the runner's directory. The daemon's own git
-	// and the hooks may write it, its repository and its worktrees.
+	// Repo, under confined and container: the runner's directory. The
+	// daemon's own git and the hooks may write it, its repository and its
+	// worktrees.
 	Repo string
+
+	// Under container (#2577). Image is the runner's (the server's data);
+	// Images the machine's allow-list (its ceiling's container_images).
+	Image      string
+	Images     []string
+	NetworkOff bool
+	// Runtime is docker, podman or a path (default: docker, else podman);
+	// Pull is never (the default), missing or always.
+	Runtime string
+	Pull    string
+	// Login is mounted read-only at the same paths, each inside Home (nil:
+	// DefaultLogin for Agent). PassEnv are the daemon's variables a job
+	// gets (nil: DefaultPassEnv for Agent).
+	Login   []string
+	PassEnv []string
+	Agent   string
+	// CLI is the machine's slipdock CLI, mounted read-only over the image's.
+	CLI string
+	// Protected are never mounted, nor anything holding them: the
+	// daemon's own directory.
+	Protected []string
+	// UID and GID are who the container runs as (default: the daemon's).
+	UID, GID int
 }
 
 // Hooker is an executor whose hooks run differently from its agent.
@@ -145,7 +178,10 @@ func Supported(name, goos string) error {
 		}
 		return nil
 	case Container:
-		return errors.New("container is not available on this daemon yet")
+		if goos != "linux" && goos != "darwin" {
+			return fmt.Errorf("container is Linux and macOS only, not %s", goos)
+		}
+		return nil
 	}
 	return fmt.Errorf("%q is not an executor (%s)", name, strings.Join(Names, ", "))
 }
@@ -180,6 +216,15 @@ func New(name string, s Settings) (Executor, error) {
 		return newAccount(s), nil
 	case Confined:
 		return &confined{local: base}, nil
+	case Container:
+		// The allow-list is checked here, and again before each process.
+		if err := ImageAllowed(s.Image, s.Images); err != nil {
+			return nil, err
+		}
+		if s.UID == 0 && s.GID == 0 {
+			s.UID, s.GID = os.Getuid(), os.Getgid()
+		}
+		return newContainer(s), nil
 	}
 	return base, nil
 }
