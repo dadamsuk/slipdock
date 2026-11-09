@@ -939,7 +939,7 @@ defmodule Slipdock.Automations.Runner do
   def render(nil, _bindings), do: nil
 
   def render(template, bindings) when is_binary(template) do
-    Regex.replace(~r/\{\{\s*([\w.]+)\s*\}\}/, template, fn whole, key ->
+    Regex.replace(~r/\{\{\s*([\w.]+)\s*\}\}/u, template, fn whole, key ->
       case Map.fetch(bindings, key) do
         {:ok, value} -> to_string(value)
         :error -> whole

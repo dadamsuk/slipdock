@@ -24,7 +24,7 @@ defmodule Slipdock.Mentions do
 
   # The wiki's own pattern (`Slipdock.Wiki.Markup`): not after a word
   # character, so an email address in the text is not a mention.
-  @pattern ~r/(?<![\w@\/])@([a-zA-Z][\w.\-]{0,62})/
+  @pattern ~r/(?<![\w@\/])@([a-zA-Z][\w.\-]{0,62})/u
 
   @doc """
   The names mentioned in `text`, lowercased, in order and without repeats.

@@ -92,7 +92,7 @@ defmodule Slipdock.Gardener.Checks.RuleWithoutCheck do
     body
     |> String.split("\n")
     |> Enum.any?(
-      &(String.contains?(&1, "**#{id}**") and Regex.match?(~r/(?<!\w)judge?ment(?!\w)/i, &1))
+      &(String.contains?(&1, "**#{id}**") and Regex.match?(~r/(?<!\w)judge?ment(?!\w)/iu, &1))
     )
   end
 

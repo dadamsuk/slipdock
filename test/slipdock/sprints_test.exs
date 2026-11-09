@@ -60,6 +60,10 @@ defmodule Slipdock.SprintsTest do
     assert named.start_date == ~D[2027-01-04]
 
     assert %{name: "Sprint 3"} = Sprints.next_sprint(sprints)
+
+    # The number is read in ASCII digits (#2593): "Sprint ٣" is a name, not 3.
+    {:ok, _} = Sprints.create_sprint(sprints, %{"name" => "Sprint ٣ – é"})
+    assert %{name: "Sprint 3"} = Sprints.next_sprint(sprints)
   end
 
   test "sprints only go on sprint boards, and bad input is said plainly", %{

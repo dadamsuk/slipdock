@@ -54,7 +54,7 @@ defmodule Slipdock.Findings.Promote do
   # rejection or rule hit, an audit. The other sources are events.
   @proposable ~w(agent rejection verification audit)
 
-  @check ~r{(?:[\w./-]*_test\.exs)|(?:\bmix [a-z][\w.]*(?: --?[\w-]+)*)|(?:\brepo_checks\b)}
+  @check ~r{(?:[\w./-]*_test\.exs)|(?:\bmix [a-z][\w.]*(?: --?[\w-]+)*)|(?:\brepo_checks\b)}u
 
   @doc """
   Looks at each of these findings (or the one a merged finding was merged
@@ -227,7 +227,7 @@ defmodule Slipdock.Findings.Promote do
     |> Rules.parse()
     |> then(fn {rules, problems} -> Enum.map(rules, & &1.id) ++ Enum.map(problems, & &1.item) end)
     |> Enum.flat_map(fn text ->
-      case Regex.run(~r/\b#{Regex.escape(prefix)}-(\d+)\b/, text || "") do
+      case Regex.run(~r/\b#{Regex.escape(prefix)}-([0-9]+)\b/u, text || "") do
         [_, n] -> [String.to_integer(n)]
         nil -> []
       end

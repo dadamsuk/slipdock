@@ -209,7 +209,7 @@ defmodule SlipdockWeb.RichText do
     end)
   end
 
-  @mention ~r/(?<![\w@\/])@([a-zA-Z][\w.\-]{0,62})/
+  @mention ~r/(?<![\w@\/])@([a-zA-Z][\w.\-]{0,62})/u
 
   @doc "Whether `text` has an `@mention` in it that `render/2` would look up."
   def mentions?(nil), do: false

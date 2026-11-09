@@ -87,7 +87,7 @@ defmodule Slipdock.Wiki.Excalidraw do
   defp embedded_links(body) do
     case Regex.run(@embedded_files, body) do
       [_, section] ->
-        for [_, id, target] <- Regex.scan(~r/^([\w-]+):\s*!?\[\[([^\]|#]+)/m, section),
+        for [_, id, target] <- Regex.scan(~r/^([\w-]+):\s*!?\[\[([^\]|#]+)/um, section),
             into: %{},
             do: {id, String.trim(target)}
 

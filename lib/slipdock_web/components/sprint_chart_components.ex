@@ -217,7 +217,7 @@ defmodule SlipdockWeb.SprintChartComponents do
 
   # "Sprint 12" fits under its bar as "S12"; anything else is cut short.
   defp short(title) do
-    case Regex.run(~r/^\s*sprint\s+(\d+)\b/i, title) do
+    case Regex.run(~r/^\s*sprint\s+([0-9]+)\b/iu, title) do
       [_, n] -> "S#{n}"
       _ -> String.slice(title, 0, 8)
     end

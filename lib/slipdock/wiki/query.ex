@@ -230,35 +230,35 @@ defmodule Slipdock.Wiki.Query do
 
   defp parse_clause(clause) do
     cond do
-      match = Regex.run(~r/^(\w+)\s+not\s+in\s+(.+)$/i, clause) ->
+      match = Regex.run(~r/^(\w+)\s+not\s+in\s+(.+)$/iu, clause) ->
         [_, field, values] = match
         {:ok, condition(field, "none_of", alternatives(values))}
 
-      match = Regex.run(~r/^(\w+)\s+in\s+(.+)$/i, clause) ->
+      match = Regex.run(~r/^(\w+)\s+in\s+(.+)$/iu, clause) ->
         [_, field, values] = match
         {:ok, condition(field, "any_of", alternatives(values))}
 
-      match = Regex.run(~r/^(\w+)\s+within\s+(\d+)\s*d?$/i, clause) ->
+      match = Regex.run(~r/^(\w+)\s+within\s+([0-9]+)\s*d?$/iu, clause) ->
         [_, field, days] = match
         {:ok, condition(field, "within_days", String.to_integer(days))}
 
-      match = Regex.run(~r/^(\w+)\s+older\s+than\s+(\d+)\s*d?$/i, clause) ->
+      match = Regex.run(~r/^(\w+)\s+older\s+than\s+([0-9]+)\s*d?$/iu, clause) ->
         [_, field, days] = match
         {:ok, condition(field, "older_than_days", String.to_integer(days))}
 
-      match = Regex.run(~r/^(\w+)\s+not\s+set$/i, clause) ->
+      match = Regex.run(~r/^(\w+)\s+not\s+set$/iu, clause) ->
         [_, field] = match
         {:ok, condition(field, "is_not_set", nil)}
 
-      match = Regex.run(~r/^(\w+)\s+set$/i, clause) ->
+      match = Regex.run(~r/^(\w+)\s+set$/iu, clause) ->
         [_, field] = match
         {:ok, condition(field, "is_set", nil)}
 
-      match = Regex.run(~r/^(\w+)\s*(<=|>=|!=|!~|=|~|<|>)\s*(.*)$/, clause) ->
+      match = Regex.run(~r/^(\w+)\s*(<=|>=|!=|!~|=|~|<|>)\s*(.*)$/u, clause) ->
         [_, field, op, value] = match
         {:ok, comparison(field, op, String.trim(value))}
 
-      Regex.match?(~r/^\w+$/, clause) ->
+      Regex.match?(~r/^\w+$/u, clause) ->
         # A bare field name is the boolean reading: `blocked`, `completed`.
         {:ok, condition(clause, "is", true)}
 
@@ -956,7 +956,7 @@ defmodule Slipdock.Wiki.Query do
       match = Regex.run(~r/^progress:\s*#?(\d+)$/i, expression) ->
         inline_progress(String.to_integer(Enum.at(match, 1)), context)
 
-      match = Regex.run(~r/^card:\s*#?(\d+)\.([\w.]+)$/i, expression) ->
+      match = Regex.run(~r/^card:\s*#?([0-9]+)\.([\w.]+)$/iu, expression) ->
         inline_card_field(String.to_integer(Enum.at(match, 1)), Enum.at(match, 2), context)
 
       true ->

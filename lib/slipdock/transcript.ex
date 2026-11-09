@@ -122,7 +122,7 @@ defmodule Slipdock.Transcript do
     label != "" and String.match?(label, ~r/\p{L}/u) and
       not String.match?(
         label,
-        ~r/^(speaker|unknown|voice|spk|participant|guest)\b|^(speaker|spk|s)[\s_-]*\d+$/i
+        ~r/^(speaker|unknown|voice|spk|participant|guest)\b|^(speaker|spk|s)[\s_-]*\d+$/iu
       )
   end
 

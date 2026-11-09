@@ -72,7 +72,7 @@ defmodule Slipdock.LeadTime do
 
   @rank @precedence |> Enum.with_index() |> Map.new()
 
-  @build_event ~r/^\W{0,3}Build (started|failed|passed)\b/im
+  @build_event ~r/^\W{0,3}Build (started|failed|passed)\b/imu
 
   @doc "The phases, in the order a card usually goes through them."
   def phases, do: @phases
@@ -513,9 +513,9 @@ defmodule Slipdock.LeadTime do
 
   defp step_kind(text) do
     cond do
-      not Regex.match?(~r/\b(CI|checks?)\b/i, text) -> nil
-      Regex.match?(~r/\b(fail\w*|red)\b/i, text) -> "failed"
-      Regex.match?(~r/\b(green|pass\w*)\b/i, text) -> "passed"
+      not Regex.match?(~r/\b(CI|checks?)\b/iu, text) -> nil
+      Regex.match?(~r/\b(fail\w*|red)\b/iu, text) -> "failed"
+      Regex.match?(~r/\b(green|pass\w*)\b/iu, text) -> "passed"
       true -> "started"
     end
   end

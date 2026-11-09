@@ -95,7 +95,7 @@ defmodule Slipdock.Gardener.Checks.StaleDecision do
       Regex.match?(~r/superseded\s+by/i, line) ->
         for other <- named(line, page, decisions), do: {other, page}
 
-      Regex.match?(~r/\b(supersedes?|replaces)\b/i, line) ->
+      Regex.match?(~r/\b(supersedes?|replaces)\b/iu, line) ->
         for other <- named(line, page, decisions), do: {page, other}
 
       true ->
