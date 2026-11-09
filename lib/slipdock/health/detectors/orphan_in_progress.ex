@@ -2,8 +2,11 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
   @moduledoc """
   A card in a doing list, last put there by an agent, with no open job and
   no activity for `minutes` (default 120), and not pending verification,
-  merging or held for a person (#1952, a person's to answer, not stuck):
-  the job that had it ended and left it. The fix does what
+  merging or held for a person (#1952, a person's to answer, not stuck),
+  and not an epic with an open subcard in one of those states (#2567: the
+  epic waits on that subcard's verifier or merge, as
+  `Slipdock.Runners.Recovery` skips it, #2371): the job that had it ended
+  and left it. The fix does what
   `Slipdock.Runners.Recovery` does — back to the top of its list (its last
   job's `list_top` list, else its board's ready list), with a comment —
   once; if it is back in progress and orphaned again, it is flagged.
@@ -20,6 +23,8 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
   alias Slipdock.Boards.{Board, Card}
   alias Slipdock.Health.{Cards, Context}
   alias Slipdock.Runners.Job
+
+  @waiting_states ["pending", "merging", "held"]
 
   @impl true
   def key, do: "orphan_in_progress"
@@ -38,13 +43,14 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
         where:
           c.board_id in ^ctx.board_ids and c.column_id in ^doing and c.completed == false and
             is_nil(c.archived_at) and is_nil(c.stand_in_for_id) and
-            coalesce(c.verify_state, "") not in ["pending", "merging", "held"],
+            coalesce(c.verify_state, "") not in @waiting_states,
         where:
           not exists(
             from(j in Job,
               where: j.card_id == parent_as(:card).id and j.status in ^Job.open_statuses()
             )
-          )
+          ),
+        where: not exists(waiting_subcard())
       )
       |> Repo.all()
 
@@ -95,6 +101,19 @@ defmodule Slipdock.Health.Detectors.OrphanInProgress do
     else
       _ -> :no_fix
     end
+  end
+
+  # An open, unarchived card on the sub-board of the card named `:card`,
+  # waiting for its verifier, its merge or a person's say-so.
+  defp waiting_subcard do
+    from(s in Card,
+      join: b in Board,
+      on: b.id == s.board_id,
+      where:
+        b.parent_card_id == parent_as(:card).id and is_nil(s.archived_at) and
+          s.completed == false and s.verify_state in @waiting_states,
+      select: 1
+    )
   end
 
   # Where it goes back to: the list its last job's list_top rule feeds, on

@@ -105,6 +105,54 @@ defmodule Slipdock.Health.CardDetectorsTest do
                |> Enum.filter(&(&1.card_id == theirs.id))
     end
 
+    # #2567: an epic left in progress while a subcard waits for its verifier
+    # or its merge is being worked, not orphaned (as Recovery skips it, #2371).
+    defp orphaned_epic(ctx) do
+      epic = card_fixture(ctx.todo, %{"title" => "Epic"})
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = Boards.create_sub_board(epic, t)
+      sub = Boards.get_board!(sub.id)
+      subcard = card_fixture(hd(sub.columns), %{"title" => "Subcard"})
+      moved_by_agent(ctx, epic, ctx.doing)
+      age(epic, 180)
+      {epic, subcard}
+    end
+
+    defp set_subcard(subcard, set),
+      do: Repo.update_all(from(c in Card, where: c.id == ^subcard.id), set: set)
+
+    defp found?(ctx, epic),
+      do: Enum.any?(detect(OrphanInProgress, ctx.board), &(&1.card_id == epic.id))
+
+    for state <- ~w(pending merging held) do
+      test "an epic whose open subcard is #{state} isn't orphaned", ctx do
+        {epic, subcard} = orphaned_epic(ctx)
+        assert found?(ctx, epic)
+
+        set_subcard(subcard, verify_state: unquote(state))
+        refute found?(ctx, epic)
+
+        assert {:ok, %{"fixed" => 0}} = Health.run(ctx.board, detectors: [OrphanInProgress])
+        assert card!(epic).column_id == ctx.doing.id
+      end
+    end
+
+    test "an epic whose subcard isn't waiting is still found", ctx do
+      {epic, subcard} = orphaned_epic(ctx)
+
+      set_subcard(subcard, verify_state: "rejected")
+      assert found?(ctx, epic)
+
+      set_subcard(subcard, verify_state: "pending", completed: true)
+      assert found?(ctx, epic)
+
+      set_subcard(subcard, completed: false, archived_at: now())
+      assert found?(ctx, epic)
+
+      assert {:ok, %{"fixed" => 1}} = Health.run(ctx.board, detectors: [OrphanInProgress])
+      assert card!(epic).column_id == ctx.todo.id
+    end
+
     test "put back once with a comment, then flagged when it is orphaned again", ctx do
       card = card_fixture(ctx.todo, %{"title" => "Twice"})
       moved_by_agent(ctx, card, ctx.doing)
