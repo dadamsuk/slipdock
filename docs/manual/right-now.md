@@ -21,7 +21,7 @@ runners take work from all of it), read again every few seconds:
   reported.
 - **In progress**: every open card in a list whose category is *In progress*,
   and every card a runner is building (a claimed or running job other than
-  a verify or merge), wherever it sits, so a card whose agent never moved it
+  a verify, merge, overseer or probe job), wherever it sits, so a card whose agent never moved it
   still shows, marked *Not in a doing list* (`in_doing: false` in the API and
   MCP, *(not a doing list)* after its list in `slipdock now`). Longest there
   first, with where it sits (the board and list, and the epic

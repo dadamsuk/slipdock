@@ -237,7 +237,7 @@ defmodule Slipdock.Now do
       loop: state.loop,
       holds: holds(c, state),
       age: state.age,
-      in_doing: c.column.category == "doing"
+      in_doing: Slipdock.Flow.doing_list?(c.column)
     }
   end
 

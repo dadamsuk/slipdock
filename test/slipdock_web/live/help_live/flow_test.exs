@@ -136,6 +136,17 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     end
 
     @tag :anonymous
+    test "says the server moves a list_top job's card on claim, the prompt naming the list (#2633)",
+         %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
+      text = doc(html) |> texts("#flow-claimed") |> Enum.join(" ")
+
+      assert text =~ "the server makes the move the moment a runner claims it"
+      assert text =~ "the job's prompt names that list"
+      refute text =~ "The agent moves the card into progress"
+    end
+
+    @tag :anonymous
     test "marks every point where a person must act", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/help/agents/flow")
       d = doc(html)

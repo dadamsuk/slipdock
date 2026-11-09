@@ -718,7 +718,14 @@ rules for two pools work one list side by side), and, with lanes holding,
 any whose paths overlap a card in progress: a queued job of its own that a
 lane holds is withdrawn and the next card that could start sent instead,
 the held card keeping its place for when its lane frees, so a runner can take over from a `/loop` or cron
-pass working the To Do list. Its jobs **wait while anything is in progress**
+pass working the To Do list. The moment a runner claims that rule's job,
+the server moves the card to the top of its board's doing list (the one
+the guide names: by its *In progress* category, else by its name), assigns
+nobody and says so in the card's activity; the agent's own move afterwards
+changes nothing. A card without a bar on a board that asks for one, or on
+a board with no doing list, stays put and the activity says why. The job's
+prompt names the list the card is in, and the doing list's own name, so an
+agent moving it by hand doesn't guess (#2633). Its jobs **wait while anything is in progress**
 (`wait_while_doing` on the `runner` action, ticked by default for that rule):
 a queued job isn't handed out while another open card that a runner job
 is working on (a job queued, claimed or running on it or its epic) sits in
@@ -840,7 +847,10 @@ person, outline only for what clears itself (#2624).
 [the manual](manual/the-health-monitor.md).
 
 **Right now.** What is happening on a board's tree at this moment — each
-runner and the job and step it is on, every card in progress with its board,
+runner and the job and step it is on, every card in progress (each open card
+in a doing list, and each card a runner is building, a claimed or running
+job other than a verify, merge, overseer or probe, wherever it sits, with
+`in_doing: false` when that is outside a doing list, #2633) with its board,
 list, parent epic and what holds it (`waiting`, `verifying`, `merging`,
 `blocked`, `review`, `stuck` for the health monitor's flag, or `over_usual`
 for one merely past its list's usual stay), and the jobs queued with why each

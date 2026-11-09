@@ -334,6 +334,18 @@ Plan:
 EOF
 ```
 
+**A runner's `list_top` job is moved already.** When a runner claimed the
+job from a *Work a list with a runner* rule, the server moved the card to
+the top of its board's doing list at the claim, and the job's prompt says
+which list the card is in ("The card is in In Progress, its board's doing
+list"). Skip the move: making it again changes nothing, and it is the
+prompt's name to use if you ever do move it by hand, never a guess such as
+"Doing". A card can stay put at the claim: on a board with no doing list
+the prompt says to leave it where it is; on a board that asks for a bar
+before work starts, a card without one stays in its list (the card's
+activity says why), and the prompt names the doing list for the move you
+make once the bar is written.
+
 On a **simple** board (`slipdock board` says `· simple` in its heading) leave
 `--percent` off, here and below: the person turned the tracking details off,
 and a percentage they cannot see is noise in the record.
@@ -795,7 +807,10 @@ With one on, the pass changes like this:
 
 - **A bar before work starts.** Before the claim's move into the doing list
   (step 4), write what done means for the card: `slipdock edit <id> --bar
-  "…"`, one line per part. Moving it without one is refused. The bar locks
+  "…"`, one line per part. Moving it without one is refused. In a runner's
+  `list_top` job the claim has made that move already (step 4), so the bar
+  is locked by the time you read the card; a card that had none stayed
+  put: write it, then move the card into the list the prompt names. The bar locks
   once work starts: never try to change it after that (only a person can).
   Work to it as written and say in the wrap-up how each part was met.
 - **Check the bar at pickup**, before building — a bar already written
@@ -1031,7 +1046,10 @@ or the runner has it on; with none of it on, skip this section.
   `lanes: advise`).
   Before the claim's move into the doing list (step 4), write the paths the
   card's work will touch, as globs relative to the repository: `slipdock
-  edit <id> --paths "lib/foo/**,test/foo/**,docs/manual.md"`. Keep them as
+  edit <id> --paths "lib/foo/**,test/foo/**,docs/manual.md"`. In a
+  runner's `list_top` job the claim has moved the card in already (step 4),
+  so paths you write now are checked as an in-progress card's paths edit:
+  one that overlaps another card in progress is refused. Keep them as
   narrow as the brief allows. Declare the files the board shares too
   (`shared paths` on its line, such as the manual): they hold no lane, and
   the job's prompt names them. Others may edit them at the same time, so

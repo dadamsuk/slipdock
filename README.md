@@ -1047,7 +1047,11 @@ with the tail of the log — and a Cancel button.
   (trigger `list_top`) keeps one job open at a time, always for the top
   ready card of the list, so a runner works your To Do list the way you
   stacked it — and, by default, waits while anything is in progress, so it
-  never starts a card beside one you're working by hand. A card its job
+  never starts a card beside one you're working by hand. The moment a
+  runner claims that rule's job, the server moves the card to the top of
+  its board's doing list and says so in the activity, and the job's prompt
+  names the list, so the card shows in progress even if the agent never
+  moves it. A card its job
   leaves in progress goes back on top of the list for another try, then is
   flagged blocked, so a crashed or timed-out pass never stalls the list;
   a `job_finished` rule can alert, email or call a webhook when a job times

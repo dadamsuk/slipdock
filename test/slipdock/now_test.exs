@@ -244,11 +244,25 @@ defmodule Slipdock.NowTest do
       assert Now.counts(ctx.board).in_progress == 2
     end
 
-    test "a queued job, a verify or merge job, or an ended one doesn't list it", ctx do
+    test "in a doing list known only by its name, it is in a doing list", ctx do
+      # The claim move finds the doing list as the guide does (by category,
+      # else by name); Right now reads it the same way.
+      Repo.update!(Ecto.Changeset.change(ctx.doing, category: nil, name: "Doing"))
+      card = card_fixture(ctx.doing, %{"title" => "Moved by name"})
+      working_job_fixture(card)
+
+      assert [row] = Now.snapshot(ctx.board).in_progress
+      assert row.id == card.id and row.list == "Doing" and row.in_doing == true
+    end
+
+    test "a queued job, a verify, merge, overseer or probe job, or an ended one doesn't list it",
+         ctx do
       for {kind, status} <- [
             {"claude", "queued"},
             {"verify", "running"},
             {"merge", "claimed"},
+            {"overseer", "running"},
+            {"probe", "running"},
             {"claude", "done"}
           ] do
         card = card_fixture(ctx.todo, %{"title" => "#{kind} #{status}"})

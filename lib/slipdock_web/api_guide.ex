@@ -2339,6 +2339,14 @@ defmodule SlipdockWeb.APIGuide do
       one list side by side. It passes over a card its lane would hold too,
       and withdraws a queued job of its own that a lane holds when another
       card could start, so a held card never keeps its pool idle.
+    - **The claim moves the card.** When a runner claims a `list_top`
+      rule's job, the server moves the card to the top of its board's doing
+      list (the one this guide names), assigns nobody and says so in the
+      card's activity; moving it there yourself afterwards changes nothing.
+      A card without a bar on a board that asks for one, or on a board with
+      no doing list, stays put and the activity says why. The claimed job's
+      prompt names the list the card is in and the doing list's own name:
+      use that name if you move the card by hand.
 
     A job goes `queued → claimed → running → done | failed | cancelled |
     timeout`. A claim holds a lease (90 seconds) that each heartbeat renews;
