@@ -10,7 +10,7 @@ defmodule SlipdockWeb.ScheduledListDocsTest do
   @root Path.expand("../..", __DIR__)
   # Line breaks folded, for prose that is rewrapped as it changes.
   defp flat(path),
-    do: @root |> Path.join(path) |> File.read!() |> String.replace(~r/\s+/, " ")
+    do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
   test "the loop skill never takes from it, even with the ready list empty" do
     loop = flat("priv/skills/slipdock-loop/SKILL.md")

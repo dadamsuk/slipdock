@@ -13,7 +13,7 @@ defmodule SlipdockWeb.WaitDocsTest do
   import Slipdock.Fixtures
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   describe "the guide" do
     test "the short guide says to open a wait when stuck on a person, and to stop when paused" do
@@ -92,8 +92,8 @@ defmodule SlipdockWeb.WaitDocsTest do
 
     test "README names waits, Waiting on you, parked jobs, pause and the pulse" do
       readme = read("README.md")
-      assert readme =~ "docs/manual.md#waiting-on-a-person-waits"
-      assert readme =~ "docs/manual.md#flow-the-pulse-a-cards-state-and-its-age"
+      assert readme =~ "docs/manual/waiting-on-a-person-waits.md"
+      assert readme =~ "docs/manual/flow-the-pulse-a-cards-state-and-its-age.md"
       assert readme =~ "**Waiting on you**"
       assert readme =~ "**A question parks the job.**"
       assert readme =~ "**A brake with a reason.**"
@@ -104,9 +104,9 @@ defmodule SlipdockWeb.WaitDocsTest do
     test "docs/agents.md tells an agent to open a wait, and to stop on paused" do
       agents = read("docs/agents.md")
       assert agents =~ "it **opens a wait**"
-      assert agents =~ "manual.md#waiting-on-a-person-waits"
+      assert agents =~ "manual/waiting-on-a-person-waits.md"
       assert agents =~ "An agent seeing it takes nothing and stops."
-      assert agents =~ "manual.md#flow-the-pulse-a-cards-state-and-its-age"
+      assert agents =~ "manual/flow-the-pulse-a-cards-state-and-its-age.md"
       refute agents =~ "or comment, flag the card `waiting` and stop"
     end
 
@@ -228,7 +228,7 @@ defmodule SlipdockWeb.WaitDocsTest do
       manual = flat("docs/manual.md")
       assert manual =~ "**Who gets asked.** Each wait says what kind of question it is"
       assert manual =~ "else to the board's owner"
-      assert manual =~ "the [rejection limit](#verified-work)'s wait asks as `release`"
+      assert manual =~ "the [rejection limit](verified-work.md)'s wait asks as `release`"
       assert manual =~ "comes off its routes, and the open waits on them go to the owner"
       assert manual =~ "slipdock set-board slipdock --route product=dana@example.com"
       assert manual =~ "slipdock wait 12 \"Which pricing tier ships first?\" --kind product"

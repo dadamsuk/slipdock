@@ -102,10 +102,13 @@ defmodule Slipdock.RunnersSecurityShipTest do
     assert SlipdockWeb.APIGuide.markdown(user: user) =~
              "**A card tagged `security`** gets a neutral pull request"
 
-    assert File.read!("docs/manual.md") =~ "**Security fixes don't announce themselves.**"
-    assert File.read!("docs/agents.md") =~ "A card tagged `security` ships a neutral pull request"
+    assert Slipdock.DocsText.read!("docs/manual.md") =~
+             "**Security fixes don't announce themselves.**"
 
-    assert File.read!("priv/skills/slipdock-loop/SKILL.md") =~
+    assert Slipdock.DocsText.read!("docs/agents.md") =~
+             "A card tagged `security` ships a neutral pull request"
+
+    assert Slipdock.DocsText.read!("priv/skills/slipdock-loop/SKILL.md") =~
              "**A card tagged `security`** ships a neutral pull request"
   end
 end

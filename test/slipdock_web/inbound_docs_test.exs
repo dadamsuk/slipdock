@@ -7,13 +7,13 @@ defmodule SlipdockWeb.InboundDocsTest do
   use SlipdockWeb.ConnCase, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the manual has the section: addresses, what mail becomes, bounces, the log" do
     manual = read("docs/manual.md")
     assert manual =~ ~r/^## Emailing your board$/m
-    assert manual =~ "[Emailing your board](#emailing-your-board)"
-    assert manual =~ "[emailing\n  cards in](#emailing-your-board)"
+    assert manual =~ "[Emailing your board](emailing-your-board.md)"
+    assert manual =~ "[emailing\n  cards in](emailing-your-board.md)"
     assert manual =~ "| `card-…@<domain>` |"
     assert manual =~ "| `add-…@<domain>` |"
     assert manual =~ "**What the message becomes.**"
@@ -55,7 +55,7 @@ defmodule SlipdockWeb.InboundDocsTest do
   test "README links to it from the features and from Receiving email" do
     readme = read("README.md")
     assert readme =~ "**Email a card in**"
-    assert Regex.scan(~r/docs\/manual\.md#emailing-your-board/, readme) |> length() >= 2
+    assert Regex.scan(~r/docs\/manual\/emailing-your-board\.md\)/, readme) |> length() >= 2
     assert readme =~ "slipdock inbound\n<board>`"
     assert readme =~ "(W-1933)"
     assert readme =~ "`page-…@` address"
@@ -65,7 +65,7 @@ defmodule SlipdockWeb.InboundDocsTest do
   test "docs/agents.md says where to look when mail didn't arrive" do
     agents = read("docs/agents.md")
     assert agents =~ "emailed a card or a page in and nothing happened"
-    assert agents =~ "manual.md#emailing-your-board"
+    assert agents =~ "manual/emailing-your-board.md"
     assert agents =~ "A `+ Title` mail bounces when no page has that title"
   end
 
@@ -80,7 +80,7 @@ defmodule SlipdockWeb.InboundDocsTest do
   end
 
   test "the slipdock skill lists the inbound commands" do
-    skill = File.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md"))
+    skill = Slipdock.DocsText.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md"))
     assert skill =~ "slipdock inbound <board> [--rotate]"
     assert skill =~ ~s("+ Title" appends a dated section)
     assert skill =~ "slipdock inbound me [--rotate] [--ack on|off]"
@@ -97,7 +97,7 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert read("docs/agents.md") =~ "A `[#42] …` subject to a card address comments on card 42"
     assert read("lib/slipdock_web/api_guide.ex") =~ "whose subject starts `[#42]`, on card 42"
 
-    assert File.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~
+    assert Slipdock.DocsText.read!(Path.join(@root, "priv/skills/slipdock/SKILL.md")) =~
              ~s(card-: "[#42] …" comments on card 42 instead)
   end
 end

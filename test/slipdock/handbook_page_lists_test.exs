@@ -130,7 +130,7 @@ defmodule Slipdock.HandbookPageListsTest do
 
   defp text("the seed card's procedure"), do: seed_description()
 
-  defp text(path), do: File.read!(Path.expand(path, @root))
+  defp text(path), do: Slipdock.DocsText.read!(Path.expand(path, @root))
 
   # The list's paragraph, from its phrase to a blank line or the next item.
   defp names_in(text, phrase) do

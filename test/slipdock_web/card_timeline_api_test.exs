@@ -90,7 +90,7 @@ defmodule SlipdockWeb.CardTimelineAPITest do
 
   describe "the docs" do
     @root Path.expand("../..", __DIR__)
-    defp read(path), do: File.read!(Path.join(@root, path))
+    defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
     test "the guide, README, manual, agents doc and slipdock skill all name it" do
       assert SlipdockWeb.APIGuide.markdown() =~ "GET /api/cards/:id/timeline"

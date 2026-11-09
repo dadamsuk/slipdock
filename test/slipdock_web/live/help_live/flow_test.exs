@@ -159,7 +159,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     end
 
     test "draws nothing wider than a phone: no fixed minimum widths or sideways scroll" do
-      source = File.read!("lib/slipdock_web/live/help_live/flow.ex")
+      source = Slipdock.DocsText.read!("lib/slipdock_web/live/help_live/flow.ex")
 
       refute source =~ ~r/min-w-\[|w-\[\d|overflow-x-(auto|scroll)|whitespace-nowrap/
     end
@@ -206,7 +206,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
     end
 
     test "every board setting it names is on the Agentic Building page and in set-board's help" do
-      form = File.read!("lib/slipdock_web/live/agentic_live/index.ex")
+      form = Slipdock.DocsText.read!("lib/slipdock_web/live/agentic_live/index.ex")
       entries = help_entries()
 
       for {label, cli, _what} <- Flow.settings() do
@@ -223,7 +223,7 @@ defmodule SlipdockWeb.HelpLive.FlowTest do
 
   describe "the manual" do
     test "points to it from Verified work and from Runners" do
-      manual = File.read!("docs/manual.md") |> String.replace(~r/\s+/, " ")
+      manual = Slipdock.DocsText.read!("docs/manual.md") |> String.replace(~r/\s+/, " ")
 
       for heading <- ["## Verified work", "## Runners"] do
         [_, rest] = String.split(manual, heading <> " ", parts: 2)

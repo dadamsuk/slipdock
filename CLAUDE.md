@@ -10,7 +10,7 @@ Consider each of these. Not every one applies to every change, but judge each:
 - The agents page and the API guide (`docs/agents.md`, `lib/slipdock_web/api_guide.ex`).
 - The in-app help pages (SPEC-10): `HelpLive.Guides` for the app, `HelpLive.Agents` and `HelpLive.Flow` for agents and runners.
 - The packaged skills in `priv/skills/`, their one source. Installed copies (`~/.claude/skills`) are never edited by hand: a runner that keeps itself current installs the server's before each job, and anywhere else the install one-liner does (`docs/agents.md` §Install the skills). No test reads an installed copy (`test/slipdock/repo_checks_test.exs`).
-- `README.md` and `docs/manual.md`.
+- `README.md` and the manual: `docs/manual.md` is its contents, and each section is a page of its own in `docs/manual/` (a new section gets a page and a line in the contents; `test/slipdock/manual_pages_test.exs`).
 - The test suite.
 
 ## Tests come with the code

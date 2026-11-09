@@ -10,7 +10,7 @@ defmodule Slipdock.ProfilesDocsTest do
   alias Slipdock.Profiles
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the manual has the sections the README links" do
     manual = read("docs/manual.md")
@@ -24,8 +24,8 @@ defmodule Slipdock.ProfilesDocsTest do
     [bullet | _] = String.split(bullet, "\n- **", parts: 2)
 
     for part <- [
-          "docs/manual.md#profiles",
-          "docs/manual.md#the-human-tier",
+          "docs/manual/profiles.md",
+          "docs/manual/profiles.md#the-human-tier",
           "set-board --profiles on",
           "--profile-tier",
           "`spike` only by tag"

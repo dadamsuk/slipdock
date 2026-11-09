@@ -11,7 +11,7 @@ defmodule SlipdockWeb.DeliveryDocsTest do
   import Slipdock.Fixtures
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "README names the feature and its doors" do
     readme = read("README.md")
@@ -19,13 +19,13 @@ defmodule SlipdockWeb.DeliveryDocsTest do
     assert readme =~ "slipdock deploy run --env production -- ./deploy.sh"
     assert readme =~ "slipdock dora <board>"
     assert readme =~ "`get_board` with `dora: true`"
-    assert readme =~ "(docs/manual.md#delivery-metrics-deploys-and-dora)"
+    assert readme =~ "(docs/manual/delivery-metrics-deploys-and-dora.md)"
   end
 
   test "the manual has the section README links to" do
     manual = read("docs/manual.md")
     assert manual =~ "\n## Delivery metrics: deploys and DORA\n"
-    assert manual =~ "[Delivery metrics](#delivery-metrics-deploys-and-dora)"
+    assert manual =~ "[Delivery metrics](delivery-metrics-deploys-and-dora.md)"
 
     for phrase <- [
           "**Track deployments**",

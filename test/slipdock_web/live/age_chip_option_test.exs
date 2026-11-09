@@ -169,14 +169,16 @@ defmodule SlipdockWeb.AgeChipOptionTest do
 
   test "the manual, API guide and the skill say how to turn it off" do
     root = Path.expand("../../..", __DIR__)
-    manual = File.read!(Path.join(root, "docs/manual.md"))
+    manual = Slipdock.DocsText.read!(Path.join(root, "docs/manual.md"))
     # A card view element now (#2031), and still the list's own switch.
-    assert manual =~ "show **Time in list** in your\n[card views](#card-views)"
+    assert manual =~ "show **Time in list** in your\n[card views](card-views.md)"
     assert manual =~ "--no-show-age"
     refute manual =~ "untick **Time in list**"
-    assert File.read!(Path.join(root, "lib/slipdock_web/api_guide.ex")) =~ "`show_age: false`"
 
-    assert File.read!(Path.join(root, "priv/skills/slipdock/SKILL.md")) =~
+    assert Slipdock.DocsText.read!(Path.join(root, "lib/slipdock_web/api_guide.ex")) =~
+             "`show_age: false`"
+
+    assert Slipdock.DocsText.read!(Path.join(root, "priv/skills/slipdock/SKILL.md")) =~
              "set-column <board> <column> --no-show-age"
   end
 end

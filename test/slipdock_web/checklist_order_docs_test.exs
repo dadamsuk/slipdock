@@ -7,7 +7,7 @@ defmodule SlipdockWeb.ChecklistOrderDocsTest do
   use SlipdockWeb.ConnCase, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the guide has the recipe, the page's shared routes and the endpoint" do
     guide = SlipdockWeb.APIGuide.markdown()

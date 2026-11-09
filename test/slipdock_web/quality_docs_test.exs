@@ -7,7 +7,7 @@ defmodule SlipdockWeb.QualityDocsTest do
   use SlipdockWeb.ConnCase, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the API guide gives the endpoint and what it answers" do
     guide = SlipdockWeb.APIGuide.markdown()
@@ -40,7 +40,7 @@ defmodule SlipdockWeb.QualityDocsTest do
   test "the README lists the quality numbers and their doors" do
     readme = read("README.md")
     assert readme =~ "- **Quality numbers** — [is the agent loop right first time?]"
-    assert readme =~ "(docs/manual.md#visualise-flow-velocity-runners-and-delivery)"
+    assert readme =~ "(docs/manual/visualise-flow-velocity-runners-and-delivery.md)"
     assert readme =~ "`slipdock quality <board> [--days N] [--rules]`"
     assert readme =~ "`GET /api/boards/:id/quality?days=`"
   end

@@ -61,11 +61,19 @@ defmodule Slipdock.Handbook.RulesDocsTest do
     assert guide =~
              "Installing 1.5.0 over an older handbook adds the two pages and changes no other."
 
-    agents = Path.join(@root, "docs/agents.md") |> File.read!() |> String.replace(~r/\s+/, " ")
+    agents =
+      Path.join(@root, "docs/agents.md")
+      |> Slipdock.DocsText.read!()
+      |> String.replace(~r/\s+/, " ")
+
     assert agents =~ "**Principles** are the tie-breakers between two right ways"
     assert agents =~ "The **Playbook** is how an idea becomes cards"
 
-    manual = Path.join(@root, "docs/manual.md") |> File.read!() |> String.replace(~r/\s+/, " ")
+    manual =
+      Path.join(@root, "docs/manual.md")
+      |> Slipdock.DocsText.read!()
+      |> String.replace(~r/\s+/, " ")
+
     assert manual =~ "**Principles and Playbook** (1.5.0)"
     assert manual =~ "tooling, Operations, Principles and Playbook (below)"
 
@@ -74,29 +82,31 @@ defmodule Slipdock.Handbook.RulesDocsTest do
   end
 
   test "README and slipdock-docs, name Principles and Playbook (#2040)" do
-    readme = Path.join(@root, "README.md") |> File.read!() |> String.replace(~r/\s+/, " ")
+    readme =
+      Path.join(@root, "README.md") |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
+
     assert readme =~ "principles (the tie-breakers, each a `PRIN` rule) and the playbook"
 
     for path <- copies("slipdock-docs") do
-      text = path |> File.read!() |> String.replace(~r/\s+/, " ")
+      text = path |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
       assert text =~ "Testing & tooling, Operations, Principles, Playbook)", path
       assert text =~ "Principles and the Playbook are a person's call", path
     end
   end
 
   test "docs/agents.md and the manual describe rules" do
-    agents = File.read!(Path.join(@root, "docs/agents.md"))
+    agents = Slipdock.DocsText.read!(Path.join(@root, "docs/agents.md"))
     assert agents =~ "## The handbook's rules"
     assert agents =~ "a reviewer cites them\nby id"
 
-    manual = File.read!(Path.join(@root, "docs/manual.md"))
+    manual = Slipdock.DocsText.read!(Path.join(@root, "docs/manual.md"))
     assert manual =~ "**Rules** live in each section page's `## Rules`"
     assert manual =~ "gets an empty one appended, and nothing else on it changes"
   end
 
   test "slipdock-docs says where a rule goes" do
     for path <- copies("slipdock-docs") do
-      text = File.read!(path)
+      text = Slipdock.DocsText.read!(path)
       assert text =~ "A **rule** (something a change must or should keep to)", path
       assert text =~ "leave its rules alone", path
     end
@@ -104,7 +114,7 @@ defmodule Slipdock.Handbook.RulesDocsTest do
 
   test "slipdock-loop keeps to the rules that cover the card" do
     for path <- copies("slipdock-loop") do
-      text = File.read!(path)
+      text = Slipdock.DocsText.read!(path)
       assert text =~ "Each section page also lists its **rules** under `## Rules`", path
       assert text =~ "cite one by its id", path
     end

@@ -10,7 +10,7 @@ defmodule SlipdockWeb.RecurrenceDocsTest do
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the guide has the field, the copy endpoint and the recipe; MCP's update_card names it" do
     guide = SlipdockWeb.APIGuide.markdown()
@@ -34,8 +34,8 @@ defmodule SlipdockWeb.RecurrenceDocsTest do
   end
 
   test "README and docs/agents.md link to it" do
-    assert read("README.md") =~ "docs/manual.md#recurring-cards"
-    assert read("docs/agents.md") =~ "manual.md#recurring-cards"
+    assert read("README.md") =~ "docs/manual/recurring-cards.md"
+    assert read("docs/agents.md") =~ "manual/recurring-cards.md"
   end
 
   test "the slipdock skill has repeat, recurring and copy" do

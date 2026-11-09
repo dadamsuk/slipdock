@@ -8,7 +8,7 @@ defmodule SlipdockWeb.VerifiedDocsTest do
 
   @root Path.expand("../..", __DIR__)
 
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the manual has the section, each check, and verify_card in its tool table" do
     manual = read("docs/manual.md")
@@ -82,7 +82,7 @@ defmodule SlipdockWeb.VerifiedDocsTest do
     # The packaged skills: their one source is priv/skills/ (#2048).
     for skill <- ["slipdock-loop", "slipdock-work"],
         path = Path.join([@root, "priv/skills", skill, "SKILL.md"]),
-        text = flat.(File.read!(path)) do
+        text = flat.(Slipdock.DocsText.read!(path)) do
       assert text =~ "**Check the bar at pickup**, before building", path
       assert text =~ "needs a person (a handbook rule added, reworded or dropped, a merge", path
       assert text =~ ~s(slipdock wait <id> "…"), path

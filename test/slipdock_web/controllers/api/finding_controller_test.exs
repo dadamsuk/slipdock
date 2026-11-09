@@ -212,15 +212,15 @@ defmodule SlipdockWeb.API.FindingControllerTest do
     end
 
     test "agents.md, the README and the manual describe them" do
-      agents = File.read!("docs/agents.md")
+      agents = Slipdock.DocsText.read!("docs/agents.md")
       assert agents =~ "**Findings.**"
       assert agents =~ "slipdock findings <board>"
 
-      readme = File.read!("README.md")
+      readme = Slipdock.DocsText.read!("README.md")
       assert readme =~ "**Findings**"
-      assert readme =~ "docs/manual.md#findings"
+      assert readme =~ "docs/manual/findings.md"
 
-      manual = File.read!("docs/manual.md")
+      manual = Slipdock.DocsText.read!("docs/manual.md")
       assert manual =~ "## Findings"
       assert manual =~ "slipdock finding 42 merge --into 41"
       assert manual =~ "PATCH /api/findings/:id"

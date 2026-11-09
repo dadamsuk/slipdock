@@ -7,13 +7,13 @@ defmodule SlipdockWeb.RunnerDocsTest do
   use ExUnit.Case, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the manual has the section the others link to" do
     assert read("docs/manual.md") =~ ~r/^## Runners$/m
-    assert read("README.md") =~ "docs/manual.md#runners"
+    assert read("README.md") =~ "docs/manual/runners.md"
     assert read("README.md") =~ ~r/^## Run an agent against a board$/m
-    assert read("docs/agents.md") =~ "manual.md#runners"
+    assert read("docs/agents.md") =~ "manual/runners.md"
   end
 
   test "each says where to start and draws the same trust line" do

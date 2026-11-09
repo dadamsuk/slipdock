@@ -107,12 +107,13 @@ defmodule SlipdockWeb.FindingsProposeAtTest do
 
   test "the manual, agents.md, the API guide and the Flow help page describe it", ctx do
     squash = &String.replace(&1, ~r/\s+/, " ")
-    manual = squash.(File.read!("docs/manual.md"))
+    manual = squash.(Slipdock.DocsText.read!("docs/manual.md"))
     assert manual =~ "**Promotion by recurrence.**"
     assert manual =~ "`slipdock set-board B --findings-propose-at N`"
     assert manual =~ "**Rules drafted from findings.**"
 
-    assert squash.(File.read!("docs/agents.md")) =~ "`findings_propose_at` (3 by default, 0 off)"
+    assert squash.(Slipdock.DocsText.read!("docs/agents.md")) =~
+             "`findings_propose_at` (3 by default, 0 off)"
 
     guide = squash.(SlipdockWeb.APIGuide.markdown(user: ctx.user))
     assert guide =~ "A finding counted to the board's `findings_propose_at`"

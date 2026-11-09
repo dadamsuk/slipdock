@@ -172,7 +172,7 @@ list; one that sends the agent to the guide first never is.
 
 ## 4 · The CLI (optional)
 
-[The `slipdock` CLI](manual.md#cli) wraps every call, and is pleasanter to read
+[The `slipdock` CLI](manual/cli.md) wraps every call, and is pleasanter to read
 in a transcript than a wall of `curl`. It is an Elixir escript, so it needs
 Erlang/OTP on the machine that runs it — which is why nothing above depends on
 it. On Windows, one line in PowerShell installs it from the server, for you
@@ -224,12 +224,12 @@ with `card` (or `page`) and `link: true` answers with a single-use
 `POST /api/cards/:id/attachments` would. `download_file` with `link: true`
 gives a `download_url` the same way. So a scheduled task or a shared skill
 needs no long-lived API token to move files
-([details](manual.md#mcp-server)).
+([details](manual/mcp-server.md)).
 
 Whatever the door, a card's `handoff` is where it was left: `get_card` puts it
 first, and an agent reads it before starting and leaves one (`leave_handoff`,
 `slipdock handoff <id> --next "…"`) whenever it stops short. See
-[the manual](manual.md#where-it-was-left-handoffs).
+[the manual](manual/where-it-was-left-handoffs.md).
 
 When an agent needs something only a person can give, it **opens a wait**
 and stops, rather than flagging the card and hoping: `update_card` with
@@ -257,7 +257,7 @@ answer a wait it opened. A runner job may wait on its own card or any card
 beneath it: an epic's pass asks about a subcard on the subcard, the job
 parks, and the answer sends the epic again with the subcard named. `slipdock work` (`GET /api/work`) lists what is
 waiting on you, and `whoami` counts it (`waiting_on_you`). See
-[the manual](manual.md#waiting-on-a-person-waits).
+[the manual](manual/waiting-on-a-person-waits.md).
 
 **What in an epic's tree waits on you.** `get_card` and `get_board`
 (`GET /api/cards/:id`, `GET /api/boards/:board`) carry `waiting_on_me`:
@@ -346,7 +346,7 @@ all of it on the board's **Visualise** page. A card's history — how
 long it sat in each list and who moved it, its waits and its jobs — is
 `get_card` with `timeline: true`, `GET /api/cards/:id/timeline` or
 `slipdock timeline <id>`. See
-[the manual](manual.md#flow-the-pulse-a-cards-state-and-its-age).
+[the manual](manual/flow-the-pulse-a-cards-state-and-its-age.md).
 
 A board with **delivery metrics** on records its project's deploys from CI
 (`slipdock deploy run --env production -- ./deploy.sh`, with the board's deploy
@@ -357,7 +357,7 @@ production · 1a2b3c4 · 6 Nov 14:32*, the time in your time zone). An outage is
 `slipdock incident-of <card> <deploy>` (or `POST /api/cards/:id/incident-of`)
 names the deploy that caused it. To wire a repository up, `get_guide` with
 `section: "deployments"` is the whole brief. See
-[the manual](manual.md#delivery-metrics-deploys-and-dora).
+[the manual](manual/delivery-metrics-deploys-and-dora.md).
 
 **Step statuses.** The server posts a card's routine steps as its status
 updates, so you needn't: an *On track* update with no user (shown as
@@ -379,7 +379,7 @@ A card that repeats carries `recurrence` (its rule in words and when the next
 is made). An agent sets one only when the person asked for repeating work:
 `update_card` with `recurrence: {rule: "every mon"}`, `slipdock repeat <id>
 "every mon"`, or `PUT /api/cards/:id/recurrence`. See
-[the manual](manual.md#recurring-cards).
+[the manual](manual/recurring-cards.md).
 
 Card titles an agent writes stay short: about 60 characters at most, a series
 as `<Series> <n>: <what>`, the detail in the description. A page for a card
@@ -391,7 +391,7 @@ When the person says something can wait until a date, or what a card waits
 for has one, snooze it rather than flag it `waiting`: `update_card` with
 `snoozed_until: "2026-11-02"` (and `snooze_note`), `slipdock snooze <id>
 <date> --note "…"`, or `POST /api/cards/:id/snooze`. See
-[the manual](manual.md#snoozing-cards).
+[the manual](manual/snoozing-cards.md).
 
 A person's **card views** say what they see of a card in the web app: each
 element of its front and of the opened card, by global, board and list. They
@@ -401,7 +401,7 @@ when the person asks: `card_views` (MCP, by `action`), `slipdock card-view set
 [--board B] [--list L] --show a --hide b`, or `PUT /api/card-views/level`.
 `slipdock card-view applied --board B` (`GET /api/card-views/applied`) says
 what a card there shows and which level decided it. See
-[the manual](manual.md#card-views).
+[the manual](manual/card-views.md).
 
 The **skills registry** keeps skills fetched from outside Slipdock (a GitHub
 repository of `SKILL.md` files, or one file at an https URL), and a board can
@@ -426,7 +426,7 @@ newer. The CLI's door is `slipdock skills board <board>` (with a name, that
 one's pinned text), and MCP's is `get_guide` with `board`, which adds the same
 list as `skills`. `slipdock-plan` uses it: for a stage that names a skill, the
 one enabled on the board, else one installed locally, else its own text, and
-it says which. See [the manual](manual.md#skills-from-elsewhere).
+it says which. See [the manual](manual/tools.md#skills-from-elsewhere).
 
 The board gardener finds rot — epics done but open, cards stuck in progress,
 duplicates, orphaned pages, mistyped links, and on a handbook board long
@@ -437,13 +437,13 @@ first, which is a write: a read-only token can list but not run), and `garden_de
 `confirm: true`. Show the person the suggestions and apply only what they
 approve; never dismiss one on your own judgment, since a dismissal is
 remembered. The CLI is `slipdock garden <board> [--run]` and `slipdock garden
-apply|dismiss|undo <id>`. See [the manual](manual.md#tidying-up).
+apply|dismiss|undo <id>`. See [the manual](manual/tidying-up.md).
 
 Never take work from a **Triage** list (category `triage`; the guide marks
 it `triage: for a person`). The code sweep (`slipdock tools install-board
 sweep --board B`, or `install_tool` with `tool: "sweep"`) files what it finds
 there for a person to triage, one area and one lens a night; nothing feeds a
-runner from it. See [the manual](manual.md#tools).
+runner from it. See [the manual](manual/tools.md).
 
 Never take work from a **Scheduled** list either (category `scheduled`; the
 guide marks it `scheduled: worked by feed rules`). It is where recurring agent
@@ -457,7 +457,7 @@ still there after the end of its due day is on its board owner's Waiting on
 you (`scheduled_missed`). Set the category with `slipdock new-column B
 Scheduled --category scheduled` (or `set-column`), `POST|PATCH
 /api/boards/:board/columns` or MCP `create_list`. See [the
-manual](manual.md#recurring-cards).
+manual](manual/recurring-cards.md).
 
 Agents propose handbook edits rather than make them, where a rule or a
 decision is concerned: `POST /api/boards/:board/garden/proposals` (`slipdock
@@ -475,7 +475,7 @@ a check the finding names, else `should`; only from lessons (an agent's,
 a verifier's or an audit's findings), never from events such as health
 incidents or failed merges. Accepting it promotes the finding; triaging the
 finding (promote, dismiss, merge) closes it with a note, and reopening the
-finding reopens it; see [the manual](manual.md#findings).
+finding reopens it; see [the manual](manual/findings.md).
 
 It also offers prompts, ready-made workflows the client lists in its own menu
 (the **+** menu in the Claude apps, `/mcp__slipdock__<name>` in Claude Code),
@@ -484,7 +484,7 @@ each rendered with live board data: `plan-my-day`, `weekly-review`, `triage`,
 `tidy-board`. A `board` or `card` argument completes as the person types. A
 connector caches the list: after an upgrade that adds one, disconnect and
 connect again. ChatGPT's connectors don't show prompts. See
-[the manual](manual.md#the-prompts).
+[the manual](manual/mcp-server.md#the-prompts).
 
 And it offers resources, which the *person* attaches rather than the model
 fetching: `slipdock://board/{code}`, `slipdock://card/{id}`,
@@ -493,7 +493,7 @@ fetching: `slipdock://board/{code}`, `slipdock://card/{id}`,
 the person's favourites and the pages pinned to their favourite boards. A
 resource is read with the same access checks as the tools; one the token
 can't read is "resource not found", the same as one that isn't there. See
-[the manual](manual.md#the-resources).
+[the manual](manual/mcp-server.md#the-resources).
 
 `get_guide` gives the short guide — how to work a board, the reader's own
 boards and lists — and ends by naming the other sections, each one call
@@ -811,7 +811,7 @@ complete following its subcards. An agent comments there only what the
 server can't know: decisions, surprises, dead ends and changes of plan. The agent a
 runner started may report on the runner's job (the CLI sends
 `$SLIPDOCK_JOB_ID`), though only the runner claims and finishes it. The details, and the HTTP protocol a runner speaks, are in
-[the manual](manual.md#runners) and the guide's *Runners* section.
+[the manual](manual/runners.md) and the guide's *Runners* section.
 
 **The health monitor.** Every few minutes the server looks for work stuck
 in ways only a person would otherwise notice — jobs nobody takes, deadlocks,
@@ -821,7 +821,7 @@ card gets the `stuck` flag, or the board an alert. A card flagged `stuck` is
 for a person; an agent says on it what it knows and leaves the flag alone.
 `slipdock health <board>`, the board's Health page and
 `GET /api/boards/:board/health` show the incidents; see
-[the manual](manual.md#the-health-monitor).
+[the manual](manual/the-health-monitor.md).
 
 **Right now.** What is happening on a board's tree at this moment — each
 runner and the job and step it is on, every card in progress with its board,
@@ -832,7 +832,7 @@ is held — is the board's Right now page (`/boards/:id/now`, one click from the
 board page's pulse line, or its own line, with Agentic Building on),
 `slipdock now <board>` (`--json` for the JSON), `GET /api/boards/:board/now`
 and MCP `get_board` `now: true`; see
-[the manual](manual.md#right-now).
+[the manual](manual/right-now.md).
 
 **The overseer.** A board's owner can turn on an eye on outcomes
 (`slipdock overseer <board> --on`): server checks, every minute, for work
@@ -851,7 +851,7 @@ board's *Overseer* card. Passes come every 10 minutes while cards are active,
 longer when little or nothing is in flight. `GET`/`PATCH
 /api/boards/:board/overseer` (reading needs read on the tree's root, not
 just the sub-board named), MCP `get_board overseer: true` and
-`update_board overseer: {…}`; see [the manual](manual.md#the-overseer).
+`update_board overseer: {…}`; see [the manual](manual/the-overseer.md).
 
 **Findings.** What a pass learned that the code doesn't show goes on the
 board, not in one machine's agent memory: a `Findings:` block in the closing
@@ -892,7 +892,7 @@ as `slipdock findings` (each by id), `awaiting` in
 The findings below them are reference, triaged by hand when wanted with
 `slipdock findings <board>`, `slipdock finding <id> promote|dismiss|merge
 --into <id>`, `GET /api/boards/:board/findings`; see
-[the manual](manual.md#findings).
+[the manual](manual/findings.md).
 
 **The ledger.** What shipped on a board tree since a time, for a person to
 skim instead of approving each card: each card completed, accepted, merged or
@@ -906,7 +906,7 @@ rollup and the card's `url`
 S]`, `GET /api/boards/:board/ledger?since=`, MCP `activity` with `view:
 "ledger"`, or the board's Ledger page (`/boards/:id/ledger`). `since` is days,
 a date or an ISO time; without it, 07:00 yesterday in the board's timezone.
-It writes nothing. See [the manual](manual.md#the-ledger).
+It writes nothing. See [the manual](manual/the-ledger.md).
 
 **Incidents.** When a person tells you a card broke something that shipped,
 file it (or edit it) as an incident: `caused_by`, the card whose shipping
@@ -918,7 +918,7 @@ have caught it (`bar`, `rules`, `ci`, `verify`, `audit` or `none`).
 read is refused with a sentence. While both are set the causing card carries
 one `process` finding with source `incident`, kept in step as they change
 (`slipdock findings <board> --source incident`). Set them only when told: an
-incident is a person's judgement. See [the manual](manual.md#incidents).
+incident is a person's judgement. See [the manual](manual/incidents.md).
 
 **Verified work.** A board can check what its agents finish, with each
 check off until it is turned on (the board's Agentic Building page, or
@@ -1039,7 +1039,7 @@ runner that is idle now, else to the one that accepted the card, so it
 doesn't wait for a pass to end; a runner that can't merge in that
 repository hands it on rather than failing the card. The skills
 (`slipdock-loop`, `slipdock-work`) say what changes in a pass; see
-[the manual](manual.md#verified-work).
+[the manual](manual/verified-work.md).
 
 **Epics close over finished subcards.** On every board, with no switch, an
 agent can't complete (or submit) a card while its sub-board has open cards
@@ -1090,7 +1090,7 @@ before editing those files, stay out of them where you can, and rebase on
 the default branch before pushing.
 Only a card a runner job is working on holds a lane: one in progress with
 no open job, dragged there by hand or left behind, holds none. Lanes hold work jobs only, never a verify or merge
-job. See [the manual](manual.md#lanes).
+job. See [the manual](manual/lanes.md).
 
 **Profiles.** On a board with `profiles` on (`profiles: on` on its line
 in the guide), a card an agent claims or starts with no profile gets one
@@ -1122,7 +1122,7 @@ card (`403`). A card sent back comes to the ready list as a rejection,
 the person's reason under *Verification*: rework it as any other. Change
 a tier on the root board: `slipdock set-board B --profile-tier
 schema=none`, `update_board` `profile_tiers`. See [the
-manual](manual.md#the-human-tier).
+manual](manual/profiles.md#the-human-tier).
 
 **The verifier's spend.** With profiles on, completing a `docs` card on a
 verifying board queues no verify job: the server accepts it (*Accepted by
@@ -1136,7 +1136,7 @@ reject on any Important one; a Nit or a Pre-existing finding is reported
 only. A claimed job carries the card's `profile` (MCP `claim_job`, the
 REST claim's `job.profile`, the runner's `x-card-profile` header), and a
 runner's config may set `MODEL_<profile>` to run that profile on another
-model. See [the manual](manual.md#the-verifiers-spend).
+model. See [the manual](manual/profiles.md#the-verifiers-spend).
 
 ## If you self-host
 
@@ -1144,7 +1144,7 @@ Two things to get right, both about the address:
 
 - **Tell the app its own name.** `PHX_HOST`, and `SLIPDOCK_URL_SCHEME=https`
   with `SLIPDOCK_URL_PORT=443` if you are behind a TLS proxy (see
-  [Running it](manual.md#running)). The guide and the installer hand out URLs
+  [Running it](manual/running.md)). The guide and the installer hand out URLs
   built from this; get it wrong and every agent you set up is told to talk
   plain http to a port nobody is listening on.
 - **The agent has to be able to reach it.** An install bound to a tailnet means
@@ -1173,8 +1173,8 @@ server because that is the server that drew the page.
 | A runner's agent can't find a project command or skill (`/genarticle` "not found") | The runner has no working directory, so jobs start in your home and the project's `.claude/` isn't loaded. Set the working directory to the project's folder and run the one-liner again. |
 | Every job fails with `cd: can't cd to ~/…` | A runner installed before `~` was understood wrote it in quotes, where sh doesn't expand it. Run the one-liner again (**Setup**), or give a full path. |
 | A job fails with exit 127, "no such job kind" | The rule queued a kind this runner's config has no `job_<kind>` (shell) or `Job-<Kind>` (PowerShell) function for. Add one, or change the rule's kind. |
-| Someone says they emailed a card or a page in and nothing happened | `slipdock inbound log` (or `GET /api/inbound/log`) says what each message made, or why it bounced or was ignored — see [Emailing your board](manual.md#emailing-your-board). A `+ Title` mail bounces when no page has that title (the log shows the near matches it offered). Their addresses are `slipdock inbound <board>` (a wiki folder's own: `--folder <path>`); don't `--rotate` it unless asked, since the old one stops working. A reply to a notification email (kind `reply`) bounces when it was all quote, came from another address, or the card is gone — see [Replying to a notification](manual.md#replying-to-a-notification). A `[#42] …` subject to a card address comments on card 42, and bounces when 42 isn't on that board or its sub-boards. |
-| A rule meant to act on mail (`card_emailed`, `page_emailed`) didn't | It fires only for what mail made, once the message accepted (`slipdock inbound log`), so a card typed in by hand doesn't set it off. Its `column`, `folder` (a path, as `Notes/Calls`) and `how` (`new` or `added`) must match. Its last error is in `slipdock automations <board>`. A `page_emailed` rule can only flag, tag, prioritise, date or assign the page (or email, alert, log, call a URL, create a card): the rest is refused when it is saved. See [Rules for what mail brings in](manual.md#rules-for-what-mail-brings-in). |
+| Someone says they emailed a card or a page in and nothing happened | `slipdock inbound log` (or `GET /api/inbound/log`) says what each message made, or why it bounced or was ignored — see [Emailing your board](manual/emailing-your-board.md). A `+ Title` mail bounces when no page has that title (the log shows the near matches it offered). Their addresses are `slipdock inbound <board>` (a wiki folder's own: `--folder <path>`); don't `--rotate` it unless asked, since the old one stops working. A reply to a notification email (kind `reply`) bounces when it was all quote, came from another address, or the card is gone — see [Replying to a notification](manual/emailing-your-board.md#replying-to-a-notification). A `[#42] …` subject to a card address comments on card 42, and bounces when 42 isn't on that board or its sub-boards. |
+| A rule meant to act on mail (`card_emailed`, `page_emailed`) didn't | It fires only for what mail made, once the message accepted (`slipdock inbound log`), so a card typed in by hand doesn't set it off. Its `column`, `folder` (a path, as `Notes/Calls`) and `how` (`new` or `added`) must match. Its last error is in `slipdock automations <board>`. A `page_emailed` rule can only flag, tag, prioritise, date or assign the page (or email, alert, log, call a URL, create a card): the rest is refused when it is saved. See [Rules for what mail brings in](manual/automations-and-alerts.md#rules-for-what-mail-brings-in). |
 | The agent inventing list or tag names | It has not read the guide, or read it without a token. The guide with a token ends with your real boards and lists. |
 
 ## Where the pieces live

@@ -8,7 +8,7 @@ defmodule SlipdockWeb.CLIReferenceDocsTest do
 
   @root Path.expand("../..", __DIR__)
   defp flat(path),
-    do: @root |> Path.join(path) |> File.read!() |> String.replace(~r/\s+/, " ")
+    do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ")
 
   test "the manual's CLI section names the page and its one source" do
     manual = flat("docs/manual.md")

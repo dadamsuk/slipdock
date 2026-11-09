@@ -8,7 +8,7 @@ defmodule SlipdockWeb.VerifyByCiDocsTest do
   use ExUnit.Case, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
   # Line breaks folded, for prose that is rewrapped as it changes.
   defp flat(path), do: path |> read() |> String.replace(~r/\s+/, " ")
 

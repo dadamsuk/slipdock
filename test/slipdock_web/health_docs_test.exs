@@ -7,7 +7,7 @@ defmodule SlipdockWeb.HealthDocsTest do
   use SlipdockWeb.ConnCase, async: true
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the guide has a section of its own, and the short guide only indexes it" do
     assert {"health", "Health monitor", text} =
@@ -27,7 +27,7 @@ defmodule SlipdockWeb.HealthDocsTest do
   test "the manual has the section, the commands, the endpoints and every detector" do
     manual = read("docs/manual.md")
     assert manual =~ ~r/^## The health monitor$/m
-    assert manual =~ "[The health monitor](#the-health-monitor)"
+    assert manual =~ "[The health monitor](the-health-monitor.md)"
     assert manual =~ "slipdock health settings ops no_runner minutes=30"
     assert manual =~ "PATCH /api/boards/:board/health/settings"
     assert manual =~ "**The health monitor needs a person**"
@@ -41,12 +41,12 @@ defmodule SlipdockWeb.HealthDocsTest do
   test "docs/agents.md says what an agent does with a stuck card" do
     agents = read("docs/agents.md")
     assert agents =~ "**The health monitor.**"
-    assert agents =~ "manual.md#the-health-monitor"
+    assert agents =~ "manual/the-health-monitor.md"
     assert agents =~ "leaves the flag alone"
   end
 
   test "README links the manual's section, and the slipdock skill knows stuck and health" do
-    assert read("README.md") =~ "docs/manual.md#the-health-monitor"
+    assert read("README.md") =~ "docs/manual/the-health-monitor.md"
     skill = read("priv/skills/slipdock/SKILL.md")
     assert skill =~ "flagged blocked review waiting starred stuck"
     assert skill =~ "stuck is the health monitor's: leave it for a person"

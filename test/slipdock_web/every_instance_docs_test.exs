@@ -11,7 +11,7 @@ defmodule SlipdockWeb.EveryInstanceDocsTest do
 
   @root Path.expand("../..", __DIR__)
 
-  defp flat(path), do: @root |> Path.join(path) |> File.read!() |> squash()
+  defp flat(path), do: @root |> Path.join(path) |> Slipdock.DocsText.read!() |> squash()
   defp squash(text), do: String.replace(text, ~r/\s+/, " ")
 
   # The paragraph of the manual's bullet list that starts with `lead`.

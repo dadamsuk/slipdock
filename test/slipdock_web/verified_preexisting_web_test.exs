@@ -116,7 +116,7 @@ defmodule SlipdockWeb.VerifiedPreexistingWebTest do
 
   test "the guide, docs, CLI help and skills describe pre-existing parts", ctx do
     flat = fn text -> String.replace(text, ~r/\s+/, " ") end
-    read = fn path -> path |> File.read!() |> flat.() end
+    read = fn path -> path |> Slipdock.DocsText.read!() |> flat.() end
 
     guide = SlipdockWeb.APIGuide.markdown(user: ctx.user) |> flat.()
     assert guide =~ "`rule:UX-4=pre-existing:lib/x.ex:42` for a rule broken only in lines"

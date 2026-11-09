@@ -12,7 +12,7 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
 
   @root Path.expand("../..", __DIR__)
 
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
   defp flat(text), do: String.replace(text, ~r/\s+/, " ")
 
   defp copies do
@@ -21,7 +21,7 @@ defmodule SlipdockWeb.SubagentWaitDocsTest do
 
   test "the loop skill waits for its subagents, and leaves no subcard stranded" do
     for path <- copies() do
-      loop = path |> File.read!() |> flat()
+      loop = path |> Slipdock.DocsText.read!() |> flat()
 
       for part <- [
             "**Wait for every subagent you started before your turn ends.**",

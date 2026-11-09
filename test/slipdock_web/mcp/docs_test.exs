@@ -11,7 +11,7 @@ defmodule SlipdockWeb.MCP.DocsTest do
 
   @root Path.expand("../../..", __DIR__)
 
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
   defp names, do: Enum.map(Tools.every(), & &1.name())
 
   # The `## MCP server` section of the manual, up to the next `## ` heading.
@@ -79,7 +79,7 @@ defmodule SlipdockWeb.MCP.DocsTest do
 
   test "links to the manual's MCP section land on a heading that exists" do
     assert read("docs/manual.md") =~ ~r/^## MCP server$/m
-    assert read("README.md") =~ "docs/manual.md#mcp-server"
+    assert read("README.md") =~ "docs/manual/mcp-server.md"
     assert read("docs/agents.md") =~ ~r/^## Over MCP$/m
   end
 
@@ -92,8 +92,8 @@ defmodule SlipdockWeb.MCP.DocsTest do
   end
 
   test "README, docs/agents.md, the guide and /help/agents name every prompt" do
-    help = File.read!(Path.join(@root, "lib/slipdock_web/live/help_live/agents.ex"))
-    guide = File.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex"))
+    help = Slipdock.DocsText.read!(Path.join(@root, "lib/slipdock_web/live/help_live/agents.ex"))
+    guide = Slipdock.DocsText.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex"))
 
     for {doc, text} <- [
           {"README.md", read("README.md")},
@@ -113,7 +113,7 @@ defmodule SlipdockWeb.MCP.DocsTest do
 
   test "links to the manual's prompts land on a heading that exists" do
     assert read("docs/manual.md") =~ ~r/^### The prompts$/m
-    assert read("docs/agents.md") =~ "manual.md#the-prompts"
+    assert read("docs/agents.md") =~ "manual/mcp-server.md#the-prompts"
   end
 
   test "the manual's resource table has one row per template, in the order templates/list gives them" do
@@ -135,15 +135,15 @@ defmodule SlipdockWeb.MCP.DocsTest do
   end
 
   test "the guide names the resources" do
-    guide = File.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex"))
+    guide = Slipdock.DocsText.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex"))
     assert guide =~ "slipdock://card/42"
     for kind <- ~w(board/ page/ view/ work), do: assert(guide =~ "`#{kind}`")
   end
 
   test "links to the manual's resources land on a heading that exists" do
     assert read("docs/manual.md") =~ ~r/^### The resources$/m
-    assert read("docs/agents.md") =~ "manual.md#the-resources"
-    assert read("README.md") =~ "docs/manual.md#the-resources"
+    assert read("docs/agents.md") =~ "manual/mcp-server.md#the-resources"
+    assert read("README.md") =~ "docs/manual/mcp-server.md#the-resources"
   end
 
   describe "findings in the skills (#1784)" do

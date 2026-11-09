@@ -11,7 +11,7 @@ defmodule SlipdockWeb.GardenDocsTest do
   import Phoenix.LiveViewTest
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the guide has the recipe; the short guide's tool list names garden and garden_decide" do
     guide = SlipdockWeb.APIGuide.markdown()
@@ -26,7 +26,7 @@ defmodule SlipdockWeb.GardenDocsTest do
   test "the manual has the section, every check, the commands and the endpoints" do
     manual = read("docs/manual.md")
     assert manual =~ ~r/^## Tidying up$/m
-    assert manual =~ "[Tidying up](#tidying-up)"
+    assert manual =~ "[Tidying up](tidying-up.md)"
 
     for check <- Slipdock.Gardener.checks() do
       assert manual =~ "| #{check.label()} |", "the manual's table lacks #{check.label()}"
@@ -50,7 +50,7 @@ defmodule SlipdockWeb.GardenDocsTest do
     manual = read("docs/manual.md")
 
     assert manual =~
-             ~r/The last five keep a \[handbook\]\(#tools\) in order, and are off on a board\s+without one/
+             ~r/The last five keep a \[handbook\]\(tools\.md\) in order, and are off on a board\s+without one/
 
     assert manual =~ "comment on the handbook's Index page"
     assert manual =~ "the days a `must`\nrule may stay `judgement`"
@@ -94,9 +94,9 @@ defmodule SlipdockWeb.GardenDocsTest do
   end
 
   test "README and docs/agents.md link to it" do
-    assert read("README.md") =~ "docs/manual.md#tidying-up"
+    assert read("README.md") =~ "docs/manual/tidying-up.md"
     agents = read("docs/agents.md")
-    assert agents =~ "manual.md#tidying-up"
+    assert agents =~ "manual/tidying-up.md"
     assert agents =~ ~r/apply only what they\s+approve; never dismiss one on your own judgment/
   end
 

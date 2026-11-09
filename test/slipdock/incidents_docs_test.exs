@@ -9,12 +9,12 @@ defmodule Slipdock.IncidentsDocsTest do
   alias Slipdock.Boards.Card
 
   @root Path.expand("../..", __DIR__)
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the manual has the section, linked from the overview, with each door and the finding" do
     manual = read("docs/manual.md")
     assert manual =~ ~r/^## Incidents$/m
-    assert manual =~ "[Incidents](#incidents)"
+    assert manual =~ "[Incidents](incidents.md)"
 
     [_, section] = String.split(manual, "\n## Incidents\n", parts: 2)
     [section | _] = String.split(section, "\n## ", parts: 2)
@@ -28,7 +28,7 @@ defmodule Slipdock.IncidentsDocsTest do
   end
 
   test "README links the manual's section, and the in-app help names it" do
-    assert read("README.md") =~ "docs/manual.md#incidents"
+    assert read("README.md") =~ "docs/manual/incidents.md"
 
     help = read("lib/slipdock_web/live/help_live/guides.ex")
     assert help =~ "<strong>Incidents</strong>"

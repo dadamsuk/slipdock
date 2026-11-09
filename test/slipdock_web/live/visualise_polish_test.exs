@@ -39,7 +39,7 @@ defmodule SlipdockWeb.VisualisePolishTest do
 
   test "no colour is written by hand in the page's templates" do
     for path <- @templates do
-      source = File.read!(path)
+      source = Slipdock.DocsText.read!(path)
       refute source =~ ~r/(fill|stroke|color|background)[=:]\s*"?#[0-9a-fA-F]{3,8}\b/, path
       refute source =~ ~r/\b(text|bg|fill|stroke|border)-\[#/, path
       refute source =~ ~r/rgba?\(|oklch\(|hsla?\(/, path
@@ -47,7 +47,7 @@ defmodule SlipdockWeb.VisualisePolishTest do
   end
 
   test "small muted words take more of the text colour in the dark" do
-    css = File.read!("assets/css/app.css")
+    css = Slipdock.DocsText.read!("assets/css/app.css")
     assert css =~ ~s|[data-theme="dark"] #visualise .text-base-content\\/60|
     assert css =~ "var(--color-base-content) 65%"
   end
@@ -70,16 +70,16 @@ defmodule SlipdockWeb.VisualisePolishTest do
   end
 
   test "the docs name the page and its new doors" do
-    readme = File.read!("README.md")
-    manual = File.read!("docs/manual.md")
-    agents = File.read!("docs/agents.md")
-    skill = File.read!("priv/skills/slipdock/SKILL.md")
+    readme = Slipdock.DocsText.read!("README.md")
+    manual = Slipdock.DocsText.read!("docs/manual.md")
+    agents = Slipdock.DocsText.read!("docs/agents.md")
+    skill = Slipdock.DocsText.read!("priv/skills/slipdock/SKILL.md")
 
     assert readme =~ "**Visualise**"
     assert readme =~ "slipdock flow <board>"
     assert readme =~ "slipdock runner-stats <board>"
     assert manual =~ "## Visualise: flow, velocity, runners and delivery"
-    assert manual =~ "#visualise-flow-velocity-runners-and-delivery"
+    assert manual =~ "(visualise-flow-velocity-runners-and-delivery.md)"
     assert agents =~ "history: true"
     assert agents =~ "runners: true"
     assert skill =~ "slipdock flow <board>"

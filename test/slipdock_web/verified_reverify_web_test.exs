@@ -80,7 +80,7 @@ defmodule SlipdockWeb.VerifiedReverifyWebTest do
     assert guide =~ "(`bar:1=carried`, or left out)"
     assert guide =~ "an audit carries nothing"
 
-    flat = fn path -> path |> File.read!() |> String.replace(~r/\s+/, " ") end
+    flat = fn path -> path |> Slipdock.DocsText.read!() |> String.replace(~r/\s+/, " ") end
 
     assert flat.("docs/manual.md") =~ "**A resubmission is judged on what changed.**"
     assert flat.("docs/manual.md") =~ "shown as *carried from abc1234*"

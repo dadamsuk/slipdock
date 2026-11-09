@@ -10,7 +10,7 @@ defmodule SlipdockWeb.RecordingAPIDocsTest do
   @reasons ~w(not_connected revoked no_folder no_vault outside_folder not_audio not_found
               no_recording unavailable)
 
-  defp read(path), do: File.read!(Path.join(@root, path))
+  defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
   test "the route the docs name exists, and takes a GET" do
     assert Enum.any?(
