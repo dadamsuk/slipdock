@@ -107,6 +107,40 @@ defmodule Slipdock.SpikePromptsTest do
       refute prompt =~ "gh pr view"
     end
 
+    test "it names the evidence's branch, else card-<id>", ctx do
+      card = spike(ctx)
+      why = "spike: answer on W-9"
+
+      {:ok, named} =
+        Boards.update_card(
+          card,
+          %{
+            "completed" => true,
+            "evidence" => "built it",
+            "evidence_no_code" => why,
+            "evidence_branch" => "spike/paging-probe"
+          },
+          actor: ctx.builder
+        )
+
+      prompt = Verified.verify_prompt(named, Repo.get!(Board, named.board_id))
+      assert prompt =~ "the prototype on `spike/paging-probe`"
+      refute prompt =~ "the prototype on `card-#{card.id}`"
+
+      other = spike(ctx)
+
+      {:ok, blank} =
+        Boards.update_card(
+          other,
+          %{"completed" => true, "evidence" => "built it", "evidence_no_code" => why},
+          actor: ctx.builder
+        )
+
+      assert blank.evidence_branch in [nil, ""]
+      prompt = Verified.verify_prompt(blank, Repo.get!(Board, blank.board_id))
+      assert prompt =~ "the prototype on `card-#{other.id}`"
+    end
+
     test "a card that isn't a spike gets the no-code step as before", ctx do
       card = card_fixture(ctx.doing, %{"title" => "Sweep"})
 
