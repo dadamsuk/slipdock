@@ -39,7 +39,10 @@ func helper(mode string, args []string) int {
 	switch mode {
 	case "agent":
 		// Writes what it was given to $HELPER_OUT, says hello, and exits
-		// with $HELPER_EXIT.
+		// with $HELPER_EXIT; asked for --version, see version.
+		if len(args) > 0 && args[len(args)-1] == "--version" {
+			return version()
+		}
 		wd, _ := os.Getwd()
 		wd, _ = filepath.EvalSymlinks(wd)
 		var b strings.Builder
@@ -100,8 +103,37 @@ func helper(mode string, args []string) int {
 		fmt.Println("hook", name, "ran")
 		code, _ := strconv.Atoi(os.Getenv("HELPER_HOOK_EXIT_" + name))
 		return code
+	case "refuse":
+		// An executor that won't run the command: sudo's refusal.
+		fmt.Fprintln(os.Stderr, "sudo: a password is required")
+		return 1
 	}
 	return 99
+}
+
+// version is the agent's --version, as a probe runs it: it writes where it
+// ran, its TMPDIR and the job's variables to $HELPER_VERSION_OUT, prints
+// $HELPER_VERSION (else a version), and exits with $HELPER_VERSION_EXIT.
+func version() int {
+	if out := os.Getenv("HELPER_VERSION_OUT"); out != "" {
+		wd, _ := os.Getwd()
+		wd, _ = filepath.EvalSymlinks(wd)
+		var b strings.Builder
+		fmt.Fprintf(&b, "dir=%s\ntmp=%s\n", wd, os.Getenv("TMPDIR"))
+		for _, e := range os.Environ() {
+			if strings.HasPrefix(e, "SLIPDOCK_JOB_") {
+				fmt.Fprintf(&b, "env=%s\n", e)
+			}
+		}
+		_ = os.WriteFile(out, []byte(b.String()), 0o600)
+	}
+	said := os.Getenv("HELPER_VERSION")
+	if said == "" {
+		said = "2.1.0 (Claude Code)\nmore"
+	}
+	fmt.Println(said)
+	code, _ := strconv.Atoi(os.Getenv("HELPER_VERSION_EXIT"))
+	return code
 }
 
 // fakeJob is a job the fake server hands out.

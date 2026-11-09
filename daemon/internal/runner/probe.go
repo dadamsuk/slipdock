@@ -1,10 +1,10 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -55,6 +55,13 @@ func (w *Worker) probe(ctx context.Context, j *jobRun) int {
 	c := w.Runner.Config
 	j.note(fmt.Sprintf("probe of runner %s (#%d): %s in %s, runs as %s", w.Runner.Name, w.Runner.ID, c.Agent, c.Directory, c.Executor))
 	var failed []string
+	if w.executorReady() == nil {
+		// The confined job's TMPDIR, as a job's agent has it.
+		if err := w.newScratch(j); err != nil {
+			failed = append(failed, "scratch")
+			j.note(fmt.Sprintf("FAIL scratch: can't make the job's temporary directory: %v", err))
+		}
+	}
 	for _, check := range w.probeChecks(j) {
 		if ctx.Err() != nil {
 			return 130
@@ -95,25 +102,29 @@ func (w *Worker) probe(ctx context.Context, j *jobRun) int {
 	return 0
 }
 
-// probeChecks are the built-in checks, in the order they run.
+// probeChecks are the built-in checks, in the order they run. Each runs
+// as a job would (#2619): the directory is looked at, and git and gh run,
+// as the account jobs run as (the executor's IsDir and Exec), and the
+// agent's --version and the executor's own command run as a job's agent
+// does (asJob).
 func (w *Worker) probeChecks(j *jobRun) []probeCheck {
 	c := w.Runner.Config
 	return []probeCheck{
 		{"directory", w.needsExecutor(func(ctx context.Context) (string, error) { return w.probeDirectory(ctx, c.Directory) })},
-		{"agent", w.needsExecutor(func(ctx context.Context) (string, error) { return w.probeAgent(ctx, c) })},
+		{"agent", w.needsExecutor(func(ctx context.Context) (string, error) { return w.probeAgent(ctx, j, c) })},
 		{"gh", w.needsExecutor(func(ctx context.Context) (string, error) { return w.probeGH(ctx, c.Directory) })},
 		{"skills and CLI", func(context.Context) (string, error) { return probeDrift(j.job.Prompt) }},
-		{"executor", func(ctx context.Context) (string, error) { return w.probeExecutor(ctx, c) }},
+		{"executor", func(ctx context.Context) (string, error) { return w.probeExecutor(ctx, j, c) }},
 	}
 }
 
 // probeDirectory: the runner's directory is a git work tree with an
-// origin, the repository its jobs work in. Nothing on the server names the
-// repository a runner should be in, so its origin is said, for the owner
-// to read.
+// origin, the repository its jobs work in, as the account jobs run as sees
+// it. Nothing on the server names the repository a runner should be in, so
+// its origin is said, for the owner to read.
 func (w *Worker) probeDirectory(ctx context.Context, dir string) (string, error) {
-	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
-		return "", fmt.Errorf("%s is not there", dir)
+	if !w.Executor.IsDir(dir) {
+		return "", fmt.Errorf("%s is not there, as the account jobs run as sees it", dir)
 	}
 	if _, err := w.Exec(ctx, dir, "git", "rev-parse", "--is-inside-work-tree"); err != nil {
 		return "", fmt.Errorf("%s is not a git repository", dir)
@@ -125,8 +136,9 @@ func (w *Worker) probeDirectory(ctx context.Context, dir string) (string, error)
 	return fmt.Sprintf("%s is a git repository, origin %s", dir, scrubURL(strings.TrimSpace(origin))), nil
 }
 
-// probeAgent: the agent's program, from the local file, answers --version.
-func (w *Worker) probeAgent(ctx context.Context, c Config) (string, error) {
+// probeAgent: the agent's program, from the local file, answers --version,
+// run as the job's agent would be.
+func (w *Worker) probeAgent(ctx context.Context, j *jobRun, c Config) (string, error) {
 	agent, ok := w.Local.Agent(c.Agent)
 	if !ok {
 		return "", fmt.Errorf("agent %q is not defined in this machine's %s", c.Agent, machine.LocalFile)
@@ -135,7 +147,7 @@ func (w *Worker) probeAgent(ctx context.Context, c Config) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%s is not on the PATH of the account jobs run as", agent.Path)
 	}
-	said, err := w.Exec(ctx, c.Directory, path, append(append([]string(nil), agent.Args...), "--version")...)
+	said, err := w.asJob(ctx, j, path, append(append([]string(nil), agent.Args...), "--version")...)
 	if err != nil {
 		return "", fmt.Errorf("%s --version failed: %s", agent.Path, orNothing(oneLine(said), err))
 	}
@@ -185,20 +197,61 @@ func probeDrift(prompt string) (string, error) {
 
 // probeExecutor: the runner's executor is one this daemon can run and is
 // ready (a dedicated account set up, Landlock there), and a command runs
-// under it in the runner's directory.
-func (w *Worker) probeExecutor(ctx context.Context, c Config) (string, error) {
+// under it as a job's agent does, in the runner's directory, and can write
+// there: what a job has to do.
+func (w *Worker) probeExecutor(ctx context.Context, j *jobRun, c Config) (string, error) {
 	if err := w.executorReady(); err != nil {
 		return "", err
 	}
-	shell, args := "sh", []string{"-c", "echo ok"}
+	shell, args := "sh", []string{"-c", "echo ran; id -un; f=.slipdock-probe.$$; : > \"$f\" && rm -f \"$f\" && echo writable"}
 	if runtime.GOOS == "windows" {
-		shell, args = "cmd", []string{"/c", "echo ok"}
+		shell, args = "cmd", []string{"/c", "echo ran&& echo %USERNAME%&& type nul > .slipdock-probe&& del .slipdock-probe&& echo writable"}
 	}
-	said, err := w.Exec(ctx, c.Directory, shell, args...)
-	if err != nil || strings.TrimSpace(said) != "ok" {
+	path, err := w.Executor.Resolve(shell)
+	if err != nil {
+		return "", fmt.Errorf("%s is not on the PATH of the account jobs run as", shell)
+	}
+	said, err := w.asJob(ctx, j, path, args...)
+	lines := strings.Split(strings.ReplaceAll(said, "\r", ""), "\n")
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "ran" {
 		return "", fmt.Errorf("a command didn't run as %s in %s: %s", c.Executor, c.Directory, orNothing(oneLine(said), err))
 	}
-	return fmt.Sprintf("a command runs as %s in %s", c.Executor, c.Directory), nil
+	account := strings.TrimSpace(lines[1])
+	rest := strings.TrimSpace(strings.Join(lines[2:], "\n"))
+	if err != nil || !strings.HasSuffix(rest, "writable") {
+		return "", fmt.Errorf("a command runs as %s (executor %s) in %s but can't write it: %s",
+			account, c.Executor, c.Directory, orNothing(oneLine(rest), orErr(err)))
+	}
+	return fmt.Sprintf("a command runs as %s (executor %s) in %s and can write it", account, c.Executor, c.Directory), nil
+}
+
+// asJob runs prog as the job's agent would run (the executor's Command,
+// with the job's directory, variables and, confined, scratch directory),
+// not as the daemon's own git: what it printed, and an error if it didn't
+// exit 0. It is stopped, through the executor, when ctx ends.
+func (w *Worker) asJob(ctx context.Context, j *jobRun, prog string, args ...string) (string, error) {
+	cmd, err := w.Executor.Command(w.proc(j, j.env), prog, args...)
+	if err != nil {
+		return "", err
+	}
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	done := make(chan int, 1)
+	go func() { done <- exitCode(cmd, cmd.Wait()) }()
+	var rc int
+	select {
+	case rc = <-done:
+	case <-ctx.Done():
+		w.stopWith(w.Executor, cmd, done)
+		return out.String(), ctx.Err()
+	}
+	if rc != 0 {
+		return out.String(), fmt.Errorf("exit %d", rc)
+	}
+	return out.String(), nil
 }
 
 // probeHook runs the runner's probe hook, from the machine's own file, its
@@ -239,6 +292,14 @@ func orNothing(said string, err error) string {
 		return said
 	}
 	return err.Error()
+}
+
+// orErr is err, or that nothing was said.
+func orErr(err error) error {
+	if err == nil {
+		return errors.New("the write failed and said nothing")
+	}
+	return err
 }
 
 func orUnknown(s string) string {

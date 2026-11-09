@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,13 +15,13 @@ import (
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
 
-// fakeProbe answers the programs a probe runs: git in a repository with an
-// origin, the agent's --version, gh signed in and the shell; each can be
-// made to fail.
+// fakeProbe answers the daemon's own commands a probe runs as the account
+// jobs run as (the executor's Exec): git in a repository with an origin,
+// and gh signed in; each can be made to fail. The agent's --version and
+// the executor's command run for real, as a job's agent does.
 type fakeProbe struct {
-	noRepo, noOrigin, versionFails, ghSignedOut, shellFails bool
-	agent                                                   string // the agent's path, as resolved
-	ran                                                     []string
+	noRepo, noOrigin, ghSignedOut bool
+	ran                           []string
 }
 
 func (f *fakeProbe) exec(_ context.Context, dir, name string, args ...string) (string, error) {
@@ -37,21 +38,11 @@ func (f *fakeProbe) exec(_ context.Context, dir, name string, args ...string) (s
 			return "error: No such remote 'origin'", errors.New("exit 2")
 		}
 		return "https://x-access-token:secret@example.com/acme/widgets.git\n", nil
-	case name == f.agent && len(args) > 0 && args[len(args)-1] == "--version":
-		if f.versionFails {
-			return "Error: no login", errors.New("exit 1")
-		}
-		return "2.1.0 (Claude Code)\nmore\n", nil
 	case line == "gh auth status":
 		if f.ghSignedOut {
 			return "You are not logged into any GitHub hosts.", errors.New("exit 1")
 		}
 		return "Logged in", nil
-	case name == "sh" || name == "cmd":
-		if f.shellFails {
-			return "", errors.New("exec: permission denied")
-		}
-		return "ok\n", nil
 	}
 	return "", errors.New("unexpected: " + line)
 }
@@ -63,30 +54,38 @@ const greenPrompt = "probe of runner builder (#11)\nskills: current\ncli: curren
 func probeRig(t *testing.T) (*rig, *fakeProbe) {
 	t.Helper()
 	r := newRig(t, Config{ProbeHook: "check"})
-	f := &fakeProbe{agent: self("agent").Path}
+	f := &fakeProbe{}
 	r.w.Exec = f.exec
-	r.w.LookPath = func(name string) (string, error) {
-		if name == "gh" {
-			return "/usr/bin/gh", nil
-		}
-		return "", fmt.Errorf("%s: not found", name)
-	}
+	r.w.LookPath = probeLookPath
 	r.w.Local.Hooks = map[string]machine.Command{"check": self("hook", "probe")}
 	return r, f
 }
 
+// probeLookPath finds gh (faked) and the shell (real).
+func probeLookPath(name string) (string, error) {
+	switch name {
+	case "gh":
+		return "/usr/bin/gh", nil
+	case "sh", "cmd":
+		return exec.LookPath(name)
+	}
+	return "", fmt.Errorf("%s: not found", name)
+}
+
 func TestAGreenProbe(t *testing.T) {
-	r, f := probeRig(t)
+	r, _ := probeRig(t)
+	agent := self("agent").Path
 	fin := r.runJob(fakeJob{id: 300, kind: ProbeKind, prompt: greenPrompt})
 	if fin.exit != 0 || fin.status != "" {
 		t.Fatalf("finish = %+v", fin)
 	}
 	for _, want := range []string{
 		"ok   directory: " + r.dir + " is a git repository, origin https://example.com/acme/widgets.git",
-		"ok   agent: " + f.agent + " --version: 2.1.0 (Claude Code)",
+		"ok   agent: " + agent + " --version: 2.1.0 (Claude Code)",
 		"ok   gh: gh is signed in",
 		"ok   skills and CLI: skills current, cli current",
-		"ok   executor: a command runs as me in " + r.dir,
+		"ok   executor: a command runs as ",
+		" (executor me) in " + r.dir + " and can write it",
 		`probe hook "check": running`,
 		"hook probe ran",
 		`ok   probe hook "check": exit 0`,
@@ -98,6 +97,9 @@ func TestAGreenProbe(t *testing.T) {
 	}
 	if strings.Contains(fin.body, "secret") {
 		t.Errorf("the origin's credentials are in the log:\n%s", fin.body)
+	}
+	if left, _ := filepath.Glob(filepath.Join(r.dir, ".slipdock-probe*")); len(left) > 0 {
+		t.Errorf("the executor check left its file behind: %v", left)
 	}
 	if !strings.Contains(r.hooksRan(), "probe exit= status= job=300") {
 		t.Errorf("hooks ran: %q", r.hooksRan())
@@ -135,16 +137,31 @@ func TestARedProbeSaysEachFailureAndRunsTheRest(t *testing.T) {
 		{"agent not on the path", func(r *rig, _ *fakeProbe) {
 			r.w.Local.Agents["claude"] = machine.Command{Path: "claude-nowhere"}
 		}, "", "FAIL agent: claude-nowhere is not on the PATH"},
-		{"version fails", func(_ *rig, f *fakeProbe) { f.versionFails = true }, "", "--version failed: Error: no login"},
+		{"version fails", func(r *rig, _ *fakeProbe) {
+			r.t.Setenv("HELPER_VERSION", "Error: no login")
+			r.t.Setenv("HELPER_VERSION_EXIT", "1")
+		}, "", "--version failed: Error: no login"},
 		{"no gh", func(r *rig, _ *fakeProbe) {
-			r.w.LookPath = func(n string) (string, error) { return "", errors.New("not found") }
+			r.w.LookPath = func(n string) (string, error) {
+				if n == "gh" {
+					return "", errors.New("not found")
+				}
+				return probeLookPath(n)
+			}
 		}, "", "FAIL gh: gh is not on the PATH"},
 		{"gh signed out", func(_ *rig, f *fakeProbe) { f.ghSignedOut = true }, "", "FAIL gh: gh is not signed in"},
 		{"skills drifted", nil, "skills: drifted (slipdock-loop)\ncli: current\n", "FAIL skills and CLI: skills drifted (slipdock-loop)"},
 		{"cli old", nil, "skills: current\ncli: old\n", "FAIL skills and CLI: cli old"},
 		{"cli none", nil, "skills: current\ncli: none\n", "FAIL skills and CLI: cli not installed"},
 		{"executor not offered", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.Executor = "container" }, "", "FAIL executor: executor \"container\": " + containerRefusal()},
-		{"shell fails", func(_ *rig, f *fakeProbe) { f.shellFails = true }, "", "FAIL executor: a command didn't run as me"},
+		{"no shell", func(r *rig, _ *fakeProbe) {
+			r.w.LookPath = func(n string) (string, error) {
+				if n == "sh" || n == "cmd" {
+					return "", errors.New("not found")
+				}
+				return probeLookPath(n)
+			}
+		}, "", "FAIL executor: " + shellName() + " is not on the PATH of the account jobs run as"},
 		{"hook undefined", func(r *rig, _ *fakeProbe) { r.w.Runner.Config.ProbeHook = "nothere" }, "", `FAIL probe hook "nothere": not defined in this machine's`},
 		{"hook fails", func(_ *rig, _ *fakeProbe) { t.Setenv("HELPER_HOOK_EXIT_probe", "3") }, "", `FAIL probe hook "check": exit 3`},
 	}
@@ -214,9 +231,10 @@ func TestAProbeWhoseDirectoryIsGone(t *testing.T) {
 	r, _ := probeRig(t)
 	_ = os.RemoveAll(r.dir)
 	fin := r.runJob(fakeJob{id: 330, kind: ProbeKind, prompt: greenPrompt})
-	// The hook runs in the directory too, so it fails with it.
-	if fin.exit != 1 || !strings.Contains(fin.body, "FAIL directory: "+r.dir+" is not there") ||
-		!strings.Contains(fin.body, "probe: red: 2 failed (directory, probe hook)") {
+	// The agent, the executor's command and the hook run in the directory
+	// too, so they fail with it.
+	if fin.exit != 1 || !strings.Contains(fin.body, "FAIL directory: "+r.dir+" is not there, as the account jobs run as sees it") ||
+		!strings.Contains(fin.body, "probe: red: 4 failed (directory, agent, executor, probe hook)") {
 		t.Fatalf("finish = %+v", fin)
 	}
 }
@@ -275,6 +293,14 @@ func TestScrubURLDropsCredentials(t *testing.T) {
 	}
 }
 
+// shellName is the shell the executor check runs.
+func shellName() string {
+	if runtime.GOOS == "windows" {
+		return "cmd"
+	}
+	return "sh"
+}
+
 // containerRefusal is why a container runner with no image can't run: on
 // Windows, that there is no container executor there at all.
 func containerRefusal() string {
@@ -282,4 +308,180 @@ func containerRefusal() string {
 		return "container is Linux and macOS only"
 	}
 	return "no image is named"
+}
+
+// probeExecutor is the me executor with the daemon's own commands faked
+// (git and gh, by f) and gh on its PATH.
+type probeExecutor struct {
+	executor.Executor
+	f *fakeProbe
+}
+
+func (p probeExecutor) Exec(ctx context.Context, dir, name string, args ...string) (string, error) {
+	return p.f.exec(ctx, dir, name, args...)
+}
+
+func (p probeExecutor) Resolve(prog string) (string, error) {
+	if prog == "gh" {
+		return "/usr/bin/gh", nil
+	}
+	return p.Executor.Resolve(prog)
+}
+
+func TestEveryProbeCheckGoesThroughTheExecutor(t *testing.T) {
+	r, f := probeRig(t)
+	r.w.Runner.Config.ProbeHook = ""
+	r.w.Exec = nil // the worker's default: the executor's Exec
+	me, _ := executor.New(executor.Me, executor.Settings{GOOS: runtime.GOOS})
+	rec := &recorder{Executor: probeExecutor{me, f}, home: t.TempDir()}
+	r.w.Executor = rec
+	saw := filepath.Join(t.TempDir(), "version.out")
+	t.Setenv("HELPER_VERSION_OUT", saw)
+
+	fin := r.runJob(fakeJob{id: 350, kind: ProbeKind, prompt: greenPrompt})
+	if fin.exit != 0 {
+		t.Fatalf("finish = %+v", fin)
+	}
+	agent := filepath.Base(self("agent").Path)
+	shell := "command sh -c "
+	if runtime.GOOS == "windows" {
+		shell = "command cmd.exe /c "
+	}
+	for _, want := range []string{
+		"isdir",
+		"exec git rev-parse --is-inside-work-tree",
+		"exec git remote get-url origin",
+		"resolve " + agent,
+		"command " + agent + " helper agent --version",
+		"resolve gh",
+		"exec gh auth status",
+		"resolve " + shellName(),
+		shell,
+	} {
+		if !rec.saw(want) {
+			t.Errorf("the probe didn't ask the executor for %q: %v", want, rec.calls)
+		}
+	}
+	// The agent's --version ran as a job's agent does: in the job's
+	// directory, with the job's variables.
+	data, err := os.ReadFile(saw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(data); !strings.Contains(got, "dir="+realPath(t, r.dir)+"\n") || !strings.Contains(got, "env=SLIPDOCK_JOB_ID=350\n") ||
+		!strings.Contains(got, "env=SLIPDOCK_JOB_KIND=probe\n") {
+		t.Fatalf("the agent's --version ran with %q", got)
+	}
+}
+
+// refusing is an executor that won't run a job's command: it can't make
+// it (err), or what it makes is refused (sudo asking for a password).
+type refusing struct {
+	executor.Executor
+	err error
+}
+
+func (r refusing) Command(p executor.Proc, prog string, args ...string) (*exec.Cmd, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	h := self("refuse")
+	return r.Executor.Command(p, h.Path, h.Args...)
+}
+
+func TestAProbeWhoseExecutorRefusesTheCommand(t *testing.T) {
+	for i, refuse := range []error{nil, errors.New("sudo: a password is required")} {
+		t.Run(fmt.Sprintf("made=%v", refuse == nil), func(t *testing.T) {
+			r, _ := probeRig(t)
+			r.w.Runner.Config.ProbeHook = ""
+			me, _ := executor.New(executor.Me, executor.Settings{GOOS: runtime.GOOS, LookPath: probeLookPath})
+			r.w.Executor = refusing{me, refuse}
+			fin := r.runJob(fakeJob{id: int64(360 + i), kind: ProbeKind, prompt: greenPrompt})
+			for _, want := range []string{
+				"--version failed: sudo: a password is required",
+				"FAIL executor: a command didn't run as me in " + r.dir + ": sudo: a password is required",
+				"probe: red: 2 failed (agent, executor)",
+			} {
+				if fin.exit != 1 || !strings.Contains(fin.body, want) {
+					t.Fatalf("exit %d, want 1 and %q:\n%s", fin.exit, want, fin.body)
+				}
+			}
+		})
+	}
+}
+
+func TestAProbeInADirectoryTheAccountCantWrite(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory is a POSIX mode here")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root writes a read-only directory")
+	}
+	r, _ := probeRig(t)
+	if err := os.Chmod(r.dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(r.dir, 0o755) })
+	fin := r.runJob(fakeJob{id: 370, kind: ProbeKind, prompt: greenPrompt})
+	if fin.exit != 1 || !strings.Contains(fin.body, " (executor me) in "+r.dir+" but can't write it: ") ||
+		!strings.Contains(fin.body, "probe: red: 1 failed (executor)") {
+		t.Fatalf("exit %d, want 1 with the executor unable to write:\n%s", fin.exit, fin.body)
+	}
+}
+
+// TestARealConfinedProbeIsGreen: a confined runner's probe, nothing faked
+// but gh's login, is green: its git, agent and command run confined, and
+// the command can write the directory. Required where CI says so
+// (SLIPDOCK_EXECUTOR_TESTS=1: Linux and macOS).
+func TestARealConfinedProbeIsGreen(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("confined is Linux and macOS only")
+	}
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	ready, _ := executor.New(executor.Confined, executor.Settings{GOOS: runtime.GOOS, Launcher: os.Args[0]})
+	if err := ready.Ready(); err != nil {
+		if os.Getenv("SLIPDOCK_EXECUTOR_TESTS") == "1" {
+			t.Fatalf("SLIPDOCK_EXECUTOR_TESTS=1, but %v", err)
+		}
+		t.Skip(err)
+	}
+	r := newRig(t, Config{})
+	r.w.Runner.Config.Executor = executor.Confined
+	gitInit(t, r.dir)
+	if out, err := exec.Command("git", "-C", r.dir, "remote", "add", "origin", "https://example.com/acme/widgets.git").CombinedOutput(); err != nil {
+		t.Fatalf("git remote add: %v %s", err, out)
+	}
+	// gh, signed in: a stand-in on the PATH.
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\necho Logged in\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	r.w.LookPath = exec.LookPath
+	// The agent's --version writes into the job's scratch directory: only
+	// a confined job's TMPDIR lets it.
+	scratch := filepath.Join(r.w.JobsDir, "11", "tmp")
+	t.Setenv("HELPER_VERSION_OUT", filepath.Join(scratch, "version.out"))
+
+	fin := r.runJob(fakeJob{id: 380, kind: ProbeKind, prompt: greenPrompt})
+	if fin.exit != 0 {
+		t.Fatalf("finish = %+v", fin)
+	}
+	for _, want := range []string{
+		"ok   directory: " + r.dir + " is a git repository, origin https://example.com/acme/widgets.git",
+		"ok   agent: " + self("agent").Path + " --version: 2.1.0 (Claude Code)",
+		"ok   gh: gh is signed in",
+		" (executor confined) in " + r.dir + " and can write it",
+		"probe: green: every check passed",
+	} {
+		if !strings.Contains(fin.body, want) {
+			t.Errorf("the log has no %q:\n%s", want, fin.body)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(scratch, "version.out"))
+	if err != nil || !strings.Contains(string(data), "tmp="+scratch+"\n") {
+		t.Fatalf("the agent's --version didn't run with the job's scratch directory: %q %v", data, err)
+	}
 }
