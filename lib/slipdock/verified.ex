@@ -656,6 +656,9 @@ defmodule Slipdock.Verified do
     if accepted?(updated) and not accepted?(before),
       do: Slipdock.Findings.Signals.accepted(updated)
 
+    # The epic's last spike answered: planning can resume (#2350).
+    Slipdock.Spikes.answered(before, updated)
+
     evidence_comment(before, updated, user)
     if unverified?, do: accept_unverified(updated, user)
 
