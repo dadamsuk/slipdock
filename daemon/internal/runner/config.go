@@ -76,10 +76,7 @@ func (r Runner) Check(ceil machine.Ceiling) error {
 	}
 	// A runner set to an executor the machine doesn't offer, or this daemon
 	// can't run, is refused: never run as the daemon's own account instead.
-	offered := ceil.Executors
-	if len(offered) == 0 {
-		offered = []string{executor.Me}
-	}
+	offered := ceil.Offered()
 	if err := executor.Supported(c.Executor, goos); err != nil {
 		problems = append(problems, fmt.Sprintf("executor %q: %v", c.Executor, err))
 	} else if !contains(offered, c.Executor) {

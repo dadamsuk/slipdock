@@ -38,7 +38,13 @@ const (
 	oPath = 0x200000 // O_PATH: not in package syscall; the same on amd64 and arm64
 )
 
-func landlockABI() int {
+// minLandlockABI is the first that handles truncate(2): below it, a
+// confined job could empty any file it can open.
+const minLandlockABI = 3
+
+// landlockABI is this kernel's Landlock ABI, 0 for none (a variable, so a
+// test can be an older kernel).
+var landlockABI = func() int {
 	r, _, e := syscall.Syscall(sysLandlockCreateRuleset, 0, 0, landlockCreateRulesetVersion)
 	if e != 0 {
 		return 0
@@ -49,16 +55,9 @@ func landlockABI() int {
 // writeRights are the rights to change the file system that this kernel's
 // Landlock knows: all of them are handled, so all are denied outside the
 // rules.
-func writeRights(abi int) uint64 {
-	w := uint64(fsWriteFile | fsRemoveDir | fsRemoveFile | fsMakeChar | fsMakeDir | fsMakeReg |
-		fsMakeSock | fsMakeFifo | fsMakeBlock | fsMakeSym)
-	if abi >= 2 {
-		w |= fsRefer
-	}
-	if abi >= 3 {
-		w |= fsTruncate
-	}
-	return w
+func writeRights() uint64 {
+	return uint64(fsWriteFile | fsRemoveDir | fsRemoveFile | fsMakeChar | fsMakeDir | fsMakeReg |
+		fsMakeSock | fsMakeFifo | fsMakeBlock | fsMakeSym | fsRefer | fsTruncate)
 }
 
 type pathBeneath struct {
@@ -71,10 +70,10 @@ type pathBeneath struct {
 // locked, thread.
 func restrict(writable []string) error {
 	abi := landlockABI()
-	if abi < 1 {
-		return fmt.Errorf("this kernel has no Landlock")
+	if abi < minLandlockABI {
+		return fmt.Errorf("this kernel's Landlock is ABI %d, and confined needs %d", abi, minLandlockABI)
 	}
-	handled := writeRights(abi)
+	handled := writeRights()
 	attr := struct{ fs uint64 }{handled}
 	fd, _, e := syscall.Syscall(sysLandlockCreateRuleset, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
 	if e != 0 {

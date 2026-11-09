@@ -112,7 +112,8 @@ func (w *Worker) defaults() {
 
 // executorSettings are what the executor needs from the machine's files.
 func (w *Worker) executorSettings() executor.Settings {
-	s := executor.Settings{GOOS: w.GOOS, Home: w.Home, Getenv: w.Getenv, LookPath: w.LookPath, Launcher: w.Launcher}
+	s := executor.Settings{GOOS: w.GOOS, Home: w.Home, Getenv: w.Getenv, LookPath: w.LookPath, Launcher: w.Launcher,
+		Repo: w.Runner.Config.Directory}
 	if u := w.Local.User; u != nil {
 		s.Account, s.AccountHome, s.AccountPath = u.Name, u.Home, u.Path
 	}
@@ -680,13 +681,18 @@ func (w *Worker) runMerge(ctx context.Context, j *jobRun) {
 // stopped with the job's tree if the daemon stops. Its exit code.
 //
 // A hook is the machine's own program, not the agent: it runs as the
-// account jobs run as, but a confined job's hooks are not confined.
+// account jobs run as. A confined job's hooks are confined to the
+// repository (where the job may have planted git config), not to the
+// job's directory alone.
 func (w *Worker) hook(ctx context.Context, j *jobRun, h machine.Command, env []string) int {
 	ex := w.Executor
-	if ex.Name() == executor.Confined {
-		ex, _ = executor.New(executor.Me, w.executorSettings())
+	var cmd *exec.Cmd
+	var err error
+	if hk, ok := ex.(executor.Hooker); ok {
+		cmd, err = hk.Hook(ctx, w.proc(j, env), h.Path, h.Args...)
+	} else {
+		cmd, err = ex.Command(w.proc(j, env), h.Path, h.Args...)
 	}
-	cmd, err := ex.Command(w.proc(j, env), h.Path, h.Args...)
 	if err == nil {
 		cmd.Stdout, cmd.Stderr = j.log, j.log
 		err = cmd.Start()

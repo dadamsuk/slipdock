@@ -199,11 +199,14 @@ is gone, say), the job fails before anything starts, and its log says why.
 - **You**, for a laptop that is only yours (`--as-me`). The machine allows
   `me` and, on Linux and macOS, `confined`.
 
-`confined` uses Landlock on Linux (kernel 5.13 or later) and `sandbox-exec`
-on macOS: nothing to install. The daemon's own git work for a job (its
-worktree, the built-in merge) and the runner's hooks, which are the
-machine's own programs, are not confined. `confined_writable` in the local
-file lists more paths a confined job may write.
+`confined` uses Landlock on Linux (ABI 3, kernel 6.2 or later, which also
+refuses truncating a file outside) and `sandbox-exec` on macOS: nothing to
+install. A job may write its repository, `.git` included, so the daemon's
+own git for the runner (its worktrees, the built-in merge) and the runner's
+hooks run confined too, able to write only the repository and its worktrees:
+git config or a hook the job planted there runs inside the same walls.
+`confined_writable` in the local file lists more paths a confined job may
+write.
 
 **Windows** runs jobs as the current account only (`me`): `init` says so and
 doesn't ask, and neither `user` nor `confined` is offered there yet.

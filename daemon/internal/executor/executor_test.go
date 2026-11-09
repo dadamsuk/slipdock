@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,6 +15,14 @@ import (
 func TestMain(m *testing.M) {
 	if len(os.Args) >= 2 && os.Args[1] == "confine" {
 		os.Exit(ConfineMain(os.Args[2:], os.Stderr))
+	}
+	// truncate(2) itself, not an open with O_TRUNC: Landlock handles the
+	// two apart, and below ABI 3 not truncate(2) at all.
+	if len(os.Args) == 3 && os.Args[1] == "helper-truncate" {
+		if err := os.Truncate(os.Args[2], 0); err != nil {
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 	os.Exit(m.Run())
 }
@@ -316,6 +325,8 @@ try state     'echo x > "$S/session"'
 try devnull   'echo x > /dev/null'
 try outside   'echo x > "$O/new"'
 try truncate  ': > "$O/keep"'
+try truncate2 '"$SELF" helper-truncate "$O/keep"'
+try truncate-in 'echo xyz > "$D/t" && "$SELF" helper-truncate "$D/t"'
 try remove    'rm -f "$O/keep"'
 try mkdir     'mkdir "$O/d"'
 try symlink   'ln -s /etc "$O/l"'
@@ -323,7 +334,7 @@ try move-out  'echo x > "$D/m" && mv "$D/m" "$O/m"'
 try home      'echo x > "$H/.slipdock-confined-test"'
 `
 	cmd, err := ex.Command(Proc{Dir: dir, Writable: []string{repo}, Scratch: scratch,
-		Env: []string{"D=" + dir, "R=" + repo, "S=" + state, "O=" + outside, "H=" + home}}, "/bin/sh", "-c", script)
+		Env: []string{"D=" + dir, "R=" + repo, "S=" + state, "O=" + outside, "H=" + home, "SELF=" + os.Args[0]}}, "/bin/sh", "-c", script)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +345,7 @@ try home      'echo x > "$H/.slipdock-confined-test"'
 	}
 	got := string(out)
 	for _, want := range []string{"dir yes", "subdir yes", "repo yes", "scratch yes", "state yes", "devnull yes",
-		"outside no", "truncate no", "remove no", "mkdir no", "symlink no", "move-out no", "home no"} {
+		"truncate-in yes", "outside no", "truncate no", "truncate2 no", "remove no", "mkdir no", "symlink no", "move-out no", "home no"} {
 		if !strings.Contains(got, want+"\n") {
 			t.Errorf("want %q; the job said:\n%s", want, got)
 		}
@@ -361,5 +372,99 @@ func TestAConfinedJobCanStillBeStopped(t *testing.T) {
 	ex.Stop(cmd, true)
 	if err := <-done; err == nil {
 		t.Fatal("the job wasn't killed")
+	}
+}
+
+// planted is a repository a confined job has had its way with: git config
+// and hooks that write a mark outside, and one inside, whenever git runs
+// them. It answers the repository, the outside directory and the marks.
+func planted(t *testing.T) (repo, outside, escaped, ran string) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	repo, outside = t.TempDir(), t.TempDir()
+	repo, _ = filepath.EvalSymlinks(repo)
+	escaped, ran = filepath.Join(outside, "escaped"), filepath.Join(repo, ".git", "ran")
+	for _, args := range [][]string{{"init", "-q"}, {"-c", "user.email=a@example.com", "-c", "user.name=a", "commit", "-q", "--allow-empty", "-m", "start"}} {
+		if out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	script := "#!/bin/sh\necho \"$0\" >> '" + escaped + "'\necho \"$0\" >> '" + ran + "'\nexit 0\n"
+	hooks := filepath.Join(repo, ".git", "hooks")
+	for _, h := range []string{"post-checkout", "pre-commit", "post-index-change", "reference-transaction"} {
+		if err := os.WriteFile(filepath.Join(hooks, h), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mon := filepath.Join(repo, ".git", "fsmonitor")
+	if err := os.WriteFile(mon, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "-C", repo, "config", "core.fsmonitor", mon).CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	return repo, outside, escaped, ran
+}
+
+func TestTheDaemonsGitAndTheHooksForAConfinedRunnerAreConfined(t *testing.T) {
+	repo, outside, escaped, ran := planted(t)
+	ex, err := New(Confined, Settings{GOOS: runtime.GOOS, Launcher: os.Args[0], Repo: repo})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ex.Ready(); err != nil {
+		skipOrFail(t, err.Error())
+	}
+	ctx := context.Background()
+	if _, err := ex.Exec(ctx, repo, "git", "status", "--porcelain"); err != nil {
+		t.Fatal(err)
+	}
+	lane := filepath.Join(repo+"-lanes", "card-1")
+	if out, err := ex.Exec(ctx, repo, "git", "worktree", "add", "-b", "card-1", lane, "HEAD"); err != nil {
+		t.Fatalf("the daemon's worktree add, confined to the repository and its lanes: %v %s", err, out)
+	}
+	if _, err := ex.Exec(ctx, lane, "git", "status", "--porcelain"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ex.Exec(ctx, repo, "git", "worktree", "remove", lane); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(ran); err != nil || !strings.Contains(string(data), "fsmonitor") || !strings.Contains(string(data), "post-checkout") {
+		t.Fatalf("the planted fsmonitor and hook ran (inside), else this proves nothing: %q %v", data, err)
+	}
+	if _, err := os.Stat(escaped); err == nil {
+		data, _ := os.ReadFile(escaped)
+		t.Fatalf("code the job planted wrote outside the repository from the daemon's git:\n%s", data)
+	}
+
+	// A hook runs confined to the repository, not to the job's directory.
+	hk, ok := ex.(Hooker)
+	if !ok {
+		t.Fatal("confined has no Hook")
+	}
+	cmd, err := hk.Hook(ctx, Proc{Dir: repo}, "/bin/sh", "-c", `echo x > "$1/in" && echo x > "$2/out"`, "sh", repo, outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Run()
+	if _, err := os.Stat(filepath.Join(repo, "in")); err != nil {
+		t.Fatal("the hook can write the repository")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "out")); err == nil {
+		t.Fatal("a confined runner's hook wrote outside the repository")
+	}
+}
+
+func TestConfinedNeedsLandlockABI3(t *testing.T) {
+	defer func(f func() int) { landlockABI = f }(landlockABI)
+	for abi, ready := range map[int]bool{0: false, 1: false, 2: false, 3: true, 5: true} {
+		landlockABI = func() int { return abi }
+		ex, _ := New(Confined, Settings{GOOS: "linux", Launcher: os.Args[0]})
+		err := ex.Ready()
+		if ready != (err == nil) || (err != nil && !strings.Contains(err.Error(), "ABI 3 or later (Linux 6.2")) {
+			t.Errorf("ABI %d: %v", abi, err)
+		}
 	}
 }

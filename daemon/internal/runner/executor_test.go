@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -70,9 +71,10 @@ func TestAConfinedJobCantWriteOutsideItsDirectory(t *testing.T) {
 	if r.agentSaw() != "" {
 		t.Fatalf("a confined agent wrote outside its directory:\n%s", r.agentSaw())
 	}
-	// Its hooks are the machine's own programs, not confined.
-	if !strings.Contains(r.hooksRan(), "report exit=0 status=done") {
-		t.Fatalf("the after hook: %q", r.hooksRan())
+	// Its hooks run (confined to the repository: they can't write their
+	// report outside it either).
+	if !strings.Contains(f.body, "hook report ran") || r.hooksRan() != "" {
+		t.Fatalf("the after hook: log %q, wrote %q", f.body, r.hooksRan())
 	}
 
 	// What the local file lets it write, it can; and it has a scratch
@@ -164,6 +166,11 @@ func (r *recorder) IsDir(path string) bool {
 
 func (r *recorder) Files() executor.Files { r.note("files"); return r.Executor.Files() }
 
+func (r *recorder) Exec(ctx context.Context, dir, name string, args ...string) (string, error) {
+	r.note("exec " + name + " " + strings.Join(args, " "))
+	return r.Executor.Exec(ctx, dir, name, args...)
+}
+
 func (r *recorder) Stop(cmd *exec.Cmd, force bool) {
 	r.note(fmt.Sprintf("stop force=%v", force))
 	r.Executor.Stop(cmd, force)
@@ -226,5 +233,66 @@ func TestEverythingAJobDoesGoesThroughItsExecutor(t *testing.T) {
 	}
 	if !rec2.saw("stop force=false") || !rec2.saw("stop force=true") {
 		t.Fatalf("stopped through the executor: %v", rec2.calls)
+	}
+}
+
+func TestTheMergesGitGoesThroughTheExecutor(t *testing.T) {
+	r := newRig(t, Config{})
+	me, _ := executor.New(executor.Me, executor.Settings{GOOS: runtime.GOOS})
+	rec := &recorder{Executor: me, home: t.TempDir()}
+	r.w.Executor = rec
+	r.runJob(fakeJob{id: 307, kind: "merge", card: 7, pr: "https://github.com/example/repo/pull/1", sha: "abc1234"})
+	if !rec.saw("exec git remote get-url origin") {
+		t.Fatalf("the merge's git didn't go through the executor: %v", rec.calls)
+	}
+}
+
+func TestCodeAConfinedJobPlantsInItsRepositoryStaysConfined(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("confined is Linux and macOS only")
+	}
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	probe, _ := executor.New(executor.Confined, executor.Settings{GOOS: runtime.GOOS, Launcher: os.Args[0]})
+	if err := probe.Ready(); err != nil {
+		if os.Getenv("SLIPDOCK_EXECUTOR_TESTS") == "1" {
+			t.Fatalf("SLIPDOCK_EXECUTOR_TESTS=1, but %v", err)
+		}
+		t.Skip(err)
+	}
+	r := newRig(t, Config{Worktree: "on"})
+	r.w.Runner.Config.Executor = executor.Confined
+	gitInit(t, r.dir)
+	top := realPath(t, r.dir)
+	outside := t.TempDir()
+	escaped, ran := filepath.Join(outside, "escaped"), filepath.Join(top, ".git", "ran")
+	// The job, in its worktree, plants a fsmonitor and hooks in the
+	// repository's .git, which it may write: each writes a mark outside
+	// (and one inside, to show it ran).
+	plant := `g=$(git rev-parse --git-common-dir) && g=$(cd "$g" && pwd) && ` +
+		`printf '#!/bin/sh\necho "$0" >> %[1]q\necho "$0" >> %[2]q\nexit 0\n' > "$g/mon" && chmod +x "$g/mon" && ` +
+		`for h in post-checkout reference-transaction post-index-change; do cp "$g/mon" "$g/hooks/$h"; done && ` +
+		`git config core.fsmonitor "$g/mon" && echo planted`
+	r.w.Local.Agents["claude"] = machine.Command{Path: "/bin/sh", Args: []string{"-c", fmt.Sprintf(plant, escaped, ran), "sh"}}
+	f := r.runJob(fakeJob{id: 308, kind: "claude", card: 9, prompt: "x"})
+	if f.exit != 0 || !strings.Contains(f.body, "planted") {
+		t.Fatalf("the job: %+v", f)
+	}
+	// The next job's worktree add (post-checkout, reference-transaction)
+	// and its close (git status: the fsmonitor).
+	r.w.Local.Agents["claude"] = machine.Command{Path: "/bin/sh", Args: []string{"-c", "git status --porcelain >/dev/null; echo next", "sh"}}
+	if f := r.runJob(fakeJob{id: 309, kind: "claude", card: 10, prompt: "x"}); f.exit != 0 {
+		t.Fatalf("the next job: %+v", f)
+	}
+	// And the merge's git.
+	r.runJob(fakeJob{id: 310, kind: "merge", card: 10, pr: "https://github.com/example/repo/pull/1", sha: "abc1234"})
+
+	data, err := os.ReadFile(ran)
+	if err != nil || !strings.Contains(string(data), "mon") || !strings.Contains(string(data), "post-checkout") {
+		t.Fatalf("the planted code ran (inside), else this proves nothing: %q %v", data, err)
+	}
+	if data, err := os.ReadFile(escaped); err == nil {
+		t.Fatalf("code the job planted ran outside the sandbox, from the daemon's git or a hook:\n%s", data)
 	}
 }

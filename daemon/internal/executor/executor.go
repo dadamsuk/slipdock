@@ -46,8 +46,10 @@ var Limits = map[string]string{
 		"reaches the network.",
 	Confined: "Jobs run as you but can't write outside their working directory, " +
 		"their own temporary directory, the terminal devices and the agent's own " +
-		"state (~/.claude for claude). They can still read your files, and reach " +
-		"the network. Linux (Landlock, kernel 5.13 or later) and macOS (sandbox-exec) only.",
+		"state (~/.claude for claude). The runner's hooks and the daemon's own git " +
+		"for it are confined to its repository and worktrees. Jobs can still read " +
+		"your files, and reach the network. Linux (Landlock ABI 3: kernel 6.2 or " +
+		"later) and macOS (sandbox-exec) only.",
 	Container: "Not available on this daemon yet.",
 }
 
@@ -64,6 +66,9 @@ type Proc struct {
 	// Scratch, under confined: the job's own temporary directory, its
 	// TMPDIR.
 	Scratch string
+	// noState leaves out the agent's own state (Settings.Writable): the
+	// daemon's own work and the hooks aren't the agent.
+	noState bool
 }
 
 // Executor runs a job's processes.
@@ -113,6 +118,14 @@ type Settings struct {
 	// Writable, under confined: paths every job may write besides its own
 	// (the agent's own state). Missing ones are left out.
 	Writable []string
+	// Repo, under confined: the runner's directory. The daemon's own git
+	// and the hooks may write it, its repository and its worktrees.
+	Repo string
+}
+
+// Hooker is an executor whose hooks run differently from its agent.
+type Hooker interface {
+	Hook(ctx context.Context, p Proc, prog string, args ...string) (*exec.Cmd, error)
 }
 
 // Supported says whether this daemon can run jobs under name on goos at

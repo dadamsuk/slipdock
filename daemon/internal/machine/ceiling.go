@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 )
 
 // Ceiling is the machine's own limits on what the server may configure
@@ -31,8 +33,14 @@ type Ceiling struct {
 	Executors []string `json:"executors,omitempty"`
 }
 
-// ExecutorNames are the executors a ceiling may list.
-var ExecutorNames = []string{"me", "user", "confined", "container"}
+// Offered is the executors the machine allows: me alone for a ceiling
+// written before there were any.
+func (c Ceiling) Offered() []string {
+	if len(c.Executors) == 0 {
+		return []string{executor.Me}
+	}
+	return c.Executors
+}
 
 // PermissionModes from least to most permissive: a runner's mode must not
 // rank above the ceiling's.
@@ -80,8 +88,8 @@ func (c Ceiling) Validate() error {
 		problems = append(problems, "boards: the machine serves at least one board")
 	}
 	for _, e := range c.Executors {
-		if !oneOf(ExecutorNames, e) {
-			problems = append(problems, fmt.Sprintf("executors: %q is not one of %s", e, strings.Join(ExecutorNames, ", ")))
+		if !oneOf(executor.Names, e) {
+			problems = append(problems, fmt.Sprintf("executors: %q is not one of %s", e, strings.Join(executor.Names, ", ")))
 		}
 	}
 	if len(problems) > 0 {
@@ -114,7 +122,7 @@ func ProposeCeiling(home string, boards []int64) Ceiling {
 		MaxPermissionMode: "acceptEdits",
 		MaxTimeoutMinutes: 60,
 		Boards:            b,
-		Executors:         []string{"me"},
+		Executors:         Ceiling{}.Offered(),
 	}
 }
 
@@ -158,8 +166,6 @@ func LoadCeiling(dir string) (Ceiling, error) {
 	if err := c.Validate(); err != nil {
 		return c, fmt.Errorf("%s: %w", path, err)
 	}
-	if len(c.Executors) == 0 {
-		c.Executors = []string{"me"}
-	}
+	c.Executors = c.Offered()
 	return c, nil
 }
