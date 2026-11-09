@@ -244,7 +244,9 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   automation), and the board works out what is in progress, what waits on a
   person, what got done this week, typical time to done and each list's usual
   stay. `slipdock pulse <board>`, `GET /api/boards/:id/pulse` or `get_board`
-  with `pulse: true`; a plain-words strip over the lists if the owner turns it on, which opens *Visualise* when clicked.
+  with `pulse: true`; a plain-words strip over the lists if the owner turns it on,
+  which opens *Right now* when clicked on a board with Agentic Building on, and
+  *Visualise* otherwise.
 - **Visualise** — [one page for a board's flow](docs/manual/visualise-flow-velocity-runners-and-delivery.md):
   pick *Visualise* from the board's view menu for its pulse tiles, a block per
   list with traffic and usual stay, cumulative flow, velocity, backlog burndown

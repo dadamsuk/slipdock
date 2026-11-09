@@ -56,6 +56,7 @@ test/slipdock_web/cli_reference_docs_test.exs
 test/slipdock_web/live/help_live/cli_help_test.exs
 test/slipdock_web/live/help_live/flow_test.exs
 test/slipdock_web/delivery_docs_test.exs
+test/slipdock_web/pulse_strip_docs_test.exs
 test/slipdock_web/garden_docs_test.exs
 test/slipdock_web/waiting_on_me_docs_test.exs
 test/slipdock_web/work_dismiss_docs_test.exs

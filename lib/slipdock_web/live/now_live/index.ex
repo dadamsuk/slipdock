@@ -5,10 +5,12 @@ defmodule SlipdockWeb.NowLive.Index do
   jobs waiting for a runner, read again every few seconds while it is open.
   The idle runners are listed last, at the bottom of the page (#2113).
 
-  One click from the board page: the delivery line (the rocket) links here,
-  and a board with Agentic Building on and that line off has a line of its
-  own saying what is happening (`SlipdockWeb.BoardLive.BoardView`). The
-  Agentic Building page has it as a tile too.
+  One click from the board page, on a board with Agentic Building on: the
+  pulse strip (the first line over the lists) links here, and with the pulse
+  off a line of its own says what is happening and links here instead
+  (`SlipdockWeb.BoardLive.BoardView`, #2124). The delivery line (the rocket)
+  opens the Visualise view, not this page. The Agentic Building page has it
+  as a tile too.
 
   Anyone who can read the board can look; it changes nothing.
   """
