@@ -369,7 +369,7 @@ defmodule Slipdock.Quality do
   defp line_part("mutant", "survived"), do: [{"mutants", nil}]
 
   defp line_part(label, "broken") do
-    case Regex.run(~r/^([A-Z][A-Z0-9]*-\d+)\b/i, label) do
+    case Regex.run(~r/^([A-Z][A-Z0-9]*-[0-9]+)\b/iu, label) do
       [_, id] -> [{"rules", String.upcase(id)}]
       _ -> []
     end

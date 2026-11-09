@@ -61,10 +61,10 @@ defmodule Slipdock.Wiki.Markup do
   @pattern ~r/
       (?<embed>!)?\[\[(?<wiki>[^\]\n]*)\]\]
     | \{\{(?<inline>[^}\n]{1,200})\}\}
-    | (?<![\w#])\#(?<card>\d+)(?![\w-])
-    | (?<![\w-])(?<code>[Ww]-\d+)(?![\w-])
+    | (?<![\w#])\#(?<card>[0-9]+)(?![\w-])
+    | (?<![\w-])(?<code>[Ww]-[0-9]+)(?![\w-])
     | (?<![\w@\/])@(?<mention>[a-zA-Z](?:[\w.\-]{0,61}\w)?)
-  /x
+  /xu
 
   @doc "The directives `[[!…]]` understands."
   def directives, do: @directives

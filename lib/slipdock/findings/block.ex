@@ -42,7 +42,7 @@ defmodule Slipdock.Findings.Block do
   @kind ~r/^(?:\*\*|__|`)?([A-Za-z][A-Za-z _-]*?)(?:[ \t]*\(([A-Za-z]+)\))?(?:\*\*|__|`)?(?:[ \t]*\[[ \t]*done[ \t]*:[ \t]*([^\]]*?)[ \t]*\])?(?:\*\*|__|`)?[ \t]*:(?:\*\*|__)?[ \t]*(.*)$/s
   # `→ #2087` (or `-> card #2087, #2088`) at the end: filed as a card.
   @filed ~r/[ \t]*(?:→|->)[ \t]*((?:cards?[ \t]+)?#\d+(?:[ \t]*(?:,|&|\band\b)[ \t]*#\d+)*)[ \t]*[.;]?[ \t]*$/u
-  @none ~r/^(?:\*\*|__|_)?none\b/i
+  @none ~r/^(?:\*\*|__|_)?none\b/iu
   # What an item points at instead of saying: a place (the evidence, a
   # subcard's evidence, the closing comment) or ids (#75, card #12, W-1950).
   @place ~S"(?:(?:the|its|their|each|this|that|these)[ \t]+)?(?:(?:card|epic|subcard|child|children)(?:'s|s'|s)?[ \t]+)?(?:evidence|closing[ \t]+comments?|completion(?:[ \t]+comment)?|wrap-?up|subcards?|comments?[ \t]+above|block[ \t]+above)"

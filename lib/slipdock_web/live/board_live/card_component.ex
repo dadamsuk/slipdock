@@ -2449,8 +2449,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # The note without the runner's own lines (#2022): the transcript it sent
   # and how the job ended are the byline's and the job link's, not prose.
   @machine_lines [
-    ~r/^\s*slipdock-runner: sending the transcript\b.*$/m,
-    ~r/^\s*Job #\d+ on .+ ended \w+(?: \(exit -?\d+\))?\.?\s*$/m
+    ~r/^\s*slipdock-runner: sending the transcript\b.*$/mu,
+    ~r/^\s*Job #\d+ on .+ ended \w+(?: \(exit -?\d+\))?\.?\s*$/mu
   ]
 
   @doc false

@@ -400,7 +400,7 @@ defmodule Slipdock.Automations.Spec do
   # full check (DNS and all) happens again on every call.
   defp check_action(%{"type" => "webhook", "url" => url} = action) do
     url = to_string(url)
-    sample = Regex.replace(~r/\{\{\s*[\w.]+\s*\}\}/, url, "x")
+    sample = Regex.replace(~r/\{\{\s*[\w.]+\s*\}\}/u, url, "x")
 
     authority =
       case String.split(url, "://", parts: 2) do

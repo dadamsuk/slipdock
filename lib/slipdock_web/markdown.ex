@@ -77,7 +77,7 @@ defmodule SlipdockWeb.Markdown do
     escaped
     |> String.replace(~r/`([^`]+)`/, "<code>\\1</code>")
     |> String.replace(~r/\*\*(.+?)\*\*/, "<strong>\\1</strong>")
-    |> String.replace(~r/(?<![\w*])\*(?!\s)([^*]+?)(?<!\s)\*(?!\w)/, "<em>\\1</em>")
-    |> String.replace(~r/(?<![\w])_(?!\s)([^_]+?)(?<!\s)_(?![\w])/, "<em>\\1</em>")
+    |> String.replace(~r/(?<![\w*])\*(?!\s)([^*]+?)(?<!\s)\*(?!\w)/u, "<em>\\1</em>")
+    |> String.replace(~r/(?<![\w])_(?!\s)([^_]+?)(?<!\s)_(?![\w])/u, "<em>\\1</em>")
   end
 end

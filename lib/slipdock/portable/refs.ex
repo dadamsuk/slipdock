@@ -121,7 +121,7 @@ defmodule Slipdock.Portable.Refs do
       # left alone. One pattern for every code, so each body is read once and a
       # new code is never itself rewritten by a later rename.
       alternatives = renames |> Map.keys() |> Enum.map_join("|", &Regex.escape/1)
-      pattern = Regex.compile!("\\b(?:#{alternatives})\\b")
+      pattern = Regex.compile!("\\b(?:#{alternatives})\\b", "u")
 
       for doc <- pages, page_id = ids.pages[doc[:ref]] do
         page = Repo.get!(Page, page_id)

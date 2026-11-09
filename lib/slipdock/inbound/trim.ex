@@ -51,17 +51,17 @@ defmodule Slipdock.Inbound.Trim do
   # its attribution line; these are the languages it is most often seen in.
   @attribution [
     # English, and Apple Mail's "On 24 Oct 2026, at 13:00, Alice wrote:"
-    ~r/^On\b.{0,300}\bwrote:$/i,
+    ~r/^On\b.{0,300}\bwrote:$/iu,
     # French, German, Spanish, Italian, Dutch, Portuguese
-    ~r/^Le\b.{0,300}\ba écrit\s?:$/i,
-    ~r/^Am\b.{0,300}\bschrieb\b.{0,200}:$/i,
-    ~r/^El\b.{0,300}\bescribió:$/i,
-    ~r/^Il\b.{0,300}\bha scritto:$/i,
-    ~r/^Op\b.{0,300}\bschreef\b.{0,200}:$/i,
-    ~r/^(Em|No dia)\b.{0,300}\bescreveu:$/i,
+    ~r/^Le\b.{0,300}\ba écrit\s?:$/iu,
+    ~r/^Am\b.{0,300}\bschrieb\b.{0,200}:$/iu,
+    ~r/^El\b.{0,300}\bescribió:$/iu,
+    ~r/^Il\b.{0,300}\bha scritto:$/iu,
+    ~r/^Op\b.{0,300}\bschreef\b.{0,200}:$/iu,
+    ~r/^(Em|No dia)\b.{0,300}\bescreveu:$/iu,
     # Swedish, Danish, Norwegian, Finnish
-    ~r/^(Den|På)\b.{0,300}\bskrev\b.{0,200}:$/i,
-    ~r/^.{0,300}\bkirjoitti:$/i,
+    ~r/^(Den|På)\b.{0,300}\bskrev\b.{0,200}:$/iu,
+    ~r/^.{0,300}\bkirjoitti:$/iu,
     # Polish, Czech, Russian, Turkish
     ~r/^W dniu\b.{0,300}\bnapisał(\(a\))?:$/iu,
     ~r/^.{0,300}\bnapsal(\(a\))?:$/iu,
@@ -77,7 +77,7 @@ defmodule Slipdock.Inbound.Trim do
 
   @rule ~r/^_{10,}$/
 
-  @footer ~r/^(Sent from my \w+|Sent from (Outlook|Mail|Yahoo Mail)\b|Get Outlook for \w+|Sent from my (Samsung|Galaxy|Android|BlackBerry)|Envoyé de mon \w+|Von meinem .* gesendet|Enviado desde mi \w+|Inviato da \w+)/i
+  @footer ~r/^(Sent from my \w+|Sent from (Outlook|Mail|Yahoo Mail)\b|Get Outlook for \w+|Sent from my (Samsung|Galaxy|Android|BlackBerry)|Envoyé de mon \w+|Von meinem .* gesendet|Enviado desde mi \w+|Inviato da \w+)/iu
 
   @doc "Trims plain text (or Markdown converted from HTML)."
   @spec text(String.t() | nil, boolean()) :: String.t()

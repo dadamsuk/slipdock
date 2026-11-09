@@ -51,7 +51,7 @@ defmodule Slipdock.Handbook.Rules do
   @sep ~r/[ \t]+·[ \t]+/u
   @item ~r/^[-*+][ \t]+(.*)$/
   @id ~r/^\*\*([A-Z][A-Z0-9]*)-(\d+)\*\*[ \t]*(.*)$/
-  @check_path ~r{^[\w.\-*/:]+$}
+  @check_path ~r{^[\w.\-*/:]+$}u
 
   @type rule :: %{
           id: String.t(),

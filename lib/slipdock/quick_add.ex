@@ -58,13 +58,13 @@ defmodule Slipdock.QuickAdd do
   @snooze_regex Regex.compile!(
                   "(?<![\\w#@])snooze\\s*:\\s*(" <>
                     String.replace(@date_phrase, ~r/\s*\n\s*/, "") <> ")(?![\\w-])",
-                  "i"
+                  "iu"
                 )
 
   @date_regex Regex.compile!(
                 "(?<![\\w#@])(due|start|by|from)\\s*:?\\s*(" <>
                   String.replace(@date_phrase, ~r/\s*\n\s*/, "") <> ")(?![\\w-])",
-                "i"
+                "iu"
               )
 
   @doc """
@@ -141,7 +141,7 @@ defmodule Slipdock.QuickAdd do
                  "(?<![\\w#@])every\\s*:\\s*((?:" <>
                    String.replace(@every_word, ~r/\s*\n\s*/, "") <>
                    "(?:[\\s,]+(?=\\S)|(?![\\w-])))+)",
-                 "i"
+                 "iu"
                )
 
   @doc """
@@ -354,7 +354,7 @@ defmodule Slipdock.QuickAdd do
   ## @mentions ---------------------------------------------------------------
 
   defp take_mentions(text, acc, users) do
-    Regex.scan(~r/(?<!\w)@([\w.-]+)/, text)
+    Regex.scan(~r/(?<!\w)@([\w.-]+)/u, text)
     |> Enum.reduce({text, acc}, fn [whole, name], {text, acc} ->
       case find_user(name, users) do
         nil ->
@@ -399,7 +399,7 @@ defmodule Slipdock.QuickAdd do
   ## #commands ---------------------------------------------------------------
 
   defp take_hashes(text, acc, columns, tags) do
-    Regex.scan(~r/(?<![\w&])#([\w-]+)/, text)
+    Regex.scan(~r/(?<![\w&])#([\w-]+)/u, text)
     |> Enum.reduce({text, acc}, fn [whole, word], {text, acc} ->
       key = String.downcase(word)
 

@@ -81,7 +81,7 @@ defmodule Slipdock.Sprints do
     number =
       cards
       |> Enum.flat_map(fn %{title: title} ->
-        case Regex.run(~r/^\s*sprint\s+(\d+)\b/i, title || "") do
+        case Regex.run(~r/^\s*sprint\s+([0-9]+)\b/iu, title || "") do
           [_, n] -> [String.to_integer(n)]
           _ -> []
         end
