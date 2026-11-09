@@ -144,7 +144,10 @@ defmodule Slipdock.Work do
     * `"gave_up"` — a card the runner gave up on and flagged blocked, in a
       tree `user` owns;
     * `"failed"` — a card whose newest runner job failed or timed out, in a
-      tree `user` owns, until a newer job is queued;
+      tree `user` owns, until a newer job is queued. Not a merge that
+      failed for a reason a rebase fixes (`Slipdock.Verified.rebase_fixes?/1`)
+      while a build job is claimed or running on the card or a card above
+      it (#2568): a runner already has the rework in hand;
     * `"needs_owner"` — in a tree `user` owns, an open card in a doing list
       for over an hour with nobody on it, no open job and no open wait.
 
@@ -533,6 +536,7 @@ defmodule Slipdock.Work do
       select: j
     )
     |> Repo.all()
+    |> reject_in_hand()
     |> Enum.map(fn j ->
       %{
         card_id: j.card_id,
@@ -541,6 +545,60 @@ defmodule Slipdock.Work do
         job: j
       }
     end)
+  end
+
+  # Leaves out a failed merge a rebase fixes while a runner is reworking the
+  # card (#2568): a build job claimed or running on it or on a card above
+  # it. An epic's build job works its subcards in that one job, so no newer
+  # job is queued on the subcard itself. Any other failure still shows.
+  defp reject_in_hand(jobs) do
+    case Enum.filter(jobs, &rebase_fixes?/1) do
+      [] ->
+        jobs
+
+      merges ->
+        lines = Map.new(merges, &{&1.card_id, card_line(&1.card_id)})
+        building = building(lines |> Map.values() |> List.flatten() |> Enum.uniq())
+
+        Enum.reject(jobs, fn j ->
+          Map.has_key?(lines, j.card_id) and
+            Enum.any?(lines[j.card_id], &MapSet.member?(building, &1))
+        end)
+    end
+  end
+
+  defp rebase_fixes?(%Job{status: "failed", recovery: r} = job) when r != "gave_up",
+    do:
+      job.kind == Slipdock.Verified.merge_kind() and
+        Slipdock.Verified.rebase_fixes?(merge_said(job))
+
+  defp rebase_fixes?(_job), do: false
+
+  # The merge job's own words, as `Slipdock.Verified` reads them: its last
+  # `merge:` line, else the output's last line.
+  defp merge_said(job) do
+    lines = (job.output || job.log_tail || "") |> String.split(~r/\R/, trim: true)
+    Enum.find(Enum.reverse(lines), &String.starts_with?(&1, "merge:")) || List.last(lines)
+  end
+
+  # The card and every card above it.
+  defp card_line(card_id) do
+    card = Card |> Repo.get!(card_id) |> Repo.preload(:board)
+    [card_id | Enum.map(Boards.ancestry(card.board), & &1.card.id)]
+  end
+
+  # Those of `card_ids` with a build job claimed or running on them.
+  defp building(card_ids) do
+    not_builds = [Slipdock.Overseer.kind() | Slipdock.Verified.finishing_kinds()]
+
+    from(j in Job,
+      where: j.card_id in ^card_ids and j.status in ["claimed", "running"],
+      where: j.kind not in ^not_builds,
+      distinct: true,
+      select: j.card_id
+    )
+    |> Repo.all()
+    |> MapSet.new()
   end
 
   # Open cards an hour or more into a doing list with nobody on them, no
