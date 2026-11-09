@@ -31,7 +31,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
-  @version "1.7.0"
+  @version "1.8.0"
   @folder "Handbook"
   @decisions "Handbook/Decisions"
 
@@ -305,6 +305,15 @@ defmodule Slipdock.Handbook do
   _Replace `none` with the page holding the person's own defaults (stack, hosting), as `defaults: W-123`: their Knowledge Base. Decide reads it, proposes each default with its rationale, asks, and records the outcome as a Decision on this project. A default is never imposed. With none named, it asks from scratch._
   """
 
+  # The machine-setup stub under Local setup (1.8.0, #2579): what a runner
+  # machine needs. Set up this machine with Claude reads it, and writes back
+  # what it got wrong.
+  @runner_machine """
+  ### A runner machine
+
+  _What a machine that runs this board's jobs needs: the tools and their versions, the logins, the services, and the checks that prove it works. **Set up this machine with Claude** (the machine's page, or `slipdock-runner setup`) follows this section and corrects what it gets wrong._
+  """
+
   @sections [
     {"Specification", "specification", "What the product does, feature by feature.",
      "adding or changing user-visible behaviour",
@@ -328,7 +337,8 @@ defmodule Slipdock.Handbook do
     {"Testing & tooling", "testing", "How to test, CI, local setup.",
      "writing tests, changing CI, the build or the local setup",
      "## Tests\n\n_How the suite is laid out and run._\n\n## CI\n\n_What runs on every push._\n\n" <>
-       @before_you_push <> "\n## Local setup\n\n_From a clean checkout to a running app._\n"},
+       @before_you_push <>
+       "\n## Local setup\n\n_From a clean checkout to a running app._\n\n" <> @runner_machine},
     {"Operations", "operations", "Deploys, configuration and runbooks.",
      "changing deploys, configuration, secrets or anything run in production",
      "## Deploy\n\n_How a change reaches production._\n\n## Configuration\n\n_Settings and where they come from._\n\n## Runbooks\n\n_What to do when something breaks._\n"},
@@ -646,6 +656,7 @@ defmodule Slipdock.Handbook do
         {:ok, report} ->
           after_seed(root, report.added["cards"])
           report = add_before_you_push(root, user, report)
+          report = add_runner_machine(root, user, report)
           report = add_rules_sections(root, user, report)
           report = add_triage_log(root, user, report)
           report = seed_skeletons(root, user, report)
@@ -846,6 +857,36 @@ defmodule Slipdock.Handbook do
     end
   end
 
+  @doc "The `### A runner machine` stub a Local setup section ends with (#2579)."
+  def runner_machine_skeleton, do: @runner_machine
+
+  # A handbook from before 1.8.0 has no `### A runner machine`: added at the
+  # end of its `## Local setup`, or with a `## Local setup` of its own at the
+  # end of the page when it has none, so nothing written is touched. A page
+  # that has the heading at any level is left alone. Reported as "<title> (A
+  # runner machine added)".
+  defp add_runner_machine(root, user, report) do
+    with %{pages: pages} <- find(root),
+         %Page{} = page <- Enum.find(pages, &(key(&1) == "testing")),
+         false <- Enum.any?(Wiki.Section.headings(page.body), &titled?(&1, "a runner machine")),
+         {:ok, _} <- append_runner_machine(page, user) do
+      update_in(report, [:added, "pages"], &(&1 ++ [page.title <> " (A runner machine added)"]))
+    else
+      _ -> report
+    end
+  end
+
+  defp append_runner_machine(page, user) do
+    opts = [user: user, message: "A runner machine added by the Handbook Tool, #{@version}"]
+
+    case Enum.find(Wiki.Section.headings(page.body), &h2?(&1, "local setup")) do
+      nil -> Wiki.append(page, "## Local setup\n\n" <> @runner_machine, opts)
+      local -> Wiki.append_section(page, local.path, @runner_machine, opts)
+    end
+  end
+
+  defp titled?(heading, title), do: String.downcase(String.trim(heading.title)) == title
+
   defp h2?(heading, title),
     do: heading.level == 2 and String.downcase(String.trim(heading.title)) == title
 
@@ -1006,6 +1047,25 @@ defmodule Slipdock.Handbook do
   end
 
   def before_you_push(_), do: nil
+
+  @doc """
+  Where `board`'s handbook says how to set up a machine (#2579): the Testing
+  & tooling page's code and the path of its `## Local setup`, as
+  `%{page: "W-12", path: "Testing & tooling/Local setup"}`, or nil when the
+  tree has no handbook or that page has no such section. A runner machine's
+  needs are a `### A runner machine` inside it, read with the rest.
+  """
+  def local_setup(%Board{} = board) do
+    with %{pages: pages} <- find(board),
+         %Page{} = page <- Enum.find(pages, &(key(&1) == "testing")),
+         %{path: path} <- Enum.find(Wiki.Section.headings(page.body), &h2?(&1, "local setup")) do
+      %{page: page.code, path: path}
+    else
+      _ -> nil
+    end
+  end
+
+  def local_setup(_), do: nil
 
   @doc "The decision pages: those filed in `Handbook/Decisions`."
   def decisions(%{board: root}) do

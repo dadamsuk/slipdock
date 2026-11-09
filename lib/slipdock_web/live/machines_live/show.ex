@@ -23,7 +23,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
   alias Slipdock.{Access, Machines}
   alias Slipdock.Machines.Machine
-  alias Slipdock.Runners.{Ceiling, Config, MachineRunners, Probe}
+  alias Slipdock.Runners.{Ceiling, Config, MachineRunners, MachineSetup, Probe}
 
   @config_fields ~w(agent directory permission_mode timeout_minutes model worktree verbosity
                     instructions executor before_hook after_hook probe_hook)
@@ -69,9 +69,16 @@ defmodule SlipdockWeb.MachinesLive.Show do
         |> MachineRunners.reports()
         |> Enum.filter(&(socket.assigns.role == :owner or Enum.member?(runner_ids, &1.runner_id))),
       board_names: Map.new(reachable, &{&1.id, &1.name}),
-      boards: Enum.filter(reachable, &Enum.member?(machine.board_ids, &1.id))
+      boards: Enum.filter(reachable, &Enum.member?(machine.board_ids, &1.id)),
+      setup_prompt: setup_prompt(socket, machine)
     )
   end
+
+  # Set up this machine with Claude (#2579): its owner's, while it's enrolled.
+  defp setup_prompt(%{assigns: %{role: :owner}} = socket, %{revoked_at: nil} = machine),
+    do: MachineSetup.prompt(machine, SlipdockWeb.BaseURL.from_socket(socket))
+
+  defp setup_prompt(_socket, _machine), do: nil
 
   defp visible(runners, :owner, _board_ids), do: runners
 
@@ -418,6 +425,39 @@ defmodule SlipdockWeb.MachinesLive.Show do
           >
             Update asked for <.timestamp at={@machine.update_requested_at} />.
           </p>
+
+          <details
+            :if={@setup_prompt}
+            id="machine-setup"
+            class="rounded-2xl bg-base-100 shadow-sm ring-1 ring-base-content/10"
+          >
+            <summary class="cursor-pointer select-none px-6 py-4 text-sm font-semibold">
+              Set up this machine with Claude
+            </summary>
+            <div class="space-y-3 px-6 pb-6">
+              <p class="text-sm text-base-content/70">
+                Paste this into Claude Code on the machine, as the account its jobs run as
+                (<code>slipdock-runner setup</code> launches it for you). It reads each board's
+                machine-setup page, checks what's there, installs what's missing, proves it by
+                cloning the repository and running its suite, and corrects the page where it was wrong.
+              </p>
+              <div class="relative">
+                <pre
+                  id="machine-setup-prompt"
+                  class="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-lg bg-base-300/60 p-3 pr-16 font-mono text-xs"
+                >{@setup_prompt}</pre>
+                <button
+                  type="button"
+                  id="machine-setup-prompt-copy"
+                  phx-hook="CopyText"
+                  data-target="machine-setup-prompt"
+                  class="btn btn-ghost btn-xs absolute right-1.5 top-1.5"
+                >
+                  <span data-label>Copy</span>
+                </button>
+              </div>
+            </div>
+          </details>
 
           <section
             id="machine-ceiling"

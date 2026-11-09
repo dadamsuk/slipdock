@@ -18,7 +18,7 @@ defmodule SlipdockCLI.Machines do
 
   @commands ~w(machines machine)
 
-  @usage "usage: slipdock machines | machine show|revoke|update <id> | " <>
+  @usage "usage: slipdock machines | machine show|revoke|update|setup-prompt <id> | " <>
            "machine enrolment <code> | machine approve <code> <board>... | " <>
            "machine refuse <code> | machine enrol-key <board>... [--label L] | " <>
            "machine add-runner <id> <board> --pool P --dir D [config] | " <>
@@ -88,6 +88,11 @@ defmodule SlipdockCLI.Machines do
        IO.puts("asked #{m["name"]} to update now: it looks for a newer signed release at once")
      end}
   end
+
+  # Set up this machine with Claude (#2579): the prompt alone, to pipe or
+  # paste into Claude Code on the machine.
+  def plan(["setup-prompt", id], _o),
+    do: {:ok, :get, "/machines/#{enc(id)}/setup-prompt", &IO.write(&1["prompt"])}
 
   def plan(["add-runner", id, board], o) do
     if o[:pool] && o[:dir] do

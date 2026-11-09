@@ -212,6 +212,15 @@ defmodule SlipdockCLI.MachinesTest do
       assert out =~ "asked build-box to update now"
     end
 
+    test "setup-prompt prints the prompt alone, as the server wrote it (#2579)" do
+      serve([{200, JSON.encode!(%{"prompt" => "Set up this machine.\n\n1. Check.\n"})}])
+
+      out = capture_io(fn -> Machines.run("machine", ["setup-prompt", "4"], []) end)
+      assert_received {:request, "GET", "/api/machines/4/setup-prompt", _}
+      assert out == "Set up this machine.\n\n1. Check.\n"
+      assert {:error, _} = Machines.plan(["setup-prompt"], [])
+    end
+
     test "show prints the ceiling, the runners, a refusal with its limit, and the log" do
       machine =
         Map.merge(@machine, %{

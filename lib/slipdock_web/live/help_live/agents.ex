@@ -1297,6 +1297,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
         if it has one. The page shows the probe green with when it passed, or red with its
         log. A probe is a job with no card, sent only to that runner.
       </p>
+      <p id="help-machine-setup">
+        <strong>Set up this machine with Claude</strong>, on the machine's page and at the end of
+        <code>slipdock-runner init</code> (or <code>slipdock-runner setup</code> later), starts
+        Claude Code on the machine, as the account its jobs run as, with a prompt that reads each
+        board's machine-setup page (the handbook's Testing &amp; tooling, Local setup). It checks
+        what the machine has, installs what's missing, proves it by cloning the repository and
+        running its suite, and corrects the page where it was wrong, so the next machine is set up
+        from the page alone.
+      </p>
     </.part>
 
     <.part title="Sending it work">

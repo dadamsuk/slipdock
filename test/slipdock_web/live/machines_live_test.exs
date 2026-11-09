@@ -266,6 +266,19 @@ defmodule SlipdockWeb.MachinesLiveTest do
              )
     end
 
+    test "Set up this machine with Claude shows the prompt to copy, until it's revoked (#2579)",
+         ctx do
+      {:ok, view, _html} = page(ctx)
+
+      assert has_element?(view, "#machine-setup summary", "Set up this machine with Claude")
+      assert has_element?(view, "#machine-setup-prompt", ~s(enrolled as "build-box"))
+      assert has_element?(view, "#machine-setup-prompt", "Prove it.")
+      assert has_element?(view, "#machine-setup-prompt-copy[data-target=machine-setup-prompt]")
+
+      view |> element("#machine-revoke") |> render_click()
+      refute has_element?(view, "#machine-setup")
+    end
+
     test "update now and revoke", ctx do
       {:ok, view, _html} = page(ctx)
 
@@ -364,6 +377,9 @@ defmodule SlipdockWeb.MachinesLiveTest do
     end
 
     test "sees it, and no control to change it", ctx do
+      {:ok, member_view, _} = live(ctx.member_conn, ~p"/machines/#{ctx.machine.id}")
+      refute has_element?(member_view, "#machine-setup")
+
       runner = add(ctx)
       private = board_fixture(%{"name" => "Private", "code" => unique_code()}, owner: ctx.user)
 

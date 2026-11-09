@@ -89,6 +89,7 @@ The manual is in parts, one page each. Every section and what it covers:
 - [Machines](manual/machines.md)
   - [Getting the daemon](manual/machines.md#getting-the-daemon)
   - [Enrolling a machine](manual/machines.md#enrolling-a-machine)
+  - [Set up this machine with Claude](manual/machines.md#set-up-this-machine-with-claude)
   - [The ceiling](manual/machines.md#the-ceiling)
   - [The Machines page](manual/machines.md#the-machines-page)
   - [Probing a runner](manual/machines.md#probing-a-runner)
