@@ -29,7 +29,7 @@ func TestLoadLocalMissingIsEmpty(t *testing.T) {
 func TestLoadLocalReadsAgentsAndHooks(t *testing.T) {
 	d := t.TempDir()
 	body := `{"agents":{"claude":{"path":"/opt/claude","allowed_tools":["mcp__slipdock"]},"lint":{"path":"/usr/bin/make","args":["lint"]}},
-	"hooks":{"setup":{"path":"/usr/local/bin/setup.sh"}},"models":{"schema":"opus"},"no_merge":true}`
+	"hooks":{"setup":{"path":"/usr/local/bin/setup.sh"}},"models":{"schema":"opus"},"no_merge":true,"no_skills_update":true}`
 	if err := os.WriteFile(filepath.Join(d, LocalFile), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestLoadLocalReadsAgentsAndHooks(t *testing.T) {
 	if c, ok := l.Hook("setup"); !ok || c.Path != "/usr/local/bin/setup.sh" {
 		t.Fatalf("setup = %+v %v", c, ok)
 	}
-	if l.Models["schema"] != "opus" || !l.NoMerge {
+	if l.Models["schema"] != "opus" || !l.NoMerge || !l.NoSkillsUpdate {
 		t.Fatalf("%+v", l)
 	}
 }
