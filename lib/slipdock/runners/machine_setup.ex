@@ -38,7 +38,7 @@ defmodule Slipdock.Runners.MachineSetup do
       machine
       |> MachineRunners.list_runners()
       |> Enum.map(&(&1.config || %{})["directory"])
-      |> Enum.reject(&(&1 in [nil, ""]))
+      |> Enum.reject(&Enum.member?([nil, ""], &1))
       |> Enum.uniq()
 
     text(machine, boards, directories, base_url)
