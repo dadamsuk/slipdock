@@ -129,7 +129,7 @@ func (w *Worker) usesDaemonCLI() bool {
 		return false
 	}
 	target, _ := w.cliTarget()
-	if target == "" || target != w.daemonCLI() {
+	if target == "" {
 		return false
 	}
 	fi, err := os.Stat(target)

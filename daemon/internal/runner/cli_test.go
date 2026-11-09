@@ -160,6 +160,9 @@ func TestAFailedFetchKeepsTheCLIAndTheJobRuns(t *testing.T) {
 		"sums without the escript's line": func(r *rig) {
 			r.srv.cliSums = []byte(sumOf("x") + "  something-else\n")
 		},
+		"sums over 4 KB": func(r *rig) {
+			r.srv.cliSums = append(r.srv.cliSums, strings.Repeat("#", 4096)...)
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := newRig(t, Config{})
@@ -181,6 +184,42 @@ func TestAFailedFetchKeepsTheCLIAndTheJobRuns(t *testing.T) {
 				t.Errorf("the agent didn't run")
 			}
 		})
+	}
+}
+
+// fetch reads at most max bytes: a body over it is refused, not cut short.
+func TestFetchRefusesABodyOverItsMax(t *testing.T) {
+	r := newRig(t, Config{})
+	r.srv.cliSums = []byte("0123456789")
+	for max, want := range map[int]string{10: "", 11: "", 9: "over 9 bytes", 1: "over 1 bytes"} {
+		data, err := r.w.Client.fetch(context.Background(), cliSumsPath, max)
+		switch {
+		case want == "" && (err != nil || string(data) != "0123456789"):
+			t.Errorf("max %d: got %q, %v; want the whole body", max, data, err)
+		case want != "" && (err == nil || err.Error() != want || data != nil):
+			t.Errorf("max %d: got %q, %v; want the error %q", max, data, err, want)
+		}
+	}
+}
+
+// An escript over 64 MB is refused even when its sum matches.
+func TestAnEscriptOver64MBKeepsTheCLI(t *testing.T) {
+	if cliMax != 64<<20 {
+		t.Fatalf("cliMax = %d, want 64 MB", cliMax)
+	}
+	r := newRig(t, Config{})
+	serveCLI(r, theServersCLI+strings.Repeat("#", cliMax+1-len(theServersCLI)))
+	bin := oldCLI(t, r)
+	writeFile(t, bin, "the daemon's old copy\n")
+
+	if f := r.runJob(fakeJob{id: 806, kind: "claude", card: 42, prompt: "x"}); f.exit != 0 {
+		t.Fatalf("an oversize CLI failed the job: %+v", f)
+	}
+	if got := readFile(t, bin); got != "the daemon's old copy\n" {
+		t.Errorf("the CLI was replaced by one over 64 MB")
+	}
+	if !strings.Contains(r.logged.String(), "over 67108864 bytes") {
+		t.Errorf("the log doesn't say why:\n%s", r.logged)
 	}
 }
 
