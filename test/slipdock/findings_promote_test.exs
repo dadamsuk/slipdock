@@ -167,6 +167,67 @@ defmodule Slipdock.FindingsPromoteTest do
     end
   end
 
+  describe "a finding that names a rule (#2603)" do
+    setup ctx do
+      write(ctx.pages["data-model"], "[priv/repo/**]", """
+      - **DATA-13** should · judgement · Migrations are reversible.
+      - **DATA-14** must · judgement · A migration backfills in batches.
+      """)
+
+      AIStub.fail_with(503, "down")
+      :ok
+    end
+
+    test "goes to that rule's page with that page's next id, not the cards' page", ctx do
+      text = "DATA-14 migrations time out on a big table"
+      finding = seen(ctx, ctx.ui, text, 3)
+      {:ok, s} = Promote.check(finding.id)
+
+      assert step(s)["page"] == ctx.pages["data-model"].id
+      assert step(s)["section"] == "Data model/Rules"
+      assert step(s)["body"] =~ "- **DATA-15** should · judgement · #{text}"
+      refute step(s)["body"] =~ "UX-"
+      assert Repo.get!(Finding, finding.id).proposed_rule == "DATA-15"
+      assert s.explanation =~ "Proposed as DATA-15 on Data model."
+    end
+
+    test "a misnumbered rule goes to the page holding it, not the one its prefix names", ctx do
+      write(ctx.pages["data-model"], "[priv/repo/**]", """
+      - **DATA-14** must · judgement · A migration backfills in batches.
+      - **UX-5** should · judgement · Seeds stay small.
+      """)
+
+      {:ok, s} = Promote.check(seen(ctx, ctx.ui, "UX-5 seeds grew past a megabyte", 3).id)
+
+      assert step(s)["page"] == ctx.pages["data-model"].id
+      assert step(s)["section"] == "Data model/Rules"
+      assert step(s)["body"] =~ "- **DATA-15** should"
+      refute step(s)["body"] =~ "**UX-4**"
+    end
+
+    test "an id no rule holds yet goes to the page its prefix names", ctx do
+      {:ok, s} =
+        Promote.check(seen(ctx, ctx.plain, "DATA-40 would say: index foreign keys", 3).id)
+
+      assert step(s)["page"] == ctx.pages["data-model"].id
+      assert step(s)["body"] =~ "- **DATA-15** should"
+    end
+
+    test "the first named page with a Rules section wins", ctx do
+      {:ok, _} = Wiki.update_page(ctx.pages["testing"], %{"body" => "# Testing\n\nNo rules.\n"})
+      text = "TEST-2 and UX-3 both miss this; see DATA-13"
+      {:ok, s} = Promote.check(seen(ctx, ctx.plain, text, 3).id)
+      assert step(s)["page"] == ctx.pages["ux"].id
+      assert step(s)["body"] =~ "- **UX-4** should"
+    end
+
+    test "an id no page answers to falls back to the cards' page", ctx do
+      {:ok, s} = Promote.check(seen(ctx, ctx.ui, "CVE-2024 and UTF-8 names break screens", 3).id)
+      assert step(s)["page"] == ctx.pages["ux"].id
+      assert step(s)["body"] =~ "- **UX-4** should"
+    end
+  end
+
   describe "the ladder" do
     test "a named test makes a must rule citing it, worded by the model", ctx do
       AIStub.reply_with(%{"text" => "Each screen's first paint is checked by flash_test."})

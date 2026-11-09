@@ -96,9 +96,12 @@ the board's [Agentic Building](the-header-and-the-avatar-menu.md#agentic-buildin
 the server drafts a rule and files it on the [Tidy-up page](tidying-up.md) as
 a proposal for a person to apply or dismiss:
 
-- **Where.** On the `## Rules` of the handbook page whose `covers:` take in
-  the paths of the finding's cards (most first), else the Specification page.
-  The rule's id is the page's prefix and its next number (`UX-12`).
+- **Where.** On the `## Rules` of the handbook page holding a rule the
+  finding names (`DATA-14`), else the page whose prefix that id carries,
+  else the page whose `covers:` take in the paths of the finding's cards
+  (most first), else the Specification page. The rule's id is that page's
+  prefix and its next number (`DATA-15`), so a finding about a data rule
+  never takes a number from UX & UI.
 - **Up the ladder.** A finding that names a check (a `*_test.exs`, a `mix`
   command, the repo checks) becomes a `must` rule citing it; any other, a
   `should` rule left to judgement. A model words it, given the finding, its
