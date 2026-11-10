@@ -221,6 +221,37 @@ defmodule Slipdock.AccessTest do
       assert Access.narrow(:comment, nil, ctx.board.id) == {:comment, nil}
     end
 
+    # POST /api/device takes any board id, a sub-board's included, so a token
+    # can name the sub-board itself rather than the root above it.
+    test "a token scoped to a sub-board's own id reaches that sub-board", ctx do
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(ctx.card, t)
+      other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
+
+      token = %{scope: "write", scope_boards: [sub.id]}
+      assert Access.narrow(:write, token, sub.id) == {:write, nil}
+      assert Access.narrow(:write, token, ctx.board.id) == {:none, :scope}
+      assert Access.narrow(:write, token, other.id) == {:none, :scope}
+
+      root_token = %{scope: "write", scope_boards: [ctx.board.id]}
+      assert Access.narrow(:write, root_token, sub.id) == {:write, nil}
+    end
+  end
+
+  describe "readable_scope/1" do
+    test "a card shared on its own is in card_ids; one on a board in reach is not", ctx do
+      in_reach = board_fixture(%{"name" => "In reach"}, owner: ctx.owner)
+      covered = card_fixture(hd(in_reach.columns), %{"title" => "Covered"})
+      {:ok, _} = Access.grant(in_reach, ctx.other, "read", ctx.owner)
+      {:ok, _} = Access.grant(covered, ctx.other, "read", ctx.owner)
+      {:ok, _} = Access.grant(ctx.card, ctx.other, "read", ctx.owner)
+
+      scope = Access.readable_scope(ctx.other)
+      assert scope.card_ids == [ctx.card.id]
+      assert in_reach.id in scope.board_ids
+      refute ctx.board.id in scope.board_ids
+    end
+
     test "grants accept comment and nothing past write", ctx do
       {:ok, grant} = Access.grant(ctx.board, ctx.other, "comment", ctx.owner)
       assert grant.level == "comment"
