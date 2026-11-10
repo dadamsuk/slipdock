@@ -2460,14 +2460,25 @@ defmodule Slipdock.Verified do
 
   defp agent_decided?(_card), do: false
 
+  # The parts of a verify or audit prompt that grow with the card, in the
+  # order they are cut when the prompt would be over the runners' cap: what
+  # the card itself shows first (`slipdock card` is the verifier's step 1),
+  # the board's audit misses, which nothing else shows, last.
+  @verify_cuts [:evidence, :parts, :reason, :ask, :bar, :misses]
+  @audit_cuts [:evidence, :parts, :reason, :ask, :bar]
+
   @doc """
   What an audit job's agent is told (#1780): the verify prompt's checks, with
   every rule judged (`should` too), the original verdict shown, and a
   decision that only says whether it agrees.
   """
   def audit_prompt(%Card{} = card, %Board{} = board) do
-    url = "#{Slipdock.Automations.Runner.base_url()}/boards/#{board.id}/cards/#{card.id}"
     handbook = Slipdock.Handbook.find(board)
+    fit_prompt(card, @audit_cuts, &audit_text(cut_card(card, &1), board, handbook, &1))
+  end
+
+  defp audit_text(card, board, handbook, cuts) do
+    url = "#{Slipdock.Automations.Runner.base_url()}/boards/#{board.id}/cards/#{card.id}"
     judging = judge_steps(card, board, handbook, audit: true)
     decide = length(judging) + 3
 
@@ -2477,7 +2488,7 @@ defmodule Slipdock.Verified do
     Another agent did the work, and a verifier accepted it. You are checking the checker: judge the work afresh, as the verifier should have, then say whether you agree with its verdict. You change nothing: not the code, not the card. Your decision is a comment, and the acceptance stands either way; a disagreement files a rework card from your reason and failing parts (or comments on the one still open), and raises an alert for the board's owner. So make the reason's first line say what is wrong: it is the rework card's title.
 
     The verdict you are auditing: accepted by #{who(card.verify_by)}#{if card.verify_at, do: " at #{card.verify_at}", else: ""}.
-    #{original_verdict(card)}
+    #{original_verdict(card, cuts)}
 
     #{card_block(card, board, judging)}
     #{decide}. Say once whether you agree, and report it as a step first (`deciding: agree` or `deciding: disagree`):
@@ -2487,8 +2498,11 @@ defmodule Slipdock.Verified do
     """
   end
 
-  defp original_verdict(%Card{} = card) do
-    note = if blank?(card.verify_note), do: "(no reason given)", else: card.verify_note
+  defp original_verdict(%Card{} = card, cuts) do
+    note =
+      if blank?(card.verify_note),
+        do: "(no reason given)",
+        else: cut(card.verify_note, cuts[:reason], card)
 
     parts =
       card.verify_checks
@@ -2497,6 +2511,7 @@ defmodule Slipdock.Verified do
         {label, result, nil} -> "- #{label}: #{result}"
         {label, result, why} -> "- #{label}: #{result} — #{why}"
       end)
+      |> cut(cuts[:parts], card)
 
     if parts == "",
       do: "Its reason: #{note}\n(It gave no parts.)",
@@ -2908,18 +2923,32 @@ defmodule Slipdock.Verified do
 
   @doc """
   What a verify job's agent is told (#1634): the card, what it asks, its bar
-  and evidence, and how to decide. Rendered when the job is queued.
+  and evidence, and how to decide. Rendered when the job is queued, and
+  never over the runners' prompt cap (`fit_prompt/4`; `max:` sets another
+  cap, for a test).
 
   The verifier judges, in order (#1777): the ask (does the bar cover what
   the card asks for?), the bar, and on a board with a handbook the rules for
   the diff's paths and the closing `Handbook:` line. A rejection cites the
   check it fails: a bar item, the ask, a rule id or the Handbook line.
   """
-  def verify_prompt(%Card{} = card, %Board{} = board) do
+  def verify_prompt(%Card{} = card, %Board{} = board, opts \\ []) do
+    handbook = Slipdock.Handbook.find(board)
+    previous = previous_verdict(card)
+    misses = audit_misses_lines(card)
+
+    fit_prompt(
+      card,
+      @verify_cuts,
+      &verify_text(cut_card(card, &1), board, handbook, previous, misses, &1),
+      Keyword.get(opts, :max, Slipdock.Runners.limits().max_prompt)
+    )
+  end
+
+  defp verify_text(card, board, handbook, previous, misses, cuts) do
     url = "#{Slipdock.Automations.Runner.base_url()}/boards/#{board.id}/cards/#{card.id}"
     commit = card.evidence_commit
     at = if commit, do: " --evidence-commit #{commit}", else: ""
-    handbook = Slipdock.Handbook.find(board)
     judging = judge_steps(card, board, handbook)
     decide = length(judging) + 3
 
@@ -2927,7 +2956,7 @@ defmodule Slipdock.Verified do
     Verify card ##{card.id} “#{card.title}” on #{board.name} before it counts as done: #{url}
 
     Another agent did the work and submitted it. You are the second agent: don't change the code or the card beyond your decision. The builder's evidence says where to look, not what to believe: check each claim in it, never carry one on its word. A test it names is read and run, a mutant it says was killed is broken again or sampled, a docs place it says it updated is opened.
-    #{resubmission_block(card)}#{audit_misses_block(card)}
+    #{resubmission_block(card, previous, cuts)}#{audit_misses_block(card, misses, cuts)}
     #{card_block(card, board, judging)}
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
@@ -3032,19 +3061,25 @@ defmodule Slipdock.Verified do
   # The verify prompt's block of recent misses: only on a tree with audits
   # on and something they caught; never in the audit prompt, which judges
   # afresh. "" otherwise, so the prompt is as it was.
-  defp audit_misses_block(%Card{} = card) do
+  defp audit_misses_lines(%Card{} = card) do
     with true <- audit_every(card) > 0,
          [_ | _] = misses <- recent_audit_misses(card) do
-      lines = Enum.map_join(misses, "\n", &miss_line/1)
-
-      """
-
-      What audits on this board caught recently: acceptances that a second verifier, re-judging the work after it was accepted, found short. Verifiers here keep missing the same things, so check these first on this card, then judge it as below.
-      #{lines}
-      """
+      Enum.map_join(misses, "\n", &miss_line/1)
     else
-      _ -> ""
+      _ -> nil
     end
+  end
+
+  defp audit_misses_block(_card, nil, _cuts), do: ""
+
+  defp audit_misses_block(card, lines, cuts) do
+    lines = cut(lines, cuts[:misses], card)
+
+    """
+
+    What audits on this board caught recently: acceptances that a second verifier, re-judging the work after it was accepted, found short. Verifiers here keep missing the same things, so check these first on this card, then judge it as below.
+    #{lines}
+    """
   end
 
   defp miss_line(miss) do
@@ -3058,17 +3093,97 @@ defmodule Slipdock.Verified do
       else: line
   end
 
-  # A resubmission (#1944): the last verdict, the commit it judged, and how
-  # to judge only what failed and what changed since. "" for a first
-  # verification, so its prompt is as it was.
-  defp resubmission_block(%Card{} = card) do
-    case previous_verdict(card) do
-      nil -> ""
-      previous -> resubmission_text(card, previous)
+  ## Fitting the runner's prompt cap (#2705) ---------------------------------
+
+  @doc false
+  def prompt_cuts(:verify), do: @verify_cuts
+  def prompt_cuts(:audit), do: @audit_cuts
+
+  @doc """
+  A prompt that fits under `max` (the runners' `max_prompt`, #2705).
+  `render` takes a map of cuts, `%{part => bytes to take off it}`, and
+  gives the prompt. The whole prompt is rendered first; while it is over
+  `max`, the next part in `order` loses what is over, with a pointer to the
+  card in its place, and the prompt is rendered again. A prompt over `max`
+  with every part cut is cut short itself, so a verify or audit job is never
+  refused for its size.
+  """
+  def fit_prompt(%Card{} = card, order, render, max \\ Slipdock.Runners.limits().max_prompt) do
+    {_cuts, text} =
+      Enum.reduce_while(order, {%{}, render.(%{})}, fn part, {cuts, text} ->
+        case byte_size(text) - max do
+          over when over <= 0 ->
+            {:halt, {cuts, text}}
+
+          over ->
+            cuts = Map.put(cuts, part, over)
+            {:cont, {cuts, render.(cuts)}}
+        end
+      end)
+
+    if byte_size(text) <= max do
+      text
+    else
+      tail = cut_pointer(card)
+      head(text, max - byte_size(tail)) <> tail
     end
   end
 
-  defp resubmission_text(card, previous) do
+  # The card as a prompt shows it: its evidence, description and bar cut by
+  # what `cuts` takes off each.
+  defp cut_card(%Card{} = card, cuts) do
+    %{
+      card
+      | evidence: cut(card.evidence, cuts[:evidence], card),
+        description: cut(card.description, cuts[:ask], card),
+        bar: cut(card.bar, cuts[:bar], card)
+    }
+  end
+
+  @doc false
+  # `text` less `remove` bytes and the pointer that takes their place;
+  # unchanged with nothing to remove, or when the pointer alone would be
+  # longer than the text.
+  def cut(text, remove, _card) when is_nil(text) or is_nil(remove) or remove <= 0, do: text
+
+  def cut(text, remove, %Card{} = card) do
+    pointer = cut_pointer(card)
+    keep = byte_size(text) - remove - byte_size(pointer)
+    alone = String.trim_leading(pointer)
+
+    cond do
+      keep > 0 -> String.trim_trailing(head(text, keep)) <> pointer
+      byte_size(text) > byte_size(alone) -> alone
+      true -> text
+    end
+  end
+
+  defp cut_pointer(%Card{id: id}),
+    do: "\n… (cut short to fit the prompt: the rest is on the card, `slipdock card #{id}`)"
+
+  defp head(text, max) when byte_size(text) <= max, do: text
+
+  # At a grapheme, so a cut never splits a character.
+  defp head(text, max) do
+    text
+    |> String.graphemes()
+    |> Enum.reduce_while({[], 0}, fn g, {acc, n} ->
+      if n + byte_size(g) > max,
+        do: {:halt, {acc, n}},
+        else: {:cont, {[g | acc], n + byte_size(g)}}
+    end)
+    |> elem(0)
+    |> Enum.reverse()
+    |> IO.iodata_to_binary()
+  end
+
+  # A resubmission (#1944): the last verdict, the commit it judged, and how
+  # to judge only what failed and what changed since. "" for a first
+  # verification, so its prompt is as it was.
+  defp resubmission_block(_card, nil, _cuts), do: ""
+  defp resubmission_block(card, previous, cuts), do: resubmission_text(card, previous, cuts)
+
+  defp resubmission_text(card, previous, cuts) do
     alias Slipdock.Verified.Checks
     sha = previous.sha
     now = card.evidence_commit || "<commit>"
@@ -3084,19 +3199,25 @@ defmodule Slipdock.Verified do
             {label, result, nil} -> "- #{label}: #{result}"
             {label, result, why} -> "- #{label}: #{result} — #{why}"
           end)
+          |> cut(cuts[:parts], card)
       end
+
+    reason =
+      if previous.reason,
+        do: cut(previous.reason, cuts[:reason], card),
+        else: "(see the card's last **Rejected** comment)"
 
     """
 
     This card was judged before, at commit #{sha}, and sent back#{if previous.accepted, do: " after its merge failed (it had been accepted)", else: " (rejected #{previous.rejections}×)"}. Judge what changed, not the whole card again.
-    #{if previous.accepted, do: "Why it came back: the card's last **Merge failed** comment.", else: "The last verdict's reason: #{previous.reason || "(see the card's last **Rejected** comment)"}"}
+    #{if previous.accepted, do: "Why it came back: the card's last **Merge failed** comment.", else: "The last verdict's reason: #{reason}"}
     Its parts:
     #{parts}
 
     How to judge this round:
     - List what the commits since touched: `git diff --name-only #{sha} #{now}` (on a rebased branch, `git fetch origin #{sha}` first; if that commit can't be found, judge every part).
     - Judge every part that failed, and any part whose files, or what it is about, the commits since touch. Run the suite or check CI as below, whatever changed.
-    - Carry the rest: a part that passed at #{Checks.short(sha)} and that nothing since touches stands. Don't judge it again; give it as `--check bar:1=carried` (or leave it out) and it is recorded as carried from #{Checks.short(sha)}.#{carry_list(passed)}
+    - Carry the rest: a part that passed at #{Checks.short(sha)} and that nothing since touches stands. Don't judge it again; give it as `--check bar:1=carried` (or leave it out) and it is recorded as carried from #{Checks.short(sha)}.#{passed |> carry_list() |> cut(cuts[:parts], card)}
     - Never raise again a part that passed or that the new commits fixed. Flag a class of problem once: under one part, with every instance of it you find (file and line each), never one now and the next in another round.
     - If you reject, name what changed since the last rejection, and say why the fix falls short, so the next round converges.
     """

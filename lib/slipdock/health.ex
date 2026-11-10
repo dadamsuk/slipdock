@@ -312,13 +312,17 @@ defmodule Slipdock.Health do
 
       true ->
         n = incident.attempts + 1
+        resolved(safe_resolve(detector, incident, n), incident, detector, n, max, now)
+    end
+  end
 
-        case safe_resolve(detector, incident, n) do
-          :fixed -> fixed(incident, detector, "Fixed.", n, now)
-          {:fixed, what} -> fixed(incident, detector, "Fixed: #{what}", n, now)
-          {:tried, what} -> tried(incident, detector, what, n, max, now)
-          _no_fix -> flag(incident, detector, "No safe fix to try.", now)
-        end
+  defp resolved(result, incident, detector, n, max, now) do
+    case result do
+      :fixed -> fixed(incident, detector, "Fixed.", n, now)
+      {:fixed, what} -> fixed(incident, detector, "Fixed: #{what}", n, now)
+      {:tried, what} -> tried(incident, detector, what, n, max, now)
+      {:no_fix, why} -> flag(incident, detector, why, now)
+      _no_fix -> flag(incident, detector, "No safe fix to try.", now)
     end
   end
 

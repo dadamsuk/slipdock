@@ -467,9 +467,21 @@ defmodule Slipdock.Runners do
 
   defp valid_prompt(prompt) do
     if byte_size(prompt) > @max_prompt,
-      do: {:error, "the prompt is over #{@max_prompt} bytes"},
+      do: {:error, prompt_refusal()},
       else: :ok
   end
+
+  defp prompt_refusal, do: "the prompt is over #{@max_prompt} bytes"
+
+  @doc """
+  Whether a refusal from `queue/2` would come again for the same job
+  (#2705): a prompt over the cap or a pool or kind that isn't a name. A
+  full queue or the per-minute allowance clears by itself.
+  """
+  def lasting_refusal?(reason) when is_binary(reason),
+    do: reason == prompt_refusal() or reason =~ ~r/^(pool|kind) “.*” must be lower case/u
+
+  def lasting_refusal?(_reason), do: false
 
   defp open_job(card_id, rule_id) do
     Repo.one(

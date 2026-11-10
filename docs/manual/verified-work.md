@@ -162,6 +162,11 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   `verification`), once per part, and shown under Verification with its
   own mark (an archive box on the card, `○` in `slipdock card`), apart from
   the parts that passed and failed.
+- **The prompt always fits.** A verify or audit job's prompt is never
+  refused for its size. When the card's evidence, its last verdict's parts
+  and reason, its description, its bar and the board's audit misses would
+  take it over the runners' 20,000-byte cap, they are cut short in that
+  order, each with a pointer to the card, where the whole text is.
 - **A resubmission is judged on what changed.** When a rejected card is
   submitted again, its verify job's prompt carries the last verdict and
   the commit it judged. The verifier judges the parts that failed and any

@@ -22,6 +22,8 @@ defmodule Slipdock.Health.Detector do
     * `:fixed` or `{:fixed, what}` – it is dealt with
     * `{:tried, what}` – something was done; a later run sees whether it took
     * `:no_fix` – nothing safe to try: flag it now
+    * `{:no_fix, why}` – the fix can't work (trying it again would fail
+      the same way, #2705): flag it now, saying why
 
   A detector with no `resolve/2` has no fix. A module under
   `Slipdock.Health.Detectors` that implements this behaviour runs by itself.
@@ -54,7 +56,11 @@ defmodule Slipdock.Health.Detector do
 
   @doc "Tries a fix for the `attempt`th time."
   @callback resolve(Incident.t(), attempt :: pos_integer) ::
-              :fixed | {:fixed, String.t()} | {:tried, String.t()} | :no_fix
+              :fixed
+              | {:fixed, String.t()}
+              | {:tried, String.t()}
+              | :no_fix
+              | {:no_fix, String.t()}
 
   @optional_callbacks resolve: 2
 end

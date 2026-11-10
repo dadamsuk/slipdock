@@ -1081,6 +1081,11 @@ this board caught recently*: the last five audit disagreements of the last 30
 days, newest first, each the rework card's title and the parts it failed, for
 the verifier to check first (a miss whose rework was since accepted stays).
 The audit prompt never carries it.
+A verify or audit prompt always fits the runners' 20,000-byte prompt cap:
+when the card's parts would take it over, they are cut, in this order, with
+a pointer to `slipdock card` where the whole text is: the evidence, the last
+verdict's parts, its reason, the description, the bar, and the audit misses
+last. So read the card in full at the first step, as the prompt says.
 A machine's runner takes `verify` jobs with its own agent, on the server's
 prompt, without the standing instructions, so a runner can check another
 runner's work. Deciding is `verify_card` or `slipdock
