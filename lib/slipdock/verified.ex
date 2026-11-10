@@ -3130,12 +3130,14 @@ defmodule Slipdock.Verified do
   end
 
   # The card as a prompt shows it: its evidence, description and bar cut by
-  # what `cuts` takes off each.
+  # what `cuts` takes off each. The description is cut as the prompt shows
+  # it (`ask_text/1`, at most 4,000 characters), so a cut always shrinks the
+  # prompt, however long the description is.
   defp cut_card(%Card{} = card, cuts) do
     %{
       card
       | evidence: cut(card.evidence, cuts[:evidence], card),
-        description: cut(card.description, cuts[:ask], card),
+        description: card.description |> ask_text() |> cut(cuts[:ask], card),
         bar: cut(card.bar, cuts[:bar], card)
     }
   end
@@ -3231,13 +3233,14 @@ defmodule Slipdock.Verified do
         Enum.map_join(passed, ", ", &Slipdock.Verified.Checks.carried_label/1) <> "."
 
   # What the card asks, its bar and evidence, and the steps to its checks:
-  # the same for a verify job and an audit.
+  # the same for a verify job and an audit. `card` is as `cut_card/2` gives
+  # it: its description already as `ask_text/1` shows it.
   defp card_block(card, board, judging) do
     commit = card.evidence_commit
 
     """
     What the card asks (its description):
-    #{if blank?(card.description), do: "(no description: the title is the ask)", else: ask_text(card.description)}
+    #{if blank?(card.description), do: "(no description: the title is the ask)", else: card.description}
 
     The bar (what done means):
     #{if blank?(card.bar), do: "(none written: check it against the card's description)", else: card.bar}
@@ -3627,6 +3630,8 @@ defmodule Slipdock.Verified do
 
   # The ask as the prompt shows it: the description, cut short if long.
   @ask_cap 4000
+  defp ask_text(text) when not is_binary(text), do: text
+
   defp ask_text(text) do
     text = String.trim(text)
 

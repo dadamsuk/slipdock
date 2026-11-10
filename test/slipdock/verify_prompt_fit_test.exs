@@ -199,7 +199,7 @@ defmodule Slipdock.VerifyPromptFitTest do
         parts: fn -> ctx |> card(small) |> rejected(400, 100) end,
         # (The last rejection's reason is read back cut to 400 characters,
         # so it never takes a verify prompt over alone; the audit's can.)
-        # 4,000 four-byte characters: the description's own cap lets it by.
+        # Over the description's own cap: cut as the prompt shows it.
         ask: fn -> card(ctx, %{small | description: String.duplicate("𝄞", 4000) <> "x"}) end,
         bar: fn -> card(ctx, %{small | bar: huge}) end
       ]
@@ -212,6 +212,55 @@ defmodule Slipdock.VerifyPromptFitTest do
         assert prompt =~ @cut, "#{part}"
         assert prompt =~ @verify_end, "#{part}"
       end
+    end
+
+    test "a description far over 4,000 characters is cut as the prompt shows it", ctx do
+      small = %{description: "Do it.", bar: "1. Done", evidence: "Built."}
+
+      # Three- and four-byte characters: the description's own 4,000
+      # character cap leaves 12,000 and 16,000 bytes, and a cut of the raw
+      # text past that cap would shrink nothing.
+      for description <- [String.duplicate("中", 5000), String.duplicate("𝄞", 8000)] do
+        card = card(ctx, %{small | description: description})
+
+        for {prompt, ending} <- [
+              {Verified.verify_prompt(card, ctx.board), @verify_end},
+              {Verified.audit_prompt(%{card | verify_state: "accepted"}, ctx.board), @audit_end}
+            ] do
+          assert byte_size(prompt) <= max()
+          assert String.valid?(prompt)
+          # Cut in the description, once, and the prompt ends whole.
+          assert String.ends_with?(prompt, ending)
+          assert length(String.split(prompt, @cut)) == 2
+          [ask, _] = String.split(prompt, "The bar (what done means):", parts: 2)
+          assert ask =~ "#{@cut}, `slipdock card #{card.id}`"
+          assert prompt =~ "1. Done"
+          assert prompt =~ "Built."
+        end
+      end
+    end
+
+    test "the last verdict's reason is cut, with the pointer in it", ctx do
+      card =
+        ctx
+        |> card(%{description: "Do it.", bar: "1. Done", evidence: "Built."})
+        |> rejected(1, 400)
+
+      whole = Verified.verify_prompt(card, ctx.board)
+      refute whole =~ @cut
+      assert whole =~ "The last verdict's reason: bar 1: falls short"
+
+      # More than the parts give: the reason is cut too.
+      prompt = Verified.verify_prompt(card, ctx.board, max: byte_size(whole) - 500)
+
+      assert byte_size(prompt) <= byte_size(whole) - 500
+      assert prompt =~ @verify_end
+      [_, after_reason] = String.split(prompt, "The last verdict's reason: ", parts: 2)
+      [reason, _] = String.split(after_reason, "\nIts parts:", parts: 2)
+      assert reason =~ "falls short"
+      assert String.ends_with?(reason, "#{@cut}, `slipdock card #{card.id}`)")
+      assert prompt =~ "1. Done"
+      assert prompt =~ "Built."
     end
 
     test "the audited verdict's reason and parts are cut when too long", ctx do
@@ -295,6 +344,15 @@ defmodule Slipdock.VerifyPromptFitTest do
       assert Verified.cut(long, 0, card) == long
       assert Verified.cut(long, -5, card) == long
       assert Verified.cut(nil, 10, card) == nil
+    end
+
+    test "keeps every byte that fits: exactly `remove` bytes come off" do
+      card = %Card{id: 1}
+      pointer = "\n… (#{@cut}, `slipdock card 1`)"
+      cut = Verified.cut(String.duplicate("x", 500), 100, card)
+
+      assert byte_size(cut) == 500 - 100
+      assert cut == String.duplicate("x", 500 - 100 - byte_size(pointer)) <> pointer
     end
 
     test "never splits a character, and a part cut whole is only the pointer" do
