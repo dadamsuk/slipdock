@@ -860,11 +860,15 @@ With one on, the pass changes like this:
   checks a verifier will (see **A verify job** below) on your own work: the
   bar covers the ask, each part of the bar is met, no `must` rule for the
   diff is broken, and the `Handbook:` line is honest. Then **the mutation
-  review before submitting**, on any card that changes code: break 3 to 5
-  of the most consequential lines you added or changed, one at a time (a
-  condition, a guard, an error branch, a returned value), run only the
-  card's tests, restore the line (`git checkout -- <file>`), and add a test
-  until each break fails one; a survivor you leave gets its reason in the
+  review before submitting**, on any card that changes code. **Commit the
+  card's work first** (a WIP commit you amend later will do): restoring
+  with `git checkout -- <file>` puts the file back as it was at HEAD, so on
+  uncommitted work it discards every edit the card made to that file, not
+  just the mutation. Then break 3 to 5 of the most consequential lines you
+  added or changed, one at a time (a condition, a guard, an error branch, a
+  returned value), run only the card's tests, restore the line (`git
+  checkout -- <file>`, now back to the commit), and add a test until each
+  break fails one; a survivor you leave gets its reason in the
   evidence. On a `fix`, undo the fix itself: the regression test must
   fail. It is the verifier's own mutation step (on a `fix`, `feature`,
   `schema` or `security` card with profiles on), and a mutant it finds

@@ -1260,9 +1260,12 @@ resubmission unless its line changed. `slipdock quality` counts the
 surviving-mutant rejections as a part.
 
 **The mutation review before submitting** (#2635). As a builder, run the
-verifier's mutation step on your own change before `slipdock done`: break
-3 to 5 of the most consequential lines you added or changed, one at a
-time, run only the card's tests, restore the line, and add a test until
+verifier's mutation step on your own change before `slipdock done`.
+Commit the card's work first: restoring a line with `git checkout --
+<file>` puts the file back as it was at HEAD, so on uncommitted work it
+discards every edit the card made to that file, not just the mutation.
+Then break 3 to 5 of the most consequential lines you added or changed,
+one at a time, run only the card's tests, restore the line, and add a test until
 each break fails one (a survivor you leave gets its reason in the
 evidence). Name the mutants in the evidence, one line each, as a verifier
 writes them: `mutant:killed=lib/foo.ex:42:flip > to >=`. The verifier's
