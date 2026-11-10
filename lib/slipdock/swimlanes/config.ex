@@ -295,7 +295,7 @@ defmodule Slipdock.Swimlanes.Config do
   @doc "The facets a view mode can show, as `{key, label}` (all of them for card views)."
   def facets(mode \\ nil) do
     case Map.fetch(@mode_facets, to_string(mode)) do
-      {:ok, keys} -> Enum.filter(@facets, fn {k, _} -> k in keys end)
+      {:ok, keys} -> Enum.filter(@facets, fn {k, _} -> Enum.member?(keys, k) end)
       :error -> @facets
     end
   end
@@ -313,7 +313,7 @@ defmodule Slipdock.Swimlanes.Config do
   def tell_keys, do: @tell_keys
 
   @doc "Whether the narrative config includes `key` (see `tell_events/0` and `tell_sections/0`)."
-  def tells?(%__MODULE__{tell: tell}, key), do: key in tell
+  def tells?(%__MODULE__{tell: tell}, key), do: Enum.member?(tell, key)
 
   @doc "The card front's marks (#2031), as `{key, label, on by default}`."
   def card_marks, do: @card_marks
@@ -420,8 +420,8 @@ defmodule Slipdock.Swimlanes.Config do
     end
   end
 
-  def date_axis?(axis), do: axis in ~w(due_date schedule created updated)
-  def movable?(axis), do: axis not in ~w(created updated dependencies goal)
+  def date_axis?(axis), do: Enum.member?(~w(due_date schedule created updated), axis)
+  def movable?(axis), do: not Enum.member?(~w(created updated dependencies goal), axis)
 
   @doc "Sort keys as `{key, label}`, with the board's numeric custom fields and votes."
   def sorts(board) do
@@ -434,7 +434,7 @@ defmodule Slipdock.Swimlanes.Config do
   def axes(board) do
     @axes ++
       for f <- Map.get(board, :fields) || [],
-          f.kind in ~w(rating select),
+          Enum.member?(~w(rating select), f.kind),
           do: {"f:#{f.id}", f.name}
   end
 
@@ -476,7 +476,7 @@ defmodule Slipdock.Swimlanes.Config do
   end
 
   defp keep_unlisted(new, old, unlisted),
-    do: ordered(new ++ Enum.filter(old, &(&1 in unlisted)), @facet_keys)
+    do: ordered(new ++ Enum.filter(old, &Enum.member?(unlisted, &1)), @facet_keys)
 
   @doc "The query keys the Display menu sets, as strings."
   def display_keys, do: @display_keys
@@ -656,7 +656,7 @@ defmodule Slipdock.Swimlanes.Config do
   end
 
   defp pick_or_custom(v, allowed, default) when is_binary(v) do
-    if v in allowed or custom?(v), do: v, else: default
+    if Enum.member?(allowed, v) or custom?(v), do: v, else: default
   end
 
   defp pick_or_custom(_, _, default), do: default
@@ -666,7 +666,7 @@ defmodule Slipdock.Swimlanes.Config do
   end
 
   defp pick(v, allowed, default) when is_binary(v) do
-    if v in allowed, do: v, else: default
+    if Enum.member?(allowed, v), do: v, else: default
   end
 
   defp pick(_, _, default), do: default
@@ -684,7 +684,11 @@ defmodule Slipdock.Swimlanes.Config do
   end
 
   defp str_list(v, allowed) do
-    v |> items() |> Enum.map(&to_string/1) |> Enum.filter(&(&1 in allowed)) |> Enum.uniq()
+    v
+    |> items()
+    |> Enum.map(&to_string/1)
+    |> Enum.filter(&Enum.member?(allowed, &1))
+    |> Enum.uniq()
   end
 
   defp items(list) when is_list(list), do: list

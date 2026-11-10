@@ -225,7 +225,7 @@ defmodule Slipdock.CardState do
   defp column(%Card{column: %Column{} = col}, _ctx), do: col
   defp column(%Card{column_id: id}, ctx), do: ctx.columns[id]
 
-  defp quiet?(%Column{category: category}), do: category in @quiet
+  defp quiet?(%Column{category: category}), do: Enum.member?(@quiet, category)
   defp quiet?(_), do: false
 
   defp job_loop(%Job{status: status} = job) when status in ~w(claimed running),
@@ -327,7 +327,7 @@ defmodule Slipdock.CardState do
 
   defp base(_card, _wait, _job, _held, _now), do: nil
 
-  defp join(parts), do: parts |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" · ")
+  defp join(parts), do: parts |> Enum.reject(&Enum.member?([nil, ""], &1)) |> Enum.join(" · ")
 
   defp since(nil, _now), do: nil
   defp since(at, now), do: Pulse.duration(max(DateTime.diff(now, at), 0))
@@ -375,6 +375,6 @@ defmodule Slipdock.CardState do
     state = Map.get(card, :state)
 
     (stuck != true or match?(%__MODULE__{stuck: true}, state)) and
-      (driver in [nil, "", "all"] or match?(%__MODULE__{driver: ^driver}, state))
+      (Enum.member?([nil, "", "all"], driver) or match?(%__MODULE__{driver: ^driver}, state))
   end
 end

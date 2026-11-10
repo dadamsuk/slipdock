@@ -224,7 +224,7 @@ defmodule Slipdock.Boards.Wait do
   def answered_text(%__MODULE__{} = w) do
     whole =
       [choice_text(w, w.choice), w.answer]
-      |> Enum.reject(&(&1 in [nil, ""]))
+      |> Enum.reject(&Enum.member?([nil, ""], &1))
       |> Enum.join(" — ")
 
     if series?(w) do
@@ -233,7 +233,7 @@ defmodule Slipdock.Boards.Wait do
         |> Enum.with_index()
         |> Enum.map_join("\n", fn {q, i} ->
           a = Enum.at(w.answers || [], i)
-          "#{i + 1}. #{q}\n   → #{if a in [nil, ""], do: "(not answered)", else: a}"
+          "#{i + 1}. #{q}\n   → #{if Enum.member?([nil, ""], a), do: "(not answered)", else: a}"
         end)
 
       if whole == "", do: pairs, else: pairs <> "\n\n" <> whole

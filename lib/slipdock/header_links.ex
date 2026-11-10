@@ -148,7 +148,7 @@ defmodule Slipdock.HeaderLinks do
   defp on(query, %Vault{id: id}), do: from(l in query, where: l.vault_id == ^id)
 
   defp valid_icon(icon) do
-    if icon in Icons.names(),
+    if Enum.member?(Icons.names(), icon),
       do: :ok,
       else: {:error, "choose an icon: #{Enum.join(Icons.names(), ", ")}"}
   end

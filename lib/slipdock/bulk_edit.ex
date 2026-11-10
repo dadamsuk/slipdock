@@ -160,13 +160,13 @@ defmodule Slipdock.BulkEdit do
     do: {:ok, &Boards.update_card(&1, %{"assignee_ids" => []})}
 
   defp resolve(_user, _board, {:priority, p}) do
-    if p in Card.priorities(),
+    if Enum.member?(Card.priorities(), p),
       do: {:ok, &Boards.update_card(&1, %{"priority" => p})},
       else: {:error, "That isn't a priority."}
   end
 
   defp resolve(_user, _board, {op, flag}) when op in [:add_flag, :remove_flag] do
-    if flag in Card.flags() do
+    if Enum.member?(Card.flags(), flag) do
       {:ok,
        fn card ->
          flags =

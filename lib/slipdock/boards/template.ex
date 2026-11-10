@@ -188,12 +188,12 @@ defmodule Slipdock.Boards.Template do
   defp wip(_), do: nil
 
   defp color(c) when is_binary(c) and c != "",
-    do: if(c in Slipdock.Palette.names(), do: c, else: nil)
+    do: if(Enum.member?(Slipdock.Palette.names(), c), do: c, else: nil)
 
   defp color(_), do: nil
 
   defp category(c) when is_binary(c) and c != "",
-    do: if(c in Slipdock.Boards.Column.category_keys(), do: c, else: nil)
+    do: if(Enum.member?(Slipdock.Boards.Column.category_keys(), c), do: c, else: nil)
 
   defp category(_), do: nil
 

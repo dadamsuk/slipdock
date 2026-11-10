@@ -185,14 +185,29 @@ defmodule Slipdock.Sprints do
 
           reason =
             cond do
-              is_nil(card) -> "it no longer exists"
-              card.id == sprint.id -> "it is the sprint"
-              MapSet.member?(inside, card.board_id) -> "it is already in the sprint"
-              not is_nil(card.archived_at) -> "it is archived"
-              Card.stand_in?(card) -> "it is a stand-in — pick the card it stands for"
-              sprint?(card) -> "it is a sprint itself — pick from its cards instead"
-              sprint.board_id in Boards.subtree_board_ids(card.id) -> "the sprint is inside it"
-              true -> nil
+              is_nil(card) ->
+                "it no longer exists"
+
+              card.id == sprint.id ->
+                "it is the sprint"
+
+              MapSet.member?(inside, card.board_id) ->
+                "it is already in the sprint"
+
+              not is_nil(card.archived_at) ->
+                "it is archived"
+
+              Card.stand_in?(card) ->
+                "it is a stand-in — pick the card it stands for"
+
+              sprint?(card) ->
+                "it is a sprint itself — pick from its cards instead"
+
+              Enum.member?(Boards.subtree_board_ids(card.id), sprint.board_id) ->
+                "the sprint is inside it"
+
+              true ->
+                nil
             end
 
           if reason do
@@ -268,7 +283,9 @@ defmodule Slipdock.Sprints do
 
     user
     |> Access.list_boards(wiki: false)
-    |> Enum.filter(&(&1.id not in own and Access.can_write?(Access.board_permission(user, &1))))
+    |> Enum.filter(
+      &(not Enum.member?(own, &1.id) and Access.can_write?(Access.board_permission(user, &1)))
+    )
   end
 
   @doc """
@@ -340,7 +357,7 @@ defmodule Slipdock.Sprints do
         columns =
           if chosen == [],
             do: open_columns(from.columns),
-            else: Enum.filter(from.columns, &(&1.id in chosen))
+            else: Enum.filter(from.columns, &Enum.member?(chosen, &1.id))
 
         [%{board: from, columns: columns, all: chosen == []}]
       else

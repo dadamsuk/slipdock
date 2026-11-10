@@ -67,7 +67,10 @@ defmodule Slipdock.Table do
   """
   def visible_fields(%Config{} = config, board \\ nil) do
     chosen = Config.table_fields(config)
-    Enum.filter(fields(board || %{}), fn {key, _, _} -> key == "title" or key in chosen end)
+
+    Enum.filter(fields(board || %{}), fn {key, _, _} ->
+      key == "title" or Enum.member?(chosen, key)
+    end)
   end
 
   @doc """

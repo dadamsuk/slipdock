@@ -1635,7 +1635,7 @@ defmodule Slipdock.Boards do
         from(c in Column, where: c.board_id == ^board_id, order_by: c.position, select: c.id)
       )
 
-    if column_id in ids do
+    if Enum.member?(ids, column_id) do
       reordered = insert_before(List.delete(ids, column_id), column_id, before_id)
 
       Repo.transaction(fn ->
@@ -1790,9 +1790,14 @@ defmodule Slipdock.Boards do
 
     query =
       cond do
-        filters["archived"] in [true, "true"] -> where(query, [c], not is_nil(c.archived_at))
-        filters["archived"] in ["all", "include"] -> query
-        true -> where(query, [c], is_nil(c.archived_at))
+        Enum.member?([true, "true"], filters["archived"]) ->
+          where(query, [c], not is_nil(c.archived_at))
+
+        Enum.member?(["all", "include"], filters["archived"]) ->
+          query
+
+        true ->
+          where(query, [c], is_nil(c.archived_at))
       end
 
     query = Slipdock.Snooze.filter(query, filters["snoozed"])
@@ -1840,11 +1845,13 @@ defmodule Slipdock.Boards do
     cards = query |> Repo.all() |> Repo.preload(card_preloads()) |> CardState.put(board)
 
     cards
-    |> Enum.filter(&CardState.matches?(&1, filters["stuck"] in [true, "true"], filters["driver"]))
+    |> Enum.filter(
+      &CardState.matches?(&1, Enum.member?([true, "true"], filters["stuck"]), filters["driver"])
+    )
     |> then(fn cards ->
       case filters["flag"] do
         nil -> cards
-        flag -> Enum.filter(cards, &(flag in &1.flags))
+        flag -> Enum.filter(cards, &Enum.member?(&1.flags, flag))
       end
     end)
     |> then(fn cards ->
@@ -1868,7 +1875,7 @@ defmodule Slipdock.Boards do
   # Documents are recognised from what a card holds rather than stored, so
   # this one filters in memory over the loaded cards (see `Slipdock.Kinds`).
   defp filter_kind(cards, kind) when is_binary(kind) and kind != "" do
-    if kind in Slipdock.Kinds.keys(),
+    if Enum.member?(Slipdock.Kinds.keys(), kind),
       do: Enum.filter(cards, &Slipdock.Kinds.matches?(&1, [kind])),
       else: cards
   end
@@ -1879,7 +1886,7 @@ defmodule Slipdock.Boards do
   # `Slipdock.Swimlanes`), so "overdue" means the same thing in a swimlane, in
   # the API and to the assistant.
   defp filter_due(cards, bucket) when is_binary(bucket) do
-    if bucket in Enum.map(Config.dues(), &elem(&1, 0)) and bucket != "",
+    if Enum.member?(Enum.map(Config.dues(), &elem(&1, 0)), bucket) and bucket != "",
       do: Enum.filter(cards, &Swimlanes.due_matches?(bucket, &1)),
       else: cards
   end
@@ -1887,7 +1894,7 @@ defmodule Slipdock.Boards do
   defp filter_due(cards, _), do: cards
 
   defp filter_deps(cards, bucket) when is_binary(bucket) do
-    if bucket in Enum.map(Config.deps(), &elem(&1, 0)) and bucket != "",
+    if Enum.member?(Enum.map(Config.deps(), &elem(&1, 0)), bucket) and bucket != "",
       do: Enum.filter(cards, &Swimlanes.deps_matches?(bucket, &1)),
       else: cards
   end
@@ -2208,7 +2215,7 @@ defmodule Slipdock.Boards do
         do: Slipdock.Verified.assigned(updated, before, assignees, Slipdock.Actor.resolve(opts))
 
       # Someone new on a snoozed card wakes it (W-1803).
-      if assignees && Enum.any?(assignees, &(&1 not in before)),
+      if assignees && Enum.any?(assignees, &(not Enum.member?(before, &1))),
         do: Slipdock.Snooze.activity(updated, opts[:by], :assigned)
 
       # The epic's comments and % complete (#1881).
@@ -2248,7 +2255,7 @@ defmodule Slipdock.Boards do
 
   def assignee_ids(%Card{id: id, assignee_id: lead}) do
     ids = Repo.all(from(a in "card_assignees", where: a.card_id == ^id, select: a.user_id))
-    if lead in ids, do: [lead | List.delete(ids, lead)], else: Enum.sort(ids)
+    if Enum.member?(ids, lead), do: [lead | List.delete(ids, lead)], else: Enum.sort(ids)
   end
 
   # Who a write assigns the card to. "assignee_ids" replaces the set, lead
@@ -2377,10 +2384,10 @@ defmodule Slipdock.Boards do
 
   defp readable_assignees(card, ids) do
     already = assignee_ids(card)
-    {kept, added} = Enum.split_with(ids, &(&1 in already))
+    {kept, added} = Enum.split_with(ids, &Enum.member?(already, &1))
     users = Repo.all(from(u in User, where: u.id in ^added))
     readable = users |> Enum.filter(&can_read_target?(&1, card)) |> MapSet.new(& &1.id)
-    Enum.filter(ids, &(&1 in kept or MapSet.member?(readable, &1)))
+    Enum.filter(ids, &(Enum.member?(kept, &1) or MapSet.member?(readable, &1)))
   end
 
   defp put_assignees({:ok, %Card{} = card}, ids) when is_list(ids) do
@@ -2546,7 +2553,9 @@ defmodule Slipdock.Boards do
   @doc "Turns `flag` on or off. `opts` as for `update_card/3`: who did it."
   def toggle_flag(%Card{} = card, flag, opts \\ []) when is_binary(flag) do
     flags =
-      if flag in card.flags, do: List.delete(card.flags, flag), else: card.flags ++ [flag]
+      if Enum.member?(card.flags, flag),
+        do: List.delete(card.flags, flag),
+        else: card.flags ++ [flag]
 
     update_card(card, %{"flags" => flags}, opts)
   end
@@ -2756,7 +2765,7 @@ defmodule Slipdock.Boards do
           Column.done?(to) and not card.completed ->
             %{"completed" => true}
 
-          Column.done?(from) and to.category in ~w(todo doing) and card.completed ->
+          Column.done?(from) and Enum.member?(~w(todo doing), to.category) and card.completed ->
             %{"completed" => false}
 
           true ->
@@ -2912,7 +2921,7 @@ defmodule Slipdock.Boards do
           {:error, _} = refused -> refused
         end
 
-      to_column.board_id in subtree_board_ids(card.id) ->
+      Enum.member?(subtree_board_ids(card.id), to_column.board_id) ->
         {:error, "A card can't be moved into its own subcards."}
 
       true ->
@@ -3490,7 +3499,7 @@ defmodule Slipdock.Boards do
   end
 
   defp unblock(%Card{} = card, blocker, opts) do
-    if "blocked" in card.flags do
+    if Enum.member?(card.flags, "blocked") do
       flags = List.delete(card.flags, "blocked")
 
       with {:ok, _} <- update_card(card, %{"flags" => flags}, Keyword.take(opts, [:by, :actor])) do
@@ -3595,7 +3604,7 @@ defmodule Slipdock.Boards do
       from.id == to.id ->
         {:error, "A card can't link to itself."}
 
-      kind not in CardLink.kind_keys() ->
+      not Enum.member?(CardLink.kind_keys(), kind) ->
         {:error, "Unknown link kind."}
 
       kind == "relates" and link_exists?(to.id, from.id, kind) ->
@@ -4149,7 +4158,7 @@ defmodule Slipdock.Boards do
              kind: actor[:kind],
              via: actor[:via],
              agent: actor[:agent],
-             set_flag: "waiting" not in card.flags,
+             set_flag: not Enum.member?(card.flags, "waiting"),
              # The server's own waits say what they are for (#1779); never
              # from a request.
              purpose: attrs[:purpose]
@@ -4275,12 +4284,12 @@ defmodule Slipdock.Boards do
       is_nil(job) ->
         {:error, "no job ##{job_id}"}
 
-      job.card_id != card.id and job.card_id not in ancestor_card_ids(card) ->
+      job.card_id != card.id and not Enum.member?(ancestor_card_ids(card), job.card_id) ->
         {:error,
          "job ##{job.id} is working on another card: ##{card.id} isn't " <>
            "##{job.card_id} or beneath it"}
 
-      job.status not in ~w(claimed running) ->
+      not Enum.member?(~w(claimed running), job.status) ->
         {:error, "job ##{job.id} is #{job.status}: only a claimed or running job can wait"}
 
       true ->
@@ -4407,7 +4416,7 @@ defmodule Slipdock.Boards do
     end
   end
 
-  defp truthy?(value), do: value in [true, "true", "1", 1, "on", "yes"]
+  defp truthy?(value), do: Enum.member?([true, "true", "1", 1, "on", "yes"], value)
 
   # The answers, one per question in order, "" for one left blank.
   defp wait_answers(_wait, nil), do: {:ok, []}
@@ -4499,7 +4508,7 @@ defmodule Slipdock.Boards do
 
     cond do
       choices == [] -> {:error, "the wait “#{wait.needs}” has no choices: answer in words"}
-      n in 1..length(choices)//1 -> {:ok, n}
+      Enum.member?(1..length(choices)//1, n) -> {:ok, n}
       true -> {:error, "choice must be a number from 1 to #{length(choices)}"}
     end
   end
@@ -4644,7 +4653,7 @@ defmodule Slipdock.Boards do
     else
       card = Repo.get!(Card, closed.card_id)
 
-      if closed.set_flag and opts[:flag] != false and "waiting" in card.flags,
+      if closed.set_flag and opts[:flag] != false and Enum.member?(card.flags, "waiting"),
         do:
           {:ok, _} =
             update_card(card, %{"flags" => List.delete(card.flags, "waiting")},
@@ -4686,7 +4695,7 @@ defmodule Slipdock.Boards do
       changeset.changes[:completed] == true ->
         auto_close_wait(card, "card_completed", "the card was completed", opts)
 
-      "waiting" in before.flags and "waiting" not in card.flags ->
+      Enum.member?(before.flags, "waiting") and not Enum.member?(card.flags, "waiting") ->
         if wait = current_wait(card) do
           actor = creator(opts)
 
@@ -4822,9 +4831,10 @@ defmodule Slipdock.Boards do
     fields = changed_fields(changes)
 
     fields =
-      if Enum.sort(was_assigned) != Enum.sort(now_assigned) and "assignee" not in fields,
-        do: fields ++ ["assignee"],
-        else: fields
+      if Enum.sort(was_assigned) != Enum.sort(now_assigned) and
+           not Enum.member?(fields, "assignee"),
+         do: fields ++ ["assignee"],
+         else: fields
 
     automate(%{type: "card_updated", card: card, fields: fields})
 
@@ -4950,11 +4960,11 @@ defmodule Slipdock.Boards do
         )
       )
 
-    last? = before_id in [nil, ""]
+    last? = Enum.member?([nil, ""], before_id)
     before = if last?, do: nil, else: to_id(before_id)
 
     cond do
-      not last? and before not in ids ->
+      not last? and not Enum.member?(ids, before) ->
         {:error, :not_found}
 
       before == item.id ->
