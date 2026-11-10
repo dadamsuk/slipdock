@@ -298,6 +298,15 @@ defmodule Slipdock.DoraTest do
     assert report!(board).environment == "live"
   end
 
+  test "production wins even when another environment has more deploys", %{board: board} do
+    deploy!(board, 5, %{environment: "live"})
+    deploy!(board, 4, %{environment: "live"})
+    deploy!(board, 3)
+    assert hd(Deployments.environments(board)) == "live"
+    assert Dora.default_environment(board) == "production"
+    assert report!(board).environment == "production"
+  end
+
   test "percentiles" do
     assert Dora.percentiles([]) == %{p50: nil, p85: nil}
     assert Dora.percentiles([7]) == %{p50: 7, p85: 7}
