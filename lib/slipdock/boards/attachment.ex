@@ -65,7 +65,7 @@ defmodule Slipdock.Boards.Attachment do
   def image_max_size, do: Slipdock.Config.get(:image_max_size, @image_max_size)
 
   @doc "Whether the browser can safely show the file inline (raster images only)."
-  def image?(%__MODULE__{content_type: type}), do: type in @image_types
+  def image?(%__MODULE__{content_type: type}), do: Enum.member?(@image_types, type)
 
   @doc """
   Whether the file is a recording: the card plays it in place, and offers to

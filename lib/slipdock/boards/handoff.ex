@@ -60,7 +60,7 @@ defmodule Slipdock.Boards.Handoff do
   end
 
   @doc "Whether this row clears the handoff rather than leaving one."
-  def cleared?(%__MODULE__{next_step: next}), do: next in [nil, ""]
+  def cleared?(%__MODULE__{next_step: next}), do: Enum.member?([nil, ""], next)
 
   defp blank_to_nil(nil), do: nil
 

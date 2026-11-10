@@ -112,8 +112,10 @@ defmodule Slipdock.TimeTracking do
     Enum.find_value(@units, :error, fn {key, _, short, _} ->
       singular = String.trim_trailing(key, "s")
 
-      if suffix in [short, key, singular] or (short == "m" and suffix in ~w(min mins)) or
-           (short == "h" and suffix in ~w(hr hrs)) or (short == "mo" and suffix == "mon"),
+      if Enum.member?([short, key, singular], suffix) or
+           (short == "m" and Enum.member?(~w(min mins), suffix)) or
+           (short == "h" and Enum.member?(~w(hr hrs), suffix)) or
+           (short == "mo" and suffix == "mon"),
          do: {:ok, key}
     end)
   end

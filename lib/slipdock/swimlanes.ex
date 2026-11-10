@@ -119,11 +119,11 @@ defmodule Slipdock.Swimlanes do
        String.contains?(String.downcase(card.description || ""), q) or
        Enum.any?(card.tags, &String.contains?(String.downcase(&1.name), q))) and
       Slipdock.Kinds.matches?(card, config.kinds) and
-      (config.tags == [] or Enum.any?(card.tags, &(&1.id in config.tags))) and
-      (config.priorities == [] or card.priority in config.priorities) and
-      (config.flags == [] or Enum.any?(card.flags, &(&1 in config.flags))) and
-      (config.columns == [] or card.column_id in config.columns) and
-      (config.colors == [] or (card.color || "none") in config.colors) and
+      (config.tags == [] or Enum.any?(card.tags, &Enum.member?(config.tags, &1.id))) and
+      (config.priorities == [] or Enum.member?(config.priorities, card.priority)) and
+      (config.flags == [] or Enum.any?(card.flags, &Enum.member?(config.flags, &1))) and
+      (config.columns == [] or Enum.member?(config.columns, card.column_id)) and
+      (config.colors == [] or Enum.member?(config.colors, card.color || "none")) and
       due_matches?(config.due, card, today) and
       done_matches?(config.done, card) and
       deps_matches?(config.deps, card)
@@ -166,8 +166,8 @@ defmodule Slipdock.Swimlanes do
   def due_matches?(_, %{completed: true}, _), do: false
   def due_matches?("overdue", card, today), do: Date.compare(card.due_date, today) == :lt
   def due_matches?("today", card, today), do: Date.compare(card.due_date, today) == :eq
-  def due_matches?("week", card, today), do: Date.diff(card.due_date, today) in 0..7
-  def due_matches?("month", card, today), do: Date.diff(card.due_date, today) in 0..30
+  def due_matches?("week", card, today), do: Enum.member?(0..7, Date.diff(card.due_date, today))
+  def due_matches?("month", card, today), do: Enum.member?(0..30, Date.diff(card.due_date, today))
 
   defp done_matches?("all", _), do: true
   defp done_matches?("hide", card), do: not card.completed
@@ -415,7 +415,7 @@ defmodule Slipdock.Swimlanes do
       tone =
         cond do
           key == today_key -> :current
-          axis in ~w(due_date schedule) and key < today_key -> :past
+          Enum.member?(~w(due_date schedule), axis) and key < today_key -> :past
           true -> nil
         end
 
@@ -559,8 +559,8 @@ defmodule Slipdock.Swimlanes do
 
   def move_ops("flag", card, from, to, _config) do
     flags = (card && card.flags) || []
-    flags = if from in Card.flags(), do: List.delete(flags, from), else: flags
-    flags = if to in Card.flags(), do: Enum.uniq(flags ++ [to]), else: flags
+    flags = if Enum.member?(Card.flags(), from), do: List.delete(flags, from), else: flags
+    flags = if Enum.member?(Card.flags(), to), do: Enum.uniq(flags ++ [to]), else: flags
     [{:attrs, %{"flags" => flags}}]
   end
 

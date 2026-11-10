@@ -142,7 +142,7 @@ defmodule Slipdock.Timeline do
         %{
           from: blocker.id,
           to: card.id,
-          violated: not blocker.completed and blocker in Card.violated_blockers(card)
+          violated: not blocker.completed and Enum.member?(Card.violated_blockers(card), blocker)
         }
       end
 
@@ -159,7 +159,7 @@ defmodule Slipdock.Timeline do
         to: to,
         days: days,
         px: px,
-        today: if(today_idx in 0..(days - 1)//1, do: today_idx),
+        today: if(Enum.member?(0..(days - 1)//1, today_idx), do: today_idx),
         weekends: if(unit == "day", do: weekends(from, days), else: []),
         header: if(super = @super_unit[unit], do: cells(from, to, super, today), else: []),
         units: cells(from, to, unit, today)

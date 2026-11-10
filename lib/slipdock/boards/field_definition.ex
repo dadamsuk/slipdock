@@ -52,7 +52,7 @@ defmodule Slipdock.Boards.FieldDefinition do
   end
 
   @doc "Whether values of the field are numbers (usable in formulas and sums)."
-  def numeric?(%__MODULE__{kind: k}), do: k in ~w(number rating select formula)
+  def numeric?(%__MODULE__{kind: k}), do: Enum.member?(~w(number rating select formula), k)
 
   @doc "The highest rating the field takes."
   def rating_max(%__MODULE__{kind: "rating", config: c}), do: int(c["max"], 5)
@@ -139,13 +139,13 @@ defmodule Slipdock.Boards.FieldDefinition do
       o when is_map(o) ->
         o = Map.new(o, fn {k, v} -> {to_string(k), v} end)
         label = o["label"] |> to_string() |> String.trim()
-        key = if o["key"] in [nil, ""], do: slug(label), else: to_string(o["key"])
+        key = if Enum.member?([nil, ""], o["key"]), do: slug(label), else: to_string(o["key"])
 
         %{
           "key" => key,
           "label" => label,
           "weight" => float(o["weight"]),
-          "color" => if(o["color"] in Slipdock.Palette.names(), do: o["color"])
+          "color" => if(Enum.member?(Slipdock.Palette.names(), o["color"]), do: o["color"])
         }
 
       label when is_binary(label) ->
@@ -170,7 +170,7 @@ defmodule Slipdock.Boards.FieldDefinition do
       {"unit", u} -> {"unit", to_string(u) |> String.trim()}
       {k, v} -> {k, float(v)}
     end)
-    |> Enum.reject(fn {_, v} -> v in [nil, ""] end)
+    |> Enum.reject(fn {_, v} -> Enum.member?([nil, ""], v) end)
     |> Map.new()
   end
 
@@ -199,9 +199,10 @@ defmodule Slipdock.Boards.FieldDefinition do
   defp normalize_weights(_), do: []
 
   defp validate_options(changeset) do
-    if get_field(changeset, :kind) == "select" and get_field(changeset, :options) in [nil, []],
-      do: add_error(changeset, :options, "a choice field needs at least one option"),
-      else: changeset
+    if get_field(changeset, :kind) == "select" and
+         Enum.member?([nil, []], get_field(changeset, :options)),
+       do: add_error(changeset, :options, "a choice field needs at least one option"),
+       else: changeset
   end
 
   defp validate_formula(changeset) do
@@ -216,7 +217,7 @@ defmodule Slipdock.Boards.FieldDefinition do
           end
 
         "weighted" ->
-          if config["weights"] in [nil, []],
+          if Enum.member?([nil, []], config["weights"]),
             do: add_error(changeset, :config, "a weighted score needs at least one input"),
             else: changeset
 
