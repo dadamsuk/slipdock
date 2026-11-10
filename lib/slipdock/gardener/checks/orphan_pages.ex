@@ -118,7 +118,7 @@ defmodule Slipdock.Gardener.Checks.OrphanPages do
   defp index?(page, folders) do
     title = page.title |> String.trim() |> String.downcase()
 
-    title in @index_titles or
+    Enum.member?(@index_titles, title) or
       Enum.any?(folders, &(&1.id == page.folder_id and String.downcase(&1.name) == title))
   end
 

@@ -140,7 +140,7 @@ defmodule Slipdock.Recurrence do
   """
   def describe(rule_text, at_text, zone, %Date{} = from) do
     with {:ok, rule} <- Rule.parse_phrase(rule_text || "", from),
-         {:ok, at} <- read_time(if(at_text in [nil, ""], do: "07:00", else: at_text)),
+         {:ok, at} <- read_time(if(Enum.member?([nil, ""], at_text), do: "07:00", else: at_text)),
          true <- Timezones.valid?(zone) || {:error, "timezone: #{inspect(zone)} isn't one"} do
       {:ok,
        %{
@@ -302,10 +302,10 @@ defmodule Slipdock.Recurrence do
     changed = Map.keys(changeset.changes)
 
     cond do
-      is_nil(existing) or :rule in changed ->
+      is_nil(existing) or Enum.member?(changed, :rule) ->
         schedule(series, card, DateTime.utc_now(:second))
 
-      Enum.any?([:create_at, :timezone, :lead_days], &(&1 in changed)) ->
+      Enum.any?([:create_at, :timezone, :lead_days], &Enum.member?(changed, &1)) ->
         series |> reschedule() |> end_if_over() |> Repo.update()
 
       true ->

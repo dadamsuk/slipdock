@@ -398,7 +398,7 @@ defmodule Slipdock.Health do
 
         cards ->
           Enum.each(cards, fn card ->
-            unless "stuck" in card.flags,
+            unless Enum.member?(card.flags, "stuck"),
               do: Boards.update_card(card, %{"flags" => card.flags ++ ["stuck"]})
 
             # Its job's log keeps the failure time from now (#1872).
@@ -496,11 +496,11 @@ defmodule Slipdock.Health do
   end
 
   defp unflag(incident) do
-    for card <- live_cards(incident), "stuck" in card.flags do
+    for card <- live_cards(incident), Enum.member?(card.flags, "stuck") do
       still =
         from(i in Incident, where: i.board_id == ^incident.board_id and i.status == "flagged")
         |> Repo.all()
-        |> Enum.any?(&(card.id in Incident.card_ids(&1)))
+        |> Enum.any?(&Enum.member?(Incident.card_ids(&1), card.id))
 
       unless still do
         Boards.update_card(card, %{"flags" => List.delete(card.flags, "stuck")})

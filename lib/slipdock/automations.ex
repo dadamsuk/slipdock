@@ -495,7 +495,7 @@ defmodule Slipdock.Automations do
     rules |> Enum.filter(&Spec.feed?(&1.spec)) |> Enum.each(&feed(&1, now: now))
 
     rules
-    |> Enum.filter(&(Spec.trigger_type(&1.spec) in scheduled_types))
+    |> Enum.filter(&Enum.member?(scheduled_types, Spec.trigger_type(&1.spec)))
     |> Enum.map(&run_scheduled_rule(&1, now))
     |> Enum.sum()
   end
@@ -708,7 +708,7 @@ defmodule Slipdock.Automations do
       |> feed_candidates(now)
       |> Enum.find(fn card ->
         not Card.blocked?(card) and
-          not Enum.any?(card.flags, &(&1 in ["blocked", "waiting"])) and
+          not Enum.any?(card.flags, &Enum.member?(["blocked", "waiting"], &1)) and
           not (trigger["unassigned"] == true and assigned?(card)) and
           not MapSet.member?(cooling, card.id) and
           Runner.conditions_match?(Spec.conditions(rule.spec), card) and
@@ -1057,7 +1057,9 @@ defmodule Slipdock.Automations do
   @doc "The board's callbacks, newest first."
   def list_callbacks(board_id, limit \\ nil) do
     limit =
-      if limit in [nil, ""], do: 50, else: limit |> to_int() |> max(1) |> min(@callback_limit)
+      if Enum.member?([nil, ""], limit),
+        do: 50,
+        else: limit |> to_int() |> max(1) |> min(@callback_limit)
 
     from(c in Callback, where: c.board_id == ^board_id, order_by: [desc: c.id], limit: ^limit)
     |> Repo.all()

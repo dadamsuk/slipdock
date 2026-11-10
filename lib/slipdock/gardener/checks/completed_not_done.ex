@@ -16,7 +16,7 @@ defmodule Slipdock.Gardener.Checks.CompletedNotDone do
   def find(ctx, _settings) do
     for card <- Cards.cards(ctx),
         card.completed,
-        Context.category(ctx, card) not in ["done", "dropped"],
+        not Enum.member?(["done", "dropped"], Context.category(ctx, card)),
         done = Context.role_column(ctx, card.board_id, :done),
         done != nil and done.id != card.column_id do
       %{

@@ -71,7 +71,7 @@ defmodule Slipdock.Health.Detectors.NoRunner do
       runners
       |> Enum.filter(
         &(&1.pool != job.pool and Runs.online?(&1, now) and is_list(&1.kinds) and
-            job.kind in &1.kinds)
+            Enum.member?(&1.kinds, job.kind))
       )
       |> Enum.map(& &1.pool)
       |> Enum.uniq()

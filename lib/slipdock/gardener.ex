@@ -104,7 +104,7 @@ defmodule Slipdock.Gardener do
 
     checks =
       (opts[:checks] || checks())
-      |> Enum.filter(&(is_nil(opts[:only]) or &1.key() in List.wrap(opts[:only])))
+      |> Enum.filter(&(is_nil(opts[:only]) or Enum.member?(List.wrap(opts[:only]), &1.key())))
       |> Enum.filter(&Settings.enabled?(board, &1))
 
     {:ok, run} =
@@ -127,7 +127,8 @@ defmodule Slipdock.Gardener do
     known = known_states(board.id, Map.keys(found))
 
     new =
-      for {fp, {key, f}} <- found, Map.get(known, fp) not in ~w(open dismissed applied) do
+      for {fp, {key, f}} <- found,
+          not Enum.member?(~w(open dismissed applied), Map.get(known, fp)) do
         Repo.insert!(%Suggestion{
           run_id: run.id,
           board_id: board.id,

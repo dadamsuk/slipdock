@@ -20,7 +20,7 @@ defmodule Slipdock.Gardener.Checks.LongOverdue do
     for card <- Cards.cards(ctx),
         not card.completed,
         card.due_date,
-        Context.category(ctx, card) not in ["done", "dropped"],
+        not Enum.member?(["done", "dropped"], Context.category(ctx, card)),
         late = Date.diff(ctx.today, card.due_date),
         late > days do
       week = ctx.today |> Date.add(7) |> Date.to_iso8601()

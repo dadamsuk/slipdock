@@ -39,7 +39,7 @@ defmodule Slipdock.Health.Detectors.IdleFeed do
         since = quiet_since(rule),
         Context.minutes_since(ctx, since) >= minutes,
         not Runners.paused?(root_id, pools),
-        idle = Enum.filter(runners, &(&1.pool in pools and Runs.idle?(&1, ctx.now))),
+        idle = Enum.filter(runners, &(Enum.member?(pools, &1.pool) and Runs.idle?(&1, ctx.now))),
         idle != [],
         %Card{} = card <- [Automations.next_card(rule, now: ctx.now)],
         not wip_held?(card) do

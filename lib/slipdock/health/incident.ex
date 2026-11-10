@@ -48,7 +48,7 @@ defmodule Slipdock.Health.Incident do
   def active_statuses, do: @active
 
   @doc "Whether it is still open or flagged."
-  def active?(%__MODULE__{status: status}), do: status in @active
+  def active?(%__MODULE__{status: status}), do: Enum.member?(@active, status)
 
   @doc "Every card it is about: its own card first, then any others in its subject."
   def card_ids(%__MODULE__{card_id: card_id, subject: subject}) do

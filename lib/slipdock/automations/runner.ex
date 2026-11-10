@@ -85,7 +85,10 @@ defmodule Slipdock.Automations.Runner do
       "job_finished" ->
         named?(trigger["pool"], event[:job] && event[:job].pool) and
           (is_nil(trigger["outcome"]) or
-             Enum.any?(job_outcomes(event[:job]), &(&1 in List.wrap(trigger["outcome"]))))
+             Enum.any?(
+               job_outcomes(event[:job]),
+               &Enum.member?(List.wrap(trigger["outcome"]), &1)
+             ))
 
       _ ->
         true
@@ -124,7 +127,11 @@ defmodule Slipdock.Automations.Runner do
 
   defp person?(wanted, %User{} = user) do
     wanted = casefold(wanted)
-    wanted in [casefold(user.email), casefold(user.name), casefold(User.display_name(user))]
+
+    Enum.member?(
+      [casefold(user.email), casefold(user.name), casefold(User.display_name(user))],
+      wanted
+    )
   end
 
   defp person?(_, _), do: false
@@ -135,7 +142,7 @@ defmodule Slipdock.Automations.Runner do
 
   defp field_changed?(field, event) do
     changed = Enum.map(event[:fields] || [], &to_string/1)
-    to_string(field) in changed
+    Enum.member?(changed, to_string(field))
   end
 
   ## Conditions ---------------------------------------------------------------
@@ -240,7 +247,7 @@ defmodule Slipdock.Automations.Runner do
 
   defp any_match?(actuals, values) do
     wanted = Enum.map(values, &casefold/1)
-    Enum.any?(actuals, &(casefold(&1) in wanted))
+    Enum.any?(actuals, &Enum.member?(wanted, casefold(&1)))
   end
 
   defp equal?(actual, value) when is_boolean(actual), do: actual == truthy(value)
@@ -831,6 +838,11 @@ defmodule Slipdock.Automations.Runner do
     end
   end
 
+  defp without_tags(current, found) do
+    found_ids = Enum.map(found, & &1.id)
+    Enum.reject(current, &Enum.member?(found_ids, &1.id))
+  end
+
   defp change_tags(action, ctx, direction) do
     with {:ok, card} <- need_subject(ctx) do
       board = Repo.get!(Slipdock.Boards.Board, card.board_id)
@@ -843,7 +855,7 @@ defmodule Slipdock.Automations.Runner do
       tags =
         case direction do
           :add -> Enum.uniq_by(current ++ found, & &1.id)
-          :remove -> Enum.reject(current, fn t -> t.id in Enum.map(found, & &1.id) end)
+          :remove -> without_tags(current, found)
         end
 
       cond do
@@ -915,7 +927,10 @@ defmodule Slipdock.Automations.Runner do
     board
     |> Slipdock.Access.visible_users_for()
     |> Enum.find(fn user ->
-      wanted in [casefold(user.email), casefold(user.name), casefold(User.display_name(user))]
+      Enum.member?(
+        [casefold(user.email), casefold(user.name), casefold(User.display_name(user))],
+        wanted
+      )
     end)
   end
 

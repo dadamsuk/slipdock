@@ -177,7 +177,7 @@ defmodule Slipdock.Recurrence.Rule do
           n = String.to_integer(String.replace_prefix(ord, "+", ""))
 
           cond do
-            freq not in [:monthly, :yearly] ->
+            not Enum.member?([:monthly, :yearly], freq) ->
               {:halt,
                {:error, "BYDAY with a number (#{item}) only goes with FREQ=MONTHLY or YEARLY"}}
 
@@ -493,11 +493,11 @@ defmodule Slipdock.Recurrence.Rule do
   # "fortnight", "month", "3m", "year", and the words after it.
   defp period([word | rest]) do
     cond do
-      word in ~w(day days daily d) -> {:ok, :daily, 1, rest}
-      word in ~w(week weeks weekly w) -> {:ok, :weekly, 1, rest}
+      Enum.member?(~w(day days daily d), word) -> {:ok, :daily, 1, rest}
+      Enum.member?(~w(week weeks weekly w), word) -> {:ok, :weekly, 1, rest}
       word == "fortnight" -> {:ok, :weekly, 2, rest}
-      word in ~w(month months monthly m) -> {:ok, :monthly, 1, rest}
-      word in ~w(year years yearly annually y) -> {:ok, :yearly, 1, rest}
+      Enum.member?(~w(month months monthly m), word) -> {:ok, :monthly, 1, rest}
+      Enum.member?(~w(year years yearly annually y), word) -> {:ok, :yearly, 1, rest}
       m = Regex.run(~r/^(\d+)(d|w|m|y)$/, word) -> counted(m, rest)
       Regex.match?(~r/^\d+$/, word) -> counted_word(word, rest)
       true -> {:none, [word | rest]}
@@ -509,14 +509,14 @@ defmodule Slipdock.Recurrence.Rule do
   defp counted([_, n, unit], rest) do
     n = String.to_integer(n)
     freq = %{"d" => :daily, "w" => :weekly, "m" => :monthly, "y" => :yearly}[unit]
-    if n in 1..@max_interval, do: {:ok, freq, n, rest}, else: :error
+    if Enum.member?(1..@max_interval, n), do: {:ok, freq, n, rest}, else: :error
   end
 
   defp counted_word(n, [unit | rest]) do
     case period([unit | rest]) do
       {:ok, freq, 1, rest} ->
         n = String.to_integer(n)
-        if n in 1..@max_interval, do: {:ok, freq, n, rest}, else: :error
+        if Enum.member?(1..@max_interval, n), do: {:ok, freq, n, rest}, else: :error
 
       _ ->
         :error

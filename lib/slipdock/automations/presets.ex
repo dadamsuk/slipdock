@@ -621,7 +621,7 @@ defmodule Slipdock.Automations.Presets do
 
   defp spec("weekly_tidy", p, _opts) do
     with {:ok, day} <- positive(p["weekday"], "Day"),
-         true <- day in 1..7 || {:error, "Day must be 1 (Monday) to 7 (Sunday)"},
+         true <- Enum.member?(1..7, day) || {:error, "Day must be 1 (Monday) to 7 (Sunday)"},
          at = to_string(p["at"]),
          true <-
            String.match?(at, ~r/\A([01]\d|2[0-3]):[0-5]\d\z/) ||
@@ -758,7 +758,7 @@ defmodule Slipdock.Automations.Presets do
   defp runner_action(pool, kind, wait, default) do
     action = %{"type" => "runner", "pool" => pool, "kind" => kind}
 
-    if blank_or(wait, default) in ["yes", "true", true],
+    if Enum.member?(["yes", "true", true], blank_or(wait, default)),
       do: Map.put(action, "wait_while_doing", true),
       else: action
   end
