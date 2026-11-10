@@ -270,101 +270,46 @@ defmodule SlipdockWeb.GardenAPITest do
       assert Gardener.list_open(ctx.board, check: "proposal") == []
     end
 
-    test "an agent can't apply, dismiss or undo one; the person can", ctx do
+    # #2668: a person-only suggestion is decided on the Tidy-up page, never
+    # over the API, whatever the token or its request says.
+    test "no token decides one, whatever it sends; the refusal names the Tidy-up page", ctx do
       {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
-
-      for verb <- ~w(apply dismiss) do
-        assert %{"error" => error} =
-                 agent_token(ctx.owner)
-                 |> post("/api/garden/suggestions/#{s.id}/#{verb}", %{})
-                 |> json_response(422)
-
-        assert error =~ "only a person can #{verb} a proposed handbook edit"
-      end
-
-      assert Gardener.get_suggestion(s.id).state == "open"
-
-      # A person at the CLI (no agent header) applies it.
       person = ctx.owner |> with_token([]) |> put_req_header("x-slipdock-client", "cli")
-
-      assert %{"suggestion" => %{"state" => "applied"}} =
-               person |> post("/api/garden/suggestions/#{s.id}/apply", %{}) |> json_response(200)
-
-      assert Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body =~ "Never cast owner ids."
-
-      assert agent_token(ctx.owner)
-             |> post("/api/garden/suggestions/#{s.id}/undo", %{})
-             |> json_response(422)
-
-      assert %{"suggestion" => %{"state" => "open"}} =
-               person
-               |> post("/api/garden/suggestions/#{s.id}/undo", %{})
-               |> json_response(200)
-    end
-
-    test "the person's own CLI under Claude Code decides it with confirm (#2638)", ctx do
-      {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
-
-      # Without the say-so it is refused, and the refusal names routes that work.
-      assert %{"error" => error} =
-               agent_token(ctx.owner)
-               |> post("/api/garden/suggestions/#{s.id}/dismiss", %{})
-               |> json_response(422)
-
-      assert error =~ "on the board's Tidy-up page"
-      assert error =~ "slipdock garden dismiss #{s.id} --confirm"
-
-      assert %{"suggestion" => %{"state" => "dismissed"}} =
-               agent_token(ctx.owner)
-               |> post("/api/garden/suggestions/#{s.id}/dismiss", %{"confirm" => true})
-               |> json_response(200)
-
-      {:ok, s2, :new} =
-        Gardener.propose(
-          ctx.board,
-          ctx.owner,
-          put_in(
-            proposal(ctx.page),
-            ["steps", Elixir.Access.at(0), "body"],
-            "- **SEC-9** must · judgement · Other."
-          )
-        )
-
-      assert %{"suggestion" => %{"state" => "applied"}} =
-               agent_token(ctx.owner)
-               |> post("/api/garden/suggestions/#{s2.id}/apply", %{"confirm" => "true"})
-               |> json_response(200)
-
-      assert %{"suggestion" => %{"state" => "open"}} =
-               agent_token(ctx.owner)
-               |> post("/api/garden/suggestions/#{s2.id}/undo", %{"confirm" => true})
-               |> json_response(200)
-    end
-
-    test "an agent's confirm counts for nothing: a runner job's CLI, a script's token (#2638)",
-         ctx do
-      {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
       job = agent_token(ctx.owner) |> put_req_header("x-slipdock-job", "77")
+      script = ctx.owner |> with_token([]) |> put_req_header("x-slipdock-client", "curl")
 
-      script =
-        ctx.owner |> with_token([]) |> put_req_header("x-slipdock-client", "curl")
-
-      for conn <- [job, script], verb <- ~w(apply dismiss) do
+      for conn <- [agent_token(ctx.owner), person, job, script],
+          body <- [%{}, %{"confirm" => true}, %{"confirm" => "true"}],
+          verb <- ~w(apply dismiss) do
         assert %{"error" => error} =
                  conn
-                 |> post("/api/garden/suggestions/#{s.id}/#{verb}", %{"confirm" => true})
+                 |> post("/api/garden/suggestions/#{s.id}/#{verb}", body)
                  |> json_response(422)
 
         assert error =~ "only a person can #{verb} a proposed handbook edit"
-        assert error =~ "never a runner job's"
+        assert error =~ "Tidy-up page: " <> Gardener.tidy_url(s)
       end
 
       assert Gardener.get_suggestion(s.id).state == "open"
+      assert Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body == ctx.page.body
+    end
 
-      # confirm false is no say-so either.
-      assert agent_token(ctx.owner)
-             |> post("/api/garden/suggestions/#{s.id}/dismiss", %{"confirm" => false})
-             |> json_response(422)
+    test "an applied one isn't undone over the API either", ctx do
+      {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
+      {:ok, applied} = Gardener.apply(s, ctx.owner, actor: Slipdock.Actor.web(ctx.owner))
+      person = ctx.owner |> with_token([]) |> put_req_header("x-slipdock-client", "cli")
+
+      for conn <- [person, agent_token(ctx.owner)] do
+        assert %{"error" => error} =
+                 conn
+                 |> post("/api/garden/suggestions/#{applied.id}/undo", %{"confirm" => true})
+                 |> json_response(422)
+
+        assert error =~ "only a person can undo a proposed handbook edit"
+      end
+
+      assert Gardener.get_suggestion(s.id).state == "applied"
+      assert Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body =~ "Never cast owner ids."
     end
 
     test "an ordinary suggestion is still an agent's to apply", ctx do
@@ -438,7 +383,8 @@ defmodule SlipdockWeb.GardenAPITest do
                as(ctx.owner) |> mcp_call("garden", %{board: ctx.board.code, findings: "x"})
     end
 
-    test "MCP garden lists proposals by check, and garden_decide applies one with confirm", ctx do
+    test "MCP garden lists proposals; garden_decide can't apply, dismiss or undo one (#2668)",
+         ctx do
       {:ok, s, :new} = Gardener.propose(ctx.board, ctx.owner, proposal(ctx.page))
 
       assert %{"suggestions" => [listed]} =
@@ -449,10 +395,29 @@ defmodule SlipdockWeb.GardenAPITest do
       assert listed["id"] == s.id
       assert listed["person_only"]
 
-      assert %{"suggestion" => %{"state" => "applied"}} =
+      for decision <- ~w(apply dismiss) do
+        assert %{"isError" => true, "content" => [%{"text" => text}]} =
+                 as(ctx.owner)
+                 |> mcp_call("garden_decide", %{
+                   suggestion: s.id,
+                   decision: decision,
+                   confirm: true
+                 })
+
+        assert text =~ "only a person can #{decision} a proposed handbook edit"
+        assert text =~ Gardener.tidy_url(s)
+      end
+
+      assert Gardener.get_suggestion(s.id).state == "open"
+      assert Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body == ctx.page.body
+
+      {:ok, _} = Gardener.apply(s, ctx.owner, actor: Slipdock.Actor.web(ctx.owner))
+
+      assert %{"isError" => true} =
                as(ctx.owner)
-               |> mcp_call("garden_decide", %{suggestion: s.id, decision: "apply", confirm: true})
-               |> Map.fetch!("structuredContent")
+               |> mcp_call("garden_decide", %{suggestion: s.id, decision: "undo", confirm: true})
+
+      assert Gardener.get_suggestion(s.id).state == "applied"
     end
   end
 

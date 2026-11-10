@@ -109,7 +109,7 @@ defmodule Slipdock.Gardener.HandbookUpkeepE2ETest do
     assert flag.explanation =~ "added UX-2"
     assert {:error, _} = Gardener.dismiss(flag, user, actor: @agent)
 
-    assert {:ok, _} = Gardener.apply(flag, user)
+    assert {:ok, _} = Gardener.apply(flag, user, actor: Slipdock.Actor.web(user))
     body = Repo.get!(Page, ux.id).body
     assert body =~ "by an agent."
     refute body =~ "UX-2"

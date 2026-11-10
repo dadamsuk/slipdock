@@ -110,6 +110,17 @@ defmodule SlipdockWeb.GardenLiveTest do
       assert has_element?(view, "#suggestion-#{s.id}")
     end
 
+    # #2668: the page is where a person-only suggestion is decided.
+    test "Dismiss on the page dismisses it", ctx do
+      s = ctx.proposal
+      {:ok, view, _} = tidy(ctx.conn, ctx)
+
+      view |> element("#suggestion-#{s.id} button", "Dismiss") |> render_click()
+      assert Gardener.get_suggestion(s.id).state == "dismissed"
+      assert Gardener.get_suggestion(s.id).decided_by_id == ctx.owner.id
+      assert Repo.get!(Slipdock.Wiki.Page, ctx.page.id).body == ctx.page.body
+    end
+
     test "a section edited since says so, and Apply is refused with the reason", ctx do
       s = ctx.proposal
 

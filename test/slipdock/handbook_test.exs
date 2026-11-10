@@ -1250,7 +1250,7 @@ defmodule Slipdock.HandbookTest do
       assert Repo.get!(Page, play.id).body == ours
 
       # Applied, it keeps the board's Grill and puts Spike after it.
-      assert {:ok, _} = Slipdock.Gardener.apply(proposal, user)
+      assert {:ok, _} = Slipdock.Gardener.apply(proposal, user, actor: Slipdock.Actor.web(user))
       body = Repo.get!(Page, play.id).body
       assert body =~ "We grill over coffee."
       assert Enum.take(Enum.drop_while(h2s(body), &(&1 != "Grill")), 3) == ~w(Grill Spike Decide)
@@ -1276,7 +1276,7 @@ defmodule Slipdock.HandbookTest do
       {:ok, _} = Handbook.install(user, board)
       assert [proposal] = proposals(board)
       assert [%{"section" => "Playbook/Spec"}] = proposal.proposal
-      assert {:ok, _} = Slipdock.Gardener.apply(proposal, user)
+      assert {:ok, _} = Slipdock.Gardener.apply(proposal, user, actor: Slipdock.Actor.web(user))
       assert h2s(Repo.get!(Page, play.id).body) == ~w(Spike Spec Cards Rules)
     end
 

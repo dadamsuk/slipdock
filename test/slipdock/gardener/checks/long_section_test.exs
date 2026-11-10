@@ -76,7 +76,7 @@ defmodule Slipdock.Gardener.Checks.LongSectionTest do
     {:ok, _} = Gardener.run(board, only: ["long_section"])
     [s] = Gardener.list_open(board)
     assert Gardener.person_only?(s)
-    assert {:ok, _} = Gardener.apply(s, user)
+    assert {:ok, _} = Gardener.apply(s, user, actor: Slipdock.Actor.web(user))
 
     after_body = Repo.reload!(ops).body
 
@@ -112,9 +112,9 @@ defmodule Slipdock.Gardener.Checks.LongSectionTest do
     {:ok, _} = Gardener.run(board, only: ["long_section"])
     [s] = Gardener.list_open(board)
     refute Gardener.person_only?(s)
-    assert {:ok, applied} = Gardener.apply(s, user)
+    assert {:ok, applied} = Gardener.apply(s, user, actor: Slipdock.Actor.web(user))
     assert [^text] = comments(hb.index)
-    assert {:ok, _} = Gardener.undo(applied, user)
+    assert {:ok, _} = Gardener.undo(applied, user, actor: Slipdock.Actor.web(user))
     assert comments(hb.index) == []
   end
 
@@ -214,7 +214,7 @@ defmodule Slipdock.Gardener.Checks.LongSectionTest do
 
     {:ok, _} = Gardener.run(board, only: ["long_section"])
     [s] = Gardener.list_open(board)
-    {:ok, _} = Gardener.dismiss(s, user)
+    {:ok, _} = Gardener.dismiss(s, user, actor: Slipdock.Actor.web(user))
     {:ok, run} = Gardener.run(board, only: ["long_section"])
     assert run.counts["total"] == 0
 

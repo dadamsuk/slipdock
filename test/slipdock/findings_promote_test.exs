@@ -292,7 +292,7 @@ defmodule Slipdock.FindingsPromoteTest do
     end
 
     test "accepting promotes the finding with the rule id, and writes the rule", ctx do
-      {:ok, _} = Gardener.apply(ctx.suggestion, ctx.owner)
+      {:ok, _} = Gardener.apply(ctx.suggestion, ctx.owner, actor: Slipdock.Actor.web(ctx.owner))
 
       assert %{status: "promoted", note: note} = Repo.get!(Finding, ctx.finding.id)
       assert note == "UX-4 (proposal ##{ctx.suggestion.id})"
@@ -301,13 +301,17 @@ defmodule Slipdock.FindingsPromoteTest do
                "- **UX-4** should · judgement · screens must not flash on load"
 
       # Undoing it opens the finding again, with the proposal open again.
-      {:ok, _} = Gardener.undo(Repo.get!(Suggestion, ctx.suggestion.id), ctx.owner)
+      {:ok, _} =
+        Gardener.undo(Repo.get!(Suggestion, ctx.suggestion.id), ctx.owner,
+          actor: Slipdock.Actor.web(ctx.owner)
+        )
+
       assert %{status: "open", note: "proposal #" <> _} = Repo.get!(Finding, ctx.finding.id)
       assert Promote.check(ctx.finding.id) == :skip
     end
 
     test "dismissing leaves it open with a note, and waits for the threshold again", ctx do
-      {:ok, _} = Gardener.dismiss(ctx.suggestion, ctx.owner)
+      {:ok, _} = Gardener.dismiss(ctx.suggestion, ctx.owner, actor: Slipdock.Actor.web(ctx.owner))
       dismissed = "proposal ##{ctx.suggestion.id} dismissed"
       assert %{status: "open", note: ^dismissed} = Repo.get!(Finding, ctx.finding.id)
 
@@ -522,7 +526,9 @@ defmodule Slipdock.FindingsPromoteTest do
     end
 
     test "only an open suggestion closes, and only one the server closed reopens", ctx do
-      {:ok, dismissed} = Gardener.dismiss(ctx.suggestion, ctx.owner)
+      {:ok, dismissed} =
+        Gardener.dismiss(ctx.suggestion, ctx.owner, actor: Slipdock.Actor.web(ctx.owner))
+
       assert {:error, "only an open suggestion can be closed"} = Gardener.close(dismissed, "x")
 
       assert {:error, "only a suggestion the server closed reopens"} =
@@ -532,7 +538,7 @@ defmodule Slipdock.FindingsPromoteTest do
     end
 
     test "a proposal a person dismissed is left as they left it, and not reopened", ctx do
-      {:ok, _} = Gardener.dismiss(ctx.suggestion, ctx.owner)
+      {:ok, _} = Gardener.dismiss(ctx.suggestion, ctx.owner, actor: Slipdock.Actor.web(ctx.owner))
       finding = Repo.get!(Finding, ctx.finding.id)
       {:ok, promoted} = Findings.triage(finding, "promote", %{"note" => "W-1950"})
       assert %{decided_by_id: decided_by, note: nil} = fresh(ctx.suggestion)

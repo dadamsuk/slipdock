@@ -94,7 +94,7 @@ defmodule Slipdock.Gardener.Checks.RuleChangedTest do
     assert [s] = run(board)
     assert Gardener.person_only?(s)
     assert {:error, _} = Gardener.dismiss(s, user, actor: Actor.runner(user, 1))
-    assert {:ok, _} = Gardener.dismiss(s, user)
+    assert {:ok, _} = Gardener.dismiss(s, user, actor: Slipdock.Actor.web(user))
 
     assert run(board) == []
 
@@ -110,7 +110,7 @@ defmodule Slipdock.Gardener.Checks.RuleChangedTest do
     agent(board, user, body("An agent's intro.", @two))
 
     assert [s] = run(board)
-    assert {:ok, _} = Gardener.apply(s, user)
+    assert {:ok, _} = Gardener.apply(s, user, actor: Slipdock.Actor.web(user))
 
     page = Repo.get!(Page, ux(board).id)
     assert page.body =~ "An agent's intro."
@@ -129,7 +129,7 @@ defmodule Slipdock.Gardener.Checks.RuleChangedTest do
     assert [s] = run(board)
 
     person(board, user, body("Intro.", @two <> "- **UX-4** should · judgement · Short labels.\n"))
-    assert {:error, message} = Gardener.apply(s, user)
+    assert {:error, message} = Gardener.apply(s, user, actor: Slipdock.Actor.web(user))
     assert message =~ "has changed since this was proposed"
   end
 

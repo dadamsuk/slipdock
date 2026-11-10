@@ -167,16 +167,27 @@ defmodule SlipdockWeb.GardenLive.Index do
     with_suggestion(socket, id, fn s ->
       Gardener.apply(s, socket.assigns.current_user,
         choice: params["choice"],
-        keep: params["keep"]
+        keep: params["keep"],
+        actor: in_person(socket)
       )
     end)
   end
 
   def handle_event("dismiss", %{"id" => id}, socket),
-    do: with_suggestion(socket, id, &Gardener.dismiss(&1, socket.assigns.current_user))
+    do:
+      with_suggestion(
+        socket,
+        id,
+        &Gardener.dismiss(&1, socket.assigns.current_user, actor: in_person(socket))
+      )
 
   def handle_event("undo", %{"id" => id}, socket),
-    do: with_suggestion(socket, id, &Gardener.undo(&1, socket.assigns.current_user))
+    do:
+      with_suggestion(
+        socket,
+        id,
+        &Gardener.undo(&1, socket.assigns.current_user, actor: in_person(socket))
+      )
 
   # Every suggestion of one check, each on its own: one that can't be
   # applied (it wants a pick, or something moved on) is left, and said.
@@ -186,7 +197,7 @@ defmodule SlipdockWeb.GardenLive.Index do
     results =
       for s <- Gardener.list_open(socket.assigns.board, check: check),
           not Steps.needs_pick?(s.proposal),
-          do: Gardener.apply(s, user)
+          do: Gardener.apply(s, user, actor: in_person(socket))
 
     failed = Enum.count(results, &(not match?({:ok, _}, &1)))
     done = length(results) - failed
@@ -545,4 +556,8 @@ defmodule SlipdockWeb.GardenLive.Index do
     </Layouts.app>
     """
   end
+
+  # The signed-in person deciding here: the only decider a person-only
+  # suggestion accepts (`Gardener.in_person?/1`).
+  defp in_person(socket), do: Slipdock.Actor.web(socket.assigns.current_user)
 end
