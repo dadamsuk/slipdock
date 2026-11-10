@@ -1233,7 +1233,11 @@ defmodule SlipdockWeb.HelpLive.Agents do
         or <code>security</code>
         one a defect review and, on a board that ships by pull request, waits by default for a
         person before it merges, and a <code>spike</code>
-        merges nothing. An agent may raise a card's profile once work has started, never lower
+        merges nothing. A <code>fix</code>, <code>feature</code>, <code>schema</code>
+        or <code>security</code>
+        card's verifier mutates the change: 3 to 5 of its most consequential lines and every
+        guard or branch it adds, each named with its line, and it checks each claim in the
+        builder's evidence rather than carry it. An agent may raise a card's profile once work has started, never lower
         it, and the change it completes with can raise it too (<code>slipdock done 12 --diff-base origin/main</code>). With profiles off, no profile is sent.
       </p>
       <p>

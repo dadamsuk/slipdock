@@ -52,8 +52,29 @@ defmodule Slipdock.BuilderMutationReviewDocsTest do
     end
   end
 
-  test "the slipdock-loop skill says the verifier carries the named mutants" do
-    assert read("priv/skills/slipdock-loop/SKILL.md") =~
-             ~r/verifier\s+carries those and breaks other lines/
+  test "the slipdock-loop skill says the named mutants are a map (#2696)" do
+    skill = read("priv/skills/slipdock-loop/SKILL.md")
+    assert skill =~ "reads them as a map, not a verdict"
+
+    assert skill =~
+             "carries a killed one only when it broke it again or a test you name plainly covers that line"
+
+    assert skill =~ "breaks every guard or branch your diff adds"
+    refute skill =~ ~r/verifier\s+carries those and breaks other lines/
+  end
+
+  test "the slipdock skill says the named mutants are a map (#2696)" do
+    skill = read("priv/skills/slipdock/SKILL.md")
+    assert skill =~ "(a map, not a verdict: the verifier carries a killed one only when re-run"
+    assert skill =~ "breaks every guard you add)"
+    refute skill =~ "breaks other lines rather than repeat them"
+  end
+
+  test "docs/agents.md says the same, and that every claim is checked (#2696)" do
+    agents = read("docs/agents.md")
+    assert agents =~ "lists them as a map, not a verdict"
+    assert agents =~ "every guard or branch the diff adds"
+    assert agents =~ "The verifier checks every claim in your evidence"
+    refute agents =~ "it carries the killed ones"
   end
 end

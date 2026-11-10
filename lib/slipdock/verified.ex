@@ -2884,7 +2884,7 @@ defmodule Slipdock.Verified do
     """
     Verify card ##{card.id} “#{card.title}” on #{board.name} before it counts as done: #{url}
 
-    Another agent did the work and submitted it. You are the second agent: check the work, don't redo it, and don't change the code or the card beyond your decision.
+    Another agent did the work and submitted it. You are the second agent: don't change the code or the card beyond your decision. The builder's evidence says where to look, not what to believe: check each claim in it, never carry one on its word. A test it names is read and run, a mutant it says was killed is broken again or sampled, a docs place it says it updated is opened.
     #{resubmission_block(card)}
     #{card_block(card, board, judging)}
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
@@ -3055,12 +3055,12 @@ defmodule Slipdock.Verified do
         else: "the card's tests (`#{Enum.join(List.wrap(card.evidence_tests), " ")}`)"
 
     """
-    The mutation step: would the tests catch a break? This card's profile is `#{profile}`. In the clean worktree, pick 3 to 5 of the most consequential lines the diff added or changed: a condition, a guard, an error branch, a returned value. Break each one in turn (flip `>` to `>=`, drop the branch, return the wrong thing), run only #{tests}, never the whole suite, then restore the line before the next (`git checkout -- <file>`) and leave the tree as you found it.#{fix_mutation(profile)} On a board that ships by pull request run these tests yourself all the same: CI ran the suite, not the mutations. Give each mutant as a part, its file and line read in the clean tree:
+    The mutation step: would the tests catch a break? This card's profile is `#{profile}`. In the clean worktree, pick 3 to 5 of the most consequential lines the diff added or changed: a condition, a guard, an error branch, a returned value. On top of those, break once each guard or branch the diff adds (a new condition, clause, pattern match or early return), naming each with its line: a survivor there is a rejection like any other. Break each one in turn (flip `>` to `>=`, drop the branch, return the wrong thing), run only #{tests}, never the whole suite, then restore the line before the next (`git checkout -- <file>`) and leave the tree as you found it.#{fix_mutation(profile)} On a board that ships by pull request run these tests yourself all the same: CI ran the suite, not the mutations. Give each mutant as a part, its file and line read in the clean tree:
        - Killed: a test failed. `--check mutant:killed=lib/foo.ex:42:"> to >="`.
        - Survived: no test failed, on a line the diff added or changed. It is a rejection, its reason naming the mutation and the test to write: `--check mutant:survived=lib/foo.ex:42:"drop the nil guard":"a test that passes nil"`.
        - Pre-existing: a survivor on a line the diff didn't change. Reported only, and kept as a finding: `--check mutant:pre-existing=lib/bar.ex:90:"return []"`.
        - Nothing in the diff worth mutating (only text, config or a rename): `--check mutants=n/a:"why"`, and say why in the reason.
-    #{builder_mutants_note(card)}#{mutation_resubmission(card, opts)}   Step: `mutating the change`\
+    #{builder_mutants_note(card, opts)}#{mutation_resubmission(card, opts)}   Step: `mutating the change`\
     """
   end
 
@@ -3086,8 +3086,9 @@ defmodule Slipdock.Verified do
   def builder_mutants(_card), do: []
 
   # The builder runs the mutation review before submitting (#2635) and names
-  # what it broke: the verifier carries those and spends its own on others.
-  defp builder_mutants_note(card) do
+  # what it broke. The list is a map (#2696): a killed one is carried only
+  # when re-run or plainly covered by a named test; an audit carries none.
+  defp builder_mutants_note(card, opts) do
     case builder_mutants(card) do
       [] ->
         "   The builder named no mutants in its evidence (`mutant:killed=<file>:<line>:<mutation>` lines): choose all of yours freely, and say in the reason that it named none.\n"
@@ -3095,8 +3096,16 @@ defmodule Slipdock.Verified do
       mutants ->
         listed = Enum.map_join(mutants, "\n", &"     - `#{mutant_line(&1)}`")
 
-        "   The builder ran this review before submitting and names the mutants it tried:\n#{listed}\n   Don't break those again: carry each one it says was killed (`--check mutant:carried=<file>:<line>`) and spend your 3 to 5 on other lines. One it says survived must have a test now or a stated reason in the evidence; break it again.\n"
+        "   The builder ran this review before submitting and names the mutants it tried:\n#{listed}\n   That list is a map, not a verdict. #{carry_builder_mutants(opts)} Spend your 3 to 5 on other lines. One it says survived must have a test now or a stated reason in the evidence; break it again.\n"
     end
+  end
+
+  defp carry_builder_mutants(opts) do
+    if Keyword.get(opts, :audit, false),
+      do:
+        "An audit carries nothing: break again each one it says was killed, or give your own result for its line.",
+      else:
+        "One it says was killed is carried only when you broke it again yourself (give your result) or a test the builder names plainly covers that line (`--check mutant:carried=<file>:<line>`, and say which test); otherwise break it again."
   end
 
   defp mutant_line(%{"result" => result, "file" => file, "line" => line} = mutant) do

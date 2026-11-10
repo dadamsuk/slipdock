@@ -249,7 +249,11 @@ B --verify-pool checkers`, `PATCH /api/boards/:board {"verify_pool":
 "checkers"}`; blank for none) sends each submitted card to that
 [runner](runners.md) pool as a job of kind `verify`. Its prompt carries the
 card's link, what it asks (its description), its bar, the evidence and
-commit, and the two `slipdock verify` commands to decide with. The verifier
+commit, and the two `slipdock verify` commands to decide with. The
+builder's evidence says where to look, not what to believe (#2696): the
+verifier checks each claim in it rather than carry it, so a test it names
+is read and run, a mutant it says was killed is broken again or sampled,
+and a docs place it says it updated is opened. The verifier
 judges four things in order: whether the bar covers what the card asks for
 (a bar that leaves part out is a rejection), the bar itself, and on a board
 with a handbook (its `Handbook/` wiki pages) the rules for the paths the change touches
@@ -280,7 +284,16 @@ deferral to a card whose bar doesn't name the place counts as missing. The
 builder's claimed prompt gives it the same enumeration, and tells it to
 list each place its lane can't reach on the deferral card's bar. A card
 outside the scope, or a handbook with no `SPEC-10`, gets neither. An audit
-judges it the same way. It also asks the agent to say where it is at each
+judges it the same way. On a card that gets the
+[mutation step](profiles.md) (a `fix`, `feature`, `schema` or `security`
+card, with profiles on) the verifier breaks 3 to 5 of the most
+consequential lines the diff added or changed and, on top of those, every
+guard or branch the diff adds (a new condition, clause, pattern match or
+early return), once each and named with its line; a survivor on any of
+them is a rejection. The mutants the builder names in its evidence are a
+map: one it says was killed is carried only when the verifier broke it
+again or a test the builder names plainly covers that line. An audit
+asks for the same guard mutants and carries none. It also asks the agent to say where it is at each
 step with `slipdock job-progress --step "…"` (checked out the commit, tests
 running, tests passed or failed with counts, judging against the bar, the
 decision), and never with a note: the steps show against the job on the

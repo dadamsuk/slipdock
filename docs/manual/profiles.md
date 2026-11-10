@@ -164,8 +164,10 @@ card` list each finding.
 verify job (or an audit) on such a card, with profiles on, checks that
 the card's tests would catch a break: in its clean worktree the verifier
 picks 3 to 5 of the most consequential lines the diff added or changed
-(a condition, a guard, an error branch, a returned value), breaks each
-in turn, runs only the card's `--tests` and restores the line. On a
+(a condition, a guard, an error branch, a returned value), and on top
+of those every guard or branch the diff adds (a new condition, clause,
+pattern match or early return), once each and named with its line. It
+breaks each in turn, runs only the card's `--tests` and restores the line. On a
 `fix`, one mutation undoes the fix, and the regression test must catch
 it. Each is a check: `mutant:killed=lib/foo.ex:42:"> to >="`,
 `mutant:survived=lib/foo.ex:42:<mutation>:<the test that's missing>`, a
@@ -177,7 +179,10 @@ reported only and kept as a finding. Nothing worth mutating is
 a `spike` and a `--no-code` completion get no mutation step. On a board
 that ships by pull request the verifier runs these tests itself: CI ran
 the suite, not the mutations. Builders run the same step on their own
-work before submitting.
+work before submitting and name their mutants in the evidence; that list
+is a map, not a verdict: the verifier carries a killed one only when it
+broke it again or a test the builder names plainly covers that line, and
+an audit carries none.
 
 **A model per profile.** A claimed job carries its card's profile (with
 profiles on): the runner's `x-card-profile` header, `job.profile` in

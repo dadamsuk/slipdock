@@ -4368,7 +4368,9 @@ defmodule SlipdockWeb.APIGuide do
       checks (`verify_checks.defect_review`); an Important one is a
       rejection, a Nit or a Pre-existing one is reported only. A verify
       job on a `fix`, `feature`, `schema` or `security` card adds a
-      mutation review: 3 to 5 changed lines broken on purpose, the card's
+      mutation review: 3 to 5 changed lines broken on purpose, and every
+      guard or branch the diff adds (a new condition, clause, pattern match
+      or early return) once each, named with its line, the card's
       tests run against each, given as
       `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>[:note]`
       checks, or `mutants=n/a:<why>` (`verify_checks.mutants`). A survivor

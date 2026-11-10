@@ -321,7 +321,7 @@ defmodule Slipdock.ProfilesVerifyTest do
       assert step =~ "`mutant:killed=lib/a.ex:42:flip > to >=`"
       assert step =~ "`mutant:survived=lib/a.ex:51:drop the nil guard:no test yet`"
       assert step =~ "--check mutant:carried=<file>:<line>"
-      assert step =~ "spend your 3 to 5 on other lines"
+      assert step =~ "Spend your 3 to 5 on other lines"
       refute step =~ "named no mutants"
       refute step =~ "no place here"
 
