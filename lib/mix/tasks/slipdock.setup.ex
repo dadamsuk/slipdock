@@ -230,21 +230,15 @@ defmodule Mix.Tasks.Slipdock.Setup do
   defp put_if(attrs, nil, _key, _validate), do: attrs
   defp put_if(attrs, value, key, validate), do: Map.put(attrs, key, validate.(value))
 
-  defp validate_mode(mode) do
-    if mode in ~w(open allowlist approval closed) do
-      mode
-    else
-      Mix.raise("--mode must be one of: open, allowlist, approval, closed")
-    end
-  end
+  defp validate_mode(mode) when mode in ~w(open allowlist approval closed), do: mode
 
-  defp validate_directory(directory) do
-    if directory in ~w(instance shared_only) do
-      directory
-    else
-      Mix.raise("--directory must be instance or shared_only")
-    end
-  end
+  defp validate_mode(_mode),
+    do: Mix.raise("--mode must be one of: open, allowlist, approval, closed")
+
+  defp validate_directory(directory) when directory in ~w(instance shared_only), do: directory
+
+  defp validate_directory(_directory),
+    do: Mix.raise("--directory must be instance or shared_only")
 
   defp errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {message, _} -> message end)
