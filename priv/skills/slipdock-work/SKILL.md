@@ -168,7 +168,13 @@ whole card before touching it.
 - **Lanes, where they are on** (the board's line in the guide says `lanes:
   on` or `lanes: advise`). Before starting a card, write the paths its work will touch:
   `slipdock edit <id> --paths "lib/foo/**,docs/manual.md"`, as narrow as the
-  brief allows. A move refused for overlapping a card in progress names
+  brief allows. A glob ending in `**` at most one directory below the
+  repository root (`lib/**`, `lib/slipdock/**`, `docs/**`), unless wholly
+  inside a shared path, is *broad*: it overlaps most cards. Broad is
+  advice, not a refusal, but a glob marked broad in the job prompt's Paths
+  block (or listed in `paths_broad` in `get_card`) is narrowed before
+  starting, to the files or the deepest directory the change touches (an
+  in-progress card's paths may change). A move refused for overlapping a card in progress names
   that card: narrow the paths, or leave the card blocked by it; only a
   person overrides a lane. On a push board a card awaiting verification
   frees its lane and its dependents; on a pull request board it holds both

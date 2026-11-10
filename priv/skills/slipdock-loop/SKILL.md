@@ -1109,7 +1109,15 @@ or the runner has it on; with none of it on, skip this section.
   runner's `list_top` job the claim has moved the card in already (step 4),
   so paths you write now are checked as an in-progress card's paths edit:
   one that overlaps another card in progress is refused. Keep them as
-  narrow as the brief allows. Declare the files the board shares too
+  narrow as the brief allows. A glob is *broad* when it ends in `**` and
+  sits at most one directory below the repository root (`lib/**`,
+  `lib/slipdock/**`, `docs/**`, `test/**`), unless wholly inside a shared
+  path: it overlaps most cards. Broad is advice, not a refusal:
+  nothing is refused or held for it. But a glob marked broad in the job
+  prompt's Paths block (or listed in `paths_broad` in `get_card` and
+  `slipdock card`) is narrowed before starting, to the files or the
+  deepest directory the change touches (you may change an in-progress
+  card's paths). Declare the files the board shares too
   (`shared paths` on its line, such as the manual): they hold no lane, and
   the job's prompt names them. Others may edit them at the same time, so
   keep to your own sections and rebase before pushing. If the move is refused because they overlap a
