@@ -15,19 +15,27 @@ defmodule SlipdockWeb.LanesBroadSkillsDocsTest do
   defp phrase(text), do: text |> String.split() |> Enum.map_join("\\s+", &Regex.escape/1)
   defp says?(doc, text), do: doc =~ Regex.compile!(phrase(text))
 
+  # Shared by both skills. The definition itself (the `**` and how far below
+  # the root) is worded differently in each, so each test pins its own.
   @parts [
-    "at most one directory below the repository root",
     "unless wholly inside a shared path",
     "advice, not a refusal",
     "a glob marked broad in the job prompt's Paths block",
-    "`paths_broad`",
+    "(or listed in `paths_broad` in `get_card`",
     "is narrowed before starting"
   ]
 
   test "the loop skill's Lanes section says what broad is and that it is narrowed first" do
     [_, lanes] = String.split(read("priv/skills/slipdock-loop/SKILL.md"), "\n## Lanes\n")
     [lanes | _] = String.split(lanes, "\n## ")
-    assert says?(lanes, "Keep them as narrow as the brief allows. A glob is *broad*")
+
+    assert says?(
+             lanes,
+             "Keep them as narrow as the brief allows. A glob is *broad* when it ends in `**` and " <>
+               "sits at most one directory below the repository root"
+           )
+
+    assert says?(lanes, "`paths_broad` in `get_card` and `slipdock card`)")
     for part <- ["wholly inside a shared path" | @parts], do: assert(says?(lanes, part), part)
   end
 
@@ -36,6 +44,7 @@ defmodule SlipdockWeb.LanesBroadSkillsDocsTest do
     [_, step] = String.split(work, "- **Lanes, where they are on**")
     [step | _] = String.split(step, "\n- **")
     assert says?(step, "as narrow as the brief allows.")
+    assert says?(step, "A glob ending in `**` at most one directory below the repository root")
     assert says?(step, "is *broad*")
     for part <- @parts, do: assert(says?(step, part), part)
   end
