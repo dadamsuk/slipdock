@@ -45,7 +45,7 @@ defmodule Slipdock.PrePushAliasTest do
              {"format", ["--check-formatted"], cd: "cli"},
              {"compile", ["--warnings-as-errors"], cd: "cli"},
              {"go", ["vet", "./..."], cd: "daemon", exec: true},
-             {"go", ["test", "./..."], cd: "daemon", exec: true},
+             {"go", ["test", "-race", "./..."], cd: "daemon", exec: true},
              {"ecto.drop", ["--quiet"]},
              {"test", project().repo_checks()},
              {"hex.audit", []},
@@ -274,14 +274,14 @@ defmodule Slipdock.PrePushAliasTest do
     test "run go vet and go test in daemon/, as CI's daemon job does, after the CLI's compile" do
       steps = project().pre_push_steps()
       assert Enum.at(steps, 4) == {"go", ["vet", "./..."], cd: "daemon", exec: true}
-      assert Enum.at(steps, 5) == {"go", ["test", "./..."], cd: "daemon", exec: true}
+      assert Enum.at(steps, 5) == {"go", ["test", "-race", "./..."], cd: "daemon", exec: true}
       assert File.regular?(Path.join([@root, "daemon", "go.mod"]))
     end
 
     test "say they run go, not mix, and where" do
       out = capture_io(fn -> project().pre_push([], recorder()) end)
       assert out =~ "==> pre_push: go vet ./... (in daemon/)\n"
-      assert out =~ "==> pre_push: go test ./... (in daemon/)\n"
+      assert out =~ "==> pre_push: go test -race ./... (in daemon/)\n"
       refute out =~ "mix go"
     end
 
@@ -295,7 +295,7 @@ defmodule Slipdock.PrePushAliasTest do
             end)
           end
 
-        assert error.message == "pre_push: go test ./... (in daemon/) failed (exit 1)"
+        assert error.message == "pre_push: go test -race ./... (in daemon/) failed (exit 1)"
       end)
 
       assert ran() == ["compile", "format", "format", "compile", "go"]
