@@ -209,3 +209,55 @@ func TestNewer(t *testing.T) {
 		t.Error("IsRelease")
 	}
 }
+
+// The CLI's signature (#2669) is the same key in a namespace of its own:
+// a release manifest's signature is no CLI's, and a CLI's no release's.
+func TestTheCLIsNamespaceIsItsOwn(t *testing.T) {
+	pub, priv := newKey(t)
+	escript := []byte("#!/usr/bin/env escript\nthe CLI\n")
+	cliSig := SignIn(CLINamespace, priv, escript)
+	if err := VerifyIn(CLINamespace, pub, escript, cliSig); err != nil {
+		t.Fatalf("the CLI's own signature refused: %v", err)
+	}
+	if err := Verify(pub, escript, cliSig); err == nil || !strings.Contains(err.Error(), `not "slipdock-runner"`) {
+		t.Errorf("a CLI signature passed as a release's: %v", err)
+	}
+	if err := VerifyIn(CLINamespace, pub, escript, Sign(priv, escript)); err == nil || !strings.Contains(err.Error(), `not "slipdock-cli"`) {
+		t.Errorf("a release signature passed as the CLI's: %v", err)
+	}
+	if err := VerifyIn(CLINamespace, nil, escript, cliSig); !errors.Is(err, ErrNoKey) {
+		t.Errorf("no key: got %v", err)
+	}
+	if CLINamespace == Namespace {
+		t.Fatal("the CLI shares the release's namespace")
+	}
+}
+
+// What the release job does for the CLI (ssh-keygen -Y sign -n
+// slipdock-cli) is what VerifyIn takes.
+func TestTheCLIsSignatureAgreesWithSSHKeygen(t *testing.T) {
+	keygen, err := exec.LookPath("ssh-keygen")
+	if err != nil {
+		t.Skip("no ssh-keygen on this machine")
+	}
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "key")
+	if out, err := exec.Command(keygen, "-q", "-t", "ed25519", "-N", "", "-C", "test", "-f", keyPath).CombinedOutput(); err != nil {
+		t.Fatalf("keygen: %v %s", err, out)
+	}
+	pubText, _ := os.ReadFile(keyPath + ".pub")
+	pub, err := ParsePublicKey(string(pubText))
+	if err != nil {
+		t.Fatal(err)
+	}
+	escript := filepath.Join(dir, "slipdock.escript")
+	body := []byte("#!/usr/bin/env escript\nthe CLI\n")
+	os.WriteFile(escript, body, 0o644)
+	if out, err := exec.Command(keygen, "-Y", "sign", "-f", keyPath, "-n", CLINamespace, escript).CombinedOutput(); err != nil {
+		t.Fatalf("sign: %v %s", err, out)
+	}
+	sig, _ := os.ReadFile(escript + ".sig")
+	if err := VerifyIn(CLINamespace, pub, body, sig); err != nil {
+		t.Fatalf("ssh-keygen's CLI signature refused: %v", err)
+	}
+}

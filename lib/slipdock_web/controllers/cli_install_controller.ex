@@ -5,6 +5,7 @@ defmodule SlipdockWeb.CLIInstallController do
       GET /cli/install.ps1        installs it on Windows, for one user, from here
       GET /cli/slipdock.escript   the CLI itself, an Erlang escript
       GET /cli/SHA256SUMS         its SHA-256, in `sha256sum -c` form
+      GET /cli/slipdock.escript.sig  its signature with the project's release key
 
   The escript is built into the image (see the Dockerfile) at
   `priv/cli/slipdock.escript`, from the `cli/` this release was built from. A
@@ -13,6 +14,14 @@ defmodule SlipdockWeb.CLIInstallController do
   this server, like `/install.ps1`, so it is written for whoever asks; the
   escript is the same bytes for everybody, which is what makes the checksum
   worth publishing.
+
+  The signature (#2669, W-2542) is an OpenSSH signature in the namespace
+  `slipdock-cli`, made by the release job, which builds the escript and
+  signs it before the image is built; the image then serves those bytes and
+  `priv/cli/slipdock.escript.sig` beside them. A server built any other way
+  (from source, or an image from a commit the release job didn't sign) has
+  none and answers 404, and the runner daemon then keeps the machine's own
+  CLI unless its `local.json` sets `cli_checksum_only`.
   """
   use SlipdockWeb, :controller
 
@@ -21,6 +30,7 @@ defmodule SlipdockWeb.CLIInstallController do
   @install File.read!(@install_path)
 
   @missing "this server was built without the slipdock CLI\n"
+  @unsigned "this server's slipdock CLI is not signed with the release key\n"
 
   def install_ps1(conn, _params) do
     base = SlipdockWeb.BaseURL.from_conn(conn)
@@ -65,6 +75,20 @@ defmodule SlipdockWeb.CLIInstallController do
 
       {:error, _} ->
         send_resp(conn, 404, @missing)
+    end
+  end
+
+  # Not a hole: the signature's path is the release's own, beside the escript.
+  # sobelow_skip ["Traversal.FileModule"]
+  def signature(conn, _params) do
+    with {:ok, %{type: :regular}} <- File.stat(escript_path()),
+         {:ok, sig} <- File.read(escript_path() <> ".sig") do
+      conn
+      |> put_resp_content_type("text/plain")
+      |> put_resp_header("cache-control", "no-cache")
+      |> send_resp(200, sig)
+    else
+      _ -> send_resp(conn, 404, @unsigned)
     end
   end
 

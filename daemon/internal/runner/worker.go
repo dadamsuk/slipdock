@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -18,6 +19,7 @@ import (
 	"github.com/dadamsuk/slipdock/daemon/internal/daemonstate"
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
+	"github.com/dadamsuk/slipdock/daemon/internal/release"
 )
 
 // Worker is one runner's loop: claim a job, run it, report it, claim the
@@ -55,6 +57,9 @@ type Worker struct {
 	// (default: JobsDir's parent).
 	Images     []string
 	MachineDir string
+	// ReleaseKey is the project's release key, which the server's CLI is
+	// checked against before it is installed (default release.Key).
+	ReleaseKey func() (ed25519.PublicKey, error)
 
 	// The protocol's pace, as the shell runner's defaults.
 	Wait            int           // seconds a claim waits for a job (25)
@@ -122,6 +127,9 @@ func (w *Worker) defaults() {
 	}
 	if w.Sleep == nil {
 		w.Sleep = sleepCtx
+	}
+	if w.ReleaseKey == nil {
+		w.ReleaseKey = release.Key
 	}
 	if w.DriftEvery == 0 {
 		w.DriftEvery = driftEvery

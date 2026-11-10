@@ -304,14 +304,19 @@ the installed skills when the fetch fails, and runs the job anyway, saying
 so in the job's log. `no_skills_update: true` in the machine's local file
 turns it off. It keeps the `slipdock` CLI current the same way (#2631):
 when `/cli/SHA256SUMS` differs from the CLI the claim reports, it fetches
-`/cli/slipdock.escript`, checks its SHA-256 against those sums, and puts it
-in the daemon's own `bin` folder (beside its `jobs` folder), which goes
+`/cli/slipdock.escript`, checks its SHA-256 against those sums and its
+signature (`/cli/slipdock.escript.sig`) against the release key built into
+the daemon (#2669), and puts it in the daemon's own `bin` folder (beside its `jobs` folder), which goes
 first on the job's PATH and is the CLI the next claim reports, so the
 runner shows a current CLI after a deploy without a step on the machine. A
 copy you installed elsewhere is never written unless the local file names
 it as `cli`; then that file is replaced in place, unless it is a symlink.
 A failed fetch or a wrong sum keeps the CLI there was, and the job runs.
-`no_cli_update: true` turns it off, and the daemon's copy is then neither
+So does a signature that doesn't verify, and one the server doesn't serve
+(a server built from source, or a deploy the release job didn't sign: it
+signs each `v*` tag's), unless the local file sets `cli_checksum_only:
+true`, which takes the server's checksum alone. `no_cli_update: true` turns
+it off, and the daemon's copy is then neither
 used nor reported. Under the `user` executor the skills are the job
 account's, and the account unpacks them itself (`sudo -n -u`, fed the
 checked archive, with the same guards); its CLI the daemon doesn't write.

@@ -26,6 +26,11 @@ import (
 // else with the same key doesn't verify as a release.
 const Namespace = "slipdock-runner"
 
+// CLINamespace is the slipdock CLI's (#2669): the escript a server serves
+// is signed with the same key in a namespace of its own, so a signature
+// of one can't pass for the other.
+const CLINamespace = "slipdock-cli"
+
 const (
 	magic      = "SSHSIG"
 	sigVersion = 1
@@ -73,6 +78,14 @@ func parseWireKey(blob []byte) (ed25519.PublicKey, error) {
 // Namespace. Any fault (not armored, another key, another namespace, a
 // signature that doesn't match) is an error.
 func Verify(key ed25519.PublicKey, message, armored []byte) error {
+	return VerifyIn(Namespace, key, message, armored)
+}
+
+// VerifyIn is Verify in the namespace ns.
+func VerifyIn(ns string, key ed25519.PublicKey, message, armored []byte) error {
+	if len(key) == 0 {
+		return ErrNoKey
+	}
 	blob, err := dearmor(armored)
 	if err != nil {
 		return err
@@ -81,7 +94,7 @@ func Verify(key ed25519.PublicKey, message, armored []byte) error {
 	pre := r.raw(len(magic))
 	version := r.u32()
 	pub := r.str()
-	ns := r.str()
+	sigNS := r.str()
 	reserved := r.str()
 	hashAlg := r.str()
 	sig := r.str()
@@ -98,8 +111,8 @@ func Verify(key ed25519.PublicKey, message, armored []byte) error {
 	if !bytes.Equal(signer, key) {
 		return errors.New("the signature was made with another key, not the project's release key")
 	}
-	if string(ns) != Namespace {
-		return fmt.Errorf("the signature is for %q, not %q", ns, Namespace)
+	if string(sigNS) != ns {
+		return fmt.Errorf("the signature is for %q, not %q", sigNS, ns)
 	}
 	digest, err := hash(string(hashAlg), message)
 	if err != nil {
@@ -111,7 +124,7 @@ func Verify(key ed25519.PublicKey, message, armored []byte) error {
 	if sr.err != nil || string(sigType) != keyType || len(sigBytes) != ed25519.SignatureSize {
 		return errors.New("the signature is not an ed25519 signature")
 	}
-	if !ed25519.Verify(key, signedData(string(ns), reserved, string(hashAlg), digest), sigBytes) {
+	if !ed25519.Verify(key, signedData(ns, reserved, string(hashAlg), digest), sigBytes) {
 		return errors.New("the signature does not match: the file is not what the project signed")
 	}
 	return nil
@@ -121,14 +134,19 @@ func Verify(key ed25519.PublicKey, message, armored []byte) error {
 // `ssh-keygen -Y sign -n slipdock-runner` does. The release job signs with
 // ssh-keygen itself; this is for the tests.
 func Sign(priv ed25519.PrivateKey, message []byte) []byte {
+	return SignIn(Namespace, priv, message)
+}
+
+// SignIn is Sign in the namespace ns.
+func SignIn(ns string, priv ed25519.PrivateKey, message []byte) []byte {
 	pub := wireKey(priv.Public().(ed25519.PublicKey))
 	digest, _ := hash("sha512", message)
-	sig := ed25519.Sign(priv, signedData(Namespace, nil, "sha512", digest))
+	sig := ed25519.Sign(priv, signedData(ns, nil, "sha512", digest))
 	var b bytes.Buffer
 	b.WriteString(magic)
 	binary.Write(&b, binary.BigEndian, uint32(sigVersion))
 	putStr(&b, pub)
-	putStr(&b, []byte(Namespace))
+	putStr(&b, []byte(ns))
 	putStr(&b, nil)
 	putStr(&b, []byte("sha512"))
 	var s bytes.Buffer

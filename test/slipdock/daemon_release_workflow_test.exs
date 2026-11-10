@@ -26,12 +26,15 @@ defmodule Slipdock.DaemonReleaseWorkflowTest do
     assert job("daemon-release")["needs"] == "daemon-build"
   end
 
-  test "the signing key is read in the daemon-release job only, through its environment" do
+  # cli-sign signs the CLI the image serves with the same key (#2669), in
+  # the same environment.
+  test "the signing key is read only in the two signing jobs, through daemon-release" do
     readers =
       for {name, job} <- @jobs, inspect(job) =~ "DAEMON_SIGNING_KEY", do: name
 
-    assert readers == ["daemon-release"]
+    assert Enum.sort(readers) == ["cli-sign", "daemon-release"]
     assert job("daemon-release")["environment"] == "daemon-release"
+    assert job("cli-sign")["environment"] == "daemon-release"
     refute inspect(job("daemon-build")) =~ "secrets."
     assert job("daemon-build")["permissions"] == %{"contents" => "read"}
   end

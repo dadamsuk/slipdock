@@ -776,10 +776,15 @@ current again. The server never changes the machine; its daemon does,
 before each agent job (not a merge or a probe): it puts the server's skills
 in place, and when `/cli/SHA256SUMS` differs from the CLI it reports, it
 fetches `/cli/slipdock.escript`, checks its SHA-256 against those sums and
-puts it in the daemon's own `bin` folder, first on the job's PATH (or over
+its signature (`/cli/slipdock.escript.sig`) against the release key built
+into the daemon, and puts it in the daemon's own `bin` folder, first on the job's PATH (or over
 the `cli` its `local.json` names, never over a copy installed elsewhere).
 The next claim reports it, so a deploy leaves no runner *cli old*. A failed
-fetch or a wrong sum keeps the CLI there was, and the job runs.
+fetch or a wrong sum keeps the CLI there was, and the job runs. So does a
+CLI with no signature that verifies: the release job signs each `v*` tag's,
+and a server built from source or a deploy it didn't sign serves none, so
+its machines keep their own CLI (and show *cli old*) unless `local.json`
+sets `cli_checksum_only: true`.
 `no_cli_update: true` (and `no_skills_update` for the skills) in
 `local.json` turns it off. Under the `user` executor the job account unpacks
 the skills itself (the same checked archive), but the daemon doesn't write

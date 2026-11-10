@@ -61,6 +61,11 @@ type Local struct {
 	// every agent job, the server's is put in the daemon's own bin (or at
 	// CLI, when that is set) if the claim's CLI differs from it (#2631).
 	NoCLIUpdate bool `json:"no_cli_update,omitempty"`
+	// CLIChecksumOnly lets that update install a CLI the server serves
+	// unsigned, checked only against the server's own SHA256SUMS: by
+	// default only a CLI signed with the project's release key is
+	// installed (#2669, W-2542).
+	CLIChecksumOnly bool `json:"cli_checksum_only,omitempty"`
 	// User is the dedicated account jobs run as under the user executor
 	// (W-2543): init writes it when it sets the account up.
 	User *Account `json:"user,omitempty"`
