@@ -721,14 +721,16 @@ defmodule Slipdock.Automations do
 
   # The list's cards a feed could send, in list order, before the checks that
   # need them loaded: open, not a stand-in, not awaiting verification or a
-  # merge, not snoozed, and with no job open on them (#1956).
+  # merge, not snoozed, with no job open on them (#1956) and no question one
+  # of their jobs asked still open (#2707).
   defp feed_candidates(column, now) do
     from(c in Card,
       where:
         c.column_id == ^column.id and is_nil(c.archived_at) and c.completed == false and
           is_nil(c.stand_in_for_id) and
           coalesce(c.verify_state, "") not in ["pending", "merging", "held"] and
-          c.id not in subquery(open_job_cards()),
+          c.id not in subquery(open_job_cards()) and
+          c.id not in subquery(asking_job_cards()),
       order_by: [asc: c.position, asc: c.id]
     )
     |> Slipdock.Snooze.not_snoozed(now)
@@ -761,6 +763,18 @@ defmodule Slipdock.Automations do
       where: j.status in ^Slipdock.Runners.Job.open_statuses(),
       # A probe has no card (#2580); a NULL would empty `NOT IN`.
       where: not is_nil(j.card_id),
+      select: j.card_id
+    )
+  end
+
+  # Cards one of whose jobs asked a question that is still open, wherever in
+  # the card's tree it was asked: a job on an epic can ask on a subcard
+  # (#1755), which flags the subcard waiting and not the epic (#2707).
+  defp asking_job_cards do
+    from(w in Slipdock.Boards.Wait,
+      join: j in Slipdock.Runners.Job,
+      on: j.id == w.job_id,
+      where: is_nil(w.closed_at) and not is_nil(j.card_id),
       select: j.card_id
     )
   end
