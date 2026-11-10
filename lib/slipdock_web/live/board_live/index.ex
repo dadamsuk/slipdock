@@ -65,7 +65,8 @@ defmodule SlipdockWeb.BoardLive.Index do
          multiboard: m,
          lists: length(lists),
          boards:
-           for(b <- Map.values(readable), b.id in board_ids, do: b) |> Enum.sort_by(& &1.name)
+           for(b <- Map.values(readable), Enum.member?(board_ids, b.id), do: b)
+           |> Enum.sort_by(& &1.name)
        }}
     end
   end

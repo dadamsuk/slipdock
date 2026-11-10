@@ -117,7 +117,9 @@ defmodule SlipdockWeb.PublicLive.Show do
   end
 
   def handle_event("narrative_range", params, socket) do
-    query = for {k, v} <- Map.take(params, ~w(from to)), v not in [nil, ""], do: {k, v}
+    query =
+      for {k, v} <- Map.take(params, ~w(from to)), not Enum.member?([nil, ""], v), do: {k, v}
+
     {:noreply, push_patch(socket, to: ~p"/p/#{socket.assigns.token}?#{query}")}
   end
 

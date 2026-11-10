@@ -581,7 +581,7 @@ defmodule SlipdockWeb.BoardLive.State do
         _ -> nil
       end)
 
-  def board_tags(board, ids), do: Enum.filter(board.tags, &(&1.id in ids))
+  def board_tags(board, ids), do: Enum.filter(board.tags, &Enum.member?(ids, &1.id))
 
   # The board's readers that this user can see. A page's current assignee is
   # added back where it is shown (`assignee_options/2`), so a facet form that

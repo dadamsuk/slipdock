@@ -64,7 +64,7 @@ defmodule SlipdockWeb.ShortcutsHook do
            shortcuts: %{@closed | panel: panel, boards: boards(socket), vaults: vaults(socket)}
          )}
 
-      panel in [:command, :find, :notes] ->
+      Enum.member?([:command, :find, :notes], panel) ->
         {:halt,
          assign(socket,
            shortcuts:

@@ -318,7 +318,7 @@ defmodule SlipdockWeb.BoardLive.WaitComponents do
 
   defp whole(w) do
     [Wait.choice_text(w, w.choice), w.answer]
-    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.reject(&Enum.member?([nil, ""], &1))
     |> Enum.join(" — ")
   end
 

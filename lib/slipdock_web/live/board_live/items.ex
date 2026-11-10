@@ -50,7 +50,7 @@ defmodule SlipdockWeb.BoardLive.Items do
   """
   def scope_assignees(params, target, user) do
     Enum.reduce_while(~w(assignee_id add_assignee_ids), {:ok, params}, fn key, {:ok, acc} ->
-      refs = acc |> Map.get(key) |> List.wrap() |> Enum.reject(&(&1 in [nil, ""]))
+      refs = acc |> Map.get(key) |> List.wrap() |> Enum.reject(&Enum.member?([nil, ""], &1))
 
       case refs != [] && Boards.resolve_assignees(target, user, refs) do
         false -> {:cont, {:ok, acc}}

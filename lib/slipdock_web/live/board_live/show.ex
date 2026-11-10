@@ -526,7 +526,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp quick_add_target(board, parent_id) do
     with %Card{} = card <- Boards.get_card(parent_id),
-         true <- card.board_id == board.id or card.board_id in tree_board_ids(board),
+         true <- card.board_id == board.id or Enum.member?(tree_board_ids(board), card.board_id),
          {:ok, sub_id} <- sub_board_id(card) do
       {:ok, Boards.get_board!(sub_id), card}
     else
@@ -891,15 +891,17 @@ defmodule SlipdockWeb.BoardLive.Show do
 
       id ->
         tags = socket.assigns.filters.tags
-        tags = if id in tags, do: List.delete(tags, id), else: [id | tags]
+        tags = if Enum.member?(tags, id), do: List.delete(tags, id), else: [id | tags]
         {:noreply, put_filter(socket, :tags, tags)}
     end
   end
 
   def handle_event("filter_kind", %{"kind" => kind}, socket) do
     kinds = socket.assigns.filters.kinds
-    kinds = if kind in kinds, do: kinds -- [kind], else: [kind | kinds]
-    {:noreply, put_filter(socket, :kinds, Enum.filter(Slipdock.Kinds.keys(), &(&1 in kinds)))}
+    kinds = if Enum.member?(kinds, kind), do: kinds -- [kind], else: [kind | kinds]
+
+    {:noreply,
+     put_filter(socket, :kinds, Enum.filter(Slipdock.Kinds.keys(), &Enum.member?(kinds, &1)))}
   end
 
   def handle_event("filter_priority", %{"priority" => p}, socket) do
@@ -1264,7 +1266,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       else
         hidden = Slipdock.Boards.Board.hidden_views(board)
 
-        for {m, suffix, label, icon, _title, key} <- view_tabs_list(), m not in hidden do
+        for {m, suffix, label, icon, _title, key} <- view_tabs_list(),
+            not Enum.member?(hidden, m) do
           %{
             key: key,
             label: label,
