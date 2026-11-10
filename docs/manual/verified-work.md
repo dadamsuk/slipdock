@@ -73,9 +73,27 @@ card that has one), `slipdock edit 12 --bar "…"`, `PATCH /api/cards/:id
 `PATCH /api/boards/:board {"evidence_required": true}`) asks an agent
 completing a card for what it checked — the tests it ran and their result,
 what it looked at — and, when there is one, the commit it checked at:
-`slipdock done 12 --evidence "mix test: 38 passed" --evidence-commit abc1234`,
-MCP `complete_card`'s `evidence` and `commit`, or `PATCH /api/cards/:id
-{"completed": true, "evidence": "…", "evidence_commit": "abc1234"}`.
+`slipdock done 12 --evidence-commit abc1234 --evidence -` (the evidence on
+stdin), MCP `complete_card`'s `evidence` and `commit`, or `PATCH
+/api/cards/:id {"completed": true, "evidence": "…", "evidence_commit":
+"abc1234"}`.
+
+**Evidence and a reason are lines, not a paragraph.** A first line that
+stands alone, a blank line, then one short line per point; the parts go in
+their fields (the evidence's `--evidence-commit`, `--branch`, `--tests`,
+`--suite` and `--pr`, a verdict's `--check`), not repeated in the text.
+Comments keep a single line break, so the shape survives as written, but
+words on the command line lose their breaks: send it on stdin with a quoted
+heredoc, `--evidence -` or `--reason -`:
+
+```sh
+slipdock done 12 --evidence-commit abc1234 --suite passed:38:0 --evidence - <<'EOF'
+Built and tested; CI green.
+
+- the export keeps archived cards (`Export.run/1`)
+- Handbook: updated W-3 §Exports
+EOF
+```
 
 - Evidence can also come in parts the server checks the shape of (not the
   truth): `--branch main`, `--tests test/a_test.exs,test/b_test.exs` (the
@@ -104,6 +122,10 @@ MCP `complete_card`'s `evidence` and `commit`, or `PATCH /api/cards/:id
   a body. Pass the text itself, or pipe it (`slipdock add … --desc - <<'EOF'`)
   from a CLI that reads stdin. A person's own write is never refused, and
   text that merely starts with a dash (a Markdown list) goes through.
+- An agent's verdict whose reason is a bare `-` is refused the same way
+  (`422`), on accept, reject, agree and disagree: the reason piped to
+  `--reason -` never arrived, and the card stays as it was rather than
+  carrying a dash for a reason. A person is never refused.
 - The evidence shows on the card (**Evidence**, with the commit, branch,
   suite and test files) and in
   `slipdock card`, and is posted as a comment when the card completes.
@@ -126,7 +148,8 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   and moves it to the done list. An optional reason is kept as a note, and
   `--evidence-commit` / `commit` records the commit it was checked at. When
   the card has evidence for a commit, a different commit is refused.
-- **Reject** (`slipdock reject 12 --reason "…"`) needs the reason.
+- **Reject** (`slipdock reject 12 --reason -`, the reason on stdin as
+  lines) needs the reason.
   The reason is posted as a comment and shown in the card's verification
   block while it is rejected; the handoff only points there (*Rework:
   rejected by …, reason under Verification*). An agent taking the card up
@@ -137,8 +160,19 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   rule sends it next, and completing it submits it again. The card counts
   its rejections (*rejected 2×*, `verify_rejections`).
 - **The verdict in parts.** A verifier gives what it found for each check
-  as well as the reason: `slipdock verify 12 reject --reason "bar 2: no
-  footer" --check ask=ok --check bar:1=ok --check bar:2=fail:"no footer"`
+  as well as the reason, and the reason is lines, its parts left to
+  `--check`:
+
+  ```sh
+  slipdock verify 12 reject --check ask=ok --check bar:1=ok \
+    --check bar:2=fail:"no footer" --reason - <<'EOF'
+  bar 2: the page has no footer
+
+  - `Layout.page/1` renders the header only
+  - no test looks for the footer
+  EOF
+  ```
+
   (repeat `--check`, or `--checks-file F`, one per line), MCP
   `verify_card` `checks`, or `"checks": [...]` on the REST call. The parts
   are `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`,
@@ -220,7 +254,9 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   pull request has merged. Its prompt shows the original verdict, reason and
   parts, and asks for every rule to be judged, `should` rules too. An audit
   changes nothing on the card: its agent answers `slipdock verify 12 agree` or
-  `disagree --reason "…"` (with `--check` parts, as a verifier does), which
+  `disagree --reason -` (the reason on stdin as lines, its first line the
+  one the rework card is titled from, with `--check` parts, as a verifier
+  does), which
   posts a comment. The acceptance stands either way: the work has shipped,
   so a disagreement files the rework itself. It makes one card in the
   accepted card's board's ready list, titled *Audit of #12: …* from the
@@ -368,9 +404,20 @@ work reaches the default branch, and so the deploy:
 **Epics have no pull request of their own.** Each subcard of an epic
 ships and merges its own pull request, so by the time the epic is
 finished there is nothing left of it to merge. An agent completes an epic
-(a card whose sub-board holds cards) without `--pr`: `slipdock done 12
---evidence "subcards #13, #14 merged; main green"`. Accepting it completes
-it at once, with no merge job, and so does accepting one that names a pull
+(a card whose sub-board holds cards) without `--pr`, the evidence on stdin
+as lines:
+
+```sh
+slipdock done 12 --evidence - <<'EOF'
+Subcards merged; main green.
+
+- #13: PR 41
+- #14: PR 42
+- the last merged build: run 9001, passed
+EOF
+```
+
+Accepting it completes it at once, with no merge job, and so does accepting one that names a pull
 request one of its subcards already merged. The verifier checks that every
 subcard is accepted and merged and that the default branch's latest build
 passed, rather than running the suite. An epic that did work of its own,
@@ -380,10 +427,19 @@ acceptance merges it as for any card.
 **A card that changes no code has no pull request either.** A sweep, a
 handbook reconcile or any card that only reads and files has nothing to
 commit, so no branch and no pull request, and a token one would be noise.
-The agent completes it with the reason instead: `slipdock done 12 --no-code
-"a read-only sweep: filed #40 and #41" --evidence "…"` (`complete_card`
-`no_code`, `evidence_no_code` over the API). The card's **Evidence** shows
-the reason. Naming a pull request as well is refused (`422`), and without
+The agent completes it with the reason instead, and what it did on stdin as
+lines (`complete_card` `no_code`, `evidence_no_code` over the API):
+
+```sh
+slipdock done 12 --no-code "a read-only sweep: filed #40 and #41" --evidence - <<'EOF'
+Swept the board for stale cards.
+
+- filed #40: the export's docs
+- filed #41: the importer's timeout
+EOF
+```
+
+The card's **Evidence** shows the reason. Naming a pull request as well is refused (`422`), and without
 either the completion is refused as before. The verifier checks the claim
 against what the card asked for (a card that asks for code can't be done
 without any) and looks at what it did instead, without checking out a

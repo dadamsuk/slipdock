@@ -376,6 +376,36 @@ defmodule SlipdockWeb.HelpLive.Flow do
   defp actor_class(:ci), do: "badge-ghost"
   defp actor_class(:board), do: "badge-ghost italic"
 
+  @doc """
+  The completion example the page shows (#2699): evidence as lines, not a
+  paragraph, on stdin.
+  """
+  def evidence_example do
+    """
+    slipdock done 12 --evidence-commit abc1234 --suite passed:412:0 --evidence - <<'EOF'
+    Built and tested; CI green.
+
+    - the export keeps archived cards (`Export.run/1`)
+    - Handbook: updated W-3 §Exports
+    EOF\
+    """
+  end
+
+  @doc """
+  The rejection example the page shows (#2699): a reason as lines, its parts
+  in `--check`, on stdin.
+  """
+  def reason_example do
+    """
+    slipdock verify 12 reject --check bar:2=fail:"no test" --reason - <<'EOF'
+    bar 2: the export drops archived cards
+
+    - `Export.run/1` filters on `archived_at`
+    - no test exports an archived card
+    EOF\
+    """
+  end
+
   # ── The stages ────────────────────────────────────────────────────────────
 
   attr :id, :string, required: true
@@ -527,7 +557,7 @@ defmodule SlipdockWeb.HelpLive.Flow do
     <p>
       The builder completes the card with its <strong>evidence</strong>: what it checked, the
       commit, the tests it added or changed, the suite's result, and the pull request
-      (<code>slipdock done 12 --evidence-commit abc1234 --suite passed:412:0 --pr URL</code>). With
+      (<code>slipdock done 12 --evidence-commit abc1234 --suite passed:412:0 --pr URL --evidence -</code>, the rest on stdin). With
       <em>Evidence on completion</em>
       on, a completion without any is refused. Evidence that is a bare <code>-</code>
       is refused on any board: it is what a client that doesn't read stdin sends for <code>--evidence -</code>, so pass the text itself, or pipe it from a CLI that reads stdin. A card's description or bar that is a bare
@@ -535,6 +565,17 @@ defmodule SlipdockWeb.HelpLive.Flow do
       is refused the same way, on a create or an update, for <code>--desc -</code>
       and <code>--bar -</code>.
     </p>
+    <p>
+      <strong>Evidence and a reason are lines, not a paragraph</strong>: a first line that
+      stands alone, a blank line, then one short line per point, the parts in <code>--check</code>
+      or the evidence's fields rather than repeated in the text. The command line loses line
+      breaks, so they go on stdin (<code>--evidence -</code>, <code>--reason -</code>):
+    </p>
+    <pre
+      class="whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed"
+      data-role="evidence-example"
+      phx-no-format
+    >{evidence_example()}</pre>
     <p>
       On a board with a handbook, the closing comment has a <strong><code>Handbook:</code> line</strong>, the sections it updated or why none needed it, and a <strong><code>Findings:</code> block</strong>: what the card taught that the code and
       handbook don't show, for the daily triage to handle. An item already dealt with says where
@@ -596,8 +637,14 @@ defmodule SlipdockWeb.HelpLive.Flow do
       <code>fix</code>
       or <code>docs</code>
       card a <code>feature</code>, never lower. Then <code>slipdock verify 12 accept</code>
-      or <code>slipdock verify 12 reject --reason "bar 2: …"</code>.
+      or <code>slipdock verify 12 reject --reason -</code>, the reason on stdin as lines, its
+      parts in <code>--check</code>:
     </p>
+    <pre
+      class="whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed"
+      data-role="reason-example"
+      phx-no-format
+    >{reason_example()}</pre>
     <p>
       <strong>On a bug, the ask is the reported symptom</strong>: the check is would the reporter
       now see it fixed, not does the work meet the bar. The builder reproduces the reported symptom
