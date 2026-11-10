@@ -8,6 +8,10 @@ defmodule SlipdockWeb.Telemetry do
 
   @impl true
   def init(_arg) do
+    # The request log (see `SlipdockWeb.RequestLog`). Kept if it is already
+    # attached, as after this supervisor restarts.
+    SlipdockWeb.RequestLog.attach()
+
     children = [
       # Telemetry poller will execute the given period measurements
       # every 10_000ms. Learn more here: https://telemetry-metrics.hexdocs.pm
