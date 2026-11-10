@@ -438,7 +438,12 @@ first, which is a write: a read-only token can list but not run), and `garden_de
 `confirm: true`. Show the person the suggestions and apply only what they
 approve; never dismiss one on your own judgment, since a dismissal is
 remembered. The CLI is `slipdock garden <board> [--run]` and `slipdock garden
-apply|dismiss|undo <id>`. See [the manual](manual/tidying-up.md).
+apply|dismiss|undo <id>`. A proposed handbook edit is a person's to decide,
+and under Claude Code the CLI says it is an agent: a person deciding a
+proposal from Claude Code adds `--confirm` (`slipdock garden apply 41
+--confirm`, REST `confirm: true`). A runner job's confirm is refused, as is a
+bare script token's, so an agent never decides one on its own say. See [the
+manual](manual/tidying-up.md).
 
 Never take work from a **Triage** list (category `triage`; the guide marks
 it `triage: for a person`). The code sweep (`slipdock tools install-board

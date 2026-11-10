@@ -34,7 +34,7 @@ defmodule SlipdockWeb.GardenDocsTest do
 
     assert manual =~ "no backlink, no pin and no folder"
     assert manual =~ "slipdock garden apply 43 --keep 12"
-    assert manual =~ "POST  /api/garden/suggestions/:id/apply {keep?, choice?}"
+    assert manual =~ "POST  /api/garden/suggestions/:id/apply {keep?, choice?, confirm?}"
     assert manual =~ "**Weekly tidy-up**"
     assert manual =~ "A dismissal stays dismissed"
   end

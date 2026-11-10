@@ -100,6 +100,7 @@ slipdock garden apply 41 42              # apply; --choice snooze for an alterna
 slipdock garden apply 43 --keep 12       # a duplicate: card 12 stays
 slipdock garden dismiss 44
 slipdock garden undo 41
+slipdock garden apply 45 --confirm       # a proposal, decided by you from Claude Code
 slipdock garden settings ops                         # the checks and their settings
 slipdock garden settings ops stale_in_progress days=21
 ```
@@ -108,10 +109,18 @@ slipdock garden settings ops stale_in_progress days=21
 GET   /api/boards/:board/garden[?check=K]       open suggestions, last run, checks
 POST  /api/boards/:board/garden {check?}        look the board over now
 PATCH /api/boards/:board/garden/settings {check, enabled?, days?, …}
-POST  /api/garden/suggestions/:id/apply {keep?, choice?}
-POST  /api/garden/suggestions/:id/dismiss
-POST  /api/garden/suggestions/:id/undo
+POST  /api/garden/suggestions/:id/apply {keep?, choice?, confirm?}
+POST  /api/garden/suggestions/:id/dismiss {confirm?}
+POST  /api/garden/suggestions/:id/undo {confirm?}
 ```
+
+**A proposal from your own Claude Code.** A proposed handbook edit is yours
+to decide, never an agent's, and under Claude Code the CLI says it is an
+agent. So when you decide a proposal from Claude Code, add `--confirm`
+(`slipdock garden apply|dismiss|undo <id> --confirm`; over REST `confirm:
+true`): it says the decision is yours. A runner job's confirm is refused, and
+so is a bare script token's: an agent working a card can't decide a proposal
+whatever it sends.
 
 A suggestion carries `check`, `label`, `explanation`, `cards` and `pages`
 (ids and titles), `proposal` (the steps: `complete`, `move`, `archive`,
