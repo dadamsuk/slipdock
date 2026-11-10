@@ -204,3 +204,50 @@ func (l *lockedBuffer) String() string {
 	defer l.mu.Unlock()
 	return l.b.String()
 }
+
+// TestRunRunnersWaitsForTheCeilingsReport holds the ceiling's report in the
+// middle of logging while the run is stopped: runRunners doesn't return
+// until the report has ended, so nothing it logs lands after the run has
+// finished (#2644; a test reading the log then raced the report's write).
+func TestRunRunnersWaitsForTheCeilingsReport(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(ts.Close)
+	w := newWorld(t)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	logf := func(f string, a ...any) {
+		if strings.HasPrefix(f, "can't report the ceiling") {
+			once.Do(func() { close(entered) })
+			<-release
+		}
+	}
+	pause := func(ctx context.Context, _ time.Duration) error { <-ctx.Done(); return ctx.Err() }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	returned := make(chan struct{})
+	go func() {
+		defer close(returned)
+		runRunners(ctx, t.TempDir(), machine.State{Server: ts.URL}, "sdm_key", testCeiling(), machine.Local{},
+			w.env, pause, logf, make(chan struct{}), make(chan struct{}))
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the ceiling's report never logged its failure")
+	}
+	cancel()
+	select {
+	case <-returned:
+		close(release)
+		t.Fatal("runRunners returned while the ceiling's report was still logging")
+	case <-time.After(200 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-returned:
+	case <-time.After(5 * time.Second):
+		t.Fatal("runRunners didn't return once the ceiling's report had ended")
+	}
+}
