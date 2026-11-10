@@ -69,7 +69,8 @@ func fixture(t *testing.T, w *world, alive bool) {
 		t.Fatal(err)
 	}
 	writeFile(t, filepath.Join(d, machine.LocalFile), `{"hooks":{"setup":{"path":`+jsonString(hookPath(w))+`,"args":["--fast"]}},
-		"user":{"name":"slipdock","home":`+jsonString(accountHome(w))+`}}`)
+		"user":{"name":"slipdock","home":`+jsonString(accountHome(w))+`},
+		"runners":{"idle-one":{"env":{"MIX_TEST_PARTITION":"_idle","A_FLAG":"1"}},"gone":{"env":{"MIX_TEST_PARTITION":"_gone"}}}}`)
 	writeFile(t, filepath.Join(d, "config-cache.json"), `{"version":12,"runners":[`+
 		fixtureRunner(21, 3, "idle-one", filepath.Join(root, "app"), "acceptEdits", "me", false, `,"before_hook":"setup"`)+`,`+
 		fixtureRunner(22, 1, "busy-one", filepath.Join(root, "api"), "default", "user", false, `,"after_hook":"notify"`)+`,`+
@@ -428,6 +429,7 @@ func TestConfigEffectiveResolvesNames(t *testing.T) {
 	for _, want := range []string{
 		"agent claude:         /usr/bin/claude",
 		"before_hook setup:    " + hookPath(w) + " --fast",
+		"env:                  A_FLAG=1 MIX_TEST_PARTITION=_idle",
 		"runs as:              me: builder, as it is",
 		"root:                 " + filepath.Join(root, "app") + " is inside " + root,
 		// busy-one runs as the dedicated account, whose PATH the daemon can't see.
@@ -438,6 +440,10 @@ func TestConfigEffectiveResolvesNames(t *testing.T) {
 		if !strings.Contains(out, squash(want)) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
+	}
+
+	if strings.Count(out, "env:") != 1 || strings.Contains(strings.SplitN(out, "Runners (", 2)[1], "_gone") {
+		t.Errorf("only the runner the local file names shows an env row:\n%s", out)
 	}
 
 	// No local.json: claude found on the PATH, or not; the hook undefined.

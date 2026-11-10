@@ -332,7 +332,11 @@ optional, and with no file at all `claude` and `codex` are found on your
   "hooks": {
     "fresh-main": {"path": "/usr/local/bin/fresh-main.sh"}
   },
-  "models": {"schema": "opus"}
+  "models": {"schema": "opus"},
+  "runners": {
+    "build1": {"env": {"MIX_TEST_PARTITION": "_build1"}},
+    "verify": {"env": {"MIX_TEST_PARTITION": "_verify"}}
+  }
 }
 ```
 
@@ -348,6 +352,20 @@ optional, and with no file at all `claude` and `codex` are found on your
   (below), and a probe whose hook exits non-zero is red.
 - `models`: a model for a card's profile (`docs`, `fix`, `feature`,
   `schema`, `security`, `spike`), over the runner's own.
+- `runners`: the machine's own settings for a runner, by the name the
+  board gives it, exactly as written there. `env` is the variables that
+  runner's jobs get, its agent, its hooks and its probe alike, under every
+  executor (a container job gets them too). They come on top of what the
+  daemon was started with, and under the daemon's own: `SLIPDOCK_*`, and
+  `HOME`, `PATH` and the like, which each executor sets, are refused. Use
+  it to keep runners that share the machine apart: with a
+  `MIX_TEST_PARTITION` each, a builder's and a verifier's test suites
+  never share a database. Runners that share a name share its entry, a
+  name no runner has does nothing, and a rename on the board wants the
+  same rename here. The file is read when the daemon starts, so restart
+  the daemon after a change; `config --effective` shows each runner's
+  `env` as the file has it now. It is a plain file anyone on the machine
+  can read: not the place for a secret.
 - `user`: the dedicated account (`name`, `home`, and the `path` its jobs
   get), which `init` writes. `confined_writable`: what a confined job may
   write besides its directory.
@@ -686,8 +704,9 @@ slipdock-runner config [--effective | --json]
   settings with their version. For a runner whose settings were refused, it
   shows what was refused and why, with its line from `changes.log`.
   `--effective` resolves the names: the program each agent and hook runs
-  (or that a name isn't defined, so jobs fail), who jobs run as, and which
-  root the runner's directory is inside. `--json` prints the three files as
+  (or that a name isn't defined, so jobs fail), the variables `local.json`
+  sets for the runner (`env`), who jobs run as, and which root the
+  runner's directory is inside. `--json` prints the three files as
   they are, as one object. `show` is still the trust contract; `config` is
   the machine's settings.
 

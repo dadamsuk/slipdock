@@ -76,13 +76,27 @@ var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,127}$`)
 // container job gets (container.env), or nil. The daemon's SLIPDOCK_*
 // variables never pass: its tokens and the job variables are its own.
 func ValidPassEnv(name string) error {
+	return validEnv(name, "%s: the daemon's SLIPDOCK_* variables never pass into a container", "%s is the container's own")
+}
+
+// ValidJobEnv says why name can't be a variable the machine sets for a
+// runner's jobs (the local file's runners.<name>.env), or nil. The
+// SLIPDOCK_* variables are the daemon's to set, and HOME, PATH and the
+// like are each executor's own: one set here would be dropped by some
+// executors and override the others'.
+func ValidJobEnv(name string) error {
+	return validEnv(name, "%s: the SLIPDOCK_* variables are the daemon's to set", "%s is the executor's own")
+}
+
+// validEnv is the one check both make, each in its own words.
+func validEnv(name, daemons, reserved string) error {
 	switch {
 	case !envName.MatchString(name):
 		return fmt.Errorf("%q is not a variable's name", name)
 	case strings.HasPrefix(strings.ToUpper(name), "SLIPDOCK_"):
-		return fmt.Errorf("%s: the daemon's SLIPDOCK_* variables never pass into a container", name)
+		return fmt.Errorf(daemons, name)
 	case reservedEnv[strings.ToUpper(name)]:
-		return fmt.Errorf("%s is the container's own", name)
+		return fmt.Errorf(reserved, name)
 	}
 	return nil
 }

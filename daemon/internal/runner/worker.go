@@ -481,10 +481,12 @@ func (w *Worker) agentCommand(c Config, agent machine.Command, path string, job 
 	return append([]string{path}, args...)
 }
 
-// jobEnv is the SLIPDOCK_* environment a job and its hooks get.
+// jobEnv is the environment a job and its hooks get: what the machine's
+// local file sets for this runner by its name (#2667), then the daemon's
+// own SLIPDOCK_* variables.
 func (w *Worker) jobEnv(j *jobRun) []string {
 	job := j.job
-	env := append([]string(nil),
+	env := append(w.Local.RunnerEnv(w.Runner.Name),
 		fmt.Sprintf("SLIPDOCK_JOB_ID=%d", job.ID),
 		"SLIPDOCK_JOB_KIND="+job.Kind,
 		"SLIPDOCK_CARD="+cardText(job.CardID),

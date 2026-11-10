@@ -97,6 +97,23 @@ func TestImageAllowed(t *testing.T) {
 	}
 }
 
+func TestValidJobEnv(t *testing.T) {
+	for _, ok := range []string{"MIX_TEST_PARTITION", "GOFLAGS", "_x", "ANTHROPIC_MODEL"} {
+		if err := ValidJobEnv(ok); err != nil {
+			t.Errorf("%s: %v", ok, err)
+		}
+	}
+	for name, want := range map[string]string{
+		"SLIPDOCK_JOB_ID": "the daemon's to set", "slipdock_prompt": "the daemon's to set",
+		"HOME": "executor's own", "path": "executor's own", "TMPDIR": "executor's own",
+		"A=B": "not a variable", "": "not a variable", "1X": "not a variable", "A B": "not a variable",
+	} {
+		if err := ValidJobEnv(name); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("ValidJobEnv(%q) = %v, want %q", name, err, want)
+		}
+	}
+}
+
 func TestValidPassEnv(t *testing.T) {
 	for _, ok := range []string{"CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "GOFLAGS"} {
 		if err := ValidPassEnv(ok); err != nil {

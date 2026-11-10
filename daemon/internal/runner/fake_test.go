@@ -54,7 +54,7 @@ func helper(mode string, args []string) int {
 			fmt.Fprintf(&b, "arg=%s\n", strings.ReplaceAll(a, "\n", `\n`))
 		}
 		for _, e := range os.Environ() {
-			if strings.HasPrefix(e, "SLIPDOCK_") || strings.HasPrefix(e, "CLAUDE_CODE_") || (os.Getenv("HELPER_SHOW_PATH") != "" && strings.HasPrefix(e, "PATH=")) {
+			if strings.HasPrefix(e, "SLIPDOCK_") || strings.HasPrefix(e, "CLAUDE_CODE_") || strings.HasPrefix(e, "RUNNER_ENV_") || (os.Getenv("HELPER_SHOW_PATH") != "" && strings.HasPrefix(e, "PATH=")) {
 				fmt.Fprintf(&b, "env=%s\n", strings.ReplaceAll(e, "\n", `\n`))
 			}
 		}
@@ -96,11 +96,16 @@ func helper(mode string, args []string) int {
 			time.Sleep(20 * time.Millisecond)
 		}
 	case "hook":
-		// Appends "<name> <exit> <status> <job>" to $HELPER_HOOKS and exits
-		// with $HELPER_HOOK_EXIT_<name>.
+		// Appends "<name> <exit> <status> <job>" to $HELPER_HOOKS (and
+		// $RUNNER_ENV_PROBE, when it is set) and exits with
+		// $HELPER_HOOK_EXIT_<name>.
 		name := args[0]
 		f, _ := os.OpenFile(os.Getenv("HELPER_HOOKS"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-		fmt.Fprintf(f, "%s exit=%s status=%s job=%s\n", name, os.Getenv("SLIPDOCK_EXIT"), os.Getenv("SLIPDOCK_STATUS"), os.Getenv("SLIPDOCK_JOB_ID"))
+		probe := ""
+		if v := os.Getenv("RUNNER_ENV_PROBE"); v != "" {
+			probe = " probe=" + v
+		}
+		fmt.Fprintf(f, "%s exit=%s status=%s job=%s%s\n", name, os.Getenv("SLIPDOCK_EXIT"), os.Getenv("SLIPDOCK_STATUS"), os.Getenv("SLIPDOCK_JOB_ID"), probe)
 		f.Close()
 		fmt.Println("hook", name, "ran")
 		code, _ := strconv.Atoi(os.Getenv("HELPER_HOOK_EXIT_" + name))

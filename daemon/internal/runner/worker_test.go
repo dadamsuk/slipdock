@@ -121,6 +121,43 @@ func TestCodexAndACustomCommand(t *testing.T) {
 	}
 }
 
+func TestARunnersOwnEnvironmentReachesItsJobsAndHooks(t *testing.T) {
+	r := newRig(t, Config{BeforeHook: "setup", AfterHook: "report"})
+	r.w.Local.Hooks = map[string]machine.Command{"setup": self("hook", "setup"), "report": self("hook", "report")}
+	r.w.Local.Runners = map[string]machine.RunnerSettings{
+		"builder": {Env: map[string]string{"RUNNER_ENV_PROBE": "_build1", "RUNNER_ENV_EMPTY": "",
+			"CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS": "5"}},
+		"verifier": {Env: map[string]string{"RUNNER_ENV_PROBE": "_verify", "RUNNER_ENV_OTHER": "theirs"}},
+	}
+	// What the daemon itself was started with gives way to the runner's own.
+	t.Setenv("RUNNER_ENV_PROBE", "_daemon")
+	r.runJob(fakeJob{id: 107, kind: "claude", card: 7, prompt: "x"})
+	saw := r.agentSaw()
+	for _, want := range []string{"env=RUNNER_ENV_PROBE=_build1", "env=RUNNER_ENV_EMPTY=", "env=SLIPDOCK_JOB_ID=107",
+		"env=CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0"} {
+		if !strings.Contains(saw, want+"\n") {
+			t.Errorf("the agent didn't get %q; it saw:\n%s", want, saw)
+		}
+	}
+	for _, not := range []string{"_daemon", "_verify", "RUNNER_ENV_OTHER", "CEILING_MS=5"} {
+		if strings.Contains(saw, not) {
+			t.Errorf("the agent got %q, which isn't this runner's:\n%s", not, saw)
+		}
+	}
+	if got := r.hooksRan(); got != "setup exit= status= job=107 probe=_build1\nreport exit=0 status=done job=107 probe=_build1\n" {
+		t.Fatalf("the hooks get the runner's variables too:\n%s", got)
+	}
+
+	// A runner the file doesn't name gets none of them: under me, it keeps
+	// what the daemon was started with.
+	r = newRig(t, Config{})
+	r.w.Local.Runners = map[string]machine.RunnerSettings{"verifier": {Env: map[string]string{"RUNNER_ENV_PROBE": "_verify"}}}
+	r.runJob(fakeJob{id: 108, kind: "claude", card: 7, prompt: "x"})
+	if saw := r.agentSaw(); !strings.Contains(saw, "env=RUNNER_ENV_PROBE=_daemon\n") || strings.Contains(saw, "_verify") {
+		t.Fatalf("a runner with no entry got another's variables:\n%s", saw)
+	}
+}
+
 func TestAFailedJobAndItsAfterHook(t *testing.T) {
 	r := newRig(t, Config{BeforeHook: "setup", AfterHook: "report"})
 	r.w.Local.Hooks = map[string]machine.Command{"setup": self("hook", "setup"), "report": self("hook", "report")}
