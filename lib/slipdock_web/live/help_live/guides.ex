@@ -477,10 +477,13 @@ defmodule SlipdockWeb.HelpLive.Guides do
           taps away.
         </li>
         <li id="help-select-mode">
-          <strong>Select</strong> in the board's toolbar picks out cards to change all at once:
+          <strong>Select</strong>
+          in the board's toolbar picks out cards to change all at once:
           click a card to pick it, <kbd class="kbd kbd-xs">Shift</kbd>-click another to pick
           every card between the two (down a list, then across), or press the tick in a list's
-          header to pick every card it shows (again to let them go).
+          header to pick every card it shows (again to let them go). <strong>Select all</strong>
+          in a list's ⋯ menu turns select mode on with every card the list shows picked; in
+          select mode it adds them to what is already picked, and never lets any go.
         </li>
         <li>
           On a phone, the board becomes one list at a time, with navigation and quick add in thumb reach.
