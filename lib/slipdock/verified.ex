@@ -2580,7 +2580,7 @@ defmodule Slipdock.Verified do
       # The rework is filed with the disagreement (#2632), and the finding
       # and the alert name it.
       rework = file_rework(card, reason, checks, said, by, user)
-      Slipdock.Findings.Signals.audit_disagreed(card, reason, actor, rework)
+      Slipdock.Findings.Signals.audit_disagreed(card, reason, actor, rework, checks)
       root = card |> board() |> Slipdock.Handbook.root()
 
       title = "#{@audit_alert_lead}#{card.id}"
@@ -2927,7 +2927,7 @@ defmodule Slipdock.Verified do
     Verify card ##{card.id} “#{card.title}” on #{board.name} before it counts as done: #{url}
 
     Another agent did the work and submitted it. You are the second agent: don't change the code or the card beyond your decision. The builder's evidence says where to look, not what to believe: check each claim in it, never carry one on its word. A test it names is read and run, a mutant it says was killed is broken again or sampled, a docs place it says it updated is opened.
-    #{resubmission_block(card)}
+    #{resubmission_block(card)}#{audit_misses_block(card)}
     #{card_block(card, board, judging)}
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
        - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
@@ -2935,6 +2935,127 @@ defmodule Slipdock.Verified do
     Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
     A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
     """
+  end
+
+  ## What audits caught recently (#2695) ------------------------------------
+
+  @misses_limit 5
+  @misses_days 30
+  @miss_line_max 300
+
+  # When a disagreement happened: the finding's insert, or the audit job a
+  # repeat counted in when that is newer (`count_repeat` keeps the newer
+  # job). Never `updated_at`, which triage moves.
+  defmacrop miss_at(f, j) do
+    quote do
+      type(
+        fragment(
+          "GREATEST(?, COALESCE(?, ?))",
+          unquote(f).inserted_at,
+          unquote(j).inserted_at,
+          unquote(f).inserted_at
+        ),
+        :utc_datetime
+      )
+    end
+  end
+
+  @doc """
+  The tree's recent audit misses (#2695): the last `limit` audit
+  disagreements (`source: audit` findings on `card`'s root board) of the
+  last `days` days, newest first, each `%{card_id, title, failed, at}`. The
+  title is the rework card's (an older one's, or with none, what
+  `rework_title/2` makes of the reason); `failed` the parts it failed, or
+  nil when they weren't kept. A rework since accepted keeps its miss here:
+  the miss is the lesson, not the open work.
+
+  The window and the order go by when the disagreement happened (`at`),
+  never by `updated_at`, which triage moves: when the finding was recorded,
+  or the newer audit job a repeat on the same card counted in. A dismissed
+  or promoted miss still counts; a merged one doesn't, as the finding it was
+  merged into carries its lesson.
+  """
+  def recent_audit_misses(%Card{} = card, limit \\ @misses_limit, days \\ @misses_days) do
+    root = card |> board() |> Board.root_id()
+    since = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
+
+    Repo.all(
+      from f in Slipdock.Findings.Finding,
+        left_join: j in Slipdock.Runners.Job,
+        on: j.id == f.job_id,
+        where: f.board_id == ^root and f.source == "audit" and f.status != "merged",
+        select: {f, miss_at(f, j)},
+        where: miss_at(f, j) >= ^since,
+        order_by: [desc: miss_at(f, j), desc: f.id],
+        limit: ^limit
+    )
+    |> Enum.map(&audit_miss/1)
+  end
+
+  defp audit_miss({finding, at}) do
+    %{failed: failed, rework_id: rework_id} = Slipdock.Findings.Signals.audit_failed(finding)
+    rework = rework_id && Repo.get(Card, rework_id)
+
+    %{
+      card_id: finding.card_id,
+      title: miss_title(finding, rework),
+      failed: failed || (rework && rework_failed_parts(rework.description)),
+      at: at
+    }
+  end
+
+  defp miss_title(_finding, %Card{title: title}), do: title
+
+  defp miss_title(finding, nil) do
+    reason =
+      finding.text
+      |> to_string()
+      |> String.replace_prefix("An audit disagrees with the acceptance: ", "")
+
+    rework_title(%Card{id: finding.card_id}, reason)
+  end
+
+  # A rework's description lists what failed (`rework_failed/1`): an older
+  # finding's parts, read from there.
+  defp rework_failed_parts(description) do
+    case Regex.run(~r/\n\nWhat failed:\n\n((?:- [^\n]*\n?)+)/, to_string(description)) do
+      [_, list] ->
+        list
+        |> String.split("\n", trim: true)
+        |> Enum.map_join("; ", &String.trim_leading(&1, "- "))
+
+      nil ->
+        nil
+    end
+  end
+
+  # The verify prompt's block of recent misses: only on a tree with audits
+  # on and something they caught; never in the audit prompt, which judges
+  # afresh. "" otherwise, so the prompt is as it was.
+  defp audit_misses_block(%Card{} = card) do
+    with true <- audit_every(card) > 0,
+         [_ | _] = misses <- recent_audit_misses(card) do
+      lines = Enum.map_join(misses, "\n", &miss_line/1)
+
+      """
+
+      What audits on this board caught recently: acceptances that a second verifier, re-judging the work after it was accepted, found short. Verifiers here keep missing the same things, so check these first on this card, then judge it as below.
+      #{lines}
+      """
+    else
+      _ -> ""
+    end
+  end
+
+  defp miss_line(miss) do
+    failed = if miss.failed, do: " — failed: #{miss.failed}", else: ""
+
+    line =
+      "- “#{miss.title}” (##{miss.card_id}, #{Date.to_iso8601(DateTime.to_date(miss.at))})#{failed}"
+
+    if String.length(line) > @miss_line_max,
+      do: String.slice(line, 0, @miss_line_max - 1) <> "…",
+      else: line
   end
 
   # A resubmission (#1944): the last verdict, the commit it judged, and how

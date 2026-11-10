@@ -9,8 +9,8 @@ defmodule Slipdock.Findings.Signals do
     * a runner job **times out** or **fails** (`job_ended/1`)
     * its card is **requeued** or given up on (`requeued/3`, `gave_up/2`)
     * a **merge** job fails (`merge_failed/3`)
-    * an **audit** disagrees (`audit_disagreed/4`), naming the rework card it
-      filed or commented on (#2632)
+    * an **audit** disagrees (`audit_disagreed/5`), naming the rework card it
+      filed or commented on (#2632) and the parts it failed (#2695)
     * a verdict reports a rule broken in code the change didn't touch
       (`pre_existing/3`, source `verification`: it isn't a rejection), or a
       mutant surviving there (`pre_existing_mutants/3`, #2354)
@@ -236,15 +236,25 @@ defmodule Slipdock.Findings.Signals do
     })
   end
 
-  @doc "An audit disagreed with `card`'s acceptance."
-  def audit_disagreed(%Card{} = card, reason, actor, rework \\ nil) do
+  # The reason is cut so the parts' line always fits in a finding's text.
+  @audit_reason_max 1200
+  @audit_note_max 120
+
+  @doc """
+  An audit disagreed with `card`'s acceptance. The text ends with the parts
+  it failed (`checks`), one line `Failed: bar 1 — why; UX-4.`, which the
+  verify prompt's recent misses read back (#2695, `audit_failed/1`).
+  """
+  def audit_disagreed(%Card{} = card, reason, actor, rework \\ nil, checks \\ nil) do
     record(%{
       card: card,
       source: "audit",
       kind: "process",
       cause: "audit disagrees",
       text:
-        "An audit disagrees with the acceptance: " <> to_string(reason) <> rework_text(rework),
+        "An audit disagrees with the acceptance: " <>
+          String.slice(to_string(reason), 0, @audit_reason_max) <>
+          rework_text(rework) <> audit_failed_text(checks),
       job_id: job_id(actor)
     })
   end
@@ -252,6 +262,57 @@ defmodule Slipdock.Findings.Signals do
   # The rework the disagreement filed, or commented on (#2632).
   defp rework_text({_how, %Card{id: id}}), do: " Rework: ##{id}."
   defp rework_text(_), do: ""
+
+  defp audit_failed_text(checks) do
+    case audit_parts(checks) do
+      [] -> ""
+      parts -> "\nFailed: " <> Enum.join(parts, "; ") <> "."
+    end
+  end
+
+  # The failing parts as `label — why`, each note on one line and cut short.
+  defp audit_parts(%{} = checks) do
+    for {label, result, note} <- Slipdock.Verified.Checks.lines(checks),
+        Slipdock.Verified.Checks.failing_result?(result) do
+      case note do
+        nil -> label
+        note -> label <> " — " <> one_line(note)
+      end
+    end
+  end
+
+  defp audit_parts(_checks), do: []
+
+  defp one_line(text) do
+    text = text |> to_string() |> String.replace(~r/\s+/, " ") |> String.trim()
+
+    if String.length(text) > @audit_note_max,
+      do: String.slice(text, 0, @audit_note_max - 1) <> "…",
+      else: text
+  end
+
+  @doc """
+  What an audit finding (`audit_disagreed/5`) says it failed, and the rework
+  card it names: `%{failed: "bar 1 — why; UX-4" | nil, rework_id: id | nil}`.
+  An older finding, written before the parts were kept, has `failed: nil`.
+  """
+  def audit_failed(%Finding{text: text}) do
+    text = to_string(text)
+
+    failed =
+      case Regex.run(~r/\nFailed: ([^\n]*?)\.?\z/, text) do
+        [_, parts] -> parts
+        nil -> nil
+      end
+
+    rework_id =
+      case Regex.scan(~r/ Rework: #(\d+)\./, text) do
+        [] -> nil
+        found -> found |> List.last() |> Enum.at(1) |> String.to_integer()
+      end
+
+    %{failed: failed, rework_id: rework_id}
+  end
 
   @doc """
   The health monitor flagged an incident: one finding on each card it is

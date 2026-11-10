@@ -1196,6 +1196,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
         lane can't reach goes on the deferral card's bar by name; a deferral whose bar doesn't
         list the place doesn't count.
       </p>
+      <p id="help-audit-misses">
+        On a board that audits accepted work (<em>Audit 1 in N accepted cards</em>), the
+        verifier's prompt also carries <strong>what audits on this board caught recently</strong>: the last five audit disagreements of the last 30 days, newest first, each the
+        rework card's title and the parts it failed. The verifier is told to check those first
+        on the card in front of it. A miss stays on the list after its rework is done, since
+        the lesson is the miss, and keeps the date the audit disagreed even when its finding is
+        triaged. The audit's own prompt never carries the list, so an auditor
+        judges afresh.
+      </p>
     </.part>
     """
   end
