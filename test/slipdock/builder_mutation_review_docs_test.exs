@@ -70,6 +70,37 @@ defmodule Slipdock.BuilderMutationReviewDocsTest do
     refute skill =~ "breaks other lines rather than repeat them"
   end
 
+  # #2708: `git checkout -- <file>` restores the file to HEAD, so on work not
+  # yet committed it wipes the card's own edits along with the mutation.
+  for path <- ["priv/skills/slipdock-loop/SKILL.md", "docs/agents.md"] do
+    test "#{path} says to commit before the mutation review's restore (#2708)" do
+      text = read(unquote(path))
+      [_, review] = String.split(text, ~r/mutation review before submitting/i, parts: 2)
+      [before_break | _] = String.split(review, ~r/break 3 to 5/i, parts: 2)
+
+      assert before_break =~ ~r/commit the card's work first/i,
+             "#{unquote(path)} doesn't say to commit the card's work before breaking lines"
+
+      assert before_break =~ "git checkout -- <file>"
+      assert before_break =~ "discards every edit the card made to that file"
+    end
+  end
+
+  test "every builder restore by git checkout comes after the commit-first caution (#2708)" do
+    for path <- @sources do
+      text = read(path)
+
+      case :binary.match(text, "git checkout -- <file>") do
+        :nomatch ->
+          :ok
+
+        {at, _} ->
+          assert binary_part(text, 0, at) =~ ~r/commit the card's work first/i,
+                 "#{path} gives `git checkout -- <file>` as the restore before saying to commit first"
+      end
+    end
+  end
+
   test "docs/agents.md says the same, and that every claim is checked (#2696)" do
     agents = read("docs/agents.md")
     assert agents =~ "lists them as a map, not a verdict"
