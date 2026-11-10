@@ -701,7 +701,22 @@ WRITE
                                       time; --no-code WHY, or - for stdin, for a card that
                                       changes no code), when completing
                                       (--evidence - reads it from stdin); a
-                                      board with --evidence-required asks agents for it. On
+                                      board with --evidence-required asks agents for it.
+                                      Write the evidence as lines, not a paragraph: a first
+                                      line that stands alone, a blank line, one short line
+                                      per point (the Handbook: line and each finding on its
+                                      own); the commit, tests, suite and PR go in their
+                                      flags, not the text. --evidence - with a heredoc
+                                      keeps the line breaks:
+                                        slipdock done 12 --evidence-commit abc1234 \
+                                          --suite passed:38:0 --evidence - <<'EOF'
+                                        Built and tested; CI green.
+
+                                        - CI: build #812 passed
+                                        - Handbook: no change (a test-only fix)
+                                        - Findings: none
+                                        EOF
+                                      On
                                       a board with --verify-work an agent's done submits it
       [--diff-base REF] [--changed-lines N] [--changed-files F,F]
                                       the change itself, on a board with profiles on:
@@ -715,6 +730,17 @@ WRITE
                                       merge), reject needs the reason; not a card you
                                       submitted (--evidence-commit: what you checked at;
                                       --reason - reads the reason from stdin).
+                                      The reason is lines, not a paragraph: a first line
+                                      that stands alone (an audit's becomes its rework
+                                      card's title), a blank line, one short line per
+                                      point; the parts go in --check, not the reason:
+                                        slipdock verify 12 reject --check bar:2=fail:"no test" \
+                                          --reason - <<'EOF'
+                                        bar 2 fails: the export drops archived cards
+
+                                        - Export.run/1 filters on archived_at
+                                        - no test exports an archived card
+                                        EOF
                                       merged: a person merged a merging card's PR by hand;
                                       agree / disagree: an audit job's say on an accepted
                                       card (a comment; disagree alerts the board's owner
@@ -749,7 +775,9 @@ WRITE
                                       of the same card or page, or last without --before
   comment <id> <text>                 add a comment (Markdown). For more than a line,
                                       --body - with a heredoc keeps the line breaks
-                                      (or --body TEXT, --file F)
+                                      (or --body TEXT, --file F). Write lines, not a
+                                      paragraph: a bold first line that stands alone,
+                                      a blank line, one short line per point
                                       (check, comment, status, vote, weblink, unweblink and attach take
                                       a wiki page too: a page code like W-31 instead of a number)
   link <id> <kind> <card-id>...       link cards across boards (kind: relates contributes duplicates)
@@ -933,10 +961,15 @@ WRITE
   set <id> <key>=<value>...           set custom fields on a card ("" clears; choice by label or key)
   vote <id> <n>                       put n of your votes on a card or page (0 removes them)
   status <id> <on_track|at_risk|off_track> [note...]  report a card's or page's health
+                                      (the note in a line; for a note of several lines,
+                                      the MCP status_update body: a first line that stands
+                                      alone, a blank line, one short line per point)
   handoff <id>                        where the card was left: its handoff and the history
   handoff <id> --next "the one next step" [--body TEXT | --file F | --body -]
                                       leave a handoff for whoever picks the card up next
-                                      (write one whenever you stop with it unfinished)
+                                      (write one whenever you stop with it unfinished);
+                                      the body is lines, not a paragraph: one short line
+                                      each for State, Gotchas, Open and Pointers
   handoff <id> --clear                clear it (the history keeps that it was cleared)
   handoff <id> --delete               delete the current one outright, so the one before it
                                       is current again (its author, or anyone who can edit)
@@ -1124,7 +1157,9 @@ WRITE
                                                  --step says what you're doing now, shown on the job
                                                  (Runners panel, job, jobs) and not on the card; the
                                                  note is also a comment on the card (--message - reads
-                                                 it from stdin). Without <id>, the runner job in
+                                                 it from stdin, so a note keeps its lines: a first
+                                                 line that stands alone, a blank line, one short
+                                                 line per point). Without <id>, the runner job in
                                                  $SLIPDOCK_JOB_ID. Prints ok or cancel
   finish-job <id> --status done|failed|cancelled|timeout [--summary S]
                                                  end a job this session claimed (--summary -

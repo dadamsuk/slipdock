@@ -24,10 +24,16 @@ defmodule SlipdockWeb.MCP.Tools.CompleteCard do
       type: "object",
       properties: %{
         card: %{type: "integer"},
-        comment: %{type: "string", description: "What was done, added before closing."},
+        comment: %{
+          type: "string",
+          description: "What was done, added before closing. " <> SlipdockWeb.MCP.Tool.shape()
+        },
         evidence: %{
           type: "string",
-          description: "What you checked (tests run, output); a board may require it."
+          description:
+            "What you checked (tests run, output); a board may require it. " <>
+              SlipdockWeb.MCP.Tool.shape() <>
+              " The commit, tests, suite and PR go in their own fields, not here."
         },
         commit: %{type: "string", description: "The commit the evidence is for."},
         branch: %{type: "string", description: "The commit's branch."},

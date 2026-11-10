@@ -166,7 +166,11 @@ defmodule SlipdockWeb.VerifyProgressTest do
 
       # A rejection cites the check it fails.
       assert prompt =~ "A rejection cites what it fails: the bar item (`bar 2: …`) or the ask"
-      assert prompt =~ ~s(reject --evidence-commit abc1234 --reason "<the check it fails>: )
+
+      assert prompt =~
+               ~s(reject --evidence-commit abc1234 --check bar:2=fail:"why" … --reason - <<'EOF')
+
+      assert prompt =~ "(its first line: `<the check it fails>: what falls short`)"
     end
 
     test "with a handbook: the rules for the diff and the Handbook line too", ctx do
@@ -247,7 +251,8 @@ defmodule SlipdockWeb.VerifyProgressTest do
 
       assert skill =~ "**The verifier's checks, first.**"
       assert skill =~ "Put the `Handbook:`\n  line in `--evidence` too"
-      assert skill =~ ~s(reject --reason "<the check>: <what falls short, specifically>")
+      assert skill =~ "reject\n  --reason -`, the reason on stdin"
+      assert skill =~ "`<the check>: <what falls\n  short, specifically>`"
 
       assert guide =~
                "judge, in order, the ask (does the bar cover what the card asks for?), the bar"

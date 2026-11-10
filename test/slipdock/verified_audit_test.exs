@@ -190,8 +190,8 @@ defmodule Slipdock.VerifiedAuditTest do
       assert prompt =~ Verified.rule_rejection_sentence()
       assert prompt =~ "A rejection never asks the builder to edit `## Rules` directly"
       assert prompt =~ "--check proposal --json"
-      assert prompt =~ "slipdock verify #{card.id} agree --reason"
-      assert prompt =~ "slipdock verify #{card.id} disagree --reason"
+      assert prompt =~ "slipdock verify #{card.id} agree --check"
+      assert prompt =~ "slipdock verify #{card.id} disagree --check"
       refute prompt =~ "verify #{card.id} accept"
       refute prompt =~ "verify #{card.id} reject"
       assert prompt == Verified.audit_prompt(Repo.get!(Card, card.id), ctx.board)

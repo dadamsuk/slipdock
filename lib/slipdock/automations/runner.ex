@@ -327,7 +327,12 @@ defmodule Slipdock.Automations.Runner do
                 "changes of plan. " <>
                 "Whenever you stop with the card unfinished, leave a handoff first " <>
                 "(leave_handoff, or slipdock handoff <id> --next): the one next step and a " <>
-                "short note, so whoever picks the card up next reads that before anything else."
+                "short note, so whoever picks the card up next reads that before anything else. " <>
+                "Whatever you write onto the card (a comment, a job-progress note, a handoff, " <>
+                "a status) is lines, not a paragraph: a first line that stands on its own, a " <>
+                "blank line, then one short line per point. Send it on stdin (`--body -`, " <>
+                "`--message -`, `--reason -` or `--evidence -` with a quoted heredoc, " <>
+                "`<<'EOF'`): words on the command line lose their line breaks."
 
   @doc "The paragraph that ends every runner job's prompt."
   def unattended, do: @unattended

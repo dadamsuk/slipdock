@@ -40,7 +40,9 @@ defmodule SlipdockWeb.MCP.Tools.VerifyCard do
         reason: %{
           type: "string",
           description:
-            "Why: required to reject (what falls short of the bar), optional to accept."
+            "Why: required to reject (what falls short of the bar), optional to accept. " <>
+              SlipdockWeb.MCP.Tool.shape() <>
+              " Its first line titles an audit's rework card; the parts go in checks, not here."
         },
         commit: %{
           type: "string",

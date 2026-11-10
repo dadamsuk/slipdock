@@ -15,6 +15,16 @@ defmodule SlipdockWeb.MCP.Tool do
   context at the start of every session.
   """
 
+  @shape "Lines, not a paragraph: a first line that stands alone, a blank line, then one " <>
+           "short line per point."
+
+  @doc """
+  The shape asked of text an agent writes onto a card (#2692): a reason,
+  evidence, a note, a handoff, a status. The renderer keeps single line
+  breaks, so a field description that asks for lines gets them.
+  """
+  def shape, do: @shape
+
   @type context :: %{user: struct(), token: struct(), base_url: String.t()}
 
   @callback name() :: String.t()

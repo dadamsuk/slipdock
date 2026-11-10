@@ -31,7 +31,10 @@ defmodule SlipdockWeb.MCP.Tools.StatusUpdate do
       properties: %{
         card: %{type: "integer"},
         health: %{type: "string", enum: StatusUpdate.health_keys()},
-        body: %{type: "string", description: "What the health is based on. Markdown."}
+        body: %{
+          type: "string",
+          description: "What the health is based on. Markdown. " <> SlipdockWeb.MCP.Tool.shape()
+        }
       },
       required: ["card", "health"],
       additionalProperties: false

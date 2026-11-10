@@ -998,6 +998,27 @@ again. A card tagged `security` ships a neutral pull request: the title
 commits that describe the change in general terms, never the hole; the
 detail stays on the card until it deploys (`shipping.neutral` in
 `get_card`).
+**What an agent writes onto a card has a shape, not a paragraph**: a
+verdict's reason, the evidence, a job-progress note, a handoff, a status.
+A first line that stands on its own (where a title is made from it, as an
+audit's rework card's is, it is the title), a blank line, then one short
+line per point; the parts go in their fields (`--check`, `--evidence-commit`,
+`--tests`, `--suite`, `--pr`), not repeated in the text. Comments and
+descriptions keep a single line break, so the shape survives as written, but
+words on the command line lose their breaks: send it on stdin with a quoted
+heredoc (`--reason -`, `--evidence -`, `--message -`, `--body -`), or as an
+MCP field. The verify and audit prompts, the claimed job's prompt and the
+skills ask for it:
+
+```sh
+slipdock verify 12 reject --check bar:2=fail:"no test" --reason - <<'EOF'
+bar 2: the export drops archived cards
+
+- `Export.run/1` filters on `archived_at`
+- no test exports an archived card
+EOF
+```
+
 The verifier judges four things, in order: **the ask** (does the bar cover
 what the card asks for? a bar that leaves part out is a rejection), **the
 bar**, and on a board with a handbook **the rules** for the diff's paths
@@ -1069,7 +1090,8 @@ the original verdict and has every rule judged, `should` ones too. The audit
 changes nothing on the card: `slipdock verify <id> agree|disagree --reason …`
 (or `verify_card`) is a comment, and the acceptance stands. A disagreement
 files the rework itself: one card in the board's ready list, titled `Audit of
-#<id>: <reason>`, its description the reason, the failed parts and the audit
+#<id>: <the reason's first line>`, its description the reason (its line
+breaks kept), the failed parts and the audit
 comment's link, the accepted card's paths, `caused_by` the accepted card (an
 incident of it), priority `high` for a surviving mutant or a broken `must`
 rule (else `medium`). The alert for the board's owner and the `audit` finding

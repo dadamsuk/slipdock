@@ -316,8 +316,11 @@ slipdock move <id> <column> --board B    # to another board, with the card's sub
 slipdock done <id>... | slipdock undone <id>...
                                        # an agent can't undo or move a done card out of Done (any
                                        # board): a person reopens finished work; add a card instead
-slipdock done <id> --evidence-commit <sha> --branch B --tests a.exs,b.exs --suite passed:38:0 --evidence "…"
-                                       # on a board that asks for evidence; where a second agent
+slipdock done <id> --evidence-commit <sha> --branch B --tests a.exs,b.exs --suite passed:38:0 --evidence - <<'EOF'
+                                       # on a board that asks for evidence; the text on stdin is
+                                       # lines, not a paragraph: a first line that stands alone,
+                                       # a blank line, one short line per point (the parts in
+                                       # their flags, not repeated); where a second agent
                                        # verifies, done submits the card (pending, flagged review)
                                        # mutation review before submitting: break 3 to 5 changed lines
                                        # one at a time, run the card's tests, restore; a survivor gets a
@@ -329,7 +332,10 @@ slipdock verify <id> accept|reject [--reason TEXT] [--evidence-commit SHA]   # o
                                        # decide a card someone else submitted: accept completes it
                                        # and moves it to Done (on a pull request board it queues
                                        # the merge: merging until a runner merges); reject needs the reason
-slipdock verify <id> reject --reason "bar 2: …" --check bar:1=ok --check bar:2=fail:"why"
+slipdock verify <id> reject --check bar:1=ok --check bar:2=fail:"why" --reason - <<'EOF'
+                                       # the reason on stdin, shaped the same: its first line
+                                       # (`bar 2: …`) stands alone (an audit's titles its rework
+                                       # card), then a blank line and a line per point;
                                        # the verdict in parts (repeat --check, or --checks-file F):
                                        # ask=ok|misses, bar:<n>=ok|fail, suite=<passed>:<failed>,
                                        # rule:<id>=ok|broken|n/a, handbook_line=ok|disputed; a reject

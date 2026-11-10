@@ -121,7 +121,8 @@ whole card before touching it.
   the verifier, who accepts a noted reading and rejects one that wasn't
   noted.
   Complete it with what you checked (`slipdock done <id> --evidence-commit
-  <sha> --tests a,b --suite passed:38:0 --evidence "…"`). On a board
+  <sha> --tests a,b --suite passed:38:0 --evidence -`, the text on stdin,
+  shaped as a comment is: see **Comments are Markdown**). On a board
   where a second agent verifies, `done` submits the card and leaves it
   pending: don't move it to Done yourself. A rejected card comes back with
   its reason in the comment, the job's prompt and `get_card`'s `rejection`
@@ -132,7 +133,7 @@ whole card before touching it.
   out the evidence's commit in a clean tree, running the suite (on a pull
   request board, checking its CI passed at that commit instead), judging it
   against the bar, then `slipdock accept <id>` or `slipdock reject <id>
-  --reason "…"`. On a board that **ships by pull request** (the board's
+  --reason -` (the reason shaped as a comment is, its parts in `--check`). On a board that **ships by pull request** (the board's
   line says so, as do the claimed job's prompt and `slipdock card`), never
   push the default branch: commit on `card-<id>`, push it, open the pull
   request once (`gh pr create --head card-<id> --title "<title> (#<id>)"
@@ -189,8 +190,9 @@ whole card before touching it.
   where whoever had it last left it: the one next step and a short note. Read
   it before the comments when you pick a card up. Whenever you stop with a card
   unfinished — end of a session, handed back, blocked, out of time — leave one:
-  `slipdock handoff <id> --next "<the one next step>" --body "State: … Gotchas:
-  … Open: … Pointers: …"` (over MCP, `leave_handoff`). It replaces the last one;
+  `slipdock handoff <id> --next "<the one next step>" --body -` with a line each
+  on stdin, `- State: …`, `- Gotchas: …`, `- Open: …`, `- Pointers: …` (over
+  MCP, `leave_handoff`). It replaces the last one;
   the history is kept. Comments stay the running log; the handoff is the now.
   On a **finished** card the handoff is for the person: what they must do,
   check or know (a deploy, a reinstall, a question, a caveat) as `--next`,
@@ -245,7 +247,13 @@ whole card before touching it.
   one fact each, with paths, commands and commit ids in backticks; never one
   dense paragraph of clauses. Send anything over a line with `slipdock comment
   <id> --body - <<'EOF'` … `EOF` (quoted, so backticks survive); words on the
-  command line lose their line breaks.
+  command line lose their line breaks. **The same shape for all you write
+  onto a card**: a verdict's `--reason`, the `--evidence`, a `job-progress`
+  note, a handoff, a status. A first line that stands on its own (an audit's
+  reason becomes a rework card's title), a blank line, then one short line
+  per point; the parts in their fields (`--check`, `--evidence-commit`,
+  `--tests`, `--suite`, `--pr`), not repeated in the text; on stdin with
+  `-` (`--reason -`, `--evidence -`, `--message -`).
 - **Commit, and link it.** When the project is a git repository, commit the
   card's work once it is complete — before closing the card — with the card id
   (`#42`) in the commit message. The closing comment links to the commit, or to
@@ -335,7 +343,7 @@ whole card before touching it.
 - You were started for a **runner job** (your prompt begins "Work on Slipdock
   card #N", or you took one with `slipdock claim-job` / the MCP `claim_job`)
   → work that card as usual, and also report on the job: `slipdock
-  job-progress <job> --message "…"` (the note is a comment on the card too,
+  job-progress <job> --message -` with the note on stdin (the note is a comment on the card too,
   and it renews the job's lease — never leave 20 minutes between them), stop
   if it answers `cancel`, and end with `slipdock finish-job <job> --status
   done|failed --summary "…"` once the card is closed or handed back. Need a

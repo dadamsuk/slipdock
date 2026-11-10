@@ -532,6 +532,21 @@ Left alone: the MCP `Left off:` text — the skills key on it.
 EOF
 ```
 
+### What else you write onto a card
+
+The same shape for everything else that lands on the card: a verdict's
+`--reason`, the `--evidence`, a `job-progress` note, a handoff's body, a
+status. Each is read by a person, and the server copies some of it on (an
+audit's reason becomes a rework card's title and description):
+
+- **a first line that stands on its own**: where a title is made from the
+  text, it is the title;
+- a blank line, then **one short line per point**, never one paragraph;
+- **the parts in their fields**, not repeated in the text: `--check` for a
+  verdict, `--evidence-commit`, `--tests`, `--suite` and `--pr` for evidence;
+- sent on stdin with a quoted heredoc: `--reason -`, `--evidence -`,
+  `--message -`, `--body -` (over MCP, the field keeps its line breaks).
+
 ## 7. Close it out
 
 Skip what the invocation rules out (see **What the invocation says wins**):
@@ -857,9 +872,10 @@ With one on, the pass changes like this:
 - **Evidence on completion.** At step 7.5 `slipdock done <id>` carries what
   you checked and where: `--evidence-commit <sha> --branch <branch> --tests
   <the test files you added or changed, comma-separated> --suite
-  passed:<n>:<failed>`, and `--evidence "…"` for anything else (what you
-  looked at, the CI run). Without any of it, the completion and the move
-  into Done are refused.
+  passed:<n>:<failed>`, and `--evidence -` for anything else (what you
+  looked at, the CI run), shaped as in **What else you write onto a card**:
+  the parts in their flags, not repeated in the text. Without any of it,
+  the completion and the move into Done are refused.
 - **A second agent verifies.** At step 7.5 `slipdock done <id>` *submits*
   the card: it stays in the doing list, flagged `review`, pending. Don't move
   it to Done, since that is refused and the acceptance does it. The wrap-up
@@ -870,8 +886,8 @@ With one on, the pass changes like this:
   a `Rework: rejected by …` handoff, the reason as a comment and in the
   job's prompt (`get_card`'s `rejection`). Picked up again, that reason is the brief: fix
   exactly that, then complete it again with fresh evidence. That evidence
-  names the rejected commit and what changed since (`--evidence "Rejected
-  at abc1234; since: the header row, test/x_test.exs"`): the next verifier
+  names the rejected commit and what changed since (a first line `Rejected
+  at abc1234; since:`, then a line each: `- the header row`, `- test/x_test.exs`): the next verifier
   judges only the failed parts and what the new commits touch, and carries
   the parts that passed (shown as *carried from abc1234*).
 - **Shipping by pull request** (`ships by pull request` on the board's
@@ -989,8 +1005,21 @@ With one on, the pass changes like this:
   "…"` (the job in `$SLIPDOCK_JOB_ID`; MCP `job_progress` `step`), never a
   note: checked out the commit, tests running and their counts (or the
   CI result), judging, the decision. The card stays quiet until you decide: `slipdock verify <id> accept
-  --evidence-commit <sha> --reason "what you checked"`, or `slipdock verify
-  <id> reject --reason "<the check>: <what falls short, specifically>"`.
+  --evidence-commit <sha> --reason -`, or `slipdock verify <id> reject
+  --reason -`, the reason on stdin from a quoted heredoc. Its first line
+  says it in a line (`what you checked`, or `<the check>: <what falls
+  short, specifically>`), then a blank line, then one short line per point;
+  the parts go in `--check`, not repeated in the reason:
+
+  ```sh
+  slipdock verify <id> reject --check bar:2=fail:"no test" --reason - <<'EOF'
+  bar 2: the export drops archived cards
+
+  - `Export.run/1` filters on `archived_at`
+  - no test exports an archived card
+  EOF
+  ```
+
   A rejection cites the check it fails: a bar item (`bar 2: …`), the ask
   (`the ask: …`), a rule id (`UX-4: …`) or the Handbook line. **Once a
   rule is broken, name every instance**: look for every other place the
@@ -1046,8 +1075,9 @@ With one on, the pass changes like this:
 - **An audit** (a verify job with `audit: true`, on a card already
   accepted) checks the checker. Judge the work as a verify job does,
   `should` rules too, against the original verdict its prompt shows, then
-  `slipdock verify <id> agree --reason "…"` or `disagree --reason "<where
-  the verdict is wrong>"` with your own `--check` parts. It changes
+  `slipdock verify <id> agree --reason -` or `disagree --reason -` with your
+  own `--check` parts, the reason shaped as a verdict's is (a first line
+  saying where the verdict is wrong, a blank line, a line per point). It changes
   nothing on the card: a disagreement is a comment, an alert for the
   board's owner and a rework card the server files from your reason (its
   first line is the title) and failing parts, or a comment on the one
@@ -1157,10 +1187,12 @@ Whichever the case, **leave a handoff** before letting go, so the next pass or
 person starts from where this one stopped rather than from the comments:
 
 ```sh
-slipdock handoff <id> --next "<the one next step>" --body "State: …
-Gotchas: …
-Open: …
-Pointers: <branch, commit, files, W-…>"
+slipdock handoff <id> --next "<the one next step>" --body - <<'EOF'
+- State: …
+- Gotchas: …
+- Open: …
+- Pointers: <branch, commit, files, W-…>
+EOF
 ```
 
 The same goes for any pass that ends with its card unfinished — the token dying
