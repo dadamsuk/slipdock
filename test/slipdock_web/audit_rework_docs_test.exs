@@ -36,6 +36,20 @@ defmodule SlipdockWeb.AuditReworkDocsTest do
         do: refute(text =~ "disagree alerts the owner, and the acceptance stands")
   end
 
+  test "the manual, agents.md and the API guide say the alert clears with the rework (#2691)" do
+    assert read("docs/manual/verified-work.md") =~
+             "the alert clears itself once that rework card is accepted or completed"
+
+    assert read("docs/manual/verified-work.md") =~
+             "leaves the first alert in place: both clear with the rework"
+
+    assert read("docs/agents.md") =~
+             "the alert clears itself once that card is accepted or completed"
+
+    assert read("lib/slipdock_web/api_guide.ex") =~
+             "the alert clears itself once that card is accepted or completed"
+  end
+
   test "the skills and the CLI's help an auditor reads say so" do
     assert read("priv/skills/slipdock-loop/SKILL.md") =~ "a rework card the server files"
     assert read("priv/skills/slipdock/SKILL.md") =~ "disagree alerts and files a rework card"
@@ -66,5 +80,7 @@ defmodule SlipdockWeb.AuditReworkDocsTest do
     assert text =~ "a disagreement files the rework as a card in the ready list"
     assert text =~ "a second disagreement comments on it rather than filing another"
     assert text =~ "An audit that disagrees has already filed its rework card"
+    assert text =~ "The alert names it and clears itself once that card is accepted or completed"
+    assert text =~ "The alert goes by itself when the rework is accepted or completed"
   end
 end

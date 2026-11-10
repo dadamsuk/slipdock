@@ -222,9 +222,11 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   so it counts as an incident of it; and its priority is *high* when a
   mutant survived or a `must` rule is broken, *medium* otherwise. The
   alert raised for the board's owner and the `audit` finding name that
-  card. A second disagreement on the same card, while that rework card is
-  still open, comments on it instead of making another. An audit that
-  agrees files nothing.
+  card, and the alert clears itself once that rework card is accepted or
+  completed (on a pull request board, accepted to merge). A second
+  disagreement on the same card, while that rework card is still open,
+  comments on it instead of making another, and leaves the first alert in
+  place: both clear with the rework. An audit that agrees files nothing.
 - A decision made in a runner job on the card (the CLI sends
   `$SLIPDOCK_JOB_ID` as `x-slipdock-job`; MCP the job it claimed) is
   credited to the runner: *Accepted by runner verifier*, not the token's

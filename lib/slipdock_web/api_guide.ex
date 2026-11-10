@@ -4570,8 +4570,9 @@ defmodule SlipdockWeb.APIGuide do
     `Audit of #ID: <reason>`, with the failed parts, the audit comment's
     link, the accepted card's paths, `caused_by` it, and priority `high`
     for a surviving mutant or a broken `must` rule. The owner's alert and
-    the `audit` finding name it; a second disagreement comments on that
-    card while it is open. The submitter can't
+    the `audit` finding name it, and the alert clears itself once that card
+    is accepted or completed; a second disagreement comments on that card
+    while it is open, its alert clearing with the same rework. The submitter can't
     decide its own card (`403`): a different agent is a different token,
     or a different runner job. A board with a `verify_pool` also queues
     each submitted card for that runner pool as a job of kind `verify`,

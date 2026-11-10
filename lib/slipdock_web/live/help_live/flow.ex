@@ -624,8 +624,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
         disagreement files the rework as a card in the ready list, titled from the audit's
         reason, with what failed and a link to the audit, caused by the accepted card (high
         priority for a surviving mutant or a broken <em>must</em>
-        rule). The alert names it, and a second disagreement comments on it rather than
-        filing another.
+        rule). The alert names it and clears itself once that card is accepted or completed,
+        and a second disagreement comments on it rather than filing another.
       </li>
     </ul>
     <.person_note>
@@ -657,7 +657,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
         </li>
         <li>
           An audit that disagrees has already filed its rework card: read the alert, and reword
-          or reprioritise the card if the audit was wrong about what matters.
+          or reprioritise the card if the audit was wrong about what matters. The alert goes
+          by itself when the rework is accepted or completed.
         </li>
       </ul>
     </.person_note>

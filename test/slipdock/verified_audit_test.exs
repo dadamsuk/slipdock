@@ -356,6 +356,156 @@ defmodule Slipdock.VerifiedAuditTest do
       refute Verified.open_rework(ctx.card).id == rework.id
     end
 
+    test "the alert clears itself when its rework is completed (#2691)", ctx do
+      {:ok, _} = disagree(ctx, "first look")
+      rework = Verified.open_rework(ctx.card)
+      assert [alert] = alerts(ctx.card)
+      assert alert.body =~ "This alert clears itself once the rework is accepted or completed."
+
+      # Another card's audit alert, and a rule's alert on this card, stay.
+      other = build_and_verify(ctx)
+      [other_audit] = audits(other)
+      %Job{} = Runners.claim(ctx.third_runner)
+      {:ok, _} = disagree(ctx, "other look", other, agent(ctx, other_audit.id))
+
+      # Its body even names the rework: only the audit's own title is taken down.
+      {:ok, _} =
+        Automations.raise_alert(%{
+          "board_id" => ctx.board.id,
+          "card_id" => ctx.card.id,
+          "title" => "A rule's alert",
+          "body" => "Noticed\nRework filed: ##{rework.id} “x”."
+        })
+
+      {:ok, _} = Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+
+      assert Enum.map(alerts(ctx.card), & &1.title) == ["A rule's alert"]
+      assert [_] = alerts(other)
+      refute Repo.get(Alert, alert.id)
+    end
+
+    test "a rule's or a person's alert with the audit's own title and rework line stays",
+         ctx do
+      {:ok, _} = disagree(ctx, "first look")
+      rework = Verified.open_rework(ctx.card)
+      [audit_alert] = alerts(ctx.card)
+
+      rule =
+        rule_fixture(ctx.board, %{
+          "trigger" => %{"type" => "list_top", "column" => "To Do"},
+          "actions" => [%{"type" => "runner", "pool" => "loop"}]
+        })
+
+      look_alike = %{
+        "board_id" => ctx.board.id,
+        "card_id" => ctx.card.id,
+        "title" => audit_alert.title,
+        "body" => "Noticed\nRework filed: ##{rework.id} “x”."
+      }
+
+      {:ok, by_rule} = Automations.raise_alert(Map.put(look_alike, "rule_id", rule.id))
+      {:ok, for_user} = Automations.raise_alert(Map.put(look_alike, "user_id", ctx.owner.id))
+
+      {:ok, _} = Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+
+      assert Enum.sort(Enum.map(alerts(ctx.card), & &1.id)) ==
+               Enum.sort([by_rule.id, for_user.id])
+
+      refute Repo.get(Alert, audit_alert.id)
+    end
+
+    test "a rework accepted by its verifier clears the alert; submitted, it stays", ctx do
+      {:ok, _} = disagree(ctx, "first look")
+      rework = Verified.open_rework(ctx.card)
+
+      {:ok, rework} =
+        Boards.update_card(rework, %{"completed" => true, "evidence" => "fixed it"},
+          actor: %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.owner.id, agent: "b"}
+        )
+
+      assert rework.verify_state == "pending"
+      assert [_] = alerts(ctx.card)
+
+      {:ok, _} =
+        Verified.decide(rework, "accept", %{"reason" => "ok"}, Actor.web(ctx.owner), ctx.owner)
+
+      assert alerts(ctx.card) == []
+    end
+
+    test "on a pull request board the rework's acceptance (merging) clears it", ctx do
+      {:ok, _} = disagree(ctx, "first look")
+      rework = Verified.open_rework(ctx.card)
+      {:ok, _} = Boards.update_board(ctx.board, %{"ship_via" => "pull_request"})
+
+      {:ok, rework} =
+        Boards.update_card(
+          rework,
+          %{
+            "completed" => true,
+            "evidence" => "fixed it",
+            "pr" => "https://github.com/example/repo/pull/1",
+            "evidence_commit" => "abc1234"
+          },
+          actor: %{Actor.unknown() | kind: "agent", via: "mcp", user_id: ctx.owner.id, agent: "b"}
+        )
+
+      assert rework.verify_state == "pending"
+      assert [_] = alerts(ctx.card)
+
+      {:ok, rework} =
+        Verified.decide(rework, "accept", %{"reason" => "ok"}, Actor.web(ctx.owner), ctx.owner)
+
+      assert rework.verify_state == "merging"
+      refute rework.completed
+      assert alerts(ctx.card) == []
+    end
+
+    test "a disagreement that comments on the open rework leaves the alert; done, both go",
+         ctx do
+      {:ok, _} = disagree(ctx, "first look")
+      rework = Verified.open_rework(ctx.card)
+      [first] = alerts(ctx.card)
+      {:ok, _} = disagree(ctx, "second look")
+
+      assert Enum.map(alerts(ctx.card), & &1.id) |> Enum.member?(first.id)
+      assert length(alerts(ctx.card)) == 2
+      [second] = Enum.reject(alerts(ctx.card), &(&1.id == first.id))
+      assert second.body =~ "Rework already open: ##{rework.id}"
+      assert second.body =~ "This alert clears itself once the rework is accepted or completed."
+
+      {:ok, _} = Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+      assert alerts(ctx.card) == []
+    end
+
+    test "an alert the owner dismissed already: the rework's completion goes without error",
+         ctx do
+      {:ok, _} = disagree(ctx, "first look")
+      rework = Verified.open_rework(ctx.card)
+      [alert] = alerts(ctx.card)
+      Automations.dismiss_alert(ctx.owner, alert.id)
+      assert Automations.list_alerts(ctx.owner) == []
+
+      assert {:ok, %Card{completed: true}} =
+               Boards.update_card(Repo.get!(Card, rework.id), %{"completed" => true})
+
+      assert alerts(ctx.card) == []
+      # Nothing left to take down: a second pass is a no-op.
+      assert Verified.clear_audit_alerts(Repo.get!(Card, rework.id)) == 0
+    end
+
+    test "a card a person names as caused by the accepted one doesn't clear its alert", ctx do
+      {:ok, _} = disagree(ctx, "first look")
+      ready = Enum.find(ctx.board.columns, &(&1.category == "todo"))
+
+      {:ok, card} =
+        Boards.create_card(ready, %{"title" => "Broke later", "caused_by_id" => ctx.card.id})
+
+      {:ok, _} = Boards.update_card(card, %{"completed" => true})
+      assert [_] = alerts(ctx.card)
+      assert Verified.clear_audit_alerts(card) == 0
+      assert Verified.clear_audit_alerts(ctx.card) == 0
+    end
+
     test "a card a person names as caused by the accepted one isn't taken for its rework", ctx do
       ready = Enum.find(ctx.board.columns, &(&1.category == "todo"))
 
@@ -452,6 +602,16 @@ defmodule Slipdock.VerifiedAuditTest do
       assert rework.priority == "high"
       assert rework.description =~ "the surviving mutant at daemon/ceiling.go:40"
     end
+  end
+
+  defp disagree(ctx, reason, card \\ nil, actor \\ nil) do
+    Verified.decide(
+      Repo.get!(Card, (card || ctx.card).id),
+      "disagree",
+      %{"reason" => reason, "checks" => ["bar:1=fail"]},
+      actor || Actor.web(ctx.owner),
+      ctx.owner
+    )
   end
 
   defp to_actor(map),
