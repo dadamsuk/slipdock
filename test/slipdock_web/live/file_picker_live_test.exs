@@ -8,10 +8,9 @@ defmodule SlipdockWeb.FilePickerLiveTest do
   use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
-  import Slipdock.Fixtures
   import Slipdock.ToolPackages
 
-  alias Slipdock.{Portable, Settings}
+  alias Slipdock.Portable
 
   setup do
     Slipdock.TestConfig.own_uploads_dir()
@@ -89,10 +88,20 @@ defmodule SlipdockWeb.FilePickerLiveTest do
       input = file_input(view, "#tools-publish-form", :package, [%{name: "t.tgz", content: "x"}])
       render_upload(input, "t.tgz")
 
+      # Cancelling a finished upload only marks it cancelled and stops its
+      # upload channel: LiveView drops the entry when that channel's :DOWN
+      # reaches it, after the click's own render (#2723). So wait for the
+      # channel to go; `has_element?` then asks the LiveView, which has the
+      # :DOWN by then. (`UploadClient` is LiveViewTest's own, pinned by
+      # mix.lock.)
+      %{"t.tgz" => channel} = Phoenix.LiveViewTest.UploadClient.channel_pids(input)
+      down = Process.monitor(channel)
+
       view
       |> element("#tools-publish-form-file button[aria-label='Remove t.tgz']")
       |> render_click()
 
+      assert_receive {:DOWN, ^down, :process, ^channel, _}
       refute has_element?(view, "#tools-publish-form-file [data-role=file-name]", "t.tgz")
     end
   end
