@@ -131,8 +131,10 @@ defmodule Slipdock.MixProject do
   request (#1964). A step with `cd:` runs in that directory, in its own
   environment (`pre_push_env/1`).
 
-  Then the runner daemon's (`daemon/`, a Go module) `go vet` and `go test`,
-  as CI's daemon job does (#2573). A step with `exec: true` runs its task as
+  Then the runner daemon's (`daemon/`, a Go module) `go vet` and
+  `go test -race`, as CI's daemon job does (#2573, #2664): about two minutes
+  on macOS, where the race detector slows each helper process the tests
+  start. A step with `exec: true` runs its task as
   a program rather than a `mix` task; with no `go` on the PATH it fails and
   says so.
 
@@ -158,7 +160,7 @@ defmodule Slipdock.MixProject do
       {"format", ["--check-formatted"], cd: "cli"},
       {"compile", ["--warnings-as-errors"], cd: "cli"},
       {"go", ["vet", "./..."], cd: "daemon", exec: true},
-      {"go", ["test", "./..."], cd: "daemon", exec: true},
+      {"go", ["test", "-race", "./..."], cd: "daemon", exec: true},
       {"ecto.drop", ["--quiet"]},
       {"test", repo_checks()},
       {"hex.audit", []},
