@@ -251,10 +251,14 @@ defmodule Slipdock.Inbound.Cards do
   defp field(lines, names) do
     Enum.find_value(lines, fn line ->
       case Regex.run(~r/^\**([\p{L} ]+?)\**\s*:\**\s*(.+)$/u, line) do
-        [_, name, value] -> if String.downcase(String.trim(name)) in names, do: String.trim(value)
+        [_, name, value] -> named(names, name, value)
         _ -> nil
       end
     end)
+  end
+
+  defp named(names, name, value) do
+    if Enum.member?(names, String.downcase(String.trim(name))), do: String.trim(value)
   end
 
   defp html_text(nil), do: nil

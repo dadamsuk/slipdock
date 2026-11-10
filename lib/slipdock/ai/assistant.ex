@@ -201,7 +201,7 @@ defmodule Slipdock.AI.Assistant do
     history
     |> Enum.filter(&Enum.member?(["user", "assistant", :user, :assistant], &1.role))
     |> Enum.map(&%{role: to_string(&1.role), content: &1.content})
-    |> Enum.reject(&(&1.content in [nil, ""]))
+    |> Enum.reject(&Enum.member?([nil, ""], &1.content))
     |> Enum.take(-@history_limit)
   end
 end

@@ -378,7 +378,7 @@ defmodule Slipdock.AI do
   # The environment and config.exs both land in the same app config; runtime.exs
   # notes which keys the environment set, so the admin page can say which.
   defp configured_source(key),
-    do: if(key in List.wrap(config()[:from_env]), do: :env, else: :config)
+    do: if(Enum.member?(List.wrap(config()[:from_env]), key), do: :env, else: :config)
 
   defp admin_value(:fallback_models) do
     case Slipdock.Settings.Instance.split_models(settings_field(:ai_fallback_models)) do

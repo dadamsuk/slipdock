@@ -172,7 +172,7 @@ defmodule Slipdock.AI.Context do
         page.status == "draft" && "draft",
         page.template && "template",
         page.column_id && "on the board",
-        page.priority not in [nil, "none"] && "priority: #{page.priority}",
+        not Enum.member?([nil, "none"], page.priority) && "priority: #{page.priority}",
         page.due_date && "due #{page.due_date}",
         page.completed && "done"
       ]
@@ -260,7 +260,7 @@ defmodule Slipdock.AI.Context do
       "Flags: #{if card.flags == [], do: "none", else: Enum.join(card.flags, ", ")}",
       "Cover colour: #{card.color || "none"}",
       "Edge colours: #{edges_text(card) || "none"}",
-      Card.health(card) not in [nil, :ok] && "Rolled-up health: #{Card.health(card)}",
+      not Enum.member?([nil, :ok], Card.health(card)) && "Rolled-up health: #{Card.health(card)}",
       Card.stated_health(card) && "Reported health: #{Card.stated_health(card)}",
       Card.vote_total(card) > 0 && "Votes: #{Card.vote_total(card)}",
       "Created: #{fmt_at(card.inserted_at)}; last updated: #{fmt_at(card.updated_at)}",

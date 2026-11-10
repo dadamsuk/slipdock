@@ -41,7 +41,7 @@ defmodule Slipdock.OCR.Extractor do
   def kind(content_type, name) do
     cond do
       content_type == @pdf -> :pdf
-      content_type in @images -> :image
+      Enum.member?(@images, content_type) -> :image
       name |> to_string() |> Path.extname() |> String.downcase() == ".pdf" -> :pdf
       true -> nil
     end
@@ -234,8 +234,13 @@ defmodule Slipdock.OCR.Extractor do
 
     System.cmd("timeout", wrapped, env: [{"OMP_THREAD_LIMIT", "1"}])
   rescue
-    error in ErlangError -> {Exception.message(error), 127}
+    error -> not_run(error, __STACKTRACE__)
   end
+
+  # `timeout` itself couldn't be started (`:enoent`): answered as a shell
+  # would, 127. Anything else raised is not ours to answer.
+  defp not_run(%ErlangError{} = error, _stacktrace), do: {Exception.message(error), 127}
+  defp not_run(error, stacktrace), do: reraise(error, stacktrace)
 
   defp limit(key, default), do: config()[key] || default
 

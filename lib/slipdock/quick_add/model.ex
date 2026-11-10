@@ -101,10 +101,10 @@ defmodule Slipdock.QuickAdd.Model do
       "assignee" => trimmed(json["assignee"]),
       "start" => trimmed(json["start"] || json["start_date"]),
       "due" => trimmed(json["due"] || json["due_date"]),
-      "flags" => json["flags"] |> list() |> Enum.filter(&(&1 in Card.flags())),
+      "flags" => json["flags"] |> list() |> Enum.filter(&Enum.member?(Card.flags(), &1)),
       "tags" => list(json["tags"])
     }
-    |> Enum.reject(fn {_k, v} -> v in [nil, []] end)
+    |> Enum.reject(fn {_k, v} -> Enum.member?([nil, []], v) end)
     |> Map.new()
   end
 
@@ -121,7 +121,7 @@ defmodule Slipdock.QuickAdd.Model do
 
   defp priority(p) when is_binary(p) do
     p = String.downcase(p)
-    if p in Card.priorities(), do: p
+    if Enum.member?(Card.priorities(), p), do: p
   end
 
   defp priority(_), do: nil

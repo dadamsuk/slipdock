@@ -94,7 +94,7 @@ defmodule Slipdock.Inbound.Message do
          authentication_results:
            Enum.filter(
              headers,
-             &(elem(&1, 0) in ["authentication-results", "arc-authentication-results"])
+             &Enum.member?(["authentication-results", "arc-authentication-results"], elem(&1, 0))
            ),
          auto_submitted: header(headers, "auto-submitted"),
          precedence: header(headers, "precedence"),
@@ -150,7 +150,7 @@ defmodule Slipdock.Inbound.Message do
         {[], [],
          [attachment(headers, body, "message/rfc822", params, disp_params, "forwarded.eml")]}
 
-      type in ["text/plain", "text/html"] and disposition != "attachment" and
+      Enum.member?(["text/plain", "text/html"], type) and disposition != "attachment" and
           not Map.has_key?(disp_params, "filename") ->
         text = body |> transfer_decode(headers) |> to_utf8(params["charset"])
         if type == "text/plain", do: {[text], [], []}, else: {[], [text], []}

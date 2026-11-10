@@ -635,7 +635,7 @@ defmodule Slipdock.AI.Researcher do
         text =
           Enum.map_join(alerts, "\n", fn a ->
             "- [#{a.severity}] #{a.title}" <>
-              if(a.body in [nil, ""], do: "", else: " — #{snippet(a.body)}") <>
+              if(Enum.member?([nil, ""], a.body), do: "", else: " — #{snippet(a.body)}") <>
               " (#{a.board && a.board.name}" <>
               if(a.card, do: ", on “#{a.card.title}”", else: "") <>
               ", raised #{fmt_at(a.inserted_at)})"
@@ -841,7 +841,7 @@ defmodule Slipdock.AI.Researcher do
   end
 
   defp board_label(board, path) do
-    code = if board.code in [nil, ""], do: "", else: " [#{board.code}]"
+    code = if Enum.member?([nil, ""], board.code), do: "", else: " [#{board.code}]"
     archived = if board.archived_at, do: " (archived board)", else: ""
 
     if board.parent_card_id,
@@ -860,7 +860,7 @@ defmodule Slipdock.AI.Researcher do
   defp facets(%Card{} = card) do
     [
       card.completed && "done",
-      card.priority not in [nil, "none"] && "priority #{card.priority}",
+      not Enum.member?([nil, "none"], card.priority) && "priority #{card.priority}",
       card.due_date && "due #{card.due_date}",
       card.archived_at && "archived"
     ]
@@ -959,7 +959,7 @@ defmodule Slipdock.AI.Researcher do
     # which is the part worth reading. Keep those, drop these.
     logged =
       activities
-      |> Enum.reject(&(&1.kind in ["comment", "status"]))
+      |> Enum.reject(&Enum.member?(["comment", "status"], &1.kind))
       |> Enum.map(
         &%{at: &1.inserted_at, card_id: &1.card_id, board_id: &1.board_id, text: &1.message}
       )
@@ -974,7 +974,7 @@ defmodule Slipdock.AI.Researcher do
         }
       end) ++
         Enum.map(updates, fn u ->
-          note = if u.body in [nil, ""], do: "", else: ": #{snippet(u.body)}"
+          note = if Enum.member?([nil, ""], u.body), do: "", else: ": #{snippet(u.body)}"
 
           %{
             at: u.inserted_at,
@@ -1043,7 +1043,8 @@ defmodule Slipdock.AI.Researcher do
         else: nil
 
     [
-      "# Board: #{board.name}" <> if(board.code in [nil, ""], do: "", else: " [#{board.code}]"),
+      "# Board: #{board.name}" <>
+        if(Enum.member?([nil, ""], board.code), do: "", else: " [#{board.code}]"),
       board.archived_at && "This board is archived.",
       board.description && board.description != "" && "Description: #{board.description}",
       Context.board_facts(board, Access.visible_users_for(board)),
@@ -1525,7 +1526,7 @@ defmodule Slipdock.AI.Researcher do
     history
     |> Enum.filter(&Enum.member?(["user", "assistant", :user, :assistant], &1.role))
     |> Enum.map(&%{"role" => to_string(&1.role), "content" => &1.content})
-    |> Enum.reject(&(&1["content"] in [nil, ""]))
+    |> Enum.reject(&Enum.member?([nil, ""], &1["content"]))
     |> Enum.take(-@history_limit)
   end
 end

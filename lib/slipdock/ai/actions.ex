@@ -472,8 +472,8 @@ defmodule Slipdock.AI.Actions do
     colour = value |> to_s() |> String.trim() |> String.downcase()
 
     cond do
-      colour in ["", "none"] -> {:ok, nil}
-      colour in Slipdock.Palette.names() -> {:ok, colour}
+      Enum.member?(["", "none"], colour) -> {:ok, nil}
+      Enum.member?(Slipdock.Palette.names(), colour) -> {:ok, colour}
       true -> :error
     end
   end
@@ -507,7 +507,7 @@ defmodule Slipdock.AI.Actions do
         field_step(
           card,
           scope,
-          if(text in [nil, ""],
+          if(Enum.member?([nil, ""], text),
             do: "Clear the description of “#{card.title}”",
             else: "Update the description of “#{card.title}”: #{excerpt(text)}"
           ),
@@ -520,7 +520,7 @@ defmodule Slipdock.AI.Actions do
     p = value |> to_s() |> String.downcase()
 
     cond do
-      p not in Card.priorities() ->
+      not Enum.member?(Card.priorities(), p) ->
         [failed("Set priority of “#{card.title}”", "“#{value}” isn't a priority")]
 
       p == card.priority ->
@@ -700,12 +700,12 @@ defmodule Slipdock.AI.Actions do
   defp update_step({key, flags}, card, scope) when key in ["add_flags", "remove_flags"] do
     adding? = key == "add_flags"
     wanted = flags |> list() |> Enum.map(&(&1 |> to_s() |> String.downcase()))
-    {known, unknown} = Enum.split_with(wanted, &(&1 in Card.flags()))
+    {known, unknown} = Enum.split_with(wanted, &Enum.member?(Card.flags(), &1))
 
     new_flags =
       if adding?,
         do: Enum.uniq(card.flags ++ known),
-        else: Enum.reject(card.flags, &(&1 in known))
+        else: Enum.reject(card.flags, &Enum.member?(known, &1))
 
     steps =
       if new_flags == card.flags,
@@ -725,7 +725,7 @@ defmodule Slipdock.AI.Actions do
   defp update_step({"flags", flags}, card, scope) do
     wanted = flags |> list() |> Enum.map(&(&1 |> to_s() |> String.downcase()))
 
-    if Enum.all?(wanted, &(&1 in Card.flags())) do
+    if Enum.all?(wanted, &Enum.member?(Card.flags(), &1)) do
       if Enum.sort(wanted) == Enum.sort(card.flags),
         do: [],
         else: [
@@ -750,7 +750,7 @@ defmodule Slipdock.AI.Actions do
 
     update_step({"add_tags", wanted -- current}, card, scope) ++
       update_step(
-        {"remove_tags", Enum.reject(current, &(down.(&1) in Enum.map(wanted, down)))},
+        {"remove_tags", Enum.reject(current, &Enum.member?(Enum.map(wanted, down), down.(&1)))},
         card,
         scope
       )
@@ -760,7 +760,7 @@ defmodule Slipdock.AI.Actions do
     p = to_s(value)
 
     cond do
-      p not in Slipdock.Dates.precision_keys() ->
+      not Enum.member?(Slipdock.Dates.precision_keys(), p) ->
         [failed("Set date precision of “#{card.title}”", "unknown precision")]
 
       p == card.date_precision ->
@@ -1053,10 +1053,10 @@ defmodule Slipdock.AI.Actions do
       flags = action["flags"] |> list() |> Enum.map(&String.downcase(to_s(&1)))
 
       cond do
-        priority && priority not in Card.priorities() ->
+        priority && not Enum.member?(Card.priorities(), priority) ->
           {:error, "“#{priority}” isn't a priority"}
 
-        Enum.any?(flags, &(&1 not in Card.flags())) ->
+        Enum.any?(flags, &(not Enum.member?(Card.flags(), &1))) ->
           {:error, "unknown flag"}
 
         true ->

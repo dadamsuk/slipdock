@@ -211,7 +211,8 @@ defmodule Slipdock.QuickAdd do
   defp take_dates(text, acc, today) do
     Regex.scan(@date_regex, text)
     |> Enum.reduce({text, acc}, fn [whole, key, phrase], {text, acc} ->
-      field = if String.downcase(key) in ["due", "by"], do: "due_date", else: "start_date"
+      field =
+        if Enum.member?(["due", "by"], String.downcase(key)), do: "due_date", else: "start_date"
 
       case parse_date(String.downcase(phrase), today) do
         {:ok, nil} ->
@@ -241,9 +242,9 @@ defmodule Slipdock.QuickAdd do
     phrase = phrase |> String.downcase() |> String.trim()
 
     cond do
-      phrase in ["none", "clear"] -> {:ok, nil}
-      phrase in ["today", "tod"] -> {:ok, today}
-      phrase in ["tomorrow", "tom", "tmrw"] -> {:ok, Date.add(today, 1)}
+      Enum.member?(["none", "clear"], phrase) -> {:ok, nil}
+      Enum.member?(["today", "tod"], phrase) -> {:ok, today}
+      Enum.member?(["tomorrow", "tom", "tmrw"], phrase) -> {:ok, Date.add(today, 1)}
       phrase == "yesterday" -> {:ok, Date.add(today, -1)}
       phrase == "eow" -> {:ok, Date.end_of_week(today)}
       phrase == "eom" -> {:ok, Date.end_of_month(today)}
@@ -405,10 +406,10 @@ defmodule Slipdock.QuickAdd do
 
       resolved =
         cond do
-          key in Card.priorities() ->
+          Enum.member?(Card.priorities(), key) ->
             acc |> put_attr("priority", key) |> chip(:priority, key)
 
-          key in Card.flags() ->
+          Enum.member?(Card.flags(), key) ->
             flags = Enum.uniq(Map.get(acc.attrs, "flags", []) ++ [key])
             acc |> put_attr("flags", flags) |> chip(:flag, key)
 

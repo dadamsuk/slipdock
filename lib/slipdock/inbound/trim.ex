@@ -157,7 +157,7 @@ defmodule Slipdock.Inbound.Trim do
 
   # From the signature separator ("-- ", RFC 3676; also a bare "--") on.
   defp cut_at_signature(lines) do
-    case Enum.find_index(lines, &(&1 in ["-- ", "--"])) do
+    case Enum.find_index(lines, &Enum.member?(["-- ", "--"], &1)) do
       nil -> lines
       at -> Enum.take(lines, at)
     end
@@ -259,7 +259,7 @@ defmodule Slipdock.Inbound.Trim do
 
   defp cut_point?({_tag, attrs, _}) when is_list(attrs) do
     case List.keyfind(attrs, "id", 0) do
-      {_, id} -> id in @cut_ids
+      {_, id} -> Enum.member?(@cut_ids, id)
       nil -> false
     end
   end

@@ -39,7 +39,7 @@ defmodule Slipdock.AI.WaitAnswerer do
   def suggest(%Card{} = card, board, %Wait{} = wait, n, answers \\ %{}, opts \\ []) do
     questions = Wait.questions(wait)
 
-    if n in 1..length(questions)//1 do
+    if Enum.member?(1..length(questions)//1, n) do
       messages = [
         %{role: "system", content: String.trim(@instructions)},
         %{role: "user", content: context(card, board, wait, n, answers)}
