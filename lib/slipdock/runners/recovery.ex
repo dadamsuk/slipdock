@@ -74,7 +74,7 @@ defmodule Slipdock.Runners.Recovery do
   def recover(%Job{id: id}) do
     with %Job{rule_id: rule_id, attempts: attempts, recovery: nil} = job when attempts > 0 <-
            Repo.get(Job, id),
-         true <- job.status in Job.finished_statuses(),
+         true <- Enum.member?(Job.finished_statuses(), job.status),
          %Rule{} = rule <- rule_id && Repo.get(Rule, rule_id) do
       # The changes below come back as events that would feed the rule before
       # the card is where it belongs; whoever called this feeds it after.
@@ -118,7 +118,7 @@ defmodule Slipdock.Runners.Recovery do
       wait = Boards.current_wait(card)
       unassign = rule.spec["trigger"]["unassigned"] == true and assigned?(card)
 
-      if wait && "waiting" not in card.flags,
+      if wait && not Enum.member?(card.flags, "waiting"),
         do: Boards.update_card(card, %{"flags" => card.flags ++ ["waiting"]}, wait_hook: false)
 
       if unassign, do: Boards.update_card(Repo.get!(Card, card.id), %{"assignee_ids" => []})

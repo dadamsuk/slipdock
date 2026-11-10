@@ -101,7 +101,7 @@ defmodule Slipdock.Dora do
   defp window(ctx, from, to, days) do
     in_window = Enum.filter(ctx.deploys, &within?(&1.started_at, from, to))
     succeeded = Enum.filter(in_window, &(&1.status == "succeeded"))
-    finished = Enum.filter(in_window, &(&1.status in ["succeeded", "failed"]))
+    finished = Enum.filter(in_window, &Enum.member?(["succeeded", "failed"], &1.status))
     failed = Enum.count(finished, &Map.has_key?(ctx.failures, &1.id))
     rework = Enum.count(finished, &Incidents.rework?(&1, ctx.incident_ids))
 
@@ -164,7 +164,7 @@ defmodule Slipdock.Dora do
 
     by_date =
       ctx.deploys
-      |> Enum.filter(&(&1.status in ["succeeded", "failed"]))
+      |> Enum.filter(&Enum.member?(["succeeded", "failed"], &1.status))
       |> Enum.group_by(&(&1.started_at |> DateTime.shift_zone!(tz) |> DateTime.to_date()))
 
     for date <- Date.range(first, today) do
@@ -255,7 +255,7 @@ defmodule Slipdock.Dora do
   def default_environment(board) do
     case Deployments.environments(board) do
       [] -> "production"
-      envs -> if "production" in envs, do: "production", else: hd(envs)
+      envs -> if Enum.member?(envs, "production"), do: "production", else: hd(envs)
     end
   end
 

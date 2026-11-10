@@ -397,7 +397,7 @@ defmodule Slipdock.Work do
     |> Repo.all()
     |> Enum.flat_map(fn {id, flags, waited?} ->
       cond do
-        "review" in flags -> [%{card_id: id, reason: "review"}]
+        Enum.member?(flags, "review") -> [%{card_id: id, reason: "review"}]
         not waited? -> [%{card_id: id, reason: "waiting"}]
         true -> []
       end
@@ -684,7 +684,7 @@ defmodule Slipdock.Work do
 
   defp in_scope?(card, opts) do
     (is_nil(opts[:board_id]) or in_tree?(card, opts[:board_id])) and
-      (is_nil(opts[:roots]) or Board.root_id(card.board) in opts[:roots])
+      (is_nil(opts[:roots]) or Enum.member?(opts[:roots], Board.root_id(card.board)))
   end
 
   # When each flag came on, for the cards that have it now: the first entry
@@ -717,7 +717,7 @@ defmodule Slipdock.Work do
   defp run_start(rows, flag) do
     Enum.reduce(rows, nil, fn {flags, at}, start ->
       cond do
-        flag not in flags -> nil
+        not Enum.member?(flags, flag) -> nil
         start -> start
         true -> at
       end

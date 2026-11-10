@@ -655,7 +655,7 @@ defmodule Slipdock.Runners do
     if not finishing?(job), do: Slipdock.Lanes.held_cards(job.root_board_id)[job.card_id]
   end
 
-  defp finishing?(%Job{kind: kind}), do: kind in Slipdock.Verified.finishing_kinds()
+  defp finishing?(%Job{kind: kind}), do: Enum.member?(Slipdock.Verified.finishing_kinds(), kind)
 
   @doc """
   `held_reason/1` for many jobs at once, as job id => line for each one
@@ -707,7 +707,7 @@ defmodule Slipdock.Runners do
       (other = lanes[job.root_board_id][job.card_id]) && not finishing?(job) ->
         Slipdock.Lanes.held_line(other)
 
-      job.pool not in online[job.root_board_id] ->
+      not Enum.member?(online[job.root_board_id], job.pool) ->
         "No runner online for pool #{job.pool}"
 
       true ->
@@ -1012,7 +1012,7 @@ defmodule Slipdock.Runners do
   is paused, or any of them is.
   """
   def paused?(root_id, pools) do
-    Enum.any?(open_pauses(root_id), &(is_nil(&1.pool) or &1.pool in pools))
+    Enum.any?(open_pauses(root_id), &(is_nil(&1.pool) or Enum.member?(pools, &1.pool)))
   end
 
   defp blank(value) when value in [nil, ""], do: nil
@@ -1271,7 +1271,7 @@ defmodule Slipdock.Runners do
   end
 
   @doc "Whether `runner` takes merge jobs: it said so on its last claim."
-  def takes_merge?(%Runner{kinds: kinds}) when is_list(kinds), do: "merge" in kinds
+  def takes_merge?(%Runner{kinds: kinds}) when is_list(kinds), do: Enum.member?(kinds, "merge")
   def takes_merge?(_runner), do: false
 
   # The kinds a WIP limit never holds back: verify and merge jobs finish
@@ -1333,7 +1333,7 @@ defmodule Slipdock.Runners do
   def heartbeat(%Runner{} = runner, job_id, log \\ nil, opts \\ []) do
     with {:ok, job} <- runner_job(runner, job_id) do
       cond do
-        job.status not in ~w(claimed running) ->
+        not Enum.member?(~w(claimed running), job.status) ->
           {:ok, :cancel}
 
         true ->
@@ -1342,7 +1342,9 @@ defmodule Slipdock.Runners do
 
           changes =
             [lease_expires_at: DateTime.add(now, lease_for(runner)), updated_at: now]
-            |> then(&if(log in [nil, ""], do: &1, else: [{:log_tail, tail(log)} | &1]))
+            |> then(
+              &if(Enum.member?([nil, ""], log), do: &1, else: [{:log_tail, tail(log)} | &1])
+            )
             |> then(
               &if(is_nil(step),
                 do: &1,
@@ -1375,7 +1377,7 @@ defmodule Slipdock.Runners do
   """
   def finish(%Runner{} = runner, job_id, attrs) do
     with {:ok, job} <- runner_job(runner, job_id) do
-      if job.status in Job.finished_statuses() do
+      if Enum.member?(Job.finished_statuses(), job.status) do
         {:ok, job}
       else
         with {:ok, status} <- end_status(job, attrs) do
@@ -1437,7 +1439,7 @@ defmodule Slipdock.Runners do
       job.cancel_requested_at -> {:ok, "cancelled"}
       open_linked_wait(job) -> {:ok, "parked"}
       attrs[:status] == "parked" -> {:error, not_parkable(job)}
-      attrs[:status] in Job.finished_statuses() -> {:ok, attrs[:status]}
+      Enum.member?(Job.finished_statuses(), attrs[:status]) -> {:ok, attrs[:status]}
       exit_code == 0 -> {:ok, "done"}
       true -> {:ok, "failed"}
     end
@@ -1475,7 +1477,8 @@ defmodule Slipdock.Runners do
       |> Ecto.Changeset.change(%{
         status: status,
         exit_code: exit_code,
-        output: if(attrs[:output] in [nil, ""], do: job.output, else: tail(attrs[:output])),
+        output:
+          if(Enum.member?([nil, ""], attrs[:output]), do: job.output, else: tail(attrs[:output])),
         finished_at: now(),
         lease_expires_at: nil,
         error: if(exit_code == 127 and status == "failed", do: "the runner has no such job kind"),
@@ -1708,7 +1711,7 @@ defmodule Slipdock.Runners do
 
   defp announce(%Job{id: id}) do
     with %Job{} = job <- Repo.get(Job, id),
-         true <- job.status in Job.finished_statuses() do
+         true <- Enum.member?(Job.finished_statuses(), job.status) do
       card = Repo.get(Card, job.card_id)
 
       Slipdock.Automations.dispatch(%{

@@ -88,8 +88,8 @@ defmodule Slipdock.RunnerStats do
     outcomes = %{
       done: Enum.count(jobs, &(&1.status == "done")),
       parked: Enum.count(jobs, &(&1.status == "parked")),
-      failed: Enum.count(jobs, &(&1.status in ["failed", "timeout"])),
-      running: Enum.count(jobs, &(&1.status in ["claimed", "running"])),
+      failed: Enum.count(jobs, &Enum.member?(["failed", "timeout"], &1.status)),
+      running: Enum.count(jobs, &Enum.member?(["claimed", "running"], &1.status)),
       cancelled: Enum.count(jobs, &(&1.status == "cancelled"))
     }
 
