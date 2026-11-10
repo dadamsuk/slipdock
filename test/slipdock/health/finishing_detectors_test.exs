@@ -200,6 +200,30 @@ defmodule Slipdock.Health.FinishingDetectorsTest do
       assert "stuck" in Repo.get!(Card, ctx.card.id).flags
     end
 
+    test "a card sent back rejected is looping between accepted and rejected", ctx do
+      set_card(ctx.card, verify_state: "rejected")
+      job(ctx.card, kind: "merge", status: "failed", error: "conflict in mix.lock")
+      job(ctx.card, kind: "merge", status: "failed", error: "checks red")
+
+      assert [f] = detect(MergeFailing, ctx.board)
+      assert f.summary =~ "it is looping between accepted and rejected"
+      refute f.summary =~ "still merging"
+    end
+
+    test "two already-merged failures leave the card merging: flagged, not as looping", ctx do
+      set_card(ctx.card, verify_state: "merging")
+      said = "merge: #9 was already merged at head abc1234, not the accepted commit"
+      job(ctx.card, kind: "merge", status: "failed", error: said)
+      last = job(ctx.card, kind: "merge", status: "failed", error: said)
+
+      assert [f] = detect(MergeFailing, ctx.board)
+      assert f.state == last.id
+      assert f.summary =~ "has failed 2 times, most recently job ##{last.id}"
+      assert f.summary =~ "it is still merging, not sent back as rejected"
+      assert f.summary =~ "was already merged at head abc1234"
+      refute f.summary =~ "looping"
+    end
+
     test "near misses: one failure, and a later merge that succeeded", ctx do
       job(ctx.card, kind: "merge", status: "failed", error: "x")
       assert detect(MergeFailing, ctx.board) == []
