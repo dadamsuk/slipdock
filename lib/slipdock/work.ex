@@ -15,6 +15,8 @@ defmodule Slipdock.Work do
 
   import Ecto.Query
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.{Access, Boards, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Activity, Board, Card, CardMove, Column, Wait}
@@ -620,7 +622,7 @@ defmodule Slipdock.Work do
 
     from(c in Card,
       join: col in Column,
-      on: col.id == c.column_id and col.category == "doing",
+      on: col.id == c.column_id and DoingList.doing?(col.category, col.name),
       join: m in subquery(latest),
       on: m.card_id == c.id and m.to_column_id == c.column_id,
       where: m.at <= ^cutoff and is_nil(c.assignee_id),

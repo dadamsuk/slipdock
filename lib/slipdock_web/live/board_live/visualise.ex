@@ -114,7 +114,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
       columns: columns,
       pulse: pulse,
       dora: dora,
-      doing: Enum.find(columns, &(&1.category == "doing")),
+      doing: Enum.find(columns, &Flow.doing_list?/1),
       last_answer: last_answer(board),
       lists: lists(board, columns, pulse, counts),
       history: Flow.history(board, days: socket.assigns.days),
@@ -126,6 +126,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
         for(
           c <- columns,
           is_nil(c.category),
+          not Flow.doing_list?(c),
           (n = Map.get(counts, c.id, 0)) > 0,
           do: {c.name, n}
         )
@@ -158,11 +159,14 @@ defmodule SlipdockWeb.BoardLive.Visualise do
       |> Map.new()
 
     limits = Map.new(columns, &{&1.id, &1.wip_limit})
+    # A doing list by its category, else by its name (#2676).
+    doing = for c <- columns, Flow.doing_list?(c), into: MapSet.new(), do: c.id
 
     Enum.map(pulse.lists, fn l ->
       Map.merge(l, %{
         count: Map.get(counts, l.id, 0),
         wip_limit: limits[l.id],
+        doing: MapSet.member?(doing, l.id),
         archived_7d: Map.get(archived, l.id, 0)
       })
     end)
@@ -203,7 +207,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
   # list first, with `Slipdock.CardState`'s age, usual stay and driver.
   defp aging(board, columns, usual) do
     ready = Flow.ready_list(columns)
-    ids = for c <- columns, c.category == "doing" or (ready && c.id == ready.id), do: c.id
+    ids = for c <- columns, Flow.doing_list?(c) or (ready && c.id == ready.id), do: c.id
     names = Map.new(columns, &{&1.id, &1.name})
 
     Repo.all(

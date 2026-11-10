@@ -46,7 +46,7 @@ defmodule Slipdock.Pulse do
   def for_board(%Board{id: board_id}, opts \\ []) do
     now = Keyword.get_lazy(opts, :now, &DateTime.utc_now/0)
     columns = Repo.all(from c in Column, where: c.board_id == ^board_id, order_by: :position)
-    doing = for c <- columns, c.category == "doing", do: c.id
+    doing = for c <- columns, Slipdock.Flow.doing_list?(c), do: c.id
 
     open =
       from c in Card,

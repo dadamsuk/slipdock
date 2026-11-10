@@ -172,18 +172,16 @@ defmodule Slipdock.Flow do
   defp buckets(columns) do
     ready = ready_list(columns)
 
-    Map.new(columns, fn col ->
-      bucket =
-        case col.category do
-          "todo" -> if ready && ready.id == col.id, do: :ready, else: :backlog
-          "doing" -> :doing
-          "done" -> :done
-          _ -> nil
-        end
-
-      {col.id, bucket}
-    end)
+    Map.new(columns, &{&1.id, bucket(&1, ready)})
   end
+
+  # A doing list by its category, else by its name (#2676).
+  defp bucket(%Column{category: "todo"} = col, ready),
+    do: if(ready && ready.id == col.id, do: :ready, else: :backlog)
+
+  defp bucket(%Column{category: "done"}, _ready), do: :done
+
+  defp bucket(col, _ready), do: if(doing_list?(col), do: :doing, else: nil)
 
   # Every ledger row, oldest first, of each card that has ever been on the
   # board (and of the cards finished in the window, whose first entry into
@@ -207,6 +205,7 @@ defmodule Slipdock.Flow do
           from: m.from_column_id,
           to: m.to_column_id,
           to_category: m.to_category,
+          to_column_name: m.to_column_name,
           at: m.inserted_at
         }
     )
@@ -289,7 +288,8 @@ defmodule Slipdock.Flow do
 
   defp first_doing(card_rows, completed_at) do
     Enum.find_value(card_rows, fn r ->
-      if r.to_category == "doing" and r.kind in CardMove.entry_kinds() and
+      if doing_list?(%Column{category: r.to_category, name: r.to_column_name || ""}) and
+           Enum.member?(CardMove.entry_kinds(), r.kind) and
            DateTime.compare(r.at, completed_at) != :gt,
          do: r.at
     end)

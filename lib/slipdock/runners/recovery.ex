@@ -36,6 +36,8 @@ defmodule Slipdock.Runners.Recovery do
 
   import Ecto.Query
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Automations.{Rule, Spec}
   alias Slipdock.Boards.{Board, Card}
@@ -189,7 +191,8 @@ defmodule Slipdock.Runners.Recovery do
         as: :card,
         join: col in assoc(c, :column),
         where:
-          c.id == ^job.card_id and col.category == "doing" and is_nil(c.archived_at) and
+          c.id == ^job.card_id and DoingList.doing?(col.category, col.name) and
+            is_nil(c.archived_at) and
             c.completed == false and
             coalesce(c.verify_state, "") not in @waiting_states and
             not exists(waiting_subcard())

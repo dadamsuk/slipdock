@@ -34,6 +34,8 @@ defmodule Slipdock.Dora do
 
   import Ecto.Query
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.Boards.{Board, Card, CardMove}
   alias Slipdock.Deployments
   alias Slipdock.Deployments.Incidents
@@ -228,7 +230,7 @@ defmodule Slipdock.Dora do
     doing =
       Repo.all(
         from m in CardMove,
-          where: m.card_id in ^ids and m.to_category == "doing",
+          where: m.card_id in ^ids and DoingList.doing?(m.to_category, m.to_column_name),
           group_by: m.card_id,
           select: {m.card_id, min(m.inserted_at)}
       )

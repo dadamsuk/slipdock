@@ -22,7 +22,7 @@ defmodule Slipdock.Gardener.Checks.StaleInProgress do
   @impl true
   def find(ctx, %{"days" => days}) do
     candidates =
-      Enum.filter(Cards.cards(ctx), &(not &1.completed and Context.category(ctx, &1) == "doing"))
+      Enum.filter(Cards.cards(ctx), &(not &1.completed and doing?(ctx, &1)))
 
     agents = Slipdock.Health.Cards.agent_driven(Enum.map(candidates, & &1.id))
     candidates = Enum.reject(candidates, &MapSet.member?(agents, &1.id))
@@ -62,6 +62,14 @@ defmodule Slipdock.Gardener.Checks.StaleInProgress do
           "“#{card.title}” is in #{Cards.list_name(ctx, card)} with no activity since #{Cards.day(at)}" <>
             if(commenter, do: "; last comment by #{commenter}", else: "")
       }
+    end
+  end
+
+  # A doing list by its category, else by its name (#2676).
+  defp doing?(ctx, card) do
+    case Map.get(ctx.columns, card.column_id) do
+      nil -> false
+      column -> Slipdock.Flow.doing_list?(column)
     end
   end
 end
