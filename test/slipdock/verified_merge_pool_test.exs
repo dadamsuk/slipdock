@@ -110,6 +110,32 @@ defmodule Slipdock.VerifiedMergePoolTest do
       assert ctx.card |> submit(ctx) |> Verified.merge_pool() == "loop"
     end
 
+    test "to the builder's pool even when another idle runner was seen more recently", ctx do
+      loop = runner(ctx, "loop", "loop", "claude,merge")
+      verifier = runner(ctx, "verifier", "verify", "verify,merge")
+      job = busy(loop, ctx.card)
+      {:ok, _} = Runners.finish(loop, job.id, %{exit: "0"})
+
+      # The candidates come most recently seen first, so the verifier's pool
+      # heads the idle ones: only the builder-first rule picks "loop" here.
+      seen = DateTime.utc_now() |> DateTime.add(-10) |> DateTime.truncate(:second)
+      Repo.update_all(from(r in Runner, where: r.id == ^loop.id), set: [last_seen_at: seen])
+
+      Repo.update_all(from(r in Runner, where: r.id == ^verifier.id),
+        set: [last_seen_at: DateTime.add(seen, 10)]
+      )
+
+      assert Runners.idle?(Repo.get!(Runner, loop.id))
+      assert Runners.idle?(Repo.get!(Runner, verifier.id))
+
+      card = submit(ctx.card, ctx)
+      assert Verified.merge_pool(card) == "loop"
+
+      # With no builder to prefer, the same two runners give the other pool.
+      other = card_fixture(ctx.todo, %{"title" => "Nobody built this"})
+      assert Verified.merge_pool(other) == "verify"
+    end
+
     test "with none idle, to the runner that decided it, in its verify job", ctx do
       loop = runner(ctx, "loop", "loop", "claude,merge")
       verifier = runner(ctx, "verifier", "verify", "verify,merge")
