@@ -90,7 +90,7 @@ defmodule SlipdockWeb.API.AdminController do
     params = Map.delete(params, "ai_system_user")
 
     cond do
-      email in ["", "none", "-", nil] ->
+      Enum.member?(["", "none", "-", nil], email) ->
         {:ok, Map.put(params, "ai_system_user_id", nil)}
 
       user = is_binary(email) && Accounts.get_user_by_email(email) ->

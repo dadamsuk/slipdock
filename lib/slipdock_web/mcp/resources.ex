@@ -120,7 +120,7 @@ defmodule SlipdockWeb.MCP.Resources do
 
     fav_resources =
       favourites
-      |> Enum.filter(&(&1.kind in [:board, :card, :view, :page]))
+      |> Enum.filter(&Enum.member?([:board, :card, :view, :page], &1.kind))
       |> Enum.filter(&readable?(auth, &1.kind, &1.resource))
       |> Enum.map(&resource(&1.kind, &1.resource, "Favourite"))
 

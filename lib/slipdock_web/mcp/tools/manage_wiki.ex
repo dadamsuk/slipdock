@@ -73,7 +73,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageWiki do
   @impl true
   def call(args, %{user: user} = context) do
     with {:ok, action} <- Args.required(args, "action") do
-      if action in @actions,
+      if Enum.member?(@actions, action),
         do: act(action, args, user, context),
         else: {:error, "action must be one of #{Enum.join(@actions, ", ")}"}
     end

@@ -36,7 +36,7 @@ defmodule SlipdockWeb.PageLinkHook do
   defp handle_event("page_link_suggest", params, socket) do
     case board(socket, params["board"]) do
       %Board{} = board ->
-        socket = ensure_pool(socket, board, params["fresh"] in [true, "true"])
+        socket = ensure_pool(socket, board, Enum.member?([true, "true"], params["fresh"]))
         pool = socket.assigns.page_link_pool.pool
 
         pages =
@@ -105,7 +105,7 @@ defmodule SlipdockWeb.PageLinkHook do
       end
 
     [entry[:elsewhere], if(entry.board_id != board_id, do: entry.board), dir]
-    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.reject(&Enum.member?([nil, ""], &1))
     |> Enum.join(" · ")
   end
 
@@ -114,7 +114,7 @@ defmodule SlipdockWeb.PageLinkHook do
   defp board(socket, id) do
     user = socket.assigns[:current_user]
 
-    with true <- not is_nil(user) and id not in [nil, ""],
+    with true <- not is_nil(user) and not Enum.member?([nil, ""], id),
          {id, ""} <- Integer.parse(to_string(id)),
          %Board{} = board <- Boards.get_board(id),
          true <- Access.can_read?(Access.board_permission(user, board)) do

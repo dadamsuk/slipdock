@@ -959,7 +959,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp page_embed_html(ref, context, seen) do
     case resolve_one(ref, context) do
       {:page, page} ->
-        with false <- page.id in seen or length(seen) >= @max_embed_depth,
+        with false <- Enum.member?(seen, page.id) or length(seen) >= @max_embed_depth,
              {:ok, source} <- embed_source(page, Map.get(ref, :anchor)) do
           inner =
             to_html(source,

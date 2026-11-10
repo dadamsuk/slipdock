@@ -71,9 +71,7 @@ defmodule SlipdockWeb.API.RunnerController do
         conn |> get_req_header("x-runner-cli") |> List.first()
       )
 
-    if params["pool"] not in [nil, "", runner.pool] do
-      text_reply(conn, 403, "this runner token is for pool #{runner.pool}, not #{params["pool"]}")
-    else
+    if Enum.member?([nil, "", runner.pool], params["pool"]) do
       case Runners.claim(runner, wait(params["wait"]) * 1000) do
         nil ->
           conn |> draining() |> held(runner) |> send_resp(204, "")
@@ -88,6 +86,8 @@ defmodule SlipdockWeb.API.RunnerController do
           |> context_headers(job)
           |> text_reply(200, Runners.claimed_prompt(job), newline: false)
       end
+    else
+      text_reply(conn, 403, "this runner token is for pool #{runner.pool}, not #{params["pool"]}")
     end
   end
 

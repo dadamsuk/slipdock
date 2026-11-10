@@ -67,8 +67,8 @@ defmodule SlipdockWeb.BaseURL do
     "#{scheme}://#{host}#{port}"
   end
 
-  defp default_port?("https", port), do: port in [443, nil]
-  defp default_port?(_scheme, port), do: port in [80, nil]
+  defp default_port?("https", port), do: Enum.member?([443, nil], port)
+  defp default_port?(_scheme, port), do: Enum.member?([80, nil], port)
 
   # Only ever an upgrade: a proxy saying "this arrived over TLS" is worth
   # believing because the alternative is handing out an http URL that leaks the

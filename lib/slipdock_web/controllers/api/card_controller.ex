@@ -44,7 +44,7 @@ defmodule SlipdockWeb.API.CardController do
       value ->
         keys = allowed |> Enum.map(&elem(&1, 0)) |> Enum.reject(&(&1 == ""))
 
-        if value in keys,
+        if Enum.member?(keys, value),
           do: {:ok, params},
           else: {:error, :bad_request, "#{key} must be one of: #{Enum.join(keys, ", ")}"}
     end

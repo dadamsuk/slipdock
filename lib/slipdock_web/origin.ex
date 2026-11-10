@@ -57,7 +57,7 @@ defmodule SlipdockWeb.Origin do
 
   # Health checks and probes arrive this way — the container's own HEALTHCHECK
   # curls 127.0.0.1 — and nobody reaches a server "at" loopback from outside.
-  defp loopback?(host), do: host in ["localhost", "127.0.0.1", "::1", "0.0.0.0"]
+  defp loopback?(host), do: Enum.member?(["localhost", "127.0.0.1", "::1", "0.0.0.0"], host)
 
   @doc """
   Whether a socket connection from `origin` is allowed.

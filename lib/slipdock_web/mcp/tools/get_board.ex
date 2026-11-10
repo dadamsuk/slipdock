@@ -102,13 +102,13 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)) do
       cond do
-        args["dora"] in [true, "true"] ->
+        Enum.member?([true, "true"], args["dora"]) ->
           {:ok,
            board
            |> SlipdockWeb.API.JSON.dora(args["environment"], args["days"])
            |> Map.merge(%{name: board.name})}
 
-        args["history"] in [true, "true"] ->
+        Enum.member?([true, "true"], args["history"]) ->
           {:ok,
            %{
              id: board.id,
@@ -117,7 +117,7 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
              flow: Slipdock.Flow.history(board, days: args["days"])
            }}
 
-        args["runners"] in [true, "true"] ->
+        Enum.member?([true, "true"], args["runners"]) ->
           {:ok,
            %{
              id: board.id,
@@ -132,7 +132,7 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
         Enum.member?([true, "true"], args["now"]) ->
           right_now(auth, board)
 
-        args["pulse"] in [true, "true"] ->
+        Enum.member?([true, "true"], args["pulse"]) ->
           {:ok,
            %{
              id: board.id,

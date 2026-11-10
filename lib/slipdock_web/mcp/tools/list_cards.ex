@@ -168,7 +168,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
       assignee =
         cond do
           nobody -> "none"
-          assignee in ~w(me myself mine) -> user.email
+          Enum.member?(~w(me myself mine), assignee) -> user.email
           true -> assignee
         end
 
@@ -204,7 +204,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
 
   defp snoozed(args) do
     with {:ok, value} <- Args.optional(args, "snoozed") do
-      if value in [nil | @snoozed],
+      if Enum.member?([nil | @snoozed], value),
         do: {:ok, value},
         else: {:error, "snoozed must be one of: exclude, include, only"}
     end
@@ -216,7 +216,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
     with {:ok, value} <- Args.optional(args, key) do
       cond do
         is_nil(value) -> {:ok, nil}
-        value in keys(allowed) -> {:ok, value}
+        Enum.member?(keys(allowed), value) -> {:ok, value}
         true -> {:error, "#{key} must be one of: #{Enum.join(keys(allowed), ", ")}"}
       end
     end

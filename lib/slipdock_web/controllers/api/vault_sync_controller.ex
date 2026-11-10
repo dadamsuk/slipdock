@@ -19,7 +19,7 @@ defmodule SlipdockWeb.API.VaultSyncController do
       Vaults.touch_mirror(vault, conn.assigns[:api_token])
       # `stubs=1`: a client that writes stubs of what is shared with the
       # reader (#819). One from before them would take them for pages.
-      stubs = conn.params["stubs"] in ["1", "true"]
+      stubs = Enum.member?(["1", "true"], conn.params["stubs"])
 
       listing =
         Sync.listing(
@@ -129,7 +129,7 @@ defmodule SlipdockWeb.API.VaultSyncController do
   defp upload(%Plug.Upload{path: path}), do: {:ok, path}
   defp upload(_), do: {:error, :bad_request, "send the file as multipart `file`"}
 
-  defp truthy?(value), do: to_string(value) in ~w(true 1 yes on)
+  defp truthy?(value), do: Enum.member?(~w(true 1 yes on), to_string(value))
 
   defp opts(conn), do: [token: conn.assigns[:api_token]]
 

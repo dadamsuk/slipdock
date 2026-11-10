@@ -64,7 +64,7 @@ defmodule SlipdockWeb.MCP.Resources.Render do
       section("Recent comments", comments(json.comments)),
       section("Wiki pages", docs(docs))
     ]
-    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.reject(&Enum.member?([nil, ""], &1))
     |> Enum.join("\n\n")
     |> cut(:card, "get_card with card #{card.id}")
   end
