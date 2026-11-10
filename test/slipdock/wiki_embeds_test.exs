@@ -140,6 +140,20 @@ defmodule Slipdock.WikiEmbedsTest do
       assert length(String.split(out, "A says")) == 2
     end
 
+    test "a page that embeds itself draws its body once, the embed as a link", ctx do
+      {:ok, own} =
+        Wiki.create_page(ctx.board, %{"title" => "Own", "body" => "Own says\n\n![[Own]]"},
+          user: ctx.user
+        )
+
+      out = Renderer.to_html(own.body, page: own, as: ctx.user)
+
+      # Only the seen check stops this one: the depth limit isn't reached yet.
+      assert length(String.split(out, "Own says")) == 2
+      refute out =~ ~s(class="wiki-embed")
+      assert out =~ ~r{<a [^>]*href="[^"]*"[^>]*>Own</a>}
+    end
+
     test "a reader who cannot open the page gets none of it", ctx do
       stranger = user_fixture("stranger@example.com")
       out = Renderer.to_html("![[Note]]", board: ctx.board, as: stranger)
