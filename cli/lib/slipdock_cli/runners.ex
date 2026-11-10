@@ -191,7 +191,8 @@ defmodule SlipdockCLI.Runners do
     body =
       compact(%{
         "outcome" => o[:status] || "done",
-        "summary" => o[:summary],
+        # `--summary -` reads it from stdin (#2678).
+        "summary" => stdin_arg(o[:summary], "--summary"),
         "wait" => finish_wait(o)
       })
 
