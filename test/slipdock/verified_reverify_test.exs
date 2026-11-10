@@ -94,7 +94,7 @@ defmodule Slipdock.VerifiedReverifyTest do
       refute prompt =~ "carried"
       refute prompt =~ "Flag a class of problem once"
       assert prompt =~ "Another agent did the work and submitted it."
-      assert prompt =~ "beyond your decision.\n\nWhat the card asks"
+      assert prompt =~ "a docs place it says it updated is opened.\n\nWhat the card asks"
     end
 
     test "its verdict keeps the commit it judged, and carries nothing", ctx do
