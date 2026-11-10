@@ -78,6 +78,9 @@ defmodule SlipdockCLI.GardenTest do
     assert out =~ "link the one not kept as a duplicate of the one kept, archive the one not kept"
     assert out =~ "needs --keep: #1 or #2"
     assert out =~ "2 suggestion(s). Last looked over 2026-10-18T09:00."
+
+    assert out =~
+             "dismiss: slipdock garden dismiss <id> (a proposal, from Claude Code: add --confirm)"
   end
 
   test "--run posts a run, --check narrows it" do

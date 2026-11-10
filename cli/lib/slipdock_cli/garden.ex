@@ -192,7 +192,8 @@ defmodule SlipdockCLI.Garden do
     IO.puts(
       "\n#{length(suggestions)} suggestion(s)." <>
         last_run(r["last_run"]) <>
-        " Apply: slipdock garden apply <id>; dismiss: slipdock garden dismiss <id>"
+        " Apply: slipdock garden apply <id>; dismiss: slipdock garden dismiss <id>" <>
+        " (a proposal, from Claude Code: add --confirm)"
     )
   end
 

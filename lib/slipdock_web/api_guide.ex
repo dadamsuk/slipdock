@@ -3863,7 +3863,8 @@ defmodule SlipdockWeb.APIGuide do
     `slipdock findings` prints "N proposals await you" before the list, each
     by id. MCP `garden` with `findings: true` lists the same, from the
     tree's root (`check: proposal` alone is every open proposal on the board
-    given); `garden_decide` (or `slipdock garden apply|dismiss <id>`)
+    given); `garden_decide` (or `slipdock garden apply|dismiss <id>`, and
+    from Claude Code `slipdock garden apply|dismiss <id> --confirm`)
     decides one.
 
     A finding counted to the board's `findings_propose_at` (3 by default, 0
