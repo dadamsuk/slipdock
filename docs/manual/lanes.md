@@ -97,6 +97,22 @@ work whose collisions are costly to find at merge time (migrations, a
 schema, a module being refactored); *Advise* suits a board whose cards
 mostly meet in files a merge resolves.
 
+**Broad paths.** A glob that claims a whole top-level directory, or one
+just below it, overlaps nearly every other card: under *Hold* one such
+card idles every runner, and under *Advise* it is noise in every job's
+prompt. So a path whose last segment is `**` and that sits at most one
+directory below the repository root (`lib/**`, `lib/slipdock/**`,
+`cli/lib/**`, `docs/**`, `test/**`) is marked *broad*, unless it is wholly
+inside one of the board's shared paths. It is advice, not a refusal:
+nothing is refused or held for it. The card's *Paths* field and `slipdock
+card` mark the glob *broad* with the reason (it overlaps most cards; name
+the files or the deepest directory the change touches), a claimed job's
+prompt says the same beside the glob, so the agent narrows it before
+starting (an agent may change an in-progress card's paths), and the card's
+JSON lists them as `paths_broad` (with `paths_broad_reason`). A
+`lane_overlap` that a broad glob makes says whose it is: `broad` is
+`this`, `other` or `both`, and `broad_paths` the globs.
+
 **Cards awaiting verification.** On a board that verifies work and ships
 by **push**, a card an agent has submitted has its work on the default
 branch already, and nobody is editing its files. While it waits for

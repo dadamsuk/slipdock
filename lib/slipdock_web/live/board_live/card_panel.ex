@@ -766,6 +766,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   The paths the card's work touches (#1628), one glob per line. On a board
   with lanes on it says which card in progress they overlap, if any: an
   agent can't start this card then, but a person moving it is the override.
+  A glob that claims a whole top-level directory is marked broad, with why
+  (#2698, `Slipdock.Lanes.broad?/2`).
   """
   def paths_section(assigns) do
     assigns =
@@ -773,6 +775,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         overlap: Slipdock.Lanes.on?(assigns.board) && Slipdock.Lanes.conflict(assigns.card),
         advisory: Slipdock.Lanes.mode(assigns.board) == "advise",
         shared: shared_paths(assigns.board, assigns.card),
+        broad:
+          Slipdock.Lanes.broad_paths(
+            assigns.card.paths,
+            Slipdock.Lanes.shared_paths(assigns.board)
+          ),
         text: assigns.form[:paths].value |> List.wrap() |> Enum.join("\n")
       )
 
@@ -808,6 +815,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       <p :if={@overlap && @advisory} id="card-paths-overlap" class="text-xs text-base-content/60">
         Overlaps #{@overlap.id} {@overlap.title}, in progress, advisory: an agent can start this
         card, and its job's prompt tells it which card is in those files.
+      </p>
+      <p :if={@broad != []} id="card-paths-broad" class="text-xs text-base-content/60">
+        Broad: <span class="font-mono">{Enum.join(@broad, ", ")}</span>
+        — {Slipdock.Lanes.broad_reason()}. Advice only: nothing is refused for it.
       </p>
       <p :if={@shared != []} id="card-paths-shared" class="text-xs text-base-content/60">
         Shared on the board, so they hold no lane:

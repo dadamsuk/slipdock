@@ -1181,7 +1181,15 @@ means: overlapping starts refused, jobs held) or `advise` (`update_board`
 nothing is held, and your job's prompt carries a *Lanes* block naming each
 card in progress whose paths overlap yours. Read that card and its branch
 before editing those files, stay out of them where you can, and rebase on
-the default branch before pushing.
+the default branch before pushing. Keep paths narrow: a `**` glob at most
+one directory below the repository root (`lib/**`, `lib/slipdock/**`,
+`docs/**`), unless wholly inside a shared path, is *broad*, since it
+overlaps most cards. It is advice, not a refusal: `get_card` and `slipdock
+card` mark it (`paths_broad`, with `paths_broad_reason`), the job's prompt
+says so beside the glob, and a `lane_overlap` a broad glob makes names the
+side (`broad`: `this`, `other` or `both`; `broad_paths`). Narrow it to the
+files or the deepest directory the change touches before you start; you
+may change an in-progress card's paths.
 Only a card a runner job is working on holds a lane: one in progress with
 no open job, dragged there by hand or left behind, holds none. Nor does a
 `spike`, whose code is never merged. Lanes hold work jobs only, never a verify or merge

@@ -147,4 +147,20 @@ defmodule SlipdockWeb.LanesDocsTest do
     assert read("priv/skills/slipdock-work/SKILL.md") =~ "On a\n  board whose lanes advise"
     assert read("priv/skills/slipdock-loop/SKILL.md") =~ "- **The board's lanes advise**"
   end
+
+  test "broad paths are said to be advice where paths are documented (#2698)" do
+    manual = read("docs/manual/lanes.md")
+    assert manual =~ "**Broad paths.**"
+    assert manual =~ "It is advice, not a refusal"
+    assert manual =~ "`paths_broad`"
+
+    agents = read("docs/agents.md")
+    assert agents =~ "is *broad*, since it\noverlaps most cards. It is advice, not a refusal"
+    assert agents =~ "`paths_broad`"
+
+    guide = read("lib/slipdock_web/api_guide.ex")
+    assert guide =~ "**Broad paths.** Keep `paths` as narrow as the change"
+    assert guide =~ "is advice, not a refusal"
+    assert guide =~ "`broad`: `this`, `other` or `both`"
+  end
 end
