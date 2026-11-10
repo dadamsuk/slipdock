@@ -92,6 +92,29 @@ defmodule SlipdockWeb.AuthLiveTest do
     refute get_session(conn, :user_token)
   end
 
+  test "signing out ends the session on the server too", %{conn: conn, user: user} do
+    token = get_session(conn, :user_token)
+    assert Accounts.get_user_by_session_token(token).id == user.id
+
+    signed_out = delete(conn, ~p"/logout")
+    assert redirected_to(signed_out) == "/login"
+    refute Accounts.get_user_by_session_token(token)
+
+    # The cookie as it was before signing out no longer signs anyone in.
+    replayed = build_conn() |> init_test_session(%{user_token: token}) |> get(~p"/")
+    assert redirected_to(replayed) == "/login"
+  end
+
+  test "signing out disconnects the session's open tabs", %{conn: conn} do
+    token = get_session(conn, :user_token)
+    topic = "users_sessions:#{Base.url_encode64(token)}"
+    assert get_session(conn, :live_socket_id) == topic
+    SlipdockWeb.Endpoint.subscribe(topic)
+
+    delete(conn, ~p"/logout")
+    assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "disconnect"}
+  end
+
   test "account page: profile", %{conn: conn, user: user} do
     {:ok, view, _} = live(conn, ~p"/account")
     view |> form("#profile-form", %{"user" => %{"name" => "Tess"}}) |> render_submit()
