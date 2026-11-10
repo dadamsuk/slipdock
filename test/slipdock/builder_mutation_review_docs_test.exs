@@ -63,6 +63,13 @@ defmodule Slipdock.BuilderMutationReviewDocsTest do
     refute skill =~ ~r/verifier\s+carries those and breaks other lines/
   end
 
+  test "the slipdock skill says the named mutants are a map (#2696)" do
+    skill = read("priv/skills/slipdock/SKILL.md")
+    assert skill =~ "(a map, not a verdict: the verifier carries a killed one only when re-run"
+    assert skill =~ "breaks every guard you add)"
+    refute skill =~ "breaks other lines rather than repeat them"
+  end
+
   test "docs/agents.md says the same, and that every claim is checked (#2696)" do
     agents = read("docs/agents.md")
     assert agents =~ "lists them as a map, not a verdict"
