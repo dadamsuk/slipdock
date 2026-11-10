@@ -227,7 +227,7 @@ defmodule Slipdock.VerifiedEpicPrTest do
       text = Verified.ship_instructions(fresh(ctx.epic))
       assert text =~ "This card is an epic"
       assert text =~ "complete the epic without `--pr`"
-      assert text =~ "slipdock done #{ctx.epic.id} --evidence"
+      assert text =~ "slipdock done #{ctx.epic.id} --suite passed --evidence - <<'EOF'`"
       assert text =~ "nothing to merge"
     end
 

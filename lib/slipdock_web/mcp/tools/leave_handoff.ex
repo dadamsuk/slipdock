@@ -33,7 +33,8 @@ defmodule SlipdockWeb.MCP.Tools.LeaveHandoff do
           type: "string",
           description:
             "Markdown, at most 8000. State: what is done and half-done. Gotchas: what bit you. " <>
-              "Open: questions waiting on someone. Pointers: branch, files, commits, pages."
+              "Open: questions waiting on someone. Pointers: branch, files, commits, pages. " <>
+              "One short line each (`- …`), not a paragraph."
         },
         clear: %{type: "boolean", description: "Clear the handoff instead of writing one."},
         delete: %{

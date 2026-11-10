@@ -47,7 +47,7 @@ defmodule SlipdockWeb.MCP.Prompts.LeaveHandoff do
        - next_step: the one next step, one line (at most 280 characters).
        - body: a short Markdown note with State (what is done and half-done), Gotchas \
        (what bit), Open (questions waiting on someone) and Pointers (branch, files, \
-       commits, pages).
+       commits, pages): one short line each (`- State: …`), not a paragraph.
 
        Write only what this conversation established; leave out a section rather than \
        guess. Show me the note before you save it.

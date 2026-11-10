@@ -954,7 +954,7 @@ defmodule Slipdock.Verified do
     - Build the prototype on the branch `#{branch}` and push it (`git push -u origin #{branch}`) so the evidence can point at it. Never push the default branch and never open a pull request; close any you opened.
     - Spend one sitting on it. An answer of *inconclusive*, with what was learned, is a finished spike; a guess is not.
     - Write the answer as a wiki page and pin it to the epic (`slipdock page new <board> "Spike: <the question>" --card <epic id>`): the question, the answer (or *inconclusive*), the evidence (numbers, logs, the branch and commit; not claims), and what the answer changes in the plan. Put a `Findings:` block in the closing comment with it.
-    - Complete it with why there is nothing to merge: `slipdock done #{id} --no-code "spike: answer on W-…, prototype on #{branch}" --evidence "<the answer in a line, the evidence, the page>"` (complete_card `no_code`). A pull request named on a spike is refused, and accepting it merges nothing.\
+    - Complete it with why there is nothing to merge: `slipdock done #{id} --no-code "spike: answer on W-…, prototype on #{branch}" --evidence - <<'EOF'`, then the evidence as lines (the answer in a line, a blank line, then a line each for the evidence and the page), then `EOF` (complete_card `no_code` and `evidence`). A pull request named on a spike is refused, and accepting it merges nothing.\
     """
   end
 
@@ -986,7 +986,7 @@ defmodule Slipdock.Verified do
   """
   def no_code_note(%Card{id: id}) do
     "- If the card changes no code (a sweep, a handbook reconcile, a card that only reads and files), there is no branch and no pull request, and never a token one: " <>
-      "complete it with why instead, `slipdock done #{id} --no-code \"<why>\" --evidence \"<what you did>\"` (complete_card `no_code`). " <>
+      "complete it with why instead, `slipdock done #{id} --no-code \"<why>\" --evidence - <<'EOF'`, then what you did as lines (a first line that stands alone, a blank line, a short line per point), then `EOF` (complete_card `no_code` and `evidence`). " <>
       "Accepting it then completes it with nothing to merge."
   end
 
@@ -1000,7 +1000,7 @@ defmodule Slipdock.Verified do
   def epic_note(%Card{id: id}) do
     "- This card is an epic: each subcard ships its own pull request on its own branch. " <>
       "Once every subcard is accepted and merged, complete the epic without `--pr`: " <>
-      "`slipdock done #{id} --evidence \"<the subcards' PRs and the last merged build>\" --suite passed`. " <>
+      "`slipdock done #{id} --suite passed --evidence - <<'EOF'`, then the evidence as lines (a first line that stands alone, a blank line, a line per subcard's PR and one for the last merged build), then `EOF`. " <>
       "Accepting it then completes it with nothing to merge. " <>
       "Only work done on the epic itself, after its subcards, goes on `card-#{id}` with a pull request of its own, named with `--pr`."
   end
@@ -1064,6 +1064,21 @@ defmodule Slipdock.Verified do
       true ->
         {attrs, []}
     end
+  end
+
+  # A bare `-` as the reason (#2692): `--reason -` from a client that doesn't
+  # read stdin (or was given none), so the piped reason never arrived and the
+  # card would show a dash. Refused for agents, as a dashed evidence is
+  # (#2091); a person is never refused.
+  @dash_reason_message "the reason was a bare '-': a client that doesn't read stdin sends " <>
+                         "the dash itself, so the piped reason never arrived. Pipe it with " <>
+                         "--reason - from a slipdock CLI that reads stdin (update it from the " <>
+                         "server), or pass the text itself (--reason \"…\", verify_card reason)"
+
+  defp reason_arrived(reason, actor) do
+    if gated?(actor) and dash?(reason),
+      do: {:error, :unprocessable_entity, @dash_reason_message},
+      else: :ok
   end
 
   @doc """
@@ -1147,7 +1162,8 @@ defmodule Slipdock.Verified do
   defp verdict(card, decision, params, reason, actor) do
     alias Slipdock.Verified.Checks
 
-    with {:ok, given} <- checks_param(params),
+    with :ok <- reason_arrived(reason, actor),
+         {:ok, given} <- checks_param(params),
          from_reason = given == %{} and decision == "reject",
          checks = if(from_reason, do: Checks.from_reason(reason), else: given),
          {:ok, checks} <- carry_previous(card, checks) do
@@ -2460,6 +2476,39 @@ defmodule Slipdock.Verified do
 
   defp agent_decided?(_card), do: false
 
+  # The shape of a verdict's reason (#2692): it lands on the card as a
+  # comment, and an audit's becomes a rework card's title and description,
+  # so it is lines a person skims, not one paragraph in a shell argument.
+  @reason_shape "Write the reason as lines, not a paragraph: a first line that stands on its own " <>
+                  "(where a title is made from it, it is the title), a blank line, then one short " <>
+                  "line per point (`- …`). The parts go in `--check`, not repeated in the reason. " <>
+                  "Pass it on stdin, as above (MCP `verify_card` `reason` keeps its line breaks " <>
+                  "too): words on the command line lose them. For example:\n\n" <>
+                  "       bar 2 fails: the export drops archived cards\n\n" <>
+                  "       - `Export.run/1` filters on `archived_at`\n" <>
+                  "       - no test exports an archived card"
+
+  @doc "How a verdict's reason is to be written (#2692), as the verify and audit prompts say."
+  def reason_shape, do: @reason_shape
+
+  # The same shape for the builder's evidence (#2692): it is posted as the
+  # closing comment, and the verifier and a person read it there.
+  @evidence_shape "Your evidence is posted on the card as a comment a person skims: write it as " <>
+                    "lines, not a paragraph. A first line that stands on its own, a blank line, " <>
+                    "then one short line per point; the `Handbook:` line and the `Findings:` " <>
+                    "block on lines of their own, one finding per line (`- Findings:` then " <>
+                    "`  - gotcha: …`). The commit, branch, tests, suite and pull request go in " <>
+                    "their own flags (`--evidence-commit`, `--branch`, `--tests`, `--suite`, " <>
+                    "`--pr`; complete_card's fields), not repeated in the text. Pass it on stdin " <>
+                    "(`--evidence - <<'EOF'`, the text, then `EOF`; complete_card `evidence` " <>
+                    "keeps its line breaks too): words on the command line lose them."
+
+  @doc """
+  How a builder's evidence is to be written (#2692): the line the claimed
+  job's prompt carries on a board that asks for evidence.
+  """
+  def evidence_shape, do: @evidence_shape
+
   @doc """
   What an audit job's agent is told (#1780): the verify prompt's checks, with
   every rule judged (`should` too), the original verdict shown, and a
@@ -2481,8 +2530,9 @@ defmodule Slipdock.Verified do
 
     #{card_block(card, board, judging)}
     #{decide}. Say once whether you agree, and report it as a step first (`deciding: agree` or `deciding: disagree`):
-       - `slipdock verify #{card.id} agree --reason "what you checked" --check ask=ok --check bar:1=ok …`
-       - `slipdock verify #{card.id} disagree --reason "where the verdict is wrong, specifically" --check bar:2=fail:"why" …`
+       - `slipdock verify #{card.id} agree --check ask=ok --check bar:1=ok … --reason - <<'EOF'`, then the reason (its first line: what you checked, in a line), then `EOF`
+       - `slipdock verify #{card.id} disagree --check bar:2=fail:"why" … --reason - <<'EOF'`, then the reason (its first line: where the verdict is wrong, in a line), then `EOF`
+    #{reason_shape()}
     Give your own verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}. Disagree when any part fails that the verdict passed (a missed `should` rule included), or when it failed a part that holds.
     """
   end
@@ -2508,6 +2558,7 @@ defmodule Slipdock.Verified do
   # job on the card, or a person; never from whoever accepted it.
   defp audit_decision(card, decision, params, reason, actor, user) do
     with :ok <- may_audit(card, actor),
+         :ok <- reason_arrived(reason, actor),
          {:ok, checks} <- checks_param(params) do
       checks =
         checks |> Slipdock.Verified.Checks.with_severity(handbook_rules(card)) |> empty_nil()
@@ -2930,8 +2981,9 @@ defmodule Slipdock.Verified do
     #{resubmission_block(card)}
     #{card_block(card, board, judging)}
     #{decide}. Decide once, and report the decision as a step first (`deciding: accept` or `deciding: reject`):
-       - `slipdock verify #{card.id} accept#{at} --reason "what you checked, each check in turn" --check ask=ok --check bar:1=ok …`
-       - `slipdock verify #{card.id} reject#{at} --reason "<the check it fails>: what falls short, specifically" --check bar:2=fail:"why" …`
+       - `slipdock verify #{card.id} accept#{at} --check ask=ok --check bar:1=ok … --reason - <<'EOF'`, then the reason (its first line: what you checked, in a line), then `EOF`
+       - `slipdock verify #{card.id} reject#{at} --check bar:2=fail:"why" … --reason - <<'EOF'`, then the reason (its first line: `<the check it fails>: what falls short`), then `EOF`
+    #{reason_shape()}
     Give the verdict in parts, one `--check` each (MCP `verify_card` `checks`): `ask=ok|misses`, `bar:<n>=ok|fail`, `suite=<passed>:<failed>`#{if handbook, do: ", `rule:<id>=ok|broken|n/a|pre-existing:<file>:<line>`, `handbook_line=ok|disputed`", else: ""}#{if defect_review?(card, board), do: ", `defect:important|nit|pre-existing=<file>:<line>`", else: ""}#{if mutation_review?(card, board), do: ", `mutant:killed|survived|pre-existing=<file>:<line>:<mutation>`, `mutants=n/a:<why>`", else: ""}, each with `:<why>` after it if it needs one. A rejection names at least one failing part; an acceptance can't carry one, but for a missed `should` rule.
     A rejection cites what it fails: #{cite_list(handbook)}. It goes back to whoever takes the card next, so say exactly what to fix.
     """
@@ -2977,7 +3029,7 @@ defmodule Slipdock.Verified do
     - Judge every part that failed, and any part whose files, or what it is about, the commits since touch. Run the suite or check CI as below, whatever changed.
     - Carry the rest: a part that passed at #{Checks.short(sha)} and that nothing since touches stands. Don't judge it again; give it as `--check bar:1=carried` (or leave it out) and it is recorded as carried from #{Checks.short(sha)}.#{carry_list(passed)}
     - Never raise again a part that passed or that the new commits fixed. Flag a class of problem once: under one part, with every instance of it you find (file and line each), never one now and the next in another round.
-    - If you reject, name what changed since the last rejection, and say why the fix falls short, so the next round converges.
+    - If you reject, name what changed since the last rejection, and say why the fix falls short, a line each in the reason, so the next round converges.
     """
   end
 

@@ -29,7 +29,10 @@ defmodule SlipdockWeb.MCP.Tools.JobProgress do
       properties: %{
         job: %{type: "integer"},
         step: %{type: "string"},
-        note: %{type: "string"}
+        note: %{
+          type: "string",
+          description: "A comment on the card. " <> SlipdockWeb.MCP.Tool.shape()
+        }
       },
       required: ["job"],
       additionalProperties: false

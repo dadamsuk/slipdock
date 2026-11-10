@@ -1881,7 +1881,22 @@ defmodule Slipdock.Runners do
     |> with_lane_advice(job)
     |> with_rejection(job)
     |> with_shipping(job)
+    |> with_evidence_shape(job)
     |> with_list(job)
+  end
+
+  # How the evidence reads (#2692): on a board that asks for it, lines a
+  # person skims, the parts in their own fields.
+  defp with_evidence_shape(prompt, %Job{card_id: card_id}) do
+    case Repo.one(
+           from c in Card,
+             join: b in assoc(c, :board),
+             where: c.id == ^card_id,
+             select: b.evidence_required
+         ) do
+      true -> (prompt || "") <> "\n\n" <> Slipdock.Verified.evidence_shape()
+      _ -> prompt
+    end
   end
 
   # Where the card is (#2633): its list, and the board's doing list by its
