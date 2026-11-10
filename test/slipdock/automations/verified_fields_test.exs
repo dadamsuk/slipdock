@@ -189,6 +189,14 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
           do: assert(p in Spec.placeholders(), p)
     end
 
+    test "{{card.verify_state}} renders the card's verification", ctx do
+      card = card_fixture(ctx.todo, %{"title" => "Checked"})
+      {:ok, card} = card |> Ecto.Changeset.change(verify_state: "pending") |> Repo.update()
+
+      vars = Runner.variables(%{card: fresh(card), board: ctx.board})
+      assert Runner.render("state: {{card.verify_state}}", vars) == "state: pending"
+    end
+
     test "a callback carries them", ctx do
       test = self()
 
@@ -217,6 +225,25 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
       assert payload["profile"] == "schema"
       assert Map.has_key?(payload, "verify_state")
       assert payload["verify_state"] == nil
+    end
+
+    test "a callback carries the card's verify_state when it has one", ctx do
+      test = self()
+
+      Req.Test.stub(Slipdock.Automations.Notifier, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test, {:callback, body})
+        Plug.Conn.send_resp(conn, 200, "")
+      end)
+
+      card = card_fixture(ctx.todo, %{"title" => "Submitted"})
+      {:ok, _} = card |> Ecto.Changeset.change(verify_state: "pending") |> Repo.update()
+
+      on_title(ctx.board, [%{"type" => "webhook", "url" => "https://example.com/hooks/state"}])
+      retitle(fresh(card))
+
+      assert_received {:callback, body}
+      assert %{"card" => %{"verify_state" => "pending"}} = Jason.decode!(body)
     end
   end
 
@@ -275,6 +302,19 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
 
       assert Spec.summary(spec) == "When a card is added, set its bar, then clear its bar."
     end
+
+    test "says when the bar is unchanged, and when it cleared it", ctx do
+      card = fresh(card_fixture(ctx.todo, %{"title" => "Barred", "bar" => "Tests pass"}))
+      event = %{type: "card_updated", card: card, board_id: ctx.board.id}
+
+      {:ok, same} = validated([%{"type" => "set_bar", "bar" => "Tests pass"}], ctx)
+      assert Runner.run(same, event) == [{:ok, "bar unchanged"}]
+      assert fresh(card).bar == "Tests pass"
+
+      {:ok, clear} = validated([%{"type" => "set_bar", "bar" => "none"}], ctx)
+      assert Runner.run(clear, event) == [{:ok, "cleared the bar"}]
+      assert fresh(card).bar == nil
+    end
   end
 
   describe "set_paths" do
@@ -302,6 +342,29 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
 
       assert Runner.run(rule, %{type: "card_updated", card: card, board_id: ctx.board.id}) ==
                [{:ok, "paths unchanged"}]
+    end
+
+    test "says when it cleared them", ctx do
+      card = fresh(card_fixture(ctx.todo, %{"title" => "Unlaned", "paths" => "lib/a/**"}))
+      {:ok, rule} = validated([%{"type" => "set_paths", "paths" => "none"}], ctx)
+
+      assert Runner.run(rule, %{type: "card_updated", card: card, board_id: ctx.board.id}) ==
+               [{:ok, "cleared its paths"}]
+
+      assert fresh(card).paths in [nil, []]
+    end
+
+    test "refuses paths that split to nothing" do
+      for paths <- ["", " , ", [""]] do
+        assert {:error, msg} =
+                 Spec.validate(%{
+                   "trigger" => %{"type" => "card_created"},
+                   "actions" => [%{"type" => "set_paths", "paths" => paths}]
+                 }),
+               inspect(paths)
+
+        assert msg =~ "needs paths"
+      end
     end
 
     test "refuses a mode it doesn't know, and none with a mode other than replace" do
@@ -371,6 +434,24 @@ defmodule Slipdock.Automations.VerifiedFieldsTest do
       assert fresh(card).profile == "docs"
       assert fresh(card).profile_source == "rule"
       assert Automations.get_rule!(lower.id).last_error in [nil, ""]
+    end
+
+    test "says when the profile is unchanged", ctx do
+      card = fresh(card_fixture(ctx.todo, %{"title" => "Kept", "profile" => "fix"}))
+      {:ok, rule} = validated([%{"type" => "set_profile", "profile" => "fix"}], ctx)
+
+      assert Runner.run(rule, %{type: "card_updated", card: card, board_id: ctx.board.id}) ==
+               [{:ok, "profile unchanged"}]
+    end
+
+    test "none is summarised as clearing it" do
+      {:ok, spec} =
+        Spec.validate(%{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "set_profile", "profile" => "none"}]
+        })
+
+      assert Spec.summary(spec) == "When a card is added, clear its profile."
     end
 
     test "its blurb names every profile" do
