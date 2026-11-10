@@ -325,6 +325,13 @@ defmodule SlipdockWeb.BulkEditLiveTest do
       render_click(view, "select_list", %{"id" => to_string(ctx.todo.id)})
       refute has_element?(view, "#bulk-bar")
       refute selected?(view, ctx.a)
+
+      # Nothing drawn shows a selection out of select mode, so a bulk action
+      # is what would see one: it must find none to act on.
+      render_click(view, "bulk_apply", %{"action" => "archive"})
+
+      for card <- [ctx.a, ctx.b, ctx.c],
+          do: refute(Repo.get(Card, card.id).archived_at)
     end
   end
 end
