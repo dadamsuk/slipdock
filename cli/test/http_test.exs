@@ -86,6 +86,29 @@ defmodule SlipdockCLI.HTTPTest do
     end
   end
 
+  describe "a request's status" do
+    test "the last 2xx is still a success, and the first 3xx is an error" do
+      serve([{299, ~s({"ok":true})}, {300, ~s({"error":"choices"})}])
+
+      assert {:ok, %{"ok" => true}} = HTTP.get("/cards/1")
+      assert {:error, 300, %{"error" => "choices"}} = HTTP.get("/cards/1")
+    end
+  end
+
+  describe "somewhere local" do
+    test "a URL with an empty host is local, so plain http to it is not refused" do
+      assert HTTP.local_host?("")
+      assert HTTP.local_host?("[]")
+      refute HTTP.insecure?("http:///api")
+    end
+
+    test "localhost in any case is local, and a public name is not" do
+      assert HTTP.local_host?("LocalHost")
+      refute HTTP.local_host?("boards.example")
+      refute HTTP.local_host?(nil)
+    end
+  end
+
   describe "home, on Windows too" do
     test "with no HOME, the config goes under USERPROFILE, not the current folder", %{home: home} do
       System.delete_env("HOME")
