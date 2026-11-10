@@ -453,14 +453,14 @@ defmodule SlipdockWeb.MachinesLive.Show do
             phx-submit="rename"
             class="flex flex-wrap items-center gap-2 text-sm"
           >
-            <label for="machine-rename-name" class="text-base-content/60">Name</label>
+            <label for="machine-rename-name" class="field-label">Name</label>
             <input
               id="machine-rename-name"
               type="text"
               name="name"
               value={@machine.name}
               maxlength="60"
-              class="input input-sm field min-w-40"
+              class="input field min-w-40"
               autocomplete="off"
             />
             <button type="submit" class="btn btn-sm">Rename</button>
