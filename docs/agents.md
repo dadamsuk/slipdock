@@ -1208,7 +1208,9 @@ review: read the diff for bugs, give each finding with its file and line
 reject on any Important one; a Nit or a Pre-existing finding is reported
 only. On a `fix`, `feature`, `schema` or `security` card your prompt also
 has a mutation review: break 3 to 5 of the lines the diff added or changed
-(on a `fix`, one undoes the fix), run only the card's tests against each,
+(on a `fix`, one undoes the fix), and on top of those every guard or branch
+the diff adds (a new condition, clause, pattern match or early return), once
+each and named with its line, run only the card's tests against each,
 restore it, and give each as `--check
 mutant:killed|survived|pre-existing=<file>:<line>:<mutation>[:the missing
 test]`, or `--check mutants=n/a:<why>` when nothing is worth mutating
@@ -1225,9 +1227,12 @@ time, run only the card's tests, restore the line, and add a test until
 each break fails one (a survivor you leave gets its reason in the
 evidence). Name the mutants in the evidence, one line each, as a verifier
 writes them: `mutant:killed=lib/foo.ex:42:flip > to >=`. The verifier's
-prompt lists them: it carries the killed ones (`mutant:carried=…`) and
-breaks other lines rather than repeat them, and breaks a named survivor
-again. A claimed job carries the card's `profile` (MCP `claim_job`, the
+prompt lists them as a map, not a verdict: the verifier carries a killed
+one (`mutant:carried=…`) only when it broke it again or a test you name
+plainly covers that line, spends its own 3 to 5 on other lines, and breaks
+a named survivor again. The verifier checks every claim in your evidence:
+a test you name is read and run, a docs place you say you updated is
+opened. A claimed job carries the card's `profile` (MCP `claim_job`, the
 REST claim's `job.profile`, the runner's `x-card-profile` header), and a
 runner's config may set `MODEL_<profile>` to run that profile on another
 model. See [the manual](manual/profiles.md#the-verifiers-spend).

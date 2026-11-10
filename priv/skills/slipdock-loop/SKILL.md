@@ -846,7 +846,9 @@ With one on, the pass changes like this:
   the evidence**, one line each, as the verifier writes them:
   `mutant:killed=lib/foo.ex:42:flip > to >=` (or
   `mutant:survived=<file>:<line>:<mutation>:<why it stays>`). The verifier
-  carries those and breaks other lines rather than repeating yours.
+  reads them as a map, not a verdict: it carries a killed one only when it
+  broke it again or a test you name plainly covers that line, and it also
+  breaks every guard or branch your diff adds, so break those yourself.
   Put the `Handbook:`
   line in `--evidence` too, so it is on the card when the verifier starts,
   and the `Findings:` block with it: the evidence is the closing comment
@@ -945,7 +947,10 @@ With one on, the pass changes like this:
   planning: that is a person's, not yours.
 - **A verify job** (a job of kind `verify`, or a card you are asked to
   verify) is checking, not doing. Claim nothing, move nothing and change no
-  code. Never verify a card you built. Read the bar and the evidence, then
+  code. Never verify a card you built. Read the bar and the evidence: the
+  evidence says where to look, not what to believe, so check each claim in
+  it (a test named is read and run, a docs place it says it updated is
+  opened). Then
   check out the evidence's commit in a clean tree (`git worktree add
   /tmp/verify-<id> <sha>`, so nothing uncommitted counts). Run the suite
   and what the bar names there, then judge four things in order, and
@@ -1017,7 +1022,9 @@ With one on, the pass changes like this:
   On a `fix`, `feature`, `schema` or `security` card (profiles on; never
   `docs`, `spike` or a `--no-code` completion) the prompt adds a
   **mutation step**: in the clean worktree, pick 3 to 5 of the most
-  consequential lines the diff added or changed, break each in turn (flip
+  consequential lines the diff added or changed, and on top of those every
+  guard or branch the diff adds (a new condition, clause, pattern match or
+  early return), once each and named with its line; break each in turn (flip
   `>` to `>=`, drop the branch, return the wrong thing), run only the
   card's `--tests`, never the whole suite (on a pull request board too:
   CI ran the suite, not the mutations), and restore the line. On a `fix`,
