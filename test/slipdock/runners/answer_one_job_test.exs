@@ -286,8 +286,13 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       wait = Repo.one!(from(w in Wait, where: w.card_id == ^ctx.a.id))
       Repo.update_all(from(c in Card, where: c.id == ^ctx.a.id), set: [flags: []])
 
-      # Unflagged and past the cool-down, the card is the next one either
-      # feed would send: only the hold keeps them off it.
+      Repo.update_all(from(w in Wait, where: w.id == ^wait.id),
+        set: [closed_at: DateTime.utc_now(:second)]
+      )
+
+      # Unflagged, its question closed (as the answer closes it, #2707) and
+      # past the cool-down, the card is the next one either feed would send:
+      # only the hold keeps them off it.
       assert Automations.next_card(loop_rule).id == ctx.a.id
       assert Automations.next_card(white_rule).id == ctx.a.id
 
@@ -390,6 +395,104 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       refute busy?(loop_rule)
       refute busy?(white_rule)
       refute busy?(sub_rule)
+    end
+  end
+
+  describe "an epic parked on its subcard's question, two list_top rules on one list (#2707)" do
+    # The loop pool's job on the epic asks on a card on the epic's sub-board
+    # (#1755) and parks. The wait flags the subcard, not the epic, so only
+    # the feeds' own check keeps the other pool's rule off the epic.
+    setup ctx do
+      {loop_rule, white_rule} = setup_two_feeds(ctx)
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(ctx.a, t)
+      [sub_todo | _] = Boards.get_board!(sub.id).columns
+      s = card_fixture(sub_todo, %{"title" => "s"})
+      %{loop_rule: loop_rule, white_rule: white_rule, s: s}
+    end
+
+    defp park_on_subcard(ctx) do
+      job = Runners.claim(ctx.loop)
+      assert {job.card_id, job.rule_id} == {ctx.a.id, ctx.loop_rule.id}
+      :ok = Boards.move_card_to_index(Repo.get!(Card, ctx.a.id), ctx.doing, :top)
+
+      {:ok, wait} =
+        Boards.open_wait(Repo.get!(Card, ctx.s.id), Actor.runner(ctx.owner, job.id), %{
+          "needs" => "Which region?",
+          "choices" => ["eu", "us"],
+          "job_id" => job.id
+        })
+
+      {:ok, %Job{status: "parked"} = parked} =
+        Runners.finish(ctx.loop, job.id, %{exit: "0", output: "Asked which region"})
+
+      # Past the feeds' cool-down: only the open wait keeps them off the epic.
+      Repo.update_all(from(j in Job, where: j.id == ^parked.id),
+        set: [finished_at: DateTime.add(DateTime.utc_now(:second), -7200)]
+      )
+
+      {parked, wait}
+    end
+
+    test "no feed sends the epic while the question is open; the answer sends it once", ctx do
+      {parked, wait} = park_on_subcard(ctx)
+
+      epic = Repo.get!(Card, ctx.a.id)
+      assert epic.column_id == ctx.todo.id
+      refute "waiting" in epic.flags
+      assert Boards.current_wait(epic) == nil
+
+      # Neither pool's rule sends it, cool-down or not.
+      assert open_card_jobs(ctx.a) == []
+      refute Enum.any?(card_jobs(ctx.a), &(&1.rule_id == ctx.white_rule.id))
+      assert Automations.next_card(ctx.white_rule, force: true) == nil
+      assert Automations.next_card(ctx.loop_rule, force: true) == nil
+      assert {:idle, _} = Automations.feed(ctx.white_rule, force: true)
+      assert {:idle, _} = Automations.feed(ctx.loop_rule, force: true)
+      assert open_card_jobs(ctx.a) == []
+
+      {:ok, wait} = Boards.answer_wait(wait, Actor.web(ctx.dana), %{"choice" => 1})
+
+      # One job, the asking rule's, carrying the answer: not a rewritten
+      # job the other pool's rule had queued with its plain prompt.
+      assert [fresh] = open_card_jobs(ctx.a)
+      assert fresh.id != parked.id
+      assert {fresh.rule_id, fresh.pool} == {ctx.loop_rule.id, "loop"}
+      assert fresh.prompt =~ "Which region?"
+      assert wait.requeue_state == "queued"
+      assert wait.requeue_job_id == fresh.id
+      refute Enum.any?(card_jobs(ctx.a), &(&1.rule_id == ctx.white_rule.id))
+    end
+
+    test "once the question is closed, the feeds may send the epic again", ctx do
+      {_parked, wait} = park_on_subcard(ctx)
+      assert Automations.next_card(ctx.white_rule, force: true) == nil
+
+      Repo.update_all(from(w in Wait, where: w.id == ^wait.id),
+        set: [closed_at: DateTime.utc_now(:second)]
+      )
+
+      assert Automations.next_card(ctx.white_rule, force: true).id == ctx.a.id
+    end
+
+    test "a wait on the subcard no job of the epic's asked holds the epic for nobody", ctx do
+      # Asked by hand: no job.
+      {:ok, _} =
+        Boards.open_wait(Repo.get!(Card, ctx.s.id), Actor.web(ctx.owner), %{"needs" => "Why?"})
+
+      # Asked by a job on another card.
+      other = card_fixture(ctx.backlog, %{"title" => "other"})
+      {:ok, job} = Runners.queue(other, %{pool: "v", prompt: "x"})
+      Repo.update_all(from(j in Job, where: j.id == ^job.id), set: [status: "running"])
+
+      {:ok, _} =
+        Boards.open_wait(Repo.get!(Card, other.id), Actor.runner(ctx.owner, job.id), %{
+          "needs" => "Which?",
+          "job_id" => job.id
+        })
+
+      Repo.update_all(from(j in Job, where: j.card_id == ^ctx.a.id), set: [status: "cancelled"])
+      assert Automations.next_card(ctx.white_rule, force: true).id == ctx.a.id
     end
   end
 
