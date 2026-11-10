@@ -73,4 +73,52 @@ defmodule SlipdockCLI.BroadPathsRenderTest do
     out = capture_io(fn -> Render.card(card(%{"lane_overlap" => overlap})) end)
     assert out =~ "an agent may start\n"
   end
+
+  test "the overlap line names this card's and both cards' broad globs" do
+    overlap = %{"card" => 7, "title" => "Wide", "mode" => "advise"}
+
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "lane_overlap" =>
+              Map.merge(overlap, %{"broad" => "this", "broad_paths" => ["lib/**"]})
+          })
+        )
+      end)
+
+    assert out =~ "an agent may start (this card's broad lib/**)"
+
+    out =
+      capture_io(fn ->
+        Render.card(
+          card(%{
+            "lane_overlap" =>
+              Map.merge(overlap, %{"broad" => "both", "broad_paths" => ["lib/**", "lib/x/**"]})
+          })
+        )
+      end)
+
+    assert out =~ "an agent may start (both cards' broad lib/**, lib/x/**)"
+  end
+
+  test "a held overlap's line ends with the broad side too" do
+    overlap = %{
+      "card" => 7,
+      "title" => "Wide",
+      "mode" => "hold",
+      "broad" => "other",
+      "broad_paths" => ["lib/**"]
+    }
+
+    out = capture_io(fn -> Render.card(card(%{"lane_overlap" => overlap})) end)
+    assert out =~ "an agent can't start this (its broad lib/**)\n"
+
+    out =
+      capture_io(fn ->
+        Render.card(card(%{"lane_overlap" => Map.drop(overlap, ["broad", "broad_paths"])}))
+      end)
+
+    assert out =~ "an agent can't start this\n"
+  end
 end

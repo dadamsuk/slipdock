@@ -70,6 +70,22 @@ defmodule SlipdockWeb.LanesBroadWebTest do
     refute Map.has_key?(card["card"], "paths_broad")
   end
 
+  test "a broad glob inside the board's shared paths names no side of the overlap", ctx do
+    {:ok, _} = Boards.update_board(ctx.board, %{"shared_paths" => ["docs/**"]})
+
+    {:ok, _} =
+      Boards.update_card(ctx.running, %{"paths" => ["lib/slipdock/runners/a.ex", "docs/a.md"]})
+
+    card = ctx.agent |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(200)
+    assert card["card"]["lane_overlap"]["card"] == ctx.running.id
+    refute Map.has_key?(card["card"]["lane_overlap"], "broad")
+    refute Map.has_key?(card["card"]["lane_overlap"], "broad_paths")
+
+    got = get_card(ctx.agent, ctx.card.id)
+    assert got["lane_overlap"]["card"] == ctx.running.id
+    refute Map.has_key?(got["lane_overlap"], "broad")
+  end
+
   test "REST and get_card list the broad globs and name the broad side of the overlap", ctx do
     card = ctx.agent |> get(~p"/api/cards/#{ctx.card.id}") |> json_response(200)
     assert card["card"]["paths_broad"] == ["docs/**"]

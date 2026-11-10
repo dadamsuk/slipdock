@@ -74,6 +74,9 @@ defmodule Slipdock.LanesBroadTest do
       other = %Boards.Card{paths: ["lib/slipdock/a.ex"]}
       assert Lanes.broad_overlap(card, other, []) == nil
 
+      # The other card's broad glob that misses this card's paths isn't named either.
+      assert Lanes.broad_overlap(other, card, []) == nil
+
       assert Lanes.broad_overlap(
                %Boards.Card{paths: ["docs/**"]},
                %Boards.Card{paths: ["docs/a.md"]},
