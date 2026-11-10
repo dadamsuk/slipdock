@@ -95,6 +95,13 @@ func TestAChangedRunnerStartsAgainOnceItsJobHasFinished(t *testing.T) {
 	if !strings.Contains(r.logged.String(), "runner builder (#11) changed: it starts again") {
 		t.Fatalf("log:\n%s", r.logged)
 	}
+	// The old worker's end, between jobs, is not logged as a stop (#2665).
+	waitFor(t, "the old worker's end", func() bool {
+		return strings.Contains(r.logged.String(), "runner builder (#11) took no more jobs and ended, as it was told to")
+	})
+	if strings.Contains(r.logged.String(), "stopped: this runner was told to stop") {
+		t.Fatalf("log:\n%s", r.logged)
+	}
 }
 
 func TestApplyLeavesAnUnchangedRunnerAlone(t *testing.T) {
