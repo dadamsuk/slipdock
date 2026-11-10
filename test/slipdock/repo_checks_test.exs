@@ -2,10 +2,11 @@ defmodule Slipdock.RepoChecksTest do
   @moduledoc """
   `test/repo_checks.txt` (#1867): the tests that hold the repository's own
   files, docs and skills to a rule or to the server, which `mix pre_push`
-  runs. This keeps the list honest: a test file that reads `docs/` or
-  `priv/skills/`, wildcards over `lib/` or `test/`, or reads the compiler's
-  cross-reference graph (`mix xref`), is either on the list or among its
-  exceptions, each with its reason.
+  runs. This keeps the list honest: a test file that reads `docs/`,
+  `README.md`, a module's moduledoc or `priv/skills/`, wildcards over `lib/`
+  or `test/`, or reads the compiler's cross-reference graph (`mix xref`), is
+  either on the list or among its exceptions, each with its reason (#2673
+  added the README and the moduledoc).
 
   It also keeps the skills to one source (#2048): no test reads an installed
   copy of a skill (`~/.claude/skills/`), only the packaged one in
@@ -49,11 +50,32 @@ defmodule Slipdock.RepoChecksTest do
     [
       docs != [] && "reads #{Enum.uniq(docs) |> Enum.join(", ")}",
       source =~ ~r{priv/skills|"priv",\s*"skills"} && "reads priv/skills/",
+      readme_read?(source) && "reads README.md",
+      moduledoc_read?(source) && "reads a moduledoc",
       (source =~ "Path.wildcard" and source =~ ~r{"(\.\./)*(lib|test)(/[^"]*)?"}) &&
         "wildcards over lib/ or test/",
       source =~ ~r{\[\s*"xref"} && "reads mix xref"
     ]
     |> Enum.filter(& &1)
+  end
+
+  # The root README read: passed to a call (`read("README.md")`,
+  # `flat.("README.md")`), joined to the root, piped, or reached by `../`. A
+  # `"README.md"` held as data (a package's file name, a lane path, a list of
+  # paths for the rules) is not that.
+  defp readme_read?(source) do
+    source =~ ~r{(\w[!?]?|\.)\(\s*"README\.md"} or
+      source =~ ~r{Path\.join\(\s*@root,\s*"README\.md"} or
+      source =~ ~r{"README\.md"\s*\|>} or
+      source =~ ~r{"(\.\./)+README\.md"}
+  end
+
+  # A module's moduledoc read by `Code.fetch_docs`, or off a source file by a
+  # pattern or string that names `@moduledoc`. A test module's own
+  # `@moduledoc` attribute, at the start of a line, is not that.
+  defp moduledoc_read?(source) do
+    source =~ ~r{\bCode\.fetch_docs\b} or
+      source =~ ~r{(~[rRsS]\W|")[^"\n]*@moduledoc}
   end
 
   @doc false
@@ -82,6 +104,15 @@ defmodule Slipdock.RepoChecksTest do
         do: {path, why}
   end
 
+  @doc false
+  # The flagged files the list neither names nor excepts, each with its reasons.
+  def missing(flagged, %{tests: tests, exceptions: exceptions}) do
+    for {path, why} <- Enum.sort(flagged),
+        path not in tests,
+        not Map.has_key?(exceptions, path),
+        do: "#{path} (#{Enum.join(why, "; ")})"
+  end
+
   describe "the list" do
     test "names the tests the card asked for" do
       for path <- @required, do: assert(path in listed(), "#{path} isn't in repo_checks.txt")
@@ -104,11 +135,7 @@ defmodule Slipdock.RepoChecksTest do
     end
 
     test "every test file that reads docs or skills, or wildcards over the code, is on it" do
-      missing =
-        for {path, why} <- flagged(),
-            path not in listed(),
-            not Map.has_key?(exceptions(), path),
-            do: "#{path} (#{Enum.join(why, "; ")})"
+      missing = missing(flagged(), parsed())
 
       assert missing == [], """
       These test files look like checks on the repository itself. Add each to
@@ -157,6 +184,41 @@ defmodule Slipdock.RepoChecksTest do
       assert installed_read(~S|File.cp_r!(skills, Path.join([home, ".claude", "skills"]))|) == nil
       assert installed_read(~S|System.user_home!() <> "/notes"|) == nil
       assert installed_read(~S|Path.expand("~/notes")|) == nil
+    end
+  end
+
+  describe "missing/2 (#2673)" do
+    defp sources_flagged(sources) do
+      for {path, source} <- sources,
+          why = reasons(source, fn _ -> false end),
+          why != [],
+          into: %{},
+          do: {path, why}
+    end
+
+    @readers %{
+      "test/x/readme_test.exs" => ~S|assert read("README.md") =~ "pulse"|,
+      "test/x/moduledoc_test.exs" =>
+        ~S|{:docs_v1, _, _, _, %{"en" => d}, _, _} = Code.fetch_docs(M)|,
+      "test/x/plain_test.exs" => ~S|assert 1 + 1 == 2|
+    }
+
+    test "a README or moduledoc reader that isn't on the list is missing, and the list test fails" do
+      flagged = sources_flagged(@readers)
+
+      assert missing(flagged, %{tests: [], exceptions: %{}}) == [
+               "test/x/moduledoc_test.exs (reads a moduledoc)",
+               "test/x/readme_test.exs (reads README.md)"
+             ]
+    end
+
+    test "listed, or excepted with a reason, it is not" do
+      flagged = sources_flagged(@readers)
+
+      assert missing(flagged, %{
+               tests: ["test/x/readme_test.exs"],
+               exceptions: %{"test/x/moduledoc_test.exs" => "its module is data"}
+             }) == []
     end
   end
 
@@ -216,6 +278,57 @@ defmodule Slipdock.RepoChecksTest do
 
       assert reasons(~S|Path.wildcard(Path.join(dir, "*.bak.*"))|, &exists?/1) == []
       assert reasons(~S|card(column, "A", "lib/**")|, &exists?/1) == []
+    end
+
+    test "the README read by a call, joined to the root, piped or by ../ (#2673)" do
+      for source <- [
+            ~S|assert read("README.md") =~ "x"|,
+            ~S|readme = Slipdock.DocsText.read!("README.md")|,
+            ~S|assert flat.("README.md") =~ "x"|,
+            ~S|File.read!(Path.join(@root, "README.md"))|,
+            ~S{"README.md" |> read() |> String.split("\n")},
+            ~S|File.read!(Path.expand("../../README.md", __DIR__))|
+          ] do
+        assert reasons(source, &exists?/1) == ["reads README.md"], source
+      end
+    end
+
+    test "but not a README.md held as data: a package's file, a lane path, a list of paths" do
+      for source <- [
+            ~S|package(name, "1.1.0", %{"README.md" => "# Newer"})|,
+            ~S|assert unpack(body)["README.md"] == "# Demo"|,
+            ~S|Handbook.rules_for(h, ["README.md", "lib/other.ex"])|,
+            ~S|handbook(conn, board, paths: "README.md")|,
+            ~S|%{"file" => "README.md", "line" => 40}|,
+            ~S|File.write!(Path.join(dir, "README.md"), "a")|
+          ] do
+        assert reasons(source, &exists?/1) == [], source
+      end
+    end
+
+    test "a moduledoc read by Code.fetch_docs or off a source file (#2673)" do
+      assert reasons(
+               ~S|{:docs_v1, _, _, _, %{"en" => doc}, _, _} = Code.fetch_docs(M)|,
+               &exists?/1
+             ) ==
+               ["reads a moduledoc"]
+
+      assert reasons(~S|Regex.scan(~r/@moduledoc """(.*?)"""/s, File.read!(path))|, &exists?/1) ==
+               ["reads a moduledoc"]
+
+      assert reasons(~S|String.split(source, "@moduledoc \"\"\"")|, &exists?/1) ==
+               ["reads a moduledoc"]
+    end
+
+    test "but not a test module's own @moduledoc, nor the word in prose" do
+      source = ~s|defmodule X do\n  @moduledoc """\n  Holds the moduledoc of Y.\n  """\nend|
+      assert reasons(source, &exists?/1) == []
+      assert reasons(~S|# @moduledoc false would hide it|, &exists?/1) == []
+    end
+
+    test "a file reading both the README and a moduledoc gives both reasons" do
+      source = ~S|read("README.md") <> elem(Code.fetch_docs(M), 4)["en"]|
+      assert reasons(source, &exists?/1) == ["reads README.md", "reads a moduledoc"]
     end
 
     test "running mix xref, but not the word xref in prose" do

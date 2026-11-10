@@ -16,9 +16,10 @@
 # One that is too slow for that, or whose docs/ or lib/ paths are only data,
 # is an exception below, with its reason.
 #
-# `test/slipdock/repo_checks_test.exs` fails when a test file reads docs/ or
-# priv/skills/, wildcards over lib/ or test/, or reads `mix xref`, and is
-# neither listed here nor an `except <path>: <reason>` line.
+# `test/slipdock/repo_checks_test.exs` fails when a test file reads docs/,
+# README.md, a module's moduledoc or priv/skills/, wildcards over lib/ or
+# test/, or reads `mix xref`, and is neither listed here nor an
+# `except <path>: <reason>` line (#2673).
 
 # The boundaries, from `mix xref graph` (W-1945 §Boundaries)
 test/slipdock/boundaries_test.exs
@@ -159,3 +160,4 @@ except test/slipdock/lanes_advise_test.exs: its docs/manual.md is a lane glob he
 except test/slipdock_web/runner_scripts_retired_test.exs: docs/manual/machines.md there is the pointer the 410 body gives, held as data; it reads no file
 except test/slipdock/overseer_watch_test.exs: its docs/ paths are lane globs held as data; it reads no file
 except test/slipdock/verified_docs_places_test.exs: its docs and skills paths are the prompt's places, held as data; it reads no file
+except test/slipdock/handbook_rules_e2e_test.exs: its README.md is a card path given to the rules lookup, held as data; it reads no file
