@@ -348,6 +348,42 @@ defmodule Slipdock.VerifiedAuditMissesTest do
       assert [%{title: title, failed: nil}] = Verified.recent_audit_misses(card)
       assert title == "Audit of ##{card.id}: the bar dropped part 3"
     end
+
+    # #2704: the three mutants #2695's last verifier found surviving.
+    test "a 2,500-character reason is cut so the Failed line still fits", ctx do
+      reason = String.duplicate("r", 2500)
+      card = disagree(ctx, ctx.doing, "Long reason", reason, ["bar:1=fail"])
+      f = finding(card)
+
+      assert String.length(f.text) <= Finding.max_text()
+      assert String.ends_with?(f.text, "\nFailed: bar 1.")
+      refute f.text =~ String.duplicate("r", 1201)
+      assert %{failed: "bar 1"} = Signals.audit_failed(f)
+    end
+
+    test "a 400-character note is cut to 120 characters ending in …", ctx do
+      note = String.duplicate("n", 400)
+      card = disagree(ctx, ctx.doing, "Long note", "short reason", ["bar:1=fail:#{note}"])
+
+      assert %{failed: failed} = Signals.audit_failed(finding(card))
+      assert failed == "bar 1 — " <> String.duplicate("n", 119) <> "…"
+    end
+
+    test "a reason naming another card's rework reads the rework the server filed", ctx do
+      decoy = card_fixture(ctx.doing, %{"title" => "Not the rework"})
+      reason = "see the earlier miss Rework: ##{decoy.id}. and this one"
+      card = disagree(ctx, ctx.doing, "Decoy", reason, ["bar:1=fail"])
+      rework = Verified.open_rework(card)
+      f = finding(card)
+
+      assert f.text =~ "Rework: ##{decoy.id}."
+      assert f.text =~ "Rework: ##{rework.id}."
+      assert %{rework_id: id} = Signals.audit_failed(f)
+      assert id == rework.id
+      assert [%{title: title}] = Verified.recent_audit_misses(card)
+      assert title == rework.title
+      refute title == decoy.title
+    end
   end
 
   defp record_ok({:ok, %Finding{}}), do: :ok
