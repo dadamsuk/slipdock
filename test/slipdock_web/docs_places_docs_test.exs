@@ -1,9 +1,10 @@
 defmodule SlipdockWeb.DocsPlacesDocsTest do
   @moduledoc """
-  How SPEC-10 is judged (#2694): the manual's Verified work page and the
-  agents help's handbook part and the Flow page say it is checked by enumeration, give the
-  four results, and say a deferral counts only when its card's bar names
-  the place.
+  How SPEC-10 is judged (#2694, #2697): the manual's Verified work page,
+  `docs/agents.md`, the API guide, the loop skill, the agents help's
+  handbook part and the Flow page say it is checked by enumeration, give
+  the four results, and say a deferral counts only when its card's bar
+  names the place.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -12,6 +13,8 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
   @root Path.expand("../..", __DIR__)
 
   defp flat(text), do: String.replace(text, ~r/\s+/u, " ")
+
+  defp read(path), do: @root |> Path.join(path) |> File.read!() |> flat()
 
   test "the manual's Verified work page says how SPEC-10 is judged" do
     manual = @root |> Path.join("docs/manual/verified-work.md") |> File.read!() |> flat()
@@ -26,6 +29,95 @@ defmodule SlipdockWeb.DocsPlacesDocsTest do
     assert manual =~ "One missing is `--check rule:SPEC-10=broken:<file>:<name>`"
     assert manual =~ "a deferral to a card whose bar doesn't name the place counts as missing"
     assert manual =~ "list each place its lane can't reach on the deferral card's bar"
+  end
+
+  test "docs/agents.md's Verified work says it, beside the every-instance rule" do
+    agents = read("docs/agents.md")
+    [_, after_instances] = String.split(agents, "**A rejection names every instance found**")
+    [passage, _] = String.split(after_instances, "A card resubmitted after a rejection", parts: 2)
+
+    assert passage =~ "**SPEC-10 is checked by enumeration, not judged**"
+    assert passage =~ "lists the names the change introduces or alters from the diff"
+    assert passage =~ "greps them across the seven places"
+
+    assert passage =~
+             "*updated*, *deferred to #N* (only when card #N's bar names that place), *n/a* with why, or *missing*"
+
+    assert passage =~ "One missing is `--check rule:SPEC-10=broken:<file>:<name>`, a rejection"
+    assert passage =~ "a deferral to a card whose bar doesn't name the place counts as missing"
+    assert passage =~ "a place its lane can't reach goes on the deferral card's bar by name"
+    assert passage =~ "one missing there is a disagreement"
+  end
+
+  test "the API guide's Verified work section says it, inside the size caps (SPEC-4)", %{
+    user: user
+  } do
+    # The section is written only for a user with a verifying board.
+    assert {:error, _} = SlipdockWeb.APIGuide.section("verified", user: user)
+
+    board =
+      Slipdock.Fixtures.board_fixture(
+        %{"name" => "Verify", "code" => Slipdock.Fixtures.unique_code()},
+        owner: user
+      )
+
+    {:ok, _} = Slipdock.Boards.update_board(board, %{"verify_work" => true})
+
+    {:ok, verified} = SlipdockWeb.APIGuide.section("verified", user: user)
+    [_, verified] = String.split(flat(verified), "**A second agent verifies.**", parts: 2)
+
+    assert verified =~ "`SPEC-10` is checked by enumeration, not judged"
+    assert verified =~ "List the names the change introduces or alters from the diff"
+    assert verified =~ "grep them across the seven places"
+
+    assert verified =~
+             "updated, deferred to #N (only when card #N's bar names that place), n/a with why, or missing"
+
+    assert verified =~ "One missing is `rule:SPEC-10=broken:<file>:<name>`"
+
+    assert verified =~
+             "a place its lane can't reach goes on the deferral card's bar by name, or the deferral doesn't count"
+
+    # SPEC-4: the passage is in the Verified work section alone; the short
+    # guide never carries it, and keeps its cap.
+    short = SlipdockWeb.APIGuide.short()
+    refute short =~ "checked by enumeration"
+    refute SlipdockWeb.APIGuide.short(user: user) =~ "checked by enumeration"
+    assert byte_size(short) < 22_000
+  end
+
+  test "the loop skill says it: a verify job, an audit, and the builder before submitting" do
+    skill = File.read!(Path.join(@root, "priv/skills/slipdock-loop/SKILL.md"))
+
+    [_, verify_job] = String.split(skill, "- **A verify job**", parts: 2)
+    [verify_job, audit] = String.split(verify_job, "- **An audit**", parts: 2)
+    [audit | _] = String.split(audit, "\n## ", parts: 2)
+    verify_job = flat(verify_job)
+
+    assert verify_job =~ "**`SPEC-10` is enumerated, not judged**"
+    assert verify_job =~ "list the names the change introduces or alters from the diff"
+    assert verify_job =~ "grep them across the seven places"
+
+    assert verify_job =~
+             "`updated`, `deferred to #N` (only when card #N's bar names that place: `slipdock card N`), `n/a` with why, or `missing`"
+
+    assert verify_job =~ "One missing is `--check rule:SPEC-10=broken:<file>:<name>`"
+
+    assert flat(audit) =~
+             "The docs places (`SPEC-10`) are enumerated as in a verify job: one missing, a deferral to a card whose bar doesn't name the place included, is a disagreement."
+
+    [_, builder] = String.split(skill, "**Before\nsubmitting, check the diff against them**")
+    [builder | _] = String.split(builder, "\n## ", parts: 2)
+    builder = flat(builder)
+
+    assert builder =~ "**The docs places (`SPEC-10`)**"
+    assert builder =~ "grep each across the seven places"
+    assert builder =~ "*updated*, *deferred to #N*, *n/a* with why, or *missing*"
+
+    assert builder =~
+             "A place the lane can't reach goes on the deferral card's bar by name, with the names it must cover"
+
+    assert builder =~ "or the deferral doesn't count"
   end
 
   test "the agents help's handbook part says it", %{conn: conn} do

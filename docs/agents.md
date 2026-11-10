@@ -1038,7 +1038,23 @@ door) and names them all in one rejection, each as its own line under the one
 rule with its file and line (`--check rule:SPEC-10=broken:README.md:40:why`,
 repeated), and says in the reason that it looked. A rule broken in several
 places is one failing part, and the rejection's comment lists its instances
-under it. A rejection names at least one failing part;
+under it. **SPEC-10 is checked by enumeration, not judged**: for a card
+whose paths fall in the scope of the handbook's `SPEC-10`, the verify prompt
+adds a docs-places step after the rules. The verifier lists the names the
+change introduces or alters from the diff (commands, flags, MCP tool names,
+API fields, settings, page and section names), greps them across the seven
+places (`README.md`, the manual, the app's help in `HelpLive.Guides`, the
+agents' help in `HelpLive.Agents` and `HelpLive.Flow` with `cli/help.txt`,
+this page, the API guide and `priv/skills/`), and gives each place one
+result: *updated*, *deferred to #N* (only when card #N's bar names that
+place), *n/a* with why, or *missing*. One missing is
+`--check rule:SPEC-10=broken:<file>:<name>`, a rejection; a deferral to a
+card whose bar doesn't name the place counts as missing. The builder's
+claimed prompt gives the same enumeration: a place its lane can't reach goes
+on the deferral card's bar by name, with the names it must cover, and the
+card is named in the evidence. An audit enumerates the same way, and one
+missing there is a disagreement. A card outside the scope, or a handbook
+with no `SPEC-10`, gets no such step. A rejection names at least one failing part;
 an acceptance with a broken `must` rule (or any other failing part) is
 refused. The card panel and `slipdock card` list the parts under
 Verification; a later decision replaces them, and each decision's comment
