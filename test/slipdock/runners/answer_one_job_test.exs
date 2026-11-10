@@ -494,6 +494,35 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       Repo.update_all(from(j in Job, where: j.card_id == ^ctx.a.id), set: [status: "cancelled"])
       assert Automations.next_card(ctx.white_rule, force: true).id == ctx.a.id
     end
+
+    test "an open wait whose job has no card (a probe, #2580) holds no card back", ctx do
+      # `runner_jobs.card_id` is nullable, and one NULL among the asking
+      # jobs' cards would make `c.id NOT IN (…)` NULL for every card: no
+      # list_top feed on any board would send anything.
+      {:ok, probe} =
+        Repo.insert(%Job{
+          board_id: ctx.board.id,
+          root_board_id: ctx.board.id,
+          card_id: nil,
+          pool: "loop",
+          kind: "probe",
+          prompt: "",
+          status: "running"
+        })
+
+      # open_wait refuses a job that isn't the card's, so the row is made
+      # to point at the probe directly.
+      {:ok, wait} =
+        Boards.open_wait(Repo.get!(Card, ctx.s.id), Actor.web(ctx.owner), %{"needs" => "Why?"})
+
+      Repo.update_all(from(w in Wait, where: w.id == ^wait.id), set: [job_id: probe.id])
+      assert %Wait{job_id: job_id, closed_at: nil} = Repo.get!(Wait, wait.id)
+      assert job_id == probe.id
+
+      Repo.update_all(from(j in Job, where: j.card_id == ^ctx.a.id), set: [status: "cancelled"])
+      assert Automations.next_card(ctx.white_rule, force: true).id == ctx.a.id
+      assert Automations.next_card(ctx.loop_rule, force: true).id == ctx.a.id
+    end
   end
 
   describe "a card whose job is still running" do
