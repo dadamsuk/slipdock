@@ -222,14 +222,16 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
 
   attr :lists, :list,
     required: true,
-    doc: "each list in board order: Pulse's figures plus `count`, `archived_7d` and `wip_limit`"
+    doc:
+      "each list in board order: Pulse's figures plus `count`, `archived_7d`, `wip_limit` and `doing` (a doing list by its category or its name)"
 
   @doc """
   One block per list in board order, with arrows between the lists in the
-  flow; lists with no category sit apart at the end, dashed.
+  flow; lists with no category sit apart at the end, dashed, except a
+  doing list by its name (a Simple sub-board's "Doing", #2676).
   """
   def flow_section(assigns) do
-    {flow, outside} = Enum.split_with(assigns.lists, & &1.category)
+    {flow, outside} = Enum.split_with(assigns.lists, &(&1.category || &1[:doing]))
     top = flow |> Enum.map(& &1.count) |> Enum.max(fn -> 0 end)
     assigns = assign(assigns, flow: flow, outside: outside, top: top)
 
@@ -258,7 +260,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
 
   defp flow_block(assigns) do
     l = assigns.list
-    limit = l.category == "doing" && l.wip_limit
+    limit = l[:doing] && l.wip_limit
     at_limit = is_integer(limit) and l.count >= limit
 
     fill =
@@ -278,9 +280,9 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
       class={[
         "flex min-w-36 flex-1 basis-36 flex-col gap-1.5 rounded-box p-3",
         @outside && "border border-dashed border-base-content/25 text-base-content/70",
-        !@outside && @l.category == "doing" && "bg-primary/10 ring-1 ring-primary/20",
+        !@outside && @l[:doing] && "bg-primary/10 ring-1 ring-primary/20",
         !@outside && @l.category == "done" && "bg-success/10 ring-1 ring-success/20",
-        !@outside && @l.category not in ["doing", "done"] && "bg-base-300/60"
+        !@outside && !@l[:doing] && @l.category != "done" && "bg-base-300/60"
       ]}
     >
       <div class="flex items-center justify-between gap-2">
@@ -290,7 +292,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
           tone={
             cond do
               @at_limit -> :warning
-              @l.category == "doing" -> :primary
+              @l[:doing] -> :primary
               @l.category == "done" -> :success
               true -> :neutral
             end
@@ -311,7 +313,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
             "h-full rounded-full",
             cond do
               @at_limit -> "bg-warning"
-              @l.category == "doing" -> "bg-primary"
+              @l[:doing] -> "bg-primary"
               @l.category == "done" -> "bg-success"
               true -> "bg-base-content/40"
             end

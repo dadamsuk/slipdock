@@ -46,6 +46,8 @@ defmodule Slipdock.Verified do
 
   import Ecto.Query, only: [from: 2]
 
+  require Slipdock.Flow.DoingList, as: DoingList
+
   alias Slipdock.Boards.{Board, Card, CardMove, Column}
   alias Slipdock.Repo
   alias Slipdock.Verified.Circling
@@ -226,7 +228,7 @@ defmodule Slipdock.Verified do
     Repo.exists?(
       from m in CardMove,
         where:
-          m.card_id == ^id and m.to_category == "doing" and
+          m.card_id == ^id and DoingList.doing?(m.to_category, m.to_column_name) and
             m.kind in ^CardMove.entry_kinds()
     )
   end
@@ -3740,7 +3742,8 @@ defmodule Slipdock.Verified do
 
   ## Helpers ------------------------------------------------------------------
 
-  defp doing?(%Column{category: "doing"}), do: true
+  # By its category, else by its name (#2676): a Simple sub-board's "Doing".
+  defp doing?(%Column{} = column), do: Slipdock.Flow.doing_list?(column)
   defp doing?(_), do: false
 
   defp board(%Card{board: %Board{} = board}), do: board

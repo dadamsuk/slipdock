@@ -14,7 +14,9 @@ it is worked out when you open it, and follows the board as it changes.
   how long the last one took to answer, and moves in 24 hours forward and back.
 - **Flow through the board** — a block per list in board order: cards now, in
   and out over 7 days (archived, for a done list), a fill bar and the usual
-  stay. Lists with no category sit apart, *outside the flow*.
+  stay. Lists with no category sit apart, *outside the flow*, except one
+  whose name says it is in progress (a Simple sub-board's *Doing*): that is
+  the doing list, here and in the Pulse, Aging and Trends.
 - **Trends** — over 7, 30 or 90 days (the switch at the top; the choice is in
   the link as `?days=`): cumulative flow, velocity (per week at 90 days, with
   a rolling average), backlog burndown (open cards, an even burn to zero and
