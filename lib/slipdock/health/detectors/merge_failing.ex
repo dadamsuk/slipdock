@@ -2,8 +2,10 @@ defmodule Slipdock.Health.Detectors.MergeFailing do
   @moduledoc """
   A card whose merge has failed twice (`failures`, default 2) and whose
   latest merge job failed too. The card is already back as rejected each
-  time; the flag tells a person it is looping. No fix: flagged, with the
-  merges' reasons.
+  time; the flag tells a person it is looping. A merge job that finds the
+  pull request already merged records a merge, not a failure (#2637): it
+  isn't a rejection and doesn't count towards `failures`. No fix: flagged,
+  with the merges' reasons.
   """
   @behaviour Slipdock.Health.Detector
 
