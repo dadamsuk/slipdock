@@ -167,6 +167,7 @@ slipdock comment W-31 "needs a worked example"  # comment, check, status, vote, 
 slipdock check W-31 "worked example"           # unweblink all take a page code as readily
 slipdock move-check 13 --before 11              # checklist item 13 before item 11 (no --before: last)
 slipdock status W-31 at_risk "stalled on SRE"  # as a card number
+slipdock status 12 at_risk --body - < note.md  # a status note over several lines (or --body TEXT, --file F)
 slipdock handoff 12 --next "Write the test" --body "State: …"   # where a card was left
 slipdock comment 12 --body - < note.md        # a Markdown comment over several lines (or --file F)
 slipdock page place W-31 "In Progress"         # put the doc in a list, beside the work

@@ -198,7 +198,8 @@ tells nobody anything.
 
 A page takes comments, a checklist, reported health, web links and votes, the
 same way a card does and with the same commands (`slipdock comment <page> …`,
-`slipdock check`, `slipdock status`, `slipdock weblink`, `slipdock vote`).
+`slipdock check`, `slipdock status`, `slipdock weblink`, `slipdock vote`; a status
+note of several lines goes as `status --body -`, `--body TEXT` or `--file F`).
 
 Use them for talk *about* the document, not as a second place to write it:
 

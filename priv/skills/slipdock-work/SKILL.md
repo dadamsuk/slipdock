@@ -220,8 +220,10 @@ whole card before touching it.
   for human* on a wait, *Verifying*, *Verify failed; queued for rework*,
   *Accepted; merging*, *Merged*, *Done* and *Shipped to production*, each
   *On track* by *Slipdock*, quietly and never twice in a row. Don't post
-  those; add one yourself (`slipdock status <id> at_risk "…"`, MCP
-  `status_update`) only for what the server can't know, such as a risk.
+  those; add one yourself (`slipdock status <id> at_risk "…"`, or a note of
+  several lines as `status --body -` with a heredoc, `--body TEXT` or
+  `--file F`; MCP `status_update`) only for what the server can't know, such
+  as a risk.
 - **Re-read the card before you push, and its comments after.** Once the work
   is checked, `slipdock card <id>` again: a changed description or a comment
   newer than your claim is still this card — do it before committing. Once the

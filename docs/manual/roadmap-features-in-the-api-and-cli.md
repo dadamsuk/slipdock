@@ -16,7 +16,8 @@ Endpoints: `/api/boards/:board/fields` (GET, POST; PATCH and DELETE with
 
 CLI: `slipdock fields <board>`, `new-field`, `delete-field`, `preset <board>
 rice|ice|value_effort`, `set <id> key=value…`, `vote <id> <n>`, `status <id>
-on_track|at_risk|off_track [note]`, `link <id> <kind> <card-id>…`, `unlink`,
+on_track|at_risk|off_track [note]` (for a note of several lines, `--body -`
+from stdin keeps its line breaks, or `--body TEXT`, `--file F`), `link <id> <kind> <card-id>…`, `unlink`,
 `weblink <id> <url> [--label TEXT]`, `unweblink <id> <url-id>…`,
 `attach <id> <file>… [--name N]`, `attachments <id>`, `download <attachment-id> [--out F]`,
 `detach <id> <attachment-id>…`,

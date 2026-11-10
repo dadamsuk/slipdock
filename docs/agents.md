@@ -370,8 +370,9 @@ accept*), rejected (*Verify failed; queued for rework*), accepted on a
 pull-request board (*Accepted; merging*), merged (*Merged*), completed
 (*Done*), reopened (*Reopened*) and deployed (*Shipped to production*). The
 same text is never posted twice in a row, and these notify nobody. Add your
-own with `status_update` (MCP), `slipdock status <id> <health> "…"` or `POST
-/api/cards/:id/status` only for what the server can't know, such as a risk.
+own with `status_update` (MCP), `slipdock status <id> <health> "…"` (a note of
+several lines as `status --body -` with a heredoc, which keeps its line breaks,
+or `--body TEXT`, `--file F`) or `POST /api/cards/:id/status` only for what the server can't know, such as a risk.
 A finished card's `get_card` and `slipdock card` show its **outcome** (done
 when, accepted by whom, the merged PR) where the handoff was, and the handoff
 written before it finished as `last_handoff`.

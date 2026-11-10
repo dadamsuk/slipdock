@@ -484,8 +484,9 @@ The card is the running log, not the final report:
   claimed, `Waiting for human`, `Verifying`, `Verify failed; queued for
   rework`, `Accepted; merging`, `Merged`, `Done`, `Shipped to
   production`), quietly and never twice in a row. Don't post those; add
-  your own (`slipdock status <id> at_risk "…"`, MCP `status_update`) only
-  for what the server can't know, such as a risk;
+  your own (`slipdock status <id> at_risk "…"`, or a note of several lines
+  as `status --body -` with a heredoc, `--body TEXT` or `--file F`; MCP
+  `status_update`) only for what the server can't know, such as a risk;
 - in a runner's job (`$SLIPDOCK_JOB_ID` is set), each milestone as the job's
   step: `slipdock job-progress --step "…"` (no id: it takes the job from
   `$SLIPDOCK_JOB_ID`) for the plan made, each subcard as it starts, is
