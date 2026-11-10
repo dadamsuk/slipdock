@@ -79,8 +79,10 @@ defmodule SlipdockCLI.GardenTest do
     assert out =~ "needs --keep: #1 or #2"
     assert out =~ "2 suggestion(s). Last looked over 2026-10-18T09:00."
 
-    assert out =~
-             "dismiss: slipdock garden dismiss <id> (a proposal, from Claude Code: add --confirm)"
+    # No proposal among them: the footer names no Tidy-up page (#2688).
+    assert out =~ "dismiss: slipdock garden dismiss <id>\n"
+    refute out =~ "Tidy-up"
+    refute out =~ "--confirm"
   end
 
   test "--run posts a run, --check narrows it" do
@@ -117,33 +119,47 @@ defmodule SlipdockCLI.GardenTest do
     assert out =~ "undid #42"
   end
 
-  test "--confirm sends the person's say-so with apply, dismiss and undo (#2638)" do
-    dismissed = JSON.encode!(%{"suggestion" => %{@dupe | "state" => "dismissed"}})
-    serve([{200, dismissed}, {200, dismissed}, {200, dismissed}])
+  # --keep and --choice are apply's: given to dismiss or undo, they aren't sent.
+  test "dismiss and undo post an empty body, whatever --keep or --choice they are given" do
+    done = JSON.encode!(%{"suggestion" => %{@dupe | "state" => "dismissed"}})
+    serve([{200, done}, {200, done}])
 
-    out = capture_io(fn -> Garden.run("garden", ["dismiss", "42"], confirm: true) end)
+    capture_io(fn -> Garden.run("garden", ["dismiss", "42"], keep: "1", choice: "snooze") end)
     assert_received {:request, "POST", "/api/garden/suggestions/42/dismiss", d}
-    assert JSON.decode!(d) == %{"confirm" => true}
-    assert out =~ "dismissed #42"
+    assert JSON.decode!(d) == %{}
 
-    capture_io(fn -> Garden.run("garden", ["apply", "42"], confirm: true, keep: "1") end)
-    assert_received {:request, "POST", "/api/garden/suggestions/42/apply", a}
-    assert JSON.decode!(a) == %{"confirm" => true, "keep" => "1"}
-
-    capture_io(fn -> Garden.run("garden", ["undo", "42"], confirm: true) end)
+    capture_io(fn -> Garden.run("garden", ["undo", "42"], keep: "1", choice: "snooze") end)
     assert_received {:request, "POST", "/api/garden/suggestions/42/undo", u}
-    assert JSON.decode!(u) == %{"confirm" => true}
+    assert JSON.decode!(u) == %{}
+
+    assert Garden.decision_body("dismiss", keep: "1", choice: "snooze") == %{}
+    assert Garden.decision_body("undo", keep: "1", choice: "snooze") == %{}
   end
 
-  test "--confirm is a switch the CLI parses, and without it nothing is said (#2638)" do
-    assert {[confirm: true], ["garden", "dismiss", "42"], []} =
+  # #2688: a proposal is decided on the Tidy-up page (#2668), so the CLI has
+  # no --confirm to send: it is gone from the switches and the usage.
+  test "--confirm is gone: an unknown switch, left out of the usage and of what is sent" do
+    assert {[], ["garden", "dismiss", "42"], [{"--confirm", nil}]} =
              OptionParser.parse(["garden", "dismiss", "42", "--confirm"],
                strict: SlipdockCLI.switches()
              )
 
-    assert Garden.decision_body("dismiss", confirm: false) == %{}
+    refute Keyword.has_key?(SlipdockCLI.switches(), :confirm)
+    assert Garden.decision_body("dismiss", confirm: true) == %{}
+    assert Garden.decision_body("undo", confirm: true) == %{}
     assert Garden.decision_body("dismiss", []) == %{}
+    assert Garden.decision_body("apply", confirm: true, keep: "1") == %{"keep" => "1"}
     assert Garden.decision_body("apply", choice: "snooze") == %{"choice" => "snooze"}
+
+    usage = Garden.usage()
+    assert usage =~ "garden apply|dismiss|undo <id>... [--keep CARD] [--choice NAME] |"
+    refute usage =~ "--confirm"
+  end
+
+  test "tidy_url/1 is the board's Tidy-up page on this server, or the server without a board" do
+    System.put_env("SLIPDOCK_URL", "https://example.com")
+    assert Garden.tidy_url(3) == "https://example.com/boards/3/tidy"
+    assert Garden.tidy_url(nil) == "https://example.com"
   end
 
   @proposal %{
@@ -164,6 +180,7 @@ defmodule SlipdockCLI.GardenTest do
       }
     ],
     "alternatives" => %{},
+    "board_id" => 3,
     "findings" => [3, 5],
     "person_only" => true,
     "needs_keep" => false
@@ -177,7 +194,11 @@ defmodule SlipdockCLI.GardenTest do
     assert out =~ "#50 UX-4 keeps breaking"
     assert out =~ "→ edit §UX & UI/Rules of page W-3"
     assert out =~ "evidence: findings #3, #5"
-    assert out =~ "a person's to decide"
+    # #2688: decided on the board's Tidy-up page, its link in the line and the footer.
+    tidy = System.get_env("SLIPDOCK_URL") <> "/boards/3/tidy"
+    assert out =~ "a person's to decide, on the board's Tidy-up page: #{tidy}\n"
+    assert out =~ "(a proposal: on the board's Tidy-up page, #{tidy})"
+    refute out =~ "--confirm"
   end
 
   test "garden propose <board> <file> posts the JSON and says what was filed" do

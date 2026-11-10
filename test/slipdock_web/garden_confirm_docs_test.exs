@@ -1,11 +1,11 @@
 defmodule SlipdockWeb.GardenConfirmDocsTest do
   @moduledoc """
-  `slipdock garden apply|dismiss|undo <id> --confirm` (#2638, documented on
-  #2648), said wherever a person or an agent looks for it: the API guide, the
-  agents page, the manual's Tidying up page, HelpLive.Agents and the slipdock
-  skill (`priv/skills`, the one source). Each says a person deciding a
-  proposal from Claude Code adds `--confirm`, and that a runner job's confirm
-  is refused.
+  A proposal is decided on the board's Tidy-up page (W-1945 §Permissions,
+  #2668), said wherever a person or an agent looks for it (#2688): the API
+  guide, the agents page, the manual's Tidying up page, HelpLive.Agents and
+  the slipdock skill (`priv/skills`, the one source). Each says so in place
+  of `slipdock garden apply|dismiss|undo <id> --confirm`, which #2638 had
+  them give and #2668 closed.
   """
   use ExUnit.Case, async: true
 
@@ -14,59 +14,73 @@ defmodule SlipdockWeb.GardenConfirmDocsTest do
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
   defp flat(text), do: String.replace(text, ~r/\s+/, " ")
 
-  test "the API guide gives --confirm and confirm: true, and refuses a runner job's" do
+  test "the API guide sends a proposal to the Tidy-up page, whatever confirm says" do
     guide = flat(read("lib/slipdock_web/api_guide.ex"))
 
-    assert guide =~ "`…/dismiss` and `…/undo` decide one (each takes `confirm: true`"
+    assert guide =~ "`…/dismiss` and `…/undo` decide one (a proposal excepted: see below)"
 
     assert guide =~
-             "a person deciding a proposal from Claude Code adds `--confirm` " <>
-               "(`slipdock garden apply|dismiss|undo <id> --confirm`, REST `confirm: true`)"
+             "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`, " <>
+               "which shows the section's diff), signed in, and nowhere else " <>
+               "(W-1945 §Permissions, #2668)"
 
-    assert guide =~ "A runner job's confirm is refused, and so is a bare script token's"
+    assert guide =~ "whatever token, headers or `confirm` they send"
+
+    assert guide =~
+             "a person decides each on the board's Tidy-up page, which `slipdock findings` links"
+
+    refute guide =~ "--confirm"
   end
 
-  test "docs/agents.md says the person adds --confirm, and a runner job's is refused" do
+  test "docs/agents.md says a proposal is decided on the Tidy-up page" do
     agents = flat(read("docs/agents.md"))
 
     assert agents =~
-             "a person deciding a proposal from Claude Code adds `--confirm` " <>
-               "(`slipdock garden apply 41 --confirm`, REST `confirm: true`)"
+             "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`), " <>
+               "signed in, and nowhere else (W-1945 §Permissions, #2668)"
 
-    assert agents =~ "A runner job's confirm is refused"
+    assert agents =~ "Point the person at the page."
+    refute agents =~ "--confirm"
   end
 
-  test "the manual's Tidying up page gives --confirm in the CLI, REST and prose" do
+  test "the manual's Tidying up page gives the Tidy-up page, and no confirm in the CLI or REST" do
     page = read("docs/manual/tidying-up.md")
 
-    assert page =~ ~r/^slipdock garden apply 45 --confirm\s+# a proposal, decided by you/m
-    assert page =~ "POST  /api/garden/suggestions/:id/apply {keep?, choice?, confirm?}"
-    assert page =~ "POST  /api/garden/suggestions/:id/dismiss {confirm?}"
-    assert page =~ "POST  /api/garden/suggestions/:id/undo {confirm?}"
+    refute page =~ "--confirm"
+    refute page =~ "confirm?"
+    assert page =~ "POST  /api/garden/suggestions/:id/apply {keep?, choice?}\n"
+    assert page =~ "POST  /api/garden/suggestions/:id/dismiss\n"
+    assert page =~ "POST  /api/garden/suggestions/:id/undo\n"
 
     flat = flat(page)
-    assert flat =~ "when you decide a proposal from Claude Code, add `--confirm`"
-    assert flat =~ "A runner job's confirm is refused"
+    assert flat =~ "**A proposal is decided on the Tidy-up page.**"
+    assert flat =~ "it is decided on the board's Tidy-up page (`/boards/<id>/tidy`), signed in"
+    assert flat =~ "The CLI, REST and MCP are refused with the page's link"
   end
 
   test "HelpLive.Agents says it beside garden_decide" do
     help = flat(read("lib/slipdock_web/live/help_live/agents.ex"))
 
     assert help =~
-             "from Claude Code a person deciding a proposed handbook edit adds " <>
-               "<code>--confirm</code>, <code>slipdock garden apply &lt;id&gt; --confirm</code>, " <>
-               "and a runner job's confirm is refused"
+             "a proposed handbook edit is decided only on the board's Tidy-up page, " <>
+               "signed in, and <code>garden_decide</code> and the CLI are refused with its link"
+
+    refute help =~ "--confirm"
   end
 
-  test "the slipdock skill lists --confirm and says when to use it" do
+  test "the slipdock skill sends the person to the Tidy-up page" do
     skill = read("priv/skills/slipdock/SKILL.md")
 
     assert skill =~
-             ~r/^slipdock garden apply\|dismiss\|undo <id> --confirm\s+# a proposal, decided by the person from Claude Code/m
+             ~r/^\s+# a proposal: the person decides it on the board's Tidy-up\n\s+# page \(the listing links it\); the CLI is refused \(#2668\)$/m
 
     flat = flat(skill)
-    assert flat =~ "(their say-so; a runner job's confirm is refused)"
-    assert flat =~ "when they decide one from Claude Code, add `--confirm`"
-    assert flat =~ "A runner job's confirm is refused, so in a runner job leave a proposal"
+    assert flat =~ "(decided on the board's Tidy-up # page, which it links)"
+
+    assert flat =~
+             "a proposal is decided on the board's Tidy-up page (`/boards/<id>/tidy`, signed in)"
+
+    assert flat =~ "give the person that link and leave the proposal to them"
+    refute skill =~ ~r/garden \S+ \S+ --confirm/
   end
 end

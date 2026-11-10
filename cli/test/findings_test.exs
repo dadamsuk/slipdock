@@ -69,21 +69,33 @@ defmodule SlipdockCLI.FindingsTest do
     assert out =~ "#5 [merged] process (timeout #12) ×3: job #9 timed out → #4 — same cause"
   end
 
-  # #2649: help.txt's findings entry gives the route a person takes from
-  # Claude Code too, not only the bare command the server refuses there.
-  test "help.txt's findings entry says to add --confirm from Claude Code" do
+  # #2688: help.txt's findings entry sends a person to the Tidy-up page, the
+  # one place a proposal is decided (#2668), not to a CLI command.
+  test "help.txt's findings entry says a proposal is decided on the Tidy-up page" do
     help = File.read!(Path.expand("../help.txt", __DIR__))
     [_, entry] = String.split(help, "\n  findings <board>", parts: 2)
     [entry | _] = String.split(entry, "\n  finding <id>", parts: 2)
-    assert entry =~ "decide with garden apply|dismiss <id>"
-    assert entry |> String.replace(~r/\s+/, " ") =~ "from Claude Code, add --confirm"
+    flat = String.replace(entry, ~r/\s+/, " ")
+    assert flat =~ "to decide on the board's Tidy-up page"
+    refute flat =~ "garden apply|dismiss"
+    refute flat =~ "--confirm"
   end
 
   # #2123: what waits on the person comes first.
   test "findings <board> leads with the proposals that await you" do
     awaiting = [
-      %{"id" => 123, "findings" => [4], "explanation" => "Seen 3 times: add UX-4"},
-      %{"id" => 124, "findings" => [5, 6], "explanation" => "Seen 4 times: add TEST-9"}
+      %{
+        "id" => 123,
+        "board_id" => 3,
+        "findings" => [4],
+        "explanation" => "Seen 3 times: add UX-4"
+      },
+      %{
+        "id" => 124,
+        "board_id" => 3,
+        "findings" => [5, 6],
+        "explanation" => "Seen 4 times: add TEST-9"
+      }
     ]
 
     serve([{200, JSON.encode!(%{"awaiting" => awaiting, "findings" => [@open]})}])
@@ -92,10 +104,10 @@ defmodule SlipdockCLI.FindingsTest do
     assert out =~ "2 proposals await you:\n"
     assert out =~ "  proposal #123 (from #4): Seen 3 times: add UX-4\n"
     assert out =~ "  proposal #124 (from #5, #6): Seen 4 times: add TEST-9\n"
-    # #2649: the route a person takes from Claude Code, where the bare one is refused.
-    assert out =~
-             "  Apply or dismiss one: slipdock garden apply|dismiss <id> " <>
-               "(from Claude Code: add --confirm)\n"
+    # #2688: decided on the Tidy-up page (#2668), never with the CLI.
+    tidy = System.get_env("SLIPDOCK_URL") <> "/boards/3/tidy"
+    assert out =~ "  Decide each on the board's Tidy-up page: #{tidy}\n"
+    refute out =~ "--confirm"
 
     [before, _] = String.split(out, "#4 gotcha")
     assert before =~ "proposal #124"

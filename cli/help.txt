@@ -648,10 +648,10 @@ WRITE
   garden apply <id>... [--keep CARD] [--choice NAME]
                                       apply suggestions you approve (--keep: the duplicate
                                       that stays; --choice: one of its alternatives)
-  garden dismiss|undo <id>...         dismiss (it stays dismissed) or undo an applied one
-                                      --confirm: you decide it yourself from Claude Code, where
-                                      the CLI says it's an agent (a proposed handbook edit is a
-                                      person's call; a runner job's --confirm counts for nothing)
+  garden dismiss|undo <id>...         dismiss (it stays dismissed) or undo an applied one.
+                                      A proposal (a handbook edit) is not decided here: a
+                                      person decides it on the board's Tidy-up page
+                                      (/boards/<id>/tidy), and the CLI is refused with its link
   garden settings <board> [<check> key=value...]
                                       show the checks, or change one (enabled=false, days=30)
   garden propose <board> <file.json | ->
@@ -672,9 +672,9 @@ WRITE
                                       with the other cards it was said on ("also #12"). --scope
                                       runner: the tooling (runner) items kept with a runner.
                                       First, what waits on you: the proposals drafted from
-                                      findings ("2 proposals await you"), each by id, to
-                                      decide with garden apply|dismiss <id> (from Claude
-                                      Code, add --confirm: a proposal is a person's call)
+                                      findings ("2 proposals await you"), each by id, for a
+                                      person to decide on the board's Tidy-up page, which the
+                                      listing links (a proposal is a person's call)
   finding <id> dismiss|promote|reopen [--note TEXT]
                                       triage one (promote: say what it became, W-1950 §Tests;
                                       --note - reads it from stdin)
