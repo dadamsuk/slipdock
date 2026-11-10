@@ -224,6 +224,10 @@ defmodule Slipdock.Recurrence.RuleTest do
           {"weekday", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"},
           {"every weekdays", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"},
           {"week", "FREQ=WEEKLY"},
+          {"1w", "FREQ=WEEKLY"},
+          {"1 week", "FREQ=WEEKLY"},
+          {"99w", "FREQ=WEEKLY;INTERVAL=99"},
+          {"99 weeks", "FREQ=WEEKLY;INTERVAL=99"},
           {"2w", "FREQ=WEEKLY;INTERVAL=2"},
           {"fortnight", "FREQ=WEEKLY;INTERVAL=2"},
           {"mon", "FREQ=WEEKLY;BYDAY=MO"},
@@ -268,6 +272,8 @@ defmodule Slipdock.Recurrence.RuleTest do
           "year after",
           "0d",
           "100w",
+          "100 weeks",
+          "0 weeks",
           "weekday mon"
         ] do
       test "refuses #{inspect(phrase)}" do

@@ -71,7 +71,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
       )
 
     queued = Enum.filter(open_jobs, &(&1.status == "queued"))
-    live = Enum.filter(open_jobs, &(&1.status in ~w(claimed running)))
+    live = Enum.filter(open_jobs, &Enum.member?(~w(claimed running), &1.status))
     lanes = Lanes.held_cards(root_id)
     worked = Runners.worked(root_id)
 
@@ -89,7 +89,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
   end
 
   defp queued_edges(job, {lanes, worked}, live, ctx) do
-    finishing = job.kind in Verified.finishing_kinds()
+    finishing = Enum.member?(Verified.finishing_kinds(), job.kind)
     node = {:job, job.id}
 
     beside =
@@ -118,7 +118,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     wip =
       with false <- finishing,
            {%Column{} = column, _count} <- Runners.wip_full(job.board_id),
-           false <- job.card_id in Enum.map(doing_cards([job.board_id]), & &1.id) do
+           false <- Enum.member?(Enum.map(doing_cards([job.board_id]), & &1.id), job.card_id) do
         for c <- column_cards(column.id),
             do:
               {node, {:card, c.id},
@@ -311,7 +311,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
         MapSet.size(acc) >= @max_cycles ->
           acc
 
-        next in path ->
+        Enum.member?(path, next) ->
           cycle = path |> Enum.reverse() |> Enum.drop_while(&(&1 != next))
           MapSet.put(acc, rotate(cycle))
 
@@ -350,7 +350,7 @@ defmodule Slipdock.Health.Detectors.Deadlock do
     withdraw =
       for j <- Enum.sort_by(jobs, & &1.id),
           j.status == "queued" and j.attempts == 0 and is_integer(j.rule_id) and
-            j.kind not in Verified.finishing_kinds(),
+            not Enum.member?(Verified.finishing_kinds(), j.kind),
           do: j.id
 
     rules =

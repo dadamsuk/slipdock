@@ -46,6 +46,18 @@ defmodule Slipdock.Gardener.ScheduleTest do
                Presets.build("weekly_tidy", %{"weekday" => "5", "at" => "16:30"}, user: owner)
     end
 
+    test "takes every day of the week, Monday (1) to Sunday (7)", %{owner: owner} do
+      assert {:ok, %{"name" => "Weekly tidy-up, Mondays at 09:00", "spec" => monday}} =
+               Presets.build("weekly_tidy", %{"weekday" => "1"}, user: owner)
+
+      assert monday["trigger"]["weekday"] == 1
+
+      assert {:ok, %{"name" => "Weekly tidy-up, Sundays at 09:00", "spec" => sunday}} =
+               Presets.build("weekly_tidy", %{"weekday" => "7"}, user: owner)
+
+      assert sunday["trigger"]["weekday"] == 7
+    end
+
     test "refuses a day out of range and a time that isn't one", %{owner: owner} do
       assert {:error, "Day must be 1 (Monday) to 7 (Sunday)"} =
                Presets.build("weekly_tidy", %{"weekday" => "8"}, user: owner)

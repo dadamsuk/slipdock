@@ -61,7 +61,7 @@ defmodule Slipdock.Health.Detectors.UnansweredWait do
     )
     |> Repo.all()
     |> Enum.map(& &1["wait"])
-    |> Enum.filter(&(&1 in wait_ids))
+    |> Enum.filter(&Enum.member?(wait_ids, &1))
     |> MapSet.new()
   end
 

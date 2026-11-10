@@ -201,6 +201,38 @@ defmodule Slipdock.Health.DeadlockTest do
            ) == 2
   end
 
+  # #2721: a queued job waits for a WIP slot only while its card is outside
+  # the full in-progress list; one already in it holds a slot of its own.
+  describe "a full in-progress list" do
+    setup ctx do
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [automation_wip: true])
+
+      Repo.update_all(from(c in Slipdock.Boards.Column, where: c.id == ^ctx.doing.id),
+        set: [wip_limit: 1]
+      )
+
+      holder = card_fixture(ctx.doing, %{"title" => "Holds the slot"})
+      assert {%{id: id}, 1} = Runners.wip_full(ctx.board.id)
+      assert id == ctx.doing.id
+      %{holder: holder}
+    end
+
+    test "a queued job on a card outside it waits for each card holding a slot", ctx do
+      outside = card_fixture(ctx.todo, %{"title" => "Outside"})
+      j = job(outside, [])
+
+      assert Deadlock.graph(Context.new(ctx.board))[{:job, j.id}] == [
+               {{:card, ctx.holder.id},
+                "job ##{j.id} waits for a WIP slot in #{ctx.doing.name}, held by ##{ctx.holder.id}"}
+             ]
+    end
+
+    test "a queued job on a card already in it waits for no slot", ctx do
+      j = job(ctx.holder, [])
+      refute Map.has_key?(Deadlock.graph(Context.new(ctx.board)), {:job, j.id})
+    end
+  end
+
   test "a graph with no cycle makes no incident", ctx do
     a = card_fixture(ctx.todo, %{"title" => "First"})
     b = card_fixture(ctx.todo, %{"title" => "Second"})

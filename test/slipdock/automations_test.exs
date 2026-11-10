@@ -749,6 +749,21 @@ defmodule Slipdock.AutomationsTest do
       assert Callback.ok?(call)
     end
 
+    test "list_callbacks/2: no limit or a blank one is the default 50, a number is that many" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      answer_with(200)
+      webhook_rule(board)
+      for _ <- 1..3, do: card_fixture(backlog)
+
+      assert length(Automations.list_callbacks(board.id)) == 3
+      assert length(Automations.list_callbacks(board.id, nil)) == 3
+      assert length(Automations.list_callbacks(board.id, "")) == 3
+      assert length(Automations.list_callbacks(board.id, "2")) == 2
+      assert length(Automations.list_callbacks(board.id, 1)) == 1
+      # Below one is one.
+      assert length(Automations.list_callbacks(board.id, "0")) == 1
+    end
+
     test "a refusal is logged with its status" do
       {board, backlog, _doing, _done} = board_with_lists()
       answer_with(503)

@@ -1554,7 +1554,7 @@ defmodule Slipdock.Handbook do
     |> Regex.scan(String.downcase(text || ""))
     |> List.flatten()
     |> Enum.map(&stem/1)
-    |> Enum.reject(&(&1 in @stop or String.length(&1) < 2))
+    |> Enum.reject(&(Enum.member?(@stop, &1) or String.length(&1) < 2))
     |> MapSet.new()
   end
 

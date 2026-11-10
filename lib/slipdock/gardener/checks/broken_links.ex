@@ -35,7 +35,7 @@ defmodule Slipdock.Gardener.Checks.BrokenLinks do
     names =
       for p <- pages,
           name <- [p.title | p.aliases || []],
-          name not in [nil, ""],
+          not Enum.member?([nil, ""], name),
           do: {String.downcase(String.trim(name)), p}
 
     for {title, from} <- wanted(ctx.board_ids),
@@ -70,7 +70,7 @@ defmodule Slipdock.Gardener.Checks.BrokenLinks do
       from =
         group
         |> Enum.flat_map(&elem(&1, 1))
-        |> Enum.filter(&(&1.board_id in board_ids))
+        |> Enum.filter(&Enum.member?(board_ids, &1.board_id))
         |> Enum.uniq_by(& &1.id)
 
       {title, from}

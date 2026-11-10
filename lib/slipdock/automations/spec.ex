@@ -285,8 +285,8 @@ defmodule Slipdock.Automations.Spec do
     how = how |> to_string() |> String.trim() |> String.downcase()
 
     cond do
-      how in ["any", "either", "both"] -> {:ok, Map.delete(trigger, "how")}
-      how in @page_email_hows -> {:ok, Map.put(trigger, "how", how)}
+      Enum.member?(["any", "either", "both"], how) -> {:ok, Map.delete(trigger, "how")}
+      Enum.member?(@page_email_hows, how) -> {:ok, Map.put(trigger, "how", how)}
       true -> {:error, "trigger “page_emailed” how must be new or added"}
     end
   end
@@ -302,7 +302,7 @@ defmodule Slipdock.Automations.Spec do
   # A page rule has no card to move, comment on or send to a runner: say so
   # when it is saved rather than failing every time mail comes in.
   defp check_page_actions(%{"type" => "page_emailed"}, actions) do
-    case Enum.reject(actions, &(&1["type"] in @page_actions)) do
+    case Enum.reject(actions, &Enum.member?(@page_actions, &1["type"])) do
       [] ->
         :ok
 
@@ -448,7 +448,7 @@ defmodule Slipdock.Automations.Spec do
       not (is_nil(wait) or is_boolean(wait)) ->
         {:error, "action “runner” wait_while_doing must be true or false"}
 
-      not (is_nil(requeue) or (is_integer(requeue) and requeue in 0..max_requeue)) ->
+      not (is_nil(requeue) or (is_integer(requeue) and Enum.member?(0..max_requeue, requeue))) ->
         {:error, "action “runner” requeue_stuck must be a whole number from 0 to #{max_requeue}"}
 
       not Regex.match?(format, action["pool"]) ->
@@ -471,7 +471,7 @@ defmodule Slipdock.Automations.Spec do
 
     bad =
       Enum.find(given, fn {_, v} ->
-        String.downcase(to_string(v)) not in ["none" | names]
+        not Enum.member?(["none" | names], String.downcase(to_string(v)))
       end)
 
     cond do
@@ -591,7 +591,8 @@ defmodule Slipdock.Automations.Spec do
         "a card is tagged" <> where(t["tag"], "")
 
       "flag_added" ->
-        "a card is flagged" <> if(t["flag"] in [nil, "flagged"], do: "", else: " as #{t["flag"]}")
+        "a card is flagged" <>
+          if(Enum.member?([nil, "flagged"], t["flag"]), do: "", else: " as #{t["flag"]}")
 
       "card_emailed" ->
         "a card arrives by email" <> where(t["column"], "in")
@@ -774,7 +775,7 @@ defmodule Slipdock.Automations.Spec do
   defp noun("age_days"), do: "age in days"
   defp noun(field), do: String.replace(field, "_", " ")
 
-  defp truthy?(value), do: value in [true, "true", "yes", 1, "1"]
+  defp truthy?(value), do: Enum.member?([true, "true", "yes", 1, "1"], value)
 
   defp card_refs(value), do: value |> List.wrap() |> Enum.map(&"##{&1}") |> or_join()
   defp list_or(value), do: value |> List.wrap() |> Enum.map(&to_string/1) |> or_join()

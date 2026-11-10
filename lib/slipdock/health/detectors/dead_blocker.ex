@@ -73,7 +73,8 @@ defmodule Slipdock.Health.Detectors.DeadBlocker do
       column.category == "done" or Slipdock.Flow.doing_list?(column) ->
         nil
 
-      MapSet.member?(feeding, blocker.board_id) and {blocker.board_id, column.id} not in fed ->
+      MapSet.member?(feeding, blocker.board_id) and
+          not Enum.member?(fed, {blocker.board_id, column.id}) ->
         "is in #{column.name}, which no feed takes from, so nothing will send it"
 
       true ->

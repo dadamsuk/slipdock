@@ -270,6 +270,19 @@ defmodule Slipdock.Runners.RecoveryTest do
       assert {:ok, %{"actions" => [%{"requeue_stuck" => 2}]}} =
                Spec.validate(spec(%{"requeue_stuck" => "2"}))
 
+      # Both ends of the range are in it (#2721).
+      max = Recovery.max_requeues()
+      assert max == 10
+
+      assert {:ok, %{"actions" => [%{"requeue_stuck" => ^max}]}} =
+               Spec.validate(spec(%{"requeue_stuck" => max}))
+
+      assert {:ok, %{"actions" => [%{"requeue_stuck" => 0}]}} =
+               Spec.validate(spec(%{"requeue_stuck" => 0}))
+
+      assert {:error, "action “runner” requeue_stuck must be a whole number from 0 to 10"} =
+               Spec.validate(spec(%{"requeue_stuck" => -1}))
+
       assert {:error, "action “runner” requeue_stuck must be a whole number from 0 to 10"} =
                Spec.validate(spec(%{"requeue_stuck" => 11}))
 

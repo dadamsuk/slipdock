@@ -63,7 +63,7 @@ defmodule Slipdock.Gardener.Steps do
         %{"card" => "pick", "from" => from} ->
           keep = to_int(keep)
 
-          if keep in from do
+          if Enum.member?(from, keep) do
             [other] = from -- [keep]
 
             step =
@@ -252,7 +252,7 @@ defmodule Slipdock.Gardener.Steps do
 
   defp apply_step(%{"op" => "flag", "card" => id, "flag" => flag}, user) do
     with {:ok, card} <- card(id) do
-      if flag in card.flags do
+      if Enum.member?(card.flags, flag) do
         {:ok, []}
       else
         with {:ok, _} <- Boards.update_card(card, %{"flags" => card.flags ++ [flag]}, by: user),
@@ -496,7 +496,10 @@ defmodule Slipdock.Gardener.Steps do
   defp expect(%{"op" => "unflag", "card" => id, "flag" => flag}) do
     with {:ok, card} <- card(id),
          do:
-           if(flag in card.flags, do: :ok, else: changed(card, "has lost its #{flag} flag since"))
+           if(Enum.member?(card.flags, flag),
+             do: :ok,
+             else: changed(card, "has lost its #{flag} flag since")
+           )
   end
 
   defp expect(%{"op" => "wake", "card" => id}) do

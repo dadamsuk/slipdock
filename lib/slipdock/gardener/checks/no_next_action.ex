@@ -21,8 +21,8 @@ defmodule Slipdock.Gardener.Checks.NoNextAction do
   def find(ctx, _settings) do
     for card <- Cards.cards(ctx),
         not card.completed,
-        "review" not in card.flags,
-        Context.category(ctx, card) not in ["done", "dropped"],
+        not Enum.member?(card.flags, "review"),
+        not Enum.member?(["done", "dropped"], Context.category(ctx, card)),
         sub = Cards.sub_board(ctx, card),
         not all_done?(card),
         not Enum.any?(Rollup.board_cards(ctx.rollup, sub), &open?(ctx, &1)) do

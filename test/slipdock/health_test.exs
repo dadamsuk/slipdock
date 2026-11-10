@@ -64,6 +64,15 @@ defmodule Slipdock.HealthTest do
     Repo.all(from(c in Comment, where: c.card_id == ^card.id, order_by: c.id, select: c.body))
   end
 
+  test "Incident.active?/1: open and flagged are, the rest aren't" do
+    assert Incident.active_statuses() == ~w(open flagged)
+
+    for status <- Incident.statuses() do
+      assert Incident.active?(%Incident{status: status}) ==
+               (status == "open" or status == "flagged")
+    end
+  end
+
   describe "fix, try, flag" do
     test "a fix that works marks the incident fixed, with a comment and no flag", %{
       board: board,
