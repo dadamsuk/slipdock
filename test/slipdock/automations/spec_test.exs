@@ -457,6 +457,19 @@ defmodule Slipdock.Automations.SpecTest do
                "trigger “page_emailed” how must be new or added"
     end
 
+    # #2730: each word for "no filter" is held on its own, so none can leave the list unseen.
+    test "page_emailed's how either and both mean no filter too, whatever the case and spaces" do
+      flag = [%{"type" => "add_flags", "flags" => ["review"]}]
+
+      for how <- ["either", "both", " Either ", " Both ", "BOTH", " Any "] do
+        assert {:ok, %{"trigger" => trigger}} =
+                 Spec.validate(spec(%{"type" => "page_emailed", "how" => how}, flag)),
+               how
+
+        assert trigger == %{"type" => "page_emailed"}, how
+      end
+    end
+
     test "a page rule refuses the actions that need a card, naming them" do
       message =
         error(
