@@ -233,8 +233,11 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   rework card's title and the parts it failed (kept on the `audit`
   finding), and tells the verifier to check those first. A miss whose
   rework has since been accepted stays on the list: the miss is the lesson.
-  With audits off, or nothing caught, there is no block, and the audit
-  prompt never carries it, so an auditor judges afresh.
+  A miss is dated when the audit disagreed, so triaging its finding
+  (dismissing it, say) doesn't move it, and one merged into another finding
+  leaves the list to that one. With audits off, or nothing caught, there is
+  no block, and the audit prompt never carries it, so an auditor judges
+  afresh.
 - A decision made in a runner job on the card (the CLI sends
   `$SLIPDOCK_JOB_ID` as `x-slipdock-job`; MCP the job it claimed) is
   credited to the runner: *Accepted by runner verifier*, not the token's

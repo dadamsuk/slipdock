@@ -2943,6 +2943,23 @@ defmodule Slipdock.Verified do
   @misses_days 30
   @miss_line_max 300
 
+  # When a disagreement happened: the finding's insert, or the audit job a
+  # repeat counted in when that is newer (`count_repeat` keeps the newer
+  # job). Never `updated_at`, which triage moves.
+  defmacrop miss_at(f, j) do
+    quote do
+      type(
+        fragment(
+          "GREATEST(?, COALESCE(?, ?))",
+          unquote(f).inserted_at,
+          unquote(j).inserted_at,
+          unquote(f).inserted_at
+        ),
+        :utc_datetime
+      )
+    end
+  end
+
   @doc """
   The tree's recent audit misses (#2695): the last `limit` audit
   disagreements (`source: audit` findings on `card`'s root board) of the
@@ -2950,7 +2967,13 @@ defmodule Slipdock.Verified do
   title is the rework card's (an older one's, or with none, what
   `rework_title/2` makes of the reason); `failed` the parts it failed, or
   nil when they weren't kept. A rework since accepted keeps its miss here:
-  the miss is the lesson, not the open work. Every status counts.
+  the miss is the lesson, not the open work.
+
+  The window and the order go by when the disagreement happened (`at`),
+  never by `updated_at`, which triage moves: when the finding was recorded,
+  or the newer audit job a repeat on the same card counted in. A dismissed
+  or promoted miss still counts; a merged one doesn't, as the finding it was
+  merged into carries its lesson.
   """
   def recent_audit_misses(%Card{} = card, limit \\ @misses_limit, days \\ @misses_days) do
     root = card |> board() |> Board.root_id()
@@ -2958,14 +2981,18 @@ defmodule Slipdock.Verified do
 
     Repo.all(
       from f in Slipdock.Findings.Finding,
-        where: f.board_id == ^root and f.source == "audit" and f.updated_at >= ^since,
-        order_by: [desc: f.updated_at, desc: f.id],
+        left_join: j in Slipdock.Runners.Job,
+        on: j.id == f.job_id,
+        where: f.board_id == ^root and f.source == "audit" and f.status != "merged",
+        select: {f, miss_at(f, j)},
+        where: miss_at(f, j) >= ^since,
+        order_by: [desc: miss_at(f, j), desc: f.id],
         limit: ^limit
     )
     |> Enum.map(&audit_miss/1)
   end
 
-  defp audit_miss(finding) do
+  defp audit_miss({finding, at}) do
     %{failed: failed, rework_id: rework_id} = Slipdock.Findings.Signals.audit_failed(finding)
     rework = rework_id && Repo.get(Card, rework_id)
 
@@ -2973,7 +3000,7 @@ defmodule Slipdock.Verified do
       card_id: finding.card_id,
       title: miss_title(finding, rework),
       failed: failed || (rework && rework_failed_parts(rework.description)),
-      at: finding.updated_at
+      at: at
     }
   end
 

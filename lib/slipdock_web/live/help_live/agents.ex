@@ -1201,7 +1201,8 @@ defmodule SlipdockWeb.HelpLive.Agents do
         verifier's prompt also carries <strong>what audits on this board caught recently</strong>: the last five audit disagreements of the last 30 days, newest first, each the
         rework card's title and the parts it failed. The verifier is told to check those first
         on the card in front of it. A miss stays on the list after its rework is done, since
-        the lesson is the miss. The audit's own prompt never carries the list, so an auditor
+        the lesson is the miss, and keeps the date the audit disagreed even when its finding is
+        triaged. The audit's own prompt never carries the list, so an auditor
         judges afresh.
       </p>
     </.part>

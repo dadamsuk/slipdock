@@ -12,7 +12,7 @@ defmodule Slipdock.VerifiedAuditMissesTest do
   import Ecto.Query
   import Slipdock.Fixtures
 
-  alias Slipdock.{Actor, Boards, Findings, Repo, Verified}
+  alias Slipdock.{Actor, Boards, Findings, Repo, Runners, Verified}
   alias Slipdock.Boards.Card
   alias Slipdock.Findings.{Finding, Signals}
 
@@ -60,10 +60,17 @@ defmodule Slipdock.VerifiedAuditMissesTest do
   defp finding(card),
     do: Repo.one!(from(f in Finding, where: f.card_id == ^card.id and f.source == "audit"))
 
+  # When the disagreement happened: its insert. `updated_at` is left at now,
+  # as triage would leave it, so a test can't pass by reading it.
   defp age!(card, days) do
-    at = DateTime.add(DateTime.utc_now(), -days * 86_400, :second) |> DateTime.truncate(:second)
-    card |> finding() |> Ecto.Changeset.change(updated_at: at) |> Repo.update!()
+    card
+    |> finding()
+    |> Ecto.Changeset.change(inserted_at: ago(days), updated_at: ago(0))
+    |> Repo.update!()
   end
+
+  defp ago(days),
+    do: DateTime.add(DateTime.utc_now(), -days * 86_400, :second) |> DateTime.truncate(:second)
 
   defp prompt(ctx, column \\ nil) do
     card = card_fixture(column || ctx.doing, %{"title" => "Under review"})
@@ -141,6 +148,75 @@ defmodule Slipdock.VerifiedAuditMissesTest do
       assert id == old.id
     end
 
+    test "triage doesn't move a miss: a dismissed one keeps its date, a merged one goes",
+         ctx do
+      old = disagree(ctx, ctx.doing, "Long ago", "an old miss", ["bar:1=fail"])
+      age!(old, 40)
+      middle = disagree(ctx, ctx.doing, "Middle", "a middle miss", ["bar:2=fail"])
+      age!(middle, 5)
+      newest = disagree(ctx, ctx.doing, "Newest", "the newest miss", ["bar:3=fail"])
+      age!(newest, 1)
+      merged = disagree(ctx, ctx.doing, "Merged", "a merged miss", ["bar:4=fail"])
+      age!(merged, 2)
+
+      ids = fn -> Enum.map(Verified.recent_audit_misses(old), & &1.card_id) end
+      assert ids.() == [newest.id, merged.id, middle.id]
+
+      # Triage bumps `updated_at` to now; the misses don't follow it.
+      {:ok, _} = Findings.triage(finding(old), "dismiss", %{"note" => "seen"})
+      {:ok, _} = Findings.triage(finding(middle), "dismiss")
+      {:ok, _} = Findings.triage(finding(merged), "merge", %{"into" => finding(newest).id})
+      assert finding(old).updated_at > ago(1)
+
+      assert ids.() == [newest.id, middle.id]
+
+      [_, middle_miss] = Verified.recent_audit_misses(old)
+      assert DateTime.to_date(middle_miss.at) == Date.add(Date.utc_today(), -5)
+
+      prompt = prompt(ctx)
+      refute prompt =~ "an old miss”"
+      refute prompt =~ "a merged miss”"
+      assert :binary.match(prompt, "the newest miss”") < :binary.match(prompt, "a middle miss”")
+
+      # Reopened, the old one is still 40 days old.
+      {:ok, _} = Findings.triage(finding(old), "reopen")
+      refute old.id in ids.()
+    end
+
+    test "a repeat counted in by a newer audit job dates the miss at that job", ctx do
+      repeated = disagree(ctx, ctx.doing, "Repeated", "first miss", ["bar:1=fail"])
+      age!(repeated, 20)
+      other = disagree(ctx, ctx.doing, "Other", "another miss", ["bar:2=fail"])
+      age!(other, 3)
+
+      {:ok, job} =
+        Runners.queue(Repo.get!(Card, repeated.id), %{pool: "loop", kind: "claude", prompt: "go"})
+
+      {:ok, %Finding{count: 2}} =
+        Signals.audit_disagreed(
+          Repo.get!(Card, repeated.id),
+          "missed again",
+          %{job_id: job.id},
+          nil,
+          %{"bar" => [%{"item" => 1, "result" => "fail"}]}
+        )
+
+      assert [%{card_id: first, at: at}, %{card_id: second}] =
+               Verified.recent_audit_misses(other)
+
+      assert {first, second} == {repeated.id, other.id}
+      assert DateTime.to_date(at) == Date.utc_today()
+
+      # A repeat with no job keeps the first record's date.
+      age!(repeated, 20)
+      finding(repeated) |> Ecto.Changeset.change(job_id: nil) |> Repo.update!()
+
+      assert Enum.map(Verified.recent_audit_misses(other), & &1.card_id) == [
+               other.id,
+               repeated.id
+             ]
+    end
+
     test "a rework since accepted still appears", ctx do
       card = disagree(ctx, ctx.doing, "Done since", "bar 2 was skipped", ["bar:2=fail"])
       rework = Verified.open_rework(card)
@@ -205,6 +281,18 @@ defmodule Slipdock.VerifiedAuditMissesTest do
       assert String.length(line) <= 300
       assert String.ends_with?(line, "…")
     end
+  end
+
+  test "a line over 300 characters before the cut is cut to 300, ending in …", ctx do
+    notes = for i <- 1..4, do: "bar:#{i}=fail:" <> String.duplicate("#{i}", 110)
+    disagree(ctx, ctx.doing, "Many parts", "short reason", notes)
+
+    [line] =
+      prompt(ctx) |> String.split("\n") |> Enum.filter(&String.starts_with?(&1, "- “Audit"))
+
+    assert String.length(line) == 300
+    assert String.ends_with?(line, "…")
+    assert line =~ "— failed: bar 1 — 111"
   end
 
   describe "an audit finding's parts" do
