@@ -1932,7 +1932,8 @@ defmodule SlipdockWeb.APIGuide do
     `cards`, `pages`, `proposal` (its steps), `alternatives` and
     `needs_keep`. `POST /api/garden/suggestions/:id/apply` (`choice`: an
     alternative by name; `keep`: the card that stays, for a duplicate),
-    `…/dismiss` and `…/undo` decide one; `PATCH
+    `…/dismiss` and `…/undo` decide one (each takes `confirm: true`, the
+    person's say-so: see below); `PATCH
     /api/boards/:board/garden/settings` sets a check's `enabled` and
     thresholds. Over MCP it is `garden` and `garden_decide` (`confirm: true`).
     Show the person the suggestions and apply only what they approve; never
@@ -1963,7 +1964,12 @@ defmodule SlipdockWeb.APIGuide do
     since. An agent can't apply, dismiss or undo a proposal, or any
     suggestion with an `edit_section` step, over REST or the CLI: only a
     person can, on the Tidy-up page (which shows the section's diff) or with
-    `slipdock garden apply <id>`.
+    `slipdock garden apply <id>`. Under Claude Code the CLI says it is an
+    agent, so a person deciding a proposal from Claude Code adds `--confirm`
+    (`slipdock garden apply|dismiss|undo <id> --confirm`, REST `confirm:
+    true`): their say-so makes the decision theirs, as `garden_decide`'s
+    `confirm: true` does over MCP. A runner job's confirm is refused, and so
+    is a bare script token's: only a person's own session decides one.
 
     ```sh
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\

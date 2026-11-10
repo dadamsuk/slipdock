@@ -379,6 +379,8 @@ slipdock garden <board> [--run] [--check K]   # tidy-up suggestions, grouped, wi
                                        # --run looks the board (and its sub-boards) over first
 slipdock garden apply <id>... [--keep CARD] [--choice NAME]   # apply only what the user approved
 slipdock garden dismiss|undo <id>...     # a dismissal is remembered until its subject changes
+slipdock garden apply|dismiss|undo <id> --confirm   # a proposal, decided by the person from Claude Code
+                                       # (their say-so; a runner job's confirm is refused)
 slipdock garden settings <board> [<check> key=value...]   # checks on/off, thresholds (days=30)
 slipdock health <board> [--run]           # work the health monitor found stuck: fixed, or flagged stuck
                                        # for a person; ends with the scheduler's and monitor's pulse
@@ -788,6 +790,9 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
   suggestions and apply only the ones they say yes to (`slipdock garden apply 41 42`; a duplicate
   needs `--keep <the card that stays>`; `--choice snooze` takes an alternative). Dismiss only when
   they say no — a dismissal is remembered. `slipdock garden undo 41` puts an applied one back.
+  A proposed handbook edit is the person's: when they decide one from Claude Code, add `--confirm`
+  (`slipdock garden apply 45 --confirm`) for what they said, and only then. A runner job's confirm
+  is refused, so in a runner job leave a proposal for the person.
 - "Break #12 into steps" → `slipdock templates`, `slipdock subboard 12 --template Simple`, then
   `slipdock add <sub-board-id> First step`
 - "What's overdue?" → `slipdock cards 1 --open --json` and compare `due_date` with today.
