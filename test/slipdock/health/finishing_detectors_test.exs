@@ -136,6 +136,78 @@ defmodule Slipdock.Health.FinishingDetectorsTest do
     end
   end
 
+  describe "verify_missing: a refusal that would come again (#2705)" do
+    test "is flagged at once, with the reason, and not retried", ctx do
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(30))
+      # A pool that isn't a name: every queue of it is refused the same way.
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
+        set: [verify_pool: "Bad Pool"]
+      )
+
+      assert {:ok, %{"flagged" => 1}} = Health.run(ctx.board, detectors: [VerifyMissing])
+
+      card = Repo.get!(Card, ctx.card.id)
+      assert "stuck" in card.flags
+      assert [incident] = incidents(ctx.board)
+      assert incident.status == "flagged"
+      assert incident.attempts == 0
+
+      [body] =
+        Repo.all(
+          from(c in Slipdock.Boards.Comment,
+            where: c.card_id == ^card.id and like(c.body, "**Health monitor: stuck**%"),
+            select: c.body
+          )
+        )
+
+      assert body =~ "Couldn't queue a verify job: pool “bad pool” must be lower case"
+
+      assert body =~
+               "Queueing it again would be refused the same way. Flagged `stuck` for a person."
+
+      refute body =~ "Tried"
+      assert Repo.all(from(j in Job, where: j.card_id == ^card.id and j.kind == "verify")) == []
+    end
+
+    test "the resolve says no fix for a lasting refusal, and tries again after one that clears",
+         ctx do
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(30))
+
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
+        set: [verify_pool: "Bad Pool"]
+      )
+
+      assert {:no_fix, why} = VerifyMissing.resolve(%{data: %{"card" => ctx.card.id}}, 1)
+      assert why =~ "refused the same way"
+
+      Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id),
+        set: [verify_pool: "verify"]
+      )
+
+      assert {:fixed, _} = VerifyMissing.resolve(%{data: %{"card" => ctx.card.id}}, 1)
+    end
+
+    test "which refusals last" do
+      max = Runners.limits().max_prompt
+
+      assert Runners.lasting_refusal?("the prompt is over #{max} bytes")
+
+      assert Runners.lasting_refusal?(
+               "pool “Bad Pool” must be lower case letters, digits, - or _"
+             )
+
+      assert Runners.lasting_refusal?("kind “X” must be lower case letters, digits, - or _")
+
+      refute Runners.lasting_refusal?(
+               "the queue is full: 200 jobs are already waiting or running on this board"
+             )
+
+      refute Runners.lasting_refusal?("held back: over 60 jobs queued this minute")
+      refute Runners.lasting_refusal?("the prompt is over 1 bytes")
+      refute Runners.lasting_refusal?(nil)
+    end
+  end
+
   describe "merge_missing" do
     setup ctx do
       Repo.update_all(from(r in Runner, where: r.id == ^ctx.checker.id),

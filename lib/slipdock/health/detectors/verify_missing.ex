@@ -4,14 +4,16 @@ defmodule Slipdock.Health.Detectors.VerifyMissing do
   verify job for `minutes` (default 10): one was cancelled, failed or never
   queued. The fix queues it again (`Slipdock.Verified.requeue_verify/1`: the
   board's verify pool, never the card's builder), up to `max_attempts` (2)
-  for the same submission; then it is flagged.
+  for the same submission; then it is flagged. A refusal that would come
+  again (`Slipdock.Runners.lasting_refusal?/1`) is flagged at once, with
+  the reason, rather than retried (#2705).
   """
   @behaviour Slipdock.Health.Detector
 
   alias Slipdock.Boards.Card
   alias Slipdock.Health.Context
   alias Slipdock.Health.Detectors.Finishing
-  alias Slipdock.{Repo, Verified}
+  alias Slipdock.{Repo, Runners, Verified}
   alias Slipdock.Runners.Job
 
   @impl true
@@ -62,8 +64,16 @@ defmodule Slipdock.Health.Detectors.VerifyMissing do
       {:fixed, "queued verify job ##{job.id} for pool #{job.pool}"}
     else
       {:ok, :already_open, job} -> {:fixed, "verify job ##{job.id} is open"}
-      {:error, reason} -> {:tried, "couldn't queue a verify job: #{reason}"}
+      {:error, reason} -> not_queued(reason)
       _ -> :no_fix
     end
+  end
+
+  defp not_queued(reason) do
+    if Runners.lasting_refusal?(reason),
+      do:
+        {:no_fix,
+         "Couldn't queue a verify job: #{reason}. Queueing it again would be refused the same way."},
+      else: {:tried, "couldn't queue a verify job: #{reason}"}
   end
 end
