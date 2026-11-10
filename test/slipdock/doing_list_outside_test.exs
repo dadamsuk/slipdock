@@ -19,6 +19,7 @@ defmodule Slipdock.DoingListOutsideTest do
   alias Slipdock.{Actor, Boards, Deployments, Dora, Flow, Pulse, Repo, Runners, Work}
   alias Slipdock.Boards.{Board, Card, CardMove, Column}
   alias Slipdock.Gardener.Checks.StaleInProgress
+  alias Slipdock.Gardener.Context
   alias Slipdock.Runners.{Job, Runner}
 
   setup do
@@ -50,6 +51,8 @@ defmodule Slipdock.DoingListOutsideTest do
   defp now, do: DateTime.utc_now(:second)
   defp ago(seconds), do: DateTime.add(now(), -seconds, :second)
   defp ago_usec(seconds), do: DateTime.add(DateTime.utc_now(), -seconds, :second)
+
+  defp found(findings), do: Enum.flat_map(findings, & &1.subject["cards"])
 
   defp set_board(board, changes),
     do: Repo.update_all(from(b in Board, where: b.id == ^board.id), set: changes)
@@ -191,6 +194,19 @@ defmodule Slipdock.DoingListOutsideTest do
 
       assert card.id in found_ids(StaleInProgress, ctx.board)
     end
+
+    test "stale_in_progress leaves a card whose list the context doesn't hold", ctx do
+      card = card_fixture(ctx.sub_doing, %{"title" => "Listless"})
+      age(card, 14)
+
+      gardener = Context.new(Repo.get!(Board, ctx.board.id), DateTime.utc_now())
+      settings = %{"days" => 14}
+      assert card.id in found(StaleInProgress.find(gardener, settings))
+
+      # No list to read: not a doing list, so not a finding.
+      listless = %{gardener | columns: Map.delete(gardener.columns, ctx.sub_doing.id)}
+      refute card.id in found(StaleInProgress.find(listless, settings))
+    end
   end
 
   describe "the Visualise page's history" do
@@ -233,6 +249,49 @@ defmodule Slipdock.DoingListOutsideTest do
       assert [%{id: id, cycle_seconds: secs}] = h.finished
       assert id == card.id
       assert secs in (2 * day - 1)..(2 * day)
+    end
+
+    test "a ledger row with no list name or category is not a doing list", ctx do
+      card = card_fixture(ctx.sub_todo, %{"title" => "Nameless"})
+      Repo.delete_all(from m in CardMove, where: m.card_id == ^card.id)
+      done = Enum.find(ctx.sub.columns, &(&1.name == "Done"))
+
+      row = fn kind, to, at ->
+        Repo.insert!(%CardMove{
+          card_id: card.id,
+          kind: kind,
+          board_id: ctx.sub.id,
+          to_column_id: to && to.id,
+          to_column_name: to && to.name,
+          to_category: to && to.category,
+          inserted_at: at
+        })
+      end
+
+      # Into a list since deleted, whose row kept neither name nor category,
+      # a day before Doing.
+      day = 86_400
+      row.("created", ctx.sub_todo, ago_usec(5 * day))
+      row.("moved", nil, ago_usec(4 * day))
+      row.("moved", ctx.sub_doing, ago_usec(2 * day))
+      row.("moved", done, ago_usec(day))
+
+      Repo.update_all(from(c in Card, where: c.id == ^card.id),
+        set: [completed: true, completed_at: ago(day), column_id: done.id]
+      )
+
+      h = Flow.history(ctx.sub, days: 7, timezone: "Etc/UTC")
+
+      # Not in the doing band while there,
+      four_ago = Date.add(Date.utc_today(), -4)
+      assert %{doing: 0} = Enum.find(h.series, &(&1.date == four_ago))
+      two_ago = Date.add(Date.utc_today(), -2)
+      assert %{doing: 1} = Enum.find(h.series, &(&1.date == two_ago))
+
+      # and the cycle starts at Doing, a day before done, not there.
+      assert [%{id: id, cycle_seconds: secs}] = h.finished
+      assert id == card.id
+      assert secs in (day - 1)..day
     end
   end
 end

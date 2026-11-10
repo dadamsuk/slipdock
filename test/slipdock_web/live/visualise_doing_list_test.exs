@@ -40,6 +40,17 @@ defmodule SlipdockWeb.VisualiseDoingListTest do
     assert has_element?(view, "#flow-list-#{ctx.sub_doing.id}.bg-primary\\/10")
     refute has_element?(view, "#flow-list-#{ctx.sub_doing.id}", "Outside the flow")
 
+    # Drawn as a doing list throughout: the block's tint (and not the plain
+    # list's as well), the count's tone and the fill bar.
+    refute has_element?(view, "#flow-list-#{ctx.sub_doing.id}.bg-base-300\\/60")
+    assert has_element?(view, "#flow-count-#{ctx.sub_doing.id}.text-primary", "1 / 2")
+    assert has_element?(view, "#flow-list-#{ctx.sub_doing.id} .bg-primary")
+    refute has_element?(view, "#flow-list-#{ctx.sub_doing.id} .bg-base-content\\/40")
+
+    # A list beside it that isn't one keeps the plain look.
+    refute has_element?(view, "#flow-count-#{ctx.sub_todo.id}.text-primary")
+    refute has_element?(view, "#flow-list-#{ctx.sub_todo.id} .bg-primary")
+
     # Aged as work in progress, not left out as outside the flow.
     assert has_element?(view, "#aging-#{card.id}")
     refute has_element?(view, "#aging-outside")
