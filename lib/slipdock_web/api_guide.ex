@@ -4539,7 +4539,18 @@ defmodule SlipdockWeb.APIGuide do
     each as its own `rule:<id>=broken:<file>:<line>` check under the one
     rule, and says in the reason that it looked; a rule broken in several
     places is one failing part, its instances listed under it in the
-    rejection's comment. A card resubmitted after a rejection is
+    rejection's comment. `SPEC-10` is checked by enumeration, not judged:
+    for a card whose paths fall in its scope the prompt adds a docs-places
+    step. List the names the change introduces or alters from the diff
+    (commands, flags, MCP tools, API fields, settings, page and section
+    names), grep them across the seven places (`README.md`, the manual,
+    `HelpLive.Guides`, `HelpLive.Agents` and `HelpLive.Flow` with
+    `cli/help.txt`, `docs/agents.md`, this guide, `priv/skills/`) and give
+    each place one result: updated, deferred to #N (only when card #N's
+    bar names that place), n/a with why, or missing. One missing is
+    `rule:SPEC-10=broken:<file>:<name>`. The builder does the same before
+    submitting: a place its lane can't reach goes on the deferral card's
+    bar by name, or the deferral doesn't count. A card resubmitted after a rejection is
     judged on what changed: its verify prompt carries the last verdict and
     the commit it judged, the verifier judges the parts that failed and any
     part the commits since touch, and a part that passed then and isn't

@@ -317,6 +317,19 @@ submitting, check the diff against them**: `git diff --name-only
 rule the change falls under. Break a `must` and the verifier rejects the
 card; say in the wrap-up how any `judgement` rule was kept.
 
+**The docs places (`SPEC-10`)**, when the prompt carries that block (the
+card's paths fall in the rule's scope): the verifier enumerates them rather
+than judging them, so do the same first. List every name the change
+introduces or alters (commands, flags, MCP tool names, API fields, settings,
+page and section names), grep each across the seven places the block lists
+(the README, the manual, the app's help, the agents' and runners' help with
+`cli/help.txt`, `docs/agents.md`, the API guide, `priv/skills/`), and give
+each place in the evidence as *updated*, *deferred to #N*, *n/a* with why,
+or *missing*. A place the lane can't reach goes on the deferral card's bar
+by name, with the names it must cover (`slipdock add <board> "…" --bar "1.
+docs/agents.md says --foo …"`), or the deferral doesn't count: the verifier
+gives it as missing and rejects the card.
+
 ## 4. Claim it, and say so
 
 The claim is the lock — do it before any work, so a concurrent pass or a
@@ -970,6 +983,15 @@ With one on, the pass changes like this:
      is a rejection citing its id; `should` misses go in the accept reason,
      each as a finding in a `Findings:` block there (`- rule: ARCH-6
      missed: <how>`).
+     **`SPEC-10` is enumerated, not judged**, when the prompt adds a
+     docs-places step (the card's paths fall in the rule's scope): list
+     the names the change introduces or alters from the diff, grep them
+     across the seven places the step lists, and give each place one
+     result in the reason: `updated`, `deferred to #N` (only when card
+     #N's bar names that place: `slipdock card N`), `n/a` with why, or
+     `missing`. One missing is `--check
+     rule:SPEC-10=broken:<file>:<name>`, one line per place and name, all
+     in this round; all seven accounted for is `rule:SPEC-10=ok`.
   4. **The `Handbook:` line** (a board with a handbook), in the evidence or
      the closing comment, against the docs gate (step 7.1): no line, `no
      change` on a diff that needed an update, or pages named that weren't
@@ -1047,7 +1069,10 @@ With one on, the pass changes like this:
   accepted) checks the checker. Judge the work as a verify job does,
   `should` rules too, against the original verdict its prompt shows, then
   `slipdock verify <id> agree --reason "…"` or `disagree --reason "<where
-  the verdict is wrong>"` with your own `--check` parts. It changes
+  the verdict is wrong>"` with your own `--check` parts. The docs places
+  (`SPEC-10`) are enumerated as in a verify job: one missing, a deferral
+  to a card whose bar doesn't name the place included, is a disagreement.
+  It changes
   nothing on the card: a disagreement is a comment, an alert for the
   board's owner and a rework card the server files from your reason (its
   first line is the title) and failing parts, or a comment on the one
