@@ -380,11 +380,11 @@ defmodule Slipdock.Wiki.Folders do
       parent_id == folder.id ->
         {:error, :unprocessable_entity, "a folder cannot hold itself"}
 
-      parent_id in Enum.map(descendants(folder), & &1.id) ->
+      Enum.member?(Enum.map(descendants(folder), & &1.id), parent_id) ->
         {:error, :unprocessable_entity, "a folder cannot be moved inside itself"}
 
       # Under a folder that is itself filed somewhere inside this one (#808).
-      parent_id in Slipdock.Wiki.FolderPlacements.below_ids(folder) ->
+      Enum.member?(Slipdock.Wiki.FolderPlacements.below_ids(folder), parent_id) ->
         {:error, :unprocessable_entity,
          "a folder cannot be moved inside itself: that folder is filed inside it"}
 

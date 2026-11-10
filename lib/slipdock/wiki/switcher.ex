@@ -317,5 +317,5 @@ defmodule Slipdock.Wiki.Switcher do
   defp word_start?(_text, 0), do: true
 
   defp word_start?(text, i),
-    do: Enum.at(text, i - 1) in [" ", "/", "-", "_", ".", "(", "["]
+    do: Enum.member?([" ", "/", "-", "_", ".", "(", "["], Enum.at(text, i - 1))
 end

@@ -402,6 +402,30 @@ defmodule Slipdock.WikiPublishTest do
       assert [%{title: "Deploy"}] = Wiki.children(runbooks)
     end
 
+    test "a folder's index.markdown becomes its parent page, as index.md does", %{user: user} do
+      board = board_fixture(%{"name" => "Indexed", "code" => "indexed"}, owner: user)
+
+      files = [
+        {"Guides/index.markdown", "The guides.\n"},
+        {"Guides/Setup.md", "Install it.\n"},
+        {"Runbooks/index.md", "The runbooks.\n"},
+        {"Runbooks/Deploy.md", "Push the button.\n"}
+      ]
+
+      assert %{skipped: [], created: created} = Archive.import_files(board, files, user: user)
+      assert length(created) == 4
+
+      titles = Wiki.tree(board) |> Enum.map(& &1.page.title) |> Enum.sort()
+      assert titles == ["Guides", "Runbooks"]
+
+      {:ok, guides} = Wiki.find_page(board, "Guides")
+      assert guides.body =~ "The guides."
+      assert [%{title: "Setup"}] = Wiki.children(guides)
+
+      {:ok, runbooks} = Wiki.find_page(board, "Runbooks")
+      assert [%{title: "Deploy"}] = Wiki.children(runbooks)
+    end
+
     test "a folder that is not there is an error, not a crash", %{board: board} do
       assert {:error, message} = Archive.import_folder(board, "/nowhere/at/all")
       assert message =~ "is not a folder"

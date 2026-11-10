@@ -75,7 +75,7 @@ defmodule Slipdock.Wiki.Meld do
 
   @doc "True for a file name Meld writes whole encrypted notes to."
   def note_file?(name) when is_binary(name),
-    do: String.downcase(Path.extname(name)) in @note_extensions
+    do: Enum.member?(@note_extensions, String.downcase(Path.extname(name)))
 
   def note_file?(_), do: false
 

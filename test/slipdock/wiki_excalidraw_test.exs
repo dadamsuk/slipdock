@@ -198,6 +198,32 @@ defmodule Slipdock.WikiExcalidrawTest do
       refute svg =~ "filter: invert"
     end
 
+    test "fills an element with no fillStyle solid, as a solid one" do
+      {:ok, scene} =
+        Excalidraw.parse_json(
+          Jason.encode!(%{
+            "type" => "excalidraw",
+            "elements" => [
+              %{
+                "id" => "plain",
+                "type" => "rectangle",
+                "x" => 0,
+                "y" => 0,
+                "width" => 50,
+                "height" => 40,
+                "backgroundColor" => "#ffc9c9"
+              }
+            ]
+          })
+        )
+
+      svg = SVG.render(scene)
+
+      assert svg =~ ~s(fill="#ffc9c9")
+      refute svg =~ "url(#hatch-"
+      refute svg =~ "<pattern"
+    end
+
     test "an image it is given is drawn, but only a raster data: URL", %{scene: scene} do
       png = "data:image/png;base64,iVBORw0KGgo="
       assert SVG.render(scene, %{"f00d" => png}) =~ ~s(<image href="#{png}")

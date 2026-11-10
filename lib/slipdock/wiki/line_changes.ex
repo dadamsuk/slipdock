@@ -80,7 +80,7 @@ defmodule Slipdock.Wiki.LineChanges do
     else
       changed =
         for {op, chunk} <- Slipdock.Wiki.diff(old, new),
-            op in [:del, :ins],
+            Enum.member?([:del, :ins], op),
             line <- chunk,
             String.trim(line) != "",
             do: {op, line}

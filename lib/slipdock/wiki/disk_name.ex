@@ -122,6 +122,6 @@ defmodule Slipdock.Wiki.DiskName do
   defp tidy_end(name), do: String.replace(name, ~r/[. ]+$/u, "")
 
   defp unreserved(name) do
-    if String.upcase(name) in @reserved, do: name <> "_", else: name
+    if Enum.member?(@reserved, String.upcase(name)), do: name <> "_", else: name
   end
 end

@@ -97,7 +97,9 @@ defmodule Slipdock.Wiki.AutoOrganise do
     granularity = opts[:granularity] || "month"
 
     with {:ok, parent} <- clean_path(Keyword.get(opts, :parent, here) || ""),
-         true <- granularity in @granularities || {:error, "That isn't a way to group dates."} do
+         true <-
+           Enum.member?(@granularities, granularity) ||
+             {:error, "That isn't a way to group dates."} do
       source = opts[:source] || "auto"
 
       {:ok,
@@ -271,7 +273,7 @@ defmodule Slipdock.Wiki.AutoOrganise do
       path |> String.split(["/", "\\"]) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
 
     cond do
-      Enum.any?(segments, &(&1 in [".", ".."])) ->
+      Enum.any?(segments, &Enum.member?([".", ".."], &1)) ->
         {:error, "A folder can't be called “.” or “..”."}
 
       Enum.any?(segments, &(String.length(&1) > Folder.name_length())) ->
@@ -305,7 +307,7 @@ defmodule Slipdock.Wiki.AutoOrganise do
   end
 
   defp under_existing_top?(path, tops),
-    do: String.downcase(hd(String.split(path, "/"))) in tops
+    do: Enum.member?(tops, String.downcase(hd(String.split(path, "/"))))
 
   # The model's path written as the folders are, where they exist already,
   # so the plan reads "Projects/Acme" and not "projects/acme".

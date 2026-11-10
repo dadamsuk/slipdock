@@ -103,7 +103,7 @@ defmodule Slipdock.Wiki.Query do
   def parse(_), do: {:error, "a slipdock block needs some lines in it"}
 
   defp validate({:ok, %__MODULE__{view: view} = query}) do
-    if view in @views,
+    if Enum.member?(@views, view),
       do: {:ok, query},
       else: {:error, "view must be one of: #{Enum.join(@views, ", ")}"}
   end
@@ -116,7 +116,7 @@ defmodule Slipdock.Wiki.Query do
         key = key |> String.trim() |> String.downcase()
         value = String.trim(value)
 
-        if key in @keys,
+        if Enum.member?(@keys, key),
           do: put(query, key, value),
           else: {:error, "#{inspect(key)} is not a setting here. Try: #{Enum.join(@keys, ", ")}"}
 
@@ -312,7 +312,7 @@ defmodule Slipdock.Wiki.Query do
   defp condition(field, op, value) do
     name = field |> String.downcase() |> then(&Map.get(@aliases, &1, &1))
 
-    if name in Spec.condition_fields() do
+    if Enum.member?(Spec.condition_fields(), name) do
       %{"field" => name, "op" => op, "value" => value}
     else
       {:unknown_field, field}
@@ -588,7 +588,7 @@ defmodule Slipdock.Wiki.Query do
   end
 
   defp shape(%__MODULE__{} = query, cards, total, board, today) do
-    if query.group in [nil, "none"] do
+    if Enum.member?([nil, "none"], query.group) do
       table_of(cards, query, board, today) |> Map.put(:count, total)
     else
       %{

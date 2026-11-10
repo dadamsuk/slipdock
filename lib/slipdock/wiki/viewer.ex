@@ -92,7 +92,7 @@ defmodule Slipdock.Wiki.Viewer do
   shown as an array of its lines.
   """
   def json(text, name \\ "") do
-    if String.downcase(Path.extname(to_string(name))) in ~w(.jsonl .ndjson),
+    if Enum.member?(~w(.jsonl .ndjson), String.downcase(Path.extname(to_string(name)))),
       do: json_lines(text),
       else: json_document(text)
   end

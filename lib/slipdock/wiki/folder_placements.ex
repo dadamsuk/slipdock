@@ -82,9 +82,9 @@ defmodule Slipdock.Wiki.FolderPlacements do
         {:error, :forbidden,
          "you need to be able to edit both the folder's board and the one it is filed in"}
 
-      target.id in below_ids(folder) ->
+      Enum.member?(below_ids(folder), target.id) ->
         how =
-          if target.id in Enum.map(Wiki.Folders.descendants(folder), & &1.id),
+          if Enum.member?(Enum.map(Wiki.Folders.descendants(folder), & &1.id), target.id),
             do: "it is inside “#{folder.name}”",
             else: "it is inside “#{folder.name}” through another placement"
 
@@ -202,7 +202,7 @@ defmodule Slipdock.Wiki.FolderPlacements do
 
     rows
     |> Enum.filter(fn {_in, f} ->
-      f.board_id == board_id or f.board_id in readable or shared_with?(f, reader)
+      f.board_id == board_id or Enum.member?(readable, f.board_id) or shared_with?(f, reader)
     end)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
@@ -273,8 +273,8 @@ defmodule Slipdock.Wiki.FolderPlacements do
     )
     |> Repo.all()
     |> Enum.filter(fn {_id, f, t} ->
-      fb = if f.id in moving_ids, do: target_board_id, else: f.board_id
-      tb = if t.id in moving_ids, do: target_board_id, else: t.board_id
+      fb = if Enum.member?(moving_ids, f.id), do: target_board_id, else: f.board_id
+      tb = if Enum.member?(moving_ids, t.id), do: target_board_id, else: t.board_id
 
       not (fb == tb or
              (not is_nil(target_vault) and vault_id(fb) == target_vault and
@@ -305,7 +305,7 @@ defmodule Slipdock.Wiki.FolderPlacements do
   defp reachable?(%Folder{board_id: home}, %Folder{board_id: there}) do
     case Vaults.for_board(home) do
       nil -> false
-      vault -> there in Vaults.board_ids(vault)
+      vault -> Enum.member?(Vaults.board_ids(vault), there)
     end
   end
 

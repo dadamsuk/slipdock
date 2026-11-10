@@ -707,7 +707,7 @@ defmodule Slipdock.Wiki.Tree do
   defp row_rank(_row, _ranks), do: nil
 
   defp arrange(rows, mounts) do
-    {folders, rest} = Enum.split_with(rows, &(&1.kind in ["folder", "dir"]))
+    {folders, rest} = Enum.split_with(rows, &Enum.member?(["folder", "dir"], &1.kind))
     {more, rest} = Enum.split_with(rest, &(&1.kind == "more"))
     merge(folders, Enum.sort_by(mounts, &String.downcase(&1.title))) ++ rest ++ more
   end
@@ -1066,7 +1066,8 @@ defmodule Slipdock.Wiki.Tree do
     board = for %{name: name} <- tags_of(page), do: String.downcase(name)
 
     Enum.all?(tags, fn tag ->
-      tag in board or Enum.any?(note, &(&1 == tag or String.starts_with?(&1, tag <> "/")))
+      Enum.member?(board, tag) or
+        Enum.any?(note, &(&1 == tag or String.starts_with?(&1, tag <> "/")))
     end)
   end
 
@@ -1302,11 +1303,11 @@ defmodule Slipdock.Wiki.Tree do
   def split_via("at:" <> rest) do
     with [chain, inner] <- String.split(rest, "|", parts: 2),
          ids = String.split(chain, "."),
-         true <- length(ids) in 1..@max_via,
+         true <- Enum.member?(1..@max_via, length(ids)),
          ids = Enum.map(ids, &Integer.parse/1),
          true <- Enum.all?(ids, &match?({n, ""} when n > 0, &1)),
          {:ok, _} <- parse_ref(inner),
-         false <- inner in ["root", ""] do
+         false <- Enum.member?(["root", ""], inner) do
       {:ok, Enum.map(ids, &elem(&1, 0)), inner}
     else
       _ -> :error
