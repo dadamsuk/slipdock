@@ -207,4 +207,141 @@ defmodule Slipdock.VerifiedDashTest do
       assert card(ctx.card).completed
     end
   end
+
+  # #2686: the same dash, as a card's description or bar.
+  describe "a description or bar that is a bare dash" do
+    defp text_refusal({:error, %Ecto.Changeset{} = cs}, field) do
+      assert %{^field => [message]} = Slipdock.DataCase.errors_on(cs)
+      message
+    end
+
+    test "a create is refused for either, naming the field and what to do", ctx do
+      for {field, flag} <- [description: "--desc", bar: "--bar"], dash <- ["-", " -\n"] do
+        message =
+          ctx.todo
+          |> Boards.create_card(%{"title" => "Dashed", to_string(field) => dash},
+            actor: ctx.agent
+          )
+          |> text_refusal(field)
+
+        assert message =~ "was a bare '-', which is no #{field}"
+        assert message =~ "Pass the text itself (#{flag} \"…\""
+        assert message =~ "#{flag} - from a CLI that reads stdin"
+      end
+
+      refute Repo.get_by(Card, title: "Dashed")
+    end
+
+    test "an update is refused for either, and the card keeps what it had", ctx do
+      {:ok, held} =
+        Boards.update_card(ctx.card, %{"description" => "The body", "bar" => "The bar"},
+          actor: ctx.person
+        )
+
+      assert held
+             |> Boards.update_card(%{"description" => "-"}, actor: ctx.agent)
+             |> text_refusal(:description) =~ "no description"
+
+      assert held
+             |> Boards.update_card(%{"bar" => "-\n"}, actor: ctx.agent)
+             |> text_refusal(:bar) =~ "no bar"
+
+      # Beside a good field, the dash still refuses the whole write.
+      assert held
+             |> Boards.update_card(%{"title" => "Renamed", "description" => "-"},
+               actor: ctx.agent
+             )
+             |> text_refusal(:description) =~ "bare '-'"
+
+      assert %{title: "Work", description: "The body", bar: "The bar"} = card(ctx.card)
+    end
+
+    test "text that starts with a dash, an empty one and other fields go through", ctx do
+      for text <- ["- one\n- two", "--", "-1 flaky test", ""] do
+        assert {:ok, _} =
+                 Boards.update_card(card(ctx.card), %{"description" => text, "bar" => text},
+                   actor: ctx.agent
+                 )
+      end
+
+      assert {:ok, %{description: "- a list"}} =
+               Boards.create_card(ctx.todo, %{"title" => "Listed", "description" => "- a list"},
+                 actor: ctx.agent
+               )
+
+      # A title of "-" is somebody's title, not a lost body.
+      assert {:ok, %{title: "-"}} =
+               Boards.update_card(card(ctx.card), %{"title" => "-"}, actor: ctx.agent)
+    end
+
+    test "a card already holding a dash is left alone by other writes", ctx do
+      held = ctx.card |> Ecto.Changeset.change(description: "-", bar: "-") |> Repo.update!()
+
+      assert {:ok, %{title: "Renamed", description: "-"}} =
+               Boards.update_card(held, %{"title" => "Renamed"}, actor: ctx.agent)
+    end
+
+    # SPEC-5: a check on agents' work refuses only agents.
+    test "a person, the assistant and an automation each go through", ctx do
+      for actor <- [ctx.person, Actor.assistant(ctx.user), Actor.automation()] do
+        assert {:ok, %{description: "-", bar: "-"} = made} =
+                 Boards.create_card(
+                   ctx.todo,
+                   %{"title" => "Not gated #{actor.via}", "description" => "-", "bar" => "-"},
+                   actor: actor
+                 )
+
+        assert {:ok, %{description: "-"}} =
+                 Boards.update_card(made, %{"description" => "-"}, actor: actor)
+      end
+    end
+
+    test "REST: what an old CLI's add and edit send is a 422 with the message", ctx do
+      body =
+        ctx.cli_agent
+        |> post(~p"/api/boards/#{ctx.board.id}/cards", %{
+          "title" => "From an old CLI",
+          "column" => "To Do",
+          "description" => "-"
+        })
+        |> json_response(422)
+
+      assert inspect(body) =~ "was a bare '-', which is no description"
+      refute Repo.get_by(Card, title: "From an old CLI")
+
+      body =
+        ctx.cli_agent
+        |> patch(~p"/api/cards/#{ctx.card.id}", %{"bar" => "-"})
+        |> json_response(422)
+
+      assert inspect(body) =~ "was a bare '-', which is no bar"
+      assert card(ctx.card).bar == nil
+
+      ctx.cli_agent
+      |> patch(~p"/api/cards/#{ctx.card.id}", %{"description" => "- one\n- two"})
+      |> json_response(200)
+
+      assert card(ctx.card).description == "- one\n- two"
+    end
+
+    test "MCP create_card and update_card: an error with the message", ctx do
+      result =
+        mcp(ctx.api, "create_card", %{
+          board: ctx.board.id,
+          title: "Over MCP",
+          description: "-"
+        })
+
+      assert result["isError"] == true
+      assert [%{"text" => text}] = result["content"]
+      assert text =~ "was a bare '-', which is no description"
+      refute Repo.get_by(Card, title: "Over MCP")
+
+      result = mcp(ctx.api, "update_card", %{card: ctx.card.id, bar: "-"})
+      assert result["isError"] == true
+      assert [%{"text" => text}] = result["content"]
+      assert text =~ "was a bare '-', which is no bar"
+      assert card(ctx.card).bar == nil
+    end
+  end
 end

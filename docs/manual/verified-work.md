@@ -97,6 +97,13 @@ MCP `complete_card`'s `evidence` and `commit`, or `PATCH /api/cards/:id
   never arrived. Pass the text itself, or pipe it with `--evidence -` from a
   CLI that reads stdin. Evidence that merely starts with a dash (`- Handbook:
   …`) goes through.
+- A card's description or bar that is a bare `-` is refused the same way
+  (`422`, on a create or an update, naming the field): it is what a client
+  that doesn't read stdin sends for `--desc -` or `--bar -` (a `slipdock`
+  from before those read stdin), and the card would be left with a dash for
+  a body. Pass the text itself, or pipe it (`slipdock add … --desc - <<'EOF'`)
+  from a CLI that reads stdin. A person's own write is never refused, and
+  text that merely starts with a dash (a Markdown list) goes through.
 - The evidence shows on the card (**Evidence**, with the commit, branch,
   suite and test files) and in
   `slipdock card`, and is posted as a comment when the card completes.

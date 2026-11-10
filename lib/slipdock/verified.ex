@@ -115,6 +115,9 @@ defmodule Slipdock.Verified do
                   "complete_card evidence) or pipe it with --evidence - from a CLI that reads " <>
                   "stdin (the slipdock CLI since #1966)"
 
+  # What a card's description or bar that is a bare `-` is refused with (#2686).
+  @text_dash_flags %{description: "--desc", bar: "--bar"}
+
   @doc """
   `{:ok, attrs, changes}` — `attrs` as they are to be cast, and `changes` to
   put on the card besides (the verification fields, which are never cast) —
@@ -129,6 +132,7 @@ defmodule Slipdock.Verified do
   def check_update(%Card{} = card, attrs, actor) do
     with :ok <- check_reopen(card, attrs, actor),
          :ok <- check_dash(card, attrs, actor),
+         :ok <- check_text_dash(attrs, actor),
          :ok <- check_bar_edit(card, attrs, actor),
          :ok <- check_profile_edit(card, attrs, actor),
          :ok <- check_subcards(card, attrs, actor),
@@ -299,9 +303,16 @@ defmodule Slipdock.Verified do
   def check_create(%Ecto.Changeset{valid?: true} = changeset, %Column{} = column, actor) do
     card = Ecto.Changeset.apply_changes(changeset)
 
-    if (Column.done?(column) or card.completed) and gated?(actor),
-      do: check_create_done(changeset, card, column),
-      else: check_create_doing(changeset, card, column, actor)
+    cond do
+      field = gated?(actor) && text_dash(card) ->
+        Ecto.Changeset.add_error(changeset, field, text_dash_message(field))
+
+      (Column.done?(column) or card.completed) and gated?(actor) ->
+        check_create_done(changeset, card, column)
+
+      true ->
+        check_create_doing(changeset, card, column, actor)
+    end
   end
 
   def check_create(%Ecto.Changeset{} = changeset, _column, _actor), do: changeset
@@ -536,6 +547,32 @@ defmodule Slipdock.Verified do
   defp dashed?(card, attrs) do
     dash?(fetch(attrs, :evidence)) or
       (completes?(card, attrs) and dash?(given(attrs, :evidence, card.evidence)))
+  end
+
+  # A bare `-` as a card's description or bar (#2686): `--desc -` or
+  # `--bar -` from a client that doesn't read stdin (a slipdock CLI from
+  # before #2678), which would leave the card with a dash for a body.
+  # Refused for agents, as the evidence is above, on a create and on any
+  # write that sets one; a card already holding one is left alone.
+  defp check_text_dash(attrs, actor) do
+    field = gated?(actor) && text_dash(&fetch(attrs, &1))
+
+    if field, do: {:error, field, text_dash_message(field)}, else: :ok
+  end
+
+  # The first of the description and the bar that is a bare dash, or nil.
+  defp text_dash(%Card{} = card), do: text_dash(&Map.get(card, &1))
+
+  defp text_dash(value) when is_function(value, 1),
+    do: Enum.find([:description, :bar], &dash?(value.(&1)))
+
+  defp text_dash_message(field) do
+    flag = @text_dash_flags[field]
+
+    "was a bare '-', which is no #{field}: a client that doesn't read stdin sends the " <>
+      "dash itself, so the text that was piped in never arrived. Pass the text itself " <>
+      "(#{flag} \"…\", `#{field}` over the API and MCP) or pipe it with #{flag} - from a " <>
+      "CLI that reads stdin (the slipdock CLI since #2678: reinstall an older one)"
   end
 
   @doc "Whether `evidence` is a bare `-` once trimmed (#2091)."

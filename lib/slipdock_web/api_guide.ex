@@ -4489,7 +4489,11 @@ defmodule SlipdockWeb.APIGuide do
     (`422`). So is evidence that is a bare `-` once trimmed, on any board:
     a client that doesn't read stdin sends the dash for `--evidence -`, so
     pass the text itself, or pipe it with `--evidence -` from a CLI that
-    reads stdin (evidence that merely starts with `-` goes through). The
+    reads stdin (evidence that merely starts with `-` goes through). An
+    agent's `description` or `bar` that is a bare `-` is refused the same
+    way, on a create or an update (`422`, naming the field): it is what
+    such a client sends for `--desc -` or `--bar -`, and the card would
+    keep a dash for a body. A person's own write is never refused. The
     evidence is posted on the card as a comment; reopening the card clears
     it, so the next completion brings its own.
     """

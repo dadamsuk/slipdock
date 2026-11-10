@@ -41,7 +41,7 @@ read as done, since lessons say them too.
 A fix is a card, not a finding. A concrete change you could hand to someone
 waits a day for triage as a finding, and triage only turns it into a card, so
 a pass files the card at once, in the backlog (`slipdock add <board> "…" --desc
-"…" --column Backlog`), and names it in the block with the arrow. A finding is
+"…" --column Backlog`, or `--desc -` with a heredoc for a longer one), and names it in the block with the arrow. A finding is
 only for what is uncertain, cuts across cards, or shows the handbook wrong:
 
 | A card (`→ #id`) | A finding |
