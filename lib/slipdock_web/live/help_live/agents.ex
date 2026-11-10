@@ -1185,6 +1185,17 @@ defmodule SlipdockWeb.HelpLive.Agents do
         <code>slipdock handbook &lt;board&gt;</code>
         prints the index.
       </p>
+      <p id="help-handbook-docs-places">
+        The rule that a change is written up everywhere a reader would look (<code>SPEC-10</code>)
+        is checked by enumeration, not judged. For a card whose paths fall in its scope, the
+        verifier takes the names the diff introduces or alters (commands, flags, tool names,
+        settings, page names), greps them across the seven places (the README, the manual, this
+        help, <code>docs/agents.md</code>, the API guide and the skills) and gives each one
+        result: updated, deferred to a card whose bar names that place, not applicable with why,
+        or missing. One missing is the rule broken. The builder is told the same, so a place its
+        lane can't reach goes on the deferral card's bar by name; a deferral whose bar doesn't
+        list the place doesn't count.
+      </p>
     </.part>
     """
   end
