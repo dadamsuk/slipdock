@@ -142,7 +142,98 @@ jobs:
             _build
           key: ${{ steps.keys.outputs.code }}
 
+  # The slipdock CLI the image serves, signed (#2669, W-2542): on a v* tag
+  # the CLI is built here, signed in the next job with the release key (in
+  # its own namespace, slipdock-cli), and handed to the image build, which
+  # serves those bytes and the signature. The runner daemon installs a
+  # server's CLI only with a signature that verifies, so a commit the
+  # release job didn't sign (a push to main) serves its CLI unsigned, and
+  # the machines keep theirs unless their local.json sets cli_checksum_only.
+  #
+  # Built with no secrets at all; signed in the next job, which is the only
+  # one that can read the key.
+  cli-build:
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      MIX_ENV: prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.20"
+          otp-version: "27"
+
+      - name: Build the CLI
+        working-directory: cli
+        run: |
+          mix escript.build
+          mkdir -p ../cli-dist
+          mv slipdock ../cli-dist/slipdock.escript
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-unsigned
+          path: cli-dist/slipdock.escript
+          if-no-files-found: error
+          retention-days: 1
+
+  # Signs the CLI as daemon-release signs release.json: the same secret, in
+  # the same environment (v* tags only, a reviewer's approval), so neither a
+  # stray run nor a pull request can sign. The signature is checked against
+  # the committed public key before the image is built with it.
+  cli-sign:
+    needs: cli-build
+    runs-on: ubuntu-latest
+    environment: daemon-release
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: daemon/internal/release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-unsigned
+          path: dist
+
+      - name: Sign the CLI
+        run: |
+          umask 077
+          key_file="$RUNNER_TEMP/release-key"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s\n' "$DAEMON_SIGNING_KEY" > "$key_file"
+          ssh-keygen -Y sign -q -f "$key_file" -n slipdock-cli dist/slipdock.escript
+        env:
+          DAEMON_SIGNING_KEY: ${{ secrets.DAEMON_SIGNING_KEY }}
+
+      - name: Check the signature against the committed key
+        run: |
+          key=$(awk '!/^#/ && NF { print $1 " " $2; exit }' daemon/internal/release/release_key.pub)
+          printf 'slipdock-release namespaces="slipdock-cli" %s\n' "$key" > "$RUNNER_TEMP/allowed_signers"
+          ssh-keygen -Y verify -f "$RUNNER_TEMP/allowed_signers" -I slipdock-release -n slipdock-cli \
+            -s dist/slipdock.escript.sig < dist/slipdock.escript
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-signed
+          path: |
+            dist/slipdock.escript
+            dist/slipdock.escript.sig
+          if-no-files-found: error
+          retention-days: 1
+
+  # On a v* tag the image waits for the signed CLI, and is not built
+  # without it; anywhere else there is none to wait for.
   build:
+    needs: cli-sign
+    if: ${{ !cancelled() && (needs.cli-sign.result == 'success' || (github.ref_type != 'tag' && needs.cli-sign.result == 'skipped')) }}
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -159,6 +250,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # Where the Dockerfile looks for it: those bytes are then the ones
+      # served, beside their signature.
+      - uses: actions/download-artifact@v4
+        if: ${{ needs.cli-sign.result == 'success' }}
+        with:
+          name: cli-signed
+          path: priv/cli/signed
 
       - name: Work out a filename-safe name for this platform
         run: echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_ENV"

@@ -93,4 +93,42 @@ defmodule SlipdockWeb.CLIInstallControllerTest do
       assert Phoenix.ConnTest.build_conn() |> get("/cli/slipdock.escript") |> response(200) == "x"
     end
   end
+
+  describe "GET /cli/slipdock.escript.sig" do
+    test "serves the signature the image put beside the escript", %{
+      conn: conn,
+      escript: escript
+    } do
+      File.write!(escript, "x")
+      sig = "-----BEGIN SSH SIGNATURE-----\nAAAA\n-----END SSH SIGNATURE-----\n"
+      File.write!(escript <> ".sig", sig)
+
+      served = get(conn, "/cli/slipdock.escript.sig")
+      assert response(served, 200) == sig
+      assert get_resp_header(served, "cache-control") == ["no-cache"]
+    end
+
+    test "an unsigned server says so with a 404, which the daemon reads as unsigned", %{
+      conn: conn,
+      escript: escript
+    } do
+      File.write!(escript, "x")
+
+      assert conn |> get("/cli/slipdock.escript.sig") |> response(404) =~
+               "not signed with the release key"
+    end
+
+    test "a signature with no escript beside it is not served", %{conn: conn, escript: escript} do
+      File.write!(escript <> ".sig", "a stray signature")
+      assert conn |> get("/cli/slipdock.escript.sig") |> response(404)
+    end
+
+    test "needs no sign-in", %{escript: escript} do
+      File.write!(escript, "x")
+      File.write!(escript <> ".sig", "sig")
+
+      assert Phoenix.ConnTest.build_conn() |> get("/cli/slipdock.escript.sig") |> response(200) ==
+               "sig"
+    end
+  end
 end

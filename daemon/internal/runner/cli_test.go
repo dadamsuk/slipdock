@@ -2,8 +2,11 @@ package runner
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,6 +15,7 @@ import (
 
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
+	"github.com/dadamsuk/slipdock/daemon/internal/release"
 )
 
 const theServersCLI = "#!/usr/bin/env escript\nthe server's CLI\n"
@@ -21,10 +25,12 @@ func sumOf(body string) string {
 	return hex.EncodeToString(s[:])
 }
 
-// serveCLI has the fake server serve body as its escript, and its sum.
+// serveCLI has the fake server serve body as its escript, its sum, and
+// its signature with the rig's release key.
 func serveCLI(r *rig, body string) {
 	r.srv.cli = []byte(body)
 	r.srv.cliSums = []byte(sumOf(body) + "  slipdock.escript\n")
+	r.srv.cliSig = release.SignIn(release.CLINamespace, r.releaseKey, []byte(body))
 }
 
 // personsCLI is a copy the person installed on the PATH, which the worker
@@ -437,4 +443,145 @@ func (n named) Name() string { return n.name }
 func localCLI(p string) (l machine.Local) {
 	l.CLI = p
 	return l
+}
+
+// A signed CLI is installed, and the log says it was checked against the
+// release key (#2669).
+func TestASignedCLIIsInstalledAndSaysSo(t *testing.T) {
+	r := newRig(t, Config{})
+	serveCLI(r, theServersCLI)
+	bin := oldCLI(t, r)
+	writeFile(t, bin, "the daemon's old copy\n")
+
+	if f := r.runJob(fakeJob{id: 820, kind: "claude", card: 42, prompt: "x"}); f.exit != 0 {
+		t.Fatalf("finish = %+v", f)
+	}
+	if got := readFile(t, bin); got != theServersCLI {
+		t.Fatalf("the CLI = %q, want the server's signed one", got)
+	}
+	if r.srv.sigGets != 1 {
+		t.Errorf("the signature was fetched %d times, want 1", r.srv.sigGets)
+	}
+	if !strings.Contains(r.logged.String(), "signed with the release key) at "+bin) {
+		t.Errorf("the log doesn't say the CLI was signed:\n%s", r.logged)
+	}
+}
+
+// A server that serves no signature (one built from source) keeps the
+// machine's CLI, unless local.json's cli_checksum_only accepts its
+// checksum alone.
+func TestAnUnsignedCLIIsInstalledOnlyWithCLIChecksumOnly(t *testing.T) {
+	for _, accept := range []bool{false, true} {
+		t.Run(map[bool]string{false: "by default", true: "cli_checksum_only"}[accept], func(t *testing.T) {
+			r := newRig(t, Config{})
+			serveCLI(r, theServersCLI)
+			r.srv.cliSig = nil
+			r.w.Local.CLIChecksumOnly = accept
+			bin := oldCLI(t, r)
+			writeFile(t, bin, "the daemon's old copy\n")
+
+			if f := r.runJob(fakeJob{id: 821, kind: "claude", card: 42, prompt: "x"}); f.exit != 0 {
+				t.Fatalf("an unsigned CLI failed the job: %+v", f)
+			}
+			got := readFile(t, bin)
+			if accept {
+				if got != theServersCLI {
+					t.Errorf("with cli_checksum_only the CLI = %q, want the server's", got)
+				}
+				if !strings.Contains(r.logged.String(), "checksum only, as cli_checksum_only allows") {
+					t.Errorf("the log doesn't say it was checksum only:\n%s", r.logged)
+				}
+				return
+			}
+			if got != "the daemon's old copy\n" {
+				t.Errorf("an unsigned CLI was installed: %q", got)
+			}
+			if _, err := os.Stat(bin + ".new"); !os.IsNotExist(err) {
+				t.Errorf("an unsigned CLI was staged (%v)", err)
+			}
+			for _, want := range []string{"the server's CLI is not signed with the release key", "cli_checksum_only in local.json", "keeping the CLI there is"} {
+				if !strings.Contains(r.logged.String(), want) {
+					t.Errorf("the log doesn't say %q:\n%s", want, r.logged)
+				}
+			}
+			if !strings.Contains(r.agentSaw(), "dir=") {
+				t.Errorf("the agent didn't run")
+			}
+		})
+	}
+}
+
+// A signature that is there and doesn't verify is refused, with or
+// without cli_checksum_only, and so is one the daemon couldn't read.
+func TestABadSignatureKeepsTheCLIWhateverLocalJSONSays(t *testing.T) {
+	_, otherKey, _ := ed25519.GenerateKey(rand.Reader)
+	for name, c := range map[string]struct {
+		set  func(*rig)
+		want string
+	}{
+		"another key's": {func(r *rig) {
+			r.srv.cliSig = release.SignIn(release.CLINamespace, otherKey, []byte(theServersCLI))
+		}, "another key"},
+		"of other bytes": {func(r *rig) {
+			r.srv.cliSig = release.SignIn(release.CLINamespace, r.releaseKey, []byte("another CLI\n"))
+		}, "does not match"},
+		"a release manifest's": {func(r *rig) {
+			r.srv.cliSig = release.Sign(r.releaseKey, []byte(theServersCLI))
+		}, `not "slipdock-cli"`},
+		"junk":           {func(r *rig) { r.srv.cliSig = []byte("not a signature\n") }, "not an armored"},
+		"a failed fetch": {func(r *rig) { r.srv.cliSigCode = 500 }, "could not read the server's /cli/slipdock.escript.sig (HTTP 500)"},
+		"over 4 KB": {func(r *rig) {
+			r.srv.cliSig = append(r.srv.cliSig, strings.Repeat("#", 4096)...)
+		}, "over 4096 bytes"},
+	} {
+		for _, accept := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s, cli_checksum_only %v", name, accept), func(t *testing.T) {
+				r := newRig(t, Config{})
+				serveCLI(r, theServersCLI)
+				c.set(r)
+				r.w.Local.CLIChecksumOnly = accept
+				bin := oldCLI(t, r)
+				writeFile(t, bin, "the daemon's old copy\n")
+
+				if f := r.runJob(fakeJob{id: 822, kind: "claude", card: 42, prompt: "x"}); f.exit != 0 {
+					t.Fatalf("a bad signature failed the job: %+v", f)
+				}
+				if got := readFile(t, bin); got != "the daemon's old copy\n" {
+					t.Errorf("a CLI with a bad signature was installed: %q", got)
+				}
+				if !strings.Contains(r.logged.String(), c.want) || !strings.Contains(r.logged.String(), "keeping the CLI there is") {
+					t.Errorf("the log doesn't say %q and that the CLI was kept:\n%s", c.want, r.logged)
+				}
+			})
+		}
+	}
+}
+
+// A daemon built with no release key can't check a signature: it keeps
+// the CLI unless cli_checksum_only accepts the checksum alone.
+func TestADaemonWithNoKeyInstallsOnlyWithCLIChecksumOnly(t *testing.T) {
+	for _, accept := range []bool{false, true} {
+		t.Run(fmt.Sprint(accept), func(t *testing.T) {
+			r := newRig(t, Config{})
+			serveCLI(r, theServersCLI)
+			r.w.ReleaseKey = func() (ed25519.PublicKey, error) { return nil, release.ErrNoKey }
+			r.w.Local.CLIChecksumOnly = accept
+			bin := oldCLI(t, r)
+			writeFile(t, bin, "the daemon's old copy\n")
+
+			if f := r.runJob(fakeJob{id: 823, kind: "claude", card: 42, prompt: "x"}); f.exit != 0 {
+				t.Fatalf("finish = %+v", f)
+			}
+			want := "the daemon's old copy\n"
+			if accept {
+				want = theServersCLI
+			}
+			if got := readFile(t, bin); got != want {
+				t.Errorf("the CLI = %q, want %q", got, want)
+			}
+			if !accept && !strings.Contains(r.logged.String(), "this daemon has no release key") {
+				t.Errorf("the log doesn't say why:\n%s", r.logged)
+			}
+		})
+	}
 }

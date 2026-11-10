@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"net/http"
@@ -192,6 +194,11 @@ type server struct {
 	cliGets  int
 	sumsGets int
 	cliKeys  []string
+	// cliSig is what /cli/slipdock.escript.sig answers (404 when nil);
+	// cliSigCode fails its fetch; sigGets counts its fetches.
+	cliSig     []byte
+	cliSigCode int
+	sigGets    int
 }
 
 func newServer(t *testing.T) *server {
@@ -211,15 +218,19 @@ func (s *server) add(j fakeJob) {
 
 func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
-	if r.URL.Path == "/cli/slipdock.escript" || r.URL.Path == "/cli/SHA256SUMS" {
+	if r.URL.Path == "/cli/slipdock.escript" || r.URL.Path == "/cli/SHA256SUMS" || r.URL.Path == "/cli/slipdock.escript.sig" {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		s.cliKeys = append(s.cliKeys, r.Header.Get("Authorization"))
 		body, code := s.cliSums, 0
-		if r.URL.Path == "/cli/slipdock.escript" {
+		switch r.URL.Path {
+		case "/cli/slipdock.escript":
 			s.cliGets++
 			body, code = s.cli, s.cliCode
-		} else {
+		case "/cli/slipdock.escript.sig":
+			s.sigGets++
+			body, code = s.cliSig, s.cliSigCode
+		default:
 			s.sumsGets++
 		}
 		switch {
@@ -393,6 +404,9 @@ type rig struct {
 	out    string // what the agent was given
 	hooks  string // which hooks ran
 	logged *logBuf
+	// releaseKey signs what the fake server serves; the worker checks
+	// against its public half.
+	releaseKey ed25519.PrivateKey
 }
 
 type logBuf struct {
@@ -455,6 +469,12 @@ func newRig(t *testing.T, cfg Config) *rig {
 		Grace: 200 * time.Millisecond, Tick: 10 * time.Millisecond,
 		Launcher: os.Args[0],
 	}
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.releaseKey = priv
+	r.w.ReleaseKey = func() (ed25519.PublicKey, error) { return pub, nil }
 	return r
 }
 

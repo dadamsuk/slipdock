@@ -1321,7 +1321,11 @@ defmodule SlipdockWeb.HelpLive.Agents do
         CLI, fetches this server's CLI, checks its SHA-256 and puts it in the daemon's own
         folder, first on the job's PATH, never over a copy installed elsewhere unless the
         machine's <code>local.json</code>
-        names it as <code>cli</code>. A failed fetch or a wrong sum keeps the CLI it had, and
+        names it as <code>cli</code>. The CLI is installed only when its signature verifies
+        against the release key built into the daemon: the release job signs each <code>v*</code>
+        tag's, and a server built from source, or a deploy it didn't sign, serves none, so the
+        machine keeps its own CLI unless <code>local.json</code>
+        sets <code>cli_checksum_only</code>. A failed fetch or a wrong sum keeps the CLI it had, and
         the job runs. The runner reports the current CLI at its next claim, and its probe goes
         green. <code>no_cli_update</code>
         (and <code>no_skills_update</code>) in <code>local.json</code>

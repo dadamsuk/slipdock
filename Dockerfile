@@ -67,8 +67,18 @@ COPY assets assets
 # fetch (see SlipdockWeb.CLIInstallController). It has no dependencies, so
 # this is a compile and nothing fetched. Into priv before `mix compile`, so it
 # rides into the release with the rest of priv.
+#
+# The release job (.github/workflows/release.yml, #2669) builds and signs the
+# CLI itself and leaves it in priv/cli/signed/ with its .sig: those bytes are
+# served then, so the signature is of what the server serves. A build from
+# source has no signed copy and builds its own, which goes out unsigned.
 COPY cli cli
-RUN cd cli && mix escript.build && mkdir -p ../priv/cli && mv slipdock ../priv/cli/slipdock.escript
+RUN if [ -f priv/cli/signed/slipdock.escript.sig ]; then \
+      mv priv/cli/signed/slipdock.escript priv/cli/signed/slipdock.escript.sig priv/cli/; \
+    else \
+      cd cli && mix escript.build && mkdir -p ../priv/cli && mv slipdock ../priv/cli/slipdock.escript; \
+    fi \
+  && rm -rf /app/priv/cli/signed
 
 # Compile before the assets: LiveView's colocated hooks are generated into
 # _build during compilation and the stylesheet imports them, so Tailwind cannot

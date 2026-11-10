@@ -37,8 +37,12 @@ defmodule Slipdock.TrustContractTest do
             "unless its runner uses the `container` executor with the network off",
             "Prompts are the board members' instructions.",
             "within the runner's permission mode",
-            "- The slipdock CLI.",
-            "not the release key"
+            # The CLI (#2669): signed with the release key, or taken on the
+            # server's word only where local.json says so.
+            "Give the agent a `slipdock` CLI the project didn't sign.",
+            "only when its signature verifies against the same release key",
+            "- The slipdock skills, and a CLI taken on the server's word.",
+            "With `cli_checksum_only` set in `local.json`"
           ] do
         assert text =~ promise, "the contract no longer says #{promise}"
       end

@@ -152,6 +152,29 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert guide =~ "`no_cli_update` in `local.json` turns that off"
   end
 
+  test "the CLI is installed only signed, and cli_checksum_only is the way round it (#2669)" do
+    for path <- ["docs/manual.md", "docs/agents.md", "lib/slipdock_web/api_guide.ex"] do
+      text = read(path)
+      assert text =~ "`/cli/slipdock.escript.sig`", "#{path} doesn't name the signature"
+      assert text =~ "cli_checksum_only", "#{path} doesn't name cli_checksum_only"
+    end
+
+    assert read("docs/manual/machines.md") =~ "`cli_checksum_only: true` lets it install a CLI"
+
+    help = read("lib/slipdock_web/live/help_live/agents.ex")
+    assert help =~ "installed only when its signature verifies"
+    assert help =~ "<code>cli_checksum_only</code>"
+
+    # The trust contract no longer says the CLI is checked only against the
+    # server's checksum, except under cli_checksum_only.
+    contract = read("daemon/internal/contract/contract.md")
+    assert contract =~ "Give the agent a `slipdock` CLI the project didn't sign."
+    assert contract =~ "With\n  `cli_checksum_only` set in `local.json`"
+
+    refute contract =~
+             "it is checked only against the checksum the same\n  server publishes, not the release key"
+  end
+
   test "the built-in merge kind is described in the docs (#1656)" do
     manual = read("docs/manual.md")
     assert manual =~ "**Runners merge.**"

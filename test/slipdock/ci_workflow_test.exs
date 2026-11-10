@@ -967,4 +967,65 @@ defmodule Slipdock.CiWorkflowTest do
       assert warm()["permissions"] == %{"contents" => "read"}
     end
   end
+
+  # The CLI the image serves is signed on a v* tag (#2669, W-2542): built
+  # with no secrets, signed only in the protected environment, in the CLI's
+  # own namespace, and the image built from those bytes.
+  describe "the signed CLI" do
+    defp release_jobs do
+      {:ok, yaml} = YamlElixir.read_from_file(Path.join(@root, ".github/workflows/release.yml"))
+      yaml["jobs"]
+    end
+
+    defp step_runs(job), do: Enum.map_join(job["steps"], "\n", &(&1["run"] || ""))
+
+    test "is built on a v* tag only, with no secrets and no environment" do
+      build = release_jobs()["cli-build"]
+
+      assert build["if"] ==
+               "${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}"
+
+      assert build["permissions"] == %{"contents" => "read"}
+      refute Map.has_key?(build, "environment")
+      refute inspect(build) =~ "secrets."
+      assert step_runs(build) =~ "mix escript.build"
+    end
+
+    test "is signed only in daemon-release, in the CLI's namespace, and checked against the committed key" do
+      sign = release_jobs()["cli-sign"]
+      assert sign["needs"] == "cli-build"
+      assert sign["environment"] == "daemon-release"
+      assert sign["permissions"] == %{"contents" => "read"}
+      runs = step_runs(sign)
+
+      assert runs =~
+               "ssh-keygen -Y sign -q -f \"$key_file\" -n slipdock-cli dist/slipdock.escript"
+
+      assert runs =~ ~s(namespaces="slipdock-cli")
+      assert runs =~ "-n slipdock-cli \\\n  -s dist/slipdock.escript.sig < dist/slipdock.escript"
+      assert runs =~ "daemon/internal/release/release_key.pub"
+
+      # The daemon checks in the same namespace.
+      assert File.read!(Path.join(@root, "daemon/internal/release/sshsig.go")) =~
+               ~s(const CLINamespace = "slipdock-cli")
+    end
+
+    test "the image waits for it on a tag, is never built without it there, and serves its bytes" do
+      build = release_jobs()["build"]
+      assert build["needs"] == "cli-sign"
+
+      assert build["if"] ==
+               "${{ !cancelled() && (needs.cli-sign.result == 'success' || (github.ref_type != 'tag' && needs.cli-sign.result == 'skipped')) }}"
+
+      [download] = Enum.filter(build["steps"], &(&1["uses"] == "actions/download-artifact@v4"))
+      assert download["if"] == "${{ needs.cli-sign.result == 'success' }}"
+      assert download["with"] == %{"name" => "cli-signed", "path" => "priv/cli/signed"}
+
+      dockerfile = File.read!(Path.join(@root, "Dockerfile"))
+      assert dockerfile =~ "if [ -f priv/cli/signed/slipdock.escript.sig ]; then"
+
+      assert dockerfile =~
+               "mv priv/cli/signed/slipdock.escript priv/cli/signed/slipdock.escript.sig priv/cli/"
+    end
+  end
 end

@@ -14,13 +14,21 @@ import (
 	"time"
 
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
+	"github.com/dadamsuk/slipdock/daemon/internal/release"
 )
 
 // The server's slipdock CLI, before each agent job (#2631), as the skills
 // are (#2614): when the server's /cli/SHA256SUMS differs from the CLI the
 // claim reports, the daemon fetches /cli/slipdock.escript, checks its
-// SHA-256 against the sums, and puts it in place, so the runner reports a
-// current CLI at its next claim without a person's step.
+// SHA-256 against the sums and its signature (/cli/slipdock.escript.sig)
+// against the release key built into the daemon (#2669, W-2542), and
+// puts it in place, so the runner reports a current CLI at its next claim
+// without a person's step.
+//
+// A CLI whose signature doesn't verify is never installed. A server with
+// no signature (one built from source) has its CLI installed only when
+// local.json's cli_checksum_only says the server's checksum is enough;
+// otherwise the CLI there was is kept.
 //
 // Where it goes:
 //   - the file local.json's cli names, replaced in place: the person said
@@ -38,12 +46,17 @@ import (
 // escript needs the .cmd that /cli/install.ps1 writes), only a cli that
 // local.json names is replaced.
 
-// cliPathOnServer and cliSumsPath are where the server serves the CLI and
-// its SHA-256. Neither needs a key, so none is sent.
+// cliPathOnServer, cliSumsPath and cliSigPath are where the server serves
+// the CLI, its SHA-256 and its signature. None needs a key, so none is
+// sent.
 const (
 	cliPathOnServer = "/cli/slipdock.escript"
 	cliSumsPath     = "/cli/SHA256SUMS"
+	cliSigPath      = "/cli/slipdock.escript.sig"
 )
+
+// errNotServed is a 404: the server has no such file.
+var errNotServed = errors.New("HTTP 404")
 
 // cliMax bounds the escript.
 const cliMax = 64 << 20
@@ -67,6 +80,9 @@ func (c *Client) fetch(ctx context.Context, path string, max int) ([]byte, error
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, errNotServed
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
@@ -188,11 +204,47 @@ func (w *Worker) keepCLI(ctx context.Context, j *jobRun) {
 		say("the server's CLI has SHA-256 %s, not the %s its %s gives; keeping the CLI there is", got, want, cliSumsPath)
 		return
 	}
+	how, why := w.cliSigned(ctx, data)
+	if why != "" {
+		say("%s; keeping the CLI there is", why)
+		return
+	}
 	if err := putCLI(target, data); err != nil {
 		say("could not put the server's CLI at %s (%v); keeping the CLI there is", target, err)
 		return
 	}
-	say("installed the server's CLI (%s) at %s", want[:12], target)
+	say("installed the server's CLI (%s, %s) at %s", want[:12], how, target)
+}
+
+// cliSigned checks the server's CLI against the release key: how it was
+// checked when it may be installed, else why not. A signature that is
+// there and doesn't verify is refused whatever local.json says; a server
+// that serves none, or a daemon built with no key, is accepted only with
+// cli_checksum_only.
+func (w *Worker) cliSigned(ctx context.Context, data []byte) (how, why string) {
+	const checksumOnly = "checksum only, as cli_checksum_only allows"
+	const optIn = " (cli_checksum_only in local.json accepts the server's checksum alone)"
+	key, err := w.ReleaseKey()
+	if err != nil {
+		if w.Local.CLIChecksumOnly {
+			return checksumOnly, ""
+		}
+		return "", "this daemon has no release key to check the server's CLI with" + optIn
+	}
+	sig, err := w.Client.fetch(ctx, cliSigPath, 4096)
+	switch {
+	case errors.Is(err, errNotServed):
+		if w.Local.CLIChecksumOnly {
+			return checksumOnly, ""
+		}
+		return "", "the server's CLI is not signed with the release key" + optIn
+	case err != nil:
+		return "", fmt.Sprintf("could not read the server's %s (%v)", cliSigPath, err)
+	}
+	if err := release.VerifyIn(release.CLINamespace, key, data, sig); err != nil {
+		return "", fmt.Sprintf("the server's CLI does not verify against the release key (%v)", err)
+	}
+	return "signed with the release key", ""
 }
 
 // putCLI writes data whole to <target>.new, then swaps it in.

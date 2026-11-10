@@ -2572,8 +2572,11 @@ defmodule SlipdockWeb.APIGuide do
     each agent job it puts the server's skills in place (under the `user`
     executor the job account unpacks them; `no_skills_update` turns it
     off) and, when `/cli/SHA256SUMS` differs from its CLI, fetches
-    `/cli/slipdock.escript`, checks its SHA-256 and puts it in its own
-    `bin`, first on the job's PATH
+    `/cli/slipdock.escript`, checks its SHA-256 and its signature
+    (`/cli/slipdock.escript.sig`, which the release job makes for each
+    `v*` tag) against the release key built into it, and puts it in its own
+    `bin`, first on the job's PATH; a CLI with no signature that verifies
+    is kept out unless `local.json` sets `cli_checksum_only`
     (`no_cli_update` in `local.json` turns that off), so its next claim
     reports it current. For skills it doesn't update and
     a CLI it doesn't write, run the install one-liner on the machine again,

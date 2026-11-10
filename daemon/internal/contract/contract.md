@@ -35,6 +35,13 @@ machine's own limits.
 - Install an update that isn't signed with the project's release key,
   which is built into the daemon. Whoever serves an update, the daemon
   checks the signature and refuses one that doesn't verify.
+- Give the agent a `slipdock` CLI the project didn't sign. Before each
+  agent job the daemon puts the server's CLI in its own folder, first on
+  the job's PATH (or over the one `local.json` names as `cli`), only when
+  its signature verifies against the same release key. A server that
+  serves no signature (one built from source, or a deploy the release job
+  didn't sign) leaves the machine's own CLI in place, unless `local.json`
+  sets `cli_checksum_only`.
 
 The machine's key lets it claim and report on its own runners' jobs and
 read their settings, and nothing else. It is not an API token. Revoking
@@ -51,13 +58,14 @@ the machine on the Machines page ends the key at once.
   who signs the releases. A self-hosted server can't author an update;
   the hosted operator can, as anyone who downloads the tool already
   trusts them to.
-- The slipdock CLI. Before each agent job the daemon puts the server's
-  `slipdock` CLI in its own folder, first on the job's PATH (or over the
-  one `local.json` names as `cli`), when it differs from the one there.
-  The agent runs it, and it is checked only against the checksum the same
-  server publishes, not the release key: a server can change the program
-  the agent calls, as it can the slipdock skills the agent reads. Set
-  `no_cli_update` (and `no_skills_update`) in `local.json` to keep your
+- The slipdock skills, and a CLI taken on the server's word. Before each
+  agent job the daemon puts the server's slipdock skills in place, and
+  they are instructions the agent follows, checked against nothing but
+  the server: a server can change what the agent reads. With
+  `cli_checksum_only` set in `local.json`, the same goes for an unsigned
+  `slipdock` CLI, checked only against the checksum the same server
+  publishes: a server can then change the program the agent calls. Set
+  `no_skills_update` (and `no_cli_update`) in `local.json` to keep your
   own.
 - Network access. A job can reach the network, and so can send anything
   it can read to anywhere, unless its runner uses the `container`

@@ -153,6 +153,7 @@ defmodule SlipdockWeb.Router do
     get "/cli/install.ps1", CLIInstallController, :install_ps1
     get "/cli/slipdock.escript", CLIInstallController, :escript
     get "/cli/SHA256SUMS", CLIInstallController, :sums
+    get "/cli/slipdock.escript.sig", CLIInstallController, :signature
     # Where the shell and PowerShell runners were served, retired for the
     # runner daemon (#2582): 410 Gone, pointing at Machines.
     get "/runner/*path", RetiredRunnerController, :gone
