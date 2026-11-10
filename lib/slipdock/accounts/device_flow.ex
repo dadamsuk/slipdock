@@ -32,7 +32,7 @@ defmodule Slipdock.Accounts.DeviceFlow do
       # finished with. There is no scheduled job to forget to run.
       purge_expired_device_authorizations()
 
-      scope = if attrs[:scope] in ~w(read write), do: attrs[:scope], else: "write"
+      scope = if Enum.member?(~w(read write), attrs[:scope]), do: attrs[:scope], else: "write"
 
       {device_code, record} =
         DeviceAuthorization.build(Map.put(Map.new(attrs), :scope, scope))

@@ -109,7 +109,7 @@ defmodule Slipdock.Accounts.Signups do
   end
 
   @doc "Whether a brand-new address could sign up right now, for the UI's wording."
-  def signups_open?, do: signup_stance() in [:open, :unclaimed]
+  def signups_open?, do: Enum.member?([:open, :unclaimed], signup_stance())
 
   ## Inviting
 

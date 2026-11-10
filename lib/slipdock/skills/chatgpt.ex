@@ -65,7 +65,7 @@ defmodule Slipdock.Skills.ChatGPT do
   def tool_names, do: Enum.map(@tools, &elem(&1, 1))
 
   @doc "The skills offered for ChatGPT: every skill but the ones left out."
-  def list, do: Enum.reject(Skills.list(), &(&1.name in @left_out))
+  def list, do: Enum.reject(Skills.list(), &Enum.member?(@left_out, &1.name))
 
   @doc "Whether `name` is offered for ChatGPT."
   def offered?(name), do: Enum.any?(list(), &(&1.name == name))

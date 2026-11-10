@@ -151,7 +151,7 @@ defmodule Slipdock.Portable.Import do
     claimed = for card <- rows(tree, :cards), ref = card[:subcards], do: ref
 
     cond do
-      root_ref in claimed -> {:error, {:bad_sub_board, root_ref}}
+      Enum.member?(claimed, root_ref) -> {:error, {:bad_sub_board, root_ref}}
       dup = first_duplicate(claimed) -> {:error, {:bad_sub_board, dup}}
       not rows_are_maps?(tree) -> {:error, :not_a_slipdock_export}
       true -> check_sizes(tree)
@@ -381,11 +381,11 @@ defmodule Slipdock.Portable.Import do
   # the struct. Each insert is its own savepoint: Postgres abandons the whole
   # transaction at a failed constraint otherwise, and a duplicate tag would
   # take every row after it down too.
-  defp known(value, keys), do: if(value in keys, do: value)
+  defp known(value, keys), do: if(Enum.member?(keys, value), do: value)
 
   # A folder's or page's icon or colour that this server does not know is
   # dropped rather than costing the whole row (#792): it is only dress.
-  defp dress(value, known), do: if(value in known, do: value)
+  defp dress(value, known), do: if(Enum.member?(known, value), do: value)
 
   defp text_upto(value, max) when is_binary(value), do: String.slice(String.trim(value), 0, max)
   defp text_upto(_value, _max), do: nil
@@ -438,7 +438,9 @@ defmodule Slipdock.Portable.Import do
   # A suite result the card would refuse is dropped rather than the card (#1623).
   defp suite(%{} = suite) do
     suite = Map.new(suite, fn {k, v} -> {to_string(k), v} end)
-    if suite["result"] in ["passed", "failed"], do: Map.take(suite, ~w(result passed failed))
+
+    if Enum.member?(["passed", "failed"], suite["result"]),
+      do: Map.take(suite, ~w(result passed failed))
   end
 
   defp suite(_value), do: nil
@@ -511,7 +513,8 @@ defmodule Slipdock.Portable.Import do
           add_page: bool(doc[:add_page], true),
           add_document: bool(doc[:add_document], true),
           page_card_features: bool(doc[:page_card_features], true),
-          default_view: if(doc[:default_view] in Board.default_views(), do: doc[:default_view]),
+          default_view:
+            if(Enum.member?(Board.default_views(), doc[:default_view]), do: doc[:default_view]),
           simple: bool(doc[:simple], false),
           show_pulse: bool(doc[:show_pulse], false),
           delivery_metrics: bool(doc[:delivery_metrics], false),
@@ -540,13 +543,13 @@ defmodule Slipdock.Portable.Import do
               do: "pull_request",
               else: "push"
             ),
-          kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
+          kind: if(Enum.member?(Board.kinds(), doc[:kind]), do: doc[:kind])
         }
         |> put_agentic(doc),
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")
       )
 
-    {board, board != nil and wanted not in [nil, ""] and code != wanted}
+    {board, board != nil and not Enum.member?([nil, ""], wanted) and code != wanted}
   end
 
   defp insert_columns!(board, doc) do
@@ -697,7 +700,7 @@ defmodule Slipdock.Portable.Import do
           time_spent: minutes(doc[:time_spent]),
           time_estimate: minutes(doc[:time_estimate]),
           time_unit:
-            if(doc[:time_unit] in Slipdock.TimeTracking.unit_keys(),
+            if(Enum.member?(Slipdock.TimeTracking.unit_keys(), doc[:time_unit]),
               do: doc[:time_unit],
               else: Slipdock.TimeTracking.default_unit()
             ),
@@ -881,7 +884,7 @@ defmodule Slipdock.Portable.Import do
       row = %Handoff{card_id: card.id, user_id: user.id}
 
       changeset =
-        if handoff[:next_step] in [nil, ""],
+        if Enum.member?([nil, ""], handoff[:next_step]),
           do: Handoff.clear_changeset(row, attrs),
           else: Handoff.changeset(row, attrs)
 
@@ -898,7 +901,7 @@ defmodule Slipdock.Portable.Import do
   # left out, which the one-open index decides.
   defp insert_waits!(user, card, doc) do
     for w <- rows(doc, :waits) do
-      reason = if w[:close_reason] in Wait.close_reasons(), do: w[:close_reason]
+      reason = if Enum.member?(Wait.close_reasons(), w[:close_reason]), do: w[:close_reason]
       closed_at = second(datetime(w[:closed_at])) || if(reason, do: now())
 
       row = %Wait{

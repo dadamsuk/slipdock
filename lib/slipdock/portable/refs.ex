@@ -33,7 +33,7 @@ defmodule Slipdock.Portable.Refs do
   @doc false
   def assignee_ids(%Card{id: id, assignee_id: lead}, refs) do
     ids = Map.get(refs.loaded.assignees, id, [])
-    if lead in ids, do: [lead | List.delete(ids, lead)], else: Enum.sort(ids)
+    if Enum.member?(ids, lead), do: [lead | List.delete(ids, lead)], else: Enum.sort(ids)
   end
 
   @doc false
@@ -148,7 +148,7 @@ defmodule Slipdock.Portable.Refs do
     page_ids = Map.values(ids.pages)
     card_ids = Map.values(ids.cards)
     pages = Repo.all(from(p in Page, where: p.id in ^page_ids))
-    via = if opts[:via] in Revision.vias(), do: opts[:via], else: "web"
+    via = if Enum.member?(Revision.vias(), opts[:via]), do: opts[:via], else: "web"
 
     for page <- pages do
       %Revision{}

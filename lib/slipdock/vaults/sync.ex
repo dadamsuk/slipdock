@@ -477,7 +477,9 @@ defmodule Slipdock.Vaults.Sync do
         end
       end)
 
-    for folder <- in_vault, folder.id not in wanted_ids, do: Placements.remove(page, folder, user)
+    for folder <- in_vault,
+        not Enum.member?(wanted_ids, folder.id),
+        do: Placements.remove(page, folder, user)
 
     have = MapSet.new(in_vault, & &1.id)
 
@@ -892,7 +894,7 @@ defmodule Slipdock.Vaults.Sync do
       "body" => body,
       "front_matter" => header || "",
       "summary" => summary(FrontMatter.get(yaml, "summary")),
-      "status" => if(status in Page.statuses(), do: status, else: "published"),
+      "status" => if(Enum.member?(Page.statuses(), status), do: status, else: "published"),
       "template" => FrontMatter.get(yaml, "template") == "true"
     }
     |> file_name(stem, title, current, layout)

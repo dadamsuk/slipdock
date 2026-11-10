@@ -136,7 +136,7 @@ defmodule Slipdock.OAuth do
 
     cond do
       words == [] -> "write"
-      "write" in words -> "write"
+      Enum.member?(words, "write") -> "write"
       true -> "read"
     end
   end
@@ -148,7 +148,7 @@ defmodule Slipdock.OAuth do
   defp valid_resource?(nil, _base), do: true
 
   defp valid_resource?(resource, base),
-    do: resource in [base <> "/mcp", base, base <> "/"]
+    do: Enum.member?([base <> "/mcp", base, base <> "/"], resource)
 
   # RFC 7636 §4.1: 43 to 128 characters from the unreserved set. A challenge
   # is the same shape, being a base64url SHA-256.
@@ -206,7 +206,7 @@ defmodule Slipdock.OAuth do
          :ok <- check(not expired?(code.expires_at), "the code has expired"),
          :ok <-
            check(
-             params["redirect_uri"] in [nil, code.redirect_uri],
+             Enum.member?([nil, code.redirect_uri], params["redirect_uri"]),
              "redirect_uri differs from the one the code was issued for"
            ),
          :ok <- check(pkce_ok?(params["code_verifier"], code.code_challenge), "PKCE failed"),
