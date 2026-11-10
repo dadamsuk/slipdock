@@ -1157,7 +1157,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   end
 
   # The card's flags in the order the picker lists them.
-  defp applied_flags(card), do: for({flag, _, _, _, _} <- flags(), flag in card.flags, do: flag)
+  defp applied_flags(card),
+    do: for({flag, _, _, _, _} <- flags(), Enum.member?(card.flags, flag), do: flag)
 
   attr :flag, :string, required: true
   attr :card, :any, required: true

@@ -1208,7 +1208,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     assign(socket,
       unsaved:
         if(
-          assigns.can_write and assigns.live_action in [:index, :new] and
+          assigns.can_write and Enum.member?([:index, :new], assigns.live_action) and
             is_nil(assigns.autosave),
           do: Autosaves.on_board(assigns.current_user, assigns.board),
           else: []
@@ -2455,7 +2455,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     case socket.assigns.tree_prompt do
       %{kind: :organise, plan: [_ | _] = plan} = prompt ->
         kept = MapSet.new(List.wrap(params["include"]))
-        excluded = for(e <- plan, e.key not in kept, into: MapSet.new(), do: e.key)
+        excluded = for(e <- plan, not Enum.member?(kept, e.key), into: MapSet.new(), do: e.key)
         {:noreply, assign(socket, tree_prompt: %{prompt | excluded: excluded})}
 
       _ ->
@@ -2689,7 +2689,13 @@ defmodule SlipdockWeb.WikiLive.Index do
 
       id ->
         tags = socket.assigns.filters.tags
-        {:noreply, put_filter(socket, :tags, if(id in tags, do: tags -- [id], else: [id | tags]))}
+
+        {:noreply,
+         put_filter(
+           socket,
+           :tags,
+           if(Enum.member?(tags, id), do: tags -- [id], else: [id | tags])
+         )}
     end
   end
 
@@ -3047,7 +3053,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       title: page.title,
       code: page.code,
       board: if(board.id != here.id, do: board.name),
-      summary: if(page.summary not in [nil, ""], do: page.summary),
+      summary: if(not Enum.member?([nil, ""], page.summary), do: page.summary),
       paragraphs: Renderer.preview_paragraphs(found.body || ""),
       tags: page.note_tags || [],
       children: found.children,
@@ -3340,7 +3346,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp mark_shared(%{kind: kind, id: id} = row, shared) do
     row = if MapSet.member?(shared, "#{kind}:#{id}"), do: Map.put(row, :shared, true), else: row
 
-    if row[:writable] && kind in ["page", "folder"] && !row[:also] && !row[:via],
+    if row[:writable] && Enum.member?(["page", "folder"], kind) && !row[:also] && !row[:via],
       do: Map.put(row, :shareable, true),
       else: row
   end
@@ -3394,13 +3400,13 @@ defmodule SlipdockWeb.WikiLive.Index do
     case found do
       {:page, id} ->
         with %Page{} = page <- Wiki.get_page(id),
-             true <- page.board_id in Slipdock.Vaults.board_ids(vault),
+             true <- Enum.member?(Slipdock.Vaults.board_ids(vault), page.board_id),
              do: {:ok, {:page, id}, page.board_id},
              else: (_ -> :error)
 
       {:folder, id} ->
         with %Folder{} = folder <- Wiki.get_folder(id),
-             true <- folder.board_id in Slipdock.Vaults.board_ids(vault),
+             true <- Enum.member?(Slipdock.Vaults.board_ids(vault), folder.board_id),
              do: {:ok, {:folder, id}, folder.board_id},
              else: (_ -> :error)
 
@@ -3543,7 +3549,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp writable_board(%{assigns: %{vault: nil}}, _id), do: nil
 
   defp writable_board(socket, id) do
-    with true <- id in Slipdock.Vaults.board_ids(socket.assigns.vault),
+    with true <- Enum.member?(Slipdock.Vaults.board_ids(socket.assigns.vault), id),
          %Slipdock.Boards.Board{} = board <- Boards.get_board(id),
          true <- Access.can_write?(Access.board_permission(socket.assigns.current_user, board)) do
       board
@@ -5763,7 +5769,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   defp organise_choice(value, allowed, current),
-    do: if(value in allowed, do: value, else: current)
+    do: if(Enum.member?(allowed, value), do: value, else: current)
 
   defp count(1, noun), do: "1 #{noun}"
   defp count(n, noun), do: "#{n} #{noun}s"

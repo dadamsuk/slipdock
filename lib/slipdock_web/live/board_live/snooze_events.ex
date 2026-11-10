@@ -119,7 +119,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
     results =
       for card <- board_cards(socket, s.ids) do
         with {:ok, card} <- Snooze.snooze(card, user, date, opts) do
-          if back? and card.column_id in s.doing_ids,
+          if back? and Enum.member?(s.doing_ids, card.column_id),
             do: Boards.move_card_to_index(card, s.ready, :top, actor: Slipdock.Actor.web(user))
 
           {:ok, card}
@@ -164,7 +164,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
       zone: zone,
       presets: Snooze.presets(Timezones.today(zone)),
       doing_ids: doing_ids,
-      in_progress: Enum.count(cards, &(&1.column_id in doing_ids)),
+      in_progress: Enum.count(cards, &Enum.member?(doing_ids, &1.column_id)),
       ready: ready,
       due: due,
       form: snooze_form(%{"date" => "", "note" => "", "notify" => "false", "back" => "true"}),
