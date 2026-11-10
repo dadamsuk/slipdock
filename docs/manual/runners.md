@@ -157,8 +157,10 @@ which kind of job to queue; it can never choose a command.
 lease, renewed by a heartbeat every 20 seconds or so; if the lease runs out
 (the machine slept, the network went), the job goes back in the queue for
 another runner, and after three tries it fails and the card is flagged with
-a comment. A rule never has more than one open job for a card, so a card
-moved in and out of a list does not pile up work. The card's **Runner jobs**
+a comment. A card never has more than one open job from any rule (jobs no
+rule queued, such as verify, merge and overseer, aside), so a card moved in
+and out of a list, or on a list two rules work, does not pile up work, and
+answering a wait sends the card as one job. The card's **Runner jobs**
 section shows each job, which runner took it, when, and the tail of its log;
 **Cancel** stops a queued job at once and asks a running one to stop.
 

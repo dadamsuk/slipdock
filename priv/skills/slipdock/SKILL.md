@@ -607,7 +607,9 @@ wrong, so don't rewrite it.
 The `runner` action sends the card to a coding agent on the user's own machine:
 `{"type": "runner", "pool": "default", "kind": "claude"}` (an optional `prompt`, with
 placeholders; by default the card's number, title, link and description). It queues a job
-that a runner of that pool takes; at most one open job per card per rule. The rule picks the
+that a runner of that pool takes. A card has at most one open job from any rule (jobs no rule
+queued, such as verify, merge and overseer, aside), and answering a wait sends the card as one
+job, not one per rule. The rule picks the
 *kind*, never a command: what a kind runs lives in the runner's config on that machine, so
 don't try to put a command in a rule, and a job failing with exit 127 means that machine has
 no function for the kind. With the trigger `list_top` (`{"type": "list_top", "column": "To

@@ -2340,7 +2340,9 @@ defmodule SlipdockWeb.APIGuide do
       definition for is refused there and nothing runs.
     - **One queue.** Every runner of a pool on a board tree takes jobs from
       the same queue, one at a time, so two of them never work one card. A
-      rule has at most one open job per card, and a `list_top` rule passes
+      card has at most one open job from any rule (jobs no rule queued, such
+      as verify, merge and overseer, aside), answering a wait sends the card
+      as one job rather than one per rule, and a `list_top` rule passes
       over a card any job is open on, so two of them (one per pool) can work
       one list side by side. It passes over a card its lane would hold too,
       and withdraws a queued job of its own that a lane holds when another
