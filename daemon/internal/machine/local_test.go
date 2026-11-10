@@ -135,3 +135,60 @@ func TestTheLocalFileSetsTheLogLevel(t *testing.T) {
 		t.Fatalf("a level that isn't one: %v", err)
 	}
 }
+
+func TestTheLocalFileSetsARunnersEnvironment(t *testing.T) {
+	d := t.TempDir()
+	body := `{"runners":{"build 1":{"env":{"MIX_TEST_PARTITION":"_build1","A_FLAG":""}},"verify":{"env":{"MIX_TEST_PARTITION":"_verify"}},"bare":{}}}`
+	if err := os.WriteFile(filepath.Join(d, LocalFile), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	l, err := LoadLocal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(l.RunnerEnv("build 1"), " "); got != "A_FLAG= MIX_TEST_PARTITION=_build1" {
+		t.Errorf("build 1's = %q: want its own, in the names' order", got)
+	}
+	if got := strings.Join(l.RunnerEnv("verify"), " "); got != "MIX_TEST_PARTITION=_verify" {
+		t.Errorf("verify's = %q", got)
+	}
+	for _, name := range []string{"bare", "nobody", "Verify", ""} {
+		if got := l.RunnerEnv(name); len(got) != 0 {
+			t.Errorf("%q gets %q: want nothing", name, got)
+		}
+	}
+	if got := (Local{}).RunnerEnv("verify"); len(got) != 0 {
+		t.Errorf("with no file, verify gets %q", got)
+	}
+	// It survives a save, as init's rewrite of the file does.
+	if err := SaveLocal(d, l); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := LoadLocal(d); err != nil || again.Runners["verify"].Env["MIX_TEST_PARTITION"] != "_verify" {
+		t.Fatalf("after a save: %+v %v", again, err)
+	}
+}
+
+func TestTheLocalFileRefusesARunnersVariableItCantSet(t *testing.T) {
+	for body, want := range map[string]string{
+		`{"runners":{"b":{"env":{"SLIPDOCK_JOB_ID":"1"}}}}`: "runners.b.env: SLIPDOCK_JOB_ID: the SLIPDOCK_* variables are the daemon's to set",
+		`{"runners":{"b":{"env":{"slipdock_token":"x"}}}}`:  "the daemon's to set",
+		`{"runners":{"b":{"env":{"PATH":"/tmp"}}}}`:         "runners.b.env: PATH is the executor's own",
+		`{"runners":{"b":{"env":{"home":"/tmp"}}}}`:         "home is the executor's own",
+		`{"runners":{"b":{"env":{"A=B":"x"}}}}`:             `runners.b.env: "A=B" is not a variable's name`,
+		`{"runners":{"b":{"env":{"":"x"}}}}`:                "is not a variable's name",
+		`{"runners":{"b":{"env":{"OK":"a\u0000b"}}}}`:       "runners.b.env: OK has a NUL in its value",
+		`{"runners":{" ":{"env":{"OK":"x"}}}}`:              "runners: a runner's name is empty",
+		`{"runners":{"b":{"env":{"OK":1}}}}`:                "cannot unmarshal",
+		`{"runners":{"b":{"environment":{"OK":"x"}}}}`:      "unknown field",
+		`{"runners":{"b":{"env":{"OK":"x","1BAD":"y"}}}}`:   `"1BAD" is not a variable's name`,
+	} {
+		d := t.TempDir()
+		if err := os.WriteFile(filepath.Join(d, LocalFile), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadLocal(d); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v, want %q", body, err, want)
+		}
+	}
+}

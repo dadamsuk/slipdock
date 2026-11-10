@@ -79,6 +79,19 @@ type Local struct {
 	// Container is how the container executor runs a job here (#2577).
 	// Which images it may run is the ceiling's (container_images).
 	Container *ContainerSettings `json:"container,omitempty"`
+	// Runners are this machine's own settings for a runner, by the name
+	// the board gives it (#2667). Runners that share a name share its
+	// entry, and a name no runner has does nothing.
+	Runners map[string]RunnerSettings `json:"runners,omitempty"`
+}
+
+// RunnerSettings are the machine's own for one runner.
+type RunnerSettings struct {
+	// Env are variables its jobs get, the agent and the hooks alike:
+	// MIX_TEST_PARTITION, say, so two runners' test suites never share a
+	// database. SLIPDOCK_* and the executor's own (HOME, PATH) are
+	// refused.
+	Env map[string]string `json:"env,omitempty"`
 }
 
 // ContainerSettings are the machine's own for the container executor.
@@ -122,10 +135,10 @@ func (l Local) Validate() error {
 			problems = append(problems, fmt.Sprintf("%s.%s: path is empty", kind, name))
 		}
 	}
-	for _, name := range sortedKeys(l.Agents) {
+	for _, name := range sortedNames(l.Agents) {
 		check("agents", name, l.Agents[name])
 	}
-	for _, name := range sortedKeys(l.Hooks) {
+	for _, name := range sortedNames(l.Hooks) {
 		check("hooks", name, l.Hooks[name])
 	}
 	if u := l.User; u != nil {
@@ -162,10 +175,51 @@ func (l Local) Validate() error {
 			}
 		}
 	}
+	problems = append(problems, l.runnerProblems()...)
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// runnerProblems says what is wrong with the runners block.
+func (l Local) runnerProblems() []string {
+	var problems []string
+	for _, runner := range sortedNames(l.Runners) {
+		if strings.TrimSpace(runner) == "" {
+			problems = append(problems, "runners: a runner's name is empty")
+		}
+		env := l.Runners[runner].Env
+		for _, name := range sortedNames(env) {
+			if err := executor.ValidJobEnv(name); err != nil {
+				problems = append(problems, fmt.Sprintf("runners.%s.env: %v", runner, err))
+			}
+			if strings.ContainsRune(env[name], 0) {
+				problems = append(problems, fmt.Sprintf("runners.%s.env: %s has a NUL in its value", runner, name))
+			}
+		}
+	}
+	return problems
+}
+
+// RunnerEnv is what the file sets for the jobs of the runner called
+// name, as NAME=value in the names' order.
+func (l Local) RunnerEnv(name string) []string {
+	env := l.Runners[name].Env
+	out := make([]string, 0, len(env))
+	for _, k := range sortedNames(env) {
+		out = append(out, k+"="+env[k])
+	}
+	return out
+}
+
+func sortedNames[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // SaveLocal writes the local file, after checking it.
@@ -181,15 +235,6 @@ func SaveLocal(dir string, l Local) error {
 		return err
 	}
 	return writeFile(filepath.Join(dir, LocalFile), append(data, '\n'), 0o644)
-}
-
-func sortedKeys(m map[string]Command) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // LoadLocal reads and checks the local file. A missing file is an empty one.

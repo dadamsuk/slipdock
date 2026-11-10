@@ -253,6 +253,9 @@ func printEffective(out io.Writer, r runner.Runner, ceil machine.Ceiling, hasCei
 			rows = append(rows, [2]string{label, "NOT DEFINED in local.json's hooks: every job fails before it starts"})
 		}
 	}
+	if vars := local.RunnerEnv(r.Name); len(vars) > 0 {
+		rows = append(rows, [2]string{"env", strings.Join(vars, " ")})
+	}
 	account := "this account"
 	if env.Account != nil {
 		account = env.Account()
