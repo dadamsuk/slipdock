@@ -177,7 +177,7 @@ defmodule SlipdockCLI.Tools do
         path_enc(path) <>
         if(o[:version], do: "?version=" <> enc(o[:version]), else: "")
 
-    if o[:out] in [nil, "-"],
+    if Enum.member?([nil, "-"], o[:out]),
       do: download_to_stdout(url, o),
       else: download_to(url, o[:out], o)
   end

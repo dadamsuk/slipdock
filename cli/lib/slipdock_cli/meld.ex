@@ -64,7 +64,7 @@ defmodule SlipdockCLI.Meld do
     base64 = Base.encode64(iv <> salt <> sealed <> tag)
     open = if visible, do: "🔐β ", else: "%%🔐β "
     close = if visible, do: " 🔐", else: " 🔐%%"
-    open <> if(hint in [nil, ""], do: "", else: "💡#{hint}💡") <> base64 <> close
+    open <> if(Enum.member?([nil, ""], hint), do: "", else: "💡#{hint}💡") <> base64 <> close
   end
 
   @doc "`{:ok, plaintext}`, or `:error` for a wrong passphrase or damaged text."
@@ -177,7 +177,7 @@ defmodule SlipdockCLI.Meld do
     first = prompt("Passphrase: ")
 
     cond do
-      first in [nil, ""] ->
+      Enum.member?([nil, ""], first) ->
         {:error, "no passphrase given"}
 
       twice and prompt("Passphrase again: ") != first ->

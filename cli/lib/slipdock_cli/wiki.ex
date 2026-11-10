@@ -496,7 +496,12 @@ defmodule SlipdockCLI.Wiki do
     HTTP.post("/import" <> query, read_document(path))
     |> out(o, fn r ->
       report = r["imported"]
-      from = if report["source"] in [nil, "slipdock"], do: "", else: " from #{report["source"]}"
+
+      from =
+        if Enum.member?([nil, "slipdock"], report["source"]),
+          do: "",
+          else: " from #{report["source"]}"
+
       IO.puts("imported #{report["cards"]} card(s) and #{report["pages"]} page(s)#{from}")
 
       Enum.each(report["boards"] || [], fn b ->
@@ -949,9 +954,13 @@ defmodule SlipdockCLI.Wiki do
       _ -> fail("#{path} does not hold a JSON object — an export is one")
     end
   rescue
-    e in [File.Error] -> fail("couldn't read #{path}: #{Exception.message(e)}")
-    _ -> fail("#{path} isn't valid JSON")
+    e -> read_failure(e, path)
   end
+
+  defp read_failure(%File.Error{} = e, path),
+    do: fail("couldn't read #{path}: #{Exception.message(e)}")
+
+  defp read_failure(_, path), do: fail("#{path} isn't valid JSON")
 
   defp file_also(ref, o) do
     body =
