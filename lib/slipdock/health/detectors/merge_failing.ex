@@ -1,11 +1,14 @@
 defmodule Slipdock.Health.Detectors.MergeFailing do
   @moduledoc """
   A card whose merge has failed twice (`failures`, default 2) and whose
-  latest merge job failed too. The card is already back as rejected each
-  time; the flag tells a person it is looping. A merge job that finds the
-  pull request already merged records a merge, not a failure (#2637): it
-  isn't a rejection and doesn't count towards `failures`. No fix: flagged,
-  with the merges' reasons.
+  latest merge job failed too. A merge that fails sends the card back as
+  rejected each time; the flag tells a person it is looping. A merge job
+  that finds the pull request already merged isn't a rejection (#2637): at
+  the accepted commit it records a merge, and at another head the card
+  stays merging, for a person to mark merged by hand. That job still ends
+  failed, so `merge_missing` queues the merge again and a repeat is flagged
+  here too, as still merging, not as looping. No fix: flagged, with the
+  merges' reasons.
   """
   @behaviour Slipdock.Health.Detector
 
@@ -33,6 +36,10 @@ defmodule Slipdock.Health.Detectors.MergeFailing do
         )
       )
 
+    merging =
+      Repo.all(from(c in Card, where: c.id in ^ids and c.verify_state == "merging", select: c.id))
+      |> MapSet.new()
+
     for {card_id, [latest | _] = jobs} <- Finishing.jobs(ids, Verified.merge_kind()),
         latest.status == "failed",
         failed = Enum.filter(jobs, &(&1.status == "failed")),
@@ -49,9 +56,14 @@ defmodule Slipdock.Health.Detectors.MergeFailing do
         state: latest.id,
         summary:
           "The merge of ##{card_id} has failed #{length(failed)} times, most recently job ##{latest.id}: " <>
-            "it is looping between accepted and rejected (#{reasons})."
+            looping(MapSet.member?(merging, card_id)) <> " (#{reasons})."
       }
     end
     |> Enum.sort_by(& &1.card_id)
   end
+
+  # A card still merging wasn't sent back: its merge found the pull request
+  # already merged, or no runner could merge it here (#2662).
+  defp looping(true), do: "it is still merging, not sent back as rejected"
+  defp looping(false), do: "it is looping between accepted and rejected"
 end

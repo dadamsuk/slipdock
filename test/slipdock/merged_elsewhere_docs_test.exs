@@ -7,8 +7,10 @@ defmodule Slipdock.MergedElsewhereDocsTest do
   slipdock-loop skill still saying every failed merge did. The health
   monitor's `merge_failing` row and the MergeFailing moduledoc, which said a
   card whose merge fails is back as rejected each time, say it too (#2662):
-  the sweep reads the health detectors' moduledocs (not their runtime
-  summaries, which only fire on a real failure) and their phrasings.
+  the sweep reads the health detectors' moduledocs and their phrasings. An
+  already-merged merge job still ends failed, so it is counted, and the row
+  and moduledoc say so rather than that it doesn't count (the detector's
+  summary, runtime text, is tested in `finishing_detectors_test.exs`).
   """
   use ExUnit.Case, async: true
 
@@ -28,8 +30,8 @@ defmodule Slipdock.MergedElsewhereDocsTest do
 
   defp relative(path), do: Path.relative_to(Path.expand(path, @root), @root)
 
-  # The health detectors' moduledocs: their summaries are runtime text for a
-  # merge that really failed, so only the moduledoc is swept.
+  # The health detectors' moduledocs: their summaries are runtime text, tested
+  # with the detectors, so only the moduledoc is swept.
   defp detector_docs do
     for path <- Path.wildcard(Path.join(@root, "lib/slipdock/health/detectors/*.ex")),
         [doc] <-
@@ -100,8 +102,15 @@ defmodule Slipdock.MergedElsewhereDocsTest do
       Code.fetch_docs(Slipdock.Health.Detectors.MergeFailing)
 
     for text <- [row, String.replace(moduledoc, ~r/\s+/, " ")] do
-      assert text =~ "finds the pull request already merged records a merge, not a failure"
-      assert text =~ "isn't a rejection"
+      assert text =~ "finds the pull request already merged isn't a rejection"
+      assert text =~ "at another head the card stays merging"
+
+      assert text =~
+               "That job still ends failed, so `merge_missing` queues the merge again and a " <>
+                 "repeat is flagged here too, as still merging, not as looping."
+
+      # The claim #2662's first submission made, which the detector doesn't do.
+      refute text =~ "count towards"
     end
   end
 end
