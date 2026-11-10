@@ -64,6 +64,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
 
     assign(socket,
       machine: machine,
+      rename_form: to_form(%{"name" => machine.name}, as: :machine),
       runners: runners,
       jobs: MachineRunners.running_jobs(runners),
       probes: Probe.latest(runners),
@@ -199,7 +200,7 @@ defmodule SlipdockWeb.MachinesLive.Show do
     end
   end
 
-  def handle_event("rename", %{"name" => name}, socket) do
+  def handle_event("rename", %{"machine" => %{"name" => name}}, socket) do
     case Machines.rename_machine(socket.assigns.machine, name) do
       {:ok, machine} ->
         {:noreply,
@@ -447,27 +448,30 @@ defmodule SlipdockWeb.MachinesLive.Show do
             Update asked for <.timestamp at={@machine.update_requested_at} />.
           </p>
 
-          <form
+          <.form
             :if={@role == :owner}
+            for={@rename_form}
             id="machine-rename"
             phx-submit="rename"
-            class="flex flex-wrap items-center gap-2 text-sm"
+            class="field-row gap-2 text-sm"
           >
-            <label for="machine-rename-name" class="field-label">Name</label>
-            <input
-              id="machine-rename-name"
-              type="text"
-              name="name"
-              value={@machine.name}
-              maxlength="60"
-              class="input field min-w-40"
-              autocomplete="off"
-            />
+            <div class="min-w-40">
+              <.input
+                field={@rename_form[:name]}
+                id="machine-rename-name"
+                label="Name"
+                maxlength="60"
+                autocomplete="off"
+              />
+            </div>
             <button type="submit" class="btn btn-sm">Rename</button>
-            <span :if={@machine.hostname != @machine.name} class="text-xs text-base-content/50">
+            <span
+              :if={@machine.hostname != @machine.name}
+              class="pb-1 text-xs text-base-content/50"
+            >
               hostname {@machine.hostname}
             </span>
-          </form>
+          </.form>
 
           <details
             :if={@setup_prompt}

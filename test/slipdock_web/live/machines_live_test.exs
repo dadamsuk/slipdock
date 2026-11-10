@@ -330,14 +330,20 @@ defmodule SlipdockWeb.MachinesLiveTest do
       {:ok, view, _html} = page(ctx)
       refute has_element?(view, "#machine-rename", "hostname")
 
-      view |> form("#machine-rename", %{name: "Silverbox"}) |> render_submit()
+      view |> form("#machine-rename", %{machine: %{name: "Silverbox"}}) |> render_submit()
       assert Repo.get!(Machine, ctx.machine.id).name == "Silverbox"
       assert has_element?(view, "#machine-notice", "the machine is now Silverbox")
       assert has_element?(view, "h1", "Silverbox")
       assert has_element?(view, "#machine-rename", "hostname build-box")
+
+      assert has_element?(
+               view,
+               "#machine-rename.field-row input#machine-rename-name[value=Silverbox]"
+             )
+
       assert page_title(view) =~ "Silverbox"
 
-      view |> form("#machine-rename", %{name: "   "}) |> render_submit()
+      view |> form("#machine-rename", %{machine: %{name: "   "}}) |> render_submit()
       assert has_element?(view, "#machine-notice", "give the machine a name")
       assert Repo.get!(Machine, ctx.machine.id).name == "Silverbox"
     end
