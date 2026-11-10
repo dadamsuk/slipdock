@@ -2147,13 +2147,18 @@ defmodule SlipdockWeb.APIGuide do
               "start_date": "2026-10-20", "due_date": "2026-11-01",
               "completed": false, "status": "open", "health": "at_risk",
               "percent_complete": 40, "blocked": false,
-              "flags": ["review"], "tags": ["backend"]}}
+              "flags": ["review"], "tags": ["backend"],
+              "bar": "Tests pass", "paths": ["lib/ship/**"], "profile": "feature",
+              "verify_state": "pending"}}
     ```
 
     — and `{"type": "webhook", "url": "…", "method": "get"}` sends the same
     fields as query parameters instead, flattened to `card.title`,
     `card.url`, `card.due_date` and so on (lists comma-separated, anything
-    unset left out). `status` is `open`, `done` or `archived`. The URL may
+    unset left out). `status` is `open`, `done` or `archived`; `bar`, `paths`,
+    `profile` and `verify_state` are what verified work and lanes keep on the
+    card (null or empty where unset), and a rule can change the first three
+    with `set_bar`, `set_paths` and `set_profile`. The URL may
     itself carry placeholders, so `https://example.com/hooks/{{card.id}}`
     works — in the path and query only, never the host, and each value is
     percent-encoded. Only `http`/`https` URLs to public addresses are called:

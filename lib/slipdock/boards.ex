@@ -49,7 +49,8 @@ defmodule Slipdock.Boards do
   @pubsub Slipdock.PubSub
 
   # Card fields a "card_updated" automation trigger can name.
-  @automatable_fields ~w(title description priority start_date due_date percent_complete flags completed color)a
+  @automatable_fields ~w(title description priority start_date due_date percent_complete flags completed color
+                         bar paths profile verify_state)a
 
   ## PubSub
 
