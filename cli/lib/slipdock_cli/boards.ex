@@ -469,8 +469,10 @@ defmodule SlipdockCLI.Boards do
     end)
   end
 
+  # The note as words (one line), or --body/--file, - for stdin, which keep
+  # its line breaks (#2700), as `comment` does.
   def run("status", [id, health | words], o) do
-    HTTP.post(item_path(id, "/status"), %{"health" => health, "body" => Enum.join(words, " ")})
+    HTTP.post(item_path(id, "/status"), %{"health" => health, "body" => status_note(words, o)})
     |> out(o, &card_ok("reported #{health} on", &1))
   end
 
@@ -1871,6 +1873,10 @@ defmodule SlipdockCLI.Boards do
       job -> job
     end
   end
+
+  # A status note: the words win, as a comment's do; with neither, no note.
+  defp status_note([], o), do: if(o[:body] || o[:file], do: handoff_body(o), else: "")
+  defp status_note(words, _o), do: Enum.join(words, " ")
 
   defp handoff_body(o) do
     cond do

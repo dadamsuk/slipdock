@@ -934,6 +934,9 @@ WRITE
   set <id> <key>=<value>...           set custom fields on a card ("" clears; choice by label or key)
   vote <id> <n>                       put n of your votes on a card or page (0 removes them)
   status <id> <on_track|at_risk|off_track> [note...]  report a card's or page's health
+                                      (the note as words is one line; for a note of
+                                      several lines, --body - with a heredoc keeps the
+                                      line breaks, or --body TEXT, --file F)
   handoff <id>                        where the card was left: its handoff and the history
   handoff <id> --next "the one next step" [--body TEXT | --file F | --body -]
                                       leave a handoff for whoever picks the card up next
