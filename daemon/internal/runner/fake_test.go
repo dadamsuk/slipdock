@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -158,6 +159,9 @@ type fakeJob struct {
 	profile string
 	prompt  string
 	pr, sha string
+	// round is the server's round when the job was added: only a claim
+	// sent in that round or later takes it (see server.round).
+	round int64
 }
 
 type finished struct {
@@ -175,14 +179,17 @@ type server struct {
 	jobs        []fakeJob
 	claims      map[int64]int
 	claimHeader map[int64]http.Header
-	refuse      map[int64]int // runner → status for its claims
-	cancel      map[int64]bool
-	lost        map[int64]bool
-	beats       map[int64][]string
-	finishes    map[int64]finished
-	transcript  map[int64][]string
-	txCap       int
-	config      string
+	// taker is the X-Test-Round of the claim that took each job: a late
+	// claim can overwrite claimHeader, never this.
+	taker      map[int64]string
+	refuse     map[int64]int // runner → status for its claims
+	cancel     map[int64]bool
+	lost       map[int64]bool
+	beats      map[int64][]string
+	finishes   map[int64]finished
+	transcript map[int64][]string
+	txCap      int
+	config     string
 	// skills is what /api/skills.tar.gz answers (404 when nil);
 	// skillsKey, the Authorization its last fetch sent.
 	skills     []byte
@@ -204,10 +211,17 @@ type server struct {
 	cliSig     []byte
 	cliSigCode int
 	sigGets    int
+	// round moves on each time a rig's worker has stopped (rig.run), and
+	// the rig's client sends the round it is in with each claim
+	// (X-Test-Round). A stopped worker's last claim is cancelled on its
+	// side, but the server can still read it after the next job has been
+	// added, under load (#2689): from an earlier round, it takes nothing,
+	// else that job would answer a closed connection and never run.
+	round atomic.Int64
 }
 
 func newServer(t *testing.T) *server {
-	s := &server{t: t, claims: map[int64]int{}, claimHeader: map[int64]http.Header{}, refuse: map[int64]int{},
+	s := &server{t: t, claims: map[int64]int{}, claimHeader: map[int64]http.Header{}, taker: map[int64]string{}, refuse: map[int64]int{},
 		cancel: map[int64]bool{}, lost: map[int64]bool{}, beats: map[int64][]string{},
 		finishes: map[int64]finished{}, transcript: map[int64][]string{}}
 	s.ts = httptest.NewServer(http.HandlerFunc(s.handle))
@@ -218,7 +232,25 @@ func newServer(t *testing.T) *server {
 func (s *server) add(j fakeJob) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	j.round = s.round.Load()
 	s.jobs = append(s.jobs, j)
+}
+
+// roundTag is a transport that says which of the server's rounds a
+// request was sent in.
+type roundTag struct{ s *server }
+
+func (t roundTag) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("X-Test-Round", strconv.FormatInt(t.s.round.Load(), 10))
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+// takenBy is whether a claim with these headers may take j: one with no
+// round (a client other than a rig's) takes any.
+func (j fakeJob) takenBy(h http.Header) bool {
+	round, err := strconv.ParseInt(h.Get("X-Test-Round"), 10, 64)
+	return err != nil || round >= j.round
 }
 
 func (s *server) handle(w http.ResponseWriter, r *http.Request) {
@@ -293,10 +325,11 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for i, j := range s.jobs {
-			if j.runner != rid {
+			if j.runner != rid || !j.takenBy(r.Header) {
 				continue
 			}
 			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
+			s.taker[j.id] = r.Header.Get("X-Test-Round")
 			h := w.Header()
 			h.Set("X-Job-Id", strconv.FormatInt(j.id, 10))
 			h.Set("X-Job-Kind", j.kind)
@@ -364,6 +397,13 @@ func jobID(path string) int64 {
 	parts := strings.Split(path, "/")
 	id, _ := strconv.ParseInt(parts[len(parts)-2], 10, 64)
 	return id
+}
+
+// takerRound is the round the claim that took job said it was sent in.
+func (s *server) takerRound(job int64) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.taker[job]
 }
 
 // header is the last claim's headers from runner id. A claim still in
@@ -460,7 +500,7 @@ func newRig(t *testing.T, cfg Config) *rig {
 	home := filepath.Join(base, "home")
 	r.w = &Worker{
 		Runner:  Runner{ID: 11, Name: "builder", BoardID: 3, Pool: "default", Config: cfg},
-		Client:  &Client{Server: srv.ts.URL, Key: "sdm_test_key", HTTP: &http.Client{}},
+		Client:  &Client{Server: srv.ts.URL, Key: "sdm_test_key", HTTP: &http.Client{Transport: roundTag{srv}}},
 		Local:   machine.Local{Agents: map[string]machine.Command{"claude": self("agent"), "codex": self("agent")}},
 		Version: "test",
 		JobsDir: filepath.Join(base, "jobs"),
@@ -492,7 +532,9 @@ func (r *rig) run(done func() bool) {
 	go func() { stopped <- r.w.Run(ctx) }()
 	waitFor(r.t, "the job", done)
 	cancel()
-	if err := <-stopped; err != nil {
+	err := <-stopped
+	r.srv.round.Add(1)
+	if err != nil {
 		r.t.Fatalf("Run: %v", err)
 	}
 }
@@ -533,4 +575,60 @@ func realPath(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return p
+}
+
+// The rig's worker says which round each claim was sent in: without that
+// its claims carry no round and take any job, a stopped worker's late one
+// too (#2689).
+func TestARigWorkersClaimsCarryTheRoundTheyWereSentIn(t *testing.T) {
+	r := newRig(t, Config{})
+	for i, want := range []string{"0", "1"} {
+		id := int64(411 + i)
+		if f := r.runJob(fakeJob{id: id, kind: "claude", card: 7, prompt: "x"}); f.exit != 0 {
+			t.Fatalf("job %d: %+v", id, f)
+		}
+		if got := r.srv.takerRound(id); got != want {
+			t.Fatalf("the claim that took job %d said round %q, want %q", id, got, want)
+		}
+	}
+}
+
+// A stopped worker's last claim, read by the server only after the next job
+// was added (as under load on CI, #2689), takes nothing: the next run gets
+// the job. A claim from a client that sends no round takes any job.
+func TestALateClaimFromAStoppedWorkerLeavesTheNextJob(t *testing.T) {
+	r := newRig(t, Config{})
+	if f := r.runJob(fakeJob{id: 401, kind: "claude", card: 7, prompt: "x"}); f.exit != 0 {
+		t.Fatalf("the first job: %+v", f)
+	}
+	r.srv.add(fakeJob{runner: r.w.Runner.ID, id: 402, kind: "claude", card: 7, prompt: "x"})
+	claim := func(round string) int {
+		req, err := http.NewRequest(http.MethodPost, r.srv.ts.URL+"/api/runner/claim?wait=0", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer sdm_test_key")
+		req.Header.Set("X-Runner-Id", strconv.FormatInt(r.w.Runner.ID, 10))
+		if round != "" {
+			req.Header.Set("X-Test-Round", round)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+	if code := claim("0"); code != 204 {
+		t.Fatalf("a claim sent in the first job's round got %d, want 204 (it took the next job)", code)
+	}
+	r.run(func() bool { _, ok := r.srv.finish(402); return ok })
+	if f, _ := r.srv.finish(402); f.exit != 0 {
+		t.Fatalf("the next job: %+v", f)
+	}
+
+	r.srv.add(fakeJob{runner: r.w.Runner.ID, id: 403, kind: "claude", card: 7, prompt: "x"})
+	if code := claim(""); code != 200 {
+		t.Fatalf("a claim with no round got %d, want 200", code)
+	}
 }
