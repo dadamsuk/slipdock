@@ -110,7 +110,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
   def handle_event(event, params, socket), do: dispatch(event, params, clear_notice(socket))
 
   defp dispatch(event, params, socket) do
-    if event in @own_events,
+    if Enum.member?(@own_events, event),
       do: event(event, params, socket),
       else: ItemEvents.handle(event, params, socket, &load/1)
   end
@@ -165,7 +165,9 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
     with %Slipdock.Wiki.Page{} = page <- socket.assigns.item,
          true <- socket.assigns.can_write do
       flags =
-        if flag in page.flags, do: List.delete(page.flags, flag), else: page.flags ++ [flag]
+        if Enum.member?(page.flags, flag),
+          do: List.delete(page.flags, flag),
+          else: page.flags ++ [flag]
 
       {:ok, _} =
         Wiki.update_page(Wiki.get_page!(page.id), %{"flags" => flags},

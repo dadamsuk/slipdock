@@ -328,7 +328,7 @@ defmodule SlipdockWeb.SprintPlanComponents do
       cards = group.lists |> Enum.flat_map(& &1.cards) |> with_expanded(expanded)
 
       Map.put(group, :shown, %{
-        priority: Enum.any?(cards, &(&1.priority not in [nil, "none"])),
+        priority: Enum.any?(cards, &(not Enum.member?([nil, "none"], &1.priority))),
         formulas: Enum.filter(group.formulas, fn f -> Enum.any?(cards, &score(&1, f)) end),
         votes: Enum.any?(cards, &(&1.votes > 0)),
         estimate: Enum.any?(cards, & &1.estimate),

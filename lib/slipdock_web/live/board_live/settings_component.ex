@@ -496,7 +496,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   # Timeline and Prioritise). "board" first, as it is what nil means.
   defp default_view_options(board) do
     hidden = Enum.map(Board.hidden_views(board), &Atom.to_string/1)
-    for view <- Board.default_views(), view not in hidden, do: {String.capitalize(view), view}
+
+    for view <- Board.default_views(),
+        not Enum.member?(hidden, view),
+        do: {String.capitalize(view), view}
   end
 
   # The agent rules still set while the form turns Agentic Building off

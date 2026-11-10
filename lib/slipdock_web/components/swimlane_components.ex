@@ -679,7 +679,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
       |> JS.hide(to: "##{assigns.id}-toggle")
       |> JS.focus(to: "##{assigns.id} input")
 
-    assigns = assign(assigns, open: open, query?: assigns.q not in [nil, ""])
+    assigns = assign(assigns, open: open, query?: not Enum.member?([nil, ""], assigns.q))
 
     ~H"""
     <button

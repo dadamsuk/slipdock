@@ -56,7 +56,7 @@ defmodule SlipdockWeb.BoardLive.TagsComponent do
   def handle_event(event, params, socket), do: event(event, params, socket)
 
   defp event("pick_tag_color", %{"color" => color}, socket) do
-    color = if color in Palette.names(), do: color, else: socket.assigns.new_tag_color
+    color = if Enum.member?(Palette.names(), color), do: color, else: socket.assigns.new_tag_color
     {:noreply, assign(socket, new_tag_color: color)}
   end
 

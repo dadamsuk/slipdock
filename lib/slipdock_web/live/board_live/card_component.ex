@@ -448,7 +448,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        assign(socket, handoff_draft: {:error, "The draft couldn't be made. Try again."})}
 
   defp dispatch(event, params, socket) do
-    if event in @own_events,
+    if Enum.member?(@own_events, event),
       do: event(event, params, socket),
       else: ItemEvents.handle(event, params, with_item(socket), &reload/1)
   end
@@ -984,8 +984,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
         s ->
           %{
-            "preset" => if(s.rule in preset_rules, do: s.rule, else: "custom"),
-            "custom" => if(s.rule in preset_rules, do: "", else: s.rule),
+            "preset" => if(Enum.member?(preset_rules, s.rule), do: s.rule, else: "custom"),
+            "custom" => if(Enum.member?(preset_rules, s.rule), do: "", else: s.rule),
             "at" => Dates.time(s.create_at),
             "lead_days" => to_string(s.lead_days),
             "on_missed" => s.on_missed,
@@ -1222,7 +1222,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   defp event("link_search", params, socket) do
     kind =
-      if params["kind"] in CardLink.kind_keys(),
+      if Enum.member?(CardLink.kind_keys(), params["kind"]),
         do: params["kind"],
         else: socket.assigns.link_kind
 

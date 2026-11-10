@@ -171,7 +171,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   # again closes it.
   # Pausing (#1116): a reason first, always; the button waits for one.
   def handle_event("open_pause", params, socket) do
-    pausing = if params["pool"] in [nil, ""], do: :tree, else: params["pool"]
+    pausing = if Enum.member?([nil, ""], params["pool"]), do: :tree, else: params["pool"]
     {:noreply, assign(socket, pausing: pausing, pause_reason: "")}
   end
 
@@ -296,7 +296,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     ]
   end
 
-  defp ticked?(value), do: value in [true, "true"]
+  defp ticked?(value), do: Enum.member?([true, "true"], value)
 
   # The form's values, and the steps they'd give — a preview with the token
   # left out until the runner is made.
@@ -1257,7 +1257,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     """
   end
 
-  defp blank?(value), do: value in [nil, ""]
+  defp blank?(value), do: Enum.member?([nil, ""], value)
 
   # A toggle that can't be ticked here: push without commit, and either of
   # them for ChatGPT, which has no repository.

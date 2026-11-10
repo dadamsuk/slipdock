@@ -501,7 +501,7 @@ defmodule SlipdockWeb.PrioritiseComponents do
 
   # The signs that sit against their number ("80%", not "80 %"), as in
   # `Slipdock.Fields.format/2`.
-  defp tight_unit?(unit), do: unit in ~w(% ‰ ° ′ ″)
+  defp tight_unit?(unit), do: Enum.member?(~w(% ‰ ° ′ ″), unit)
 
   # How wide a number box starts, in characters, where the browser can't
   # size it to what is typed (`field-sizing`): the value, or the placeholder.

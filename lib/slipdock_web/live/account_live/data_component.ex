@@ -71,7 +71,7 @@ defmodule SlipdockWeb.AccountLive.DataComponent do
 
       id ->
         picked = socket.assigns.picked_boards
-        picked = if id in picked, do: List.delete(picked, id), else: [id | picked]
+        picked = if Enum.member?(picked, id), do: List.delete(picked, id), else: [id | picked]
         {:noreply, assign(socket, picked_boards: picked)}
     end
   end
