@@ -44,8 +44,9 @@ type Report struct {
 	Reason  string `json:"reason,omitempty"`
 }
 
-// cache is CacheFile's shape.
-type cache struct {
+// Cache is CacheFile's shape: the machine's config version, each accepted
+// runner, and what was last reported for each runner, accepted or rejected.
+type Cache struct {
 	Version  int64            `json:"version"`
 	Runners  []runner.Listed  `json:"runners"`
 	Reported map[int64]Report `json:"reported"`
@@ -96,14 +97,14 @@ func (k *Keeper) Load() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	var c cache
+	var c Cache
 	if err := json.Unmarshal(data, &c); err != nil {
 		return false, fmt.Errorf("%s: %w", filepath.Join(k.Dir, CacheFile), err)
 	}
 	k.version = c.Version
 	for _, l := range c.Runners {
 		if err := l.Check(k.Ceiling); err != nil {
-			k.Logf("cached runner %s (#%d) is outside this machine's ceiling now, so it doesn't run: %v", l.Name, l.ID, err)
+			k.Logf("warn: cached runner %s (#%d) is outside this machine's ceiling now, so it doesn't run: %v", l.Name, l.ID, err)
 			continue
 		}
 		k.accepted[l.ID] = l
@@ -147,7 +148,7 @@ func (k *Keeper) Apply(l *runner.Listing) []runner.Runner {
 	}
 	k.version = l.Version
 	if err := k.save(); err != nil {
-		k.Logf("can't cache the accepted config: %v", err)
+		k.Logf("error: can't cache the accepted config: %v", err)
 	}
 	return k.Running()
 }
@@ -178,9 +179,9 @@ func (k *Keeper) take(r runner.Listed) {
 		}
 		k.change(fmt.Sprintf("runner %s (#%d) v%d rejected, %s: %s (%s)", r.Name, r.ID, r.ConfigVersion, kept, err, diff(old, r)))
 		if had {
-			k.Logf("runner %s (#%d) v%d is outside this machine's ceiling, so it keeps v%d: %v", r.Name, r.ID, r.ConfigVersion, old.ConfigVersion, err)
+			k.Logf("warn: runner %s (#%d) v%d is outside this machine's ceiling, so it keeps v%d: %v", r.Name, r.ID, r.ConfigVersion, old.ConfigVersion, err)
 		} else {
-			k.Logf("runner %s (#%d) is outside this machine's ceiling, so it doesn't run: %v", r.Name, r.ID, err)
+			k.Logf("warn: runner %s (#%d) is outside this machine's ceiling, so it doesn't run: %v", r.Name, r.ID, err)
 		}
 	}
 	if had && old.Paused != r.Paused {
@@ -213,7 +214,7 @@ func (k *Keeper) Flush(ctx context.Context) {
 	for _, id := range ids {
 		r := k.pending[id]
 		if err := k.Server.Report(ctx, id, r.Version, r.Outcome, r.Reason); err != nil {
-			k.Logf("can't report runner #%d's config v%d (%s) yet: %v", id, r.Version, r.Outcome, err)
+			k.Logf("warn: can't report runner #%d's config v%d (%s) yet: %v", id, r.Version, r.Outcome, err)
 			continue
 		}
 		k.reported[id] = r
@@ -222,7 +223,7 @@ func (k *Keeper) Flush(ctx context.Context) {
 	}
 	if sent {
 		if err := k.save(); err != nil {
-			k.Logf("can't cache the accepted config: %v", err)
+			k.Logf("error: can't cache the accepted config: %v", err)
 		}
 	}
 }
@@ -230,12 +231,28 @@ func (k *Keeper) Flush(ctx context.Context) {
 // Pending is how many reports are waiting to be sent.
 func (k *Keeper) Pending() int { return len(k.pending) }
 
+// ReadCache reads dir's CacheFile; none is nil.
+func ReadCache(dir string) (*Cache, error) {
+	path := filepath.Join(dir, CacheFile)
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	var c Cache
+	if err := json.Unmarshal(data, &c); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return &c, nil
+}
+
 // change writes a line to the change log, and to the daemon's log.
 func (k *Keeper) change(line string) {
 	k.Logf("%s", line)
 	f, err := os.OpenFile(filepath.Join(k.Dir, ChangeLog), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
-		k.Logf("can't write the change log: %v", err)
+		k.Logf("error: can't write the change log: %v", err)
 		return
 	}
 	defer f.Close()
@@ -245,7 +262,7 @@ func (k *Keeper) change(line string) {
 // save writes the cache: written whole to a temporary file, then renamed,
 // so a crash never leaves half of one.
 func (k *Keeper) save() error {
-	c := cache{Version: k.version, Reported: k.reported}
+	c := Cache{Version: k.version, Reported: k.reported}
 	for _, l := range k.accepted {
 		c.Runners = append(c.Runners, l)
 	}

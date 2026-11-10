@@ -120,18 +120,22 @@ func containsID(list []int64, id int64) bool {
 }
 
 // insideRoots: dir is an absolute path at or below one of roots.
-func insideRoots(dir string, roots []string) bool {
+func insideRoots(dir string, roots []string) bool { return RootOf(dir, roots) != "" }
+
+// RootOf is the first of roots that dir, an absolute path, is at or below,
+// or "" when it is inside none.
+func RootOf(dir string, roots []string) string {
 	if dir == "" || !filepath.IsAbs(dir) {
-		return false
+		return ""
 	}
 	dir = filepath.Clean(dir)
 	for _, root := range roots {
 		rel, err := filepath.Rel(filepath.Clean(root), dir)
 		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel) {
-			return true
+			return root
 		}
 	}
-	return false
+	return ""
 }
 
 // Kinds are the job kinds a runner takes, said on every claim: its agent's,

@@ -120,3 +120,18 @@ func TestTheLocalFileSaysHowContainersRun(t *testing.T) {
 		}
 	}
 }
+
+// log_level sets the daemon's log level (#2652): one of four, or unset.
+func TestTheLocalFileSetsTheLogLevel(t *testing.T) {
+	d := t.TempDir()
+	for _, level := range []string{"debug", "info", "warn", "error"} {
+		os.WriteFile(filepath.Join(d, LocalFile), []byte(`{"log_level":"`+level+`"}`), 0o644)
+		if l, err := LoadLocal(d); err != nil || l.LogLevel != level {
+			t.Fatalf("%s: %+v %v", level, l, err)
+		}
+	}
+	os.WriteFile(filepath.Join(d, LocalFile), []byte(`{"log_level":"loud"}`), 0o644)
+	if _, err := LoadLocal(d); err == nil || !strings.Contains(err.Error(), `log_level: "loud" is not one of debug, info, warn, error`) {
+		t.Fatalf("a level that isn't one: %v", err)
+	}
+}

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/daemonlog"
+	"github.com/dadamsuk/slipdock/daemon/internal/daemonstate"
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
@@ -68,6 +70,8 @@ type Worker struct {
 	DriftEvery time.Duration
 	Now        func() time.Time
 	sums       driftSums
+	// held is the job the worker holds, as its job.json says (#2652).
+	held *daemonstate.Job
 	// Sleep waits between claims that failed; it returns early when ctx ends.
 	Sleep func(context.Context, time.Duration) error
 }
@@ -224,7 +228,21 @@ func realExec(ctx context.Context, dir, name string, args ...string) (string, er
 }
 
 func (w *Worker) say(format string, a ...any) {
-	w.Logf("runner %s (#%d): %s", w.Runner.Name, w.Runner.ID, fmt.Sprintf(format, a...))
+	level, format := daemonlog.Split(format)
+	w.Logf(levelMarker(level)+"runner %s (#%d): %s", w.Runner.Name, w.Runner.ID, fmt.Sprintf(format, a...))
+}
+
+// levelMarker is the marker that logs a line at level (daemonlog.Split).
+func levelMarker(level daemonlog.Level) string {
+	switch level {
+	case daemonlog.Debug:
+		return "debug: "
+	case daemonlog.Warn:
+		return "warn: "
+	case daemonlog.Error:
+		return "error: "
+	}
+	return ""
 }
 
 // Run claims and runs jobs until ctx ends (nil), or the server refuses the
@@ -245,7 +263,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		case errors.As(err, &refusal):
 			return err
 		case err != nil:
-			w.say("could not reach the queue (%v); trying again in %s", err, backoff)
+			w.say("warn: could not reach the queue (%v); trying again in %s", err, backoff)
 			if w.Sleep(ctx, backoff) != nil {
 				return nil
 			}
@@ -330,19 +348,22 @@ func (j *jobRun) note(line string) {
 // back to the queue for another runner.
 func (w *Worker) runJob(ctx context.Context, job *Job) {
 	dir := filepath.Join(w.JobsDir, fmt.Sprint(w.Runner.ID))
+	w.held = &daemonstate.Job{ID: job.ID, CardID: job.CardID, Kind: job.Kind, Started: w.Now().UTC()}
+	defer w.letGo()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		w.say("job #%d: can't make %s: %v", job.ID, dir, err)
+		w.say("error: job #%d: can't make %s: %v", job.ID, dir, err)
 		w.finish(ctx, job, nil, 1, "failed", "", "slipdock-runner: can't make the job's log: "+err.Error())
 		return
 	}
 	logPath := filepath.Join(dir, "job.log")
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0o600)
 	if err != nil {
-		w.say("job #%d: can't open %s: %v", job.ID, logPath, err)
+		w.say("error: job #%d: can't open %s: %v", job.ID, logPath, err)
 		w.finish(ctx, job, nil, 1, "failed", "", "slipdock-runner: can't open the job's log: "+err.Error())
 		return
 	}
 	defer f.Close()
+	w.recordJob()
 	j := &jobRun{job: job, log: f, logPath: logPath, dir: w.Runner.Config.Directory}
 
 	kinds := w.Runner.Kinds(w.Local)
@@ -884,6 +905,45 @@ func (w *Worker) finish(ctx context.Context, job *Job, j *jobRun, rc int, status
 	}
 	sleep := func(d time.Duration) { _ = w.Sleep(ctx, d) }
 	if err := w.Client.Finish(ctx, w.Runner.ID, job.ID, rc, status, merged, body, sleep); err != nil {
-		w.say("job #%d: could not report it finished: %v", job.ID, err)
+		w.say("warn: job #%d: could not report it finished: %v", job.ID, err)
 	}
+	if w.held != nil && w.held.ID == job.ID {
+		at := w.Now().UTC()
+		w.held.Finished, w.held.Status = &at, endedAs(rc, status)
+		w.recordJob()
+	}
+}
+
+// endedAs is how a job ended, for its job.json: the status reported, or
+// from the exit code when none was.
+func endedAs(rc int, status string) string {
+	switch {
+	case status != "":
+		return status
+	case rc == 0:
+		return "succeeded"
+	}
+	return "failed"
+}
+
+// recordJob writes the job the runner holds to its job.json, for
+// `slipdock-runner status` (#2652). A failure is logged and the job runs.
+func (w *Worker) recordJob() {
+	if w.held == nil || w.JobsDir == "" {
+		return
+	}
+	if err := daemonstate.SaveJob(w.JobsDir, w.Runner.ID, *w.held); err != nil {
+		w.say("warn: can't record job #%d in %s: %v", w.held.ID, daemonstate.JobFile, err)
+	}
+}
+
+// letGo ends runJob: a job it didn't report finished (the daemon stopped
+// while it ran) is recorded as stopped.
+func (w *Worker) letGo() {
+	if w.held != nil && w.held.Finished == nil {
+		at := w.Now().UTC()
+		w.held.Finished, w.held.Status = &at, "stopped"
+		w.recordJob()
+	}
+	w.held = nil
 }

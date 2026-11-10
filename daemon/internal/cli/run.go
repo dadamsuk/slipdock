@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/daemonlog"
+	"github.com/dadamsuk/slipdock/daemon/internal/daemonstate"
 	"github.com/dadamsuk/slipdock/daemon/internal/enrol"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 	"github.com/dadamsuk/slipdock/daemon/internal/machineconfig"
@@ -43,24 +44,18 @@ var ceilingRetryMax = 5 * time.Minute
 func cmdRun(args []string, env Env) error {
 	fs, home := newFlags("run", env)
 	logPath := fs.String("log", "", "append the daemon's log to this file, not stderr")
+	logLevel := fs.String("log-level", "", "debug, info, warn or error (default: local.json's log_level, else info)")
 	if err := parse(fs, args); err != nil {
 		return err
+	}
+	if _, err := daemonlog.ParseLevel(*logLevel); err != nil {
+		fmt.Fprintf(env.Stderr, "slipdock-runner run: %v\n", err)
+		return errUsage
 	}
 	d, err := dir(*home, env)
 	if err != nil {
 		return err
 	}
-	var w io.Writer = env.Stderr
-	if *logPath != "" {
-		f, err := os.OpenFile(*logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		w = f
-	}
-	logger := log.New(w, "slipdock-runner: ", log.LstdFlags)
-
 	st, key, err := machine.Load(d)
 	if err != nil {
 		return err
@@ -73,6 +68,14 @@ func cmdRun(args []string, env Env) error {
 	if err != nil {
 		return fmt.Errorf("the local file: %w", err)
 	}
+	logger, closeLog, err := runLogger(d, *logPath, *logLevel, local, env)
+	if err != nil {
+		return err
+	}
+	defer closeLog()
+	state := newStateKeeper(d, logger.Printf)
+	defer state.stopped()
+
 	client := enrol.NewClient(st.Server, "slipdock-runner/"+Version)
 	if env.HTTP != nil {
 		client.HTTP = env.HTTP
@@ -85,6 +88,7 @@ func cmdRun(args []string, env Env) error {
 	defer cancel()
 
 	logger.Printf("%s %s starting as %s (machine #%d) on %s", "slipdock-runner", Version, st.Name, st.MachineID, st.Server)
+	logger.Printf("debug: directory %s: the ceiling allows executors %s; the log is %s", d, strings.Join(ceil.Offered(), ", "), filepath.Join(d, daemonlog.File))
 	if exe, err := env.Executable(); err == nil {
 		update.Cleanup(exe)
 	}
@@ -126,9 +130,11 @@ func cmdRun(args []string, env Env) error {
 		case enrol.IsUnauthorized(err) || (err == nil && m.State == "revoked"):
 			return fmt.Errorf("the server no longer accepts this machine (revoked): run init --replace to enrol it again")
 		case err != nil && ctx.Err() == nil:
-			logger.Printf("can't reach the server, trying again: %v", err)
+			logger.Printf("warn: can't reach the server, trying again: %v", err)
+			state.contact(err)
 		case err == nil:
 			logger.Printf("enrolled as %s, serving %s", m.Name, boardList(m.Boards))
+			state.contact(nil)
 		}
 		if err := sleep(ctx, checkEvery); err != nil || ctx.Err() != nil {
 			select {
@@ -227,7 +233,7 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 
 	cached, err := keeper.Load()
 	if err != nil {
-		logf("can't read the cached config, so waiting for the server's: %v", err)
+		logf("warn: can't read the cached config, so waiting for the server's: %v", err)
 	}
 	since, wait, started := int64(-1), 0, false
 	for {
@@ -241,11 +247,11 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 			return runner.ErrRevoked
 		case err != nil:
 			if !started && cached {
-				logf("the server can't be reached, so starting from the cached config (version %d)", keeper.Version())
+				logf("warn: the server can't be reached, so starting from the cached config (version %d)", keeper.Version())
 				apply(keeper.Running(), len(keeper.Running()))
 				started = true
 			}
-			logf("can't read this machine's runners, trying again in %s: %v", configRetry, err)
+			logf("warn: can't read this machine's runners, trying again in %s: %v", configRetry, err)
 			if pause(ctx, configRetry) != nil {
 				return pool.Wait()
 			}
@@ -255,6 +261,7 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 			since, wait, started = l.Version, configWait, true
 		case l != nil:
 			// An answer at once with nothing newer: don't ask again at once.
+			logf("debug: config version %d: nothing newer", since)
 			if pause(ctx, configRetry) != nil {
 				return pool.Wait()
 			}
@@ -282,13 +289,101 @@ func reportCeiling(ctx context.Context, client *runner.Client, ceil machine.Ceil
 		case ctx.Err() != nil:
 			return
 		case errors.As(err, &refused):
-			logf("the server refused the ceiling, so not reporting it again until the daemon restarts: %v", err)
+			logf("error: the server refused the ceiling, so not reporting it again until the daemon restarts: %v", err)
 			return
 		}
-		logf("can't report the ceiling, trying again in %s: %v", wait, err)
+		logf("warn: can't report the ceiling, trying again in %s: %v", wait, err)
 		if pause(ctx, wait) != nil {
 			return
 		}
 		wait = min(2*wait, ceilingRetryMax)
+	}
+}
+
+// runLogger is run's levelled log (#2652): to --log's file, else stderr,
+// and always to daemon.log in the daemon's directory, at --log-level, else
+// local.json's log_level, else info. close closes both files.
+func runLogger(d, logPath, level string, local machine.Local, env Env) (*daemonlog.Logger, func(), error) {
+	if level == "" {
+		level = local.LogLevel
+	}
+	min, err := daemonlog.ParseLevel(level)
+	if err != nil {
+		return nil, nil, err
+	}
+	var out io.Writer = env.Stderr
+	var logFile *os.File
+	if logPath != "" {
+		abs, _ := filepath.Abs(logPath)
+		if abs == filepath.Join(d, daemonlog.File) {
+			// --log names daemon.log itself: written once, not twice.
+			out = nil
+		} else {
+			logFile, err = os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+			if err != nil {
+				return nil, nil, err
+			}
+			out = logFile
+		}
+	}
+	logger, err := daemonlog.New(min, out, d)
+	if err != nil {
+		if logFile != nil {
+			logFile.Close()
+		}
+		return nil, nil, fmt.Errorf("the daemon's log: %w", err)
+	}
+	logger.Now = now
+	return logger, func() {
+		logger.Close()
+		if logFile != nil {
+			logFile.Close()
+		}
+	}, nil
+}
+
+// stateKeeper keeps daemon-state.json for status (#2652): this process,
+// when it started, the server's last answer, and when it stopped. A file
+// that can't be written is logged once; the daemon runs on.
+type stateKeeper struct {
+	dir    string
+	logf   func(string, ...any)
+	mu     sync.Mutex
+	st     daemonstate.Daemon
+	warned bool
+}
+
+func newStateKeeper(dir string, logf func(string, ...any)) *stateKeeper {
+	k := &stateKeeper{dir: dir, logf: logf, st: daemonstate.Daemon{PID: os.Getpid(), Version: Version, Started: now().UTC()}}
+	k.save()
+	return k
+}
+
+// contact records the enrolment check's answer: nil is the server reached.
+func (k *stateKeeper) contact(err error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if err == nil {
+		at := now().UTC()
+		k.st.LastContact, k.st.Online, k.st.LastError = &at, true, ""
+	} else {
+		k.st.Online, k.st.LastError = false, err.Error()
+	}
+	k.save()
+}
+
+// stopped records that the daemon has stopped.
+func (k *stateKeeper) stopped() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	at := now().UTC()
+	k.st.Stopped, k.st.Online = &at, false
+	k.save()
+}
+
+func (k *stateKeeper) save() {
+	if err := daemonstate.Save(k.dir, k.st); err != nil && !k.warned {
+		k.warned = true
+		k.logf("warn: can't write %s, so status can't tell this daemon is running: %v", daemonstate.File, err)
 	}
 }

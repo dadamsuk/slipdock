@@ -1,5 +1,5 @@
-// Package cli is slipdock-runner's commands: init, setup, show, doctor,
-// service, run and version. Everything outside the process (the terminal, the
+// Package cli is slipdock-runner's commands: init, setup, show, status,
+// log, config, doctor, service, run, update and version. Everything outside the process (the terminal, the
 // environment, the network, the clock, other programs) comes in through
 // Env, so each command can be tested on its own.
 package cli
@@ -58,6 +58,8 @@ type Env struct {
 	Account func() string
 	// HomeOpen says whether a home is open to other accounts.
 	HomeOpen func(home string) bool
+	// Alive says whether a process is running (status: the daemon's pid).
+	Alive func(pid int) bool
 }
 
 // DefaultEnv is the real world.
@@ -99,6 +101,7 @@ func DefaultEnv() Env {
 			return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		},
 		Account: account,
+		Alive:   processAlive,
 		HomeOpen: func(home string) bool {
 			return executor.HomeOpen(runtime.GOOS, home)
 		},
@@ -150,15 +153,23 @@ Usage:
                                           enrol this machine, and choose who jobs run as
   slipdock-runner setup [--print]         set this machine up with Claude, from the server's prompt
   slipdock-runner show                    the trust contract, with this machine's limits
+  slipdock-runner status [--json]         what the daemon and each runner are doing now
+  slipdock-runner log [--level L] [--since DUR] [-n N] [--follow] [--runner NAME | --job ID]
+                                          the daemon's log, or a runner's job log
+  slipdock-runner config [--effective | --json]
+                                          the ceiling, local.json and each runner's accepted settings
   slipdock-runner doctor                  check this machine is ready to run jobs
   slipdock-runner service install|uninstall|print
-  slipdock-runner run                     run this machine's runners (what the service runs)
+  slipdock-runner run [--log FILE] [--log-level debug|info|warn|error]
+                                          run this machine's runners (what the service runs)
   slipdock-runner update [--check] [--mode auto|manual] [--source URL]
                                           install a newer signed release, or set how updates go
   slipdock-runner version
 
 Every command takes --home DIR, the daemon's directory (default: %s,
-or $SLIPDOCK_RUNNER_HOME).
+or $SLIPDOCK_RUNNER_HOME). status, log and config read only that directory:
+they work with the server down. run also writes its log, levelled, to
+daemon.log there.
 `
 
 // errUsage marks a mistake in the command line: exit status 2.
@@ -182,6 +193,12 @@ func Main(args []string, env Env) int {
 		err = cmdSetup(rest, env)
 	case "show":
 		err = cmdShow(rest, env)
+	case "status":
+		err = cmdStatus(rest, env)
+	case "log":
+		err = cmdLog(rest, env)
+	case "config":
+		err = cmdConfig(rest, env)
 	case "doctor":
 		err = cmdDoctor(rest, env)
 	case "service":

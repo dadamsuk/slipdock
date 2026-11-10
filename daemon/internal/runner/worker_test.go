@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/daemonstate"
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 )
@@ -524,5 +526,70 @@ func TestATranscriptFromBeforeTheJobIsNeverSent(t *testing.T) {
 	got := r.srv.transcript[132]
 	if len(got) != 1 || !strings.Contains(got[0], `"new"`) {
 		t.Fatalf("sent %q: want only this job's transcript", got)
+	}
+}
+
+// Each job is written to its runner's job.json as it starts and when it
+// ends, for slipdock-runner status (#2652).
+func TestAJobIsRecordedForStatus(t *testing.T) {
+	r := newRig(t, Config{})
+	r.runJob(fakeJob{id: 110, kind: "claude", card: 42, prompt: "x"})
+	j, err := daemonstate.LoadJob(r.w.JobsDir, r.w.Runner.ID)
+	if err != nil || j == nil {
+		t.Fatalf("job.json: %v %v", j, err)
+	}
+	if j.ID != 110 || j.CardID != 42 || j.Kind != "claude" || j.Started.IsZero() || j.Finished == nil || j.Status != "succeeded" {
+		t.Fatalf("job.json = %+v", j)
+	}
+
+	t.Setenv("HELPER_EXIT", "3")
+	r.runJob(fakeJob{id: 111, kind: "claude", card: 43, prompt: "x"})
+	if j, _ := daemonstate.LoadJob(r.w.JobsDir, r.w.Runner.ID); j.ID != 111 || j.CardID != 43 || j.Status != "failed" {
+		t.Fatalf("job.json after a failed job = %+v", j)
+	}
+}
+
+// A job the worker lets go without reporting it finished (the daemon
+// stopping while it ran) is recorded as stopped, and a job that is
+// running shows no end.
+func TestAJobCutShortIsRecordedAsStopped(t *testing.T) {
+	r := newRig(t, Config{})
+	r.w.defaults()
+	r.w.held = &daemonstate.Job{ID: 120, CardID: 9, Kind: "claude", Started: time.Now()}
+	r.w.recordJob()
+	if j, _ := daemonstate.LoadJob(r.w.JobsDir, r.w.Runner.ID); j == nil || j.Finished != nil {
+		t.Fatalf("a running job's job.json = %+v", j)
+	}
+	r.w.letGo()
+	j, _ := daemonstate.LoadJob(r.w.JobsDir, r.w.Runner.ID)
+	if j == nil || j.ID != 120 || j.Finished == nil || j.Status != "stopped" || r.w.held != nil {
+		t.Fatalf("job.json = %+v, held %v", j, r.w.held)
+	}
+}
+
+func TestEndedAs(t *testing.T) {
+	for _, tc := range []struct {
+		rc     int
+		status string
+		want   string
+	}{{0, "", "succeeded"}, {3, "", "failed"}, {0, "cancelled", "cancelled"}, {1, "timeout", "timeout"}} {
+		if got := endedAs(tc.rc, tc.status); got != tc.want {
+			t.Errorf("endedAs(%d, %q) = %q, want %q", tc.rc, tc.status, got, tc.want)
+		}
+	}
+}
+
+// A runner's line keeps its level: the marker goes before the runner's name.
+func TestSayKeepsTheLevelMarker(t *testing.T) {
+	var got []string
+	w := &Worker{Runner: Runner{ID: 4, Name: "builder"}, Logf: func(f string, a ...any) { got = append(got, fmt.Sprintf(f, a...)) }}
+	w.say("warn: could not reach the queue (%s)", "down")
+	w.say("taking jobs")
+	w.say("error: job #%d: can't open it", 9)
+	w.say("debug: a detail")
+	want := []string{"warn: runner builder (#4): could not reach the queue (down)", "runner builder (#4): taking jobs",
+		"error: runner builder (#4): job #9: can't open it", "debug: runner builder (#4): a detail"}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }

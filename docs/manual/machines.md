@@ -9,7 +9,8 @@ added and changed from the board, not from a shell on the machine, and the
 machine's own **ceiling** limits what the board may set.
 
 The daemon is being built in steps (epic #2569). What is here today:
-enrolling a machine, its ceiling, `show`, `doctor`, the service, signed
+enrolling a machine, its ceiling, `show`, `doctor`, `status`, `log` and
+`config` (the machine read from its own files), the service, signed
 releases that it updates itself from, running its runners' jobs, and the
 Machines page where its runners are set, taking changes made there while
 it runs. It replaced the shell and PowerShell runners, which this server no
@@ -362,6 +363,8 @@ optional, and with no file at all `claude` and `codex` are found on your
   stops it putting the server's `slipdock` CLI in its own `bin` folder (or
   at `cli`, when that is set) (see [Runners](runners.md), *Skill and CLI
   drift*).
+- `log_level`: how much goes in the daemon's log: `debug`, `info` (the
+  default), `warn` or `error`. `run --log-level` overrides it.
 
 A job whose agent or hook the file doesn't define fails before anything
 runs, and its log on the card says which name was missing. A file with a
@@ -634,6 +637,53 @@ each agent in it answers `--version`, `git` is there, `gh` is logged in,
 the service is installed, and the last update check wasn't refused. Each line is `ok`, `warn` or `FAIL` with what to
 do; any `FAIL` makes it exit non-zero.
 
+Three commands read what the daemon keeps in its directory. They need no
+server, so they work when the board can't be reached:
+
+```sh
+slipdock-runner status [--json]
+slipdock-runner log [--level debug|info|warn|error] [--since DUR] [-n N] [--follow]
+slipdock-runner log --runner NAME | --job ID [-n N] [--follow]
+slipdock-runner config [--effective | --json]
+```
+
+- **`status`** is one screen. It shows the daemon's version, the machine,
+  the server, and whether the daemon is running (since when, its pid). Then
+  its last contact with the server, and one line per runner: board, pool,
+  executor, permission mode, what it is doing (`idle`, `working on card #N
+  since T`, `paused`, or `refused vN, keeping vM`) and the last line of its
+  job's log. It ends with the last update check. It exits non-zero when the
+  daemon isn't running or a runner's settings were refused, so a script or
+  a monitor can call it. `--json` prints the same as one object.
+- **`log`** prints the daemon's log, the last 50 lines (`-n 0` is all).
+  `--level warn` keeps `WARN` and `ERROR` lines, `--since 2h` (or `30m`,
+  `3d`) the recent ones, and `--follow` (`-f`) keeps printing new lines
+  until you stop it. With `--runner` (its name or id) or `--job`, it prints
+  that runner's job log instead. Each runner keeps only its last job's log,
+  and a job log has no levels or times, so `--level` and `--since` don't go
+  with it.
+- **`config`** prints the ceiling, `local.json`, and each runner's accepted
+  settings with their version. For a runner whose settings were refused, it
+  shows what was refused and why, with its line from `changes.log`.
+  `--effective` resolves the names: the program each agent and hook runs
+  (or that a name isn't defined, so jobs fail), who jobs run as, and which
+  root the runner's directory is inside. `--json` prints the three files as
+  they are, as one object. `show` is still the trust contract; `config` is
+  the machine's settings.
+
+What these read:
+
+- `daemon-state.json`: the daemon's pid, when it started and stopped, and
+  its last contact with the server.
+- `jobs/<runner>/job.json`: the job a runner holds or held last.
+- `config-cache.json` and `changes.log`.
+- `update.json`.
+- `daemon.log`.
+
+`run` writes the state files itself. A daemon from before these commands
+has no `daemon-state.json`, so `status` says it isn't running until the
+daemon restarts on a version that writes one.
+
 ### Running it as a service
 
 ```sh
@@ -651,6 +701,13 @@ log-in, and brought back if it stops:
 - **Windows**: a Task Scheduler task, *Slipdock machine*, at log-on and
   every five minutes after (a no-op while it runs). Logs: `daemon.log` in
   the daemon's directory.
+
+On every system the daemon also writes its own log, `daemon.log` in its
+directory, whatever the service does with its output. It is capped at
+5 MiB, and the one before it is kept as `daemon.log.1`. Each line has a
+time and a level (`DEBUG`, `INFO`, `WARN`, `ERROR`); `slipdock-runner log`
+reads it the same way everywhere. `run --log-level` (or `local.json`'s
+`log_level`) sets how much is written, `info` by default.
 
 The names differ from the retired shell runner's (`slipdock-runner.service`,
 `us.slipdock.runner`, *Slipdock runner*), so both can run while a machine

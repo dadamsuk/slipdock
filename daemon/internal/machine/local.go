@@ -67,6 +67,10 @@ type Local struct {
 	// ConfinedWritable are what a confined job may write besides its own
 	// directory: the agent's own state (default ~/.claude, for claude).
 	ConfinedWritable []string `json:"confined_writable,omitempty"`
+	// LogLevel is the least a line must matter to reach the daemon's log:
+	// debug, info (the default), warn or error (#2652). run's --log-level
+	// overrides it.
+	LogLevel string `json:"log_level,omitempty"`
 	// Container is how the container executor runs a job here (#2577).
 	// Which images it may run is the ceiling's (container_images).
 	Container *ContainerSettings `json:"container,omitempty"`
@@ -95,6 +99,9 @@ type Account struct {
 	Home string `json:"home"`
 	Path string `json:"path,omitempty"`
 }
+
+// LogLevels are what log_level may be.
+var LogLevels = []string{"debug", "info", "warn", "error"}
 
 // BuiltinAgents need no entry in the local file.
 var BuiltinAgents = []string{"claude", "codex"}
@@ -128,6 +135,9 @@ func (l Local) Validate() error {
 		if !filepath.IsAbs(w) {
 			problems = append(problems, fmt.Sprintf("confined_writable: %q is not an absolute path", w))
 		}
+	}
+	if !oneOf(LogLevels, l.LogLevel) && l.LogLevel != "" {
+		problems = append(problems, fmt.Sprintf("log_level: %q is not one of %s", l.LogLevel, strings.Join(LogLevels, ", ")))
 	}
 	if ct := l.Container; ct != nil {
 		if ct.Pull != "" && !oneOf(executor.Pulls, ct.Pull) {

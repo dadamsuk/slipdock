@@ -120,25 +120,25 @@ func autoUpdate(ctx context.Context, d string, env Env, logf func(string, ...any
 	}
 	s, err := update.Load(d)
 	if err != nil {
-		logf("updates: %v", err)
+		logf("warn: updates: %v", err)
 		return nil
 	}
 	u, err := updater(s, env)
 	if err != nil {
-		logf("updates: %v", err)
+		logf("warn: updates: %v", err)
 		return nil
 	}
 	install := s.ModeOrDefault() == update.Auto
 	c, err := u.Run(ctx, install, now())
 	s.Last = &c
 	if serr := update.Save(d, s); serr != nil {
-		logf("updates: can't record the check: %v", serr)
+		logf("warn: updates: can't record the check: %v", serr)
 	}
 	switch {
 	case update.IsRefused(err):
-		logf("REFUSED an update from %s: %s (nothing was installed)", u.Source, c.Reason)
+		logf("error: REFUSED an update from %s: %s (nothing was installed)", u.Source, c.Reason)
 	case err != nil:
-		logf("can't check for updates, trying later: %v", err)
+		logf("warn: can't check for updates, trying later: %v", err)
 	case c.Outcome == update.Available:
 		logf("%s is available (this is %s); updates are manual: slipdock-runner update installs it", c.Latest, Version)
 	case c.Outcome == update.Installed:
