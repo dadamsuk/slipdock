@@ -190,7 +190,7 @@ defmodule SlipdockCLI.HTTP do
     host = host |> String.trim_leading("[") |> String.trim_trailing("]") |> String.downcase()
 
     cond do
-      host in ["localhost", ""] -> true
+      Enum.member?(["localhost", ""], host) -> true
       String.ends_with?(host, [".localhost", ".ts.net", ".local"]) -> true
       true -> private_ip?(:inet.parse_address(String.to_charlist(host)))
     end
@@ -309,7 +309,7 @@ defmodule SlipdockCLI.HTTP do
 
       # Anything but a 200 is not streamed: it comes back as a body.
       {:ok, {{_, status, _}, _headers, body}} ->
-        if status in 200..299,
+        if Enum.member?(200..299, status),
           do: File.write!(dest, body),
           else: {:error, status, try_decode(body)}
 
@@ -413,7 +413,7 @@ defmodule SlipdockCLI.HTTP do
             b -> try_decode(b)
           end
 
-        if status in 200..299, do: {:ok, decoded}, else: {:error, status, decoded}
+        if Enum.member?(200..299, status), do: {:ok, decoded}, else: {:error, status, decoded}
 
       {:error, reason} ->
         {:error, :connect, reason}

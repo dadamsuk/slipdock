@@ -211,7 +211,7 @@ defmodule SlipdockWeb.MCP.Plug do
 
     {:ok,
      %{
-       protocolVersion: if(requested in @versions, do: requested, else: @latest),
+       protocolVersion: if(Enum.member?(@versions, requested), do: requested, else: @latest),
        capabilities: %{
          tools: %{listChanged: false},
          prompts: %{listChanged: false},

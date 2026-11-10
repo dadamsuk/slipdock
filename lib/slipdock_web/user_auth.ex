@@ -141,7 +141,7 @@ defmodule SlipdockWeb.UserAuth do
   def require_token_write(conn, _opts) do
     read_only? = match?(%{scope: "read"}, conn.assigns[:api_token])
 
-    if read_only? and conn.method not in ~w(GET HEAD) do
+    if read_only? and not Enum.member?(~w(GET HEAD), conn.method) do
       conn
       |> put_status(:forbidden)
       |> json(%{
