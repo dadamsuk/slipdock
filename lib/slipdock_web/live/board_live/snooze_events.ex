@@ -140,7 +140,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
 
         {:noreply,
          socket
-         |> assign(snoozing: nil, selected: MapSet.new())
+         |> assign(snoozing: nil, selected: MapSet.new(), select_anchor: nil)
          |> reload_board()
          |> put_flash(if(failed == [], do: :info, else: :error), message)}
     end

@@ -59,8 +59,20 @@ first.
 
 **Select** in the board view's toolbar turns on select mode. Clicking a card
 then picks it out — a ring and a tick — instead of opening it; clicking it
-again lets go. A bar along the bottom counts what is picked out and changes
-all of it in one go:
+again lets go. To pick out many at once:
+
+- **Shift-click** a card to pick every card from the last one you clicked to
+  this one, in the order the board shows them: down a list, then across to
+  the next. Cards already picked out stay picked. With nothing clicked yet,
+  or when the last card clicked is no longer shown (a filter hides it), a
+  shift-click picks just the one card. **Clear**, **Done** and every change
+  from the bar start afresh.
+- **The tick in a list's header** picks every card the list shows; pressed
+  again, once they are all picked, it lets them all go. Cards the filters
+  hide, snoozed cards and stand-ins are left out.
+
+A bar along the bottom counts what is picked out and changes all of it in
+one go:
 
 - **Complete**, **Reopen**, **Assign me**, **Unassign**, **Archive** and
   **Delete** (which asks first: it cannot be undone).

@@ -476,6 +476,12 @@ defmodule SlipdockWeb.HelpLive.Guides do
           <strong>Favourites</strong>: heart a board, list, card or saved view to keep it two
           taps away.
         </li>
+        <li id="help-select-mode">
+          <strong>Select</strong> in the board's toolbar picks out cards to change all at once:
+          click a card to pick it, <kbd class="kbd kbd-xs">Shift</kbd>-click another to pick
+          every card between the two (down a list, then across), or press the tick in a list's
+          header to pick every card it shows (again to let them go).
+        </li>
         <li>
           On a phone, the board becomes one list at a time, with navigation and quick add in thumb reach.
         </li>

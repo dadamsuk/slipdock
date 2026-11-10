@@ -34,7 +34,16 @@ defmodule SlipdockWeb.BoardLive.Show do
   }
 
   alias SlipdockWeb.Params
-  alias SlipdockWeb.BoardLive.{DisplayPrefs, Keyboard, Sharing, SnoozeEvents, ViewEvents}
+
+  alias SlipdockWeb.BoardLive.{
+    DisplayPrefs,
+    Keyboard,
+    Selection,
+    Sharing,
+    SnoozeEvents,
+    ViewEvents
+  }
+
   alias Slipdock.Swimlanes.Config
 
   @empty_filters Slipdock.Filters.empty()
@@ -68,7 +77,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
     swim_toggle_row swim_start_add swim_cancel_add outline_add_sub outline_page toggle_select_mode
-    clear_selection display_restore) ++
+    clear_selection select_list display_restore) ++
                  SnoozeEvents.read_events()
 
   # Events only the board owner may perform.
@@ -187,6 +196,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       # it, and `bulk_bar/1` changes every card picked out at once.
       select_mode: false,
       selected: MapSet.new(),
+      select_anchor: nil,
       # The reader's timezone: a snoozed card's day is theirs (W-1803).
       zone: Slipdock.Timezones.of(socket.assigns.current_user),
       bulk_destinations: [],
@@ -1071,10 +1081,15 @@ defmodule SlipdockWeb.BoardLive.Show do
      end)}
   end
 
-  def handle_event("open_card", %{"id" => id}, %{assigns: %{select_mode: true}} = socket) do
+  # A shift-click (the `shift` the click metadata in `app.js` adds) picks a
+  # run of cards from the last one clicked (#2690, `Selection.pick/5`).
+  def handle_event("open_card", %{"id" => id} = params, %{assigns: %{select_mode: true}} = socket) do
     case load_card(socket.assigns.board, Params.id(id)) do
       {:ok, %Card{stand_in_for_id: nil} = card} ->
-        {:noreply, update(socket, :selected, &toggle_member(&1, card.id))}
+        %{selected: selected, select_anchor: anchor, columns: columns} = socket.assigns
+        shift? = Enum.member?([true, "true"], params["shift"])
+        {selected, anchor} = Selection.pick(selected, anchor, columns, card.id, shift?)
+        {:noreply, assign(socket, selected: selected, select_anchor: anchor)}
 
       _ ->
         {:noreply, socket}
@@ -1145,7 +1160,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   ## Events: select mode -------------------------------------------------------
 
   def handle_event("toggle_select_mode", _, %{assigns: %{select_mode: true}} = socket),
-    do: {:noreply, assign(socket, select_mode: false, selected: MapSet.new())}
+    do: {:noreply, assign(socket, select_mode: false, selected: MapSet.new(), select_anchor: nil)}
 
   def handle_event("toggle_select_mode", _, socket) do
     %{current_user: user, board: board, can_write: can_write} = socket.assigns
@@ -1155,6 +1170,7 @@ defmodule SlipdockWeb.BoardLive.Show do
        assign(socket,
          select_mode: true,
          selected: MapSet.new(),
+         select_anchor: nil,
          bulk_destinations: BulkEdit.destinations(user, board)
        )}
     else
@@ -1163,7 +1179,16 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("clear_selection", _, socket),
-    do: {:noreply, assign(socket, selected: MapSet.new())}
+    do: {:noreply, assign(socket, selected: MapSet.new(), select_anchor: nil)}
+
+  # The list header's select-all (#2690): the cards the list shows, all in
+  # or all out.
+  def handle_event("select_list", %{"id" => id}, %{assigns: %{select_mode: true}} = socket) do
+    %{selected: selected, columns: columns} = socket.assigns
+    {:noreply, assign(socket, selected: Selection.toggle_list(selected, columns, Params.id(id)))}
+  end
+
+  def handle_event("select_list", _, socket), do: {:noreply, socket}
 
   def handle_event("bulk_apply", %{"action" => text}, socket) do
     %{current_user: user, board: board, selected: selected} = socket.assigns
@@ -1175,7 +1200,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
         {:noreply,
          socket
-         |> assign(selected: MapSet.new())
+         |> assign(selected: MapSet.new(), select_anchor: nil)
          |> reload_board()
          |> put_flash(kind, BulkEdit.describe(result, verb))}
 
@@ -1207,9 +1232,6 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   # What may be shared from here, by whom: a saved view, by the board's owner.
   # (The board is shared from its settings panel, a card from its own.)
-  defp toggle_member(set, id),
-    do: if(MapSet.member?(set, id), do: MapSet.delete(set, id), else: MapSet.put(set, id))
-
   defp share_target(%{assigns: %{can_manage: true, swim_view: %{} = view}}, "view"),
     do: {:ok, view}
 

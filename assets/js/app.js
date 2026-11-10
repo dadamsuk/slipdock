@@ -1639,6 +1639,11 @@ const liveSocket = new LiveSocket("/live", Socket, {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   }),
   hooks: {...colocatedHooks, ...Hooks},
+  // A shift-click says so, so select mode can pick a run of cards from the
+  // last one clicked (#2690). Merged into every click's values, JS.push's too.
+  metadata: {
+    click: (e) => (e.shiftKey ? {shift: true} : {}),
+  },
   // A re-render carries the server's "18 min ago" from when it rendered; the
   // relative-time ticker gives it the time now before it is patched in (#2025).
   dom: {
