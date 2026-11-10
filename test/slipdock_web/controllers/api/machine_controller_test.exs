@@ -116,6 +116,14 @@ defmodule SlipdockWeb.API.MachineControllerTest do
   end
 
   describe "enrolling by one-time key" do
+    test "the key's label names the machine (#2666)", ctx do
+      {:ok, key, _} = Machines.create_enrolment_key(ctx.user, [ctx.board.id], "Silverbox")
+      body = Map.put(@about, "enrolment_key", key)
+
+      assert %{"machine" => %{"name" => "Silverbox", "hostname" => "build-box"}} =
+               anon() |> post(~p"/api/machines/enrol/token", body) |> json_response(200)
+    end
+
     test "the key enrols once", ctx do
       {:ok, key, _} = Machines.create_enrolment_key(ctx.user, [ctx.board.id])
       body = Map.put(@about, "enrolment_key", key)
@@ -315,6 +323,40 @@ defmodule SlipdockWeb.API.MachineControllerTest do
       ctx.conn |> get(~p"/api/machines/not-an-id") |> json_response(404)
     end
 
+    test "its owner renames it; a blank name, a member and a stranger are refused", ctx do
+      {_, machine} = enrolled(ctx)
+
+      assert %{"machine" => %{"name" => "Silverbox", "hostname" => "build-box"}} =
+               ctx.conn
+               |> patch(~p"/api/machines/#{machine.id}", %{name: " Silverbox "})
+               |> json_response(200)
+
+      assert Repo.get!(Machine, machine.id).name == "Silverbox"
+
+      assert %{"error" => "give the machine a name"} =
+               ctx.conn
+               |> patch(~p"/api/machines/#{machine.id}", %{name: "  "})
+               |> json_response(422)
+
+      assert %{"error" => "give the machine a name"} =
+               ctx.conn |> patch(~p"/api/machines/#{machine.id}", %{}) |> json_response(422)
+
+      member = user_fixture("member@example.com")
+      {:ok, _} = Slipdock.Access.grant(ctx.board, member, "write", ctx.user)
+
+      assert %{"error" => "only the machine's owner changes it" <> _} =
+               member
+               |> conn_as()
+               |> patch(~p"/api/machines/#{machine.id}", %{name: "mine now"})
+               |> json_response(403)
+
+      conn_as(user_fixture("stranger@example.com"))
+      |> patch(~p"/api/machines/#{machine.id}", %{name: "mine now"})
+      |> json_response(404)
+
+      assert Repo.get!(Machine, machine.id).name == "Silverbox"
+    end
+
     test "an enrolment key is shown once, for boards the caller can reach", ctx do
       assert %{"enrolment_key" => "sde_" <> _, "boards" => [b], "valid_hours" => 24} =
                ctx.conn
@@ -346,6 +388,7 @@ defmodule SlipdockWeb.API.MachineControllerTest do
             &get(&1, ~p"/api/machines"),
             &get(&1, ~p"/api/machines/#{machine.id}"),
             &post(&1, ~p"/api/machines/enrolment-keys", %{boards: [ctx.board.id]}),
+            &patch(&1, ~p"/api/machines/#{machine.id}", %{name: "x"}),
             &delete(&1, ~p"/api/machines/#{machine.id}")
           ] do
         assert %{"error" => "this API token is limited to some boards" <> _} =
@@ -353,6 +396,7 @@ defmodule SlipdockWeb.API.MachineControllerTest do
       end
 
       refute Machine.revoked?(Repo.get!(Machine, machine.id))
+      assert Repo.get!(Machine, machine.id).name == "build-box"
     end
 
     test "a read-only token may list but not revoke or make keys", ctx do
@@ -362,12 +406,14 @@ defmodule SlipdockWeb.API.MachineControllerTest do
 
       conn |> get(~p"/api/machines") |> json_response(200)
       conn |> delete(~p"/api/machines/#{machine.id}") |> json_response(403)
+      conn |> patch(~p"/api/machines/#{machine.id}", %{name: "x"}) |> json_response(403)
 
       conn
       |> post(~p"/api/machines/enrolment-keys", %{boards: [ctx.board.id]})
       |> json_response(403)
 
       refute Machine.revoked?(Repo.get!(Machine, machine.id))
+      assert Repo.get!(Machine, machine.id).name == "build-box"
     end
   end
 

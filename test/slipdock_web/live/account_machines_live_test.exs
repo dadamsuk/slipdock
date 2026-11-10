@@ -159,6 +159,12 @@ defmodule SlipdockWeb.AccountMachinesLiveTest do
                "slipdock-runner init --key sde_"
 
       assert render(view) =~ "Unused: ci"
+      assert has_element?(view, "input[name=label][placeholder*='Machine name']")
+
+      # The name given is the name the machine enrols under (#2666).
+      [key] = Regex.run(~r/sde_[A-Za-z0-9_-]+/, render(view))
+      {:ok, {_, machine}} = Machines.enrol_with_key(key, @about)
+      assert machine.name == "ci"
 
       view |> element("button", "Done") |> render_click()
       refute has_element?(view, "#new-enrolment-key")

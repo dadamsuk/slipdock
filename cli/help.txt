@@ -1075,6 +1075,8 @@ WRITE
   machine show <id>                              one machine: hostname, OS, fingerprint, boards,
                                                  its ceiling, runners and their probes,
                                                  refusals and changes
+  machine rename <id> <name>                     rename a machine: the name the pages and the
+                                                 board show (its hostname stays)
   machine revoke <id>                            revoke a machine: its key stops working at once
   machine update <id>                            ask its daemon to look for a newer signed
                                                  release now
@@ -1104,9 +1106,11 @@ WRITE
                                                  to: hostname, system, fingerprint, where it asked
   machine approve <code> <board>...              approve it, to serve those boards; you own it
   machine refuse <code>                          refuse it; the machine is told
-  machine enrol-key <board>... [--label L]       a one-time key (24 hours) for
+  machine enrol-key <board>... [--label NAME]    a one-time key (24 hours) for
                                                  `slipdock-runner init --key`, on a machine with
-                                                 nobody at its screen; shown once
+                                                 nobody at its screen; shown once. --label is
+                                                 the name the machine enrols under (else its
+                                                 hostname)
   claim-job <board> --pool P                     take the next queued job as this session (prints
                                                  "nothing queued" when there is none, or why
                                                  work is held: paused, WIP full…)

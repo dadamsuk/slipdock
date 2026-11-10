@@ -326,6 +326,28 @@ defmodule SlipdockWeb.MachinesLiveTest do
       refute has_element?(view, "#machine-setup")
     end
 
+    test "renames the machine; a blank name is refused and changes nothing (#2666)", ctx do
+      {:ok, view, _html} = page(ctx)
+      refute has_element?(view, "#machine-rename", "hostname")
+
+      view |> form("#machine-rename", %{machine: %{name: "Silverbox"}}) |> render_submit()
+      assert Repo.get!(Machine, ctx.machine.id).name == "Silverbox"
+      assert has_element?(view, "#machine-notice", "the machine is now Silverbox")
+      assert has_element?(view, "h1", "Silverbox")
+      assert has_element?(view, "#machine-rename", "hostname build-box")
+
+      assert has_element?(
+               view,
+               "#machine-rename.field-row input#machine-rename-name[value=Silverbox]"
+             )
+
+      assert page_title(view) =~ "Silverbox"
+
+      view |> form("#machine-rename", %{machine: %{name: "   "}}) |> render_submit()
+      assert has_element?(view, "#machine-notice", "give the machine a name")
+      assert Repo.get!(Machine, ctx.machine.id).name == "Silverbox"
+    end
+
     test "update now and revoke", ctx do
       {:ok, view, _html} = page(ctx)
 
@@ -455,6 +477,10 @@ defmodule SlipdockWeb.MachinesLiveTest do
       refute has_element?(view, "#machine-add-runner")
       refute has_element?(view, "#machine-update-now")
       refute has_element?(view, "#machine-revoke")
+      refute has_element?(view, "#machine-rename")
+      # A forged rename is refused too.
+      render_hook(view, "rename", %{"name" => "theirs now"})
+      assert Repo.get!(Machine, ctx.machine.id).name == "build-box"
       refute has_element?(view, "#machine-runner-#{runner.id} button")
       # Only the runners of boards they're on: not the owner's other work.
       refute has_element?(view, "#machine-runner-#{hidden.id}")

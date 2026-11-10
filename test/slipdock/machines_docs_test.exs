@@ -22,6 +22,8 @@ defmodule Slipdock.MachinesDocsTest do
             "POST /api/machines/enrolment-keys",
             "GET /api/machine",
             "DELETE /api/machines/:id",
+            "PATCH /api/machines/:id",
+            "the name the machine enrols under",
             "/api/machines/enrolment/approve",
             "sdm_",
             "Not over MCP",
@@ -96,6 +98,15 @@ defmodule Slipdock.MachinesDocsTest do
     assert help =~ ~s(id="help-machine-page")
     assert help =~ ~s(id="help-scenario-daemon")
     assert read("cli/help.txt") =~ "machine add-runner <id> <board> --pool P --dir D"
+    # A key's label names the machine, and a machine can be renamed (#2666).
+    assert read("cli/help.txt") =~ "machine rename <id> <name>"
+
+    assert read("cli/help.txt") =~
+             "--label is\n" <> String.duplicate(" ", 49) <> "the name the machine enrols under"
+
+    assert manual =~ "slipdock machine rename"
+    assert manual =~ "the name the machine enrols under"
+    assert help =~ "rename the machine"
   end
 
   test "the probe is written up everywhere a reader looks (#2580)" do

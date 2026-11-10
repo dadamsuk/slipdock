@@ -210,7 +210,8 @@ defmodule SlipdockWeb.AccountLive.MachinesComponent do
             <input
               type="text"
               name="label"
-              placeholder="Label (e.g. build server)"
+              placeholder="Machine name (default: its hostname)"
+              aria-label="The name the machine enrols under; without one, its hostname"
               class="input field min-w-40 flex-1"
               autocomplete="off"
             />

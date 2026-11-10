@@ -37,6 +37,7 @@ defmodule SlipdockWeb.API.MachineController do
               :index,
               :show,
               :create_key,
+              :rename,
               :revoke,
               :enrolment,
               :approve,
@@ -471,6 +472,19 @@ defmodule SlipdockWeb.API.MachineController do
 
       {:error, :invalid, message} ->
         conn |> put_status(:unprocessable_entity) |> json(%{error: message})
+    end
+  end
+
+  @doc """
+  PATCH /api/machines/:id — rename it (#2666): `name`, what the pages, the
+  CLI and the board show. The hostname it reported is kept as it was.
+  """
+  def rename(conn, %{"id" => id} = params) do
+    with {:ok, machine} <- fetch(conn, id) do
+      case Machines.rename_machine(machine, params["name"]) do
+        {:ok, machine} -> json(conn, %{machine: MachineJSON.machine(machine)})
+        {:error, :invalid, message} -> unprocessable(conn, message)
+      end
     end
   end
 

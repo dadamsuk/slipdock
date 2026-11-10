@@ -549,7 +549,8 @@ slipdock machine pause-runner|resume-runner|rm-runner <id> <runner>
 slipdock machine probe <id> <runner> [--wait]  # it checks its setup: green, or red with its log
 slipdock machine update <id>                  # its daemon looks for a newer signed release now
 slipdock machine revoke <id>                  # its key stops working at once
-slipdock machine enrol-key <board>... [--label L]  # one-time key for `slipdock-runner init --key`
+slipdock machine enrol-key <board>... [--label NAME]  # one-time key for `slipdock-runner init --key`; NAME names the machine (else its hostname)
+slipdock machine rename <id> <name>           # what the pages show; the hostname stays
 slipdock machine setup-prompt <id>            # the *Set up this machine with Claude* prompt, to paste into Claude Code on it
 slipdock jobs <board> [--status open|queued|running|done|failed|cancelled|timeout]
 slipdock jobs --card ID                       # one card's jobs
