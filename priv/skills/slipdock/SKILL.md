@@ -380,8 +380,8 @@ slipdock garden <board> [--run] [--check K]   # tidy-up suggestions, grouped, wi
                                        # --run looks the board (and its sub-boards) over first
 slipdock garden apply <id>... [--keep CARD] [--choice NAME]   # apply only what the user approved
 slipdock garden dismiss|undo <id>...     # a dismissal is remembered until its subject changes
-slipdock garden apply|dismiss|undo <id> --confirm   # a proposal, decided by the person from Claude Code
-                                       # (their say-so; a runner job's confirm is refused)
+                                       # a proposal: the person decides it on the board's Tidy-up
+                                       # page (the listing links it); the CLI is refused (#2668)
 slipdock garden settings <board> [<check> key=value...]   # checks on/off, thresholds (days=30)
 slipdock health <board> [--run]           # work the health monitor found stuck: fixed, or flagged stuck
                                        # for a person; ends with the scheduler's and monitor's pulse
@@ -390,8 +390,8 @@ slipdock overseer <board> [--on|--off] [--pool P] [--min-minutes N] [--max-minut
                                        # conditions (looping, waiting while idle, slow, idle capacity, no way
                                        # forward) with why and what to do, its last digest, next pass; owner sets it
 slipdock findings <board> [--status S] [--kind K] [--days N] [--card ID]   # first the proposals drafted
-                                       # from findings that await a person (decide with garden apply|dismiss <id>,
-                                       # from Claude Code with --confirm), then what cards taught and the
+                                       # from findings that await a person (decided on the board's Tidy-up
+                                       # page, which it links), then what cards taught and the
                                        # system saw go wrong, open first
 slipdock finding <id> promote|dismiss|reopen [--note "W-12 §Tests"]   # triage one; promote once it is in the handbook
 slipdock finding <id> merge --into ID    # fold a repeat into another, adding its count
@@ -795,9 +795,9 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
   suggestions and apply only the ones they say yes to (`slipdock garden apply 41 42`; a duplicate
   needs `--keep <the card that stays>`; `--choice snooze` takes an alternative). Dismiss only when
   they say no — a dismissal is remembered. `slipdock garden undo 41` puts an applied one back.
-  A proposed handbook edit is the person's: when they decide one from Claude Code, add `--confirm`
-  (`slipdock garden apply 45 --confirm`) for what they said, and only then. A runner job's confirm
-  is refused, so in a runner job leave a proposal for the person.
+  A proposed handbook edit is the person's, and a proposal is decided on the board's Tidy-up page
+  (`/boards/<id>/tidy`, signed in) and nowhere else: the CLI and `garden_decide` are refused with
+  the page's link, so give the person that link and leave the proposal to them.
 - "Break #12 into steps" → `slipdock templates`, `slipdock subboard 12 --template Simple`, then
   `slipdock add <sub-board-id> First step`
 - "What's overdue?" → `slipdock cards 1 --open --json` and compare `due_date` with today.

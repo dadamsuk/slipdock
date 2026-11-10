@@ -808,9 +808,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         <.link navigate={~p"/help/tools"} class="link">Tools</.link>
         (<code>list_tools</code>, <code>install_tool</code>); the board's tidy-up suggestions
         (<code>garden</code>, and <code>garden_decide</code>
-        for the ones the person approves; from Claude Code a person deciding a proposed
-        handbook edit adds <code>--confirm</code>, <code>slipdock garden apply &lt;id&gt; --confirm</code>,
-        and a runner job's confirm is refused); a board's pulse and whether it is paused
+        for the ones the person approves; a proposed handbook edit is decided only on
+        the board's Tidy-up page, signed in, and <code>garden_decide</code>
+        and the CLI are refused with its link); a board's pulse and whether it is paused
         (<code>get_board</code>); and taking runner jobs. The tools go through the same
         permission checks as the API, so a connection can't do anything its token couldn't.
       </p>

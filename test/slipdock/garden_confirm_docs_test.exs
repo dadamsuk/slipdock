@@ -1,20 +1,19 @@
 defmodule Slipdock.GardenConfirmDocsTest do
   @moduledoc """
-  Since #2638 a person deciding a garden proposal from Claude Code adds
-  `--confirm`: the CLI says it is an agent there, and a bare `slipdock garden
-  apply|dismiss <id>` is refused. Every place that tells a person how to decide
-  one names it (#2661): the audit found the slipdock skill's findings line, the
-  guide's findings paragraph and the garden listing's footer giving the bare
-  command.
+  Since #2668 a garden proposal is decided on the board's Tidy-up page, signed
+  in, and nowhere else: REST, the CLI and MCP are refused with the page's link,
+  whatever `--confirm` or `confirm` they send. So no place tells a person to
+  decide one with `slipdock garden apply|dismiss|undo <id> --confirm` any more
+  (#2688), and the places #2661's audit found (the slipdock skill's findings
+  line, the guide's findings paragraph, the garden listing's footer and the
+  findings hint) point at the Tidy-up page instead.
   """
   use ExUnit.Case, async: true
 
   @root Path.expand("../..", __DIR__)
 
-  # The command as a person is told to decide a proposal with, and the text
-  # after it where `--confirm` belongs.
-  @rule ~r/garden apply\|dismiss/
-  @window 200
+  # `--confirm` near a garden decision: the route #2668 closed.
+  @rule ~r/garden (apply|dismiss|undo)[^\n]{0,80}--confirm/
 
   defp files do
     [
@@ -40,27 +39,17 @@ defmodule Slipdock.GardenConfirmDocsTest do
       else: text
   end
 
-  defp hits(file, text) do
-    for [{start, _}] <- Regex.scan(@rule, text, return: :index) do
-      passage = binary_part(text, start, min(@window, byte_size(text) - start))
-      {file, String.replace(passage, ~r/\s+/, " ")}
-    end
+  defp flat(text), do: String.replace(text, ~r/\s+/, " ")
+
+  defp confirms(file, text), do: for(_ <- Regex.scan(@rule, flat(text)), do: file)
+
+  defp confirms, do: Enum.flat_map(Enum.map(files(), &relative/1), &confirms(&1, text(&1)))
+
+  test "no place decides a proposal with --confirm" do
+    assert confirms() == [], "a proposal decided with --confirm, refused since #2668"
   end
 
-  defp hits, do: Enum.flat_map(Enum.map(files(), &relative/1), &hits(&1, text(&1)))
-
-  defp missing(hits),
-    do: for({file, passage} <- hits, not (passage =~ "--confirm"), do: {file, passage})
-
-  test "each way of deciding a proposal names --confirm for Claude Code" do
-    assert missing(hits()) == [],
-           "a proposal decided with the bare command, refused under Claude Code: " <>
-             inspect(missing(hits()))
-  end
-
-  test "the sweep reads the places the audit found" do
-    files = hits() |> Enum.map(&elem(&1, 0)) |> MapSet.new()
-
+  test "the places the audit found point at the Tidy-up page" do
     for file <- [
           "priv/skills/slipdock/SKILL.md",
           "lib/slipdock_web/api_guide.ex",
@@ -68,18 +57,26 @@ defmodule Slipdock.GardenConfirmDocsTest do
           "cli/lib/slipdock_cli/garden.ex",
           "cli/help.txt"
         ],
-        do: assert(file in files, file)
+        do: assert(flat(text(file)) =~ "the board's Tidy-up page", file)
   end
 
-  test "the garden listing's footer names --confirm beside apply and dismiss" do
-    source = File.read!(Path.join(@root, "cli/lib/slipdock_cli/garden.ex"))
-    [footer] = Regex.run(~r/" Apply: slipdock garden apply.{0,200}/s, source)
-    assert footer =~ "--confirm"
+  test "the garden listing's footer and the findings hint name the Tidy-up page" do
+    garden = File.read!(Path.join(@root, "cli/lib/slipdock_cli/garden.ex"))
+    [footer] = Regex.run(~r/" Apply: slipdock garden apply.{0,200}/s, garden)
+    assert footer =~ "proposals_footer"
+    assert garden =~ ~s|" (a proposal: on the board's Tidy-up page, \#{tidy_url(s["board_id"])})"|
+    assert garden =~ ~s|"      a person's to decide, on the board's Tidy-up page: "|
+    refute garden =~ "[--confirm]"
+
+    findings = File.read!(Path.join(@root, "cli/lib/slipdock_cli/findings.ex"))
+    assert findings =~ ~s|"  Decide each on the board's Tidy-up page: "|
+    refute findings =~ "add --confirm"
   end
 
-  test "the rule catches a bare command" do
-    bare = "first the proposals (decide with garden apply|dismiss <id>), then the rest"
-    assert [{"x", _}] = missing(hits("x", bare))
-    assert missing(hits("x", "decide with garden apply|dismiss <id> --confirm")) == []
+  test "the rule catches --confirm beside a decision, and only there" do
+    assert confirms("x", "decide with garden apply|dismiss <id> --confirm") == ["x"]
+    assert confirms("x", "slipdock garden undo 41\n --confirm") == ["x"]
+    assert confirms("x", "a proposal is decided on the board's Tidy-up page") == []
+    assert confirms("x", "`delete_card` needs `confirm: true`") == []
   end
 end

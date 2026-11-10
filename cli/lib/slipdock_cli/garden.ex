@@ -79,23 +79,29 @@ defmodule SlipdockCLI.Garden do
     out(request, o, &listing/1)
   end
 
-  def run("garden", _args, _o) do
-    fail(
-      "usage: slipdock garden <board> [--run] [--check K] | garden apply|dismiss|undo <id>... " <>
-        "[--keep CARD] [--choice NAME] [--confirm] | garden settings <board> [<check> key=value...] | " <>
-        "garden propose <board> <file.json | ->"
-    )
-  end
+  def run("garden", _args, _o), do: fail(usage())
 
   @doc false
-  # What a decision sends. `--confirm` (#2638) is the person's say-so: under
-  # Claude Code the CLI says it is an agent, and a proposed handbook edit is a
-  # person's to decide, so without it the server refuses. A runner job's
-  # `--confirm` counts for nothing.
-  def decision_body(verb, o) do
-    keep = if verb == "apply", do: %{"keep" => o[:keep], "choice" => o[:choice]}, else: %{}
-    compact(Map.put(keep, "confirm", if(o[:confirm], do: true)))
-  end
+  def usage,
+    do:
+      "usage: slipdock garden <board> [--run] [--check K] | garden apply|dismiss|undo <id>... " <>
+        "[--keep CARD] [--choice NAME] | garden settings <board> [<check> key=value...] | " <>
+        "garden propose <board> <file.json | ->"
+
+  @doc false
+  # What a decision sends. A proposed handbook edit is decided only on the
+  # board's Tidy-up page (#2668): the server refuses it here with the page's
+  # link, so there is no `--confirm` to send (#2688).
+  def decision_body("apply", o), do: compact(%{"keep" => o[:keep], "choice" => o[:choice]})
+  def decision_body(_verb, _o), do: %{}
+
+  @doc false
+  # The Tidy-up page of the board a suggestion is on, where a person decides a
+  # proposal (#2668).
+  # A suggestion without its board (a server that leaves it out) gets the
+  # server's address, from which the board is a click away.
+  def tidy_url(nil), do: HTTP.base_url()
+  def tidy_url(board_id), do: "#{HTTP.base_url()}/boards/#{board_id}/tidy"
 
   @doc false
   # Suggestion ids, `#12` or `12`.
@@ -179,8 +185,8 @@ defmodule SlipdockCLI.Garden do
         if s["person_only"],
           do:
             IO.puts(
-              "      a person's to decide: an agent can't apply or dismiss it " <>
-                "(the person, from Claude Code: --confirm)"
+              "      a person's to decide, on the board's Tidy-up page: " <>
+                tidy_url(s["board_id"])
             )
 
         if s["needs_keep"],
@@ -193,8 +199,16 @@ defmodule SlipdockCLI.Garden do
       "\n#{length(suggestions)} suggestion(s)." <>
         last_run(r["last_run"]) <>
         " Apply: slipdock garden apply <id>; dismiss: slipdock garden dismiss <id>" <>
-        " (a proposal, from Claude Code: add --confirm)"
+        proposals_footer(suggestions)
     )
+  end
+
+  # A proposal isn't decided with the CLI: its footer names the page that does.
+  defp proposals_footer(suggestions) do
+    case Enum.find(suggestions, & &1["person_only"]) do
+      nil -> ""
+      s -> " (a proposal: on the board's Tidy-up page, #{tidy_url(s["board_id"])})"
+    end
   end
 
   defp last_run(nil), do: " The board hasn't been looked over yet: --run."
