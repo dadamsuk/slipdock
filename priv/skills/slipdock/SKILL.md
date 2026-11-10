@@ -475,7 +475,12 @@ slipdock set-board <board> --ship-via pull-request         # needs --verify-work
 slipdock done <id> --pr https://github.com/o/r/pull/7 --evidence-commit <head sha>   # on such a board: the pull request the work is in and the commit it merges at (refused without it, a resubmission too)
                                        # an epic names none: its subcards merged their own, so it
                                        # completes with --evidence alone and accepting merges nothing
-slipdock done <id> --no-code "<why>" --evidence "…"   # a card that changes no code (a sweep, a handbook reconcile):
+slipdock done <id> --no-code "<why>" --evidence - <<'EOF'   # a card that changes no code (a sweep, a handbook reconcile):
+Swept the board for stale waits; nothing to merge.
+
+- 3 waits withdrawn, each with its reason on the card
+- Findings: none
+EOF
                                        # no PR, never a token one; accepting merges nothing
                                        # its CI is the full test run: run only your own tests before
                                        # pushing, and a verifier checks its checks, not the suite again

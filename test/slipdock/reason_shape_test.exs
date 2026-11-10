@@ -126,6 +126,36 @@ defmodule Slipdock.ReasonShapeTest do
       assert prompt =~ "`--evidence - <<'EOF'`"
     end
 
+    test "shows a no-code, an epic's and a spike's evidence on stdin, never one argument", ctx do
+      {:ok, board} =
+        Boards.update_board(ctx.board, %{"ship_via" => "pull_request", "profiles" => true})
+
+      doing = Enum.find(board.columns, &(&1.category == "doing"))
+      card = card_fixture(doing, %{"title" => "Ships by PR"})
+
+      no_code = Verified.no_code_note(card)
+      assert no_code =~ ~s(--no-code "<why>" --evidence - <<'EOF'`)
+      assert no_code =~ "a first line that stands alone, a blank line, a short line per point"
+
+      epic = Verified.epic_note(card)
+      assert epic =~ "slipdock done #{card.id} --suite passed --evidence - <<'EOF'`"
+      assert epic =~ "a line per subcard's PR and one for the last merged build"
+
+      spike = Verified.spike_note(card)
+      assert spike =~ ~s(prototype on card-#{card.id}" --evidence - <<'EOF'`)
+      assert spike =~ "the answer in a line, a blank line, then a line each"
+
+      # What a claimed job is shown carries them, and none as one shell argument.
+      {:ok, job} = Runners.queue(card, %{pool: "loop", kind: "claude", prompt: "Do it"})
+      prompt = Runners.claimed_prompt(job)
+      assert prompt =~ no_code
+
+      for text <- [prompt, no_code, epic, spike] do
+        refute text =~ ~s(--evidence "<)
+        refute text =~ ~s(--evidence "…")
+      end
+    end
+
     test "says nothing of evidence on a board that doesn't ask for it", ctx do
       {:ok, _} =
         Boards.update_board(ctx.board, %{"evidence_required" => false, "verify_work" => false})
@@ -143,6 +173,73 @@ defmodule Slipdock.ReasonShapeTest do
       assert text =~ "a first line that stands on its own"
       assert text =~ "`--message -`"
       assert text =~ "words on the command line lose their line breaks"
+    end
+  end
+
+  describe "a bare '-' as the reason" do
+    setup ctx do
+      card = card_fixture(ctx.doing, %{"title" => "Dashed"})
+      {:ok, work} = Runners.queue(card, %{pool: "loop", kind: "claude", prompt: "Do it"})
+      %Job{} = Runners.claim(ctx.builder)
+
+      {:ok, card} =
+        Boards.update_card(
+          card,
+          %{"completed" => true, "evidence" => "ran it", "evidence_commit" => "abc1234"},
+          actor: agent(ctx, work.id)
+        )
+
+      {:ok, _} = Runners.finish(ctx.builder, work.id, %{status: "done"})
+      %{card: card, verify: Runners.claim(ctx.verifier)}
+    end
+
+    test "is refused from an agent, and the card stays pending", ctx do
+      for decision <- ~w(reject accept), reason <- ["-", " -\n"] do
+        assert {:error, :unprocessable_entity, message} =
+                 Verified.decide(
+                   Repo.get!(Card, ctx.card.id),
+                   decision,
+                   %{"reason" => reason, "checks" => ["bar:1=fail:none"]},
+                   agent(ctx, ctx.verify.id),
+                   ctx.owner
+                 )
+
+        assert message =~ "the reason was a bare '-'"
+        assert message =~ "the piped reason never arrived"
+      end
+
+      card = Repo.get!(Card, ctx.card.id)
+      assert card.verify_state == "pending"
+      assert card.verify_note == nil
+    end
+
+    test "a person is never refused, dash or not", ctx do
+      assert {:ok, card} =
+               Verified.decide(
+                 Repo.get!(Card, ctx.card.id),
+                 "reject",
+                 %{"reason" => "-"},
+                 Actor.web(ctx.owner),
+                 ctx.owner
+               )
+
+      assert card.verify_state == "rejected"
+      assert card.verify_note == "-"
+    end
+
+    test "an agent's reason of lines that begin with a dash is kept", ctx do
+      reason = "- bar 1: no test\n- bar 2: no docs"
+
+      assert {:ok, card} =
+               Verified.decide(
+                 Repo.get!(Card, ctx.card.id),
+                 "reject",
+                 %{"reason" => reason, "checks" => ["bar:1=fail:none"]},
+                 agent(ctx, ctx.verify.id),
+                 ctx.owner
+               )
+
+      assert card.verify_note == reason
     end
   end
 
@@ -181,6 +278,20 @@ defmodule Slipdock.ReasonShapeTest do
     - `Foo.run/1` matches only a non-empty list
     - no test passes []
     """
+
+    test "a bare '-' is refused, and no rework card is filed", ctx do
+      assert {:error, :unprocessable_entity, message} =
+               Verified.decide(
+                 Repo.get!(Card, ctx.card.id),
+                 "disagree",
+                 %{"reason" => "-", "checks" => ["bar:1=fail:none"]},
+                 ctx.auditor,
+                 ctx.owner
+               )
+
+      assert message =~ "the reason was a bare '-'"
+      refute Repo.exists?(from(c in Card, where: like(c.title, "Audit of #%")))
+    end
 
     test "keeps its line breaks in the comment and the rework card, titled by its first line",
          ctx do

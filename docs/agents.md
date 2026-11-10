@@ -1007,8 +1007,10 @@ line per point; the parts go in their fields (`--check`, `--evidence-commit`,
 descriptions keep a single line break, so the shape survives as written, but
 words on the command line lose their breaks: send it on stdin with a quoted
 heredoc (`--reason -`, `--evidence -`, `--message -`, `--body -`), or as an
-MCP field. The verify and audit prompts, the claimed job's prompt and the
-skills ask for it:
+MCP field. An agent's reason that arrives as a bare `-` (a CLI that doesn't
+read stdin sends the dash itself) is refused, as dashed evidence is, so the
+piped text is never lost behind it. The verify and audit prompts, the
+claimed job's prompt and the skills ask for it:
 
 ```sh
 slipdock verify 12 reject --check bar:2=fail:"no test" --reason - <<'EOF'
@@ -1108,10 +1110,12 @@ pull request, never the default branch, and complete with its URL
 and head commit (`slipdock done --pr URL --evidence-commit SHA`; a PR
 without its commit is refused, on a resubmission too). An epic there names none of its own: its subcards
 each ship and merge theirs, and once they are all merged the epic completes
-with `slipdock done --evidence "…"` and no `--pr`, and is accepted with
+with `slipdock done --evidence -` (the evidence on stdin, as lines: a line
+per subcard's pull request and the last merged build) and no `--pr`, and is accepted with
 nothing to merge. A card that changes no code (a sweep, a handbook
 reconcile, a read-and-file card) has no pull request either, and never a
-token one: it completes with `slipdock done --no-code "<why>"`
+token one: it completes with `slipdock done --no-code "<why>" --evidence -`
+(what was done, on stdin as lines)
 (`complete_card` `no_code`), and accepting it merges nothing. The claimed job's prompt and the card itself
 (`get_card`'s `shipping`) say so, so a runner needs no setup for it, and
 a machine's runners have a built-in `merge` kind that merges the accepted

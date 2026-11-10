@@ -147,10 +147,12 @@ whole card before touching it.
   resubmission too: the PR merges at it). Accepting
   the card merges it; don't merge it yourself. An epic names no PR: its
   subcards merged their own, so once they all have, complete it with
-  `slipdock done <id> --evidence "…"` and no `--pr`, and accepting it
-  merges nothing. A card that changes no code (a sweep, a handbook
+  `slipdock done <id> --evidence -` (the evidence on stdin, as lines: a
+  line per subcard's PR and the last merged build) and no `--pr`, and
+  accepting it merges nothing. A card that changes no code (a sweep, a handbook
   reconcile) has no PR either, never a token one: complete it with
-  `slipdock done <id> --no-code "<why>" --evidence "…"`. A failed merge sends the
+  `slipdock done <id> --no-code "<why>" --evidence -` (what you did, on
+  stdin as lines, not a paragraph). A failed merge sends the
   card back rejected with the reason: rebase the branch and submit again.
   A PR already merged at the accepted commit completes the card with that
   merge commit; one merged at another head leaves it merging, says which

@@ -53,6 +53,34 @@ defmodule SlipdockWeb.ReasonShapeDocsTest do
     refute cli =~ ~s(reject --reason "bar 2: …")
   end
 
+  test "no skill, help or agents-page example passes evidence as one shell argument" do
+    for path <-
+          Path.wildcard(Path.join(@root, "priv/skills/*/SKILL.md")) ++
+            [Path.join(@root, "docs/agents.md"), Path.join(@root, "cli/help.txt")],
+        text = File.read!(path),
+        flat = flat(text) do
+      refute flat =~ ~r/--evidence ["<]/u,
+             "#{Path.relative_to(path, @root)} shows --evidence \"…\""
+    end
+
+    loop = "priv/skills/slipdock-loop/SKILL.md" |> read() |> flat()
+    # An epic's, a no-code card's and a spike's completion, each on stdin.
+    assert loop =~ "done <id> --evidence - <<'EOF'`, then the evidence as lines"
+    assert loop =~ ~s(--no-code "<why>" --evidence - <<'EOF'`, then what you did as lines)
+    assert loop =~ ~s(prototype on card-<id>" --evidence - <<'EOF'`, then the evidence as lines)
+
+    work = "priv/skills/slipdock-work/SKILL.md" |> read() |> flat()
+    assert work =~ "`slipdock done <id> --evidence -` (the evidence on stdin, as lines"
+    assert work =~ ~s(--no-code "<why>" --evidence -` \(what you did, on stdin as lines)
+
+    cli = read("priv/skills/slipdock/SKILL.md")
+    assert cli =~ ~s(slipdock done <id> --no-code "<why>" --evidence - <<'EOF')
+
+    agents = "docs/agents.md" |> read() |> flat()
+    assert agents =~ "`slipdock done --evidence -` (the evidence on stdin, as lines"
+    assert agents =~ ~s(--no-code "<why>" --evidence -` \(what was done, on stdin as lines)
+  end
+
   test "the CLI's help asks for the shape on verify, done, comment, job-progress and handoff" do
     help = read("cli/help.txt")
     flat = flat(help)
@@ -81,6 +109,10 @@ defmodule SlipdockWeb.ReasonShapeDocsTest do
              "--reason - <<'EOF'\nbar 2: the export drops archived cards\n\n- `Export.run/1`"
 
     assert flat =~ "titled `Audit of #<id>: <the reason's first line>`"
+    assert flat =~ "An agent's reason that arrives as a bare `-`"
+    assert flat =~ "is refused, as dashed evidence is"
+
+    assert flat(read("cli/help.txt")) =~ "an agent's reason that arrives as a bare - is refused"
   end
 
   test "the MCP tools ask for the shape in the fields an agent writes onto a card", %{conn: conn} do

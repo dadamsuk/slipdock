@@ -729,7 +729,9 @@ WRITE
                                       completes it (on a pull request board, queues the
                                       merge), reject needs the reason; not a card you
                                       submitted (--evidence-commit: what you checked at;
-                                      --reason - reads the reason from stdin).
+                                      --reason - reads the reason from stdin; an
+                                      agent's reason that arrives as a bare - is
+                                      refused, since the piped text never came).
                                       The reason is lines, not a paragraph: a first line
                                       that stands alone (an audit's becomes its rework
                                       card's title), a blank line, one short line per

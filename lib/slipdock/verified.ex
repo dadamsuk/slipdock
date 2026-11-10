@@ -954,7 +954,7 @@ defmodule Slipdock.Verified do
     - Build the prototype on the branch `#{branch}` and push it (`git push -u origin #{branch}`) so the evidence can point at it. Never push the default branch and never open a pull request; close any you opened.
     - Spend one sitting on it. An answer of *inconclusive*, with what was learned, is a finished spike; a guess is not.
     - Write the answer as a wiki page and pin it to the epic (`slipdock page new <board> "Spike: <the question>" --card <epic id>`): the question, the answer (or *inconclusive*), the evidence (numbers, logs, the branch and commit; not claims), and what the answer changes in the plan. Put a `Findings:` block in the closing comment with it.
-    - Complete it with why there is nothing to merge: `slipdock done #{id} --no-code "spike: answer on W-…, prototype on #{branch}" --evidence "<the answer in a line, the evidence, the page>"` (complete_card `no_code`). A pull request named on a spike is refused, and accepting it merges nothing.\
+    - Complete it with why there is nothing to merge: `slipdock done #{id} --no-code "spike: answer on W-…, prototype on #{branch}" --evidence - <<'EOF'`, then the evidence as lines (the answer in a line, a blank line, then a line each for the evidence and the page), then `EOF` (complete_card `no_code` and `evidence`). A pull request named on a spike is refused, and accepting it merges nothing.\
     """
   end
 
@@ -986,7 +986,7 @@ defmodule Slipdock.Verified do
   """
   def no_code_note(%Card{id: id}) do
     "- If the card changes no code (a sweep, a handbook reconcile, a card that only reads and files), there is no branch and no pull request, and never a token one: " <>
-      "complete it with why instead, `slipdock done #{id} --no-code \"<why>\" --evidence \"<what you did>\"` (complete_card `no_code`). " <>
+      "complete it with why instead, `slipdock done #{id} --no-code \"<why>\" --evidence - <<'EOF'`, then what you did as lines (a first line that stands alone, a blank line, a short line per point), then `EOF` (complete_card `no_code` and `evidence`). " <>
       "Accepting it then completes it with nothing to merge."
   end
 
@@ -1000,7 +1000,7 @@ defmodule Slipdock.Verified do
   def epic_note(%Card{id: id}) do
     "- This card is an epic: each subcard ships its own pull request on its own branch. " <>
       "Once every subcard is accepted and merged, complete the epic without `--pr`: " <>
-      "`slipdock done #{id} --evidence \"<the subcards' PRs and the last merged build>\" --suite passed`. " <>
+      "`slipdock done #{id} --suite passed --evidence - <<'EOF'`, then the evidence as lines (a first line that stands alone, a blank line, a line per subcard's PR and one for the last merged build), then `EOF`. " <>
       "Accepting it then completes it with nothing to merge. " <>
       "Only work done on the epic itself, after its subcards, goes on `card-#{id}` with a pull request of its own, named with `--pr`."
   end
@@ -1064,6 +1064,21 @@ defmodule Slipdock.Verified do
       true ->
         {attrs, []}
     end
+  end
+
+  # A bare `-` as the reason (#2692): `--reason -` from a client that doesn't
+  # read stdin (or was given none), so the piped reason never arrived and the
+  # card would show a dash. Refused for agents, as a dashed evidence is
+  # (#2091); a person is never refused.
+  @dash_reason_message "the reason was a bare '-': a client that doesn't read stdin sends " <>
+                         "the dash itself, so the piped reason never arrived. Pipe it with " <>
+                         "--reason - from a slipdock CLI that reads stdin (update it from the " <>
+                         "server), or pass the text itself (--reason \"…\", verify_card reason)"
+
+  defp reason_arrived(reason, actor) do
+    if gated?(actor) and dash?(reason),
+      do: {:error, :unprocessable_entity, @dash_reason_message},
+      else: :ok
   end
 
   @doc """
@@ -1147,7 +1162,8 @@ defmodule Slipdock.Verified do
   defp verdict(card, decision, params, reason, actor) do
     alias Slipdock.Verified.Checks
 
-    with {:ok, given} <- checks_param(params),
+    with :ok <- reason_arrived(reason, actor),
+         {:ok, given} <- checks_param(params),
          from_reason = given == %{} and decision == "reject",
          checks = if(from_reason, do: Checks.from_reason(reason), else: given),
          {:ok, checks} <- carry_previous(card, checks) do
@@ -2542,6 +2558,7 @@ defmodule Slipdock.Verified do
   # job on the card, or a person; never from whoever accepted it.
   defp audit_decision(card, decision, params, reason, actor, user) do
     with :ok <- may_audit(card, actor),
+         :ok <- reason_arrived(reason, actor),
          {:ok, checks} <- checks_param(params) do
       checks =
         checks |> Slipdock.Verified.Checks.with_severity(handbook_rules(card)) |> empty_nil()

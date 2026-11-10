@@ -923,14 +923,18 @@ With one on, the pass changes like this:
   it. **An epic** has no pull
   request of its own: each subcard ships and merges its own. Once they are
   all accepted and merged, complete the epic without `--pr` (`slipdock
-  done <id> --evidence "<the subcards' PRs, the last merged build>"`);
+  done <id> --evidence - <<'EOF'`, then the evidence as lines: a first
+  line that stands alone, a blank line, a line per subcard's PR and one
+  for the last merged build, then `EOF`);
   accepting it completes it with nothing to merge. Never name a subcard's
   merged PR, and never open a token PR to have one: only work done on the
   epic itself gets `card-<id>` and a `--pr`. **A card that changes no
   code** (a sweep, a handbook reconcile, a card that only reads and
   files) has no branch and no PR either, and never a token one: complete
-  it with `slipdock done <id> --no-code "<why>" --evidence "<what you
-  did>"` (`complete_card` `no_code`), and accepting it merges nothing.
+  it with `slipdock done <id> --no-code "<why>" --evidence - <<'EOF'`,
+  then what you did as lines (a first line that stands alone, a blank
+  line, a short line per point), then `EOF` (`complete_card` `no_code`
+  and `evidence`), and accepting it merges nothing.
   A merge that fails sends the
   card back rejected, the merge's reason as the rejection: rebase
   `card-<id>` on the default branch, push, and complete it again. A PR
@@ -955,7 +959,9 @@ With one on, the pass changes like this:
   answer or *inconclusive*, the evidence (numbers, logs, the branch and
   commit, not claims) and what the answer changes in the plan. Then
   complete it with `slipdock done <id> --no-code "spike: answer on W-…,
-  prototype on card-<id>" --evidence "…"`, with the `Findings:` block:
+  prototype on card-<id>" --evidence - <<'EOF'`, then the evidence as
+  lines (the answer in a line, a blank line, a line each for the evidence
+  and the page, then the `Findings:` block, a finding per line), then `EOF`:
   naming a PR is refused, and accepting it merges nothing. *Inconclusive,
   with what was learned* is a finished spike; a guess is not. A spike
   holds no lane, so it needs no paths. When the last spike under an epic
