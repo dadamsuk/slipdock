@@ -823,6 +823,15 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                       <.icon name="hero-plus" class="size-4" /> Add card
                     </button>
                   </li>
+                  <li :if={@can_write}>
+                    <button
+                      id={"select-all-list-#{column.id}"}
+                      phx-click="select_all_in_list"
+                      phx-value-id={column.id}
+                    >
+                      <.icon name="hero-check-circle" class="size-4" /> Select all
+                    </button>
+                  </li>
                   <li>
                     <button
                       id={"favourite-list-#{column.id}"}

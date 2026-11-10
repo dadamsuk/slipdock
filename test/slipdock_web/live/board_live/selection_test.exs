@@ -95,6 +95,25 @@ defmodule SlipdockWeb.BoardLive.SelectionTest do
     end
   end
 
+  describe "add_list/3 (#2702)" do
+    test "adds every card the list shows, and keeps the rest" do
+      assert Selection.add_list(set([4]), columns(), 1) == set([1, 2, 3, 4])
+    end
+
+    test "never takes cards out, even when they are all selected already" do
+      assert Selection.add_list(set([1, 2, 3, 4]), columns(), 1) == set([1, 2, 3, 4])
+    end
+
+    test "never picks a stand-in or a page" do
+      assert Selection.add_list(set([]), columns(), 2) == set([4, 5])
+    end
+
+    test "an empty list or one not on the board changes nothing" do
+      assert Selection.add_list(set([1]), columns(), 3) == set([1])
+      assert Selection.add_list(set([1]), columns(), 42) == set([1])
+    end
+  end
+
   test "all_selected?/2" do
     [one, two, empty] = columns()
     assert Selection.all_selected?(set([1, 2, 3]), one)

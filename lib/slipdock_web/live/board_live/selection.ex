@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.BoardLive.Selection do
   @moduledoc """
   Select mode's picking (#592, #2690): one card at a time, a run of them
-  with shift-click, or a whole list from its header.
+  with shift-click, or a whole list from its header or its ⋯ menu (#2702).
 
   Everything here works on the board as it is drawn: `columns` is the
   board's `@columns` (`SlipdockWeb.BoardLive.State`), each with its `groups`
@@ -61,6 +61,18 @@ defmodule SlipdockWeb.BoardLive.Selection do
       MapSet.subset?(ids, selected) -> MapSet.difference(selected, ids)
       true -> MapSet.union(selected, ids)
     end
+  end
+
+  @doc """
+  The list menu's Select all (#2702): every card list `column_id` shows is
+  added, and nothing is taken out.
+  """
+  def add_list(selected, columns, column_id) do
+    columns
+    |> Enum.find(&(&1.column.id == column_id))
+    |> list_ids()
+    |> MapSet.new()
+    |> MapSet.union(selected)
   end
 
   @doc """

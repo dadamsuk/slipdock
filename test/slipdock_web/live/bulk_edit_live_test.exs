@@ -334,4 +334,68 @@ defmodule SlipdockWeb.BulkEditLiveTest do
           do: refute(Repo.get(Card, card.id).archived_at)
     end
   end
+
+  describe "Select all in a list's menu (#2702)" do
+    defp select_all(view, column),
+      do: view |> element("#select-all-list-#{column.id}") |> render_click()
+
+    test "turns select mode on with every card in the list selected", ctx do
+      other = card_fixture(ctx.backlog, %{"title" => "Other"})
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      refute has_element?(view, "#bulk-bar")
+
+      select_all(view, ctx.todo)
+      assert has_element?(view, "#bulk-bar")
+      assert has_element?(view, "#select-mode-toggle[aria-pressed=true]")
+      assert has_element?(view, "#bulk-count", "3 selected")
+      assert selected?(view, ctx.a) and selected?(view, ctx.b) and selected?(view, ctx.c)
+      refute selected?(view, other)
+      assert has_element?(view, "#select-list-#{ctx.todo.id}[aria-pressed=true]")
+
+      # A bulk action then acts on them.
+      render_click(view, "bulk_apply", %{"action" => "archive"})
+      for card <- [ctx.a, ctx.b, ctx.c], do: assert(Repo.get(Card, card.id).archived_at)
+      refute Repo.get(Card, other.id).archived_at
+    end
+
+    test "in select mode, adds the list and keeps what is picked", ctx do
+      other = card_fixture(ctx.backlog, %{"title" => "Other"})
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      select_mode(view)
+      click_card(view, other)
+
+      select_all(view, ctx.todo)
+      assert has_element?(view, "#bulk-count", "4 selected")
+      assert selected?(view, other)
+
+      # Chosen again it only selects: nothing is let go.
+      select_all(view, ctx.todo)
+      assert has_element?(view, "#bulk-count", "4 selected")
+    end
+
+    test "an empty list turns select mode on with nothing picked", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      select_all(view, ctx.backlog)
+      assert has_element?(view, "#select-mode-toggle[aria-pressed=true]")
+      refute selected?(view, ctx.a)
+    end
+
+    test "a read-only reader gets no item and is refused", ctx do
+      owner = user_fixture("owner@example.com")
+      board = board_fixture(%{}, owner: owner)
+      [column | _] = board.columns
+      card = card_fixture(column)
+      share_fixture(board, ctx.user, "read")
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{board}")
+      assert has_element?(view, "#card-view-list-#{column.id}")
+      refute has_element?(view, "#select-all-list-#{column.id}")
+
+      assert render_click(view, "select_all_in_list", %{"id" => to_string(column.id)}) =~
+               "read-only"
+
+      refute has_element?(view, "#bulk-bar")
+      refute selected?(view, card)
+    end
+  end
 end
