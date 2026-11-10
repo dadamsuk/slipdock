@@ -200,7 +200,7 @@ defmodule Slipdock.Access do
 
     hide = fn
       deps when is_list(deps) ->
-        Enum.map(deps, fn d -> if d.id in readable, do: d, else: hidden_stub(d) end)
+        Enum.map(deps, fn d -> if Enum.member?(readable, d.id), do: d, else: hidden_stub(d) end)
 
       other ->
         other
@@ -425,7 +425,7 @@ defmodule Slipdock.Access do
     case Map.get(token, :scope_boards) || [] do
       [] -> true
       _ids when is_nil(board_id) -> false
-      ids -> board_id in ids or root_of(board_id) in ids
+      ids -> Enum.member?(ids, board_id) or Enum.member?(ids, root_of(board_id))
     end
   end
 
@@ -866,7 +866,7 @@ defmodule Slipdock.Access do
     card_ids =
       user
       |> shared_cards()
-      |> Enum.reject(&(&1.board_id in board_ids))
+      |> Enum.reject(&Enum.member?(board_ids, &1.board_id))
       |> Enum.map(& &1.id)
 
     %{board_ids: board_ids ++ boards_beneath(card_ids), card_ids: card_ids}

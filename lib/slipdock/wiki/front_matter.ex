@@ -173,7 +173,7 @@ defmodule Slipdock.Wiki.FrontMatter do
   def keys(yaml), do: yaml |> blocks() |> Enum.map(& &1.key) |> Enum.reject(&is_nil/1)
 
   @doc "Whether `key` is set at the top level of `yaml`."
-  def has_key?(yaml, key) when is_binary(yaml), do: key in keys(yaml)
+  def has_key?(yaml, key) when is_binary(yaml), do: Enum.member?(keys(yaml), key)
   def has_key?(_, _key), do: false
 
   ## Reading values -----------------------------------------------------------
@@ -362,7 +362,7 @@ defmodule Slipdock.Wiki.FrontMatter do
         not String.contains?(value, [": ", " #", "\n", "\t"]) and
         not String.ends_with?(value, ":") and
         not String.starts_with?(value, ~w(- ? : , [ ] { } # & * ! | > ' " % @ `)) and
-        String.downcase(value) not in ~w(true false yes no on off null ~)
+        not Enum.member?(~w(true false yes no on off null ~), String.downcase(value))
 
     if plain?,
       do: value,

@@ -670,7 +670,7 @@ defmodule SlipdockWeb.API.JSON do
       # The last decision's verdict in parts (#1778).
       verify_checks: c.verify_checks,
       # The paths its work touches (#1628), when it declares any.
-      paths: if(c.paths not in [nil, []], do: c.paths),
+      paths: if(not Enum.member?([nil, []], c.paths), do: c.paths),
       # An incident (#1946): the card that caused it and the check that
       # missed it, when it says.
       caused_by: c.caused_by_id,

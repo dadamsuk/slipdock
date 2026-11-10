@@ -190,7 +190,7 @@ defmodule Slipdock.Blueprint do
         {:error,
          "lists[#{i}] “#{name}”: role must be one of #{Enum.join(Map.keys(@roles), ", ")}"}
 
-      category && category not in Column.category_keys() ->
+      category && not Enum.member?(Column.category_keys(), category) ->
         {:error,
          "lists[#{i}] “#{name}”: category must be one of #{Enum.join(Column.category_keys(), ", ")}"}
 
@@ -315,7 +315,7 @@ defmodule Slipdock.Blueprint do
       String.length(name) > 30 ->
         {:error, "tags[#{i}] “#{name}”: tags are at most 30 characters"}
 
-      color && color not in Slipdock.Palette.names() ->
+      color && not Enum.member?(Slipdock.Palette.names(), color) ->
         {:error, "tags[#{i}] “#{name}”: unknown colour #{color}"}
 
       true ->

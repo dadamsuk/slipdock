@@ -45,7 +45,7 @@ defmodule Slipdock.Timezones do
 
   @doc "`all/0`, with `current` in it even when it is a link rather than a canonical name."
   def options(current) do
-    if current in @zones, do: @zones, else: Enum.sort([current | @zones])
+    if Enum.member?(@zones, current), do: @zones, else: Enum.sort([current | @zones])
   end
 
   @doc "Whether `name` is a zone the database knows (canonical or a link)."
