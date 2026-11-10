@@ -1073,8 +1073,10 @@ files the rework itself: one card in the board's ready list, titled `Audit of
 comment's link, the accepted card's paths, `caused_by` the accepted card (an
 incident of it), priority `high` for a surviving mutant or a broken `must`
 rule (else `medium`). The alert for the board's owner and the `audit` finding
-name it. A second disagreement while that card is open comments on it rather
-than filing another; an agreement files nothing.
+name it, and the alert clears itself once that card is accepted or completed.
+A second disagreement while that card is open comments on it rather than
+filing another (its alert clears with the same card); an agreement files
+nothing.
 A machine's runner takes `verify` jobs with its own agent, on the server's
 prompt, without the standing instructions, so a runner can check another
 runner's work. Deciding is `verify_card` or `slipdock

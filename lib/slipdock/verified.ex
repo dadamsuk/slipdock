@@ -659,6 +659,9 @@ defmodule Slipdock.Verified do
     # The epic's last spike answered: planning can resume (#2350).
     Slipdock.Spikes.answered(before, updated)
 
+    # An audit's rework done: the alerts that named it come down (#2691).
+    if finished_now?(before, updated), do: clear_audit_alerts(updated)
+
     evidence_comment(before, updated, user)
     if unverified?, do: accept_unverified(updated, user)
 
@@ -666,6 +669,11 @@ defmodule Slipdock.Verified do
   end
 
   defp accepted?(%Card{verify_state: state}), do: Enum.member?(~w(accepted merging), state)
+
+  defp finished_now?(before, updated),
+    do:
+      (updated.completed and not before.completed) or
+        (accepted?(updated) and not accepted?(before))
 
   # The evidence as a comment, once, when the card is completed or submitted.
   defp evidence_comment(before, updated, user) do
@@ -2553,6 +2561,10 @@ defmodule Slipdock.Verified do
     end
   end
 
+  # An audit alert's title, and what its body says of the rework (#2691).
+  @audit_alert_lead "An audit disagrees with the acceptance of #"
+  @clears_line " This alert clears itself once the rework is accepted or completed."
+
   defp record_audit(card, decision, reason, checks, actor, user) do
     by = who(actor, user)
     agrees = decision == "agree"
@@ -2571,7 +2583,7 @@ defmodule Slipdock.Verified do
       Slipdock.Findings.Signals.audit_disagreed(card, reason, actor, rework)
       root = card |> board() |> Slipdock.Handbook.root()
 
-      title = "An audit disagrees with the acceptance of ##{card.id}"
+      title = "#{@audit_alert_lead}#{card.id}"
 
       body =
         "#{by} audited “#{card.title}”, accepted by #{who(card.verify_by)}: " <>
@@ -2733,12 +2745,42 @@ defmodule Slipdock.Verified do
     end
   end
 
-  defp rework_line({:filed, rework}), do: "\nRework filed: ##{rework.id} “#{rework.title}”."
+  defp rework_line({:filed, rework}),
+    do: "\nRework filed: ##{rework.id} “#{rework.title}”." <> @clears_line
 
   defp rework_line({:commented, rework}),
-    do: "\nRework already open: ##{rework.id} “#{rework.title}” (commented)."
+    do: "\nRework already open: ##{rework.id} “#{rework.title}” (commented)." <> @clears_line
 
   defp rework_line(nil), do: ""
+
+  @doc """
+  Takes down the audit alerts that name `rework` (#2691), once it is
+  accepted or completed: the alert each disagreement raised about the card
+  it reworks, whether it filed the rework or commented on it (`Rework
+  filed: #R` / `Rework already open: #R` in its body). An alert for another
+  rework of the same card, one whose rework couldn't be filed, a rule's
+  alert, and any card that isn't an audit's rework are left alone. One the owner dismissed
+  already goes too, unseen. Returns how many went.
+  """
+  def clear_audit_alerts(%Card{id: id, caused_by_id: cause}) when is_integer(cause) do
+    title = "#{@audit_alert_lead}#{cause}"
+    filed = "%\nRework filed: ##{id} “%"
+    open = "%\nRework already open: ##{id} “%"
+
+    ids =
+      Repo.all(
+        from a in Slipdock.Automations.Alert,
+          where: a.card_id == ^cause and a.title == ^title,
+          where: is_nil(a.rule_id) and is_nil(a.user_id),
+          where: like(a.body, ^filed) or like(a.body, ^open),
+          select: a.id
+      )
+
+    Enum.each(ids, &Slipdock.Automations.delete_alert/1)
+    length(ids)
+  end
+
+  def clear_audit_alerts(%Card{}), do: 0
 
   ## Verify jobs ---------------------------------------------------------------
 
