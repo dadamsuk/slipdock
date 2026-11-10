@@ -13,7 +13,9 @@ defmodule Slipdock.Credo.InOutsideGuard do
       a module that uses it loses its coverage (handbook W-1950 §Tests).
 
       Guards (`when x in [...]`, `defguard`) and Ecto queries (`from p in
-      Post`, `where: p.id in ^ids`) need `in`, and are left alone.
+      Post`, `where: p.id in ^ids`) need `in`, and are left alone. So is a
+      rescue clause's `e in [File.Error] ->`, which matches the exception's
+      struct and is no membership test.
       """
     ]
 
@@ -42,10 +44,20 @@ defmodule Slipdock.Credo.InOutsideGuard do
        when name in @query_macros and is_list(args),
        do: {:skipped, ctx}
 
+  # A try's or a function body's rescue clauses: `e in [Mod] ->` and `e in Mod ->`
+  # match the exception's struct. Walk each clause's body, never that head.
+  defp walk({:rescue, clauses}, ctx) when is_list(clauses),
+    do: {{:rescue, Enum.map(clauses, &drop_rescue_in/1)}, ctx}
+
   defp walk({:in, meta, [_left, _right]} = ast, ctx),
     do: {ast, put_issue(ctx, issue_for(ctx, meta))}
 
   defp walk(ast, ctx), do: {ast, ctx}
+
+  defp drop_rescue_in({:->, meta, [[{:in, _, [left, _mods]}], body]}),
+    do: {:->, meta, [[left], body]}
+
+  defp drop_rescue_in(clause), do: clause
 
   defp issue_for(ctx, meta) do
     format_issue(ctx,
