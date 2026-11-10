@@ -55,6 +55,37 @@ defmodule SlipdockCLI.HTTPTest do
     end
   end
 
+  describe "a download" do
+    setup do
+      System.put_env("SLIPDOCK_TOKEN", "t")
+      :ok
+    end
+
+    test "a refusal is the error a request would give, and writes no file", %{home: home} do
+      serve([{404, ~s({"error":"not found"})}])
+      dest = Path.join(home, "missing.bin")
+
+      assert {:error, 404, %{"error" => "not found"}} = HTTP.download("/attachments/9", dest)
+      refute File.exists?(dest)
+    end
+
+    test "a 2xx that isn't streamed is written from its body", %{home: home} do
+      serve([{201, "data"}])
+      dest = Path.join(home, "file.bin")
+
+      assert :ok = HTTP.download("/attachments/9", dest)
+      assert File.read!(dest) == "data"
+    end
+
+    test "a status just outside 2xx is an error", %{home: home} do
+      serve([{300, "{}"}])
+      dest = Path.join(home, "moved.bin")
+
+      assert {:error, 300, %{}} = HTTP.download("/attachments/9", dest)
+      refute File.exists?(dest)
+    end
+  end
+
   describe "home, on Windows too" do
     test "with no HOME, the config goes under USERPROFILE, not the current folder", %{home: home} do
       System.delete_env("HOME")
