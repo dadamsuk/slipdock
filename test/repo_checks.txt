@@ -93,6 +93,7 @@ test/slipdock_web/tool_links_docs_test.exs
 test/slipdock_web/transfer_links_docs_test.exs
 test/slipdock_web/verified_docs_test.exs
 test/slipdock_web/audit_rework_docs_test.exs
+test/slipdock_web/docs_places_docs_test.exs
 test/slipdock_web/every_instance_docs_test.exs
 test/slipdock_web/verified_merge_docs_test.exs
 test/slipdock_web/verify_by_ci_docs_test.exs
@@ -155,3 +156,4 @@ except test/slipdock_web/shared_paths_web_test.exs: docs/manual.md there is a gl
 except test/slipdock/lanes_advise_test.exs: its docs/manual.md is a lane glob held as data; it reads no file
 except test/slipdock_web/runner_scripts_retired_test.exs: docs/manual/machines.md there is the pointer the 410 body gives, held as data; it reads no file
 except test/slipdock/overseer_watch_test.exs: its docs/ paths are lane globs held as data; it reads no file
+except test/slipdock/verified_docs_places_test.exs: its docs and skills paths are the prompt's places, held as data; it reads no file

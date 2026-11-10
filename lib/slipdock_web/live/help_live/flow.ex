@@ -565,7 +565,12 @@ defmodule SlipdockWeb.HelpLive.Flow do
       pre-existing and kept as a finding, never a rejection); and is the Handbook line honest. A
       rejection names every instance found: once a rule is broken, the verifier looks for every
       other instance of the same break (the same list, the same string, the same door) and lists
-      them all under that one rule, each with its file and line, so one round fixes them all. With
+      them all under that one rule, each with its file and line, so one round fixes them all. The
+      rule that a change is written up everywhere a reader would look (<code>SPEC-10</code>)
+      is checked by enumeration: for a card in its scope the verifier greps the names the diff
+      introduces or alters across the seven places and gives each one updated, deferred to a card
+      whose bar names that place, not applicable with why, or missing, and one missing is the rule
+      broken. With
       profiles on, a <code>docs</code>
       card gets no verifier (the server accepts it on its suite), and a <code>schema</code>
       or <code>security</code>

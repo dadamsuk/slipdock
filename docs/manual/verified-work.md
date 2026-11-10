@@ -265,7 +265,22 @@ matching open rule proposal (an `edit_section` on that page's `## Rules`,
 listed by `slipdock garden B --check proposal`): the verifier judges what the
 proposal says, not the live rules, and names its id when it accepts, and a
 rejection never asks the builder to edit `## Rules`, only to file or correct
-the proposal. An audit judges it the same way. It also asks the agent to say where it is at each
+the proposal. **SPEC-10 is checked by enumeration, not judged.** For a
+card whose paths fall in the scope of the handbook's `SPEC-10` (a change
+written up everywhere a reader would look), the prompt adds a step after the
+rules: take the names the change introduces or alters from the diff
+(commands, flags, MCP tool names, API fields, settings, page and section
+names), grep them across the seven places (`README.md`, the manual, the
+app's help in `HelpLive.Guides`, the agents' help in `HelpLive.Agents` and
+`HelpLive.Flow` with `cli/help.txt`, `docs/agents.md`, the API guide and
+`priv/skills/`), and give each place one result: *updated*, *deferred to
+#N* (only when card #N's bar names that place), *n/a* with why, or
+*missing*. One missing is `--check rule:SPEC-10=broken:<file>:<name>`; a
+deferral to a card whose bar doesn't name the place counts as missing. The
+builder's claimed prompt gives it the same enumeration, and tells it to
+list each place its lane can't reach on the deferral card's bar. A card
+outside the scope, or a handbook with no `SPEC-10`, gets neither. An audit
+judges it the same way. It also asks the agent to say where it is at each
 step with `slipdock job-progress --step "…"` (checked out the commit, tests
 running, tests passed or failed with counts, judging against the bar, the
 decision), and never with a note: the steps show against the job on the

@@ -1877,6 +1877,7 @@ defmodule Slipdock.Runners do
         job.prompt
     end
     |> with_paths(job)
+    |> with_docs_places(job)
     |> with_lane_advice(job)
     |> with_rejection(job)
     |> with_shipping(job)
@@ -1928,6 +1929,19 @@ defmodule Slipdock.Runners do
 
       _ ->
         prompt
+    end
+  end
+
+  # The docs places (#2694): a card whose paths fall in SPEC-10's scope is
+  # told the enumeration its verifier runs, and that a place it leaves out
+  # goes on the deferral card's bar by name.
+  defp with_docs_places(prompt, %Job{card_id: card_id}) do
+    with %Card{paths: [_ | _]} = card <-
+           Repo.one(from(c in Card, where: c.id == ^card_id, preload: :board)),
+         :in <- Slipdock.Verified.docs_places_scope(card, Slipdock.Handbook.find(card.board)) do
+      (prompt || "") <> "\n\n" <> Slipdock.Verified.docs_places_builder()
+    else
+      _ -> prompt
     end
   end
 
