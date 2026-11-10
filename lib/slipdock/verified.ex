@@ -391,7 +391,7 @@ defmodule Slipdock.Verified do
   def reopen_message(_card, _actor), do: nil
 
   defp check_reopen(card, attrs, actor) do
-    with true <- fetch(attrs, :completed) in [false, "false"],
+    with true <- Enum.member?([false, "false"], fetch(attrs, :completed)),
          message when is_binary(message) <- reopen_message(card, actor) do
       {:error, :completed, "is refused: " <> message}
     else
@@ -656,7 +656,7 @@ defmodule Slipdock.Verified do
   # Reopened on a board that asks for evidence: what it carried was for the
   # completion that is being undone (and was kept as a comment then).
   defp clear_evidence(%Card{completed: true} = card, attrs) do
-    if fetch(attrs, :completed) in [false, "false"] and evidence?(card) and
+    if Enum.member?([false, "false"], fetch(attrs, :completed)) and evidence?(card) and
          board(card).evidence_required,
        do: attrs |> stringify() |> Map.merge(no_evidence()),
        else: attrs
@@ -757,7 +757,7 @@ defmodule Slipdock.Verified do
       labelled("Pull request", card.evidence_pr),
       labelled("No code", card.evidence_no_code),
       suite && "Suite: #{suite_text(suite)}",
-      card.evidence_tests not in [nil, []] &&
+      not Enum.member?([nil, []], card.evidence_tests) &&
         "Tests:\n" <> Enum.map_join(card.evidence_tests, "\n", &"- `#{&1}`")
     ]
     |> Enum.filter(&(is_binary(&1) and &1 != ""))
@@ -868,7 +868,9 @@ defmodule Slipdock.Verified do
   defp changed_files(none) when none in [:none, nil], do: []
   defp changed_files(_), do: :invalid
 
-  defp completes?(%Card{completed: false}, attrs), do: fetch(attrs, :completed) in [true, "true"]
+  defp completes?(%Card{completed: false}, attrs),
+    do: Enum.member?([true, "true"], fetch(attrs, :completed))
+
   defp completes?(_card, _attrs), do: false
 
   # What `attrs` set `key` to, else what the card already has.
@@ -899,7 +901,7 @@ defmodule Slipdock.Verified do
         do: Enum.uniq(mine ++ added) -- (before -- now),
         else: mine -- (added ++ (before -- now))
 
-    ids = Enum.filter(ids, &(&1 in now))
+    ids = Enum.filter(ids, &Enum.member?(now, &1))
 
     if Enum.sort(ids) != Enum.sort(mine) do
       import Ecto.Query
@@ -1141,7 +1143,7 @@ defmodule Slipdock.Verified do
       decision == "merged" ->
         merged_by_hand(card, commit, actor, user)
 
-      decision not in ~w(accept reject) ->
+      not Enum.member?(~w(accept reject), decision) ->
         {:error, :unprocessable_entity,
          "decision must be accept, reject or merged (agree or disagree for an audit)"}
 
@@ -1155,7 +1157,7 @@ defmodule Slipdock.Verified do
       decision == "reject" and reason == "" ->
         {:error, :unprocessable_entity, "a rejection needs its reason"}
 
-      commit != "" and card.evidence_commit not in [nil, ""] and
+      commit != "" and not Enum.member?([nil, ""], card.evidence_commit) and
           not commit_matches?(commit, card.evidence_commit) ->
         {:error, :unprocessable_entity,
          "the evidence is for commit #{card.evidence_commit}: verify the work at that commit"}
@@ -2048,10 +2050,10 @@ defmodule Slipdock.Verified do
     decider = Enum.find(capable, &(&1.id == opts[:decider]))
 
     cond do
-      builder_pool && builder_pool in idle -> builder_pool
+      builder_pool && Enum.member?(idle, builder_pool) -> builder_pool
       idle != [] -> hd(idle)
       decider -> decider.pool
-      builder_pool && builder_pool in pools -> builder_pool
+      builder_pool && Enum.member?(pools, builder_pool) -> builder_pool
       true -> List.first(pools)
     end
   end
@@ -2414,7 +2416,7 @@ defmodule Slipdock.Verified do
   defp unassign_agents(%Card{agent_assignee_ids: [_ | _] = ids} = card, actor, user) do
     on = Slipdock.Boards.assignee_ids(card)
 
-    case Enum.filter(ids, &(&1 in on)) do
+    case Enum.filter(ids, &Enum.member?(on, &1)) do
       [] ->
         card
 
@@ -3806,7 +3808,7 @@ defmodule Slipdock.Verified do
   end
 
   defp comment(card, line, note, user) do
-    body = if note in [nil, ""], do: line, else: "#{line}\n\n#{note}"
+    body = if Enum.member?([nil, ""], note), do: line, else: "#{line}\n\n#{note}"
     Slipdock.Boards.add_comment(card, body, by: user)
   end
 

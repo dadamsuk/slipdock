@@ -161,7 +161,7 @@ defmodule Slipdock.Lanes do
   def tidy(paths) when is_list(paths) do
     paths
     |> Enum.map(&(&1 |> to_string() |> String.trim() |> String.replace_prefix("./", "")))
-    |> Enum.reject(&(&1 in ["", "."]))
+    |> Enum.reject(&Enum.member?(["", "."], &1))
     |> Enum.uniq()
   end
 
@@ -312,7 +312,7 @@ defmodule Slipdock.Lanes do
   # A glob's segments, with everything under it covered: `lib/foo` is
   # `lib/foo/**`. Empty segments (`a//b`, a trailing /) are dropped.
   defp segments(glob) do
-    segs = glob |> String.split("/") |> Enum.reject(&(&1 in ["", "."]))
+    segs = glob |> String.split("/") |> Enum.reject(&Enum.member?(["", "."], &1))
     if List.last(segs) == "**", do: segs, else: segs ++ ["**"]
   end
 
@@ -544,7 +544,8 @@ defmodule Slipdock.Lanes do
     )
     |> Repo.all()
     |> Enum.reject(
-      &(Card.blocked?(&1) or Enum.any?(&1.flags, fn f -> f in ["blocked", "waiting"] end))
+      &(Card.blocked?(&1) or
+          Enum.any?(&1.flags, fn f -> Enum.member?(["blocked", "waiting"], f) end))
     )
   end
 

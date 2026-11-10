@@ -70,7 +70,7 @@ defmodule Slipdock.Deployments.Setup do
     pattern_check = Board.changeset(%Board{}, %{"card_ref_pattern" => pattern})
 
     cond do
-      a["ci"] not in @cis ->
+      not Enum.member?(@cis, a["ci"]) ->
         {:error, "ci must be one of: #{Enum.join(@cis, ", ")}"}
 
       envs == [] ->
@@ -233,7 +233,7 @@ defmodule Slipdock.Deployments.Setup do
     envs = Enum.join(a["environments"], ", ")
 
     pattern =
-      if a["card_ref_pattern"] in [nil, ""],
+      if Enum.member?([nil, ""], a["card_ref_pattern"]),
         do: "#123",
         else: "the regex #{a["card_ref_pattern"]}"
 

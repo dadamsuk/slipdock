@@ -90,6 +90,30 @@ defmodule Slipdock.Runners.ParkedTest do
       assert Runners.claim(ctx.runner).card_id == ctx.b.id
     end
 
+    test "a card that has lost its waiting flag gets it back, once", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      ask(ctx, job)
+
+      # The wait is still open, but the flag it set has been taken off.
+      {:ok, _} = Boards.update_card(card(ctx.a), %{"flags" => []}, wait_hook: false)
+      assert card(ctx.a).flags == []
+      assert Boards.current_wait(ctx.a)
+
+      assert {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
+      assert card(ctx.a).flags == ["waiting"]
+    end
+
+    test "a card already flagged waiting isn't flagged twice", ctx do
+      rule_fixture(ctx.board, spec())
+      job = take(ctx)
+      ask(ctx, job)
+      assert card(ctx.a).flags == ["waiting"]
+
+      assert {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
+      assert card(ctx.a).flags == ["waiting"]
+    end
+
     test "parks whatever the exit code", ctx do
       rule_fixture(ctx.board, spec())
       job = take(ctx)

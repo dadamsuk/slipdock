@@ -207,7 +207,7 @@ defmodule Slipdock.Runners.Setup do
   """
   def instructions(a) do
     [@verbosity_text[a["verbosity"]], a["instructions"]]
-    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.reject(&Enum.member?([nil, ""], &1))
     |> Enum.join("\n\n")
   end
 
@@ -278,7 +278,7 @@ defmodule Slipdock.Runners.Setup do
   # "Tell me when a job times out or a card is given up": a rule of its own,
   # raising an alert for the pool's jobs (see the `runner_trouble` preset).
   defp alert_rule(board, params, answers, user) do
-    if params["alert"] in ["yes", "true", true] do
+    if Enum.member?(["yes", "true", true], params["alert"]) do
       case Automations.create_rule_from_preset(
              board,
              "runner_trouble",

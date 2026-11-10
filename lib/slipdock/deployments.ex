@@ -295,7 +295,9 @@ defmodule Slipdock.Deployments do
     known = tree_cards(board, commits |> Enum.flat_map(& &1["cards"]) |> Enum.uniq())
 
     commits =
-      Enum.map(commits, fn c -> %{c | "cards" => Enum.filter(c["cards"], &(&1 in known))} end)
+      Enum.map(commits, fn c ->
+        %{c | "cards" => Enum.filter(c["cards"], &Enum.member?(known, &1))}
+      end)
 
     {commits, commits |> Enum.flat_map(& &1["cards"]) |> Enum.uniq()}
   end

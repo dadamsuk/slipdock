@@ -263,7 +263,7 @@ defmodule Slipdock.Flow do
       from_done = r.from_board_id == board_id and buckets[r.from] == :done
 
       cond do
-        r.kind in CardMove.entry_kinds() and to_done and not from_done -> n + 1
+        Enum.member?(CardMove.entry_kinds(), r.kind) and to_done and not from_done -> n + 1
         r.kind == "moved" and from_done and not to_done and r.board_id == board_id -> n - 1
         true -> n
       end
@@ -278,11 +278,11 @@ defmodule Slipdock.Flow do
     |> Enum.flat_map(&elem(&1, 1))
     |> Enum.count(fn r ->
       within?(r.at, from, to) and r.board_id == board_id and
-        buckets[r.to] in [:backlog, :ready, :doing] and
-        (r.kind in ["created", "restored"] or
+        Enum.member?([:backlog, :ready, :doing], buckets[r.to]) and
+        (Enum.member?(["created", "restored"], r.kind) or
            (r.kind == "moved" and
               (r.from_board_id != board_id or
-                 buckets[r.from] not in [:backlog, :ready, :doing, :done])))
+                 not Enum.member?([:backlog, :ready, :doing, :done], buckets[r.from]))))
     end)
   end
 

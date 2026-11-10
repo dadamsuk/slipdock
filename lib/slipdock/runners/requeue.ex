@@ -391,7 +391,7 @@ defmodule Slipdock.Runners.Requeue do
     handoff =
       case Boards.current_handoff(card.id) do
         nil -> nil
-        h -> Enum.join(Enum.reject([h.next_step, h.body], &(&1 in [nil, ""])), "\n")
+        h -> Enum.join(Enum.reject([h.next_step, h.body], &Enum.member?([nil, ""], &1)), "\n")
       end
 
     build = fn answer, handoff ->
