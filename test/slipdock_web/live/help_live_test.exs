@@ -133,6 +133,15 @@ defmodule SlipdockWeb.HelpLiveTest do
       assert has_element?(view, "#boards-fast #help-select-mode", "Shift")
       assert has_element?(view, "#help-select-mode", "every card between the two")
       assert has_element?(view, "#help-select-mode", "header to pick every card it shows")
+      assert has_element?(view, "#help-select-mode strong", "Select all")
+
+      assert has_element?(
+               view,
+               "#help-select-mode",
+               "menu turns select mode on with every card the list shows picked"
+             )
+
+      assert has_element?(view, "#help-select-mode", "never lets any go")
     end
 
     @tag :anonymous

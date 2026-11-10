@@ -77,7 +77,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
     swim_toggle_row swim_start_add swim_cancel_add outline_add_sub outline_page toggle_select_mode
-    clear_selection select_list display_restore) ++
+    clear_selection select_list select_all_in_list display_restore) ++
                  SnoozeEvents.read_events()
 
   # Events only the board owner may perform.
@@ -1163,16 +1163,8 @@ defmodule SlipdockWeb.BoardLive.Show do
     do: {:noreply, assign(socket, select_mode: false, selected: MapSet.new(), select_anchor: nil)}
 
   def handle_event("toggle_select_mode", _, socket) do
-    %{current_user: user, board: board, can_write: can_write} = socket.assigns
-
-    if can_write do
-      {:noreply,
-       assign(socket,
-         select_mode: true,
-         selected: MapSet.new(),
-         select_anchor: nil,
-         bulk_destinations: BulkEdit.destinations(user, board)
-       )}
+    if socket.assigns.can_write do
+      {:noreply, enter_select_mode(socket)}
     else
       {:noreply, put_flash(socket, :error, "You have read-only access to this board.")}
     end
@@ -1189,6 +1181,17 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("select_list", _, socket), do: {:noreply, socket}
+
+  # The list ⋯ menu's Select all (#2702): select mode on, if it wasn't,
+  # with every card the list shows added to what is already picked.
+  def handle_event("select_all_in_list", %{"id" => id}, %{assigns: %{can_write: true}} = socket) do
+    socket = if socket.assigns.select_mode, do: socket, else: enter_select_mode(socket)
+    %{selected: selected, columns: columns} = socket.assigns
+    {:noreply, assign(socket, selected: Selection.add_list(selected, columns, Params.id(id)))}
+  end
+
+  def handle_event("select_all_in_list", _, socket),
+    do: {:noreply, put_flash(socket, :error, "You have read-only access to this board.")}
 
   def handle_event("bulk_apply", %{"action" => text}, socket) do
     %{current_user: user, board: board, selected: selected} = socket.assigns
@@ -1232,6 +1235,17 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   # What may be shared from here, by whom: a saved view, by the board's owner.
   # (The board is shared from its settings panel, a card from its own.)
+  defp enter_select_mode(socket) do
+    %{current_user: user, board: board} = socket.assigns
+
+    assign(socket,
+      select_mode: true,
+      selected: MapSet.new(),
+      select_anchor: nil,
+      bulk_destinations: BulkEdit.destinations(user, board)
+    )
+  end
+
   defp share_target(%{assigns: %{can_manage: true, swim_view: %{} = view}}, "view"),
     do: {:ok, view}
 

@@ -70,6 +70,10 @@ again lets go. To pick out many at once:
 - **The tick in a list's header** picks every card the list shows; pressed
   again, once they are all picked, it lets them all go. Cards the filters
   hide, snoozed cards and stand-ins are left out.
+- **Select all** in a list's **⋯** menu does the same from outside select
+  mode: it turns select mode on with every card the list shows picked out.
+  In select mode it adds them to what is already picked, and never lets any
+  go.
 
 A bar along the bottom counts what is picked out and changes all of it in
 one go:
