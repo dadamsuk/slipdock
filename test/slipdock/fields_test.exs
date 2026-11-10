@@ -3,6 +3,7 @@ defmodule Slipdock.FieldsTest do
 
   import Slipdock.Fixtures
   alias Slipdock.{Boards, Fields, Rollup, Votes}
+  alias Slipdock.Boards.FieldDefinition
   alias Slipdock.Fields.Expression
 
   describe "expressions" do
@@ -98,6 +99,33 @@ defmodule Slipdock.FieldsTest do
                })
 
       assert %{config: _} = errors_on(cs)
+    end
+
+    test "a choice field with no options, or an empty list of them, is refused", ctx do
+      assert {:error, changeset} =
+               Fields.create_field(ctx.board, %{
+                 "name" => "Size",
+                 "kind" => "select",
+                 "options" => []
+               })
+
+      assert "a choice field needs at least one option" in errors_on(changeset).options
+
+      changeset =
+        FieldDefinition.changeset(%FieldDefinition{options: nil}, %{
+          "name" => "Size",
+          "kind" => "select"
+        })
+
+      assert "a choice field needs at least one option" in errors_on(changeset).options
+    end
+
+    test "numbers, ratings, choices and formulas are numeric; text is not" do
+      for kind <- ~w(number rating select formula) do
+        assert FieldDefinition.numeric?(%FieldDefinition{kind: kind})
+      end
+
+      refute FieldDefinition.numeric?(%FieldDefinition{kind: "text"})
     end
 
     test "presets install their inputs and formula, and formulas compute per card", ctx do

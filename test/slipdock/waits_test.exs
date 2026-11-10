@@ -288,6 +288,12 @@ defmodule Slipdock.WaitsTest do
       assert {:error, "choice must be a number from 1 to 2"} =
                Boards.answer_wait(ctx.card, dana, %{"choice" => 3})
 
+      assert {:error, "choice must be a number from 1 to 2"} =
+               Boards.answer_wait(ctx.card, dana, %{"choice" => 0})
+
+      assert {:error, "choice must be a number from 1 to 2"} =
+               Boards.answer_wait(ctx.card, dana, %{"choice" => "0"})
+
       assert {:error, "an answer needs text or a choice"} =
                Boards.answer_wait(ctx.card, dana, %{"answer" => " "})
 

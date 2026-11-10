@@ -62,6 +62,16 @@ defmodule Slipdock.SwimlanesTest do
       assert Config.from_map(map) == config
     end
 
+    test "the date axes are due date, schedule, created and updated" do
+      for axis <- ~w(due_date schedule created updated) do
+        assert Config.date_axis?(axis)
+        assert Config.uses_dates?(%Config{rows: axis, cols: "none"})
+      end
+
+      refute Config.date_axis?("tag")
+      refute Config.uses_dates?(%Config{rows: "tag", cols: "none"})
+    end
+
     test "clear_filters and active_filter_count" do
       config = %Config{q: "a", tags: [1], done: "hide", rows: "flag"}
       assert Config.active_filter_count(config) == 3
@@ -88,6 +98,22 @@ defmodule Slipdock.SwimlanesTest do
       assert Swimlanes.date_label("2026-09-01", "month", @today) == "Sep 2026"
       assert Swimlanes.date_label("2026-07-01", "quarter", @today) == "Q3 2026"
       assert Swimlanes.date_label("2026-01-01", "year", @today) == "2026"
+    end
+  end
+
+  describe "due_matches?/3" do
+    test "week takes today to 7 days on and month today to 30 days on, both ends included" do
+      due = fn days -> %{due_date: Date.add(@today, days), completed: false} end
+
+      assert Swimlanes.due_matches?("week", due.(0), @today)
+      assert Swimlanes.due_matches?("week", due.(7), @today)
+      refute Swimlanes.due_matches?("week", due.(8), @today)
+      refute Swimlanes.due_matches?("week", due.(-1), @today)
+
+      assert Swimlanes.due_matches?("month", due.(0), @today)
+      assert Swimlanes.due_matches?("month", due.(30), @today)
+      refute Swimlanes.due_matches?("month", due.(31), @today)
+      refute Swimlanes.due_matches?("month", due.(-1), @today)
     end
   end
 

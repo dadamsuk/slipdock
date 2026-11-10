@@ -179,6 +179,20 @@ defmodule Slipdock.RoadmapTest do
     end
   end
 
+  describe "the window's today marker" do
+    test "marks today on the window's first and last day, and not the day after" do
+      board = board_fixture()
+      config = %{Config.defaults("timeline") | date: "2030-01-15"}
+      %{window: window} = Timeline.build(board, config, ~D[2030-01-15])
+      last = Date.add(window.from, window.days - 1)
+
+      assert Timeline.build(board, config, window.from).window.today == 0
+      assert Timeline.build(board, config, last).window.today == window.days - 1
+      assert Timeline.build(board, config, Date.add(last, 1)).window.today == nil
+      assert Timeline.build(board, config, Date.add(window.from, -1)).window.today == nil
+    end
+  end
+
   describe "milestones" do
     test "milestones live on the root board and appear in the timeline window" do
       %{board: board, sub: sub} = tree_fixture()
