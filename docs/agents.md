@@ -1076,7 +1076,11 @@ rule (else `medium`). The alert for the board's owner and the `audit` finding
 name it, and the alert clears itself once that card is accepted or completed.
 A second disagreement while that card is open comments on it rather than
 filing another (its alert clears with the same card); an agreement files
-nothing.
+nothing. On a tree with audits on, the verify prompt carries *What audits on
+this board caught recently*: the last five audit disagreements of the last 30
+days, newest first, each the rework card's title and the parts it failed, for
+the verifier to check first (a miss whose rework was since accepted stays).
+The audit prompt never carries it.
 A machine's runner takes `verify` jobs with its own agent, on the server's
 prompt, without the standing instructions, so a runner can check another
 runner's work. Deciding is `verify_card` or `slipdock

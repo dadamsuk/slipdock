@@ -1051,7 +1051,10 @@ With one on, the pass changes like this:
   nothing on the card: a disagreement is a comment, an alert for the
   board's owner and a rework card the server files from your reason (its
   first line is the title) and failing parts, or a comment on the one
-  still open. So the reason's first line says what is wrong.
+  still open. So the reason's first line says what is wrong. A verify
+  job's prompt on that board then lists the recent misses (*What audits
+  on this board caught recently*): check those first. An audit's prompt
+  never does, so judge it afresh.
 
 ## Lanes
 

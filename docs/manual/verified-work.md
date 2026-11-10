@@ -227,6 +227,14 @@ submitted it, and **Accept** and **Reject** for anyone who can edit it.
   disagreement on the same card, while that rework card is still open,
   comments on it instead of making another, and leaves the first alert in
   place: both clear with the rework. An audit that agrees files nothing.
+  The misses feed back to the verifiers: on a tree with audits on, the
+  verify prompt carries *What audits on this board caught recently*, the
+  last five audit disagreements of the last 30 days, newest first, each the
+  rework card's title and the parts it failed (kept on the `audit`
+  finding), and tells the verifier to check those first. A miss whose
+  rework has since been accepted stays on the list: the miss is the lesson.
+  With audits off, or nothing caught, there is no block, and the audit
+  prompt never carries it, so an auditor judges afresh.
 - A decision made in a runner job on the card (the CLI sends
   `$SLIPDOCK_JOB_ID` as `x-slipdock-job`; MCP the job it claimed) is
   credited to the runner: *Accepted by runner verifier*, not the token's

@@ -625,7 +625,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
         reason, with what failed and a link to the audit, caused by the accepted card (high
         priority for a surviving mutant or a broken <em>must</em>
         rule). The alert names it and clears itself once that card is accepted or completed,
-        and a second disagreement comments on it rather than filing another.
+        and a second disagreement comments on it rather than filing another. The verify
+        prompt then lists the board's last five audit misses of the last 30 days, each its
+        rework's title and the parts it failed, for the verifier to check first; the audit
+        prompt never does.
       </li>
     </ul>
     <.person_note>
