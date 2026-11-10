@@ -14,7 +14,7 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
 
   alias Slipdock.{Actor, Automations, Boards, Repo, Runners}
   alias Slipdock.Boards.{Card, Wait}
-  alias Slipdock.Runners.Job
+  alias Slipdock.Runners.{Job, Requeue}
 
   setup do
     owner = user_fixture()
@@ -272,6 +272,124 @@ defmodule Slipdock.Runners.AnswerOneJobTest do
       # The other pool's rule on the sub-board never sent the card.
       refute Enum.any?(card_jobs(ctx.s), &(&1.rule_id == white_rule.id))
       assert Automations.next_card(white_rule, force: true) == nil
+    end
+  end
+
+  describe "the hold itself, while a parked wait is answered (#2663)" do
+    # `Automations.feed/2` answers `{:idle, :busy}` for a rule held off in
+    # this process, and anything else for one that isn't.
+    defp busy?(rule), do: Automations.feed(rule, force: true) == {:idle, :busy}
+
+    test "both feeds on the list are held for as long as the answer runs, and no longer", ctx do
+      {loop_rule, white_rule} = setup_two_feeds(ctx)
+      park(ctx)
+      wait = Repo.one!(from(w in Wait, where: w.card_id == ^ctx.a.id))
+      Repo.update_all(from(c in Card, where: c.id == ^ctx.a.id), set: [flags: []])
+
+      # Unflagged and past the cool-down, the card is the next one either
+      # feed would send: only the hold keeps them off it.
+      assert Automations.next_card(loop_rule).id == ctx.a.id
+      assert Automations.next_card(white_rule).id == ctx.a.id
+
+      assert :ran =
+               Requeue.quietly(wait, fn ->
+                 assert busy?(loop_rule)
+                 assert busy?(white_rule)
+                 assert open_card_jobs(ctx.a) == []
+                 :ran
+               end)
+
+      # Let go: the first feed to run sends the card.
+      refute busy?(loop_rule)
+      assert [%Job{rule_id: id}] = open_card_jobs(ctx.a)
+      assert id == loop_rule.id
+      refute busy?(white_rule)
+    end
+
+    test "the answer queues the job itself: no feed sent the card first", ctx do
+      {loop_rule, _white_rule} = setup_two_feeds(ctx)
+      park(ctx)
+
+      {:ok, wait} =
+        Boards.answer_wait(Boards.get_card!(ctx.a.id), Actor.web(ctx.dana), %{"choice" => 1})
+
+      # A feed let through would have queued the card with its plain prompt,
+      # and the answer would say it rewrote that job ("still queued").
+      assert [fresh] = open_card_jobs(ctx.a)
+      assert fresh.rule_id == loop_rule.id
+      assert wait.requeue_state == "queued"
+      assert wait.requeue_note == "job ##{fresh.id}"
+    end
+
+    test "a wait no job asked, or whose job's rule is gone, holds nothing", ctx do
+      {loop_rule, white_rule} = setup_two_feeds(ctx)
+      parked = park(ctx)
+      wait = Repo.one!(from(w in Wait, where: w.card_id == ^ctx.a.id))
+
+      assert :ran =
+               Requeue.quietly(%{wait | job_id: nil}, fn ->
+                 refute Process.get({:feeding, loop_rule.id})
+                 refute Process.get({:feeding, white_rule.id})
+                 :ran
+               end)
+
+      Repo.update_all(from(j in Job, where: j.id == ^parked.id), set: [rule_id: nil])
+
+      assert :ran =
+               Requeue.quietly(wait, fn ->
+                 refute Process.get({:feeding, loop_rule.id})
+                 refute Process.get({:feeding, white_rule.id})
+                 :ran
+               end)
+    end
+
+    test "a wait on a subcard, asked from the epic's job: the root board's feeds are held",
+         ctx do
+      # The asking rule and the other pool's are both on the root board,
+      # where the epic is; the question is on a card on the epic's
+      # sub-board, which has a feed of its own. The hold is found from the
+      # root of the waiting card's tree, not from the board it is on.
+      {loop_rule, white_rule} = setup_two_feeds(ctx)
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(ctx.a, t)
+      sub = Boards.get_board!(sub.id)
+      [sub_todo | _] = sub.columns
+      s = card_fixture(sub_todo, %{"title" => "s"})
+
+      sub_rule =
+        rule_fixture(sub, %{
+          "trigger" => %{"type" => "list_top", "column" => sub_todo.name},
+          "actions" => [%{"type" => "runner", "pool" => "white"}]
+        })
+
+      # A feed on another tree altogether is nobody's to hold.
+      elsewhere = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
+      other_rule = feed(elsewhere, "white")
+
+      job = Runners.claim(ctx.loop)
+      assert {job.card_id, job.rule_id} == {ctx.a.id, loop_rule.id}
+
+      {:ok, wait} =
+        Boards.open_wait(Repo.get!(Card, s.id), Actor.runner(ctx.owner, job.id), %{
+          "needs" => "Which region?",
+          "job_id" => job.id
+        })
+
+      assert Repo.get!(Card, wait.card_id).board_id == sub.id
+      assert white_rule.board_id == ctx.board.id
+
+      assert :ran =
+               Requeue.quietly(wait, fn ->
+                 assert busy?(loop_rule)
+                 assert busy?(white_rule)
+                 assert busy?(sub_rule)
+                 refute busy?(other_rule)
+                 :ran
+               end)
+
+      refute busy?(loop_rule)
+      refute busy?(white_rule)
+      refute busy?(sub_rule)
     end
   end
 
