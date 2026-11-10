@@ -63,6 +63,9 @@ defmodule Slipdock.SweepTest do
       refute card.column.category == "triage"
       assert card.description =~ "One area and one lens per run"
       assert card.description =~ "--column Triage"
+      # The description says where, why and the fix: a heredoc on stdin (#2686).
+      assert card.description =~ "--column Triage --desc - <<'EOF'"
+      assert card.description =~ "`--desc -` reads it from stdin"
       assert card.description =~ "--tag security"
       assert card.description =~ "clean tree"
 

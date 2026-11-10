@@ -427,6 +427,8 @@ defmodule Slipdock.HandbookTest do
       # A finding left open at the last triage is decided now (#2122), and counted.
       assert triage.description =~ "never left open a second time"
       assert triage.description =~ "<n> leftovers decided; <n> left open (<ids>: why)"
+      # A literal `--desc -` from an old CLI is refused (#2686): it says the stdin form.
+      assert triage.description =~ "or `--desc -` with a heredoc for more than a line"
 
       assert triage.description =~
                "Only a finding that arrived since the last triage may stay open"
