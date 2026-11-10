@@ -119,6 +119,23 @@ defmodule SlipdockCLI.GardenTest do
     assert out =~ "undid #42"
   end
 
+  # --keep and --choice are apply's: given to dismiss or undo, they aren't sent.
+  test "dismiss and undo post an empty body, whatever --keep or --choice they are given" do
+    done = JSON.encode!(%{"suggestion" => %{@dupe | "state" => "dismissed"}})
+    serve([{200, done}, {200, done}])
+
+    capture_io(fn -> Garden.run("garden", ["dismiss", "42"], keep: "1", choice: "snooze") end)
+    assert_received {:request, "POST", "/api/garden/suggestions/42/dismiss", d}
+    assert JSON.decode!(d) == %{}
+
+    capture_io(fn -> Garden.run("garden", ["undo", "42"], keep: "1", choice: "snooze") end)
+    assert_received {:request, "POST", "/api/garden/suggestions/42/undo", u}
+    assert JSON.decode!(u) == %{}
+
+    assert Garden.decision_body("dismiss", keep: "1", choice: "snooze") == %{}
+    assert Garden.decision_body("undo", keep: "1", choice: "snooze") == %{}
+  end
+
   # #2688: a proposal is decided on the Tidy-up page (#2668), so the CLI has
   # no --confirm to send: it is gone from the switches and the usage.
   test "--confirm is gone: an unknown switch, left out of the usage and of what is sent" do
