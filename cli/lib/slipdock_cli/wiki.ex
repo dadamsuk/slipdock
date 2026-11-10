@@ -287,11 +287,11 @@ defmodule SlipdockCLI.Wiki do
 
     cond do
       o[:clear] ->
-        HTTP.patch("/pages/#{enc(ref)}", %{"front_matter" => ""})
+        HTTP.patch("/pages/#{enc(ref)}", props_body("", o))
         |> out(o, &page_ok("cleared the properties of", &1))
 
       yaml ->
-        HTTP.patch("/pages/#{enc(ref)}", %{"front_matter" => yaml})
+        HTTP.patch("/pages/#{enc(ref)}", props_body(yaml, o))
         |> out(o, &page_ok("saved the properties of", &1))
 
       true ->
@@ -758,6 +758,10 @@ defmodule SlipdockCLI.Wiki do
   def run(cmd, _args, _o), do: bad_usage(cmd)
 
   ## Wiki helpers ------------------------------------------------------------
+
+  # The message is why, recorded in the page's history: a covers: change
+  # carries the card it was made for, as a page edit does.
+  defp props_body(yaml, o), do: compact(%{"front_matter" => yaml, "message" => o[:message]})
 
   # The page, and the text to work on: the body, or one section without its
   # heading line.

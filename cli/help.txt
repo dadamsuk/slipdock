@@ -254,10 +254,11 @@ WIKI  (Markdown pages on a board: how it works, what was decided and why.
                                       and inline #tags), with counts.
                                       page ls <board> --note-tag T lists the notes tagged T
                                       or anything under it (T/sub)
-  page props <page> [--body TEXT | --file F | --clear]
+  page props <page> [--body TEXT | --file F | --clear] [--message M]
                                       the front matter its file came with, kept exactly as
                                       written; with --body/--file, replace it (YAML only,
-                                      no --- lines)
+                                      no --- lines); --message M is why, recorded in the
+                                      page's history
   page render <page> [--format markdown|html|text]
                                       the same with every reference resolved: links
                                       followed, #412 filled in with what the card says

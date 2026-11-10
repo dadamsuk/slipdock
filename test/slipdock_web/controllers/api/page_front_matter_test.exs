@@ -50,6 +50,36 @@ defmodule SlipdockWeb.API.PageFrontMatterTest do
     assert Wiki.get_page!(page.id).body == "Body"
   end
 
+  # #2677: `page props --message` is how a covers: change carries its card id.
+  test "PATCH of the front matter alone leaves a revision with its message", %{
+    conn: conn,
+    page: page
+  } do
+    conn
+    |> patch("/api/pages/#{page.code}", %{
+      "front_matter" => "covers: [lib/x/**]\n",
+      "message" => "covers lib/x for #2677"
+    })
+    |> json_response(200)
+
+    assert [latest | _] = Wiki.list_revisions(page)
+    assert latest.summary == "covers lib/x for #2677"
+    assert latest.body == "Body"
+
+    # The same YAML again changes nothing, so it leaves no revision.
+    count = length(Wiki.list_revisions(page))
+
+    conn
+    |> patch("/api/pages/#{page.code}", %{
+      "front_matter" => "covers: [lib/x/**]\n",
+      "message" => "again"
+    })
+    |> json_response(200)
+
+    assert length(Wiki.list_revisions(page)) == count
+    assert hd(Wiki.list_revisions(page)).summary == "covers lib/x for #2677"
+  end
+
   test "PATCH with \"\" clears it; with a --- line, refuses", %{conn: conn, page: page} do
     assert %{"error" => error} =
              conn
