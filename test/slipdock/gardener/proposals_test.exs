@@ -51,7 +51,7 @@ defmodule Slipdock.Gardener.ProposalsTest do
   describe "the edit_section step" do
     test "applying edits the section only; undo restores the page", ctx do
       {:ok, s, :new} = propose(ctx, [rules_edit(ctx.page)])
-      assert {:ok, applied} = Gardener.apply(s, ctx.user)
+      assert {:ok, applied} = Gardener.apply(s, ctx.user, actor: Slipdock.Actor.web(ctx.user))
       assert applied.state == "applied"
 
       body = Repo.get!(Page, ctx.page.id).body
@@ -59,7 +59,7 @@ defmodule Slipdock.Gardener.ProposalsTest do
       refute body =~ "Tokens only."
       assert body =~ "## Patterns\n\nLists stream."
 
-      assert {:ok, undone} = Gardener.undo(applied, ctx.user)
+      assert {:ok, undone} = Gardener.undo(applied, ctx.user, actor: Slipdock.Actor.web(ctx.user))
       assert undone.state == "open"
       assert Repo.get!(Page, ctx.page.id).body == ctx.page.body
     end
@@ -75,7 +75,7 @@ defmodule Slipdock.Gardener.ProposalsTest do
         )
 
       before = Repo.get!(Page, ctx.page.id).body
-      assert {:error, message} = Gardener.apply(s, ctx.user)
+      assert {:error, message} = Gardener.apply(s, ctx.user, actor: Slipdock.Actor.web(ctx.user))
       assert message =~ "§UX & UI/Rules has changed since this was proposed"
       assert Repo.get!(Page, ctx.page.id).body == before
       assert Gardener.get_suggestion(s.id).state == "open"
@@ -91,19 +91,21 @@ defmodule Slipdock.Gardener.ProposalsTest do
           "Lists stream, always."
         )
 
-      assert {:ok, applied} = Gardener.apply(s, ctx.user)
+      assert {:ok, applied} = Gardener.apply(s, ctx.user, actor: Slipdock.Actor.web(ctx.user))
 
       {:ok, _} =
         Wiki.replace_section(Repo.get!(Page, ctx.page.id), "UX & UI/Patterns", "Edited again.")
 
-      assert {:error, message} = Gardener.undo(applied, ctx.user)
+      assert {:error, message} =
+               Gardener.undo(applied, ctx.user, actor: Slipdock.Actor.web(ctx.user))
+
       assert message =~ "has been edited since"
     end
 
     test "a section that is gone is refused", ctx do
       {:ok, s, :new} = propose(ctx, [rules_edit(ctx.page)])
       {:ok, _} = Wiki.update_page(Repo.get!(Page, ctx.page.id), %{"body" => "# UX & UI\n"})
-      assert {:error, message} = Gardener.apply(s, ctx.user)
+      assert {:error, message} = Gardener.apply(s, ctx.user, actor: Slipdock.Actor.web(ctx.user))
       assert message =~ "has no section “UX & UI/Rules”"
     end
 
@@ -140,7 +142,7 @@ defmodule Slipdock.Gardener.ProposalsTest do
       assert {:ok, %{id: id}, :exists} = propose(ctx, [rules_edit(ctx.page)])
       assert id == s.id
 
-      {:ok, _} = Gardener.dismiss(s, ctx.user)
+      {:ok, _} = Gardener.dismiss(s, ctx.user, actor: Slipdock.Actor.web(ctx.user))
       assert {:ok, %{id: ^id, state: "dismissed"}, :exists} = propose(ctx, [rules_edit(ctx.page)])
 
       # A different edit is a new proposal.
@@ -208,7 +210,7 @@ defmodule Slipdock.Gardener.ProposalsTest do
       {:ok, s, :new} =
         propose(ctx, [%{"op" => "comment", "card" => card.id, "body" => "See the proposal."}])
 
-      assert {:ok, _} = Gardener.apply(s, ctx.user)
+      assert {:ok, _} = Gardener.apply(s, ctx.user, actor: Slipdock.Actor.web(ctx.user))
       assert [%{body: "See the proposal."}] = Repo.preload(card, :comments).comments
     end
 
@@ -238,9 +240,42 @@ defmodule Slipdock.Gardener.ProposalsTest do
       assert {:ok, _} = Gardener.undo(applied, ctx.user, actor: Actor.web(ctx.user))
     end
 
-    test "the in-app assistant, acting on a person's say, is not refused", ctx do
+    # #2668: only the Tidy-up page's actor settles one. Every other door,
+    # a person's own CLI and the in-app assistant included, and a caller
+    # that names no actor, is refused with the page's link.
+    test "only the web actor decides one: no actor, the assistant, a CLI and MCP are refused",
+         ctx do
       {:ok, s, :new} = propose(ctx, [rules_edit(ctx.page)])
-      assert {:ok, _} = Gardener.dismiss(s, ctx.user, actor: Actor.assistant(ctx.user))
+
+      cli_person = %{Actor.web(ctx.user) | via: "cli"}
+      mcp = Actor.mcp(%{user: ctx.user})
+
+      for actor <- [nil, Actor.assistant(ctx.user), cli_person, mcp, Actor.unknown()] do
+        assert {:error, message} = Gardener.apply(s, ctx.user, actor: actor)
+        assert message =~ "Tidy-up page: " <> Gardener.tidy_url(s)
+        assert {:error, _} = Gardener.dismiss(s, ctx.user, actor: actor)
+      end
+
+      assert {:error, _} = Gardener.apply(s, ctx.user)
+      assert Gardener.get_suggestion(s.id).state == "open"
+
+      assert {:ok, applied} = Gardener.apply(s, ctx.user, actor: Actor.web(ctx.user))
+      assert {:error, _} = Gardener.undo(applied, ctx.user, actor: cli_person)
+      assert {:error, _} = Gardener.undo(applied, ctx.user)
+      assert Gardener.get_suggestion(s.id).state == "applied"
+    end
+
+    test "in_person?/1 is the web actor's alone", ctx do
+      assert Gardener.in_person?(Actor.web(ctx.user))
+      refute Gardener.in_person?(%{Actor.web(ctx.user) | via: "api"})
+      refute Gardener.in_person?(%{Actor.web(ctx.user) | kind: "agent"})
+      refute Gardener.in_person?(Actor.assistant(ctx.user))
+      refute Gardener.in_person?(nil)
+    end
+
+    test "tidy_url/1 is the board's Tidy-up page", ctx do
+      {:ok, s, :new} = propose(ctx, [rules_edit(ctx.page)])
+      assert Gardener.tidy_url(s) =~ ~r{^https?://[^/]+/boards/#{s.board_id}/tidy$}
     end
 
     test "an ordinary suggestion is still an agent's to decide", ctx do

@@ -3,6 +3,8 @@ defmodule SlipdockWeb.MCP.Tools.GardenDecide do
   Applies, dismisses or undoes one gardener suggestion, as `POST
   /api/garden/suggestions/:id/apply|dismiss|undo` do (W-1807). It wants
   `confirm: true`, because the decision is the person's, not the model's.
+  A proposed handbook edit it never decides (`Gardener.person_only?/1`):
+  that is the person's, on the board's Tidy-up page.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -56,7 +58,7 @@ defmodule SlipdockWeb.MCP.Tools.GardenDecide do
          board = Repo.get!(Board, s.board_id),
          :ok <- readable(auth, board, id),
          :ok <- Args.refusal(Authorize.board(auth, board, :write)),
-         {:ok, s} <- refusal(decide(s, context.user, decision, args)) do
+         {:ok, s} <- refusal(decide(s, context, decision, args)) do
       {:ok, %{suggestion: G.suggestion(s)}}
     end
   end
@@ -86,10 +88,18 @@ defmodule SlipdockWeb.MCP.Tools.GardenDecide do
     end
   end
 
-  defp decide(s, user, "undo", _args), do: Gardener.undo(s, user)
+  # The MCP actor, never a person in person: a person-only suggestion is
+  # refused and sent to the Tidy-up page (`Gardener.in_person?/1`).
+  defp decide(s, context, "undo", _args),
+    do: Gardener.undo(s, context.user, actor: Slipdock.Actor.mcp(context))
 
-  defp decide(s, user, decision, args),
-    do: Gardener.decide(s, user, decision, keep: args["keep"], choice: args["choice"])
+  defp decide(s, context, decision, args),
+    do:
+      Gardener.decide(s, context.user, decision,
+        keep: args["keep"],
+        choice: args["choice"],
+        actor: Slipdock.Actor.mcp(context)
+      )
 
   defp refusal({:error, :forbidden}),
     do: {:error, "you can't change everything this suggestion touches"}

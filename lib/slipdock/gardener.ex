@@ -23,7 +23,8 @@ defmodule Slipdock.Gardener do
   explanation and its evidence (findings, cards). Runs never expire one.
   A proposal, and any suggestion that edits a section, is a person's to
   decide: `person_only?/1`, which `apply/3`, `dismiss/3` and `undo/3`
-  refuse to an agent (`actor:`, as `Slipdock.Verified.gated?/1` reads it).
+  settle only for a person on the Tidy-up page (`actor:` the web actor,
+  `in_person?/1`) and refuse to every API token (#2668).
   """
 
   import Ecto.Query
@@ -237,8 +238,8 @@ defmodule Slipdock.Gardener do
   `alternatives` instead of the proposal; `:keep` is the card that stays,
   when a step asks the person to pick (a duplicate).
 
-  `actor:` is who is asking (a `Slipdock.Actor`): an agent's is refused a
-  suggestion that is `person_only?/1`.
+  `actor:` is who is asking (a `Slipdock.Actor`): a suggestion that is
+  `person_only?/1` is refused to any but `in_person?/1`'s, and to none.
 
   `{:ok, suggestion}`, or `{:error, reason}`: `:forbidden` without write
   access to the board and everything the steps touch, or a sentence.
@@ -370,15 +371,27 @@ defmodule Slipdock.Gardener do
     end)
   end
 
+  @doc """
+  Whether `actor` is a person deciding in the web app: the signed-in,
+  CSRF-guarded Tidy-up page, which passes `Slipdock.Actor.web/1`. Only such
+  a decision settles a `person_only?/1` suggestion (W-1945 §Permissions).
+  A request with an API token never is.
+  """
+  def in_person?(%{kind: "human", via: "web"}), do: true
+  def in_person?(_actor), do: false
+
   defp a_persons(suggestion, actor, what) do
-    if person_only?(suggestion) and Slipdock.Verified.gated?(actor || %{}),
+    if person_only?(suggestion) and not in_person?(actor),
       do:
         {:error,
-         "only a person can #{what} a proposed handbook edit: ask them to, on the board's Tidy-up page " <>
-           "or with slipdock garden #{what} #{suggestion.id} --confirm from their own session " <>
-           "(never a runner job's)"},
+         "only a person can #{what} a proposed handbook edit, signed in on the board's " <>
+           "Tidy-up page: #{tidy_url(suggestion)} (no API token can)"},
       else: :ok
   end
+
+  @doc "The Tidy-up page of the board `suggestion` is on."
+  def tidy_url(%Suggestion{board_id: board_id}),
+    do: "#{Slipdock.Automations.Runner.base_url()}/boards/#{board_id}/tidy"
 
   ## Proposals --------------------------------------------------------------------
 
