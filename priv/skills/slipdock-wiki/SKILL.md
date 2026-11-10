@@ -178,7 +178,8 @@ you have to read past. A folder is a place, and a place costs nothing.
 
 **Front matter.** A page imported from a file keeps that file's front matter
 exactly as written. `slipdock page props <page>` prints the YAML; edit it and
-send it back with `--file F` (or `--clear`). Never paste front matter into the
+send it back with `--file F` (or `--clear`), with `--message M` saying why
+(the card id), as a page edit does. Never paste front matter into the
 body: it lives beside the body, and a `---` block in the body is just text.
 Its `aliases` are other names `[[links]]` find the page by.
 

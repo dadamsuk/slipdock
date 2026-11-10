@@ -821,8 +821,10 @@ defmodule Slipdock.Wiki do
 
   # A revision is only worth writing when the words changed; moving a page or
   # marking it a template is not an edit of the document.
+  # The front matter is the page's own words too (its covers:, its tags), so
+  # a change to it alone leaves a revision, with the message saying why.
   defp changed_content?(changeset) do
-    Enum.any?([:title, :body, :summary], &Map.has_key?(changeset.changes, &1))
+    Enum.any?([:title, :body, :summary, :front_matter], &Map.has_key?(changeset.changes, &1))
   end
 
   defp maybe_put(changeset, _field, nil), do: changeset

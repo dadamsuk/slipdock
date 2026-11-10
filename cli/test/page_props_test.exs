@@ -61,4 +61,19 @@ defmodule SlipdockCLI.PagePropsTest do
     {"PATCH", _, body, _, _} = run([clear: true], @page)
     assert body =~ ~s("front_matter":"")
   end
+
+  test "--message goes with the YAML, so the page's history says why" do
+    {"PATCH", _, body, _, _} = run([body: "covers: [lib/x/**]", message: "for #2677"], @page)
+
+    assert %{"front_matter" => "covers: [lib/x/**]", "message" => "for #2677"} =
+             JSON.decode!(body)
+  end
+
+  test "--message goes with --clear too; without one, none is sent" do
+    {"PATCH", _, body, _, _} = run([clear: true, message: "drop covers"], @page)
+    assert %{"front_matter" => "", "message" => "drop covers"} = JSON.decode!(body)
+
+    {"PATCH", _, body, _, _} = run([body: "rating: 4"], @page)
+    refute Map.has_key?(JSON.decode!(body), "message")
+  end
 end

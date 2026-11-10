@@ -782,7 +782,9 @@ own is left alone. The file a later sync writes gets no key that changes on
 every save — no `updated`, no author, and `code` only if asked. Read and
 replace it with `slipdock page props <page> [--file F | --clear]`, the API's
 `front_matter` field (the YAML between the `---` lines), or MCP's
-`read_page` and `update_page`.
+`read_page` and `update_page`. A change to it alone is a revision in the
+page's history like any edit, and `--message M` (the API's `message`) says
+why there.
 
 **Aliases.** A page whose front matter lists `aliases` (or Obsidian's older
 `alias`) answers to each of them: `[[Retries]]` finds the page whose aliases

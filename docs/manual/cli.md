@@ -144,7 +144,7 @@ slipdock wiki tree [--short-names]             # every folder and file by name
 slipdock wiki import ~/Obsidian [--dry-run]    # an Obsidian vault in, once
 slipdock names [full|short]                    # Names in trees and lists: says or sets it
 slipdock page tags brain | slipdock page ls brain --note-tag area   # notes' own #tags
-slipdock page props W-31 [--file F | --clear]  # the front matter its file came with, kept exactly
+slipdock page props W-31 [--file F | --clear] [--message M]  # the front matter its file came with, kept exactly
 slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it
 slipdock page read W-31                        # the Markdown source (--json for the hash and the rest)
 slipdock page new qvm-v1-rem Retry policy --body - --summary "How retries work" --message "first draft"
