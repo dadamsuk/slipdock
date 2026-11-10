@@ -530,7 +530,10 @@ defmodule SlipdockWeb.HelpLive.Flow do
       (<code>slipdock done 12 --evidence-commit abc1234 --suite passed:412:0 --pr URL</code>). With
       <em>Evidence on completion</em>
       on, a completion without any is refused. Evidence that is a bare <code>-</code>
-      is refused on any board: it is what a client that doesn't read stdin sends for <code>--evidence -</code>, so pass the text itself, or pipe it from a CLI that reads stdin.
+      is refused on any board: it is what a client that doesn't read stdin sends for <code>--evidence -</code>, so pass the text itself, or pipe it from a CLI that reads stdin. A card's description or bar that is a bare
+      <code>-</code>
+      is refused the same way, on a create or an update, for <code>--desc -</code>
+      and <code>--bar -</code>.
     </p>
     <p>
       On a board with a handbook, the closing comment has a <strong><code>Handbook:</code> line</strong>, the sections it updated or why none needed it, and a <strong><code>Findings:</code> block</strong>: what the card taught that the code and

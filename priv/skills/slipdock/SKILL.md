@@ -300,6 +300,9 @@ Write:
 ```
 slipdock add <board> <title words...> [--column C] [--desc TEXT] [--priority P] [--flag F]... [--tag T]... [--start YYYY-MM-DD] [--due YYYY-MM-DD] [--color C] [--percent N] [--assignee EMAIL|me]... [--archived]
                                        # --archived: made straight into the archive (a record of finished work)
+                                       # --desc - (and --bar -) reads the text from stdin: a quoted heredoc (<<'EOF') keeps
+                                       # its lines, on add and edit; one - per command. The server refuses an agent's
+                                       # description or bar that is a bare "-" (what a CLI that doesn't read stdin sends)
 slipdock edit <id> [--title T] [--desc TEXT] [--priority P] [--start DATE|--no-start] [--due DATE|--no-due] [--percent N|--no-percent] [--color C|--no-color] [--column C]
 slipdock edit <id> --short-name T            # a label for tight spaces and the card's folder name; "" hands it back (also on add)
 slipdock edit <id> --border C | --no-border | --border-top C --border-left none ...   # each edge's own colour (also on add)

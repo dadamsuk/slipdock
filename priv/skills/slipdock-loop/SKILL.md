@@ -180,10 +180,22 @@ in section 5 instead: the epic's own pass fixes it. Otherwise:
 
 ```sh
 slipdock add <board> "CI failing on <branch>: <workflow> run <run-id>" \
-  --column "To Do" --tag ci --desc "<commit sha + subject, failing job and step,
-  the 20–40 most telling lines of gh run view <run-id> --log-failed, the run url>"
+  --column "To Do" --tag ci --desc - <<'EOF'
+<commit sha + subject, failing job and step>
+
+<the 20–40 most telling lines of gh run view <run-id> --log-failed>
+
+<the run url>
+EOF
 slipdock move <new-id> "To Do" --top
 ```
+
+`--desc -` reads the description from stdin, so a quoted heredoc keeps the
+log's line breaks, backticks and `$` as written (`--bar -` does the same for
+a bar; one `-` per command). A `slipdock` that doesn't read stdin there (one
+from before #2678) sends the dash itself, and the server refuses a
+description or bar that is a bare `-` rather than file a card with no body:
+pass the text itself (`--desc "…"`), or reinstall the CLI.
 
 Then carry on to step 3, which picks that card up because it is now on top.
 Fixing the build is the card's whole brief. A newer run that is still
@@ -415,7 +427,7 @@ same epic, on top of its ready list:
 
 ```sh
 slipdock add <sub-board> "Build failed: #<id> <title>" --column "To Do" \
-  --desc "<run, failing job and step, the few telling lines, the url>"
+  --desc "<run, failing job and step, the few telling lines, the url>"   # or --desc - and a heredoc, as in 2a
 slipdock move <new-id> "To Do" --top
 slipdock link <new-id> relates <id>
 slipdock comment <id> "Build failed: <workflow> #<run-id> — fixed on #<new-id>"
@@ -646,7 +658,8 @@ anybody reads later:
    to someone (a missing test, a stale moduledoc or doc entry, a tooling
    bug) waits a day for triage as a finding, and triage turns it into a
    card anyway. So file the card now, in the backlog (`slipdock add
-   <board> "<title>" --desc "<what, where, why>" --column Backlog`), and
+   <board> "<title>" --desc "<what, where, why>" --column Backlog`, or
+   `--desc -` with a heredoc for more than a line), and
    put it in the block with the arrow, so it is kept promoted. A finding
    is only for what is uncertain, cuts across cards, or shows the
    handbook wrong:

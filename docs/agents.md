@@ -924,7 +924,8 @@ A fix is a card, not a finding: a concrete change you could hand to someone
 (a missing test such as "no test pins `slipdock done`'s exit codes", a stale
 moduledoc or doc entry, a tooling bug such as "`page section --append -`
 writes a literal `-`") goes on the board as a card now (`slipdock add <board>
-"…" --desc "…" --column Backlog`) and into the block as `→ #<card>`. A
+"…" --desc "…" --column Backlog`; `--desc -` reads the description from
+stdin, for a heredoc) and into the block as `→ #<card>`. A
 finding is only for what is uncertain, cuts across cards, or shows the
 handbook wrong ("`mix format` can need two passes", "the shared `_pre_push`
 database can hold another branch's migration", "W-1950 §Tests says async is
@@ -987,7 +988,10 @@ wording)", never "W-x has rule Y"; the builder checks it at pickup and asks
 with a wait when a part needs a person); **evidence** when a card completes
 (or is created already done; a bare `-` as the evidence is refused on any
 board, since it is what a client that doesn't read stdin sends for
-`--evidence -`: pass the text, or pipe it from a CLI that reads stdin);
+`--evidence -`: pass the text, or pipe it from a CLI that reads stdin; an
+agent's card description or bar that is a bare `-` is refused the same way,
+on a create or an update, since that is what such a client sends for
+`--desc -` or `--bar -`);
 and a **second agent** who accepts the work or rejects it with the reason.
 With a verify pool set, each submitted card is queued as a `verify` job.
 On a board that ships by pull request, its CI is the one full test run: the
