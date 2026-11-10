@@ -56,11 +56,14 @@ defmodule SlipdockCLI.Findings do
   def body("merge", o) do
     case o[:into] do
       nil -> {:error, "merge needs --into <finding id>: the one it joins"}
-      into -> {:ok, %{"action" => "merge", "into" => into, "note" => o[:note]}}
+      into -> {:ok, %{"action" => "merge", "into" => into, "note" => note(o)}}
     end
   end
 
-  def body(action, o), do: {:ok, %{"action" => action, "note" => o[:note]}}
+  def body(action, o), do: {:ok, %{"action" => action, "note" => note(o)}}
+
+  # `--note -` reads it from stdin (#2678).
+  defp note(o), do: stdin_arg(o[:note], "--note")
 
   # First what waits on the person (#2123): the proposals drafted from the
   # findings. The findings after it are being handled, and are reference.

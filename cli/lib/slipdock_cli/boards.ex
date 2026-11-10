@@ -372,7 +372,9 @@ defmodule SlipdockCLI.Boards do
         "title" => Enum.join(title_words, " "),
         "short_name" => o[:short_name],
         "column" => o[:column],
-        "description" => o[:desc],
+        # `--desc -` (and `--bar -`) read the text from stdin, as `comment
+        # --body -` does (#2678): a heredoc keeps its lines.
+        "description" => stdin_arg(o[:desc], "--desc"),
         "priority" => o[:priority],
         "flags" => nonempty(Keyword.get_values(o, :flag)),
         "tags" => nonempty(Keyword.get_values(o, :tag)),
@@ -381,7 +383,7 @@ defmodule SlipdockCLI.Boards do
         "percent_complete" => o[:percent],
         # The bar and the paths (#1757) as edit sends them, so a planned card
         # is one write: the server checks both as it does on an update.
-        "bar" => o[:bar],
+        "bar" => stdin_arg(o[:bar], "--bar"),
         "paths" => o[:paths],
         # What kind of change it is (#1951): docs, fix, feature, schema…
         "profile" => o[:profile],
@@ -406,12 +408,12 @@ defmodule SlipdockCLI.Boards do
       %{
         "title" => o[:title],
         "short_name" => o[:short_name],
-        "description" => o[:desc],
+        "description" => stdin_arg(o[:desc], "--desc"),
         "priority" => o[:priority],
         "start_date" => if(o[:no_start], do: nil, else: o[:start]),
         "due_date" => if(o[:no_due], do: nil, else: o[:due]),
         "percent_complete" => if(o[:no_percent], do: nil, else: o[:percent]),
-        "bar" => o[:bar],
+        "bar" => stdin_arg(o[:bar], "--bar"),
         # The files its work touches (#1628): globs, split by the server.
         "paths" => o[:paths],
         # Its profile (#1951); --no-profile (or "") clears it.
@@ -598,7 +600,7 @@ defmodule SlipdockCLI.Boards do
         # The pull request the work is in (#1654).
         "evidence_pr" => o[:pr],
         # Or why it changes no code, so has no pull request (#1938).
-        "evidence_no_code" => o[:no_code]
+        "evidence_no_code" => stdin_arg(o[:no_code], "--no-code")
       }
       |> Map.merge(change(o))
       |> compact()
@@ -610,6 +612,8 @@ defmodule SlipdockCLI.Boards do
   # the reason.
   def run("verify", [id, decision], o)
       when decision in ~w(accept reject merged agree disagree) do
+    o = Keyword.replace(o, :reason, stdin_arg(o[:reason], "--reason"))
+
     if decision == "reject" and o[:reason] in [nil, ""],
       do: fail("a rejection needs its reason: --reason TEXT")
 
@@ -924,7 +928,7 @@ defmodule SlipdockCLI.Boards do
   def run("wait", [id], o) do
     cond do
       o[:withdraw] ->
-        HTTP.delete("/cards/#{enc(id)}/wait", if(o[:reason], do: [reason: o[:reason]], else: []))
+        HTTP.delete("/cards/#{enc(id)}/wait", withdraw_query(o))
         |> out(o, fn r -> IO.puts("withdrew the wait on ##{id}: #{r["wait"]["needs"]}") end)
 
       Keyword.has_key?(o, :question) ->
@@ -1075,7 +1079,11 @@ defmodule SlipdockCLI.Boards do
     columns = Enum.map(lists, &list_spec/1)
 
     body =
-      compact(%{"name" => Enum.join(words, " "), "description" => o[:desc], "columns" => columns})
+      compact(%{
+        "name" => Enum.join(words, " "),
+        "description" => stdin_arg(o[:desc], "--desc"),
+        "columns" => columns
+      })
 
     HTTP.post("/templates", body)
     |> out(o, fn r ->
@@ -1094,7 +1102,7 @@ defmodule SlipdockCLI.Boards do
         "name" => Enum.join(words, " "),
         "code" => o[:code],
         "shortcut" => o[:shortcut],
-        "description" => o[:desc],
+        "description" => stdin_arg(o[:desc], "--desc"),
         "color" => o[:color],
         "template" => o[:template],
         "columns" => o |> Keyword.get_values(:list) |> Enum.map(&list_spec/1) |> nonempty(),
@@ -1124,7 +1132,7 @@ defmodule SlipdockCLI.Boards do
         "name" => o[:name],
         "code" => o[:code],
         "shortcut" => o[:shortcut],
-        "description" => o[:desc],
+        "description" => stdin_arg(o[:desc], "--desc"),
         "color" => o[:color],
         # What the foot of every list offers: --add-page / --no-add-page.
         "add_card" => o[:add_card],
@@ -1924,6 +1932,14 @@ defmodule SlipdockCLI.Boards do
     case r["handoff"] do
       %{"next_step" => next} -> IO.puts("current again: #{next}")
       _ -> IO.puts("the card has no handoff now")
+    end
+  end
+
+  # Why a wait is withdrawn, `--reason -` from stdin (#2678).
+  defp withdraw_query(o) do
+    case stdin_arg(o[:reason], "--reason") do
+      nil -> []
+      reason -> [reason: reason]
     end
   end
 

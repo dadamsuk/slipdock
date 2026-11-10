@@ -577,6 +577,7 @@ WRITE
       --profile P                 what kind of change it is (see edit)
       --caused-by N  --missed-by L  file it as an incident (see edit)
       --archived                  archive it as soon as it is made (a record of finished work)
+      --desc - and --bar - read the text from stdin (a heredoc keeps its lines; one per command)
   edit <id> [opts]                    change fields on a card
       --title T  --desc TEXT  --priority P  --start DATE | --no-start  --due DATE | --no-due
       --color C | --no-color  --column C
@@ -590,6 +591,7 @@ WRITE
       --percent N | --no-percent   (% complete, 0-100)
       --bar TEXT                   what done means for the card; on a board with
                                    --bar-required it locks when work starts
+                                   (--desc - or --bar - reads it from stdin)
       --paths "G1,G2"              the files its work touches, as globs (lib/x/**), split
                                    on commas or newlines; "" clears. On a --lanes board an
                                    agent can't start it while they overlap a card in progress
@@ -673,7 +675,8 @@ WRITE
                                       decide with garden apply|dismiss <id> (from Claude
                                       Code, add --confirm: a proposal is a person's call)
   finding <id> dismiss|promote|reopen [--note TEXT]
-                                      triage one (promote: say what it became, W-1950 §Tests)
+                                      triage one (promote: say what it became, W-1950 §Tests;
+                                      --note - reads it from stdin)
   finding <id> merge --into ID        fold a repeat into another finding, adding its count
   ledger <board> [--since S]          what shipped on the board tree since 07:00 yesterday (S:
                                       days, a date or an ISO time): each card completed,
@@ -695,7 +698,7 @@ WRITE
                                       (--suite passed:38:0) and the pull request the
                                       work is in (--pr, on a board shipping by pull
                                       request, with --evidence-commit its head, every
-                                      time; --no-code WHY instead for a card that
+                                      time; --no-code WHY, or - for stdin, for a card that
                                       changes no code), when completing
                                       (--evidence - reads it from stdin); a
                                       board with --evidence-required asks agents for it. On
@@ -710,7 +713,8 @@ WRITE
                                       decide a card waiting for verification: accept
                                       completes it (on a pull request board, queues the
                                       merge), reject needs the reason; not a card you
-                                      submitted (--evidence-commit: what you checked at).
+                                      submitted (--evidence-commit: what you checked at;
+                                      --reason - reads the reason from stdin).
                                       merged: a person merged a merging card's PR by hand;
                                       agree / disagree: an audit job's say on an accepted
                                       card (a comment; disagree alerts the board's owner
@@ -776,14 +780,14 @@ WRITE
                                       theirs (or remove)
   archive <id>...  |  restore <id>... archive / restore cards
   delete <id>...                      permanently delete (prefer archive)
-  new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]
+  new-board <name> [--code C] [--shortcut K] [--desc TEXT|-] [--color C] [--template T]
       [--list "Name[:wip[:color]]"]... [--save-template NAME]
                                       --list (repeatable) sets the board's own lists instead
                                       of a template's; --save-template keeps them as one too
   welcome [--force]                   build the "Getting Started" board: a tour of the whole
                                       app, cards, subcards, automation and wiki pages included
                                       (the one a first sign-in makes by itself)
-  set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [--color C]
+  set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT|-] [--color C]
       [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
       [--simple | --no-simple] [--page-card-features | --no-page-card-features]
       [--show-pulse | --no-show-pulse] [--automation-wip | --no-automation-wip]
@@ -910,7 +914,7 @@ WRITE
                                       left out fall to the end, oldest first)
   subboard <card-id> --template T     give a card its own board of subcards
   subboard <card-id> --off            remove a card's subcards
-  new-template <name> [--desc TEXT] --list "Name[:wip[:color]]"...
+  new-template <name> [--desc TEXT|-] --list "Name[:wip[:color]]"...
   delete-template <template>
   new-column <board> <name> [--wip N] [--color C] [--category C]
   set-column <board> <column> [--name N] [--wip N] [--color C] [--category C]
@@ -952,7 +956,8 @@ WRITE
                                       answered on its own (use this, not one block)
   wait <id> --withdraw [--reason WHY] withdraw the card's open wait; an agent
                                       withdrawing one it didn't open (a moot wait)
-                                      gives the reason, posted on the card
+                                      gives the reason, posted on the card (--reason -
+                                      reads it from stdin)
   answer <id> ["text"] [--choice N]   answer the card's open wait, in words or by choice
   answer <id> --answer A --answer A   answer its questions one by one, in order
                                       ("" leaves one unanswered)
@@ -1118,7 +1123,8 @@ WRITE
                                                  it from stdin). Without <id>, the runner job in
                                                  $SLIPDOCK_JOB_ID. Prints ok or cancel
   finish-job <id> --status done|failed|cancelled|timeout [--summary S]
-                                                 end a job this session claimed
+                                                 end a job this session claimed (--summary -
+                                                 reads the summary from stdin)
   finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]
                                                  ask a person and park the job in one step;
                                                  the answer sends the card again

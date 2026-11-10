@@ -46,4 +46,14 @@ defmodule SlipdockCLI.HelpTextTest do
     assert @file_text =~ "(--evidence - reads it from stdin)"
     assert @file_text =~ "--append - and --body - read the text from stdin"
   end
+
+  test "help says - reads stdin for the other free-text switches (#2678)" do
+    assert @file_text =~ "--desc - and --bar - read the text from stdin"
+    assert @file_text =~ "(--desc - or --bar - reads it from stdin)"
+    assert @file_text =~ "--no-code WHY, or - for stdin"
+    assert @file_text =~ "--reason - reads the reason from stdin"
+    assert @file_text =~ "--note - reads it from stdin"
+    assert @file_text =~ "(--summary -\n"
+    assert @file_text =~ "[--desc TEXT|-]"
+  end
 end
