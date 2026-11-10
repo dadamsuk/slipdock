@@ -101,6 +101,18 @@ defmodule SlipdockWeb.HandoffAPITest do
       assert Boards.handoff_history(ctx.card) == []
     end
 
+    test "clear takes the string a form or a query sends", ctx do
+      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Old", via: "ui"})
+
+      assert %{"handoff" => %{"cleared" => true, "next_step" => nil}} =
+               as(ctx.owner)
+               |> post("/api/cards/#{ctx.card.id}/handoff", %{"clear" => "true"})
+               |> json_response(201)
+
+      assert %{"handoff" => nil, "history" => [%{"cleared" => true}, %{"next_step" => "Old"}]} =
+               as(ctx.owner) |> get("/api/cards/#{ctx.card.id}/handoff") |> json_response(200)
+    end
+
     test "clear: true clears it, and the history shows the clear", ctx do
       {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Old", via: "ui"})
 

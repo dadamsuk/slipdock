@@ -73,7 +73,7 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
   def card_line(card) do
     facts =
       [
-        card.priority not in [nil, "none"] && "#{card.priority} priority",
+        not Enum.member?([nil, "none"], card.priority) && "#{card.priority} priority",
         card.due_date && "due #{card.due_date}",
         card.flags != [] && "flagged #{Enum.join(card.flags, ", ")}",
         card.percent_complete && "#{card.percent_complete}%"
@@ -127,7 +127,7 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
 
     user
     |> Work.assigned(nil, today: today(context), board_id: board && board.id)
-    |> Enum.filter(&(Board.root_id(&1.card.board) in roots))
+    |> Enum.filter(&Enum.member?(roots, Board.root_id(&1.card.board)))
   end
 
   @doc """

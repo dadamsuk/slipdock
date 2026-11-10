@@ -324,7 +324,7 @@ defmodule SlipdockWeb.APIGuide do
 
     others =
       all
-      |> Enum.reject(fn {key, _, _} -> key == "intro" or key in @core end)
+      |> Enum.reject(fn {key, _, _} -> key == "intro" or Enum.member?(@core, key) end)
       |> Enum.uniq_by(fn {key, _, _} -> key end)
       |> Enum.map_join("\n", fn {key, title, _} -> "- `#{key}` — #{title}" end)
 

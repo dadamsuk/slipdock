@@ -76,7 +76,7 @@ defmodule SlipdockWeb.MCP.Prompts do
     known = Enum.map(declared, & &1.name)
 
     cond do
-      unknown = Enum.find(Map.keys(args), &(&1 not in known)) ->
+      unknown = Enum.find(Map.keys(args), &(not Enum.member?(known, &1))) ->
         takes = if known == [], do: "no arguments", else: "only " <> Enum.join(known, ", ")
         {:error, "#{prompt.name()} has no argument #{inspect(unknown)}; it takes #{takes}"}
 

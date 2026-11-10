@@ -1045,7 +1045,7 @@ defmodule SlipdockWeb.API.PageController do
     [
       status: if(writer?(conn, board), do: nil, else: "published"),
       archived: if(params["archived"] == "all", do: :all, else: false),
-      template: if(params["template"] in ["false", "0"], do: false)
+      template: if(Enum.member?(["false", "0"], params["template"]), do: false)
     ]
   end
 
@@ -1171,7 +1171,7 @@ defmodule SlipdockWeb.API.PageController do
 
   defp placement_target(conn, folder, ref, board_ref, _create?) do
     board_result =
-      if board_ref in [nil, ""],
+      if Enum.member?([nil, ""], board_ref),
         do: {:ok, Boards.get_board!(folder.board_id)},
         else: Authorize.fetch_board(conn, board_ref, :write)
 
@@ -1201,7 +1201,7 @@ defmodule SlipdockWeb.API.PageController do
          {:plan, {:ok, plan}} <- {:plan, Wiki.AutoOrganise.plan(folder, mode, opts)} do
       plan =
         case params["only"] do
-          keys when is_list(keys) -> Enum.filter(plan, &(&1.key in keys))
+          keys when is_list(keys) -> Enum.filter(plan, &Enum.member?(keys, &1.key))
           _ -> plan
         end
 
@@ -1308,7 +1308,7 @@ defmodule SlipdockWeb.API.PageController do
 
   defp placement_folder(conn, page, ref, board_ref, create?) do
     board_result =
-      if board_ref in [nil, ""],
+      if Enum.member?([nil, ""], board_ref),
         do: {:ok, Wiki.board_of(page)},
         else: Authorize.fetch_board(conn, board_ref, :write)
 
@@ -1733,7 +1733,7 @@ defmodule SlipdockWeb.API.PageController do
 
   defp via(conn) do
     case get_req_header(conn, "x-slipdock-client") ++ get_req_header(conn, "x-kanban-client") do
-      [client] -> if client in Slipdock.Wiki.Revision.vias(), do: client, else: "api"
+      [client] -> if Enum.member?(Slipdock.Wiki.Revision.vias(), client), do: client, else: "api"
       _ -> "api"
     end
   end

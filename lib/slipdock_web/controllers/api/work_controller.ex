@@ -35,8 +35,8 @@ defmodule SlipdockWeb.API.WorkController do
       sections =
         user
         |> Work.assigned(nil, board_id: board && board.id)
-        |> Enum.filter(&(is_nil(roots) or Board.root_id(&1.card.board) in roots))
-        |> Work.group(params["done"] in ["true", "1"])
+        |> Enum.filter(&(is_nil(roots) or Enum.member?(roots, Board.root_id(&1.card.board))))
+        |> Work.group(Enum.member?(["true", "1"], params["done"]))
 
       json(conn, %{
         waiting_count: length(waiting),

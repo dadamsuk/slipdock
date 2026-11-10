@@ -26,7 +26,9 @@ defmodule SlipdockWeb.API.CardWrites do
   put there itself, such as the path's `board`.
   """
   def check_create_keys(params, ignore \\ []) do
-    case params |> Map.keys() |> Enum.reject(&(&1 in @create_keys or &1 in ignore)) do
+    case params
+         |> Map.keys()
+         |> Enum.reject(&(Enum.member?(@create_keys, &1) or Enum.member?(ignore, &1))) do
       [] ->
         :ok
 
@@ -153,7 +155,7 @@ defmodule SlipdockWeb.API.CardWrites do
   which way it came in.
   """
   def write_handoff(card, user, params, via) do
-    if params["clear"] in [true, "true"] do
+    if Enum.member?([true, "true"], params["clear"]) do
       Boards.clear_handoff(card, user, %{via: via})
     else
       Boards.leave_handoff(card, user, %{
@@ -402,7 +404,7 @@ defmodule SlipdockWeb.API.CardWrites do
 
   defp adjusted_tags(current, add, remove) do
     remove_ids = Enum.map(remove || [], & &1.id)
-    kept = Enum.reject(current, &(&1.id in remove_ids))
+    kept = Enum.reject(current, &Enum.member?(remove_ids, &1.id))
     kept ++ Enum.reject(add || [], fn t -> Enum.any?(kept, &(&1.id == t.id)) end)
   end
 

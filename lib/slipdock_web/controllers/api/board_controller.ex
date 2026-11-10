@@ -192,7 +192,7 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
-  defp truthy?(value), do: value in [true, "true", "1", 1, "yes"]
+  defp truthy?(value), do: Enum.member?([true, "true", "1", 1, "yes"], value)
 
   # `save_template` names the template the new board's lists are kept as;
   # `true` keeps them under the board's own name.

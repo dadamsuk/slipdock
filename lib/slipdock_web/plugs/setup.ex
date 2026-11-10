@@ -100,6 +100,6 @@ defmodule SlipdockWeb.Plugs.Setup do
   # sign in as, and the wizard is the only way one gets claimed — two doors that
   # can both claim a server is worse than either on its own.
   defp exempt?(%{request_path: path}) do
-    String.starts_with?(path, "/assets") or path in ["/favicon.ico", "/robots.txt"]
+    String.starts_with?(path, "/assets") or Enum.member?(["/favicon.ico", "/robots.txt"], path)
   end
 end

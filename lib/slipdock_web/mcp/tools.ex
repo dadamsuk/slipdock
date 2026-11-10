@@ -154,7 +154,10 @@ defmodule SlipdockWeb.MCP.Tools do
       %{additionalProperties: false, properties: properties} ->
         known = properties |> Map.keys() |> Enum.map(&to_string/1)
 
-        case args |> Map.keys() |> Enum.map(&to_string/1) |> Enum.reject(&(&1 in known)) do
+        case args
+             |> Map.keys()
+             |> Enum.map(&to_string/1)
+             |> Enum.reject(&Enum.member?(known, &1)) do
           [] ->
             nil
 

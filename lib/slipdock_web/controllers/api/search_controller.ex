@@ -295,7 +295,7 @@ defmodule SlipdockWeb.API.SearchController do
   # `[{"role": "user"|"assistant", "content": "…"}, …]`.
   defp history(%{"history" => history}) when is_list(history) do
     for %{"role" => role, "content" => content} <- history,
-        role in ["user", "assistant"],
+        Enum.member?(["user", "assistant"], role),
         is_binary(content),
         do: %{role: role, content: content}
   end
@@ -309,7 +309,10 @@ defmodule SlipdockWeb.API.SearchController do
 
   defp mode(value) do
     value = value |> to_string() |> String.trim() |> String.downcase()
-    if value in SavedQueries.modes(), do: {:ok, value}, else: {:error, :bad_request, mode_error()}
+
+    if Enum.member?(SavedQueries.modes(), value),
+      do: {:ok, value},
+      else: {:error, :bad_request, mode_error()}
   end
 
   defp required_mode(value) do

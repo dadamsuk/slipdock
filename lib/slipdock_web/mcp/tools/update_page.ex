@@ -248,7 +248,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
 
   defp folder(board, attrs, args, user) do
     with {:ok, ref} <- Args.optional(args, "folder") do
-      if ref in [nil, "none", "root"] do
+      if Enum.member?([nil, "none", "root"], ref) do
         {:ok, Map.put(attrs, "folder_id", nil)}
       else
         case Wiki.find_folder(board, ref) do
@@ -284,7 +284,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
 
   defp parent(board, page, args) do
     with {:ok, ref} <- Args.optional(args, "parent") do
-      if ref in [nil, "root", "none"] do
+      if Enum.member?([nil, "root", "none"], ref) do
         {:ok, nil}
       else
         case Wiki.find_page(board, ref) do

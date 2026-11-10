@@ -64,7 +64,7 @@ defmodule SlipdockWeb.MCP.Prompts.PlanMyDay do
        #{section(work, &(&1.section == :today), line)}
 
        ## In progress
-       #{section(work, &(Context.doing?(&1.card) and &1.section not in [:overdue, :today]), line)}
+       #{section(work, &(Context.doing?(&1.card) and not Enum.member?([:overdue, :today], &1.section)), line)}
 
        ## Waking from a snooze today
        #{context |> Context.waking_today(roots) |> Enum.map(&"#{Context.card_line(&1)} — #{&1.board.name}, wakes #{&1.snoozed_until}") |> Context.list(@per_section, "list_cards with snoozed: \"only\"")}
