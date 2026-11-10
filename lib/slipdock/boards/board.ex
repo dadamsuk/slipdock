@@ -429,7 +429,7 @@ defmodule Slipdock.Boards.Board do
   """
   def permitted_sender?(%__MODULE__{inbound_senders: senders}, address)
       when is_list(senders) and is_binary(address),
-      do: Slipdock.Email.normalize(address) in senders
+      do: Enum.member?(senders, Slipdock.Email.normalize(address))
 
   def permitted_sender?(_board, _address), do: false
 
@@ -503,7 +503,7 @@ defmodule Slipdock.Boards.Board do
   (a simple board has no Timeline or Prioritise).
   """
   def home_view(%{default_view: view} = board) when view in @default_views do
-    if String.to_existing_atom(view) in hidden_views(board), do: "board", else: view
+    if Enum.member?(hidden_views(board), String.to_existing_atom(view)), do: "board", else: view
   end
 
   def home_view(_board), do: "board"

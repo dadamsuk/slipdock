@@ -327,7 +327,7 @@ defmodule Slipdock.Boards.Card do
   def vote_total(_), do: 0
 
   @doc "Whether the card is scheduled more coarsely than to the day."
-  def fuzzy?(%{date_precision: p}), do: p not in [nil, "day"]
+  def fuzzy?(%{date_precision: p}), do: not Enum.member?([nil, "day"], p)
   def fuzzy?(_), do: false
 
   @doc """
@@ -592,7 +592,7 @@ defmodule Slipdock.Boards.Card do
     count? = &(is_nil(&1) or (is_integer(&1) and &1 >= 0))
 
     cond do
-      suite["result"] not in ["passed", "failed"] ->
+      not Enum.member?(["passed", "failed"], suite["result"]) ->
         [evidence_suite: "needs a result: passed or failed"]
 
       not (count?.(suite["passed"]) and count?.(suite["failed"])) ->
