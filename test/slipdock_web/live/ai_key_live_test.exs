@@ -126,6 +126,36 @@ defmodule SlipdockWeb.AIKeyLiveTest do
       assert render(view) =~ "local/small"
     end
 
+    # #2727: the stored model stays an option when the endpoint no longer
+    # lists it, so saving the form doesn't quietly change it; one it does
+    # list is offered once, not twice.
+    test "a stored model the endpoint leaves out stays an option, a listed one is not doubled",
+         %{conn: conn, user: user} do
+      Slipdock.AIStub.stub_models(["local/big", "local/small", "local/text-embedding"])
+
+      :ok =
+        Keys.put_settings(user, %{
+          base_url: "http://box.local:1234/v1",
+          model: "local/retired",
+          embed_model: "local/text-embedding"
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/account/settings")
+      view |> element("button[phx-click=list_ai_models]") |> render_click()
+      render_async(view)
+
+      chat = "form[phx-submit=save_ai_model] select[name=model]"
+      embed = "form[phx-submit=save_ai_model] select[name=embed_model]"
+
+      assert has_element?(view, ~s|#{chat} option[value="local/retired"][selected]|)
+      assert has_element?(view, ~s|#{chat} option[value="local/big"]|)
+      assert option_count(view, chat, "local/retired") == 1
+
+      assert has_element?(view, ~s|#{embed} option[value="local/text-embedding"][selected]|)
+      assert option_count(view, embed, "local/text-embedding") == 1
+      refute has_element?(view, ~s|#{embed} option[value="local/retired"]|)
+    end
+
     test "an endpoint that cannot be reached says so and stores nothing", %{
       conn: conn,
       user: user
@@ -238,5 +268,11 @@ defmodule SlipdockWeb.AIKeyLiveTest do
       {:ok, _view, html} = live(conn, ~p"/boards/#{board}")
       assert html =~ "Chat about this page with AI"
     end
+  end
+
+  # How many of a select's options carry this value.
+  defp option_count(view, select, value) do
+    html = view |> element(select) |> render()
+    length(Regex.scan(~r/<option[^>]*value="#{Regex.escape(value)}"/, html))
   end
 end
