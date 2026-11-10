@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dadamsuk/slipdock/daemon/internal/daemonlog"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 	"github.com/dadamsuk/slipdock/daemon/internal/runner"
 )
@@ -218,7 +219,7 @@ func TestRunRunnersWaitsForTheCeilingsReport(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	logf := func(f string, a ...any) {
-		if strings.HasPrefix(f, "can't report the ceiling") {
+		if _, f := daemonlog.Split(f); strings.HasPrefix(f, "can't report the ceiling") {
 			once.Do(func() { close(entered) })
 			<-release
 		}

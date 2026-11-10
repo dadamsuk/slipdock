@@ -168,4 +168,23 @@ defmodule Slipdock.MachinesDocsTest do
 
     assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock machine add-runner"
   end
+
+  test "the manual says how to read a machine from its own files (#2652)" do
+    manual = read("docs/manual/machines.md") |> String.replace(~r/\s+/, " ")
+
+    for part <- [
+          "slipdock-runner status [--json]",
+          "slipdock-runner log [--level debug|info|warn|error] [--since DUR] [-n N] [--follow]",
+          "slipdock-runner log --runner NAME | --job ID [-n N] [--follow]",
+          "slipdock-runner config [--effective | --json]",
+          "`daemon-state.json`",
+          "`jobs/<runner>/job.json`",
+          "`daemon.log.1`",
+          "`log_level`",
+          "`run --log-level`",
+          "It exits non-zero when the daemon isn't running or a runner's settings were refused"
+        ] do
+      assert manual =~ part, "missing #{part}"
+    end
+  end
 end
