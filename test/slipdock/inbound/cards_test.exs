@@ -319,6 +319,21 @@ defmodule Slipdock.Inbound.CardsTest do
       assert Cards.forward_line(message) == nil
     end
 
+    # The block's lines are trimmed before they are read, so the padding left
+    # on a name is inside the line: the space after a bold mark. The value has
+    # none to lose: its line's end is already trimmed, and the pattern's `\s*`
+    # takes every character before it that `String.trim/1` would.
+    test "a forwarded header whose name is padded inside its bold marks is still found" do
+      {:ok, message} =
+        Message.parse(
+          "From: a@example.com\r\nSubject: Fwd: x\r\n\r\n" <>
+            "---------- Forwarded message ---------\r\n" <>
+            "** From :**   dana@example.com   \r\n"
+        )
+
+      assert Cards.forward_line(message) == "*Forwarded: first sent by dana@example.com.*"
+    end
+
     test "a forward whose headers can't be found gets no line" do
       {:ok, message} =
         Message.parse("From: a@example.com\r\nSubject: Fwd: x\r\n\r\njust text\r\n")

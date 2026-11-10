@@ -198,7 +198,8 @@ defmodule Slipdock.QuickAdd.Capture do
     name = answer["board"]
 
     if opts[:strict_board] == true and not Map.get(catalogue, :forced, false) and
-         name not in [nil, ""] and is_nil(find_by_name(catalogue.boards, name, & &1.board.name)),
+         not Enum.member?([nil, ""], name) and
+         is_nil(find_by_name(catalogue.boards, name, & &1.board.name)),
        do: Map.put(plan, :unknown_board, name),
        else: plan
   end
@@ -313,7 +314,7 @@ defmodule Slipdock.QuickAdd.Capture do
   defp date_label("start_date"), do: "Start"
 
   defp put_priority(acc, p) when is_binary(p) do
-    if p in Card.priorities() and p != "none" do
+    if Enum.member?(Card.priorities(), p) and p != "none" do
       acc |> Map.update!(:attrs, &Map.put(&1, "priority", p)) |> chip(:priority, p)
     else
       acc
@@ -323,7 +324,7 @@ defmodule Slipdock.QuickAdd.Capture do
   defp put_priority(acc, _), do: acc
 
   defp put_flags(acc, flags) when is_list(flags) do
-    case Enum.uniq(Enum.filter(flags, &(&1 in Card.flags()))) do
+    case Enum.uniq(Enum.filter(flags, &Enum.member?(Card.flags(), &1))) do
       [] ->
         acc
 

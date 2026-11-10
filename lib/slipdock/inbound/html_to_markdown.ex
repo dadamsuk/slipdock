@@ -72,7 +72,7 @@ defmodule Slipdock.Inbound.HtmlToMarkdown do
     tag = String.downcase(tag)
 
     cond do
-      tag in @drop or office?(tag) or hidden?(attrs) -> []
+      Enum.member?(@drop, tag) or office?(tag) or hidden?(attrs) -> []
       true -> element(tag, attrs, children, ctx)
     end
   end

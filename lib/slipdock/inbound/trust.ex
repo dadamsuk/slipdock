@@ -44,7 +44,7 @@ defmodule Slipdock.Inbound.Trust do
       auto != "" and not String.starts_with?(auto, "no") ->
         "Automatic mail (Auto-Submitted) is ignored."
 
-      precedence in ["bulk", "junk", "list"] ->
+      Enum.member?(["bulk", "junk", "list"], precedence) ->
         "Bulk or list mail is ignored."
 
       present?(message.list_id) ->
@@ -131,7 +131,7 @@ defmodule Slipdock.Inbound.Trust do
           else: {first, rest}
 
       authserv = id |> to_string() |> String.split(~r/\s/, parts: 2) |> hd() |> String.downcase()
-      if authserv in ids, do: Enum.flat_map(rest, &method/1)
+      if Enum.member?(ids, authserv), do: Enum.flat_map(rest, &method/1)
     end)
   end
 

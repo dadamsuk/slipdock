@@ -434,7 +434,8 @@ defmodule Slipdock.Narrative do
       at_risk_now:
         Enum.count(
           plain,
-          &(Card.health(&1) == :late or Card.stated_health(&1) in ~w(at_risk off_track))
+          &(Card.health(&1) == :late or
+              Enum.member?(~w(at_risk off_track), Card.stated_health(&1)))
         )
     }
   end

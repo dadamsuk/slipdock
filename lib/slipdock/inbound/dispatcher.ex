@@ -47,7 +47,7 @@ defmodule Slipdock.Inbound.Dispatcher do
 
   @doc "Whether mail to addresses of `kind` (`:card`, `:page`, `:add`, `:reply`) is acted on yet."
   @spec live?(atom()) :: boolean()
-  def live?(kind), do: kind in @live
+  def live?(kind), do: Enum.member?(@live, kind)
 
   @spec dispatch(request()) :: {:ok, map()} | {:reject, String.t(), map()}
   def dispatch(%{kind: "unknown"}), do: {:reject, "No such address here.", %{}}

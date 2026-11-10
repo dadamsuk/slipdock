@@ -545,6 +545,18 @@ defmodule Slipdock.ResearcherTest do
     {Enum.find(messages, &(&1["role"] == "tool"))["content"], answer}
   end
 
+  test "a search result gives a card's priority, and nothing for a card with none", ctx do
+    plain = card_fixture(ctx.column, %{"title" => "Refund rounding notes"})
+    assert plain.priority == "none"
+    index_everything()
+
+    {content, _answer} = tool_output(ctx.owner, "search_cards", %{"query" => "refund rounding"})
+    header = fn card -> content |> String.split("\n") |> Enum.find(&(&1 =~ "##{card.id} “")) end
+
+    assert String.ends_with?(header.(ctx.card), " (priority high)")
+    assert String.ends_with?(header.(plain), " › #{ctx.column.name}")
+  end
+
   describe "read_card" do
     test "takes an id as a string, and refuses one that isn't a number", ctx do
       {content, answer} = tool_output(ctx.owner, "read_card", %{"card_id" => "#{ctx.card.id}"})

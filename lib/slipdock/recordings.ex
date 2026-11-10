@@ -50,7 +50,7 @@ defmodule Slipdock.Recordings do
 
     cond do
       segments == [] -> {:error, :invalid}
-      Enum.any?(segments, &(&1 in [".", ".."])) -> {:error, :invalid}
+      Enum.any?(segments, &Enum.member?([".", ".."], &1)) -> {:error, :invalid}
       true -> {:ok, segments}
     end
   end
@@ -204,7 +204,7 @@ defmodule Slipdock.Recordings do
   defp inside(_user, [], _folder_id, _depth), do: {:error, :outside_folder}
 
   defp inside(user, parents, folder_id, depth) do
-    if folder_id in parents do
+    if Enum.member?(parents, folder_id) do
       :ok
     else
       # A file in My Drive has one parent; look up each anyway, rather than

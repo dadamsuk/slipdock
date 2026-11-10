@@ -59,7 +59,7 @@ defmodule Slipdock.Importers.Trello do
     # Somebody else's JSON: a field that is a number where Trello writes a
     # string, a map where it writes a list. Anything shaped other than the way
     # Trello writes it gets the same answer as a file with no lists in it.
-    _ in [ArgumentError, FunctionClauseError, Protocol.UndefinedError, BadMapError, KeyError] ->
+    [ArgumentError, FunctionClauseError, Protocol.UndefinedError, BadMapError, KeyError] ->
       {:error, :not_a_trello_export}
   end
 

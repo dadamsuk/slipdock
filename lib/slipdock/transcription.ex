@@ -82,7 +82,7 @@ defmodule Slipdock.Transcription do
          req = req(server),
          {:ok, status} <- get_status(req),
          {:ok, file} <- open(path) do
-      diarize? = "diarization" in List.wrap(status["capabilities"])
+      diarize? = Enum.member?(List.wrap(status["capabilities"]), "diarization")
 
       form = [
         file: {file, [filename: filename] ++ content_type(opts[:content_type])},
@@ -109,7 +109,7 @@ defmodule Slipdock.Transcription do
     with {:ok, server} <- server(opts),
          req = req(server),
          {:ok, status} <- get_status(req) do
-      if "voiceprints" in List.wrap(status["capabilities"]) do
+      if Enum.member?(List.wrap(status["capabilities"]), "voiceprints") do
         form = [
           file: {clip, filename: "voiceprint.wav", content_type: "audio/wav"},
           name: name

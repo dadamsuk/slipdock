@@ -71,6 +71,43 @@ defmodule Slipdock.Importers.TrelloTest do
       assert report.cards == 1
     end
 
+    # One export for each exception the reader answers as "not a Trello
+    # export", so none can leave the list unnoticed (the test below this holds
+    # Protocol.UndefinedError). These two are shapes a JSON file can have.
+    for {exception, what, actions} <- [
+          {ArgumentError, "a comment whose text is a number",
+           [%{"type" => "commentCard", "data" => %{"card" => %{"id" => "c"}, "text" => 7}}]},
+          {FunctionClauseError, "an action that is a number", [7]}
+        ] do
+      test "#{what} (#{inspect(exception)}) is refused, not crashed on" do
+        doc = %{
+          "lists" => [%{"id" => "l", "name" => "To Do"}],
+          "cards" => [%{"id" => "c", "idList" => "l"}],
+          "actions" => unquote(Macro.escape(actions))
+        }
+
+        assert Trello.to_portable(doc) == {:error, :not_a_trello_export}
+      end
+    end
+
+    # No JSON shape raises these two: every key and map the reader takes from
+    # the file goes through `Access` or a guard. So each is raised by a list
+    # that fails as it is read, which is as near as an export gets to one.
+    for {exception, row} <- [{BadMapError, 1}, {KeyError, Macro.escape(%{})}] do
+      test "a list that raises #{inspect(exception)} as it is read is refused, not crashed on" do
+        actions = Stream.map([unquote(row)], &Map.fetch!(&1, "type"))
+        assert_raise unquote(exception), fn -> Enum.to_list(actions) end
+
+        doc = %{
+          "lists" => [%{"id" => "l", "name" => "To Do"}],
+          "cards" => [%{"id" => "c", "idList" => "l"}],
+          "actions" => actions
+        }
+
+        assert Trello.to_portable(doc) == {:error, :not_a_trello_export}
+      end
+    end
+
     test "an export shaped other than Trello writes it is refused, not crashed on", %{
       user: user
     } do
