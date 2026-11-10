@@ -365,6 +365,35 @@ defmodule Slipdock.RecurrenceTest do
       assert series.next_at == ~U[2027-01-24 09:15:00Z]
     end
 
+    # Each of the three on its own moves when the next one is made (#2721).
+    for {what, attrs, next_at} <- [
+          {"time", %{"at" => "09:15"}, ~U[2027-01-18 09:15:00Z]},
+          {"timezone", %{"timezone" => "Asia/Tokyo"}, ~U[2027-01-17 22:00:00Z]},
+          {"lead", %{"lead_days" => 2}, ~U[2027-01-16 07:00:00Z]},
+          {"time, timezone and lead together",
+           %{"at" => "09:15", "timezone" => "Asia/Tokyo", "lead_days" => 1},
+           ~U[2027-01-17 00:15:00Z]}
+        ] do
+      test "a new #{what} alone keeps the next date and moves when it is made", ctx do
+        assert ctx.series.next_at == ~U[2027-01-18 07:00:00Z]
+        {:ok, series} = Recurrence.set(ctx.card, unquote(Macro.escape(attrs)), ctx.owner)
+        assert series.next_on == ~D[2027-01-18]
+        assert series.next_at == unquote(Macro.escape(next_at))
+      end
+    end
+
+    test "a change to anything else doesn't work out when the next is made again", ctx do
+      # A `next_at` out of step with `next_on` shows whether it was recomputed.
+      ctx.series
+      |> Ecto.Changeset.change(next_at: ~U[2027-01-18 05:00:00Z])
+      |> Repo.update!()
+
+      {:ok, series} = Recurrence.set(ctx.card, %{"on_missed" => "stack"}, ctx.owner)
+      assert series.on_missed == "stack"
+      assert series.next_on == ~D[2027-01-18]
+      assert series.next_at == ~U[2027-01-18 05:00:00Z]
+    end
+
     test "a new rule starts again from the card", ctx do
       {:ok, _} = Recurrence.skip(ctx.card)
       {:ok, series} = Recurrence.set(ctx.card, %{"rule" => "wed"}, ctx.owner)
