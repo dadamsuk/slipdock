@@ -330,7 +330,13 @@ jobs:
       # facility fails them rather than skipping: confined (Landlock,
       # sandbox-exec) on both, and on Linux the user executor, which makes a
       # throwaway account with the runner's passwordless sudo (#2576).
+      #
+      # With the race detector on every OS (#2664): a test's httptest handler
+      # reading state the test owns races even when a child process orders
+      # the two, and only -race says so. It costs the most on macOS, where
+      # each re-exec of the race-built test binary as a helper takes ~2 s
+      # (internal/runner: 20 s without, 2¼ min with).
       - name: Test
-        run: go test ./...
+        run: go test -race ./...
         env:
           SLIPDOCK_EXECUTOR_TESTS: ${{ matrix.os != 'windows-latest' && '1' || '' }}

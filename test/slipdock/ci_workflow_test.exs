@@ -274,8 +274,16 @@ defmodule Slipdock.CiWorkflowTest do
       # The newest Go: macOS refuses 1.22's test binaries (missing LC_UUID).
       assert has?(daemon, "go-version: stable")
 
-      for command <- ["go build ./...", "go vet ./...", "go test ./..."],
+      for command <- ["go build ./...", "go vet ./...", "go test -race ./..."],
           do: assert(runs?(daemon, command), "the daemon job no longer runs `#{command}`")
+    end
+
+    # A data race in a daemon test shows only under the race detector (#2664).
+    test "its tests run with the race detector, here and in mix pre_push" do
+      refute runs?(job("daemon"), "go test ./..."), "the daemon job runs go test without -race"
+      steps = Mix.Project.get!().pre_push_steps()
+      assert {"go", ["test", "-race", "./..."], cd: "daemon", exec: true} in steps
+      refute {"go", ["test", "./..."], cd: "daemon", exec: true} in steps
     end
 
     test "one OS failing doesn't cancel the others" do
