@@ -160,16 +160,30 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   on what an agent says it finished, all off by default: a bar (what done
   means) written before work starts, locked once it does
   (`slipdock set-board --bar-required`, `slipdock edit 12 --bar "…"`), and
-  evidence when it completes (`slipdock done 12 --evidence "…"
-  --evidence-commit abc1234`), and a second agent accepting it, or
-  rejecting it with the reason (`slipdock verify 12 accept|reject`). Work
+  evidence when it completes (`slipdock done 12 --evidence-commit abc1234
+  --evidence -`), and a second agent accepting it, or rejecting it with
+  the reason (`slipdock verify 12 accept|reject --reason -`). Evidence and
+  a reason are lines, not a paragraph, sent on stdin: a first line that
+  stands alone, a blank line, one short line per point, the parts in
+  `--check` or the evidence's fields (`--tests`, `--suite`, `--pr`):
+
+  ```sh
+  slipdock done 12 --evidence-commit abc1234 --suite passed:38:0 --evidence - <<'EOF'
+  Built and tested; CI green.
+
+  - the export keeps archived cards (`Export.run/1`)
+  - Handbook: updated W-3 §Exports
+  EOF
+  ```
+
+  Work
   can ship by pull request instead of a push to the default branch
   (`slipdock set-board --ship-via pull-request`; the agent names it with
   `slipdock done 12 --pr URL --evidence-commit SHA`, its head): accepting it has a runner merge the pull
   request with its built-in merge kind, in its own repository wherever it
   was started, and the merge completes the card (an epic, whose subcards
   each merged their own, or a card that changes no code, `slipdock done 12
-  --no-code "<why>"`, completes without a pull request of its own)
+  --no-code "<why>" --evidence -`, completes without a pull request of its own)
   (`slipdock verify 12 merged` when you merged it yourself). On a board that
   ships by push, a card awaiting verification frees its lane and its
   dependents. A machine's runner daemon updates itself from signed

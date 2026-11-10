@@ -4397,16 +4397,17 @@ defmodule SlipdockWeb.APIGuide do
     after a rejection too (`422`). **An epic** (a card whose sub-board holds cards)
     has no pull request of its own to name: each subcard ships and merges
     its own. Once they are all accepted and merged, complete the epic
-    without `--pr` (`slipdock done ID --evidence "<the subcards' PRs, the
-    last merged build>"`), and accepting it completes it with nothing to
+    without `--pr` (`slipdock done ID --evidence -`, the evidence on
+    stdin as lines: a line per subcard's PR, a line for the last merged
+    build), and accepting it completes it with nothing to
     merge (so does one naming a pull request a subcard already merged).
     Only work done on the epic itself goes on its own branch, with a pull
     request named by `--pr`, which the acceptance merges. **A card that
     changes no code** (a sweep, a handbook reconcile, a card that only
     reads and files) has no branch and no pull request, and never a token
     one: complete it with why in `evidence_no_code` (`slipdock done ID
-    --no-code "<why>" --evidence "<what you did>"`, `complete_card`
-    `no_code`), never beside `--pr` (`422`). The verifier judges the claim
+    --no-code "<why>" --evidence -`, what you did on stdin as lines,
+    `complete_card` `no_code`), never beside `--pr` (`422`). The verifier judges the claim
     against the card's ask instead of checking out a commit, and accepting
     it completes it with nothing to merge. The build to watch is the
     pull request's (`gh pr checks <branch> --watch --fail-fast`), and it is
@@ -4476,9 +4477,9 @@ defmodule SlipdockWeb.APIGuide do
     `evidence_tests` (the test files you added or changed) and
     `evidence_suite` (`{"result": "passed"|"failed", "passed": N, "failed":
     N}`). Give what applies: `complete_card` `evidence` / `commit` /
-    `branch` / `tests` / `suite`, `slipdock done ID --evidence TEXT
+    `branch` / `tests` / `suite`, `slipdock done ID --evidence -
     --evidence-commit SHA --branch B --tests a.exs,b.exs --suite
-    passed:38:0`, or the same fields on `PATCH /api/cards/:id` with
+    passed:38:0` (the text on stdin), or the same fields on `PATCH /api/cards/:id` with
     `"completed": true`. The server checks their shape, not their truth: a
     second agent does that. Completing with none of them, moving the card
     into a done list without it, or creating a card already done (in a
@@ -4490,9 +4491,40 @@ defmodule SlipdockWeb.APIGuide do
     agent's `description` or `bar` that is a bare `-` is refused the same
     way, on a create or an update (`422`, naming the field): it is what
     such a client sends for `--desc -` or `--bar -`, and the card would
-    keep a dash for a body. A person's own write is never refused. The
+    keep a dash for a body; a person's own write is never refused. An
+    agent's verdict whose reason is a bare `-` is refused the same way
+    (`422`), on accept, reject, agree and disagree, so the piped reason is
+    never lost behind the dash; a person is never refused. The
     evidence is posted on the card as a comment; reopening the card clears
     it, so the next completion brings its own.
+
+    **Evidence and a reason are lines, not a paragraph.** A first line
+    that stands alone, a blank line, then one short line per point; the
+    parts go in their fields (`--check`, or the evidence's `--evidence-commit`,
+    `--branch`, `--tests`, `--suite`, `--pr`), not repeated in the text.
+    Words on the command line lose their line breaks, so send it on stdin
+    with a quoted heredoc (`--evidence -`, `--reason -`):
+
+    ```sh
+    slipdock done 12 --evidence-commit abc1234 --suite passed:38:0 --evidence - <<'EOF'
+    Built and tested; CI green.
+
+    - the export keeps archived cards (`Export.run/1`)
+    - Handbook: updated W-3 §Exports
+    EOF
+    ```
+
+    A verifier's or an auditor's reason is the same (`verify_card`'s
+    `reason`; `slipdock verify ID reject|disagree --reason -`):
+
+    ```sh
+    slipdock verify 12 reject --check bar:2=fail:"no test" --reason - <<'EOF'
+    bar 2: the export drops archived cards
+
+    - `Export.run/1` filters on `archived_at`
+    - no test exports an archived card
+    EOF
+    ```
     """
   end
 
@@ -4521,8 +4553,9 @@ defmodule SlipdockWeb.APIGuide do
     --check proposal`): judge the proposal's content, not the live rules,
     and name its id when accepting. A rejection never asks the builder to
     edit `## Rules` directly, only to file or correct the proposal. Then
-    `verify_card` (`slipdock verify ID accept|reject --reason TEXT
-    --evidence-commit SHA`, `POST /api/cards/:id/verify {"decision":
+    `verify_card` (`slipdock verify ID accept|reject --reason -
+    --evidence-commit SHA`, the reason on stdin as lines, the same shape as
+    evidence, its parts in `--check`; `POST /api/cards/:id/verify {"decision":
     "accept"|"reject", "reason": "…", "commit": "…"}`). Accepting completes
     it and moves it to the done list. Rejecting needs the reason, citing the check it fails (`bar 2: …`,
     `the ask: …`, a rule id such as `ARCH-3: …`, or `Handbook line: …`) and
@@ -4577,7 +4610,8 @@ defmodule SlipdockWeb.APIGuide do
     agent accepted to the verify pool again as an audit (kind `verify`,
     `audit: true`; never to its builder's or verifier's runner): judge it
     afresh, `should` rules too, and answer `slipdock verify ID agree|disagree
-    --reason …` (`verify_card`). The acceptance stands; agree only comments.
+    --reason -` (`verify_card`), the reason on stdin as lines, its parts in
+    `--check`. The acceptance stands; agree only comments.
     Disagree also files the rework: one card in the ready list, titled
     `Audit of #ID: <reason>`, with the failed parts, the audit comment's
     link, the accepted card's paths, `caused_by` it, and priority `high`
