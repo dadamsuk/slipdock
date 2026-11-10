@@ -55,6 +55,16 @@ defmodule SlipdockWeb.PauseLiveTest do
     refute has_element?(page, "[id^=pause-banner-]")
   end
 
+  test "an empty pool opens the pause for the whole tree, not a pool named \"\"",
+       %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+    view |> element("#pause-tree") |> render_click(%{"pool" => ""})
+
+    assert has_element?(view, "#pause-form", "Pause the whole tree")
+    view |> form("#pause-form", %{"reason" => "bad deploy"}) |> render_submit()
+    assert [%{pool: nil, reason: "bad deploy"}] = Runners.pauses(board)
+  end
+
   test "a pool row has its own Pause, and Resume releases only that pool",
        %{conn: conn, board: board, user: user} do
     {:ok, _} = Runners.pause(board, %{"reason" => "freeze"}, user)

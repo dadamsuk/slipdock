@@ -176,6 +176,23 @@ defmodule SlipdockWeb.RunnersLiveTest do
     assert render(view) =~ rule.name
   end
 
+  test "choosing no list again selects \"None yet\"", %{conn: conn, board: board} do
+    [_, todo | _] = board.columns
+    view = open(conn, board)
+    choose(view, %{"scenario" => "loop", "pool" => "dev", "send" => "top:#{todo.name}"})
+    assert has_element?(view, "option[value='top:#{todo.name}'][selected]")
+
+    choose(view, %{"scenario" => "loop", "pool" => "dev", "send" => ""})
+
+    assert has_element?(
+             view,
+             "select[name='wizard[send]'] option[value=''][selected]",
+             "None yet"
+           )
+
+    refute has_element?(view, "option[value='top:#{todo.name}'][selected]")
+  end
+
   test "picking a list's top card adds a rule that sends one at a time", %{
     conn: conn,
     board: board
