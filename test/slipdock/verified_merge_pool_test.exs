@@ -213,7 +213,7 @@ defmodule Slipdock.VerifiedMergePoolTest do
       assert Verified.rejection(card) == nil
       assert Enum.all?(merge_jobs(card), &(&1.status == "failed"))
       assert length(merge_jobs(card)) == 3
-      assert Verified.merge_status(card) == :none
+      assert Verified.merge_status(card) == :waiting
 
       assert [waiting] = Enum.filter(comments(card), &(&1 =~ "**Merge waiting.**"))
       assert waiting =~ "slipdock verify #{card.id} merged"
