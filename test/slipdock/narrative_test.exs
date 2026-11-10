@@ -84,6 +84,31 @@ defmodule Slipdock.NarrativeTest do
     assert quiet.summary.cards == group.total
   end
 
+  test "at risk now counts the cards reported at risk or off track, not the ones on track" do
+    board = board_fixture()
+    [backlog | _] = board.columns
+    user = user_fixture()
+
+    for {title, health} <- [
+          {"Slipping", "at_risk"},
+          {"Stuck", "off_track"},
+          {"Fine", "on_track"},
+          {"Quiet", nil},
+          {"Silent", nil}
+        ] do
+      card = card_fixture(backlog, %{"title" => title})
+
+      if health,
+        do:
+          {:ok, _} = Boards.add_status_update(card, user, %{"health" => health, "body" => "Now"})
+    end
+
+    narrative = Narrative.build(reload(board), Config.defaults("narrative"), Date.utc_today())
+
+    assert narrative.summary.cards == 5
+    assert narrative.summary.at_risk_now == 2
+  end
+
   test "the tell list picks which events are told, and comment text can come along" do
     %{board: board, loose: loose, sub: sub} = tree_fixture()
     today = Date.utc_today()

@@ -32,6 +32,23 @@ defmodule Slipdock.Inbound.TrimTest do
       assert md == "Agreed, let's do it **Monday**."
     end
 
+    test "HTML is cut at an element with a reply id, and at no other id" do
+      for id <-
+            ~w(divRplyFwdMsg appendonsend stopSpelling mail-editor-reference-message-container) do
+        html =
+          ~s(<div><p id="greeting">Agreed.</p><div id="#{id}">From: Bob</div><p>Earlier</p></div>)
+
+        kept = Trim.html(html)
+
+        assert kept =~ ~s(<p id="greeting">Agreed.</p>), id
+        refute kept =~ "From: Bob", id
+        refute kept =~ "Earlier", id
+      end
+
+      html = ~s(<div><p id="greeting">Agreed.</p><div id="signature">Bob</div><p>PS</p></div>)
+      assert Trim.html(html) =~ ~s(<div id="signature">Bob</div><p>PS</p>)
+    end
+
     test "Apple Mail, text and HTML" do
       m = message("apple_reply.eml")
       assert Trim.text(m.text) == "Yes, both are paid.\n\nErin"

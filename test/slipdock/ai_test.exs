@@ -149,6 +149,45 @@ defmodule Slipdock.AITest do
       refute wiki =~ "the wiki page for retries"
     end
 
+    test "a wiki page's line gives its priority, and nothing for none or no priority" do
+      user = user_fixture()
+      board = board_fixture()
+
+      {:ok, page} = Slipdock.Wiki.create_page(board, %{"title" => "Retry policy"}, user: user)
+
+      line = fn priority ->
+        %{
+          kind: :board,
+          board: reload(board),
+          cards: [],
+          pages: [%{page | priority: priority}],
+          mode: :board,
+          users: [user]
+        }
+        |> Context.build()
+        |> String.split("\n")
+        |> Enum.find(&String.starts_with?(&1, "- #{page.code} "))
+      end
+
+      assert line.("high") == "- #{page.code} “Retry policy” — priority: high"
+      assert line.("none") == "- #{page.code} “Retry policy”"
+      assert line.(nil) == "- #{page.code} “Retry policy”"
+    end
+
+    test "an open card says its rolled-up health when late or blocked, not when ok or unknown" do
+      board = board_fixture()
+      card = card_fixture(hd(board.columns), %{"title" => "Deep card"})
+      card = Boards.get_card!(card.id)
+      board = reload(board)
+
+      text = fn health -> Context.card_text(%{card | rollup: %{health: health}}, board) end
+
+      assert text.(:late) =~ "\nRolled-up health: late\n"
+      assert text.(:blocked) =~ "\nRolled-up health: blocked\n"
+      refute text.(:ok) =~ "Rolled-up health"
+      refute text.(nil) =~ "Rolled-up health"
+    end
+
     test "a board page lists the lists, tags, people and cards with their ids" do
       board = board_fixture(%{"name" => "Launch"})
       [backlog, doing | _] = board.columns
