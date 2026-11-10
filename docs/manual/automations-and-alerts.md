@@ -53,7 +53,9 @@ card going stale, one day), so nothing repeats itself.
 **Conditions.** Any number, all of which must hold: the card itself (by
 number, to follow one card), list, priority, tag,
 assignee, flag, title, description, completed, archived, blocked, whether a
-due date or assignee is set, the dates themselves, health, age in days —
+due date or assignee is set, the dates themselves, health, age in days, and
+the verified-work fields: the card's `bar`, its lane `paths`, its `profile`
+and `verify_state` (`pending`, `held`, `rejected`, `accepted`, `merging`) —
 tested with `is`, `is_not`, `contains`, `any_of`, `none_of`, `is_set`,
 `before`, `after`, `within_days`, `older_than_days`, `gt`, `lt`.
 
@@ -64,9 +66,30 @@ add checklist items; create a card (with no title given it is
 `<rule>: <card> <date>`, as an alert's is); start a wiki page; call a URL back;
 write a line in the activity log; colour the card (`set_colours`: its
 `cover`, every edge with `border`, or one with `border_top`, `border_right`,
-`border_bottom`, `border_left`, each a palette colour or `none`). Text in an action can use
-`{{card.title}}`, `{{card.url}}`, `{{card.due_date}}`, `{{card.assignee}}`,
-`{{board.name}}`, `{{today}}` and the rest.
+`border_bottom`, `border_left`, each a palette colour or `none`); set the
+card's bar (`set_bar`, `none` clears it), its paths (`set_paths`, globs,
+with `mode` `replace`, `add` or `remove`) or its profile (`set_profile`).
+Text in an action can use `{{card.title}}`, `{{card.url}}`,
+`{{card.due_date}}`, `{{card.assignee}}`, `{{card.bar}}`, `{{card.paths}}`,
+`{{card.profile}}`, `{{card.verify_state}}`, `{{board.name}}`, `{{today}}`
+and the rest.
+
+**Bars, lanes and profiles.** A rule can read, fire on and change what
+[verified work](verified-work.md) keeps on a card. `card_updated` with
+`field` `bar`, `paths`, `profile` or `verify_state` fires when one changes
+(`verify_state` changes when an agent submits the card and when it is held,
+accepted or rejected), and a callback carries all four. The checks verified
+work makes hold agents only, so a rule, which is the board owner's standing
+say, can change a bar that locked when work started and lower a started
+card's profile, as a person can. A profile a rule sets is recorded as the
+rule's.
+
+```json
+{"trigger": {"type": "card_updated", "field": "verify_state"},
+ "conditions": [{"field": "verify_state", "op": "is", "value": "rejected"}],
+ "actions": [{"type": "add_flags", "flags": ["flagged"]},
+             {"type": "comment", "body": "Sent back. Bar: {{card.bar}}"}]}
+```
 
 ### Rules for what mail brings in
 

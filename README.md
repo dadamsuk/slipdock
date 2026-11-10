@@ -453,6 +453,8 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   form and no model at all — with alerts in the header
   and callbacks (GET or POST, with the card's title, link, dates, flags and
   status) out to anything else you run, each one logged with what came back.
+  Rules read, fire on and change a card's bar, paths and profile too, and
+  fire when its verification moves.
 - **Email a card in** — [your own addresses for each board, and one for Quick
   Add](docs/manual/emailing-your-board.md): forward a message and it is a card,
   attachments and all, or mail the board's page address and it is a wiki page

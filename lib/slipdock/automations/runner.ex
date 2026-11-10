@@ -201,6 +201,11 @@ defmodule Slipdock.Automations.Runner do
   # A page *is* the document, so it answers the question it was written for.
   defp field_value("has_doc", %Page{}), do: true
   defp field_value("has_doc", card), do: Slipdock.Wiki.pages_for_card(card) != []
+  # Verified work and lanes (#2731): a page has none of these.
+  defp field_value("bar", %Card{} = card), do: card.bar
+  defp field_value("paths", %Card{} = card), do: card.paths
+  defp field_value("profile", %Card{} = card), do: card.profile
+  defp field_value("verify_state", %Card{} = card), do: card.verify_state
   defp field_value(_, _), do: nil
 
   defp test("is_set", actual, _), do: present?(actual)
@@ -476,6 +481,56 @@ defmodule Slipdock.Automations.Runner do
         Boards.move_card(card.id, column.id, nil, actor: Slipdock.Actor.automation())
         {:ok, "moved to #{column.name}"}
       end
+    end
+  end
+
+  # Verified work and lanes (#2731). A rule is the owner's standing say, so
+  # the checks on agents' work don't hold it (SPEC-5): it may change a locked
+  # bar and lower a profile, as a person may.
+  defp do_perform("set_bar", action, ctx) do
+    with {:ok, card} <- need_card(ctx) do
+      bar =
+        case String.trim(text(action["bar"], ctx, "")) do
+          b when b in ["", "none"] -> nil
+          b -> b
+        end
+
+      cond do
+        bar == card.bar -> {:ok, "bar unchanged"}
+        is_nil(bar) -> set_fields(ctx, %{"bar" => nil}, "cleared the bar")
+        true -> set_fields(ctx, %{"bar" => bar}, "set the bar")
+      end
+    end
+  end
+
+  defp do_perform("set_paths", action, ctx) do
+    with {:ok, card} <- need_card(ctx) do
+      given = action["paths"] |> List.wrap() |> Enum.map(&to_string/1)
+      current = card.paths || []
+
+      paths =
+        case {action["mode"], given} do
+          {_, ["none"]} -> []
+          {"add", _} -> Enum.uniq(current ++ given)
+          {"remove", _} -> current -- given
+          _ -> Enum.uniq(given)
+        end
+
+      cond do
+        paths == current -> {:ok, "paths unchanged"}
+        paths == [] -> set_fields(ctx, %{"paths" => []}, "cleared its paths")
+        true -> set_fields(ctx, %{"paths" => paths}, "paths now #{Enum.join(paths, ", ")}")
+      end
+    end
+  end
+
+  defp do_perform("set_profile", action, ctx) do
+    with {:ok, card} <- need_card(ctx) do
+      profile = if action["profile"] == "none", do: nil, else: to_string(action["profile"])
+
+      if profile == card.profile,
+        do: {:ok, "profile unchanged"},
+        else: set_fields(ctx, %{"profile" => profile}, "profile #{profile || "cleared"}")
     end
   end
 
@@ -1114,6 +1169,10 @@ defmodule Slipdock.Automations.Runner do
       "card.tags" => Enum.map_join(card.tags, ", ", & &1.name),
       "card.flags" => Enum.join(card.flags, ", "),
       "card.status" => if(card.completed, do: "done", else: "open"),
+      "card.bar" => card.bar,
+      "card.paths" => Enum.join(card.paths || [], ", "),
+      "card.profile" => card.profile,
+      "card.verify_state" => card.verify_state,
       "card.url" => "#{base_url()}/boards/#{board_id}/cards/#{card.id}"
     }
     # A card with no due date has an empty one, not a typo: only a
@@ -1151,7 +1210,11 @@ defmodule Slipdock.Automations.Runner do
       percent_complete: card.percent_complete,
       blocked: Card.blocked?(card),
       flags: card.flags,
-      tags: Enum.map(card.tags, & &1.name)
+      tags: Enum.map(card.tags, & &1.name),
+      bar: card.bar,
+      paths: card.paths || [],
+      profile: card.profile,
+      verify_state: card.verify_state
     }
   end
 

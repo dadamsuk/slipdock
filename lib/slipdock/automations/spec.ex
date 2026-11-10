@@ -24,7 +24,9 @@ defmodule Slipdock.Automations.Spec do
      "a card arrives in a list, either added there or moved there from another"},
     {"card_moved", [], ["from", "to"], "a card moves between lists"},
     {"card_updated", [], ["field"],
-     "a card changes (field: title, description, priority, due_date, start_date, percent_complete, assignee, flags, color)"},
+     "a card changes (field: title, description, priority, due_date, start_date, percent_complete, " <>
+       "assignee, flags, color, bar, paths, profile, verify_state — verify_state changes when " <>
+       "an agent submits it for verification and when it is accepted or rejected)"},
     {"card_completed", [], [], "a card is ticked off"},
     {"card_reopened", [], [], "a completed card is reopened"},
     {"card_archived", [], [], "a card is archived"},
@@ -99,7 +101,8 @@ defmodule Slipdock.Automations.Spec do
 
   @condition_fields ~w(card column priority tag assignee flag title description completed
                        archived blocked has_due_date has_assignee due_date start_date
-                       percent_complete health age_days has_doc)
+                       percent_complete health age_days has_doc bar paths profile
+                       verify_state)
 
   @condition_ops ~w(is is_not contains not_contains any_of none_of is_set is_not_set
                     before after within_days older_than_days gt lt)
@@ -112,6 +115,15 @@ defmodule Slipdock.Automations.Spec do
      "raise a dismissable alert in the header bar (severity: info, warning, urgent); " <>
        "with no title it is called `<rule>: <card> <date>`"},
     {"move_card", ["column"], [], "move the card to another list"},
+    {"set_bar", ["bar"], [],
+     "set what done means for the card (its bar; none clears it). A rule may change a bar " <>
+       "that locked when work started, as a person may: only agents are held to it"},
+    {"set_paths", ["paths"], ["mode"],
+     "set the paths the card's work will touch, its lane: globs relative to the repository " <>
+       "(lib/foo/**, docs/manual.md; none clears them). mode: replace (the default), add or remove"},
+    {"set_profile", ["profile"], [],
+     "set what kind of change the card is (security, schema, feature, fix, docs, spike, " <>
+       "or none). Recorded as set by a rule; unlike an agent, a rule may lower it"},
     {"set_priority", ["priority"], [], "set the priority (none, low, medium, high, critical)"},
     {"set_colours", [],
      ["cover", "border", "border_top", "border_right", "border_bottom", "border_left"],
@@ -177,7 +189,8 @@ defmodule Slipdock.Automations.Spec do
   # What text in an action (a subject, a comment, an alert body) may refer to.
   @placeholders ~w({{card.title}} {{card.id}} {{card.url}} {{card.description}} {{card.priority}}
                    {{card.column}} {{card.assignee}} {{card.due_date}} {{card.start_date}}
-                   {{card.tags}} {{card.flags}} {{card.status}} {{board.name}} {{board.url}}
+                   {{card.tags}} {{card.flags}} {{card.status}} {{card.bar}} {{card.paths}}
+                   {{card.profile}} {{card.verify_state}} {{board.name}} {{board.url}}
                    {{today}} {{now}} {{event}} {{rule.name}})
 
   @triggers @event_triggers ++ @scheduled_triggers ++ @feed_triggers
@@ -491,7 +504,40 @@ defmodule Slipdock.Automations.Spec do
     end
   end
 
+  defp check_action(%{"type" => "set_profile", "profile" => profile} = action) do
+    profile = profile |> to_string() |> String.trim() |> String.downcase()
+    names = Slipdock.Profiles.names()
+
+    if Enum.member?(["none" | names], profile),
+      do: {:ok, Map.put(action, "profile", profile)},
+      else:
+        {:error,
+         "action “set_profile” profile “#{profile}” isn't one of #{Enum.join(names, ", ")} or none"}
+  end
+
+  defp check_action(%{"type" => "set_paths"} = action) do
+    mode = action |> Map.get("mode", "replace") |> to_string() |> String.downcase()
+    paths = action["paths"] |> List.wrap() |> Enum.flat_map(&split_globs/1)
+
+    cond do
+      not Enum.member?(~w(replace add remove), mode) ->
+        {:error, "action “set_paths” mode must be replace, add or remove"}
+
+      paths == [] ->
+        {:error, "action “set_paths” needs paths"}
+
+      paths == ["none"] and mode != "replace" ->
+        {:error, "action “set_paths” paths none only clears them (mode replace)"}
+
+      true ->
+        {:ok, action |> Map.put("paths", paths) |> Map.put("mode", mode)}
+    end
+  end
+
   defp check_action(action), do: {:ok, action}
+
+  defp split_globs(value),
+    do: value |> to_string() |> String.split(~r/[\s,]+/, trim: true)
 
   defp requeue_stuck(nil), do: nil
   defp requeue_stuck(n) when is_integer(n), do: n
@@ -564,7 +610,7 @@ defmodule Slipdock.Automations.Spec do
         "a card moves" <> where(t["from"], "out of") <> where(t["to"], "into")
 
       "card_updated" ->
-        "a card's " <> to_string(t["field"] || "details") <> " changes"
+        "a card's " <> noun(to_string(t["field"] || "details")) <> " changes"
 
       "card_completed" ->
         "a card is completed"
@@ -773,6 +819,7 @@ defmodule Slipdock.Automations.Spec do
   defp noun("start_date"), do: "start date"
   defp noun("percent_complete"), do: "progress"
   defp noun("age_days"), do: "age in days"
+  defp noun("verify_state"), do: "verification"
   defp noun(field), do: String.replace(field, "_", " ")
 
   defp truthy?(value), do: Enum.member?([true, "true", "yes", 1, "1"], value)
@@ -788,6 +835,15 @@ defmodule Slipdock.Automations.Spec do
   end
 
   defp action_summary(actions), do: Enum.map_join(actions, ", then ", &one_action/1)
+
+  # Verified work and lanes (#2731), apart: `one_action/1` is over credo's limit.
+  defp one_action(%{"type" => "set_bar"} = a),
+    do: if(a["bar"] == "none", do: "clear its bar", else: "set its bar")
+
+  defp one_action(%{"type" => "set_paths"} = a), do: paths_summary(a["mode"], a["paths"])
+
+  defp one_action(%{"type" => "set_profile", "profile" => "none"}), do: "clear its profile"
+  defp one_action(%{"type" => "set_profile"} = a), do: "set its profile to #{a["profile"]}"
 
   defp one_action(%{"type" => type} = a) do
     case type do
@@ -912,6 +968,11 @@ defmodule Slipdock.Automations.Spec do
     |> Enum.filter(& &1)
     |> Enum.join(", ")
   end
+
+  defp paths_summary(_mode, ["none"]), do: "clear its paths"
+  defp paths_summary("add", paths), do: "add #{list(paths)} to its paths"
+  defp paths_summary("remove", paths), do: "take #{list(paths)} off its paths"
+  defp paths_summary(_mode, paths), do: "set its paths to #{list(paths)}"
 
   defp requeue_summary(1), do: ", putting back a card its job leaves in progress once"
 

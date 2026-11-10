@@ -905,19 +905,23 @@ defmodule SlipdockWeb.HelpLive.Guides do
         </li>
         <li>
           <strong>Conditions</strong>: the list, priority, tag, assignee, flag, dates, health,
-          age, and more.
+          age, a card's bar, paths, profile and verification, and more.
         </li>
         <li>
           <strong>Actions</strong>: send an email, raise an alert, move, set priority, tag,
-          flag, assign, comment, set dates, complete or archive, add checklist items, create a
-          card, start a wiki page, call a URL, or send the card to a
-          <.link patch={~p"/help/agents/runners"} class="link">runner</.link>
+          flag, assign, comment, set dates, complete or archive, add checklist items, set the
+          card's bar, paths or profile, create a card, start a wiki page, call a URL, or send
+          the card to a <.link patch={~p"/help/agents/runners"} class="link">runner</.link>
           for an AI agent to work.
         </li>
       </ul>
       <p>
         Text in an action can include details of the card, such as <code>{"{{card.title}}"}</code>
         or <code>{"{{card.url}}"}</code>.
+      </p>
+      <p>
+        The checks on agents' work don't hold a rule: like you, it can change a card's bar after
+        work has started, or lower its profile.
       </p>
     </.part>
 

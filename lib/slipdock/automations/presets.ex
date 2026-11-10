@@ -18,7 +18,8 @@ defmodule Slipdock.Automations.Presets do
   alias Slipdock.Boards.Board
 
   @flags ~w(blocked waiting review flagged starred stuck)
-  @card_fields ~w(title description priority due_date start_date percent_complete assignee flags color)
+  @card_fields ~w(title description priority due_date start_date percent_complete assignee flags color
+                  bar paths profile verify_state)
 
   # How a "tell me" preset tells you.
   @notify_options [
@@ -368,6 +369,10 @@ defmodule Slipdock.Automations.Presets do
   @doc "The flags a preset can watch for."
   def flags, do: @flags
 
+  # What a field is called in a rule's name (UX-35: no internal names).
+  defp field_label("verify_state"), do: "verification"
+  defp field_label(field), do: String.replace(field, "_", " ")
+
   defp with_options(preset) do
     fields =
       Enum.map(preset.fields, fn field ->
@@ -518,7 +523,7 @@ defmodule Slipdock.Automations.Presets do
 
       field ->
         if Enum.member?(@card_fields, field) do
-          label = String.replace(field, "_", " ")
+          label = field_label(field)
 
           notify(
             p,
