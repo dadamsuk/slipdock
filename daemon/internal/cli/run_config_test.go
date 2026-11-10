@@ -32,6 +32,11 @@ type configServer struct {
 	asks    int
 	claims  map[string]int
 	reports []string
+	// jobs are each runner's queued jobs, handed out in turn by its
+	// claims; finishes are the jobs reported finished, as "<id> exit=<n>
+	// status=<s> after claim <n>", the runner's claims counted then.
+	jobs     map[string][]int64
+	finishes []string
 }
 
 func (s *configServer) set(runners ...string) {
@@ -92,11 +97,31 @@ func (s *configServer) start(t *testing.T) *httptest.Server {
 				time.Sleep(10 * time.Millisecond)
 			}
 		case r.URL.Path == "/api/runner/claim":
+			rid := r.Header.Get("X-Runner-Id")
 			s.mu.Lock()
-			s.claims[r.Header.Get("X-Runner-Id")]++
+			s.claims[rid]++
+			if q := s.jobs[rid]; len(q) > 0 {
+				s.jobs[rid] = q[1:]
+				s.mu.Unlock()
+				w.Header().Set("X-Job-Id", strconv.FormatInt(q[0], 10))
+				w.Header().Set("X-Job-Kind", "claude")
+				w.Header().Set("X-Lease-Seconds", "90")
+				fmt.Fprint(w, "the prompt")
+				return
+			}
 			s.mu.Unlock()
 			time.Sleep(20 * time.Millisecond)
 			w.WriteHeader(204)
+		case strings.HasSuffix(r.URL.Path, "/heartbeat"):
+			fmt.Fprintln(w, "ok")
+		case strings.HasSuffix(r.URL.Path, "/finish"):
+			parts := strings.Split(r.URL.Path, "/")
+			q := r.URL.Query()
+			s.mu.Lock()
+			s.finishes = append(s.finishes, fmt.Sprintf("%s exit=%s status=%s after claim %d",
+				parts[len(parts)-2], q.Get("exit"), q.Get("status"), s.claims[r.Header.Get("X-Runner-Id")]))
+			s.mu.Unlock()
+			fmt.Fprintln(w, "ok done")
 		case strings.HasSuffix(r.URL.Path, "/report"):
 			var body map[string]any
 			json.NewDecoder(r.Body).Decode(&body)

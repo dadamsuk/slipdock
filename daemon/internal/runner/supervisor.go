@@ -42,6 +42,10 @@ func keep(ctx context.Context, w *Worker, logf func(string, ...any)) error {
 		case IsRevoked(err):
 			logf("runner %s (#%d): %v", w.Runner.Name, w.Runner.ID, err)
 			return err
+		case errors.Is(err, ErrStopped):
+			// Between jobs, as the pool asked (#2665): not a failure.
+			logf("runner %s (#%d) took no more jobs and ended, as it was told to: its config changed, or it was paused or removed", w.Runner.Name, w.Runner.ID)
+			return err
 		case errors.As(err, &refusal):
 			logf("runner %s (#%d) stopped: %v", w.Runner.Name, w.Runner.ID, err)
 			return err
