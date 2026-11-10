@@ -236,6 +236,24 @@ defmodule SlipdockWeb.FontsTest do
       assert escaped == ~S|<h1 title={"a \"}\" b"} class="text-xl">|
     end
 
+    test "the check reads a backslash in a string as an escape" do
+      # A backslash is not an ordinary character (#2674): a lone `\"` leaves
+      # the quotes odd, so a string that ends at it swallows the tag's `}`,
+      # and one that runs over any quote reaches the `"}` two lines down.
+      src = ~S"""
+      <h1 title={"a \" b"} class="text-xl">A lone escaped quote</h1>
+      <h1 title={"a \\"} class="text-lg">An escaped backslash, then the closing quote</h1>
+      <p title={"c"}>Not a title</p>
+      """
+
+      size = ~r/(?<![\w:-])text-(?:lg|xl|2xl|3xl)(?![\w-])/
+
+      assert stray_titles([{"x.ex", src}], "h1", size) == [
+               {"x.ex", 1, ~S|<h1 title={"a \" b"} class="text-xl">|},
+               {"x.ex", 2, ~S|<h1 title={"a \\"} class="text-lg">|}
+             ]
+    end
+
     test "<.header> renders its title as a page-title h1" do
       assigns = %{}
 
