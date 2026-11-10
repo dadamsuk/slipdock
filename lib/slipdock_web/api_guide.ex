@@ -2604,13 +2604,16 @@ defmodule SlipdockWeb.APIGuide do
     /api/machines/enrol/token` with the `device_code` answers
     `authorization_pending` until then, and the key once after. Or with a
     one-time `enrolment_key` (`POST /api/machines/enrolment-keys` with
-    `boards`, shown once, good for 24 hours) and the machine's description
-    on the same token endpoint. The key reaches `GET /api/machine` and is
+    `boards` and an optional `label`, shown once, good for 24 hours) and the
+    machine's description on the same token endpoint; the key's `label` is
+    the name the machine enrols under (its hostname without one), and `PATCH
+    /api/machines/:id` with `name` renames it later, keeping its hostname
+    (#2666). The key reaches `GET /api/machine` and is
     no API token: every other route refuses it, and revoking the machine
     (`DELETE /api/machines/:id`, or Account › Machines) refuses it at once.
     `GET /api/machines` lists yours; a token confined to some boards is
     refused them. CLI: `slipdock machines`, `machine
-    show|revoke|enrolment|approve|refuse|enrol-key`.
+    show|rename|revoke|enrolment|approve|refuse|enrol-key`.
     Not over MCP: enrolling and revoking a machine is the account's owner's
     call, made where they sign in, not an agent's.
 

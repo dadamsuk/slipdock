@@ -1292,13 +1292,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
         >Account → Machines</.app_link>, checking the hostname, system and fingerprint and
         choosing the boards it may serve. It gets a machine key of its own, which is not an API
         token, and revoking the machine there stops the key at once. For a machine with nobody
-        at its screen, make a one-time enrolment key on the same page.
+        at its screen, make a one-time enrolment key on the same page: the name you give it is
+        the name the machine enrols under, or its hostname without one.
       </p>
       <p id="help-machine-page">
         Each machine has a page of its own, opened from that list: whether it is online, the
         ceiling and executors it reported, its runners and what each is working on, and the
         log of settings it accepted or refused. There you add, change, pause and remove its
-        runners, ask it to update now, and revoke it. A setting outside the machine's ceiling
+        runners, rename the machine (its hostname stays), ask it to update now, and revoke it.
+        A setting outside the machine's ceiling
         is marked with the limit; if you save it anyway the machine refuses it, and the page
         shows the refusal with its reason and the limit. People who share a board with the
         machine see its page but can't change it.

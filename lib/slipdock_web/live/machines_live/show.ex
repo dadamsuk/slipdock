@@ -9,8 +9,9 @@ defmodule SlipdockWeb.MachinesLive.Show do
   passed, red with the log it sent. Last, the trust contract
   (`SlipdockWeb.TrustContract`, #2581).
 
-  Its owner adds, changes, pauses, probes and removes runners here, asks it to
-  update now, and revokes it. A field set outside the ceiling is marked
+  Its owner adds, changes, pauses, probes and removes runners here, renames
+  the machine (#2666; its hostname stays as the daemon reported it), asks it
+  to update now, and revokes it. A field set outside the ceiling is marked
   with the limit; the page still saves it, since the daemon is what
   refuses (`Slipdock.Runners.Ceiling`), and its refusal then shows here.
   A member of a board the machine serves sees the page and changes nothing.
@@ -191,6 +192,20 @@ defmodule SlipdockWeb.MachinesLive.Show do
         {:noreply,
          socket
          |> notice(:info, "Asked. #{machine.name} looks for a newer signed release at once.")
+         |> load(machine)}
+
+      {:error, :invalid, message} ->
+        {:noreply, notice(socket, :error, message)}
+    end
+  end
+
+  def handle_event("rename", %{"name" => name}, socket) do
+    case Machines.rename_machine(socket.assigns.machine, name) do
+      {:ok, machine} ->
+        {:noreply,
+         socket
+         |> assign(page_title: machine.name)
+         |> notice(:info, "Renamed: the machine is now #{machine.name}.")
          |> load(machine)}
 
       {:error, :invalid, message} ->
@@ -431,6 +446,28 @@ defmodule SlipdockWeb.MachinesLive.Show do
           >
             Update asked for <.timestamp at={@machine.update_requested_at} />.
           </p>
+
+          <form
+            :if={@role == :owner}
+            id="machine-rename"
+            phx-submit="rename"
+            class="flex flex-wrap items-center gap-2 text-sm"
+          >
+            <label for="machine-rename-name" class="text-base-content/60">Name</label>
+            <input
+              id="machine-rename-name"
+              type="text"
+              name="name"
+              value={@machine.name}
+              maxlength="60"
+              class="input input-sm field min-w-40"
+              autocomplete="off"
+            />
+            <button type="submit" class="btn btn-sm">Rename</button>
+            <span :if={@machine.hostname != @machine.name} class="text-xs text-base-content/50">
+              hostname {@machine.hostname}
+            </span>
+          </form>
 
           <details
             :if={@setup_prompt}

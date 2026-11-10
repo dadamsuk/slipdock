@@ -130,11 +130,16 @@ on its own runners' jobs and nothing else: it is not an API token. Revoking
 the machine on the Machines page ends it at once.
 
 On a machine with no browser to hand, make a one-time **enrolment key** on
-the Machines page (`slipdock machine enrol-key <board>…`) and give it to `init`:
+the Machines page (`slipdock machine enrol-key <board>… --label NAME`) and give it to `init`.
+The name you give the key is the name the machine enrols under; without one it
+takes its hostname:
 
 ```sh
 slipdock-runner init --server https://slipdock.example.com --key sdk_…
 ```
+
+Rename a machine on its page (the Name field), or with `slipdock machine rename
+<id> <name>`. Its hostname, as the daemon reported it, stays as it was.
 
 A machine that is already enrolled refuses a second `init`; `--replace`
 enrols it again (revoke the old one on the Machines page).

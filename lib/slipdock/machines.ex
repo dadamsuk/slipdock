@@ -204,8 +204,9 @@ defmodule Slipdock.Machines do
 
   @doc """
   Makes a one-time enrolment key for `user`, naming the boards the machine
-  it enrols will serve. Returns `{:ok, plaintext_key, record}`; the key is
-  shown this once.
+  it enrols will serve. Its `label`, when given, is the name the machine
+  enrols under (#2666); without one the machine is named by its hostname.
+  Returns `{:ok, plaintext_key, record}`; the key is shown this once.
   """
   def create_enrolment_key(%User{} = user, board_refs, label \\ nil) do
     with {:ok, board_ids} <- servable_board_ids(user, board_refs) do
@@ -266,6 +267,7 @@ defmodule Slipdock.Machines do
         {machine_key, machine} =
           about
           |> Map.merge(%{user_id: record.user_id, board_ids: record.board_ids})
+          |> Map.put(:name, record.label)
           |> insert_machine("enrolment_key")
 
         Repo.update_all(from(k in EnrolmentKey, where: k.id == ^record.id),
@@ -285,7 +287,7 @@ defmodule Slipdock.Machines do
     machine =
       Repo.insert!(%Machine{
         user_id: attrs.user_id,
-        name: attrs.hostname,
+        name: Map.get(attrs, :name) || attrs.hostname,
         hostname: attrs.hostname,
         os: attrs.os,
         arch: attrs.arch,
@@ -406,6 +408,25 @@ defmodule Slipdock.Machines do
     else
       {:owner, {:ok, machine}} -> {:ok, machine, :owner}
       _ -> {:error, :not_found, "machine"}
+    end
+  end
+
+  @machine_name_max 60
+
+  @doc """
+  Renames a machine (#2666): `name` is what the pages, the CLI and the
+  board show; its hostname, as the daemon reported it, stays as it was.
+  Control characters are dropped and the name is trimmed to
+  #{@machine_name_max} characters; a blank one is refused. A revoked
+  machine can be renamed too: its row is the record of what it was.
+  """
+  def rename_machine(%Machine{} = machine, name) do
+    case clean(name, @machine_name_max) do
+      nil ->
+        {:error, :invalid, "give the machine a name"}
+
+      name ->
+        machine |> Ecto.Changeset.change(name: name) |> Repo.update()
     end
   end
 

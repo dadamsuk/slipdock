@@ -180,6 +180,9 @@ defmodule Slipdock.MachinesTest do
       assert machine.user_id == ctx.user.id
       assert machine.board_ids == [ctx.board.id]
       assert machine.enrolled_via == "enrolment_key"
+      # The key's label names the machine; the hostname is kept as reported.
+      assert machine.name == "ci"
+      assert machine.hostname == "build-box"
       assert Repo.get!(EnrolmentKey, record.id).machine_id == machine.id
 
       # Spent.
@@ -200,6 +203,15 @@ defmodule Slipdock.MachinesTest do
       end
 
       assert Repo.aggregate(Machine, :count) == 0
+    end
+
+    test "a key without a label, or a blank one, names the machine by its hostname", ctx do
+      for label <- [nil, "  \n "] do
+        {:ok, key, record} = Machines.create_enrolment_key(ctx.user, [ctx.board.id], label)
+        assert record.label == nil
+        assert {:ok, {_, machine}} = Machines.enrol_with_key(key, @about)
+        assert machine.name == "build-box"
+      end
     end
 
     test "a machine described badly doesn't spend the key", ctx do
@@ -276,6 +288,31 @@ defmodule Slipdock.MachinesTest do
       stranger = user_fixture("stranger@example.com")
       assert Machines.list_machines(stranger) == []
       assert Machines.get_machine(stranger, first.id) == {:error, :not_found, "machine"}
+    end
+
+    test "rename_machine/2 renames it, cleaned, and leaves the hostname (#2666)", ctx do
+      {_, machine} = approved_key(ctx)
+      assert machine.name == "build-box"
+
+      assert {:ok, renamed} = Machines.rename_machine(machine, "  Silver\tbox  ")
+      assert renamed.name == "Silverbox"
+      assert renamed.hostname == "build-box"
+      assert Repo.get!(Machine, machine.id).name == "Silverbox"
+
+      long = String.duplicate("x", 80)
+      assert {:ok, %{name: name}} = Machines.rename_machine(renamed, long)
+      assert name == String.duplicate("x", 60)
+
+      for blank <- ["", "   ", "\n", nil, 7] do
+        assert {:error, :invalid, "give the machine a name"} =
+                 Machines.rename_machine(renamed, blank)
+      end
+
+      assert Repo.get!(Machine, machine.id).name == name
+
+      # A revoked machine keeps its row, and can still be renamed.
+      {:ok, revoked} = Machines.revoke_machine(Repo.get!(Machine, machine.id))
+      assert {:ok, %{name: "old box"}} = Machines.rename_machine(revoked, "old box")
     end
 
     test "boards_for/2 names only the boards the owner can still reach", ctx do

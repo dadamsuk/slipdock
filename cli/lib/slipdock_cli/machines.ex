@@ -2,7 +2,7 @@ defmodule SlipdockCLI.Machines do
   @moduledoc false
 
   # Machines running the runner daemon (#2570): the account's own, listed,
-  # shown and revoked; a machine's enrolment looked up, approved or refused
+  # shown, renamed (#2666) and revoked; a machine's enrolment looked up, approved or refused
   # by the code `slipdock-runner init` shows (as the approval page does);
   # and the one-time enrolment keys for a machine with nobody at its screen.
   # A machine's runners (#2572): added, changed, paused, resumed and removed,
@@ -20,7 +20,8 @@ defmodule SlipdockCLI.Machines do
 
   @usage "usage: slipdock machines | machine show|revoke|update|setup-prompt <id> | " <>
            "machine enrolment <code> | machine approve <code> <board>... | " <>
-           "machine refuse <code> | machine enrol-key <board>... [--label L] | " <>
+           "machine rename <id> <name> | " <>
+           "machine refuse <code> | machine enrol-key <board>... [--label NAME] | " <>
            "machine add-runner <id> <board> --pool P --dir D [config] | " <>
            "machine set-runner <id> <runner> [config] | " <>
            "machine pause-runner|resume-runner|rm-runner <id> <runner> | " <>
@@ -59,6 +60,15 @@ defmodule SlipdockCLI.Machines do
     {:ok, :delete, "/machines/#{enc(id)}",
      fn %{"machine" => m} ->
        IO.puts("revoked machine ##{m["id"]} #{m["name"]}: its key no longer works")
+     end}
+  end
+
+  # The name the pages and the board show; the hostname is kept. A name of
+  # several words may be given unquoted.
+  def plan(["rename", id | words], _o) when words != [] do
+    {:ok, :patch, "/machines/#{enc(id)}", %{"name" => Enum.join(words, " ")},
+     fn %{"machine" => m} ->
+       IO.puts("machine ##{m["id"]} is now #{m["name"]} (hostname #{m["hostname"]})")
      end}
   end
 
@@ -412,9 +422,19 @@ defmodule SlipdockCLI.Machines do
   end
 
   @doc false
+  # --label is the name the machine enrols under; without it, its hostname.
   def key(r) do
     IO.puts("Enrolment key (shown once; works once, for #{r["valid_hours"]} hours):")
     IO.puts("  slipdock-runner init --key #{r["enrolment_key"]}")
+
+    IO.puts(
+      Render.dim(
+        case r["label"] do
+          nil -> "The machine enrols under its hostname; --label names it."
+          label -> "The machine enrols as #{label}."
+        end <> " `slipdock machine rename <id> <name>` renames it later."
+      )
+    )
   end
 
   defp system(m), do: Enum.join(Enum.reject([m["os"], m["arch"]], &is_nil/1), " ")

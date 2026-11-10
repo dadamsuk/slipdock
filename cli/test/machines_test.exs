@@ -78,7 +78,13 @@ defmodule SlipdockCLI.MachinesTest do
 
   test "machine enrol-key sends the boards and label, and prints the init line once" do
     serve([
-      {201, JSON.encode!(%{"enrolment_key" => "sde_xyz", "valid_hours" => 24, "boards" => [3]})}
+      {201,
+       JSON.encode!(%{
+         "enrolment_key" => "sde_xyz",
+         "valid_hours" => 24,
+         "boards" => [3],
+         "label" => "ci"
+       })}
     ])
 
     out =
@@ -88,6 +94,28 @@ defmodule SlipdockCLI.MachinesTest do
     assert JSON.decode!(body) == %{"boards" => ["slipdock", "7"], "label" => "ci"}
     assert out =~ "slipdock-runner init --key sde_xyz"
     assert out =~ "24 hours"
+    # The label is the machine's name (#2666).
+    assert out =~ "The machine enrols as ci."
+  end
+
+  test "machine enrol-key without a label says the machine takes its hostname" do
+    serve([
+      {201, JSON.encode!(%{"enrolment_key" => "sde_xyz", "valid_hours" => 24, "label" => nil})}
+    ])
+
+    out = capture_io(fn -> Machines.run("machine", ["enrol-key", "slipdock"], []) end)
+    assert out =~ "enrols under its hostname; --label names it"
+    assert out =~ "machine rename <id> <name>"
+  end
+
+  test "machine rename patches the name, words joined, and says the hostname stays" do
+    renamed = Map.merge(@machine, %{"name" => "Silver box"})
+    serve([{200, JSON.encode!(%{"machine" => renamed})}])
+    out = capture_io(fn -> Machines.run("machine", ["rename", "4", "Silver", "box"], []) end)
+
+    assert_received {:request, "PATCH", "/api/machines/4", body}
+    assert JSON.decode!(body) == %{"name" => "Silver box"}
+    assert out =~ "machine #4 is now Silver box (hostname #{@machine["hostname"]})"
   end
 
   test "machine enrolment shows the machine to check before approving" do
@@ -450,6 +478,8 @@ defmodule SlipdockCLI.MachinesTest do
           ["approve", "BCDF"],
           ["approve"],
           ["refuse"],
+          ["rename"],
+          ["rename", "4"],
           ["enrolment"],
           ["show"],
           ["probe", "4"],
