@@ -82,12 +82,12 @@ defmodule SlipdockCLI.Admin do
   end
 
   def run("admin", ["limit", email, limit], o) do
-    value = if limit in ["", "none", "-"], do: nil, else: limit
+    value = if Enum.member?(["", "none", "-"], limit), do: nil, else: limit
     admin_user(email, %{card_limit: value}, o)
   end
 
   def run("admin", ["paid", email, until], o) do
-    value = if until in ["", "none", "-"], do: nil, else: until
+    value = if Enum.member?(["", "none", "-"], until), do: nil, else: until
     admin_user(email, %{paid_until: value}, o)
   end
 
@@ -196,7 +196,7 @@ defmodule SlipdockCLI.Admin do
               "storage_limit_enabled",
               "trial_enabled"
             ],
-       do: value in ["1", "true", "yes", "on"]
+       do: Enum.member?(["1", "true", "yes", "on"], value)
 
   defp admin_value(_key, value), do: value
 
@@ -372,7 +372,7 @@ defmodule SlipdockCLI.Admin do
   defp render_admin_signups(%{"requests" => requests}) do
     for r <- requests do
       IO.puts(
-        "#{r["email"]}  asked #{r["asked_at"]}#{if r["note"] in [nil, ""], do: "", else: "  “" <> r["note"] <> "”"}"
+        "#{r["email"]}  asked #{r["asked_at"]}#{if Enum.member?([nil, ""], r["note"]), do: "", else: "  “" <> r["note"] <> "”"}"
       )
     end
   end

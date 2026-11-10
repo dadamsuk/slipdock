@@ -545,7 +545,7 @@ defmodule SlipdockCLI.Sync.Engine do
 
     new =
       cond do
-        had -> Enum.reject(listed, &(&1 in had))
+        had -> Enum.reject(listed, &Enum.member?(had, &1))
         (state["entries"] || %{}) == %{} -> listed
         true -> []
       end

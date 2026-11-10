@@ -133,7 +133,7 @@ defmodule SlipdockCLI.Render do
   def board(b) do
     IO.puts(
       bold("#{b["name"]}") <>
-        "  (board ##{b["id"]}#{if b["code"], do: " · #{b["code"]}"}#{if b["shortcut"], do: " · key #{b["shortcut"]}"}, #{b["color"]}#{if b["simple"], do: " · simple"}#{if b["default_view"] not in [nil, "board"], do: " · opens on #{b["default_view"]}"}#{if b["archived_at"], do: " · archived"})"
+        "  (board ##{b["id"]}#{if b["code"], do: " · #{b["code"]}"}#{if b["shortcut"], do: " · key #{b["shortcut"]}"}, #{b["color"]}#{if b["simple"], do: " · simple"}#{if not Enum.member?([nil, "board"], b["default_view"]), do: " · opens on #{b["default_view"]}"}#{if b["archived_at"], do: " · archived"})"
     )
 
     if pc = b["parent_card"] do
@@ -969,7 +969,10 @@ defmodule SlipdockCLI.Render do
   series, each question's answer on its own line.
   """
   def wait_answer(w) do
-    whole = [w["choice_text"], w["answer"]] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" — ")
+    whole =
+      [w["choice_text"], w["answer"]]
+      |> Enum.reject(&Enum.member?([nil, ""], &1))
+      |> Enum.join(" — ")
 
     case w["questions"] || [] do
       [] ->
@@ -983,7 +986,8 @@ defmodule SlipdockCLI.Render do
           |> Enum.with_index()
           |> Enum.map_join("", fn {q, i} ->
             a = Enum.at(answers, i)
-            "\n    #{i + 1}. #{q}\n       → #{if a in [nil, ""], do: "(not answered)", else: a}"
+
+            "\n    #{i + 1}. #{q}\n       → #{if Enum.member?([nil, ""], a), do: "(not answered)", else: a}"
           end)
 
         if whole == "", do: pairs, else: pairs <> "\n    " <> whole
@@ -1372,7 +1376,7 @@ defmodule SlipdockCLI.Render do
     field("Blocks", dependency_list(c["blocks"], c["board_id"]))
     incident_fields(c)
 
-    if c["links"] not in [nil, []] do
+    if not Enum.member?([nil, []], c["links"]) do
       field(
         "Links",
         Enum.map_join(c["links"], "; ", fn l ->
@@ -1383,7 +1387,7 @@ defmodule SlipdockCLI.Render do
       )
     end
 
-    if c["urls"] not in [nil, []] do
+    if not Enum.member?([nil, []], c["urls"]) do
       field(
         "Web links",
         Enum.map_join(c["urls"], "; ", fn u ->
@@ -1392,23 +1396,25 @@ defmodule SlipdockCLI.Render do
       )
     end
 
-    if c["attachments"] not in [nil, []] do
+    if not Enum.member?([nil, []], c["attachments"]) do
       field("Files", Enum.map_join(c["attachments"], "; ", &attachment_line/1))
     end
 
-    if c["date_precision"] not in [nil, "day"], do: field("Precision", c["date_precision"])
+    if not Enum.member?([nil, "day"], c["date_precision"]),
+      do: field("Precision", c["date_precision"])
+
     if c["stated_health"], do: field("Reported", c["stated_health"])
     if (c["votes"] || 0) > 0, do: field("Votes", c["votes"])
 
-    if c["fields"] not in [nil, %{}] do
+    if not Enum.member?([nil, %{}], c["fields"]) do
       field("Fields", Enum.map_join(c["fields"], " · ", fn {k, v} -> "#{k}=#{v}" end))
     end
 
-    if c["scores"] not in [nil, %{}] do
+    if not Enum.member?([nil, %{}], c["scores"]) do
       field("Scores", Enum.map_join(c["scores"], " · ", fn {k, v} -> "#{k}=#{score(v)}" end))
     end
 
-    if c["docs"] not in [nil, []] do
+    if not Enum.member?([nil, []], c["docs"]) do
       field(
         "Docs",
         Enum.map_join(c["docs"], "; ", fn d ->
@@ -1454,19 +1460,19 @@ defmodule SlipdockCLI.Render do
     field("Created", by_line(c["inserted_at"], c["created_by"]))
     field("Updated", by_line(c["updated_at"], c["updated_by"]))
 
-    if c["description"] not in [nil, ""] do
+    if not Enum.member?([nil, ""], c["description"]) do
       IO.puts("")
       IO.puts(bold("Description"))
       IO.puts(indent(c["description"]))
     end
 
-    if c["bar"] not in [nil, ""] do
+    if not Enum.member?([nil, ""], c["bar"]) do
       IO.puts("")
       IO.puts(bold("Bar") <> dim(if c["bar_locked_at"], do: "  locked", else: "  not locked yet"))
       IO.puts(indent(c["bar"]))
     end
 
-    if c["paths"] not in [nil, []] do
+    if not Enum.member?([nil, []], c["paths"]) do
       IO.puts("")
       IO.puts(bold("Paths"))
       c["paths"] |> paths_text(c["paths_shared"]) |> indent() |> IO.puts()
@@ -1597,7 +1603,7 @@ defmodule SlipdockCLI.Render do
 
   defp field_details(%{"config" => c}) when is_map(c) do
     [c["min"] && "min #{c["min"]}", c["max"] && "max #{c["max"]}", c["unit"]]
-    |> Enum.reject(&(&1 in [nil, false]))
+    |> Enum.reject(&Enum.member?([nil, false], &1))
     |> Enum.join(" ")
   end
 
@@ -1886,7 +1892,7 @@ defmodule SlipdockCLI.Render do
   defp facets(card) do
     [
       card["completed"] && "done",
-      card["priority"] not in [nil, "none"] && "priority #{card["priority"]}",
+      not Enum.member?([nil, "none"], card["priority"]) && "priority #{card["priority"]}",
       card["due_date"] && "due #{card["due_date"]}",
       card["archived"] && "archived"
     ]
@@ -1965,7 +1971,7 @@ defmodule SlipdockCLI.Render do
   # line uses, so a doc reads like the work beside it.
   defp page_facets(p) do
     [
-      p["priority"] not in [nil, "none"] && "prio:#{p["priority"]}",
+      not Enum.member?([nil, "none"], p["priority"]) && "prio:#{p["priority"]}",
       (p["flags"] || []) != [] && flags(p["flags"]),
       (p["tags"] || []) != [] && "tags:" <> Enum.join(p["tags"], ","),
       p["assignee"] && "@#{p["assignee"]["name"] || p["assignee"]["email"]}",
@@ -2109,7 +2115,7 @@ defmodule SlipdockCLI.Render do
 
   @doc "One folder, after it has been made, renamed or moved, and where else it is filed."
   def folder(f) do
-    dress = Enum.reject([f["icon"], f["color"]], &(&1 in [nil, ""]))
+    dress = Enum.reject([f["icon"], f["color"]], &Enum.member?([nil, ""], &1))
     dress = if dress == [], do: "", else: " · " <> Enum.join(dress, " ")
     IO.puts(bold(f["path"]) <> "  " <> dim("#{f["slug"]} · id #{f["id"]}#{dress}"))
 
@@ -2875,8 +2881,10 @@ defmodule SlipdockCLI.Render do
     view = if g["view"], do: "view “#{g["view"]["name"]}”  ", else: ""
 
     unit =
-      if c["rows"] in ~w(due_date schedule created updated) or
-           c["cols"] in ~w(due_date schedule created updated), do: " by #{c["unit"]}", else: ""
+      if Enum.member?(~w(due_date schedule created updated), c["rows"]) or
+           Enum.member?(~w(due_date schedule created updated), c["cols"]),
+         do: " by #{c["unit"]}",
+         else: ""
 
     IO.puts(
       bold(

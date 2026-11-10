@@ -401,7 +401,7 @@ defmodule SlipdockCLI do
       # raises) and made a broken command look like a silent success. Anything
       # else is reraised, including an exception with no `:original` at all.
       error ->
-        if Map.get(error, :original) in [:terminated, :epipe, :ebadf],
+        if Enum.member?([:terminated, :epipe, :ebadf], Map.get(error, :original)),
           do: System.halt(0),
           else: reraise(error, __STACKTRACE__)
     end
@@ -448,7 +448,7 @@ defmodule SlipdockCLI do
   ]
 
   defp run(cmd, args, o) do
-    case Enum.find(@areas, &(cmd in &1.commands())) do
+    case Enum.find(@areas, &Enum.member?(&1.commands(), cmd)) do
       nil -> bad_usage(cmd)
       area -> area.run(cmd, args, o)
     end

@@ -603,7 +603,7 @@ defmodule SlipdockCLI.Deploy do
     status = r["conclusion"] || r["status"]
 
     with true <- is_binary(sha) and sha != "",
-         true <- status in ["success", "succeeded"],
+         true <- Enum.member?(["success", "succeeded"], status),
          {:ok, at, _} <- DateTime.from_iso8601(to_string(finished)) do
       [
         %{

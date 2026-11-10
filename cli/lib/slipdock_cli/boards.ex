@@ -616,7 +616,7 @@ defmodule SlipdockCLI.Boards do
       when decision in ~w(accept reject merged agree disagree) do
     o = Keyword.replace(o, :reason, stdin_arg(o[:reason], "--reason"))
 
-    if decision == "reject" and o[:reason] in [nil, ""],
+    if decision == "reject" and Enum.member?([nil, ""], o[:reason]),
       do: fail("a rejection needs its reason: --reason TEXT")
 
     if decision == "disagree" and Enum.member?([nil, ""], o[:reason]),
@@ -1859,7 +1859,7 @@ defmodule SlipdockCLI.Boards do
   defp repeat_ends(o) do
     cond do
       o[:count] -> %{"ends" => "after", "count" => o[:count]}
-      o[:ends] in ["never", "none"] -> %{"ends" => "never"}
+      Enum.member?(["never", "none"], o[:ends]) -> %{"ends" => "never"}
       o[:ends] -> %{"ends" => "on", "ends_on" => o[:ends]}
       true -> %{}
     end
