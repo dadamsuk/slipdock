@@ -80,7 +80,7 @@ defmodule Slipdock.Wiki.Icons do
   def tint(""), do: nil
 
   def tint(color) do
-    if color in Slipdock.Palette.names(), do: Slipdock.Palette.text(color)
+    if Enum.member?(Slipdock.Palette.names(), color), do: Slipdock.Palette.text(color)
   end
 
   @doc """

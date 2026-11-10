@@ -161,7 +161,7 @@ defmodule Slipdock.Wiki do
 
     Enum.filter(pages, fn page ->
       (is_nil(opts[:template]) or page.template == opts[:template]) and
-        (opts[:status] not in ["draft", "published"] or page.status == opts[:status]) and
+        (not Enum.member?(["draft", "published"], opts[:status]) or page.status == opts[:status]) and
         (is_nil(q) or q == "" or
            String.contains?(String.downcase(page.title <> " " <> (page.body || "")), q)) and
         (is_nil(opts[:note_tag]) or opts[:note_tag] == "" or
@@ -262,7 +262,10 @@ defmodule Slipdock.Wiki do
   """
   def tree_from(pages) when is_list(pages) do
     ids = MapSet.new(pages, & &1.id)
-    by_parent = Enum.group_by(pages, fn p -> if p.parent_id in ids, do: p.parent_id end)
+
+    by_parent =
+      Enum.group_by(pages, fn p -> if Enum.member?(ids, p.parent_id), do: p.parent_id end)
+
     build_tree(by_parent, nil)
   end
 
@@ -291,7 +294,7 @@ defmodule Slipdock.Wiki do
   board with nil (W-103 R11.9): one of `Slipdock.Wiki.Folder.sorts/0`.
   """
   def set_tree_sort(%Board{} = board, nil, sort) do
-    if sort in Folder.sorts() do
+    if Enum.member?(Folder.sorts(), sort) do
       Repo.update_all(from(b in Board, where: b.id == ^board.id), set: [wiki_sort: sort])
       broadcast(board.id)
       {:ok, %{board | wiki_sort: sort}}
@@ -1460,7 +1463,7 @@ defmodule Slipdock.Wiki do
       # `[[Folder/Note.md]]`, as Obsidian lets a link be written.
       inner = raw |> inner_of() |> String.downcase() |> String.replace_suffix(".md", "")
       last = inner |> String.split("/") |> List.last() |> String.trim()
-      inner in wanted or last in wanted
+      Enum.member?(wanted, inner) or Enum.member?(wanted, last)
     end)
     |> Enum.map(&elem(&1, 0))
     |> Enum.uniq()
@@ -1780,7 +1783,7 @@ defmodule Slipdock.Wiki do
 
     description =
       [rest, "From [#{page.title}](#{url_for(page)})."]
-      |> Enum.reject(&(&1 in [nil, ""]))
+      |> Enum.reject(&Enum.member?([nil, ""], &1))
       |> Enum.join("\n\n")
 
     with {:ok, card} <-

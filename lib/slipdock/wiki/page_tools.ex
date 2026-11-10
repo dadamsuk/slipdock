@@ -63,7 +63,7 @@ defmodule Slipdock.Wiki.PageTools do
     body = page[:body] |> Meld.conceal("") |> to_string() |> String.trim()
 
     cond do
-      name not in names() ->
+      not Enum.member?(names(), name) ->
         {:error, :bad_request, "tool is one of #{Enum.join(names(), ", ")}"}
 
       not AI.configured?(user) ->

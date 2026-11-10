@@ -199,7 +199,7 @@ defmodule Slipdock.Wiki.Files do
       target
       |> to_string()
       |> String.split("/", trim: true)
-      |> Enum.reject(&(&1 in [".", ".."]))
+      |> Enum.reject(&Enum.member?([".", ".."], &1))
 
     case parts do
       [] ->

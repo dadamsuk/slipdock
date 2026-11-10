@@ -181,7 +181,7 @@ defmodule Slipdock.Wiki.Links do
   # Anything with an extension other than `.md`, as `![[diagram.png]]` has.
   def file_like?(target) do
     ext = target |> to_string() |> Path.extname() |> String.downcase()
-    ext not in ["", ".md"] and Regex.match?(~r/\A\.[a-z0-9]{1,8}\z/, ext)
+    not Enum.member?(["", ".md"], ext) and Regex.match?(~r/\A\.[a-z0-9]{1,8}\z/, ext)
   end
 
   defp target(_board, %{kind: :card} = ref, reader) do
@@ -272,7 +272,7 @@ defmodule Slipdock.Wiki.Links do
       String.starts_with?(link, ["./", "../"]) ->
         link
         |> String.split("/")
-        |> Enum.reject(&(&1 in [".", ".."]))
+        |> Enum.reject(&Enum.member?([".", ".."], &1))
         |> Enum.join("/")
         |> then(&Index.match(index, &1))
 

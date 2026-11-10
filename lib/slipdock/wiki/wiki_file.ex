@@ -53,7 +53,7 @@ defmodule Slipdock.Wiki.WikiFile do
   end
 
   @doc "Whether the browser can show it inline (raster images only, never SVG)."
-  def image?(%__MODULE__{content_type: type}), do: type in @image_types
+  def image?(%__MODULE__{content_type: type}), do: Enum.member?(@image_types, type)
 
   @doc "The content type a name implies, for what a sync sends without one."
   def content_type(name) do

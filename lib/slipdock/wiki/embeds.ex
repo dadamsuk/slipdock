@@ -30,7 +30,7 @@ defmodule Slipdock.Wiki.Embeds do
   """
   def file_target?(target) do
     ext = target |> to_string() |> Path.extname() |> String.downcase()
-    ext not in ["", ".md"] and Regex.match?(~r/\A\.[a-z0-9]{1,8}\z/, ext)
+    not Enum.member?(["", ".md"], ext) and Regex.match?(~r/\A\.[a-z0-9]{1,8}\z/, ext)
   end
 
   @doc "The files `body` embeds from `page`, as the system finds them."

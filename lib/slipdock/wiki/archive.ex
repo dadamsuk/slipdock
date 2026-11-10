@@ -224,7 +224,7 @@ defmodule Slipdock.Wiki.Archive do
       else: FrontMatter.put(yaml, key, value)
   end
 
-  defp ours?(yaml, key, vocabulary), do: FrontMatter.get(yaml, key) in vocabulary
+  defp ours?(yaml, key, vocabulary), do: Enum.member?(vocabulary, FrontMatter.get(yaml, key))
 
   # A `title` key that says something, so it is kept in step with the page.
   # An empty one (`title:`, as a template leaves it) says nothing while the
@@ -376,7 +376,7 @@ defmodule Slipdock.Wiki.Archive do
     |> Map.drop([:parents, :folders])
   end
 
-  defp index?(path), do: Path.basename(path) in ["index.md", "index.markdown"]
+  defp index?(path), do: Enum.member?(["index.md", "index.markdown"], Path.basename(path))
 
   # The nearest directory at or above `dir` that carries a page of its own.
   defp nearest_page_dir(".", _page_dirs), do: nil
@@ -428,7 +428,8 @@ defmodule Slipdock.Wiki.Archive do
         "title" => title,
         "body" => body,
         "summary" => front["summary"],
-        "status" => if(front["status"] in ["draft", "published"], do: front["status"]),
+        "status" =>
+          if(Enum.member?(["draft", "published"], front["status"]), do: front["status"]),
         "template" => front["template"] == "true",
         "front_matter" => header || ""
       }

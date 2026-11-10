@@ -253,7 +253,7 @@ defmodule Slipdock.Wiki.Placements do
   defp reachable?(%Page{board_id: page_board}, %Folder{board_id: folder_board}) do
     case Vaults.for_board(page_board) do
       nil -> false
-      vault -> folder_board in Vaults.board_ids(vault)
+      vault -> Enum.member?(Vaults.board_ids(vault), folder_board)
     end
   end
 

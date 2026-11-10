@@ -186,7 +186,11 @@ defmodule Slipdock.Wiki.Excalidraw.SVG do
       ""
     else
       closed? = type == "line" and (el["polygon"] == true or closed?(pts))
-      d = path(pts, curved?(el) and type in ["line", "arrow"]) <> if(closed?, do: " Z", else: "")
+
+      d =
+        path(pts, curved?(el) and Enum.member?(["line", "arrow"], type)) <>
+          if(closed?, do: " Z", else: "")
+
       fill = if closed?, do: fill, else: ~s| fill="none"|
 
       [
@@ -432,7 +436,7 @@ defmodule Slipdock.Wiki.Excalidraw.SVG do
         {~s| fill="none"|, patterns}
 
       background ->
-        if el["fillStyle"] in [nil, "solid"] do
+        if Enum.member?([nil, "solid"], el["fillStyle"]) do
           {~s| fill="#{background}"|, patterns}
         else
           id = Map.get(patterns, background, "hatch-#{map_size(patterns)}")

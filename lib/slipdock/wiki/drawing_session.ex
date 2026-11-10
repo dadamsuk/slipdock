@@ -295,7 +295,7 @@ defmodule Slipdock.Wiki.DrawingSession do
 
     for {id, %{"dataURL" => "data:" <> _} = file} <- files,
         not Map.has_key?(held, id),
-        id not in state.linked,
+        not Enum.member?(state.linked, id),
         into: %{},
         do: {id, file}
   end
