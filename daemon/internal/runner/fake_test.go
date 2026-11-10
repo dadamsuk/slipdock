@@ -179,14 +179,17 @@ type server struct {
 	jobs        []fakeJob
 	claims      map[int64]int
 	claimHeader map[int64]http.Header
-	refuse      map[int64]int // runner → status for its claims
-	cancel      map[int64]bool
-	lost        map[int64]bool
-	beats       map[int64][]string
-	finishes    map[int64]finished
-	transcript  map[int64][]string
-	txCap       int
-	config      string
+	// taker is the X-Test-Round of the claim that took each job: a late
+	// claim can overwrite claimHeader, never this.
+	taker      map[int64]string
+	refuse     map[int64]int // runner → status for its claims
+	cancel     map[int64]bool
+	lost       map[int64]bool
+	beats      map[int64][]string
+	finishes   map[int64]finished
+	transcript map[int64][]string
+	txCap      int
+	config     string
 	// skills is what /api/skills.tar.gz answers (404 when nil);
 	// skillsKey, the Authorization its last fetch sent.
 	skills     []byte
@@ -218,7 +221,7 @@ type server struct {
 }
 
 func newServer(t *testing.T) *server {
-	s := &server{t: t, claims: map[int64]int{}, claimHeader: map[int64]http.Header{}, refuse: map[int64]int{},
+	s := &server{t: t, claims: map[int64]int{}, claimHeader: map[int64]http.Header{}, taker: map[int64]string{}, refuse: map[int64]int{},
 		cancel: map[int64]bool{}, lost: map[int64]bool{}, beats: map[int64][]string{},
 		finishes: map[int64]finished{}, transcript: map[int64][]string{}}
 	s.ts = httptest.NewServer(http.HandlerFunc(s.handle))
@@ -326,6 +329,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			s.jobs = append(s.jobs[:i], s.jobs[i+1:]...)
+			s.taker[j.id] = r.Header.Get("X-Test-Round")
 			h := w.Header()
 			h.Set("X-Job-Id", strconv.FormatInt(j.id, 10))
 			h.Set("X-Job-Kind", j.kind)
@@ -393,6 +397,13 @@ func jobID(path string) int64 {
 	parts := strings.Split(path, "/")
 	id, _ := strconv.ParseInt(parts[len(parts)-2], 10, 64)
 	return id
+}
+
+// takerRound is the round the claim that took job said it was sent in.
+func (s *server) takerRound(job int64) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.taker[job]
 }
 
 // header is the last claim's headers from runner id. A claim still in
@@ -564,6 +575,22 @@ func realPath(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return p
+}
+
+// The rig's worker says which round each claim was sent in: without that
+// its claims carry no round and take any job, a stopped worker's late one
+// too (#2689).
+func TestARigWorkersClaimsCarryTheRoundTheyWereSentIn(t *testing.T) {
+	r := newRig(t, Config{})
+	for i, want := range []string{"0", "1"} {
+		id := int64(411 + i)
+		if f := r.runJob(fakeJob{id: id, kind: "claude", card: 7, prompt: "x"}); f.exit != 0 {
+			t.Fatalf("job %d: %+v", id, f)
+		}
+		if got := r.srv.takerRound(id); got != want {
+			t.Fatalf("the claim that took job %d said round %q, want %q", id, got, want)
+		}
+	}
 }
 
 // A stopped worker's last claim, read by the server only after the next job
