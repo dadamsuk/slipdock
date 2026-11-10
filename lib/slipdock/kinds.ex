@@ -63,7 +63,7 @@ defmodule Slipdock.Kinds do
   every other list filter works.
   """
   def matches?(_item, []), do: true
-  def matches?(item, kinds) when is_list(kinds), do: kind_of(item) in kinds
+  def matches?(item, kinds) when is_list(kinds), do: Enum.member?(kinds, kind_of(item))
   def matches?(_item, _), do: true
 
   @doc """

@@ -113,7 +113,7 @@ defmodule Slipdock.Actor do
     user = assigns[:current_user]
     token = assigns[:api_token]
     client = header(conn, "x-slipdock-client") || header(conn, "x-kanban-client")
-    agent? = header(conn, "x-slipdock-agent") not in [nil, "", "0", "false"]
+    agent? = not Enum.member?([nil, "", "0", "false"], header(conn, "x-slipdock-agent"))
     job_id = conn |> header("x-slipdock-job") |> parse_id()
 
     cond do

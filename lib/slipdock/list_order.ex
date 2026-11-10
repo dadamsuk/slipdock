@@ -95,7 +95,7 @@ defmodule Slipdock.ListOrder do
   def group_key(item, by, keys, today \\ Date.utc_today())
 
   def group_key(item, "flag", keys, _today),
-    do: Enum.find(keys, "none", &(&1 in item.flags))
+    do: Enum.find(keys, "none", &Enum.member?(item.flags, &1))
 
   def group_key(item, "tag", keys, _today) do
     ids = MapSet.new(item.tags, &to_string(&1.id))

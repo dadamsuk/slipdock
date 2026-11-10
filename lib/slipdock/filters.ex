@@ -62,9 +62,9 @@ defmodule Slipdock.Filters do
          String.contains?(String.downcase(item.title), q) or
          String.contains?(String.downcase(text_of(item)), q) or
          Enum.any?(tags, &String.contains?(String.downcase(&1.name), q))) and
-      (filters.tags == [] or Enum.any?(tags, &(&1.id in filters.tags))) and
+      (filters.tags == [] or Enum.any?(tags, &Enum.member?(filters.tags, &1.id))) and
       (is_nil(filters.priority) or item.priority == filters.priority) and
-      (is_nil(filters.flag) or filters.flag in item.flags) and
+      (is_nil(filters.flag) or Enum.member?(item.flags, filters.flag)) and
       due_matches?(filters.due, item, today) and
       Slipdock.CardState.matches?(item, filters.stuck, filters.driver) and
       not (filters.hide_completed and item.completed)

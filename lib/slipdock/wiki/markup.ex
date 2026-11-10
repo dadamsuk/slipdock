@@ -228,7 +228,7 @@ defmodule Slipdock.Wiki.Markup do
   defp directive_ref(target, label, raw) do
     name = target |> String.trim_leading("!") |> String.downcase() |> String.trim()
 
-    if name in @directives,
+    if Enum.member?(@directives, name),
       do: %{kind: :directive, target: name, board: nil, label: label, raw: raw},
       else: nil
   end
