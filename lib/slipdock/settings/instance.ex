@@ -291,7 +291,7 @@ defmodule Slipdock.Settings.Instance do
   # Better to refuse the setting than to accept it and quietly not work.
   defp require_mail_for_approval(changeset) do
     if get_field(changeset, :signup_mode) == :approval and
-         get_field(changeset, :smtp_host) in [nil, ""] do
+         Enum.member?([nil, ""], get_field(changeset, :smtp_host)) do
       add_error(
         changeset,
         :signup_mode,

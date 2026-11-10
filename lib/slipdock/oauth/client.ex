@@ -63,7 +63,7 @@ defmodule Slipdock.OAuth.Client do
         true
 
       {:ok, %URI{fragment: nil, userinfo: nil, scheme: "http", host: host}} ->
-        host in @loopback_hosts
+        Enum.member?(@loopback_hosts, host)
 
       _ ->
         false

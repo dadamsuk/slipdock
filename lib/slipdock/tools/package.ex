@@ -140,7 +140,7 @@ defmodule Slipdock.Tools.Package do
       length(headers) > @max_entries ->
         {:error, "the package has more than #{@max_entries} entries"}
 
-      bad = Enum.find(headers, &(elem(&1, 1) not in [:regular, :directory])) ->
+      bad = Enum.find(headers, &(not Enum.member?([:regular, :directory], elem(&1, 1)))) ->
         {:error,
          "#{name_of(bad)}: only plain files and folders can be in a package, not a #{elem(bad, 1)}"}
 
@@ -166,7 +166,7 @@ defmodule Slipdock.Tools.Package do
 
     path != "" and not String.starts_with?(path, "/") and not String.contains?(path, "\\") and
       not String.contains?(path, <<0>>) and not Regex.match?(~r/^[A-Za-z]:/, path) and
-      ".." not in segments
+      not Enum.member?(segments, "..")
   end
 
   defp extract(bytes) do
@@ -189,7 +189,7 @@ defmodule Slipdock.Tools.Package do
   defp ignored?(path) do
     base = Path.basename(path)
 
-    base in [".DS_Store", "Thumbs.db"] or String.starts_with?(base, "._") or
+    Enum.member?([".DS_Store", "Thumbs.db"], base) or String.starts_with?(base, "._") or
       String.contains?(path, "/.git/") or String.starts_with?(path, ".git/")
   end
 
@@ -212,7 +212,7 @@ defmodule Slipdock.Tools.Package do
 
   defp check_layout(entries) do
     case Enum.find(entries, fn {p, _} ->
-           not (p in @top_files or String.starts_with?(p, "skills/") or
+           not (Enum.member?(@top_files, p) or String.starts_with?(p, "skills/") or
                   String.starts_with?(p, "files/"))
          end) do
       nil ->
@@ -413,7 +413,7 @@ defmodule Slipdock.Tools.Package do
       not safe_path?(path) ->
         {:error, "tool.json: files[#{i}] path must stay inside files/"}
 
-      install not in ["board", "local"] ->
+      not Enum.member?(["board", "local"], install) ->
         {:error, "tool.json: files[#{i}] install is board or local"}
 
       install == "local" and not MapSet.member?(skill_names, skill) ->
@@ -421,7 +421,7 @@ defmodule Slipdock.Tools.Package do
          "tool.json: files[#{i}] (#{path}) installs locally, so it needs a skill from skills/ to go beside"}
 
       install == "local" and
-          path in Enum.find(skills, &(&1.name == skill)).files ->
+          Enum.member?(Enum.find(skills, &(&1.name == skill)).files, path) ->
         {:error,
          "tool.json: files[#{i}] (#{path}) would overwrite the #{skill} skill's own #{path}"}
 

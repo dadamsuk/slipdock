@@ -141,12 +141,12 @@ defmodule Slipdock.Portable.Export do
   """
   def archived_opts(value) when is_binary(value) do
     parts = value |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
-    all? = "all" in parts or "true" in parts
+    all? = Enum.member?(parts, "all") or Enum.member?(parts, "true")
 
     [
-      archived_cards: all? or "cards" in parts,
-      archived_pages: all? or "pages" in parts,
-      archived_boards: all? or "boards" in parts
+      archived_cards: all? or Enum.member?(parts, "cards"),
+      archived_pages: all? or Enum.member?(parts, "pages"),
+      archived_boards: all? or Enum.member?(parts, "boards")
     ]
   end
 

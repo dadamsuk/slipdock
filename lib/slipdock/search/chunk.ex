@@ -463,7 +463,7 @@ defmodule Slipdock.Search.Chunk do
   # critical billing card", "what is Ana blocked on", "anything due in March".
   defp facets(%Card{} = card) do
     [
-      card.priority not in [nil, "none"] && "priority #{card.priority}",
+      not Enum.member?([nil, "none"], card.priority) && "priority #{card.priority}",
       card.completed && "completed",
       card.archived_at && "archived",
       card.start_date && "starts #{card.start_date}",

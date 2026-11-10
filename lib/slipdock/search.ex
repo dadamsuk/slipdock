@@ -161,7 +161,7 @@ defmodule Slipdock.Search do
   # and it is inside the board and kind asked for.
   defp named_card(user, query, opts) do
     with id when is_integer(id) <- Slipdock.Boards.card_ref(query),
-         false <- opts[:kind] in [:page, "page"],
+         false <- Enum.member?([:page, "page"], opts[:kind]),
          %Card{} = card <- Repo.get(Card, id),
          nil <- card.stand_in_for_id,
          true <- readable_card?(user, card, opts[:token]),
@@ -177,7 +177,7 @@ defmodule Slipdock.Search do
   defp readable_card?(user, card, token) do
     %{board_ids: board_ids, card_ids: card_ids} = Slipdock.Access.readable_scope(user)
 
-    (card.board_id in board_ids or card.id in card_ids) and
+    (Enum.member?(board_ids, card.board_id) or Enum.member?(card_ids, card.id)) and
       (is_nil(token) or
          Slipdock.Access.can_read?(elem(Slipdock.Access.narrow(:read, token, card.board_id), 0)))
   end
@@ -431,7 +431,7 @@ defmodule Slipdock.Search do
     query
     |> String.downcase()
     |> String.split(~r/[^\p{L}\p{N}_-]+/u, trim: true)
-    |> Enum.filter(&(String.length(&1) >= 3 and &1 not in @stop_words))
+    |> Enum.filter(&(String.length(&1) >= 3 and not Enum.member?(@stop_words, &1)))
     |> Enum.uniq()
   end
 

@@ -52,7 +52,7 @@ defmodule Slipdock.Search.Embedding do
   def label(other), do: other
 
   @doc "Whether a chunk of this kind came from a wiki page."
-  def page?(kind), do: kind in ~w(page page_section page_document)
+  def page?(kind), do: Enum.member?(~w(page page_section page_document), kind)
 
   @doc "Whether a chunk of this kind came from a wiki file of its own."
   def file?(kind), do: kind == "file_document"

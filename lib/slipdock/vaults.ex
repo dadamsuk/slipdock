@@ -344,7 +344,7 @@ defmodule Slipdock.Vaults do
       |> Enum.map(&String.trim/1)
       |> Enum.reject(&(&1 == ""))
 
-    if Enum.any?(segments, &(&1 in [".", ".."])),
+    if Enum.any?(segments, &Enum.member?([".", ".."], &1)),
       do: {:error, :unprocessable_entity, "a vault path cannot contain . or .."},
       else: {:ok, Enum.join(segments, "/")}
   end

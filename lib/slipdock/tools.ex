@@ -377,10 +377,14 @@ defmodule Slipdock.Tools do
 
       :listed ->
         listed = Repo.get(ToolVersion, tool.listed_version_id)
-        if number in [nil, ""] or (listed && listed.version == to_string(number)), do: listed
+
+        if Enum.member?([nil, ""], number) or (listed && listed.version == to_string(number)),
+          do: listed
 
       _ ->
-        if number in [nil, ""], do: latest_version(tool), else: get_version(tool, number)
+        if Enum.member?([nil, ""], number),
+          do: latest_version(tool),
+          else: get_version(tool, number)
     end
   end
 

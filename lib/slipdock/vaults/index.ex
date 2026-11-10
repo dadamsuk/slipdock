@@ -133,7 +133,7 @@ defmodule Slipdock.Vaults.Index do
         {dirs, [name]} = Enum.split(parts, -1)
 
         Enum.filter(index, fn entry ->
-          name in entry.names and ends_with?(entry.dirs, dirs)
+          Enum.member?(entry.names, name) and ends_with?(entry.dirs, dirs)
         end)
     end
   end
