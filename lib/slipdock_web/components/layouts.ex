@@ -680,7 +680,7 @@ defmodule SlipdockWeb.Layouts do
     assigns =
       assign(assigns,
         admin?: admin?,
-        admin_page?: assigns.active in [:overview, :users, :tool_listings, :config],
+        admin_page?: Enum.member?([:overview, :users, :tool_listings, :config], assigns.active),
         signups: if(admin?, do: waiting_signups(), else: 0),
         listings: if(admin?, do: waiting_listings(), else: 0)
       )

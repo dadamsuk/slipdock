@@ -200,7 +200,7 @@ defmodule SlipdockWeb.TableComponents do
         fields: fields,
         title_field: Enum.find(fields, &(elem(&1, 0) == "title")),
         done_field: Enum.find(fields, &(elem(&1, 0) == "completed")),
-        detail_fields: Enum.reject(fields, &(elem(&1, 0) in ~w(title completed))),
+        detail_fields: Enum.reject(fields, &Enum.member?(~w(title completed), elem(&1, 0))),
         first_column: List.first(assigns.board.columns),
         group_add?:
           assigns.can_write and assigns.rows.grouped and

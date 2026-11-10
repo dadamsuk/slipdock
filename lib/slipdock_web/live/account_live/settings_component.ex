@@ -62,7 +62,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   defp model_options(models, current) do
     listed = Enum.map(models, &{&1.name, &1.id})
 
-    if current && current not in Enum.map(models, & &1.id),
+    if current && not Enum.member?(Enum.map(models, & &1.id), current),
       do: listed ++ [{current, current}],
       else: listed
   end

@@ -294,7 +294,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     presets =
       Enum.reject(
         Presets.all(),
-        &(&1.key in ["send_to_runner", "feed_runner"] and not assigns.runners?)
+        &(Enum.member?(["send_to_runner", "feed_runner"], &1.key) and not assigns.runners?)
       )
 
     assigns =
