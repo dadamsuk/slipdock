@@ -4643,7 +4643,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     class="btn btn-ghost btn-xs btn-square shrink-0"
                     title="Open or close all folders"
                   >
-                    <span class="hero-chevron-double-down size-4"></span>
+                    <.icon name="hero-chevron-double-down" class="size-4" />
                   </button>
                 </span>
               </span>
@@ -6069,9 +6069,11 @@ defmodule SlipdockWeb.WikiLive.Index do
             </span>
             <span
               :if={sub[:also]}
-              class="hero-link size-3 shrink-0 text-base-content/40"
+              class="inline-flex shrink-0"
               title="Also filed here; its home is another folder"
-            ></span>
+            >
+              <.icon name="hero-link" class="size-3 text-base-content/40" />
+            </span>
             <span class="shrink-0 text-xs text-base-content/40">
               {count(sub.pages, "page")}
             </span>
