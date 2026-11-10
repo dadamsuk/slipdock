@@ -117,5 +117,5 @@ defmodule Slipdock.Runners.Job do
   def finished_statuses, do: @finished
 
   @doc "Whether the job is still waiting or being worked."
-  def open?(%__MODULE__{status: status}), do: status in @open
+  def open?(%__MODULE__{status: status}), do: Enum.member?(@open, status)
 end
