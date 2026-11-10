@@ -1922,10 +1922,13 @@ defmodule Slipdock.Runners do
   defp with_paths(prompt, %Job{card_id: card_id}) do
     case Repo.one(from(c in Card, where: c.id == ^card_id, preload: :board)) do
       %Card{paths: [_ | _] = paths, board: board} ->
+        shared = Slipdock.Lanes.shared_paths(board)
+
         (prompt || "") <>
           "\n\nThe card's paths (its lane): touch and stage only files under these, " <>
           "or widen them on the card first:\n" <>
-          Enum.join(paths, "\n") <> shared_note(paths, Slipdock.Lanes.shared_paths(board))
+          Enum.map_join(paths, "\n", &path_line(&1, shared)) <>
+          broad_note(paths, shared) <> shared_note(paths, shared)
 
       _ ->
         prompt
@@ -1986,6 +1989,22 @@ defmodule Slipdock.Runners do
       nil ->
         ""
     end
+  end
+
+  # A broad glob (#2698) is marked beside itself in the Paths block.
+  defp path_line(glob, shared) do
+    if Slipdock.Lanes.broad?(glob, shared),
+      do: glob <> "  (broad: " <> Slipdock.Lanes.broad_reason() <> ")",
+      else: glob
+  end
+
+  defp broad_note(paths, shared) do
+    if Enum.any?(paths, &Slipdock.Lanes.broad?(&1, shared)),
+      do:
+        "\nA broad glob claims a whole top-level directory: narrow it on the card before " <>
+          "you start (you may change an in-progress card's paths). It is advice: nothing " <>
+          "is refused for it.",
+      else: ""
   end
 
   defp shared_note(paths, shared) do

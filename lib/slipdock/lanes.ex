@@ -273,6 +273,58 @@ defmodule Slipdock.Lanes do
     end
   end
 
+  ## Broad globs ---------------------------------------------------------------
+
+  @broad_reason "it overlaps most cards; name the files or the deepest directory the change touches"
+
+  @doc """
+  Whether `glob` claims a whole top-level directory or one just below it
+  (#2698): its last segment is `**` and it sits at most one directory below
+  the repository root (`**`, `lib/**`, `lib/slipdock/**`, `cli/lib/**`),
+  unless it is wholly inside one of the board's `shared` globs. A `{a,b}`
+  glob is broad when any of its expansions is. Advice only: nothing is
+  refused for it. The one judge, so the card panel, the CLI, the job's
+  prompt and the card's JSON agree.
+  """
+  def broad?(glob, shared) when is_binary(glob) do
+    not shared?(glob, shared || []) and Enum.any?(expand(glob), &broad_one?/1)
+  end
+
+  defp broad_one?(glob) do
+    segs = glob |> String.split("/") |> Enum.reject(&Enum.member?(["", "."], &1))
+
+    case Enum.reverse(segs) do
+      ["**" | dirs] -> length(dirs) <= 2
+      _ -> false
+    end
+  end
+
+  @doc "The globs of `paths` that are `broad?/2`, in order."
+  def broad_paths(paths, shared), do: Enum.filter(tidy(paths), &broad?(&1, shared))
+
+  @doc "Why a broad glob is marked, in one line (#2698)."
+  def broad_reason, do: @broad_reason
+
+  @doc """
+  Which side of an overlap between `card` and `other` claims it with a
+  broad glob (#2698): `%{side:, this:, other:}`, `side` being `"this"`,
+  `"other"` or `"both"`, and `this`/`other` the broad globs on each side
+  that meet the other's paths. nil when neither does.
+  """
+  def broad_overlap(%Card{} = card, %Card{} = other, shared) do
+    mine = counted(tidy(card.paths), shared)
+    theirs = counted(tidy(other.paths), shared)
+    this = Enum.filter(mine, &(broad?(&1, shared) and overlap?([&1], theirs)))
+    that = Enum.filter(theirs, &(broad?(&1, shared) and overlap?(mine, [&1])))
+
+    case {this, that} do
+      {[], []} -> nil
+      {_, []} -> %{side: "this", this: this, other: []}
+      {[], _} -> %{side: "other", this: [], other: that}
+      _ -> %{side: "both", this: this, other: that}
+    end
+  end
+
   ## Overlap ------------------------------------------------------------------
 
   @doc "Whether any glob of `a` overlaps any glob of `b`."

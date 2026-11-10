@@ -301,11 +301,11 @@ defmodule Slipdock.LanesTest do
     end
 
     test "the claimed prompt carries the card's paths", ctx do
-      card = card(ctx.todo, "Pathed", "lib/a/**\ntest/a_test.exs")
+      card = card(ctx.todo, "Pathed", "lib/a/b/**\ntest/a_test.exs")
       {:ok, job} = queue(card)
       prompt = Runners.claimed_prompt(Repo.reload!(job))
       assert prompt =~ "The card's paths (its lane)"
-      assert prompt =~ "lib/a/**\ntest/a_test.exs"
+      assert prompt =~ "lib/a/b/**\ntest/a_test.exs"
 
       plain = card_fixture(ctx.todo, %{"title" => "Unpathed"})
       {:ok, job} = queue(plain)
@@ -412,10 +412,10 @@ defmodule Slipdock.LanesTest do
 
     test "the claimed prompt names the card's shared paths", ctx do
       board = share(ctx.board, ["docs/**"])
-      card = card(ctx.todo, "Pathed", "lib/a/**,docs/manual.md")
+      card = card(ctx.todo, "Pathed", "lib/a/b/**,docs/manual.md")
       {:ok, job} = Runners.queue(card, %{pool: "dev", kind: "claude", prompt: "go"})
       prompt = Runners.claimed_prompt(Repo.reload!(job))
-      assert prompt =~ "lib/a/**\ndocs/manual.md"
+      assert prompt =~ "lib/a/b/**\ndocs/manual.md"
       assert prompt =~ "Shared on the board, so they hold no lane"
       # Then, last, the list the card is in (#2633).
       assert prompt =~

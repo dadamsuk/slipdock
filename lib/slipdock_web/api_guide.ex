@@ -4288,6 +4288,19 @@ defmodule SlipdockWeb.APIGuide do
       them where you can, and rebase on the default branch before pushing.
       A card's JSON says the overlap as `lane_overlap` (`{card, title,
       mode}`). `lanes: true/false` keeps working and means `hold`/`off`.
+
+      **Broad paths.** Keep `paths` as narrow as the change: a `**` glob at
+      most one directory below the repository root (`lib/**`,
+      `lib/slipdock/**`, `cli/lib/**`, `docs/**`, `test/**`), unless it is
+      wholly inside a shared path, is *broad*: it overlaps most cards. It
+      is advice, not a refusal: nothing is refused or held for it. A
+      card's JSON lists them as `paths_broad` (with `paths_broad_reason`),
+      `slipdock card` and the card's *Paths* field mark them, a claimed
+      job's prompt says so beside the glob, and a `lane_overlap` a broad
+      glob makes says whose it is (`broad`: `this`, `other` or `both`;
+      `broad_paths`, the globs). Narrow it to the files or the deepest
+      directory the change touches before you start: you may change an
+      in-progress card's paths.
       """
     else
       ""

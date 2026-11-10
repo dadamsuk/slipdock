@@ -1391,15 +1391,33 @@ defmodule SlipdockWeb.API.JSON do
   lane-check hook lets through), and `paths_shared`, those of the card's own
   paths wholly inside one. And `lane_overlap` (#1972), with lanes on and a
   card in progress in the way: `%{card:, title:, mode:}`, `mode` saying
-  whether it holds this card (`hold`) or only tells (`advise`). Each is
-  left off when there is nothing to say.
+  whether it holds this card (`hold`) or only tells (`advise`), and, when
+  a broad glob makes it (#2698), `broad` (`this`, `other` or `both`: whose
+  glob is broad) and `broad_paths` (those globs). `paths_broad` (#2698)
+  lists the card's own globs that claim a whole top-level directory
+  (`Slipdock.Lanes.broad?/2`), with `paths_broad_reason`: advice, nothing
+  is refused for them. Each is left off when there is nothing to say.
   """
   def put_lanes(map, %Card{} = card) do
     board = Slipdock.Repo.get(Slipdock.Boards.Board, card.board_id)
+    shared = Slipdock.Lanes.shared_paths(board)
 
     map
-    |> put_shared(card, Slipdock.Lanes.shared_paths(board))
-    |> put_overlap(board, card)
+    |> put_shared(card, shared)
+    |> put_broad(card, shared)
+    |> put_overlap(board, card, shared)
+  end
+
+  defp put_broad(map, card, shared) do
+    case Slipdock.Lanes.broad_paths(card.paths, shared) do
+      [] ->
+        map
+
+      broad ->
+        map
+        |> Map.put(:paths_broad, broad)
+        |> Map.put(:paths_broad_reason, Slipdock.Lanes.broad_reason())
+    end
   end
 
   defp put_shared(map, _card, []), do: map
@@ -1410,18 +1428,23 @@ defmodule SlipdockWeb.API.JSON do
     |> Map.put(:paths_shared, Enum.filter(card.paths, &Slipdock.Lanes.shared?(&1, shared)))
   end
 
-  defp put_overlap(map, board, card) do
+  defp put_overlap(map, board, card, shared) do
     with true <- board != nil and Slipdock.Lanes.on?(board),
          %Card{} = other <- Slipdock.Lanes.conflict(card) do
-      Map.put(map, :lane_overlap, %{
-        card: other.id,
-        title: other.title,
-        mode: Slipdock.Lanes.mode(board)
-      })
+      overlap =
+        %{card: other.id, title: other.title, mode: Slipdock.Lanes.mode(board)}
+        |> put_broad_side(Slipdock.Lanes.broad_overlap(card, other, shared))
+
+      Map.put(map, :lane_overlap, overlap)
     else
       _ -> map
     end
   end
+
+  defp put_broad_side(overlap, nil), do: overlap
+
+  defp put_broad_side(overlap, %{side: side, this: this, other: other}),
+    do: Map.merge(overlap, %{broad: side, broad_paths: this ++ other})
 
   @doc "How many open findings the card has (W-2310 §Findings)."
   def put_findings(map, %Card{} = card),
