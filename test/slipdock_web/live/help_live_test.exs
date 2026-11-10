@@ -127,6 +127,15 @@ defmodule SlipdockWeb.HelpLiveTest do
     end
 
     @tag :anonymous
+    test "the boards section says how select mode picks a run or a whole list", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/boards")
+
+      assert has_element?(view, "#boards-fast #help-select-mode", "Shift")
+      assert has_element?(view, "#help-select-mode", "every card between the two")
+      assert has_element?(view, "#help-select-mode", "header to pick every card it shows")
+    end
+
+    @tag :anonymous
     test "signed out, places in the app are named but not linked", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/help/ai")
 

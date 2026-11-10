@@ -641,10 +641,15 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         id="board-scroll"
         phx-hook="ScrollEnd"
         data-drop-area
-        class={[
-          "kanban-scroll min-h-0 flex-1 overflow-x-auto overflow-y-hidden",
-          @narrow? && "snap-x snap-mandatory"
-        ]}
+        class={
+          [
+            "kanban-scroll min-h-0 flex-1 overflow-x-auto overflow-y-hidden",
+            @narrow? && "snap-x snap-mandatory",
+            # A shift-click picks a run of cards; without this it also
+            # highlights the text between them.
+            @select_mode && "select-none"
+          ]
+        }
       >
         <div
           id="columns"
@@ -763,6 +768,28 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   do: "#{count}/#{column.wip_limit}",
                   else: count}
               </span>
+              <%!-- Select mode's select-all for the list (#2690): every
+                    card it shows, or none once they are all picked. --%>
+              <% all? =
+                @select_mode &&
+                  SlipdockWeb.BoardLive.Selection.all_selected?(@selected, %{groups: groups}) %>
+              <button
+                :if={@select_mode}
+                type="button"
+                id={"select-list-#{column.id}"}
+                class={["btn btn-xs btn-square", if(all?, do: "btn-primary", else: "btn-ghost")]}
+                phx-click="select_list"
+                phx-value-id={column.id}
+                aria-pressed={to_string(all?)}
+                title={
+                  if all?, do: "Deselect this list's cards", else: "Select every card in this list"
+                }
+              >
+                <.icon
+                  name={if all?, do: "hero-check-circle-solid", else: "hero-check-circle"}
+                  class="size-4"
+                />
+              </button>
               <%!-- The heart only on a list that is a favourite: on every
                     header it was one more mark to read past. Favouriting
                     is in the ⋯ menu, which a reader gets too, since a
@@ -1210,7 +1237,9 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       class="kanban-toast-in fixed bottom-4 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-2xl bg-base-100 px-3 py-2 text-sm shadow-xl ring-1 ring-base-content/10"
     >
       <span id="bulk-count" class="font-semibold">
-        {if @count == 0, do: "Click cards to select them", else: "#{@count} selected"}
+        {if @count == 0,
+          do: "Click cards to select them · Shift-click for a run",
+          else: "#{@count} selected"}
       </span>
       <%= if @count > 0 do %>
         <span class="h-5 w-px bg-base-300"></span>
