@@ -1069,7 +1069,11 @@ with the tail of the log — and a Cancel button.
   names the list, so the card shows in progress even if the agent never
   moves it. A card its job
   leaves in progress goes back on top of the list for another try, then is
-  flagged blocked, so a crashed or timed-out pass never stalls the list;
+  flagged blocked, so a crashed or timed-out pass never stalls the list.
+  A rule whose pool has gone offline (its runners seen before, none for
+  three leases) sends nothing and gives back a job no runner has taken yet,
+  so a pool that is online picks the card up; a pool just set up, whose
+  runners have never been seen, is sent work as usual;
   a `job_finished` rule can alert, email or call a webhook when a job times
   out or a card is given up.
 - **One queue for everything.** A Claude session (`/loop`, a scheduled task), or ChatGPT through its connector,

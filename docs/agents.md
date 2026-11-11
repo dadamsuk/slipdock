@@ -731,7 +731,13 @@ rules for two pools work one list side by side), and, with lanes holding,
 any whose paths overlap a card in progress: a queued job of its own that a
 lane holds is withdrawn and the next card that could start sent instead,
 the held card keeping its place for when its lane frees, so a runner can take over from a `/loop` or cron
-pass working the To Do list. The moment a runner claims that rule's job,
+pass working the To Do list. A rule whose pool has **gone offline** (its
+runners seen before, none for three leases) sends nothing and withdraws a
+job it queued that no runner has taken (*No runner online for pool P: gave
+its card back*, with a comment on the card), so a rule whose runners are
+online sends that card instead; a claimed job, and one an answered question
+queued, are left alone, and a pool whose runners have never been seen (just
+set up) is fed as usual, and fed again once one of its runners is back (#2805). The moment a runner claims that rule's job,
 the server moves the card to the top of its board's doing list (the one
 the guide names: by its *In progress* category, else by its name), assigns
 nobody and says so in the card's activity; the agent's own move afterwards

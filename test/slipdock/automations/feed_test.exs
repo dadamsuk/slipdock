@@ -664,6 +664,45 @@ defmodule Slipdock.Automations.FeedTest do
       assert queued_cards(loop) == [top.id]
     end
 
+    test "a rule sending to two pools keeps feeding while one of them is online", ctx do
+      offline(ctx.runner)
+      top = card_fixture(ctx.todo, %{"title" => "top"})
+
+      both =
+        rule_fixture(ctx.board, %{
+          feed_spec()
+          | "actions" => [
+              %{"type" => "runner", "pool" => "loop"},
+              %{"type" => "runner", "pool" => "spare"}
+            ]
+        })
+
+      assert top.id in queued_cards(both)
+      refute Automations.feed(both) == {:idle, :offline}
+      assert Enum.all?(open_jobs(both), &(&1.status == "queued"))
+    end
+
+    test "a rule on a sub-board reads its pool's runners on the tree's root", ctx do
+      seen(ctx.runner, 5)
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      epic = card_fixture(ctx.todo, %{"title" => "Epic"})
+      {:ok, sub} = sub_board(epic, t)
+      sub = Boards.get_board!(sub.id)
+      ready = hd(sub.columns)
+      task = card_fixture(ready, %{"title" => "Sub task"})
+
+      rule = feed_rule(sub, %{"column" => ready.name})
+      assert [%Job{id: sent_id}] = open_jobs(rule)
+      assert queued_cards(rule) == [task.id]
+
+      offline(ctx.runner)
+      assert Automations.feed(rule) == {:idle, :offline}
+      assert Repo.get!(Job, sent_id).status == "cancelled"
+      assert open_jobs(rule) == []
+      assert [comment] = comments(task)
+      assert comment.body =~ "Job ##{sent_id} gave this card back"
+    end
+
     test "runners never seen yet are fed as before", ctx do
       top = card_fixture(ctx.todo, %{"title" => "top"})
       loop = feed_rule(ctx.board)
