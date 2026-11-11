@@ -59,22 +59,22 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
     {:ok, load(socket)}
   end
 
-  # The page as it is now, and what this reader may do with it.
+  # The page as it is now, and what this reader may do with it: nothing at
+  # all unless they may see the page itself.
   defp load(socket) do
     %{board: board, current_user: user, page_id: page_id} = socket.assigns
 
-    case load_placed_page(board, page_id) do
-      {:ok, page} ->
-        level = Access.page_permission(user, page)
-
-        assign(socket,
-          item: page,
-          form: to_form(Wiki.change_page(page, %{})),
-          can_read: true,
-          can_write: Access.can_write?(level),
-          can_comment: Access.can_comment?(level)
-        )
-
+    with {:ok, page} <- load_placed_page(board, page_id),
+         level = Access.page_permission(user, page),
+         true <- Wiki.visible?(page, level) do
+      assign(socket,
+        item: page,
+        form: to_form(Wiki.change_page(page, %{})),
+        can_read: true,
+        can_write: Access.can_write?(level),
+        can_comment: Access.can_comment?(level)
+      )
+    else
       _ ->
         assign(socket,
           item: nil,
