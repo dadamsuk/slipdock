@@ -75,7 +75,7 @@ defmodule Slipdock.QuickAddCaptureTest do
       refute inspect(messages) =~ "vinyl"
     end
 
-    test "a description the caller gave wins over the line's", %{user: user} do
+    test "the line's description goes ahead of one the caller gave", %{user: user} do
       Slipdock.AIStub.reply_with(%{"title" => "Call the printers"})
 
       assert {:ok, capture} =
@@ -83,7 +83,8 @@ defmodule Slipdock.QuickAddCaptureTest do
                  attrs: %{"description" => "from the body"}
                )
 
-      assert Boards.get_card!(capture.card.id).description == "from the body"
+      assert Boards.get_card!(capture.card.id).description ==
+               "from the subject\n\nfrom the body"
 
       Slipdock.AIStub.reply_with(%{"title" => "Call the printers"})
 

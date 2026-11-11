@@ -421,14 +421,15 @@ defmodule Slipdock.QuickAdd.Capture do
     end
   end
 
-  # The line's description, unless the caller gave one already (a mail's
-  # body is the card's description, #1248).
+  # The line's description. When the caller gave one already (a mail's body
+  # is the card's description, #1248), the line's goes ahead of it rather
+  # than being lost (#2804).
   defp put_description(attrs, nil), do: attrs
 
   defp put_description(attrs, description) do
     case attrs["description"] do
       blank when blank in [nil, ""] -> Map.put(attrs, "description", description)
-      _ -> attrs
+      given -> Map.put(attrs, "description", description <> "\n\n" <> given)
     end
   end
 

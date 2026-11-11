@@ -3,7 +3,9 @@ defmodule Slipdock.Inbound.QuickAdd do
   Mail to a personal `add-…` address (#1248): the subject goes through
   `Slipdock.QuickAdd.Capture`, the same path as the header's Quick Add, so
   `#high`, `due: friday`, `@dan`, a list name (and the model, when it is
-  configured and turned on) all work. The body becomes the description and
+  configured and turned on) all work, and `title; description;; comment`
+  (the subject's description goes ahead of the body, #2804). The body
+  becomes the description and
   the attachments are uploaded, as for a board's card address
   (`Slipdock.Inbound.Cards`).
 

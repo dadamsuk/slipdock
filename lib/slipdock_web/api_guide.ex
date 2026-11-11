@@ -873,7 +873,10 @@ defmodule SlipdockWeb.APIGuide do
       `GET /api/boards/:board/inbound` is the holder's own `card` address for
       a board they can write to (`?folder=` a wiki folder's own `page`
       address), `GET /api/me/inbound` their personal `add`
-      (Quick Add) address and `ack`; `POST …/rotate` replaces one, and the old
+      (Quick Add) address and `ack`; mail to `add` reads its subject as Quick
+      Add does, `title; description;; comment` (after one `;` the card's
+      description, ahead of the mail's body; after two a comment), with
+      `#high`, `due:`, `@name` and `#list`; `POST …/rotate` replaces one, and the old
       bounces; `POST /api/me/inbound {"ack": true}` mails a link back per card.
       A board's `card` address also takes mail from its permitted senders
       (`senders` in that answer; the owner sets them with `PATCH
