@@ -64,7 +64,9 @@ defmodule SlipdockWeb.Endpoint do
   plug SlipdockWeb.Health
 
   plug Plug.RequestId
-  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  # The request log is `SlipdockWeb.RequestLog`'s, not Phoenix's: it writes
+  # the path with any credential segment filtered.
+  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint], log: false
 
   plug :parse_body
 
