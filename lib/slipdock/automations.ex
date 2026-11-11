@@ -726,10 +726,16 @@ defmodule Slipdock.Automations do
   Whether a backfill feed (`backfill: true` on its `list_top` trigger, as
   a Housekeeping list's siblings have, #2777) is waiting its turn: one of
   the enabled feeds on its board's ready list or Scheduled list that send
-  to one of its pools has a card it could send now (`next_card/2`). A card
-  that is blocked, flagged blocked or waiting, snoozed, held by its lane or
-  already has a job doesn't count, so the order is To Do, then Scheduled,
-  then Housekeeping. Always false for any other rule.
+  to one of its pools has a card it could send now (`next_card/2`, without
+  `force`: a card cooling down after its last job doesn't count, Run now or
+  not). A card that is blocked, flagged blocked or waiting, snoozed, held by
+  its lane or already has a job doesn't count either, so the order is To Do,
+  then Scheduled, then Housekeeping. Always false for any other rule.
+
+  Nothing extra feeds it when a job ends: the only job end that can give it
+  its turn is a ready-list or Scheduled feed's, and that feed sending its
+  next card is a board event, which feeds every rule (`feed_board/1`); the
+  clock is the backstop.
   """
   def yielding?(rule, opts \\ [])
 
@@ -763,19 +769,6 @@ defmodule Slipdock.Automations do
         not MapSet.disjoint?(pools, MapSet.new(feed_pools(other)))
     end)
   end
-
-  @doc """
-  Feeds the backfill rules on `board_id` (#2777): a job of one of its other
-  feeds has just ended, so a backfill feed may have its turn.
-  """
-  def feed_backfill(board_id) when is_integer(board_id) do
-    from(r in Rule, where: r.board_id == ^board_id and r.enabled == true, order_by: [asc: r.id])
-    |> Repo.all()
-    |> Enum.filter(&(Spec.feed?(&1.spec) and &1.spec["trigger"]["backfill"] == true))
-    |> Enum.each(&feed/1)
-  end
-
-  def feed_backfill(_), do: :ok
 
   # The pools a list_top rule's runner actions send to.
   defp feed_pools(rule) do

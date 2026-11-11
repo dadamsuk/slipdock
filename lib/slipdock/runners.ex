@@ -1720,8 +1720,6 @@ defmodule Slipdock.Runners do
       rule ->
         unless Slipdock.Automations.Spec.feed?(rule.spec), do: Requeue.drain(rule)
         Slipdock.Automations.feed_rule(rule)
-        # A Housekeeping feed may have its turn now (#2777).
-        Slipdock.Automations.feed_backfill(rule.board_id)
     end
   end
 

@@ -98,6 +98,12 @@ defmodule Slipdock.HousekeepingListTest do
 
       {:ok, col} = Boards.create_column(ctx.board, %{"name" => "Chores"})
       assert col.category == nil
+
+      # A form sends a blank category for none.
+      {:ok, col} =
+        Boards.create_column(ctx.board, %{"name" => "Housekeeping", "category" => ""})
+
+      assert col.category == "housekeeping"
     end
 
     test "the guide never reads it as the ready list, names it, and says who works it", ctx do
@@ -157,6 +163,38 @@ defmodule Slipdock.HousekeepingListTest do
       assert [%{spec: %{"trigger" => %{"backfill" => true}}}] = feeds_on(ctx.board, "Chores")
       assert [scheduled] = feeds_on(ctx.board, "Scheduled")
       refute Map.has_key?(scheduled.spec["trigger"], "backfill")
+    end
+
+    test "a backfill flag on a ready-list feed isn't copied to its Scheduled sibling", ctx do
+      rule_fixture(ctx.board, %{
+        "trigger" => %{"type" => "list_top", "column" => "To Do", "backfill" => true},
+        "actions" => [%{"type" => "runner", "pool" => "loop"}]
+      })
+
+      scheduled(ctx.board)
+      housekeeping(ctx.board)
+
+      assert [scheduled] = feeds_on(ctx.board, "Scheduled")
+      refute Map.has_key?(scheduled.spec["trigger"], "backfill")
+
+      assert [%{spec: %{"trigger" => %{"backfill" => true}}}] =
+               feeds_on(ctx.board, "Housekeeping")
+    end
+
+    test "two backfill feeds on the ready list for one pool don't wait on each other", ctx do
+      first = card_fixture(ctx.todo, %{"title" => "One"})
+      second = card_fixture(ctx.todo, %{"title" => "Two"})
+
+      spec = %{
+        "trigger" => %{"type" => "list_top", "column" => "To Do", "backfill" => true},
+        "actions" => [%{"type" => "runner", "pool" => "loop"}]
+      }
+
+      a = rule_fixture(ctx.board, spec)
+      b = rule_fixture(ctx.board, spec)
+
+      assert open_cards(a) == [first.id]
+      assert open_cards(b) == [second.id]
     end
 
     test "setting up a runner on the ready list adds the Housekeeping sibling too", ctx do
@@ -316,24 +354,54 @@ defmodule Slipdock.HousekeepingListTest do
       assert open_cards(ctx.sibling) == [chore.id]
     end
 
-    test "feed_backfill feeds only backfill rules", ctx do
+    test "Run now on it doesn't count a To Do card cooling down after its job", ctx do
       rules = [ctx.todo_feed.id, ctx.sibling.id]
 
       switch =
         &Repo.update_all(from(r in Automations.Rule, where: r.id in ^rules), set: [enabled: &1])
 
       switch.(false)
-      mine = card_fixture(ctx.todo, %{"title" => "Mine"})
+      cooling = card_fixture(ctx.todo, %{"title" => "Just worked"})
       chore = card_fixture(ctx.housekeeping, %{"title" => "Chore"})
+
+      working_job_fixture(cooling, %{
+        status: "done",
+        rule_id: ctx.todo_feed.id,
+        pool: "loop",
+        finished_at: DateTime.utc_now(:second)
+      })
+
       switch.(true)
 
-      assert :ok = Automations.feed_backfill(ctx.board.id)
-      assert open_cards(ctx.todo_feed) == []
-      assert open_cards(ctx.sibling) == []
+      # Run now on the To Do feed would send it; it doesn't make the
+      # Housekeeping feed wait, forced or not.
+      assert Automations.next_card(ctx.todo_feed, force: true).id == cooling.id
+      refute Automations.yielding?(ctx.sibling, force: true)
+      assert {:ok, %Card{id: id}} = Automations.feed(ctx.sibling, force: true)
+      assert id == chore.id
+    end
 
-      Repo.update_all(from(c in Card, where: c.id == ^mine.id), set: [completed: true])
-      Automations.feed_backfill(ctx.board.id)
-      assert open_cards(ctx.sibling) == [chore.id]
+    test "a queued job its lane holds isn't swapped for the next chore while To Do has work",
+         ctx do
+      held = card_fixture(ctx.housekeeping, %{"title" => "Held"})
+      {:ok, _} = Boards.update_card(held, %{"paths" => "lib/a.ex"})
+      assert open_cards(ctx.sibling) == [held.id]
+
+      # Now a card in progress holds its lane.
+      {:ok, _} = Boards.update_board(ctx.board, %{"lanes" => true})
+      running = card_fixture(ctx.doing, %{"title" => "Running"})
+      {:ok, _} = Boards.update_card(running, %{"paths" => "lib/**"})
+      working_job_fixture(running)
+
+      first = card_fixture(ctx.todo, %{"title" => "Mine"})
+      card_fixture(ctx.todo, %{"title" => "Mine too"})
+      free = card_fixture(ctx.housekeeping, %{"title" => "Free"})
+      {:ok, _} = Boards.update_card(free, %{"paths" => "docs/**"})
+
+      assert open_cards(ctx.todo_feed) == [first.id]
+      # To Do still has a card it could send: the held chore keeps its job.
+      Automations.feed(ctx.sibling)
+      assert open_cards(ctx.sibling) == [held.id]
     end
 
     test "a rule without backfill never yields", ctx do
