@@ -7,7 +7,6 @@ defmodule SlipdockWeb.VerifyChecksWebTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
-  import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
   alias Slipdock.{Accounts, Boards, Repo}
@@ -49,6 +48,25 @@ defmodule SlipdockWeb.VerifyChecksWebTest do
     )
     |> json_response(200)
     |> Map.fetch!("result")
+  end
+
+  # The card page as the server renders it (#2806). These tests only read the
+  # panel, so they take the HTML over HTTP rather than join the LiveView with
+  # `live/2`: a join the channel refuses (a host clock stepping back under load,
+  # W-1950 §Tests, #2732) comes back as a redirect to the page's own URL.
+  defp card_page(ctx) do
+    ctx.conn
+    |> get(~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    |> html_response(200)
+    |> LazyHTML.from_document()
+  end
+
+  # `has_element?/3` on rendered HTML: an element matching `selector`, and with
+  # `text`, one whose text contains it.
+  defp has_element?(page, selector, text \\ nil) do
+    page
+    |> LazyHTML.query(selector)
+    |> Enum.any?(&(is_nil(text) or LazyHTML.text(&1) =~ text))
   end
 
   test "REST takes checks, and the card's JSON carries them", ctx do
@@ -139,7 +157,7 @@ defmodule SlipdockWeb.VerifyChecksWebTest do
     })
     |> json_response(200)
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    view = card_page(ctx)
 
     assert has_element?(view, "#card-verify-checks")
     assert has_element?(view, "#card-verify-check-0", "the ask")
@@ -148,13 +166,14 @@ defmodule SlipdockWeb.VerifyChecksWebTest do
     assert has_element?(view, "#card-verify-check-0 .text-error")
     assert has_element?(view, "#card-verify-check-1", "bar 1")
     assert has_element?(view, "#card-verify-check-1 .text-success")
+    refute has_element?(view, "#card-verify-check-1", "misses")
     assert has_element?(view, "#card-verify-check-2", "UX-4")
     assert has_element?(view, "#card-verify-check-2", "hex in card.ex")
   end
 
   test "the panel shows no parts while the card awaits verification, or when there are none",
        ctx do
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    view = card_page(ctx)
     assert has_element?(view, "#card-verify")
     refute has_element?(view, "#card-verify-checks")
 
@@ -171,7 +190,7 @@ defmodule SlipdockWeb.VerifyChecksWebTest do
     |> patch(~p"/api/cards/#{ctx.card.id}", %{"completed" => true})
     |> json_response(200)
 
-    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    view = card_page(ctx)
     assert Repo.get!(Card, ctx.card.id).verify_state == "pending"
     refute has_element?(view, "#card-verify-checks")
   end
