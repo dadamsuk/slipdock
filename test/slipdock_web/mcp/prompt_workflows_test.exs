@@ -116,17 +116,38 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       assert text =~ ~r/Tools to use: .*move_card.*\.$/
     end
 
+    # "Today" is the person's own, and nothing here can pin the clock. So the
+    # person is put in a zone where it is the first half of the day: a snooze
+    # a minute ahead is then today at any time, the last minute of the UTC day
+    # included (#2733).
     test "a snooze waking today is there; one waking later is not", ctx do
-      %{conn: conn, user: user, cols: cols} = ctx
+      %{conn: conn, cols: cols} = ctx
+      zone = if DateTime.utc_now().hour < 12, do: "Etc/UTC", else: "Etc/GMT+12"
+      user = ctx.user |> Accounts.User.timezone_changeset(%{timezone: zone}) |> Repo.update!()
+      assert DateTime.now!(zone).hour < 13
+
+      midnight =
+        Slipdock.Timezones.to_utc(
+          Date.add(Slipdock.Timezones.today(zone), 1),
+          ~T[00:00:00],
+          zone
+        )
+
       soon = mine(cols["To Do"], user, %{"title" => "Wakes soon"})
+      last = mine(cols["To Do"], user, %{"title" => "Wakes last thing"})
+      midnight_card = mine(cols["To Do"], user, %{"title" => "Wakes at midnight"})
       later = mine(cols["To Do"], user, %{"title" => "Wakes later"})
       {:ok, _} = Slipdock.Snooze.snooze(soon, user, DateTime.add(DateTime.utc_now(), 60))
+      {:ok, _} = Slipdock.Snooze.snooze(last, user, DateTime.add(midnight, -1))
+      {:ok, _} = Slipdock.Snooze.snooze(midnight_card, user, midnight)
       {:ok, _} = Slipdock.Snooze.snooze(later, user, DateTime.add(DateTime.utc_now(), 3, :day))
 
       text = conn |> prompt("plan-my-day") |> text!()
       [_, waking] = String.split(text, "## Waking from a snooze today", parts: 2)
       [waking, _] = String.split(waking, "## Top of", parts: 2)
       assert waking =~ "##{soon.id} Wakes soon"
+      assert waking =~ "##{last.id} Wakes last thing"
+      refute text =~ "Wakes at midnight"
       refute text =~ "Wakes later"
     end
 
