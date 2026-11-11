@@ -1319,6 +1319,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
         at its screen, make a one-time enrolment key on the same page: the name you give it is
         the name the machine enrols under, or its hostname without one.
       </p>
+      <p id="help-machine-connection">
+        The daemon looks after its own connection to this server, so a laptop that sleeps or
+        changes networks runs jobs as well as a machine that is always on. It pings a
+        connection that has been quiet for 15 seconds and replaces it if no answer comes
+        within 10, never retries a failed request on the connection it failed on, and when
+        the clock jumps (the machine woke from sleep) drops its connections and asks for work
+        again at once. Meanwhile the machine shows offline after about 4½ minutes unheard
+        from, and a job it held goes back in the queue once its 90-second lease runs out.
+      </p>
       <p id="help-machine-page">
         Each machine has a page of its own, opened from that list: whether it is online, the
         ceiling and executors it reported, its runners and what each is working on, and the

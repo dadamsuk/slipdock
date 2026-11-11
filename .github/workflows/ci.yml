@@ -311,9 +311,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The newest Go, not go.mod's floor (1.22, what a machine needs to
-      # build it): macOS's loader refuses 1.22's test binaries ("missing
-      # LC_UUID load command"), and releases build with the newest anyway.
+      # The newest Go, not go.mod's floor (1.24, what a machine needs to
+      # build it: the transport's HTTP/2 pings, #2807): macOS's loader
+      # refused older test binaries ("missing LC_UUID load command"), and
+      # releases build with the newest anyway.
       # No dependencies, so no go.sum for the module cache to key on.
       - uses: actions/setup-go@v5
         with:

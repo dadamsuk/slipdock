@@ -1054,7 +1054,10 @@ with the tail of the log — and a Cancel button.
 
 - **Pull, not push.** Runners dial out to Slipdock; Slipdock never calls the
   machine, so there are no ports to open or tunnels to set up, and it works
-  the same for the hosted service and a self-hosted one.
+  the same for the hosted service and a self-hosted one. The daemon notices
+  a dead connection itself and replaces it (it pings a quiet one, and drops
+  it after a failed request or a jump in the clock), so a laptop that sleeps
+  or changes networks is back in its pools within seconds of waking.
 - **Slipdock never decides what runs.** A job carries data — its kind, the
   card and the prompt. What each kind of job runs is in a config file on the
   runner's machine, and a kind it doesn't know is refused there.

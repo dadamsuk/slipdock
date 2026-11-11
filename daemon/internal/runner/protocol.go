@@ -27,6 +27,42 @@ type Client struct {
 	// and no other is made, so its worker finishes the job it holds and
 	// stops (ErrStopped). A pool gives each worker its own (#2575).
 	Stop <-chan struct{}
+	// Conns is the channel to the server the requests go over (#2807): a
+	// request that hits its deadline or a transport error drops its
+	// connections, so the retry is made on a new one. Nil drops only the
+	// idle ones.
+	Conns Conns
+}
+
+// Conns is the daemon's channel to its server (link.Link).
+type Conns interface {
+	Gen() uint64
+	Drop(gen uint64) bool
+	Woken() <-chan struct{}
+}
+
+// woken is closed when the channel to the server wakes (the machine woke
+// from sleep), nil without one.
+func (c *Client) woken() <-chan struct{} {
+	if c.Conns == nil {
+		return nil
+	}
+	return c.Conns.Woken()
+}
+
+// failed is a request that got no answer: its deadline came, or the
+// connection failed. Its connection is not used again (#2807). A request
+// cancelled (the daemon stopping, a runner told to stop) says nothing about
+// the connection, and leaves it.
+func (c *Client) failed(ctx context.Context, gen uint64) {
+	if err := ctx.Err(); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+	if c.Conns != nil {
+		c.Conns.Drop(gen)
+	} else if c.HTTP != nil {
+		c.HTTP.CloseIdleConnections()
+	}
 }
 
 // ErrStopped is a claim not made because the runner was told to stop: its
@@ -100,13 +136,19 @@ func (c *Client) request(ctx context.Context, runnerID int64, method, path strin
 	if c.UserAgent != "" {
 		req.Header.Set("User-Agent", c.UserAgent)
 	}
+	var gen uint64
+	if c.Conns != nil {
+		gen = c.Conns.Gen()
+	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
+		c.failed(ctx, gen)
 		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
+		c.failed(ctx, gen)
 		return nil, nil, err
 	}
 	return resp, data, nil
@@ -120,6 +162,10 @@ func refused(resp *http.Response, data []byte) error {
 	return fmt.Errorf("HTTP %d: %s", resp.StatusCode, firstLine(string(data)))
 }
 
+// PollSlack is how long past its wait a long-poll (a claim, the config) is
+// given before it counts as failed. A var so tests can shorten it.
+var PollSlack = 15 * time.Second
+
 // Claim asks for a job, waiting up to wait for one. A nil job is nothing to do.
 // Told to stop (Client.Stop), it makes no claim, drops the one waiting,
 // and answers ErrStopped.
@@ -127,7 +173,7 @@ func (c *Client) Claim(ctx context.Context, runnerID int64, headers http.Header,
 	if c.stopped() {
 		return nil, Claim{}, ErrStopped
 	}
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(wait+15)*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second+PollSlack)
 	defer cancel()
 	if c.Stop != nil {
 		go func() {
@@ -301,7 +347,7 @@ func (c *Client) stopped() bool {
 // FetchConfig reads the machine's runners: at once with wait 0, else the
 // server's long-poll for a version above since. nil is no change.
 func (c *Client) FetchConfig(ctx context.Context, since int64, wait int) (*Listing, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(wait+15)*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second+PollSlack)
 	defer cancel()
 	h := http.Header{"Accept": {"application/json"}}
 	resp, data, err := c.request(ctx, 0, http.MethodGet, fmt.Sprintf("/api/machine/config?version=%d&wait=%d", since, wait), nil, h)

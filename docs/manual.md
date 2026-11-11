@@ -96,6 +96,7 @@ The manual is in parts, one page each. Every section and what it covers:
   - [What the server can and cannot do](manual/machines.md#what-the-server-can-and-cannot-do)
   - [Checking a machine](manual/machines.md#checking-a-machine)
   - [Running it as a service](manual/machines.md#running-it-as-a-service)
+  - [When the connection drops](manual/machines.md#when-the-connection-drops)
 - [Wiki](manual/wiki.md)
   - [Sharing pages and folders](manual/wiki.md#sharing-pages-and-folders)
   - [Your wiki](manual/wiki.md#your-wiki)
