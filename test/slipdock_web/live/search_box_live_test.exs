@@ -37,7 +37,7 @@ defmodule SlipdockWeb.SearchBoxLiveTest do
 
       assert has_element?(
                view,
-               ~s(#board-search-box-toggle.sm\\:hidden[aria-label="Search cards"])
+               ~s(#board-search-box-toggle.sm\\:hidden[aria-label="Quick search"])
              )
 
       assert has_element?(view, ~s(#board-search-box-toggle[aria-controls="board-search-box"]))
