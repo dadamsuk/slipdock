@@ -108,4 +108,36 @@ defmodule SlipdockWeb.PagePanelAccessLiveTest do
     {:ok, view, _} = live(as(writer), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
     assert has_element?(view, "#page-panel", "Draft page")
   end
+
+  test "a reader given write on a draft by a share sees it", ctx do
+    reader = user_fixture("shared-reader@example.com")
+    {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
+    {:ok, _} = Access.grant(ctx.draft, reader, "write", ctx.owner)
+    assert Access.board_permission(reader, ctx.board) == :read
+    assert Access.page_permission(reader, ctx.draft) == :write
+
+    {:ok, view, _} = live(as(reader), ~p"/boards/#{ctx.board}?#{[page: ctx.draft.id]}")
+    assert has_element?(view, "#page-panel", "Draft page")
+    refute has_element?(view, "#page-panel", "read-only access")
+  end
+
+  test "a view-only user given read on a page by a share sees it", ctx do
+    viewer = user_fixture("shared-viewer@example.com")
+
+    {:ok, saved} =
+      Boards.create_saved_view(ctx.board, %{
+        "name" => "Everything",
+        "config" => Config.to_map(Config.defaults("table"))
+      })
+
+    {:ok, _} = Access.grant(saved, viewer, "read", ctx.owner)
+    {:ok, _} = Access.grant(ctx.page, viewer, "read", ctx.owner)
+    assert Access.board_permission(viewer, ctx.board) == :view
+    assert Access.page_permission(viewer, ctx.page) == :read
+
+    {:ok, view, _} =
+      live(as(viewer), ~p"/boards/#{ctx.board}/table?#{[view: saved.id, page: ctx.page.id]}")
+
+    assert has_element?(view, "#page-panel", "Placed page")
+  end
 end
