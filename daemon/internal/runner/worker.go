@@ -18,6 +18,7 @@ import (
 	"github.com/dadamsuk/slipdock/daemon/internal/daemonlog"
 	"github.com/dadamsuk/slipdock/daemon/internal/daemonstate"
 	"github.com/dadamsuk/slipdock/daemon/internal/executor"
+	"github.com/dadamsuk/slipdock/daemon/internal/link"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 	"github.com/dadamsuk/slipdock/daemon/internal/release"
 )
@@ -256,12 +257,14 @@ func levelMarker(level daemonlog.Level) string {
 // Run claims and runs jobs until ctx ends (nil), or the server refuses the
 // runner (a *Refused: the machine revoked, or the runner no longer the
 // machine's). A claim that fails otherwise is tried again, backing off to
-// a minute.
+// a minute; the channel to the server waking (the machine woke from sleep,
+// #2807) ends the wait at once and starts the backoff again.
 func (w *Worker) Run(ctx context.Context) error {
 	w.defaults()
 	backoff := time.Second
 	w.say("taking jobs from %s (pool %s, board #%d)", w.Client.Server, w.Runner.Pool, w.Runner.BoardID)
 	for ctx.Err() == nil {
+		woken := w.Client.woken()
 		headers := claimHeaders(w.Runner.Kinds(w.Local), w.Version, w.drift())
 		job, info, err := w.Client.Claim(ctx, w.Runner.ID, headers, w.Wait)
 		var refusal *Refused
@@ -272,10 +275,16 @@ func (w *Worker) Run(ctx context.Context) error {
 			return err
 		case err != nil:
 			w.say("warn: could not reach the queue (%v); trying again in %s", err, backoff)
-			if w.Sleep(ctx, backoff) != nil {
+			woke, err := link.Pause(ctx, w.Sleep, woken, backoff)
+			switch {
+			case err != nil:
 				return nil
+			case woke:
+				w.say("trying the queue again now: the connection to the server was renewed")
+				backoff = time.Second
+			default:
+				backoff = min(backoff*2, time.Minute)
 			}
-			backoff = min(backoff*2, time.Minute)
 		case job == nil:
 			backoff = time.Second
 			if info.RetryAfter > 0 && w.Sleep(ctx, info.RetryAfter) != nil {

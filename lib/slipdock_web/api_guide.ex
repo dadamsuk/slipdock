@@ -2340,6 +2340,10 @@ defmodule SlipdockWeb.APIGuide do
 
     - **Pull, not push.** Runners dial out to this server and ask for work.
       Nothing ever calls the machine, so it needs no open port or tunnel.
+      The daemon notices a dead connection itself and replaces it (it pings
+      a quiet one, and drops it after a failed request or a jump in the
+      clock), so a machine that sleeps or changes networks is back in its
+      pools within seconds of waking.
     - **The server never decides what runs.** A job is data: its id, its
       `kind`, the card and the prompt. Which command a kind means is written
       in the runner's own config on its own machine; a kind it has no

@@ -15,6 +15,7 @@ import (
 	"github.com/dadamsuk/slipdock/daemon/internal/daemonlog"
 	"github.com/dadamsuk/slipdock/daemon/internal/daemonstate"
 	"github.com/dadamsuk/slipdock/daemon/internal/enrol"
+	"github.com/dadamsuk/slipdock/daemon/internal/link"
 	"github.com/dadamsuk/slipdock/daemon/internal/machine"
 	"github.com/dadamsuk/slipdock/daemon/internal/machineconfig"
 	"github.com/dadamsuk/slipdock/daemon/internal/runner"
@@ -76,9 +77,13 @@ func cmdRun(args []string, env Env) error {
 	state := newStateKeeper(d, logger.Printf)
 	defer state.stopped()
 
+	// One channel to the server for every call the daemon makes while it
+	// runs (#2807): it notices a dead connection and replaces it.
+	conns := newLink(env)
 	client := enrol.NewClient(st.Server, "slipdock-runner/"+Version)
-	if env.HTTP != nil {
-		client.HTTP = env.HTTP
+	client.HTTP = &http.Client{Timeout: 30 * time.Second, Transport: conns}
+	if env.HTTP != nil && env.HTTP.Timeout > 0 {
+		client.HTTP.Timeout = env.HTTP.Timeout
 	}
 	sleep := client.Sleep
 	if env.Sleep != nil {
@@ -103,13 +108,14 @@ func cmdRun(args []string, env Env) error {
 	// A later update drains them first (#2618): closing drain stops their
 	// claims, and idle is closed once the jobs they held have finished.
 	ctx, stopAll := context.WithCancel(ctx)
+	go conns.WatchClock(ctx, logger.Printf)
 	revoked := make(chan struct{})
 	drain, idle := make(chan struct{}), make(chan struct{})
 	var runners sync.WaitGroup
 	runners.Add(1)
 	go func() {
 		defer runners.Done()
-		if err := runRunners(ctx, d, st, key, ceil, local, env, client.Sleep, logger.Printf, drain, idle); errors.Is(err, runner.ErrRevoked) {
+		if err := runRunners(ctx, d, st, key, ceil, local, env, conns, client.Sleep, logger.Printf, drain, idle); errors.Is(err, runner.ErrRevoked) {
 			close(revoked)
 			stopAll()
 		}
@@ -125,18 +131,21 @@ func cmdRun(args []string, env Env) error {
 				return restartWhenIdle(ctx, err, drain, idle, revoked, logger.Printf)
 			}
 		}
+		woken, gen := conns.Woken(), conns.Gen()
 		m, err := client.Me(ctx, key)
 		switch {
 		case enrol.IsUnauthorized(err) || (err == nil && m.State == "revoked"):
 			return fmt.Errorf("the server no longer accepts this machine (revoked): run init --replace to enrol it again")
 		case err != nil && ctx.Err() == nil:
 			logger.Printf("warn: can't reach the server, trying again: %v", err)
+			conns.Drop(gen)
 			state.contact(err)
 		case err == nil:
 			logger.Printf("enrolled as %s, serving %s", m.Name, boardList(m.Boards))
 			state.contact(nil)
 		}
-		if err := sleep(ctx, checkEvery); err != nil || ctx.Err() != nil {
+		// Woken from sleep, the machine checks again at once.
+		if _, err := link.Pause(ctx, sleep, woken, checkEvery); err != nil || ctx.Err() != nil {
 			select {
 			case <-revoked:
 				return runner.ErrRevoked
@@ -179,13 +188,13 @@ const configWait = 50
 // pause waits between asks, returning early when ctx ends. Once drain is
 // closed the runners take no more jobs, and idle is closed when the jobs
 // they held have finished (#2618).
-func runRunners(ctx context.Context, d string, st machine.State, key string, ceil machine.Ceiling, local machine.Local, env Env,
+func runRunners(ctx context.Context, d string, st machine.State, key string, ceil machine.Ceiling, local machine.Local, env Env, conns *link.Link,
 	pause func(context.Context, time.Duration) error, logf func(string, ...any), drain <-chan struct{}, idle chan<- struct{}) error {
-	hc := &http.Client{}
-	if env.HTTP != nil && env.HTTP.Transport != nil {
-		hc.Transport = env.HTTP.Transport
+	if conns == nil {
+		conns = newLink(env)
 	}
-	client := &runner.Client{Server: st.Server, Key: key, HTTP: hc, UserAgent: "slipdock-runner/" + Version}
+	hc := &http.Client{Transport: conns}
+	client := &runner.Client{Server: st.Server, Key: key, HTTP: hc, Conns: conns, UserAgent: "slipdock-runner/" + Version}
 	home, _ := env.UserHome()
 	base := runner.Worker{
 		Client:   client,
@@ -224,7 +233,7 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 	reported := make(chan struct{})
 	go func() {
 		defer close(reported)
-		reportCeiling(reportCtx, client, ceil, pause, logf)
+		reportCeiling(reportCtx, client, ceil, wakeable(pause, conns), logf)
 	}()
 	defer func() {
 		stopReport()
@@ -237,6 +246,7 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 	}
 	since, wait, started := int64(-1), 0, false
 	for {
+		woken := conns.Woken()
 		l, err := client.FetchConfig(ctx, since, wait)
 		switch {
 		case ctx.Err() != nil:
@@ -252,7 +262,8 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 				started = true
 			}
 			logf("warn: can't read this machine's runners, trying again in %s: %v", configRetry, err)
-			if pause(ctx, configRetry) != nil {
+			// Woken from sleep, it asks again at once (#2807).
+			if _, err := link.Pause(ctx, pause, woken, configRetry); err != nil {
 				return pool.Wait()
 			}
 			continue
@@ -267,6 +278,27 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 			}
 		}
 		keeper.Flush(ctx)
+	}
+}
+
+// newLink is the daemon's channel to its server, trusting what env's HTTP
+// client trusts (a test's server).
+func newLink(env Env) *link.Link {
+	var opts link.Options
+	if env.HTTP != nil {
+		if t, ok := env.HTTP.Transport.(*http.Transport); ok {
+			opts.TLS = t.TLSClientConfig
+		}
+	}
+	return link.New(opts)
+}
+
+// wakeable is pause ended early when conns wakes (the machine woke from
+// sleep): the next try comes at once.
+func wakeable(pause func(context.Context, time.Duration) error, conns *link.Link) func(context.Context, time.Duration) error {
+	return func(ctx context.Context, d time.Duration) error {
+		_, err := link.Pause(ctx, pause, conns.Woken(), d)
+		return err
 	}
 }
 

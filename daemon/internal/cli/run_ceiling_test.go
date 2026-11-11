@@ -231,7 +231,7 @@ func TestRunRunnersWaitsForTheCeilingsReport(t *testing.T) {
 	go func() {
 		defer close(returned)
 		runRunners(ctx, t.TempDir(), machine.State{Server: ts.URL}, "sdm_key", testCeiling(), machine.Local{},
-			w.env, pause, logf, make(chan struct{}), make(chan struct{}))
+			w.env, nil, pause, logf, make(chan struct{}), make(chan struct{}))
 	}()
 	select {
 	case <-entered:

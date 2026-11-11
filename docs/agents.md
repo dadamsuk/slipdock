@@ -713,6 +713,14 @@ and gives you exactly what to paste:
 | Claude, scheduled | a Claude Desktop local routine, or a cloud routine at claude.ai/code/routines with the Slipdock connector | a Claude turn per run |
 | ChatGPT | the Slipdock connector in ChatGPT, and a prompt for a chat or a scheduled task that takes one job with `claim_job`, works it in the conversation and ends with `finish_job` | a ChatGPT turn per check |
 
+The daemon keeps its connection to the server alive by itself (#2807), so
+it suits a laptop that sleeps or changes networks as well as a machine that
+is always on: it pings a connection quiet for 15 s and replaces one that
+doesn't answer within 10 s, never retries a failed request on the
+connection it failed on, and when the clock jumps (the machine woke from
+sleep) drops its connections and has every runner claim again at once. See
+the manual's [When the connection drops](manual/machines.md#when-the-connection-drops).
+
 The shell and PowerShell runners the daemon replaced were retired (#2582):
 the server no longer serves them, every path under `/runner/` answers 410
 Gone, and `--scenario server` or `windows` is refused. One still running

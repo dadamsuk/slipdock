@@ -198,4 +198,41 @@ defmodule Slipdock.MachinesDocsTest do
       assert manual =~ part, "missing #{part}"
     end
   end
+
+  test "what the daemon does when its connection drops is written up where a reader looks (#2807)" do
+    manual = read("docs/manual/machines.md") |> String.replace(~r/\s+/, " ")
+
+    for part <- [
+          "### When the connection drops",
+          "After 15 seconds with nothing from the server, the daemon pings it",
+          "A failed request is never retried on the same connection.",
+          "Waking from sleep is noticed.",
+          "a laptop that sleeps, roams or goes offline"
+        ] do
+      assert manual =~ part, "the manual is missing #{part}"
+    end
+
+    assert read("docs/manual.md") =~ "(manual/machines.md#when-the-connection-drops)"
+
+    for text <- [SlipdockWeb.APIGuide.markdown(), read("docs/agents.md")] do
+      text = String.replace(text, ~r/\s+/, " ")
+
+      assert text =~ "notices a dead connection" or
+               text =~ "keeps its connection to the server alive"
+
+      assert text =~ "sleep"
+    end
+
+    help = read("lib/slipdock_web/live/help_live/agents.ex") |> String.replace(~r/\s+/, " ")
+    assert help =~ ~s(id="help-machine-connection")
+    assert help =~ "a laptop that sleeps or changes networks"
+  end
+
+  # The Go a machine needs to build the daemon is go.mod's, wherever it is
+  # written down (#2807 raised it to 1.24 for the transport's pings).
+  test "the manual and CLAUDE.md name the Go that daemon/go.mod asks for" do
+    [_, version] = Regex.run(~r/^go (\d+\.\d+)/m, read("daemon/go.mod"))
+    assert read("docs/manual/machines.md") =~ "with Go #{version} or newer"
+    assert read("CLAUDE.md") =~ "it needs Go #{version} on the PATH"
+  end
 end

@@ -54,7 +54,7 @@ HTTPS. Nothing can do better than that for a first download. From then on
 it is better: the daemon checks every update against the key built into
 it, whichever host serves the update.
 
-To build it yourself instead, with Go 1.22 or newer (a build of your own
+To build it yourself instead, with Go 1.24 or newer (a build of your own
 has no release key, so it never updates itself):
 
 ```sh
@@ -299,9 +299,7 @@ on its `PATH`. The live transcript is sent as it is for any other job, read
 only from the job's transcripts directory: the daemon opens nothing but
 regular files beneath it (a link, a FIFO or a file over 128 MB the job
 put there is passed over), so nothing the job plants can make it read the
-machine's files. That needs a daemon built with Go 1.24 or later, as the
-released ones are; one built with an older Go sends no transcript for a
-container job, and its log still streams.
+machine's files.
 
 The base image, `daemon/images/agent/Dockerfile` in the repository, has
 Claude Code, Codex, the slipdock CLI, `git` and `gh`. Build it on the
@@ -752,6 +750,40 @@ The names differ from the retired shell runner's (`slipdock-runner.service`,
 `us.slipdock.runner`, *Slipdock runner*), so both can run while a machine
 moves over, until the old one is stopped. `service print` shows what it would install; `service
 uninstall` stops and removes it.
+
+### When the connection drops
+
+The daemon keeps one connection to the server for all its runners, and a
+connection can die without either end being told: a route change in the
+network between them, Wi-Fi changing, a VPN turned on or off, the machine
+going to sleep. The daemon notices and replaces it by itself, so a laptop
+that sleeps, roams or goes offline for a while is as good a machine to run
+jobs as one that is always on:
+
+- **A quiet connection is checked.** After 15 seconds with nothing from the
+  server, the daemon pings it, and gives the connection up if no answer
+  comes within 10 more. Whatever was waiting on it fails at once and is
+  asked again on a new connection, so a dead one is replaced in under half
+  a minute. A healthy connection answers the ping and is kept, long-polls
+  and all.
+- **A failed request is never retried on the same connection.** A claim,
+  a heartbeat, the config poll or the enrolment check that gets no answer
+  in time drops the connection it was on before trying again.
+- **Waking from sleep is noticed.** When the clock jumps (the machine
+  slept, or its clock was set), the daemon drops its connections and every
+  runner asks for work again at once, so the machine is back in its pools
+  within seconds of waking. Otherwise a runner that can't reach the queue
+  tries again after a second, then twice as long each time, up to a
+  minute.
+
+What the board sees meanwhile: a runner shows offline once it hasn't been
+heard from for three of its leases (4½ minutes), and online again at its
+first claim after the machine wakes. A job it held while it slept keeps
+its lease only 90 seconds without a heartbeat; after that the server puts
+it back in the queue for any runner of the pool, and the runner that woke
+stops its copy when its next heartbeat is refused. The log says
+`could not reach the queue` while the connection is down and `the clock
+jumped` on waking; nothing needs restarting.
 
 ---
 
