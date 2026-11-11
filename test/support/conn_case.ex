@@ -62,7 +62,11 @@ defmodule SlipdockWeb.ConnCase do
   @doc "Signs the user in on the conn (a session token in the session cookie)."
   def log_in_user(conn, user) do
     token = Slipdock.Accounts.generate_session_token(user)
-    conn |> Phoenix.ConnTest.init_test_session(%{}) |> Plug.Conn.put_session(:user_token, token)
+
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> Plug.Conn.put_session(:user_token, token)
+    |> Plug.Conn.put_session(:live_socket_id, "users_sessions:#{Base.url_encode64(token)}")
   end
 
   @doc "A conn signed in (and API-authenticated) as `user`."
