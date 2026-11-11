@@ -126,7 +126,7 @@ func TestAnAgentJobInstallsTheServersSkillsFirst(t *testing.T) {
 	if r.srv.skillsKey != "" {
 		t.Errorf("the skills archive needs no key, and got one: %q", r.srv.skillsKey)
 	}
-	if !strings.Contains(r.logged.String(), "skills: installed the server's slipdock slipdock-loop slipdock-wiki in "+dir) {
+	if !strings.Contains(r.logged.String(), "skills: installed the server's slipdock slipdock-loop slipdock-wiki (signed with the release key) in "+dir) {
 		t.Errorf("the daemon's log says what it installed:\n%s", r.logged)
 	}
 	if !strings.Contains(r.srv.finishes[701].body, "skills: installed the server's") {

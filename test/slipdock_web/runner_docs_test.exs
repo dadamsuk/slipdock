@@ -169,10 +169,42 @@ defmodule SlipdockWeb.RunnerDocsTest do
     # server's checksum, except under cli_checksum_only.
     contract = read("daemon/internal/contract/contract.md")
     assert contract =~ "Give the agent a `slipdock` CLI the project didn't sign."
-    assert contract =~ "With\n  `cli_checksum_only` set in `local.json`"
+    assert contract =~ "With `cli_checksum_only` set in `local.json`"
 
     refute contract =~
              "it is checked only against the checksum the same\n  server publishes, not the release key"
+  end
+
+  test "the skills are installed only signed, and skills_unsigned is the way round it (#2784)" do
+    for path <- [
+          "docs/agents.md",
+          "docs/manual/runners.md",
+          "docs/manual/machines.md",
+          "lib/slipdock_web/api_guide.ex"
+        ] do
+      text = read(path)
+      assert text =~ "`/api/skills.tar.gz.sig`", "#{path} doesn't name the signature"
+      assert text =~ "skills_unsigned", "#{path} doesn't name skills_unsigned"
+    end
+
+    assert read("docs/manual/machines.md") =~
+             "`skills_unsigned: true` does the same for the skills"
+
+    assert read("lib/slipdock_web/live/help_live/agents.ex") =~ "<code>skills_unsigned</code>"
+
+    # docs/agents.md says what the daemon trusts the server with.
+    agents = read("docs/agents.md")
+    assert agents =~ "**What the daemon trusts the server with.**"
+    assert agents =~ "a key the server doesn't hold"
+
+    # The trust contract no longer says the skills are checked against
+    # nothing but the server, except under skills_unsigned.
+    contract = read("daemon/internal/contract/contract.md")
+    assert contract =~ "Give the agent slipdock skills the project didn't sign."
+    assert contract =~ "With\n  `skills_unsigned` set in `local.json`"
+
+    refute contract =~
+             "they are instructions the agent follows, checked against nothing but\n  the server"
   end
 
   test "the built-in merge kind is described in the docs (#1656)" do

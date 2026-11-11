@@ -2597,7 +2597,10 @@ defmodule SlipdockWeb.APIGuide do
     `skills` current, drifted (`drifted_skills` names them) or unknown,
     `cli` current, old, none or unknown. A drifted runner raises one
     alert, cleared once it is current. A daemon clears it itself: before
-    each agent job it puts the server's skills in place (under the `user`
+    each agent job it puts the server's skills in place, only when their
+    archive's signature (`/api/skills.tar.gz.sig`, made by the release job
+    for each `v*` tag) verifies against the release key built into it, or
+    unsigned where `local.json` sets `skills_unsigned` (under the `user`
     executor the job account unpacks them; `no_skills_update` turns it
     off) and, when `/cli/SHA256SUMS` differs from its CLI, fetches
     `/cli/slipdock.escript`, checks its SHA-256 and its signature

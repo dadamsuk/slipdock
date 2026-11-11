@@ -72,7 +72,16 @@ COPY assets assets
 # CLI itself and leaves it in priv/cli/signed/ with its .sig: those bytes are
 # served then, so the signature is of what the server serves. A build from
 # source has no signed copy and builds its own, which goes out unsigned.
+#
+# The same job packs and signs the skills archive (#2784) and leaves it there
+# too: those bytes go to priv/skills_signed/, which /api/skills.tar.gz then
+# serves beside its .sig. Without them the server packs priv/skills itself,
+# unsigned.
 COPY cli cli
+RUN if [ -f priv/cli/signed/slipdock-skills.tar.gz.sig ]; then \
+      mkdir -p priv/skills_signed \
+      && mv priv/cli/signed/slipdock-skills.tar.gz priv/cli/signed/slipdock-skills.tar.gz.sig priv/skills_signed/; \
+    fi
 RUN if [ -f priv/cli/signed/slipdock.escript.sig ]; then \
       mv priv/cli/signed/slipdock.escript priv/cli/signed/slipdock.escript.sig priv/cli/; \
     else \

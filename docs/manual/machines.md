@@ -386,6 +386,8 @@ optional, and with no file at all `claude` and `codex` are found on your
   drift*). `cli_checksum_only: true` lets it install a CLI the server
   serves unsigned, checked only against the server's own checksum: by
   default only a CLI signed with the release key is installed.
+  `skills_unsigned: true` does the same for the skills: by default only
+  a skills archive signed with the release key is installed.
 - `log_level`: how much goes in the daemon's log: `debug`, `info` (the
   default), `warn` or `error`. `run --log-level` overrides it.
 
@@ -436,7 +438,10 @@ signature (`/cli/slipdock.escript.sig`) verifies against the release key
 built into the daemon. The release job signs the CLI of each `v*` tag; a
 server built from source, or deployed from a commit the release job didn't
 sign, serves none, and the machine keeps its own CLI unless the local file
-sets `cli_checksum_only: true`. While a job
+sets `cli_checksum_only: true`. The skills are installed the same way,
+only when their archive's signature (`/api/skills.tar.gz.sig`) verifies,
+and a server that serves none leaves the installed skills in place unless
+the local file sets `skills_unsigned: true`. While a job
 runs, its log's tail goes to the board every 20 seconds and Claude Code's
 transcript about once a minute, with this machine's keys and tokens taken
 out. Cancelling the job on the board, or its timeout, stops it and every
@@ -588,6 +593,12 @@ machine's own limits.
   serves no signature (one built from source, or a deploy the release job
   didn't sign) leaves the machine's own CLI in place, unless `local.json`
   sets `cli_checksum_only`.
+- Give the agent slipdock skills the project didn't sign. Before each
+  agent job the daemon puts the server's slipdock skills in place, and
+  they are instructions the agent follows, so it installs them only when
+  the archive's signature verifies against the same release key. A server
+  that serves no signature leaves the installed skills in place, unless
+  `local.json` sets `skills_unsigned`.
 
 The machine's key lets it claim and report on its own runners' jobs and
 read their settings, and nothing else. It is not an API token. Revoking
@@ -604,14 +615,14 @@ the machine on the Machines page ends the key at once.
   who signs the releases. A self-hosted server can't author an update;
   the hosted operator can, as anyone who downloads the tool already
   trusts them to.
-- The slipdock skills, and a CLI taken on the server's word. Before each
-  agent job the daemon puts the server's slipdock skills in place, and
-  they are instructions the agent follows, checked against nothing but
-  the server: a server can change what the agent reads. With
-  `cli_checksum_only` set in `local.json`, the same goes for an unsigned
-  `slipdock` CLI, checked only against the checksum the same server
-  publishes: a server can then change the program the agent calls. Set
-  `no_skills_update` (and `no_cli_update`) in `local.json` to keep your
+- The slipdock skills, and a CLI taken on the server's word. With
+  `skills_unsigned` set in `local.json`, the daemon installs the server's
+  unsigned slipdock skills, instructions the agent follows, checked
+  against nothing but the server: a server can then change what the agent
+  reads. With `cli_checksum_only` set in `local.json`, the same goes for an
+  unsigned `slipdock` CLI, checked only against the checksum the same
+  server publishes: a server can then change the program the agent calls.
+  Set `no_skills_update` (and `no_cli_update`) in `local.json` to keep your
   own.
 - Network access. A job can reach the network, and so can send anything
   it can read to anywhere, unless its runner uses the `container`

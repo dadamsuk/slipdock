@@ -312,8 +312,15 @@ installed one. It refuses an archive with anything outside a `slipdock*`
 folder, a `..` in a path, or a link, and installs nothing from it; leaves a
 skill folder that is a symlink (a checkout of your own) alone; and keeps
 the installed skills when the fetch fails, and runs the job anyway, saying
-so in the job's log. `no_skills_update: true` in the machine's local file
-turns it off. It keeps the `slipdock` CLI current the same way (#2631):
+so in the job's log. It installs the archive only when its signature
+(`/api/skills.tar.gz.sig`) verifies against the release key built into the
+daemon (#2784): the release job signs each `v*` tag's archive, and a
+server built from source, or a deploy the release job didn't sign, serves
+none, so its machines keep their installed skills unless the local file
+sets `skills_unsigned: true`. A signature that doesn't verify is refused
+either way. Every skill file is written `0644`, whatever mode the archive
+gives it. `no_skills_update: true` in the machine's local file turns it
+off. It keeps the `slipdock` CLI current the same way (#2631):
 when `/cli/SHA256SUMS` differs from the CLI the claim reports, it fetches
 `/cli/slipdock.escript`, checks its SHA-256 against those sums and its
 signature (`/cli/slipdock.escript.sig`) against the release key built into
