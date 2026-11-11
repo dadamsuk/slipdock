@@ -150,6 +150,9 @@ test/slipdock/repo_checks_test.exs
 # A sync test module says why above its use line (TEST-9, #2607)
 test/slipdock/sync_says_why_test.exs
 
+# AGENTS.md: no generator placeholders, mix pre_push its one gate (#2785)
+test/slipdock/agents_md_test.exs
+
 # The claim's move into the doing list, said in the skill and docs (#2633)
 test/slipdock_web/claim_move_docs_test.exs
 

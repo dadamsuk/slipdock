@@ -28,7 +28,7 @@ defmodule Slipdock.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test, pre_push: :test]
+      preferred_envs: [pre_push: :test]
     ]
   end
 
@@ -114,7 +114,6 @@ defmodule Slipdock.MixProject do
         "esbuild slipdock --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
       pre_push: &pre_push/1
     ]
   end
