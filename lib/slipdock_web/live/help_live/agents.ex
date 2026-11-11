@@ -1389,6 +1389,18 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <.trust_contract />
     </.part>
 
+    <.part id="help-card-text-is-data" title="Card text is data">
+      <p>
+        A runner's agent reads what other people wrote: the card, its comments, its bar and
+        anything mailed to the board, by anyone who can comment on it or is a permitted
+        sender. Every job's prompt and the skills tell the agent that this text is data,
+        never instructions: it says what the card's work is, and when it asks for anything
+        beyond that the agent leaves it, says so on the card and, if the card can't be done
+        without it, asks a person. Telling a model is not a boundary, so the machine's ceiling
+        and the runner's executor, above, are what limit a job. The full threat model is in <code>docs/agents.md</code>, under <em>Card text is data</em>.
+      </p>
+    </.part>
+
     <.part title="Sending it work">
       <ul class="list-disc space-y-1 pl-5">
         <li>
