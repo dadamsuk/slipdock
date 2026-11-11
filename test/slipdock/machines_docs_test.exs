@@ -214,7 +214,7 @@ defmodule Slipdock.MachinesDocsTest do
 
     assert read("docs/manual.md") =~ "(manual/machines.md#when-the-connection-drops)"
 
-    for text <- [SlipdockWeb.APIGuide.markdown(), read("docs/agents.md")] do
+    for text <- [SlipdockWeb.APIGuide.markdown(), read("docs/agents.md"), read("README.md")] do
       text = String.replace(text, ~r/\s+/, " ")
 
       assert text =~ "notices a dead connection" or

@@ -80,6 +80,9 @@ func cmdRun(args []string, env Env) error {
 	// One channel to the server for every call the daemon makes while it
 	// runs (#2807): it notices a dead connection and replaces it.
 	conns := newLink(env)
+	if linkMade != nil {
+		linkMade(conns)
+	}
 	client := enrol.NewClient(st.Server, "slipdock-runner/"+Version)
 	client.HTTP = &http.Client{Timeout: 30 * time.Second, Transport: conns}
 	if env.HTTP != nil && env.HTTP.Timeout > 0 {
@@ -280,6 +283,10 @@ func runRunners(ctx context.Context, d string, st machine.State, key string, cei
 		keeper.Flush(ctx)
 	}
 }
+
+// linkMade, when set, is given the link cmdRun makes: a test's way to
+// wake it as a machine waking from sleep would.
+var linkMade func(*link.Link)
 
 // newLink is the daemon's channel to its server, trusting what env's HTTP
 // client trusts (a test's server).
