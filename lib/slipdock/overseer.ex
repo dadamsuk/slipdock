@@ -110,7 +110,8 @@ defmodule Slipdock.Overseer do
             "Automations → Overseer, `slipdock overseer` and `GET /api/boards/:board/overseer`.",
         "completed" => true
       },
-      actor: Slipdock.Actor.automation()
+      actor: Slipdock.Actor.automation(),
+      origin: "overseer"
     )
   end
 

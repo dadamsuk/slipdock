@@ -1,7 +1,7 @@
 defmodule Slipdock.Filters do
   @moduledoc """
   The board toolbar's filters — text, kind, tags, priority, flag, due, stuck,
-  driver, hide completed — and what they match. `stuck` and `driver` read
+  driver, origin (#2778), hide completed — and what they match. `stuck` and `driver` read
   the card's `state` (`Slipdock.CardState`), which a page never has.
 
   `matches?/2` reads the thing by shape rather than by struct, so it takes a
@@ -19,6 +19,7 @@ defmodule Slipdock.Filters do
     due: nil,
     stuck: false,
     driver: nil,
+    origin: nil,
     hide_completed: false
   }
 
@@ -40,6 +41,7 @@ defmodule Slipdock.Filters do
         not is_nil(filters.due),
         filters.stuck,
         not is_nil(filters.driver),
+        not is_nil(Map.get(filters, :origin)),
         filters.hide_completed
       ],
       & &1
@@ -66,9 +68,22 @@ defmodule Slipdock.Filters do
       (is_nil(filters.priority) or item.priority == filters.priority) and
       (is_nil(filters.flag) or Enum.member?(item.flags, filters.flag)) and
       due_matches?(filters.due, item, today) and
-      Slipdock.CardState.matches?(item, filters.stuck, filters.driver) and
+      made_and_moved?(item, filters) and
       not (filters.hide_completed and item.completed)
   end
+
+  # Its state (stuck, driver) and its origin (#2778): one helper, so
+  # `matches?/3` takes no new branch.
+  defp made_and_moved?(item, filters) do
+    Slipdock.CardState.matches?(item, filters.stuck, filters.driver) and
+      origin_matches?(item, Map.get(filters, :origin))
+  end
+
+  # Who or what made it (#2778): "none" for an item with no origin, which a
+  # page always is.
+  defp origin_matches?(_item, nil), do: true
+  defp origin_matches?(item, "none"), do: is_nil(Map.get(item, :origin))
+  defp origin_matches?(item, origin), do: Map.get(item, :origin) == origin
 
   # A card's description and a page's summary are the same line to a reader
   # searching for a word; `Page.for_board/1` fills `description` in from the

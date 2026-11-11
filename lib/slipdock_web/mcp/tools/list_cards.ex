@@ -76,6 +76,11 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
           enum: keys(Config.drivers()),
           description: "agent: an agent holds or last moved it; human: a person last moved it."
         },
+        origin: %{
+          type: "string",
+          enum: keys(Slipdock.Origin.buckets()),
+          description: "Who or what made it; none for cards made before origins were kept."
+        },
         full: %{
           type: "boolean",
           description:
@@ -164,7 +169,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
          {:ok, archived} <- archived(args),
          {:ok, snoozed} <- snoozed(args),
          {:ok, stuck} <- Args.boolean(args, "stuck", false),
-         {:ok, driver} <- bucket(args, "driver", Config.drivers()) do
+         {:ok, driver} <- bucket(args, "driver", Config.drivers()),
+         {:ok, origin} <- bucket(args, "origin", Slipdock.Origin.buckets()) do
       assignee =
         cond do
           nobody -> "none"
@@ -184,7 +190,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
           "archived" => archived,
           "snoozed" => snoozed,
           "stuck" => if(stuck, do: "true"),
-          "driver" => driver
+          "driver" => driver,
+          "origin" => origin
         }
         |> Enum.reject(fn {_, v} -> is_nil(v) end)
         |> Map.new()

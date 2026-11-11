@@ -59,6 +59,15 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
           type: "boolean",
           description: "File it away as soon as it is made, e.g. a record of finished work."
         },
+        # Where it came from (#2778): the server records it; a job may only
+        # name the generator it is running.
+        origin: %{
+          type: "string",
+          enum: Slipdock.Origin.claimable(),
+          description:
+            "Only inside a runner job, to name the generator filing it (the sweep, findings " <>
+              "triage). Leave it out otherwise: the server records who made the card."
+        },
         subcard_template: %{
           type: "string",
           description: "Lists for a new sub-board (default \"Simple\")."
@@ -96,7 +105,8 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
   defp params(args, title, column, tags, assignees) do
     args
     |> Map.take(
-      ~w(short_name description priority start_date due_date bar paths profile caused_by missed_by)
+      ~w(short_name description priority start_date due_date bar paths profile caused_by missed_by
+         origin)
     )
     |> Map.merge(%{"title" => title, "column" => column})
     |> then(&if(tags, do: Map.put(&1, "tags", tags), else: &1))

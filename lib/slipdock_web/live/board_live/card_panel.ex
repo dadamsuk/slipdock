@@ -1906,12 +1906,17 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           <.precision_row card={@card} />
         </div>
       </div>
-      <.card_authors :if={@authors && side?(@panel, "side.authors")} authors={@authors} />
+      <.card_authors
+        :if={@authors && side?(@panel, "side.authors")}
+        authors={@authors}
+        origin={Slipdock.Origin.label(@card.origin, @card.origin_job_id)}
+      />
     </div>
     """
   end
 
   attr :authors, :map, required: true
+  attr :origin, :string, default: nil, doc: "where the card came from (#2778), or nil"
 
   # Who made the card and who changed it last (#2028), read-only, under its
   # properties: "Created by Robin, 3 days ago", "Last changed by Dev server
@@ -1926,6 +1931,9 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           at={@authors.created_at}
           id="card-created-by-at"
         />
+      </p>
+      <p :if={@origin} id="card-origin" data-origin={@origin}>
+        Origin <span class="font-medium text-base-content/70">{@origin}</span>
       </p>
       <p id="card-changed-by">
         <.author_line

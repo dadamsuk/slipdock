@@ -658,6 +658,10 @@ defmodule SlipdockWeb.API.JSON do
       # Where it came from (#2018): "inferred", "person", "agent", "rule", or
       # nil (no profile, or not recorded).
       profile_source: c.profile_source,
+      # Who or what made it (#2778, `Slipdock.Origin`), and the runner job
+      # an agent made it in; nil on cards made before origins were kept.
+      origin: c.origin,
+      origin_job_id: c.origin_job_id,
       # Where an agent's completion stands, on a board that verifies (#1633).
       verify_state: c.verify_state,
       verify_note: c.verify_note,

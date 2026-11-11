@@ -1799,6 +1799,9 @@ defmodule Slipdock.Boards do
   filters read it (#1117): `"stuck"` (`true`) for the cards past their
   list's usual stay, and `"driver"` (`"agent"` or `"human"`; `"all"` is no
   filter) for who is driving the card.
+
+  `"origin"` (#2778) keeps the cards one of `Slipdock.Origin.names/0` made,
+  or with `"none"` those made before origins were kept.
   """
   def list_cards(%Board{} = board, filters \\ %{}) do
     query =
@@ -1840,6 +1843,8 @@ defmodule Slipdock.Boards do
         nil -> query
         p -> where(query, [c], c.priority == ^p)
       end
+
+    query = origin_filter(query, filters["origin"])
 
     query =
       case filters["completed"] do
@@ -1995,9 +2000,36 @@ defmodule Slipdock.Boards do
 
     # An incident's cause (#1946): a card the writer can read, or a refusal.
     case Slipdock.Incidents.check(card, attrs, writer(opts), opts[:token]) do
-      {:ok, attrs} -> insert_card(card, column, attrs, opts)
-      {:error, field, message} -> {:error, refused(card, field, message)}
+      {:ok, attrs} ->
+        with {:ok, card, attrs} <- put_origin(card, attrs, opts),
+             do: insert_card(card, column, attrs, opts)
+
+      {:error, field, message} ->
+        {:error, refused(card, field, message)}
     end
+  end
+
+  # The cards whose origin (#2778) is `origin`; "none" for those with none.
+  defp origin_filter(query, origin) when origin in [nil, "", "all"], do: query
+  defp origin_filter(query, "none"), do: where(query, [c], is_nil(c.origin))
+  defp origin_filter(query, origin), do: where(query, [c], c.origin == ^origin)
+
+  # Who or what made the card (#2778, `Slipdock.Origin`): the server's own
+  # say in `opts[:origin]`, else what the actor is; a caller's `"origin"`
+  # in `attrs` may only name a generator from inside a runner job.
+  defp put_origin(card, attrs, opts) do
+    {requested, attrs} = pop_origin(attrs)
+
+    case Slipdock.Origin.resolve(actor_or_current(opts), opts[:by], opts[:origin], requested) do
+      {:ok, {origin, job_id}} -> {:ok, %{card | origin: origin, origin_job_id: job_id}, attrs}
+      {:error, message} -> {:error, refused(card, :origin, message)}
+    end
+  end
+
+  defp pop_origin(attrs) do
+    {given, attrs} = Map.pop(attrs, "origin")
+    {atom, attrs} = Map.pop(attrs, :origin)
+    {given || atom, attrs}
   end
 
   defp insert_card(card, column, attrs, opts) do

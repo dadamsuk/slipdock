@@ -208,6 +208,7 @@ slipdock board <board>                  # full board: every column and card; "Wa
 slipdock cards <board> [--column C] [--tag T] [--priority P] [--flag F] [--search Q] [--open|--done] [--archived]
                      [--due overdue|today|week|month|has|none] [--deps blocked|ready|blocking|violated|free]
                      [--assignee NAME|EMAIL|me | --no-assignee] [--stuck] [--driver all|agent|human]
+                     [--origin person|sweep|findings|health|overseer|verify|automation|import|agent|none]
                      # each line ends with its state (▸ Running · runner-2 · 7m) and ⏳age in its list
 slipdock card <id>                      # full detail incl. checklist item ids and comments
                                         # on an epic, a "Waiting on you:" line: what in its tree is on you, with reasons
@@ -299,6 +300,7 @@ A saved view's URL (`/boards/1/swimlanes?view=ID`) opens the same grid in the we
 Write:
 ```
 slipdock add <board> <title words...> [--column C] [--desc TEXT] [--priority P] [--flag F]... [--tag T]... [--start YYYY-MM-DD] [--due YYYY-MM-DD] [--color C] [--percent N] [--assignee EMAIL|me]... [--archived]
+                                        # inside a runner job, --origin sweep|findings names the generator filing it
                                        # --archived: made straight into the archive (a record of finished work)
                                        # --desc - (and --bar -) reads the text from stdin: a quoted heredoc (<<'EOF') keeps
                                        # its lines, on add and edit; one - per command. The server refuses an agent's

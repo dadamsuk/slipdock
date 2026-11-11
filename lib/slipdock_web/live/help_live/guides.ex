@@ -300,7 +300,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
         </li>
       </ul>
       <p>
-        The filter bar narrows any view by text, tag, priority, flag and due date. A view
+        The filter bar narrows any view by text, tag, priority, flag, due date and origin (who
+        or what made the card: a person, the sweep, an agent's job…). A view
         with its filters can be saved, shared, or published as a public link.
       </p>
       <p id="boards-search-results">

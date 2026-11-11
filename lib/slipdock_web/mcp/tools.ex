@@ -197,7 +197,8 @@ defmodule SlipdockWeb.MCP.Tools do
       :due_date,
       :completed,
       :percent_complete,
-      :blocked
+      :blocked,
+      :origin
     ])
     |> Map.merge(%{
       assignees: Enum.map(full.assignees, & &1.email),

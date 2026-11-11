@@ -1519,6 +1519,9 @@ defmodule SlipdockWeb.APIGuide do
     # cards past their list's usual stay, and who holds them (driver=all|agent|human)
     curl -s -H "$H" "B/api/boards/1/cards?stuck=true&driver=agent"
 
+    # cards a generator filed (origin=person|sweep|findings|…|agent|none)
+    curl -s -H "$H" "B/api/boards/1/cards?origin=sweep"
+
     # waiting on a person: open a wait, answer it (text, a choice from 1, or both),
     # withdraw it (MCP: update_card wait / answer_wait; CLI: slipdock wait, answer)
     curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/wait \
@@ -1726,6 +1729,17 @@ defmodule SlipdockWeb.APIGuide do
     recorded; never a guessed name. `updated_at` there is the last change
     of any kind (comments, checklist, attachments and flags too): the later
     of the newest activity entry and the card's own `updated_at`.
+
+    **Where a card came from** (#2778): every card made since then carries
+    `origin` (`person`, `sweep`, `findings`, `health`, `overseer`, `verify`,
+    `automation`, `import` or `agent`) and `origin_job_id`, the runner job
+    an agent made it in; null on older cards. The server sets it from who
+    made the card. Inside a runner job an agent may name the generator it
+    is running, `"origin": "sweep"` or `"findings"` on `POST
+    /api/boards/:board/cards` (MCP `create_card` `origin`, `slipdock add …
+    --origin sweep`); any other claim, `person` included, is a 422. Filter
+    on it with `?origin=` (`none` for older cards; MCP `list_cards` `origin`,
+    `slipdock cards --origin`), and a rule's condition can read `origin`.
 
     **A card's timeline**: `GET /api/cards/:id/timeline` (MCP `get_card`
     with `timeline: true`, CLI `slipdock timeline <id>`) gives `stays` (each

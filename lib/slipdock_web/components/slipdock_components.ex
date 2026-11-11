@@ -2747,6 +2747,25 @@ defmodule SlipdockWeb.SlipdockComponents do
             </button>
           </div>
         </div>
+        <div :if={@states} data-role="origin-filter">
+          <p class="mb-1.5 section-label">
+            Origin
+          </p>
+          <div class="flex flex-wrap gap-1">
+            <button
+              :for={{value, label} <- Slipdock.Origin.buckets()}
+              type="button"
+              class={[
+                "btn btn-xs",
+                if(Map.get(@filters, :origin) == value, do: "btn-primary", else: "btn-ghost")
+              ]}
+              phx-click="filter_origin"
+              phx-value-origin={value}
+            >
+              {label}
+            </button>
+          </div>
+        </div>
         <label class="flex cursor-pointer items-center gap-2 text-sm">
           <input
             type="checkbox"

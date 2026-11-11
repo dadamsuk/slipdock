@@ -47,6 +47,20 @@ usual stay) and, on runner boards, *Driver*: All, Agent or Human. The API, MCP a
 `GET /api/boards/:id/cards?stuck=true&driver=agent`, MCP `list_cards` with
 `stuck` and `driver`.
 
+**Where it came from.** Every card made since #2778 records its *origin*:
+a person, the sweep, findings triage, the health monitor, the overseer,
+verification, a rule (or the clock), an import, or an agent and the runner
+job it was in. It shows under the card's properties (*Origin agent (job
+#41)*), in `slipdock card`, and as `origin` and `origin_job_id` from the
+API and MCP; older cards have none. The board's **Filter** menu has
+*Origin*, one at a time (*no origin* for older cards), and so do
+`slipdock cards <board> --origin sweep`, `GET
+/api/boards/:id/cards?origin=sweep` and MCP `list_cards`; a rule's
+condition can read `origin` too. The server sets it from who made the
+card: only an agent inside a runner job may name a generator, `sweep` or
+`findings` (`slipdock add … --origin sweep`, MCP `create_card` `origin`),
+and nobody can claim to be a person.
+
 **Who made it, and who changed it last.** Under a card's properties (in
 the sidebar, and on a phone under the title) *Created by X, 3 days ago*
 and *Last changed by Y, 2 minutes ago*. The last change is any kind: an
