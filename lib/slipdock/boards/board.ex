@@ -73,6 +73,12 @@ defmodule Slipdock.Boards.Board do
     # deploy a failed change (`Slipdock.Deployments.Incidents`).
     field :incident_tag, :string
     field :hotfix_window_hours, :integer, default: 24
+    # The not-shipped watch (#2819, `Slipdock.Deployments.NotShipped`): how
+    # many minutes a merged card may go without a succeeded deploy naming it
+    # before the board is told (0: never), and since when delivery metrics
+    # have been on. Only cards merged after that count; never cast.
+    field :not_shipped_minutes, :integer, default: 20
+    field :delivery_metrics_since, :utc_datetime
 
     # Whether WIP limits hold automated work (#1116, KTD11): with it on, a
     # runner job or a list_top send whose card isn't already in progress
@@ -580,6 +586,7 @@ defmodule Slipdock.Boards.Board do
       :card_ref_pattern,
       :incident_tag,
       :hotfix_window_hours,
+      :not_shipped_minutes,
       :automation_wip,
       :agentic_building,
       :job_log_hours,
@@ -681,7 +688,24 @@ defmodule Slipdock.Boards.Board do
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 24 * 30
     )
+    |> validate_number(:not_shipped_minutes,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 7 * 24 * 60,
+      message: "must be 0 (never) to 10080 minutes (a week)"
+    )
     |> validate_change(:card_ref_pattern, &validate_card_ref_pattern/2)
+    |> put_delivery_metrics_since()
+  end
+
+  # Since when the board has recorded deploys (#2819): set as delivery
+  # metrics are turned on and forgotten as they are turned off, so the
+  # not-shipped watch never counts a card merged before then.
+  defp put_delivery_metrics_since(changeset) do
+    case fetch_change(changeset, :delivery_metrics) do
+      {:ok, true} -> put_change(changeset, :delivery_metrics_since, DateTime.utc_now(:second))
+      {:ok, _off} -> put_change(changeset, :delivery_metrics_since, nil)
+      :error -> changeset
+    end
   end
 
   @lane_modes ~w(off hold advise)

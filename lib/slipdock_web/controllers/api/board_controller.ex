@@ -212,7 +212,7 @@ defmodule SlipdockWeb.API.BoardController do
                ~w(name code shortcut description color vote_budget vote_max
                   add_card add_page add_document page_card_features simple kind
                   default_view show_pulse delivery_metrics card_ref_pattern
-                  incident_tag hotfix_window_hours automation_wip agentic_building job_log_hours
+                  incident_tag hotfix_window_hours not_shipped_minutes automation_wip agentic_building job_log_hours
                   failure_log_hours handoff_label
                   handoff_prompt inbound_senders bar_required
                   evidence_required verify_work verify_pool verify_rejection_limit verify_audit lanes lane_mode shared_paths profiles profile_tiers ship_via findings_propose_at wait_default_after

@@ -241,6 +241,7 @@ defmodule Slipdock.Portable.Export do
       card_ref_pattern: board.card_ref_pattern,
       incident_tag: board.incident_tag,
       hotfix_window_hours: board.hotfix_window_hours,
+      not_shipped_minutes: board.not_shipped_minutes,
       automation_wip: board.automation_wip,
       agentic_building: board.agentic_building,
       job_log_hours: board.job_log_hours,

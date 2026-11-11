@@ -940,6 +940,9 @@ defmodule SlipdockCLI.Render do
     if h["body"], do: IO.puts(indent(h["body"], "              "))
   end
 
+  defp not_shipped_field(%{"text" => text}), do: field("Not shipped", yellow(text))
+  defp not_shipped_field(_), do: :ok
+
   # A finished card's outcome first, else its handoff, else nothing.
   defp standing(%{"outcome" => %{}} = c), do: {:outcome, c}
   defp standing(%{"handoff" => %{} = h}), do: {:handoff, h}
@@ -1413,6 +1416,8 @@ defmodule SlipdockCLI.Render do
 
     deploy_failed_fields(c)
 
+    # Merged, and no deploy names it after the board's minutes (#2819).
+    not_shipped_field(c["not_shipped"])
     if i = c["incident_of"], do: field("Incident of", "deploy ##{i}")
     release_field(c["release"])
     lead_time_fields(c["lead_time"])

@@ -32,11 +32,20 @@ defmodule Slipdock.Overseer.Watch do
     Slipdock.Overseer.Checks.WaitingIdle,
     Slipdock.Overseer.Checks.Slow,
     Slipdock.Overseer.Checks.IdleCapacity,
-    Slipdock.Overseer.Checks.NoWayForward
+    Slipdock.Overseer.Checks.NoWayForward,
+    Slipdock.Overseer.Checks.NotShipped
   ]
+
+  # The checks that run on a board whose overseer is off (#2819): a board
+  # with delivery metrics on is told of a merged card that never shipped
+  # whether or not it turned the overseer on.
+  @always [Slipdock.Overseer.Checks.NotShipped]
 
   @doc "Every watch check, in the order they run."
   def checks, do: @checks
+
+  @doc "The checks that run whether or not the board's overseer is on."
+  def always, do: @always
 
   @doc "The keys of every check."
   def check_keys, do: Enum.map(@checks, & &1.key())
@@ -44,17 +53,26 @@ defmodule Slipdock.Overseer.Watch do
   @doc """
   Runs every check over `root`'s tree and keeps what they found. Returns
   `%{fired: [condition], cleared: [condition], open: [condition]}`.
+
+  `checks:` in `opts` runs only those (`always/0`, on a board whose
+  overseer is off): the conditions of the checks left out are neither
+  refreshed nor cleared, and the settings' `watched_at` stays as it was.
   """
-  def run(%Board{} = root, %Settings{} = settings, now \\ DateTime.utc_now()) do
+  def run(%Board{} = root, %Settings{} = settings, now \\ DateTime.utc_now(), opts \\ []) do
     now = DateTime.truncate(now, :second)
+    checks = Keyword.get(opts, :checks, @checks)
+    keys = Enum.map(checks, & &1.key())
     ctx = %{root: root, board_ids: tree_ids(root), settings: settings, now: now}
 
     found =
-      for check <- @checks, c <- check.find(ctx), into: %{} do
+      for check <- checks, c <- check.find(ctx), into: %{} do
         {{check.key(), c.subject}, Map.put(c, :check, check.key())}
       end
 
-    open = Map.new(open_conditions(root.id), &{{&1.check, &1.subject}, &1})
+    open =
+      for cond <- open_conditions(root.id), Enum.member?(keys, cond.check), into: %{} do
+        {{cond.check, cond.subject}, cond}
+      end
 
     cleared =
       for {key, cond} <- open, not Map.has_key?(found, key), do: clear(cond, now)
@@ -67,7 +85,9 @@ defmodule Slipdock.Overseer.Watch do
         end
       end)
 
-    Repo.update_all(from(s in Settings, where: s.id == ^settings.id), set: [watched_at: now])
+    if checks == @checks and settings.id,
+      do:
+        Repo.update_all(from(s in Settings, where: s.id == ^settings.id), set: [watched_at: now])
 
     %{fired: fired, cleared: cleared, open: fired ++ kept}
   end

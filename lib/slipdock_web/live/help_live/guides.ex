@@ -467,7 +467,12 @@ defmodule SlipdockWeb.HelpLive.Guides do
           beside the health the board works out for itself. On a card agents work, the board
           posts each step itself (Writing code, Verifying, Merged, Shipped to production…),
           quietly, at the top of the card; a finished card shows there how it ended (done when,
-          accepted by whom, what merged and shipped) instead of a next step. How long ago each
+          accepted by whom, what merged and shipped) instead of a next step. With delivery
+          metrics on, a merged card that no succeeded deploy names after 20 minutes (the
+          board's <em>Not shipped after</em>
+          setting) shows an amber <em>Merged 1a634c6 · not shipped after 45m</em>
+          and raises one warning alert on the board, whether or not the overseer is on; the
+          deploy that names it clears both. How long ago each
           one was ("18 min ago") keeps up with the clock while the card is open.
         </li>
         <li>

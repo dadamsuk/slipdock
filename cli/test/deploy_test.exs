@@ -531,6 +531,28 @@ defmodule SlipdockCLI.DeployTest do
            }
   end
 
+  # #2819: how long a merged card may go without a deploy; 0 is sent, not dropped.
+  test "set-board sends the not-shipped minutes" do
+    System.put_env("SLIPDOCK_TOKEN", "api-token")
+
+    for {given, sent} <- [{"45", 45}, {"0", 0}] do
+      serve([{200, ~s({"board":{"id":3,"name":"Docs"}})}])
+
+      {opts, _, []} =
+        OptionParser.parse(["set-board", "x", "--not-shipped-minutes", given],
+          strict: SlipdockCLI.switches()
+        )
+
+      capture_io(fn -> SlipdockCLI.Boards.run("set-board", ["docs"], opts) end)
+      assert_received {:request, "PATCH", "/api/boards/docs", body}
+      assert JSON.decode!(body) == %{"not_shipped_minutes" => sent}
+    end
+
+    help = File.read!(Path.expand("../help.txt", __DIR__))
+    assert help =~ "[--not-shipped-minutes N]"
+    assert help =~ "--not-shipped-minutes how long a merged card may"
+  end
+
   test "deploy setup posts the answers and prints the text; --prompt only asks" do
     System.put_env("SLIPDOCK_TOKEN", "api-token")
 
