@@ -17,6 +17,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   alias Slipdock.{ListOrder, Palette}
   alias Slipdock.Boards.{Board, Card, Column}
   alias Slipdock.Swimlanes.Config
+  alias SlipdockWeb.BoardLive.SearchResults
 
   attr :board, :any, required: true
   attr :ancestry, :list, required: true
@@ -491,6 +492,14 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     default: MapSet.new(),
     doc: "the ids of the cards picked out in select mode"
 
+  attr :search_layout, :atom,
+    default: :list,
+    doc: "while filtering, `:list` (the matches grouped down the page, #2809) or `:board`"
+
+  attr :result_folds, :any,
+    default: MapSet.new(),
+    doc: "the result groups whose fold was clicked (`SearchResults.folded?/3`)"
+
   slot :toolbar_actions, doc: "the board's own buttons, at the toolbar's end right of Views"
 
   @doc "The board view: its toolbar, then the lists side by side."
@@ -588,9 +597,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       </.link>
       <div
         :if={@filtering}
+        id="search-results-banner"
         class="flex flex-wrap items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-2 text-sm"
       >
-        <span class="text-base-content/60">Showing cards matching:</span>
+        <span id="search-summary" class="font-medium">{SearchResults.summary(@columns)}</span>
+        <span class="text-base-content/60">matching:</span>
         <span :if={@filters.q != ""} class="badge badge-outline gap-1">
           “{@filters.q}”
         </span>
@@ -633,11 +644,46 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <button class="btn btn-ghost btn-xs" phx-click="clear_filters">
           <.icon name="hero-x-mark" class="size-3.5" /> Clear
         </button>
+        <SearchResults.layout_toggle layout={@search_layout} />
       </div>
 
-      <.list_pager :if={@narrow? and @columns != []} columns={@columns} />
+      <%!-- Searched or filtered, the matches are one list down the page,
+            grouped by list (#2809), unless the reader asked for the columns:
+            on a wide board the lists with matches were off to the right. --%>
+      <SearchResults.search_results
+        :if={@filtering and @search_layout == :list}
+        columns={@columns}
+        folds={@result_folds}
+        narrow?={@narrow?}
+        select_mode={@select_mode}
+        selected={@selected}
+      >
+        <:row :let={{column, {_kind, item}}}>
+          <.card
+            card={item}
+            compact
+            show={list_show(@swim, column)}
+            handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
+            focus={@focus && card_focus(@focus, item)}
+            dismiss={@can_write}
+            selected={@select_mode && card_selected?(@selected, item)}
+            marks={@favourites}
+            zone={@zone}
+          >
+            <:actions :if={@can_write and length(@board.columns) > 1}>
+              <.move_menu card={item} board={@board} />
+            </:actions>
+          </.card>
+        </:row>
+      </SearchResults.search_results>
+
+      <.list_pager
+        :if={@narrow? and @columns != [] and not (@filtering and @search_layout == :list)}
+        columns={@columns}
+      />
 
       <div
+        :if={not (@filtering and @search_layout == :list)}
         id="board-scroll"
         phx-hook="ScrollEnd"
         data-drop-area

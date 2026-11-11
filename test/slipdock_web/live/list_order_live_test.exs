@@ -124,6 +124,8 @@ defmodule SlipdockWeb.ListOrderLiveTest do
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     render_hook(view, "search", %{"q" => "needle"})
+    # The matches in their columns, not the grouped list (#2809).
+    render_hook(view, "search_layout", %{"layout" => "board"})
 
     assert headings(view, column) == ["Blocked 1"]
     assert render(view) =~ "1 hidden by filters"

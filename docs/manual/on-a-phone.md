@@ -31,7 +31,8 @@ views that cannot survive being narrowed render something else instead.
   understands here.
 - **The board** becomes a pager: one list fills the screen, swiping moves to
   the next, and a strip above names every list with its card count and slides
-  to the one you tap.
+  to the one you tap. A search or filter swaps the pager for one list of the
+  matches, grouped by list, as on a desktop (see [Features](features.md)).
 - **A card** puts its properties first: under the title, one line says who
   it is assigned to, when it is due and how urgent it is (its list is on the
   line above). Tap it for the rows to change them; the description, checklist

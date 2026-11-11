@@ -3,7 +3,8 @@
 ## Deep search and Ask
 
 The search box in a board's toolbar filters the cards in front of you by
-substring. Type a card's id (`123` or `#123`) or its link and it finds that
+substring, and on a kanban board shows the matches as one list down the page,
+grouped by the list each is in ([Filter bar](features.md)). Type a card's id (`123` or `#123`) or its link and it finds that
 card; if the card is elsewhere in the board's tree (a subcard on an epic's
 board), the strip under the toolbar offers it as a link, with its board. Type a
 wiki page's code (`W-31`) and the strip offers that page, whether or not it is
