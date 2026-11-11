@@ -40,6 +40,8 @@ defmodule SlipdockWeb.SearchBoxLiveTest do
                ~s(#board-search-box-toggle.sm\\:hidden[aria-label="Quick search"])
              )
 
+      assert has_element?(view, ~s(#board-search-box-toggle[title="Quick search"]))
+
       assert has_element?(view, ~s(#board-search-box-toggle[aria-controls="board-search-box"]))
     end
 
