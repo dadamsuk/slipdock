@@ -74,10 +74,12 @@ and where it **writes to**. Then:
 - **One stage at a time.** Show the person what the stage produced before
   writing it, and fold in what they change.
 - **Nobody there** (a runner job, a loop): don't answer your own questions.
-  Put the grill's or decide's questions, or the spike candidates, to the person as a wait (`slipdock
-  wait <epic> "intro" --question Q --question Q --kind product`, MCP
-  `update_card` `wait`) and stop; the answer starts the next pass. Write
-  only what doesn't need them.
+  Put a grill round's or decide's questions, or the spike candidates, to
+  the person as one wait (`slipdock wait <epic> "intro" --question Q
+  --question Q --kind product`, MCP `update_card` `wait`), a grill
+  question's recommended answer in its text, and stop; the answer starts
+  the next pass, and the grill's next round. Write only what doesn't need
+  them.
 - **Spikes stop the plan.** With spike cards made, stop: leave a handoff
   on the epic, `slipdock handoff <epic> --next "Planning resumes at Spec
   once spikes #… are answered"`. Accepting the last opens a `product` wait
@@ -143,13 +145,16 @@ it, or names one that is neither enabled on the board nor installed here.
 
 ### Grill
 
-Ask one question at a time, the most important first, until you can say
-back: what is built, for whom, what done looks like, and what is out of
-scope. Don't ask what the handbook or a Decision already answers, or what
-the person plainly doesn't care about. Offer your best guess with each
-question, so a yes is enough. Stop when the next answer wouldn't change the
-plan. Produce a brief: the problem, who it is for, done-when, out of scope,
-open questions.
+Ask in numbered rounds. A round is every question whose prerequisites are
+settled, the most important first, numbered, each with the answer you
+recommend, so a yes is enough. Don't ask what the handbook or a Decision
+already answers, what you can look up yourself, or what the person plainly
+doesn't care about. Nobody there: a round goes into one wait, a
+`--question` each with its recommended answer, never a wait per question.
+The answers settle the next round's prerequisites. Stop when the next
+answer wouldn't change the plan: you can say back what is built, for whom,
+what done looks like and what is out of scope. Produce a brief: the
+problem, who it is for, done-when, out of scope, open questions.
 
 ### Spike
 

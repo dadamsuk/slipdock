@@ -133,7 +133,15 @@ spike is accepted. A Playbook still holding the 1.6.0 (or 1.5.0) seed gets
 the current one, reported as `(seed updated)`, and so (#2601) does one
 still holding the 1.7.0 seed, whose Grill named only an installed skill:
 the current seed's Grill names the skill enabled on the board from the
-skills registry first, then one installed where the agent runs. An edited
+skills registry first, then one installed where the agent runs. So (#2065)
+does one still holding the seed as it stood until then, whose Grill asked
+one question at a time: the current seed's Grill asks in numbered rounds,
+each round every question whose prerequisites are settled, each with a
+recommended answer that a yes accepts, and stops when the next answer
+wouldn't change the plan. With nobody there a round goes into one wait
+(`slipdock wait --question Q --question Q`), not a wait per question. Its
+Skill line gives a name as an entry's front matter has it (`grilling`),
+with no collection's prefix. An edited
 one is left alone; if it has no Spike stage it also gets a gardener
 proposal adding the section after its Grill, reported as
 `(edited: left alone; Spike stage proposed)`, and only once. The seed card leaves
