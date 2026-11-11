@@ -703,6 +703,23 @@ defmodule Slipdock.Automations.FeedTest do
       assert comment.body =~ "Job ##{sent_id} gave this card back"
     end
 
+    test "a rule with no runner action fires whatever the pools' runners", ctx do
+      offline(ctx.runner)
+      top = card_fixture(ctx.todo, %{"title" => "top"})
+
+      # The spec's check asks a list_top rule for a runner action; one saved
+      # before it, with only a comment, is still a feed and sends to no pool.
+      rule = feed_rule(ctx.board)
+      spec = %{feed_spec() | "actions" => [%{"type" => "comment", "body" => "Up next"}]}
+      Repo.update_all(from(r in Automations.Rule, where: r.id == ^rule.id), set: [spec: spec])
+      rule = Repo.get!(Automations.Rule, rule.id)
+      assert Spec.feed?(rule.spec)
+
+      assert {:ok, %Card{id: id}} = Automations.feed(rule)
+      assert id == top.id
+      assert Enum.any?(comments(top), &(&1.body =~ "Up next"))
+    end
+
     test "runners never seen yet are fed as before", ctx do
       top = card_fixture(ctx.todo, %{"title" => "top"})
       loop = feed_rule(ctx.board)
