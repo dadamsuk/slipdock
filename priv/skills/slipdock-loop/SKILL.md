@@ -284,6 +284,12 @@ Nor from a **Scheduled** list (category `scheduled`, which the guide marks
 feed rules send each card to a runner on its day. A pass asked what to do next
 never takes from it, even when the ready list is empty; a card from it comes
 to a pass only as a job.
+A **Housekeeping** list (category `housekeeping`, which the guide marks
+`housekeeping: worked by runners after the ready list`) holds the small fixes
+and investigations generators file. Its feeds send a card only while the
+ready list and Scheduled have nothing their pool could start. A pass asked
+what to do next takes from it only when the ready list has nothing it could
+start: the top of Housekeeping then, by the same rules as above.
 
 Read the whole card before touching it: `slipdock card <id>` for the description,
 checklist, comments, dependencies, links and whether it has subcards. The

@@ -3,7 +3,9 @@ defmodule Slipdock.Health.Detectors.IdleFeed do
   A `list_top` rule that has sent nothing for `minutes` (default 15) — no
   open job, none ended or the rule changed in that time — while its list has
   a card it would send and a runner of its pool is online and idle. Not
-  idle for a good reason: an empty list, a paused pool, the WIP limit.
+  idle for a good reason: an empty list, a paused pool, the WIP limit, or a
+  backfill feed (a Housekeeping list's, #2777) waiting its turn behind its
+  pool's ready-list and Scheduled feeds (`Automations.yielding?/2`).
 
   The fix runs the feed (`Slipdock.Automations.feed/2`). If it sends a card,
   that is fixed; if it is still idle, the reason it gave goes in the log and
@@ -42,7 +44,8 @@ defmodule Slipdock.Health.Detectors.IdleFeed do
         idle = Enum.filter(runners, &(Enum.member?(pools, &1.pool) and Runs.idle?(&1, ctx.now))),
         idle != [],
         %Card{} = card <- [Automations.next_card(rule, now: ctx.now)],
-        not wip_held?(card) do
+        not wip_held?(card),
+        not Automations.yielding?(rule, now: ctx.now) do
       %{
         subject: %{"rule" => rule.id},
         card_id: nil,

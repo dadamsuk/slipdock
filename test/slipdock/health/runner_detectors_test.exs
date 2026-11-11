@@ -316,6 +316,28 @@ defmodule Slipdock.Health.RunnerDetectorsTest do
       assert detect(IdleFeed, ctx.board) == []
     end
 
+    test "a Housekeeping feed waiting its turn behind To Do isn't idle (#2777)", ctx do
+      runner(ctx.board, "box", "loop", 0)
+      {:ok, col} = Boards.create_column(ctx.board, %{"name" => "Housekeeping"})
+      card_fixture(col, %{"title" => "Chore"})
+      {rule, _ready} = quiet_feed(ctx, 20)
+      {:ok, [sibling]} = Slipdock.Automations.ScheduledFeed.ensure(ctx.board)
+      assert sibling.spec["trigger"]["backfill"] == true
+      Repo.update_all(from(x in Rule, where: x.id == ^sibling.id), set: [updated_at: ago(20)])
+
+      # The To Do feed is idle with a ready card; its backfill sibling yields.
+      assert [%{subject: %{"rule" => id}}] = detect(IdleFeed, ctx.board)
+      assert id == rule.id
+
+      # Without its backfill flag, the same rule would be found idle too.
+      Repo.update_all(from(x in Rule, where: x.id == ^sibling.id),
+        set: [spec: update_in(sibling.spec, ["trigger"], &Map.delete(&1, "backfill"))]
+      )
+
+      assert detect(IdleFeed, ctx.board) |> Enum.map(& &1.subject["rule"]) |> Enum.sort() ==
+               Enum.sort([rule.id, sibling.id])
+    end
+
     test "the fix runs the feed: the card is sent and it is fixed", ctx do
       runner(ctx.board, "box", "loop", 0)
       {rule, ready} = quiet_feed(ctx, 20)

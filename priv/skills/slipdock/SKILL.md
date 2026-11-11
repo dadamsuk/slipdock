@@ -439,7 +439,7 @@ slipdock archive-board <board> | slipdock restore-board <board>   # owner only; 
 slipdock order-boards <board>...        # the order you list boards in (yours alone)
 slipdock welcome [--force]              # rebuild the "Getting Started" tour board (see below)
 slipdock new-column <board> <name> [--wip N] [--color C] [--category C]
-slipdock set-column <board> <column> [--name N] [--wip N] [--color C] [--category C]   # category: todo|doing|done|dropped, "" clears
+slipdock set-column <board> <column> [--name N] [--wip N] [--color C] [--category C]   # category: todo|doing|done|dropped|triage|scheduled|housekeeping, "" clears
 slipdock set-column <board> <column> --sort due_date [--descending] --group flag   # how the web app draws the list; --sort position / --group none undo it
 slipdock set-column <board> <column> --no-show-age   # its cards leave off the "3d · 1d over usual" chip (--show-age: back on)
 slipdock set-column <board> <column> --no-show-images   # its cards leave their image thumbnail off the front (--show-images: back on)

@@ -105,6 +105,22 @@ runner* rules (`list_top`) send each card to the runners on its day:
 
 A series with a list of its own still uses that list.
 
+**The Housekeeping list.** A list in the `housekeeping` category (a new
+list called Housekeeping takes it by itself) is where the small fixes and
+investigations the sweep, findings triage, the health monitor and agents
+file wait. It gets the same siblings as Scheduled, *Work Housekeeping with
+the … runners*, made at the same times, but each is a **backfill** feed
+(`backfill: true` on its `list_top` trigger; it reads *… only when To Do
+and Scheduled have nothing this pool could start*). It sends a card only
+while its pool's rules on the ready list and Scheduled have nothing they
+could send: a card that is blocked, flagged blocked or waiting, snoozed,
+held by its lane or already has a job doesn't count. So the order is To
+Do, then Scheduled, then Housekeeping, and a card moved into To Do goes
+before the next Housekeeping one. A Housekeeping job already running is
+never stopped for To Do work. The health monitor's *Feed sitting idle*
+leaves a backfill feed alone while it waits its turn, and the agent guide
+marks the list `housekeeping: worked by runners after the ready list`.
+
 **After done.** An after-done series makes nothing until its current instance
 is completed; then the next is due that long after the day it was done (in
 the series' timezone), and it waits again.

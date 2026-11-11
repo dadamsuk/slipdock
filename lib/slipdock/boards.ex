@@ -1563,12 +1563,12 @@ defmodule Slipdock.Boards do
     position = next_position(from(c in Column, where: c.board_id == ^board.id))
 
     %Column{board_id: board.id, position: position}
-    |> Column.changeset(Map.put(attrs, "board_id", board.id))
+    |> Column.changeset(attrs |> Map.put("board_id", board.id) |> default_category())
     |> Repo.insert()
     |> tap_ok(fn col ->
       log(Repo, board.id, nil, "column", "added list “#{col.name}”")
       broadcast(board.id)
-      if Column.scheduled?(col), do: scheduled_feeds(col)
+      if sibling_list?(col), do: scheduled_feeds(col)
     end)
   end
 
@@ -1578,13 +1578,33 @@ defmodule Slipdock.Boards do
     |> Repo.update()
     |> tap_ok(&broadcast(&1.board_id))
     |> tap_ok(fn col ->
-      if Column.scheduled?(col) and not Column.scheduled?(column), do: scheduled_feeds(col)
+      if sibling_list?(col) and col.category != column.category, do: scheduled_feeds(col)
     end)
   end
 
-  # A list that has just become the board's Scheduled list (#2100): the
-  # ready list's feeds get a sibling working it. A sibling that can't be
-  # made (the board is at its rule limit) leaves the list as it is.
+  # A new list given no category takes the one its name says, if any
+  # (`Column.default_category/1`): a list called Housekeeping (#2777).
+  defp default_category(attrs) do
+    given = Map.get(attrs, "category", Map.get(attrs, :category))
+    name = Map.get(attrs, "name", Map.get(attrs, :name))
+
+    case {given, Column.default_category(name)} do
+      {blank, category} when blank in [nil, ""] and is_binary(category) ->
+        attrs |> Map.delete(:category) |> Map.put("category", category)
+
+      _ ->
+        attrs
+    end
+  end
+
+  # A list whose feeds are siblings of the ready list's: Scheduled (#2100)
+  # and Housekeeping (#2777).
+  defp sibling_list?(col), do: Column.scheduled?(col) or Column.housekeeping?(col)
+
+  # A list that has just become the board's Scheduled or Housekeeping list
+  # (#2100, #2777): the ready list's feeds get a sibling working it. A
+  # sibling that can't be made (the board is at its rule limit) leaves the
+  # list as it is.
   defp scheduled_feeds(%Column{board_id: board_id}) do
     case Slipdock.Automations.ScheduledFeed.ensure(board_id) do
       {:ok, _made} ->

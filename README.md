@@ -311,7 +311,10 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   same copy by hand. A board's **Scheduled** list (category `scheduled`; the
   Slipdock and Simple templates have one) is where recurring agent work lands:
   feed rules send each card to the runners on its day, nobody picks from it,
-  and one not started by the end of its day is on your Waiting on you.
+  and one not started by the end of its day is on your Waiting on you. A
+  **Housekeeping** list (category `housekeeping`) holds the fixes generators
+  file: its feeds send a card only while To Do and Scheduled have nothing the
+  pool could start, so your own work always goes first.
 - **Snooze** — [hide a card until a day](docs/manual/snoozing-cards.md) and have
   it come back at the top of its list: one keystroke (`z`, `z z` for tomorrow)
   takes a card that isn't actionable yet out of the lists, My work and the

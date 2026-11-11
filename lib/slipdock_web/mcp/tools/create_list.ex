@@ -15,9 +15,9 @@ defmodule SlipdockWeb.MCP.Tools.CreateList do
   @impl true
   def description,
     do:
-      "Adds a list (column) to the end of a board. category says what being in it " <>
-        "means: todo is the ready list, doing in progress, done finished, triage for a person, " <>
-        "scheduled where recurring agent work lands (worked by feed rules, never the ready list)."
+      "Adds a list (column) to the end of a board. category: todo (the ready list), doing, " <>
+        "done, dropped, triage (for a person), scheduled (recurring agent work, worked by feed " <>
+        "rules) or housekeeping (generated fixes, worked after the ready list)."
 
   @impl true
   def input_schema do

@@ -76,7 +76,8 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
       doing: name_of(roles.doing),
       done: name_of(roles.done),
       # Where recurring agent work lands (#2100): never the ready list.
-      scheduled: name_of(roles.scheduled)
+      scheduled: name_of(roles.scheduled),
+      housekeeping: name_of(roles.housekeeping)
     }
     |> put_verified(full)
     # Profiles (#1951), only on a board with them on.

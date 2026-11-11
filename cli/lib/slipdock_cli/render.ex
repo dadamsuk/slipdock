@@ -225,6 +225,10 @@ defmodule SlipdockCLI.Render do
   defp list_note(%{"category" => "scheduled"}),
     do: " · scheduled: worked by feed rules, never pick from it"
 
+  # A Housekeeping one (#2777) is worked by runners after the ready list.
+  defp list_note(%{"category" => "housekeeping"}),
+    do: " · housekeeping: worked by runners after the ready list"
+
   defp list_note(_col), do: ""
 
   # `waiting_on_me` (#2095): the tree's count when anything is on you, and
