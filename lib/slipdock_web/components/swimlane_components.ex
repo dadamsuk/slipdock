@@ -688,8 +688,8 @@ defmodule SlipdockWeb.SwimlaneComponents do
       type="button"
       phx-click={@open}
       class="btn btn-ghost btn-sm btn-square shrink-0 sm:hidden"
-      title="Search cards"
-      aria-label="Search cards"
+      title="Quick search"
+      aria-label="Quick search"
       aria-controls={@id}
     >
       <.icon name="hero-magnifying-glass" class="size-5" />

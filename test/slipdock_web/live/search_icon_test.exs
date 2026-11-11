@@ -97,10 +97,10 @@ defmodule SlipdockWeb.SearchIconTest do
   end
 
   describe "the boxes" do
-    test "the board's Search cards…", %{conn: conn, board: board} do
+    test "the board's Quick search…", %{conn: conn, board: board} do
       {:ok, view, _} = live(conn, ~p"/boards/#{board}")
       assert_glass(view, "#board-search")
-      assert has_element?(view, "#board-search input.field-trail[placeholder='Search cards…']")
+      assert has_element?(view, "#board-search input.field-trail[placeholder='Quick search…']")
     end
 
     test "the views toolbar, on swimlanes and table", %{conn: conn, board: board} do

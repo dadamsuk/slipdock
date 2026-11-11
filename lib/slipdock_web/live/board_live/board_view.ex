@@ -1535,7 +1535,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           <form id="board-search" phx-change="search" phx-submit="search" class="relative">
             <.search_input
               value={@filters.q}
-              placeholder="Search cards…"
+              placeholder="Quick search…"
               phx-debounce="200"
               trail={1}
               class="w-44"
