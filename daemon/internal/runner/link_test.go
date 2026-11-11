@@ -250,10 +250,14 @@ func TestAClaimThatTimesOutIsTriedAgainOnANewConnection(t *testing.T) {
 	}
 }
 
-func TestATimeoutWithoutTheLinkWouldRetryOnTheDeadConnection(t *testing.T) {
-	// The bug the link fixes (#2807), kept as a check on the fake server:
-	// a plain client puts every retry back on the dead connection, so the
-	// server reads no claim after the held one.
+func TestNothingSentOnABlackHoledConnectionReachesTheServer(t *testing.T) {
+	// A check on the fake server (#2807), with a plain client and no link:
+	// once a connection is silenced, nothing more sent on it is read. Up
+	// to Go 1.26 a plain client puts every retry back on it, so no claim
+	// is read after the held one, the bug the link fixes; from Go 1.27 its
+	// transport sometimes checks a connection after a cancelled request
+	// and moves to a new one, where its claims are read. Either way none
+	// is read on the dead connection.
 	old := PollSlack
 	PollSlack = 300 * time.Millisecond
 	t.Cleanup(func() { PollSlack = old })
@@ -263,10 +267,12 @@ func TestATimeoutWithoutTheLinkWouldRetryOnTheDeadConnection(t *testing.T) {
 	tr.ForceAttemptHTTP2 = true
 	w.Client = &Client{Server: s.ts.URL, Key: "k", HTTP: &http.Client{Transport: tr}}
 	runWorker(t, w)
-	s.waitFor(t, 2, 10*time.Second)
+	held := s.waitFor(t, 2, 10*time.Second)[1]
 	time.Sleep(4 * time.Second)
-	if n := len(s.seen()); n != 2 {
-		t.Fatalf("a plain client's claims reached the server %d times after the silence, want none", n-2)
+	for _, c := range s.seen()[2:] {
+		if c.addr == held.addr {
+			t.Fatalf("a claim was read on the silenced connection %s: the fake server isn't black-holing it", held.addr)
+		}
 	}
 }
 
