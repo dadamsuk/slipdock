@@ -19,6 +19,9 @@ defmodule Slipdock.Overseer do
        update on the overseer's card. Paced by `Slipdock.Overseer.Pacing`:
        every `min_minutes` (10) while cards are active, longer when little
        or nothing is in flight.
+    3. **The morning digest** (`Slipdock.Overseer.Housekeeping`, #2781):
+       once a day at `digest_at`, what the Housekeeping feeds worked, by
+       theme, naming only what needs the owner; on the same card.
 
   The overseer's card is a completed card titled *Overseer* in the root
   board's done list, made when it is first turned on: runner jobs hang off
@@ -51,7 +54,8 @@ defmodule Slipdock.Overseer do
 
   @doc """
   Changes the settings of `board`'s tree (on its root): `enabled`, `pool`,
-  `min_minutes`, `max_minutes`, `idle_minutes`, `email`. Turning it on makes
+  `min_minutes`, `max_minutes`, `idle_minutes`, `email`, `digest_at` (the
+  morning digest of Housekeeping's work, #2781). Turning it on makes
   its card and brings the next pass to now. `{:ok, settings}` or
   `{:error, changeset}`.
   """
@@ -147,6 +151,7 @@ defmodule Slipdock.Overseer do
       try do
         Watch.run(settings.board, settings, now)
         Pass.maybe_queue(settings.board, Repo.reload!(settings), now)
+        Slipdock.Overseer.Housekeeping.maybe_digest(settings.board, Repo.reload!(settings), now)
       rescue
         error ->
           Logger.error(

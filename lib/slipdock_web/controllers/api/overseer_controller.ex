@@ -8,8 +8,9 @@ defmodule SlipdockWeb.API.OverseerController do
       the open one. Read access on the board and on its tree's root: those
       name cards anywhere in the tree.
     * `PATCH /api/boards/:board/overseer {enabled?, pool?, min_minutes?,
-      max_minutes?, idle_minutes?, email?}` – turn it on or off and set its
-      bounds. The board's owner.
+      max_minutes?, idle_minutes?, email?, digest_at?}` – turn it on or off
+      and set its bounds, and when the morning digest of Housekeeping's work
+      is written ("HH:MM", #2781). The board's owner.
   """
   use SlipdockWeb, :controller
 
@@ -19,7 +20,7 @@ defmodule SlipdockWeb.API.OverseerController do
 
   action_fallback SlipdockWeb.API.FallbackController
 
-  @fields ~w(enabled pool min_minutes max_minutes idle_minutes email)
+  @fields ~w(enabled pool min_minutes max_minutes idle_minutes email digest_at)
 
   def show(conn, %{"board" => ref}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read),

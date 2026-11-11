@@ -32,7 +32,7 @@ defmodule SlipdockCLI.Overseer do
     do:
       fail(
         "usage: slipdock overseer <board> [--on | --off] [--pool P] [--min-minutes N] " <>
-          "[--max-minutes N] [--idle-minutes N] [--email | --no-email]"
+          "[--max-minutes N] [--idle-minutes N] [--email | --no-email] [--digest-at HH:MM]"
       )
 
   @doc false
@@ -46,7 +46,9 @@ defmodule SlipdockCLI.Overseer do
         "min_minutes" => o[:min_minutes],
         "max_minutes" => o[:max_minutes],
         "idle_minutes" => o[:idle_minutes],
-        "email" => o[:email]
+        "email" => o[:email],
+        # The morning digest of Housekeeping's work (#2781).
+        "digest_at" => o[:digest_at]
       })
     end
   end
@@ -68,7 +70,8 @@ defmodule SlipdockCLI.Overseer do
       Render.bold("Overseer: #{on_off(s["enabled"])}") <>
         Render.dim(
           "  pool #{s["pool"]} · every #{s["min_minutes"]}–#{s["max_minutes"]} min · " <>
-            "idle after #{s["idle_minutes"]} min · email #{on_off(s["email"])}"
+            "idle after #{s["idle_minutes"]} min · email #{on_off(s["email"])}" <>
+            if(s["digest_at"], do: " · Housekeeping digest at #{s["digest_at"]}", else: "")
         )
     )
   end

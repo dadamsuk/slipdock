@@ -2316,10 +2316,16 @@ defmodule SlipdockWeb.APIGuide do
     (read access on the board and on its tree's root, whose overseer a
     sub-board answers with: a 403 otherwise) gives its settings, `conditions`, `cleared_last_day`,
     `last_digest` and `next_run_at`; `PATCH` the same path `{enabled?,
-    pool?, min_minutes?, max_minutes?, idle_minutes?, email?}` (the owner;
-    bounds 5 to 1440 minutes, min no more than max). MCP: `get_board`
-    `overseer: true`, `update_board` `overseer: {…}`. CLI: `slipdock
-    overseer <board> [--on|--off] [--min-minutes N] [--max-minutes N]`.
+    pool?, min_minutes?, max_minutes?, idle_minutes?, email?, digest_at?}`
+    (the owner; bounds 5 to 1440 minutes, min no more than max). MCP:
+    `get_board` `overseer: true`, `update_board` `overseer: {…}`. CLI:
+    `slipdock overseer <board> [--on|--off] [--min-minutes N] [--max-minutes
+    N] [--digest-at HH:MM]`. Once a day at `digest_at` ("HH:MM" in the
+    owner's zone, 07:00) the overseer also writes the morning digest of
+    Housekeeping's work on its card (#2781). It groups what the
+    Housekeeping feeds worked by theme and names only cards rejected,
+    escalated to Triage, given up on, or overlapping an in-progress epic's
+    paths. `housekeeping_digest_at` says when it last ran.
     """
   end
 

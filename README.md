@@ -349,7 +349,9 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   heads *Waiting on you*, and clears itself. A cheap model on your own runner
   (job kind `overseer`) reads only those and the pulse, and keeps a digest as
   a status update on the board's *Overseer* card: every 10 minutes while cards
-  are active, longer when they aren't. Automations → Overseer, `slipdock
+  are active, longer when they aren't. Each morning (07:00, or `digest_at`)
+  it also writes a digest of the Housekeeping list's overnight work, grouped
+  by theme, naming only what needs you. Automations → Overseer, `slipdock
   overseer <board> --on`, `GET`/`PATCH /api/boards/:board/overseer`, MCP
   `get_board overseer: true` / `update_board overseer`.
 - **Findings** — [what each card taught, kept on the board](docs/manual/findings.md):

@@ -144,6 +144,8 @@ defmodule SlipdockCLI do
     min_minutes: :integer,
     max_minutes: :integer,
     idle_minutes: :integer,
+    # `slipdock overseer B --digest-at 07:00` (#2781).
+    digest_at: :string,
     email: :boolean,
     # Also `verify <id> … --check bar:2=fail:why`, repeated (#1778).
     check: :keep,

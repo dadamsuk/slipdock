@@ -6,6 +6,9 @@ defmodule Slipdock.Overseer.Settings do
   flight), how long runners sit idle before the watch says so, and whether
   a condition is emailed to the owner as well as raised as an alert.
 
+  `digest_at` is when the morning digest of Housekeeping's work is written
+  (#2781, `Slipdock.Overseer.Housekeeping`).
+
   It also keeps where the overseer stands: its card (the completed card on
   the root board its jobs hang off, whose status updates are the digests),
   when its next pass is due, and the last digest.
@@ -29,6 +32,11 @@ defmodule Slipdock.Overseer.Settings do
     field :last_health, :string
     field :last_digest_at, :utc_datetime
     field :watched_at, :utc_datetime
+    # The morning digest of Housekeeping's work (#2781): when it is written
+    # ("HH:MM" in the owner's zone), and when it last was.
+    field :digest_at, :string, default: "07:00"
+    field :housekeeping_digest_on, :date
+    field :housekeeping_digest_at, :utc_datetime
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :card, Slipdock.Boards.Card
@@ -41,7 +49,7 @@ defmodule Slipdock.Overseer.Settings do
   def bounds, do: {@floor, @ceiling}
 
   @doc "The fields a person may set."
-  def fields, do: ~w(enabled pool min_minutes max_minutes idle_minutes email)a
+  def fields, do: ~w(enabled pool min_minutes max_minutes idle_minutes email digest_at)a
 
   def changeset(settings, attrs) do
     settings
@@ -64,6 +72,23 @@ defmodule Slipdock.Overseer.Settings do
       less_than_or_equal_to: @ceiling
     )
     |> validate_bounds()
+    |> validate_digest_at()
+  end
+
+  # "HH:MM", a time of day (#2781).
+  defp validate_digest_at(changeset) do
+    changeset
+    |> update_change(:digest_at, &String.trim/1)
+    |> validate_required([:digest_at])
+    |> validate_change(:digest_at, fn :digest_at, at ->
+      with [_, h, m] <- Regex.run(~r/^(\d{1,2}):(\d{2})$/, at),
+           {h, ""} when h in 0..23 <- Integer.parse(h),
+           {m, ""} when m in 0..59 <- Integer.parse(m) do
+        []
+      else
+        _ -> [digest_at: "must be a time of day, HH:MM"]
+      end
+    end)
   end
 
   defp validate_bounds(changeset) do
