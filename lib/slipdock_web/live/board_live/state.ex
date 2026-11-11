@@ -525,10 +525,12 @@ defmodule SlipdockWeb.BoardLive.State do
         }
       end)
 
-    assign(socket,
-      columns: columns,
-      filtering: Slipdock.Filters.any?(filters) or socket.assigns[:waiting_filter] == true
-    )
+    filtering = Slipdock.Filters.any?(filters) or socket.assigns[:waiting_filter] == true
+    socket = assign(socket, columns: columns, filtering: filtering)
+
+    # With nothing filtered, the next search starts as the grouped list
+    # again, its folds at their defaults (#2809).
+    if filtering, do: socket, else: SlipdockWeb.BoardLive.SearchResults.reset(socket)
   end
 
   # `?waiting=me` (#2095): only the cards with something on the reader on

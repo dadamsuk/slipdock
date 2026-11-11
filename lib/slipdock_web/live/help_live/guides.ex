@@ -303,6 +303,17 @@ defmodule SlipdockWeb.HelpLive.Guides do
         The filter bar narrows any view by text, tag, priority, flag and due date. A view
         with its filters can be saved, shared, or published as a public link.
       </p>
+      <p id="boards-search-results">
+        On the board, a search or filter shows its matches as one list down the page, grouped by
+        the list each card is in, in board order, so none sit off the side of the screen. Each
+        heading gives the list's name and how many match; click it to fold or unfold the group.
+        Done, and any list with more than 10 matches, starts folded, and the lists with no
+        matches are named on one line at the end. Click a row to open the card, or use its
+        arrow to move it to another list. <strong>Board</strong>
+        in the banner shows the matches in their columns instead, for that search;
+        <strong>Clear</strong>
+        brings the whole board back.
+      </p>
     </.part>
 
     <.part title="Card views" id="boards-card-views">

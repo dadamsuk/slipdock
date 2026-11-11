@@ -174,7 +174,15 @@
   timeline, table and Prioritise rendered for a narrow screen rather than
   scrolled sideways (see [On a phone](on-a-phone.md))
 - Filter bar: full-text search, kind (cards / documents / wiki pages), tag,
-  priority, flag, due date, hide completed
+  priority, flag, due date, hide completed. On the board, a search or filter
+  shows its matches as one list down the page, grouped by the list each card
+  is in, in board order: each heading gives the list's name and how many
+  match, and a click folds or unfolds it (Done, and any list with more than
+  10 matches, starts folded). The lists with no matches are named on one line
+  at the end. Each match is one row that opens the card, with the move menu
+  to send it to another list. **Board** in the banner puts the columns back
+  for that search, and **Clear** ends it. A phone gets the same list in place
+  of the pager
 - Web links on a card: pages, shared drives and files elsewhere, datestamped
 - Command palette (`Ctrl-P`) for everywhere you can go and everything you can
   set off, and a card finder (`Ctrl-O`) that opens any card by title or id

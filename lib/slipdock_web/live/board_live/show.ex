@@ -38,6 +38,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   alias SlipdockWeb.BoardLive.{
     DisplayPrefs,
     Keyboard,
+    SearchResults,
     Selection,
     Sharing,
     SnoozeEvents,
@@ -78,7 +79,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
     swim_toggle_row swim_start_add swim_cancel_add outline_add_sub outline_page toggle_select_mode
     clear_selection select_list select_all_in_list display_restore) ++
-                 SnoozeEvents.read_events()
+                 SnoozeEvents.read_events() ++ SearchResults.read_events()
 
   # Events only the board owner may perform.
   @owner_events ~w(swim_publish_view swim_unpublish_view resume_pause)
@@ -90,6 +91,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   @view_events ViewEvents.events()
   @keyboard_events Keyboard.events()
   @snooze_events SnoozeEvents.events()
+  @search_events SearchResults.events()
 
   @doc false
   # For the test that every `handle_event/3` clause is in one of the lists.
@@ -166,6 +168,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp mount_assigns(socket, board) do
     socket
     |> assign(SnoozeEvents.mount_assigns())
+    |> assign(SearchResults.mount_assigns())
     |> assign(
       board: Access.hide_unreadable_dependencies(socket.assigns.current_user, board),
       # Read from the board row and the cached settings: no query of its own.
@@ -795,6 +798,9 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   def handle_event(event, params, socket) when event in @snooze_events,
     do: SnoozeEvents.handle_event(event, params, socket)
+
+  def handle_event(event, params, socket) when event in @search_events,
+    do: SearchResults.handle_event(event, params, socket)
 
   ## Events: sharing -------------------------------------------------------------
 
@@ -1509,6 +1515,8 @@ defmodule SlipdockWeb.BoardLive.Show do
         zone={@zone}
         revealed_snoozed={@revealed_snoozed}
         selected={@selected}
+        search_layout={@search_layout}
+        result_folds={@result_folds}
       >
         <:toolbar_actions>
           <.board_actions
