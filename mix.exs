@@ -457,6 +457,10 @@ defmodule Slipdock.MixProject do
   Runs one step as its own `mix` process, or with `exec: true` as the
   program it names, and answers with its exit status. A `cd:` directory is
   relative to the project root.
+
+  The step's output is passed on as bytes (`IO.binstream/0`), not as text:
+  under a locale that isn't UTF-8, or with a character split between two
+  reads, writing it as text mangles it or crashes, hiding the failure (#2757).
   """
   def pre_push_run(task, argv, opts) do
     if opts[:exec], do: pre_push_exec(task, argv, opts), else: pre_push_mix(task, argv, opts)
@@ -471,7 +475,7 @@ defmodule Slipdock.MixProject do
       path ->
         {_, status} =
           System.cmd(path, argv,
-            into: IO.stream(),
+            into: IO.binstream(),
             stderr_to_stdout: true,
             cd: Path.expand(Keyword.fetch!(opts, :cd), __DIR__),
             env: pre_push_env(opts)
@@ -484,7 +488,7 @@ defmodule Slipdock.MixProject do
   defp pre_push_mix(task, argv, opts) do
     {_, status} =
       System.cmd("mix", [task | argv],
-        into: IO.stream(),
+        into: IO.binstream(),
         stderr_to_stdout: true,
         cd: Path.expand(Keyword.get(opts, :cd, "."), __DIR__),
         env: pre_push_env(opts)

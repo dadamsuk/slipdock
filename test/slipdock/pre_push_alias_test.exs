@@ -328,6 +328,57 @@ defmodule Slipdock.PrePushAliasTest do
     end
   end
 
+  describe "a failing step's output under a locale that isn't UTF-8 (#2757)" do
+    # A fresh `elixir` under LANG=C loads mix.exs and runs pre_push/2 with a
+    # step that prints non-ASCII text, and a character cut short, then fails.
+    # The rescue is what Mix's CLI does with a Mix.Error.
+    @child """
+    Mix.start()
+    Code.put_compiler_option(:no_warn_undefined, :all)
+    [mix_exs, sh, dir, script] = System.argv()
+    {mod, _} = mix_exs |> Code.require_file() |> hd()
+    run = fn _task, _argv, _opts -> mod.pre_push_run(sh, ["-c", script], cd: dir, exec: true) end
+
+    try do
+      mod.pre_push([], run)
+    rescue
+      e in Mix.Error ->
+        Mix.shell().error("** (Mix) " <> Exception.message(e))
+        System.halt(e.mix)
+    end
+    """
+
+    @tag :tmp_dir
+    test "prints it as it came, and exits with the step's status", %{tmp_dir: dir} do
+      elixir = System.find_executable("elixir") || flunk("no elixir")
+      sh = System.find_executable("sh") || flunk("no sh")
+      child = Path.join(dir, "child.exs")
+      File.write!(child, @child)
+      script = ~S"printf 'caf\303\251 \342\206\222 done\nsplit \342\206\n'; exit 3"
+      env = [{"LANG", "C"}, {"LC_ALL", "C"}, {"LC_CTYPE", "C"}]
+
+      {out, status} =
+        System.cmd(elixir, [child, Path.join(@root, "mix.exs"), sh, dir, script],
+          env: env,
+          stderr_to_stdout: true
+        )
+
+      # Compared as bytes, and shown with inspect/1: the output isn't valid
+      # UTF-8, which ExUnit's own report of a failure would crash on.
+      assert status == 3, inspect(out)
+      assert String.contains?(out, "café → done\n"), inspect(out)
+      assert String.contains?(out, "split " <> <<0xE2, 0x86>> <> "\n"), inspect(out)
+
+      assert String.contains?(
+               out,
+               "pre_push: mix compile --force --warnings-as-errors failed (exit 3)"
+             ),
+             inspect(out)
+
+      refute String.contains?(out, "ArgumentError"), inspect(out)
+    end
+  end
+
   describe "the CLI's compile (#1964)" do
     test "compiles cli/ with warnings as errors, after the app's checks and the CLI's format" do
       assert Enum.at(project().pre_push_steps(), 3) ==
