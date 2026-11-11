@@ -3861,8 +3861,10 @@ defmodule SlipdockWeb.APIGuide do
     someone (a missing test such as "no test pins `slipdock done`'s exit
     codes", a stale moduledoc or doc entry, a tooling bug such as "`page
     section --append -` writes a literal `-`") goes on the board as a card
-    now (`POST /api/boards/:board/cards`, `create_card`, `slipdock add`, in
-    the backlog) and into the block as `→ #<card>`. A finding is only for
+    now (`POST /api/boards/:board/cards`, `create_card`, `slipdock add`: in
+    the Housekeeping list when the board has one, else the backlog; a
+    design question, whose answer changes how the product or a process
+    behaves, in Triage) and into the block as `→ #<card>`. A finding is only for
     what is uncertain, cuts across cards, or shows the handbook wrong
     ("`mix format` can need two passes", "W-1950 §Tests says async is safe,
     but the fixture is one user").

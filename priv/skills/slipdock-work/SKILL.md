@@ -304,8 +304,11 @@ whole card before touching it.
   someone (a missing test such as "no test pins `slipdock done`'s exit
   codes", a stale moduledoc or doc entry, a tooling bug such as "`page
   section --append -` writes a literal `-`") goes on the board now
-  (`slipdock add <board> "…" --desc "…" --column Backlog`; `--desc -`
-  reads the description from stdin, for a heredoc) and into the
+  (`slipdock add <board> "…" --desc "…" --column Housekeeping` when the
+  board has a Housekeeping list, else `--column Backlog`; a design
+  question, whose answer would change how the product or a process
+  behaves, `--column Triage`; `--desc -` reads the description from
+  stdin, for a heredoc) and into the
   block as `→ #<card>`. A finding is only for what is uncertain, cuts across
   cards, or shows the handbook wrong ("`mix format` can need two passes",
   "W-1950 §Tests says async is safe, but the fixture is one user").
