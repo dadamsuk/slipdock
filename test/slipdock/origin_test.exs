@@ -156,6 +156,7 @@ defmodule Slipdock.OriginTest do
       assert ids.("person") == [ctx.person.id]
       assert ids.("none") == [ctx.old.id]
       assert length(ids.(nil)) == 3
+      assert length(ids.("all")) == 3
     end
 
     test "the board's filter matches it, and counts as one", ctx do
@@ -163,6 +164,7 @@ defmodule Slipdock.OriginTest do
       assert Filters.matches?(Repo.get!(Card, ctx.sweep.id), filters)
       refute Filters.matches?(Repo.get!(Card, ctx.person.id), filters)
       assert Filters.matches?(Repo.get!(Card, ctx.old.id), %{filters | origin: "none"})
+      refute Filters.matches?(Repo.get!(Card, ctx.sweep.id), %{filters | origin: "none"})
       assert Filters.count(filters) == 1
       assert Filters.any?(filters)
     end

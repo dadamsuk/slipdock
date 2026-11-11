@@ -295,6 +295,8 @@ defmodule Slipdock.VerifiedAuditTest do
       assert rework.title == "Audit of ##{card.id}: bar 1: the empty case fails"
       assert rework.paths == ["lib/foo/**", "test/foo/**"]
       assert rework.priority == "medium"
+      # A verification follow-up (#2778).
+      assert rework.origin == "verify"
       refute rework.completed
       # The board's ready list, not its backlog: the rework is to be taken up.
       ready = Slipdock.Flow.ready_list(Boards.get_board!(ctx.board.id).columns)

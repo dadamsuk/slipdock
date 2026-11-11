@@ -156,6 +156,13 @@ defmodule SlipdockWeb.OriginWebTest do
       # Again clears it.
       view |> element("[phx-click=filter_origin][phx-value-origin=sweep]") |> render_click()
       assert has_element?(view, "#card-#{mine.id}")
+
+      # A value that isn't an origin clears it too, rather than hiding everything.
+      view |> element("[phx-click=filter_origin][phx-value-origin=sweep]") |> render_click()
+      refute has_element?(view, "#card-#{mine.id}")
+      render_click(view, "filter_origin", %{"origin" => "martian"})
+      assert has_element?(view, "#card-#{mine.id}")
+      assert has_element?(view, "#card-#{swept.id}")
     end
   end
 end
