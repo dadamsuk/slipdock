@@ -109,14 +109,14 @@ defmodule Slipdock.CiWorkflowTest do
 
       assert runs?(
                secrets,
-               ~s(/tmp/gitleaks git --redact --no-banner --verbose --log-opts="$BASE..$HEAD" .)
+               ~s($RUNNER_TEMP/gitleaks git --redact --no-banner --verbose --log-opts="$BASE..$HEAD" .)
              )
     end
 
     test "the binary is checked against its published checksum" do
       assert Enum.any?(
                job("secrets"),
-               &(&1 =~ ~r/^echo "[0-9a-f]{64}  \/tmp\/gitleaks.tgz" \| sha256sum -c -$/)
+               &(&1 =~ ~r/^echo "[0-9a-f]{64}  \$RUNNER_TEMP\/gitleaks.tgz" \| sha256sum -c -$/)
              )
     end
 
@@ -188,7 +188,11 @@ defmodule Slipdock.CiWorkflowTest do
       assert runs?(static, command), "static checks no longer run `#{command}`"
     end
 
-    assert Enum.any?(job("secrets"), &String.starts_with?(&1, "run: /tmp/gitleaks git "))
+    assert Enum.any?(
+             job("secrets"),
+             &String.starts_with?(&1, "run: $RUNNER_TEMP/gitleaks git ")
+           )
+
     assert File.exists?(Path.join(@root, "test/slipdock/boundaries_test.exs"))
 
     # The CLI: no dependencies to read for deps.audit; credo covers it from
@@ -268,7 +272,14 @@ defmodule Slipdock.CiWorkflowTest do
   describe "the runner daemon (#2573)" do
     test "is built, vetted and tested on Linux, macOS and Windows" do
       daemon = job("daemon")
-      assert has?(daemon, "os: [ubuntu-latest, macos-latest, windows-latest]")
+
+      # All three on GitHub's runners; on the self-hosted ones (#2829), the
+      # one OS they have (Slipdock.CiRunnerTest).
+      assert has?(
+               daemon,
+               ~s<os: ${{ fromJSON(vars.CI_RUNNER && format('["{0}"]', vars.CI_RUNNER) || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}>
+             )
+
       assert has?(daemon, "runs-on: ${{ matrix.os }}")
       assert has?(daemon, "working-directory: daemon")
       # The newest Go: macOS refuses 1.22's test binaries (missing LC_UUID).

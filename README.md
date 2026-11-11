@@ -789,7 +789,7 @@ docker compose run --rm slipdock remote           # an IEx shell in the running 
 
 #### Building it yourself
 
-The image is built for `amd64` and `arm64`. For anything else, or to run your
+The image is built for `amd64`. For anything else, or to run your
 own changes:
 
 ```sh
