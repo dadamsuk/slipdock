@@ -974,7 +974,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                 <input
                   type="text"
                   name="title"
-                  placeholder="Card title; a comment, then Enter"
+                  placeholder="Title; description;; comment, then Enter"
                   class="input field w-full"
                   phx-hook="Focus"
                   id={"quick-add-input-#{column.id}-#{@form_key}"}

@@ -464,7 +464,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
         <li>
           <strong>Quick add</strong>: press <kbd class="kbd kbd-xs">c</kbd>
           or use the header box and type a line such as "call the printers about the banners
-          friday, urgent". It becomes a card on your default board.
+          friday, urgent". It becomes a card on your default board. After a semicolon comes the
+          card's description, after two a comment: "Fix the login; seen on Safari only;; ask Sam first".
         </li>
         <li>
           <kbd class="kbd kbd-xs">Ctrl</kbd>-<kbd class="kbd kbd-xs">P</kbd>

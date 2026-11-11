@@ -17,8 +17,11 @@ defmodule Slipdock.QuickAdd do
       `every: 3d after` (see `Slipdock.Recurrence.Rule.parse_phrase/2`)
     * `snooze: <date>` – hides the new card until then (W-1803), in the same
       date grammar as `due:`: `snooze: mon`, `snooze: next week`
-    * `; <text>` – everything after the first semicolon is a comment on the
-      new card, taken as written (commands in it are not read)
+    * `; <text>` – after one semicolon, the new card's description (#2804)
+    * `;; <text>` – after two, a comment on the new card. Both are taken as
+      written (commands in them are not read): `Fix the login #high; seen on
+      Safari only;; ask Sam first`, or `Fix the login;; ask Sam first` for a
+      comment and no description
 
   `parse/3` returns what was recognised; nothing is written.
   """
@@ -32,6 +35,7 @@ defmodule Slipdock.QuickAdd do
           column: Column.t() | nil,
           tags: [Tag.t()],
           assignee: User.t() | nil,
+          description: String.t() | nil,
           comment: String.t() | nil,
           recurrence: String.t() | nil,
           snooze: Date.t() | nil,
@@ -78,10 +82,11 @@ defmodule Slipdock.QuickAdd do
     columns = opts[:columns] || Map.get(board, :columns) || []
     tags = if is_list(Map.get(board, :tags)), do: board.tags, else: []
     users = opts[:users] || []
-    {text, comment} = split_comment(text)
+    {text, description, comment} = split_parts(text)
 
     acc = %{
-      attrs: %{},
+      attrs: if(description, do: %{"description" => description}, else: %{}),
+      description: description,
       column: nil,
       tags: [],
       assignee: nil,
@@ -97,6 +102,7 @@ defmodule Slipdock.QuickAdd do
     {text, acc} = take_dates(text, acc, today)
     {text, acc} = take_mentions(text, acc, users)
     {text, acc} = take_hashes(text, acc, columns, tags)
+    acc = if description, do: chip(acc, :description, "Description"), else: acc
     acc = if comment, do: chip(acc, :comment, "Comment"), else: acc
 
     Map.put(acc, :title, text |> String.replace(~r/\s+/, " ") |> String.trim())
@@ -110,22 +116,27 @@ defmodule Slipdock.QuickAdd do
         not is_nil(parsed[:snooze])
 
   @doc """
-  Splits a line at its first semicolon: `{title, comment}`, the comment nil
-  when there is nothing after it.
+  Splits a line into `{title, description, comment}`: the description is
+  what follows the first semicolon, the comment what follows the first
+  double one (#2804). Either is nil when there is nothing in it, so
+  `"Fix it;; ask Sam"` has a comment and no description.
   """
-  @spec split_comment(String.t()) :: {String.t(), String.t() | nil}
-  def split_comment(text) do
-    case String.split(text, ";", parts: 2) do
-      [title, comment] ->
-        case String.trim(comment) do
-          "" -> {title, nil}
-          comment -> {title, comment}
-        end
+  @spec split_parts(String.t()) :: {String.t(), String.t() | nil, String.t() | nil}
+  def split_parts(text) do
+    {head, comment} = split_at(text, ";;")
+    {title, description} = split_at(head, ";")
+    {title, description, comment}
+  end
 
-      [title] ->
-        {title, nil}
+  defp split_at(text, separator) do
+    case String.split(text, separator, parts: 2) do
+      [before, rest] -> {before, blank_to_nil(String.trim(rest))}
+      [before] -> {before, nil}
     end
   end
+
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(text), do: text
 
   ## Repeating ----------------------------------------------------------------
 

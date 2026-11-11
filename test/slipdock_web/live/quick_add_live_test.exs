@@ -49,18 +49,18 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     refute render(view) =~ "chip-tint text-warning"
   end
 
-  test "a list's add-a-card box puts what follows a semicolon in the comments", %{
+  test "a list's add-a-card box reads a description after ; and a comment after ;;", %{
     conn: conn,
     board: board
   } do
     [backlog | _] = board.columns
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     render_click(view, "start_add_card", %{"id" => to_string(backlog.id)})
-    assert render(view) =~ "Card title; a comment, then Enter"
+    assert render(view) =~ "Title; description;; comment, then Enter"
 
     view
     |> form("#quick-add-#{backlog.id}-0", %{
-      "title" => "Fix the login #high; seen on Safari only; #docs"
+      "title" => "Fix the login #high; seen on Safari only;; ask about #docs"
     })
     |> render_submit()
 
@@ -69,7 +69,8 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     assert card.priority == "high"
     assert card.column_id == backlog.id
     assert card.tags == []
-    assert [%{body: "seen on Safari only; #docs"}] = Boards.get_card!(card.id).comments
+    assert card.description == "seen on Safari only"
+    assert [%{body: "ask about #docs"}] = Boards.get_card!(card.id).comments
 
     # Nothing after the semicolon: just the card.
     render_click(view, "start_add_card", %{"id" => to_string(backlog.id)})
@@ -83,12 +84,19 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     assert Boards.get_card!(bare.id).comments == []
   end
 
-  test "the comment shows as a chip while typing", %{conn: conn, board: board} do
+  test "the description and the comment show as chips while typing", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
 
     html =
       view
       |> form("#table-add", %{"title" => "Write it; with a note"})
+      |> render_change()
+
+    assert html =~ "hero-bars-3-bottom-left"
+
+    html =
+      view
+      |> form("#table-add", %{"title" => "Write it;; with a comment"})
       |> render_change()
 
     assert html =~ "hero-chat-bubble-left"
