@@ -516,7 +516,12 @@ defmodule Slipdock.Automations do
   backstop. A card whose question was answered while the rule had a job open
   goes first (`Slipdock.Runners.Requeue.drain/1`). Answers `{:ok, card}` when it sent one, else `{:idle, reason}`:
   `:paused` while its pool or tree is, `:wip_full` while its board holds
-  automated work at the WIP limit (`Slipdock.Runners.wip_full/1`).
+  automated work at the WIP limit (`Slipdock.Runners.wip_full/1`),
+  `:offline` while every runner of its pool has gone offline
+  (`Slipdock.Runners.pool_offline?/2`, #2805). Then it also withdraws its
+  queued job, if it has one no runner has taken (one an answered question
+  queued aside), so that a feed whose runners are online sends that card
+  instead.
   `force: true` (Run now) ignores the cool-down on a card that just had a job.
   """
   def feed(rule, opts \\ [])
@@ -557,7 +562,7 @@ defmodule Slipdock.Automations do
     result =
       Repo.transaction(fn ->
         Repo.query!("SELECT pg_advisory_xact_lock($1, $2)", [7_400, rule.id])
-        feed_step(rule, opts)
+        online_step(rule, opts)
       end)
 
     case result do
@@ -567,6 +572,17 @@ defmodule Slipdock.Automations do
   end
 
   # What the rule does, under its lock.
+  # Every runner of its pool has gone offline (#2805): it sends nothing,
+  # and gives back a card it sent that no runner has taken yet.
+  defp online_step(rule, opts) do
+    if offline?(rule) do
+      give_back(rule)
+      {:idle, :offline}
+    else
+      feed_step(rule, opts)
+    end
+  end
+
   defp feed_step(rule, opts) do
     cond do
       # An answer held while the rule's job was handed out takes its
@@ -644,6 +660,53 @@ defmodule Slipdock.Automations do
         "Job ##{job.id} was held: its paths overlap ##{other.id}, in progress. It gave " <>
           "way to ##{card.id}, which could start now. This card keeps its place in the " <>
           "list and goes when ##{other.id} is out of the way."
+      )
+    end
+  end
+
+  # The rule's pools have runners, and none has been seen for three leases
+  # (`Slipdock.Runners.pool_offline?/2`).
+  defp offline?(rule) do
+    root_id = Slipdock.Boards.root_of_board(rule.board_id)
+
+    case feed_pools(rule) do
+      [] -> false
+      pools -> Enum.all?(pools, &Slipdock.Runners.pool_offline?(root_id, &1))
+    end
+  end
+
+  # Withdraws the rule's queued jobs, so their cards are free for a feed
+  # whose runners are online, and says so on each card. A job already handed
+  # out is left alone, and so is one an answered question queued: it carries
+  # the answer, and goes when the pool is back. The comment is a card event,
+  # which feeds the board's other rules (`feed_board/1`): an idle feed whose
+  # runners are online sends the card at once, not at the clock's next tick.
+  defp give_back(rule) do
+    answers =
+      from(w in Slipdock.Boards.Wait,
+        where: not is_nil(w.requeue_job_id),
+        select: w.requeue_job_id
+      )
+
+    from(j in Slipdock.Runners.Job,
+      where: j.rule_id == ^rule.id and j.status == "queued" and j.id not in subquery(answers)
+    )
+    |> Repo.all()
+    |> Enum.each(fn job ->
+      line = "No runner online for pool #{job.pool}"
+
+      with {:ok, withdrawn} <- Slipdock.Runners.withdraw_job(job, "#{line}: gave its card back"),
+           do: tell_given_back(withdrawn)
+    end)
+  end
+
+  defp tell_given_back(job) do
+    with %Card{} = card <- Repo.get(Card, job.card_id) do
+      Slipdock.Boards.add_comment(
+        card,
+        "Job ##{job.id} gave this card back: no runner of pool #{job.pool} has been online " <>
+          "for a while. A runner that is online can take it now; pool #{job.pool} is sent " <>
+          "work again once one of its runners is back."
       )
     end
   end

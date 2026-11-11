@@ -523,4 +523,157 @@ defmodule Slipdock.Automations.FeedTest do
       assert queued_cards(rule) == [held.id]
     end
   end
+
+  describe "a pool gone offline (#2805)" do
+    # Last seen `ago` seconds back: three leases (270 s) is online.
+    defp seen(runner, ago) do
+      at = DateTime.utc_now() |> DateTime.add(-ago, :second) |> DateTime.truncate(:second)
+
+      Repo.update_all(from(r in Runners.Runner, where: r.id == ^runner.id),
+        set: [last_seen_at: at]
+      )
+    end
+
+    defp offline(runner), do: seen(runner, 1_000)
+
+    defp comments(card), do: Repo.preload(Repo.get!(Card, card.id), :comments).comments
+
+    setup ctx do
+      {:ok, spare, _} = Runners.create_runner(ctx.board, %{"name" => "spare", "pool" => "spare"})
+      seen(spare, 5)
+      %{spare: spare}
+    end
+
+    test "a pool is offline only once one of its runners has been seen, and none lately", ctx do
+      refute Runners.pool_offline?(ctx.board.id, "loop")
+      offline(ctx.runner)
+      assert Runners.pool_offline?(ctx.board.id, "loop")
+
+      # One runner of the pool online is enough, and another pool's doesn't count.
+      {:ok, other, _} = Runners.create_runner(ctx.board, %{"name" => "box 2", "pool" => "loop"})
+      seen(other, 200)
+      refute Runners.pool_offline?(ctx.board.id, "loop")
+      seen(other, 300)
+      assert Runners.pool_offline?(ctx.board.id, "loop")
+      refute Runners.pool_offline?(ctx.board.id, "spare")
+      refute Runners.pool_offline?(ctx.board.id, "nobody")
+    end
+
+    test "its feed sends nothing, and an online pool's feed takes the top card", ctx do
+      offline(ctx.runner)
+      [top, next] = for t <- ~w(top next), do: card_fixture(ctx.todo, %{"title" => t})
+
+      loop = feed_rule(ctx.board)
+      assert jobs(loop) == []
+      assert Automations.feed(loop) == {:idle, :offline}
+      assert Automations.run_rule_now(loop) == 0
+
+      spare = spare_rule(ctx.board)
+      assert queued_cards(spare) == [top.id]
+      assert %Job{card_id: card_id} = Runners.claim(ctx.spare)
+      assert card_id == top.id
+      assert jobs(loop) == []
+      refute next.id in queued_cards(spare)
+    end
+
+    test "a card it sent that no runner has taken goes to an online pool instead", ctx do
+      seen(ctx.runner, 5)
+      [top, next] = for t <- ~w(top next), do: card_fixture(ctx.todo, %{"title" => t})
+      loop = feed_rule(ctx.board)
+      spare = spare_rule(ctx.board)
+      assert [%Job{id: sent_id}] = open_jobs(loop)
+      assert queued_cards(loop) == [top.id]
+      assert queued_cards(spare) == [next.id]
+
+      # The spare runner takes the next card; then the loop runner goes away.
+      Runners.claim(ctx.spare)
+      offline(ctx.runner)
+      assert Automations.feed(loop) == {:idle, :offline}
+
+      sent = Repo.get!(Job, sent_id)
+      assert sent.status == "cancelled"
+      assert sent.recovery == "withdrawn"
+      assert sent.error == "No runner online for pool loop: gave its card back"
+      assert open_jobs(loop) == []
+
+      assert [comment] = comments(top)
+      assert comment.body =~ "Job ##{sent_id} gave this card back"
+      assert comment.body =~ "no runner of pool loop has been online"
+
+      # The spare feed is busy with `next`; once that is done it sends `top`,
+      # the card the offline pool gave back, not cooling.
+      finish_claimed(ctx.spare)
+      assert queued_cards(spare) == [top.id]
+      assert queued_cards(loop) == []
+    end
+
+    test "a given-back card goes to an idle online pool at once", ctx do
+      seen(ctx.runner, 5)
+      top = card_fixture(ctx.todo, %{"title" => "top"})
+      loop = feed_rule(ctx.board)
+      spare = spare_rule(ctx.board)
+      assert queued_cards(loop) == [top.id]
+      assert queued_cards(spare) == []
+
+      offline(ctx.runner)
+      assert Automations.feed(loop) == {:idle, :offline}
+      assert queued_cards(spare) == [top.id]
+    end
+
+    test "a job already handed out is never given back", ctx do
+      seen(ctx.runner, 5)
+      top = card_fixture(ctx.todo, %{"title" => "top"})
+      loop = feed_rule(ctx.board)
+      assert %Job{id: id} = Runners.claim(ctx.runner)
+
+      offline(ctx.runner)
+      assert Automations.feed(loop) == {:idle, :offline}
+      assert [%Job{id: ^id, status: "claimed"}] = open_jobs(loop)
+
+      assert comments(Repo.get!(Card, top.id))
+             |> Enum.all?(&(not (&1.body =~ "gave this card back")))
+    end
+
+    test "a job an answered question queued is kept for the pool's return", ctx do
+      seen(ctx.runner, 5)
+      top = card_fixture(ctx.todo, %{"title" => "top"})
+      loop = feed_rule(ctx.board)
+      assert [%Job{} = answer_job] = open_jobs(loop)
+
+      Repo.insert!(%Slipdock.Boards.Wait{
+        card_id: top.id,
+        needs: "which one?",
+        requeue_state: "queued",
+        requeue_job_id: answer_job.id
+      })
+
+      offline(ctx.runner)
+      assert Automations.feed(loop) == {:idle, :offline}
+      assert Repo.get!(Job, answer_job.id).status == "queued"
+    end
+
+    test "the pool back online is sent work again", ctx do
+      offline(ctx.runner)
+      top = card_fixture(ctx.todo, %{"title" => "top"})
+      loop = feed_rule(ctx.board)
+      assert jobs(loop) == []
+
+      seen(ctx.runner, 5)
+      assert {:ok, %Card{id: id}} = Automations.feed(loop)
+      assert id == top.id
+      assert queued_cards(loop) == [top.id]
+    end
+
+    test "runners never seen yet are fed as before", ctx do
+      top = card_fixture(ctx.todo, %{"title" => "top"})
+      loop = feed_rule(ctx.board)
+      assert queued_cards(loop) == [top.id]
+    end
+  end
+
+  # Finishes the job `runner` holds, leaving its card where it is.
+  defp finish_claimed(runner) do
+    job = Repo.one!(from(j in Job, where: j.runner_id == ^runner.id and j.status == "claimed"))
+    {:ok, _} = Runners.finish(runner, job.id, %{status: "done"})
+  end
 end

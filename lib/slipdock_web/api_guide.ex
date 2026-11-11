@@ -2349,7 +2349,11 @@ defmodule SlipdockWeb.APIGuide do
       over a card any job is open on, so two of them (one per pool) can work
       one list side by side. It passes over a card its lane would hold too,
       and withdraws a queued job of its own that a lane holds when another
-      card could start, so a held card never keeps its pool idle.
+      card could start, so a held card never keeps its pool idle. A rule
+      whose pool has gone offline (its runners seen before, none in three
+      leases) sends nothing and withdraws its queued job, so the card goes
+      to a pool that is online; a pool whose runners have never been seen
+      is fed as usual.
     - **The claim moves the card.** When a runner claims a `list_top`
       rule's job, the server moves the card to the top of its board's doing
       list (the one this guide names), assigns nobody and says so in the

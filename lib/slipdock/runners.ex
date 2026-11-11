@@ -842,6 +842,25 @@ defmodule Slipdock.Runners do
   end
 
   @doc """
+  Whether `pool` on the tree under `root_id` has gone offline (#2805): one
+  of its runners has been seen, and none within three of its leases. A
+  pool whose runners have never been seen (one just set up) is not: work
+  queued for it waits for its first claim, as it always has.
+  """
+  def pool_offline?(root_id, pool) do
+    now = DateTime.utc_now()
+
+    seen =
+      from(r in Runner,
+        where: r.board_id == ^root_id and r.pool == ^pool and not is_nil(r.last_seen_at)
+      )
+      |> Repo.all()
+
+    seen != [] and
+      not Enum.any?(seen, &(DateTime.diff(now, &1.last_seen_at) <= 3 * lease_for(&1)))
+  end
+
+  @doc """
   What a runner of `pool` that got no job is held by, for the claim
   answers: `%{reason: line, pause: pause}` when the pool or tree is paused,
   `%{reason: line, job: job}` for the oldest queued job something holds, or

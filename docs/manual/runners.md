@@ -79,6 +79,17 @@ one per machine say — work it side by side: each sends the top card the
 other hasn't. Leave `wait_while_doing` off on both, or each holds the other
 back, and turn on lanes so the two don't work in the same files.
 
+**A pool gone offline sends nothing.** Once every runner of a rule's pool
+that has ever been seen has gone unseen for three leases, its `list_top`
+rule sends no card. It also withdraws a job it sent that no runner has
+taken yet (the job ends cancelled, *No runner online for pool loop: gave
+its card back*, and the card gets a comment saying so), so the card goes to
+a rule whose runners are online instead. A job already handed out is left
+alone, and so is one an answered question queued: it carries the answer
+and waits for the pool. The rule starts sending again as soon as one of its
+runners is seen. A pool whose runners have never been seen (just set up)
+is sent work as usual: it waits for their first claim.
+
 **Waiting while anything is in progress.** A `runner` action with
 `"wait_while_doing": true` queues jobs that are not handed out while any
 other open card that a runner job is working on is in an in-progress list
