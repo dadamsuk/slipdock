@@ -304,8 +304,9 @@ stand-in (`↪stand-in-for:#N`, `stand_in_for` in the JSON): it marks where a
 card went into a sprint, and the work is that card, not the stand-in.
 Never take a card from a **Triage** list (category `triage`, which the guide
 marks `triage: for a person`), even when it is the only list with cards: a
-code sweep files there for a person to triage, and they move what is worth
-doing into the ready list.
+code sweep files its design questions there for a person to triage (its
+fixes go to Housekeeping when the board has one), and they move what is
+worth doing into the ready list.
 Nor from a **Scheduled** list (category `scheduled`, which the guide marks
 `scheduled: worked by feed rules`): recurring agent work lands there, and its
 feed rules send each card to a runner on its day. A pass asked what to do next

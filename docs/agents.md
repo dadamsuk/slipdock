@@ -461,9 +461,10 @@ See [the manual](manual/tidying-up.md).
 
 Never take work from a **Triage** list (category `triage`; the guide marks
 it `triage: for a person`). The code sweep (`slipdock tools install-board
-sweep --board B`, or `install_tool` with `tool: "sweep"`) files what it finds
-there for a person to triage, one area and one lens a night; nothing feeds a
-runner from it. See [the manual](manual/tools.md).
+sweep --board B`, or `install_tool` with `tool: "sweep"`) files its design
+questions there for a person to triage, one area and one lens a night, and
+its fixes and investigations in the Housekeeping list when the board has one
+(everything in Triage when it doesn't); nothing feeds a runner from Triage. See [the manual](manual/tools.md).
 
 Never take work from a **Scheduled** list either (category `scheduled`; the
 guide marks it `scheduled: worked by feed rules`). It is where recurring agent
