@@ -1925,12 +1925,37 @@ defmodule Slipdock.Runners do
   feature work goes back to a person rather than being built.
   """
   def housekeeping_note(card_id) do
+    triage = triage_name(card_id)
+    move = if triage =~ ~r/\s/, do: ~s("#{triage}"), else: triage
+
     """
     This is a Housekeeping card: a small fix or investigation, already decided, run after the ready list. If it turns out to need a design choice (anything that changes how the product or a process behaves), or is growing into feature work (a new surface, a data-model change, more than one sitting), stop before building:
-    - move it to the Triage list (`slipdock move #{card_id} Triage`);
+    - move it to the #{triage} list (`slipdock move #{card_id} #{move}`);
     - leave a `product` wait on it saying what grew and the choice it needs (`slipdock wait #{card_id} "…" --kind product`);
-    - finish without code: no branch, no pull request. A person moves it out of Triage once it is decided; no runner takes it from there.\
+    - finish without code: no branch, no pull request. A person moves it out of #{triage} once it is decided; no runner takes it from there.\
     """
+  end
+
+  # The name of the Triage list (category `triage`) on the card's board,
+  # else its root's, else "Triage": the move names the board's own list,
+  # as `with_list/2` does for the doing list.
+  defp triage_name(card_id) do
+    with %Card{board_id: board_id} <- Repo.get(Card, card_id),
+         root_id = Slipdock.Boards.root_of_board(board_id),
+         name when is_binary(name) <-
+           Repo.one(
+             from(col in Slipdock.Boards.Column,
+               where:
+                 col.board_id in ^Enum.uniq([board_id, root_id]) and col.category == "triage",
+               order_by: [desc: col.board_id == ^board_id, asc: col.position],
+               limit: 1,
+               select: col.name
+             )
+           ) do
+      name
+    else
+      _ -> "Triage"
+    end
   end
 
   # A card a Housekeeping feed sent (#2780): its rule is a backfill feed,

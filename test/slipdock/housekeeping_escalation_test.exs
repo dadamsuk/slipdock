@@ -78,6 +78,21 @@ defmodule Slipdock.HousekeepingEscalationTest do
       assert Runners.claimed_prompt(job) =~ "This is a Housekeeping card"
     end
 
+    test "the move names the board's own Triage list", ctx do
+      {:ok, _} = Boards.update_column(ctx.triage, %{"name" => "Needs a person"})
+      chore = card_fixture(ctx.housekeeping, %{"title" => "Chore"})
+      prompt = Runners.claimed_prompt(Runners.claim(ctx.runner))
+
+      assert prompt =~
+               ~s[move it to the Needs a person list (`slipdock move #{chore.id} "Needs a person"`)]
+
+      assert prompt =~ "A person moves it out of Needs a person"
+
+      # With no Triage list at all, it says Triage.
+      {:ok, _} = Boards.update_column(ctx.triage, %{"category" => ""})
+      assert Runners.housekeeping_note(chore.id) =~ "`slipdock move #{chore.id} Triage`"
+    end
+
     test "a To Do card isn't", ctx do
       mine = card_fixture(ctx.todo, %{"title" => "Mine"})
       job = Runners.claim(ctx.runner)
