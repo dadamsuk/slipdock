@@ -143,7 +143,7 @@ Evidence: `board_live/show.ex` `card_modal/1`; screenshots `08-card-modal-light.
 
 ## Implementation plan
 
-Each phase is independently shippable and keeps `mix precommit` green.
+Each phase is independently shippable and keeps `mix pre_push` and the suite green.
 
 ### Phase 1: tokens (small, highest leverage)
 

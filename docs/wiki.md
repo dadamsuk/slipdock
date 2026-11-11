@@ -645,7 +645,7 @@ phase, not after, because that is how the rest of this system is built.
 
 ## 10. Testing
 
-Per house rules: `mix precommit` before done,
+Per house rules: `mix pre_push` before a push,
 `mix ecto.gen.migration` for every schema change, and the dev server is
 `slipdock.service` — restart it after config changes.
 

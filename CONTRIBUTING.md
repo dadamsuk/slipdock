@@ -39,19 +39,22 @@ want a local toolchain, so development really wants `mix`.
 ## Before you open a pull request
 
 ```sh
-mix precommit      # compile with warnings as errors, prune deps, format, test
+mix pre_push       # CI's static checks and build, in CI's order
+mix test --stale   # the tests that depend on what you changed
 ```
 
 That is the gate. Please make it pass rather than explaining why it does not.
-CI (`.github/workflows/ci.yml`) runs the same checks on every pull request,
-with the suite split four ways across runners, but it is quicker to find out
-here. The whole suite takes about two minutes locally; `mix test --stale` runs
-just the tests that depend on what you changed.
+`mix pre_push` compiles with warnings as errors, checks the formatting (the
+CLI's too), runs the daemon's Go checks, the dependency and security audits,
+credo, and the tests that hold the repo's own files and docs to a rule. CI
+(`.github/workflows/ci.yml`) runs the same checks and the whole suite on every
+pull request, with the suite split four ways across runners, but it is quicker
+to find out here. The whole suite takes about two minutes locally.
 
-The CLI (`cli/`) is a Mix project of its own with its own suite, which
-`mix precommit` does not touch: `cd cli && mix format && mix compile
---warnings-as-errors && mix test`. CI runs those in a separate `cli` job, with
-PowerShell installed so the Windows service tests run rather than skip.
+The CLI (`cli/`) is a Mix project of its own with its own suite, whose tests
+`mix pre_push` does not run: `cd cli && mix test`. CI runs those in a
+separate `cli` job, with PowerShell installed so the Windows service tests
+run rather than skip.
 
 Tests live in `test/slipdock` for the domain and `test/slipdock_web` for anything
 with a browser in it; LiveView tests drive the real page. Calls to a language
