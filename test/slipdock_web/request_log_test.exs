@@ -69,6 +69,30 @@ defmodule SlipdockWeb.RequestLogTest do
     assert length(String.split(log, "GET /boards")) == 2
   end
 
+  test "the answer's line says Chunked for a chunked answer, Sent for any other" do
+    stop = fn state ->
+      conn = %{Phoenix.ConnTest.build_conn() | state: state, status: 200}
+      duration = System.convert_time_unit(3, :millisecond, :native)
+
+      logged(fn ->
+        RequestLog.handle_event(
+          [:phoenix, :endpoint, :stop],
+          %{duration: duration},
+          %{conn: conn},
+          nil
+        )
+      end)
+    end
+
+    chunked = stop.(:set_chunked)
+    assert chunked =~ "Chunked 200 in 3ms"
+    refute chunked =~ "Sent"
+
+    sent = stop.(:sent)
+    assert sent =~ "Sent 200 in 3ms"
+    refute sent =~ "Chunked"
+  end
+
   test "parameters named for a secret or a token are filtered" do
     filtered =
       Phoenix.Logger.filter_values(%{"secret" => @secret, "token" => @secret, "q" => "x"})
