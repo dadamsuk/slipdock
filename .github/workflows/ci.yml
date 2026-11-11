@@ -128,10 +128,14 @@ jobs:
 
       # TEST_TIMINGS_FILE has Slipdock.TestTimings record each file's runtime,
       # uploaded below for refreshing the weights (test/support/test_partitions.exs).
+      # --cover with --export-coverage writes this partition's share to
+      # cover/partition-N.coverdata rather than checking it: no one partition
+      # reaches mix.exs's threshold, so the coverage job checks them merged
+      # (#2786).
       - name: Test
         run: |
           files=$(elixir test/support/test_partitions.exs split 4 "$MIX_TEST_PARTITION")
-          mix test $files
+          mix test --cover --export-coverage "partition-$MIX_TEST_PARTITION" $files
         env:
           MIX_TEST_PARTITION: ${{ matrix.partition }}
           TEST_TIMINGS_FILE: test-timings/test-timings-${{ matrix.partition }}.tsv
@@ -141,6 +145,13 @@ jobs:
           name: test-timings-${{ matrix.partition }}
           path: test-timings/
           retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.partition }}
+          path: cover/partition-${{ matrix.partition }}.coverdata
+          if-no-files-found: error
+          retention-days: 7
 
       # The few browser scripts with logic worth testing on their own (the
       # confirm dialog, assets/js/confirm.js), and the Cloudflare Email Worker
@@ -153,6 +164,61 @@ jobs:
       - name: Test browser scripts and the Email Worker
         if: matrix.partition == 1
         run: node --test 'assets/js/**/*.test.js' 'cloudflare/**/*.test.js'
+
+  # The four partitions' coverage merged and held to mix.exs's
+  # test_coverage threshold (#2786): mix slipdock.coverage
+  # (test/support/coverage.ex) imports each partition's export and fails
+  # below it. No Postgres: it runs no tests, only cover-compiles the build
+  # the test job cached and reads the exports.
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: "1.20"
+          otp-version: "27"
+
+      - name: Cache keys
+        id: keys
+        run: |
+          deps="${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}"
+          config="$deps-${{ hashFiles('mix.exs', 'config/**') }}"
+          echo "deps=$deps" >> "$GITHUB_OUTPUT"
+          echo "config=$config" >> "$GITHUB_OUTPUT"
+          echo "code=$config-${{ hashFiles('lib/**', 'test/support/**', 'priv/**', 'docs/**') }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@v4
+        id: mix-cache
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ steps.keys.outputs.code }}
+          restore-keys: |
+            ${{ steps.keys.outputs.config }}-
+            ${{ steps.keys.outputs.deps }}-
+            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - name: Backdate mix.exs and config to the cached build
+        if: startsWith(steps.mix-cache.outputs.cache-matched-key, format('{0}-', steps.keys.outputs.config))
+        run: touch -d 2000-01-01 mix.exs config/*.exs
+
+      - run: mix deps.get
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: cover
+          merge-multiple: true
+
+      - name: Coverage across the partitions, against the threshold
+        run: mix slipdock.coverage
 
   # Static checks: the mechanical part of a security review, on every pull
   # request. Each started at zero findings (fixed, or skipped with a reason

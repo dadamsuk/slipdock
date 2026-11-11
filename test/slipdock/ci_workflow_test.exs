@@ -170,7 +170,11 @@ defmodule Slipdock.CiWorkflowTest do
   describe "context boundaries" do
     test "are checked by the suite CI runs on every partition" do
       assert File.exists?(Path.join(@root, "test/slipdock/boundaries_test.exs"))
-      assert has?(job("test"), "mix test $files")
+
+      assert has?(
+               job("test"),
+               ~S|mix test --cover --export-coverage "partition-$MIX_TEST_PARTITION" $files|
+             )
     end
   end
 
@@ -428,7 +432,10 @@ defmodule Slipdock.CiWorkflowTest do
                ~S|files=$(elixir test/support/test_partitions.exs split 4 "$MIX_TEST_PARTITION")|
              )
 
-      assert has?(test_job, "mix test $files")
+      assert has?(
+               test_job,
+               ~S|mix test --cover --export-coverage "partition-$MIX_TEST_PARTITION" $files|
+             )
     end
 
     test "each partition records its timings and uploads them" do
@@ -1034,6 +1041,72 @@ defmodule Slipdock.CiWorkflowTest do
 
       assert dockerfile =~
                "mv priv/cli/signed/slipdock.escript priv/cli/signed/slipdock.escript.sig priv/cli/"
+    end
+  end
+
+  # The threshold in mix.exs is a gate only while CI checks it (#2786): each
+  # partition exports its share, and the coverage job merges them and fails
+  # below it.
+  describe "coverage across the partitions" do
+    defp coverage_job, do: workflow("ci.yml")["jobs"]["coverage"]
+
+    test "mix.exs sets a threshold for the project's own coverage tool" do
+      config = Mix.Project.config()[:test_coverage]
+      assert config[:tool] == Slipdock.Coverage
+      assert is_number(config[:summary][:threshold])
+      assert config[:summary][:threshold] > 0
+    end
+
+    test "each partition runs the suite with coverage, exported under its own name" do
+      test_step = step(suite_job(), "name", "Test")
+
+      assert test_step["run"] =~
+               ~S|mix test --cover --export-coverage "partition-$MIX_TEST_PARTITION" $files|
+
+      upload =
+        Enum.find(
+          suite_job()["steps"],
+          &(&1["with"]["name"] == "coverage-${{ matrix.partition }}")
+        )
+
+      assert upload["uses"] =~ "actions/upload-artifact@"
+      assert upload["with"]["path"] == "cover/partition-${{ matrix.partition }}.coverdata"
+      assert upload["with"]["if-no-files-found"] == "error"
+    end
+
+    test "the coverage job merges every partition's export and checks the threshold" do
+      job = coverage_job()
+      assert job["needs"] == "test"
+      refute Map.has_key?(job, "if")
+      refute Map.has_key?(job, "continue-on-error")
+
+      download =
+        Enum.find(
+          job["steps"],
+          &String.starts_with?(&1["uses"] || "", "actions/download-artifact@")
+        )
+
+      assert download["with"] == %{
+               "pattern" => "coverage-*",
+               "path" => "cover",
+               "merge-multiple" => true
+             }
+
+      merge_at = step_at(job, "run", "mix slipdock.coverage")
+      assert merge_at > Enum.find_index(job["steps"], &(&1 == download))
+    end
+
+    test "the coverage job restores the build the test job cached, under the same keys" do
+      for name <- ["Cache keys", "Backdate mix.exs and config to the cached build"] do
+        assert step(coverage_job(), "name", name) == step(suite_job(), "name", name), name
+      end
+
+      restore = &Enum.find(&1["steps"], fn s -> s["id"] == "mix-cache" end)
+      assert restore.(coverage_job()) == restore.(suite_job())
+    end
+
+    test "the release's suite runs it too, as part of ci.yml" do
+      assert workflow("release.yml")["jobs"]["test"]["uses"] == "./.github/workflows/ci.yml"
     end
   end
 end

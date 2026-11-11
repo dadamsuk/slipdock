@@ -12,6 +12,13 @@ defmodule Slipdock.Coverage do
   Prints a table of modules under `lib/`, worst covered first, and writes
   an HTML page per module to `cover/`. `--cover` takes the same
   `:summary` threshold as Mix's tool (`test_coverage: [summary: ...]`).
+
+  CI runs the suite in four partitions, and no one of them reaches the
+  threshold alone. So `mix test --cover --export-coverage NAME` writes
+  `cover/NAME.coverdata` instead of the report, and `mix slipdock.coverage`
+  (`merge/2`) imports every export there and reports, and fails, on the
+  whole. Mix's own `mix test.coverage` would do that, but it cover-compiles
+  every beam in one call, which is the crash this module exists to avoid.
   """
 
   @compile {:no_warn_undefined, :cover}
@@ -20,13 +27,75 @@ defmodule Slipdock.Coverage do
   def start(compile_path, opts) do
     Mix.shell().info("Cover compiling modules ...")
     Mix.ensure_application!(:tools)
-    # Never this module: stopping :cover reloads what it compiled, and the
-    # purge of the old code kills whoever is running it — here, mix test.
+    skipped = cover_compile(compile_path)
+
+    case Keyword.get(opts, :export) do
+      name when is_binary(name) -> fn -> export(name, opts) end
+      _ -> fn -> report!(skipped, opts) end
+    end
+  end
+
+  defp report!(skipped, opts) do
+    if report(skipped, opts) == :below, do: throw(:test_failed)
+  end
+
+  @doc """
+  Imports every `*.coverdata` in the output directory (`cover/`) into a
+  freshly cover-compiled build, then reports as `mix test --cover` does.
+  Returns `:ok`, or `:below` when the total misses the threshold; raises
+  when there is nothing to import.
+  """
+  def merge(compile_path, opts) do
+    Mix.ensure_application!(:tools)
+    output = Keyword.get(opts, :output, "cover")
+
+    case Path.wildcard(Path.join(output, "*.coverdata")) do
+      [] ->
+        Mix.raise("No coverage exports (*.coverdata) in #{output}/ to merge")
+
+      exports ->
+        Mix.shell().info("Cover compiling modules ...")
+        skipped = cover_compile(compile_path)
+        Enum.each(exports, &import!/1)
+        report(skipped, opts)
+    end
+  end
+
+  defp import!(file) do
+    Mix.shell().info("Importing #{file}")
+
+    case :cover.import(String.to_charlist(file)) do
+      :ok -> :ok
+      {:error, reason} -> Mix.raise("Could not import #{file}: #{inspect(reason)}")
+    end
+  end
+
+  defp export(name, opts) do
+    output = Keyword.get(opts, :output, "cover")
+    File.mkdir_p!(output)
+    file = Path.join(output, "#{name}.coverdata")
+
+    case :cover.export(String.to_charlist(file)) do
+      :ok ->
+        Mix.shell().info(
+          "\nCoverage exported to #{file}; mix slipdock.coverage merges the exports"
+        )
+
+      {:error, reason} ->
+        Mix.shell().error("Could not export coverage to #{file}: #{inspect(reason)}")
+        throw(:test_failed)
+    end
+  end
+
+  # Cover-compiles every beam it can and returns the modules it couldn't.
+  defp cover_compile(compile_path) do
+    # Never this module or the merge task: stopping :cover reloads what it
+    # compiled, and the purge of the old code kills whoever is running it.
     beams =
       compile_path
       |> Path.join("*.beam")
       |> Path.wildcard()
-      |> Enum.reject(&(module(&1) == __MODULE__))
+      |> Enum.reject(&Enum.member?([__MODULE__, Mix.Tasks.Slipdock.Coverage], module(&1)))
 
     # A beam :cover cannot compile kills its server and whoever started it,
     # taking every module compiled so far along. So try each one from a
@@ -35,8 +104,7 @@ defmodule Slipdock.Coverage do
     _ = :cover.stop()
     Enum.each(good, &compile/1)
 
-    skipped = Enum.map(bad, &module/1)
-    fn -> report(skipped, opts) end
+    Enum.map(bad, &module/1)
   end
 
   defp compiles?(beam) do
@@ -104,7 +172,9 @@ defmodule Slipdock.Coverage do
 
     if percent(covered, missed) < threshold do
       Mix.shell().error("Coverage test failed, threshold not met: #{threshold}%")
-      throw(:test_failed)
+      :below
+    else
+      :ok
     end
   end
 
@@ -118,4 +188,33 @@ defmodule Slipdock.Coverage do
 
   defp pad(percent),
     do: String.pad_leading(:erlang.float_to_binary(percent / 1, decimals: 2) <> "%", 10)
+end
+
+defmodule Mix.Tasks.Slipdock.Coverage do
+  @shortdoc "Merges the partitions' coverage exports and checks the threshold"
+  @moduledoc """
+  Merges the `cover/*.coverdata` that `mix test --cover --export-coverage
+  NAME` wrote, one per CI partition, prints the report and exits non-zero
+  when the total is below `mix.exs`'s `test_coverage` threshold.
+
+      MIX_ENV=test mix slipdock.coverage
+
+  Test env only: it lives in `test/support` beside `Slipdock.Coverage`.
+  """
+  use Mix.Task
+
+  @impl true
+  def run(_args) do
+    Mix.Task.run("compile")
+    project = Mix.Project.config()
+    check(Mix.Project.compile_path(project), project[:test_coverage] || [])
+  end
+
+  @doc "Merges as `run/1` does, exiting with status 1 below the threshold."
+  def check(compile_path, opts) do
+    case Slipdock.Coverage.merge(compile_path, opts) do
+      :ok -> :ok
+      :below -> exit({:shutdown, 1})
+    end
+  end
 end
