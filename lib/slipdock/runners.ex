@@ -1915,7 +1915,46 @@ defmodule Slipdock.Runners do
     |> with_lane_advice(job)
     |> with_rejection(job)
     |> with_shipping(job)
+    |> with_housekeeping(job)
     |> with_list(job)
+  end
+
+  @doc """
+  What the builder of a Housekeeping card is told (#2780): it is small and
+  already decided, so one that needs a design choice or is growing into
+  feature work goes back to a person rather than being built.
+  """
+  def housekeeping_note(card_id) do
+    """
+    This is a Housekeeping card: a small fix or investigation, already decided, run after the ready list. If it turns out to need a design choice (anything that changes how the product or a process behaves), or is growing into feature work (a new surface, a data-model change, more than one sitting), stop before building:
+    - move it to the Triage list (`slipdock move #{card_id} Triage`);
+    - leave a `product` wait on it saying what grew and the choice it needs (`slipdock wait #{card_id} "…" --kind product`);
+    - finish without code: no branch, no pull request. A person moves it out of Triage once it is decided; no runner takes it from there.\
+    """
+  end
+
+  # A card a Housekeeping feed sent (#2780): its rule is a backfill feed,
+  # or the card still sits in a Housekeeping list.
+  defp with_housekeeping(prompt, %Job{} = job) do
+    if housekeeping_job?(job),
+      do: (prompt || "") <> "\n\n" <> housekeeping_note(job.card_id),
+      else: prompt
+  end
+
+  defp housekeeping_job?(%Job{rule_id: rule_id, card_id: card_id}) do
+    backfill? =
+      case rule_id && Repo.get(Slipdock.Automations.Rule, rule_id) do
+        %{spec: %{"trigger" => %{"backfill" => true}}} -> true
+        _ -> false
+      end
+
+    backfill? or
+      Repo.exists?(
+        from(c in Card,
+          join: col in assoc(c, :column),
+          where: c.id == ^card_id and col.category == "housekeeping"
+        )
+      )
   end
 
   # Where the card is (#2633): its list, and the board's doing list by its

@@ -474,7 +474,11 @@ made at the same times, each a backfill feed (`backfill: true` on its
 ready list and Scheduled have nothing they could start: To Do first, then
 Scheduled, then Housekeeping. An agent asked what to do next takes from it
 only when the ready list has nothing it could start. `list_boards` names it
-as `housekeeping`.
+as `housekeeping`. A Housekeeping card that grows (it needs a design choice,
+or is turning into feature work: a new surface, a data-model change, more
+than one sitting) goes back to a person: stop before building, move it to
+Triage, leave a `product` wait saying what grew, and finish without code.
+Its job's prompt says so too.
 
 Agents propose handbook edits rather than make them, where a rule or a
 decision is concerned: `POST /api/boards/:board/garden/proposals` (`slipdock

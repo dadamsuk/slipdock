@@ -291,6 +291,15 @@ ready list and Scheduled have nothing their pool could start. A pass asked
 what to do next takes from it only when the ready list has nothing it could
 start: the top of Housekeeping then, by the same rules as above.
 
+**A Housekeeping card that grows goes back to a person.** A Housekeeping
+card is small and already decided. If it turns out to need a design choice
+(anything that changes how the product or a process behaves), or is growing
+into feature work (a new surface, a data-model change, more than one
+sitting), stop before building: move it to Triage (`slipdock move <id>
+Triage`), leave a `product` wait saying what grew and the choice it needs
+(`slipdock wait <id> "…" --kind product`), and finish without code. No
+runner takes it from Triage; a person moves it out once it is decided.
+
 Read the whole card before touching it: `slipdock card <id>` for the description,
 checklist, comments, dependencies, links and whether it has subcards. The
 description is the brief; the comments are often where the real constraint is.
