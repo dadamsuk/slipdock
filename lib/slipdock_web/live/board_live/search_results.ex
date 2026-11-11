@@ -175,7 +175,7 @@ defmodule SlipdockWeb.BoardLive.SearchResults do
               <span data-role="result-count" class="badge badge-sm badge-ghost tabular-nums">
                 {length(items)}
               </span>
-              <span :if={folded} class="text-2xs font-normal normal-case text-base-content/50">
+              <span :if={folded} class="text-2xs font-normal normal-case text-base-content/60">
                 show ›
               </span>
             </button>
@@ -214,7 +214,7 @@ defmodule SlipdockWeb.BoardLive.SearchResults do
         <p
           :if={@empty != []}
           id="search-no-matches"
-          class="px-2 py-2 text-center text-xs text-base-content/50"
+          class="px-2 py-2 text-center text-xs text-base-content/60"
         >
           ─ {Enum.map_join(@empty, ", ", & &1.column.name)}: no matches ─
         </p>

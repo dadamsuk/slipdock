@@ -101,6 +101,25 @@ defmodule SlipdockWeb.BoardSearchResultsTest do
     assert has_element?(view, "#result-rows-#{lists.todo.id}")
   end
 
+  test "a reader gets no move menu on a row; a writer does", %{conn: conn, board: board} do
+    reader = user_fixture("reader@example.com")
+    share_fixture(board, reader, "read")
+    writer = user_fixture("writer@example.com")
+    share_fixture(board, writer, "write")
+
+    menu =
+      "#search-results [aria-label=\"Move “Deploy script skips migrations” to another list\"]"
+
+    {:ok, view, _html} = live(log_in_user(conn, reader), ~p"/boards/#{board}")
+    render_hook(view, "search", %{"q" => "deploy"})
+    assert view |> element("#search-results") |> render() =~ "Deploy script skips migrations"
+    refute has_element?(view, menu)
+
+    {:ok, view, _html} = live(log_in_user(build_conn(), writer), ~p"/boards/#{board}")
+    render_hook(view, "search", %{"q" => "deploy"})
+    assert has_element?(view, menu)
+  end
+
   test "a row opens the card panel", %{conn: conn, board: board, lists: lists} do
     card = card_fixture(lists.todo, %{"title" => "Deploy the panel opener"})
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
