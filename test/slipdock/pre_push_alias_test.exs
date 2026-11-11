@@ -335,9 +335,16 @@ defmodule Slipdock.PrePushAliasTest do
     @child """
     Mix.start()
     Code.put_compiler_option(:no_warn_undefined, :all)
-    [mix_exs, sh, dir, script] = System.argv()
+    [mix_exs, sh, dir, script, how] = System.argv()
     {mod, _} = mix_exs |> Code.require_file() |> hd()
-    run = fn _task, _argv, _opts -> mod.pre_push_run(sh, ["-c", script], cd: dir, exec: true) end
+
+    # "exec" runs the script as a program (pre_push_exec); "mix" runs the
+    # `mix` first on the PATH (pre_push_mix), a stub that runs the script.
+    run =
+      case how do
+        "exec" -> fn _, _, _ -> mod.pre_push_run(sh, ["-c", script], cd: dir, exec: true) end
+        "mix" -> fn _, _, _ -> mod.pre_push_run("test", [], cd: dir) end
+      end
 
     try do
       mod.pre_push([], run)
@@ -348,21 +355,42 @@ defmodule Slipdock.PrePushAliasTest do
     end
     """
 
+    @script ~S"printf 'caf\303\251 \342\206\222 done\nsplit \342\206\n'; exit 3"
+
     @tag :tmp_dir
-    test "prints it as it came, and exits with the step's status", %{tmp_dir: dir} do
+    test "a program's: prints it as it came, and exits with the step's status", %{tmp_dir: dir} do
+      {out, status} = run_child(dir, "exec", [])
+      assert_printed_as_it_came(out, status)
+    end
+
+    # The reported case: a failing repo check is a `mix test`, which runs
+    # through pre_push_mix/3. A stub `mix` first on the child's PATH stands in.
+    @tag :tmp_dir
+    test "a mix task's: prints it as it came, and exits with the step's status", %{tmp_dir: dir} do
+      bin = Path.join(dir, "bin")
+      File.mkdir_p!(bin)
+      stub = Path.join(bin, "mix")
+      File.write!(stub, "#!/bin/sh\n" <> @script <> "\n")
+      File.chmod!(stub, 0o755)
+
+      {out, status} = run_child(dir, "mix", [{"PATH", bin <> ":" <> System.get_env("PATH")}])
+      assert_printed_as_it_came(out, status)
+    end
+
+    defp run_child(dir, how, env) do
       elixir = System.find_executable("elixir") || flunk("no elixir")
       sh = System.find_executable("sh") || flunk("no sh")
       child = Path.join(dir, "child.exs")
       File.write!(child, @child)
-      script = ~S"printf 'caf\303\251 \342\206\222 done\nsplit \342\206\n'; exit 3"
-      env = [{"LANG", "C"}, {"LC_ALL", "C"}, {"LC_CTYPE", "C"}]
+      env = [{"LANG", "C"}, {"LC_ALL", "C"}, {"LC_CTYPE", "C"} | env]
 
-      {out, status} =
-        System.cmd(elixir, [child, Path.join(@root, "mix.exs"), sh, dir, script],
-          env: env,
-          stderr_to_stdout: true
-        )
+      System.cmd(elixir, [child, Path.join(@root, "mix.exs"), sh, dir, @script, how],
+        env: env,
+        stderr_to_stdout: true
+      )
+    end
 
+    defp assert_printed_as_it_came(out, status) do
       # Compared as bytes, and shown with inspect/1: the output isn't valid
       # UTF-8, which ExUnit's own report of a failure would crash on.
       assert status == 3, inspect(out)
