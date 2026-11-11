@@ -73,6 +73,35 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert Slipdock.SkillRegistry.Pins.stage_lines(seeded("Playbook").body) == []
   end
 
+  test "the Playbook's Grill asks in numbered rounds and keeps the stop rule (#2065)" do
+    {:ok, grill} = Slipdock.Wiki.Section.read(seeded("Playbook").body, "Playbook/Grill")
+    [asks] = Regex.run(~r/^- \*\*Asks:\*\*.*$/m, grill)
+
+    assert asks =~ "in numbered rounds."
+    refute asks =~ "one question at a time"
+    # A round is the frontier, and each question comes with an answer to accept.
+    assert asks =~ "A round is every question whose prerequisites are settled"
+    assert asks =~ "each with a recommended answer that a yes accepts"
+    # Unattended, a round is one wait, not one per question.
+    assert asks =~ "With nobody there, a round goes into one wait, a question each."
+    # The stop rule, which keeps a feature's grill in proportion.
+    assert asks =~ "It stops when the next answer wouldn't change the plan"
+    assert asks =~ "what is built, for whom, what done looks like and what is out of scope"
+    assert asks =~ "It doesn't ask what the board already answers"
+
+    # The four parts every stage has are all still there, once each.
+    for part <- ["Asks", "Skill", "Produces", "Writes to"] do
+      assert [_] = Regex.scan(~r/^- \*\*#{part}:\*\*/m, grill), part
+    end
+
+    # The Skill line's example is a front-matter name, with no collection prefix,
+    # and still names no skill for the registry to look up.
+    [skill] = Regex.run(~r/^- \*\*Skill:\*\*.*$/m, grill)
+    assert skill =~ "the name in its front matter (`grilling`, with no collection's prefix)"
+    refute skill =~ ~r/[\w-]+:grilling/
+    refute skill =~ "mattpocock"
+  end
+
   test "the manual describes the seed and the upgrade from the skeleton" do
     manual =
       Path.expand("../../../docs/manual.md", __DIR__)
@@ -99,5 +128,13 @@ defmodule Slipdock.Handbook.SeedDocsTest do
     assert manual =~ "and so (#2601) does one still holding the 1.7.0 seed"
     assert manual =~ "names the skill enabled on the board from the skills registry first"
     refute manual =~ "gets the 1.7.0 one"
+
+    # The upgrade to a Grill that asks in numbered rounds (#2065).
+    assert manual =~ "So (#2065) does one still holding the seed as it stood until then"
+    assert manual =~ "the current seed's Grill asks in numbered rounds"
+    assert manual =~ "each with a recommended answer that a yes accepts"
+    assert manual =~ "stops when the next answer wouldn't change the plan"
+    assert manual =~ "a round goes into one wait (`slipdock wait --question Q --question Q`)"
+    assert manual =~ "as an entry's front matter has it (`grilling`)"
   end
 end

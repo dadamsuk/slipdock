@@ -197,6 +197,59 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
     end
   end
 
+  describe "the Grill asks in numbered rounds (#2065)" do
+    test "the stage text has the rounds, the recommended answer, the one wait and the stop rule" do
+      stage = skill() |> section("### Grill") |> flat()
+      assert stage =~ "Ask in numbered rounds."
+      refute stage =~ "one question at a time"
+      assert stage =~ "A round is every question whose prerequisites are settled"
+      assert stage =~ "numbered, each with the answer you recommend, so a yes is enough"
+
+      assert stage =~
+               "Nobody there: a round goes into one wait, a `--question` each with its recommended answer, never a wait per question"
+
+      assert stage =~ "The answers settle the next round's prerequisites."
+      assert stage =~ "Stop when the next answer wouldn't change the plan"
+      assert stage =~ "what is built, for whom, what done looks like and what is out of scope"
+
+      assert stage =~
+               "Produce a brief: the problem, who it is for, done-when, out of scope, open questions."
+    end
+
+    test "step 3 puts a round into one wait, with a command the CLI takes" do
+      step = skill() |> section("## 3. Run the stages") |> flat()
+      assert step =~ "Put a grill round's or decide's questions, or the spike candidates,"
+
+      assert step =~
+               ~s{as one wait (`slipdock wait <epic> "intro" --question Q --question Q --kind product`}
+
+      assert step =~ "a grill question's recommended answer in its text"
+      assert step =~ "the answer starts the next pass, and the grill's next round"
+
+      # The skill's example names a skill by its front-matter name.
+      assert step =~ ~s{"Grill: `grilling`, enabled on this board from mattpocock/skills"}
+      refute skill() =~ ~r/[\w-]+:grilling/
+
+      help = Slipdock.DocsText.read!(Path.join(@root, "cli/help.txt"))
+      assert help =~ "--question Q"
+    end
+
+    test "the seed's Grill and the skill's say the same three things" do
+      {:ok, seed} = Slipdock.Wiki.Section.read(seed_playbook(), "Playbook/Grill")
+      stage = skill() |> section("### Grill") |> flat()
+
+      for said <- [
+            "numbered rounds",
+            "every question whose prerequisites are settled",
+            "a round goes into one wait",
+            "the next answer wouldn't change the plan"
+          ] do
+        assert flat(seed) =~ said, said
+        assert stage =~ said, said
+      end
+    end
+  end
+
   describe "the Spike stage (#2353)" do
     test "the skill has the three tests, the confirmation, the stop and the resume" do
       stage = skill() |> section("### Spike") |> flat()
@@ -208,7 +261,7 @@ defmodule SlipdockWeb.PlanSkillDocsTest do
       assert stage =~ "None pass: skip the stage and say why"
 
       step = skill() |> section("## 3. Run the stages") |> flat()
-      assert step =~ "or the spike candidates, to the person as a wait"
+      assert step =~ "or the spike candidates, to the person as one wait"
       assert step =~ "--kind product"
       assert step =~ "**Spikes stop the plan.** With spike cards made, stop"
 

@@ -1176,10 +1176,12 @@ defmodule Slipdock.HandbookTest do
       assert old =~ "## Spike"
       assert old =~ "To use an installed skill instead, add `skill: <its name>` here."
       refute old =~ "skills registry"
-      # Only the Grill's Skill line differs from today's seed.
+      # Only the Grill's Skill line differs from the seed that replaced it.
       assert [{_, [new_line]}] =
                String.split(old, "\n")
-               |> List.myers_difference(String.split(seeded, "\n"))
+               |> List.myers_difference(
+                 String.split(Handbook.seed_body("playbook", "1.8.0"), "\n")
+               )
                |> Enum.filter(&(elem(&1, 0) == :ins))
 
       assert new_line =~ "- **Skill:** the plan skill's Grill."
@@ -1190,6 +1192,75 @@ defmodule Slipdock.HandbookTest do
       assert Repo.get!(Page, play.id).body == seeded
       assert seeded =~ "the one enabled on this board from the skills registry"
       assert proposals(board) == []
+    end
+
+    test "installing over an unedited earlier Playbook seed grills in numbered rounds (#2065)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+      seeded = play.body
+      {:ok, grill} = Slipdock.Wiki.Section.read(seeded, "Playbook/Grill")
+      assert grill =~ "- **Asks:** in numbered rounds."
+      refute seeded =~ "one question at a time"
+
+      # 1.8.0's seed differs from today's in the Grill's Asks and Skill lines only.
+      latest = Handbook.seed_body("playbook", "1.8.0")
+
+      assert [{:ins, [asks, skill]}] =
+               String.split(latest, "\n")
+               |> List.myers_difference(String.split(String.trim(seeded), "\n"))
+               |> Enum.filter(&(elem(&1, 0) == :ins))
+
+      assert asks =~ "- **Asks:** in numbered rounds."
+      assert skill =~ "- **Skill:** the plan skill's Grill."
+
+      for version <- ["1.8.0", "1.7.0", "1.6.0", "1.5.0"] do
+        old = Handbook.seed_body("playbook", version)
+        assert old =~ "- **Asks:** one question at a time, until the agent can say back", version
+        refute old =~ "numbered rounds"
+        refute old =~ "`grilling`"
+        {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => old})
+
+        {:ok, again} = Handbook.install(user, board)
+        assert again.report.added["pages"] == ["Playbook (seed updated)"], version
+        refute Enum.any?(again.report.skipped["pages"], &(&1 =~ "edited")), version
+        assert Repo.get!(Page, play.id).body == seeded
+      end
+
+      # Once it holds today's seed, installing again changes nothing.
+      {:ok, third} = Handbook.install(user, board)
+      assert third.report.added["pages"] == []
+      refute Enum.any?(third.report.skipped["pages"], &(&1 =~ "edited"))
+      assert Repo.get!(Page, play.id).body == seeded
+      assert proposals(board) == []
+    end
+
+    test "an edited 1.8.0 or 1.5.0 Playbook keeps asking one at a time (#2065)",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      play = page_titled(board, "Playbook")
+
+      for {version, note} <- [
+            {"1.8.0", "Playbook (edited: left alone)"},
+            {"1.5.0", "Playbook (edited: left alone; Spike stage proposed)"}
+          ] do
+        ours =
+          String.replace(
+            Handbook.seed_body("playbook", version),
+            "\n## Decide",
+            "\nWe grill over coffee.\n\n## Decide"
+          )
+
+        {:ok, _} = Wiki.update_page(Repo.get!(Page, play.id), %{"body" => ours})
+        {:ok, again} = Handbook.install(user, board)
+
+        assert again.report.added["pages"] == [], version
+        assert note in again.report.skipped["pages"], version
+        body = Repo.get!(Page, play.id).body
+        assert body == ours
+        assert body =~ "- **Asks:** one question at a time"
+        refute body =~ "numbered rounds"
+      end
     end
 
     test "an edited 1.7.0 Playbook keeps its Grill line and gets no proposal (#2601)",
