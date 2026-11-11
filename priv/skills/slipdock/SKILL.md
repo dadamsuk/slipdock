@@ -623,7 +623,9 @@ Do", "unassigned": true}`, preset `feed_runner`) the rule works a list in order 
 open job at a time, always for the top ready card that no job is already open on (so two
 such rules, one per pool, work one list side by side) and that its lane wouldn't hold: with
 lanes holding, a queued job of its own that a lane holds is withdrawn and the next card that
-could start sent instead. `"wait_while_doing": true` on the runner
+could start sent instead. A rule whose pool has gone offline (runners seen before, none for
+three leases) sends nothing and withdraws its queued job that no runner has taken, so an
+online pool's rule sends that card; a pool never seen yet is fed as usual. `"wait_while_doing": true` on the runner
 action (the default for `feed_runner`) holds its jobs back while any other open card is in an
 in-progress list on the board; `slipdock jobs` shows `queued (waiting: #N is in progress)`.
 To set the whole thing up, `slipdock runner new` (or **Automations →

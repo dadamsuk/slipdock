@@ -1391,7 +1391,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
           skip cards that are blocked, waiting, already assigned or already have a job open
           on them, so two such rules for two pools can share one list. With lanes on, a card
           whose files overlap work in progress is skipped too, and the next one that could
-          start goes instead. This is how a runner
+          start goes instead. A rule whose runners have all gone offline sends nothing, and
+          gives back a card it sent that no runner has taken yet, so a runner that is online
+          picks it up. This is how a runner
           takes over from a <code>/loop</code> working the To Do list.
         </li>
         <li>
