@@ -2764,7 +2764,10 @@ defmodule Slipdock.Verified do
       "priority" => if(urgent_disagreement?(checks), do: "high", else: "medium")
     }
 
-    case Slipdock.Boards.create_card(column, attrs, actor: Slipdock.Actor.automation()) do
+    case Slipdock.Boards.create_card(column, attrs,
+           actor: Slipdock.Actor.automation(),
+           origin: "verify"
+         ) do
       {:ok, rework} ->
         {:filed, rework}
 

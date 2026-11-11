@@ -263,7 +263,8 @@ defmodule SlipdockCLI.Boards do
         end,
       snoozed: o[:snoozed],
       stuck: if(o[:stuck], do: "true"),
-      driver: o[:driver]
+      driver: o[:driver],
+      origin: o[:origin]
     )
     |> out(o, fn r ->
       Render.paused(r["paused"])
@@ -390,6 +391,8 @@ defmodule SlipdockCLI.Boards do
         # An incident (#1946): the card that shipped it, the check that missed it.
         "caused_by" => o[:caused_by],
         "missed_by" => o[:missed_by],
+        # The generator filing it, from inside a runner job (#2778).
+        "origin" => o[:origin],
         "time_spent" => o[:spent],
         "time_estimate" => o[:estimate],
         "time_unit" => o[:unit],

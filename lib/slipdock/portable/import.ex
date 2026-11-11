@@ -683,7 +683,9 @@ defmodule Slipdock.Portable.Import do
           column_id: ids.columns[doc[:list]],
           bar_locked_at: second(datetime(doc[:bar_locked_at])),
           # Where its profile came from (#2020): not cast, as on `Card`.
-          profile_source: profile_source(doc)
+          profile_source: profile_source(doc),
+          # An imported card came from the import (#2778).
+          origin: "import"
         },
         %{
           board_id: board.id,

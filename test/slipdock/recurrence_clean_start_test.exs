@@ -143,6 +143,8 @@ defmodule Slipdock.RecurrenceCleanStartTest do
     worked(ctx)
     new = next_instance(ctx)
 
+    # The clock made it (#2778), whoever made the last one.
+    assert {new.origin, new.origin_job_id} == {"automation", nil}
     assert new.title == "Sweep the code"
     assert new.description == "Read the diff of the day."
     assert new.priority == "high"

@@ -1112,6 +1112,11 @@ with the tail of the log — and a Cancel button.
   same `state`, `driver`, `age` and `stuck` come back from REST, MCP and
   `slipdock cards`, which filter on `stuck` and `driver` (`--stuck --driver
   agent`), as does the board's Filter menu.
+- **Every card says where it came from.** A person, the sweep, findings
+  triage, the health monitor, the overseer, verification, a rule, an import,
+  or an agent and its job: `origin` on the card, in `slipdock card`, REST
+  and MCP, and a filter everywhere (`--origin sweep`, `?origin=`, the Filter
+  menu's *Origin*). The server records it; a job may only name a generator.
 - **A worktree per job, if you want one.** Several runners on one
   repository can tread on each other's files. Turn on *a worktree per job*
   in a machine's runner's settings (`slipdock machine add-runner …

@@ -224,6 +224,8 @@ defmodule SlipdockCLI do
     # `slipdock cards B --stuck --driver agent` (#1117).
     stuck: :boolean,
     driver: :string,
+    # `slipdock cards B --origin sweep`, `slipdock add B T --origin sweep` (#2778).
+    origin: :string,
     # `slipdock repeat <id> "every mon" --at 07:00 --lead 2 --ends DATE|--count N`.
     at: :string,
     lead: :integer,

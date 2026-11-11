@@ -798,6 +798,15 @@ defmodule SlipdockCLI.Render do
     do: "#{loop["runner"] || "a runner"}#{sep}#{loop["kind"]}"
 
   # Who is driving the card (#1117): only on a tree where agents work.
+  # The Origin line (#2778), when the card has one.
+  defp origin_field(c), do: if(o = origin_text(c), do: field("Origin", o))
+
+  # Who or what made the card (#2778): `agent (job #12)`, `sweep`, or nil.
+  defp origin_text(%{"origin" => origin, "origin_job_id" => job}) when is_binary(origin),
+    do: if(job, do: "#{origin} (job ##{job})", else: origin)
+
+  defp origin_text(_card), do: nil
+
   defp driver_text("agent"), do: "🤖agent"
   defp driver_text("human"), do: "👤human"
   defp driver_text(_), do: nil
@@ -1382,6 +1391,7 @@ defmodule SlipdockCLI.Render do
     if w = c["wait"], do: wait_fields(w)
     if s = c["state"], do: field("State", s)
     if d = c["driver"], do: field("Driver", d)
+    origin_field(c)
     if a = age_text(c), do: field("In list", a)
     # Where it has shipped, and the deploy it says caused it (#1134).
     Enum.each(

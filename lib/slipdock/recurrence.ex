@@ -644,7 +644,8 @@ defmodule Slipdock.Recurrence do
       |> Map.put("short_name", ShortNames.occurrence(current, series.next_on))
       |> Map.merge(clean_start(current))
 
-    case Boards.copy_card(current, column, at: :top, attrs: attrs) do
+    # The clock made it (#2778).
+    case Boards.copy_card(current, column, at: :top, attrs: attrs, origin: "automation") do
       {:ok, copy} ->
         from(c in Card, where: c.id == ^copy.id) |> Repo.update_all(set: [series_id: series.id])
 

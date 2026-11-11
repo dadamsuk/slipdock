@@ -1456,6 +1456,13 @@ defmodule SlipdockWeb.HelpLive.Agents do
           or <code>--stuck</code>, and on <code>driver</code>.
         </li>
         <li>
+          <strong>Where a card came from.</strong>
+          Every card records its <code>origin</code>
+          (a person, the sweep, findings, the health monitor, the overseer, verification, a
+          rule, an import, or an agent with its job). Filter on it with <code>--origin</code>
+          or <code>origin</code>; inside a job, name the generator you run with <code>slipdock add … --origin sweep</code>. Nobody can claim to be a person.
+        </li>
+        <li>
           <strong>The loop on a card.</strong>
           While a runner's job holds a card (claimed or running), its Assignees show the
           runner and the job's kind, build or verify, linked to the job: <code>loop</code>

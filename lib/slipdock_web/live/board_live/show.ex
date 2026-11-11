@@ -73,7 +73,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events that change nothing stored: filters, panels opening and closing,
   # forms being typed into, the keyboard's place on the board.
   @read_events ~w(search filter_tag filter_kind filter_priority filter_flag filter_due
-    filter_stuck filter_driver toggle_hide_completed clear_filters start_add_column cancel_add_column
+    filter_stuck filter_driver filter_origin toggle_hide_completed clear_filters start_add_column cancel_add_column
     start_rename_column cancel_rename_column start_add_card aim_document cancel_add_card
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
@@ -932,6 +932,13 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   def handle_event("filter_driver", _, socket),
     do: {:noreply, put_filter(socket, :driver, nil)}
+
+  # Who or what made the card (#2778): one origin at a time, again to clear.
+  def handle_event("filter_origin", %{"origin" => o}, socket) do
+    if Enum.member?(Slipdock.Origin.buckets() |> Enum.map(&elem(&1, 0)), o),
+      do: {:noreply, put_filter(socket, :origin, toggle(socket.assigns.filters.origin, o))},
+      else: {:noreply, put_filter(socket, :origin, nil)}
+  end
 
   def handle_event("toggle_hide_completed", _, socket) do
     {:noreply, put_filter(socket, :hide_completed, !socket.assigns.filters.hide_completed)}

@@ -84,7 +84,7 @@ defmodule Slipdock.Boards.Copy do
       }
       |> Map.merge(overrides)
 
-    with {:ok, copy} <- Boards.create_card(column, attrs, by: opts[:by]),
+    with {:ok, copy} <- Boards.create_card(column, attrs, by: opts[:by], origin: opts[:origin]),
          {:ok, copy} <- copy_tags(copy, card, column),
          :ok <- copy_checklist(copy, card),
          :ok <- copy_sub_board(copy, card, opts) do

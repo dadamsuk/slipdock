@@ -94,6 +94,11 @@ defmodule Slipdock.Boards.Card do
     # or nil. Inferred when an agent claims or starts it on a board with
     # `profiles` on (`Boards.infer_profile/2`), and set at every door.
     field :profile, :string
+    # Who or what made it (#2778): one of `Slipdock.Origin.names/0`, and the
+    # runner job when an agent made it during one. Not cast: `Boards` sets
+    # them when the card is made, from who made it. Nil on older cards.
+    field :origin, :string
+    field :origin_job_id, :integer
     # Where it came from (#2018): "inferred", or set by a "person", an
     # "agent" or a "rule"; nil without a profile, or where nobody recorded
     # it. Not cast: `Boards` sets it with the profile, from who wrote it.

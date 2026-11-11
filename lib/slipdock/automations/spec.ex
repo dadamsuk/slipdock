@@ -104,7 +104,7 @@ defmodule Slipdock.Automations.Spec do
   @condition_fields ~w(card column priority tag assignee flag title description completed
                        archived blocked has_due_date has_assignee due_date start_date
                        percent_complete health age_days has_doc bar paths profile
-                       verify_state)
+                       verify_state origin)
 
   @condition_ops ~w(is is_not contains not_contains any_of none_of is_set is_not_set
                     before after within_days older_than_days gt lt)

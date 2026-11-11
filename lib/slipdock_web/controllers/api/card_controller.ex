@@ -21,6 +21,7 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, params} <-
            check_bucket(params, "snoozed", [{"exclude", ""}, {"include", ""}, {"only", ""}]),
          {:ok, params} <- check_bucket(params, "driver", Config.drivers()),
+         {:ok, params} <- check_bucket(params, "origin", Slipdock.Origin.buckets()),
          {:ok, params} <- check_bucket(params, "stuck", [{"true", ""}, {"false", ""}]),
          {:ok, params} <- check_column(board, params) do
       params = resolve_me(params, conn.assigns.current_user)

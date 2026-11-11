@@ -17,7 +17,9 @@ defmodule SlipdockWeb.API.CardWrites do
   @doc "The card fields a create or update takes as they are."
   def card_fields, do: @card_fields
 
-  @create_keys @card_fields ++ ~w(column tags assignee assignees archived)
+  # `origin` (#2778) only on a create, and only a generator named from
+  # inside a job: `Slipdock.Origin` refuses the rest.
+  @create_keys @card_fields ++ ~w(column tags assignee assignees archived origin)
 
   @doc """
   `:ok`, or a 422 naming the keys of a create's `params` that it doesn't
@@ -54,7 +56,9 @@ defmodule SlipdockWeb.API.CardWrites do
          {:ok, tags} <- resolve_tags(board, params["tags"]),
          {:ok, assignee} <- resolve_assignees(board, params, user),
          {:ok, card} <-
-           Boards.create_card(column, params |> Map.take(@card_fields) |> Map.merge(assignee),
+           Boards.create_card(
+             column,
+             params |> Map.take(["origin" | @card_fields]) |> Map.merge(assignee),
              by: user,
              # An incident's cause is checked through the token's scope (#1946).
              token: auth.assigns[:api_token],

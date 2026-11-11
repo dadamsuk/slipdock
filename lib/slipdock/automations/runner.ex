@@ -206,6 +206,8 @@ defmodule Slipdock.Automations.Runner do
   defp field_value("paths", %Card{} = card), do: card.paths
   defp field_value("profile", %Card{} = card), do: card.profile
   defp field_value("verify_state", %Card{} = card), do: card.verify_state
+  # Who or what made it (#2778, `Slipdock.Origin`); nil on older cards.
+  defp field_value("origin", %Card{} = card), do: card.origin
   defp field_value(_, _), do: nil
 
   defp test("is_set", actual, _), do: present?(actual)

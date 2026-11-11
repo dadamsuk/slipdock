@@ -332,6 +332,15 @@ each `{kind, name, user_id}` (`kind` is `person`, `agent`, `runner` or
 `updated_at` is the card's last change of any kind, comments and
 checklist included: the later of its newest activity entry and its own
 `updated_at`.
+Every card made since #2778 also records its `origin`: `person`, `sweep`,
+`findings`, `health`, `overseer`, `verify`, `automation`, `import`, or
+`agent` with `origin_job_id`, the job it was made in (null on older cards).
+The server sets it from who made the card. Inside a runner job you may name
+the generator you are running (`slipdock add B "…" --origin sweep`,
+`create_card` `origin`, `"origin"` on `POST /api/boards/:board/cards`:
+`sweep` or `findings` only); anything else, `person` included, is refused.
+`list_cards` / `slipdock cards` filter on `origin` (`none` for older cards),
+and a rule's condition can read it.
 `list_cards` / `slipdock cards` filter on `stuck` and `driver`; `slipdock pulse <board>` (`get_board` with
 `pulse: true`) gives the board's flow numbers, `slipdock flow <board>`
 (`history: true`, `GET /api/boards/:id/flow?days=`) its flow day by day,

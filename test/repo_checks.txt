@@ -156,6 +156,9 @@ test/slipdock_web/claim_move_docs_test.exs
 # The Housekeeping list, said wherever the list categories are (#2777)
 test/slipdock/housekeeping_docs_test.exs
 
+# Origin on cards, said wherever a card's fields are (#2778)
+test/slipdock/origin_docs_test.exs
+
 # Not on the list
 except test/slipdock_web/all_fields_test.exs: renders every LiveView route, 23 s alone; its one source rule (no daisyUI field sizes) waits for CI
 except test/slipdock/lanes_test.exs: its docs/ paths are lane globs held as data; it reads no file
