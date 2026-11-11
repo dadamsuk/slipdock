@@ -79,6 +79,24 @@ defmodule Slipdock.Inbound.QuickAddTest do
     assert {move.user_id, move.via} == {ctx.user.id, "email"}
   end
 
+  test "a subject's ; description goes ahead of the body, its ;; comment on the card", ctx do
+    assert {:accepted, email} = deliver(ctx, "X; desc;; note", text("The body."))
+
+    card = card!(email) |> Repo.preload(:comments)
+    assert card.title == "X"
+    assert card.description =~ ~r/\Adesc\n\n.*The body\./s
+    assert [%{body: "note"}] = card.comments
+  end
+
+  test "a subject's ; description is the description when the mail has no body", ctx do
+    assert {:accepted, email} = deliver(ctx, "Y; only desc")
+
+    card = card!(email) |> Repo.preload(:comments)
+    assert card.title == "Y"
+    assert card.description =~ ~r/\Aonly desc/
+    assert card.comments == []
+  end
+
   test "a list named with # on the default board", ctx do
     assert {:accepted, email} = deliver(ctx, "Buy stamps #todo")
     card = card!(email)

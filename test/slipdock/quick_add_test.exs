@@ -24,29 +24,59 @@ defmodule Slipdock.QuickAddTest do
     refute QuickAdd.commands?(parsed)
   end
 
-  test "everything after the first semicolon is the comment, taken as written" do
-    parsed = parse("Write the launch post #high; check with @sam first; due: tomorrow #docs ")
+  test "after one semicolon the description, after two the comment, both taken as written" do
+    parsed =
+      parse("Write the launch post #high; check with @sam; due: tomorrow;; ask #docs first ")
+
     assert parsed.title == "Write the launch post"
-    assert parsed.comment == "check with @sam first; due: tomorrow #docs"
+    assert parsed.description == "check with @sam; due: tomorrow"
+    assert parsed.comment == "ask #docs first"
     # Commands are only read in the title.
-    assert parsed.attrs == %{"priority" => "high"}
+    assert parsed.attrs == %{"priority" => "high", "description" => parsed.description}
     assert parsed.tags == []
+    assert {:description, "Description"} in parsed.chips
     assert {:comment, "Comment"} in parsed.chips
     assert QuickAdd.commands?(parsed)
   end
 
-  test "a semicolon with nothing after it leaves no comment" do
-    parsed = parse("Write it;   ")
-    assert parsed.title == "Write it"
+  test "one semicolon gives a description and no comment" do
+    parsed = parse("Write it; the long version")
+    assert parsed.description == "the long version"
+    assert parsed.attrs == %{"description" => "the long version"}
     assert parsed.comment == nil
-    refute QuickAdd.commands?(parsed)
-    assert parse("Write it").comment == nil
+    refute {:comment, "Comment"} in parsed.chips
   end
 
-  test "a line that is only a comment has no title" do
-    parsed = parse("; just a note")
+  test "two semicolons straight after the title give a comment and no description" do
+    parsed = parse("Write it;; ask Sam")
+    assert parsed.title == "Write it"
+    assert parsed.description == nil
+    assert parsed.attrs == %{}
+    assert parsed.comment == "ask Sam"
+    refute {:description, "Description"} in parsed.chips
+  end
+
+  test "empty parts leave nothing" do
+    for line <- ["Write it;   ", "Write it;;", "Write it; ;; ", "Write it"] do
+      parsed = parse(line)
+      assert parsed.title == "Write it"
+      assert parsed.description == nil
+      assert parsed.comment == nil
+      refute QuickAdd.commands?(parsed)
+    end
+  end
+
+  test "split_parts/1 splits title, description and comment" do
+    assert QuickAdd.split_parts("A; b;; c") == {"A", "b", "c"}
+    assert QuickAdd.split_parts("A;; c; d") == {"A", nil, "c; d"}
+    assert QuickAdd.split_parts("A") == {"A", nil, nil}
+  end
+
+  test "a line with no title has none" do
+    parsed = parse("; just a note;; and a comment")
     assert parsed.title == ""
-    assert parsed.comment == "just a note"
+    assert parsed.description == "just a note"
+    assert parsed.comment == "and a comment"
   end
 
   test "due and start dates, priority, flag, list, tag and assignee all come out of the line" do

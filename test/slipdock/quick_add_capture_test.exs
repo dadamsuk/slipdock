@@ -55,17 +55,43 @@ defmodule Slipdock.QuickAddCaptureTest do
       assert {:tag, "docs"} in capture.chips
     end
 
-    test "the comment after a semicolon is kept from the model and added as written", %{
+    test "the description and comment after semicolons are kept from the model, as written", %{
       user: user
     } do
       Slipdock.AIStub.reply_with(%{"title" => "Call the printers"})
 
-      assert {:ok, capture} = capture(user, "call the printers; banners are 2m wide")
-      assert capture.card.title == "Call the printers"
-      assert [%{body: "banners are 2m wide"}] = Boards.get_card!(capture.card.id).comments
+      assert {:ok, capture} =
+               capture(user, "call the printers; banners are 2m wide;; ask about vinyl")
+
+      card = Boards.get_card!(capture.card.id)
+      assert card.title == "Call the printers"
+      assert card.description == "banners are 2m wide"
+      assert [%{body: "ask about vinyl"}] = card.comments
+      assert {:description, "Description"} in capture.chips
+      assert {:comment, "Comment"} in capture.chips
 
       assert_receive {:ai_request, %{"messages" => messages}}
       refute inspect(messages) =~ "banners"
+      refute inspect(messages) =~ "vinyl"
+    end
+
+    test "the line's description goes ahead of one the caller gave", %{user: user} do
+      Slipdock.AIStub.reply_with(%{"title" => "Call the printers"})
+
+      assert {:ok, capture} =
+               capture(user, "call the printers; from the subject",
+                 attrs: %{"description" => "from the body"}
+               )
+
+      assert Boards.get_card!(capture.card.id).description ==
+               "from the subject\n\nfrom the body"
+
+      Slipdock.AIStub.reply_with(%{"title" => "Call the printers"})
+
+      assert {:ok, capture} =
+               capture(user, "call the printers; from the subject", attrs: %{"description" => ""})
+
+      assert Boards.get_card!(capture.card.id).description == "from the subject"
     end
 
     test "the model is asked for a concise title, the specific thing first", %{user: user} do
@@ -202,23 +228,35 @@ defmodule Slipdock.QuickAddCaptureTest do
       refute_receive {:ai_request, _}
     end
 
-    test "what follows a semicolon goes on the card as a comment", %{user: user} do
+    test "what follows two semicolons goes on the card as a comment", %{user: user} do
       {:ok, user} = Accounts.update_quick_add(user, %{"quick_add_ai" => false})
 
-      assert {:ok, capture} = capture(user, "Write it #todo; ask Sam about the #docs first")
+      assert {:ok, capture} = capture(user, "Write it #todo;; ask Sam about the #docs first")
       assert capture.card.title == "Write it"
       assert capture.column.name == "To Do"
       assert {:comment, "Comment"} in capture.chips
+      refute {:description, "Description"} in capture.chips
 
-      assert [%{body: "ask Sam about the #docs first"}] =
-               Boards.get_card!(capture.card.id).comments
-
+      card = Boards.get_card!(capture.card.id)
+      assert [%{body: "ask Sam about the #docs first"}] = card.comments
+      assert card.description in [nil, ""]
       assert Repo.preload(capture.card, :tags).tags == []
+    end
+
+    test "what follows one semicolon is the description", %{user: user} do
+      {:ok, user} = Accounts.update_quick_add(user, %{"quick_add_ai" => false})
+
+      assert {:ok, capture} = capture(user, "Write it; the #docs part")
+      card = Boards.get_card!(capture.card.id)
+      assert card.title == "Write it"
+      assert card.description == "the #docs part"
+      assert card.comments == []
+      assert {:description, "Description"} in capture.chips
     end
 
     test "a line that is only a comment is refused", %{user: user} do
       {:ok, user} = Accounts.update_quick_add(user, %{"quick_add_ai" => false})
-      assert {:error, message} = capture(user, "; a note with no card")
+      assert {:error, message} = capture(user, ";; a note with no card")
       assert message =~ "no title"
     end
   end

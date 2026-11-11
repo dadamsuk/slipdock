@@ -86,8 +86,11 @@ history says it came by email (`By email from <you>`).
   it; archived pages and templates are never added to.
 
 **The personal address reads the subject as Quick Add does**: `Renew the cert
-due: friday #high @dan`, `#todo` for a list, `every:`, `snooze:` and `; a
-comment`, and the model when it is on. With no board named the card goes to
+due: friday #high @dan`, `#todo` for a list, `every:`, `snooze:`, `title;
+description;; comment` (after one `;` the card's description, after two a
+comment on it), and the model when it is on. The mail's body is the
+description too: a subject's `; description` goes ahead of it, and stands
+alone when the mail has no body. With no board named the card goes to
 your Quick Add default (Account › *Preferences*). Name one with `[Board] Title`
 — by name or code, the way a mail filter writes it — or in words the model
 reads ("… on the website board").

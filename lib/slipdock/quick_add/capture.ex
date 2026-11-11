@@ -95,9 +95,10 @@ defmodule Slipdock.QuickAdd.Capture do
         {:error, "Your default board has no lists — pick another in Account settings."}
 
       true ->
-        # The comment is never the model's to read: it goes on the card as
-        # written, like it does from a list's own quick add row.
-        {line, comment} = QuickAdd.split_comment(text)
+        # The description and the comment are never the model's to read:
+        # they go on the card as written, like they do from a list's own
+        # quick add row (`title; description;; comment`, #2804).
+        {line, description, comment} = QuickAdd.split_parts(text)
         # Nor is `every:`: the rule is read here, whichever way the rest is.
         {line, recurrence} = QuickAdd.take_every(line)
         # And `snooze:` (W-1803), relative to the person's own today.
@@ -111,6 +112,7 @@ defmodule Slipdock.QuickAdd.Capture do
           plan ->
             create(
               Map.merge(plan, %{
+                description: description,
                 comment: comment,
                 user: user,
                 recurrence: recurrence,
@@ -373,7 +375,11 @@ defmodule Slipdock.QuickAdd.Capture do
   defp create(%{title: ""}, _notes, _opts), do: {:error, "That line has no title in it."}
 
   defp create(plan, notes, opts) do
-    attrs = plan.attrs |> Map.merge(opts[:attrs] || %{}) |> Map.put("title", plan.title)
+    attrs =
+      plan.attrs
+      |> Map.merge(opts[:attrs] || %{})
+      |> put_description(plan[:description])
+      |> Map.put("title", plan.title)
 
     case Boards.create_card(plan.column, attrs, opts[:create_opts] || []) do
       {:ok, card} ->
@@ -406,13 +412,30 @@ defmodule Slipdock.QuickAdd.Capture do
            column: plan.column,
            chips:
              plan.chips ++
-               repeat ++ snooze ++ if(plan.comment, do: [{:comment, "Comment"}], else: []),
+               repeat ++ snooze ++ text_chips(plan),
            notes: notes
          }}
 
       {:error, changeset} ->
         if opts[:create_opts], do: {:error, changeset}, else: {:error, "Couldn't add that card."}
     end
+  end
+
+  # The line's description. When the caller gave one already (a mail's body
+  # is the card's description, #1248), the line's goes ahead of it rather
+  # than being lost (#2804).
+  defp put_description(attrs, nil), do: attrs
+
+  defp put_description(attrs, description) do
+    case attrs["description"] do
+      blank when blank in [nil, ""] -> Map.put(attrs, "description", description)
+      given -> Map.put(attrs, "description", description <> "\n\n" <> given)
+    end
+  end
+
+  defp text_chips(plan) do
+    if(plan[:description], do: [{:description, "Description"}], else: []) ++
+      if(plan.comment, do: [{:comment, "Comment"}], else: [])
   end
 
   ## The catalogue -------------------------------------------------------------

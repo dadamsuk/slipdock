@@ -17,9 +17,13 @@ line are recognised as you type and shown as chips:
 - `snooze: mon`, `snooze: next week`, `snooze: 2026-11-02` — adds the card
   [snoozed](snoozing-cards.md) until then (the same dates as `due:`). Here and
   in the header's quick add
-- `; seen on Safari only` — everything after the first semicolon becomes
-  the card's first comment, as written (commands in it are not read). This
-  works in a list's own "Add a card" box and in the header's quick add too
+- `; seen on Safari only` — what follows one semicolon becomes the card's
+  description, and `;; ask Sam first` — what follows two — its first
+  comment: `Fix the login #high; seen on Safari only;; ask Sam first`.
+  `Fix the login;; ask Sam first` gives a comment and no description. Both
+  are taken as written (commands in them are not read). This works in a
+  list's own "Add a card" box and in the header's quick add too (in a
+  mail's subject the body stays the description)
 
 Anything not recognised stays in the title. In a grouped table each group
 has its own row and new cards take the group's value; in the outline the
