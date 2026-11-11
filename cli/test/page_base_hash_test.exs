@@ -72,6 +72,74 @@ defmodule SlipdockCLI.PageBaseHashTest do
     hash
   end
 
+  # `page edit` as a person runs it: a refusal ends in `System.halt/1`, so it
+  # runs in an `elixir` of its own. stdout is thrown away and stderr kept.
+  defp page_edit(home, url, base) do
+    main =
+      ~s|SlipdockCLI.main(["page", "edit", "W-9", "--body", "Mine.", "--base-hash", "#{base}"])|
+
+    System.cmd(
+      "sh",
+      ["-c", ~s|elixir -pa "$EBIN" -e '#{main}' 2>&1 >/dev/null|],
+      env: [
+        {"EBIN", Mix.Project.compile_path()},
+        {"HOME", home},
+        {"SLIPDOCK_URL", url},
+        {"SLIPDOCK_TOKEN", "test-token"}
+      ]
+    )
+  end
+
+  describe "a refused `page edit`, run as a command" do
+    test "exits 1 and prints the whole hash on stderr, and that hash then saves" do
+      {state, handler} = page_at(@new, @later)
+      url = FakeServer.start([handler, handler])
+
+      {stderr, status} = page_edit(System.get_env("HOME"), url, @old)
+
+      assert status == 1
+      assert stderr =~ "error: this page changed since you read it. Nothing was overwritten."
+      assert stderr =~ ~s(it now reads "Keys", hash #{@new}\n)
+      assert stderr =~ "save with --base-hash #{@new}\n"
+      assert Agent.get(state, & &1) == @new
+
+      # The hash is read off what the command printed, and passed back as is.
+      [_, printed] = Regex.run(~r/--base-hash (\S+)/, stderr)
+      assert {"", 0} = page_edit(System.get_env("HOME"), url, printed)
+      assert Agent.get(state, & &1) == @later
+    end
+
+    test "the hash it printed is refused again, with the newer hash, when someone saved in between" do
+      {state, handler} = page_at(@new, @later)
+      url = FakeServer.start([handler, handler])
+
+      {stderr, 1} = page_edit(System.get_env("HOME"), url, @old)
+      [_, printed] = Regex.run(~r/--base-hash (\S+)/, stderr)
+
+      # Someone else's save lands first.
+      other = String.duplicate("3b", 32)
+      Agent.update(state, fn _ -> other end)
+
+      {again, status} = page_edit(System.get_env("HOME"), url, printed)
+
+      assert status == 1
+      assert again =~ "save with --base-hash #{other}\n"
+      refute again =~ @new
+      assert Agent.get(state, & &1) == other
+    end
+
+    test "the 12-character prefix it used to print is refused, with the whole hash" do
+      {state, handler} = page_at(@new, @later)
+      url = FakeServer.start([handler])
+
+      {stderr, status} = page_edit(System.get_env("HOME"), url, String.slice(@new, 0, 12))
+
+      assert status == 1
+      assert stderr =~ "save with --base-hash #{@new}\n"
+      assert Agent.get(state, & &1) == @new
+    end
+  end
+
   test "the hash the refusal prints saves, when nobody else saved in between" do
     {state, handler} = page_at(@new, @later)
     System.put_env("SLIPDOCK_URL", FakeServer.start([handler, handler]))
