@@ -466,6 +466,16 @@ Scheduled --category scheduled` (or `set-column`), `POST|PATCH
 /api/boards/:board/columns` or MCP `create_list`. See [the
 manual](manual/recurring-cards.md).
 
+A **Housekeeping** list (category `housekeeping`; the guide marks it
+`housekeeping: worked by runners after the ready list`) holds the small fixes
+and investigations generators file. It gets the same siblings as Scheduled,
+made at the same times, each a backfill feed (`backfill: true` on its
+`list_top` trigger) that sends a card only while its pool's feeds on the
+ready list and Scheduled have nothing they could start: To Do first, then
+Scheduled, then Housekeeping. An agent asked what to do next takes from it
+only when the ready list has nothing it could start. `list_boards` names it
+as `housekeeping`.
+
 Agents propose handbook edits rather than make them, where a rule or a
 decision is concerned: `POST /api/boards/:board/garden/proposals` (`slipdock
 garden propose <board> <file.json | ->`) files an open suggestion of check

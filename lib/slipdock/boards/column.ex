@@ -16,7 +16,11 @@ defmodule Slipdock.Boards.Column do
     {"triage", "Triage"},
     # Where recurring agent work lands (#2100): worked by feed rules, never
     # the ready list a person or an agent asked "what next" takes from.
-    {"scheduled", "Scheduled"}
+    {"scheduled", "Scheduled"},
+    # Where generated fixes and investigations wait (#2777): worked by
+    # backfill feeds only while the ready list and Scheduled have nothing
+    # their pool could start.
+    {"housekeeping", "Housekeeping"}
   ]
 
   schema "columns" do
@@ -69,6 +73,20 @@ defmodule Slipdock.Boards.Column do
 
   def scheduled?(%__MODULE__{category: "scheduled"}), do: true
   def scheduled?(_), do: false
+
+  def housekeeping?(%__MODULE__{category: "housekeeping"}), do: true
+  def housekeeping?(_), do: false
+
+  @doc """
+  The category a new list called `name` takes when it is given none: a list
+  called *Housekeeping* is the Housekeeping list (#2777), as the sweep's
+  *Triage* is its Triage list.
+  """
+  def default_category(name) when is_binary(name) do
+    if String.downcase(String.trim(name)) == "housekeeping", do: "housekeeping"
+  end
+
+  def default_category(_), do: nil
 
   @doc "Whether the list stands for a date range."
   def horizon?(%__MODULE__{horizon_from: from, horizon_to: to}),

@@ -64,7 +64,8 @@ defmodule SlipdockCLI.ScheduledListTest do
       "columns" => [
         %{"id" => 1, "name" => "To Do", "category" => "todo", "cards" => []},
         %{"id" => 2, "name" => "Scheduled", "category" => "scheduled", "cards" => []},
-        %{"id" => 3, "name" => "Triage", "category" => "triage", "cards" => []}
+        %{"id" => 3, "name" => "Triage", "category" => "triage", "cards" => []},
+        %{"id" => 4, "name" => "Housekeeping", "category" => "housekeeping", "cards" => []}
       ]
     }
 
@@ -73,6 +74,8 @@ defmodule SlipdockCLI.ScheduledListTest do
 
     assert out =~ ~r/## Scheduled.*scheduled: worked by feed rules, never pick from it/
     assert out =~ ~r/## Triage.*triage: for a person, never pick from it/
+    # Housekeeping (#2777) is worked after the ready list.
+    assert out =~ ~r/## Housekeeping.*housekeeping: worked by runners after the ready list/
     refute todo =~ "never pick"
   end
 
@@ -80,5 +83,6 @@ defmodule SlipdockCLI.ScheduledListTest do
     help = File.read!(Path.expand("../help.txt", __DIR__))
     assert help =~ "dropped, triage (for a person), scheduled"
     assert help =~ "Scheduled list, else its ready list"
+    assert help =~ "feed rules, never the ready list), housekeeping"
   end
 end

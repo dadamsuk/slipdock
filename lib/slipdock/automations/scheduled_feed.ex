@@ -6,6 +6,12 @@ defmodule Slipdock.Automations.ScheduledFeed do
   Scheduled list, with the same runner actions, when the board has both:
   what the owner of the slipdock board added by hand as rule #47.
 
+  A board's Housekeeping list (category `housekeeping`, #2777) gets the
+  same siblings, made at the same times: generated fixes and investigations
+  wait there, and its siblings are backfill feeds, which send a card only
+  while their pool's ready-list and Scheduled feeds have nothing they could
+  start (`Slipdock.Automations.yielding?/2`).
+
   `ensure/2` makes the siblings that are missing. It runs when a list is
   made or turned into the Scheduled list (`Slipdock.Boards.create_column/2`,
   `update_column/2`) and when a runner's setup makes a feed rule
@@ -22,11 +28,12 @@ defmodule Slipdock.Automations.ScheduledFeed do
   alias Slipdock.Repo
 
   @doc """
-  Makes the missing Scheduled siblings of `board`'s ready-list feeds.
-  Returns `{:ok, [rule]}` with the rules it made (none on a board without
-  a Scheduled list or a ready list), or `{:error, message}` for the first
-  that could not be made. `:by` is who the rules are made by, else each
-  sibling is made by whoever made the rule it copies.
+  Makes the missing Scheduled and Housekeeping siblings of `board`'s
+  ready-list feeds. Returns `{:ok, [rule]}` with the rules it made (none on
+  a board without either list or without a ready list), or
+  `{:error, message}` for the first that could not be made. `:by` is who
+  the rules are made by, else each sibling is made by whoever made the rule
+  it copies.
   """
   def ensure(board, opts \\ [])
 
@@ -36,18 +43,53 @@ defmodule Slipdock.Automations.ScheduledFeed do
     columns =
       Repo.all(from(c in Column, where: c.board_id == ^board_id, order_by: [asc: c.position]))
 
-    with %Column{} = scheduled <- Enum.find(columns, &Column.scheduled?/1),
-         %Column{} = ready <- Slipdock.Flow.ready_list(columns) do
-      feeds = board_id |> Automations.list_rules() |> Enum.filter(&Spec.feed?(&1.spec))
-      covered = feeds |> Enum.filter(&feeds?(&1, scheduled)) |> pools()
+    targets =
+      [Enum.find(columns, &Column.scheduled?/1), Enum.find(columns, &Column.housekeeping?/1)]
+      |> Enum.reject(&is_nil/1)
 
-      feeds
-      |> Enum.filter(&feeds?(&1, ready))
-      |> Enum.reject(&MapSet.subset?(pools([&1]), covered))
-      |> make_siblings(scheduled, opts)
-    else
-      _ -> {:ok, []}
+    case Slipdock.Flow.ready_list(columns) do
+      %Column{} = ready when targets != [] ->
+        feeds = board_id |> Automations.list_rules() |> Enum.filter(&Spec.feed?(&1.spec))
+        ensure_all(targets, feeds, ready, opts)
+
+      _ ->
+        {:ok, []}
     end
+  end
+
+  defp ensure_all(targets, feeds, ready, opts) do
+    Enum.reduce_while(targets, {:ok, []}, fn target, {:ok, made} ->
+      case ensure_on(feeds, ready, target, opts) do
+        {:ok, rules} -> {:cont, {:ok, made ++ rules}}
+        {:error, message} -> {:halt, {:error, message}}
+      end
+    end)
+  end
+
+  defp ensure_on(feeds, ready, target, opts) do
+    covered = feeds |> Enum.filter(&feeds?(&1, target)) |> pools()
+
+    feeds
+    |> Enum.filter(&feeds?(&1, ready))
+    |> Enum.reject(&MapSet.subset?(pools([&1]), covered))
+    |> make_siblings(target, opts)
+  end
+
+  @doc """
+  Whether `rule` feeds `column`, by the list's id or its name: how a
+  sibling, or a ready-list feed, is told apart.
+  """
+  def feeds?(%Rule{spec: spec}, %Column{id: id, name: name}) do
+    ref = spec |> get_in(["trigger", "column"]) |> to_string() |> String.trim()
+    ref == Integer.to_string(id) or String.downcase(ref) == String.downcase(name)
+  end
+
+  @doc "The pools `rules`' runner actions send to, downcased."
+  def pools(rules) do
+    for rule <- rules,
+        %{"type" => "runner", "pool" => pool} <- Spec.actions(rule.spec),
+        into: MapSet.new(),
+        do: String.downcase(to_string(pool))
   end
 
   @doc "The name of the sibling of `rule` feeding `column`: `Work Scheduled with the loop runners`."
@@ -58,22 +100,29 @@ defmodule Slipdock.Automations.ScheduledFeed do
     end
   end
 
-  defp make_siblings(rules, scheduled, opts) do
+  defp make_siblings(rules, target, opts) do
     Enum.reduce_while(rules, {:ok, []}, fn rule, {:ok, made} ->
-      case make_sibling(rule, scheduled, opts) do
+      case make_sibling(rule, target, opts) do
         {:ok, sibling} -> {:cont, {:ok, made ++ [sibling]}}
         {:error, message} -> {:halt, {:error, message}}
       end
     end)
   end
 
-  defp make_sibling(rule, scheduled, opts) do
+  defp make_sibling(rule, target, opts) do
     by = opts[:by] || (rule.created_by_id && Repo.get(Slipdock.Accounts.User, rule.created_by_id))
-    spec = put_in(rule.spec, ["trigger", "column"], scheduled.name)
+    spec = put_in(rule.spec, ["trigger", "column"], target.name)
+
+    # A Housekeeping sibling yields to the ready list and Scheduled (#2777);
+    # a Scheduled one doesn't, so a backfill flag copied from anywhere goes.
+    spec =
+      if Column.housekeeping?(target),
+        do: put_in(spec, ["trigger", "backfill"], true),
+        else: update_in(spec, ["trigger"], &Map.delete(&1, "backfill"))
 
     attrs = %{
       "board_id" => rule.board_id,
-      "name" => sibling_name(rule, scheduled),
+      "name" => sibling_name(rule, target),
       "spec" => spec,
       "scope" => rule.scope,
       "enabled" => rule.enabled
@@ -84,21 +133,8 @@ defmodule Slipdock.Automations.ScheduledFeed do
         {:ok, sibling}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:error, "the Scheduled feed for “#{rule.name}”: #{errors(changeset)}"}
+        {:error, "the #{target.name} feed for “#{rule.name}”: #{errors(changeset)}"}
     end
-  end
-
-  # Whether the feed's trigger names `column`, by id or by name.
-  defp feeds?(%Rule{spec: spec}, %Column{id: id, name: name}) do
-    ref = spec |> get_in(["trigger", "column"]) |> to_string() |> String.trim()
-    ref == Integer.to_string(id) or String.downcase(ref) == String.downcase(name)
-  end
-
-  defp pools(rules) do
-    for rule <- rules,
-        %{"type" => "runner", "pool" => pool} <- Spec.actions(rule.spec),
-        into: MapSet.new(),
-        do: String.downcase(to_string(pool))
   end
 
   defp errors(changeset) do

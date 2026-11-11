@@ -474,6 +474,12 @@ defmodule SlipdockWeb.HelpLive.Flow do
       due day is on its owner's <strong>Waiting on you</strong>.
     </p>
     <p>
+      Small fixes and investigations that sweeps, findings triage and agents file wait in the
+      <strong>Housekeeping</strong>
+      list (category <code>housekeeping</code>). It gets the same rules beside the ready list's, <em>Work Housekeeping with a runner</em>, but each one backfills: it sends a card only while
+      To Do and Scheduled have nothing that pool could start. Your own work always goes first.
+    </p>
+    <p>
       The card moves into progress, and the <strong>bar locks</strong>: from then on only a
       person can change it. For a <em>Work a list with a runner</em> job the server makes the
       move the moment a runner claims it, to the board's doing list (the one the guide names),

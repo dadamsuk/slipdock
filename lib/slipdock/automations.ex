@@ -39,10 +39,11 @@ defmodule Slipdock.Automations do
     Presets,
     Rule,
     Runner,
+    ScheduledFeed,
     Spec
   }
 
-  alias Slipdock.Boards.{Board, Card}
+  alias Slipdock.Boards.{Board, Card, Column}
 
   @pubsub Slipdock.PubSub
   @alerts_topic "alerts"
@@ -597,11 +598,20 @@ defmodule Slipdock.Automations do
       job = Slipdock.Runners.Requeue.drain(rule) ->
         {:ok, Repo.get(Card, job.card_id)}
 
-      card = next_card(rule, opts) ->
-        if wip_held?(card), do: {:idle, :wip_full}, else: send_card(rule, card)
-
       true ->
-        {:idle, :empty}
+        next_step(rule, opts)
+    end
+  end
+
+  # The next card in the rule's list, unless it is a backfill feed waiting
+  # its turn behind To Do and Scheduled (#2777).
+  defp next_step(rule, opts) do
+    with false <- yielding?(rule, opts),
+         %Card{} = card <- next_card(rule, opts) do
+      if wip_held?(card), do: {:idle, :wip_full}, else: send_card(rule, card)
+    else
+      true -> {:idle, :yielding}
+      nil -> {:idle, :empty}
     end
   end
 
@@ -622,6 +632,7 @@ defmodule Slipdock.Automations do
   # claimed or running.
   defp pass_lane_held(rule, opts) do
     with {%Slipdock.Runners.Job{} = held, %Card{} = other} <- lane_held_job(rule),
+         false <- yielding?(rule, opts),
          %Card{} = card <- next_card(rule, opts),
          false <- wip_held?(card),
          {:ok, withdrawn} <-
@@ -710,6 +721,61 @@ defmodule Slipdock.Automations do
       )
     end
   end
+
+  @doc """
+  Whether a backfill feed (`backfill: true` on its `list_top` trigger, as
+  a Housekeeping list's siblings have, #2777) is waiting its turn: one of
+  the enabled feeds on its board's ready list or Scheduled list that send
+  to one of its pools has a card it could send now (`next_card/2`). A card
+  that is blocked, flagged blocked or waiting, snoozed, held by its lane or
+  already has a job doesn't count, so the order is To Do, then Scheduled,
+  then Housekeeping. Always false for any other rule.
+  """
+  def yielding?(rule, opts \\ [])
+
+  def yielding?(%Rule{spec: %{"trigger" => %{"backfill" => true}}} = rule, opts) do
+    opts = Keyword.delete(opts, :force)
+    rule |> feeds_ahead() |> Enum.any?(&(not is_nil(next_card(&1, opts))))
+  end
+
+  def yielding?(%Rule{}, _opts), do: false
+
+  # The feeds a backfill feed waits behind: on the same board, enabled, not
+  # backfill themselves, on the ready list or a Scheduled list, and sending
+  # to one of its pools.
+  defp feeds_ahead(rule) do
+    columns = Repo.all(from(c in Column, where: c.board_id == ^rule.board_id))
+
+    lists =
+      [Slipdock.Flow.ready_list(columns) | Enum.filter(columns, &Column.scheduled?/1)]
+      |> Enum.reject(&is_nil/1)
+
+    pools = MapSet.new(feed_pools(rule))
+
+    from(r in Rule,
+      where: r.board_id == ^rule.board_id and r.enabled == true and r.id != ^rule.id,
+      order_by: [asc: r.id]
+    )
+    |> Repo.all()
+    |> Enum.filter(fn other ->
+      Spec.feed?(other.spec) and other.spec["trigger"]["backfill"] != true and
+        Enum.any?(lists, &ScheduledFeed.feeds?(other, &1)) and
+        not MapSet.disjoint?(pools, MapSet.new(feed_pools(other)))
+    end)
+  end
+
+  @doc """
+  Feeds the backfill rules on `board_id` (#2777): a job of one of its other
+  feeds has just ended, so a backfill feed may have its turn.
+  """
+  def feed_backfill(board_id) when is_integer(board_id) do
+    from(r in Rule, where: r.board_id == ^board_id and r.enabled == true, order_by: [asc: r.id])
+    |> Repo.all()
+    |> Enum.filter(&(Spec.feed?(&1.spec) and &1.spec["trigger"]["backfill"] == true))
+    |> Enum.each(&feed/1)
+  end
+
+  def feed_backfill(_), do: :ok
 
   # The pools a list_top rule's runner actions send to.
   defp feed_pools(rule) do

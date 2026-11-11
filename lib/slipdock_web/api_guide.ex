@@ -4086,11 +4086,30 @@ defmodule SlipdockWeb.APIGuide do
     to a runner pool. People don't, and nor does an agent asked what to do
     next: it is never the ready list or the backlog, and the boards below
     mark it `scheduled: worked by feed rules`.
-
+    #{housekeeping_note(limit)}
     Sub-boards are not listed here — they hang off their epic's `sub_board`.
     #{archived_note(archived, limit && @short_archived)}
     """
   end
+
+  # The Housekeeping list (#2777), in the whole guide only: the short one is
+  # at its cap, and its board lines already mark the list.
+  defp housekeeping_note(nil) do
+    """
+
+    **A Housekeeping list comes last.** A list marked `housekeeping`
+    (category `housekeeping`) holds the small fixes and investigations that
+    sweeps, findings triage, the health monitor and agents file. Its feed
+    rules (`backfill: true`) send its top card only while the pool's feeds
+    on the ready list and Scheduled have nothing they could start, so the
+    order is To Do, Scheduled, Housekeeping. An agent asked what to do next
+    picks from it only when the ready list has nothing it could start; the
+    boards below mark it `housekeeping: worked by runners after the ready
+    list`.
+    """
+  end
+
+  defp housekeeping_note(_limit), do: ""
 
   # The boards past the short guide's limit: the next few by name, then a count.
   defp more_boards([]), do: ""
@@ -4679,6 +4698,10 @@ defmodule SlipdockWeb.APIGuide do
       nil when col.category == "scheduled" ->
         "scheduled: worked by feed rules, never take work from it"
 
+      nil when col.category == "housekeeping" ->
+        "housekeeping: worked by runners after the ready list; pick from it only when the " <>
+          "ready list has nothing"
+
       nil ->
         "uncategorised"
 
@@ -4697,18 +4720,37 @@ defmodule SlipdockWeb.APIGuide do
   """
   def role(columns, %Column{} = col) do
     cond do
-      Enum.member?(~w(triage scheduled), col.category) -> nil
-      Enum.member?(~w(todo doing done dropped), col.category) -> col.category
-      named?(col, ["in progress", "doing", "wip", "started", "active"]) -> "doing"
-      named?(col, ["done", "complete", "shipped", "finished"]) -> "done"
-      named?(col, ["dropped", "won't", "wont do", "cancelled", "rejected"]) -> "dropped"
-      named?(col, todo_names() ++ backlog_names()) -> "todo"
+      Enum.member?(~w(triage scheduled housekeeping), col.category) ->
+        nil
+
+      Enum.member?(~w(todo doing done dropped), col.category) ->
+        col.category
+
+      named?(col, ["in progress", "doing", "wip", "started", "active"]) ->
+        "doing"
+
+      named?(col, ["done", "complete", "shipped", "finished"]) ->
+        "done"
+
+      named?(col, ["dropped", "won't", "wont do", "cancelled", "rejected"]) ->
+        "dropped"
+
+      named?(col, todo_names() ++ backlog_names()) ->
+        "todo"
+
       # An uncategorised list on a board that has no categories at all: assume
       # work can come from it, since the board offers nothing better.
-      # A Triage list (#1793) or a Scheduled one (#2100) doesn't count:
+      # A Triage list (#1793), a Scheduled one (#2100) or a Housekeeping
+      # one (#2777) doesn't count:
       # adding one keeps that reading.
-      Enum.all?(columns, &Enum.member?([nil, "", "triage", "scheduled"], &1.category)) -> "todo"
-      true -> nil
+      Enum.all?(
+        columns,
+        &Enum.member?([nil, "", "triage", "scheduled", "housekeeping"], &1.category)
+      ) ->
+        "todo"
+
+      true ->
+        nil
     end
   end
 
@@ -4725,7 +4767,8 @@ defmodule SlipdockWeb.APIGuide do
       backlog: backlog_list(columns),
       doing: list_of_role(columns, :doing),
       done: list_of_role(columns, :done),
-      scheduled: Enum.find(columns, &Column.scheduled?/1)
+      scheduled: Enum.find(columns, &Column.scheduled?/1),
+      housekeeping: Enum.find(columns, &Column.housekeeping?/1)
     }
   end
 

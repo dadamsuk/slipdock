@@ -92,11 +92,13 @@ defmodule Slipdock.Automations.Spec do
   # `Slipdock.Automations.feed/1`). It has to queue a job, or there is
   # nothing to say when it is busy.
   @feed_triggers [
-    {"list_top", ["column"], ["unassigned"],
+    {"list_top", ["column"], ["unassigned", "backfill"],
      "keeps a runner busy with a list, in its order: whenever nothing this rule queued is " <>
        "still open, the top open card of the list is sent (skipping completed, archived, " <>
        "dependency-blocked and blocked or waiting flagged cards; unassigned: true skips " <>
-       "assigned ones too). Needs a runner action"}
+       "assigned ones too; backfill: true sends only while the pool's feeds on the ready " <>
+       "and Scheduled lists have nothing they could start, as a Housekeeping list's do). " <>
+       "Needs a runner action"}
   ]
 
   @condition_fields ~w(card column priority tag assignee flag title description completed
@@ -330,22 +332,9 @@ defmodule Slipdock.Automations.Spec do
   defp check_page_actions(_trigger, _actions), do: :ok
 
   defp check_feed(%{"type" => type} = trigger, actions) when type in @feed_types do
-    unassigned =
-      Map.get(%{"true" => true, "false" => false}, trigger["unassigned"], trigger["unassigned"])
-
-    cond do
-      not Enum.any?(actions, &(&1["type"] == "runner")) ->
-        {:error, "trigger “#{type}” needs a runner action: it keeps a runner pool busy"}
-
-      not (is_nil(unassigned) or is_boolean(unassigned)) ->
-        {:error, "trigger “#{type}” unassigned must be true or false"}
-
-      is_nil(unassigned) ->
-        {:ok, trigger}
-
-      true ->
-        {:ok, Map.put(trigger, "unassigned", unassigned)}
-    end
+    if Enum.any?(actions, &(&1["type"] == "runner")),
+      do: feed_flags(trigger, ~w(unassigned backfill)),
+      else: {:error, "trigger “#{type}” needs a runner action: it keeps a runner pool busy"}
   end
 
   # Putting a card back on the rule's list only means something to a rule
@@ -355,6 +344,19 @@ defmodule Slipdock.Automations.Spec do
     if Enum.any?(actions, &(is_integer(&1["requeue_stuck"]) and &1["requeue_stuck"] > 0)),
       do: {:error, "requeue_stuck is only for a list_top rule"},
       else: {:ok, trigger}
+  end
+
+  # A feed's yes/no options, from a form's strings too: unassigned, and
+  # backfill (#2777), which sends only while the pool's ready-list and
+  # Scheduled feeds have nothing they could start.
+  defp feed_flags(trigger, []), do: {:ok, trigger}
+
+  defp feed_flags(trigger, [key | keys]) do
+    case Map.get(%{"true" => true, "false" => false}, trigger[key], trigger[key]) do
+      nil -> feed_flags(trigger, keys)
+      flag when is_boolean(flag) -> feed_flags(Map.put(trigger, key, flag), keys)
+      _ -> {:error, "trigger “#{trigger["type"]}” #{key} must be true or false"}
+    end
   end
 
   defp validate_conditions(conditions) when is_list(conditions) do
@@ -674,7 +676,8 @@ defmodule Slipdock.Automations.Spec do
         "the clock reaches #{t["at"] || "09:00"}" <> weekday(t["weekday"])
 
       "list_top" ->
-        "nothing it sent is still open, take the top #{unassigned(t)}card of #{t["column"]}"
+        "nothing it sent is still open, take the top #{unassigned(t)}card of #{t["column"]}" <>
+          backfill(t)
 
       other ->
         other
@@ -706,6 +709,11 @@ defmodule Slipdock.Automations.Spec do
 
   defp unassigned(%{"unassigned" => true}), do: "unassigned "
   defp unassigned(_), do: ""
+
+  defp backfill(%{"backfill" => true}),
+    do: " only when To Do and Scheduled have nothing this pool could start"
+
+  defp backfill(_), do: ""
 
   defp due_window(%{"within_hours" => h}) when is_integer(h), do: "#{h} hours"
   defp due_window(%{"within_days" => d}) when is_integer(d), do: "#{d} days"

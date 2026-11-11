@@ -362,7 +362,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
         </li>
         <li>
           <strong>Roadmaps</strong>: give lists a category (to do, in progress, done, dropped,
-          triage, scheduled)
+          triage, scheduled, housekeeping)
           and a horizon such as Q1 2027; add milestones; colour any view by list, priority,
           health, assignee or tag.
         </li>
