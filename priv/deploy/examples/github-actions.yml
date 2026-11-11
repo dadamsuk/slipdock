@@ -11,6 +11,7 @@
 # since the last deploy can be read; Erlang, which the slipdock CLI runs on;
 # and the deploy command wrapped in `slipdock deploy run`, which records the
 # deploy started, runs it, and records succeeded or failed from its exit code.
+# The record-failure job says where a release that failed went wrong.
 
 name: Deploy
 
@@ -53,6 +54,9 @@ jobs:
         env:
           SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
           SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
+          # This run, kept on the record: a failure the record-failure job
+          # reports then marks this deploy rather than adding a second.
+          SLIPDOCK_DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TAG: sha-${{ github.sha }}
 
   # When the deploy is more than one command — Slipdock's own restarts the
@@ -75,3 +79,46 @@ jobs:
   #         SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
   #         ID: ${{ steps.record.outputs.id }}
   #         STATUS: ${{ job.status == 'success' && 'succeeded' || 'failed' }}
+
+  # When the release fails on its way to production — a build, the tests,
+  # the deploy — this records a failed deploy for the commit with the stage
+  # it failed at and this run's link, so the cards its commits name say
+  # "Deploy failed at <stage>" until a deploy naming them succeeds. List
+  # every job on the way to the deploy in `needs` and give the stage of the
+  # first that failed (build, test, merge, deploy or health); Slipdock's own
+  # works it out in .github/scripts/failed-stage.sh. The record may fail
+  # without failing anything else.
+  record-failure:
+    needs: [deploy]
+    if: ${{ failure() && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          fetch-depth: 0
+
+      - uses: erlef/setup-beam@v1
+        continue-on-error: true
+        with:
+          otp-version: "27"
+
+      - name: Install the slipdock CLI
+        continue-on-error: true
+        run: |
+          curl -fsSL "$SLIPDOCK_URL/cli/slipdock.escript" -o "$RUNNER_TEMP/slipdock"
+          chmod +x "$RUNNER_TEMP/slipdock"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+        env:
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+
+      - name: Record the failed deploy
+        continue-on-error: true
+        run: slipdock deploy failed --env production --stage "$STAGE"
+        env:
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+          SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
+          SLIPDOCK_DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STAGE: deploy

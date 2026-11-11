@@ -77,8 +77,9 @@ defmodule SlipdockWeb.API.JSON do
 
   @doc """
   A card's delivery lines (#1134), for a card read on its own: `shipped`
-  (`Slipdock.Deployments.shipped/1`) and `incident_of`, the deploy it says
-  caused it. Each only when there is one, so a board with delivery metrics
+  (`Slipdock.Deployments.shipped/1`), `deploy_failed` (where its latest
+  deploy attempt failed, `Slipdock.Deployments.deploy_failed/1`, #2820)
+  and `incident_of`, the deploy it says caused it. Each only when there is one, so a board with delivery metrics
   off answers as it always did. Each line's `text` gives its date and time
   in `zone`, the reader's (#2022).
   """
@@ -94,6 +95,22 @@ defmodule SlipdockWeb.API.JSON do
             m,
             :shipped,
             Enum.map(lines, &Map.put(&1, :text, Slipdock.Deployments.shipped_text(&1, zone)))
+          )
+      end
+    end)
+    |> then(fn m ->
+      case Slipdock.Deployments.deploy_failed(card) do
+        [] ->
+          m
+
+        lines ->
+          Map.put(
+            m,
+            :deploy_failed,
+            Enum.map(
+              lines,
+              &Map.put(&1, :text, Slipdock.Deployments.deploy_failed_text(&1, zone))
+            )
           )
       end
     end)
@@ -199,6 +216,8 @@ defmodule SlipdockWeb.API.JSON do
       source: d.source,
       rollback: d.rollback,
       note: d.note,
+      stage: d.stage,
+      run_url: d.run_url,
       cards: d.card_ids,
       commits: d.commits
     }

@@ -1010,13 +1010,25 @@ WRITE
                                                  since the newest one before it are sent. Needs
                                                  $SLIPDOCK_DEPLOY_TOKEN (and
                                                  $SLIPDOCK_URL); env defaults to production
-  deploy start [--env E] [--tag T] [--sha S] [--note TEXT] [--dry-run]
+  deploy start [--env E] [--tag T] [--sha S] [--note TEXT] [--run-url U] [--dry-run]
                                                  the same in two steps: prints the deploy's id…
                                                  (--note, or $SLIPDOCK_DEPLOY_NOTE: a line kept
-                                                 on the deploy, e.g. how its suite passed)
+                                                 on the deploy, e.g. how its suite passed;
+                                                 --run-url, or $SLIPDOCK_DEPLOY_RUN_URL: its CI run)
   deploy finish --status succeeded|failed [--id N]
                                                  …and records how it ended (id from --id or
                                                  $SLIPDOCK_DEPLOY_ID)
+  deploy failed --stage build|test|merge|deploy|health [--run-url U] [--env E] [--sha S]
+                [--tag T] [--note TEXT] [--dry-run]
+                                                 record a release that failed, from CI's failure
+                                                 job: where it failed and its run (--run-url, or
+                                                 $SLIPDOCK_DEPLOY_RUN_URL), with the commits since
+                                                 the last deploy, so each card they name says
+                                                 "Deploy failed at <stage>" until a deploy naming
+                                                 it succeeds. The deploy job's own record of the
+                                                 attempt is the one marked, not a second. A
+                                                 build, test or merge failure isn't a deploy to
+                                                 the DORA numbers
   deploy last [--env E]                          the environment's last succeeded deploy
   deploy backfill --from-tags [--env E] [--pattern 'v*'] [--dir D] [--dry-run]
                                                  record past releases: each tag (oldest first) as

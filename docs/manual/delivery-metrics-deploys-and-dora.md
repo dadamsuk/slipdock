@@ -62,6 +62,22 @@ commit no pull request made, the GitHub API failing, a tag, or
 `workflow_dispatch`. The run's summary and the deploy's note say which
 (`suite: passed on PR #92 at 1a2b3c4, same tree`, or `suite: ran (<why>)`).
 
+**A release that failed.** `slipdock deploy failed --env production --stage
+build|test|merge|deploy|health --run-url <the CI run>` (`--run-url` or
+`$SLIPDOCK_DEPLOY_RUN_URL`; `POST /api/deployments/failed`) records a failed
+deploy for the commit, with the commits since the last deploy, from a CI job
+that runs when the release fails before or during its deploy. If the deploy
+job had already recorded the attempt (`deploy start` with the same run url, or
+none), that record is the one marked failed at the stage, not a second. A
+failure at `build`, `test` or `merge` never reached the environment, so it
+isn't a deploy to the numbers below; a `deploy` or `health` failure is a failed
+change. Slipdock's own `release.yml` does it in a last job, `record-failure`,
+which runs on a failure of any job on the way to production, works the stage
+out with `.github/scripts/failed-stage.sh` and may fail without failing
+anything else; the GitHub Actions example
+([`/deploy/examples/github-actions.yml`](../../priv/deploy/examples/github-actions.yml))
+has the same job.
+
 **Deploys the record missed.** Recording is allowed to fail, so a deploy can go
 out unrecorded. `slipdock deploy backfill --from-runs FILE` (`-` reads stdin)
 records them from CI's runs. It takes a JSON list as `gh run list --json
@@ -99,7 +115,10 @@ time; `slipdock dora <board> [--env E] [--days N]`, `GET
 **Shipped lines.** A card a succeeded deploy names shows *Shipped to production
 · 1a2b3c4 · 19 Oct 14:32* — one line per environment, the time in your time
 zone, and *rolled back since* when a rollback went past it — in its panel, in
-`slipdock card` and as `shipped` in its JSON (and `get_card`).
+`slipdock card` and as `shipped` in its JSON (and `get_card`). A card whose
+latest deploy attempt failed shows *Deploy failed at build · production ·
+<run link> · 11 Nov 20:41* the same ways (`deploy_failed` in its JSON) until a
+succeeded deploy naming it replaces the line.
 
 ---
 

@@ -2228,7 +2228,16 @@ defmodule SlipdockWeb.APIGuide do
     ./deploy.sh`. The token goes to `GET /api/deployments/last?environment=E`,
     `POST /api/deployments` (with an optional `note`, a line up to 500
     characters such as how the suite passed: `slipdock deploy run --note`) and
-    `PATCH /api/deployments/:id` only. Commits name
+    `PATCH /api/deployments/:id` and `POST /api/deployments/failed` only.
+    A release that fails before or during its deploy records it from a CI
+    job that runs on the failure: `slipdock deploy failed --env production
+    --stage build|test|merge|deploy|health --run-url <the run>` (`POST
+    /api/deployments/failed` with `environment`, `sha`, `stage`, `run_url`
+    and `commits`); the deploy job's own record of the attempt, when it made
+    one with the same run url, is the one marked. A card whose latest deploy
+    attempt failed carries `deploy_failed` (*Deploy failed at build ·
+    production · <run url> · 11 Nov 20:41*) until a succeeded deploy naming
+    it; a build, test or merge failure is no deploy to DORA. Commits name
     cards as `#123` (or the board's `card_ref_pattern`); a card a succeeded
     deploy names gets a **Shipped to production** line (`shipped` on
     `get_card`, each with its `text`: *Shipped to production · 1a2b3c4 · 6

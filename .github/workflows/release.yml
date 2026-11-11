@@ -8,7 +8,8 @@
 #
 # After a push to main or a v* tag, the deploy job puts that exact image on the
 # production server (see the job for how, and deploy/deploy.sh for the server
-# side).
+# side). If anything on the way there fails, record-failure says where on the
+# slipdock board.
 #
 # amd64 and arm64 are built on their own native runners rather than one of them
 # under QEMU: an Elixir compile emulated is tens of minutes, and GitHub's arm64
@@ -511,6 +512,76 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
 
+  # A release that failed on its way to production (#2820): a build, the
+  # suite, the merge, the deploy or the health check. Above the deploy job
+  # in the file only because that one stays last (release_workflow_test);
+  # it runs after it. The deploy job only
+  # records what it ran, so a failure before it would leave nothing on the
+  # board. This records a failed deploy for the commit with the stage and
+  # this run's link, the cards its commits name showing "Deploy failed at
+  # <stage>" until a deploy naming them succeeds; when the deploy job had
+  # recorded the attempt, that record is the one marked. Like every record
+  # step it may fail without failing anything else.
+  #
+  # .github/scripts/failed-stage.sh works the stage out from the results
+  # and prints nothing when nothing on the path failed (only a job off it,
+  # such as the daemon release).
+  record-failure:
+    needs: [suite, test, cli-build, cli-sign, build, merge, deploy]
+    if: ${{ failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+    runs-on: ubuntu-latest
+    # For the record's secret and variable, as the deploy job has them.
+    environment: production
+    permissions:
+      contents: read
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          fetch-depth: 0
+
+      - uses: erlef/setup-beam@v1
+        continue-on-error: true
+        with:
+          otp-version: "27"
+
+      - name: Install the slipdock CLI
+        continue-on-error: true
+        run: |
+          curl -fsSL "$SLIPDOCK_URL/cli/slipdock.escript" -o "$RUNNER_TEMP/slipdock"
+          chmod +x "$RUNNER_TEMP/slipdock"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+        env:
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+
+      # A server still coming up after a failed deploy gets a few tries.
+      - name: Record the failed deploy
+        continue-on-error: true
+        run: |
+          stage=$(.github/scripts/failed-stage.sh)
+          if [ -z "$stage" ]; then
+            echo "nothing on the way to production failed: nothing to record"
+            exit 0
+          fi
+          for try in 1 2 3; do
+            slipdock deploy failed --env production --stage "$stage" && exit 0
+            sleep 10
+          done
+          exit 1
+        env:
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+          SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
+          SLIPDOCK_DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CLI_BUILD: ${{ needs.cli-build.result }}
+          CLI_SIGN: ${{ needs.cli-sign.result }}
+          BUILD: ${{ needs.build.result }}
+          TEST: ${{ needs.test.result }}
+          MERGE: ${{ needs.merge.result }}
+          DEPLOY: ${{ needs.deploy.result }}
+          DEPLOY_STAGE: ${{ needs.deploy.outputs.failed-stage }}
+
   # Puts the image just published on the production server, which is reached
   # only over Tailscale: this runner joins the tailnet as an ephemeral tag:ci
   # node (workload identity federation, so there is no Tailscale secret to
@@ -546,6 +617,9 @@ jobs:
       group: production-deploy
       cancel-in-progress: false
     timeout-minutes: 20
+    # Where it failed, for the record-failure job (#2820): deploy or health.
+    outputs:
+      failed-stage: ${{ steps.failed-stage.outputs.stage }}
 
     steps:
       # Recording the deploy on the slipdock board (#1134): the whole history,
@@ -601,6 +675,10 @@ jobs:
           SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
           SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
           TAG: ${{ needs.merge.outputs.deploy-tag }}
+          # This run (#2820), so a failure the record-failure job reports
+          # marks this record rather than adding a second. An env var: an
+          # older CLI ignores it.
+          SLIPDOCK_DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           # How the suite was satisfied (#1857), kept on the record. An env
           # var, not --note: the CLI comes from the server being replaced,
           # and one older than the switch would refuse it. Quoted: a plain
@@ -638,6 +716,7 @@ jobs:
       # a container that never came up (a migration that fails on boot
       # crash-loops it) leaves the old answer or none, and either fails here.
       - name: Wait for the server to be healthy on this commit
+        id: health
         run: |
           deadline=$(( $(date +%s) + 300 ))
           while :; do
@@ -672,3 +751,14 @@ jobs:
           SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
           ID: ${{ steps.record.outputs.id }}
           STATUS: ${{ job.status == 'success' && 'succeeded' || 'failed' }}
+
+      # Which part failed, for the record-failure job: the server never
+      # coming up healthy, or anything before it.
+      - name: Say where the deploy failed
+        id: failed-stage
+        if: failure()
+        run: |
+          if [ "$HEALTH" = failure ]; then stage=health; else stage=deploy; fi
+          echo "stage=$stage" >> "$GITHUB_OUTPUT"
+        env:
+          HEALTH: ${{ steps.health.outcome }}

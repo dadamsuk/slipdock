@@ -283,7 +283,9 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   reports deployment frequency, lead time for changes, change failure rate,
   time to restore, rework rate and **idea to production** (a card first in
   progress → the first deploy that names it), each with its DORA band. Cards a
-  deploy names show *Shipped to production · 1a2b3c4 · 19 Oct*; incidents are
+  deploy names show *Shipped to production · 1a2b3c4 · 19 Oct*, and *Deploy
+  failed at build* with the run's link when CI's failure job says the release
+  failed (`slipdock deploy failed --stage S`); incidents are
   ordinary cards tagged `incident`. Off until the owner turns **Delivery
   metrics** on; **Track deployments** in board settings (or `slipdock deploy
   setup <board>`) issues a deploy token that can record deploys and nothing
