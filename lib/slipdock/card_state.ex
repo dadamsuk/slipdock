@@ -212,14 +212,14 @@ defmodule Slipdock.CardState do
 
   # The job to read the card's state off, and the epic it is on when it is
   # the job of an epic above the card working it (#2899): the card's own
-  # open job first, then such an epic's, then the card's newest. Never an
-  # epic's on a completed card.
+  # open job first (`put/3` asks for an epic's only for cards without one),
+  # then such an epic's, then the card's newest. `epic_jobs/1` never gives
+  # one for a completed card.
   defp card_job(card, ctx) do
-    own = ctx.jobs[card.id]
-
-    epic = ctx.epic_jobs[card.id]
-
-    if epic && not card.completed && not open?(own), do: {epic, epic}, else: {own, nil}
+    case ctx.epic_jobs[card.id] do
+      %Job{} = epic -> {epic, epic}
+      nil -> {ctx.jobs[card.id], nil}
+    end
   end
 
   defp open?(%Job{status: status}), do: Enum.member?(Job.open_statuses(), status)
