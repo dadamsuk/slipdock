@@ -135,7 +135,12 @@ gets no second wait, and a spike with no epic above it opens none.
 Agents are told to open a wait, say what they need and what kind of question
 it is, and stop, rather than flag the card and hope. A wait opened from a [runner](runners.md) job
 **parks** the job, and answering it sends the card to the same rule again
-with the question and the answer on top of the prompt.
+with the question and the answer on top of the prompt. The answer's job goes
+into the pool's queue at once, for any free runner of the pool: it isn't
+held for the runner that asked, nor behind another card that runner is busy
+on. Only a job a runner already has for the card itself holds the answer,
+until that job closes; meanwhile the card is not on anyone's *Waiting on
+you*.
 
 **Waiting on you.** My work opens with everything that needs you, oldest
 first, each with why and for how long: open waits on you (a routed question

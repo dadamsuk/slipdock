@@ -267,4 +267,33 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert cli =~ "<code>--kind</code>"
     end
   end
+
+  describe "an answer goes to any free runner (#2896)" do
+    test "the guide, the manual, the README and docs/agents.md say it isn't held for the asker" do
+      assert SlipdockWeb.APIGuide.markdown() =~
+               ~r/pool's queue for any free runner,\s+not held for the runner that asked/
+
+      manual = read("docs/manual/waiting-on-a-person-waits.md")
+
+      assert manual =~
+               ~r/for any free runner of the pool: it isn't\s+held for the runner that asked/
+
+      assert manual =~ ~r/the card is not on anyone's \*Waiting on\s+you\*/
+
+      assert read("README.md") =~ "for any free runner of the pool, not only the one that asked"
+
+      assert read("docs/agents.md") =~
+               ~r/any free runner of the pool, not held for the one that asked/
+
+      assert read("docs/manual/the-health-monitor.md") =~
+               "a held answer waiting for the job a runner has on its card"
+    end
+
+    test "the runners page and the flow page say so", %{conn: conn} do
+      assert help(conn, "/help/agents/runners") =~
+               "for any free runner of the pool: it isn't held for the runner that asked"
+
+      assert help(conn, "/help/agents/flow") =~ "to whichever runner of the pool is free"
+    end
+  end
 end

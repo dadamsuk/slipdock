@@ -151,7 +151,8 @@ defmodule Slipdock.Work do
       while a build job is claimed or running on the card or a card above
       it (#2568): a runner already has the rework in hand;
     * `"needs_owner"` — in a tree `user` owns, an open card in a doing list
-      for over an hour with nobody on it, no open job and no open wait.
+      for over an hour with nobody on it, no open job, no open wait and no
+      answered wait whose answer is held for the runners (#2896).
 
   `since` is when it started needing them: the newest rejection, the wait's opening, the newest
   run of the flag (from the activity log), the job's end, the card's entry
@@ -636,6 +637,8 @@ defmodule Slipdock.Work do
           )
         ),
       where: c.id not in subquery(from(w in Wait, where: is_nil(w.closed_at), select: w.card_id)),
+      # Answered, and the answer is on its way to the runners (#2896).
+      where: c.id not in subquery(answer_held()),
       select: {c.id, m.at}
     )
     |> in_trees(owned)
@@ -644,6 +647,12 @@ defmodule Slipdock.Work do
     |> Repo.all()
     |> Enum.map(fn {id, at} -> %{card_id: id, reason: "needs_owner", since: at} end)
   end
+
+  # Cards whose answered wait is held until a job a runner has closes
+  # (`Slipdock.Runners.Requeue`, `pending`): nothing there waits on a
+  # person. The card whose job asked has that job open, so only the card
+  # the question was on needs saying.
+  defp answer_held, do: from(w in Wait, where: w.requeue_state == "pending", select: w.card_id)
 
   # A card left in a Scheduled list (#2100) past the end of its due day, in
   # its board owner's time zone: whatever was to take it from there didn't.

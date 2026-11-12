@@ -1111,7 +1111,7 @@ with the tail of the log — and a Cancel button.
   can give opens a wait and stops; the job ends `parked`, its card goes back
   on top of the list flagged waiting so the next card runs, and answering the
   wait sends the card to the same rule again with the answer at the top of
-  the prompt (`slipdock finish-job <job> --status waiting --needs "…"` asks and
+  the prompt, for any free runner of the pool, not only the one that asked (`slipdock finish-job <job> --status waiting --needs "…"` asks and
   parks in one step).
 - **A brake with a reason.** The board's owner can pause the whole tree, or
   one pool, from the Runners panel, `slipdock pause <board> [--pool P]

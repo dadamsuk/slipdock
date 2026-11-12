@@ -869,7 +869,8 @@ prompt ends by saying nobody will answer questions: choose inputs from the
 card, say what was chosen, or open a wait saying what it needs and stop
 (the job is **parked**, its card goes back on top of the list so the next
 one runs, and the answer sends the card to the rule again with the answer
-on top of the prompt, ahead of a next card's job nobody has taken yet); if
+on top of the prompt, ahead of a next card's job nobody has taken yet, and
+for any free runner of the pool, not held for the one that asked); if
 the board is paused, finish the card and take no
 other; and
 to leave a handoff (`leave_handoff`) whenever it stops with the card
