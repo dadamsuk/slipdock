@@ -113,6 +113,15 @@ defmodule Slipdock.ReadmeOverviewTest do
 
     test "a list inside fenced code is not a list" do
       assert items("```sh\n- not an item\n```\n- an item\n") == [{4, ["- an item"]}]
+      assert items("~~~\n- not an item\n~~~\n- an item\n") == [{4, ["- an item"]}]
+    end
+
+    test "a fence ends the open item, and indented lines after it don't join it" do
+      assert items("- a\n```\ncode\n```\n  b\n") == [{1, ["- a"]}]
+    end
+
+    test "a `* ` bullet is an item too" do
+      assert items("* a\n  b\n") == [{1, ["* a", "  b"]}]
     end
 
     test "a nested item is an item of its own, and ends its parent" do
@@ -130,6 +139,8 @@ defmodule Slipdock.ReadmeOverviewTest do
       assert long_items(many) == ["line 1: 7 lines, 15 characters"]
       assert long_items(wide) == ["line 1: 1 lines, 453 characters"]
       assert long_items(fine) == []
+      assert long_items("- " <> String.duplicate("x", 448)) == []
+      assert long_items("- " <> String.duplicate("x", 449)) == ["line 1: 1 lines, 451 characters"]
       assert long_items("para\n\n" <> many) == ["line 3: 7 lines, 15 characters"]
     end
 
