@@ -10,10 +10,12 @@
 # production server (see the job for how, and deploy/deploy.sh for the server
 # side).
 #
-# amd64 and arm64 are built on their own native runners rather than one of them
-# under QEMU: an Elixir compile emulated is tens of minutes, and GitHub's arm64
-# runners are free for public repositories. Each pushes by digest, and a final
-# job stitches the two into one multi-architecture tag.
+# The image is amd64 only (#2829: nothing runs it on arm64). The build job
+# pushes it by digest and the merge job tags it, so another architecture is
+# one more line in the build job's matrix.
+#
+# The jobs run where ci.yml's do: on GitHub's runners, or on the self-hosted
+# ones while the repository variable CI_RUNNER is set (ci.yml says why).
 name: Publish image
 
 on:
@@ -34,7 +36,7 @@ jobs:
   # CI run on the same tree; anything else, its own failure included, runs the
   # suite. Its note goes in the run summary and on the deploy record.
   suite:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       actions: read
@@ -83,7 +85,7 @@ jobs:
   warm-cache:
     needs: suite
     if: ${{ needs.suite.outputs.run == 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
     env:
@@ -154,7 +156,7 @@ jobs:
   # one that can read the key.
   cli-build:
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
     env:
@@ -188,7 +190,7 @@ jobs:
   # the committed public key before the image is built with it.
   cli-sign:
     needs: cli-build
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     environment: daemon-release
     permissions:
       contents: read
@@ -234,7 +236,7 @@ jobs:
   build:
     needs: cli-sign
     if: ${{ !cancelled() && (needs.cli-sign.result == 'success' || (github.ref_type != 'tag' && needs.cli-sign.result == 'skipped')) }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
@@ -244,9 +246,6 @@ jobs:
       matrix:
         include:
           - platform: linux/amd64
-            runner: ubuntu-latest
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -300,17 +299,17 @@ jobs:
 
       - name: Keep the digest for the merge job
         run: |
-          mkdir -p /tmp/digests
+          mkdir -p "$RUNNER_TEMP/digests"
           # The `sha256:` prefix has to come off: upload-artifact refuses any
           # filename containing a colon, and the digest is the filename.
           digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
         shell: bash
 
       - uses: actions/upload-artifact@v4
         with:
           name: digests-${{ env.PLATFORM_PAIR }}
-          path: /tmp/digests/*
+          path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
 
@@ -320,7 +319,7 @@ jobs:
   merge:
     needs: [suite, test, build]
     if: ${{ !cancelled() && needs.build.result == 'success' && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.suite.outputs.run == 'false')) }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
@@ -330,7 +329,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          path: /tmp/digests
+          path: ${{ runner.temp }}/digests
           pattern: digests-*
           merge-multiple: true
 
@@ -358,7 +357,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Stitch the architectures into one tag
-        working-directory: /tmp/digests
+        working-directory: ${{ runner.temp }}/digests
         run: |
           # One empty file per architecture, named after its digest with the
           # `sha256:` prefix stripped off (see the build job).
@@ -399,7 +398,7 @@ jobs:
   # only one that can read the key.
   daemon-build:
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
     defaults:
@@ -462,7 +461,7 @@ jobs:
   # is published, so a secret that isn't its other half fails here.
   daemon-release:
     needs: daemon-build
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     environment: daemon-release
     permissions:
       contents: write
@@ -524,7 +523,9 @@ jobs:
   #
   # Needs, on the production environment: secrets TS_OAUTH_CLIENT_ID,
   # TS_AUDIENCE, DEPLOY_HOST (the server's tailnet name) and DEPLOY_HEALTH_URL
-  # (https://…/healthz), and the variable DEPLOY_USER.
+  # (https://…/healthz), and the variable DEPLOY_USER. On a self-hosted runner
+  # (#2829) the user is the repository variable LOCAL_DEPLOY_USER instead:
+  # the tailnet lets the machine's own node in as that user, not as tag:ci's.
   #
   # The merge job only succeeds once the suite has passed (here, or on the
   # pull request at this tree), so its success is the gate; !cancelled() lets
@@ -532,7 +533,7 @@ jobs:
   deploy:
     needs: [suite, test, merge]
     if: ${{ !cancelled() && needs.merge.result == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     environment: production
     permissions:
       id-token: write
@@ -608,7 +609,13 @@ jobs:
           # workflow fails every push before any job starts (#1916).
           SLIPDOCK_DEPLOY_NOTE: "${{ needs.suite.outputs.note || 'suite: ran' }}"
 
+      # Not on a self-hosted runner (#2829): the machine is on the tailnet
+      # already, and the action would install its own tailscale over the
+      # machine's and log the machine in as tag:ci. The next step uses the
+      # machine's own node, which the tailnet policy has to let in as the
+      # deploy user.
       - uses: tailscale/github-action@v4
+        if: ${{ !vars.CI_RUNNER }}
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
@@ -616,6 +623,12 @@ jobs:
           # Waits for the server to be reachable: a new node takes a moment to
           # be accepted by its peers.
           ping: ${{ secrets.DEPLOY_HOST }}
+
+      - name: Reach the server over this machine's tailnet
+        if: ${{ vars.CI_RUNNER }}
+        run: sudo -n tailscale ping -c 5 "$DEPLOY_HOST"
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
 
       # Tailscale SSH: the tailnet authenticates this node as tag:ci and the
       # policy's ssh rule lets it in as the deploy user only, so there is no
@@ -630,7 +643,7 @@ jobs:
             { echo "::error::refusing to deploy unpinned tag '$TAG'"; exit 1; }
           sudo tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST" sudo -n /opt/deploy/deploy.sh "$TAG"
         env:
-          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_USER: ${{ vars.CI_RUNNER && vars.LOCAL_DEPLOY_USER || vars.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           TAG: ${{ needs.merge.outputs.deploy-tag }}
 

@@ -101,7 +101,13 @@ defmodule Slipdock.ReleaseWorkflowTest do
   test "the server's name and user come from settings, not the file" do
     job = deploy_job()
     assert has?(job, "DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}")
-    assert has?(job, "DEPLOY_USER: ${{ vars.DEPLOY_USER }}")
+    # LOCAL_DEPLOY_USER on a self-hosted runner, which deploys as the
+    # machine's own tailnet node (#2829).
+    assert has?(
+             job,
+             "DEPLOY_USER: ${{ vars.CI_RUNNER && vars.LOCAL_DEPLOY_USER || vars.DEPLOY_USER }}"
+           )
+
     assert has?(job, "HEALTH_URL: ${{ secrets.DEPLOY_HEALTH_URL }}")
     refute Enum.any?(job, &(&1 =~ ~r/ts\.net|BEGIN OPENSSH|ssh-ed25519/))
   end
