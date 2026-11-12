@@ -288,6 +288,85 @@ defmodule Slipdock.CredoChecksTest do
       |> refute_issues()
     end
 
+    # Two copies under `dir`, named by their absolute paths, as credo names
+    # the files on the side of `credo diff` it checks out in a temporary
+    # directory. (Credo itself shortens a name under the current directory
+    # when it parses the file, so the name is put back here.)
+    defp files_under(dir) do
+      for {name, fun} <- [{"a", "x"}, {"b", "y"}] do
+        path = Path.join(dir, "lib/#{name}.ex")
+        source_file = to_source_file("defmodule #{name} do\n#{block(fun)}end\n", path)
+        %{source_file | filename: path}
+      end
+    end
+
+    defp run_in(source_files, exec) do
+      :ok = DuplicatedCode.run_on_all_source_files(exec, source_files, mass_threshold: 40)
+
+      source_files
+      |> Enum.flat_map(&Credo.Execution.ExecutionIssues.get(exec, &1))
+      |> Enum.map(& &1.message)
+      |> Enum.sort()
+    end
+
+    test "run in credo diff's temporary checkout (--working-dir), names the copies from there" do
+      root = Path.join(System.tmp_dir!(), "credo-diff-20261112004249264975")
+      refute String.starts_with?(root, File.cwd!())
+
+      exec = %{Credo.Execution.build() | cli_options: %Credo.CLI.Options{path: root}}
+
+      there = run_in(files_under(root), exec)
+
+      assert there == [
+               "Duplicate code found in lib/a.ex (mass: 52).",
+               "Duplicate code found in lib/b.ex (mass: 52)."
+             ]
+
+      # The same messages as the project's own side gives, so credo diff
+      # matches them.
+      here = %{Credo.Execution.build() | cli_options: %Credo.CLI.Options{path: "."}}
+      assert run_in(files_under(File.cwd!()), here) == there
+    end
+
+    test "given no working dir, names absolute paths from the current directory" do
+      assert run_in(files_under(File.cwd!()), Credo.Execution.build()) == [
+               "Duplicate code found in lib/a.ex (mass: 52).",
+               "Duplicate code found in lib/b.ex (mass: 52)."
+             ]
+    end
+
+    test "a file holding the block twice gets one issue, at one of its copies" do
+      [file("a", block("x") <> block("y"))]
+      |> run_check(DuplicatedCode, mass_threshold: 40)
+      |> assert_issue(fn issue ->
+        assert issue.message == "Duplicate code found in lib/a.ex (mass: 52)."
+        assert issue.line_no in [3, 13]
+      end)
+
+      [file("a", block("x") <> block("y")), file("b", block("z"))]
+      |> run_check(DuplicatedCode, mass_threshold: 40)
+      |> assert_issues(fn issues ->
+        assert issues |> Enum.map(&{&1.filename, &1.message}) |> Enum.sort() ==
+                 [
+                   {"lib/a.ex", "Duplicate code found in lib/a.ex, lib/b.ex (mass: 52)."},
+                   {"lib/b.ex", "Duplicate code found in lib/a.ex (mass: 52)."}
+                 ]
+      end)
+    end
+
+    test "leaves alone a block inside a macro the config excludes" do
+      files = fn -> [file("a", block("x")), file("b", block("y"))] end
+
+      files.()
+      |> run_check(DuplicatedCode, mass_threshold: 40, excluded_macros: [:case])
+      |> refute_issues()
+
+      # Another macro's name excludes nothing.
+      files.()
+      |> run_check(DuplicatedCode, mass_threshold: 40, excluded_macros: [:schema])
+      |> assert_issues(fn issues -> assert length(issues) == 2 end)
+    end
+
     test "names a copy on credo diff's other side by its path in the project" do
       root = "/tmp/credo-diff-20261112004249264975"
 

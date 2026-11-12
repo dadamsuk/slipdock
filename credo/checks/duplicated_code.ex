@@ -41,7 +41,7 @@ defmodule Slipdock.Credo.DuplicatedCode do
     by_name = Map.new(source_files, &{&1.filename, &1})
 
     for nodes <- duplicates(source_files, mass_threshold, nodes_threshold),
-        # One issue a file, as credo's own check gives: its first copy there.
+        # One issue a file, as credo's own check gives, at one of its copies there.
         this <- Enum.uniq_by(nodes, & &1.filename),
         Upstream.create_issue?(this.node, excluded_macros) do
       source_file = Map.fetch!(by_name, this.filename)
