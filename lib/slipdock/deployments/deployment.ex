@@ -2,7 +2,8 @@ defmodule Slipdock.Deployments.Deployment do
   @moduledoc """
   One deploy of a board's project to an environment (#1134): a ledger row,
   not a card. Machine-written by CI through `Slipdock.Deployments`, and
-  never edited once it has finished.
+  never edited once it has finished, but for one thing: a failed one with
+  no `stage` may be told its stage and run once (`fail_changeset/3`).
 
     * `status` — `started`, then `succeeded` or `failed`;
     * `sha` / `tag` — what was deployed; `previous_sha` the environment's
