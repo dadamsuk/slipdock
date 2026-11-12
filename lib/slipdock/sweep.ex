@@ -300,7 +300,8 @@ defmodule Slipdock.Sweep do
   defp refresh_card(root, user, report) do
     with %{card: %Card{description: description} = card} <- find(root),
          true <- description != @card_description,
-         {:ok, _} <- Boards.update_card(card, %{"description" => @card_description}, by: user) do
+         {:ok, _} <-
+           Boards.Cards.update_card(card, %{"description" => @card_description}, by: user) do
       name = "#{@card_title} (updated: procedure)"
       {update_in(report, [:added, "cards"], &(&1 ++ [name])), true}
     else

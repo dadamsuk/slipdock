@@ -1694,7 +1694,7 @@ defmodule Slipdock.Runners do
            ) do
       Repo.update_all(from(r in Runner, where: r.id == ^runner.id), set: [current_job_id: job.id])
 
-      Boards.log_activity(
+      Boards.ActivityLog.log_activity(
         job.board_id,
         job.card_id,
         "runner",

@@ -103,7 +103,7 @@ defmodule Slipdock.ReleasesTest do
       todo: todo
     } do
       board = batched!(board, %{"release_age_cap_hours" => 12})
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card_fixture(todo, %{"title" => "Epic"}), t)
 
       assert Releases.settings(sub) == %{mode: "batched", age_cap_hours: 12}
@@ -206,7 +206,7 @@ defmodule Slipdock.ReleasesTest do
 
     test "a subcard on a batched root's sub-board", %{board: board, todo: todo} do
       batched!(board)
-      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, t} = Boards.Templates.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card_fixture(todo, %{"title" => "Epic"}), t)
       [first | _] = Boards.get_board!(sub.id).columns
       child = first |> card_fixture(%{"title" => "Child"}) |> merge!()

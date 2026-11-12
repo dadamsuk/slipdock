@@ -54,7 +54,7 @@ defmodule SlipdockWeb.ReleaseModeTest do
   end
 
   defp sub!(todo) do
-    {:ok, t} = Boards.find_template(nil, "Simple")
+    {:ok, t} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card_fixture(todo, %{"title" => "Epic"}), t)
     sub
   end

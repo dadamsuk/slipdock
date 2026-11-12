@@ -112,7 +112,7 @@ defmodule Slipdock.SweepTest do
       {:ok, _} = Sweep.install(user, board)
       [card] = sweep_cards(board)
       old = "File each issue as a card in the `Triage` list, never in the ready list."
-      {:ok, _} = Boards.update_card(card, %{"description" => old, "priority" => "high"})
+      {:ok, _} = Boards.Cards.update_card(card, %{"description" => old, "priority" => "high"})
 
       assert {:ok, again} = Sweep.install(user, board)
       assert again.upgraded
