@@ -149,4 +149,4 @@ removes it.
 
 ---
 
-← [Verified work](verified-work.md) · [Contents](../manual.md) · [Profiles](profiles.md) →
+← [Batched releases](batched-releases.md) · [Contents](../manual.md) · [Profiles](profiles.md) →

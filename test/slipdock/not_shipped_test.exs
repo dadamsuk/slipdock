@@ -282,6 +282,217 @@ defmodule Slipdock.NotShippedTest do
     end
   end
 
+  describe "on a tree that releases in batches (#2839)" do
+    alias Slipdock.Releases.Request
+
+    setup ctx do
+      {:ok, _} = Boards.update_board(ctx.board, %{"release_mode" => "batched"})
+      %{board: fresh(ctx.board)}
+    end
+
+    # A release request covering `cards`, started `minutes` before @now.
+    defp release!(board, cards, minutes, status \\ "running") do
+      Repo.insert!(%Request{
+        board_id: board.id,
+        status: status,
+        card_ids: Enum.map(cards, & &1.id),
+        started_at: @now |> DateTime.add(-minutes * 60) |> DateTime.add(0, :microsecond)
+      })
+    end
+
+    test "a card only awaiting release is never late, however long ago it merged", ctx do
+      card = merged(ctx.done, 480)
+
+      assert tree(ctx.board) == []
+      assert NotShipped.for_card(card, @now) == nil
+
+      result = Watch.run(ctx.board, Overseer.settings(ctx.board), @now, checks: Watch.always())
+      assert result.fired == []
+    end
+
+    test "the minutes count from the release's start, not the merge", ctx do
+      card = merged(ctx.done, 480)
+      release!(ctx.board, [card], 10)
+
+      # Merged eight hours ago, released ten minutes ago: inside the 20.
+      assert tree(ctx.board) == []
+      assert NotShipped.for_card(card, @now) == nil
+
+      # At exactly the board's minutes it is late, and a second before it isn't.
+      at_20 = DateTime.add(@now, 10 * 60)
+      assert NotShipped.in_tree(ctx.board, [ctx.board.id], DateTime.add(at_20, -1)) == []
+      assert [line] = NotShipped.in_tree(ctx.board, [ctx.board.id], at_20)
+      assert line.card_id == card.id
+      assert line.seconds == 20 * 60
+      assert line.merged_at == card.completed_at
+      assert DateTime.compare(line.release_requested_at, DateTime.add(@now, -600)) == :eq
+    end
+
+    test "the card's line says the time runs from the release", ctx do
+      card = merged(ctx.done, 480)
+      release!(ctx.board, [card], 45)
+
+      assert %{
+               text: "Merged 1a634c6 · not shipped 45m after its release started",
+               seconds: 2700,
+               minutes: 20,
+               sha: @sha,
+               release_requested_at: %DateTime{} = asked
+             } = NotShipped.for_card(card, @now)
+
+      assert DateTime.compare(asked, DateTime.add(@now, -45 * 60)) == :eq
+    end
+
+    test "a release that failed or timed out still counts as asked", ctx do
+      failed = merged(ctx.done, 480, title: "Failed")
+      timed_out = merged(ctx.done, 400, title: "Timed out")
+      release!(ctx.board, [failed], 60, "failed")
+      release!(ctx.board, [timed_out], 300, "timed_out")
+
+      assert tree(ctx.board) |> Enum.map(& &1.card_id) |> Enum.sort() ==
+               Enum.sort([failed.id, timed_out.id])
+    end
+
+    test "the latest request covering the card is the one counted", ctx do
+      card = merged(ctx.done, 480)
+      release!(ctx.board, [card], 120, "failed")
+      assert [%{seconds: 7200}] = tree(ctx.board)
+
+      # Released again five minutes ago: the clock starts over.
+      release!(ctx.board, [card], 5)
+      assert tree(ctx.board) == []
+
+      assert [%{seconds: 1500}] =
+               NotShipped.in_tree(ctx.board, [ctx.board.id], DateTime.add(@now, 1200))
+    end
+
+    test "only a request that covers the card, on this tree, and has started", ctx do
+      card = merged(ctx.done, 480)
+      other = merged(ctx.done, 480, title: "Other")
+      release!(ctx.board, [other], 45)
+
+      # A follow-up still queued has taken no cards and has no start.
+      Repo.insert!(%Request{board_id: ctx.board.id, status: "queued", card_ids: []})
+
+      # Another tree's request naming this card's id is not this card's release.
+      elsewhere =
+        board_fixture(%{"name" => "Elsewhere", "code" => unique_code()}, owner: ctx.owner)
+
+      release!(elsewhere, [card], 45)
+
+      assert [%{card_id: id}] = tree(ctx.board)
+      assert id == other.id
+      assert NotShipped.for_card(card, @now) == nil
+    end
+
+    test "a succeeded deploy naming the card covers it", ctx do
+      card = merged(ctx.done, 480)
+      release!(ctx.board, [card], 45)
+      assert [_] = tree(ctx.board)
+
+      deploy!(ctx.board, card)
+      assert tree(ctx.board) == []
+      assert NotShipped.for_card(card, @now) == nil
+    end
+
+    test "a subcard counts from its root's request", ctx do
+      epic = card_fixture(ctx.done, %{"title" => "Epic"})
+      sub = sub_board!(epic)
+      child = merged(hd(sub.columns), 480, title: "Child")
+
+      assert NotShipped.in_tree(ctx.board, [ctx.board.id, sub.id], @now) == []
+      assert NotShipped.for_card(child, @now) == nil
+
+      release!(ctx.board, [child], 45)
+      assert [%{card_id: id}] = NotShipped.in_tree(ctx.board, [ctx.board.id, sub.id], @now)
+      assert id == child.id
+
+      assert %{text: "Merged 1a634c6 · not shipped 45m after its release started"} =
+               NotShipped.for_card(child, @now)
+    end
+
+    test "the root's mode and requests count when a sub-board is the delivery board", ctx do
+      # The root releases in batches but records no deploys; a sub-board does.
+      {:ok, root} = Boards.update_board(ctx.board, %{"delivery_metrics" => false})
+      epic = card_fixture(ctx.done, %{"title" => "Epic"})
+      sub = sub_board!(epic)
+      {:ok, sub} = Boards.update_board(sub, %{"delivery_metrics" => true})
+
+      Repo.update_all(from(b in Board, where: b.id == ^sub.id),
+        set: [delivery_metrics_since: @since]
+      )
+
+      root = fresh(root)
+      assert root.release_mode == "batched"
+      assert NotShipped.delivery_board(root, [root.id, sub.id]).id == sub.id
+
+      child = merged(hd(sub.columns), 480, title: "Child")
+
+      # Only awaiting release: no line and no alert, though it merged hours ago.
+      assert NotShipped.in_tree(root, [root.id, sub.id], @now) == []
+      assert NotShipped.for_card(child, @now) == nil
+      assert Watch.run(root, Overseer.settings(root), @now, checks: Watch.always()).fired == []
+
+      # The request is the root's, and its start is what the minutes count from.
+      release!(root, [child], 45)
+      assert [line] = NotShipped.in_tree(root, [root.id, sub.id], @now)
+      assert line.card_id == child.id
+      assert line.seconds == 45 * 60
+      assert %DateTime{} = line.release_requested_at
+
+      assert %{
+               text: "Merged 1a634c6 · not shipped 45m after its release started",
+               release_requested_at: %DateTime{}
+             } = NotShipped.for_card(child, @now)
+
+      assert [fired] =
+               Watch.run(root, Overseer.settings(root), @now, checks: Watch.always()).fired
+
+      assert fired.card_id == child.id
+      assert fired.why =~ "its release started at 11 Nov 20:16 UTC"
+    end
+
+    test "the alert's words say the release started, and to release again", ctx do
+      card = merged(ctx.done, 480, title: "In the batch")
+      release!(ctx.board, [card], 45, "failed")
+
+      result = Watch.run(ctx.board, Overseer.settings(ctx.board), @now, checks: Watch.always())
+      assert [fired] = result.fired
+      assert fired.card_id == card.id
+      assert fired.title == "##{card.id} “In the batch” merged, not shipped"
+      assert fired.why =~ "Merged as 1a634c6; its release started at 11 Nov 20:16 UTC"
+      assert fired.why =~ "20m later no succeeded deploy names it"
+      assert fired.why =~ "the release may have failed"
+      refute fired.why =~ "Merged as 1a634c6 at"
+      assert fired.todo =~ "release again"
+      refute fired.todo =~ "run the deploy again"
+
+      deploy!(ctx.board, card)
+
+      cleared =
+        Watch.run(ctx.board, Overseer.settings(ctx.board), DateTime.add(@now, 60),
+          checks: Watch.always()
+        )
+
+      assert [%{id: id}] = cleared.cleared
+      assert id == fired.id
+    end
+
+    test "back on on_merge the merge counts again, requests or not", ctx do
+      card = merged(ctx.done, 45)
+      assert tree(ctx.board) == []
+
+      {:ok, _} = Boards.update_board(ctx.board, %{"release_mode" => "on_merge"})
+      assert [line] = tree(fresh(ctx.board))
+      assert line.seconds == 45 * 60
+      refute Map.has_key?(line, :release_requested_at)
+
+      line = NotShipped.for_card(card, @now)
+      assert line.text == "Merged 1a634c6 · not shipped after 45m"
+      refute Map.has_key?(line, :release_requested_at)
+    end
+  end
+
   describe "the watch" do
     test "fires once: a condition, one warning alert on the root and an email; a covering deploy clears both",
          ctx do

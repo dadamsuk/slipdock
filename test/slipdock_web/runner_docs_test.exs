@@ -255,7 +255,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert_states(agents, "asked of a sub-board, it needs read on the root board too")
 
     assert_states(
-      read("docs/manual/verified-work.md"),
+      read("docs/manual/batched-releases.md"),
       "asking it of a sub-board needs read on the root board"
     )
 
@@ -280,7 +280,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
     # custom one runs only where the machine lists it (#2836).
     for path <- [
           "README.md",
-          "docs/manual/verified-work.md",
+          "docs/manual/batched-releases.md",
           "lib/slipdock_web/live/help_live/guides.ex",
           "lib/slipdock_web/live/help_live/flow.ex",
           "lib/slipdock_web/live/agentic_live/index.ex",

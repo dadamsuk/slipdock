@@ -21,6 +21,14 @@ defmodule Slipdock.Deployments.NotShipped do
   merged earlier fires. An archived card, a stand-in and an epic (a card
   with subcards ships through them) never count.
 
+  **On a tree that releases in batches** (#2839, `Slipdock.Releases`) a
+  merge isn't a deploy, so the minutes count from the card's release, not
+  its merge: from the start of the latest release request that covers the
+  card (`Slipdock.Releases.Request`, its `started_at`, whatever became of
+  it). A card that is only awaiting release is never late, however long it
+  waits; one whose release started and came to nothing is. The line then
+  carries `release_requested_at`, and `seconds` run from it.
+
   `Slipdock.Overseer.Checks.NotShipped` raises the board's alert from
   `in_tree/3`; a card's own line comes from `for_card/2`, so it shows and
   goes on the same facts.
@@ -30,6 +38,7 @@ defmodule Slipdock.Deployments.NotShipped do
 
   alias Slipdock.Boards.{Board, Card}
   alias Slipdock.Deployments.Deployment
+  alias Slipdock.Releases.Request
   alias Slipdock.Repo
 
   @doc """
@@ -50,11 +59,12 @@ defmodule Slipdock.Deployments.NotShipped do
   @doc """
   The merged cards on `board_ids` (one tree, its root `root`) that have
   not shipped as of `now`, oldest merge first: each `%{card_id, title, sha,
-  merged_at, seconds, minutes}`, `minutes` being the board's setting.
+  merged_at, seconds, minutes}`, `minutes` being the board's setting, and
+  `release_requested_at` on a tree that releases in batches.
   """
   def in_tree(%Board{} = root, board_ids, %DateTime{} = now) do
     case delivery_board(root, board_ids) do
-      %Board{} = board -> find(board, where(Card, [c], c.board_id in ^board_ids), now)
+      %Board{} = board -> find(board, root, where(Card, [c], c.board_id in ^board_ids), now)
       nil -> []
     end
   end
@@ -62,7 +72,9 @@ defmodule Slipdock.Deployments.NotShipped do
   @doc """
   `card`'s not-shipped line as of `now`, or nil: `%{sha, merged_at,
   seconds, minutes, text}`, the text `Merged 1a634c6 · not shipped after
-  45m`.
+  45m`. On a tree that releases in batches it has `release_requested_at`
+  too, and reads `Merged 1a634c6 · not shipped 45m after its release
+  started`.
   """
   def for_card(card, now \\ DateTime.utc_now())
 
@@ -74,7 +86,7 @@ defmodule Slipdock.Deployments.NotShipped do
          %Board{} = root <- Repo.get(Board, id),
          ids = Repo.all(from b in Board, where: b.id == ^id or b.root_id == ^id, select: b.id),
          %Board{} = board <- delivery_board(root, ids),
-         [line] <- find(board, where(Card, [c], c.id == ^card.id), now) do
+         [line] <- find(board, root, where(Card, [c], c.id == ^card.id), now) do
       line |> Map.drop([:card_id, :title]) |> Map.put(:text, text(line))
     else
       _ -> nil
@@ -83,7 +95,16 @@ defmodule Slipdock.Deployments.NotShipped do
 
   def for_card(_card, _now), do: nil
 
-  @doc "The line in words: `Merged 1a634c6 · not shipped after 45m`."
+  @doc """
+  The line in words: `Merged 1a634c6 · not shipped after 45m`, or, counted
+  from a batched tree's release, `Merged 1a634c6 · not shipped 45m after
+  its release started`.
+  """
+  def text(%{sha: sha, seconds: seconds, release_requested_at: %DateTime{}}) do
+    "Merged #{short(sha)} · not shipped #{Slipdock.Overseer.Check.duration(seconds)} " <>
+      "after its release started"
+  end
+
   def text(%{sha: sha, seconds: seconds}),
     do: "Merged #{short(sha)} · not shipped after #{Slipdock.Overseer.Check.duration(seconds)}"
 
@@ -91,19 +112,50 @@ defmodule Slipdock.Deployments.NotShipped do
   def short(sha), do: String.slice(sha, 0, 7)
 
   # Off, or metrics on with no time to count from: nothing.
-  defp find(%Board{not_shipped_minutes: minutes, delivery_metrics_since: since}, _cards, _now)
+  defp find(%Board{not_shipped_minutes: minutes, delivery_metrics_since: since}, _root, _c, _now)
        when minutes in [nil, 0] or is_nil(since),
        do: []
 
-  defp find(%Board{not_shipped_minutes: minutes, delivery_metrics_since: since}, cards, now) do
+  defp find(%Board{not_shipped_minutes: minutes} = board, root, cards, now) do
     late = DateTime.add(now, -minutes * 60, :second)
 
+    cards
+    |> unshipped(board.delivery_metrics_since)
+    |> late(root, late)
+    |> Repo.all()
+    |> Enum.map(fn line ->
+      line
+      |> Map.put(:seconds, DateTime.diff(now, line[:release_requested_at] || line.merged_at))
+      |> Map.put(:minutes, minutes)
+    end)
+  end
+
+  # Whose clock has run out. A tree that releases in batches counts from
+  # the start of the latest release request covering the card (#2839): no
+  # request, no clock. Any other tree counts from the merge.
+  defp late(query, %Board{release_mode: "batched", id: root_id}, late) do
+    asked =
+      from r in Request,
+        where: r.board_id == ^root_id,
+        where: fragment("? = ANY(?)", parent_as(:card).id, r.card_ids),
+        select: %{at: max(r.started_at)}
+
+    query
+    |> join(:inner_lateral, [card: c], r in subquery(asked), as: :asked, on: true)
+    |> where([asked: r], r.at <= ^late)
+    |> select_merge([asked: r], %{release_requested_at: r.at})
+  end
+
+  defp late(query, %Board{}, late), do: where(query, [card: c], c.completed_at <= ^late)
+
+  # The merged cards no succeeded deploy names, merged since `since`.
+  defp unshipped(cards, since) do
     cards
     |> from(as: :card)
     |> join(:inner, [card: c], b in Board, as: :board, on: b.id == c.board_id)
     |> where([card: c], c.completed and c.verify_state == "accepted")
     |> where([card: c], is_nil(c.archived_at) and is_nil(c.stand_in_for_id))
-    |> where([card: c], c.completed_at > ^since and c.completed_at <= ^late)
+    |> where([card: c], c.completed_at > ^since)
     # A board that ships by pull request merges: only a merge commit counts.
     |> where(
       [card: c, board: b],
@@ -134,11 +186,5 @@ defmodule Slipdock.Deployments.NotShipped do
       sha: coalesce(c.merge_sha, coalesce(c.verify_commit, c.evidence_commit)),
       merged_at: c.completed_at
     })
-    |> Repo.all()
-    |> Enum.map(fn line ->
-      line
-      |> Map.put(:seconds, DateTime.diff(now, line.merged_at))
-      |> Map.put(:minutes, minutes)
-    end)
   end
 end

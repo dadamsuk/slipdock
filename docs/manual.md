@@ -25,6 +25,7 @@ The manual is in parts, one page each. Every section and what it covers:
   - [A second agent verifies](manual/verified-work.md#a-second-agent-verifies)
   - [Verify jobs](manual/verified-work.md#verify-jobs)
   - [Shipping by pull request](manual/verified-work.md#shipping-by-pull-request)
+- [Batched releases](manual/batched-releases.md)
 - [Lanes](manual/lanes.md)
 - [Profiles](manual/profiles.md)
   - [The human tier](manual/profiles.md#the-human-tier)

@@ -21,11 +21,14 @@ Every minute it runs six checks over the board tree:
 | `slow` | a card has been in a doing list longer than its board's P85 time to done for its profile (or for every card, with fewer than 8 of the profile done in 90 days); or a running job's heartbeat is live but its step hasn't changed in 30 minutes |
 | `idle_capacity` | cards are free on a ready list while runners on the tree are online with no job for the *idle* minutes (15); or two or more queued jobs wait behind one card's lane (a file in every card's paths, such as `docs/agents.md`, serialises them) |
 | `no_way_forward` | an epic is in progress and every open subcard is blocked |
-| `not_shipped` | a card merged longer ago than its board's *Not shipped after* minutes (20) and no succeeded deploy names it; only on a tree with [delivery metrics](delivery-metrics-deploys-and-dora.md) on |
+| `not_shipped` | a card merged longer ago than its board's *Not shipped after* minutes (20) and no succeeded deploy names it (on a board with [batched releases](batched-releases.md), longer ago than that since its release started); only on a tree with [delivery metrics](delivery-metrics-deploys-and-dora.md) on |
 
 `not_shipped` alone **runs whether or not the overseer is on**: a board with
 delivery metrics on is told of a merged card that never shipped, by alert and
-email, without turning anything else on. The other five wait for the switch.
+email, without turning anything else on. On a board with
+[batched releases](batched-releases.md) a card is done when it merges and
+waits for a release, which is no alert: the minutes count from the card's
+release, not its merge, and *Release now* is how a person ships it. The other five wait for the switch.
 
 A condition found for the first time **fires**: a warning alert on the root
 board (the alerts bar, as an automation's alert is) and an email to the

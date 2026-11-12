@@ -424,7 +424,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
           <strong>Batched releases</strong>: Agentic Building → <em>Releases</em>
           on the root board chooses how merged work reaches production: with each merge, or in
           batches, with an age cap in hours for how long the oldest merge may wait. A merged
-          card is still done; on a batched board it shows <em>merged, awaiting release</em>
+          card is still done, and <em>Release now</em>
+          is how a person ships it; on a batched board it shows <em>merged, awaiting release</em>
           until a deploy ships it, then <em>released</em>
           with the time. A release runs when a card of priority <em>critical</em>
           merges, when the oldest merge reaches the age cap, or when the board's owner presses <em>Release now</em>, on the board's release banner or on that page. Releases run one at a
@@ -475,7 +476,9 @@ defmodule SlipdockWeb.HelpLive.Guides do
           board's <em>Not shipped after</em>
           setting) shows an amber <em>Merged 1a634c6 · not shipped after 45m</em>
           and raises one warning alert on the board, whether or not the overseer is on; the
-          deploy that names it clears both. How long ago each
+          deploy that names it clears both. On a board with batched releases the minutes count
+          from the card's release, not its merge, so a card waiting for its batch raises
+          nothing. How long ago each
           one was ("18 min ago") keeps up with the clock while the card is open.
         </li>
         <li>

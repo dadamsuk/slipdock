@@ -289,7 +289,10 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   deploy names after 20 minutes (the board's *Not shipped after*,
   `not_shipped_minutes`) shows an amber *Merged 1a634c6 · not shipped after
   45m* and raises one warning alert, overseer on or off, both cleared by the
-  deploy that names it; incidents are
+  deploy that names it (on a board with [batched
+  releases](docs/manual/batched-releases.md) the minutes count from the
+  card's release, not its merge, so waiting for a batch is no alert);
+  incidents are
   ordinary cards tagged `incident`. Off until the owner turns **Delivery
   metrics** on; **Track deployments** in board settings (or `slipdock deploy
   setup <board>`) issues a deploy token that can record deploys and nothing
@@ -550,7 +553,8 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   to boards, the wiki, sharing, automations and the AI features (asking about a
   board, searching and asking across every board), and to connecting agents.
 
-  Merged work can also be **released in batches** rather than on every
+  Merged work can also be **[released in
+  batches](docs/manual/batched-releases.md)** rather than on every
   merge (`slipdock set-board --release-mode batched`, with
   `--release-age-cap HOURS` for how long the oldest merge may wait; both
   are the root board's, and its Agentic Building page has them under
