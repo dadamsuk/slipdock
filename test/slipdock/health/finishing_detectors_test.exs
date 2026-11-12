@@ -193,6 +193,29 @@ defmodule Slipdock.Health.FinishingDetectorsTest do
       assert [f] = detect(VerifyMissing, ctx.board)
       assert f.summary =~ "(the last, ##{same.id}, ended failed)."
     end
+
+    test "a card submitted again while pending, its first verify job still open, is not flagged",
+         ctx do
+      # Submitted, then submitted again while pending: verification/3 moves
+      # verify_at to the resubmission and submitted/3 queues no second job,
+      # so the open job is older than verify_at.
+      job(ctx.card, status: "queued", inserted_at: ago(30))
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(12))
+      assert detect(VerifyMissing, ctx.board) == []
+
+      claimed = job(ctx.card, status: "claimed", inserted_at: ago(40))
+      Repo.delete_all(from(j in Job, where: j.card_id == ^ctx.card.id and j.id != ^claimed.id))
+      assert detect(VerifyMissing, ctx.board) == []
+    end
+
+    test "a pending card with no verify_at counts all its verify jobs", ctx do
+      failed = job(ctx.card, status: "failed", inserted_at: ago(30), finished_at: ago(15))
+      set_card(ctx.card, verify_state: "pending", verify_at: nil)
+
+      assert [f] = detect(VerifyMissing, ctx.board)
+      assert f.summary =~ "has waited 15 minutes"
+      assert f.summary =~ "(the last, ##{failed.id}, ended failed)."
+    end
   end
 
   describe "verify_missing: a refusal that would come again (#2705)" do

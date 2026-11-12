@@ -8,9 +8,13 @@ defmodule Slipdock.Health.Detectors.VerifyMissing do
   again (`Slipdock.Runners.lasting_refusal?/1`) is flagged at once, with
   the reason, rather than retried (#2705).
 
-  Only the jobs of the card's current submission (queued at or after its
-  `verify_at`) count (#2760): a job from an earlier round, which gave its
-  verdict and sent the card back, is not this submission's "last" job. On
+  An open verify job counts whatever its age: a card submitted again while
+  still pending gets a new `verify_at` but keeps the job already queued
+  (`Slipdock.Verified.submitted/3` queues no second), so it is not missing.
+  With none open, only the jobs of the card's current submission (queued at
+  or after its `verify_at`) count as its last and its quiet time (#2760): a
+  job from an earlier round, which gave its verdict and sent the card back,
+  is not this submission's "last" job. On
   2026-11-10 three resubmissions whose verify prompt was over the runners'
   cap were flagged as though the earlier round's job (ended `done`, with a
   rejection) had ended without a verdict.
@@ -41,8 +45,9 @@ defmodule Slipdock.Health.Detectors.VerifyMissing do
     jobs = Finishing.jobs(Enum.map(cards, & &1.id), Verified.verify_kind())
 
     for card <- cards,
-        mine = this_submission(card, Map.get(jobs, card.id, [])),
-        not Enum.any?(mine, &Job.open?/1),
+        all = Map.get(jobs, card.id, []),
+        not Enum.any?(all, &Job.open?/1),
+        mine = this_submission(card, all),
         since = Finishing.quiet_since(card, mine),
         Context.minutes_since(ctx, since) >= minutes do
       last = List.first(mine)
@@ -68,12 +73,7 @@ defmodule Slipdock.Health.Detectors.VerifyMissing do
   defp this_submission(%Card{verify_at: nil}, jobs), do: jobs
 
   defp this_submission(%Card{verify_at: at}, jobs),
-    do: Enum.filter(jobs, &(DateTime.compare(queued_at(&1), at) != :lt))
-
-  defp queued_at(%Job{inserted_at: %DateTime{} = at}), do: at
-
-  defp queued_at(%Job{inserted_at: %NaiveDateTime{} = at}),
-    do: DateTime.from_naive!(at, "Etc/UTC")
+    do: Enum.filter(jobs, &(DateTime.compare(&1.inserted_at, at) != :lt))
 
   @impl true
   def resolve(%{data: %{"card" => id}}, _attempt) do
