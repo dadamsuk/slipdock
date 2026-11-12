@@ -539,5 +539,18 @@ defmodule SlipdockCLI.RunnersTest do
 
       assert out =~ "skills:    unsigned on server (slipdock)"
     end
+
+    # A drift that names no skills (no `drifted_skills` key) still names the
+    # server, never a bare `unsigned` that reads as the machine's (#2916).
+    test "unsigned skills with no names still say it is the server's" do
+      drift = %{"skills" => "unsigned", "cli" => "current"}
+
+      table = capture_io(fn -> SlipdockCLI.Render.runners([drifting(drift)]) end)
+      assert table =~ "skills unsigned on server · cli current"
+      refute table =~ "unsigned on server ("
+
+      one = capture_io(fn -> SlipdockCLI.Render.runner(drifting(drift)) end)
+      assert one =~ "skills:    unsigned on server\n"
+    end
   end
 end
