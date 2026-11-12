@@ -1555,6 +1555,8 @@ defmodule Slipdock.CiWorkflowTest do
   describe "coverage across the partitions" do
     defp coverage_job, do: workflow("ci.yml")["jobs"]["coverage"]
 
+    @coverage_run "mix slipdock.coverage ${{ steps.mix-cache.outputs.cache-hit == 'true' && '--no-compile' || '' }}"
+
     test "mix.exs sets a threshold for the project's own coverage tool" do
       config = Mix.Project.config()[:test_coverage]
       assert config[:tool] == Slipdock.Coverage
@@ -1582,7 +1584,12 @@ defmodule Slipdock.CiWorkflowTest do
         )
 
       assert upload["uses"] =~ "actions/upload-artifact@"
-      assert upload["with"]["path"] == "cover/partition-${{ matrix.partition }}.coverdata"
+
+      assert String.split(upload["with"]["path"], "\n", trim: true) == [
+               "cover/partition-${{ matrix.partition }}.coverdata",
+               "cover/partition-${{ matrix.partition }}.skipped"
+             ]
+
       assert upload["with"]["if-no-files-found"] == "error"
     end
 
@@ -1610,8 +1617,8 @@ defmodule Slipdock.CiWorkflowTest do
       # The command and nothing after it (`|| true`), on a step that always
       # runs and whose failure fails the job. An integer first: a step that
       # isn't there is `nil`, and `nil > 3` is true.
-      merge_at = step_at(job, "run", "mix slipdock.coverage")
-      assert is_integer(merge_at), "no step runs exactly `mix slipdock.coverage`"
+      merge_at = step_at(job, "run", @coverage_run)
+      assert is_integer(merge_at), "no step runs exactly `#{@coverage_run}`"
       assert merge_at > Enum.find_index(job["steps"], &(&1 == download))
 
       merge = Enum.at(job["steps"], merge_at)
@@ -1627,6 +1634,17 @@ defmodule Slipdock.CiWorkflowTest do
 
       restore = &Enum.find(&1["steps"], fn s -> s["id"] == "mix-cache" end)
       assert restore.(coverage_job()) == restore.(suite_job())
+    end
+
+    # The cache's exact key is this tree's build; another runner's checkout
+    # is in another directory, and Mix would recompile all of it (#2848).
+    test "the coverage job compiles nothing on an exact cache hit, and compiles on any other" do
+      job = coverage_job()
+      merge = Enum.at(job["steps"], step_at(job, "run", @coverage_run))
+
+      assert merge["run"] =~ "steps.mix-cache.outputs.cache-hit == 'true' && '--no-compile'"
+      assert Enum.any?(job["steps"], &(&1["id"] == "mix-cache"))
+      refute Enum.any?(job["steps"], &((&1["run"] || "") =~ ~r/\bmix compile\b/))
     end
 
     test "the release's suite runs it too, as part of ci.yml" do

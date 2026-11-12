@@ -6,8 +6,10 @@ defmodule Slipdock.Coverage do
   Elixir 1.20 / OTP 27 `:cover` cannot recompile some of them — code like
   `x in [:a, :b]` outside a guard comes back from its instrumentation as an
   "unsafe variable" error, and the whole run dies with a `MatchError` before
-  a single test starts. This compiles them one at a time instead, names the
-  ones it had to leave out, and reports the rest.
+  a single test starts. This tries them a chunk at a time instead, each
+  chunk in a server of its own, narrows a chunk that dies down to the
+  beams that killed it, names the ones it had to leave out, and reports
+  the rest.
 
   Prints a table of modules under `lib/`, worst covered first, and writes
   an HTML page per module to `cover/`. `--cover` takes the same
@@ -30,7 +32,7 @@ defmodule Slipdock.Coverage do
     skipped = cover_compile(compile_path)
 
     case Keyword.get(opts, :export) do
-      name when is_binary(name) -> fn -> export(name, opts) end
+      name when is_binary(name) -> fn -> export(name, skipped, opts) end
       _ -> fn -> report!(skipped, opts) end
     end
   end
@@ -42,6 +44,12 @@ defmodule Slipdock.Coverage do
   @doc """
   Imports every `*.coverdata` in the output directory (`cover/`) into a
   freshly cover-compiled build, then reports as `mix test --cover` does.
+
+  Each export comes with a `NAME.skipped` beside it, the modules that
+  partition couldn't cover-compile: with those there, the merge leaves
+  them out and compiles the rest in one call, rather than finding them
+  again one chunk at a time. If that call fails, a list was stale, and
+  it finds them as a partition does.
   Returns `:ok`, or `:below` when the total misses the threshold; raises
   when there is nothing to import.
   """
@@ -54,8 +62,9 @@ defmodule Slipdock.Coverage do
         Mix.raise("No coverage exports (*.coverdata) in #{output}/ to merge")
 
       exports ->
+        known = known_skipped(output)
         Mix.shell().info("Cover compiling modules ...")
-        skipped = cover_compile(compile_path)
+        skipped = cover_compile(compile_path, known)
         Enum.each(exports, &import!/1)
         report(skipped, opts)
     end
@@ -70,13 +79,32 @@ defmodule Slipdock.Coverage do
     end
   end
 
-  defp export(name, opts) do
+  # The modules the partitions' `NAME.skipped` lists name, or nil when
+  # there are none to go by.
+  defp known_skipped(output) do
+    case Path.wildcard(Path.join(output, "*.skipped")) do
+      [] ->
+        nil
+
+      lists ->
+        lists
+        |> Enum.flat_map(&String.split(File.read!(&1), "\n", trim: true))
+        |> MapSet.new()
+    end
+  end
+
+  defp export(name, skipped, opts) do
     output = Keyword.get(opts, :output, "cover")
     File.mkdir_p!(output)
     file = Path.join(output, "#{name}.coverdata")
 
     case :cover.export(String.to_charlist(file)) do
       :ok ->
+        File.write!(
+          Path.join(output, "#{name}.skipped"),
+          Enum.map_join(skipped, &(Atom.to_string(&1) <> "\n"))
+        )
+
         Mix.shell().info(
           "\nCoverage exported to #{file}; mix slipdock.coverage merges the exports"
         )
@@ -87,8 +115,13 @@ defmodule Slipdock.Coverage do
     end
   end
 
+  # Beams per first try: one `:cover.compile_beam/1` call each, which
+  # compiles them in parallel.
+  @chunk 32
+
   # Cover-compiles every beam it can and returns the modules it couldn't.
-  defp cover_compile(compile_path) do
+  # `known` is the modules the exports say can't be (a MapSet), or nil.
+  defp cover_compile(compile_path, known \\ nil) do
     # Never this module or the merge task: stopping :cover reloads what it
     # compiled, and the purge of the old code kills whoever is running it.
     beams =
@@ -97,29 +130,86 @@ defmodule Slipdock.Coverage do
       |> Path.wildcard()
       |> Enum.reject(&Enum.member?([__MODULE__, Mix.Tasks.Slipdock.Coverage], module(&1)))
 
+    # Nothing to compile would report 100% of nothing: a build that isn't
+    # there, as after `mix slipdock.coverage --no-compile` on a cache miss.
+    if beams == [], do: Mix.raise("No beams in #{compile_path} to cover-compile")
+
+    {listed, rest} = Enum.split_with(beams, &(known && Atom.to_string(module(&1)) in known))
+
+    cond do
+      known == nil ->
+        probe_and_compile(beams)
+
+      compiled_apart?(rest) ->
+        Mix.shell().info(
+          "Compiled in one call, leaving out the #{length(listed)} the exports list"
+        )
+
+        Enum.map(listed, &module/1)
+
+      true ->
+        Mix.shell().info("The exports' lists missed a module: trying each chunk")
+        probe_and_compile(beams)
+    end
+  end
+
+  defp probe_and_compile(beams) do
     # A beam :cover cannot compile kills its server and whoever started it,
-    # taking every module compiled so far along. So try each one from a
-    # process of its own first, then compile only the ones that survived.
-    {good, bad} = Enum.split_with(beams, &compiles?/1)
-    _ = :cover.stop()
-    Enum.each(good, &compile/1)
+    # taking every module compiled so far along (#2848: one bad beam fails
+    # the whole parallel call). So try them a chunk at a time from a process
+    # of its own, halve the chunks that die until the culprits are alone,
+    # then compile all the ones that survived in one call. Nothing to stop
+    # in between: a beam that kills the server takes all it held, so it
+    # only ever holds good ones, and compiling one again replaces it.
+    {good, bad} =
+      beams
+      |> Enum.chunk_every(@chunk)
+      |> Enum.map(&probe/1)
+      |> Enum.reduce({[], []}, fn {g, b}, {gs, bs} -> {gs ++ g, bs ++ b} end)
+
+    _ = compile(good)
 
     Enum.map(bad, &module/1)
   end
 
-  defp compiles?(beam) do
-    {pid, ref} = spawn_monitor(fn -> exit({:compiled, compile(beam)}) end)
+  # {the beams :cover compiles, the ones it can't}.
+  defp probe(beams) do
+    cond do
+      compiled_apart?(beams) ->
+        {beams, []}
 
-    receive do
-      {:DOWN, ^ref, :process, ^pid, reason} ->
-        _ = :cover.stop()
-        reason == {:compiled, true}
+      match?([_], beams) ->
+        {[], beams}
+
+      true ->
+        {first, second} = Enum.split(beams, div(length(beams), 2))
+        {good1, bad1} = probe(first)
+        {good2, bad2} = probe(second)
+        {good1 ++ good2, bad1 ++ bad2}
     end
   end
 
-  defp compile(beam) do
+  # Compiles the beams in one call, from a process of its own so that a
+  # beam that kills :cover doesn't take the merge with it: true when they
+  # all compiled. They stay compiled after the process goes: the server
+  # isn't linked to whoever started it.
+  defp compiled_apart?(beams) do
+    {pid, ref} = spawn_monitor(fn -> exit({:compiled, compile(beams)}) end)
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, reason} -> reason == {:compiled, true}
+    end
+  end
+
+  defp compile([]), do: true
+
+  defp compile(beams) do
     _ = :cover.local_only()
-    match?({:ok, _}, :cover.compile_beam(String.to_charlist(beam)))
+
+    beams
+    |> Enum.map(&String.to_charlist/1)
+    |> :cover.compile_beam()
+    |> Enum.all?(&match?({:ok, _}, &1))
   end
 
   defp module(beam), do: beam |> Path.basename(".beam") |> String.to_atom()
@@ -197,15 +287,28 @@ defmodule Mix.Tasks.Slipdock.Coverage do
   NAME` wrote, one per CI partition, prints the report and exits non-zero
   when the total is below `mix.exs`'s `test_coverage` threshold.
 
-      MIX_ENV=test mix slipdock.coverage
+      MIX_ENV=test mix slipdock.coverage [--no-compile]
+
+  `--no-compile` merges into the build already in `_build`, as it is:
+  CI's coverage job passes it when its cache restored the build of the
+  same tree, rather than have Mix recompile it.
 
   Test env only: it lives in `test/support` beside `Slipdock.Coverage`.
   """
   use Mix.Task
 
   @impl true
-  def run(_args) do
-    Mix.Task.run("compile")
+  def run(args) do
+    {opts, _} = OptionParser.parse!(args, strict: [compile: :boolean])
+
+    # --no-compile takes the build as it is: CI's coverage job passes it when
+    # the cache held the build of this very tree, which Mix would otherwise
+    # recompile whole on a runner whose checkout is in another directory
+    # (#2848: the manifest keeps the project's absolute path). Nothing to
+    # load then: :cover reads the beams by their path, and Mix put the
+    # app's ebin on the code path to find this task.
+    if Keyword.get(opts, :compile, true), do: Mix.Task.run("compile")
+
     project = Mix.Project.config()
     check(Mix.Project.compile_path(project), project[:test_coverage] || [])
   end
