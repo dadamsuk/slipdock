@@ -481,6 +481,8 @@ defmodule SlipdockWeb.HelpLive.Flow do
       A Housekeeping card that turns out to need a design choice, or grows into feature work,
       comes back to you: the agent moves it to Triage with a <em>product</em>
       wait saying what grew, and builds nothing.
+      With the overseer on, each morning (07:00 unless you set another time) its card gets a
+      digest of what Housekeeping worked, grouped by theme, naming only what needs you.
     </p>
     <p>
       The card moves into progress, and the <strong>bar locks</strong>: from then on only a

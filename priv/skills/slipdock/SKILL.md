@@ -394,6 +394,7 @@ slipdock health settings <board> [<detector> key=value...]   # detectors on/off,
 slipdock overseer <board> [--on|--off] [--pool P] [--min-minutes N] [--max-minutes N]   # the overseer: open
                                        # conditions (looping, waiting while idle, slow, idle capacity, no way
                                        # forward) with why and what to do, its last digest, next pass; owner sets it
+                                       # --digest-at HH:MM: when the morning digest of Housekeeping's work is written
 slipdock findings <board> [--status S] [--kind K] [--days N] [--card ID]   # first the proposals drafted
                                        # from findings that await a person (decided on the board's Tidy-up
                                        # page, which it links), then what cards taught and the

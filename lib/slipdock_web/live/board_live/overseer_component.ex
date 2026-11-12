@@ -154,6 +154,13 @@ defmodule SlipdockWeb.BoardLive.OverseerComponent do
             label="Runners idle after (min)"
             class="input field w-24"
           />
+          <.input
+            field={@form[:digest_at]}
+            type="text"
+            label="Housekeeping digest at"
+            placeholder="07:00"
+            class="input field w-24"
+          />
         </div>
         <input type="hidden" name={@form[:email].name} value="false" />
         <label class="flex cursor-pointer items-center gap-2 text-sm">

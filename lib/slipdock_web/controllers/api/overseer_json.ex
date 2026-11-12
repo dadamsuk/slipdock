@@ -16,6 +16,9 @@ defmodule SlipdockWeb.API.OverseerJSON do
       max_minutes: s.max_minutes,
       idle_minutes: s.idle_minutes,
       email: s.email,
+      # The morning digest of Housekeeping's work (#2781): when, and the last.
+      digest_at: s.digest_at,
+      housekeeping_digest_at: s.housekeeping_digest_at,
       card_id: s.card_id,
       next_run_at: s.next_run_at,
       last_run_at: s.last_queued_at,

@@ -37,4 +37,18 @@ defmodule Slipdock.HousekeepingDocsTest do
       assert read(path) =~ words, "#{path} doesn't say #{inspect(words)}"
     end
   end
+
+  test "each place says the overseer writes a morning digest of it (#2781)" do
+    for {path, words} <- [
+          {"README.md", "digest of the Housekeeping list's overnight work"},
+          {"docs/manual/the-overseer.md", "**The morning digest of Housekeeping's work.**"},
+          {"lib/slipdock_web/api_guide.ex",
+           "morning digest of\n    Housekeeping's work on its card (#2781)"},
+          {"lib/slipdock_web/live/help_live/flow.ex", "digest of what Housekeeping worked"},
+          {"cli/help.txt", "[--digest-at HH:MM]"},
+          {"priv/skills/slipdock/SKILL.md", "--digest-at HH:MM"}
+        ] do
+      assert read(path) =~ words, "#{path} doesn't say #{inspect(words)}"
+    end
+  end
 end
