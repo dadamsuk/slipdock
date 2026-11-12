@@ -145,16 +145,76 @@ defmodule Slipdock.FileCleanupTest do
     assert failures == []
   end
 
+  # The uploads folder as a link to a folder that isn't there yet: every
+  # attempt to store under it fails the way a vanished folder does, for as
+  # long as the target stays missing.
+  defp uploads_dir_not_there_yet do
+    target = Path.join(System.tmp_dir!(), "cleanup-late-#{System.unique_integer([:positive])}")
+    on_exit(fn -> File.rm_rf!(target) end)
+    File.ln_s!(target, Boards.Attachments.uploads_dir())
+    target
+  end
+
+  # What `store` returns, having checked it didn't spend its 30 s retrying.
+  @long 30_000
+  defp at_once(store) do
+    started = System.monotonic_time(:millisecond)
+    result = store.()
+    assert System.monotonic_time(:millisecond) - started < 10_000
+    result
+  end
+
+  test "a store keeps trying for as long as it is given, not a number of times", %{src: src} do
+    # 20 attempts with pauses of 0 to 2 ms were over in 40 ms at most (#2831).
+    target = uploads_dir_not_there_yet()
+
+    # The folder turns up later, by a timer: nothing here waits for it but
+    # the store itself.
+    {:ok, _} = :timer.apply_after(150, File, :mkdir_p!, [target])
+
+    assert Boards.Attachments.put_file(src, "captures/late.wav", @long) == :ok
+    assert File.read!(Path.join(target, "captures/late.wav")) == "bytes"
+  end
+
+  test "a store gives up with the reason once its time is up", %{src: src} do
+    target = uploads_dir_not_there_yet()
+    started = System.monotonic_time(:millisecond)
+
+    assert {:error, reason} = Boards.Attachments.put_file(src, "captures/never.wav", 60)
+    assert reason in [:enoent, :enotdir]
+    assert System.monotonic_time(:millisecond) - started >= 60
+    refute File.exists?(target)
+  end
+
+  test "left to itself a store tries for two seconds", %{src: src} do
+    uploads_dir_not_there_yet()
+    started = System.monotonic_time(:millisecond)
+
+    assert {:error, reason} = Boards.Attachments.put_file(src, "captures/never.wav")
+    assert reason in [:enoent, :enotdir]
+    assert System.monotonic_time(:millisecond) - started >= 2_000
+  end
+
+  test "a store given no time tries once", %{src: src} do
+    uploads_dir_not_there_yet()
+    assert {:error, _} = Boards.Attachments.put_file(src, "captures/never.wav", 0)
+
+    File.rm!(Boards.Attachments.uploads_dir())
+    assert Boards.Attachments.put_file(src, "captures/once.wav", 0) == :ok
+  end
+
   test "storing a file that isn't there is still an error, not retried into success" do
     missing = Path.join(System.tmp_dir!(), "missing-#{System.unique_integer([:positive])}")
-    assert Boards.Attachments.put_file(missing, "captures/never.wav") == {:error, :enoent}
+    store = fn -> Boards.Attachments.put_file(missing, "captures/never.wav", @long) end
+    assert at_once(store) == {:error, :enoent}
     refute File.exists?(Path.join(Boards.Attachments.uploads_dir(), "captures/never.wav"))
   end
 
   test "storing over a folder that is a file fails with the reason", %{src: src} do
     File.mkdir_p!(Boards.Attachments.uploads_dir())
     File.write!(Path.join(Boards.Attachments.uploads_dir(), "captures"), "not a folder")
-    assert Boards.Attachments.put_file(src, "captures/x.wav") == {:error, :enotdir}
+    store = fn -> Boards.Attachments.put_file(src, "captures/x.wav", @long) end
+    assert at_once(store) == {:error, :enotdir}
   end
 
   test "a file further up the path fails at once too, and is left alone", %{src: src} do
@@ -162,7 +222,8 @@ defmodule Slipdock.FileCleanupTest do
     File.mkdir_p!(Path.dirname(blocker))
     File.write!(blocker, "not a folder")
 
-    assert Boards.Attachments.put_file(src, "captures/2026/11/x.wav") == {:error, :enotdir}
+    store = fn -> Boards.Attachments.put_file(src, "captures/2026/11/x.wav", @long) end
+    assert at_once(store) == {:error, :enotdir}
     assert File.read!(blocker) == "not a folder"
   end
 

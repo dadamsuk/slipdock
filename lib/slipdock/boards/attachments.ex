@@ -236,13 +236,17 @@ defmodule Slipdock.Boards.Attachments do
   between making it and copying into it (`:enoent`, or `:enotdir` from
   `File.mkdir_p/1`, which reports a folder that existed when it tried to
   make it and was gone when it checked). That is retried rather than
-  failing the upload (#1102): up to 20 times, with a short random pause
-  between, since writers kept in step can lose the same race attempt after
-  attempt (#1636). A failure that won't go away
-  is not retried: a source that isn't there, or a file standing where a
-  folder on the way should be.
+  failing the upload (#1102), with a short random pause between, since
+  writers kept in step can lose the same race attempt after attempt (#1636),
+  and for up to `wait_ms` rather than a number of times: under enough
+  removals a store lost twenty attempts in a row (#2831). A failure that
+  won't go away is not retried: a source that isn't there, or a file
+  standing where a folder on the way should be.
   """
-  def put_file(source, key, attempts \\ 20) do
+  def put_file(source, key, wait_ms \\ 2_000),
+    do: put_file_until(source, key, System.monotonic_time(:millisecond) + wait_ms)
+
+  defp put_file_until(source, key, deadline) do
     dir = uploads_dir()
     dest = Path.join(dir, key)
 
@@ -250,12 +254,13 @@ defmodule Slipdock.Boards.Attachments do
          {:ok, _} <- File.copy(source, dest) do
       :ok
     else
-      {:error, reason} when reason in [:enoent, :enotdir] and attempts > 1 ->
-        if File.exists?(source) and not file_in_the_way?(dir, Path.dirname(key)) do
+      {:error, reason} when reason in [:enoent, :enotdir] ->
+        if System.monotonic_time(:millisecond) < deadline and File.exists?(source) and
+             not file_in_the_way?(dir, Path.dirname(key)) do
           # A random pause, so writers that keep meeting the same removal
           # fall out of step with it rather than losing every time.
           Process.sleep(:rand.uniform(3) - 1)
-          put_file(source, key, attempts - 1)
+          put_file_until(source, key, deadline)
         else
           {:error, reason}
         end
