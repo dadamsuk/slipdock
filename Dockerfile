@@ -60,6 +60,9 @@ COPY priv priv
 # it; Slipdock.Machines.TrustContract reads it at compile time, so it must be
 # here before `mix compile` (test/slipdock/trust_contract_test.exs checks).
 COPY daemon/internal/contract/contract.md daemon/internal/contract/
+# The release key's public half, which /cli/install.sh carries to check the
+# CLI's signature (SlipdockWeb.CLIInstallController reads it at compile time).
+COPY daemon/internal/release/release_key.pub daemon/internal/release/
 COPY lib lib
 COPY assets assets
 

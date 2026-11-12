@@ -14,6 +14,26 @@ prints, so the two can't disagree: a change to the CLI's help is a change to
 that file, and the page follows it. On a phone a long command wraps between its
 options, and its option list scrolls inside its own box.
 
+On Linux and macOS, one line installs it from the server you use, for you
+alone and with no root of its own:
+
+```sh
+curl -fsSL https://your-server/cli/install.sh | sh     # again later to update it
+slipdock auth
+```
+
+It puts the escript in `~/.local/bin/slipdock` (`| sh -s /some/where/slipdock`
+for another place), says so if that folder is not on your PATH, and saves the
+server's address in `~/.config/slipdock/url` (unless it already names another
+server). The download is checked against `/cli/SHA256SUMS`, and against the
+release key's signature (`/cli/slipdock.escript.sig`) when the server serves
+one, before anything is written; a mismatch installs nothing. The escript needs
+Erlang/OTP 27 or later: with none, or an older one, the script stops and says
+what to run (`brew install erlang` on macOS, the distribution's package on
+Linux), and never runs anything as root itself. This is `/cli/install.sh`,
+which installs the CLI; the server's `/install.sh` installs the agent skills
+(see [Skills](skills.md)).
+
 On Windows, one line in PowerShell installs it from the server you use, for
 you alone and with no admin rights of its own:
 
@@ -34,7 +54,7 @@ against `/cli/SHA256SUMS` before anything is written. To take it away again:
 and serves it at `/cli/slipdock.escript`; a server run from a checkout has none
 to serve, and says so.
 
-Everywhere else, build and install it:
+From a checkout, build and install it:
 
 ```sh
 cd cli && mix escript.build && cp slipdock ~/.local/bin/

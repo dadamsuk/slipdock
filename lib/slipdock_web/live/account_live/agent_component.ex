@@ -236,8 +236,19 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         <p class="mt-1 text-sm text-base-content/60">
           A command-line client that wraps every call the agent would otherwise make with <code>curl</code>. Nicer to read in a transcript, and it keeps the token for
           you. It is also what mirrors your wiki to a local folder (<code>slipdock sync</code>).
-          On Windows, in PowerShell, one line installs it from here for you alone —
-          Erlang too, through winget, if there is none — and puts it on your PATH:
+          On Linux and macOS, one line installs it from here for you alone, into
+          <code>~/.local/bin</code>
+          (it needs Erlang/OTP 27 or later, and says how to get it if there is none):
+        </p>
+        <.copy_block
+          id="agent-cli-unix"
+          text={"curl -fsSL #{@base_url}/cli/install.sh | sh\nslipdock auth"}
+          label="Copy commands"
+        />
+        <p class="mt-2 text-xs text-base-content/60">
+          That is <code>/cli/install.sh</code>, the CLI; <code>/install.sh</code>
+          above installs the skills. On Windows, in PowerShell, one line installs it
+          from here — Erlang too, through winget, if there is none — and puts it on your PATH:
         </p>
         <.copy_block
           id="agent-cli-windows"
@@ -245,7 +256,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           label="Copy commands"
         />
         <p class="mt-2 text-xs text-base-content/60">
-          Elsewhere, build it from the repository (Elixir 1.19 or later), then point it here:
+          Or build it from the repository (Elixir 1.19 or later), then point it here:
         </p>
         <.copy_block
           id="agent-cli"

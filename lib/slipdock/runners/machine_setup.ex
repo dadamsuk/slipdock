@@ -67,7 +67,7 @@ defmodule Slipdock.Runners.MachineSetup do
 
     #{page_lines(pages)}
 
-    Read them with the `slipdock` CLI. If it isn't installed, `curl -fsSL #{base_url}/install.sh | sh` installs it and the skills, and `slipdock auth` signs it in (I approve it in my browser).#{directory_line(directories)}
+    Read them with the `slipdock` CLI. If it isn't installed, `curl -fsSL #{base_url}/cli/install.sh | sh` installs it (`irm #{base_url}/cli/install.ps1 | iex` on Windows; `#{base_url}/install.sh` is the skills), and `slipdock auth` signs it in (I approve it in my browser).#{directory_line(directories)}
 
     Work in this order, and tell me what you find at each step before going on:
 

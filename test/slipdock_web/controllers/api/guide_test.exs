@@ -48,6 +48,15 @@ defmodule SlipdockWeb.API.GuideTest do
   end
 
   @tag :anonymous
+  test "the guide says how to install the CLI on Linux and macOS, apart from the skills", %{
+    conn: conn
+  } do
+    body = conn |> get(~p"/api/guide") |> response(200)
+    assert body =~ "curl -fsSL http://www.example.com/cli/install.sh | sh"
+    assert body =~ "That is the skills. The `slipdock` CLI is `/cli/install.sh`"
+  end
+
+  @tag :anonymous
   test "the guide points MCP clients at /mcp and names every tool it offers", %{conn: conn} do
     body = conn |> get(~p"/api/guide") |> response(200)
 

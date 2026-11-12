@@ -176,21 +176,36 @@ list; one that sends the agent to the guide first never is.
 [The `slipdock` CLI](manual/cli.md) wraps every call, and is pleasanter to read
 in a transcript than a wall of `curl`. It is an Elixir escript, so it needs
 Erlang/OTP on the machine that runs it — which is why nothing above depends on
-it. On Windows, one line in PowerShell installs it from the server, for you
-alone, with Erlang through winget if there is none, and puts it on your PATH:
+it. On Linux and macOS, one line installs it from the server, for you alone,
+into `~/.local/bin/slipdock` (or the path you give it), and saves the server's
+address in `~/.config/slipdock/url`:
+
+```sh
+curl -fsSL https://app.slipdock.us/cli/install.sh | sh   # again later to update it
+slipdock auth                          # the device flow; prints a code to approve
+slipdock whoami
+```
+
+It checks the download against `/cli/SHA256SUMS`, and against the release
+key's signature when the server serves one, before anything is written. It
+needs Erlang/OTP 27 or later and installs nothing as root: with none, it stops
+and says what to run (`brew install erlang` on macOS, the distribution's
+package on Linux). That is `/cli/install.sh`, the CLI; `/install.sh`, without
+`/cli/`, installs the skills (§3).
+
+On Windows, one line in PowerShell does the same, with Erlang through winget
+if there is none, and puts it on your PATH:
 
 ```powershell
 irm https://app.slipdock.us/cli/install.ps1 | iex   # again later to update it
 slipdock auth
 ```
 
-Elsewhere, if you have Elixir:
+From a checkout, if you have Elixir:
 
 ```sh
 cd cli && mix escript.build && cp slipdock ~/.local/bin/
 slipdock url https://app.slipdock.us   # saved in ~/.config/slipdock/url
-slipdock auth                          # the device flow; prints a code to approve
-slipdock whoami
 ```
 
 `slipdock url` with no argument says which server it is pointing at and where
@@ -1670,7 +1685,8 @@ For anyone reading the code rather than using it:
 - `cli/` — the escript. The Docker image builds it into
   `priv/cli/slipdock.escript`, and
   `lib/slipdock_web/controllers/cli_install_controller.ex` serves it with its
-  checksum and the Windows installer (`priv/cli/install.ps1`) under `/cli/`.
+  checksum and the installers (`priv/cli/install.sh` for Linux and macOS,
+  `priv/cli/install.ps1` for Windows) under `/cli/`.
 - `lib/slipdock/runners.ex`, `lib/slipdock/runners/setup.ex` — the job queue
   and the Connect-a-runner generator; `daemon/` — the runner daemon, in Go.
   The shell and PowerShell runners were retired (#2582); `/runner/`
