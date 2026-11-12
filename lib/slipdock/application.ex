@@ -30,6 +30,9 @@ defmodule Slipdock.Application do
       # each, holding the live scene and saving it.
       {Registry, keys: :unique, name: Slipdock.Wiki.DrawingRegistry},
       {DynamicSupervisor, name: Slipdock.Wiki.DrawingSupervisor, strategy: :one_for_one},
+      # The lock between making a folder for an uploaded file and taking an
+      # empty one away (`Slipdock.Boards.Attachments.Folders`).
+      Slipdock.Boards.Attachments.Folders,
       # The clock behind the time-based automation triggers.
       Slipdock.Automations.Scheduler,
       # Embeds changed cards for semantic search, off the saver's back.

@@ -121,12 +121,16 @@ defmodule Slipdock.FileCleanupTest do
 
   test "storing a file survives another removal emptying the folder it goes in", %{src: src} do
     # Recordings share one folder, and removing the last one in it removes the
-    # folder too; one stored at that moment must still land (#1102).
+    # folder too; one stored at that moment must still land (#1102). The two
+    # can't overlap since they share a lock (#2831; the lock's own tests are
+    # below), so this checks the whole round trip rather than hunting the race
+    # with a great many tries: each try is a turn at the lock, slow on a busy
+    # machine.
     failures =
       1..8
       |> Enum.map(fn n ->
         Task.async(fn ->
-          for i <- 1..150, key = "captures/race-#{n}-#{i}.wav", reduce: [] do
+          for i <- 1..25, key = "captures/race-#{n}-#{i}.wav", reduce: [] do
             acc ->
               case Boards.Attachments.put_file(src, key) do
                 :ok ->
@@ -140,9 +144,96 @@ defmodule Slipdock.FileCleanupTest do
           end
         end)
       end)
-      |> Enum.flat_map(&Task.await(&1, 30_000))
+      |> Enum.flat_map(&Task.await(&1, :infinity))
 
     assert failures == []
+  end
+
+  # Holds the folders' lock until the returned function is called, so the
+  # test can see what waits for it. The function the lock runs waits in the
+  # lock's own process; `release` lets it go and checks it went. A test that
+  # fails first still lets it go when it exits, so the lock isn't left held
+  # for every store after it.
+  defp hold_folders_lock do
+    test = self()
+    ref = make_ref()
+
+    holder =
+      Task.async(fn ->
+        Boards.Attachments.Folders.run(fn ->
+          send(test, {:held, ref, self()})
+
+          receive do
+            {:release, ^ref} -> :ok
+          end
+        end)
+      end)
+
+    assert_receive {:held, ^ref, lock}
+    on_exit(fn -> send(lock, {:release, ref}) end)
+
+    fn ->
+      send(lock, {:release, ref})
+      assert Task.await(holder) == :ok
+    end
+  end
+
+  # Whether `task` is still waiting: it can't finish while the lock is held,
+  # so a busy machine can only make this more true, never less.
+  defp still_waiting?(task), do: Task.yield(task, 100) == nil
+
+  test "a removal waits for the lock before taking an empty folder", %{src: src} do
+    :ok = Boards.Attachments.put_file(src, "captures/last.wav")
+    folder = Path.join(Boards.Attachments.uploads_dir(), "captures")
+    release = hold_folders_lock()
+
+    removal = Task.async(fn -> Boards.Attachments.remove_files(["captures/last.wav"]) end)
+    assert still_waiting?(removal)
+    assert File.dir?(folder)
+
+    release.()
+    assert Task.await(removal) == :ok
+    refute File.exists?(folder)
+  end
+
+  test "a store waits for the lock before making its folder", %{src: src} do
+    folder = Path.join(Boards.Attachments.uploads_dir(), "captures")
+    release = hold_folders_lock()
+
+    store = Task.async(fn -> Boards.Attachments.put_file(src, "captures/next.wav") end)
+    assert still_waiting?(store)
+    refute File.exists?(folder)
+
+    release.()
+    assert Task.await(store) == :ok
+    assert File.read!(Path.join(folder, "next.wav")) == "bytes"
+  end
+
+  test "a test's uploads folder can't be one a killed run left behind" do
+    # The numbers start again in every run, so the folder is named for this
+    # OS process too: a leftover of the same number belongs to another one.
+    name = Path.basename(Boards.Attachments.uploads_dir())
+    assert name =~ ~r/^slipdock-uploads-#{System.pid()}-\d+$/
+  end
+
+  test "a store leaves its file and nothing else in the folder", %{src: src} do
+    folder = Path.join(Boards.Attachments.uploads_dir(), "captures")
+    assert Boards.Attachments.put_file(src, "captures/one.wav") == :ok
+    assert File.ls!(folder) == ["one.wav"]
+
+    missing = Path.join(System.tmp_dir!(), "missing-#{System.unique_integer([:positive])}")
+    assert Boards.Attachments.put_file(missing, "captures/two.wav") == {:error, :enoent}
+    assert File.ls!(folder) == ["one.wav"]
+  end
+
+  test "a store that can't be renamed into place says why and leaves no placeholder",
+       %{src: src} do
+    folder = Path.join(Boards.Attachments.uploads_dir(), "captures")
+    # A folder standing where the file goes, with something in it.
+    File.mkdir_p!(Path.join(folder, "taken.wav/inside"))
+
+    assert {:error, _} = Boards.Attachments.put_file(src, "captures/taken.wav")
+    assert File.ls!(folder) == ["taken.wav"]
   end
 
   test "storing a file that isn't there is still an error, not retried into success" do

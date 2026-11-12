@@ -231,51 +231,46 @@ defmodule Slipdock.Boards.Attachments do
   Copies `source` into the uploads directory under `key`, making the folders
   it needs. Returns `:ok` or `{:error, reason}`.
 
-  Folders are shared by many files, and
-  `remove_files/1` takes a folder away once it is empty, so one can vanish
-  between making it and copying into it (`:enoent`, or `:enotdir` from
-  `File.mkdir_p/1`, which reports a folder that existed when it tried to
-  make it and was gone when it checked). That is retried rather than
-  failing the upload (#1102): up to 20 times, with a short random pause
-  between, since writers kept in step can lose the same race attempt after
-  attempt (#1636). A failure that won't go away
-  is not retried: a source that isn't there, or a file standing where a
+  Folders are shared by many files, and `remove_files/1` takes a folder away
+  once it is empty, so one could vanish between making it and copying into
+  it (#1102, #1636, #2831). So the folder is made, and a placeholder put in
+  it, under the lock `remove_files/1` takes a folder away under
+  (`Slipdock.Boards.Attachments.Folders`): from then on the folder isn't
+  empty and can't be taken. The copy runs outside the lock, into the
+  placeholder, which is then renamed into place. Nothing is retried, and
+  nothing races a clock: a store fails only for a reason that won't go
+  away, such as a source that isn't there or a file standing where a
   folder on the way should be.
   """
-  def put_file(source, key, attempts \\ 20) do
-    dir = uploads_dir()
-    dest = Path.join(dir, key)
+  def put_file(source, key) do
+    dest = Path.join(uploads_dir(), key)
+    part = "#{dest}.storing-#{System.unique_integer([:positive])}"
 
-    with :ok <- File.mkdir_p(Path.dirname(dest)),
-         {:ok, _} <- File.copy(source, dest) do
-      :ok
-    else
-      {:error, reason} when reason in [:enoent, :enotdir] and attempts > 1 ->
-        if File.exists?(source) and not file_in_the_way?(dir, Path.dirname(key)) do
-          # A random pause, so writers that keep meeting the same removal
-          # fall out of step with it rather than losing every time.
-          Process.sleep(:rand.uniform(3) - 1)
-          put_file(source, key, attempts - 1)
-        else
-          {:error, reason}
-        end
-
-      error ->
-        error
+    with :ok <- __MODULE__.Folders.run(fn -> hold_folder(part) end),
+         {:ok, _} <- copy_or_drop(source, part) do
+      case File.rename(part, dest) do
+        :ok -> :ok
+        error -> drop(part, error)
+      end
     end
   end
 
-  # Whether something other than a folder sits at `rel` or a folder above it,
-  # under `dir`: then the folders `rel` needs can never be made. One `stat`
-  # per level, since a folder can vanish between two separate checks.
-  defp file_in_the_way?(_dir, rel) when rel in [".", "/"], do: false
+  # Makes the folder `part` goes in and puts `part` in it, empty: run under
+  # the folders' lock, so no removal can come between the two.
+  defp hold_folder(part) do
+    with :ok <- File.mkdir_p(Path.dirname(part)), do: File.touch(part)
+  end
 
-  defp file_in_the_way?(dir, rel) do
-    case File.stat(Path.join(dir, rel)) do
-      {:ok, %File.Stat{type: :directory}} -> false
-      {:ok, _} -> true
-      {:error, _} -> file_in_the_way?(dir, Path.dirname(rel))
+  defp copy_or_drop(source, part) do
+    case File.copy(source, part) do
+      {:ok, _} = ok -> ok
+      error -> drop(part, error)
     end
+  end
+
+  defp drop(part, error) do
+    File.rm(part)
+    error
   end
 
   defp attachment_keys(query), do: Repo.all(from(a in query, select: a.key))
@@ -326,8 +321,10 @@ defmodule Slipdock.Boards.Attachments do
     Enum.each(keys, fn key ->
       path = Path.join(dir, key)
       File.rm(path)
-      # Drop the card's folder once it's empty.
-      File.rmdir(Path.dirname(path))
+      # Drop the card's folder once it's empty, under the lock a store makes
+      # its folder under (see `put_file/2`).
+      folder = Path.dirname(path)
+      __MODULE__.Folders.run(fn -> File.rmdir(folder) end)
     end)
   end
 
@@ -349,4 +346,30 @@ defmodule Slipdock.Boards.Attachments do
   @doc "`attachment` with the text read from its document loaded."
   def with_document_text(%Attachment{} = attachment),
     do: Repo.preload(attachment, :document_text)
+end
+
+defmodule Slipdock.Boards.Attachments.Folders do
+  @moduledoc """
+  The lock between making a folder under the uploads directory and taking
+  an empty one away (#2831). `run/1` runs a function in this one process,
+  so two never overlap and each waits its turn: a store's folder can't be
+  removed between `File.mkdir_p/1` and the placeholder that keeps it from
+  being empty. The functions are short file operations on paths the caller
+  worked out (a test's uploads directory is the caller's, not this
+  process's).
+  """
+  use GenServer
+
+  def start_link(_opts), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
+
+  @doc "Runs `fun` under the lock, and answers what it returns."
+  def run(fun) when is_function(fun, 0), do: GenServer.call(__MODULE__, {:run, fun}, :infinity)
+
+  @impl true
+  def init(nil), do: {:ok, nil}
+
+  @impl true
+  def handle_call({:run, fun}, _from, state) do
+    {:reply, fun.(), state}
+  end
 end
