@@ -6,7 +6,7 @@ defmodule Slipdock.LookupsTest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Accounts, Boards, Repo, Runners, Snooze, Tools, Wiki}
+  alias Slipdock.{Accounts, Boards, Machines, Repo, Runners, Snooze, Tools, Vaults, Wiki}
   alias Slipdock.Boards.{Activity, Board, Card, ChecklistItem, Comment, Tag}
 
   setup do
@@ -124,6 +124,27 @@ defmodule Slipdock.LookupsTest do
       assert Boards.Cards.with_attachments(card).attachments == []
     end
 
+    test "with_attachments/1 reads attachments already loaded again", %{backlog: backlog} do
+      Slipdock.TestConfig.own_uploads_dir()
+      card = backlog |> card_fixture() |> Map.fetch!(:id) |> Boards.Cards.get_card_record()
+      loaded = Boards.Cards.with_attachments(card)
+      assert loaded.attachments == []
+
+      src = Path.join(System.tmp_dir!(), "lookups-#{System.unique_integer([:positive])}.txt")
+      File.write!(src, "hello")
+      on_exit(fn -> File.rm(src) end)
+
+      {:ok, attachment} =
+        Boards.Attachments.add_attachment(
+          card,
+          %{filename: "b.txt", content_type: "text/plain"},
+          src
+        )
+
+      assert [%{id: id}] = Boards.Cards.with_attachments(loaded).attachments
+      assert id == attachment.id
+    end
+
     test "list_board_cards/2 keeps to the board, leaves archived cards out, by id", %{
       backlog: backlog,
       board: board
@@ -167,12 +188,14 @@ defmodule Slipdock.LookupsTest do
       inner = card_fixture(hd(sub.columns), %{"title" => "Inner retry"})
       done = card_fixture(backlog, %{"title" => "Done retry"})
       {:ok, _} = Boards.Cards.update_card(done, %{"completed" => true})
+      archived = card_fixture(backlog, %{"title" => "Archived retry"})
+      {:ok, _} = Boards.Cards.archive_card(archived)
       odd = card_fixture(backlog, %{"title" => "100%_sure"})
       other = card_fixture(hd(board_fixture().columns), %{"title" => "Other retry"})
 
       ids = fn cards -> cards |> Enum.map(& &1.id) |> Enum.sort() end
 
-      # A board takes its sub-boards with it; done cards stay out.
+      # A board takes its sub-boards with it; done and archived cards stay out.
       assert ids.(Boards.Cards.pick_open_cards({:board, board.id}, "retr", 10)) ==
                Enum.sort([epic.id, inner.id])
 
@@ -186,6 +209,9 @@ defmodule Slipdock.LookupsTest do
       assert inner.id in ids.(
                Boards.Cards.pick_open_cards({:board, board.id}, Integer.to_string(inner.id), 10)
              )
+
+      assert Boards.Cards.pick_open_cards({:board, board.id}, Integer.to_string(archived.id), 10) ==
+               []
 
       # Empty matches everything open, newest first, up to the limit, boards loaded.
       assert [%Card{board: %Board{}} | _] =
@@ -330,6 +356,24 @@ defmodule Slipdock.LookupsTest do
       assert Wiki.with_votes(page).votes == []
     end
 
+    test "with_board_preloads/3 loads the extras beside them, and force: true reads again", %{
+      board: board
+    } do
+      page = Wiki.get_page!(page_fixture(board).id)
+      refute :revisions in Wiki.board_preloads()
+
+      loaded = Wiki.with_board_preloads(page, [:revisions])
+      assert loaded?(loaded, :revisions)
+      assert loaded?(loaded, :votes)
+
+      tag = tag_fixture(board, "lookups")
+      {:ok, _} = Wiki.set_tags(page, [tag])
+
+      assert Wiki.with_board_preloads(loaded).tags == []
+      assert [%Tag{id: tag_id}] = Wiki.with_board_preloads(loaded, [], force: true).tags
+      assert tag_id == tag.id
+    end
+
     test "page_codes/1, page_stubs/1 and page_briefs/1 key the pages by id", %{board: board} do
       page = page_fixture(board, %{"title" => "Spec"})
 
@@ -366,6 +410,39 @@ defmodule Slipdock.LookupsTest do
 
       {:ok, _} = Wiki.archive_page(page)
       assert Wiki.pinned_pages_on([board.id]) == []
+    end
+
+    test "pinned_pages_on/1 leaves out templates and links that aren't pinned", %{board: board} do
+      template = page_fixture(board, %{"template" => true})
+      assert template.template
+      {:ok, _} = Wiki.pin(template, {:board, board})
+
+      mentioned = page_fixture(board)
+      {:ok, link} = Wiki.Links.record(mentioned, {:board, board})
+      refute link.pinned
+
+      assert Wiki.pinned_pages_on([board.id]) == []
+    end
+
+    test "pinned_card_ids/1 leaves out unpinned card links and pinned links of other kinds", %{
+      board: board,
+      backlog: backlog
+    } do
+      page = page_fixture(board)
+      [mentioned, odd] = [card_fixture(backlog), card_fixture(backlog)]
+      {:ok, link} = Wiki.Links.record(page, {:card, mentioned})
+      refute link.pinned
+
+      # A pinned link that names a card but isn't a card link.
+      Repo.insert!(%Wiki.Link{
+        page_id: page.id,
+        kind: "view",
+        raw: "odd",
+        pinned: true,
+        target_card_id: odd.id
+      })
+
+      assert Wiki.pinned_card_ids([page.id]) == %{}
     end
   end
 
@@ -415,7 +492,108 @@ defmodule Slipdock.LookupsTest do
       assert Snooze.waking_before(owner, [-1], cutoff) == []
     end
 
-    test "Tools.get_tool!/1 and get_version!/1 raise on a missing id" do
+    test "Snooze.waking_before/3 leaves out done, awake and other people's cards", %{
+      owner: owner,
+      board: board,
+      backlog: backlog
+    } do
+      soon = DateTime.add(DateTime.utc_now(:second), 3600)
+      past = DateTime.add(DateTime.utc_now(:second), -3600)
+      cutoff = DateTime.add(DateTime.utc_now(:second), 86_400)
+      someone = user_fixture("lookups-snoozer@example.com")
+      share_fixture(board, someone)
+
+      [done, lapsed, woken, others] = for _ <- 1..4, do: card_fixture(backlog)
+
+      for c <- [done, lapsed, woken],
+          do: {:ok, _} = Boards.Cards.update_card(c, %{"assignee_ids" => [owner.id]})
+
+      {:ok, _} = Boards.Cards.update_card(others, %{"assignee_ids" => [someone.id]})
+
+      for c <- [done, woken, others], do: {:ok, _} = Snooze.snooze(c, owner, soon)
+
+      # Done while snoozed, and a snooze whose time has passed without a tick
+      # clearing it: set straight on the rows, as nothing else would.
+      set = fn card, fields ->
+        Repo.update_all(Ecto.Query.where(Card, id: ^card.id), set: fields)
+      end
+
+      set.(done, completed: true)
+      set.(lapsed, snoozed_until: past)
+      {:ok, _} = Snooze.wake(Boards.Cards.reload_card!(woken))
+
+      assert Snooze.waking_before(owner, [board.id], cutoff) == []
+      assert [%Card{id: id}] = Snooze.waking_before(someone, [board.id], cutoff)
+      assert id == others.id
+    end
+
+    test "Machines.reload_with_user/1 reads the row again, with its owner", %{
+      owner: owner,
+      board: board
+    } do
+      {:ok, key, _} = Machines.create_enrolment_key(owner, [board.id])
+
+      {:ok, {_, machine}} =
+        Machines.enrol_with_key(key, %{"hostname" => "box", "os" => "linux", "arch" => "amd64"})
+
+      stale = %{machine | hostname: "stale"}
+      reloaded = Machines.reload_with_user(stale)
+
+      assert reloaded.id == machine.id
+      assert reloaded.hostname == "box"
+      assert reloaded.user.id == owner.id
+    end
+
+    test "Runners.with_paused_by/1 loads who paused", %{owner: owner, board: board} do
+      {:ok, pause} = Runners.pause(board, %{"reason" => "deploy"}, owner)
+      pause = Repo.get!(Runners.Pause, pause.id)
+      refute loaded?(pause, :paused_by)
+
+      assert Runners.with_paused_by(pause).paused_by.id == owner.id
+    end
+
+    test "Vaults.with_user/1 loads the vault's owner", %{owner: owner} do
+      vault = Vaults.root(owner)
+      refute loaded?(vault, :user)
+
+      assert Vaults.with_user(vault).user.id == owner.id
+    end
+
+    test "Wiki.Files.get!/1 and with_board/1, and Wiki.Folders.with_board/1", %{board: board} do
+      Slipdock.TestConfig.own_uploads_dir()
+      {:ok, folder} = Wiki.Folders.create(board, %{"name" => "Diagrams"})
+
+      src = Path.join(System.tmp_dir!(), "lookups-#{System.unique_integer([:positive])}")
+      File.write!(src, "PNGBYTES")
+      on_exit(fn -> File.rm(src) end)
+      {:ok, file} = Wiki.Files.create(board, %{name: "a.png", folder_id: folder.id}, src)
+
+      found = Wiki.Files.get!(file.id)
+      assert %Wiki.WikiFile{name: "a.png"} = found
+      assert found.id == file.id
+      refute loaded?(found, :board)
+      assert_raise Ecto.NoResultsError, fn -> Wiki.Files.get!(-1) end
+
+      with_board = Wiki.Files.with_board(found)
+      assert with_board.board.id == board.id
+      assert with_board.folder.id == folder.id
+
+      bare = Wiki.Folders.get!(folder.id)
+      refute loaded?(bare, :board)
+      assert Wiki.Folders.with_board(bare).board.id == board.id
+    end
+
+    test "Tools.get_tool!/1 and get_version!/1 return the row, or raise on a missing id", %{
+      owner: owner
+    } do
+      name = Slipdock.ToolPackages.unique_name()
+      {:ok, version} = Tools.publish(owner, Slipdock.ToolPackages.package(name, "1.0.0"))
+
+      assert %Tools.Tool{slug: ^name} = tool = Tools.get_tool!(version.tool_id)
+      assert tool.id == version.tool_id
+      assert %Tools.Version{version: "1.0.0"} = found = Tools.get_version!(version.id)
+      assert found.id == version.id
+
       assert_raise Ecto.NoResultsError, fn -> Tools.get_tool!(-1) end
       assert_raise Ecto.NoResultsError, fn -> Tools.get_version!(-1) end
     end
