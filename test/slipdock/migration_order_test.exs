@@ -22,6 +22,8 @@ defmodule Slipdock.MigrationOrderTest do
   """
   use ExUnit.Case, async: true
 
+  alias Slipdock.ThrowawayGit
+
   @migrations "priv/repo/migrations"
 
   describe "this checkout" do
@@ -77,9 +79,13 @@ defmodule Slipdock.MigrationOrderTest do
   end
 
   describe "check_repo/1, on a real git repository" do
-    @describetag :tmp_dir
+    # Outside the checkout, so a run beside this one can't remove a
+    # repository's .git and leave its git to find the checkout's (#2914).
+    setup do
+      %{tmp: ThrowawayGit.tmp_dir!("migration-order")}
+    end
 
-    test "a branch with no new migration passes", %{tmp_dir: tmp} do
+    test "a branch with no new migration passes", %{tmp: tmp} do
       work = clone_with_main(tmp, ["20261108125537_main.exs"])
       git!(work, ["switch", "-c", "card-1"])
       File.write!(Path.join(work, "README.md"), "a change that is not a migration\n")
@@ -88,7 +94,7 @@ defmodule Slipdock.MigrationOrderTest do
       assert :ok == check_repo(work)
     end
 
-    test "a branch whose migration is newer passes", %{tmp_dir: tmp} do
+    test "a branch whose migration is newer passes", %{tmp: tmp} do
       work = clone_with_main(tmp, ["20261108125537_main.exs"])
       git!(work, ["switch", "-c", "card-1"])
       add_migration!(work, "20261108130000_newer.exs")
@@ -97,7 +103,7 @@ defmodule Slipdock.MigrationOrderTest do
       assert :ok == check_repo(work)
     end
 
-    test "a branch whose migration is older fails, naming it and main's newest", %{tmp_dir: tmp} do
+    test "a branch whose migration is older fails, naming it and main's newest", %{tmp: tmp} do
       work = clone_with_main(tmp, ["20261108125537_main.exs"])
       git!(work, ["switch", "-c", "card-1"])
       add_migration!(work, "20261108120000_older.exs")
@@ -108,7 +114,7 @@ defmodule Slipdock.MigrationOrderTest do
       assert message =~ "20261108125537"
     end
 
-    test "an older migration not yet committed fails too", %{tmp_dir: tmp} do
+    test "an older migration not yet committed fails too", %{tmp: tmp} do
       work = clone_with_main(tmp, ["20261108125537_main.exs"])
       git!(work, ["switch", "-c", "card-1"])
       add_migration!(work, "20261108120000_untracked.exs")
@@ -117,14 +123,14 @@ defmodule Slipdock.MigrationOrderTest do
       assert message =~ "20261108120000_untracked.exs"
     end
 
-    test "main's migrations themselves don't count as the branch's", %{tmp_dir: tmp} do
+    test "main's migrations themselves don't count as the branch's", %{tmp: tmp} do
       work = clone_with_main(tmp, ["20261001000000_old.exs", "20261108125537_main.exs"])
 
       assert :ok == check_repo(work)
     end
 
     test "a newer migration main gained after the branch left it fails the branch (#2068)",
-         %{tmp_dir: tmp} do
+         %{tmp: tmp} do
       work = clone_with_main(tmp, ["20261108125537_main.exs"])
       git!(work, ["switch", "-c", "card-1"])
       add_migration!(work, "20261108130000_mine.exs")
@@ -141,7 +147,7 @@ defmodule Slipdock.MigrationOrderTest do
       assert message =~ "20261108140000"
     end
 
-    test "with no origin, it compares against local main", %{tmp_dir: tmp} do
+    test "with no origin, it compares against local main", %{tmp: tmp} do
       repo = init_repo!(Path.join(tmp, "solo"), ["20261108125537_main.exs"])
       git!(repo, ["switch", "-c", "card-1"])
       add_migration!(repo, "20261108120000_older.exs")
@@ -153,7 +159,7 @@ defmodule Slipdock.MigrationOrderTest do
     end
 
     test "with a main that shares no history with HEAD, there is nothing to compare",
-         %{tmp_dir: tmp} do
+         %{tmp: tmp} do
       repo = init_repo!(Path.join(tmp, "apart"), ["20261108125537_main.exs"])
       git!(repo, ["checkout", "--quiet", "--orphan", "branch"])
       git!(repo, ["rm", "-r", "--quiet", "--cached", "."])
@@ -162,11 +168,11 @@ defmodule Slipdock.MigrationOrderTest do
 
       # The same migration with main's history joined up fails (above), so
       # this passes only because there is no merge base.
-      assert {_, 1} = System.cmd("git", ["merge-base", "main", "HEAD"], cd: repo)
+      assert {_, 1} = ThrowawayGit.git(repo, ["merge-base", "main", "HEAD"])
       assert :ok == check_repo(repo)
     end
 
-    test "with neither origin/main nor main, there is nothing to compare", %{tmp_dir: tmp} do
+    test "with neither origin/main nor main, there is nothing to compare", %{tmp: tmp} do
       repo = init_repo!(Path.join(tmp, "solo"), ["20261108125537_main.exs"])
       git!(repo, ["branch", "-m", "trunk"])
       add_migration!(repo, "20261108120000_older.exs")
@@ -242,14 +248,17 @@ defmodule Slipdock.MigrationOrderTest do
 
   defp lines(out), do: String.split(out, "\n", trim: true)
 
-  defp git(root, args), do: System.cmd("git", args, cd: root, stderr_to_stdout: true)
+  # No higher than the system temporary directory: a throwaway repository
+  # whose .git has gone is no repository, rather than the checkout (#2914).
+  # The checkout itself has its .git at its root, so it is found there.
+  defp git(root, args), do: ThrowawayGit.git(root, args)
 
   # Throwaway repositories
 
   defp clone_with_main(tmp, migrations) do
     upstream = init_repo!(Path.join(tmp, "upstream"), migrations)
     work = Path.join(tmp, "work")
-    {_, 0} = System.cmd("git", ["clone", "--quiet", upstream, work], stderr_to_stdout: true)
+    {_, 0} = ThrowawayGit.git(tmp, ["clone", "--quiet", upstream, work])
     work
   end
 

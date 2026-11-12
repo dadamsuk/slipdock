@@ -9,6 +9,8 @@ defmodule Slipdock.CiWorkflowTest do
   """
   use ExUnit.Case, async: true
 
+  alias Slipdock.ThrowawayGit
+
   @root Path.expand("../..", __DIR__)
   @ci File.read!(Path.join(@root, ".github/workflows/ci.yml"))
 
@@ -360,6 +362,12 @@ defmodule Slipdock.CiWorkflowTest do
   describe "what a change runs" do
     @changes Path.join(@root, ".github/scripts/changes.sh")
 
+    # Outside the checkout, so a run beside this one can't remove a
+    # repository's .git and leave its git to find the checkout's (#2914).
+    setup do
+      %{tmp: ThrowawayGit.tmp_dir!("changes")}
+    end
+
     defp ci_yaml do
       {:ok, yaml} = YamlElixir.read_from_string(@ci)
       yaml
@@ -367,10 +375,7 @@ defmodule Slipdock.CiWorkflowTest do
 
     defp git!(dir, args) do
       {out, 0} =
-        System.cmd("git", ["-c", "user.name=CI", "-c", "user.email=ci@example.com" | args],
-          cd: dir,
-          stderr_to_stdout: true
-        )
+        ThrowawayGit.git(dir, ["-c", "user.name=CI", "-c", "user.email=ci@example.com" | args])
 
       String.trim(out)
     end
@@ -410,6 +415,7 @@ defmodule Slipdock.CiWorkflowTest do
         }
         |> Map.merge(Map.new(env))
         |> Enum.to_list()
+        |> Kernel.++(ThrowawayGit.env())
 
       {stdout, code} = System.cmd(@changes, [], env: env, cd: dir, stderr_to_stdout: true)
       assert code == 0, "changes.sh failed: #{stdout}"
@@ -439,8 +445,7 @@ defmodule Slipdock.CiWorkflowTest do
 
     @all_os ["ubuntu-latest", "macos-latest", "windows-latest"]
 
-    @tag :tmp_dir
-    test "a docs-only pull request runs the repo checks, no suite and no daemon", %{tmp_dir: dir} do
+    test "a docs-only pull request runs the repo checks, no suite and no daemon", %{tmp: dir} do
       for files <- [
             ["docs/manual/boards.md"],
             ["priv/skills/slipdock/SKILL.md", "priv/skills/slipdock/reference.txt"],
@@ -453,8 +458,7 @@ defmodule Slipdock.CiWorkflowTest do
       end
     end
 
-    @tag :tmp_dir
-    test "what main did after the branch left it isn't the change's", %{tmp_dir: dir} do
+    test "what main did after the branch left it isn't the change's", %{tmp: dir} do
       # The base sha is main's tip, which has moved on since the fork with
       # an app change; the branch itself changes docs alone.
       git!(dir, ["init", "-q", "-b", "main"])
@@ -477,8 +481,7 @@ defmodule Slipdock.CiWorkflowTest do
       assert changes(dir, [{"BASE", base}, {"HEAD", head}]) == runs(false, true, false, false)
     end
 
-    @tag :tmp_dir
-    test "a file moved under docs/ or renamed to .md counts where it left too", %{tmp_dir: dir} do
+    test "a file moved under docs/ or renamed to .md counts where it left too", %{tmp: dir} do
       for {from, to, expected} <- [
             {"lib/a.ex", "docs/a.ex", runs(true, false, false, false)},
             {"daemon/x.go", "docs/x.go", runs(false, true, false, true)},
@@ -501,9 +504,8 @@ defmodule Slipdock.CiWorkflowTest do
       end
     end
 
-    @tag :tmp_dir
     test "a daemon-only pull request runs the daemon on Linux alone, and the repo checks", %{
-      tmp_dir: dir
+      tmp: dir
     } do
       assert pr(dir, ["daemon/internal/cli/run.go"]) == runs(false, true, false, true)
 
@@ -515,14 +517,12 @@ defmodule Slipdock.CiWorkflowTest do
                runs(false, true, false, true)
     end
 
-    @tag :tmp_dir
-    test "a cli-only pull request runs the cli job and the repo checks", %{tmp_dir: dir} do
+    test "a cli-only pull request runs the cli job and the repo checks", %{tmp: dir} do
       assert pr(dir, ["cli/lib/slipdock_cli.ex"]) == runs(false, true, true, false)
     end
 
-    @tag :tmp_dir
     test "any change to the app runs the suite, beside the cli and daemon if they changed", %{
-      tmp_dir: dir
+      tmp: dir
     } do
       for file <- ["lib/slipdock.ex", "test/slipdock/x_test.exs", "mix.lock", "assets/app.js"] do
         assert pr(dir, [file]) == runs(true, false, false, false), file
@@ -532,32 +532,28 @@ defmodule Slipdock.CiWorkflowTest do
                runs(true, false, true, true)
     end
 
-    @tag :tmp_dir
-    test "a workflow or its script changed runs everything, the daemon on Linux", %{tmp_dir: dir} do
+    test "a workflow or its script changed runs everything, the daemon on Linux", %{tmp: dir} do
       for file <- [".github/workflows/ci.yml", ".github/scripts/changes.sh"] do
         assert pr(dir, [file, "docs/a.md"]) == runs(true, false, true, true), file
       end
     end
 
-    @tag :tmp_dir
-    test "a diff it can't read, or an empty one, runs everything", %{tmp_dir: dir} do
+    test "a diff it can't read, or an empty one, runs everything", %{tmp: dir} do
       assert pr(dir, []) == runs(true, false, true, true)
 
       unknown = String.duplicate("f", 40)
       assert pr(dir, ["docs/a.md"], [{"BASE", unknown}]) == runs(true, false, true, true)
     end
 
-    @tag :tmp_dir
     test "a push to main tests everything on Linux, or only the static checks after the gate's skip",
-         %{tmp_dir: dir} do
+         %{tmp: dir} do
       main = [{"EVENT_NAME", "push"}, {"REF", "refs/heads/main"}]
       assert changes(dir, main) == runs(true, false, true, true)
       assert changes(dir, [{"SUITE", "true"} | main]) == runs(true, false, true, true)
       assert changes(dir, [{"SUITE", "false"} | main]) == runs(false, false, false, false)
     end
 
-    @tag :tmp_dir
-    test "macOS and Windows run on a v* tag, the nightly schedule and a dispatch", %{tmp_dir: dir} do
+    test "macOS and Windows run on a v* tag, the nightly schedule and a dispatch", %{tmp: dir} do
       tag = [{"EVENT_NAME", "push"}, {"REF", "refs/tags/v1.2.3"}]
       assert changes(dir, tag) == runs(true, false, true, true, @all_os)
 
