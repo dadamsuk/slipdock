@@ -60,6 +60,14 @@ defmodule Slipdock.Runners.ParkedTest do
 
   defp card(card), do: Boards.Cards.get_card!(card.id)
 
+  # The wait finish_waiting/4 opens on card a from inside the job.
+  defp open_wait_on_a(ctx, job) do
+    Boards.Waits.open_wait(card(ctx.a), Actor.runner(ctx.owner, job.id), %{
+      "needs" => "Which region?",
+      "job_id" => job.id
+    })
+  end
+
   defp top_of(column) do
     Repo.one(
       from(c in Boards.Card,
@@ -163,12 +171,7 @@ defmodule Slipdock.Runners.ParkedTest do
       job = take(ctx)
 
       assert {:ok, %Job{status: "parked"}, wait} =
-               Runners.finish_waiting(ctx.runner, job.id, fn job ->
-                 Boards.Waits.open_wait(card(ctx.a), Actor.runner(ctx.owner, job.id), %{
-                   "needs" => "Which region?",
-                   "job_id" => job.id
-                 })
-               end)
+               Runners.finish_waiting(ctx.runner, job.id, &open_wait_on_a(ctx, &1))
 
       assert wait.job_id == job.id
       assert Boards.Waits.current_wait(ctx.a).id == wait.id
@@ -196,8 +199,7 @@ defmodule Slipdock.Runners.ParkedTest do
       assert {:error, :not_found} =
                Runners.finish_waiting(ctx.runner, job.id, fn _ -> flunk("opened a wait") end)
 
-
-      assert Boards.current_wait(ctx.a) == nil
+      assert Boards.Waits.current_wait(ctx.a) == nil
       assert Repo.reload!(job).runner_id == other.id
     end
 
@@ -210,12 +212,7 @@ defmodule Slipdock.Runners.ParkedTest do
       assert Repo.reload!(job).status == "queued"
 
       assert {:ok, %Job{status: "parked"}, wait} =
-               Runners.finish_waiting(ctx.runner, job.id, fn job ->
-                 Boards.open_wait(card(ctx.a), Actor.runner(ctx.owner, job.id), %{
-                   "needs" => "Which region?",
-                   "job_id" => job.id
-                 })
-               end)
+               Runners.finish_waiting(ctx.runner, job.id, &open_wait_on_a(ctx, &1))
 
       assert wait.job_id == job.id
       job = Repo.reload!(job)
@@ -232,7 +229,6 @@ defmodule Slipdock.Runners.ParkedTest do
 
       job = Repo.reload!(job)
       assert {job.status, job.runner_id, job.last_runner_id} == {"queued", nil, ctx.runner.id}
-
     end
   end
 

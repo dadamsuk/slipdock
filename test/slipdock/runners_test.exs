@@ -565,7 +565,7 @@ defmodule Slipdock.RunnersTest do
       assert Runners.sweep() == 0
 
       assert Enum.any?(
-               Boards.list_activities(ctx.board.id),
+               Boards.ActivityLog.list_activities(ctx.board.id),
                &(&1.message =~ "dev-box took job ##{job.id} back")
              )
     end
@@ -588,7 +588,7 @@ defmodule Slipdock.RunnersTest do
       job = fresh(ctx.job)
       assert job.attempts == 1
       assert job.status == "running"
-      refute "flagged" in Boards.get_card!(ctx.card.id).flags
+      refute "flagged" in Boards.Cards.get_card!(ctx.card.id).flags
     end
 
     test "a finish takes it back and ends it", ctx do

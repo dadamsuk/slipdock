@@ -359,7 +359,7 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
              })
              |> error!() =~ "wasn't claimed"
 
-      assert Slipdock.Boards.current_wait(ctx.card) == nil
+      assert Slipdock.Boards.Waits.current_wait(ctx.card) == nil
       assert Repo.get!(Job, ctx.job.id).status == "claimed"
     end
 
@@ -377,7 +377,7 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
         |> ok!()
 
       assert out["status"] == "parked"
-      assert Slipdock.Boards.current_wait(ctx.card).job_id == ctx.job.id
+      assert Slipdock.Boards.Waits.current_wait(ctx.card).job_id == ctx.job.id
     end
 
     test "update_card wait and then a plain done ends the job parked", ctx do
