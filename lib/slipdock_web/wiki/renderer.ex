@@ -35,8 +35,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
     tasklist: true,
     strikethrough: true,
     autolink: true,
-    footnotes: true,
-    header_id_prefix: ""
+    footnotes: true
   ]
 
   # Raw HTML is rendered so the chips below survive; the sanitiser decides
@@ -55,8 +54,20 @@ defmodule SlipdockWeb.Wiki.Renderer do
       "article" => ["data-transcript"],
       "li" => ["data-speaker", "data-start-ms", "data-end-ms"]
     },
-    add_generic_attributes: ["id", "class"]
+    add_generic_attributes: ["class"]
   ]
+
+  # `id` is not a generic attribute (#2799): an id an author writes in raw
+  # HTML names a property of `window`, which is DOM clobbering. It is allowed
+  # only on the tags that carry an id this module or comrak generates (a
+  # heading's anchor, a footnote and its reference, a block anchor), and
+  # `own_ids/2` then drops every one of those that was not generated here.
+  @id_tags ~w(h1 h2 h3 h4 h5 h6 a li span)
+  @sanitize Keyword.update!(@sanitize, :add_tag_attributes, fn tags ->
+              Enum.reduce(@id_tags, tags, fn tag, tags ->
+                Map.update(tags, tag, ["id"], &["id" | &1])
+              end)
+            end)
 
   @doc """
   The page's body as HTML, ready for `Phoenix.HTML.raw/1`.
@@ -74,6 +85,9 @@ defmodule SlipdockWeb.Wiki.Renderer do
     * `:shared` — true for a page read through a share (#817): pages link to
       the share's own view, and a link to anything the reader can't open
       reads "a page you can't see" rather than naming it or its board
+    * `:on_id_key` — a function given the key this render put in front of
+      its own ids (`id_key/0`), for a test to see that each render draws a
+      fresh one (#2799)
 
   A body that cannot be parsed comes back as escaped plain text rather than
   an error page: a document is worth more half-rendered than not at all.
@@ -86,16 +100,19 @@ defmodule SlipdockWeb.Wiki.Renderer do
       |> Map.put(:transcript_tags, Slipdock.Wiki.TranscriptTags.parse(body))
       |> Map.put(:transcript?, Regex.match?(~r/^[ \t]*(`{3,}|~{3,})[ \t]*vtt[ \t]*$/m, body))
 
+    report_id_key(opts, context.id_key)
+    extension = [header_id_prefix: context.id_key] ++ @extension
+
     # Extensions belong on the *parse*, not just the render: a pipe table is
     # only a table if the parser was told tables exist. Each link resolves on
     # its own, so a vault's index is built once for the page, not per link.
     Slipdock.Vaults.Index.cached(fn ->
-      with {:ok, doc} <- MDEx.parse_document(body, extension: @extension),
+      with {:ok, doc} <- MDEx.parse_document(body, extension: extension),
            {:ok, html} <-
              doc
              |> expand(context)
-             |> MDEx.to_html(extension: @extension, render: @render, sanitize: @sanitize) do
-        html
+             |> MDEx.to_html(extension: extension, render: @render, sanitize: @sanitize) do
+        settle_ids(html, context)
       else
         _ -> "<pre>" <> escape(body) <> "</pre>"
       end
@@ -115,6 +132,56 @@ defmodule SlipdockWeb.Wiki.Renderer do
   end
 
   def to_html(_, _), do: ""
+
+  defp report_id_key(opts, key) do
+    case Keyword.get(opts, :on_id_key) do
+      nil -> :ok
+      report -> report.(key)
+    end
+  end
+
+  # Which ids in the sanitised HTML are ours. Every id generated in a render
+  # is written with that render's key in front (comrak's heading ids through
+  # `header_id_prefix`, a block anchor by `block_anchor/2`, a transcript's
+  # tag chip by `keyed_tag_ids/2`), and the key is random, so an author
+  # cannot write one. Here the key comes off and any other id goes, whatever
+  # tag it is on. A footnote's ids are comrak's and
+  # take no prefix, so `fn-…` and `fnref-…` are kept as they are: an author
+  # can write one of those, and it can name nothing but a footnote.
+  #
+  # An embedded page's ids keep the key: the page that embeds it sanitises
+  # them again, and settles them with its own.
+  #
+  # The sanitiser's output is what makes a regex safe here: in it a `<` only
+  # ever opens a tag, and an attribute's value is always in double quotes
+  # with any quote inside it escaped.
+  defp settle_ids(html, %{embedded_ids: true}), do: html
+  defp settle_ids(html, %{id_key: key}), do: own_ids(html, key)
+
+  defp own_ids(html, key) do
+    Regex.replace(~r/<[a-z](?:[^>"]|"[^"]*")*>/, html, fn tag ->
+      Regex.replace(~r/ id="([^"]*)"/, tag, fn _whole, id -> own_id(id, key) end)
+    end)
+  end
+
+  defp own_id(id, key) do
+    size = byte_size(key)
+
+    case id do
+      <<^key::binary-size(^size), ours::binary>> when ours != "" -> ~s| id="#{ours}"|
+      "fn-" <> _ -> ~s| id="#{id}"|
+      "fnref-" <> _ -> ~s| id="#{id}"|
+      _ -> ""
+    end
+  end
+
+  # The key in front of every id a render generates. Its randomness is the
+  # whole defence: a constant key, public in this repository, would let an
+  # author write `<h2 id="<key>x">` and get `id="x"` through. Public only so
+  # a test can check that each call gives a fresh one; `:on_id_key` shows
+  # which key a render used.
+  @doc false
+  def id_key, do: "k" <> Base.encode16(:crypto.strong_rand_bytes(12), case: :lower) <> "-"
 
   @doc """
   The body with every reference resolved to Markdown rather than HTML — what
@@ -328,6 +395,10 @@ defmodule SlipdockWeb.Wiki.Renderer do
       # The pages being embedded on the way here, so an embed cannot embed
       # its way round in a circle (see `embed_html/3`).
       embedding: Keyword.get(opts, :embedding, []),
+      # What this render's own ids start with until `own_ids/2` settles them
+      # (#2799); an embedded page is given the key of the page embedding it.
+      id_key: Keyword.get(opts, :id_key) || id_key(),
+      embedded_ids: Keyword.has_key?(opts, :id_key),
       # A published page answers its queries as of the moment it was
       # published: there is nobody on the other side to have permissions, so
       # a live query would be a way to read private cards from the open web.
@@ -378,8 +449,10 @@ defmodule SlipdockWeb.Wiki.Renderer do
   # A fenced ```vtt block is a transcript (W-1690): a meeting page carries its
   # WebVTT whole, and it reads as the conversation a .vtt file does.
   # The page's timed tags (#785) are drawn in it where they were pressed.
-  defp expand_node(%MDEx.CodeBlock{info: "vtt", literal: source}, context),
-    do: [html_block(SlipdockWeb.TranscriptView.block_html(source, context.transcript_tags))]
+  defp expand_node(%MDEx.CodeBlock{info: "vtt", literal: source}, context) do
+    html = SlipdockWeb.TranscriptView.block_html(source, context.transcript_tags)
+    [html_block(keyed_tag_ids(html, context))]
+  end
 
   defp expand_node(%MDEx.Text{literal: text}, context), do: text_nodes(text, context)
 
@@ -387,6 +460,13 @@ defmodule SlipdockWeb.Wiki.Renderer do
     do: [%{node | nodes: expand_list(children, context)}]
 
   defp expand_node(node, _context), do: [node]
+
+  # A tag's chip in a transcript carries the id the summary's `Tags:` line
+  # links to. The component writes it bare, so it is given this render's key
+  # here, or `own_ids/2` would take it for an author's (#2799). The
+  # component escapes a quote in its text, so only an attribute matches.
+  defp keyed_tag_ids(html, context),
+    do: String.replace(html, ~s| id="tag-|, ~s| id="#{context.id_key}tag-|)
 
   # A paragraph that is nothing but a directive becomes a block of its own:
   # a table of contents does not belong inside a <p>.
@@ -418,7 +498,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
           end)
       end
     end)
-    |> Kernel.++(block_anchor(block))
+    |> Kernel.++(block_anchor(block, context))
   end
 
   # A Meld Encrypt block is drawn locked, carrying its ciphertext for the
@@ -444,12 +524,12 @@ defmodule SlipdockWeb.Wiki.Renderer do
     end
   end
 
-  defp block_anchor(nil), do: []
+  defp block_anchor(nil, _context), do: []
 
-  defp block_anchor(id),
-    do: [
-      %MDEx.HtmlInline{literal: ~s|<span id="^#{escape(id)}" class="wiki-block-anchor"></span>|}
-    ]
+  defp block_anchor(id, context) do
+    id = escape(context.id_key <> "^" <> id)
+    [%MDEx.HtmlInline{literal: ~s|<span id="#{id}" class="wiki-block-anchor"></span>|}]
+  end
 
   defp ref_node(%{kind: :inline} = ref, context) do
     case inline_answer(ref, context) do
@@ -898,7 +978,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp fragment(_ref), do: ""
 
   # A heading's anchor is the id comrak gives it; a block's is `^id`, as
-  # `block_anchor/1` writes it.
+  # `block_anchor/2` writes it.
   defp anchor_id("^" <> _ = block), do: block
   defp anchor_id(heading), do: anchor(heading)
 
@@ -966,7 +1046,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
               page: page,
               as: context.reader,
               embedding: seen,
-              today: context.today
+              today: context.today,
+              id_key: context.id_key
             )
 
           ~s|<div class="wiki-embed">| <>

@@ -431,6 +431,193 @@ defmodule SlipdockWeb.Wiki.RendererTest do
     end
   end
 
+  describe "ids (#2799)" do
+    test "an id written in raw HTML is stripped, whatever tag it is on" do
+      html =
+        Renderer.to_html("""
+        <h3 id="evil" class="kept">Raw heading</h3>
+
+        <div id="config">block</div>
+
+        A <span id="currentScript" title="a>b">span</span>, <a id="forms" href="/x">a link</a>
+        and <b id="bold">bold</b>.
+
+        <ul><li id="item">one</li></ul>
+        """)
+
+      refute html =~ ~r/\sid=/
+      assert html =~ ~s|<h3 class="kept">Raw heading</h3>|
+      assert html =~ ~s|<span title="a&gt;b">span</span>|
+      assert html =~ ~s|<li>one</li>|
+    end
+
+    test "the ids a render generates are kept as they were" do
+      html =
+        Renderer.to_html("""
+        ## Setup steps
+
+        ## Setup steps
+
+        A claim[^why] in a key block ^blk1
+
+        [^why]: Because.
+        """)
+
+      assert html =~ ~s|<h2 id="setup-steps">|
+      assert html =~ ~s|<h2 id="setup-steps-1">|
+      assert html =~ ~s|<a href="#setup-steps" class="anchor"|
+      assert html =~ ~s|<span id="^blk1" class="wiki-block-anchor"></span>|
+      assert html =~ ~s|<a href="#fn-why" id="fnref-why"|
+      assert html =~ ~s|<li id="fn-why">|
+
+      assert Regex.scan(~r/ id="([^"]*)"/, html, capture: :all_but_first) ==
+               [["setup-steps"], ["setup-steps-1"], ["fnref-why"], ["^blk1"], ["fn-why"]]
+    end
+
+    test "nothing of the render's key is left behind, so two renders are the same" do
+      body = "## One\n\nBlock ^b1\n"
+      html = Renderer.to_html(body)
+
+      assert html == Renderer.to_html(body)
+      refute html =~ ~r/k[0-9a-f]{24}-/
+    end
+
+    test "each render's key is random, 96 bits in a fixed shape" do
+      keys = for _ <- 1..50, do: Renderer.id_key()
+
+      assert Enum.all?(keys, &(&1 =~ ~r/\Ak[0-9a-f]{24}-\z/))
+      assert keys |> Enum.uniq() |> length() == 50
+    end
+
+    test "each to_html draws a fresh key, and the key one render used is stripped by the next" do
+      me = self()
+      report = &send(me, {:id_key, &1})
+
+      first = Renderer.to_html("## One\n", on_id_key: report)
+      assert_received {:id_key, key}
+      assert key =~ ~r/\Ak[0-9a-f]{24}-\z/
+      assert first =~ ~s|<h2 id="one">|
+
+      # The key really is the one this render put on its ids: given back as
+      # an embedded page's key, the ids keep it.
+      embedded = Renderer.to_html("## One\n", id_key: key, on_id_key: report)
+      assert_received {:id_key, ^key}
+      assert embedded =~ ~s|<h2 id="#{key}one">|
+
+      forged = Renderer.to_html(~s|## Real\n\n<h2 id="#{key}x">Forged</h2>\n|, on_id_key: report)
+      assert_received {:id_key, next}
+      assert next =~ ~r/\Ak[0-9a-f]{24}-\z/
+      refute next == key
+      assert forged =~ "<h2>Forged</h2>"
+      refute forged =~ ~s|id="x"|
+      refute forged =~ key
+
+      for _ <- 1..20, do: Renderer.to_html("## One\n", on_id_key: report)
+
+      keys =
+        for _ <- 1..20 do
+          assert_received {:id_key, k}
+          k
+        end
+
+      assert keys |> Enum.uniq() |> length() == 20
+      refute key in keys
+    end
+
+    test "a key a render did not use, hand-written as an id, is stripped" do
+      key = Renderer.id_key()
+      html = Renderer.to_html(~s|## Real\n\n<h2 id="#{key}x">Forged</h2>\n|)
+
+      assert html =~ "<h2>Forged</h2>"
+      refute html =~ ~s|id="x"|
+      refute html =~ key
+    end
+
+    test "an author cannot write an id that passes for a generated one" do
+      html =
+        Renderer.to_html("""
+        ## Real
+
+        <h2 id="k000000000000000000000000-forged">Forged</h2>
+
+        <span id="^blk9">a block anchor by hand</span> <span id="real">a heading's id by hand</span>
+        """)
+
+      assert Regex.scan(~r/ id="([^"]*)"/, html, capture: :all_but_first) == [["real"]]
+      assert html =~ ~s|<h2 id="real">Real|
+      assert html =~ "<h2>Forged</h2>"
+    end
+
+    test "a footnote's id by hand is kept, since it can name only a footnote" do
+      html =
+        Renderer.to_html(
+          ~s|<span id="fn-x">a</span> <a id="fnref-x">b</a> <span id="fnx">c</span>|
+        )
+
+      assert html =~ ~s|<span id="fn-x">a</span>|
+      assert html =~ ~s|<a id="fnref-x"|
+      assert html =~ "<span>c</span>"
+    end
+
+    test "a tag written to look like a transcript's chip is stripped" do
+      html =
+        Renderer.to_html("""
+        <span id="tag-important-5000">mine</span>
+
+        ```vtt
+        WEBVTT
+
+        00:00:01.000 --> 00:00:09.000
+        <v Me>one two id="tag-said-1" three
+        ```
+        """)
+
+      assert html =~ "<span>mine</span>"
+      assert html =~ ~s|id="tag-said-1"|
+      refute html =~ ~r/<[^>]*\sid=/
+    end
+
+    test "a heading with nothing to make an id from gets none" do
+      html = Renderer.to_html("## !!!")
+
+      assert html =~ "<h2>!!!"
+      refute html =~ ~r/\sid=/
+    end
+
+    test "prose and code that only mention an id are left as written" do
+      html = Renderer.to_html(~s|Write id="x" there, or `<p id="y">`.\n\n    <h2 id="z">\n|)
+
+      assert html =~ ~s|Write id="x" there|
+      assert html =~ ~s|<code>&lt;p id="y"&gt;</code>|
+      assert html =~ ~s|&lt;h2 id="z"&gt;|
+    end
+
+    test "an embedded page keeps its generated ids and loses the ones written in it", ctx do
+      {:ok, _note} =
+        Wiki.create_page(
+          ctx.board,
+          %{
+            "title" => "Note",
+            "body" => ~s|## Backoff\n\nA key block ^blk1\n\n<h3 id="evil">Raw</h3>\n|
+          },
+          user: ctx.user
+        )
+
+      html =
+        Renderer.to_html(~s|## Outer\n\n![[Note]]\n\n<span id="mine">x</span>\n|,
+          board: ctx.board,
+          as: ctx.user
+        )
+
+      assert html =~ "wiki-embed"
+
+      assert Regex.scan(~r/ id="([^"]*)"/, html, capture: :all_but_first) ==
+               [["outer"], ["backoff"], ["^blk1"]]
+
+      assert html =~ "<h3>Raw</h3>"
+    end
+  end
+
   describe "preview_paragraphs/2 (#760)" do
     test "paragraphs as plain text, headings kept, code and embeds left out" do
       body =

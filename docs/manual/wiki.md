@@ -485,7 +485,9 @@ straight to it on its own board.
 Bodies are CommonMark with the GitHub extensions — tables, task lists,
 strikethrough, autolinks, footnotes — rendered by comrak (`:mdex`) and
 sanitised, so raw HTML in a body never becomes raw HTML on the page. Headings
-get ids, so a section can be linked to.
+get ids, so a section can be linked to. Those, a footnote's and a block's
+(`^a1b2`) are the only ids on a page: an `id` written in raw HTML is dropped,
+since an id names a property of the page's `window`.
 
 The editor is **raw Markdown with a live preview**, deliberately and for good:
 the source stays diffable, greppable and identical to what an agent reads and
