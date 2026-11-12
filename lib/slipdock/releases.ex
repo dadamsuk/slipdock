@@ -485,27 +485,25 @@ defmodule Slipdock.Releases do
       when status in ~w(released failed timed_out) do
     root = Repo.get!(Board, root_id)
 
-    locked(root, fn ->
-      case Repo.get(Request, id) do
-        %Request{status: "running"} = request ->
-          request =
-            request
-            |> Ecto.Changeset.change(
-              status: status,
-              note: note && String.slice(note, 0, 500),
-              finished_at: DateTime.utc_now()
-            )
-            |> Repo.update!()
-
-          log(root, "Release #{ended(status)}" <> if(note, do: ": #{note}.", else: "."))
-          follow_up(root)
-          {:ok, request}
-
-        _ ->
-          {:error, :not_running}
-      end
-    end)
+    locked(root, fn -> end_running(root, Repo.get(Request, id), status, note) end)
   end
+
+  defp end_running(root, %Request{status: "running"} = request, status, note) do
+    request =
+      request
+      |> Ecto.Changeset.change(
+        status: status,
+        note: note && String.slice(note, 0, 500),
+        finished_at: DateTime.utc_now()
+      )
+      |> Repo.update!()
+
+    log(root, "Release #{ended(status)}" <> if(note, do: ": #{note}.", else: "."))
+    follow_up(root)
+    {:ok, request}
+  end
+
+  defp end_running(_root, _request, _status, _note), do: {:error, :not_running}
 
   defp ended("released"), do: "released"
   defp ended("failed"), do: "failed"
@@ -526,7 +524,8 @@ defmodule Slipdock.Releases do
   has been heard of for `timeout_hours/0` (their job is cancelled), then
   asks for a release on each batched tree whose oldest card awaiting
   release has waited its `release_age_cap_hours`. The age cap asks only
-  when no request is open and the tree's last one didn't fail or time out:
+  when none is running (a follow-up waits only behind one that is) and the
+  tree's last one didn't fail or time out:
   after one of those, a person or a critical merge releases next. Returns
   how many requests it ended or started.
   """
@@ -560,7 +559,7 @@ defmodule Slipdock.Releases do
   end
 
   defp age_cap(%Board{} = root, now) do
-    with nil <- open(root.id, "running") || open(root.id, "queued"),
+    with nil <- open(root.id, "running"),
          false <-
            match?(%Request{status: s} when s in ["failed", "timed_out"], last_ended(root.id)),
          [%Card{} = oldest | _] <- awaiting_on(root.id),

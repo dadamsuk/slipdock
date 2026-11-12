@@ -749,15 +749,13 @@ defmodule Slipdock.Boards.Board do
     end
   end
 
-  # One line a runner's shell runs (#2835): blank is the default.
+  # One line a runner's shell runs (#2835). Blank is the default: the cast
+  # has already made a blank one nil.
   defp validate_release_command(changeset) do
     changeset
     |> update_change(:release_command, fn
-      value when is_binary(value) ->
-        if(String.trim(value) == "", do: nil, else: String.trim(value))
-
-      value ->
-        value
+      value when is_binary(value) -> String.trim(value)
+      value -> value
     end)
     |> validate_length(:release_command, max: 500)
     |> validate_format(:release_command, ~r/\A[^\r\n\x00]*\z/, message: "must be one line")

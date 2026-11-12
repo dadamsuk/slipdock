@@ -470,8 +470,8 @@ defmodule Slipdock.Runners do
   def queue_release(root_id, pool, command) when is_integer(root_id) do
     pool = pool |> to_string() |> String.downcase()
 
+    # The command is the board's, which keeps it to one short line.
     with :ok <- valid_name(pool, "pool"),
-         :ok <- valid_prompt(command),
          :ok <- queue_allowance(root_id) do
       job =
         %Job{
@@ -1199,10 +1199,8 @@ defmodule Slipdock.Runners do
         where:
           j.board_id not in ^wip_full or exists(own_card_doing()) or
             j.kind in ^wip_exempt_kinds(),
-        # A job with no card (a release, #2835) is in no lane.
-        where:
-          is_nil(j.card_id) or j.card_id not in ^lane_held or
-            j.kind in ^Slipdock.Verified.finishing_kinds(),
+        # A release (#2835) has no card, so it is in no lane.
+        where: j.card_id not in ^lane_held or j.kind in ^lane_exempt_kinds(),
         # A merge job (#1656) or an overseer pass (#2068) only goes to a
         # runner that says it takes them.
         where: j.kind not in ^kinds_not_taken(runner),
@@ -1331,6 +1329,10 @@ defmodule Slipdock.Runners do
 
   # The kinds a WIP limit never holds back: verify and merge jobs finish
   # work, and an overseer pass (#2068) does none.
+  # The kinds no lane holds: what finishes a card (#1656), and a release
+  # (#2835), which has no card.
+  defp lane_exempt_kinds, do: [Slipdock.Releases.kind() | Slipdock.Verified.finishing_kinds()]
+
   # A release (#2835) is work on no card.
   defp wip_exempt_kinds,
     do: [

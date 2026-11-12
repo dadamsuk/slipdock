@@ -130,6 +130,28 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert activity(board) == ["Release not started: #{message}"]
     end
 
+    test "with the tree's job queue full, nothing starts and the board says so", %{board: board} do
+      runner!(board, "box", ~w(merge release))
+
+      for _ <- 1..200 do
+        Repo.insert!(%Job{
+          board_id: board.id,
+          root_board_id: board.id,
+          pool: "dev",
+          kind: "probe",
+          prompt: "x",
+          status: "queued"
+        })
+      end
+
+      assert {:error, message} = Releases.request(board, "age_cap", "#1 has waited 5h, cap 4h")
+      assert message =~ "the queue is full"
+      assert Repo.aggregate(Request, :count) == 0
+      assert Repo.aggregate(from(j in Job, where: j.kind == "release"), :count) == 0
+      assert [said] = activity(board)
+      assert said =~ "Release not started: the queue is full"
+    end
+
     test "starts a release: the cards awaiting, a card-less release job, the activity",
          %{board: board, todo: todo} do
       runner!(board, "box", ~w(merge release))
@@ -341,6 +363,19 @@ defmodule Slipdock.ReleaseRequestsTest do
     end
   end
 
+  describe "a release of exactly twenty cards" do
+    test "names them all and counts no more", %{board: board, todo: todo} do
+      runner!(board, "box", ~w(merge release))
+      cards = for n <- 1..20, do: merged!(todo, "Card #{n}")
+
+      assert {:ok, :started, _request} = Releases.request(board, "manual", nil)
+
+      [line] = activity(board)
+      assert String.ends_with?(line, "##{List.last(cards).id}.")
+      refute line =~ "more"
+    end
+  end
+
   describe "how a release ends" do
     setup %{board: board} do
       %{runner: runner!(board, "box", ~w(merge release))}
@@ -423,6 +458,21 @@ defmodule Slipdock.ReleaseRequestsTest do
 
       fire!(ctx.runner, request, %{exit: "1", status: "failed"})
       assert Repo.get!(Request, request.id).status == "timed_out"
+    end
+
+    test "a job done after its request ended keeps no link and says nothing", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      {:ok, _} = Releases.finish(request, "failed", "gave up")
+      said = activity(ctx.board)
+
+      fire!(ctx.runner, request, %{
+        exit: "0",
+        status: "done",
+        output: "release: run https://github.com/example/app/actions/runs/7"
+      })
+
+      assert %Request{status: "failed", run_url: nil} = Repo.get!(Request, request.id)
+      assert activity(ctx.board) == said
     end
 
     test "a rolled-back deploy ends nothing", ctx do
@@ -572,6 +622,34 @@ defmodule Slipdock.ReleaseRequestsTest do
     end
   end
 
+  describe "awaiting/1 and what didn't release" do
+    test "a failed deploy naming a card leaves it awaiting, and is no last release", %{
+      board: board,
+      todo: todo
+    } do
+      card = merged!(todo, "Red", completed_at: hours_ago(3))
+      deploy!(board, card, "failed")
+
+      assert Enum.map(Releases.awaiting(board), & &1.id) == [card.id]
+    end
+
+    test "a failed request is no last release; a released one is", %{board: board, todo: todo} do
+      card = merged!(todo, "Waiting", completed_at: hours_ago(3))
+
+      failed =
+        Repo.insert!(%Request{
+          board_id: board.id,
+          status: "failed",
+          started_at: DateTime.utc_now()
+        })
+
+      assert Enum.map(Releases.awaiting(board), & &1.id) == [card.id]
+
+      failed |> Ecto.Changeset.change(status: "released") |> Repo.update!()
+      assert Releases.awaiting(board) == []
+    end
+  end
+
   describe "card_merged/1" do
     setup %{board: board} do
       %{runner: runner!(board, "box", ~w(merge release))}
@@ -686,6 +764,13 @@ defmodule Slipdock.ReleaseRequestsTest do
       # A release is open: the cap asks for no second one.
       assert Releases.tick() == 0
       assert Repo.aggregate(Request, :count) == 1
+    end
+
+    test "the age cap asks at exactly the cap", ctx do
+      old = merged!(ctx.todo, "On the hour", completed_at: hours_ago(4))
+      assert Releases.tick() == 1
+      assert [%Request{triggers: [%{"by" => by}]}] = Repo.all(Request)
+      assert by == "##{old.id} has waited 4h, cap 4h"
     end
 
     test "an archived board, and a card with no merge time, never ask", ctx do

@@ -188,9 +188,13 @@ defmodule SlipdockWeb.ReleaseNowTest do
       editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
       share_fixture(ctx.board, [editor], "write")
 
-      {true, _refusal} =
-        mcp(with_token(editor, "theirs"), "release_now", %{board: "#{ctx.board.id}"})
+      theirs = with_token(editor, "theirs")
+      {true, _refusal} = mcp(theirs, "release_now", %{board: "#{ctx.board.id}"})
+      assert Repo.aggregate(Request, :count) == 0
 
+      # Reading where releases stand is any reader's.
+      {false, text} = mcp(theirs, "release_now", %{board: "#{ctx.board.id}", check: true})
+      assert Jason.decode!(text)["release"]["mode"] == "batched"
       assert Repo.aggregate(Request, :count) == 0
 
       {:ok, _} = Boards.update_board(ctx.board, %{"release_mode" => "on_merge"})
@@ -282,6 +286,15 @@ defmodule SlipdockWeb.ReleaseNowTest do
       assert [%Request{status: "running"} = request] = Repo.all(Request)
       assert Repo.get!(Job, request.job_id).prompt == "make release"
       assert has_element?(view, "#board-release-line", "A release is running")
+    end
+
+    test "someone it is shared with reads where releases stand, with no button", ctx do
+      editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [editor], "write")
+
+      {:ok, view, _} = live(log_in_user(build_conn(), editor), ~p"/boards/#{ctx.board}/agentic")
+      assert has_element?(view, "#board-release-line")
+      refute has_element?(view, "#board-release-now")
     end
 
     test "no release block on a board that releases on merge", ctx do
@@ -382,5 +395,15 @@ defmodule SlipdockWeb.ReleaseNowTest do
     odd = update_in(document.boards, fn [t] -> [put_in(t.root.release_command, "a\nb")] end)
     {:ok, report} = Slipdock.Portable.import(ctx.user, Jason.encode!(odd))
     assert Boards.get_board!(hd(report.boards).id).release_command == nil
+
+    long = String.duplicate("x", 501)
+    odd = update_in(document.boards, fn [t] -> [put_in(t.root.release_command, long)] end)
+    {:ok, report} = Slipdock.Portable.import(ctx.user, Jason.encode!(odd))
+    assert Boards.get_board!(hd(report.boards).id).release_command == nil
+
+    fits = String.duplicate("x", 500)
+    odd = update_in(document.boards, fn [t] -> [put_in(t.root.release_command, fits)] end)
+    {:ok, report} = Slipdock.Portable.import(ctx.user, Jason.encode!(odd))
+    assert Boards.get_board!(hd(report.boards).id).release_command == fits
   end
 end

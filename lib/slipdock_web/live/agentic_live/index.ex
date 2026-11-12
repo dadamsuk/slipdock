@@ -27,7 +27,7 @@ defmodule SlipdockWeb.AgenticLive.Index do
          perm = Access.board_permission(user, board),
          true <- Access.can_read?(perm) do
       if AgenticBuilding.on?(board) do
-        if connected?(socket), do: Slipdock.Releases.subscribe(board)
+        subscribe_releases(socket, board)
 
         {:ok,
          socket
@@ -143,6 +143,11 @@ defmodule SlipdockWeb.AgenticLive.Index do
   end
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  # A connected page hears the tree's releases change (#2835).
+  defp subscribe_releases(socket, board) do
+    if connected?(socket), do: Slipdock.Releases.subscribe(board)
+  end
 
   # Where the tree's releases stand (#2835); nil unless it is batched.
   defp release_status(%Board{} = board) do
