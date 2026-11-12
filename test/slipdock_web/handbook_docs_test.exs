@@ -6,8 +6,6 @@ defmodule SlipdockWeb.HandbookDocsTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
-  import Phoenix.LiveViewTest
-
   @root Path.expand("../..", __DIR__)
   defp read(path), do: Slipdock.DocsText.read!(Path.join(@root, path))
 
@@ -51,8 +49,12 @@ defmodule SlipdockWeb.HandbookDocsTest do
     assert read("docs/manual.md") =~ "| Closed without a Handbook line |"
   end
 
+  # Read over HTTP, not through `live/2`: the test only reads what the page
+  # says, and a join the channel refuses (this host's clock stepping back under
+  # load, W-1950 §Tests, #2732) came back from `live/2` as a redirect to the
+  # page itself (#2870).
   test "the agents page explains it", %{conn: conn} do
-    {:ok, _view, html} = live(conn, ~p"/help/agents/skills")
+    html = conn |> get(~p"/help/agents/skills") |> html_response(200)
     assert html =~ "The handbook"
     assert html =~ "line in its closing comment"
   end

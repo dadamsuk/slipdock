@@ -45,6 +45,25 @@ defmodule SlipdockWeb.LoopChipTileTest do
     render(view)
   end
 
+  # The page as the server sends it, without joining its LiveView: for the
+  # tests that only read it. A join the channel refuses (this host's clock
+  # stepping back under load, W-1950 §Tests, #2732) came back from `live/2` as
+  # a redirect to the board itself (#2870).
+  defp page(conn, path), do: conn |> get(path) |> html_response(200) |> LazyHTML.from_document()
+
+  defp page_showing(ctx, path, keys) do
+    Slipdock.CardViewHelpers.show_on_cards(ctx.user, ctx.board, keys)
+    page(ctx.conn, path)
+  end
+
+  # `has_element?/3` on that page: an element matching `selector`, and with
+  # `text`, one whose text contains it.
+  defp on_page?(page, selector, text \\ nil) do
+    page
+    |> LazyHTML.query(selector)
+    |> Enum.any?(&(is_nil(text) or LazyHTML.text(&1) =~ text))
+  end
+
   describe "the board tile" do
     test "shows the loop beside the assignees, linked to the job, until the job ends", ctx do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
@@ -64,15 +83,16 @@ defmodule SlipdockWeb.LoopChipTileTest do
 
     test "sits beside a person assignee in the card's meta row", ctx do
       {:ok, _} = Boards.Cards.update_card(ctx.card, %{"assignee_ids" => [ctx.user.id]})
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      page = page(ctx.conn, ~p"/boards/#{ctx.board}")
 
-      assert has_element?(
-               view,
+      assert on_page?(
+               page,
                "#card-#{ctx.card.id} [data-role=card-meta] #card-#{ctx.card.id}-loop"
              )
 
-      assert render(element(view, "#card-#{ctx.card.id} [data-role=card-meta]")) =~
-               "hero-cpu-chip"
+      assert page
+             |> LazyHTML.query("#card-#{ctx.card.id} [data-role=card-meta]")
+             |> LazyHTML.to_html() =~ "hero-cpu-chip"
     end
 
     test "shows on the compact face too, and says verify for a verify job", ctx do
@@ -80,52 +100,38 @@ defmodule SlipdockWeb.LoopChipTileTest do
       {:ok, _} = Runners.queue(ctx.card, %{pool: "dev", kind: "verify", prompt: "check"})
       %Job{kind: "verify"} = verify = Runners.claim(ctx.runner)
 
-      {:ok, view, _} =
-        Slipdock.CardViewHelpers.live_showing(
-          ctx.conn,
-          ctx.user,
-          ctx.board,
-          ~p"/boards/#{ctx.board}?#{[density: "compact"]}",
-          ~w(assignee)
-        )
+      page = page_showing(ctx, ~p"/boards/#{ctx.board}?#{[density: "compact"]}", ~w(assignee))
 
-      assert has_element?(
-               view,
+      assert on_page?(
+               page,
                "#card-#{ctx.card.id}-loop[href='#{job_href(ctx, verify)}']",
                "Mac Studio · verify"
              )
+
+      # The finished build job's chip is not left beside it.
+      refute on_page?(page, "#card-#{ctx.card.id}-loop", "Mac Studio · build")
     end
 
     test "is left off with the assignee field", ctx do
-      {:ok, view, _} =
-        Slipdock.CardViewHelpers.live_showing(
-          ctx.conn,
-          ctx.user,
-          ctx.board,
-          ~p"/boards/#{ctx.board}",
-          ~w(tags status)
-        )
+      page = page_showing(ctx, ~p"/boards/#{ctx.board}", ~w(tags status))
 
-      assert has_element?(view, "#card-#{ctx.card.id}")
-      refute has_element?(view, "#card-#{ctx.card.id}-loop")
+      assert on_page?(page, "#card-#{ctx.card.id}")
+      refute on_page?(page, "#card-#{ctx.card.id}-loop")
 
-      {:ok, view, _} =
-        Slipdock.CardViewHelpers.live_showing(
-          ctx.conn,
-          ctx.user,
-          ctx.board,
-          ~p"/boards/#{ctx.board}?#{[density: "compact"]}",
-          ~w(tags)
-        )
+      page = page_showing(ctx, ~p"/boards/#{ctx.board}?#{[density: "compact"]}", ~w(tags))
 
-      refute has_element?(view, "#card-#{ctx.card.id}-loop")
+      assert on_page?(page, "#card-#{ctx.card.id}")
+      refute on_page?(page, "#card-#{ctx.card.id}-loop")
     end
 
     test "a queued job is not a loop yet", ctx do
       {:ok, _} = Runners.queue(ctx.other, %{pool: "dev", kind: "claude", prompt: "later"})
-      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+      page = page(ctx.conn, ~p"/boards/#{ctx.board}")
 
-      refute has_element?(view, "#card-#{ctx.other.id}-loop")
+      # The tile is on the page, and so is the claimed job's chip beside it.
+      assert on_page?(page, "#card-#{ctx.other.id}")
+      assert on_page?(page, "#card-#{ctx.card.id}-loop")
+      refute on_page?(page, "#card-#{ctx.other.id}-loop")
     end
   end
 
@@ -179,17 +185,10 @@ defmodule SlipdockWeb.LoopChipTileTest do
     end
 
     test "is left off with the assignee field", ctx do
-      {:ok, view, _} =
-        Slipdock.CardViewHelpers.live_showing(
-          ctx.conn,
-          ctx.user,
-          ctx.board,
-          ~p"/boards/#{ctx.board}/outline",
-          ~w(tags priority)
-        )
+      page = page_showing(ctx, ~p"/boards/#{ctx.board}/outline", ~w(tags priority))
 
-      assert has_element?(view, "#ol-#{ctx.card.id}")
-      refute has_element?(view, "#ol-loop-#{ctx.card.id}")
+      assert on_page?(page, "#ol-#{ctx.card.id}")
+      refute on_page?(page, "#ol-loop-#{ctx.card.id}")
     end
   end
 

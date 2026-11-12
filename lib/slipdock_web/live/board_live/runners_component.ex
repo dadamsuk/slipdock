@@ -456,6 +456,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               old CLI
             </span>
             <span
+              :if={drift(runner).cli == :unsigned}
+              id={"runner-#{runner.id}-cli"}
+              class="badge badge-ghost badge-xs shrink-0"
+              title="This server's slipdock CLI differs from the runner's but isn't signed with the release key (a deploy from main; only a v* tag's is signed), so its machine keeps its own until the next release. Nothing to do on the machine"
+            >
+              CLI unsigned on server
+            </span>
+            <span
               :for={kind <- Slipdock.Runners.missing_kinds(runner)}
               id={"runner-#{runner.id}-lacks-#{kind}"}
               class="badge badge-error badge-xs shrink-0"

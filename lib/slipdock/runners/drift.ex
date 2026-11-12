@@ -123,28 +123,49 @@ defmodule Slipdock.Runners.Drift do
 
   @doc """
   What the runner's CLI is against `served` (the escript's SHA-256, or nil
-  when this server has none to give): `:current`, `:old`, `:none` (the
-  machine has no CLI) or `:unknown` (it never said, or there is nothing to
-  compare with).
+  when this server has none to give), and whether this server serves a
+  signature beside it (`signed?`): `:current`, `:old`, `:unsigned`, `:none`
+  (the machine has no CLI) or `:unknown` (it never said, or there is
+  nothing to compare with).
+
+  `:unsigned` (#2825) is a CLI that differs from one this server serves
+  with no signature (`/cli/slipdock.escript.sig`), as after a deploy from
+  `main`: the release job signs only a `v*` tag's. A daemon with a default
+  `local.json` won't install an unsigned CLI, so the difference is the
+  server's, not the machine's, and it isn't drift: it raises no alert, and
+  reads `:current` again once the next signed release is served.
   """
-  def cli_state(%Runner{cli_sha: nil}, _served), do: :unknown
-  def cli_state(%Runner{cli_sha: "none"}, _served), do: :none
-  def cli_state(%Runner{}, nil), do: :unknown
-  def cli_state(%Runner{cli_sha: sha}, sha), do: :current
-  def cli_state(%Runner{}, _served), do: :old
+  def cli_state(runner, served, signed? \\ true)
+  def cli_state(%Runner{cli_sha: nil}, _served, _signed?), do: :unknown
+  def cli_state(%Runner{cli_sha: "none"}, _served, _signed?), do: :none
+  def cli_state(%Runner{}, nil, _signed?), do: :unknown
+  def cli_state(%Runner{cli_sha: sha}, sha, _signed?), do: :current
+  def cli_state(%Runner{}, _served, false), do: :unsigned
+  def cli_state(%Runner{}, _served, true), do: :old
 
   @doc "Both states for `runner`, against what this server serves now."
   def states(%Runner{} = runner) do
-    %{skills: skills_state(runner, served_skills()), cli: cli_state(runner, served_cli())}
+    %{
+      skills: skills_state(runner, served_skills()),
+      cli: cli_state(runner, served_cli(), served_cli_signed?())
+    }
   end
 
-  @doc "Whether either state is drift: a skill that differs, or an old CLI."
+  @doc """
+  Whether either state is drift: a skill that differs, or an old CLI. A CLI
+  that differs from an unsigned one (`:unsigned`) isn't: the machine can't
+  take it.
+  """
   def drifted?(%{skills: {:drifted, _}}), do: true
   def drifted?(%{cli: :old}), do: true
   def drifted?(_), do: false
 
-  @doc "Words for a state: `current`, `drifted (slipdock-loop)`, `old`, `unknown`."
+  @doc """
+  Words for a state: `current`, `drifted (slipdock-loop)`, `old`,
+  `unsigned on server`, `unknown`.
+  """
   def describe({:drifted, names}), do: "drifted (#{Enum.join(names, ", ")})"
+  def describe(:unsigned), do: "unsigned on server"
   def describe(state) when is_atom(state), do: Atom.to_string(state)
 
   @doc """
@@ -176,6 +197,16 @@ defmodule Slipdock.Runners.Drift do
       _ ->
         nil
     end
+  end
+
+  @doc """
+  Whether this server serves a signature beside its CLI escript
+  (`priv/cli/slipdock.escript.sig`, which the release job makes for a `v*`
+  tag), as `/cli/slipdock.escript.sig` does. Checked on each call: a stat,
+  and the file can be stood in by the tests.
+  """
+  def served_cli_signed? do
+    match?({:ok, %{type: :regular}}, File.stat(escript_path() <> ".sig"))
   end
 
   defp file_sha(path) do

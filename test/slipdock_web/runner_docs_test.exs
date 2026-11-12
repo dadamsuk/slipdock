@@ -139,7 +139,8 @@ defmodule SlipdockWeb.RunnerDocsTest do
 
     agents = read("docs/agents.md")
     assert agents =~ "`no_cli_update: true`"
-    assert agents =~ "so a deploy leaves no runner *cli old*"
+    # Only a signed (`v*` tag's) deploy; one from main shows unsigned (#2825).
+    assert agents =~ "so a deploy of a `v*` tag leaves no runner *cli\nold*"
     refute agents =~ "The server never changes the machine: run the install"
 
     help = read("lib/slipdock_web/live/help_live/agents.ex")
