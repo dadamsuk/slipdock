@@ -21,7 +21,10 @@ import (
 	"github.com/dadamsuk/slipdock/daemon/internal/release"
 )
 
-func runInstallPs1(t *testing.T, tamper bool) (string, string, error) {
+// runInstallPs1 runs install.ps1 against a plain http release host, as
+// the one-liner's scriptblock form with -AllowHttp, or with allowHTTP
+// false as `… | iex`, which can pass no switch.
+func runInstallPs1(t *testing.T, tamper bool, allowHTTP ...bool) (string, string, error) {
 	t.Helper()
 	if runtime.GOOS != "windows" {
 		t.Skip("install.ps1 is for Windows")
@@ -61,8 +64,11 @@ func runInstallPs1(t *testing.T, tamper bool) (string, string, error) {
 	script := filepath.Join(t.TempDir(), "install.ps1")
 	os.WriteFile(script, []byte(strings.Replace(string(src), "__SLIPDOCK_RELEASE_KEY__", release.AuthorizedKey(pub, ""), 1)), 0o644)
 	dest := filepath.Join(t.TempDir(), "bin")
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
-		"Get-Content -Raw '"+script+"' | iex")
+	run := "& ([scriptblock]::Create((Get-Content -Raw '" + script + "'))) -AllowHttp"
+	if len(allowHTTP) > 0 && !allowHTTP[0] {
+		run = "Get-Content -Raw '" + script + "' | iex"
+	}
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", run)
 	cmd.Env = append(os.Environ(), "SLIPDOCK_RUNNER_SOURCE="+ts.URL+"/rel", "SLIPDOCK_RUNNER_BIN="+dest)
 	out, err := cmd.CombinedOutput()
 	return string(out), filepath.Join(dest, "slipdock-runner.exe"), err
@@ -81,6 +87,16 @@ func TestInstallPs1InstallsASignedRelease(t *testing.T) {
 func TestInstallPs1RefusesATamperedBinary(t *testing.T) {
 	out, exe, err := runInstallPs1(t, true)
 	if err == nil || !strings.Contains(out, "REFUSED") {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if _, err := os.Stat(exe); err == nil {
+		t.Fatal("something was installed")
+	}
+}
+
+func TestInstallPs1RefusesPlainHTTPUnlessAllowed(t *testing.T) {
+	out, exe, err := runInstallPs1(t, false, false)
+	if err == nil || !strings.Contains(out, "is plain http: use https, or pass -AllowHttp") {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	if _, err := os.Stat(exe); err == nil {

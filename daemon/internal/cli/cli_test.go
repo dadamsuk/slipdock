@@ -182,7 +182,7 @@ func TestInitByDeviceCode(t *testing.T) {
 	ts := f.start(t)
 	w := newWorld(t)
 
-	if code := w.main("init", "--as-me", "--server", ts.URL); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	out := w.out.String()
@@ -224,12 +224,12 @@ func TestInitRefusesToReplaceWithoutReplace(t *testing.T) {
 	f := &fake{}
 	ts := f.start(t)
 	w := newWorld(t)
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	_, firstKey, _ := machine.Load(w.dir)
 
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good"); code != 1 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good"); code != 1 {
 		t.Fatalf("a second init must refuse: exit %d", code)
 	}
 	if !strings.Contains(w.errOut.String(), "already enrolled (box on "+ts.URL+"). Pass --replace") {
@@ -248,7 +248,7 @@ func TestInitRefusesToReplaceWithoutReplace(t *testing.T) {
 	if err := machine.SaveCeiling(w.dir, c); err != nil {
 		t.Fatal(err)
 	}
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good", "--replace"); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good", "--replace"); code != 0 {
 		t.Fatalf("--replace: exit %d: %s", code, w.errOut)
 	}
 	if got, _ := machine.LoadCeiling(w.dir); got.MaxTimeoutMinutes != 15 {
@@ -263,7 +263,7 @@ func TestInitWithAKey(t *testing.T) {
 	f := &fake{}
 	ts := f.start(t)
 	w := newWorld(t)
-	code := w.main("init", "--as-me", "--server", ts.URL, "--key", " sdk_good ", "--root", w.home, "--agent", "claude",
+	code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", " sdk_good ", "--root", w.home, "--agent", "claude",
 		"--agent", "codex", "--max-mode", "plan", "--max-timeout", "30")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
@@ -289,7 +289,7 @@ func TestInitFailures(t *testing.T) {
 	ts := f.start(t)
 
 	w := newWorld(t)
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_used"); code != 1 ||
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_used"); code != 1 ||
 		!strings.Contains(w.errOut.String(), "enrolment failed: invalid_grant") {
 		t.Fatalf("a used key: %d %s", code, w.errOut)
 	}
@@ -298,7 +298,7 @@ func TestInitFailures(t *testing.T) {
 	}
 
 	before := f.enrols
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good", "--max-mode", "yolo"); code != 1 ||
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good", "--max-mode", "yolo"); code != 1 ||
 		!strings.Contains(w.errOut.String(), "max_permission_mode") {
 		t.Fatalf("a bad ceiling flag: %d %s", code, w.errOut)
 	}
@@ -306,9 +306,16 @@ func TestInitFailures(t *testing.T) {
 		t.Fatal("a bad ceiling flag is caught before enrolling")
 	}
 
-	if code := w.main("init", "--as-me", "--server", "http://slipdock.example.com", "--key", "k"); code != 1 ||
-		!strings.Contains(w.errOut.String(), "plain http") {
-		t.Fatalf("plain http to another host: %d %s", code, w.errOut)
+	before = f.enrols
+	for _, srv := range []string{"http://slipdock.example.com", ts.URL, "http://localhost:4000"} {
+		w.errOut.Reset()
+		if code := w.main("init", "--as-me", "--server", srv, "--key", "sdk_good"); code != 1 ||
+			!strings.Contains(w.errOut.String(), "plain http") || !strings.Contains(w.errOut.String(), "--allow-http") {
+			t.Fatalf("plain http without --allow-http (%s): %d %s", srv, code, w.errOut)
+		}
+	}
+	if f.enrols != before || machine.Enrolled(w.dir) {
+		t.Fatal("plain http is refused before anything is sent")
 	}
 	if code := w.main("init", "--as-me", "--server", "ftp://x", "--key", "k"); code != 1 ||
 		!strings.Contains(w.errOut.String(), "is not a server address") {
@@ -327,7 +334,7 @@ func TestInitAsksForTheServer(t *testing.T) {
 	ts := f.start(t)
 	w := newWorld(t)
 	w.env.Stdin = strings.NewReader(ts.URL + "/\n")
-	if code := w.main("init", "--as-me", "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--as-me", "--key", "sdk_good", "--allow-http"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	if !strings.Contains(w.out.String(), "Slipdock server [https://app.slipdock.us]: ") {
@@ -338,8 +345,38 @@ func TestInitAsksForTheServer(t *testing.T) {
 	}
 
 	// Nothing typed: the default.
-	if got, err := serverURL("", Env{Stdin: strings.NewReader("\n"), Stdout: &bytes.Buffer{}}); err != nil || got != DefaultServer {
+	if got, err := serverURL("", false, Env{Stdin: strings.NewReader("\n"), Stdout: &bytes.Buffer{}}); err != nil || got != DefaultServer {
 		t.Fatalf("%q %v", got, err)
+	}
+}
+
+func TestServerURLRefusesPlainHTTPUnlessAllowed(t *testing.T) {
+	for _, typed := range []bool{false, true} {
+		for _, s := range []string{"http://slipdock.example.com", "http://127.0.0.1:4000", "HTTP://localhost"} {
+			env := Env{Stdin: strings.NewReader(""), Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
+			flag := s
+			if typed {
+				env.Stdin, flag = strings.NewReader(s+"\n"), ""
+			}
+			if got, err := serverURL(flag, false, env); err == nil || !strings.Contains(err.Error(), "plain http") {
+				t.Fatalf("%s (typed %v): %q %v", s, typed, got, err)
+			}
+		}
+	}
+
+	errOut := &bytes.Buffer{}
+	got, err := serverURL("http://slipdock.example.com/", true, Env{Stdout: &bytes.Buffer{}, Stderr: errOut})
+	if err != nil || got != "http://slipdock.example.com" {
+		t.Fatalf("--allow-http: %q %v", got, err)
+	}
+	if !strings.Contains(errOut.String(), "unencrypted") {
+		t.Fatalf("--allow-http warns: %q", errOut)
+	}
+
+	errOut.Reset()
+	if got, err := serverURL("https://slipdock.example.com", false, Env{Stdout: &bytes.Buffer{}, Stderr: errOut}); err != nil ||
+		got != "https://slipdock.example.com" || errOut.Len() != 0 {
+		t.Fatalf("https needs no flag and says nothing: %q %v %q", got, err, errOut)
 	}
 }
 
@@ -354,7 +391,7 @@ func TestInitDeviceRefusedOrExpired(t *testing.T) {
 			rw.Write([]byte(`{"error":"` + code + `"}`))
 		}))
 		w := newWorld(t)
-		if c := w.main("init", "--as-me", "--server", ts.URL, "--no-browser"); c != 1 || !strings.Contains(w.errOut.String(), want) {
+		if c := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--no-browser"); c != 1 || !strings.Contains(w.errOut.String(), want) {
 			t.Errorf("%s: exit %d %s", code, c, w.errOut)
 		}
 		if len(w.opened) != 0 {
@@ -368,7 +405,7 @@ func enrolled(t *testing.T) (*world, *fake) {
 	f := &fake{}
 	ts := f.start(t)
 	w := newWorld(t)
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good", "--root", w.home); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good", "--root", w.home); code != 0 {
 		t.Fatalf("init: %s", w.errOut)
 	}
 	return w, f

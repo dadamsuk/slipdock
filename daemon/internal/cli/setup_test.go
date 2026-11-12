@@ -18,7 +18,7 @@ func initAsMe(t *testing.T, input string, extra ...string) (*world, *fake, int) 
 	ts := f.start(t)
 	w := newWorld(t)
 	w.env.Stdin = strings.NewReader(input)
-	code := w.main(append([]string{"init", "--as-me", "--server", ts.URL, "--key", "sdk_good"}, extra...)...)
+	code := w.main(append([]string{"init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good"}, extra...)...)
 	return w, f, code
 }
 
@@ -28,7 +28,7 @@ func initAsAccount(t *testing.T, f *fake, input string, extra ...string) (*world
 	unixOnly(t)
 	ts := f.start(t)
 	w, _ := sudoWorld(t, input)
-	code := w.main(append([]string{"init", "--user", "slipdock", "--server", ts.URL, "--key", "sdk_good"}, extra...)...)
+	code := w.main(append([]string{"init", "--user", "slipdock", "--server", ts.URL, "--allow-http", "--key", "sdk_good"}, extra...)...)
 	return w, code
 }
 
@@ -101,7 +101,7 @@ func TestInitNoSetupDoesNotAsk(t *testing.T) {
 	w := newWorld(t)
 	in := strings.NewReader("y\n")
 	w.env.Stdin = in
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good", "--no-setup"); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good", "--no-setup"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	if strings.Contains(w.out.String(), "Set up this machine with Claude") || strings.Contains(w.out.String(), "slipdock-runner setup") {
@@ -121,7 +121,7 @@ func TestInitSetupWithoutClaude(t *testing.T) {
 	w := newWorld(t)
 	w.paths["claude"] = false
 	w.env.Stdin = strings.NewReader("y\n")
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good"); code != 0 {
 		t.Fatalf("init still succeeds: exit %d: %s", code, w.errOut)
 	}
 	out := w.out.String()
@@ -138,7 +138,7 @@ func TestInitSetupFromAnOlderServer(t *testing.T) {
 	ts := f.start(t)
 	w := newWorld(t)
 	w.env.Stdin = strings.NewReader("y\n")
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good"); code != 0 {
 		t.Fatalf("init still succeeds: exit %d: %s", code, w.errOut)
 	}
 	if out := w.out.String(); !strings.Contains(out, "doesn't offer a setup prompt yet") || !strings.Contains(out, setupLater) {
@@ -155,7 +155,7 @@ func TestInitSetupClaudeFails(t *testing.T) {
 	w := newWorld(t)
 	w.interactiveErr["claude "+prompt] = errors.New("exit status 3")
 	w.env.Stdin = strings.NewReader("y\n")
-	if code := w.main("init", "--as-me", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--as-me", "--server", ts.URL, "--allow-http", "--key", "sdk_good"); code != 0 {
 		t.Fatalf("a failing claude doesn't fail init: exit %d: %s", code, w.errOut)
 	}
 	if !strings.Contains(w.out.String(), "claude stopped with an error: exit status 3") {
@@ -168,7 +168,7 @@ func TestInitAsksServerThenSetup(t *testing.T) {
 	ts := f.start(t)
 	w := newWorld(t)
 	w.env.Stdin = strings.NewReader(ts.URL + "\ny\n")
-	if code := w.main("init", "--as-me", "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--as-me", "--key", "sdk_good", "--allow-http"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	if len(w.interactive) != 1 || w.interactive[0][1] != prompt {
@@ -198,7 +198,7 @@ func TestInitAsAnAccountNeedsNoClaudeOnYourPath(t *testing.T) {
 	ts := f.start(t)
 	w, _ := sudoWorld(t, "y\n")
 	w.paths["claude"] = false
-	if code := w.main("init", "--user", "slipdock", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--user", "slipdock", "--server", ts.URL, "--allow-http", "--key", "sdk_good"); code != 0 {
 		t.Fatalf("exit %d: %s", code, w.errOut)
 	}
 	if len(w.interactive) != 1 || w.interactive[0][0] != "sudo" {
@@ -234,7 +234,7 @@ func TestInitAsAnAccountClaudeFailing(t *testing.T) {
 	ts := f.start(t)
 	w, _ := sudoWorld(t, "y\n")
 	w.interactiveErr["sudo "+strings.Join(claudeAs("slipdock", prompt), " ")] = errors.New("exit status 127")
-	if code := w.main("init", "--user", "slipdock", "--server", ts.URL, "--key", "sdk_good"); code != 0 {
+	if code := w.main("init", "--user", "slipdock", "--server", ts.URL, "--allow-http", "--key", "sdk_good"); code != 0 {
 		t.Fatalf("a failing claude doesn't fail init: exit %d: %s", code, w.errOut)
 	}
 	out := w.out.String()

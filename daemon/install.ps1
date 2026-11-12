@@ -15,7 +15,15 @@
 # into it, whichever host serves the update. (The manual's Machines page.)
 #
 #   SLIPDOCK_RUNNER_BIN     where to put it (default %LOCALAPPDATA%\Programs\slipdock-runner)
-#   SLIPDOCK_RUNNER_SOURCE  where releases come from (default: GitHub)
+#   SLIPDOCK_RUNNER_SOURCE  where releases come from (default: GitHub);
+#                           https only, unless -AllowHttp is given
+#
+#   -AllowHttp  allow a plain http:// SLIPDOCK_RUNNER_SOURCE, such as a
+#               release host on this machine:
+#               & ([scriptblock]::Create((irm <server>/install.ps1))) -AllowHttp
+param(
+    [switch]$AllowHttp
+)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
@@ -27,6 +35,18 @@ $Bin = if ($env:SLIPDOCK_RUNNER_BIN) { $env:SLIPDOCK_RUNNER_BIN } else { Join-Pa
 # Thrown, not exit: run as `irm … | iex`, exit would close the window.
 function Fail([string]$message) {
     throw "slipdock-runner install: $message"
+}
+
+# Plain http would let anyone on the way swap what is downloaded. The
+# signature check still refuses a swapped release, but https is the rule
+# and http needs saying so (#2797).
+if ($Source -match '^http://') {
+    if (-not $AllowHttp) {
+        Fail "$Source is plain http: use https, or pass -AllowHttp (& ([scriptblock]::Create((irm <server>/install.ps1))) -AllowHttp)"
+    }
+    Write-Warning "slipdock-runner install: downloading over plain http from $Source (-AllowHttp)"
+} elseif ($Source -notmatch '^https://') {
+    Fail "$Source is not an https:// address"
 }
 
 if (-not $ReleaseKey.StartsWith('ssh-ed25519 ')) {

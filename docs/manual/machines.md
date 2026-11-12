@@ -41,7 +41,11 @@ with its SHA-256) and its signature, checks the signature against the
 project's release key written into the installer, and only then downloads
 the binary for your machine, checks its SHA-256 against the signed list, and
 puts it in `~/.local/bin` (on Windows, `%LOCALAPPDATA%\Programs\slipdock-runner`).
-`SLIPDOCK_RUNNER_BIN` puts it elsewhere. Anything that doesn't verify is
+`SLIPDOCK_RUNNER_BIN` puts it elsewhere, and `SLIPDOCK_RUNNER_SOURCE` takes
+the release from another host. That host must be `https://`: a plain
+`http://` one is refused unless you say so, with `--allow-http`
+(`curl -fsSL <url> | sh -s -- --allow-http`) or, on Windows, `-AllowHttp`
+(`& ([scriptblock]::Create((irm <url>))) -AllowHttp`). Anything that doesn't verify is
 refused, and nothing is installed. The check is `ssh-keygen -Y verify`, so
 the installers need OpenSSH 8.1 or later, which macOS, current Linux
 distributions and Windows 10 and 11 have (on Windows, the *OpenSSH Client*
@@ -119,7 +123,10 @@ slipdock-runner init
 
 `init` asks for the server's address (`--server URL` skips the question),
 then prints a short code and a link to the approval page, and opens it in
-your browser when it can (`--no-browser` doesn't). It also prints the
+your browser when it can (`--no-browser` doesn't). The address must be
+`https://`: the machine key comes back over it, so a plain `http://` one is
+refused, even on this machine, unless you pass `--allow-http` (a development
+server). It also prints the
 machine's **fingerprint**: check the approval page shows the same one before
 you approve, so you know it is this machine you are letting in. On the page
 you choose the boards the machine may serve.
