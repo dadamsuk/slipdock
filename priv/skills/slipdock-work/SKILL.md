@@ -258,7 +258,11 @@ whole card before touching it.
   a broken release is an ordinary card tagged `incident`; if you know the
   deploy that caused it, `slipdock incident-of <card> <deploy-id>`. Name the
   card in the fix's commit (`#57`), as with any card: that is how its deploy
-  is counted as a fix and the card gets its *Shipped* line. Never record or
+  is counted as a fix and the card gets its *Shipped* line. A merged card no
+  succeeded deploy names after the board's minutes (20) says *Not shipped*
+  in `slipdock card` (`not_shipped` in its JSON) and raises a warning alert on
+  the board, overseer on or off: the pipeline failed before its deploy, so
+  look at the build rather than waiting. Never record or
   finish deploys by hand — that is CI's, with its own token.
 - **Tidy-up suggestions are the person's to decide.** `slipdock garden <board>`
   (over MCP, `garden`) lists what the board's gardener found: epics done but

@@ -370,7 +370,11 @@ production · 1a2b3c4 · 6 Nov 14:32*, the time in your time zone), and one whos
 latest deploy attempt failed carries `deploy_failed` (*Deploy failed at build ·
 production · <run url> · 6 Nov 20:41*) until a deploy naming it succeeds: CI's
 failure job records it with `slipdock deploy failed --stage S --run-url U` (`POST
-/api/deployments/failed`). An outage is an incident card tagged `incident`;
+/api/deployments/failed`). A merged card no succeeded deploy names after the
+board's `not_shipped_minutes` (20) carries `not_shipped` (*Merged 1a634c6 · not
+shipped after 45m*; *Not shipped* in `slipdock card`) and raises one warning
+alert on the root board, overseer on or off, until a deploy names it, whether
+or not CI reported anything. An outage is an incident card tagged `incident`;
 `slipdock incident-of <card> <deploy>` (or `POST /api/cards/:id/incident-of`)
 names the deploy that caused it. To wire a repository up, `get_guide` with
 `section: "deployments"` is the whole brief. See
@@ -970,7 +974,9 @@ going round (a second rejection, a third runner pass), a board waiting only
 on a person with nothing running, cards slower than the board's P85 for
 their profile and jobs whose step hasn't changed in 30 minutes, idle runners
 beside a full ready list or jobs queued behind one lane, and epics whose
-open subcards are all blocked. Each fires once, as an alert and an email
+open subcards are all blocked. One more, `not_shipped` (a merged card no
+succeeded deploy names after the board's `not_shipped_minutes`), runs on any
+board with delivery metrics on, whether or not the overseer is. Each fires once, as an alert and an email
 with why and what to do, heads the owner's `slipdock work` and `whoami`
 (reason `overseer`), and clears itself when it ends. A runner job of kind
 `overseer` (only to a runner whose config has `job_overseer`, on a cheap

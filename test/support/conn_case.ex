@@ -59,6 +59,30 @@ defmodule SlipdockWeb.ConnCase do
     Phoenix.LiveViewTest.put_connect_params(conn, %{"viewport_width" => width})
   end
 
+  @doc """
+  What MCP's `get_card` answers for `card`, decoded: the card as an agent
+  reads it through that door.
+  """
+  def mcp_card(conn, card) do
+    conn
+    |> Plug.Conn.put_req_header("content-type", "application/json")
+    |> Phoenix.ConnTest.dispatch(SlipdockWeb.Endpoint, :post, "/mcp", mcp_get_card(card))
+    |> Phoenix.ConnTest.json_response(200)
+    |> get_in(["result", "content"])
+    |> hd()
+    |> Map.fetch!("text")
+    |> Jason.decode!()
+  end
+
+  defp mcp_get_card(card) do
+    Jason.encode!(%{
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: %{name: "get_card", arguments: %{card: card.id}}
+    })
+  end
+
   @doc "Signs the user in on the conn (a session token in the session cookie)."
   def log_in_user(conn, user) do
     token = Slipdock.Accounts.generate_session_token(user)

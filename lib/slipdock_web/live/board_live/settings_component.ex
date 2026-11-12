@@ -737,6 +737,16 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                   label="Hotfix window (hours)"
                   class="input field w-24"
                 />
+                <%!-- The not-shipped watch (#2819): overseer on or off. --%>
+                <.input
+                  field={@form[:not_shipped_minutes]}
+                  id="board-not-shipped-minutes"
+                  type="number"
+                  min="0"
+                  label="Not shipped after (minutes)"
+                  title="A merged card no succeeded deploy names after this long raises an alert and says so on the card. 0: never."
+                  class="input field w-24"
+                />
                 <.input
                   field={@form[:card_ref_pattern]}
                   id="board-card-ref-pattern"

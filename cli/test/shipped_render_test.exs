@@ -38,6 +38,27 @@ defmodule SlipdockCLI.ShippedRenderTest do
     assert out =~ ~r/Incident of:\s+deploy #41/
   end
 
+  # #2819: merged, and no succeeded deploy names it after the board's minutes.
+  test "a merged card that hasn't shipped says so, beside its outcome" do
+    card =
+      Map.merge(@card, %{
+        "completed" => true,
+        "outcome" => %{"text" => "Done 11 Nov 20:16 · merged PR #426 (1a634c6)"},
+        "not_shipped" => %{
+          "text" => "Merged 1a634c6 · not shipped after 45m",
+          "sha" => "1a634c6",
+          "seconds" => 2700,
+          "minutes" => 20
+        }
+      })
+
+    out = capture_io(fn -> Render.card(card) end)
+    assert out =~ ~r/Not shipped:\s+Merged 1a634c6 · not shipped after 45m/
+    assert out =~ ~r/Outcome:\s+Done 11 Nov 20:16/
+
+    refute capture_io(fn -> Render.card(@card) end) =~ "Not shipped"
+  end
+
   # #2022: a finished card's outcome comes first, not "Left off"; the note
   # written before it finished is folded to one line, and one left after
   # it is what is still to do.

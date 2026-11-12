@@ -2313,6 +2313,21 @@ defmodule SlipdockWeb.APIGuide do
     release the age cap asks for nothing until a person or a critical
     merge has released. Each step is a line in the root board's activity.
 
+    **Merged, not shipped** (#2819). A pipeline that fails before its deploy
+    job records nothing, so the server notices by itself: a card done and
+    accepted with a `merge_sha` (ship by pull request) or the commit it was
+    accepted at (ship by push) that no succeeded deploy names once the
+    board's `not_shipped_minutes` have gone by (20; PATCH the board, or
+    `slipdock set-board B --not-shipped-minutes N`; 0 never) carries
+    `not_shipped` on `GET /api/cards/:id` and `get_card`: `text` (*Merged
+    1a634c6 · not shipped after 45m*), `sha`, `merged_at`, `seconds` and
+    `minutes`; `slipdock card` shows it as *Not shipped*. The root board gets
+    one warning alert (the watch check `not_shipped`) and its owner an
+    email. A succeeded deploy naming the card clears both. It runs whether
+    or not the overseer is on. Only cards merged after the board turned
+    delivery metrics on count; an epic, a card with no commit, a stand-in
+    and an archived card never do.
+
     Incidents are ordinary cards tagged `incident` (the board's `incident_tag`),
     optionally linked to the deploy that caused them: `POST
     /api/cards/:id/incident-of {"deployment": N}`, `slipdock incident-of`. A
@@ -2379,6 +2394,9 @@ defmodule SlipdockWeb.APIGuide do
     for 30 minutes), `idle_capacity` (free ready cards and runners idle for
     `idle_minutes`, or two or more jobs queued behind one card's lane) and
     `no_way_forward` (an epic in progress with every open subcard blocked).
+    A sixth, `not_shipped` (a merged card no succeeded deploy names after
+    the board's `not_shipped_minutes`), runs on every tree with delivery
+    metrics on, whether or not the overseer is.
     Each condition fires once, as a warning alert on the root board and an
     email to the owner with why and what to do, heads the owner's waiting
     (reason `overseer`, with its `condition`), and clears itself, alert and

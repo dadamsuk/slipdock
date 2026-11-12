@@ -83,7 +83,10 @@ defmodule SlipdockWeb.API.JSON do
   (`Slipdock.Releases.state/1`, #2834) on a board that releases in
   batches. Each only when there is one, so a board with delivery metrics
   off answers as it always did. Each line's `text` gives its date and time
-  in `zone`, the reader's (#2022).
+  in `zone`, the reader's (#2022). And `not_shipped` (#2819,
+  `Slipdock.Deployments.NotShipped`), on a merged card no succeeded deploy
+  names once the board's `not_shipped_minutes` have gone by: `sha`,
+  `merged_at`, `seconds` since, `minutes` (the setting) and `text`.
   """
   def put_delivery(map, card, zone \\ "Etc/UTC") do
     map
@@ -114,6 +117,12 @@ defmodule SlipdockWeb.API.JSON do
               &Map.put(&1, :text, Slipdock.Deployments.deploy_failed_text(&1, zone))
             )
           )
+      end
+    end)
+    |> then(fn m ->
+      case Slipdock.Deployments.NotShipped.for_card(card) do
+        nil -> m
+        line -> Map.put(m, :not_shipped, line)
       end
     end)
     |> then(fn m ->
@@ -305,6 +314,7 @@ defmodule SlipdockWeb.API.JSON do
       card_ref_pattern: b.card_ref_pattern,
       incident_tag: b.incident_tag || "incident",
       hotfix_window_hours: b.hotfix_window_hours,
+      not_shipped_minutes: b.not_shipped_minutes,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
       # Agentic Building (#2011): the board menu's item and page for these
@@ -428,6 +438,7 @@ defmodule SlipdockWeb.API.JSON do
       card_ref_pattern: b.card_ref_pattern,
       incident_tag: b.incident_tag || "incident",
       hotfix_window_hours: b.hotfix_window_hours,
+      not_shipped_minutes: b.not_shipped_minutes,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
       # Agentic Building (#2011): the board menu's item and page for these

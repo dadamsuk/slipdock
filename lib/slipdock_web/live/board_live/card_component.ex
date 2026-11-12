@@ -265,6 +265,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       card_deploy_failed: Slipdock.Deployments.deploy_failed(card),
       # Merged, awaiting release, or released (#2834); nil unless batched.
       card_release: Slipdock.Releases.state(card),
+      # Merged, and no deploy names it after the board's minutes (#2819).
+      card_not_shipped: Slipdock.Deployments.NotShipped.for_card(card),
       # How many questions the card has asked, shown on its open wait (#1114).
       wait_count: if(Card.open_wait(card), do: Boards.Waits.wait_count(card), else: 0),
       # The questions asked before, with their answers (#1220).
@@ -1393,6 +1395,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         shipped={assigns[:card_shipped] || []}
         deploy_failed={assigns[:card_deploy_failed] || []}
         release={assigns[:card_release]}
+        not_shipped={assigns[:card_not_shipped]}
         incident={assigns[:card_incident]}
         incident_error={assigns[:incident_error]}
         panel_notice={@panel_notice}
@@ -1550,6 +1553,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :deploy_failed, :list,
     default: [],
     doc: "`Slipdock.Deployments.deploy_failed/1`: where its latest deploy attempt failed"
+
+  attr :not_shipped, :any,
+    default: nil,
+    doc: "`Slipdock.Deployments.NotShipped.for_card/2`: merged, and no deploy names it"
 
   attr :incident, :map,
     default: nil,
@@ -1748,6 +1755,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 shipped={@shipped}
                 deploy_failed={@deploy_failed}
                 release={@release}
+                not_shipped={@not_shipped}
                 target={@target}
               />
             </fieldset>
@@ -2160,6 +2168,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`"
   attr :deploy_failed, :list, default: [], doc: "`Slipdock.Deployments.deploy_failed/1`"
   attr :release, :map, default: nil, doc: "`Slipdock.Releases.state/1`"
+  attr :not_shipped, :any, default: nil, doc: "`Slipdock.Deployments.NotShipped.for_card/2`"
   attr :board, :any, default: nil
   attr :target, :any, required: true
 
@@ -2280,6 +2289,16 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             </span>
           </li>
         </ul>
+        <%!-- Merged, and no succeeded deploy names it after the board's
+              minutes (#2819): amber, until one does. --%>
+        <p
+          :if={@not_shipped}
+          id="card-not-shipped"
+          class="flex items-start gap-1.5 text-xs text-warning"
+        >
+          <.icon name="hero-exclamation-triangle" class="mt-px size-3.5 shrink-0" />
+          <span class="min-w-0 break-words">{@not_shipped.text}</span>
+        </p>
         <%!-- Markdown, as a comment is (#1214): agents write it as bullets,
               and a single newline is still a line break for the template.
               Past a few lines it folds, with Show more. --%>

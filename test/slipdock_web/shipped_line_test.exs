@@ -233,25 +233,6 @@ defmodule SlipdockWeb.ShippedLineTest do
     assert body["card"]["handoff"]["next_step"] == "Write the tests"
   end
 
-  defp mcp_card(conn, card) do
-    conn
-    |> put_req_header("content-type", "application/json")
-    |> post(
-      "/mcp",
-      Jason.encode!(%{
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: %{name: "get_card", arguments: %{card: card.id}}
-      })
-    )
-    |> json_response(200)
-    |> get_in(["result", "content"])
-    |> hd()
-    |> Map.fetch!("text")
-    |> Jason.decode!()
-  end
-
   test "the card panel shows it", %{conn: conn, board: board, card: card} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
     refute has_element?(view, "#card-shipped")

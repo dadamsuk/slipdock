@@ -487,6 +487,10 @@ defmodule Slipdock.Portable.Import do
     Map.put(attrs, :agentic_building, on)
   end
 
+  # A board's not-shipped minutes (#2819): 0 to a week, else the default.
+  defp not_shipped_minutes(n) when is_integer(n) and n >= 0, do: min(n, 10_080)
+  defp not_shipped_minutes(_), do: 20
+
   defp insert_board(user, doc, parent_card_id, root_id, opts) do
     wanted = doc[:code]
     code = free_code(wanted, doc[:name])
@@ -518,6 +522,9 @@ defmodule Slipdock.Portable.Import do
           simple: bool(doc[:simple], false),
           show_pulse: bool(doc[:show_pulse], false),
           delivery_metrics: bool(doc[:delivery_metrics], false),
+          # The changeset starts the board's `delivery_metrics_since` at the
+          # import, so nothing the copy merged before it is not shipped (#2819).
+          not_shipped_minutes: not_shipped_minutes(doc[:not_shipped_minutes]),
           card_ref_pattern: if(is_binary(doc[:card_ref_pattern]), do: doc[:card_ref_pattern]),
           incident_tag: if(is_binary(doc[:incident_tag]), do: doc[:incident_tag]),
           hotfix_window_hours:

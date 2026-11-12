@@ -68,25 +68,6 @@ defmodule SlipdockWeb.DeployFailedTest do
     d
   end
 
-  defp mcp_card(conn, card) do
-    conn
-    |> put_req_header("content-type", "application/json")
-    |> post(
-      "/mcp",
-      Jason.encode!(%{
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: %{name: "get_card", arguments: %{card: card.id}}
-      })
-    )
-    |> json_response(200)
-    |> get_in(["result", "content"])
-    |> hd()
-    |> Map.fetch!("text")
-    |> Jason.decode!()
-  end
-
   describe "recording a failure" do
     test "a new failed row, with its stage, run and the cards its commits name", %{
       board: board,

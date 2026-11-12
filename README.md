@@ -285,7 +285,11 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   progress → the first deploy that names it), each with its DORA band. Cards a
   deploy names show *Shipped to production · 1a2b3c4 · 19 Oct*, and *Deploy
   failed at build* with the run's link when CI's failure job says the release
-  failed (`slipdock deploy failed --stage S`); incidents are
+  failed (`slipdock deploy failed --stage S`); a merged card no succeeded
+  deploy names after 20 minutes (the board's *Not shipped after*,
+  `not_shipped_minutes`) shows an amber *Merged 1a634c6 · not shipped after
+  45m* and raises one warning alert, overseer on or off, both cleared by the
+  deploy that names it; incidents are
   ordinary cards tagged `incident`. Off until the owner turns **Delivery
   metrics** on; **Track deployments** in board settings (or `slipdock deploy
   setup <board>`) issues a deploy token that can record deploys and nothing
@@ -346,8 +350,10 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   every minute, server checks for work going round (a second rejection, a
   third runner pass), a board waiting only on you with nothing running, cards
   past their board's P85 and jobs stuck on one step, idle runners beside a
-  full ready list or jobs queued behind one lane, and epics with every subcard
-  blocked. Each fires once — an alert and an email with why and what to do —
+  full ready list or jobs queued behind one lane, epics with every subcard
+  blocked, and merged cards that never shipped (`not_shipped`, the one check
+  that runs with the overseer off too, on a board with delivery metrics on).
+  Each fires once — an alert and an email with why and what to do —
   heads *Waiting on you*, and clears itself. A cheap model on your own runner
   (job kind `overseer`) reads only those and the pulse, and keeps a digest as
   a status update on the board's *Overseer* card: every 10 minutes while cards

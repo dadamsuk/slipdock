@@ -223,6 +223,7 @@ slipdock now <board> [--json]             # right now: runners and their jobs' s
 slipdock dora <board> [--env E] [--days N]   # delivery (DORA) numbers from recorded deploys, when the board's delivery metrics are on
 slipdock deploy run --env E -- <cmd…>   # in CI, with SLIPDOCK_DEPLOY_TOKEN: record a deploy around the deploy command
 slipdock deploy setup <board> [--prompt]   # owner: turn delivery metrics on, issue the deploy token, print the CI step
+slipdock set-board <board> --not-shipped-minutes N   # owner: how long a merged card may go with no deploy naming it before an alert and a "Not shipped" line on `card` (20; 0 never)
 slipdock incident-of <card> <deploy-id>    # an incident card names the deploy that caused it (--clear to undo)
 slipdock work [--board B] [--done]      # what is waiting on you (the overseer's alerts first, then waits, review/waiting flags, runner trouble), then your cards
 slipdock work --dismiss <card> | --undismiss <card> | --dismissed   # take an item off your own list until its cause changes; list and undo

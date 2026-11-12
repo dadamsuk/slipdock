@@ -189,6 +189,11 @@ defmodule SlipdockWeb.HelpLive.Flow do
           list or jobs queued behind one lane, and an epic whose open subcards are all blocked.
         </p>
         <p>
+          One check needs no switch: on a board with delivery metrics on, a card merged more
+          than 20 minutes ago (the board's <em>Not shipped after</em>, <code>slipdock set-board B --not-shipped-minutes N</code>)
+          that no succeeded deploy names raises an alert whether or not the overseer is on.
+        </p>
+        <p>
           Each fires once: an alert, an email, and the top of My work's <em>Waiting on you</em>,
           saying why and what to do. It clears itself when the condition ends. A cheap model on
           one of your runners (a <code>job_overseer</code>
@@ -745,7 +750,14 @@ defmodule SlipdockWeb.HelpLive.Flow do
     <p>
       Your CI deploys what reaches the default branch. With delivery metrics on, it records the
       deploy (<code>slipdock deploy run --env production -- ./deploy.sh</code>), and the cards
-      it names get a <em>Shipped</em> line.
+      it names get a <em>Shipped</em>
+      line. A merged card no deploy names after 20 minutes
+      (the board's <em>Not shipped after</em>) shows an amber
+      <em>Merged 1a634c6 · not shipped after 45m</em>
+      instead and raises a warning alert, overseer on or off, until a deploy names it:
+      <code>not_shipped</code>
+      in the card's JSON and <code>get_card</code>, <em>Not shipped</em>
+      in <code>slipdock card</code>.
     </p>
     <p>
       The <strong>handbook improves from use</strong>. The nightly <em>Reconcile the handbook</em>

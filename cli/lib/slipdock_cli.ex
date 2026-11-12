@@ -83,6 +83,7 @@ defmodule SlipdockCLI do
     prompt: :boolean,
     incident_tag: :string,
     hotfix_hours: :integer,
+    not_shipped_minutes: :integer,
     handoff_label: :string,
     inbound_senders: :string,
     handoff_prompt: :string,
