@@ -4,7 +4,9 @@ defmodule Slipdock.PrePushAliasTest do
   push. `ci_workflow_test.exs` keeps the steps in step with ci.yml; this checks
   the steps themselves and that the first failure stops the run.
   """
-  use ExUnit.Case, async: true
+  # Sync: "whatever MIX_ENV it was started with" sets `Mix.env/1`, which is
+  # global to the VM, and puts it back (#2903).
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
 
@@ -172,6 +174,46 @@ defmodule Slipdock.PrePushAliasTest do
     assert {"MIX_BUILD_ROOT", project().pre_push_build_root()} in env
     assert {"MIX_ENV", "test"} in env
     refute List.keymember?(env, "TEST_DATABASE_URL", 0)
+  end
+
+  describe "whatever MIX_ENV it was started with (#2903)" do
+    # `preferred_envs` makes `mix pre_push` itself `test` only while `MIX_ENV`
+    # is unset: set but empty, Mix reads it as `dev`, and a step passed
+    # `Mix.env()` on dropped `slipdock_dev` rather than this checkout's own.
+    setup do
+      env = Mix.env()
+      on_exit(fn -> Mix.env(env) end)
+    end
+
+    for env <- [:dev, :prod, :staging] do
+      test "started in #{env}, every app step runs in test on its own database" do
+        Mix.env(unquote(env))
+        partition = project().pre_push_partition()
+
+        for step <- project().pre_push_steps(),
+            opts = step_opts(step),
+            not Keyword.has_key?(opts, :cd) do
+          env = project().pre_push_env(opts, "postgres://h/slipdock_test")
+          assert {"MIX_ENV", "test"} in env, "#{elem(step, 0)} isn't run in test"
+          assert {"MIX_TEST_PARTITION", partition} in env
+          assert {"TEST_DATABASE_URL", "postgres://h/slipdock_test" <> partition} in env
+        end
+
+        assert {"MIX_ENV", "test"} in project().pre_push_env([], nil)
+      end
+    end
+
+    test "the drop and the repo checks are app steps, so they get it" do
+      Mix.env(:dev)
+      app_tasks = for {task, _argv} <- project().pre_push_steps(), do: task
+      assert "ecto.drop" in app_tasks and "test" in app_tasks
+    end
+
+    test "the CLI's and the daemon's steps are left out of it, as before" do
+      Mix.env(:dev)
+      assert {"MIX_ENV", nil} in project().pre_push_env([cd: "cli"], nil)
+      assert project().pre_push_env([cd: "daemon", exec: true], nil) == []
+    end
   end
 
   describe "a test database per checkout (#2115)" do
@@ -738,4 +780,7 @@ defmodule Slipdock.PrePushAliasTest do
       assert message =~ "does not exist"
     end
   end
+
+  defp step_opts({_task, _argv}), do: []
+  defp step_opts({_task, _argv, opts}), do: opts
 end
