@@ -360,10 +360,8 @@ defmodule SlipdockWeb.BoardLive.State do
       do: Slipdock.Releases.status(board)
   end
 
-  defp reads_root?(%Board{root_id: nil}, _user), do: true
-
-  defp reads_root?(%Board{root_id: id}, user),
-    do: Access.can_read?(Access.board_permission(user, Slipdock.Repo.get!(Board, id)))
+  defp reads_root?(%Board{} = board, user),
+    do: Access.can_read?(Access.board_permission(user, Boards.root_board(board)))
 
   @doc """
   The open runner pauses on the board's tree (#1116), each with the root
