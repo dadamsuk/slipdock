@@ -7,6 +7,19 @@ defmodule Slipdock.Health.Detectors.VerifyMissing do
   for the same submission; then it is flagged. A refusal that would come
   again (`Slipdock.Runners.lasting_refusal?/1`) is flagged at once, with
   the reason, rather than retried (#2705).
+
+  An open verify job counts whatever its age: a card submitted again while
+  still pending gets a new `verify_at` but keeps the job already queued
+  (`Slipdock.Verified.submitted/3` queues no second), so it is not missing.
+  With none open, only the jobs of the card's current submission count as
+  its last and its quiet time (#2760): those queued at or after its
+  `verify_at`, and those still open then (ended at or after it), which a
+  resubmission while pending carried over. A job that had ended before the
+  hand-on belongs to an earlier round, whose verdict sent the card back,
+  and is not this submission's "last" job. On
+  2026-11-10 three resubmissions whose verify prompt was over the runners'
+  cap were flagged as though the earlier round's job (ended `done`, with a
+  rejection) had ended without a verdict.
   """
   @behaviour Slipdock.Health.Detector
 
@@ -34,8 +47,9 @@ defmodule Slipdock.Health.Detectors.VerifyMissing do
     jobs = Finishing.jobs(Enum.map(cards, & &1.id), Verified.verify_kind())
 
     for card <- cards,
-        mine = Map.get(jobs, card.id, []),
-        not Enum.any?(mine, &Job.open?/1),
+        all = Map.get(jobs, card.id, []),
+        not Enum.any?(all, &Job.open?/1),
+        mine = this_submission(card, all),
         since = Finishing.quiet_since(card, mine),
         Context.minutes_since(ctx, since) >= minutes do
       last = List.first(mine)
@@ -50,12 +64,26 @@ defmodule Slipdock.Health.Detectors.VerifyMissing do
             "with no verify job open in pool #{card.board.verify_pool} " <>
             if(last,
               do: "(the last, ##{last.id}, ended #{Finishing.ended(last)}).",
-              else: "(none was ever queued)."
+              else: "(none was queued for this submission)."
             ),
         data: %{"card" => card.id}
       }
     end
   end
+
+  # A job belongs to this round if it was queued at or after the card's
+  # latest hand-on, or was still open then (it ended at or after it): a card
+  # submitted again while pending keeps its open job, and no second is queued.
+  # A job that had ended before the hand-on belongs to an earlier round.
+  defp this_submission(%Card{verify_at: nil}, jobs), do: jobs
+
+  defp this_submission(%Card{verify_at: at}, jobs),
+    do: Enum.filter(jobs, &(not_before?(&1.inserted_at, at) or not_before?(ended_at(&1), at)))
+
+  defp ended_at(%Job{finished_at: nil, updated_at: at}), do: at
+  defp ended_at(%Job{finished_at: at}), do: at
+
+  defp not_before?(at, since), do: DateTime.compare(at, since) != :lt
 
   @impl true
   def resolve(%{data: %{"card" => id}}, _attempt) do

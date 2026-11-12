@@ -136,6 +136,128 @@ defmodule Slipdock.Health.FinishingDetectorsTest do
     end
   end
 
+  describe "verify_missing: only this submission's jobs (#2760)" do
+    test "an earlier round's verify job, done with its rejection, is not named as the last",
+         ctx do
+      # The three flags of 2026-11-10: round one's verify job rejected the
+      # card; the resubmission's verify job was never queued.
+      job(ctx.card,
+        status: "done",
+        inserted_at: ago(60),
+        updated_at: ago(45),
+        finished_at: ago(45)
+      )
+
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(14))
+
+      assert [f] = detect(VerifyMissing, ctx.board)
+      assert f.summary =~ "has waited 14 minutes for verification"
+      assert f.summary =~ "(none was queued for this submission)."
+      refute f.summary =~ "the last"
+    end
+
+    test "a verify job of this submission that ended done without a verdict is found and queued again",
+         ctx do
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(30))
+
+      done =
+        job(ctx.card,
+          status: "done",
+          runner_id: ctx.checker.id,
+          inserted_at: ago(29),
+          finished_at: ago(12)
+        )
+
+      assert [f] = detect(VerifyMissing, ctx.board)
+      assert f.summary =~ "has waited 12 minutes"
+      assert f.summary =~ "(the last, ##{done.id}, ended done)."
+
+      assert {:ok, %{"fixed" => 1}} = Health.run(ctx.board, detectors: [VerifyMissing])
+
+      assert [%Job{status: "queued", pool: "verify"}, %Job{id: id}] =
+               Repo.all(
+                 from(j in Job,
+                   where: j.card_id == ^ctx.card.id and j.kind == "verify",
+                   order_by: [desc: j.id]
+                 )
+               )
+
+      assert id == done.id
+    end
+
+    test "a job queued in the same second as the hand-on is this submission's", ctx do
+      at = ago(20)
+      set_card(ctx.card, verify_state: "pending", verify_at: at)
+      same = job(ctx.card, status: "failed", inserted_at: at, finished_at: ago(15))
+
+      assert [f] = detect(VerifyMissing, ctx.board)
+      assert f.summary =~ "(the last, ##{same.id}, ended failed)."
+    end
+
+    test "a card submitted again while pending, its first verify job still open, is not flagged",
+         ctx do
+      # Submitted, then submitted again while pending: verification/3 moves
+      # verify_at to the resubmission and submitted/3 queues no second job,
+      # so the open job is older than verify_at.
+      job(ctx.card, status: "queued", inserted_at: ago(30))
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(12))
+      assert detect(VerifyMissing, ctx.board) == []
+
+      claimed = job(ctx.card, status: "claimed", inserted_at: ago(40))
+      Repo.delete_all(from(j in Job, where: j.card_id == ^ctx.card.id and j.id != ^claimed.id))
+      assert detect(VerifyMissing, ctx.board) == []
+    end
+
+    test "a job open at the resubmission that then ends is this submission's", ctx do
+      # Queued 30 minutes ago, still open when the card was submitted again
+      # 12 minutes ago, failed 2 minutes ago: the round waits its 10 quiet
+      # minutes from the failure, then names that job as the last.
+      failed =
+        job(ctx.card,
+          status: "failed",
+          inserted_at: ago(30),
+          updated_at: ago(2),
+          finished_at: ago(2)
+        )
+
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(12))
+      assert detect(VerifyMissing, ctx.board) == []
+      assert detect(VerifyMissing, ctx.board, %{"minutes" => 3}) == []
+
+      assert [f] = detect(VerifyMissing, ctx.board, %{"minutes" => 2})
+      assert f.summary =~ "has waited 2 minutes"
+      assert f.summary =~ "(the last, ##{failed.id}, ended failed)."
+
+      Repo.update_all(from(j in Job, where: j.id == ^failed.id),
+        set: [finished_at: ago(10), updated_at: ago(10)]
+      )
+
+      assert [f] = detect(VerifyMissing, ctx.board)
+      assert f.summary =~ "has waited 10 minutes"
+      assert f.summary =~ "(the last, ##{failed.id}, ended failed)."
+    end
+
+    test "an open-at-resubmission job with no finished_at is dated by updated_at", ctx do
+      cancelled =
+        job(ctx.card, status: "cancelled", inserted_at: ago(40), updated_at: ago(11))
+
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(20))
+
+      assert [f] = detect(VerifyMissing, ctx.board)
+      assert f.summary =~ "has waited 11 minutes"
+      assert f.summary =~ "(the last, ##{cancelled.id}, ended cancelled)."
+    end
+
+    test "a pending card with no verify_at counts all its verify jobs", ctx do
+      failed = job(ctx.card, status: "failed", inserted_at: ago(30), finished_at: ago(15))
+      set_card(ctx.card, verify_state: "pending", verify_at: nil)
+
+      assert [f] = detect(VerifyMissing, ctx.board)
+      assert f.summary =~ "has waited 15 minutes"
+      assert f.summary =~ "(the last, ##{failed.id}, ended failed)."
+    end
+  end
+
   describe "verify_missing: a refusal that would come again (#2705)" do
     test "is flagged at once, with the reason, and not retried", ctx do
       set_card(ctx.card, verify_state: "pending", verify_at: ago(30))
