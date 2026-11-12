@@ -447,7 +447,11 @@ transcript about once a minute, with this machine's keys and tokens taken
 out. Cancelling the job on the board, or its timeout, stops it and every
 process it started. With `worktree` on (or `auto`, when two runners share a
 directory) each job gets a git worktree of its own, on the branch
-`card-<id>`. A merge job merges the card's pull request only if it is in the
+`card-<id>`: a new branch starts from the origin's default branch, fetched
+first, never from whatever the runner's checkout has out, and a branch
+already there (a rejected card's) is used as it is. A runner alone in its
+directory gets none under `auto`, so set `on` for a checkout people or
+other tools also use. A merge job merges the card's pull request only if it is in the
 runner's repository, still open, and at the accepted commit. A runner that
 crashes is started again, and the machine's other runners carry on.
 
