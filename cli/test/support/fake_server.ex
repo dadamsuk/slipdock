@@ -1,7 +1,8 @@
 defmodule SlipdockCLI.FakeServer do
   @moduledoc """
   Just enough of an HTTP server to answer the CLI: each request gets the
-  next canned `{status, body}` in turn, and is reported to the test process
+  next canned `{status, body}` in turn (or what a `fn method, path, body`
+  in its place answers, for a fake that keeps state), and is reported to the test process
   as `{:request, method, path, body}` so the test can see what was sent —
   and as `{:headers, method, path, %{name => value}}`, names lowercased, for
   a test that wants to see how it was sent.
@@ -20,9 +21,13 @@ defmodule SlipdockCLI.FakeServer do
 
   defp serve(_listen, [], _test), do: :ok
 
-  defp serve(listen, [{status, body} | rest], test) do
+  defp serve(listen, [response | rest], test) do
     {:ok, socket} = :gen_tcp.accept(listen)
     {method, path, request_body, headers} = read_request(socket)
+
+    {status, body} =
+      if is_function(response, 3), do: response.(method, path, request_body), else: response
+
     send(test, {:request, method, path, request_body})
     send(test, {:headers, method, path, headers})
 

@@ -2249,7 +2249,7 @@ defmodule SlipdockCLI.Render do
 
     IO.puts(
       dim(
-        "board #{p["board_id"]} · #{p["status"]}#{if p["archived_at"], do: " · archived"}#{page_stamps(p)} · hash #{short_hash(p["content_hash"])}"
+        "board #{p["board_id"]} · #{p["status"]}#{if p["archived_at"], do: " · archived"}#{page_stamps(p)} · hash #{p["content_hash"] || "-"}"
       )
     )
 
@@ -2464,9 +2464,6 @@ defmodule SlipdockCLI.Render do
 
     table(["SKILL", "VERSION", "FILES", "DESCRIPTION"], rows)
   end
-
-  defp short_hash(nil), do: "-"
-  defp short_hash(hash), do: String.slice(hash, 0, 12)
 
   defp stamp(nil), do: ""
 
