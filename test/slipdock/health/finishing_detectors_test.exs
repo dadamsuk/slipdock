@@ -208,6 +208,46 @@ defmodule Slipdock.Health.FinishingDetectorsTest do
       assert detect(VerifyMissing, ctx.board) == []
     end
 
+    test "a job open at the resubmission that then ends is this submission's", ctx do
+      # Queued 30 minutes ago, still open when the card was submitted again
+      # 12 minutes ago, failed 2 minutes ago: the round waits its 10 quiet
+      # minutes from the failure, then names that job as the last.
+      failed =
+        job(ctx.card,
+          status: "failed",
+          inserted_at: ago(30),
+          updated_at: ago(2),
+          finished_at: ago(2)
+        )
+
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(12))
+      assert detect(VerifyMissing, ctx.board) == []
+      assert detect(VerifyMissing, ctx.board, %{"minutes" => 3}) == []
+
+      assert [f] = detect(VerifyMissing, ctx.board, %{"minutes" => 2})
+      assert f.summary =~ "has waited 2 minutes"
+      assert f.summary =~ "(the last, ##{failed.id}, ended failed)."
+
+      Repo.update_all(from(j in Job, where: j.id == ^failed.id),
+        set: [finished_at: ago(10), updated_at: ago(10)]
+      )
+
+      assert [f] = detect(VerifyMissing, ctx.board)
+      assert f.summary =~ "has waited 10 minutes"
+      assert f.summary =~ "(the last, ##{failed.id}, ended failed)."
+    end
+
+    test "an open-at-resubmission job with no finished_at is dated by updated_at", ctx do
+      cancelled =
+        job(ctx.card, status: "cancelled", inserted_at: ago(40), updated_at: ago(11))
+
+      set_card(ctx.card, verify_state: "pending", verify_at: ago(20))
+
+      assert [f] = detect(VerifyMissing, ctx.board)
+      assert f.summary =~ "has waited 11 minutes"
+      assert f.summary =~ "(the last, ##{cancelled.id}, ended cancelled)."
+    end
+
     test "a pending card with no verify_at counts all its verify jobs", ctx do
       failed = job(ctx.card, status: "failed", inserted_at: ago(30), finished_at: ago(15))
       set_card(ctx.card, verify_state: "pending", verify_at: nil)
