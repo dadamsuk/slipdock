@@ -149,7 +149,7 @@ defmodule Slipdock.Runners.Probe do
   the runner, one `name: value` line each. `skills` and `cli` are the drift
   states its claim just reported, against what this server serves
   (`Slipdock.Runners.Drift`): `current`, `drifted (names)`, `old`,
-  `unsigned on server`, `none` or `unknown`.
+  `unsigned on server` (the skills' with their names), `none` or `unknown`.
   """
   def prompt(%Job{runner_id: runner_id}) do
     case runner_id && Repo.get(Runner, runner_id) do

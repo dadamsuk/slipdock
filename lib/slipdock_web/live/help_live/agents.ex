@@ -1378,7 +1378,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         the job runs. The skills are installed the same way, only when their archive's
         signature verifies against that key, and a server that serves none leaves the
         installed skills in place unless <code>local.json</code>
-        sets <code>skills_unsigned</code>. The runner reports the current CLI at its next claim, and its probe goes
+        sets <code>skills_unsigned</code>; its runner then shows <em>skills unsigned on server</em>
+        rather than <em>skills drifted</em>
+        until the next tag is deployed, with no alert. The runner reports the current CLI at its next claim, and its probe goes
         green. <code>no_cli_update</code>
         (and <code>no_skills_update</code>) in <code>local.json</code>
         turns it off.

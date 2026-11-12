@@ -2537,8 +2537,8 @@ defmodule SlipdockCLI.Render do
   end
 
   # Its installed skills and CLI against what the server serves (#1795):
-  # `current`, `drifted (slipdock-loop)`, `old`, `unsigned on server`,
-  # `unknown` (never said).
+  # `current`, `drifted (slipdock-loop)`, `old`, `unsigned on server`
+  # (the CLI's, or the skills' with their names), `unknown` (never said).
   @doc false
   def drift_cell(%{"session" => true}), do: dim("-")
 
@@ -2554,6 +2554,13 @@ defmodule SlipdockCLI.Render do
 
   defp skills_state(%{"skills" => "drifted", "drifted_skills" => names}),
     do: "drifted (#{Enum.join(names, ", ")})"
+
+  # `unsigned` (#2916): the server's skills differ, but their archive is
+  # served with no signature, so the machine can't take them.
+  defp skills_state(%{"skills" => "unsigned", "drifted_skills" => names}),
+    do: "unsigned on server (#{Enum.join(names, ", ")})"
+
+  defp skills_state(%{"skills" => "unsigned"}), do: "unsigned on server"
 
   defp skills_state(d), do: d["skills"] || "unknown"
 

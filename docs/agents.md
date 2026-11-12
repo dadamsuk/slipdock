@@ -853,7 +853,13 @@ which the release job makes for each `v*` tag, in the namespace
 signature that doesn't verify is refused whatever `local.json` says; a
 server that serves none leaves the installed skills in place unless
 `local.json` sets `skills_unsigned: true`. Either way the job runs, and
-its log says why. The archive's file modes aren't kept: every skill file
+its log says why. So after a deploy from `main` whose `priv/skills`
+changed, until the next tag is deployed, its runners show *skills unsigned
+on server* naming the skills that differ (`unsigned` in the API's
+`drift.skills`, the names in `drifted_skills`), not *skills drifted*
+(#2916): as for the CLI, the cause is the server's, it raises no drift
+alert, and the runner's probe passes. *skills drifted* is kept for skills
+that differ from a signed archive the machine should have taken. The archive's file modes aren't kept: every skill file
 is written `0644`.
 `no_cli_update: true` (and `no_skills_update` for the skills) in
 `local.json` turns it off. Under the `user` executor the job account unpacks

@@ -448,6 +448,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               skills drifted
             </span>
             <span
+              :if={match?({:unsigned, _}, drift(runner).skills)}
+              id={"runner-#{runner.id}-skills"}
+              class="badge badge-ghost badge-xs shrink-0"
+              title={"This server's skills differ from the runner's (#{Drift.describe(drift(runner).skills)}) but their archive isn't signed with the release key (a deploy from main; only a v* tag's is signed), so its machine keeps its own until the next release. Nothing to do on the machine"}
+            >
+              skills unsigned on server
+            </span>
+            <span
               :if={drift(runner).cli == :old}
               id={"runner-#{runner.id}-cli"}
               class="badge badge-warning badge-xs shrink-0"

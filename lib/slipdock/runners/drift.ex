@@ -105,20 +105,34 @@ defmodule Slipdock.Runners.Drift do
 
   @doc """
   What the runner's skills are against `served` (name to SHA-256, see
-  `served_skills/0`): `:unknown` when it never said, `:current`, or
+  `served_skills/0`), and whether this server serves their archive signed
+  (`signed?`): `:unknown` when it never said, `:current`, or
   `{:drifted, names}` for each served skill installed with other contents.
   A skill this server doesn't serve, or one not installed, isn't drift.
-  """
-  def skills_state(%Runner{skills: nil}, _served), do: :unknown
 
-  def skills_state(%Runner{skills: skills}, served) do
+  `{:unsigned, names}` (#2916) is the same difference against an archive
+  served with no signature (`/api/skills.tar.gz.sig`), as after a deploy
+  from `main`: the release job signs only a `v*` tag's. A daemon with a
+  default `local.json` keeps the installed skills rather than take an
+  unsigned archive, so the difference is the server's, not the machine's:
+  not drift, no alert, and `:current` again once the next signed release
+  is served (as `cli_state/3`'s `:unsigned`, #2825).
+  """
+  def skills_state(runner, served, signed? \\ true)
+  def skills_state(%Runner{skills: nil}, _served, _signed?), do: :unknown
+
+  def skills_state(%Runner{skills: skills}, served, signed?) do
     drifted =
       for {name, sha} <- Enum.sort(skills),
           Map.has_key?(served, name),
           served[name] != sha,
           do: name
 
-    if drifted == [], do: :current, else: {:drifted, drifted}
+    cond do
+      drifted == [] -> :current
+      signed? -> {:drifted, drifted}
+      true -> {:unsigned, drifted}
+    end
   end
 
   @doc """
@@ -146,15 +160,15 @@ defmodule Slipdock.Runners.Drift do
   @doc "Both states for `runner`, against what this server serves now."
   def states(%Runner{} = runner) do
     %{
-      skills: skills_state(runner, served_skills()),
+      skills: skills_state(runner, served_skills(), served_skills_signed?()),
       cli: cli_state(runner, served_cli(), served_cli_signed?())
     }
   end
 
   @doc """
-  Whether either state is drift: a skill that differs, or an old CLI. A CLI
-  that differs from an unsigned one (`:unsigned`) isn't: the machine can't
-  take it.
+  Whether either state is drift: a skill that differs, or an old CLI.
+  Skills or a CLI that differ from unsigned ones (`{:unsigned, names}`,
+  `:unsigned`) aren't: the machine can't take them.
   """
   def drifted?(%{skills: {:drifted, _}}), do: true
   def drifted?(%{cli: :old}), do: true
@@ -162,9 +176,10 @@ defmodule Slipdock.Runners.Drift do
 
   @doc """
   Words for a state: `current`, `drifted (slipdock-loop)`, `old`,
-  `unsigned on server`, `unknown`.
+  `unsigned on server`, `unsigned on server (slipdock-loop)`, `unknown`.
   """
   def describe({:drifted, names}), do: "drifted (#{Enum.join(names, ", ")})"
+  def describe({:unsigned, names}), do: "unsigned on server (#{Enum.join(names, ", ")})"
   def describe(:unsigned), do: "unsigned on server"
   def describe(state) when is_atom(state), do: Atom.to_string(state)
 
@@ -207,6 +222,18 @@ defmodule Slipdock.Runners.Drift do
   """
   def served_cli_signed? do
     match?({:ok, %{type: :regular}}, File.stat(escript_path() <> ".sig"))
+  end
+
+  @doc """
+  Whether this server serves its skills archive signed: the archive the
+  release job signed for a `v*` tag and its `.sig` (`Slipdock.Skills.signed_path/0`),
+  which `/api/skills.tar.gz.sig` serves. A stat of each on every call, so
+  the tests can stand them in, and nothing is read.
+  """
+  def served_skills_signed? do
+    path = Slipdock.Skills.signed_path()
+
+    Enum.all?([path, path <> ".sig"], &match?({:ok, %{type: :regular}}, File.stat(&1)))
   end
 
   defp file_sha(path) do

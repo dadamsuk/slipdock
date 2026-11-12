@@ -2732,7 +2732,9 @@ defmodule SlipdockWeb.APIGuide do
     board needs that a runner lacks. Claims also say what the machine has installed (`X-Runner-Skills`, each
     slipdock skill's `SKILL.md` SHA-256; `X-Runner-CLI`, the CLI's), and
     each runner's `drift` compares them with what this server serves:
-    `skills` current, drifted (`drifted_skills` names them) or unknown,
+    `skills` current, drifted, unsigned (`drifted_skills` names them in
+    both: `unsigned` is skills that differ from an archive served with no
+    signature, as after a deploy from `main`; not drift) or unknown,
     `cli` current, old, unsigned, none or unknown (`unsigned`: the server's
     CLI differs but it serves no signature, as after a deploy from `main`,
     so the machine can't take it; not drift). A drifted runner raises one

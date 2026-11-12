@@ -32,15 +32,39 @@ defmodule Slipdock.RunnersDriftTest do
     saved = Application.get_env(:slipdock, :cli_escript)
     Application.put_env(:slipdock, :cli_escript, escript)
 
+    # And the skills archive the release job signed beside it; the unsigned
+    # server's is its own describe below (#2916).
+    signed = Path.join(dir, "skills_signed")
+    File.mkdir_p!(signed)
+    File.write!(Path.join(signed, "slipdock-skills.tar.gz"), "the archive")
+
+    File.write!(
+      Path.join(signed, "slipdock-skills.tar.gz.sig"),
+      "-----BEGIN SSH SIGNATURE-----\n"
+    )
+
+    saved_signed = Application.get_env(:slipdock, :skills_signed_dir)
+    Application.put_env(:slipdock, :skills_signed_dir, signed)
+
     on_exit(fn ->
       if saved,
         do: Application.put_env(:slipdock, :cli_escript, saved),
         else: Application.delete_env(:slipdock, :cli_escript)
 
+      if saved_signed,
+        do: Application.put_env(:slipdock, :skills_signed_dir, saved_signed),
+        else: Application.delete_env(:slipdock, :skills_signed_dir)
+
       File.rm_rf!(dir)
     end)
 
-    %{board: board, runner: runner, token: token, escript: escript}
+    %{
+      board: board,
+      runner: runner,
+      token: token,
+      escript: escript,
+      skills_sig: Slipdock.Skills.signed_path() <> ".sig"
+    }
   end
 
   defp sha(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
@@ -139,6 +163,19 @@ defmodule Slipdock.RunnersDriftTest do
       assert Drift.drifted?(%{skills: :current, cli: :old})
     end
 
+    test "skills: unsigned with the names when they differ from an unsigned archive (#2916)" do
+      served = %{"slipdock" => @old, "slipdock-loop" => String.duplicate("b", 64)}
+      differs = %Runner{skills: %{"slipdock" => @old, "slipdock-loop" => @old}}
+
+      assert Drift.skills_state(differs, served, false) == {:unsigned, ["slipdock-loop"]}
+      assert Drift.skills_state(differs, served, true) == {:drifted, ["slipdock-loop"]}
+      # The same skills are current either way; nothing said is unknown.
+      assert Drift.skills_state(%Runner{skills: %{"slipdock" => @old}}, served, false) == :current
+      assert Drift.skills_state(%Runner{skills: nil}, served, false) == :unknown
+      refute Drift.drifted?(%{skills: {:unsigned, ["slipdock-loop"]}, cli: :current})
+      assert Drift.drifted?(%{skills: {:drifted, ["slipdock-loop"]}, cli: :current})
+    end
+
     test "describe" do
       assert Drift.describe({:drifted, ["slipdock-loop", "slipdock"]}) ==
                "drifted (slipdock-loop, slipdock)"
@@ -146,6 +183,9 @@ defmodule Slipdock.RunnersDriftTest do
       assert Drift.describe(:current) == "current"
       assert Drift.describe(:old) == "old"
       assert Drift.describe(:unsigned) == "unsigned on server"
+
+      assert Drift.describe({:unsigned, ["slipdock-loop", "slipdock"]}) ==
+               "unsigned on server (slipdock-loop, slipdock)"
     end
   end
 
@@ -284,6 +324,95 @@ defmodule Slipdock.RunnersDriftTest do
     end
   end
 
+  describe "a server that serves its skills unsigned (#2916)" do
+    setup ctx do
+      File.rm!(ctx.skills_sig)
+      :ok
+    end
+
+    test "says so: signed? needs the archive and the signature beside it", ctx do
+      refute Drift.served_skills_signed?()
+      File.write!(ctx.skills_sig, "sig")
+      assert Drift.served_skills_signed?()
+
+      File.rm!(Slipdock.Skills.signed_path())
+      refute Drift.served_skills_signed?()
+    end
+
+    test "a runner whose skills differ is unsigned, not drifted, and raises no alert", ctx do
+      assert claim(ctx, [{"x-runner-skills", "slipdock-loop=#{@old}"}]).status == 204
+      runner = Repo.get!(Runner, ctx.runner.id)
+
+      assert SlipdockWeb.API.JSON.runner(runner).drift ==
+               %{skills: "unsigned", drifted_skills: ["slipdock-loop"], cli: "unknown"}
+
+      assert alerts(ctx.board) == []
+      assert runner.drift_alert_id == nil
+    end
+
+    test "a deploy from main clears a skills alert; the next signed release raises it", ctx do
+      # A signed release is served, and the runner's skills differ: the alert.
+      File.write!(ctx.skills_sig, "sig")
+      drifted = [{"x-runner-skills", "slipdock-loop=#{@old}"}]
+      assert claim(ctx, drifted).status == 204
+
+      assert [%{title: "Runner box has drifted from this server: skills drifted (slipdock-loop)"}] =
+               alerts(ctx.board)
+
+      # A deploy from main: no signature. Not the machine's.
+      File.rm!(ctx.skills_sig)
+      assert claim(ctx, drifted).status == 204
+      assert alerts(ctx.board) == []
+
+      # An old CLI against a signed one still raises one, leaving the skills out.
+      assert claim(ctx, [{"x-runner-cli", @old}]).status == 204
+      assert [%{title: "Runner box has drifted from this server: CLI old"}] = alerts(ctx.board)
+    end
+
+    test "the probe's prompt says it, for the daemon to pass", ctx do
+      runner = Drift.report(ctx.runner, "slipdock-loop=#{@old}", nil)
+
+      prompt =
+        Slipdock.Runners.Probe.prompt(%Slipdock.Runners.Job{runner_id: runner.id})
+
+      assert prompt =~ "\nskills: unsigned on server (slipdock-loop)\n"
+    end
+
+    test "the runners list badges it as the server's, not drifted skills", ctx do
+      Drift.report(ctx.runner, "slipdock-loop=#{@old}", nil)
+      conn = log_in_user(build_conn(), ctx.user)
+      {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/automations")
+
+      assert has_element?(view, "#runner-#{ctx.runner.id}-skills", "skills unsigned on server")
+      refute has_element?(view, "#runner-#{ctx.runner.id}-skills", "skills drifted")
+
+      view |> element("#show-runner-#{ctx.runner.id}") |> render_click()
+
+      assert has_element?(
+               view,
+               "#runner-#{ctx.runner.id}-skills-state",
+               "unsigned on server (slipdock-loop)"
+             )
+    end
+
+    test "GET /api/boards/:board/runners/:id carries it as drift.skills", ctx do
+      Drift.report(ctx.runner, "slipdock=#{@old}", nil)
+      {token, _} = Slipdock.Accounts.create_api_token(ctx.user, "owner")
+
+      json =
+        build_conn()
+        |> put_req_header("authorization", "Bearer " <> token)
+        |> get("/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}")
+        |> json_response(200)
+
+      assert json["runner"]["drift"] == %{
+               "skills" => "unsigned",
+               "drifted_skills" => ["slipdock"],
+               "cli" => "unknown"
+             }
+    end
+  end
+
   describe "the runners list" do
     test "shows skills drifted and old CLI, and the details say which", ctx do
       Drift.report(ctx.runner, "slipdock-loop=#{@old}", @old)
@@ -353,6 +482,23 @@ defmodule Slipdock.RunnersDriftTest do
       Slipdock.DocsFacts.assert_states(
         SlipdockWeb.APIGuide.markdown(),
         "`cli` current, old, unsigned, none or unknown"
+      )
+    end
+
+    test "each says a deploy from main shows the skills unsigned on server, not drifted (#2916)" do
+      Slipdock.DocsFacts.assert_states(
+        Slipdock.DocsText.read!("docs/agents.md"),
+        "after a deploy from `main` runners show \"skills unsigned on server\" (`unsigned` in `drift.skills`), not \"skills drifted\": no drift alert, and the probe passes (#2916)"
+      )
+
+      Slipdock.DocsFacts.assert_states(
+        Slipdock.DocsText.read!("docs/manual/runners.md"),
+        "after a deploy from `main` a runner shows \"skills unsigned on server\" rather than \"skills drifted\" (#2916), raises no drift alert, and its probe passes"
+      )
+
+      Slipdock.DocsFacts.assert_states(
+        SlipdockWeb.APIGuide.markdown(),
+        "`skills` current, drifted, unsigned (`drifted_skills` names them) as after a deploy from `main`"
       )
     end
   end
