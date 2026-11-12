@@ -2258,6 +2258,19 @@ defmodule SlipdockWeb.APIGuide do
     Nov 14:32*, the time in your time zone) and the step status *Shipped
     to production*.
 
+    **Batched releases** (#2833). A board's `release_mode` is `on_merge`
+    (each merge deploys; the default) or `batched` (a merge waits for a
+    release), and `release_age_cap_hours` is how long the oldest waiting
+    merge may wait before it triggers one (`null` is off). Both are the
+    tree's, set on its root board only (`PATCH /api/boards/:board`,
+    `update_board`, `slipdock set-board B --release-mode batched
+    --release-age-cap 24`, the Agentic Building page) and read back on every
+    board of the tree. On a batched board a merged card still completes and
+    unblocks its dependents; its `release` (card JSON and `get_card`, the
+    *Release* line in `slipdock card`) is `awaiting` (*Merged 1a2b3c4,
+    awaiting release · since 12 Nov 10:04*) until a succeeded deploy names
+    it, then `released` with the environment and the time.
+
     Incidents are ordinary cards tagged `incident` (the board's `incident_tag`),
     optionally linked to the deploy that caused them: `POST
     /api/cards/:id/incident-of {"deployment": N}`, `slipdock incident-of`. A

@@ -119,6 +119,8 @@ defmodule SlipdockCLI do
     failure_log_hours: :integer,
     keep_log: :boolean,
     ship_via: :string,
+    release_mode: :string,
+    release_age_cap: :string,
     pr: :string,
     # Why a card changes no code (#1938): `done --no-code REASON`.
     no_code: :string,

@@ -17,7 +17,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
 
   @fields ~w(name description color simple default_view agentic_building handoff_label bar_required
              evidence_required verify_work verify_pool lanes lane_mode shared_paths profiles profile_tiers ship_via job_log_hours
-             failure_log_hours findings_propose_at wait_default_after)
+             failure_log_hours findings_propose_at wait_default_after release_mode release_age_cap_hours)
 
   @impl true
   def name, do: "update_board"
@@ -59,6 +59,19 @@ defmodule SlipdockWeb.MCP.Tools.UpdateBoard do
           type: "string",
           enum: ["push", "pull_request"],
           description: "How verified work ships: push, or pull_request (needs verify_work)."
+        },
+        release_mode: %{
+          type: "string",
+          enum: Slipdock.Boards.Board.release_modes(),
+          description:
+            "How merged work reaches production: on_merge (each merge deploys) or batched " <>
+              "(merges wait for a release). Root board only."
+        },
+        release_age_cap_hours: %{
+          type: ["integer", "null"],
+          description:
+            "Batched: release once the oldest waiting merge has waited this many hours; " <>
+              "null off. Root board only."
         },
         lanes: %{
           type: "boolean",

@@ -78,8 +78,10 @@ defmodule SlipdockWeb.API.JSON do
   @doc """
   A card's delivery lines (#1134), for a card read on its own: `shipped`
   (`Slipdock.Deployments.shipped/1`), `deploy_failed` (where its latest
-  deploy attempt failed, `Slipdock.Deployments.deploy_failed/1`, #2820)
-  and `incident_of`, the deploy it says caused it. Each only when there is one, so a board with delivery metrics
+  deploy attempt failed, `Slipdock.Deployments.deploy_failed/1`, #2820),
+  `incident_of`, the deploy it says caused it, and `release`
+  (`Slipdock.Releases.state/1`, #2834) on a board that releases in
+  batches. Each only when there is one, so a board with delivery metrics
   off answers as it always did. Each line's `text` gives its date and time
   in `zone`, the reader's (#2022).
   """
@@ -120,7 +122,18 @@ defmodule SlipdockWeb.API.JSON do
         _ -> m
       end
     end)
+    |> put_release(card, zone)
   end
+
+  # Merged, awaiting release, or released (#2834): only on a batched board.
+  defp put_release(map, %Card{} = card, zone) do
+    case Slipdock.Releases.state(card) do
+      nil -> map
+      state -> Map.put(map, :release, Map.put(state, :text, Slipdock.Releases.text(state, zone)))
+    end
+  end
+
+  defp put_release(map, _card, _zone), do: map
 
   @doc """
   A finished card's outcome (#2022, `Slipdock.CardOutcome`), for a card
@@ -231,6 +244,7 @@ defmodule SlipdockWeb.API.JSON do
   def board_summary(%Board{} = b, viewer \\ nil) do
     cards = if Ecto.assoc_loaded?(b.cards), do: b.cards, else: []
     columns = if Ecto.assoc_loaded?(b.columns), do: b.columns, else: []
+    release = Slipdock.Releases.settings(b)
 
     %{
       id: b.id,
@@ -281,6 +295,9 @@ defmodule SlipdockWeb.API.JSON do
       # Who each kind of question goes to (#1949): kind => people, first is on.
       wait_routes: wait_routes(b),
       ship_via: b.ship_via,
+      # How merged work reaches production (#2834), the tree root's.
+      release_mode: release.mode,
+      release_age_cap_hours: release.age_cap_hours,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),
@@ -316,6 +333,8 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   def board(%Board{} = b) do
+    release = Slipdock.Releases.settings(b)
+
     %{
       id: b.id,
       name: b.name,
@@ -397,6 +416,9 @@ defmodule SlipdockWeb.API.JSON do
       # Who each kind of question goes to (#1949): kind => people, first is on.
       wait_routes: wait_routes(b),
       ship_via: b.ship_via,
+      # How merged work reaches production (#2834), the tree root's.
+      release_mode: release.mode,
+      release_age_cap_hours: release.age_cap_hours,
       # What the board calls a handoff, and its own drafting instructions
       # (nil: the built-in ones) (#1212).
       handoff_label: Board.handoff_label(b),

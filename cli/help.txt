@@ -808,6 +808,7 @@ WRITE
       [--verify-pool POOL] [--verify-rejection-limit N] [--verify-audit N]
       [--findings-propose-at N] [--wait-default-after TIME|off]
       [--ship-via push|pull-request]
+      [--release-mode on-merge|batched] [--release-age-cap HOURS|off]
       [--lanes | --no-lanes] [--lane-mode off|hold|advise] [--shared-paths GLOBS]
       [--route KIND=EMAIL[,EMAIL]]... [--no-route KIND]...
       [--profiles on|off] [--profile-tier PROFILE=TIER]...
@@ -872,6 +873,13 @@ WRITE
                                       --ship-via pull-request: agents open a pull request,
                                       never push the default branch, and accepting the
                                       card has a runner merge it (needs --verify-work)
+                                      --release-mode batched: a merge doesn't deploy; the
+                                      card shows merged, awaiting release, until a
+                                      release ships it (on-merge, the default, deploys
+                                      each merge). Set on the tree's root board
+                                      --release-age-cap HOURS: on a batched board,
+                                      release once the oldest waiting merge has waited
+                                      that long (off, the default, never)
                                       --lanes: an agent can't start a card whose --paths
                                       overlap a card in progress (a person can)
                                       --lane-mode off|hold|advise: what an overlap does:

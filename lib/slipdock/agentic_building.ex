@@ -3,7 +3,7 @@ defmodule Slipdock.AgenticBuilding do
   Agentic Building (#2011): the board's one switch for how agents build on
   it. On, the board menu has an **Agentic Building** item opening a page
   (`SlipdockWeb.AgenticLive.Index`) that holds every setting about it:
-  verified work, lanes, profiles and the human tier, findings, who gets
+  verified work, releases (#2834), lanes, profiles and the human tier, findings, who gets
   asked, handoffs, WIP limits holding automated work and runner job logs.
 
   The switch only shows and hides: off, every setting keeps its value and
@@ -24,6 +24,8 @@ defmodule Slipdock.AgenticBuilding do
     {:verify_rejection_limit, 2, "A rejection limit"},
     {:verify_audit, 0, "Audits"},
     {:ship_via, "push", "Shipping by pull request"},
+    {:release_mode, "on_merge", "Batched releases"},
+    {:release_age_cap_hours, nil, "A release age cap"},
     {:lane_mode, "off", "Lanes"},
     {:shared_paths, [], "Shared paths"},
     {:profiles, false, "Profiles"},

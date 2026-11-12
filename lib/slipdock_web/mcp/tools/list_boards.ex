@@ -83,6 +83,18 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
     # Profiles (#1951), only on a board with them on.
     |> then(&if(full.profiles, do: Map.put(&1, :profiles, true), else: &1))
     |> put_lanes(full)
+    # Batched releases (#2834), only on a tree that has them on.
+    |> put_release(full)
+  end
+
+  defp put_release(map, board) do
+    case Slipdock.Releases.settings(board) do
+      %{mode: "batched", age_cap_hours: cap} ->
+        Map.put(map, :release, %{mode: "batched", age_cap_hours: cap})
+
+      _ ->
+        map
+    end
   end
 
   @doc """

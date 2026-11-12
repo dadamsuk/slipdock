@@ -544,6 +544,16 @@ Each item in brief, with the detail in [the manual](docs/manual.md):
   to boards, the wiki, sharing, automations and the AI features (asking about a
   board, searching and asking across every board), and to connecting agents.
 
+  Merged work can also be **released in batches** rather than on every
+  merge (`slipdock set-board --release-mode batched`, with
+  `--release-age-cap HOURS` for how long the oldest merge may wait; both
+  are the root board's, and its Agentic Building page has them under
+  *Releases*). A merged card is still done and still unblocks what
+  depends on it; it shows *Merged 1a2b3c4, awaiting release* until a
+  succeeded deploy names it, then *Released to production* with the time
+  (`release` on the card's JSON and `get_card`, the *Release* line in
+  `slipdock card`).
+
 ## Running it
 
 ### With Docker
