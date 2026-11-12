@@ -314,6 +314,15 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
     end
   end
 
+  # A deprecation warning raised in the listing carries the calling test's
+  # name and line in its stacktrace, which a full run's log reads as that test
+  # failing (#2869). Only a warning from `sync.ex` counts, since other async
+  # tests write to the same stderr.
+  test "the listing raises no warning", %{conn: conn} do
+    warnings = ExUnit.CaptureIO.capture_io(:stderr, fn -> listing(conn) end)
+    refute warnings =~ "lib/slipdock/vaults/sync.ex"
+  end
+
   describe "what is also filed in a folder" do
     setup %{board: board, user: user} do
       first = page!(board, "Zulu", nil, 9, 1000, 1000)
@@ -342,6 +351,16 @@ defmodule SlipdockWeb.API.VaultSyncOrderTest do
       shown = listing(conn)
       assert shown["folder_details"]["Ordered/Shelf"]["also_pages"] == [ctx.second, ctx.first]
       assert entry(shown, "Ordered/Zulu.md")["position"] == 9
+    end
+
+    test "placements at one position come by title", %{conn: conn} = ctx do
+      from(pl in Slipdock.Wiki.Placement, where: pl.page_id in ^[ctx.first, ctx.second])
+      |> Repo.update_all(set: [position: 0])
+
+      for _ <- 1..3 do
+        assert listing(conn)["folder_details"]["Ordered/Shelf"]["also_pages"] ==
+                 [ctx.second, ctx.first]
+      end
     end
 
     test "comes after the pages at home, under every sort", %{conn: conn, board: board} = ctx do

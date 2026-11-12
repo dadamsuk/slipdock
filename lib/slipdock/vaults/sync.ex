@@ -120,7 +120,10 @@ defmodule Slipdock.Vaults.Sync do
     # listing goes, nobody can read it, so nothing of it is listed. A board
     # with nothing written is, so a mirror keeps the folders made there, and
     # says `empty` for a client to leave it out of the tree it draws.
-    levels = vault |> levels(reader, opts[:token]) |> Map.drop(Vaults.hidden_board_ids(vault))
+    # `Map.drop/2` takes a list: a MapSet is deprecated, and its warning's
+    # stacktrace names the test that listed, which reads as a failure (#2869).
+    hidden = vault |> Vaults.hidden_board_ids() |> MapSet.to_list()
+    levels = vault |> levels(reader, opts[:token]) |> Map.drop(hidden)
 
     also = also_in(layout, Map.keys(layout.pages))
 
