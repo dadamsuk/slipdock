@@ -62,9 +62,9 @@ defmodule Slipdock.HousekeepingEscalationTest do
   # own board's id differs from its root's, so `triage_name/1` has to choose.
   defp sub_board_chore(ctx) do
     epic = card_fixture(ctx.backlog, %{"title" => "Epic"})
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, template)
-    {:ok, housekeeping} = Boards.create_column(sub, %{"name" => "Housekeeping"})
+    {:ok, housekeeping} = Boards.Columns.create_column(sub, %{"name" => "Housekeeping"})
     card_fixture(housekeeping, %{"title" => "Sub chore"})
   end
 
@@ -106,7 +106,7 @@ defmodule Slipdock.HousekeepingEscalationTest do
     end
 
     test "on a sub-board with no Triage list, the move names its root board's", ctx do
-      {:ok, _} = Boards.update_column(ctx.triage, %{"name" => "Root triage"})
+      {:ok, _} = Boards.Columns.update_column(ctx.triage, %{"name" => "Root triage"})
       chore = sub_board_chore(ctx)
 
       assert Runners.housekeeping_note(chore.id) =~
@@ -115,11 +115,11 @@ defmodule Slipdock.HousekeepingEscalationTest do
 
     test "on a sub-board with its own Triage list, the move names that one, not its root's",
          ctx do
-      {:ok, _} = Boards.update_column(ctx.triage, %{"name" => "Root triage"})
+      {:ok, _} = Boards.Columns.update_column(ctx.triage, %{"name" => "Root triage"})
       chore = sub_board_chore(ctx)
 
       {:ok, _} =
-        Boards.create_column(Boards.get_board!(chore.board_id), %{
+        Boards.Columns.create_column(Boards.get_board!(chore.board_id), %{
           "name" => "Epic triage",
           "category" => "triage"
         })

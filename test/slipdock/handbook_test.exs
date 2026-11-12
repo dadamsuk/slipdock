@@ -508,7 +508,9 @@ defmodule Slipdock.HandbookTest do
          %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
       triage = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Triage findings")
-      {:ok, _} = Boards.update_card(triage, %{"description" => "It becomes a card in Backlog."})
+
+      {:ok, _} =
+        Boards.Cards.update_card(triage, %{"description" => "It becomes a card in Backlog."})
 
       {:ok, again} = Handbook.install(user, board)
       assert again.upgraded

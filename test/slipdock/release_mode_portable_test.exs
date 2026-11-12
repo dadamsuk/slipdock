@@ -42,7 +42,7 @@ defmodule Slipdock.ReleaseModePortableTest do
     board: board
   } do
     [_backlog, todo | _] = board.columns
-    {:ok, template} = Boards.find_template(nil, "Simple")
+    {:ok, template} = Boards.Templates.find_template(nil, "Simple")
     {:ok, _sub} = sub_board(card_fixture(todo, %{"title" => "Epic"}), template)
 
     document = Slipdock.Portable.export(user, boards: [Boards.get_board!(board.id)])

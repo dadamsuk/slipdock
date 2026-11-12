@@ -197,7 +197,7 @@ defmodule Slipdock.Runners.ParkedTest do
                Runners.finish_waiting(ctx.runner, job.id, fn _ -> flunk("opened a wait") end)
 
 
-      assert Boards.current_wait(ctx.a) == nil
+      assert Boards.Waits.current_wait(ctx.a) == nil
       assert Repo.reload!(job).runner_id == other.id
     end
 
@@ -211,7 +211,7 @@ defmodule Slipdock.Runners.ParkedTest do
 
       assert {:ok, %Job{status: "parked"}, wait} =
                Runners.finish_waiting(ctx.runner, job.id, fn job ->
-                 Boards.open_wait(card(ctx.a), Actor.runner(ctx.owner, job.id), %{
+                 Boards.Waits.open_wait(card(ctx.a), Actor.runner(ctx.owner, job.id), %{
                    "needs" => "Which region?",
                    "job_id" => job.id
                  })

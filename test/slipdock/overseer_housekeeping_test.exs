@@ -194,14 +194,14 @@ defmodule Slipdock.OverseerHousekeepingTest do
     test "only a card in progress under an epic counts as an epic's paths", ctx do
       # An epic's subcard that isn't in progress.
       epic = card_fixture(ctx.doing, %{"title" => "Epic"})
-      {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.list_templates(nil)))
-      {:ok, waiting} = Boards.create_column(sub, %{"name" => "Later"})
+      {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.Templates.list_templates(nil)))
+      {:ok, waiting} = Boards.Columns.create_column(sub, %{"name" => "Later"})
       queued = card_fixture(waiting, %{"title" => "Not started"})
-      {:ok, _} = Boards.update_card(queued, %{"paths" => "lib/app/**"})
+      {:ok, _} = Boards.Cards.update_card(queued, %{"paths" => "lib/app/**"})
 
       # A card in progress on the root board, not under an epic.
       loose = card_fixture(ctx.doing, %{"title" => "Loose work"})
-      {:ok, _} = Boards.update_card(loose, %{"paths" => "lib/app/**"})
+      {:ok, _} = Boards.Cards.update_card(loose, %{"paths" => "lib/app/**"})
 
       worked(ctx, "Touches lib/app", %{paths: ["lib/app/x.ex"]})
       assert digest(ctx).needs_owner == []

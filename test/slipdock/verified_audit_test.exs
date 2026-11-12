@@ -267,7 +267,7 @@ defmodule Slipdock.VerifiedAuditTest do
     end
 
     test "with a Housekeeping list, the rework card goes there (#2779)", ctx do
-      {:ok, housekeeping} = Boards.create_column(ctx.board, %{"name" => "Housekeeping"})
+      {:ok, housekeeping} = Boards.Columns.create_column(ctx.board, %{"name" => "Housekeeping"})
 
       {:ok, _} =
         Verified.decide(
@@ -283,9 +283,9 @@ defmodule Slipdock.VerifiedAuditTest do
     end
 
     test "a subcard's rework goes to its root's Housekeeping list", ctx do
-      {:ok, housekeeping} = Boards.create_column(ctx.board, %{"name" => "Housekeeping"})
+      {:ok, housekeeping} = Boards.Columns.create_column(ctx.board, %{"name" => "Housekeeping"})
       epic = card_fixture(ctx.doing, %{"title" => "Epic"})
-      {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.list_templates(nil)))
+      {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.Templates.list_templates(nil)))
       [sub_todo | _] = Boards.get_board!(sub.id).columns
       sub_card = card_fixture(sub_todo, %{"title" => "Subcard"})
 
