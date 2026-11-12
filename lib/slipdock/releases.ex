@@ -540,8 +540,8 @@ defmodule Slipdock.Releases do
   end
 
   defp time_out(%Request{} = request) do
-    with %Job{} = job <- request.job_id && Repo.get(Job, request.job_id),
-         true <- Enum.member?(Job.open_statuses(), job.status) do
+    # A job that has already finished refuses the cancel and stays as it ended.
+    with %Job{} = job <- request.job_id && Repo.get(Job, request.job_id) do
       Runners.cancel_job(job)
     end
 

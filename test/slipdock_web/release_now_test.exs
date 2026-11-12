@@ -288,6 +288,14 @@ defmodule SlipdockWeb.ReleaseNowTest do
       assert has_element?(view, "#board-release-line", "A release is running")
     end
 
+    test "a release asked for elsewhere shows without a reload", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/agentic")
+      assert has_element?(view, "#board-release-line", "Nothing merged is awaiting release.")
+
+      {:ok, :started, _} = Releases.release_now(ctx.board, "Eli")
+      assert has_element?(view, "#board-release-line", "A release is running")
+    end
+
     test "someone it is shared with reads where releases stand, with no button", ctx do
       editor = user_fixture("editor#{System.unique_integer([:positive])}@example.com")
       share_fixture(ctx.board, [editor], "write")

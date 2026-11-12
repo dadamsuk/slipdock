@@ -468,11 +468,9 @@ defmodule Slipdock.Runners do
   is handed it. `{:ok, job}` or `{:error, message}`.
   """
   def queue_release(root_id, pool, command) when is_integer(root_id) do
-    pool = pool |> to_string() |> String.downcase()
-
-    # The command is the board's, which keeps it to one short line.
-    with :ok <- valid_name(pool, "pool"),
-         :ok <- queue_allowance(root_id) do
+    # The pool is a runner's own and the command the board's, which keeps
+    # it to one short line: neither is checked again here.
+    with :ok <- queue_allowance(root_id) do
       job =
         %Job{
           board_id: root_id,

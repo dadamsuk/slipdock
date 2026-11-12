@@ -452,6 +452,15 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert List.last(activity(ctx.board)) == "Release fired by job ##{request.job_id}."
     end
 
+    test "a run link of exactly the column's length is kept", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      link = "https://ci.example.com/" <> String.duplicate("x", 477)
+      assert byte_size(link) == 500
+
+      fire!(ctx.runner, request, %{exit: "0", status: "done", output: link})
+      assert Repo.get!(Request, request.id).run_url == link
+    end
+
     test "a job that ends after its request did changes nothing", ctx do
       {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
       {:ok, _} = Releases.finish(request, "timed_out", "late")
@@ -567,6 +576,14 @@ defmodule Slipdock.ReleaseRequestsTest do
       assert {:ok, %Request{status: "released"}} = Releases.finish(request, "released")
       assert Releases.finish(request, "failed", "late") == {:error, :not_running}
       assert Repo.get!(Request, request.id).status == "released"
+    end
+
+    test "finish/3 keeps the first 500 characters of a long note", ctx do
+      {:ok, :started, request} = Releases.request(ctx.board, "manual", "Dana")
+      note = String.duplicate("n", 499) <> "ab"
+
+      assert {:ok, %Request{note: kept}} = Releases.finish(request, "failed", note)
+      assert kept == String.duplicate("n", 499) <> "a"
     end
   end
 
