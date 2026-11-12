@@ -45,27 +45,9 @@ defmodule SlipdockWeb.WikiLive.TreeEvents do
         else: TreeStates.get(socket.assigns.current_user, tree_state_scope(socket))
 
     {nodes, reveal} =
-      if filter do
-        {filter.nodes, []}
-      else
-        reveal = socket.assigns.tree_reveal
-
-        keys =
-          cond do
-            params["all"] == true -> [root | all_container_keys(socket, scope)]
-            params["only"] == true -> keys_param(params["keys"])
-            true -> [root | keys_param(params["keys"] || kept) ++ reveal]
-          end
-
-        {via, plain} =
-          keys
-          |> Enum.uniq()
-          |> Enum.take(@tree_max_keys)
-          |> Enum.split_with(&match?({:ok, _, _}, Tree.split_via(&1)))
-
-        {load_nodes(socket, scope, plain, through(socket, params, root)) ++
-           via_nodes(socket, via), reveal}
-      end
+      if filter,
+        do: {filter.nodes, []},
+        else: {tree_load_nodes(socket, params, kept), socket.assigns.tree_reveal}
 
     access = row_access(socket)
 
@@ -542,5 +524,28 @@ defmodule SlipdockWeb.WikiLive.TreeEvents do
           folder_delete: %{folder: folder, counts: counts, path: Wiki.folder_path(folder)}
         )
     end
+  end
+
+  # What "tree_load" sends when no filter is on: the levels asked for (every
+  # one, just those, or those with the root and the way to what is being
+  # looked at), the ones reached through a placement apart.
+  defp tree_load_nodes(socket, params, kept) do
+    scope = socket.assigns.tree_scope
+    root = socket.assigns.tree_root
+
+    keys =
+      cond do
+        params["all"] == true -> [root | all_container_keys(socket, scope)]
+        params["only"] == true -> keys_param(params["keys"])
+        true -> [root | keys_param(params["keys"] || kept) ++ socket.assigns.tree_reveal]
+      end
+
+    {via, plain} =
+      keys
+      |> Enum.uniq()
+      |> Enum.take(@tree_max_keys)
+      |> Enum.split_with(&match?({:ok, _, _}, Tree.split_via(&1)))
+
+    load_nodes(socket, scope, plain, through(socket, params, root)) ++ via_nodes(socket, via)
   end
 end

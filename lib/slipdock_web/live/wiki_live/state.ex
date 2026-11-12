@@ -421,20 +421,8 @@ defmodule SlipdockWeb.WikiLive.State do
     {:ok, top} = tree_rows(socket, "root", prepared)
 
     index_folders =
-      for %{kind: "folder"} = folder <- TreeRows.name_rows(top, socket) do
-        inner =
-          case tree_rows(socket, "folder:#{folder.id}", [limit: @index_pages] ++ prepared) do
-            {:ok, rows} -> TreeRows.name_rows(rows, socket)
-            _ -> []
-          end
-
-        %{
-          folder: folder,
-          children: Enum.filter(inner, &(&1.kind == "folder")),
-          pages: inner |> Enum.filter(&(&1.kind == "page")) |> Enum.take(@index_pages),
-          more: Enum.any?(inner, &(&1.kind == "more"))
-        }
-      end
+      for %{kind: "folder"} = folder <- TreeRows.name_rows(top, socket),
+          do: index_folder(socket, folder, prepared)
 
     recent = recent_rows(socket, 8)
 
@@ -446,6 +434,23 @@ defmodule SlipdockWeb.WikiLive.State do
   end
 
   defp assign_listing(socket), do: socket
+
+  # One folder's card on the index: its folders, its first pages, and
+  # whether there are more.
+  defp index_folder(socket, folder, prepared) do
+    inner =
+      case tree_rows(socket, "folder:#{folder.id}", [limit: @index_pages] ++ prepared) do
+        {:ok, rows} -> TreeRows.name_rows(rows, socket)
+        _ -> []
+      end
+
+    %{
+      folder: folder,
+      children: Enum.filter(inner, &(&1.kind == "folder")),
+      pages: inner |> Enum.filter(&(&1.kind == "page")) |> Enum.take(@index_pages),
+      more: Enum.any?(inner, &(&1.kind == "more"))
+    }
+  end
 
   # The vault's notes under `dir` ("" for all of it), newest first, each
   # with the folder it sits in.

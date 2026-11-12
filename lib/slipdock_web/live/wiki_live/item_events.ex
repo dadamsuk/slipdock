@@ -221,49 +221,7 @@ defmodule SlipdockWeb.WikiLive.ItemEvents do
       when kind in ~w(move also archive tag) do
     items = tree_items(socket, keys)
     pages = for %Page{} = page <- items, do: page
-
-    prompt =
-      case kind do
-        "move" when items != [] ->
-          %{kind: :move, items: items, targets: move_targets(socket), q: ""}
-
-        "also" when pages != [] ->
-          page = hd(pages)
-
-          %{
-            kind: :also,
-            items: [page],
-            targets:
-              Enum.reject(move_targets(socket, false), &(&1.key == "folder:#{page.folder_id}")),
-            q: ""
-          }
-
-        # A folder (#808): anywhere but itself, its home, and its own subtree.
-        "also" when items != [] ->
-          folder = hd(items)
-          barred = [folder.id, folder.parent_id | Wiki.FolderPlacements.below_ids(folder)]
-          barred = MapSet.new(barred, &"folder:#{&1}")
-
-          %{
-            kind: :also,
-            items: [folder],
-            targets: Enum.reject(move_targets(socket, false), &MapSet.member?(barred, &1.key)),
-            q: ""
-          }
-
-        "archive" when pages != [] ->
-          %{kind: :archive_many, items: pages}
-
-        "tag" when pages != [] ->
-          %{
-            kind: :tag_many,
-            items: pages,
-            tags: Boards.Tags.list_tags(Slipdock.Boards.Board.root_id(socket.assigns.board))
-          }
-
-        _ ->
-          nil
-      end
+    prompt = tree_dialog_prompt(kind, items, pages, socket)
 
     {:noreply,
      if(prompt,
@@ -550,21 +508,9 @@ defmodule SlipdockWeb.WikiLive.ItemEvents do
     user = socket.assigns.current_user
 
     {folders_moved, errors} =
-      Enum.reduce(Map.get(prompt, :folders, []), {0, []}, fn f, {n, errors} ->
-        case move_folder_across(f, board, folder, user) do
-          :moved -> {n + 1, errors}
-          {:error, message} -> {n, [message | errors]}
-          :skipped -> {n, errors}
-        end
-      end)
+      move_folders_across(Map.get(prompt, :folders, []), board, folder, user)
 
-    results =
-      for page <- pages,
-          %Page{} = page <- [Wiki.get_page(page.id)],
-          page.board_id != board.id,
-          do: move_page_across(page, board, folder, parent, user)
-
-    moved = for {:ok, page} <- results, do: page
+    moved = move_pages_across(pages, board, folder, parent, user)
 
     socket
     |> assign(tree_prompt: nil)
@@ -606,6 +552,30 @@ defmodule SlipdockWeb.WikiLive.ItemEvents do
     end
   end
 
+  # How many of the folders moved, and what the ones that couldn't said
+  # (newest first).
+  defp move_folders_across(folders, board, folder, user) do
+    Enum.reduce(folders, {0, []}, fn f, {n, errors} ->
+      case move_folder_across(f, board, folder, user) do
+        :moved -> {n + 1, errors}
+        {:error, message} -> {n, [message | errors]}
+        :skipped -> {n, errors}
+      end
+    end)
+  end
+
+  # The pages that moved: each is read again first, so one that went with a
+  # folder (or has gone) is left alone.
+  defp move_pages_across(pages, board, folder, parent, user) do
+    results =
+      for page <- pages,
+          %Page{} = page <- [Wiki.get_page(page.id)],
+          page.board_id != board.id,
+          do: move_page_across(page, board, folder, parent, user)
+
+    for {:ok, page} <- results, do: page
+  end
+
   defp move_folder_across(f, board, folder, user) do
     with %Folder{} = f <- Wiki.get_folder(f.id),
          false <- f.board_id == board.id,
@@ -636,4 +606,44 @@ defmodule SlipdockWeb.WikiLive.ItemEvents do
         "."
     )
   end
+
+  # The dialog the tree's menu asked for, or nil when none of the rows is
+  # one the reader can change that way.
+  defp tree_dialog_prompt("move", items, _pages, socket) when items != [],
+    do: %{kind: :move, items: items, targets: move_targets(socket), q: ""}
+
+  defp tree_dialog_prompt("also", _items, [page | _], socket) do
+    %{
+      kind: :also,
+      items: [page],
+      targets: Enum.reject(move_targets(socket, false), &(&1.key == "folder:#{page.folder_id}")),
+      q: ""
+    }
+  end
+
+  # A folder (#808): anywhere but itself, its home, and its own subtree.
+  defp tree_dialog_prompt("also", [folder | _], _pages, socket) do
+    barred = [folder.id, folder.parent_id | Wiki.FolderPlacements.below_ids(folder)]
+    barred = MapSet.new(barred, &"folder:#{&1}")
+
+    %{
+      kind: :also,
+      items: [folder],
+      targets: Enum.reject(move_targets(socket, false), &MapSet.member?(barred, &1.key)),
+      q: ""
+    }
+  end
+
+  defp tree_dialog_prompt("archive", _items, pages, _socket) when pages != [],
+    do: %{kind: :archive_many, items: pages}
+
+  defp tree_dialog_prompt("tag", _items, pages, socket) when pages != [] do
+    %{
+      kind: :tag_many,
+      items: pages,
+      tags: Boards.Tags.list_tags(Slipdock.Boards.Board.root_id(socket.assigns.board))
+    }
+  end
+
+  defp tree_dialog_prompt(_kind, _items, _pages, _socket), do: nil
 end

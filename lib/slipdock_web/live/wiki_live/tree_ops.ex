@@ -263,13 +263,7 @@ defmodule SlipdockWeb.WikiLive.TreeOps do
   def cross_move_prompt(socket, pages, board, folder, parent, folders \\ []) do
     user = socket.assigns.current_user
     folders = outermost(folders)
-
-    inside =
-      folders
-      |> Enum.flat_map(&[&1 | Slipdock.Wiki.Folders.descendants(&1)])
-      |> MapSet.new(& &1.id)
-
-    pages = Enum.reject(pages, &MapSet.member?(inside, &1.folder_id))
+    pages = outside(pages, folders)
 
     page_reports =
       for page <- pages, do: Slipdock.Wiki.Move.preview(page, board, user)
@@ -280,20 +274,8 @@ defmodule SlipdockWeb.WikiLive.TreeOps do
 
     case Enum.find(page_reports ++ folder_reports, &(not match?({:ok, _}, &1))) do
       nil ->
-        pages_r = for {:ok, r} <- page_reports, do: r
-        folders_r = for {:ok, r} <- folder_reports, do: r
-
-        assign(socket,
-          tree_prompt: %{
-            kind: :cross_move,
-            pages: pages,
-            folders: folders,
-            board: board,
-            folder: folder,
-            parent: parent,
-            report: merge_reports(pages_r, folders_r)
-          }
-        )
+        moving = %{pages: pages, folders: folders, board: board, folder: folder, parent: parent}
+        assign(socket, tree_prompt: cross_move(moving, page_reports, folder_reports))
 
       {:error, _status, message} when is_binary(message) ->
         put_flash(socket, :error, "That can't move to #{board.name}: #{message}")
@@ -301,6 +283,24 @@ defmodule SlipdockWeb.WikiLive.TreeOps do
       _ ->
         put_flash(socket, :error, "Those can't move to #{board.name}.")
     end
+  end
+
+  # The pages not inside one of the folders that are moving.
+  defp outside(pages, folders) do
+    inside =
+      folders
+      |> Enum.flat_map(&[&1 | Slipdock.Wiki.Folders.descendants(&1)])
+      |> MapSet.new(& &1.id)
+
+    Enum.reject(pages, &MapSet.member?(inside, &1.folder_id))
+  end
+
+  # The prompt, once every preview has come back `{:ok, report}`.
+  defp cross_move(moving, page_reports, folder_reports) do
+    pages_r = for {:ok, r} <- page_reports, do: r
+    folders_r = for {:ok, r} <- folder_reports, do: r
+
+    Map.merge(moving, %{kind: :cross_move, report: merge_reports(pages_r, folders_r)})
   end
 
   # The selected folders not inside another selected folder.
@@ -315,30 +315,41 @@ defmodule SlipdockWeb.WikiLive.TreeOps do
   defp merge_reports(reports, folder_reports) do
     all = reports ++ folder_reports
 
-    both = fn key, part ->
-      all |> Enum.flat_map(&(&1[key][part] || [])) |> Enum.uniq() |> Enum.sort()
+    %{
+      pages: report_sum(all, :pages),
+      folders: report_sum(folder_reports, :folders),
+      files: report_sum(folder_reports, :files),
+      tags: carried_and_dropped(all, :tags),
+      fields: carried_and_dropped(all, :fields),
+      pins: carried_and_dropped(all, :pins),
+      assignees: dropped_assignees(reports, folder_reports),
+      lists: report_values(reports, :list),
+      parents: report_values(reports, :parent),
+      left_behind: Enum.flat_map(folder_reports, &Map.fetch!(&1, :left_behind)),
+      filing_dropped: report_sum(folder_reports, :filing_dropped),
+      title_clashes:
+        folder_reports |> Enum.flat_map(&Map.fetch!(&1, :title_clashes)) |> Enum.uniq()
+    }
+  end
+
+  defp report_sum(reports, key), do: reports |> Enum.map(&Map.fetch!(&1, key)) |> Enum.sum()
+
+  defp report_values(reports, key),
+    do: reports |> Enum.map(&Map.fetch!(&1, key)) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+  defp carried_and_dropped(reports, key) do
+    part = fn part ->
+      reports |> Enum.flat_map(&(&1[key][part] || [])) |> Enum.uniq() |> Enum.sort()
     end
 
-    from_folders = fn key -> folder_reports |> Enum.flat_map(&Map.fetch!(&1, key)) end
+    %{carried: part.(:carried), dropped: part.(:dropped)}
+  end
 
-    %{
-      pages: all |> Enum.map(& &1.pages) |> Enum.sum(),
-      folders: folder_reports |> Enum.map(& &1.folders) |> Enum.sum(),
-      files: folder_reports |> Enum.map(& &1.files) |> Enum.sum(),
-      tags: %{carried: both.(:tags, :carried), dropped: both.(:tags, :dropped)},
-      fields: %{carried: both.(:fields, :carried), dropped: both.(:fields, :dropped)},
-      pins: %{carried: both.(:pins, :carried), dropped: both.(:pins, :dropped)},
-      assignees:
-        (Enum.map(reports, & &1.assignee.dropped) ++
-           Enum.flat_map(folder_reports, & &1.assignees.dropped))
-        |> Enum.reject(&is_nil/1)
-        |> Enum.uniq(),
-      lists: reports |> Enum.map(& &1.list) |> Enum.reject(&is_nil/1) |> Enum.uniq(),
-      parents: reports |> Enum.map(& &1.parent) |> Enum.reject(&is_nil/1) |> Enum.uniq(),
-      left_behind: from_folders.(:left_behind),
-      filing_dropped: folder_reports |> Enum.map(& &1.filing_dropped) |> Enum.sum(),
-      title_clashes: from_folders.(:title_clashes) |> Enum.uniq()
-    }
+  defp dropped_assignees(reports, folder_reports) do
+    (Enum.map(reports, & &1.assignee.dropped) ++
+       Enum.flat_map(folder_reports, & &1.assignees.dropped))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
   end
 
   # Where "Move to…" and "Also file in…" offer to put things: the top of
