@@ -1584,7 +1584,12 @@ defmodule Slipdock.CiWorkflowTest do
         )
 
       assert upload["uses"] =~ "actions/upload-artifact@"
-      assert upload["with"]["path"] == "cover/partition-${{ matrix.partition }}.coverdata"
+
+      assert String.split(upload["with"]["path"], "\n", trim: true) == [
+               "cover/partition-${{ matrix.partition }}.coverdata",
+               "cover/partition-${{ matrix.partition }}.skipped"
+             ]
+
       assert upload["with"]["if-no-files-found"] == "error"
     end
 

@@ -83,6 +83,8 @@ defmodule Slipdock.CoverageTest do
     {output, 0} = export(ctx, "partition-1", :a, 99)
 
     assert File.regular?(Path.join(ctx.out, "partition-1.coverdata"))
+    # Nothing it couldn't cover-compile, said so rather than left unsaid.
+    assert File.read!(Path.join(ctx.out, "partition-1.skipped")) == ""
     assert output =~ "Coverage exported to #{Path.join(ctx.out, "partition-1.coverdata")}"
     assert output =~ "finished"
     refute output =~ "threshold not met"
@@ -97,6 +99,7 @@ defmodule Slipdock.CoverageTest do
 
     assert output =~ "Importing #{Path.join(ctx.out, "partition-1.coverdata")}"
     assert output =~ "Importing #{Path.join(ctx.out, "partition-2.coverdata")}"
+    assert output =~ "Compiled in one call, leaving out the 0 the exports list"
     assert total(output) == 30.77
     assert output =~ "CoverageSample"
     assert output =~ "result: :ok"
@@ -423,13 +426,48 @@ defmodule Slipdock.CoverageTest do
     {exported, 0} = export(ctx, "partition-1", :a)
     assert exported =~ "Coverage exported"
 
+    # Its list goes beside the export, for the merge to go by.
+    assert File.read!(Path.join(ctx.out, "partition-1.skipped")) ==
+             "Elixir.CoverageBadA\nElixir.CoverageBadB\nElixir.CoverageBadC\n"
+
     {output, 0} = merge(ctx, 15)
 
     assert output =~
              "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageBadC"
 
+    # With the list, the merge never tried them.
+    assert output =~ "Compiled in one call, leaving out the 3 the exports list"
+    refute output =~ "trying each chunk"
     assert total(output) == 15.38
     assert output =~ "result: :ok"
+
+    # A list that misses one: the one call fails, and the merge finds them
+    # all as the partition did.
+    File.write!(Path.join(ctx.out, "partition-1.skipped"), "Elixir.CoverageBadB\n")
+
+    {stale, 0} = merge(ctx, 15)
+
+    assert stale =~ "The exports' lists missed a module: trying each chunk"
+    refute stale =~ "Compiled in one call"
+
+    assert stale =~
+             "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageBadC"
+
+    assert total(stale) == 15.38
+    assert stale =~ "result: :ok"
+
+    # No lists at all, as from an export made before them: it finds them.
+    File.rm!(Path.join(ctx.out, "partition-1.skipped"))
+
+    {unlisted, 0} = merge(ctx, 15)
+
+    refute unlisted =~ "Compiled in one call"
+    refute unlisted =~ "missed a module"
+
+    assert unlisted =~
+             "Not measured (:cover could not compile them): CoverageBadA, CoverageBadB, CoverageBadC"
+
+    assert total(unlisted) == 15.38
 
     # Every filler was cover-compiled, in whichever chunk it fell.
     {modules, 0} =

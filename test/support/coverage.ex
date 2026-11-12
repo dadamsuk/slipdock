@@ -32,7 +32,7 @@ defmodule Slipdock.Coverage do
     skipped = cover_compile(compile_path)
 
     case Keyword.get(opts, :export) do
-      name when is_binary(name) -> fn -> export(name, opts) end
+      name when is_binary(name) -> fn -> export(name, skipped, opts) end
       _ -> fn -> report!(skipped, opts) end
     end
   end
@@ -44,6 +44,12 @@ defmodule Slipdock.Coverage do
   @doc """
   Imports every `*.coverdata` in the output directory (`cover/`) into a
   freshly cover-compiled build, then reports as `mix test --cover` does.
+
+  Each export comes with a `NAME.skipped` beside it, the modules that
+  partition couldn't cover-compile: with those there, the merge leaves
+  them out and compiles the rest in one call, rather than finding them
+  again one chunk at a time. If that call fails, a list was stale, and
+  it finds them as a partition does.
   Returns `:ok`, or `:below` when the total misses the threshold; raises
   when there is nothing to import.
   """
@@ -56,8 +62,9 @@ defmodule Slipdock.Coverage do
         Mix.raise("No coverage exports (*.coverdata) in #{output}/ to merge")
 
       exports ->
+        known = known_skipped(output)
         Mix.shell().info("Cover compiling modules ...")
-        skipped = cover_compile(compile_path)
+        skipped = cover_compile(compile_path, known)
         Enum.each(exports, &import!/1)
         report(skipped, opts)
     end
@@ -72,13 +79,32 @@ defmodule Slipdock.Coverage do
     end
   end
 
-  defp export(name, opts) do
+  # The modules the partitions' `NAME.skipped` lists name, or nil when
+  # there are none to go by.
+  defp known_skipped(output) do
+    case Path.wildcard(Path.join(output, "*.skipped")) do
+      [] ->
+        nil
+
+      lists ->
+        lists
+        |> Enum.flat_map(&String.split(File.read!(&1), "\n", trim: true))
+        |> MapSet.new()
+    end
+  end
+
+  defp export(name, skipped, opts) do
     output = Keyword.get(opts, :output, "cover")
     File.mkdir_p!(output)
     file = Path.join(output, "#{name}.coverdata")
 
     case :cover.export(String.to_charlist(file)) do
       :ok ->
+        File.write!(
+          Path.join(output, "#{name}.skipped"),
+          Enum.map_join(skipped, &(Atom.to_string(&1) <> "\n"))
+        )
+
         Mix.shell().info(
           "\nCoverage exported to #{file}; mix slipdock.coverage merges the exports"
         )
@@ -94,7 +120,8 @@ defmodule Slipdock.Coverage do
   @chunk 32
 
   # Cover-compiles every beam it can and returns the modules it couldn't.
-  defp cover_compile(compile_path) do
+  # `known` is the modules the exports say can't be (a MapSet), or nil.
+  defp cover_compile(compile_path, known \\ nil) do
     # Never this module or the merge task: stopping :cover reloads what it
     # compiled, and the purge of the old code kills whoever is running it.
     beams =
@@ -107,6 +134,59 @@ defmodule Slipdock.Coverage do
     # there, as after `mix slipdock.coverage --no-compile` on a cache miss.
     if beams == [], do: Mix.raise("No beams in #{compile_path} to cover-compile")
 
+    {listed, rest} = Enum.split_with(beams, &(known && Atom.to_string(module(&1)) in known))
+
+    cond do
+      known == nil ->
+        probe_and_compile(beams)
+
+      compile_held(rest) ->
+        Mix.shell().info(
+          "Compiled in one call, leaving out the #{length(listed)} the exports list"
+        )
+
+        Enum.map(listed, &module/1)
+
+      true ->
+        Mix.shell().info("The exports' lists missed a module: trying each chunk")
+        probe_and_compile(beams)
+    end
+  end
+
+  # Compiles the beams in one call from a process that stays to hold the
+  # server it started: true when they all compiled, and false, the server
+  # stopped, when one failed or killed it.
+  defp compile_held(beams) do
+    parent = self()
+
+    {pid, ref} =
+      spawn_monitor(fn ->
+        send(parent, {self(), compile(beams)})
+
+        # Held until the node stops: nothing sends this.
+        receive do
+          :release -> :ok
+        end
+      end)
+
+    receive do
+      {^pid, true} ->
+        Process.demonitor(ref, [:flush])
+        true
+
+      {^pid, false} ->
+        Process.demonitor(ref, [:flush])
+        Process.exit(pid, :kill)
+        _ = :cover.stop()
+        false
+
+      {:DOWN, ^ref, :process, ^pid, _} ->
+        _ = :cover.stop()
+        false
+    end
+  end
+
+  defp probe_and_compile(beams) do
     # A beam :cover cannot compile kills its server and whoever started it,
     # taking every module compiled so far along (#2848: one bad beam fails
     # the whole parallel call). So try them a chunk at a time from a process

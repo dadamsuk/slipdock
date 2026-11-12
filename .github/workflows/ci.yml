@@ -235,7 +235,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.partition }}
-          path: cover/partition-${{ matrix.partition }}.coverdata
+          # With the modules :cover couldn't compile, which the coverage job
+          # then leaves out rather than finding again (#2848).
+          path: |
+            cover/partition-${{ matrix.partition }}.coverdata
+            cover/partition-${{ matrix.partition }}.skipped
           if-no-files-found: error
           retention-days: 7
 
