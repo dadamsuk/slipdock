@@ -54,7 +54,7 @@ defmodule Slipdock.Overseer.Settings do
   def changeset(settings, attrs) do
     settings
     |> cast(attrs, fields())
-    |> update_change(:pool, &(&1 |> String.trim() |> String.downcase()))
+    |> update_change(:pool, &(&1 |> trim() |> downcase()))
     |> validate_required([:pool, :min_minutes, :max_minutes, :idle_minutes])
     |> validate_format(:pool, Slipdock.Runners.Runner.name_format(),
       message: "must be lower case letters, digits, - or _"
@@ -79,7 +79,7 @@ defmodule Slipdock.Overseer.Settings do
   # back is what `digest_time/1` reads.
   defp validate_digest_at(changeset) do
     changeset
-    |> update_change(:digest_at, &String.trim/1)
+    |> update_change(:digest_at, &trim/1)
     |> validate_required([:digest_at])
     |> validate_change(:digest_at, fn :digest_at, at ->
       case digest_time(at) do
@@ -110,6 +110,14 @@ defmodule Slipdock.Overseer.Settings do
   end
 
   def digest_time(_at), do: :error
+
+  # A field sent as null is left for validate_required to refuse, not
+  # handed to String functions.
+  defp trim(value) when is_binary(value), do: String.trim(value)
+  defp trim(value), do: value
+
+  defp downcase(value) when is_binary(value), do: String.downcase(value)
+  defp downcase(value), do: value
 
   defp validate_bounds(changeset) do
     min = get_field(changeset, :min_minutes)

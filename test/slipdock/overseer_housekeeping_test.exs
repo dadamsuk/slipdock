@@ -150,6 +150,19 @@ defmodule Slipdock.OverseerHousekeepingTest do
         finished_at: ~U[2027-03-02 02:00:00Z]
       })
 
+      # The newest job is the last one made, whenever it finished.
+      late_failure =
+        worked(ctx, "Retried, then failed", %{}, %{
+          status: "done",
+          finished_at: ~U[2027-03-02 03:00:00Z]
+        })
+
+      working_job_fixture(late_failure, %{
+        status: "failed",
+        rule_id: ctx.feed.id,
+        finished_at: ~U[2027-03-02 02:00:00Z]
+      })
+
       failed = worked(ctx, "Failed", %{}, %{status: "failed"})
       timed_out = worked(ctx, "Timed out", %{}, %{status: "timeout"})
       gave_up_done = worked(ctx, "Gave up, done", %{}, %{status: "done", recovery: "gave_up"})
@@ -157,6 +170,7 @@ defmodule Slipdock.OverseerHousekeepingTest do
       needs = Map.new(digest(ctx).needs_owner, fn {card, why} -> {card.id, why} end)
 
       assert needs == %{
+               late_failure.id => "given up on",
                failed.id => "given up on",
                timed_out.id => "given up on",
                gave_up_done.id => "given up on"
@@ -303,12 +317,23 @@ defmodule Slipdock.OverseerHousekeepingTest do
       # Stored as HH:MM, the form the digest reads (#2781 rework).
       assert s.digest_at == "06:30"
 
-      for bad <- ["25:00", "7", "07:60", "seven"] do
+      for bad <- ["24:00", "25:00", "7", "07:60", "007:00", "seven"] do
         assert {:error, changeset} = Overseer.put_settings(ctx.board, %{"digest_at" => bad}),
                bad
 
         assert errors_on(changeset)[:digest_at], bad
       end
+
+      # Sent as null, it is refused, not a crash; and so is a null pool.
+      assert {:error, changeset} = Overseer.put_settings(ctx.board, %{"digest_at" => nil})
+      assert errors_on(changeset)[:digest_at]
+      assert {:error, changeset} = Overseer.put_settings(ctx.board, %{"pool" => nil})
+      assert errors_on(changeset)[:pool]
+
+      # Only a string is a time of day.
+      assert Settings.digest_time("6:30") == {:ok, ~T[06:30:00]}
+      assert Settings.digest_time(nil) == :error
+      assert Settings.digest_time(630) == :error
 
       # Blank goes back to the default.
       assert {:ok, s} = Overseer.put_settings(ctx.board, %{"digest_at" => ""})

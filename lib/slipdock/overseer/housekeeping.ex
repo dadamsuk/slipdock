@@ -148,12 +148,12 @@ defmodule Slipdock.Overseer.Housekeeping do
     end
   end
 
-  # Judged on the card's newest job, as `Slipdock.Work` does: a job that
-  # failed and was retried to done isn't given up on.
+  # Judged on the card's newest job (the highest id), as `Slipdock.Work`
+  # does: a job that failed and was retried to done isn't given up on.
   defp gave_up?([]), do: false
 
   defp gave_up?(jobs) do
-    newest = Enum.max_by(jobs, &{DateTime.to_unix(&1.finished_at, :microsecond), &1.id})
+    newest = Enum.max_by(jobs, & &1.id)
     newest.recovery == "gave_up" or Enum.member?(~w(failed timeout), newest.status)
   end
 
