@@ -1922,19 +1922,7 @@ defmodule Slipdock.Runners do
         end
 
       job.attempts >= max_attempts() ->
-        failed = %{
-          status: "failed",
-          finished_at: now,
-          lease_expires_at: nil,
-          error: "no runner finished it: the lease ran out #{job.attempts} times"
-        }
-
-        # A heartbeat that won the race leaves the job running: nothing
-        # has ended, so nothing is flagged, fed or told (#2835).
-        if settle(job, failed) do
-          flag_card(job)
-          lapsed(job)
-        end
+        out_of_tries(job, now)
 
       true ->
         # The runner that held it may take it back while it is still
@@ -1950,6 +1938,23 @@ defmodule Slipdock.Runners do
         if settle(job, requeued) do
           Phoenix.PubSub.broadcast(@pubsub, pool_topic(job.root_board_id, job.pool), :job_queued)
         end
+    end
+  end
+
+  # The lease ran out for the last time: the job fails and its card is
+  # flagged. A heartbeat that won the race leaves the job running: nothing
+  # has ended, so nothing is flagged, fed or told (#2835).
+  defp out_of_tries(job, now) do
+    failed = %{
+      status: "failed",
+      finished_at: now,
+      lease_expires_at: nil,
+      error: "no runner finished it: the lease ran out #{job.attempts} times"
+    }
+
+    if settle(job, failed) do
+      flag_card(job)
+      lapsed(job)
     end
   end
 
