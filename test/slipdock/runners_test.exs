@@ -537,8 +537,12 @@ defmodule Slipdock.RunnersTest do
 
     test "its next heartbeat takes a running job back, on a fresh lease", ctx do
       {:ok, :ok} = Runners.heartbeat(ctx.runner, ctx.job.id, "started")
-      started_at = fresh(ctx.job).started_at
-      assert started_at
+      # An hour into its run, so that a reclaim restarting the clock shows
+      # (the column is in seconds, and the test runs within one).
+      started_at = DateTime.add(DateTime.utc_now(), -3600) |> DateTime.truncate(:second)
+
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id), set: [started_at: started_at])
+
       lapse(ctx.job)
 
       assert {:ok, :ok} = Runners.heartbeat(ctx.runner, ctx.job.id, "awake again")
@@ -596,6 +600,24 @@ defmodule Slipdock.RunnersTest do
       job = fresh(ctx.job)
       assert {job.status, job.runner_id, job.output} == {"done", ctx.runner.id, "all done"}
       assert job.last_runner_id == nil
+    end
+
+    test "a refused finish after taking it back leaves it held, on a lease the sweep keeps",
+         ctx do
+      lapse(ctx.job)
+
+      # Parked with no wait: the finish is refused, but the job came back.
+      assert {:error, _} = Runners.finish(ctx.runner, ctx.job.id, %{status: "parked"})
+
+      job = fresh(ctx.job)
+      assert {job.status, job.runner_id} == {"claimed", ctx.runner.id}
+      assert DateTime.diff(job.lease_expires_at, DateTime.utc_now()) in 80..91
+
+      # Should the machine sleep again, the sweep still puts it back.
+      expire_lease(job)
+      assert Runners.sweep() == 1
+      assert %Job{status: "queued", last_runner_id: id} = fresh(job)
+      assert id == ctx.runner.id
     end
 
     test "another runner of the pool can't take it back", ctx do
