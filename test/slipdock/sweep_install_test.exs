@@ -128,6 +128,19 @@ defmodule Slipdock.SweepInstallTest do
       assert guide =~ "Never take work from a Triage list"
     end
 
+    test "the guide and the manual say a mechanical fix in many files is one issue (#2795)" do
+      flat = fn text -> String.replace(text, ~r/\s+/, " ") end
+
+      for text <- [SlipdockWeb.APIGuide.markdown(), Slipdock.DocsText.read!("docs/manual.md")] do
+        text = flat.(text)
+        assert text =~ "the same mechanical fix in many files is one issue"
+        assert text =~ "never a card per file, module or area"
+        assert text =~ "one card for the whole sweep, or a few split by lane"
+      end
+
+      assert flat.(SlipdockWeb.APIGuide.markdown()) =~ "each one commit with its tests"
+    end
+
     test "the manual, tool-packages, agents.md and both skills say so" do
       assert Slipdock.DocsText.read!("docs/manual.md") =~ "**The code sweep**"
       assert Slipdock.DocsText.read!("docs/manual.md") =~ "**A Triage list is never fed.**"

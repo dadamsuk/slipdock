@@ -149,6 +149,7 @@ defmodule Slipdock.SweepTest do
       [after_card] = sweep_cards(board)
       assert after_card.description =~ "never a card per file, module or area"
       assert after_card.description =~ "one commit with its tests"
+      assert after_card.description =~ "or a few split by lane"
       assert after_card.description =~ "Playbook's Sweeps section"
     end
 
