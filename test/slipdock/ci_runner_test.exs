@@ -45,9 +45,19 @@ defmodule Slipdock.CiRunnerTest do
                "ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.run_id }}",
              "cancel-in-progress" => true
            }
+  end
 
-    # release.yml has no group of its own that a cancelling CI run could share.
-    refute Map.has_key?(workflow("release.yml"), "concurrency")
+  test "a newer push to main replaces the waiting release, never the running one" do
+    release = workflow("release.yml")
+
+    assert release["concurrency"] == %{
+             "group" => "release-${{ github.ref }}",
+             "cancel-in-progress" => false
+           }
+
+    # Not a group a cancelling CI run could share: ci.yml's all start ci-.
+    refute String.starts_with?(release["concurrency"]["group"], "ci-")
+    assert String.starts_with?(workflow("ci.yml")["concurrency"]["group"], "ci-")
   end
 
   test "the daemon's OS list is CI_RUNNER alone when set, the three OSes when not" do

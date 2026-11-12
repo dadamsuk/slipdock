@@ -25,6 +25,15 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# One release per ref at a time (#2868). The running one always finishes, so
+# a deploy is never cut off; a newer push replaces the one waiting, so merges
+# that land in a burst are tested and deployed once, at the newest commit,
+# rather than a full suite each on the self-hosted runners. The group can't
+# be ci.yml's: that one is ci-<run id>, and cancels.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
